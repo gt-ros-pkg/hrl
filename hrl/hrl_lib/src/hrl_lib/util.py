@@ -31,6 +31,11 @@ def save_pickle(object, filename):
     pk.dump(object, pickle_file)
     pickle_file.close()
 
+## Calculate L2 norm for column vectors in a matrix 
+# @param mat - numpy matrix
+def norm(mat):
+    return np.power(np.sum(np.power(mat,2), axis=0), 0.5)
+
 
 
 
