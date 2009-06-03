@@ -1,0 +1,18 @@
+<package>
+  <description brief="Testing point_cloud_mapping from python">
+  </description>
+  <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
+  <license>New BSD</license>
+  <depend package="rospy"/>
+  <depend package="robot_msgs"/>
+  <depend package="std_srvs"/>
+  <depend package="std_msgs"/>
+  <depend package="hrl_lib"/>
+
+  <sysdepend os="ubuntu" version="8.04-hardy" package="mayavi2"/>
+  <sysdepend os="ubuntu" version="8.04-hardy" package="python-numpy"/>
+
+</package>
+
+
+
