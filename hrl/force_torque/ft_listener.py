@@ -33,13 +33,25 @@
 import roslib; roslib.update_path('force_torque')
 import force_torque.ROSFTSensor as ft
 import time
+import pylab as pl
 
 ft_left = ft.FTClient(1)
-while(True):
+t_list = []
+v = None
+print 'running...'
+for i in range(1000):
     t0 = time.time()
     v = ft_left.read(fresh=True)
     t1 = time.time()
-    print t1-t0, v
+    #print t1-t0, v
+    diff = t1-t0
+    t_list.append(diff * 1000)
+
+print 'shape of data received', v.shape
+pl.plot(t_list)
+pl.show()
+
+
 
 
 
