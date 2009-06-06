@@ -4,6 +4,8 @@
   </description>
   <author>Cressel Anderson, Travis Deyle, Advait Jain, Hai Nguyen (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>new BSD</license>
+
+  <depend package="std_srvs"/>
 </package>
 
 
