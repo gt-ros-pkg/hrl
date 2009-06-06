@@ -1,0 +1,85 @@
+/**
+\mainpage
+\htmlinclude manifest.html
+
+\b Code to control an Animatics Smart Servo. We use the Animatics servos to control Festo linear actuators.
+
+\section rosapi ROS API
+
+List of nodes:
+- \b ZenitherPose
+
+<!-- START: copy for each node -->
+
+<hr>
+
+\subsection point_cloud_tester point_cloud_tester
+
+<!-- point_cloud_tester publishes a PointCloud -->
+
+<!--
+
+\subsubsection Usage
+\verbatim
+$ ros_point_clouder --pc numpy_pc_2009Jun01_182408.pkl [standard ROS args]
+\endverbatim
+
+\par Example
+
+\verbatim
+$ node_type1
+\endverbatim
+
+
+\subsubsection topics ROS topics
+
+Subscribes to:
+- \b "in": [std_msgs/FooType] description of in
+
+Publishes to:
+- \b "out": [std_msgs/FooType] description of out
+
+\subsubsection parameters ROS parameters
+
+Reads the following parameters from the parameter server
+
+- \b "~param_name" : \b [type] description of param_name
+- \b "~my_param" : \b [string] description of my_param
+
+Sets the following parameters on the parameter server
+
+- \b "~param_name" : \b [type] description of param_name
+
+
+\subsubsection services ROS services
+- \b "foo_service": [std_srvs/FooType] description of foo_service
+
+
+
+\section commandline Command-line tools
+
+This section is a catch-all for any additional tools that your package
+provides or uses that may be of use to the reader. For example:
+
+- tools/scripts (e.g. rospack, roscd)
+- roslaunch .launch files
+- xmlparam files
+
+\subsection script_name script_name
+
+Description of what this script/file does.
+
+\subsubsection Usage
+\verbatim
+$ ./script_name [args]
+\endverbatim
+
+\par Example
+
+\verbatim
+$ ./script_name foo bar
+\endverbatim
+*/
+
+-->
+

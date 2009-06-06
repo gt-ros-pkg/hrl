@@ -1,0 +1,14 @@
+<package>
+  <description brief="Code to control an Animatics Smart Servo. We use the Animatics servos to control Festo linear actuators.">
+  </description>
+  <author>Cressel Anderson, Advait Jain, Hai Nguyen (Healthcare Robotics Lab, Georgia Tech)</author>
+  <license>New BSD</license>
+  <depend package="rospy"/>
+  <depend package="hrl_lib"/>
+
+  <sysdepend os="ubuntu" version="8.04-hardy" package="python-numpy"/>
+
+</package>
+
+
+

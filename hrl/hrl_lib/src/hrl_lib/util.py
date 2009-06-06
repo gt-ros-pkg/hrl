@@ -16,7 +16,7 @@ def formatted_time():
 
 ## read a pickle and return the object.
 # @param filename - name of the pkl
-# @param return - object that had been pickled.
+# @return - object that had been pickled.
 def load_pickle(filename):
     p = open(filename, 'r')
     picklelicious = pk.load(p)
@@ -36,6 +36,34 @@ def save_pickle(object, filename):
 def norm(mat):
     return np.power(np.sum(np.power(mat,2), axis=0), 0.5)
 
+
+def approx_equal(a, b, epsilon=.001):
+    return (b < (a+epsilon)) and ((a-epsilon) < b)
+
+
+def unipolar_limit( x, upper ):
+    """ limit the value of x such that
+        0 <= x <= upper
+    """
+
+    if x > upper:
+        x=upper
+    if x < 0:
+        x=0
+
+    return x
+
+##
+# Bound the value of a number to be above lower, and lower than upper
+# @return a number
+def bound(value, lower, upper):
+    if lower >= upper:
+        t = lower
+        lower = upper
+        upper = t
+    #print 'bound', value, 'lower', lower, 'upper', upper
+    #return min(max(value, lower), upper)
+    return min(max(value, lower), upper)
 
 
 
