@@ -1,0 +1,25 @@
+This code has been tested for the following servos:
+Robotis Dynamixel RX-28 and RX-64.
+
+One place to purchase the servos is
+http://www.crustcrawler.com/motors/RX28/index.php?prod=66
+
+This device gives a serial interface that this code
+uses to control the servo:
+http://www.crustcrawler.com/electronics/USB2Dynamixel/index.php?prod=65
+
+
+--------------------------------------------------
+How to run the code:
+
+cd bin
+
+1. ./robotis_servo -h   # this will print out the command line params that the code accepts.
+
+2. ./robotis_servo -d /dev/ttyUSB0 --ang=30 --id=1  # moves a servo with id 1 connected to ttyUSB0 to angle 30 degrees.
+
+
+
+
+
+
