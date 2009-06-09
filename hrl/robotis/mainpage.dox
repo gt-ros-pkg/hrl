@@ -2,8 +2,6 @@
 \mainpage
 \htmlinclude manifest.html
 
-\b point_cloud_ros is some python code to test point_cloud_mapping from personalrobots. 
-
 This code has been tested for the following servos:
 Robotis Dynamixel RX-28 and RX-64.
 
