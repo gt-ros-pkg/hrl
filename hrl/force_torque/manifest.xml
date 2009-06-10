@@ -2,7 +2,7 @@
   <description brief="">
 	force_torque
   </description>
-  <author>Advaid Jain, Cressel Anderson and Hai Nguyen (Healthcare Robotics Lab, Georgia Tech)</author>
+  <author>Advait Jain, Cressel Anderson and Hai Nguyen (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>new BSD</license>
   <depend package="hrl_lib" />  
   <depend package="rospy" />  

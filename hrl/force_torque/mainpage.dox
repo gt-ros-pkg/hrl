@@ -1,0 +1,48 @@
+/**
+\mainpage
+\htmlinclude manifest.html
+
+\section Overview 
+
+This package provides python drivers and ROS nodes for ATI nano 25 (with ATI
+provided controller F/T system), and AMTI HE6x6 force plate. The standalone
+driver for ATI nano 25 is in src/force_torque/FTSensor.py, and for
+the AMTI force plate src/force_torque/AMTIForce2.py .
+
+To run the ATI FT ROS node first run force_torque_relay then
+force_torque_poller.  force_torque_poller continuously receives data and sets
+it on the associated force_torque_relay.  force_torque_relay takes this data
+then broadcasts it to all client.  In this case, an intermediary
+force_torque_relay is required because force_torque_poller needs to poll the
+sensor extremely quickly without arbitrary delay.  Having force_torque_relay
+makes this extremel difficult.
+
+The force plate server, however, can be launched with just force_plate_server.
+Interfacing with it client side can be done using the same class FTClient.py
+(force_torque_client)
+
+\section Commands
+
+force_torque_poller and force_torque_relay both takes a "--name" parameter for
+the user given name of the FT device.  It is not important what these are, but
+it's important that the names given to these two nodes match.  This parameter
+is then used mainly to for the two to communicate via ROS.  force_torque_poller
+takes a --path argument to find the system path to the given FT device.
+
+To actually get data follow the sample code in force_torque_client's __main__
+block.
+
+Sample launch sequence:
+\verbatim
+$ ./force_torque_relay --name=ft1
+$ ./force_torque_poller --name=ft1 --path=/dev/robot/fingerFT1
+\endverbatim
+
+\section rosapi ROS API
+
+- \b FT_poller_ + USER_GIVEN_NAME: grabs data from ATI FT devices and posts results to FTRelay using FloatArrayService.
+- \b FTRelay_   + USER_GIVEN_NAME: provides FloatArrayService service, publishes FloatArray messages (from hrl_lib.msg).
+- \b AMTIForceServer: grab sensor data from AMTI force plate, then publish this using FloatArray messages (from hrl_lib.msg) 
+<hr>
+
+*/
