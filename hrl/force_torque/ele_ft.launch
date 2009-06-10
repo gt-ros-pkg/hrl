@@ -1,0 +1,7 @@
+<launch>
+    <node pkg="force_torque" type="FTRelay.py" args="--name=ft1"/>
+    <node pkg="force_torque" type="FTSensor.py" args="--name=ft1 --path=/dev/robot/fingerFT1"/>
+
+    <node pkg="force_torque" type="FTRelay.py" args="--name=ft2"/>
+    <node pkg="force_torque" type="FTSensor.py" args="--name=ft2 --path=/dev/robot/fingerFT2"/>
+</launch>

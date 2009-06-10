@@ -35,7 +35,7 @@ if __name__ == '__main__':
     import optparse
     p = optparse.OptionParser()
     p.add_option('-t', action='store', default='force_torque_ft1', type='string', 
-                 dest='topic', help='which topic to listen to')
+                 dest='topic', help='which topic to listen to (default force_torque_ft1)')
     opt, args = p.parse_args()
 
     client = FTClient(opt.topic)
