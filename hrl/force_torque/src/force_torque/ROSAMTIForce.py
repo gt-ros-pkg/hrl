@@ -71,7 +71,13 @@ class AMTIForceServer(threading.Thread):
 #import roslib; roslib.update_path('force_torque')
 #import force_torque.ROSAMTIForce as ft
 if __name__ == '__main__':
-    server = ft.AMTIForceServer('/dev/robot/force_plate0', 0)
+    import optparse
+    p = optparse.OptionParser()
+    p.add_option('--path', action='store', default='/dev/robot/force_plate0', type = 'string',
+                 dest='path', help='path to force torque device in (linux)')
+    opt, args = p.parse_args()
+
+    server = ft.AMTIForceServer(opt.path, 0)
     server.broadcast()
 
 
