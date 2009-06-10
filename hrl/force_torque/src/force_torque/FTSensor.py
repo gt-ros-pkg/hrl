@@ -43,7 +43,7 @@ class FTSensor:
         print 'FTSensor: opening serial port...'
         self.ftcon = serial.Serial(dev,timeout=0.1)
         print 'FTSensor: setting properties'
-        self.ftcon.setBaudrate(115200)
+        self.ftcon.setBaudrate(19200)
         self.ftcon.setParity('N')
         self.ftcon.setStopbits(1)
         self.ftcon.open()
@@ -69,8 +69,9 @@ class FTSensor:
         current_value = self.last_value
         while current_value == self.last_value:
             t = self.ftcon.read(19)
-            #if we get an error message restart
+            #if we get an error message, restart
             if len(t) < 1 or ord(t[0]) != 0 or len(t) < 10:
+                pass
                 self.reset()
                 while not self._start_query():
                     self.reset()
@@ -80,7 +81,6 @@ class FTSensor:
 
         self.last_value = current_value
         return current_value
-
 
     def binary_to_ft( self, raw_binary ):
         counts_per_force  = 192
@@ -179,134 +179,67 @@ class FTSensor:
         #print t
 
 if __name__ == '__main__':
-    import numpy as np
+    import optparse
+    p = optparse.OptionParser()
+    p.add_option('--mode', action='store', default='run', type='string', 
+                 dest='mode', help='either "test" or "run"')
+    p.add_option('--name', action='store', default='ft1', type='string', 
+                 dest='name', help='name of sensor')
+    p.add_option('--path', action='store', default='/dev/robot/fingerFT1', type = 'string',
+                 dest='path', help='path to force torque device in (linux)')
+    opt, args = p.parse_args()
+    print 'FTSensor: Reading from', opt.path
 
-    print 'FTSensor: testing FT sensor 1'
-    print 'FTSensor: testing FT sensor 2'
-    sensor1 = FTSensor('/dev/robot/fingerFT1')
-    #sensor2 = FTSensor('/dev/robot/fingerFT2')
+    if opt.mode == 'run':
+        import roslib; roslib.update_path('force_torque')
+        import rospy
+        import hrl_lib.rutils as ru
+        from force_torque.srv import *
+        import pylab as pl, numpy as np
+        import time
 
-    while True:
-        v1 = sensor1.read()
-        #v2 = sensor2.read()
-        print np.linalg.norm(v1)
-        #print np.linalg.norm(v2)
-    #def _bias_sensor(self):
-    #    """Don't use, now biased in software"""
-    #    self.ftcon.write('SB\r')
-    #    t = self.ftcon.readlines(2) # echo
-    #    print t
+        node_name = 'FT_poller_' + opt.name
+        service_name = 'FTServer_' + opt.name + '_set_ft'
 
-    #def _check_time(self,message='timeout'):
-    #    if time.time() - self.last_access > 0.03:
-    #        print time.time() - self.last_access 
-    #        print 'long delay'
-    #    self.last_access = time.time()        
-        #self.FT_lock.acquire()
-        
-        #this storage is faster and more reliable than
-        #using numpy matrix operations
-        #self.data = [Fx,Fy,Fz,Tx,Ty,Tz]
+        rospy.init_node(node_name)
+        print node_name + ': waiting for service', service_name
+        rospy.wait_for_service(service_name)
+        ft_server_set_ft = rospy.ServiceProxy(service_name, FloatArray)
+        ftsensor = FTSensor(opt.path)
 
-        #self.FT_lock.release()  
+        times = []
+        print node_name + ': polling.'
+        #for i in range(2000):
+        while not rospy.is_shutdown():
+            v = ftsensor.read()
+            t = rospy.get_time()
+            #times.append(time.time())
+            try:
+                ft_server_set_ft(v, t)
+            except rospy.ServiceException, e:
+                print "Service call failed %s" % e
 
-#class FT_Middleware:
-#    def __init__( self, cpf=192, cpt=10560, sensor='left' ):
-#        self.FT_lock = RLock()
-#        self.bias_lock = RLock()
-#
-#        self.cpf = cpf
-#        self.cpt = cpt
-#        self.bias_data = None
-#        self.sensor = sensor
-#
-#        self.reset()
-#        self.last_data = None
-#        
-#    def reset(self):
-#        self.FT_lock.acquire()
-#        self.data = None
-#        self.FT_lock.release()
-#        
-#        self.bias_lock.acquire()
-#        self.bias_data = None
-#        self.bias_lock.release()
+        #a = np.array(times)
+        #diffs = a[1:] - a[:-1]
+        #print 1.0/diffs.mean(), 1.0/np.std(diffs)
+        #pl.plot(diffs, '.') 
+        #pl.show()
 
-#    def set_FT( self, raw_binary ):
-#        #raw_binary[0] = error value
-#        #TODO: this error is a checksum byte that we should watch for
-#        #corrupted transmission
-#        Fx = ord(raw_binary[1])*65536+ord(raw_binary[2])*256+ord(raw_binary[3])
-#        Fy = ord(raw_binary[4])*65536+ord(raw_binary[5])*256+ord(raw_binary[6])
-#        Fz = ord(raw_binary[7])*65536+ord(raw_binary[8])*256+ord(raw_binary[9])
-#        Tx = ord(raw_binary[1])*65536+ord(raw_binary[2])*256+ord(raw_binary[3])
-#        Ty = ord(raw_binary[4])*65536+ord(raw_binary[5])*256+ord(raw_binary[6])
-#        Tz = ord(raw_binary[7])*65536+ord(raw_binary[8])*256+ord(raw_binary[9])
-#        
-#        _temp_val = []
-#        for c,list in zip([self.cpf,self.cpt],[[Fx,Fy,Fz],[Tx,Ty,Tz]]):
-#            for val in list:
-#                if val > 8388607: #Adjust for two's complement
-#                    val -= 16777216
-#                val /= float(c) #scale so the values are in N and Nm
-#                _temp_val.append(val)
-#
-#        Fx = _temp_val[0]
-#        Fy = _temp_val[1]
-#        Fz = _temp_val[2]
-#        Tx = _temp_val[3]
-#        Ty = _temp_val[4]
-#        Tz = _temp_val[5]
-#
-#        self.FT_lock.acquire()
-#        
-#        #this storage is faster and more reliable than
-#        #using numpy matrix operations
-#        self.data = [Fx,Fy,Fz,Tx,Ty,Tz]
-#
-#        self.FT_lock.release()  
-        
-#    def get_FT( self, avoid_duplicate=False, without_bias=False):
-#        """ get_FT( n=1 ), retreives the n last right FT measurements
-#        may be extremely slow for large n when biased
-#        """
-#        for i in range(200):
-#            if (self.last_data != self.data or avoid_duplicate==False):
-##                print 'data:', self.data
-#                self.last_data = self.data
-#                break
-#        self.FT_lock.acquire()
-#        vals = np.matrix(self.data)
-#        self.FT_lock.release()  
-#
-#        #Bias the sensor values if required
-#        self.bias_lock.acquire()
-#        if self.bias_data != None and without_bias==False:
-#            ret_val = vals - self.bias_data
-#            vals = ret_val
-#        self.bias_lock.release()
-#
-#        return vals
-#
-    #def bias( self ):
-    #    print 'biasing'
+    if opt.mode == 'test':
+        import numpy as np
+        import pylab as pl
 
-    #    self.FT_lock.acquire()
-    #    vals = np.matrix(self.data)
-    #    self.FT_lock.release()  
+        print 'Testing', opt.path
+        sensor1 = FTSensor(opt.path)
 
-    #    self.bias_lock.acquire()
-    #    self.bias_data = vals
-    #    self.bias_lock.release()
-    #
-    #def zero_bias( self ):
-    #    print 'zeroing bias'
-    #    self.bias_lock.acquire()
-    #    self.bias_data = None
-    #    self.bias_lock.release()
+        tlist = []
+        for i in range(200):
+            t0 = time.time()
+            v1 = sensor1.read()
+            t1 = time.time()
+            tlist.append(t1 - t0)
+            print np.linalg.norm(v1)
 
+        pl.plot(tlist)
+        pl.show()
 
-
-
-    
-    

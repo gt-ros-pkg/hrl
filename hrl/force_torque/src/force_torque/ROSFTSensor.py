@@ -41,7 +41,9 @@ import time
 import threading as tr
 import numpy as np
 
-
+##
+# Used for continuously polling FT sensor, this is needed as any slow down in
+# reading FT values will result in corrupt data
 class ReaderThreads(tr.Thread):
     def __init__(self, reader):
         tr.Thread.__init__(self)
@@ -78,52 +80,57 @@ class ReaderThreads(tr.Thread):
        if (self.isAlive()): 
            raise RuntimeError("ReaderThreads: unable to stop thread")
 
+
+##
+# Original code created by Cressel Anderson.  ROS wrapped by Hai Nguyen.
+# Broadcasts only fresh readings
 class FTServer:
-    '''
-        Original code created by Cressel Anderson.  ROS wrapped by Hai Nguyen.
-        Broadcasts only fresh readings
-    '''
-    def __init__(self, devices, ids):
+    def __init__(self, device, id):
         try:
-            rospy.init_node('FTServer' + str(ids[0]))
+            rospy.init_node('FTServer' + str(id))
             print 'FTServer: ros is up!'
         except rospy.ROSException:
             pass
 
-        names = ['force_torque_' + str(i) for i in ids]
-        for name in names:
-            print 'FTServer: publishing', name, 'with type FloatArray.'
-        self.names     = names
-        self.channels  = [rospy.Publisher(name, FloatArray, tcp_nodelay=True) for name in names]
+        self.name = 'force_torque_' + str(id)
+        print 'FTServer: publishing', self.name, 'with type FloatArray.'
+        self.channel = rospy.Publisher(self.name, FloatArray, tcp_nodelay=True)
         print 'FTServer: instantiating FTSensor class'
-        self.readers   = [FTSensor(d) for d in devices]
-        print 'FTServer: done'
-        self.threads   = [ReaderThreads(reader) for reader in self.readers]
-        self.time_sent = np.zeros(len(devices)).tolist()
+        self.reader   = FTSensor(device)
+        self.thread   = ReaderThreads(self.reader)
         self.broadcast()
 
     def broadcast(self):
         print 'FTServer: started!'
+        time_sent = 0
         tstart = time.time()
-        while not rospy.is_shutdown():
-            sent_data = False
-            time.sleep(1/1000.0)
-            for reader, read_thread, channel, time_sent, channel_index in zip(self.readers, self.threads, self.channels, self.time_sent, range(len(self.channels))):
-                reading, time_read = read_thread.reading
-                if reading != None and time_read > time_sent:
-                    self.time_sent[channel_index] = time_read
-                    channel.publish(FloatArray(None, reading))
-                    sent_data = True
 
-            if sent_data:
+        times = []
+        while len(times) < 201:
+        #while not rospy.is_shutdown():
+            #time.sleep(1.0/4000.0)
+            reading, time_read = self.thread.reading
+            if reading != None and time_read > time_sent:
+                #Record time of last message sent to ensure freshness
+                time_sent = time_read 
+                self.channel.publish(FloatArray(None, reading))
+
                 tcurrent = time.time()
-                rate     = 1.0 / (tcurrent - tstart)
+                diff     = tcurrent - tstart
+                rate     = 1.0 / diff
                 tstart   = tcurrent
+                times.append(diff)
+                print diff * 1000.0
                 if rate < 10:
                     print 'FTServer: WARNING rate data being sent out is less than 10 hz (', rate, 'hz )'
-                    read_thread.reset_reader = True
+                    self.thread.reset_reader = True
 
+        import pylab as pl
+        pl.plot(times)
+        pl.show()
 
+##
+# Corresponding client class
 class FTClient(ru.FloatArrayListener):
     def __init__(self, id):
         ru.FloatArrayListener.__init__(self, 'FTClient', 'force_torque_' + str(id), 100.0)
@@ -147,5 +154,13 @@ class FTClient(ru.FloatArrayListener):
         r = ru.FloatArrayListener.read(self, fresh)
         if r != None:
             self.bias_val = r
+
+if __name__ == '__main__':    
+    FINGER1 = '/dev/robot/fingerFT1'
+    ftserver = FTServer(FINGER1, 1)
+    exit()
+
+
+
 
 
