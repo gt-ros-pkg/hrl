@@ -199,7 +199,7 @@ if __name__ == '__main__':
         import time
 
         node_name = 'FT_poller_' + opt.name
-        service_name = 'FTServer_' + opt.name + '_set_ft'
+        service_name = 'FTRelay_' + opt.name + '_set_ft'
 
         rospy.init_node(node_name)
         print node_name + ': waiting for service', service_name
@@ -208,7 +208,7 @@ if __name__ == '__main__':
         ftsensor = FTSensor(opt.path)
 
         times = []
-        print node_name + ': polling.'
+        print node_name + ': Retrieving sensor data and sending to FTRelay on service', service_name
         #for i in range(2000):
         while not rospy.is_shutdown():
             v = ftsensor.read()

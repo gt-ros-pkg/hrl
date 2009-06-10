@@ -36,7 +36,7 @@ if __name__ == '__main__':
                  dest='name', help='name given to FTSensor')
     opt, args = p.parse_args()
 
-    node_name       = 'FTServer_'     + opt.name
+    node_name       = 'FTRelay_'     + opt.name
     ft_channel_name = 'force_torque_' + opt.name
     service_name    = node_name + '_set_ft'
     print node_name + ': serving service', service_name
