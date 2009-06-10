@@ -1,3 +1,4 @@
+#!/usr/bin/python
 #
 # Copyright (c) 2009, Georgia Tech Research Corporation
 # All rights reserved.
@@ -58,13 +59,19 @@ class AMTIForceServer(threading.Thread):
         self.channel = rospy.Publisher(name, FloatArray, tcp_nodelay=True)
 
     def broadcast(self):
+        print 'AMTIForceServer: started!'
         while not rospy.is_shutdown():
-            time.sleep(1/1000.0)
+            time.sleep(1/5000.0)
             self.channel.publish(FloatArray(None, self.force_plate.read().T.tolist()[0]))
 
 #DEPRECATED, use FTClient from ROSFTSensor with id = 0
 #def AMTIForceClient():
 #    return ru.FloatArrayListener('AMTIForceClient', 'force_plate', 100.0)
 
+#import roslib; roslib.update_path('force_torque')
+#import force_torque.ROSAMTIForce as ft
+if __name__ == '__main__':
+    server = ft.AMTIForceServer('/dev/robot/force_plate0', 0)
+    server.broadcast()
 
 
