@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import roslib; roslib.update_path('force_torque')
 import rospy
 import hrl_lib.rutils as ru
