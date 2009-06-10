@@ -26,7 +26,7 @@ if __name__ == '__main__':
     import roslib; roslib.update_path('force_torque')
     import rospy
     from force_torque.srv import *
-    from hrl_lib.msg import FloatArray as FloatArrayMsg
+    from hrl_lib.msg import FloatArray as FloatArray
     import hrl_lib.rutils as ru
     import time
 
@@ -43,11 +43,11 @@ if __name__ == '__main__':
     ftserver = FTRelay()
 
     rospy.init_node(node_name)
-    rospy.Service(service_name, FloatArray, 
+    rospy.Service(service_name, FloatArrayService, 
             ru.wrap(ftserver.set_ft, ['value', 'time'], 
-                    response=FloatArrayResponse))
+                    response=FloatArrayServiceResponse))
 
-    channel = rospy.Publisher(ft_channel_name, FloatArrayMsg, tcp_nodelay=True)
+    channel = rospy.Publisher(ft_channel_name, FloatArray, tcp_nodelay=True)
     print node_name + ': publishing on channel', ft_channel_name
     #times = []
     while not rospy.is_shutdown():
@@ -55,7 +55,7 @@ if __name__ == '__main__':
         v = ftserver.get_ft()
         if v is not None:
             d, t = v
-            channel.publish(FloatArrayMsg(rospy.Header(stamp=rospy.Time.from_seconds(t)), d))
+            channel.publish(FloatArray(rospy.Header(stamp=rospy.Time.from_seconds(t)), d))
             #times.append(time.time())
         else:
             time.sleep(1/5000.0)

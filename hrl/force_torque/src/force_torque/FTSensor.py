@@ -204,7 +204,7 @@ if __name__ == '__main__':
         rospy.init_node(node_name)
         print node_name + ': waiting for service', service_name
         rospy.wait_for_service(service_name)
-        ft_server_set_ft = rospy.ServiceProxy(service_name, FloatArray)
+        ft_server_set_ft = rospy.ServiceProxy(service_name, FloatArrayService)
         ftsensor = FTSensor(opt.path)
 
         times = []
