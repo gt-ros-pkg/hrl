@@ -56,6 +56,7 @@ calib = {
         'up_fast_torque': 400,
         'up_slow_torque': 400,
         'up_snail_torque': 300,
+        'zero_vel_torque': 90,
         'max_height': 1.3,
         'min_height': 0.29
         }
