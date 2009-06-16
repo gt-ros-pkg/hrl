@@ -2,6 +2,11 @@ import numpy as np
 import pickle as pk
 import time
 
+##
+# Converts a list of numpy matrices to one large matrix
+# @param list_mat the list of little matrices
+# @param axis axis to concatenate little matrices
+# @return one large numpy matrix
 def list_mat_to_mat(list_mat, axis=0):
     return np.concatenate(tuple(list_mat), axis=axis)
 
