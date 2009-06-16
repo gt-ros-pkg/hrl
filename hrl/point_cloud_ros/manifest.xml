@@ -4,9 +4,12 @@
   <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>New BSD</license>
   <depend package="rospy"/>
-  <depend package="robot_msgs"/>
   <depend package="std_srvs"/>
   <depend package="std_msgs"/>
+
+  <depend package="robot_msgs"/>
+  <depend package="point_cloud_mapping" />
+
   <depend package="hrl_lib"/>
 
   <sysdepend os="ubuntu" version="8.04-hardy" package="mayavi2"/>
