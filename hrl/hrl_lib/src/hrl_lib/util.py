@@ -66,9 +66,12 @@ def bound(value, lower, upper):
         t = lower
         lower = upper
         upper = t
-    #print 'bound', value, 'lower', lower, 'upper', upper
+#    print 'bound', value, 'lower', lower, 'upper', upper
     #return min(max(value, lower), upper)
-    return min(max(value, lower), upper)
+    ret_val = min(max(value, lower), upper)
+#    if ret_val != value:
+#        print 'ut.boud bounded something.'
+    return ret_val
 
 
 
