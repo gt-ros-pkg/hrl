@@ -26,6 +26,7 @@
 #
 
 #  \author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
+#  \author Hai Nguyen (Healthcare Robotics Lab, Georgia Tech.)
 
 import math
 import numpy as np
@@ -34,7 +35,7 @@ def homogeneousToxyz(p):
     return p[0:3,:] / p[3,:]
 
 def xyzToHomogenous(v, floating_vector=False):
-    """ convert 3XN matrix, to 4XN matrix in homogenous coords
+    """ convert 3XN matrix, to 4XN matrix in homogeneous coords
     """
 #   v = np.matrix(v)
 #   v = v.reshape(3,1)
@@ -44,13 +45,13 @@ def xyzToHomogenous(v, floating_vector=False):
         return np.row_stack((v, np.zeros(v.shape[1])))
 
 def xyToxyz(v):
-    '''convert 2XN matrix, to 3XN matrix in homogenous coords
+    '''convert 2XN matrix, to 3XN matrix in homogeneous coords
     '''
     return np.row_stack((v, np.zeros(v.shape[1])))
 
 
 def xyToHomogenous(v):
-    """ convert 2XN matrix to 4XN homogenous
+    """ convert 2XN matrix to 4XN homogeneous
     """
 #   p = np.matrix(p)
 #   p = p.reshape(2,1)
@@ -58,7 +59,7 @@ def xyToHomogenous(v):
     return np.row_stack((v, np.zeros(v.shape[1]), np.ones(v.shape[1])))
 
 def invertHomogeneousTransform(t):
-    """ Inverts homogenous transform
+    """ Inverts homogeneous transform
     """
     rot = t[0:3, 0:3]
     disp = t[0:3, 3]
@@ -70,17 +71,17 @@ def invertHomogeneousTransform(t):
     return t_inv
 
 def getRotSubMat(t):
-    """ returns rotation submatrix from homogenous transformation t
+    """ returns rotation submatrix from homogeneous transformation t
     """
     return t[0:3, 0:3]
 
 def getDispSubMat(t):
-    """ returns displacement submatrix from homogenous transformation t
+    """ returns displacement submatrix from homogeneous transformation t
     """
     return t[0:3, 3]
 
 def composeHomogeneousTransform(rot, disp):
-    """ Composes homogenous transform from rotation and disp
+    """ Composes homogeneous transform from rotation and disp
     """
     disp = np.matrix(disp)
     disp = disp.reshape(3,1)
@@ -90,8 +91,21 @@ def composeHomogeneousTransform(rot, disp):
     return t
 
 
+def angle_within_mod180(angle):
+    ''' angle in radians.
+        returns angle within -pi and +pi
+    '''
+    ang_deg = math.degrees(angle)%360
+    if ang_deg > 180:
+        ang_deg = ang_deg-360
+    elif ang_deg <= -180:
+        ang_deg = ang_deg+360
+
+    return math.radians(ang_deg)
+
 def Rx(theta):
     """ returns Rotation matrix which transforms from XYZ -> frame rotated by theta about the x-axis.
+        2 <--- Rx  <--- 1
             theta is in radians.
             Rx = rotX'
     """
@@ -155,17 +169,4 @@ def rotZ(theta):
     return np.matrix([[ ct, -st, 0. ],
                       [ st,  ct, 0. ],
                       [ 0.,  0., 1. ]])
-
-
-def angle_within_mod180(angle):
-    ''' angle in radians.
-        returns angle within -pi and +pi
-    '''
-    ang_deg = math.degrees(angle)%360
-    if ang_deg > 180:
-        ang_deg = ang_deg-360
-    elif ang_deg <= -180:
-        ang_deg = ang_deg+360
-
-    return math.radians(ang_deg)
 
