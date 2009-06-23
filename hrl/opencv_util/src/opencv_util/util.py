@@ -14,7 +14,7 @@ import numpy as np
 # @param image to convert
 def ros2cv(image):
     #ros to pil then pil to opencv
-    if image.encoding != 'bgr' or image.encoding != 'rgb':
+    if image.encoding != 'bgr' and image.encoding != 'rgb':
         raise RuntimeError('Unsupported format "%s"' % image.encoding)
     if image.depth != 'uint8':
         raise RuntimeError('Unsupported depth "%s"' % image.depth)
