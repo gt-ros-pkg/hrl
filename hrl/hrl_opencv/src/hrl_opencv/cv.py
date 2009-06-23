@@ -1,5 +1,5 @@
 import roslib
-roslib.update_path('opencv_util')
+roslib.update_path('hrl_opencv')
 from image_msgs.msg import Image as RosImage
 from std_msgs.msg import UInt8MultiArray
 from std_msgs.msg import MultiArrayLayout
