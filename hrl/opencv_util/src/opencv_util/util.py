@@ -5,6 +5,8 @@ from std_msgs.msg import UInt8MultiArray
 from std_msgs.msg import MultiArrayLayout
 from std_msgs.msg import MultiArrayDimension
 
+import opencv as cv
+import opencv.highgui as hg
 import opencv.adaptors as ad
 import Image as pil
 import numpy as np
@@ -28,9 +30,9 @@ def ros2cv(image):
 ##
 # Simple drawing of text on an image with a drop shadow
 def text(image, x, y, a_string):
-    font = cvInitFont(CV_FONT_HERSHEY_SIMPLEX, .3, .3)
-    cvPutText(image, a_string, cvPoint(x, y),     font, cvScalar(0,0,0))
-    cvPutText(image, a_string, cvPoint(x+1, y+1), font, cvScalar(255,255,255))
+    font = cv.cvInitFont(CV_FONT_HERSHEY_SIMPLEX, .3, .3)
+    cv.cvPutText(image, a_string, cv.cvPoint(x, y),     font, cv.cvScalar(0,0,0))
+    cv.cvPutText(image, a_string, cv.cvPoint(x+1, y+1), font, cv.cvScalar(255,255,255))
 
 ##
 # Tries to clean up segmentation 
@@ -54,26 +56,27 @@ def mask(img, img_mask):
     depth    = img.depth
     channels = img.nChannels
 
-    r_chan = cvCreateImage(cvSize(*dim), depth, 1)
-    g_chan = cvCreateImage(cvSize(*dim), depth, 1)
-    b_chan = cvCreateImage(cvSize(*dim), depth, 1)
-    combined = cvCreateImage(cvSize(*dim), depth, 3)
-    cvSplit(img, r_chan, g_chan, b_chan, None)
+    r_chan = cv.cvCreateImage(cv.cvSize(*dim), depth, 1)
+    g_chan = cv.cvCreateImage(cv.cvSize(*dim), depth, 1)
+    b_chan = cv.cvCreateImage(cv.cvSize(*dim), depth, 1)
+    combined = cv.cvCreateImage(cv.cvSize(*dim), depth, 3)
+    cv.cvSplit(img, r_chan, g_chan, b_chan, None)
 
-    cvAnd(r_chan, img_mask, r_chan)
-    cvAnd(g_chan, img_mask, g_chan)
-    cvAnd(b_chan, img_mask, b_chan)
-    cvMerge(r_chan, g_chan, b_chan, None, combined)
+    cv.cvAnd(r_chan, img_mask, r_chan)
+    cv.cvAnd(g_chan, img_mask, g_chan)
+    cv.cvAnd(b_chan, img_mask, b_chan)
+    cv.cvMerge(r_chan, g_chan, b_chan, None, combined)
     return combined
 
 ##
 # Split a color image into its component parts
 def split(image):
-    img1 = cvCloneImage(image)
-    img2 = cvCloneImage(image)
-    img3 = cvCloneImage(image)
-    cvSplit(image, img1, img2, img3, None)
+    img1 = cv.cvCreateImage(cv.cvSize(image.width, image.height), 8, 1)
+    img2 = cv.cvCreateImage(cv.cvSize(image.width, image.height), 8, 1)
+    img3 = cv.cvCreateImage(cv.cvSize(image.width, image.height), 8, 1)
+    cv.cvSplit(image, img1, img2, img3, None)
     return (img1, img2, img3)
+
 ###
 ## Fill holes in a binary image using scipy
 ##
