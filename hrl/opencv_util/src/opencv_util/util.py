@@ -35,11 +35,11 @@ def text(image, x, y, a_string):
     cv.cvPutText(image, a_string, cv.cvPoint(x+1, y+1), font, cv.cvScalar(255,255,255))
 
 ##
-# Tries to clean up segmentation 
+# Tries to clean up binary image.  Useful for segmentation 
 # @param cv_image
 # @param n_times to run erode & dilate
 # @return image in original type with hopefully cleaner segmentations
-def clean_segmentation(cv_image, n_times=1):
+def clean_binary(cv_image, n_times=1):
     dst  = cv.cvCloneImage(cv_image)
     dst2 = cv.cvCloneImage(cv_image)
     cv.cvErode(cv_image, dst, None, n_times)
