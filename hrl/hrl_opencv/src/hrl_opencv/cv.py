@@ -35,16 +35,23 @@ def text(image, x, y, a_string):
     cv.cvPutText(image, a_string, cv.cvPoint(x+1, y+1), font, cv.cvScalar(255,255,255))
 
 ##
-# Tries to clean up binary image.  Useful for segmentation 
-# @param cv_image
-# @param n_times to run erode & dilate
-# @return image in original type with hopefully cleaner segmentations
-def clean_binary(cv_image, n_times=1):
+# Morphological closing
+def morpho_close(cv_image, n_times=1):
+    dst  = cv.cvCloneImage(cv_image)
+    dst2 = cv.cvCloneImage(cv_image)
+    cv.cvDilate(cv_image, dst, None, n_times)
+    cv.cvErode(dst, dst2, None, n_times)
+    return dst2
+
+##
+# Morphological opening
+def morpho_open(cv_image, n_times=1):
     dst  = cv.cvCloneImage(cv_image)
     dst2 = cv.cvCloneImage(cv_image)
     cv.cvErode(cv_image, dst, None, n_times)
-    cv_image = cv.cvDilate(dst, dst2, None, n_times)
+    cv.cvDilate(dst, dst2, None, n_times)
     return dst2
+
 
 ##
 # Mask a color image with a given black and white mask

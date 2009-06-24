@@ -6,4 +6,6 @@
   <license>new BSD</license>
   <depend package="hrl_lib" />  
   <depend package="rospy" />  
+  <sysdepend package="python-numarray" os="ubuntu" version="8.04-hardy"/>
+  <sysdepend package="python-numarray" os="ubuntu" version="7.04-feisty"/>
 </package>

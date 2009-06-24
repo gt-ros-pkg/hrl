@@ -42,6 +42,12 @@ class FTClient(ru.FloatArrayListener):
         ru.FloatArrayListener.__init__(self, 'FTClient', topic_name, 100.0)
         self.bias_val = np.matrix([0,0,0, 0,0,0.0]).T
 
+    ##
+    # Read a force torque value
+    # @param avg how many force torque value to average
+    # @param without_bias
+    # @param fresh
+    # @return an averaged force torque value (6x1 matrix)
     def read(self, avg=1, without_bias=False, fresh=False):
         assert(avg > 0)
         rs = []
