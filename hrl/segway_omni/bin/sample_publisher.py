@@ -1,1 +1,0 @@
-../src/segway_omni/sample_publisher.py
