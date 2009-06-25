@@ -31,6 +31,7 @@
 import roslib; roslib.load_manifest('segway_omni')
 from segway_omni.msg import PlanarBaseVel
 import rospy
+import time
 
 
 class SegwayCommand:
@@ -44,6 +45,8 @@ class SegwayCommand:
     def set_velocity(self, xvel, yvel, angular_vel):
         cmd = PlanarBaseVel(None, xvel, yvel, angular_vel)
         self.pub.publish(cmd)
+        time.sleep(.001)
+		
 
 if __name__ == '__main__':
     s = SegwayCommand()

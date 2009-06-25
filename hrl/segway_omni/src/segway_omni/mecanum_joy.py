@@ -34,6 +34,9 @@ import pygame.joystick
 import sys, optparse
 import segway_command as sc
 import time as time
+import roslib
+roslib.load_manifest('segway_omni')
+import rospy
 
 from pygame.locals import *
 
@@ -103,7 +106,7 @@ if __name__=='__main__':
 
     start = time.time()
     lastcmd = time.time()
-    while not done:
+    while not rospy.is_shutdown():
 
         for event in pygame.event.get():
             
@@ -143,7 +146,7 @@ if __name__=='__main__':
             js.init()
         except pygame.error:
             print "joystick error"
-            done=True
+            rospy.signal_shutdown()
 
         #send segway commands
         if connected:
