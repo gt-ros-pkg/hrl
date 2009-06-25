@@ -25,9 +25,13 @@
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 #  \author Hai Nguyen (Healthcare Robotics Lab, Georgia Tech.)
+#  \author Marc Killpack (Healthcare Robotics Lab, Georgia Tech.)
+
+
 import roslib; roslib.load_manifest('segway_omni')
 from segway_omni.msg import PlanarBaseVel
 import rospy
+
 
 class SegwayCommand:
     def __init__(self, topic='base', name='segway_command'):
@@ -38,13 +42,14 @@ class SegwayCommand:
             pass
 
     def set_velocity(self, xvel, yvel, angular_vel):
-        cmd = PlanarBaseVel(None, .01, 0, 0)
+        cmd = PlanarBaseVel(None, xvel, yvel, angular_vel)
         self.pub.publish(cmd)
 
 if __name__ == '__main__':
     s = SegwayCommand()
-    while True:
-        s.set_velocity(.01, 0, 0)
+    while not rospy.is_shutdown():
+        s.set_velocity(0, 0, 0)    #you can change this for testing, but for safety, the default is zero
+
 
 
 

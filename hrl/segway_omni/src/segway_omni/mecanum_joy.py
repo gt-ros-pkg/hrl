@@ -27,11 +27,12 @@
 #
 
 #  \author Cressel Anderson (Healthcare Robotics Lab, Georgia Tech.)
+#  \author Marc Killpack (Healthcare Robotics Lab, Georgia Tech.)
 
 import pygame
 import pygame.joystick
 import sys, optparse
-
+import segway_command as sc
 import time as time
 
 from pygame.locals import *
@@ -51,6 +52,8 @@ if __name__=='__main__':
         z = zenither.Zenither(robot='HRL2')
         zenith = False
         nadir = False
+
+    cmd_node = sc.SegwayCommand()
 
     xvel = 0.0
     yvel = 0.0
@@ -82,9 +85,6 @@ if __name__=='__main__':
     background.fill((250,250,250))
 
     done = False
-
-    import segway
-    mec = segway.Mecanum()
 
     x=0.
     y=0.
@@ -147,10 +147,10 @@ if __name__=='__main__':
 
         #send segway commands
         if connected:
-            mec.set_platform_velocity(2*g(x),2*g(y),a*0.5)
+            cmd_node.set_velocity(2*g(x),2*g(y),a*0.5)
 
     # stop the segway
-    mec.set_platform_velocity(0.,0.,0.)
+    cmd_node.set_velocity(0.,0.,0.)
 
 
 
