@@ -35,27 +35,43 @@ from hrl_lib.msg import FloatArray
 import time
 import numpy as np
 
-class UnresponsiveServerError(Exception):
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        return repr(self.value)
-
-def empty(f, arg_names=[]):
+##
+# Used on ROS server (service provider) side to conveniently declare
+# a function that returns nothing as a service.
+#
+# ex.  obj = YourObject()
+#      rospy.Service('your_service', YourSrv, 
+#                    wrap(obj.some_function, 
+#                         # What that function should be given as input from the request
+#                         ['request_data_field_name1',  'request_data_field_name2'],
+#                         # Class to use when construction ROS response
+#                         response=SomeClass
+#                         ))
+def wrap(f, inputs=[], response=srv.EmptyResponse, verbose=False):
     def _f(request):
-        arguments = [eval('request.' + arg) for arg in arg_names]
-        print 'Function', f, 'called with args:', arguments
+        arguments = [eval('request.' + arg) for arg in inputs]
+        if verbose:
+            print 'Function', f, 'called with args:', arguments
         try:
-            f(*arguments)
+            returns = f(*arguments)
+            if returns == None:
+                return response()
+            else:
+                return response(*returns)
         except Exception, e:
             print e
-        return srv.EmptyResponse()
     return _f
 
 def ignore_return(f):
     def _f(*args):
         f(*args)
     return _f
+
+class UnresponsiveServerError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
 
 ##
 # Listens over ros network
@@ -220,7 +236,7 @@ class GenericListener:
                 #raise UnresponsiveServerError("Server have not responded for %.2f ms" % (1000 * time_diff))
 
 
-    def read(self, fresh=True):
+    def read(self, fresh=True, warn=True):
         if not fresh and self.reading == None:
             return None
         else:
@@ -231,7 +247,8 @@ class GenericListener:
         reading = self.reading 
         if fresh:
             while reading[1] == self.last_msg_returned     :
-                self._check_timeout()
+                if warn:
+                    self._check_timeout()
                 if self.delay_time != None:
                     delay_time = self.delay_time
                     self.delay_time = None #prevent multiple Exceptions from being thrown
