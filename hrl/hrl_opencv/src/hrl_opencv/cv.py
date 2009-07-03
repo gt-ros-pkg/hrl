@@ -1,6 +1,6 @@
 import roslib
 roslib.update_path('hrl_opencv')
-from image_msgs.msg import Image as RosImage
+from sensor_msgs.msg import Image as RosImage
 from std_msgs.msg import UInt8MultiArray
 from std_msgs.msg import MultiArrayLayout
 from std_msgs.msg import MultiArrayDimension

@@ -7,7 +7,7 @@
   <author>Hai Nguyen / haidai@gmail.com / Healthcare Robotics Lab, Georgia Tech</author>
   <license>new BSD</license>
   <depend package="std_msgs" />  
-  <depend package="image_msgs" />  
+  <depend package="sensor_msgs" />  
   <depend package="rospy" />  
 </package>
 
