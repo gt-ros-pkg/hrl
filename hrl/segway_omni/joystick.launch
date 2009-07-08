@@ -1,0 +1,9 @@
+<launch>
+
+    <node pkg="segway_omni" type="segway_node.py" output="screen" respawn="true">
+    </node>
+    <node pkg="segway_omni" type="mecanum_joy.py" output="log" respawn="true">
+    </node>
+
+</launch>
+
