@@ -157,14 +157,16 @@ class FloatArrayListener:
         if not fresh and self.reading == None:
             return None
         else:
+            t = time.time()
             while self.reading  == None:
-                time.sleep(.1)
-                print self.node_name, ': waiting for reading ...'
+                time.sleep(1.0)
+                print self.node_name, ': no readings for %.2f s' % (time.time() - t)
 
         reading = self.reading 
         if fresh:
             while reading[1] == self.last_message_number:
                 #self._check_timeout()
+                time.sleep(1/1000.0)
                 if self.delay_time != None:
                     delay_time = self.delay_time
                     self.delay_time = None #prevent multiple Exceptions from being thrown
@@ -176,89 +178,92 @@ class FloatArrayListener:
         self.last_message_number = reading[1]
         return reading[0]
 
-
+##
+# Takes a normal ROS callback channel and gives it an on demand query style
+# interface.
 class GenericListener:
     ##
     # Message has to have a header
+    # @param node_name name of node (if haven't been inited)
+    # @param message_type type of message to listen for
+    # @param listen_channel ROS channel to listen
+    # @param frequency the frequency to expect messages (used to print warning statements to console)
+    # @param message_extractor function to preprocess the message into a desired format
     def __init__(self, node_name, message_type, listen_channel, frequency, message_extractor=None):
         try:
             print node_name, ': inited node.'
             rospy.init_node(node_name, anonymous=True)
         except rospy.ROSException, e:
             pass
-        
-        self.reset()
-        self.reading             = None
+        self.last_msg_returned   = None   #Last message returned to callers from this class
+        self.last_call_back      = None   #Local time of last received message
+        self.delay_tolerance     = 1/10.0 #in seconds
+        self.reading             = {'message':None, 'msg_id':-1}
 
         def callback(msg):
-            msg_time      = msg.header.stamp.to_time()
-            msg_number    = msg.header.seq
+            msg_number = msg.header.seq
             if message_extractor != None:
-                self.reading  = message_extractor(msg), msg_number
+                self.reading  = {'message':message_extractor(msg), 'msg_id':msg_number}
             else:
-                self.reading  = msg, msg_number
+                self.reading  = {'message':msg, 'msg_id':msg_number}
 
             #Check for delayed messages
-            if self.last_msg_time == None:
-                self.last_msg_time = msg_time
-            time_diff = msg_time - self.last_msg_time
-            if time_diff > self.delay_tolerance:
-                self.delay_time = msg_time - self.last_msg_time 
-            self.last_msg_time  = msg_time
-            self.last_call_back = time.time()
+            self.last_call_back = time.time() #record when we have been called back last
 
         rospy.Subscriber(listen_channel, message_type, callback)
         self.node_name = node_name
         print node_name,': subscribed to', listen_channel
 
-    def reset(self):
-        #Statistics from header
-        self.last_msg_returned   = None
-        self.last_msg_time       = None
-        self.last_call_back      = None
-
-        #Delay tolerances
-        #Because of Nagel's algorithm!!! FIX THIS WITH NEW ROS!
-        self.delay_tolerance     = 300.0 / 1000.0
-        self.delay_time          = None
-        self.server_timeout      = 1.2 
-
-    def _check_timeout(self):
+    def _check_for_delivery_hiccups(self):
+        #If have received a message in the past
         if self.last_call_back != None:
+            #Calculate how it has been
             time_diff = time.time() - self.last_call_back
+            #If it has been longer than expected hz, complain
             if time_diff > self.delay_tolerance:
-                print self.node_name, ': have not heard back from publisher in', 1000*time_diff, 'ms'
-                time.sleep(5/1000.0)
+                print self.node_name, ': have not heard back from publisher in', time_diff, 's'
 
-            if time_diff > self.server_timeout:
-                print "GenericListener: Server have not responded for %.2f ms" % (1000 * time_diff)
-                #exit()
-                #raise UnresponsiveServerError("Server have not responded for %.2f ms" % (1000 * time_diff))
+    def _wait_for_first_read(self):
+        while self.reading['message'] == None:
+            time.sleep(.3)
+            print self.node_name, ': waiting for reading ...'
 
-
-    def read(self, fresh=True, warn=True):
-        if not fresh and self.reading == None:
-            return None
+    ## 
+    # Supported use cases
+    # rfid   - want to get a reading, can be stale, no duplication allowed (allow None),        query speed important
+    # hokuyo - want to get a reading, can be stale, no duplication allowed (don't want a None), willing to wait for new data (default)
+    # ft     - want to get a reading, can be stale, duplication allowed    (don't want a None), query speed important
+    # NOT ALLOWED                                   duplication allowed,                        willing to wait for new data
+    def read(self, allow_duplication=False, willing_to_wait=True, warn=True):
+        if allow_duplication:
+            if willing_to_wait:
+                raise RuntimeError('Invalid settings for read.')
+            else: 
+                # ft - want to get a reading, can be stale, duplication allowed (but don't want a None), query speed important
+                self._wait_for_first_read()
+                reading                = self.reading
+                self.last_msg_returned = reading['msg_id']
+                return reading['message']
         else:
-            while self.reading  == None:
-                time.sleep(.3)
-                print self.node_name, ': waiting for reading ...'
+            if willing_to_wait:
+                # hokuyo - want to get a reading, can be stale, no duplication allowed (don't want a None), willing to wait for new data (default)
+                self._wait_for_first_read()
+                while self.reading['msg_id'] == self.last_msg_returned:
+                    if warn:
+                        self._check_for_delivery_hiccups()
+                    time.sleep(1/1000.0)
+                reading = self.reading
+                self.last_msg_returned = reading['msg_id']
+                return reading['message']
+            else:
+                # rfid   - want to get a reading, can be stale, no duplication allowed (allow None),        query speed important
+                if self.last_msg_returned == self.reading['msg_id']:
+                    return None
+                else:
+                    reading = self.reading
+                    self.last_msg_returned = reading['msg_id']
+                    return reading['message']
 
-        reading = self.reading 
-        if fresh:
-            while reading[1] == self.last_msg_returned     :
-                if warn:
-                    self._check_timeout()
-                if self.delay_time != None:
-                    delay_time = self.delay_time
-                    self.delay_time = None #prevent multiple Exceptions from being thrown
-                    print 'WARNING: delayed by', delay_time * 1000.0
-                reading = self.reading 
-        else:
-            self._check_timeout()
-
-        self.last_msg_returned = reading[1]
-        return reading[0]
 
 
 
@@ -381,3 +386,64 @@ class GenericListener:
 #        return srv.EmptyResponse()
 #    return _f
 
+    #def read(self, fresh=True, no_wait, warn=True):
+    #    #if reading
+    #    reading = self.reading 
+    #    if reading != None:
+    #        if fresh:
+    #            #While the current message is equal the the last message we returned caller
+    #            while reading['msg_id'] == self.last_msg_returned:
+    #                if warn:
+    #                    self._check_for_delivery_hiccups()
+    #                reading = self.reading 
+    #                time.sleep(1/1000.0)
+    #            self.last_msg_returned = reading['msg_id']
+    #            return reading['message']
+
+    #        elif allow_duplicates:
+    #            self.last_msg_returned = reading['msg_id']
+    #            return reading['message']
+
+    #        else:
+    #            #not fresh & don't allow duplicates
+    #            if reading['msg_id'] == self.last_msg_returned:
+    #                return None
+    #            else:
+    #                self.last_msg_returned = reading['msg_id']
+    #                return reading['message']
+    #    else:
+    #        fresh and allow_duplicates
+    #        fresh and not allow_duplicates
+    #        not fresh and not allow_duplicates
+    #        not fresh and allow_duplicates
+
+
+
+
+
+   #     #Is this the first time we have been called?
+   #     if not fresh and self.reading == None:
+   #         return None
+   #     else:
+   #         while self.reading  == None:
+   #             time.sleep(.3)
+   #             print self.node_name, ': waiting for reading ...'
+
+   #     reading = self.reading 
+   #     if fresh:
+   #         #While the current message is equal the the last message we returned caller
+   #         while reading[1] == self.last_msg_returned:
+   #             if warn:
+   #                 self._check_for_delivery_hiccups()
+   #             #if self.delay_time != None:
+   #             #    delay_time = self.delay_time
+   #             #    self.delay_time = None #prevent multiple Exceptions from being thrown
+   #             #    if warn:
+   #             #        print 'WARNING: delayed by', delay_time * 1000.0
+   #             reading = self.reading 
+   #             time.sleep(1/1000.0)
+   #     else:
+   #         self._check_timeout()
+
+   #     self.last_msg_returned = reading[1]
+   #     return reading[0]
