@@ -72,10 +72,12 @@ class FTSensor:
             t = self.ftcon.read(19)
             #if we get an error message, restart
             if len(t) < 1 or ord(t[0]) != 0 or len(t) < 10:
-                pass
-                self.reset()
+                #pass
+                #self.reset()
+                exit()
                 while not self._start_query():
-                    self.reset()
+                    #self.reset()
+                    exit()
                 break
             else:
                 current_value = self.binary_to_ft(t)
