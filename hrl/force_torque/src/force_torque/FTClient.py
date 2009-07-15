@@ -73,6 +73,7 @@ class FTClient(ru.GenericListener):
 
 if __name__ == '__main__':
     import optparse
+    import time
     p = optparse.OptionParser()
     p.add_option('-t', action='store', default='force_torque_ft1', type='string', 
                  dest='topic', help='which topic to listen to (default force_torque_ft1)')
@@ -84,6 +85,7 @@ if __name__ == '__main__':
         el = client.read()
         if el != None:
             print np.linalg.norm(el.T)
+        time.sleep(1/1000.0)
 
 
 
