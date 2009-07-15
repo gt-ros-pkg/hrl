@@ -223,10 +223,11 @@ class GenericListener:
             if time_diff > self.delay_tolerance:
                 print self.node_name, ': have not heard back from publisher in', time_diff, 's'
 
-    def _wait_for_first_read(self):
+    def _wait_for_first_read(self, quiet=False):
         while self.reading['message'] == None:
             time.sleep(.3)
-            print self.node_name, ': waiting for reading ...'
+            if not quiet:
+                print self.node_name, ': waiting for reading ...'
 
     ## 
     # Supported use cases
@@ -234,20 +235,20 @@ class GenericListener:
     # hokuyo - want to get a reading, can be stale, no duplication allowed (don't want a None), willing to wait for new data (default)
     # ft     - want to get a reading, can be stale, duplication allowed    (don't want a None), query speed important
     # NOT ALLOWED                                   duplication allowed,                        willing to wait for new data
-    def read(self, allow_duplication=False, willing_to_wait=True, warn=True):
+    def read(self, allow_duplication=False, willing_to_wait=True, warn=True, quiet=False):
         if allow_duplication:
             if willing_to_wait:
                 raise RuntimeError('Invalid settings for read.')
             else: 
                 # ft - want to get a reading, can be stale, duplication allowed (but don't want a None), query speed important
-                self._wait_for_first_read()
+                self._wait_for_first_read(quiet)
                 reading                = self.reading
                 self.last_msg_returned = reading['msg_id']
                 return reading['message']
         else:
             if willing_to_wait:
                 # hokuyo - want to get a reading, can be stale, no duplication allowed (don't want a None), willing to wait for new data (default)
-                self._wait_for_first_read()
+                self._wait_for_first_read(quiet)
                 while self.reading['msg_id'] == self.last_msg_returned:
                     if warn:
                         self._check_for_delivery_hiccups()
