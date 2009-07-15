@@ -58,6 +58,7 @@ if __name__ == '__main__':
             d, t = v
             channel.publish(FloatArray(rospy.Header(stamp=rospy.Time.from_seconds(t)), d))
             #times.append(time.time())
+            time.sleep(1/5000.0)
         else:
             time.sleep(1/5000.0)
 

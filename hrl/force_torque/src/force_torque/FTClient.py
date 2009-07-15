@@ -33,13 +33,16 @@ import roslib; roslib.update_path('force_torque')
 import rospy
 import hrl_lib.rutils as ru
 import hrl_lib.util as ut
+from hrl_lib.msg import FloatArray
 import numpy as np
 
 ##
 # Corresponding client class
-class FTClient(ru.FloatArrayListener):
+class FTClient(ru.GenericListener):
     def __init__(self, topic_name):
-        ru.FloatArrayListener.__init__(self, 'FTClient', topic_name, 100.0)
+        def msg_converter(msg):
+            return np.matrix(msg.data, 'f').T
+        ru.GenericListener.__init__(self, 'FTClient', FloatArray, topic_name, 15.0, message_extractor = msg_converter)
         self.bias_val = np.matrix([0,0,0, 0,0,0.0]).T
 
     ##
@@ -52,9 +55,10 @@ class FTClient(ru.FloatArrayListener):
         assert(avg > 0)
         rs = []
         for i in range(avg):
-            r = ru.FloatArrayListener.read(self, fresh) 
-            if r == None:
-                return None
+            if fresh:
+                r = ru.GenericListener.read(self, allow_duplication=False, willing_to_wait=True) 
+            else:
+                r = ru.GenericListener.read(self, allow_duplication=True, willing_to_wait=False) 
             rs.append(r)
         readings = ut.list_mat_to_mat(rs, axis=1)
         if not without_bias:
@@ -62,8 +66,8 @@ class FTClient(ru.FloatArrayListener):
         else:
             return readings.mean(1)
 
-    def bias(self, fresh=True):
-        r = ru.FloatArrayListener.read(self, fresh)
+    def bias(self):
+        r = ru.GenericListener.read(self, allow_duplication=False, willing_to_wait=True) 
         if r != None:
             self.bias_val = r
 
@@ -75,10 +79,11 @@ if __name__ == '__main__':
     opt, args = p.parse_args()
 
     client = FTClient(opt.topic)
+    client.bias()
     while not rospy.is_shutdown():
         el = client.read()
         if el != None:
-            print el.T
+            print np.linalg.norm(el.T)
 
 
 

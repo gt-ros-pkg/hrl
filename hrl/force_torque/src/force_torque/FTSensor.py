@@ -219,6 +219,7 @@ if __name__ == '__main__':
                 ft_server_set_ft(v, t)
             except rospy.ServiceException, e:
                 print "Service call failed %s" % e
+            time.sleep(1/5000.0)
 
         #a = np.array(times)
         #diffs = a[1:] - a[:-1]
