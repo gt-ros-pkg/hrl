@@ -169,11 +169,12 @@ if __name__ == '__main__':
     
 
     if sphere_flag or pc_fname!=None:
+        rospy.init_node('point_cloud_tester', anonymous=True)
         pub = rospy.Publisher("tilt_laser_cloud", PointCloud)
         rospy.Subscriber("cloud_normals", PointCloud, normals_cb)
         rospy.Subscriber("cloud_downsampled", PointCloud, downsample_cb)
 
-        rospy.init_node('point_cloud_tester', anonymous=True)
+        time.sleep(1)
 
         if sphere_flag:
             pc = generate_sphere()
