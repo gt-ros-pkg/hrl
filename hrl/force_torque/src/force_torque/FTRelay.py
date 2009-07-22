@@ -13,7 +13,7 @@ class FTRelay:
         self.lock.release()
         #print 'got', value, time_acquired
 
-    def get_ft(self):
+    def get_msg(self):
         r = None
         self.lock.acquire()
         if self.fresh:
@@ -30,6 +30,8 @@ if __name__ == '__main__':
     from hrl_lib.msg import FloatArray as FloatArray
     import hrl_lib.rutils as ru
     import time
+    import force_torque.FTSensor as ftc
+    import numpy as np
 
     import optparse
     p = optparse.OptionParser()
@@ -44,23 +46,30 @@ if __name__ == '__main__':
     ftserver = FTRelay()
 
     rospy.init_node(node_name)
-    rospy.Service(service_name, FloatArrayService, 
+    rospy.Service(service_name, StringService, 
             ru.wrap(ftserver.set_ft, ['value', 'time'], 
-                    response=FloatArrayServiceResponse))
+                    response=StringServiceResponse))
 
     channel = rospy.Publisher(ft_channel_name, FloatArray, tcp_nodelay=True)
     print node_name + ': publishing on channel', ft_channel_name
     #times = []
+    biasft = None
     while not rospy.is_shutdown():
     #while len(times) < 201:
-        v = ftserver.get_ft()
-        if v is not None:
-            d, t = v
-            channel.publish(FloatArray(rospy.Header(stamp=rospy.Time.from_seconds(t)), d))
+        msg = ftserver.get_msg()
+        if msg is not None:
+            data, tme = msg
+            ftvalue = ftc.binary_to_ft(data)
+            if biasft == None:
+                biasft = np.array(ftvalue)
+                print biasft
+            #print biasft.__class__, biasft
+            ftvalue = (np.array(ftvalue) - biasft).tolist()
+            channel.publish(FloatArray(rospy.Header(stamp=rospy.Time.from_seconds(tme)), ftvalue))
             #times.append(time.time())
-            time.sleep(1/5000.0)
-        else:
-            time.sleep(1/5000.0)
+        #else:
+        #    time.sleep(1/5000.0)
+        time.sleep(1/5000.0)
 
     #import pylab as pl
     #import numpy as np

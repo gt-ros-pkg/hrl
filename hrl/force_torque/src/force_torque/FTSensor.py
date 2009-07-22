@@ -80,41 +80,45 @@ class FTSensor:
                     exit()
                 break
             else:
-                current_value = self.binary_to_ft(t)
+                current_value = t
+                #current_value = binary_to_ft(t)
 
         self.last_value = current_value
         return current_value
 
-    def binary_to_ft( self, raw_binary ):
-        counts_per_force  = 192
-        counts_per_torque = 10560
+    def read_ft(self):
+        return binary_to_ft(self.read())
 
-        #raw_binary[0] = error value
-        #TODO: this error is a checksum byte that we should watch for
-        #corrupted transmission
-        Fx = ord(raw_binary[1])*65536+ord(raw_binary[2])*256+ord(raw_binary[3])
-        Fy = ord(raw_binary[4])*65536+ord(raw_binary[5])*256+ord(raw_binary[6])
-        Fz = ord(raw_binary[7])*65536+ord(raw_binary[8])*256+ord(raw_binary[9])
-        Tx = ord(raw_binary[1])*65536+ord(raw_binary[2])*256+ord(raw_binary[3])
-        Ty = ord(raw_binary[4])*65536+ord(raw_binary[5])*256+ord(raw_binary[6])
-        Tz = ord(raw_binary[7])*65536+ord(raw_binary[8])*256+ord(raw_binary[9])
-        
-        _temp_val = []
-        for c,list in zip([counts_per_force, counts_per_torque], [[Fx,Fy,Fz], [Tx,Ty,Tz]]):
-            for val in list:
-                if val > 8388607: #Adjust for two's complement
-                    val -= 16777216
-                val /= float(c) #scale so the values are in N and Nm
-                _temp_val.append(val)
+    #def binary_to_ft( self, raw_binary ):
+    #    counts_per_force  = 192
+    #    counts_per_torque = 10560
 
-        Fx = _temp_val[0]
-        Fy = _temp_val[1]
-        Fz = _temp_val[2]
-        Tx = _temp_val[3]
-        Ty = _temp_val[4]
-        Tz = _temp_val[5]
+    #    #raw_binary[0] = error value
+    #    #TODO: this error is a checksum byte that we should watch for
+    #    #corrupted transmission
+    #    Fx = ord(raw_binary[1])*65536+ord(raw_binary[2])*256+ord(raw_binary[3])
+    #    Fy = ord(raw_binary[4])*65536+ord(raw_binary[5])*256+ord(raw_binary[6])
+    #    Fz = ord(raw_binary[7])*65536+ord(raw_binary[8])*256+ord(raw_binary[9])
+    #    Tx = ord(raw_binary[1])*65536+ord(raw_binary[2])*256+ord(raw_binary[3])
+    #    Ty = ord(raw_binary[4])*65536+ord(raw_binary[5])*256+ord(raw_binary[6])
+    #    Tz = ord(raw_binary[7])*65536+ord(raw_binary[8])*256+ord(raw_binary[9])
+    #    
+    #    _temp_val = []
+    #    for c,list in zip([counts_per_force, counts_per_torque], [[Fx,Fy,Fz], [Tx,Ty,Tz]]):
+    #        for val in list:
+    #            if val > 8388607: #Adjust for two's complement
+    #                val -= 16777216
+    #            val /= float(c) #scale so the values are in N and Nm
+    #            _temp_val.append(val)
 
-        return [Fx,Fy,Fz,Tx,Ty,Tz]
+    #    Fx = _temp_val[0]
+    #    Fy = _temp_val[1]
+    #    Fz = _temp_val[2]
+    #    Tx = _temp_val[3]
+    #    Ty = _temp_val[4]
+    #    Tz = _temp_val[5]
+
+    #    return [Fx,Fy,Fz,Tx,Ty,Tz]
 
     def _start_query( self ):
         self.ftcon.write('QS\r')
@@ -181,6 +185,39 @@ class FTSensor:
         t = self.ftcon.readlines(4) # echo
         #print t
 
+
+def binary_to_ft( raw_binary ):
+    counts_per_force  = 192
+    counts_per_torque = 10560
+
+    #raw_binary[0] = error value
+    #TODO: this error is a checksum byte that we should watch for
+    #corrupted transmission
+    Fx = ord(raw_binary[1])*65536+ord(raw_binary[2])*256+ord(raw_binary[3])
+    Fy = ord(raw_binary[4])*65536+ord(raw_binary[5])*256+ord(raw_binary[6])
+    Fz = ord(raw_binary[7])*65536+ord(raw_binary[8])*256+ord(raw_binary[9])
+    Tx = ord(raw_binary[1])*65536+ord(raw_binary[2])*256+ord(raw_binary[3])
+    Ty = ord(raw_binary[4])*65536+ord(raw_binary[5])*256+ord(raw_binary[6])
+    Tz = ord(raw_binary[7])*65536+ord(raw_binary[8])*256+ord(raw_binary[9])
+    
+    _temp_val = []
+    for c,list in zip([counts_per_force, counts_per_torque], [[Fx,Fy,Fz], [Tx,Ty,Tz]]):
+        for val in list:
+            if val > 8388607: #Adjust for two's complement
+                val -= 16777216
+            val /= float(c) #scale so the values are in N and Nm
+            _temp_val.append(val)
+
+    Fx = _temp_val[0]
+    Fy = _temp_val[1]
+    Fz = _temp_val[2]
+    Tx = _temp_val[3]
+    Ty = _temp_val[4]
+    Tz = _temp_val[5]
+
+    return [Fx,Fy,Fz,Tx,Ty,Tz]
+
+
 if __name__ == '__main__':
     import optparse
     p = optparse.OptionParser()
@@ -198,7 +235,7 @@ if __name__ == '__main__':
         import rospy
         import hrl_lib.rutils as ru
         from force_torque.srv import *
-        import pylab as pl, numpy as np
+        import numpy as np
         import time
 
         node_name = 'FT_poller_' + opt.name
@@ -207,7 +244,7 @@ if __name__ == '__main__':
         rospy.init_node(node_name)
         print node_name + ': waiting for service', service_name
         rospy.wait_for_service(service_name)
-        ft_server_set_ft = rospy.ServiceProxy(service_name, FloatArrayService)
+        ft_server_set_ft = rospy.ServiceProxy(service_name, StringService)
         ftsensor = FTSensor(opt.path)
 
         times = []
@@ -215,13 +252,14 @@ if __name__ == '__main__':
         #for i in range(2000):
         while not rospy.is_shutdown():
             v = ftsensor.read()
+            #print repr(v), v.__class__
+            
             t = rospy.get_time()
             #times.append(time.time())
             try:
                 ft_server_set_ft(v, t)
             except rospy.ServiceException, e:
                 print "Service call failed %s" % e
-            time.sleep(1/5000.0)
 
         #a = np.array(times)
         #diffs = a[1:] - a[:-1]
@@ -231,7 +269,7 @@ if __name__ == '__main__':
 
     if opt.mode == 'test':
         import numpy as np
-        import pylab as pl
+        #import pylab as pl
 
         print 'Testing', opt.path
         sensor1 = FTSensor(opt.path)
@@ -239,11 +277,11 @@ if __name__ == '__main__':
         tlist = []
         for i in range(200):
             t0 = time.time()
-            v1 = sensor1.read()
+            v1 = sensor1.read_ft()
             t1 = time.time()
             tlist.append(t1 - t0)
             print np.linalg.norm(v1)
 
-        pl.plot(tlist)
-        pl.show()
+        #pl.plot(tlist)
+        #pl.show()
 
