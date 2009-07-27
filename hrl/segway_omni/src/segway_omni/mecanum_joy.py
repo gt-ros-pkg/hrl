@@ -96,7 +96,7 @@ if __name__=='__main__':
     connected = False
 
     dead_zone = 0.0
-    scale = .35/2  # for data collect
+    scale = .35
     def g( u ):
         if u != 0:
             sgn = u/abs(u)
