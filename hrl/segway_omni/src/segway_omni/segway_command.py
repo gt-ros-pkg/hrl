@@ -26,24 +26,17 @@
 #
 #  \author Hai Nguyen (Healthcare Robotics Lab, Georgia Tech.)
 #  \author Marc Killpack (Healthcare Robotics Lab, Georgia Tech.)
-#  \author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
 
 
 import roslib; roslib.load_manifest('segway_omni')
 from hrl_lib.msg import PlanarBaseVel
-from hrl_lib.msg import Pose3DOF
 import rospy
-
-import math
 import time
 
 
 class SegwayCommand:
     def __init__(self, topic='base', name='segway_command'):
-        self.vel_pub = rospy.Publisher('base', PlanarBaseVel)
-        self.pos_local_pub = rospy.Publisher('pose_local', Pose3DOF)
-        self.pos_global_pub = rospy.Publisher('pose_global', Pose3DOF)
-
+        self.pub = rospy.Publisher('base', PlanarBaseVel)
         try:
             rospy.init_node(name, anonymous=True)
         except rospy.ROSException, e:
@@ -51,19 +44,9 @@ class SegwayCommand:
 
     def set_velocity(self, xvel, yvel, angular_vel):
         cmd = PlanarBaseVel(None, xvel, yvel, angular_vel)
-        self.vel_pub.publish(cmd)
+        self.pub.publish(cmd)
         time.sleep(.001)
 		
-    def go_xya_pos_local(self,x,y,a=math.radians(0),blocking=True):
-        cmd = Pose3DOF(None,x,y,a,0.)
-        self.pos_local_pub.publish(cmd)
-        time.sleep(.001)
-
-    def go_xya_pos_global(self,x,y,a=math.radians(0),blocking=True):
-        cmd = Pose3DOF(None,x,y,a,0.)
-        self.pos_global_pub.publish(cmd)
-        time.sleep(.001)
-
 
 if __name__ == '__main__':
     s = SegwayCommand()
