@@ -5,6 +5,8 @@
   <author>Cressel Anderson, Hai Nguyen, Marc Killpack / Healthcare Robotics Lab, Georgia Tech</author>
   <license>new BSD</license>
   <depend package="rospy" />  
+  <depend package="zenither" />  
+
   <sysdepend package="python-usb" os="ubuntu" version="8.04-hardy"/>
   <sysdepend package="python-usb" os="ubuntu" version="7.04-feisty"/>
   <sysdepend package="python-pygame" os="ubuntu" version="8.04-hardy"/>

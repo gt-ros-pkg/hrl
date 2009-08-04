@@ -1,0 +1,6 @@
+<launch>
+    <node pkg="segway_omni" type="mecanum_joy.py" output="screen" args="-z" respawn="true">
+        <remap from="base" to="/hrl/segway/command"/>
+    </node>
+</launch>
+
