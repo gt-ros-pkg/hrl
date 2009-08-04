@@ -29,7 +29,7 @@
 
 
 import roslib; roslib.load_manifest('segway_omni')
-from segway_omni.msg import PlanarBaseVel
+from hrl_lib.msg import PlanarBaseVel
 import rospy
 import time
 
@@ -52,8 +52,6 @@ if __name__ == '__main__':
     s = SegwayCommand()
     while not rospy.is_shutdown():
         s.set_velocity(0, 0, 0)    #you can change this for testing, but for safety, the default is zero
-
-
 
 
 

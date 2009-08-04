@@ -28,7 +28,7 @@
 #  \author Marc Killpack (Healthcare Robotics Lab, Georgia Tech.)
 
 import roslib; roslib.load_manifest('segway_omni')
-from segway_omni.msg import PlanarBaseVel
+from hrl_lib.msg import PlanarBaseVel
 import rospy
 import segway
 
