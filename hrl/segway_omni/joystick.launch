@@ -1,5 +1,11 @@
+<!--
+Launch this on mecanum2 to use only the jostick.
+-->
 <launch>
     <node pkg="segway_omni" type="mecanum_joy.py" output="screen" args="-z" respawn="true">
+        <remap from="base" to="/hrl/segway/command"/>
+    </node>
+    <node pkg="segway_omni" type="segway_node.py" output="screen" respawn="true">
         <remap from="base" to="/hrl/segway/command"/>
     </node>
 </launch>
