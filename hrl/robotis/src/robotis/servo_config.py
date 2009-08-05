@@ -55,10 +55,10 @@ servo_param = {
         },
     22: {                        # Desktop System Roll
         'home_encoder': 454
-        }
+        },
     23: {                        # Dinah Top
         'home_encoder': 379
-        }
+        },
     24: {                        # Dinah Bottom
         'home_encoder': 365
         }
