@@ -35,7 +35,7 @@ import segway
 mecanum = segway.Mecanum()
 def callback(cmd):
     #print 'segway_node:', cmd.xvel, cmd.yvel, cmd.angular_velocity
-    mecanum.set_platform_velocity(cmd.xvel, cmd.yvel, cmd.angular_velocity)
+    mecanum.set_velocity(cmd.xvel, cmd.yvel, cmd.angular_velocity)
 
 rospy.init_node("segway_node", anonymous=False)
 rospy.Subscriber("base", PlanarBaseVel, callback, None, 1)

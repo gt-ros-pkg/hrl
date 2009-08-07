@@ -52,7 +52,7 @@ class Mecanum( Mecanum_Properties ):
         Mecanum_Properties.__init__(self)
         self.get_status()
 
-    def set_platform_velocity( self, xvel, yvel, avel ):
+    def set_velocity( self, xvel, yvel, avel ):
         """xvel and yvel should be in m/s and avel should be rad/s"""
         
         yvel = -yvel
