@@ -54,7 +54,6 @@ class Mecanum( Mecanum_Properties ):
 
     def set_velocity( self, xvel, yvel, avel ):
         """xvel and yvel should be in m/s and avel should be rad/s"""
-        
         yvel = -yvel
 
         R = self.R
@@ -89,7 +88,7 @@ class Mecanum( Mecanum_Properties ):
             print 'Perhaps we should consider sending the max command so motion doesn\'t hang.'
 
     def stop(self):
-        self.set_platform_velocity(0.,0.,0.)
+        self.set_velocity(0.,0.,0.)
 
     def get_status( self ):
         pass
