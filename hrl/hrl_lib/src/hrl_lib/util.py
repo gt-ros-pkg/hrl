@@ -74,4 +74,26 @@ def bound(value, lower, upper):
     return ret_val
 
 
+from hrl_lib.msg import NumpyArray
+
+## wraps a numpy array into hrl's datatype for sending np arrays
+# over ros.
+# @param np array
+# @return NumpyArray object (hrl_lib/msg/NumpyArray.msg)
+def wrap_np_array(nparr):
+    shp = nparr.shape
+    npstr = nparr.tostring()
+    npdtype = str(nparr.dtype)
+    nparr_ros = NumpyArray(None,npstr,shp,npdtype)
+    return nparr_ros
+
+## convert hrl's ros wrapped numpy array to a numpy array
+# @param NumpyArray object (hrl_lib/msg/NumpyArray.msg)
+# @return np array
+def unwrap_np_array(nparr_ros):
+    npstr,shp,npdtype = nparr_ros.data,nparr_ros.shape,nparr_ros.dtype
+    nparr = np.fromstring(npstr,dtype=npdtype)
+    nparr = nparr.reshape(shp)
+    return nparr
+
 
