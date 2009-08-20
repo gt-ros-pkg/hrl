@@ -38,6 +38,8 @@ import roslib
 roslib.load_manifest('segway_omni')
 import rospy
 
+import numpy as np
+
 from pygame.locals import *
 
 
@@ -53,10 +55,12 @@ if __name__=='__main__':
     if zenither_flag:
         import zenither.zenither as zenither
         z = zenither.Zenither(robot='HRL2')
-        zenith = False
-        nadir = False
 
     cmd_node = sc.SegwayCommand()
+
+    max_xvel = 0.70 
+    max_yvel = 0.30
+    max_avel = 0.37
 
     xvel = 0.0
     yvel = 0.0
@@ -87,27 +91,17 @@ if __name__=='__main__':
     background = background.convert()
     background.fill((250,250,250))
 
-    done = False
-
     x=0.
     y=0.
     a=0.
 
+    len = 5
+    xvel_history = np.matrix(np.zeros([len,1]))
+
     connected = False
-
-    dead_zone = 0.0
-    scale = .35
-    def g( u ):
-        if u != 0:
-            sgn = u/abs(u)
-        else:
-            sgn = 1
-        return  scale*sgn*(u)**2+sgn*dead_zone
-
-    start = time.time()
-    lastcmd = time.time()
     while not rospy.is_shutdown():
 
+        move_zenither_flag=False
         for event in pygame.event.get():
             
             if (event.type == JOYAXISMOTION):
@@ -122,19 +116,13 @@ if __name__=='__main__':
                 print 'event.value: ',event.value
 
             elif (event.type == JOYBUTTONDOWN):
-                print 'event.button = ',event.button
-
                 if zenither_flag:
                     if(event.button == 0):
                         z.zenith(z.calib['up_slow_torque'])
+                        move_zenither_flag=True
                     if(event.button == 1):
                         z.nadir(z.calib['down_snail_torque'])
-                    if(event.button == 2):
-                        z.estop()
-
-            else:
-                print 'Unusual event: '
-                print 'event.type: ',event.type
+                        move_zenither_flag=True
 
 
         if x == 0 and y == 0 and a ==0:
@@ -148,9 +136,20 @@ if __name__=='__main__':
             print "joystick error"
             rospy.signal_shutdown()
 
+        if zenither_flag and (move_zenither_flag == False):
+            z.estop()
+
         #send segway commands
         if connected:
-            cmd_node.set_velocity(2*g(x),2*g(y),a*0.5)
+            xvel = x*max_xvel
+            xvel_history[0:(len-1)] = xvel_history[1:len]
+            xvel_history[(len-1)] = xvel
+            xvel = np.mean(xvel_history)
+
+            yvel = y*max_yvel
+            avel = a*max_avel
+            
+            cmd_node.set_velocity(xvel,yvel,avel)               
 
     # stop the segway
     cmd_node.set_velocity(0.,0.,0.)
