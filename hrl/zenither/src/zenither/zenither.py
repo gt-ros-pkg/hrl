@@ -443,6 +443,8 @@ class Zenither(object):
         #    raise RuntimeError('Advait, please check this function on El-E')
 
         slow_torque = self.calib['down_slow_torque']
+        if self.calib['robot'] == 'HRL2':
+            slow_torque = self.calib['down_fast_torque']
         snail_torque = self.calib['down_snail_torque']
 
         h_start = self.get_position_meters()
