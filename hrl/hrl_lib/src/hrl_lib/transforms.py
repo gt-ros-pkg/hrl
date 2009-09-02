@@ -90,7 +90,6 @@ def composeHomogeneousTransform(rot, disp):
     t = np.row_stack((np.column_stack((rot, disp)),te))
     return t
 
-
 def angle_within_mod180(angle):
     ''' angle in radians.
         returns angle within -pi and +pi
@@ -102,6 +101,19 @@ def angle_within_mod180(angle):
         ang_deg = ang_deg+360
 
     return math.radians(ang_deg)
+
+## returns equivalent angle in 1st or 4th quadrant.
+# @param angle - in RADIANS
+def angle_within_plus_minus_90(angle):
+    ang_deg = math.degrees(angle)%360
+    if ang_deg<=90.:
+        return math.radians(ang_deg)
+    elif ang_deg<=180:
+        return math.radians(ang_deg-180)
+    elif ang_deg<=270:
+        return math.radians(ang_deg-180)
+    else:
+        return math.radians(ang_deg-360)
 
 def Rx(theta):
     """ returns Rotation matrix which transforms from XYZ -> frame rotated by theta about the x-axis.
