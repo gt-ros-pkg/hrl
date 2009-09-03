@@ -7,5 +7,7 @@ float64[] x_feat_2
 float64[] y_feat_2
 float64 focal
 float64 dt
+float64 im_height
+float64 im_width
 
 
