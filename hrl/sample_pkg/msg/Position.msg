@@ -1,0 +1,12 @@
+float64 x
+float64 y
+float64 z
+float64 rotx
+float64 roty
+float64 rotz
+float64 xl
+float64 yl
+float64 zl
+float64 rotxl
+float64 rotyl
+float64 rotzl
