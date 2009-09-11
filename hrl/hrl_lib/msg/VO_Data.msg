@@ -9,5 +9,6 @@ float64 focal
 float64 dt
 float64 im_height
 float64 im_width
+float64 time
 
 
