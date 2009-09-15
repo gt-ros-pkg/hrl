@@ -25,35 +25,265 @@
 #
 
 #  \author Cressel Anderson (Healthcare Robotics Lab, Georgia Tech.)
+#  \author Marc Killpack (Healthcare Robotics Lab, Georgia Tech.)
 
 import usb
 import pickle
 import time
 import numpy as np
+import threading
 
 import math
 import struct
 
+import roslib; roslib.load_manifest('segway_omni')
+from hrl_lib.msg import Pose3DOF, String
+import rospy
+
+class Odom_publish:
+    def __init__(self, topic = 'odom_predict', name='segway_publish'):
+        self.pub_predict = rospy.Publisher('odom_predict', Pose3DOF)
+        self.pub_estimate = rospy.Publisher('segway_odom_estimate', Pose3DOF)
+        #self.vo_frame_grabbed = False
+        self.odom_lock = threading.RLock()
+        try:
+            rospy.init_node(name, anonymous=True)
+        except rospy.ROSException, e:
+            pass
+
+#########this will send old values of odom, no good, needs to be part of Mecanum...?
+    def send_odometry_estimate(self, x, y, theta, dt, clock):
+
+
+        self.odom_lock.acquire()
+        self.vo_frame_grabbed=False
+        data=Pose3DOF(None, x, y, theta, dt, clock)
+        self.pub_estimate.publish(data)
+
+    def send_odometry_predict(self, diff_x, diff_y, diff_theta, dt, clock):
+        data=Pose3DOF(None, diff_x, diff_y, diff_theta, dt, clock)
+        self.pub_predict.publish(data)
+
 class Mecanum_Properties():
-    def __init__( self ):
+    def __init__( self, pose_x_0=0, pose_y_0=0, pose_theta_0=0):
         self.r1 = .2032/2. # 8in wheels
         self.r2 = .2032/2. # 8in wheels
         
-        self.R = 8*2.54/100 # wheel diameter in meters
+        self.R = 4*2.54/100 # wheel radius in meters
         
-        self.la = .715/2 # 1/2 width of the base
-        self.lb = .335/2 # 1/2 length of the base
+        self.la = .6223/2 # 1/2 width of the base
+        self.lb = .33655/2 # 1/2 length of the base
+        self.flw=0
+        self.frw=0
+        self.blw=0
+        self.brw=0
+        self.slip = False
+        self.counter=0
+        self.pose_x=pose_x_0
+        self.pose_y=pose_y_0
+        self.pose_theta=pose_theta_0
+        self.vel_x=0
+        self.vel_y=0
+        self.vel_theta=0
+        self.prev_vel_x=0
+        self.prev_vel_y=0
+        self.prev_vel_theta=0
+        self.start_odom_time=time.time()
+        self.lock=threading.Lock()
+        self.odom_publish=Odom_publish()
+        self.kill=False
+        #rospy.Subscriber("got_frame", String, self.frame, None, 1)  
+        self.vo_frame_grabbed = False
+
 
 class Mecanum( Mecanum_Properties ):
     def __init__( self ):
         self.segway_front = Segway( side='front')
         self.segway_back  = Segway( side='back' )
 
-        Mecanum_Properties.__init__(self)
+        Mecanum_Properties.__init__(self, 0, 0, 0)
         self.get_status()
+        self.segway_front.clear_read()
+        self.segway_back.clear_read()        
+        self.odom_thread=threading.Thread(target=self.get_odometry)
+        self.odom_thread.start()
+
+    def frame(self, test_bool):
+        #self.lock.acquire()
+        self.vo_frame_grabbed=True
+        #self.lock.release()
+
+    def get_odometry(self):
+        while self.kill==False:
+            #print "got into odometry"
+
+            #while self.vo_frame_grabbed==False:
+            #    time.sleep(0.001)
+            
+            self.lock.acquire()
+            self.vo_frame_grabbed=False
+            diff_x, diff_y, diff_theta=self.get_diff_displacement()
+            vel_x, vel_y, vel_theta, slip = self.get_velocity()
+            self.lock.release()
+            
+            dt=time.time()-self.start_odom_time
+            self.start_odom_time=time.time()
+
+            int_diff_x=(vel_x+self.prev_vel_x)*dt/2.0
+            int_diff_y=(vel_y+self.prev_vel_y)*dt/2.0
+            int_diff_theta=(vel_theta+self.prev_vel_theta)*dt/2.0
+
+            self.prev_vel_x=vel_x
+            self.prev_vel_y=vel_y
+            self.prev_vel_theta=vel_theta
+
+
+            diff_x_g=diff_x*math.cos(self.pose_theta)-int_diff_y*math.sin(self.pose_theta)
+            diff_y_g=diff_x*math.sin(self.pose_theta)+int_diff_y*math.cos(self.pose_theta)
+           
+            self.pose_x=self.pose_x+diff_x_g
+            self.pose_y=self.pose_y-diff_y_g
+            self.pose_theta=self.pose_theta+int_diff_theta*2.71
+
+            self.odom_publish.send_odometry_estimate(self.pose_x,self.pose_y,self.pose_theta, dt, self.start_odom_time)
+            self.odom_publish.send_odometry_predict(diff_x, int_diff_y, int_diff_theta, dt, self.start_odom_time)
+
+
+
+            #time.sleep(0.001)
+        
+
+
+    def get_diff_displacement(self):  #, dt, prev_vel):
+      
+        counter_kill=0
+        while self.segway_front.integrated_wheel_displacement_left_start==self.segway_front.integrated_wheel_displacement_left and counter_kill<2:
+            self.segway_front.read()
+            counter_kill=counter_kill+1
+        counter_kill=0
+        #self.segway_front.clear_read()
+        while self.segway_back.integrated_wheel_displacement_left_start==self.segway_back.integrated_wheel_displacement_left and counter_kill<2:
+            self.segway_back.read()
+            counter_kill=counter_kill+1
+        counter_kill=0
+
+        self.segway_front.clear_read()
+        self.segway_back.clear_read()
+
+
+        #self.segway_back.clear_read()
+
+        front_lw_start=self.segway_front.integrated_wheel_displacement_left_start
+        front_lw=self.segway_front.integrated_wheel_displacement_left
+        front_rw_start=self.segway_front.integrated_wheel_displacement_right_start
+        front_rw=self.segway_front.integrated_wheel_displacement_right
+        back_lw_start=self.segway_back.integrated_wheel_displacement_left_start
+        back_lw=self.segway_back.integrated_wheel_displacement_left
+        back_rw_start=self.segway_back.integrated_wheel_displacement_right_start
+        back_rw=self.segway_back.integrated_wheel_displacement_right
+        
+        R= self.R
+        la = self.la
+        lb = self.lb
+        #print self.counter, "  flw, flws, blw, blws ", front_lw, front_lw_start, back_lw, back_lw_start
+        self.counter=self.counter+1
+
+        wheel_disp=np.matrix([float(front_rw-front_rw_start)/40181.0/R, float(front_lw-front_lw_start)/40181.0/R, 
+            float(-back_lw+back_lw_start)/40181.0/R, float(-back_rw+back_rw_start)/40181.0/R]).T
+
+        pose_buf = R/4.0/(la+lb)*np.matrix([-(la+lb), (la+lb), -(la+lb), (la+lb),
+                                          (la+lb), (la+lb), (la+lb), (la+lb),
+                                          1, -1, 1, -1]).reshape(3,4)*wheel_disp
+
+
+        #if abs(wheel_disp).any()>0:
+            #print wheel_disp
+
+        #####DO the math here to return the differential displacement
+
+        diff_x=pose_buf[1,0]
+        diff_y=-1*pose_buf[0,0]
+        diff_theta=pose_buf[2,0]
+
+        #if abs(wheel_disp).any()>0:
+            #print diff_x, diff_y, diff_theta
+
+
+        self.segway_front.integrated_wheel_displacement_left_start=front_lw
+        self.segway_front.integrated_wheel_displacement_right_start=front_rw
+        self.segway_back.integrated_wheel_displacement_left_start=back_lw
+        self.segway_back.integrated_wheel_displacement_right_start=back_rw
+
+        return diff_x, diff_y, diff_theta
+
+        
+
+
+
+        #v_x_prev=prev_vel[0]
+        #v_y_prev=prev_vel[1]
+        #v_theta_prev=prev_vel[2]
+
+        #v_x, v_y, v_theta= self.get_platform_velocity()
+        
+
+        
+
+
+    def get_velocity(self):
+        R = self.R
+        la = self.la
+        lb = self.lb
+
+
+        # eq. 23 from Knematic modeling for feedback control of an
+        # omnidirectional wheeled mobile robot by Muir and Neuman at
+        # CMU
+
+        wheel_vel=np.matrix([float(self.segway_front.RW_vel)/401.0/R, float(self.segway_front.LW_vel)/401.0/R, 
+            float(self.segway_back.LW_vel)/401.0/R, float(self.segway_back.RW_vel)/401.0/R]).T
+
+        vel_pose_buf=R/4.0/(la+lb)*np.matrix([-(la+lb), (la+lb), -(la+lb), (la+lb),
+                                          (la+lb), (la+lb), (la+lb), (la+lb),
+                                          1, -1, -1, 1]).reshape(3,4)*wheel_vel
+
+        #pose.v_x=pose_buf[1,0]
+        #pose.v_y=-pose_buf[0,0]
+        #pose.v_theta=pose_buf[2,0]
+        
+        # eq. 17 from Knematic modeling for feedback control of an
+        # omnidirectional wheeled mobile robot by Muir and Neuman at
+        # CMU
+        wheel_vel_buf= 1/R * np.matrix([-1,1, (la + lb),
+                              1,1,-(la + lb),
+                             -1,1,-(la + lb),
+                              1,1, (la + lb)]).reshape(4,3)*vel_pose_buf
+
+        eps_vel_error=abs(wheel_vel-wheel_vel_buf)
+        slip=eps_vel_error[eps_vel_error>0.05]
+
+
+
+##########finish looking at the coord frames for error comparison....
+        #counter=0
+        #for omega in wheel_vel:
+        #    if abs(omega-self.
+       
+        vel_pose_x_dot=vel_pose_buf[1,0]
+        vel_pose_y_dot=-1*vel_pose_buf[0,0]
+        vel_pose_theta_dot=vel_pose_buf[2,0]
+        vel_pose_slip=slip
+
+        #this returns the v_x, v_y, and v_theta for pose
+        #return pose_buf[0,0], pose_buf[1,0], pose_buf[2,0]   
+        return vel_pose_x_dot, vel_pose_y_dot, vel_pose_theta_dot, vel_pose_slip   
+
+
 
     def set_velocity( self, xvel, yvel, avel ):
         """xvel and yvel should be in m/s and avel should be rad/s"""
+
+        #print "from segway", xvel, yvel, avel
         yvel = -yvel
 
         R = self.R
@@ -79,6 +309,23 @@ class Mecanum( Mecanum_Properties ):
         frw = w[0,0]
         blw = w[2,0]
         brw = w[3,0]
+
+        self.flw=flw
+        self.frw=frw
+        self.blw=blw
+        self.brw=brw
+
+
+
+        #if abs(flw) > 0.0 or abs(frw) >0.0:
+        #    self.non_zero_cmd_front=True
+        #else:
+        #    self.non_zero_cmd_front=False
+
+        #if abs(blw) > 0.0 or abs(brw) >0.0:
+        #    self.non_zero_cmd_back=True
+        #else:
+        #    self.non_zero_cmd_back=False
 
         front_cmd = self.segway_front.send_wheel_velocities( flw, frw )
         back_cmd  = self.segway_back.send_wheel_velocities(  blw, brw )
@@ -141,7 +388,9 @@ class Segway( Segway_Properties ):
         self.yaw_rate = 0
         self.servo_frames = 0
         self.integrated_wheel_displacement_left = 0
+        self.integrated_wheel_displacement_left_start=0
         self.integrated_wheel_displacement_right = 0
+        self.integrated_wheel_displacement_right_start = 0
         self.integrated_for_aft_displacement = 0
         self.integrated_yaw_displacement = 0
         self.left_motor_torque = 0
@@ -152,6 +401,15 @@ class Segway( Segway_Properties ):
         self.power_base_battery_voltage = 0
         self.velocity_commanded = 0
         self.turn_commanded = 0
+        self.old=False
+
+        self.clear_read()
+        self.send_wheel_velocities(0.0, 0.0)
+        self.read()
+
+        self.integrated_wheel_displacement_left_start=self.integrated_wheel_displacement_left
+        self.integrated_wheel_displacement_right_start=self.integrated_wheel_displacement_right
+
         
     def connect(self):
         buses = usb.busses()
