@@ -97,3 +97,23 @@ def unwrap_np_array(nparr_ros):
     return nparr
 
 
+## cartesian product of list of lists.
+# code copied from: http://automatthias.wordpress.com/2007/04/28/cartesian-product-of-multiple-sets/
+# @return generator. can loop over it, or list(generator) will give
+# the entire list.
+# NOTE - itertools in python 2.6 provides this functionality. We
+# should switch over to it soon.
+def cartesian_product(lists, previous_elements = []):
+    if len(lists) == 1:
+        for elem in lists[0]:
+            yield previous_elements + [elem, ]
+    else:
+        for elem in lists[0]:
+            for x in cartesian_product(lists[1:], previous_elements + [elem, ]):
+                yield x
+
+
+
+
+
+
