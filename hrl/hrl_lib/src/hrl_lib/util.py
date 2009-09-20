@@ -112,6 +112,21 @@ def cartesian_product(lists, previous_elements = []):
             for x in cartesian_product(lists[1:], previous_elements + [elem, ]):
                 yield x
 
+## choose n elements from list without replacement.
+# @return generator.
+def choose_without_replacement(list, n):
+    lists = [list for i in range(n)]
+    return _choose_without_replacement(lists)
+
+def _choose_without_replacement(lists,previous_elements=[],ignore_count=0):
+    if len(lists) == 1:
+        for elem in lists[0][ignore_count:]:
+            yield previous_elements + [elem, ]
+    else:
+        for i,elem in enumerate(lists[0][ignore_count:]):
+            for x in _choose_without_replacement(lists[1:],previous_elements + [elem, ],ignore_count+i+1):
+                yield x
+
 
 
 
