@@ -31,6 +31,8 @@ import roslib; roslib.update_path('hrl_lib')
 import rospy
 import std_srvs.srv as srv
 from hrl_lib.msg import FloatArray
+import tf
+import tf.msg
 
 import time
 import numpy as np
@@ -267,6 +269,16 @@ class GenericListener:
 
 
 
+class TransformBroadcaster:
+
+    def __init__(self):
+        self.pub_tf = rospy.Publisher("/tf", tf.msg.tfMessage)
+
+    ## send transform as a tfmessage.
+    # @param tf_stamped - object of class TransformStamped (rosmsg show TransformStamped)
+    def send_transform(self,tf_stamped):
+        tfm = tf.msg.tfMessage([tf_stamped])
+        self.pub_tf.publish(tfm)
 
 
 
