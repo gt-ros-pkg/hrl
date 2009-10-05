@@ -41,15 +41,13 @@ from hrl_lib.msg import Pose3DOF, String
 import rospy
 
 class Odom_publish:
-    def __init__(self, topic = 'odom_predict', name='segway_publish'):
+    def __init__(self, topic = 'odom_predict',name='segway_publish',init_ros_node=True):
         self.pub_predict = rospy.Publisher('odom_predict', Pose3DOF)
         self.pub_estimate = rospy.Publisher('segway_odom_estimate', Pose3DOF)
         #self.vo_frame_grabbed = False
         self.odom_lock = threading.RLock()
-        try:
+        if init_ros_node:
             rospy.init_node(name, anonymous=True)
-        except rospy.ROSException, e:
-            pass
 
 #########this will send old values of odom, no good, needs to be part of Mecanum...?
     def send_odometry_estimate(self, x, y, theta, dt, clock):
@@ -57,15 +55,15 @@ class Odom_publish:
 
         self.odom_lock.acquire()
         self.vo_frame_grabbed=False
-        data=Pose3DOF(None, x, y, theta, dt, clock)
+        data=Pose3DOF(None, x, y, theta, dt)
         self.pub_estimate.publish(data)
 
     def send_odometry_predict(self, diff_x, diff_y, diff_theta, dt, clock):
-        data=Pose3DOF(None, diff_x, diff_y, diff_theta, dt, clock)
+        data=Pose3DOF(None, diff_x, diff_y, diff_theta, dt)
         self.pub_predict.publish(data)
 
 class Mecanum_Properties():
-    def __init__( self, pose_x_0=0, pose_y_0=0, pose_theta_0=0):
+    def __init__( self, pose_x_0=0, pose_y_0=0,pose_theta_0=0,init_ros_node=True):
         self.r1 = .2032/2. # 8in wheels
         self.r2 = .2032/2. # 8in wheels
         
@@ -90,18 +88,18 @@ class Mecanum_Properties():
         self.prev_vel_theta=0
         self.start_odom_time=time.time()
         self.lock=threading.Lock()
-        self.odom_publish=Odom_publish()
+        self.odom_publish=Odom_publish(init_ros_node = init_ros_node)
         self.kill=False
         #rospy.Subscriber("got_frame", String, self.frame, None, 1)  
         self.vo_frame_grabbed = False
 
 
 class Mecanum( Mecanum_Properties ):
-    def __init__( self ):
+    def __init__( self, init_ros_node=True):
         self.segway_front = Segway( side='front')
         self.segway_back  = Segway( side='back' )
 
-        Mecanum_Properties.__init__(self, 0, 0, 0)
+        Mecanum_Properties.__init__(self, 0, 0, 0, init_ros_node)
         self.get_status()
         self.segway_front.clear_read()
         self.segway_back.clear_read()        

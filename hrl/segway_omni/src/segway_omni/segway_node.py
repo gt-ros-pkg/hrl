@@ -34,18 +34,19 @@ import rospy
 import segway
 import hrl_lib.util as ut
 
-mecanum = segway.Mecanum()
 def callback(cmd):
     #print 'segway_node:', cmd.xvel, cmd.yvel, cmd.angular_velocity
     mecanum.set_velocity(cmd.xvel, cmd.yvel, cmd.angular_velocity)
 
 def callback_ros(cmd):
     #print 'segway_node:', cmd.linear.x, cmd.linear.y, cmd.angular.z
-    avel = ut.bound(cmd.angular.z,-0.4,0.4)
+    avel = cmd.angular.z * 0.5
+    avel = ut.bound(avel,-0.2,0.2)
     mecanum.set_velocity(cmd.linear.x, cmd.linear.y, avel)
 
 rospy.init_node("segway_node", anonymous=False)
 rospy.Subscriber("base", PlanarBaseVel, callback, None, 1)
 rospy.Subscriber("cmd_vel", Twist, callback_ros, None, 1)
+mecanum = segway.Mecanum(init_ros_node=False)
 rospy.spin()
 

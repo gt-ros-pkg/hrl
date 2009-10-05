@@ -38,6 +38,7 @@ import roslib
 roslib.load_manifest('segway_omni')
 import rospy
 
+import hrl_lib.util as ut
 import numpy as np
 
 from pygame.locals import *
@@ -58,9 +59,10 @@ if __name__=='__main__':
 
     cmd_node = sc.SegwayCommand()
 
-    max_xvel = 0.70 
-    max_yvel = 0.30
-    max_avel = 0.37
+    max_xvel = 0.18 
+    max_yvel = 0.15
+    max_speed = 0.18 # don't exceed 0.18 under any condition.
+    max_avel = 0.18
 
     xvel = 0.0
     yvel = 0.0
@@ -148,7 +150,14 @@ if __name__=='__main__':
 
             yvel = y*max_yvel
             avel = a*max_avel
+
+            vel_vec = np.matrix([xvel,yvel]).T
+            vel_mag = np.linalg.norm(vel_vec)
+            speed = ut.bound(vel_mag,max_speed,0.)
+            if speed >= 0.05:
+                vel_vec = vel_vec*speed/vel_mag
             
+            xvel,yvel = vel_vec[0,0],vel_vec[1,0]
             cmd_node.set_velocity(xvel,yvel,avel)               
 
     # stop the segway
