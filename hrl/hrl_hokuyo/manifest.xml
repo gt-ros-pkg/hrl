@@ -4,7 +4,7 @@
   UTMs and player to get scans from URGs.
   </description>
   <author>Advait Jain</author>
-  <license>BSD</license>
+  <license>New BSD</license>
 
   <depend package="hokuyo_node"/>
   <depend package="sensor_msgs"/>
