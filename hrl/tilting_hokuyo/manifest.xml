@@ -1,0 +1,15 @@
+<package>
+  <description brief="tilting_hokuyo">
+    Python code to use a Robotis servo to tilt a Hokuyo to get 3D point clouds.
+  </description>
+  <author>Advait Jain</author>
+  <license>BSD</license>
+
+  <depend package="rospy"/>
+  <depend package="hrl_lib"/>
+  <depend package="hrl_hokuyo"/>
+  <depend package="robotis"/>
+
+</package>
+
+
