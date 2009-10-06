@@ -7,6 +7,8 @@
   <depend package="rospy"/>  
   <depend package="zenither"/>  
   <depend package="hrl_lib"/>  
+  <depend package="geometry_msgs"/> 
+  <depend package="tf"/> 
 
   <sysdepend package="python-usb" os="ubuntu" version="8.04-hardy"/>
   <sysdepend package="python-usb" os="ubuntu" version="7.04-feisty"/>
