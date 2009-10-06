@@ -1,5 +1,5 @@
 <package>
-  <description brief="tilting_hokuyo">
+  <description brief="hrl_tilting_hokuyo">
     Python code to use a Robotis servo to tilt a Hokuyo to get 3D point clouds.
   </description>
   <author>Advait Jain</author>

@@ -27,7 +27,7 @@
 
 #  \author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
 
-import roslib; roslib.load_manifest('tilting_hokuyo')
+import roslib; roslib.load_manifest('hrl_tilting_hokuyo')
 
 import time
 import sys, optparse
