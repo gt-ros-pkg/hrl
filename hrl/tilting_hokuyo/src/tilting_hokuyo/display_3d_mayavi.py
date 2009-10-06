@@ -118,7 +118,7 @@ if __name__ == '__main__':
     if pts_pkl_fname != None:
         pts = ut.load_pickle(pts_pkl_fname)
     elif dict_pkl_fname != None:
-        import processing_3d as p3d
+        import tilting_hokuyo.processing_3d as p3d
         dict = ut.load_pickle(dict_pkl_fname)
         pts = p3d.generate_pointcloud(dict['pos_list'],dict['scan_list'],
                                       math.radians(-max_pan_angle),
