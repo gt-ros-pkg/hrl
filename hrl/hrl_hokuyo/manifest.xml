@@ -1,0 +1,17 @@
+<package>
+  <description brief="hrl_hokuyo">
+  Python class that uses hokuyo_node from ros-pkg to get scans from
+  UTMs and player to get scans from URGs.
+  </description>
+  <author>Advait Jain</author>
+  <license>BSD</license>
+
+  <depend package="hokuyo_node"/>
+  <depend package="sensor_msgs"/>
+  <depend package="rospy"/>
+
+  <depend package="hrl_lib"/>
+
+</package>
+
+
