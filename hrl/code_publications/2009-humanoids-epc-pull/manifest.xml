@@ -1,0 +1,14 @@
+<package>
+    <description brief="2009-humanoids-epc-pull">
+        This package contains code associated with the following
+        publication: 
+        Pulling Open Novel Doors and Drawers with Equilibrium Point Control.
+        Advait Jain and Charles C. Kemp. IEEE-RAS International Conference on
+        Humanoid Robots (Humanoids), 2009.
+    </description>
+    <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
+    <license>New BSD</license>
+
+</package>
+
+
