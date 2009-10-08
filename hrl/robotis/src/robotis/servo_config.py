@@ -19,16 +19,16 @@ servo_param = {
         'home_encoder': 338
        },
     # 11 - 25 reserved!  (by Travis)
-    11: {                        # Pan Antenna on RFID Benchtop
-        'home_encoder': 506
+    11: {                        # RFID Left Pan
+        'home_encoder': 430
        },
-    12: {                        # Tilt Antenna on RFID Benchtop
-        'home_encoder': 524
+    12: {                        # RFID Left Tilt
+        'home_encoder': 507
        },
-    13: {                        # Pan Antenna on RFID El-E Right
-        'home_encoder': 510
+    13: {                        # RFID Right Pan
+        'home_encoder': 583
        },
-    14: {                        # Tilt Antenna on RFID El-E Right
+    14: {                        # RFID Right Tilt
         'home_encoder': 504
        },
     15: {                        # Ear Flap on RFID El-E Right
