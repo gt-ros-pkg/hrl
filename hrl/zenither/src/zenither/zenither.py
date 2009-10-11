@@ -378,9 +378,13 @@ class Zenither(object):
             self.servo.write('KGOFF\n')       #disable gravity compensation
         self.use_torque_mode()
         factor = self.get_factor(type='pos_factor')
+        print 'torque', int(torque*factor/abs(factor))
         self.set_torque(int(torque*factor/abs(factor))) #use factor to determine sign)
         if self.calib['HAS_BRAKE']:
+            print 'disengage'
             self.disengage_brake()
+        else:
+            print 'no brake'
         #print 'setting torque ',int(torque*factor/abs(factor)) #use factor to determine sign
         self.serial_lock.release()
 
@@ -616,6 +620,8 @@ class Zenither(object):
         if self.robot != 'El-E':
             raise RuntimeError(
                 'This function is unemplemented on robot\'s other than El-E')
+        if self.calib['HAS_BRAKE']:
+            self.disengage_brake()
 
         if position > 0.9 or position < 0.0:
             if approximate_pose:
@@ -674,6 +680,9 @@ class Zenither(object):
                 current_pose = self.get_position_meters()
                 #print abs(current_pose - position)
             print 'zenither.move_position: done'
+
+        if self.calib['HAS_BRAKE']:
+            self.engage_brake()
 
 
     def check_mode(self):
