@@ -6,6 +6,7 @@
     <license>New BSD</license>
 
     <depend package="std_srvs"/>
+    <depend package="tf"/>
     <export>
         <cpp cflags="-I${prefix}/msg/cpp"/>
     </export>

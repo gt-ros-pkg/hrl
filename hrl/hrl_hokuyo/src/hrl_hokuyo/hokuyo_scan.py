@@ -179,7 +179,7 @@ class Utm():
     def get_scan(self, avoid_duplicate=False):
         while self.connected_to_ros == False:
             pass
-        while True:
+        while not rospy.is_shutdown():
             self.lock.acquire()
             if avoid_duplicate == False or np.any(self.hokuyo_scan.ranges!=self.ranges):
                 # got a fresh scan from ROS
@@ -188,6 +188,7 @@ class Utm():
                 self.lock.release()
                 break
             self.lock.release()
+            time.sleep(0.001)
 
         return copy.copy(self.hokuyo_scan)
 

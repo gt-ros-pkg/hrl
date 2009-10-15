@@ -40,7 +40,7 @@ import hokuyo_scan as hs
 
 import hrl_lib.transforms as tr
 import hrl_lib.util as ut
-import util as uto
+#import util as uto
 import math, numpy as np
 import scipy.ndimage as ni
 import pylab as pl
@@ -583,12 +583,17 @@ if __name__ == '__main__':
                  help='hokuyo number. 0,1,2 ...')
     p.add_option('-f', action='store_true', dest='flip',
                  help='flip the hokuyo scan')
+    p.add_option('--ang_range', type='float', dest='ang_range',
+                 help='max angle of the ray to display (degrees)',
+                 default=360.)
 
     opt, args = p.parse_args()
     hokuyo_type = opt.hokuyo_type
     hokuyo_number = opt.hokuyo_number
     avg_number = opt.avg
     flip = opt.flip
+    ang_range = opt.ang_range
+    ang_range = math.radians(ang_range)
 
 #------- which things to test ---------
     test_graze_effect_flag = False
@@ -610,8 +615,8 @@ if __name__ == '__main__':
 
 
     if hokuyo_type == 'utm':
-        h = hs.Hokuyo('utm',hokuyo_number,start_angle=math.radians(-90),
-                      end_angle=math.radians(90),flip=flip)
+        h = hs.Hokuyo('utm',hokuyo_number,start_angle=-ang_range,
+                      end_angle=ang_range,flip=flip)
     elif hokuyo_type == 'urg':
         h = hs.Hokuyo('urg',hokuyo_number,flip=flip)
     else:
