@@ -142,9 +142,9 @@ if __name__=='__main__':
         #send segway commands
         if connected:
             xvel = x*max_xvel
-            xvel_history[0:(len-1)] = xvel_history[1:len]
-            xvel_history[(len-1)] = xvel
-            xvel = np.mean(xvel_history)
+#            xvel_history[0:(len-1)] = xvel_history[1:len]
+#            xvel_history[(len-1)] = xvel
+#            xvel = np.mean(xvel_history)
 
             yvel = y*max_yvel
             avel = a*max_avel
