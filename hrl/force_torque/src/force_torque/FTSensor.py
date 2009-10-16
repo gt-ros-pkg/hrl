@@ -231,7 +231,7 @@ if __name__ == '__main__':
     print 'FTSensor: Reading from', opt.path
 
     if opt.mode == 'run':
-        import roslib; roslib.update_path('force_torque')
+        import roslib; roslib.load_manifest('force_torque')
         import rospy
         import hrl_lib.rutils as ru
         from force_torque.srv import *

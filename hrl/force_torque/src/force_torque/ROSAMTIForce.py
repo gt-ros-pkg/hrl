@@ -30,7 +30,7 @@
 #  \author Cressel Anderson (Healthcare Robotics Lab, Georgia Tech.)
 #  \author Hai Nguyen (Healthcare Robotics Lab, Georgia Tech.)
 
-import roslib; roslib.update_path('force_torque')
+import roslib; roslib.load_manifest('force_torque')
 import rospy
 from hrl_lib.msg import FloatArray
 #import hrl_lib.rutils as ru
@@ -68,7 +68,7 @@ class AMTIForceServer(threading.Thread):
 #def AMTIForceClient():
 #    return ru.FloatArrayListener('AMTIForceClient', 'force_plate', 100.0)
 
-#import roslib; roslib.update_path('force_torque')
+#import roslib; roslib.load_manifest('force_torque')
 #import force_torque.ROSAMTIForce as ft
 if __name__ == '__main__':
     import optparse

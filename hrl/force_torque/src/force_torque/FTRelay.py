@@ -24,7 +24,7 @@ class FTRelay:
 
 
 if __name__ == '__main__':
-    import roslib; roslib.update_path('force_torque')
+    import roslib; roslib.load_manifest('force_torque')
     import rospy
     from force_torque.srv import *
     from hrl_lib.msg import FloatArray as FloatArray

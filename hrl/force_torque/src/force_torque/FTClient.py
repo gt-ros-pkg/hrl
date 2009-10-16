@@ -29,7 +29,7 @@
 #  \author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
 #  \author Cressel Anderson (Healthcare Robotics Lab, Georgia Tech.)
 #  \author Hai Nguyen (Healthcare Robotics Lab, Georgia Tech.)
-import roslib; roslib.update_path('force_torque')
+import roslib; roslib.load_manifest('force_torque')
 import rospy
 import hrl_lib.rutils as ru
 import hrl_lib.util as ut
