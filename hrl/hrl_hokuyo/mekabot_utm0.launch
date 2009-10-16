@@ -11,7 +11,7 @@ Launch this on mecanum2 to start node for torso hokuyo
         <param name="frameid" value="frameid_utm0"/>
     </node>
 
-    <node name="tf_utm0_broadcaster" pkg="tf" type="transform_sender"
+    <node name="static_tf_utm0_broadcaster" pkg="tf" type="static_transform_sender"
         args="0.25 0 0.5 0 0 0 frameid_utm0 base_link 1000"
         respawn="false" output="screen"/>
 
