@@ -56,7 +56,7 @@ class HokuyoScan():
         self.min_range   = min_range
         self.start_angle = start_angle
         self.end_angle   = end_angle
-        self.n_points    = int(round((end_angle-start_angle)/angular_res))+1
+        self.n_points    = int((end_angle-start_angle)/angular_res)+1
 
         self.ranges      = None
         self.intensities = None
@@ -126,11 +126,17 @@ class Utm():
     '''
     def __init__(self, utm_number,start_angle=None,end_angle=None,ros_init_node=True):
 
+        hokuyo_node_name = '/utm%d'%utm_number
+        max_ang_degrees = rospy.get_param(hokuyo_node_name+'/max_ang_degrees')
+        min_ang_degrees = rospy.get_param(hokuyo_node_name+'/min_ang_degrees')
+        start_angle_fullscan = math.radians(min_ang_degrees)
+        end_angle_fullscan = math.radians(max_ang_degrees)
+
         # This is actually determined by the ROS node params and not the UTM.
 #        start_angle_fullscan = -math.radians(1080./2*0.25) #270deg
 #        end_angle_fullscan = math.radians(1080./2*0.25)
-        start_angle_fullscan = -math.radians(720./2*0.25)  #180deg
-        end_angle_fullscan = math.radians(720./2*0.25)
+#        start_angle_fullscan = -math.radians(720./2*0.25)  #180deg
+#        end_angle_fullscan = math.radians(720./2*0.25)
 #        start_angle_fullscan = -math.radians(559./2*0.25)   #140deg
 #        end_angle_fullscan = math.radians(559./2*0.25)
 
