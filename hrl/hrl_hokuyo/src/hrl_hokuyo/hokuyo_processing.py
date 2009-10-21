@@ -76,12 +76,13 @@ def index_to_angle(scan, index):
     '''
     return scan.start_angle+index*scan.angular_res
 
-def get_xy_map(scan,start_angle=math.radians(-360),end_angle=math.radians(360),reject_zero_ten=True,max_dist=np.Inf,min_dist=-np.Inf,sigmoid_hack=False):
+def get_xy_map(scan,start_angle=math.radians(-360),end_angle=math.radians(360),reject_zero_ten=True,max_dist=np.Inf,min_dist=-np.Inf,sigmoid_hack=False, get_intensities=False):
     """ start_angle - starting angle for points to be considered (hokuyo coord)
         end_angle - ending angle in hokuyo coord frame.
         scan - object of class HokuyoScan
         reject_zero_ten - ignore points at 0 or 10. meters
-        returns - 2xN matrix
+		
+        returns - 2xN matrix, if get_intensities=True returns (2xN matrix, 1xN matrix)
     """
     start_index = angle_to_index(scan,start_angle)
     end_index = angle_to_index(scan,end_angle)
@@ -116,7 +117,14 @@ def get_xy_map(scan,start_angle=math.radians(-360),end_angle=math.radians(360),r
     xy_map = xy_map[:,start_index:end_index+1]
     
     idxs = np.where(keep_condition)
-    return np.row_stack((xy_map[idxs],xy_map[idxs[0]+1,idxs[1]]))
+    xy_map = np.row_stack((xy_map[idxs],xy_map[idxs[0]+1,idxs[1]]))
+
+    if get_intensities == True:
+        intensities = scan.intensities[:,start_index:end_index+1]
+        intensities = intensities[idxs]
+        return xy_map, intensities
+    else:
+        return xy_map
 
 
 def connected_components(p, dist_threshold):
