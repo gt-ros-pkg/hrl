@@ -662,7 +662,8 @@ if __name__ == '__main__':
 
         if test_show_change_flag == False:
             #draw_hokuyo_scan(srf,scan,math.radians(-70), math.radians(70),color=(0,0,200))
-            draw_hokuyo_scan(srf,scan,math.radians(-90), math.radians(90),color=(0,0,200))
+            #draw_hokuyo_scan(srf,scan,math.radians(-90), math.radians(90),color=(0,0,200))
+            draw_hokuyo_scan(srf,scan,math.radians(-135),math.radians(135),color=(0,0,200))
         else:
             diff_scan = subtract_scans(scan,scan_prev)
             scan_prev = scan

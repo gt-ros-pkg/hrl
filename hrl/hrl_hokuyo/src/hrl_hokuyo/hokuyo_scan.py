@@ -127,6 +127,13 @@ class Utm():
     def __init__(self, utm_number,start_angle=None,end_angle=None,ros_init_node=True):
 
         hokuyo_node_name = '/utm%d'%utm_number
+#        max_ang = rospy.get_param(hokuyo_node_name+'/max_ang')
+#        min_ang = rospy.get_param(hokuyo_node_name+'/min_ang')
+#        start_angle_fullscan = min_ang
+#        end_angle_fullscan = max_ang
+#        print 'max_angle:', math.degrees(max_ang)
+#        print 'min_angle:', math.degrees(min_ang)
+
         max_ang_degrees = rospy.get_param(hokuyo_node_name+'/max_ang_degrees')
         min_ang_degrees = rospy.get_param(hokuyo_node_name+'/min_ang_degrees')
         start_angle_fullscan = math.radians(min_ang_degrees)

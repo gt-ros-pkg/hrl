@@ -12,7 +12,7 @@ Launch this on mecanum2 to start node for torso hokuyo
     </node>
 
     <node name="static_tf_utm0_broadcaster" pkg="tf" type="transform_sender"
-        args="0.25 0 0.5 0 0 0 frameid_utm0 base_link 1000"
+        args="0.25 0 0.5 0 0 0 frameid_utm0 base_link 50"
         respawn="false" output="screen"/>
 
 </launch>

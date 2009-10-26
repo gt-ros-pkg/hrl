@@ -1,0 +1,23 @@
+<!--
+Launch this on mecanum2 to start node for top hat hokuyo
+-->
+
+<launch>
+    <node pkg="hokuyo_node" type="hokuyo_node" name="utm2"
+        output="screen" respawn="false">
+        <remap from="scan" to="utm2_scan"/>
+        <param name="port" value="/dev/robot/hokuyo_H0800202"/>
+        <param name="max_ang_degrees" value="135"/>
+        <param name="min_ang_degrees" value="-135"/>
+        <param name="frameid" value="frameid_utm2"/>
+    </node>
+
+<!--
+    <node name="tf_utm0_broadcaster" pkg="tf" type="transform_sender"
+        args="0.25 0 0 0 0 0 frameid_mecanum frameid_utm0 10000"
+        respawn="false" output="screen">
+-->
+
+</launch>
+
+
