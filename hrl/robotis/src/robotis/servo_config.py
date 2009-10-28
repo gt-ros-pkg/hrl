@@ -61,6 +61,13 @@ servo_param = {
         },
     24: {                        # Dinah Bottom
         'home_encoder': 365
+        },
+    25: {                        # Meka top Pan
+        'home_encoder': 500
+        },
+    26: {                        # Meka top Tilt
+        'home_encoder': 400
         }
+
 }
 
