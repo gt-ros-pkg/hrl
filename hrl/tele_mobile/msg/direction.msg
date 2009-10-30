@@ -1,0 +1,8 @@
+float64 x
+float64 y
+float64 reset
+float64 zen
+float64 xvel
+float64 yvel
+float64 avel
+
