@@ -358,7 +358,7 @@ class Zenither(object):
         if torque == None:
             torque=self.calib['zenith_torque']
 
-        print "Zenither: going up at torque", torque
+        #print "Zenither: going up at torque", torque
         self.serial_lock.acquire()
         if self.robot == 'El-E':
             self.servo.write('KGOFF\n')       #disable gravity compensation
@@ -378,10 +378,9 @@ class Zenither(object):
             self.servo.write('KGOFF\n')       #disable gravity compensation
         self.use_torque_mode()
         factor = self.get_factor(type='pos_factor')
-        print 'torque', int(torque*factor/abs(factor))
+        #print 'torque', int(torque*factor/abs(factor))
         self.set_torque(int(torque*factor/abs(factor))) #use factor to determine sign)
         if self.calib['HAS_BRAKE']:
-            print 'disengage'
             self.disengage_brake()
         else:
             print 'no brake'
@@ -464,7 +463,6 @@ class Zenither(object):
             self.nadir(start_torque)
             current_torque = start_torque
 
-        print 'switched torque to:', current_torque
         h_start = self.get_position_meters()
         h_start = self.get_position_meters()
 
@@ -473,12 +471,10 @@ class Zenither(object):
             h_now = self.get_position_meters()
             if (h_now-height) < dist_list[1]:
                 if current_torque != snail_torque:
-                    print 'switched torque to:', snail_torque
                     self.nadir(snail_torque)
                     current_torque = snail_torque
             elif (h_now-height) < dist_list[0]:
                 if current_torque != slow_torque:
-                    print 'switched torque to:', slow_torque
                     self.nadir(slow_torque)
                     current_torque = slow_torque
 
@@ -488,7 +484,7 @@ class Zenither(object):
             h_start = h_now
 
         self.estop()
-        print self.get_position_meters()
+        #print self.get_position_meters()
 
     def torque_go_up(self,height,start_torque,dist_list=[0.15,0.05]):
         ''' dist list - how much distance to move slow and snail.
@@ -514,7 +510,6 @@ class Zenither(object):
             self.zenith(start_torque)
             current_torque = start_torque
 
-        print 'switched torque to:', current_torque
         h_start = self.get_position_meters()
         h_start = self.get_position_meters()
 
@@ -523,12 +518,10 @@ class Zenither(object):
             time.sleep(0.01)
             if (height-h_now) < dist_list[1]:
                 if current_torque != snail_torque:
-                    print 'switched torque to:', snail_torque
                     self.zenith(snail_torque)
                     current_torque = snail_torque
             elif (height-h_now) < dist_list[0]:
                 if current_torque != slow_torque:
-                    print 'switched torque to:', slow_torque
                     self.zenith(slow_torque)
                     current_torque = slow_torque
 
@@ -538,7 +531,7 @@ class Zenither(object):
             h_start = h_now
 
         self.estop()
-        print self.get_position_meters()
+        #print self.get_position_meters()
 
     def go_height_blocking(self, height):
         """ takes zenither up or down to height (moves slowly)

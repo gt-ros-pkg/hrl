@@ -48,7 +48,7 @@ calib = {
         'ACC_MAX':0.001,
         'ZERO_BIAS':0.28,
         'HAS_BRAKE':True,
-        'nadir_torque': 1,
+        'nadir_torque': 3,
         'zenith_torque': 400,
         'down_fast_torque': 0,
         'down_slow_torque': 3,
