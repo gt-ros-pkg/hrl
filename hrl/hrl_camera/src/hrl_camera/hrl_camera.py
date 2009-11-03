@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import roslib
-roslib.load_manifest('cvcamera')
+roslib.load_manifest('hrl_camera')
 import sys
 import rospy
 import cv
