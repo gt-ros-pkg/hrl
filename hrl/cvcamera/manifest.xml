@@ -1,0 +1,13 @@
+<package>
+  <description brief="cvcamera">
+     cvcamera
+  </description>
+  <author>Hai</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <depend package="opencv2"/>
+  <depend package="cv_bridge"/>
+
+</package>
+
+
