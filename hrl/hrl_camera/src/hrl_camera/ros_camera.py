@@ -1,4 +1,14 @@
 #!/usr/bin/env python
+##
+# This utility is used for publishing
+# OpenCV accessible camera images over
+# ROS.
+#
+# Usage ./ros_camera OPENCV_ID
+# where OPENCV_ID is a number >= 0
+# representing opencv's index for 
+# the particular device
+#
 import roslib
 roslib.load_manifest('hrl_camera')
 import sys
@@ -10,6 +20,15 @@ from sensor_msgs.msg import Image
 from cv_bridge.cv_bridge import CvBridge, CvBridgeError
 
 if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print 'This utility is used for publishing'
+        print 'OpenCV accessible camera images over'
+        print 'ROS.\n'
+        print 'Usage ./ros_camera OPENCV_ID'
+        print 'where OPENCV_ID is a number >= 0'
+        print 'representing opencv\'s index for '
+        print 'the particular device'
+
     camera_id = int(sys.argv[1])
     topic_name = 'cvcamera' + str(camera_id)
 
