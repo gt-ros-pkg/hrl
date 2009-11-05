@@ -3,6 +3,7 @@ roslib.load_manifest('hrl_camera')
 import cv
 
 camera_parameters = {
+        #A sample configuration
         'default' :
         {
             'calibration_image_width' : 320.0,
@@ -17,7 +18,10 @@ camera_parameters = {
             'lens_distortion_tangential_2' : -0.00016,
             'opencv_bayer_pattern' : None,
             'color': False,
-            'uid': None
+            #the class to load in a normal python import statement
+            'class': 'firefly',
+            #UUID obtained by calling 'python camera_uuid.py'
+            'uid': None 
             },
 
 #########################################################################
