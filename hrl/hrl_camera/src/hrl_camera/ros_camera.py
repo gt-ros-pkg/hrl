@@ -18,6 +18,22 @@ import time
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge.cv_bridge import CvBridge, CvBridgeError
+import hrl_lib.rutils as ru
+
+class ROSImageClient:
+    def __init__(self, topic_name):
+        self.bridge = CvBridge()
+        def message_extractor(ros_img):
+            try:
+                cv_image = self.bridge.imgmsg_to_cv(ros_img, 'bgr8')
+                return cv_image
+            except CvBridgeError, e:
+                return None
+        self.listener = ru.GenericListener('ROSImageClient', Image, topic_name, 
+                                           .1, message_extractor)
+
+    def get_frame(self):
+        return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False)
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
