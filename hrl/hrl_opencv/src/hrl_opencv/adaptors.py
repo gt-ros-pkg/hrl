@@ -54,3 +54,23 @@ def array2cv(a):
   cv.SetData(cv_im, a.tostring(), 
              a.dtype.itemsize*nChannels*a.shape[1])
   return cv_im
+
+def array2cvmat(a):
+    dtype2type = {
+          'uint8':   cv.CV_8UC1,
+          'int8':    cv.CV_8SC1, 
+          'uint16':  cv.CV_16UC1, 
+          'int16':   cv.CV_16SC1, 
+          'int32':   cv.CV_32SC1, 
+          'float32': cv.CV_32FC1, 
+          'float64': cv.CV_64FC1 
+      }
+    #create matrix headers
+    rows = a.shape[0]
+    cols = a.shape[1]
+    type = dtype2type[str(a.dtype)]
+    cvmat = cv.CreateMatHeader(rows, cols, type)
+
+    #set data
+    cv.SetData(cvmat, a.tostring(), a.dtype.itemsize * a.shape[1])
+    return cvmat
