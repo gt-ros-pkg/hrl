@@ -11,7 +11,6 @@
 
 import roslib
 roslib.load_manifest('hrl_camera')
-import sys
 import rospy
 import cv
 import time
@@ -21,30 +20,46 @@ from cv_bridge.cv_bridge import CvBridge, CvBridgeError
 import hrl_camera.hrl_camera as hc
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
+    import optparse
+    p = optparse.OptionParser()
+
+    p.add_option('-n', action='store', type='string', dest='camera_name', 
+                 default=None, help='a name in \'camera_config.py\'')
+    p.add_option('-f', action='store', type='float', dest='frame_rate', 
+                 default=None, help='frame rate')
+    opt, args = p.parse_args()
+
+    frame_rate = opt.frame_rate
+    camera_name = opt.camera_name
+    if camera_name == None:
+        import camera_uuid as cu
         print 'This utility is used for publishing '
         print 'named and calibrated OpenCV accessible'
         print 'camera images over ROS.'
-        print '                         '              
-        print 'Usage ./ros_camera CAMERA_NAME'
-        print 'where CAMERA_NAME is a name '
-        print 'in camera_config.py'
+        print ''
 
-    camera_name = sys.argv[1]
+        print 'You did not specify a camera name.'
+        print 'Available cameras:', cu.camera_names()
+        exit()
+
     topic_name = 'cvcamera_' + camera_name
 
     image_pub = rospy.Publisher(topic_name, Image)
     rospy.init_node('cvcamera', anonymous=True)
-    camera = hc.find_camera('ele_carriage')
+    camera = hc.find_camera(camera_name)
+    if frame_rate != None:
+        print 'Setting frame rate to', frame_rate
+        camera.set_frame_rate(frame_rate)
     bridge = CvBridge()
 
     print 'Opening OpenCV camera with ID', camera_name
     print 'Publishing on topic', topic_name
     while not rospy.is_shutdown():
         try:
-            cv_image = cv.CloneImage(camera.get_frame())
-            rosimage = bridge.cv_to_imgmsg(cv_image, "bgr8")
-            image_pub.publish(rosimage)
+            1+1
+            #cv_image = cv.CloneImage(camera.get_frame())
+            #rosimage = bridge.cv_to_imgmsg(cv_image, "bgr8")
+            #image_pub.publish(rosimage)
         except rospy.exceptions.ROSSerializationException, e:
             print 'serialization exception'
         except CvBridgeError, e: 
