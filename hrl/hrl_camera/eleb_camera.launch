@@ -1,0 +1,3 @@
+<launch>
+    <node pkg="hrl_camera" name="eleb_cameras" type="hrl_ros_camera.py" args="--n ele_carriage --f 7.5 --n2 snozzberry_hand --f2 7.5" respawn="true"/>
+</launch>

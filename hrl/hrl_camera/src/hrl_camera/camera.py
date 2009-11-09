@@ -6,6 +6,14 @@ import hrl_opencv.adaptors as ad
 import camera_setup_lib as csl
 import numpy as np
 
+class NoFrameException(Exception):
+    
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return repr(self.value)
+
 class camera:
     ##
     # @param camera_configuration a dictionary of parameters needed for this camera
@@ -73,6 +81,8 @@ class camera:
         # Assumes that we are going to debayer the image later, so
         # returns a single channel image.
         im = cv.QueryFrame(self.capture)
+        if im == None:
+            raise NoFrameException('')
         cv.Split(im, self.gray_image, None, None, None)
         return self.gray_image
 
@@ -89,9 +99,18 @@ class camera:
         else:
             return self.raw_image
 
-    ## Set frame rate: 7.5, 15, 30, or 60Hz
-    def set_frame_rate(self, rate):
-        csl.set_frame_rate(self.device, rate)
+    ## 
+    # Set frame rate: 7.5, 15, 30, or 60Hz
+    # by default we set this to a low value
+    # to not have to deal with firewire bandwidth
+    # issues
+    def set_frame_rate(self, rate=7.5):
+        cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FPS, rate)
+        #csl.set_frame_rate(self.device, rate)
+
+    def get_frame_rate(self):
+        fps = cv.GetCaptureProperty(self.capture, cv.CV_CAP_PROP_FPS)
+        return fps
 
     def set_brightness(self, brightness=150, shutter_time=97, gain=450):
         csl.set_brightness(self.device, brightness, None, shutter_time, gain)

@@ -18,20 +18,33 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge.cv_bridge import CvBridge, CvBridgeError
 import hrl_camera.hrl_camera as hc
+import hrl_camera.camera as cam
+
 
 if __name__ == '__main__':
     import optparse
     p = optparse.OptionParser()
 
-    p.add_option('-n', action='store', type='string', dest='camera_name', 
+    p.add_option('--n', action='store', type='string', dest='camera_name', 
                  default=None, help='a name in \'camera_config.py\'')
-    p.add_option('-f', action='store', type='float', dest='frame_rate', 
+
+    p.add_option('--n2', action='store', type='string', dest='camera_name2', 
+                 default=None, help='a name in \'camera_config.py\'')
+
+    p.add_option('--f', action='store', type='float', dest='frame_rate', 
                  default=None, help='frame rate')
+
+    p.add_option('--f2', action='store', type='float', dest='frame_rate2', 
+                 default=None, help='frame rate')
+
     opt, args = p.parse_args()
 
-    frame_rate = opt.frame_rate
-    camera_name = opt.camera_name
-    if camera_name == None:
+    camera_configs = []
+    for c, fps in zip([opt.camera_name, opt.camera_name2], [opt.frame_rate, opt.frame_rate2]):
+        if c != None:
+            camera_configs.append((c,fps))
+
+    if len(camera_configs) <= 0:
         import camera_uuid as cu
         print 'This utility is used for publishing '
         print 'named and calibrated OpenCV accessible'
@@ -41,25 +54,34 @@ if __name__ == '__main__':
         print 'You did not specify a camera name.'
         print 'Available cameras:', cu.camera_names()
         exit()
+    
+    cameras = []
+    for camera_name, fps in camera_configs:
+        topic_name = 'cvcamera_' + camera_name
+        image_pub = rospy.Publisher(topic_name, Image)
+        camera = hc.find_camera(camera_name)
+        if fps != None:
+            print 'Setting', camera_name, 'frame rate to', fps
+            camera.set_frame_rate(fps)
 
-    topic_name = 'cvcamera_' + camera_name
-
-    image_pub = rospy.Publisher(topic_name, Image)
+        bridge = CvBridge()
+        cameras.append((camera_name, topic_name, camera, bridge, image_pub))
     rospy.init_node('cvcamera', anonymous=True)
-    camera = hc.find_camera(camera_name)
-    if frame_rate != None:
-        print 'Setting frame rate to', frame_rate
-        camera.set_frame_rate(frame_rate)
-    bridge = CvBridge()
 
-    print 'Opening OpenCV camera with ID', camera_name
-    print 'Publishing on topic', topic_name
+    for camera_name, topic_name, camera, _, _ in cameras:
+        print '===================================================='
+        print 'Opening OpenCV camera with ID', camera_name
+        print 'Publishing on topic', topic_name
+        print 'Camera operating at rate', camera.get_frame_rate()
+
     while not rospy.is_shutdown():
         try:
-            1+1
-            #cv_image = cv.CloneImage(camera.get_frame())
-            #rosimage = bridge.cv_to_imgmsg(cv_image, "bgr8")
-            #image_pub.publish(rosimage)
+            for camera_name, topic_name, camera, bridge, image_pub in cameras:
+                cv_image = cv.CloneImage(camera.get_frame())
+                rosimage = bridge.cv_to_imgmsg(cv_image, "bgr8")
+                image_pub.publish(rosimage)
+        except cam.NoFrameException, e:
+            print e
         except rospy.exceptions.ROSSerializationException, e:
             print 'serialization exception'
         except CvBridgeError, e: 
