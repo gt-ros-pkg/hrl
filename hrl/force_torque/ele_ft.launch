@@ -1,7 +1,7 @@
 <launch>
-    <node pkg="force_torque" type="force_torque_relay" args="--name=ft1" respawn="true"/>
-    <node pkg="force_torque" type="force_torque_poller" args="--name=ft1 --path=/dev/robot/fingerFT1" respawn="true"/>
+    <node pkg="force_torque" name="ft1" type="force_torque_relay" args="--name=ft1" respawn="true"/>
+    <node pkg="force_torque" name="ft_poller_1" type="force_torque_poller" args="--name=ft1 --path=/dev/robot/fingerFT1" respawn="true"/>
 
-    <node pkg="force_torque" type="force_torque_relay" args="--name=ft2" respawn="true"/>
-    <node pkg="force_torque" type="force_torque_poller" args="--name=ft2 --path=/dev/robot/fingerFT2" respawn="true"/>
+    <node pkg="force_torque" name="ft2" type="force_torque_relay" args="--name=ft2" respawn="true"/>
+    <node pkg="force_torque" name="ft_poller_1" type="force_torque_poller" args="--name=ft2 --path=/dev/robot/fingerFT2" respawn="true"/>
 </launch>
