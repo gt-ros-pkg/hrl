@@ -31,9 +31,19 @@ class ROSImageClient:
                 return None
         self.listener = ru.GenericListener('ROSImageClient', Image, topic_name, 
                                            .1, message_extractor)
-
     def get_frame(self):
         return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False)
+
+class ROSCamera(ROSImageClient):
+    def __init__(self, topic_name):
+        ROSImageClient.__init__(self, topic_name)
+
+    def set_exposure(self, exposure):
+        print 'ROSCamera: **** WARNING: set_exposure unimplemented over ROS ****'
+
+    def set_frame_rate(self, rate):
+        print 'ROSCamera: **** WARNING: set_frame_rate unimplemented over ROS ****'
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:

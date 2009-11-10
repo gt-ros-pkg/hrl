@@ -5,6 +5,7 @@
   <author>Hai</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
+  <depend package="rospy"/>
   <depend package="hrl_lib"/>
   <depend package="opencv2"/>
   <depend package="cv_bridge"/>
