@@ -66,11 +66,20 @@ class camera:
 
         cv.InitUndistortMap(self.intrinsic_cvmat, self.distortion_cvmat, 
                             self.undistort_mapx, self.undistort_mapy)
+        self.corrected_orientation = None
 
 
     def get_frame(self):
         self.raw_image = self.get_raw_frame()
-        return self.undistort_frame()
+        im = self.undistort_frame()
+        if self.config.has_key('upside_down'):
+            if self.config['upside_down']:
+                if self.corrected_orientation == None:
+                    self.corrected_orientation = cv.CloneImage(im)
+                cv.Flip(im, self.corrected_orientation, -1)
+                im = self.corrected_orientation
+        return im
+
 
     ## returns color image. does NOT undistort the image.
     def get_frame_debayered(self):
@@ -81,6 +90,7 @@ class camera:
         # Assumes that we are going to debayer the image later, so
         # returns a single channel image.
         im = cv.QueryFrame(self.capture)
+
         if im == None:
             raise NoFrameException('')
         cv.Split(im, self.gray_image, None, None, None)

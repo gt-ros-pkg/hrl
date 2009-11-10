@@ -118,6 +118,7 @@ camera_parameters = {
             'lens_distortion_tangential_2' : 0,
             'opencv_bayer_pattern' : cv.CV_BayerGR2RGB,
             'cv_cap_prop_mode' : 101,
+            'upside_down': True,
             'color': True,
             'type': 'Point Grey DragonFly2',
             'class': 'dragonfly2',
