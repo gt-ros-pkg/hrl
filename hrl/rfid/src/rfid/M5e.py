@@ -84,9 +84,9 @@ class M5e_Poller(Thread):
                     antennaName = aF(self.M5e)    # let current antFunc make appropriate changes
                     tagid = self.tag_to_track
                     rssi = self.M5e.TrackSingleTag(tagid)
-                    if rssi != -1:
-                        datum = [antennaName, tagid, rssi]
-                        [cF(datum) for cF in self.callbacks]
+                    #if rssi != -1:
+                    datum = [antennaName, tagid, rssi]
+                    [cF(datum) for cF in self.callbacks]
             else:
                 time.sleep(0.005)
         

@@ -30,7 +30,7 @@
 
 
 
-import roslib; roslib.load_manifest('hrl_ros')
+import roslib; roslib.update_path('rfid')
 import rospy
 from rfid.msg import RFIDread
 import time

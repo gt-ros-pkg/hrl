@@ -32,7 +32,8 @@ __all__ = [
 'M5e',
 'M5e_ROS',
 'M5e_ROS',
-'M5e_ROS_Client'
+'M5e_ROS_Client',
+'ears'
 ]
 
 
