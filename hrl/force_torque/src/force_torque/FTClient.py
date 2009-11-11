@@ -39,11 +39,34 @@ import numpy as np
 ##
 # Corresponding client class
 class FTClient(ru.GenericListener):
-    def __init__(self, topic_name):
+    def __init__(self, topic_name, should_log=False, size_limit=100*60*60):
         def msg_converter(msg):
-            return np.matrix(msg.data, 'f').T
+            m = np.matrix(msg.data, 'f').T
+            msg_time = msg.header.stamp.to_time()
+            if self.should_log:
+                self.log.append(m)
+                self.log_time.append(msg_time)
+                if len(self.log) > self.size_limit:
+                    self.log = self.log[-size_limit:]
+                    self.log_time = self.log_time[-size_limit:]
+            return m
+
+        self.should_log = should_log
+        self.size_limit = size_limit
+        self.clear_log()
         ru.GenericListener.__init__(self, 'FTClient', FloatArray, topic_name, 15.0, message_extractor = msg_converter)
         self.bias_val = np.matrix([0,0,0, 0,0,0.0]).T
+
+    def set_logging(self, should_log):
+        self.should_log = should_log
+        self.clear_log()
+
+    def get_log(self):
+        return list(self.log), list(self.log_time)
+
+    def clear_log(self):
+        self.log = []
+        self.log_time = []
 
     ##
     # Read a force torque value
@@ -67,6 +90,15 @@ class FTClient(ru.GenericListener):
             return readings.mean(1)
 
     def bias(self):
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        print 'BIASING FT'
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
         r = ru.GenericListener.read(self, allow_duplication=False, willing_to_wait=True) 
         if r != None:
             self.bias_val = r
@@ -80,7 +112,7 @@ if __name__ == '__main__':
     opt, args = p.parse_args()
 
     client = FTClient(opt.topic)
-    client.bias()
+    #client.bias()
     while not rospy.is_shutdown():
         el = client.read()
         if el != None:
