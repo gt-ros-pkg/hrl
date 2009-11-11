@@ -17,6 +17,8 @@ camera_parameters = {
             'lens_distortion_tangential_1' : 0.00105,
             'lens_distortion_tangential_2' : -0.00016,
             'opencv_bayer_pattern' : None,
+            #whether this camera was mounted upside down
+            'upside_down': True,
             'color': False,
             #the class to load in a normal python import statement
             'class': 'firefly',
