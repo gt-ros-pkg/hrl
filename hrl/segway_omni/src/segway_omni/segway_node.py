@@ -47,6 +47,7 @@ def callback_ros(cmd):
 rospy.init_node("segway_node", anonymous=False)
 rospy.Subscriber("base", PlanarBaseVel, callback, None, 1)
 rospy.Subscriber("cmd_vel", Twist, callback_ros, None, 1)
-mecanum = segway.Mecanum(init_ros_node=False)
+#mecanum = segway.Mecanum(init_ros_node=False)
+mecanum = segway.Mecanum()
 rospy.spin()
 
