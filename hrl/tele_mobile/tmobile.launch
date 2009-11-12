@@ -1,0 +1,16 @@
+<!--
+Launch this on earth or mecanum2 to start joystick and platform nodes.
+-->
+<launch>
+
+    <node name="joystick" pkg="tele_mobile" type="joystick_node.py" output="screen">
+    </node>
+
+<machine name="mecanum2" address="mecanum2" default="true" ros-package-path="/home/aaking/svn/gt-ros-pkg/hrl:/home/aaking/svn/robot1/src:/home/aaking/ros/ros/core/roslib:/home/aaking/ros/pkgs" ssh-port="22"/>
+
+    <node name="platform" pkg="tele_mobile" type="platform_node.py" machine="mecanum2" output="screen">
+	<env name="PYTHONPATH" value="/home/aaking/svn/robot1/src/libraries:/home/aaking/ros/ros/core/roslib/src:/home/aaking/svn/gt-ros-pkg/hrl/segway_omni/src:/usr/lib/python2.5/site-packages" />
+
+    </node>
+</launch>
+
