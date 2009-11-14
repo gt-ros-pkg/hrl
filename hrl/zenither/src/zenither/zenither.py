@@ -102,10 +102,9 @@ class Zenither(object):
                                and publishes using ROS.
         '''
 
-        if robot == 'El-E' or robot == 'HRL2':
-            self.robot = robot
-        else:
+        if robot not in zc.calib:
             raise RuntimeError('unknown robot')
+        self.robot = robot
 
         self.dev = dev
         self.serial_lock = RLock()
@@ -586,7 +585,6 @@ class Zenither(object):
         return position
 
     def limit_velocity(self,velocity):
-
         if velocity == None:
             velocity = self.calib['VEL_DEFAULT']
             return velocity
@@ -597,7 +595,6 @@ class Zenither(object):
         return velocity
 
     def limit_acceleration(self,acceleration):
-
         if acceleration == None:
             acceleration = self.calib['ACC_DEFAULT']
             return acceleration
@@ -610,18 +607,17 @@ class Zenither(object):
     def move_position(self,position, velocity=None , acceleration=None, 
                       blocking = True, relative=False, approximate_pose = True):
 
-        if self.robot != 'El-E':
+        if self.robot != 'El-E' and self.robot != 'test_rig':
             raise RuntimeError(
-                'This function is unemplemented on robot\'s other than El-E')
+                'This function is unemplemented on robot\'s other than El-E, test_rig')
         if self.calib['HAS_BRAKE']:
             self.disengage_brake()
 
-        if position > 0.9 or position < 0.0:
-            if approximate_pose:
-                #position = mut.bound(position, 0, .89)
-                position = ut.bound(position, 0, .89)
-            else:
-                raise RuntimeError('Position %.3f is out of bounds' % position)
+        if position>self.calib['max_height']:
+            position = self.calib['max_height']
+
+        if position<self.calib['min_height']:
+            position = self.calib['min_height']
 
         self.use_position_mode()       #position mode
 
@@ -636,25 +632,23 @@ class Zenither(object):
 
         p = self.get_position_meters()
 
-        if self.robot == 'El-E':
+        if p >= position:
+            #needs to go down
+            #print 'needs to go down'
+            self.serial_lock.acquire()
+            self.servo.write('KGON\n')       #enable gravity compensation
+            self.serial_lock.release()
+            if velocity > 4.0 or velocity < -4.0:
+                velocity = 4.0               #not faulting here, just caution
 
-            if p >= position:
-                #needs to go down
-                #print 'needs to go down'
-                self.serial_lock.acquire()
-                self.servo.write('KGON\n')       #enable gravity compensation
-                self.serial_lock.release()
-                if velocity > 4.0 or velocity < -4.0:
-                    velocity = 4.0               #not faulting here, just caution
-
-            else:
-                #needs to go up
-                #print 'needs to go up'
-                self.serial_lock.acquire()
-                self.servo.write('KGOFF\n')       #disable gravity compensation
-                self.serial_lock.release()
-                if velocity > 3.0 or velocity < -3.0:
-                    velocity = 3.0               #ascent faults if velocity is too high
+        else:
+            #needs to go up
+            #print 'needs to go up'
+            self.serial_lock.acquire()
+            self.servo.write('KGOFF\n')       #disable gravity compensation
+            self.serial_lock.release()
+            if velocity > 3.0 or velocity < -3.0:
+                velocity = 3.0               #ascent faults if velocity is too high
 
         self.set_pos_absolute(position_zenither_coord)
 
@@ -746,4 +740,27 @@ class Zenither(object):
                                          #executing a trajectory
             self.brake_engaged = True
         self.serial_lock.release()
+
+
+#    def test_cam_mode(self):
+#        cmd='MF4\n'
+#        self.__lock_write(cmd)
+#        cmd='BASE=10000\n'
+#        self.__lock_write(cmd)
+#        cmd='SIZE=4\n'
+#        self.__lock_write(cmd)
+#        cmd='E=10000\n'
+#        self.__lock_write(cmd)
+#        cmd='aw[0] 0 5000 10000.\n'
+#        self.__lock_write(cmd)
+#        cmd='MC\n'
+#        self.__lock_write(cmd)
+#        print 'Sleeping before issuing the go command.'
+#        time.sleep(1.)
+#        cmd='G\n'
+#        self.__lock_write(cmd)
+#        print 'sent the go command.'
+
+
+
 

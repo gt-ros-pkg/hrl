@@ -31,7 +31,7 @@ calib = {
         # close but not there yet
 
         #-------- Advait's explanation
-        # 1 rev of zenither = 20mm (from festo manual)
+        # 1 rev of zenither = 20mm (from festo manual, page 10)
         # 1 rev of animatics servo = 2000 encoder counts (pg 6, section 1.0 of the animatics manual)
         # a gear reduction of 10 (I think I remember Cressel mentioning this).
         # => 20000 counts = 20mm or 1 count = 1/1000,000 meters
@@ -59,7 +59,30 @@ calib = {
         'zero_vel_torque': 90,
         'max_height': 1.3,
         'min_height': 0.29
-        }
+        },
+
+    'test_rig': {
+        #-------- Advait's explanation
+        # 1 rev of zenither = 10mm (from festo manual, page 10)
+        # 1 rev of animatics servo = 2000 encoder counts (pg 6, section 1.0 of the animatics manual)
+        # => 2000 counts = 10mm or 1 count = 1/200,000 meters
+        #
+        'robot': 'test_rig',
+        'pos_factor': 1.0 / (200000),
+        'vel_factor': 0.9144 / (183897 - 1250) / 20,
+        'acc_factor': 0.9144 / (183897 - 1250),
+        'POS_MAX': 0.9,
+        'VEL_DEFAULT': 1.5,
+        'VEL_MAX': 4.0,
+        'ACC_DEFAULT':0.0002,
+        'ACC_MAX':0.001,
+        'ZERO_BIAS':0.0,
+        'HAS_BRAKE':False,
+        'nadir_torque': -150,
+        'zenith_torque': 150,
+        'max_height': 0.8,
+        'min_height': 0.005
+        },
 }
 
 
