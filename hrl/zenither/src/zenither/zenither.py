@@ -116,6 +116,7 @@ class Zenither(object):
 #            self.engage_brake()
             self.estop()
 
+        # look at the log message for revision 287 for explanation.
         if self.get_variable('a') != '1':
             print 'WARNING: it seems that the Zenither has been power cycled'
             print 'WARNING: please set_origin for the zenither.'
