@@ -263,7 +263,7 @@ class Zenither(object):
     def set_velocity(self,v):
         '''Sets the velocity in meters/sec'''
         factor = self.get_factor(type='vel_factor')
-        v  = int(round(abs(v/ factor)))
+        v  = int(round(v/factor))
         cmd ="V="+str(v)+"\n"
         self.__lock_write(cmd)
 

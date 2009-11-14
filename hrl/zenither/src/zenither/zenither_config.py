@@ -39,13 +39,7 @@ calib = {
 
         'robot': 'HRL2',
         'pos_factor': 1.0/ (-1000000), # Advait - Apr 27, 2009
-        'vel_factor': 1.0/ ( -1082996 - (-8))/20,
-        'acc_factor': 1.0/ ( -1082996 - (-8)),
         'POS_MAX': 0.96, # Advait - Feb 17, 2009
-        'VEL_DEFAULT': 0.025,
-        'VEL_MAX': 0.45,
-        'ACC_DEFAULT':0.0002,
-        'ACC_MAX':0.001,
         'ZERO_BIAS':0.28,
         'HAS_BRAKE':True,
         'nadir_torque': 3,
