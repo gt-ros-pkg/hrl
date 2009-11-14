@@ -116,9 +116,19 @@ class Zenither(object):
 #            self.engage_brake()
             self.estop()
 
+        if self.get_variable('a') != '1':
+            print 'WARNING: it seems that the Zenither has been power cycled'
+            print 'WARNING: please set_origin for the zenither.'
+            self.calibrated = False
+        else:
+            self.calibrated = True
+
         # This might cure the sound from the zenither. -- Advait Dec26,2008
+        # Changes get_position_meters of Dec26,2008 to
+        # get_motor_temperature_F. since get_position_meters raises
+        # exception if the zenither is uncalibrated.   -- Advait Nov14,2009
         for i in range(10):
-            self.get_position_meters()
+            self.get_motor_temperature_F()
 
         if pose_read_thread:
             self.broadcast()
@@ -145,6 +155,7 @@ class Zenither(object):
             self.servo.close()
             self.servo = None
         else:
+            t = self.get_motor_temperature_F()
             if self.get_motor_temperature_F() >= 140.0:
                 t = self.get_motor_temperature_F()
                 mesg = "Animatics Servo is too hot: " + t.__str__() + "F"
@@ -244,19 +255,22 @@ class Zenither(object):
     def set_acceleration(self,a):
         '''Sets the acceleration in meters/sec^2'''
         factor = self.get_factor(type='acc_factor')
-        a  = int(abs(a/ factor))
+        a  = int(round(abs(a/ factor)))
         cmd = "A="+str(a)+"\n"
         self.__lock_write(cmd)
 
     def set_velocity(self,v):
         '''Sets the velocity in meters/sec'''
         factor = self.get_factor(type='vel_factor')
-        v  = int(abs(v/ factor))
+        v  = int(round(abs(v/ factor)))
         cmd ="V="+str(v)+"\n"
         self.__lock_write(cmd)
 
     def set_origin(self):
         self.__lock_write("O=0\n")
+        time.sleep(0.1)
+        self.__lock_write("a 1\n") # zenither is now calibrated.
+        self.calibrated = True
 
     def go(self):
         self.__lock_write("G\n")
@@ -274,16 +288,25 @@ class Zenither(object):
     def set_pos_absolute(self,p):
         '''Sets the absolute position in meters'''
         factor = self.get_factor(type='pos_factor')
-        p = int(p/factor)
+        p = int(round(p/factor))
         cmd = "P="+str(p)+"\n"
         self.__lock_write(cmd)
 
     def set_pos_relative(self,p):
         '''Sets the relative position in meters'''
         factor = self.get_factor(type='pos_factor')
-        p = int(p/factor)
+        p = int(round(p/factor))
         cmd = "D="+str(p)+"\n"
         self.__lock_write(cmd)
+
+    ## reads a variable. (page 27 of animatics manual)
+    # e.g. var = 'a' will read the variable a.
+    def get_variable(self,var):
+        self.serial_lock.acquire()
+        self.servo.write('R'+var+'\n')
+        s = self.servo.readline(eol='\r')
+        self.serial_lock.release()
+        return s.replace('\r','')
 
     def get_position(self):
         self.serial_lock.acquire()
@@ -295,6 +318,9 @@ class Zenither(object):
         return s
 
     def get_position_meters(self):
+        if self.calibrated == False:
+            self.estop()
+            raise RuntimeError('Zenither not calibrated. Please set_origin.')
         val = self.get_position().replace('\r','')
         while val == '':
             #print 'waiting on new position value'
