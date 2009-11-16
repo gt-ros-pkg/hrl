@@ -84,11 +84,22 @@ def plot_normals(pts,normals,curvature=None):
     mlab.quiver3d(x,y,z,u,v,w,mask_points=16,scale_factor=0.1)
 #    mlab.axes()
 
+## Plot a yellow cuboid.
+# cuboid is defined by 12 tuples of corners that define the 12 edges,
+# as returned by occupancy_grig.grid_lines() function.
+def plot_cuboid(corner_tups):
+    for tup in corner_tups:
+        p1 = tup[0]
+        p2 = tup[1]
+        mlab.plot3d([p1[0,0],p2[0,0]],[p1[1,0],p2[1,0]],
+                    [p1[2,0],p2[2,0]],color=(1.,1.,0.),
+                    representation='wireframe',tube_radius=None)
 
 ## show the plot.
 # call this function after plotting everything.
 def show():
     mlab.show()
+
 
 
 if __name__ == '__main__':
