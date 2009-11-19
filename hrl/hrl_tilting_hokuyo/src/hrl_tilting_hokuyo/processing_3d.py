@@ -532,9 +532,11 @@ def find_door_handle(grid,pt,list = None,rotation_angle=math.radians(0.),
 
 
 #--------------------- segmentation ---------------------
-def find_closest_object(obj_pts_list,pt):
+def find_closest_object(obj_pts_list,pt,return_idx=False):
     ''' obj_pts_list - list of 3xNi matrices of points.
         pt - point of interest. (3x1) matrix.
+        return_idx - whether to return the index (in obj_pts_list) of
+                     the closest object.
         returns 3xNj matrix of points which is the closest object to pt.
                 None if obj_pts_list is empty.
     '''
@@ -547,6 +549,9 @@ def find_closest_object(obj_pts_list,pt):
     min_idx = np.argmin(np.matrix(min_dist_list))
     cl_obj = obj_pts_list[min_idx]
     print 'processing_3d.find_closest_object: closest_object\'s centroid',cl_obj.mean(1).T
+
+    if return_idx:
+        return cl_obj,min_idx
     return cl_obj
 
 def segment_objects_points(grid):
@@ -818,54 +823,6 @@ def grasp_location_on_object(obj,display_list=None):
 
 
 #---------------------- testing functions -------------------
-def charlie_nih():
-    display_list = []
-
-    brf = pt + np.matrix([-0.4,-0.3,-0.3]).T
-    brf[0,0] = max(brf[0,0],0.05)
-    print 'brf:', brf.T
-
-    tlb = pt + np.matrix([0.3, 0.3,0.3]).T
-    resolution = np.matrix([0.005,0.005,0.005]).T
-
-    max_dist = np.linalg.norm(tlb) + 0.1
-    min_dist = brf[0,0]
-
-    pts = generate_pointcloud(pos_list, scan_list, min_angle, max_angle, l1, l2,save_scan=False,
-                              #max_dist=max_dist,min_dist=min_dist)
-                              max_dist=2.0,min_dist=min_dist)
-
-    gr = og3d.occupancy_grid_3d(brf,tlb,resolution)
-    gr.fill_grid(pts)
-    gr.to_binary(1)
-    l = gr.find_plane_indices()
-    z_min = min(l)*gr.resolution[2,0]+gr.brf[2,0]
-    z_max = max(l)*gr.resolution[2,0]+gr.brf[2,0]
-    print 'height of plane:', (z_max+z_min)/2
-
-    plane_pts_bool = np.multiply(pts[2,:]>=z_min,pts[2,:]<=z_max)
-    plane_pts = pts[:,np.where(plane_pts_bool)[1].A1.tolist()]
-    above_pts =pts[:,np.where(pts[2,:]>z_max)[1].A1.tolist()]
-    below_pts =pts[:,np.where(pts[2,:]<z_min)[1].A1.tolist()]
-
-    plane_cloud = pu.PointCloud(plane_pts,color=(000,000,150))
-    above_cloud = pu.PointCloud(above_pts,color=(200,200,200))
-    below_cloud = pu.PointCloud(below_pts,color=(0,150,0))
-
-    display_list.append(above_cloud)
-    display_list.append(below_cloud)
-    display_list.append(plane_cloud)
-
-    gr = create_segmentation_grid(pt,pos_list,scan_list,l1,l2)
-    obj_pts_list = segment_objects_points(gr)
-    if obj_pts_list == None:
-        print 'There is no plane'
-        obj_pts_list = []
-
-    for i,obj_pts in enumerate(obj_pts_list):
-        display_list.append(pu.CubeCloud(obj_pts,color=color_list[i%len(color_list)],size=(np.array((2,2,4))*gr.resolution.A1).tolist()))
-    po3d.run(display_list)
-
 
 def test_vertical_plane_finding():
     display_list = []
