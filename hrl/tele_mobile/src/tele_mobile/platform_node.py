@@ -39,119 +39,119 @@ import segway_omni.segway as segway
 
 
 class ctrl():
-  def __init__(self,topic="tmobile"):
-    self.sub = rospy.Subscriber(topic, direction,self.callback, None, 1)
-    print 'start subscribing to topic', topic
-    try:
-      print 'initialize platform node'
-      rospy.init_node("platform", anonymous=False)
-    except rospy.ROSException, e:
-      pass
+    def __init__(self,topic="tmobile"):
+        self.sub = rospy.Subscriber(topic, direction,self.callback, None, 1)
+        print 'start subscribing to topic', topic
+        try:
+            print 'initialize platform node'
+            rospy.init_node("platform", anonymous=False)
+        except rospy.ROSException, e:
+            pass
 
-#    self.s1 = rs.robotis_servo('/dev/robot/servo0',5,baudrate=57600)
-    self.pan = rs.robotis_servo('/dev/robot/servo0',25,baudrate=57600)
-    self.tilt = rs.robotis_servo('/dev/robot/servo0',26,baudrate=57600)
-    self.angle1 = 0
-    self.angle2 = 0
-    self.reset = 0
+#        self.s1 = rs.robotis_servo('/dev/robot/servo0',5,baudrate=57600)
+        self.pan = rs.robotis_servo('/dev/robot/servo0',25,baudrate=57600)
+        self.tilt = rs.robotis_servo('/dev/robot/servo0',26,baudrate=57600)
+        self.angle1 = 0
+        self.angle2 = 0
+        self.reset = 0
 
-    self.z = zenither.Zenither(robot='HRL2')
-    self.z_dir = 0
+        self.z = zenither.Zenither(robot='HRL2')
+        self.z_dir = 0
 
-    self.mec = segway.Mecanum(init_ros_node=False)
-    self.xvel = 0.
-    self.yvel = 0.
-    self.avel = 0.
-
-   
-  def callback(self, cmd):
-    max_ang = 60
-    min_ang = -60
-    delta_ang = 2
-    self.z_dir = cmd.zen
-    self.xvel = cmd.xvel
-    self.yvel = cmd.yvel
-    self.avel = cmd.avel
-    self.reset = cmd.reset
-    
-    if cmd.y == -1.0:
-      if self.angle1 < math.radians(max_ang):
-        self.angle1 = self.angle1 + math.radians(delta_ang)
-    elif cmd.y == 1.0:
-      if self.angle1 > math.radians(min_ang):
-        self.angle1 = self.angle1 - math.radians(delta_ang)
-
-    if cmd.x == -1.0:
-      if self.angle2 < math.radians(max_ang):
-        self.angle2 = self.angle2 + math.radians(delta_ang)
-    elif cmd.x == 1.0:
-      if self.angle2 > math.radians(min_ang):
-        self.angle2 = self.angle2 - math.radians(delta_ang)    
-
-    if cmd.reset == 1:    
-      self.angle1 = 0
-      self.angle2 = 0
+        self.mec = segway.Mecanum(init_ros_node=False)
+        self.xvel = 0.
+        self.yvel = 0.
+        self.avel = 0.
 
 
-  def set_servo(self):
-    if self.reset == 1:
-      print 'set servos to default position'
-      self.pan.move_angle(0)
-      self.tilt.move_angle(0)
-      
-    if (self.angle1 != 0 or self.angle2 != 0):
-      print "tilt angle =", math.degrees(self.angle1),"pan angle=", math.degrees(self.angle2)
-      self.pan.move_angle(self.angle2)
-      self.tilt.move_angle(self.angle1)
+    def callback(self, cmd):
+        max_ang = 60
+        min_ang = -60
+        delta_ang = 2
+        self.z_dir = cmd.zen
+        self.xvel = cmd.xvel
+        self.yvel = cmd.yvel
+        self.avel = cmd.avel
+        self.reset = cmd.reset
+
+        if cmd.y == -1.0:
+            if self.angle1 < math.radians(max_ang):
+                self.angle1 = self.angle1 + math.radians(delta_ang)
+        elif cmd.y == 1.0:
+            if self.angle1 > math.radians(min_ang):
+                self.angle1 = self.angle1 - math.radians(delta_ang)
+
+        if cmd.x == -1.0:
+            if self.angle2 < math.radians(max_ang):
+                self.angle2 = self.angle2 + math.radians(delta_ang)
+        elif cmd.x == 1.0:
+            if self.angle2 > math.radians(min_ang):
+                self.angle2 = self.angle2 - math.radians(delta_ang)    
+
+        if cmd.reset == 1:      
+            self.angle1 = 0
+            self.angle2 = 0
 
 
-  def set_zenither(self):
-    self.move_zenither_flag=False
+    def set_servo(self):
+        if self.reset == 1:
+            print 'set servos to default position'
+            self.pan.move_angle(0)
+            self.tilt.move_angle(0)
 
-    if self.z_dir == 1.0:     
-      curr_height = self.z.get_position_meters()  #get zenither height
-      if curr_height <= (self.z.calib['max_height'] - 0.1):
-        self.z.nadir(self.z.calib['up_slow_torque'])
-        self.move_zenither_flag=True
-        print "zenither moving up to", curr_height
-      else:
-        print 'max height threshold reached: ', curr_height
-
-    if self.z_dir == -1.0:
-      curr_height = self.z.get_position_meters()  #get zenither height
-      if curr_height >= (self.z.calib['min_height'] + 0.40 ):
-        self.z.nadir(self.z.calib['down_snail_torque'])
-        self.move_zenither_flag=True
-        print "zenither moving down to", curr_height
-      else:
-        print 'min height threshold reached: ', curr_height        
-
-    if self.move_zenither_flag == False:
-      self.z.estop()
-#      torque = self.z.calib['zero_vel_torque']
-#      print "zenither estop"
+        if (self.angle1 != 0 or self.angle2 != 0):
+            print "tilt angle =", math.degrees(self.angle1),"pan angle=", math.degrees(self.angle2)
+            self.pan.move_angle(self.angle2)
+            self.tilt.move_angle(self.angle1)
 
 
-  def stop(self):
-    print 'stop servos'
-    self.tilt.disable_torque()
-    time.sleep(0.1)
-    self.pan.disable_torque()
-    print 'estop zenither'
-    self.z.estop()
-    print 'stop segway'
-    self.mec.set_velocity(0.,0.,0.)
-    print 'stopping platform...'
-    sys.exit()
+    def set_zenither(self):
+        self.move_zenither_flag=False
+
+        if self.z_dir == 1.0:         
+            curr_height = self.z.get_position_meters()    #get zenither height
+            if curr_height <= (self.z.calib['max_height'] - 0.1):
+                self.z.nadir(self.z.calib['up_slow_torque'])
+                self.move_zenither_flag=True
+                print "zenither moving up to", curr_height
+            else:
+                print 'max height threshold reached: ', curr_height
+
+        if self.z_dir == -1.0:
+            curr_height = self.z.get_position_meters()    #get zenither height
+            if curr_height >= (self.z.calib['min_height'] + 0.40 ):
+                self.z.nadir(self.z.calib['down_snail_torque'])
+                self.move_zenither_flag=True
+                print "zenither moving down to", curr_height
+            else:
+                print 'min height threshold reached: ', curr_height
+
+        if self.move_zenither_flag == False:
+            self.z.estop()
+#            torque = self.z.calib['zero_vel_torque']
+#            print "zenither estop"
+
+
+    def stop(self):
+        print 'stop servos'
+        self.tilt.disable_torque()
+        time.sleep(0.1)
+        self.pan.disable_torque()
+        print 'estop zenither'
+        self.z.estop()
+        print 'stop segway'
+        self.mec.set_velocity(0.,0.,0.)
+        print 'stopping platform...'
+        sys.exit()
   
 
 if __name__ == '__main__':
 
-  platform = ctrl()
+    platform = ctrl()
 
-  while not rospy.is_shutdown():
-    platform.set_servo()
-    platform.set_zenither()
-    platform.mec.set_velocity(platform.xvel,platform.yvel,platform.avel)
+    while not rospy.is_shutdown():
+        platform.set_servo()
+        platform.set_zenither()
+        platform.mec.set_velocity(platform.xvel,platform.yvel,platform.avel)
 
-  platform.stop()
+    platform.stop()
