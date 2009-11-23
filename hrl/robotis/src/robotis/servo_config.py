@@ -22,7 +22,7 @@ servo_param = {
         'home_encoder': 500
        },
     7: {                        # EL-E safetyscreen tilt.
-        'home_encoder': 383
+        'home_encoder': 373
        },
     # 11 - 25 reserved!  (by Travis)
     11: {                        # RFID Left Pan
