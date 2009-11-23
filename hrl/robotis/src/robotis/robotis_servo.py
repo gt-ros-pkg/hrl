@@ -51,6 +51,17 @@ class robotis_servo():
 
         self.servo_id = servo_id
         self.home_encoder_value = sc.servo_param[servo_id]['home_encoder']
+
+        if sc.servo_param[servo_id].has_key('max_ang'):
+            self.max_ang = sc.servo_param[servo_id]['max_ang']
+        else:
+            self.max_ang = math.radians( 95.0 )
+
+        if sc.servo_param[servo_id].has_key('min_ang'):
+            self.min_ang = sc.servo_param[servo_id]['min_ang']
+        else:
+            self.min_ang = math.radians( -95.0 )
+
         if sc.servo_param[servo_id].has_key('flipped'):
             self.flipped = True
         else:
@@ -133,7 +144,7 @@ class robotis_servo():
             print 'ignoring scan command.'
             return
 
-        if ang>math.radians(95) or ang<math.radians(-95):
+        if ang > self.max_ang or ang < self.min_ang:
             print 'robotis_servo.move_angle: angle out of range- ', math.degrees(ang)
             return
         self.set_angvel(angvel)

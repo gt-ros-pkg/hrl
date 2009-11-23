@@ -1,6 +1,6 @@
+import math
 
 # home position in encoder ticks for the servo.
-# to add - angle limits?
 
 servo_param = {
     1: {                        # Default for new servo.  Please issue 'new_servo.write_id(new_id)' and setup your own home position!
@@ -26,16 +26,24 @@ servo_param = {
        },
     # 11 - 25 reserved!  (by Travis)
     11: {                        # RFID Left Pan
-        'home_encoder': 430
+        'home_encoder': 430,
+        'max_ang': math.radians( 141.0 ),
+        'min_ang': math.radians( -31.0 )
        },
     12: {                        # RFID Left Tilt
-        'home_encoder': 507
+        'home_encoder': 507,
+        'max_ang': math.radians( 46.0 ),
+        'min_ang': math.radians( -36.0 )        
        },
     13: {                        # RFID Right Pan
-        'home_encoder': 583
+        'home_encoder': 583,
+        'max_ang': math.radians( 31.0 ),
+        'min_ang': math.radians( -141.0 )        
        },
     14: {                        # RFID Right Tilt
-        'home_encoder': 504
+        'home_encoder': 504,
+        'max_ang': math.radians( 46.0 ),
+        'min_ang': math.radians( -36.0 )        
        },
     15: {                        # Ear Flap on RFID El-E Right
         'home_encoder': 498
