@@ -18,6 +18,12 @@ servo_param = {
     5: {                        # Tilting hokuyo on Firenze
         'home_encoder': 338
        },
+    6: {                        #
+        'home_encoder': 351
+       },
+    7: {                        # EL-E safetyscreen tilt.
+        'home_encoder': 351
+       },
     # 11 - 25 reserved!  (by Travis)
     11: {                        # RFID Left Pan
         'home_encoder': 430
@@ -40,8 +46,8 @@ servo_param = {
     17: {                        # Tilt Antenna on RFID El-E Left
         'home_encoder': 504
        },
-    18: {                        # Ear Flap on RFID El-E Left
-        'home_encoder': 508
+    18: {                        # 
+        'home_encoder': 351
        },
     19: {                        # Desktop System UTM
         'home_encoder': 633,
