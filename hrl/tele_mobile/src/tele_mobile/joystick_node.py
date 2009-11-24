@@ -26,16 +26,17 @@
 #
 #  \author Chih-Hung King (Healthcare Robotics Lab, Georgia Tech.)
 
-
-import roslib; roslib.load_manifest('tele_mobile')
-import math, time
-#from hrl_lib.msg import PlanarBaseVel
-from tele_mobile.msg import direction
-import rospy
+import math
 import numpy as np
 import pygame
 import pygame.joystick
+import time
+
+import roslib; roslib.load_manifest('tele_mobile')
+import rospy
+
 from pygame.locals import *
+from tele_mobile.msg import direction
 
 
 class JoystickCommand:
@@ -46,8 +47,9 @@ class JoystickCommand:
         except rospy.ROSException, e:
             pass
 
-    def set_platform(self, x, y,reset,zen,xvel,yvel,avel):
-        cmd = direction(x, y,reset,zen,xvel,yvel,avel)
+
+    def set_platform(self, x, y,reset, zen, xvel, yvel, avel):
+        cmd = direction(x, y, reset, zen, xvel, yvel, avel)
         self.pub.publish(cmd)
         print "publishing:", cmd
         time.sleep(0.05)
@@ -73,12 +75,12 @@ if __name__ == '__main__':
     js_status = js.get_init()
     print js_status
 
-    screen = pygame.display.set_mode((320,80))
+    screen = pygame.display.set_mode((320, 80))
     pygame.display.set_caption('Snozzjoy')
 
     background = pygame.Surface(screen.get_size())
     background = background.convert()
-    background.fill((250,250,250))
+    background.fill((250, 250, 250))
 
     s = JoystickCommand()
 
@@ -87,41 +89,40 @@ if __name__ == '__main__':
     max_speed = 0.18 	# don't exceed 0.18 under any condition.
     max_avel = 0.18
 
-    x,y,reset = 0.,0.,0.
+    x, y, reset = 0., 0., 0.
     zen = 0.
-    seg_x,seg_y,seg_a = 0.,0.,0.
-    xvel,yvel,avel = 0.,0.,0.
+    seg_x, seg_y, seg_a = 0., 0., 0.
+    xvel, yvel, avel = 0., 0., 0.
     connected = False
 
-    while not rospy.is_shutdown():
-
-        for event in pygame.event.get():
-#            print event
-            if (event.type == JOYHATMOTION):
-                x = event.value[0]
-                y = event.value[1]
-	    if (event.type == JOYBUTTONDOWN):
-		if(event.button == 0):
-		  reset = 1		
-		if(event.button == 4 or event.button == 5 ):
-		  zen = 1
-		if(event.button == 2 or event.button == 3 ):
-		  zen = -1	
-	    if (event.type == JOYBUTTONUP):
-		if(event.button == 0):
-		  reset = 0		
-		if(event.button == 2 or event.button == 3 or event.button == 4 or event.button == 5):
-		  zen = 0
-            if (event.type == JOYAXISMOTION):
-                if event.axis == 0:
-                    seg_y = -event.value
-                if event.axis == 1:
-                    seg_x = -event.value
-                if event.axis == 2:
-                    seg_a = -event.value
+	while not rospy.is_shutdown():
+		for event in pygame.event.get():
+#			print event
+			if (event.type == JOYHATMOTION):
+				x = event.value[0]
+				y = event.value[1]
+			if (event.type == JOYBUTTONDOWN):
+				if(event.button == 0):
+					reset = 1		
+				if(event.button == 4 or event.button == 5 ):
+					zen = 1
+				if(event.button == 2 or event.button == 3 ):
+					zen = -1	
+			if (event.type == JOYBUTTONUP):
+				if(event.button == 0):
+					reset = 0		
+				if(event.button == 2 or event.button == 3 or event.button == 4 or event.button == 5):
+					zen = 0
+			if (event.type == JOYAXISMOTION):
+				if event.axis == 0:
+					seg_y = -event.value
+				if event.axis == 1:
+					seg_x = -event.value
+				if event.axis == 2:
+					seg_a = -event.value
 	
-	if seg_x == 0 and seg_y == 0 and seg_a ==0:
-            connected = True
+		if seg_x == 0 and seg_y == 0 and seg_a ==0:
+			connected = True
 
         # detect a joystick disconnect
 #        try:
@@ -131,9 +132,10 @@ if __name__ == '__main__':
 #            print "joystick error"
 #            rospy.signal_shutdown()
 
-	if connected:
-            xvel = seg_x*max_xvel
-            yvel = seg_y*max_yvel
-            avel = seg_a*max_avel
-	    s.set_platform(x,y,reset,zen,xvel,yvel,avel) 
-    s.set_platform(0,0,0,0,0,0,0)
+		if connected:
+			xvel = seg_x * max_xvel
+			yvel = seg_y * max_yvel
+			avel = seg_a * max_avel
+			s.set_platform(x, y, reset, zen, xvel, yvel, avel) 
+
+	s.set_platform(0, 0, 0, 0, 0, 0, 0)

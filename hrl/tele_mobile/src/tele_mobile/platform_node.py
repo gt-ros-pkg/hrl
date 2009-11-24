@@ -28,17 +28,19 @@
 
 
 import roslib; roslib.load_manifest('tele_mobile')
-import math, time
-#from hrl_lib.msg import PlanarBaseVel
-from tele_mobile.msg import direction
-import rospy
+import math
+import time
 import sys
+
+import rospy
 import zenither.zenither as zenither
 import robotis.robotis_servo as rs
 import segway_omni.segway as segway
 
+from tele_mobile.msg import direction
 
-class ctrl():
+
+class Ctrl():
     def __init__(self,topic="tmobile"):
         self.sub = rospy.Subscriber(topic, direction,self.callback, None, 1)
         print 'start subscribing to topic', topic
@@ -48,22 +50,25 @@ class ctrl():
         except rospy.ROSException, e:
             pass
 
-#        self.s1 = rs.robotis_servo('/dev/robot/servo0',5,baudrate=57600)
-        self.pan = rs.robotis_servo('/dev/robot/servo0',25,baudrate=57600)
-        self.tilt = rs.robotis_servo('/dev/robot/servo0',26,baudrate=57600)
+#		Robotis servo
+#        self.s1 = rs.robotis_servo('/dev/robot/servo0', 5, baudrate=57600)
+        self.pan = rs.robotis_servo('/dev/robot/servo0', 25, baudrate=57600)
+        self.tilt = rs.robotis_servo('/dev/robot/servo0', 26, baudrate=57600)
         self.angle1 = 0
         self.angle2 = 0
         self.reset = 0
 
+#		Zenither
         self.z = zenither.Zenither(robot='HRL2')
         self.z_dir = 0
 
+#		Segway Omni
         self.mec = segway.Mecanum(init_ros_node=False)
         self.xvel = 0.
         self.yvel = 0.
         self.avel = 0.
 
-
+#	Callback funtion for rospy
     def callback(self, cmd):
         max_ang = 60
         min_ang = -60
@@ -80,14 +85,12 @@ class ctrl():
         elif cmd.y == 1.0:
             if self.angle1 > math.radians(min_ang):
                 self.angle1 = self.angle1 - math.radians(delta_ang)
-
         if cmd.x == -1.0:
             if self.angle2 < math.radians(max_ang):
                 self.angle2 = self.angle2 + math.radians(delta_ang)
         elif cmd.x == 1.0:
             if self.angle2 > math.radians(min_ang):
                 self.angle2 = self.angle2 - math.radians(delta_ang)    
-
         if cmd.reset == 1:      
             self.angle1 = 0
             self.angle2 = 0
@@ -106,27 +109,27 @@ class ctrl():
 
 
     def set_zenither(self):
-        self.move_zenither_flag=False
+        self.move_zenither_flag = False
 
         if self.z_dir == 1.0:         
             curr_height = self.z.get_position_meters()    #get zenither height
             if curr_height <= (self.z.calib['max_height'] - 0.1):
                 self.z.nadir(self.z.calib['up_slow_torque'])
-                self.move_zenither_flag=True
+                self.move_zenither_flag = True
                 print "zenither moving up to", curr_height
             else:
                 print 'max height threshold reached: ', curr_height
 
         if self.z_dir == -1.0:
             curr_height = self.z.get_position_meters()    #get zenither height
-            if curr_height >= (self.z.calib['min_height'] + 0.40 ):
+            if curr_height >= (self.z.calib['min_height'] + 0.40):
                 self.z.nadir(self.z.calib['down_snail_torque'])
-                self.move_zenither_flag=True
+                self.move_zenither_flag = True
                 print "zenither moving down to", curr_height
             else:
                 print 'min height threshold reached: ', curr_height
 
-        if self.move_zenither_flag == False:
+        if not self.move_zenither_flag:
             self.z.estop()
 #            torque = self.z.calib['zero_vel_torque']
 #            print "zenither estop"
@@ -140,14 +143,14 @@ class ctrl():
         print 'estop zenither'
         self.z.estop()
         print 'stop segway'
-        self.mec.set_velocity(0.,0.,0.)
+        self.mec.set_velocity(0., 0., 0.)
         print 'stopping platform...'
         sys.exit()
   
 
 if __name__ == '__main__':
 
-    platform = ctrl()
+    platform = Ctrl()
 
     while not rospy.is_shutdown():
         platform.set_servo()
