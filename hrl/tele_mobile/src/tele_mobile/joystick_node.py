@@ -57,43 +57,43 @@ class JoystickCommand:
 
 if __name__ == '__main__':
 
-    #init pygame
-    pygame.init()
+	#init pygame
+	pygame.init()
 
-    #joystick_status
-    joystick_count = pygame.joystick.get_count()
+	#joystick_status
+	joystick_count = pygame.joystick.get_count()
 
-    print "Joysticks found: %d\n" % joystick_count
+	print "Joysticks found: %d\n" % joystick_count
 
-    try:
-        js = pygame.joystick.Joystick(0)
-        js.init()
-    except pygame.error:
-        print "joystick error"
-        js = None
+	try:
+		js = pygame.joystick.Joystick(0)
+		js.init()
+	except pygame.error:
+		print "joystick error"
+		js = None
 
-    js_status = js.get_init()
-    print js_status
+	js_status = js.get_init()
+	print js_status
 
-    screen = pygame.display.set_mode((320, 80))
-    pygame.display.set_caption('Snozzjoy')
+	screen = pygame.display.set_mode((320, 80))
+	pygame.display.set_caption('Snozzjoy')
 
-    background = pygame.Surface(screen.get_size())
-    background = background.convert()
-    background.fill((250, 250, 250))
+	background = pygame.Surface(screen.get_size())
+	background = background.convert()
+	background.fill((250, 250, 250))
 
-    s = JoystickCommand()
+	s = JoystickCommand()
 
-    max_xvel = 0.18 
-    max_yvel = 0.15
-    max_speed = 0.18 	# don't exceed 0.18 under any condition.
-    max_avel = 0.18
+	max_xvel = 0.18 
+	max_yvel = 0.15
+	max_speed = 0.18 	# don't exceed 0.18 under any condition.
+	max_avel = 0.18
 
-    x, y, reset = 0., 0., 0.
-    zen = 0.
-    seg_x, seg_y, seg_a = 0., 0., 0.
-    xvel, yvel, avel = 0., 0., 0.
-    connected = False
+	x, y, reset = 0., 0., 0.
+	zen = 0.
+	seg_x, seg_y, seg_a = 0., 0., 0.
+	xvel, yvel, avel = 0., 0., 0.
+	connected = False
 
 	while not rospy.is_shutdown():
 		for event in pygame.event.get():
