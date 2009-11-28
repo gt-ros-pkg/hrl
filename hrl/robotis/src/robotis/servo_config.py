@@ -57,7 +57,7 @@ servo_param = {
         'home_encoder': 504
        },
     18: {                        # EL-E stereohead Tilt
-        'home_encoder': 500,
+        'home_encoder': 495,
         'max_ang': math.radians(60.),
         'min_ang': math.radians(-20.)
        },
