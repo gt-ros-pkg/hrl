@@ -46,9 +46,15 @@ class PanTilt():
     # @param pan_id -  servo id for the pan Robotis servo.
     # @param pan_id -  servo id for the tilt Robotis servo.
     # @param baudrate - for the servo controller (usb2dynamixel)
-    def __init__(self, dev_name, pan_id, tilt_id, baudrate=57600):
-        self.pan_servo = rs.robotis_servo(dev_name,pan_id,baudrate)
-        self.tilt_servo = rs.robotis_servo(dev_name,tilt_id,baudrate)
+    # @param pan_speed - max pan speed (radians/sec)
+    # @param tilt_speed - max tilt speed (radians/sec)
+    def __init__(self, dev_name, pan_id, tilt_id, baudrate=57600,
+                 pan_speed = math.radians(90),
+                 tilt_speed = math.radians(90)):
+        self.pan_servo = rs.robotis_servo(dev_name,pan_id,baudrate,
+                                          max_speed = pan_speed)
+        self.tilt_servo = rs.robotis_servo(dev_name,tilt_id,baudrate,
+                                           max_speed = tilt_speed)
 
     ## return (pan,tilt) angles in RADIANS.
     def get_pan_tilt(self):
@@ -115,6 +121,6 @@ if __name__ == '__main__':
         sys.exit()
 
     ptu = PanTilt(servo_dev_name,pan_id,tilt_id)
-    ptu.set_pan_tilt(pan,tilt)
+    ptu.set_pan_tilt(math.radians(pan),math.radians(tilt))
 
 

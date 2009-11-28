@@ -40,10 +40,12 @@ import math
 class robotis_servo():
     ''' class to use a robotis servo.
     '''
-    def __init__(self, dev_name, servo_id, baudrate=57600):
+    def __init__(self, dev_name, servo_id, baudrate=57600,
+                 max_speed=math.radians(50)):
         ''' dev_name - name of serial device of the servo controller (e.g. '/dev/robot/servo0')
             servo_id - 2,3,4 ... (2 to 253)
             baudrate - for the servo controller.
+            max_speed - max allowable speed for the servo (radians/sec)
         '''
         self.dev_name = dev_name
         self.servo_dev = None
@@ -70,8 +72,8 @@ class robotis_servo():
         if self.read_location(3) == None:
             print 'robotis_servo.robotis_servo.__init__: Wrong servo ID- ', self.servo_id
 
-        self.fast_angvel = math.radians(50)
-        
+        self.fast_angvel = max_speed
+
     def is_moving(self):
         ''' returns True if servo is moving.
         '''
@@ -141,7 +143,7 @@ class robotis_servo():
 
         if angvel>self.fast_angvel:
             print 'robotis_servo.move_angle: angvel too high - %.2f deg/s'%(math.degrees(angvel))
-            print 'ignoring scan command.'
+            print 'ignoring move command.'
             return
 
         if ang > self.max_ang or ang < self.min_ang:

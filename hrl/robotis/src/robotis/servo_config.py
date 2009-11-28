@@ -18,8 +18,10 @@ servo_param = {
     5: {                        # Tilting hokuyo on Firenze
         'home_encoder': 338
        },
-    6: {                        #
-        'home_encoder': 500
+    6: {                        # EL-E stereohead Pan
+        'home_encoder': 500,
+        'max_ang': math.radians(90.),
+        'min_ang': math.radians(-90.)
        },
     7: {                        # EL-E safetyscreen tilt.
         'home_encoder': 373
@@ -54,8 +56,10 @@ servo_param = {
     17: {                        # Tilt Antenna on RFID El-E Left
         'home_encoder': 504
        },
-    18: {                        # 
-        'home_encoder': 500
+    18: {                        # EL-E stereohead Tilt
+        'home_encoder': 500,
+        'max_ang': math.radians(60.),
+        'min_ang': math.radians(-20.)
        },
     19: {                        # Desktop System UTM
         'home_encoder': 633,
