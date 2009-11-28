@@ -56,6 +56,13 @@ class PanTilt():
         self.tilt_servo = rs.robotis_servo(dev_name,tilt_id,baudrate,
                                            max_speed = tilt_speed)
 
+        self.max_pan = self.pan_servo.max_ang
+        self.min_pan = self.pan_servo.min_ang
+
+        self.max_tilt = self.tilt_servo.max_ang
+        self.min_tilt = self.tilt_servo.min_ang
+
+
     ## return (pan,tilt) angles in RADIANS.
     def get_pan_tilt(self):
         pan = self.pan_servo.read_angle()
@@ -66,10 +73,11 @@ class PanTilt():
     # blocks until the pan and tilt angles are attained.
     # @param pan - pan angle (RADIANS)
     # @param tilt - tilt angle (RADIANS)
-    def set_pan_tilt(self,pan,tilt):
+    def set_pan_tilt(self, pan, tilt):
         self.pan_servo.move_angle(pan,angvel=None,blocking=False)
         self.tilt_servo.move_angle(tilt,angvel=None,blocking=True)
         self.pan_servo.move_angle(pan,angvel=None,blocking=True)
+
 
     ## new pan,tilt = current pan,tilt + pan_d,tilt_d
     # blocks until the pan and tilt angles are attained.
@@ -79,6 +87,9 @@ class PanTilt():
         p,t = self.get_pan_tilt()
         self.set_pan_tilt(p+pan_d,t+tilt_d)
 
+    def set_ptz_angles_rad(self, pan, tilt):
+        print 'pan_tilt.set_ptz_angles_rad: WARNING this function has been deprecated. use set_pan_tilt'
+        self.set_pan_tilt(pan, tilt)
 
 if __name__ == '__main__':
 
