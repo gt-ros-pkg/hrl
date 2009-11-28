@@ -123,4 +123,8 @@ if __name__ == '__main__':
     ptu = PanTilt(servo_dev_name,pan_id,tilt_id)
     ptu.set_pan_tilt(math.radians(pan),math.radians(tilt))
 
+# For EL-E:
+# python pan_tilt.py -d /dev/robot/servos_pan_tilt_hat  --pan_id=6 --tilt_id=18 --pan=0 --tilt=0
+
+
 
