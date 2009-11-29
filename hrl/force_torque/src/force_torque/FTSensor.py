@@ -257,17 +257,13 @@ if __name__ == '__main__':
         times = []
         print node_name + ': Retrieving sensor data and sending to FTRelay on service', service_name
         #for i in range(2000):
-        print 'here!!'
         while not rospy.is_shutdown():
-            print '1'
             v = ftsensor.read()
             #print repr(v), v.__class__
             
-            print '2'
             t = rospy.get_time()
             #times.append(time.time())
             try:
-                print '3'
                 ft_server_set_ft(v, t)
             except rospy.ServiceException, e:
                 print "Service call failed %s" % e
