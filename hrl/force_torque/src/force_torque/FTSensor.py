@@ -40,11 +40,11 @@ class FTSensor:
         process will result in many failed reads and/or incorrect 
         values!
     """
-    def __init__(self, dev):
-        print 'FTSensor: opening serial port...'
+    def __init__(self, dev, baudrate=19200):
+        print 'FTSensor: opening serial port (baudrate =', baudrate, ')'
         self.ftcon = serial.Serial(dev,timeout=0.1)
         print 'FTSensor: setting properties'
-        self.ftcon.setBaudrate(19200)
+        self.ftcon.setBaudrate(baudrate)
         self.ftcon.setParity('N')
         self.ftcon.setStopbits(1)
         self.ftcon.open()
@@ -74,9 +74,13 @@ class FTSensor:
             if len(t) < 1 or ord(t[0]) != 0 or len(t) < 10:
                 #pass
                 #self.reset()
+                print 'exiting due to if len(t) < 1 or ord(t[0]) != 0 or len(t) < 10'
+                print 't is', t
                 exit()
                 while not self._start_query():
                     #self.reset()
+                    print 'exiting due to not self._start_query()'
+                    print 't is', t
                     exit()
                 break
             else:
@@ -227,6 +231,9 @@ if __name__ == '__main__':
                  dest='name', help='name of sensor')
     p.add_option('--path', action='store', default='/dev/robot/fingerFT1', type = 'string',
                  dest='path', help='path to force torque device in (linux)')
+    p.add_option('--baudrate', action='store', default=19200, type = 'int', 
+                 dest='baudrate', 
+                 help='baudrate that force torque boxes are running at (VERY IMPORTANT!)')
     opt, args = p.parse_args()
     print 'FTSensor: Reading from', opt.path
 
@@ -245,22 +252,27 @@ if __name__ == '__main__':
         print node_name + ': waiting for service', service_name
         rospy.wait_for_service(service_name)
         ft_server_set_ft = rospy.ServiceProxy(service_name, StringService)
-        ftsensor = FTSensor(opt.path)
+        ftsensor = FTSensor(opt.path, baudrate=opt.baudrate)
 
         times = []
         print node_name + ': Retrieving sensor data and sending to FTRelay on service', service_name
         #for i in range(2000):
+        print 'here!!'
         while not rospy.is_shutdown():
+            print '1'
             v = ftsensor.read()
             #print repr(v), v.__class__
             
+            print '2'
             t = rospy.get_time()
             #times.append(time.time())
             try:
+                print '3'
                 ft_server_set_ft(v, t)
             except rospy.ServiceException, e:
                 print "Service call failed %s" % e
 
+        print 'rospy is not shutdown', not rospy.is_shutdown()
         #a = np.array(times)
         #diffs = a[1:] - a[:-1]
         #print 1.0/diffs.mean(), 1.0/np.std(diffs)
@@ -268,11 +280,12 @@ if __name__ == '__main__':
         #pl.show()
 
     if opt.mode == 'test':
+        print 'testing...'
         import numpy as np
         #import pylab as pl
 
         print 'Testing', opt.path
-        sensor1 = FTSensor(opt.path)
+        sensor1 = FTSensor(opt.path, opt.baudrate)
 
         tlist = []
         for i in range(200):
