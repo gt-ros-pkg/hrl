@@ -44,7 +44,7 @@ import scipy.ndimage as ni
 import copy
 import pylab as pl
 
-color_list = [(1.,1.,0),(1.,0,0),(0,1.,1.),(1,1,1),(0,1.,0),(0,0,1.),(0,0.4,0.4),(0.4,0.4,0),
+color_list = [(1.,1.,0),(1.,0,0),(0,1.,1.),(0,1.,0),(0,0,1.),(0,0.4,0.4),(0.4,0.4,0),
               (0.4,0,0.4),(0.4,0.8,0.4),(0.8,0.4,0.4),(0.4,0.4,0.8),(0.4,0,0.8),(0,0.8,0.4),
               (0,0.4,0.8),(0.8,0,0.4),(0.4,0,0.4),(1.,0.6,0.02) ]
 
@@ -554,18 +554,22 @@ def find_closest_object(obj_pts_list,pt,return_idx=False):
         return cl_obj,min_idx
     return cl_obj
 
-def segment_objects_points(grid):
+def segment_objects_points(grid,return_labels_list=False,
+                           twod=False):
     ''' grid - binary occupancy grid.
         returns list of 3xNi numpy matrices where Ni is the number of points
         in the ith object. Point refers to center of the cell of occupancy grid.
-        returns None if there is no horizontal surface.
+        return_labels_list - return a list of labels of the objects in
+        the grid.
+        returns None if there is no horizontal surface
     '''
-    labeled_arr,n_labels = grid.segment_objects()
+    labeled_arr,n_labels = grid.segment_objects(twod=twod)
     if n_labels == None:
         # there is no surface, so segmentation does not make sense.
         return None
 
     object_points_list = []
+    labels_list = []
 
     for l in range(n_labels):
         pts = grid.labeled_array_to_points(labeled_arr,l+1)
@@ -587,6 +591,10 @@ def segment_objects_points(grid):
         if size<0.01 or size>0.5:  #TODO - figure out a good threshold.
             continue
         object_points_list.append(pts)
+        labels_list.append(l+1)
+
+    if return_labels_list:
+        return object_points_list, labels_list
 
     return object_points_list
 

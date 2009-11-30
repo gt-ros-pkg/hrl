@@ -418,7 +418,7 @@ class occupancy_grid_3d():
         self.grid[:,:,l] = 0 # set occupancy to zero.
         return plane_and_below_pts,l_edge
 
-    def segment_objects(self):
+    def segment_objects(self, twod=False):
         ''' segments out objects after removing the plane.
             call after calling to_binary.
             returns labelled_array,n_labels
@@ -429,8 +429,10 @@ class occupancy_grid_3d():
             print 'occupancy_grid_3d.segment_objects: There is no plane.'
             return None,None
 
-        labelled_arr,n_labels = self.find_objects()
-        #labelled_arr,n_labels = self.find_objects_2d()
+        if twod == False:
+            labelled_arr,n_labels = self.find_objects()
+        else:
+            labelled_arr,n_labels = self.find_objects_2d()
         self.grid[:,:,l] = plane_and_below_pts
         return labelled_arr,n_labels
 
