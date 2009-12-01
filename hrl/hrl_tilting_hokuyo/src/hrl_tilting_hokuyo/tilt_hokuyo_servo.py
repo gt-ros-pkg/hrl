@@ -53,7 +53,7 @@ class tilt_hokuyo():
         self.l1 = l1
         self.l2 = l2
         
-    def scan(self, range, speed, save_scan=False,avg=1):
+    def scan(self, range, speed, save_scan=False,avg=1, _max_retries=2):
         ''' range - (start,end) in radians
             speed - scan speed in radians/sec
             save_scan - save a dict of pos_list,scan_list,l1,l2
@@ -80,6 +80,7 @@ class tilt_hokuyo():
         self.servo.move_angle(range[1]+np.sign(range[1])*ramp_up_angle,speed,blocking=False)
         #self.servo.move_angle(range[1], speed)
         time.sleep(0.05)
+        t1 = time.time()
 
         pos_list = []
         scan_list = []
@@ -91,6 +92,7 @@ class tilt_hokuyo():
             pos_list.append(pos)
             plane_scan = self.hokuyo.get_scan(avoid_duplicate=True,remove_graze=True,avg=avg)
             scan_list.append(plane_scan)
+        t2 = time.time()
 
         self.servo.move_angle(0)
         if save_scan:
@@ -99,13 +101,16 @@ class tilt_hokuyo():
                     'l1': self.l1, 'l2': self.l2}
             ut.save_pickle(dict,date_name+'_dict.pkl')
 
-        expected_time = (max_angle - min_angle) / speed
-        expected_number_scans = 22.0 * expected_time
+        runtime = t2 - t1 
+        expected_number_scans = 19.0 * runtime * (1.0/avg)
         scan_threshold = expected_number_scans - expected_number_scans*.2
         if len(scan_list) < scan_threshold:
             print 'tilt_hokuyo_servo.scan: WARNING! Expected at least %d scans but got only %d scans.' % (expected_number_scans, len(scan_list))
-            print 'tilt_hokuyo_servo.scan: trying again..'
-            return self.scan(range, speed, save_scan, avg)
+            print 'tilt_hokuyo_servo.scan: trying again.. retries:', _max_retries
+            if _max_retries > 0:
+                return self.scan(range, speed, save_scan, avg, _max_retries = _max_retries-1)
+            else:
+                print 'tilt_hokuyo_servo.scan: returning anyway'
 
         print 'tilt_hokuyo_servo.scan: got %d scans over range %f with speed %f.' % (len(scan_list), (max_angle - min_angle), speed)
         return pos_list,scan_list
