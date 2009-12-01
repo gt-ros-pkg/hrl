@@ -36,6 +36,7 @@ class pollerReads():
             time.sleep(0.02)
             newTime = self.new[-1] # Again, this is 'atomic'
         self.old = list(self.new) # Pretty sure this one is too... but not 100% certain
+        print self.old
         return self.old
 
 class Ears(object):
@@ -70,7 +71,7 @@ class Ears(object):
         self.reader = M5e.M5e(portSTR='/dev/robot/RFIDreader', readPwr=3000)
 
         #self.first_start()
-        self.fold_extra_safe()
+        #self.fold_extra_safe()
 
     def EleLeftEar(self,M5e):
             M5e.ChangeAntennaPorts(2,2)
@@ -160,23 +161,24 @@ class Ears(object):
 #         Pan: 95 (side) to -30 (toward center)
 #         Tilt: -35 (up) to 45 (down)
     
-    def rssi_pan_tilt(self, tagID, panSpeed = 20, tilt_res = 8):
+    def rssi_pan_tilt(self, tagID, pan_servo, tilt_servo, antfunc,
+                      panMin, panMax, tiltMin, tiltMax,
+                      panSpeed = 20, tilt_res = 8):
         ''' performs a pan-tilt scan '''
-        panMin = -95.0
-        panMax = 30.0
-        
-        tiltMin = -35.0
-        tiltMax = 45.0
+        # Right ear: rssi_pan_tilt('Claritin    ', self.pan_r, self.tilt_r, self.EleRightEar,
+        #                          -95.0, 30.0, -35.0, 45.0, 20, 15)
+        # Left ear:  rssi_pan_tilt('Claritin    ', self.pan_l, self.tilt_l, self.EleLeftEar,
+        #                          95.0, -30.0, -35.0, 45.0, 20, 15)
         tiltVals = np.linspace(tiltMin, tiltMax, tilt_res)
         
         self.fold_extra_safe()
         
-        self.pan_r.move_angle( math.radians(-35.0),angvel=math.radians(40),blocking=False )
-        self.tilt_r.move_angle( math.radians(-95.0),angvel=math.radians(40),blocking=False )
+        tilt_servo.move_angle( math.radians( tiltMin ),angvel=math.radians(40),blocking=False )
+        pan_servo.move_angle( math.radians( panMin ),angvel=math.radians(40),blocking=False )
                 
         newRead = pollerReads()  # Ensures fresh readings
         
-        self.poller = M5e.M5e_Poller(self.reader, antfuncs = [self.EleRightEar], callbacks = [newRead.call_back] )
+        self.poller = M5e.M5e_Poller(self.reader, antfuncs = [antfunc], callbacks = [newRead.call_back] )
 
         res = []  # [ Antenna Name, TagID String, RSSI, time of read, pan_angle, tilt_angle ]
         min2max = True
@@ -184,23 +186,22 @@ class Ears(object):
         self.poller.track_mode( tagID ) # Begin RFID reads as fast as possible
 
         for tA in tiltVals:
-            self.tilt_r.move_angle( math.radians(tA), angvel=math.radians(25), blocking=True )
+            tilt_servo.move_angle( math.radians(tA), angvel=math.radians(25), blocking=True )
             if min2max:
-                self.pan_r.move_angle( math.radians(panMax),angvel=math.radians(panSpeed),blocking=False )
+                pan_servo.move_angle( math.radians(panMax),angvel=math.radians(panSpeed),blocking=False )
                 min2max = False
             else:
-                self.pan_r.move_angle( math.radians(panMin),angvel=math.radians(panSpeed),blocking=False )
+                pan_servo.move_angle( math.radians(panMin),angvel=math.radians(panSpeed),blocking=False )
                 min2max = True
 
             newRead.getNewRead() # flush reader results
-            while self.pan_r.is_moving():
+            while pan_servo.is_moving():
                 a = newRead.getNewRead()  # [ Antenna Name, TagID String, RSSI, time of read ]
-                pan_read_ang = self.pan_r.read_angle()
+                pan_read_ang = pan_servo.read_angle()
                 time.sleep(0.01)
-                tilt_read_ang = self.tilt_r.read_angle()
+                tilt_read_ang = tilt_servo.read_angle()
                 time.sleep(0.01)
 
-                #if a[2] != -1:
                 res += [ a + [pan_read_ang, tilt_read_ang] ]
 
         # Turn off RFID reader.
@@ -211,157 +212,177 @@ class Ears(object):
         self.fold_extra_safe()
         raw_readings = list(res)
         
-#         offx = 100
-#         offy = 100
-        
-#         img = np.matrix(np.zeros((640+2*offx,480+2*offy)))
-        
-#         res = np.matrix([[xpixTpan(panA), ypixTtilt(tiltA), rssi] for rssi, earA, panA, tiltA in res if rssi != -1]).T
-        
-#         for i in xrange(res.shape[1]):
-#            u = int(res[0,i])
-#            v = int(res[1,i])
-#            if -offx <= u and u < 640+offx and -offy <= v and v < 480+offy:
-#                img[u+offx,v+offy] = int(res[2,i])
-        
-#         im2 = nd.gaussian_filter(img, 45, mode='constant', cval=0.0)
-        
-#         im3 = im2[offx:offx+640, offy:offy+480]
-        
         return raw_readings
     
-    def rssi_pan_only(self, tagID, imgName = None, showPlot = False):
-        ''' performs a pan-only scan '''
-        print 'HAND_WAVE IS DEPRECATED... NEEDS TO BE RE-WRITTEN!'
-        class pollerReads():
-            def __init__(self):
-                self.old = [time.time(), -1, None]
-                self.new = list(self.old)
-            def callB(self, trackres):
-                ant, id, rssi = trackres
-                self.new = [time.time(), rssi[0], ant]
-            def getNewRead(self):
-                while self.new[0] == self.old[0]:
-                    time.sleep(0.02)
-                self.old = list(self.new)
-                return self.old
-        
-        newRead = pollerReads()
-        self.poller.antfuncs = [self.EleLeftEar, self.EleRightEar]
-        self.poller.callbacks = [newRead.callB]
-        self.poller.track_mode(tagID)
-        
+    def rssi_pan_only(self, tagID, pan_servo, tilt_servo, antfunc,
+                      panMin, panMax, tiltAng, panSpeed = 20):
+        # Right ear: rssi_pan_tilt('Claritin    ', self.pan_r, self.tilt_r, self.EleRightEar,
+        #                          -95.0, 30.0, -35.0, 45.0, 20, 15)
+        # Left ear:  rssi_pan_tilt('Claritin    ', self.pan_l, self.tilt_l, self.EleLeftEar,
+        #                          95.0, -30.0, -35.0, 45.0, 20, 15)
         self.fold_extra_safe()
         
-        # Position Right Start
-        #(12.01171875, -45.41015625)
-        self.earR.move_angle(math.radians(12),angvel=math.radians(9),blocking=False)
-        self.pan_r.move_angle(math.radians(-45),angvel=math.radians(10),blocking=False)
-        self.tilt_r.move_angle(math.radians(0),angvel=math.radians(40),blocking=False)
+        tilt_servo.move_angle( math.radians( tiltAng ),angvel=math.radians(40),blocking=False )
+        pan_servo.move_angle( math.radians( panMin ),angvel=math.radians(40),blocking=True )
+                
+        newRead = pollerReads()  # Ensures fresh readings
         
-        # Position Left Start
-        #(90.52734375, -34.5703125)
-        self.earL.move_angle(math.radians(90),angvel=math.radians(15),blocking=False)
-        self.pan_l.move_angle(math.radians(-20),angvel=math.radians(7),blocking=False)
-        self.tilt_l.move_angle(math.radians(0),angvel=math.radians(40),blocking=False)
+        self.poller = M5e.M5e_Poller(self.reader, antfuncs = [antfunc], callbacks = [newRead.call_back] )
+
+        res = []  # [ Antenna Name, TagID String, RSSI, time of read, pan_angle, tilt_angle ]
         
-        res = []
-        while np.any( [f() for f in self.moving_funcs] ):
-            a = newRead.getNewRead()
-            print a
-            if a[-1] == 'EleLeftEar':
-                angs = [self.earL.read_angle(), self.pan_l.read_angle(), self.tilt_l.read_angle()]
-            else:
-                angs = [self.earR.read_angle(), self.pan_r.read_angle(), self.tilt_r.read_angle()]
-            if a[1] != -1:
-                res += [ a + angs ]
-        
-        # Position Right End
-        #(-41.6015625, 60.9375)
-        self.earR.move_angle(math.radians(-41),angvel=math.radians(10),blocking=False)
-        self.pan_r.move_angle(math.radians(61),angvel=math.radians(20),blocking=False)
-        self.tilt_r.move_angle(math.radians(0),angvel=math.radians(30),blocking=False)
-        
-        # Position Left End
-        #(-32.51953125, 43.359375)
-        self.earL.move_angle(math.radians(-33),angvel=math.radians(25),blocking=False)
-        self.pan_l.move_angle(math.radians(43),angvel=math.radians(15),blocking=False)
-        self.tilt_l.move_angle(math.radians(0),angvel=math.radians(30),blocking=False)
-        
-        while np.any( [f() for f in self.moving_funcs] ):
-            a = newRead.getNewRead()
-            print a
-            if a[-1] == 'EleLeftEar':
-                angs = [self.earL.read_angle(), self.pan_l.read_angle(), self.tilt_l.read_angle()]
-            else:
-                angs = [self.earR.read_angle(), self.pan_r.read_angle(), self.tilt_r.read_angle()]
-            if a[1] != -1:
-                res += [ a + angs ]
-        
-        self.poller.pause_poller()
+        self.poller.track_mode( tagID ) # Begin RFID reads as fast as possible
+
+        pan_servo.move_angle( math.radians(panMax),angvel=math.radians(panSpeed),blocking=False )
+        newRead.getNewRead() # flush reader results
+        while pan_servo.is_moving():
+            a = newRead.getNewRead()  # [ Antenna Name, TagID String, RSSI, time of read ]
+            pan_read_ang = pan_servo.read_angle()
+            time.sleep(0.01)
+            tilt_read_ang = tilt_servo.read_angle()
+            time.sleep(0.01)
+            res += [ a + [pan_read_ang, tilt_read_ang] ]
+
+        # Turn off RFID reader.
+        self.poller.pause_poller()  # Stops the thread from reading
+        self.poller.stop()  # Tell the thread to die
         time.sleep(0.050)
-        self.poller.antfuncs = []
-        self.poller.callbacks = []
-        # Done Polling
-        
-        self.pan_l.move_angle(math.radians(0),angvel=math.radians(30),blocking=True)
         
         self.fold_extra_safe()
+        raw_readings = list(res)
         
-        # Begin FITTING
+        return raw_readings
+#         ''' performs a pan-only scan '''
+#         print 'HAND_WAVE IS DEPRECATED... NEEDS TO BE RE-WRITTEN!'
+#         class pollerReads():
+#             def __init__(self):
+#                 self.old = [time.time(), -1, None]
+#                 self.new = list(self.old)
+#             def callB(self, trackres):
+#                 ant, id, rssi = trackres
+#                 self.new = [time.time(), rssi[0], ant]
+#             def getNewRead(self):
+#                 while self.new[0] == self.old[0]:
+#                     time.sleep(0.02)
+#                 self.old = list(self.new)
+#                 return self.old
         
-        Lpts = []
-        Rpts = []
-        for datum in res:
-            t, rssi, ant, eA, pA, tA = datum
-            if ant == 'EleLeftEar':
-                trans = tr.createAntLeft(eA,pA,tA)
-                xyz = tr.globalTantL(np.matrix([5,0,0]).T)
-                Lpts.append([rssi, mu.pol_of_cart(xyz[0:2])[1,0]+0.1])  # +- 0.1 to account for funkiness @ angle zero to make left/right align
-            else:
-                trans = tr.createAntRight(eA,pA,tA)
-                xyz = tr.globalTantR(np.matrix([5,0,0]).T)
-                Rpts.append([rssi, mu.pol_of_cart(xyz[0:2])[1,0]-0.1])
+#         newRead = pollerReads()
+#         self.poller.antfuncs = [self.EleLeftEar, self.EleRightEar]
+#         self.poller.callbacks = [newRead.callB]
+#         self.poller.track_mode(tagID)
         
-        Lp = np.matrix(Lpts).T
-        if Lp.shape[0] == 0:
-            Lp = np.matrix([]).reshape(2,0)
+#         self.fold_extra_safe()
         
-        Rp = np.matrix(Rpts).T
-        if Rp.shape[0] == 0:
-            Rp = np.matrix([]).reshape(2,0)
+#         # Position Right Start
+#         #(12.01171875, -45.41015625)
+#         self.earR.move_angle(math.radians(12),angvel=math.radians(9),blocking=False)
+#         self.pan_r.move_angle(math.radians(-45),angvel=math.radians(10),blocking=False)
+#         self.tilt_r.move_angle(math.radians(0),angvel=math.radians(40),blocking=False)
         
-        print Lp.shape,Rp.shape
+#         # Position Left Start
+#         #(90.52734375, -34.5703125)
+#         self.earL.move_angle(math.radians(90),angvel=math.radians(15),blocking=False)
+#         self.pan_l.move_angle(math.radians(-20),angvel=math.radians(7),blocking=False)
+#         self.tilt_l.move_angle(math.radians(0),angvel=math.radians(40),blocking=False)
         
-        LR = np.column_stack([Lp,Rp])
+#         res = []
+#         while np.any( [f() for f in self.moving_funcs] ):
+#             a = newRead.getNewRead()
+#             print a
+#             if a[-1] == 'EleLeftEar':
+#                 angs = [self.earL.read_angle(), self.pan_l.read_angle(), self.tilt_l.read_angle()]
+#             else:
+#                 angs = [self.earR.read_angle(), self.pan_r.read_angle(), self.tilt_r.read_angle()]
+#             if a[1] != -1:
+#                 res += [ a + angs ]
         
-        def func(x,alpha,beta,mu,sigma):
-            return (1.0 / sigma) * alpha * np.exp(-1*np.power(x-mu,2.0) / (2*np.power(sigma,2.0))) + beta
+#         # Position Right End
+#         #(-41.6015625, 60.9375)
+#         self.earR.move_angle(math.radians(-41),angvel=math.radians(10),blocking=False)
+#         self.pan_r.move_angle(math.radians(61),angvel=math.radians(20),blocking=False)
+#         self.tilt_r.move_angle(math.radians(0),angvel=math.radians(30),blocking=False)
         
-        def residuals(p,xs,ys):
-            alpha, beta, mu, sigma = p
-            ytmp = func(xs,alpha,beta,mu,sigma)
-            return np.power(ys - ytmp,2.0)
+#         # Position Left End
+#         #(-32.51953125, 43.359375)
+#         self.earL.move_angle(math.radians(-33),angvel=math.radians(25),blocking=False)
+#         self.pan_l.move_angle(math.radians(43),angvel=math.radians(15),blocking=False)
+#         self.tilt_l.move_angle(math.radians(0),angvel=math.radians(30),blocking=False)
         
-        alpha, beta, muV, sigma = op.leastsq(residuals, [30.0, 70.0, 0.0, math.radians(60)], args=(LR[1].A1, LR[0].A1))[0]
+#         while np.any( [f() for f in self.moving_funcs] ):
+#             a = newRead.getNewRead()
+#             print a
+#             if a[-1] == 'EleLeftEar':
+#                 angs = [self.earL.read_angle(), self.pan_l.read_angle(), self.tilt_l.read_angle()]
+#             else:
+#                 angs = [self.earR.read_angle(), self.pan_r.read_angle(), self.tilt_r.read_angle()]
+#             if a[1] != -1:
+#                 res += [ a + angs ]
         
-        xs = np.linspace(-np.pi, np.pi, 500)
-        ys = func(xs, alpha, beta, muV, sigma)
+#         self.poller.pause_poller()
+#         time.sleep(0.050)
+#         self.poller.antfuncs = []
+#         self.poller.callbacks = []
+#         # Done Polling
         
-        maxFit = xs[np.argmax(ys)]
-        mFy = ys[np.argmax(ys)]
+#         self.pan_l.move_angle(math.radians(0),angvel=math.radians(30),blocking=True)
         
-        if imgName or showPlot:
-            pl.plot(Lp[1].A1, Lp[0].A1,'go',Rp[1].A1, Rp[0].A1,'ro', xs, ys, 'b-', [maxFit], [mFy], 'co')
-            pl.legend(['Left Antenna', 'Right Antenna', '2nd Order Fit', 'Estimated Tag Heading'])
-            if imgName:
-                pl.savefig(imgName)
-            if showPlot:
-                pl.show()
+#         self.fold_extra_safe()
+        
+#         # Begin FITTING
+        
+#         Lpts = []
+#         Rpts = []
+#         for datum in res:
+#             t, rssi, ant, eA, pA, tA = datum
+#             if ant == 'EleLeftEar':
+#                 trans = tr.createAntLeft(eA,pA,tA)
+#                 xyz = tr.globalTantL(np.matrix([5,0,0]).T)
+#                 Lpts.append([rssi, mu.pol_of_cart(xyz[0:2])[1,0]+0.1])  # +- 0.1 to account for funkiness @ angle zero to make left/right align
+#             else:
+#                 trans = tr.createAntRight(eA,pA,tA)
+#                 xyz = tr.globalTantR(np.matrix([5,0,0]).T)
+#                 Rpts.append([rssi, mu.pol_of_cart(xyz[0:2])[1,0]-0.1])
+        
+#         Lp = np.matrix(Lpts).T
+#         if Lp.shape[0] == 0:
+#             Lp = np.matrix([]).reshape(2,0)
+        
+#         Rp = np.matrix(Rpts).T
+#         if Rp.shape[0] == 0:
+#             Rp = np.matrix([]).reshape(2,0)
+        
+#         print Lp.shape,Rp.shape
+        
+#         LR = np.column_stack([Lp,Rp])
+        
+#         def func(x,alpha,beta,mu,sigma):
+#             return (1.0 / sigma) * alpha * np.exp(-1*np.power(x-mu,2.0) / (2*np.power(sigma,2.0))) + beta
+        
+#         def residuals(p,xs,ys):
+#             alpha, beta, mu, sigma = p
+#             ytmp = func(xs,alpha,beta,mu,sigma)
+#             return np.power(ys - ytmp,2.0)
+        
+#         alpha, beta, muV, sigma = op.leastsq(residuals, [30.0, 70.0, 0.0, math.radians(60)], args=(LR[1].A1, LR[0].A1))[0]
+        
+#         xs = np.linspace(-np.pi, np.pi, 500)
+#         ys = func(xs, alpha, beta, muV, sigma)
+        
+#         maxFit = xs[np.argmax(ys)]
+#         mFy = ys[np.argmax(ys)]
+        
+#         if imgName or showPlot:
+#             pl.plot(Lp[1].A1, Lp[0].A1,'go',Rp[1].A1, Rp[0].A1,'ro', xs, ys, 'b-', [maxFit], [mFy], 'co')
+#             pl.legend(['Left Antenna', 'Right Antenna', '2nd Order Fit', 'Estimated Tag Heading'])
+#             if imgName:
+#                 pl.savefig(imgName)
+#             if showPlot:
+#                 pl.show()
         
         
         
-        return res, maxFit
+#         return res, maxFit
     
     def hand_wave_QueryEnv(self):
         print 'HAND_WAVE_QUERYENV IS DEPRECATED... NEEDS TO BE RE-WRITTEN!'
