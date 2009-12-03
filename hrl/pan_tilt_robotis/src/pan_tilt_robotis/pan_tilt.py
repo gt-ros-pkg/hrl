@@ -49,8 +49,8 @@ class PanTilt():
     # @param pan_speed - max pan speed (radians/sec)
     # @param tilt_speed - max tilt speed (radians/sec)
     def __init__(self, dev_name, pan_id, tilt_id, baudrate=57600,
-                 pan_speed = math.radians(90),
-                 tilt_speed = math.radians(90)):
+                 pan_speed = math.radians(180),
+                 tilt_speed = math.radians(180)):
         self.pan_servo = rs.robotis_servo(dev_name,pan_id,baudrate,
                                           max_speed = pan_speed)
         self.tilt_servo = rs.robotis_servo(dev_name,tilt_id,baudrate,
@@ -67,16 +67,16 @@ class PanTilt():
     def get_pan_tilt(self):
         pan = self.pan_servo.read_angle()
         tilt = self.tilt_servo.read_angle()
-        return pan,tilt
+        return pan, -tilt
 
     ## set (pan,tilt) angles in RADIANS.
     # blocks until the pan and tilt angles are attained.
     # @param pan - pan angle (RADIANS)
     # @param tilt - tilt angle (RADIANS)
-    def set_pan_tilt(self, pan, tilt):
-        self.pan_servo.move_angle(pan,angvel=None,blocking=False)
-        self.tilt_servo.move_angle(tilt,angvel=None,blocking=True)
-        self.pan_servo.move_angle(pan,angvel=None,blocking=True)
+    def set_pan_tilt(self, pan, tilt, speed=math.radians(180)):
+        self.pan_servo.move_angle(pan, angvel=speed, blocking=False)
+        self.tilt_servo.move_angle(tilt, angvel=speed, blocking=True)
+        self.pan_servo.move_angle(pan, angvel=speed, blocking=True)
 
 
     ## new pan,tilt = current pan,tilt + pan_d,tilt_d
@@ -90,6 +90,21 @@ class PanTilt():
     def set_ptz_angles_rad(self, pan, tilt):
         print 'pan_tilt.set_ptz_angles_rad: WARNING this function has been deprecated. use set_pan_tilt'
         self.set_pan_tilt(pan, tilt)
+
+    def set_ptz_values(self, pan, tilt, blocking=True):
+        print 'pan_tilt.set_ptz_values: WARNING this function has been deprecated. use set_pan_tilt'
+        self.set_pan_tilt(pan, tilt)
+
+    def get_ptz_angles_rad(self):
+        print 'pan_tilt.get_ptz_angles_rad: WARNING this function has been deprecated. use set_pan_tilt'
+        return self.get_pan_tilt()
+
+    def get_ptz_values(self):
+        print 'pan_tilt.get_ptz_values: WARNING this function has been deprecated. use set_pan_tilt'
+        p, t = self.get_pan_tilt()
+        #return p, t
+        return math.degrees(p), math.degrees(t)
+
 
 if __name__ == '__main__':
 
