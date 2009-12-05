@@ -101,11 +101,11 @@ class Ears(object):
     
     def unfold_servopos(self):
         # Unfold Right
-        self.pan_r.move_angle(math.radians(-30),angvel=math.radians(40),blocking=False)
+        self.pan_r.move_angle(math.radians(-45),angvel=math.radians(40),blocking=False)
         self.tilt_r.move_angle(math.radians(0),angvel=math.radians(40),blocking=False)
         
         # Unfold Left
-        self.pan_l.move_angle(math.radians(30),angvel=math.radians(40),blocking=False)
+        self.pan_l.move_angle(math.radians(45),angvel=math.radians(40),blocking=False)
         self.tilt_l.move_angle(math.radians(0),angvel=math.radians(40),blocking=False)
         
         while np.any( [f() for f in self.moving_funcs] ):
@@ -230,8 +230,11 @@ class Ears(object):
         self.poller = M5e.M5e_Poller(self.reader, antfuncs = [antfunc], callbacks = [newRead.call_back] )
 
         res = []  # [ Antenna Name, TagID String, RSSI, time of read, pan_angle, tilt_angle ]
-        
-        self.poller.track_mode( tagID ) # Begin RFID reads as fast as possible
+
+        if tagID:
+            self.poller.track_mode( tagID ) # Begin RFID reads as fast as possible
+        else:
+            self.poller.query_mode()
 
         pan_servo.move_angle( math.radians(panMax),angvel=math.radians(panSpeed),blocking=False )
         newRead.getNewRead() # flush reader results
@@ -384,71 +387,44 @@ class Ears(object):
         
 #         return res, maxFit
     
-    def hand_wave_QueryEnv(self):
-        print 'HAND_WAVE_QUERYENV IS DEPRECATED... NEEDS TO BE RE-WRITTEN!'
-        class pollerReads():
-            def __init__(self):
-                self.old = [time.time(), None, None]
-                self.new = list(self.old)
-            def callB(self, trackres):
-                ant, id, rssi = trackres
-                self.new = [time.time(), id, ant]
-            def getNewRead(self):
-                while self.new[0] == self.old[0]:
-                    time.sleep(0.02)
-                self.old = list(self.new)
-                return self.old
-        
-        newRead = pollerReads()
-        self.poller.antfuncs = [self.EleLeftEar, self.EleRightEar]
-        self.poller.callbacks = [newRead.callB]
-        self.poller.query_mode()
-        
+    def hand_wave_QueryEnv(self, pan_servo, tilt_servo, antfunc,
+                      panMin, panMax, tiltAng, panSpeed = 20):
+        # Right ear: rssi_pan_tilt('Claritin    ', self.pan_r, self.tilt_r, self.EleRightEar,
+        #                          -95.0, 30.0, -35.0, 45.0, 20, 15)
+        # Left ear:  rssi_pan_tilt('Claritin    ', self.pan_l, self.tilt_l, self.EleLeftEar,
+        #                          95.0, -30.0, -35.0, 45.0, 20, 15)
         self.fold_extra_safe()
         
-        # Position Right Start
-        #(12.01171875, -45.41015625)
-        self.earR.move_angle(math.radians(12),angvel=math.radians(9),blocking=False)
-        self.pan_r.move_angle(math.radians(-45),angvel=math.radians(10),blocking=False)
-        self.tilt_r.move_angle(math.radians(0),angvel=math.radians(40),blocking=False)
+        tilt_servo.move_angle( math.radians( tiltAng ),angvel=math.radians(40),blocking=False )
+        pan_servo.move_angle( math.radians( panMin ),angvel=math.radians(40),blocking=True )
+                
+        newRead = pollerReads()  # Ensures fresh readings
         
-        # Position Left Start
-        #(90.52734375, -34.5703125)
-        self.earL.move_angle(math.radians(90),angvel=math.radians(15),blocking=False)
-        self.pan_l.move_angle(math.radians(-20),angvel=math.radians(7),blocking=False)
-        self.tilt_l.move_angle(math.radians(0),angvel=math.radians(40),blocking=False)
+        self.poller = M5e.M5e_Poller(self.reader, antfuncs = [antfunc], callbacks = [newRead.call_back] )
+
+        res = []  # [ Antenna Name, TagID String, RSSI, time of read, pan_angle, tilt_angle ]
         
-        res = {}
-        while np.any( [f() for f in self.moving_funcs] ):
-            a = newRead.getNewRead()
-            for tagID in a[1]:
-                res[tagID] = True
-        
-        # Position Right End
-        #(-41.6015625, 60.9375)
-        self.earR.move_angle(math.radians(-41),angvel=math.radians(10),blocking=False)
-        self.pan_r.move_angle(math.radians(61),angvel=math.radians(20),blocking=False)
-        self.tilt_r.move_angle(math.radians(0),angvel=math.radians(30),blocking=False)
-        
-        # Position Left End
-        #(-32.51953125, 43.359375)
-        self.earL.move_angle(math.radians(-33),angvel=math.radians(25),blocking=False)
-        self.pan_l.move_angle(math.radians(43),angvel=math.radians(15),blocking=False)
-        self.tilt_l.move_angle(math.radians(0),angvel=math.radians(30),blocking=False)
-        
-        while np.any( [f() for f in self.moving_funcs] ):
-            a = newRead.getNewRead()
-            for tagID in a[1]:
-                res[tagID] = True
-        
-        self.poller.pause_poller()
+        self.poller.track_mode( tagID ) # Begin RFID reads as fast as possible
+
+        pan_servo.move_angle( math.radians(panMax),angvel=math.radians(panSpeed),blocking=False )
+        newRead.getNewRead() # flush reader results
+        while pan_servo.is_moving():
+            a = newRead.getNewRead()  # [ Antenna Name, TagID String, RSSI, time of read ]
+            pan_read_ang = pan_servo.read_angle()
+            time.sleep(0.01)
+            tilt_read_ang = tilt_servo.read_angle()
+            time.sleep(0.01)
+            res += [ a + [pan_read_ang, tilt_read_ang] ]
+
+        # Turn off RFID reader.
+        self.poller.pause_poller()  # Stops the thread from reading
+        self.poller.stop()  # Tell the thread to die
         time.sleep(0.050)
-        self.poller.antfuncs = []
-        self.poller.callbacks = []
-        # Done Polling
         
-        self.pan_l.move_angle(math.radians(0),angvel=math.radians(30),blocking=True)
+        self.fold_extra_safe()
+        raw_readings = list(res)
         
+        return raw_readings
         self.fold_extra_safe()
         
         return res.keys()
