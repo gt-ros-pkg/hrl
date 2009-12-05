@@ -588,7 +588,7 @@ def segment_objects_points(grid,return_labels_list=False,
         print 'points per sum of eigenvalues:',ppsoe
 #        if ppsoe<5000:
 #            continue
-        if size<0.01 or size>0.5:  #TODO - figure out a good threshold.
+        if size<0.03 or size>0.5:  #TODO - figure out a good threshold.
             continue
         object_points_list.append(pts)
         labels_list.append(l+1)
@@ -633,6 +633,12 @@ def create_vertical_plane_grid(pt,pos_list,scan_list,l1,l2,rotation_angle,displa
     resolution = np.matrix([0.005,0.02,0.02]).T
     return create_grid(brf,tlb,resolution,pos_list,scan_list,l1,l2,display_list,rotation_angle=rotation_angle,occupancy_threshold=1)
 
+def create_scooping_grid(pt,pos_list,scan_list,l1,l2,display_flag=False):
+    brf = pt+np.matrix([-0.15,-0.4,-0.2]).T
+    brf[0,0] = max(0.07,brf[0,0])
+    tlb = pt+np.matrix([0.25, 0.4,0.2]).T
+    resolution = np.matrix([0.01,0.01,0.0025]).T
+    return create_grid(brf,tlb,resolution,pos_list,scan_list,l1,l2,display_flag)
 
 def create_segmentation_grid(pt,pos_list,scan_list,l1,l2,display_flag=False):
     brf = pt+np.matrix([-0.15,-0.2,-0.2]).T
