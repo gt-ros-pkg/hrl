@@ -588,7 +588,7 @@ def segment_objects_points(grid,return_labels_list=False,
         print 'points per sum of eigenvalues:',ppsoe
 #        if ppsoe<5000:
 #            continue
-        if size<0.03 or size>0.5:  #TODO - figure out a good threshold.
+        if size<0.05 or size>0.5:  #TODO - figure out a good threshold.
             continue
         object_points_list.append(pts)
         labels_list.append(l+1)
