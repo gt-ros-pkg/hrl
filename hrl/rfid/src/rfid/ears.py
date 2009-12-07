@@ -216,10 +216,13 @@ class Ears(object):
     
     def rssi_pan_only(self, tagID, pan_servo, tilt_servo, antfunc,
                       panMin, panMax, tiltAng, panSpeed = 20):
+        # Should be panStart and panStop...
+        
         # Right ear: rssi_pan_tilt('Claritin    ', self.pan_r, self.tilt_r, self.EleRightEar,
         #                          -95.0, 30.0, -35.0, 45.0, 20, 15)
         # Left ear:  rssi_pan_tilt('Claritin    ', self.pan_l, self.tilt_l, self.EleLeftEar,
         #                          95.0, -30.0, -35.0, 45.0, 20, 15)
+
         self.fold_extra_safe()
         
         tilt_servo.move_angle( math.radians( tiltAng ),angvel=math.radians(40),blocking=False )
