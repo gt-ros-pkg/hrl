@@ -61,6 +61,7 @@ class Ctrl():
 #		Zenither
         self.z = zenither.Zenither(robot='HRL2')
         self.z_dir = 0
+        self.init_height = 1.   #initial zenither height = 1m
 
 #		Segway Omni
         self.mec = segway.Mecanum(init_ros_node=False)
@@ -70,14 +71,15 @@ class Ctrl():
 
 #	Callback funtion for rospy
     def callback(self, cmd):
-        max_ang = 60
-        min_ang = -60
+        max_ang = 75
+        min_ang = -75
         delta_ang = 2
         self.z_dir = cmd.zen
         self.xvel = cmd.xvel
         self.yvel = cmd.yvel
         self.avel = cmd.avel
         self.reset = cmd.reset
+        self.zen_reset = cmd.zen_reset
 
         if cmd.y == -1.0:
             if self.angle1 < math.radians(max_ang):
@@ -110,6 +112,14 @@ class Ctrl():
 
     def set_zenither(self):
         self.move_zenither_flag = False
+        if self.zen_reset == 1:
+            curr_height = self.z.get_position_meters()    #get zenither height
+            if curr_height == self.init_height:
+                print 'zenither height is at ',self.init_height,'m'                
+            else:
+                self.z.torque_move_position(self.init_height,speed='slow')
+                torque = self.z.calib['zero_vel_torque']
+                print 'Reset zenither position to ',self.init_height,'m'
 
         if self.z_dir == 1.0:         
             curr_height = self.z.get_position_meters()    #get zenither height
