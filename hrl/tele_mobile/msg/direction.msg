@@ -5,4 +5,4 @@ float64 zen
 float64 xvel
 float64 yvel
 float64 avel
-
+float64 zen_reset
