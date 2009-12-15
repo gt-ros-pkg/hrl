@@ -48,8 +48,8 @@ class JoystickCommand:
             pass
 
 
-    def set_platform(self, x, y,reset, zen, xvel, yvel, avel):
-        cmd = direction(x, y, reset, zen, xvel, yvel, avel)
+    def set_platform(self, x, y,reset, zen, xvel, yvel, avel,zen_reset):
+        cmd = direction(x, y, reset, zen, xvel, yvel, avel,zen_reset)
         self.pub.publish(cmd)
         print "publishing:", cmd
         time.sleep(0.05)
@@ -89,10 +89,17 @@ if __name__ == '__main__':
 	max_speed = 0.18 	# don't exceed 0.18 under any condition.
 	max_avel = 0.18
 
-	x, y, reset = 0., 0., 0.
+	x = 0.
+	y = 0.
+	reset = 0.
 	zen = 0.
-	seg_x, seg_y, seg_a = 0., 0., 0.
-	xvel, yvel, avel = 0., 0., 0.
+	seg_x = 0.
+	seg_y = 0.
+	seg_a = 0.
+	xvel = 0.
+	yvel = 0.
+	avel = 0.
+	zen_reset = 0.
 	connected = False
 
 	while not rospy.is_shutdown():
@@ -103,14 +110,20 @@ if __name__ == '__main__':
 				y = event.value[1]
 			if (event.type == JOYBUTTONDOWN):
 				if(event.button == 0):
-					reset = 1		
+					reset = 1
+				if(event.button == 9):
+					zen_reset = 1
 				if(event.button == 4 or event.button == 5 ):
 					zen = 1
 				if(event.button == 2 or event.button == 3 ):
-					zen = -1	
+					zen = -1
+				if(event.button == 2 or event.button == 3 ):
+					zen = -1		
 			if (event.type == JOYBUTTONUP):
 				if(event.button == 0):
-					reset = 0		
+					reset = 0
+				if(event.button == 9):
+					zen_reset = 0
 				if(event.button == 2 or event.button == 3 or event.button == 4 or event.button == 5):
 					zen = 0
 			if (event.type == JOYAXISMOTION):
@@ -136,6 +149,6 @@ if __name__ == '__main__':
 			xvel = seg_x * max_xvel
 			yvel = seg_y * max_yvel
 			avel = seg_a * max_avel
-			s.set_platform(x, y, reset, zen, xvel, yvel, avel) 
+			s.set_platform(x, y, reset, zen, xvel, yvel, avel, zen_reset) 
 
-	s.set_platform(0, 0, 0, 0, 0, 0, 0)
+	s.set_platform(0, 0, 0, 0, 0, 0, 0, 0)
