@@ -1130,7 +1130,7 @@ if __name__ == '__main__':
         print 'dict does NOT have key pt'
         pt = np.matrix([0.35,0.0,-0.3]).T
         dict['pt'] = pt
-        #ut.save_pickle(dict,pkl_file_name)
+        ut.save_pickle(dict,pkl_file_name)
 
 #    charlie_nih()
 

@@ -9,6 +9,12 @@
     <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
     <license>New BSD</license>
 
+    <depend package="rospy"/>
+    <depend package="hrl_lib"/>
+    <depend package="hrl_hokuyo"/>
+    <depend package="hrl_tilting_hokuyo"/>
+    <depend package="zenither"/>
+
 </package>
 
 

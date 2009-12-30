@@ -27,6 +27,8 @@
 
 # Author: Advait Jain
 
+import roslib; roslib.load_manifest('2009-humanoids-epc-pull')
+
 import scipy.optimize as so
 
 import math, numpy as np
@@ -40,7 +42,7 @@ import mekabot.hrl_robot as hr
 #import util as ut
 import hrl_lib.util as ut, hrl_lib.transforms as tr
 import matplotlib_util.util as mpu
-import tilting_hokuyo.display_3d_mayavi as d3m
+import hrl_tilting_hokuyo.display_3d_mayavi as d3m
 
 import shapely.geometry as sg
 
@@ -797,11 +799,11 @@ if __name__ == '__main__':
         if expt_plot:
             pl.subplot(233)
 
-        plot_cartesian(actual_cartesian,xaxis=0,yaxis=1,color='b',label='FK')
+        plot_cartesian(actual_cartesian,xaxis=0,yaxis=1,color='b',label='End Effector Trajectory')
 #        plot_cartesian(eq_cartesian, xaxis=0,yaxis=1,color='g',label='Eq Point')
-#        mpu.plot_circle(cx,cy,rad,start_angle,end_angle,label='Actual_opt',color='r')
-#        if rad<0.6:
-#            mpu.plot_radii(cx,cy,rad,start_angle,end_angle,interval=math.radians(15),color='r')
+        mpu.plot_circle(cx,cy,rad,start_angle,end_angle,label='Estimated Kinematics',color='r')
+        if rad<0.6:
+            mpu.plot_radii(cx,cy,rad,start_angle,end_angle,interval=math.radians(100),color='r')
 #        pl.title(d['info'])
         leg = pl.legend(loc='best',handletextsep=0.020,handlelen=0.003,labelspacing=0.003)
         leg.draw_frame(False)

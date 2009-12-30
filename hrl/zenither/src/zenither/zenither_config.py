@@ -71,7 +71,7 @@ calib = {
         'VEL_DEFAULT': 0.2,
         'VEL_MAX': 0.4,
         'ACC_DEFAULT':0.5,
-        'ACC_MAX':4.5,
+        'ACC_MAX':10.0,
         'ZERO_BIAS':0.0,
         'HAS_BRAKE':False,
         'nadir_torque': -150,
