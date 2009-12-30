@@ -62,6 +62,7 @@ class Ctrl():
         self.z = zenither.Zenither(robot='HRL2')
         self.z_dir = 0
         self.init_height = 1.   #initial zenither height = 1m
+        self.zen_reset = 0
 
 #		Segway Omni
         self.mec = segway.Mecanum(init_ros_node=False)
