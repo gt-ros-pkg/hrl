@@ -191,16 +191,16 @@ def rotZ(theta):
 ##
 # compute rotation matrix from axis and angle.
 # Example:
-# a1 = rot_angle_direction_point(math.radians(30), np.matrix([0.,1.,0.]).T)
+# a1 = rot_angle_direction(math.radians(30), np.matrix([0.,1.,0.]).T)
 # a2 = Ry(math.radians(30))
 # np.allclose(a1.T, a2) # result is True.
 # @param angle - angle in RADIANS
 # @param direction - 3x1 np matrix
-# @param point - 3x1 np matrix
-# @return 3x3 np matrix that rotates point about axis by angle.
-def rot_angle_direction_point(angle, direction, point = np.matrix([0.,0.,0.]).T):
+# @return 3x3 np matrix that rotates a vector about the axis passing
+# through the origin, in the given direction through angle.
+def rot_angle_direction(angle, direction):
     direction = direction/np.linalg.norm(direction)
-    r = tft.rotation_matrix(angle, direction.A1, point.A1)
+    r = tft.rotation_matrix(angle, direction.A1)
     return np.matrix(r[0:3,0:3])
 
 
