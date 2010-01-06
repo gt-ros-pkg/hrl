@@ -69,6 +69,7 @@ class Ctrl():
         self.xvel = 0.
         self.yvel = 0.
         self.avel = 0.
+        self.lock = 0.
 
 #	Callback funtion for rospy
     def callback(self, cmd):
@@ -81,6 +82,7 @@ class Ctrl():
         self.avel = cmd.avel
         self.reset = cmd.reset
         self.zen_reset = cmd.zen_reset
+        self.lock = cmd.lock
 
         if cmd.y == -1.0:
             if self.angle1 < math.radians(max_ang):
@@ -166,6 +168,10 @@ if __name__ == '__main__':
     while not rospy.is_shutdown():
         platform.set_servo()
         platform.set_zenither()
+        if platform.lock == 0.:
+            print 'segway is locked'
+        else:
+            print 'segway is ready'
         platform.mec.set_velocity(platform.xvel,platform.yvel,platform.avel)
 
     platform.stop()

@@ -48,8 +48,8 @@ class JoystickCommand:
             pass
 
 
-    def set_platform(self, x, y,reset, zen, xvel, yvel, avel,zen_reset):
-        cmd = direction(x, y, reset, zen, xvel, yvel, avel,zen_reset)
+    def set_platform(self, x, y,reset, zen, xvel, yvel, avel, zen_reset):
+        cmd = direction(x, y, reset, zen, xvel, yvel, avel, zen_reset)
         self.pub.publish(cmd)
         print "publishing:", cmd
         time.sleep(0.05)

@@ -53,7 +53,7 @@ class Ctrl():
 
 #		Robotis servo
         self.tilt = rs.robotis_servo('/dev/robot/servo0', 5, baudrate=57600)
-#        self.pan = rs.robotis_servo('/dev/robot/servo0', 25, baudrate=57600)
+        self.pan = rs.robotis_servo('/dev/robot/servo0', 25, baudrate=57600)
 #        self.tilt = rs.robotis_servo('/dev/robot/servo0', 26, baudrate=57600)
         self.angle1 = 0
         self.angle2 = 0
@@ -69,6 +69,8 @@ class Ctrl():
         self.xvel = 0.
         self.yvel = 0.
         self.avel = 0.
+        self.lock = 0.
+
 
 #	Callback funtion for rospy
     def callback(self, cmd):
@@ -81,6 +83,7 @@ class Ctrl():
         self.avel = cmd.avel
         self.reset = cmd.reset
         self.zen_reset = cmd.zen_reset
+        self.lock = cmd.lock
 
         if cmd.y == -1.0:
             if self.angle1 < math.radians(max_ang):
@@ -146,6 +149,13 @@ class Ctrl():
 #            print "zenither estop"
 
 
+#    def set_segway(self):
+#        if self.lock == 1.:
+#            print 'segway control is locked'
+#        if self.lock == 0.:
+#            self.mec.set_velocity(self.xvel, self.yvel, self.avel)
+
+
     def stop(self):
         print 'stop servos'
         self.tilt.disable_torque()
@@ -166,6 +176,10 @@ if __name__ == '__main__':
     while not rospy.is_shutdown():
         platform.set_servo()
         platform.set_zenither()
+        if platform.lock == 0.:
+            print 'segway is locked'
+        else:
+            print 'segway is ready'
         platform.mec.set_velocity(platform.xvel,platform.yvel,platform.avel)
 
     platform.stop()

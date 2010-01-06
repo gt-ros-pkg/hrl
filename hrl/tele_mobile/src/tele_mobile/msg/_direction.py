@@ -5,7 +5,7 @@ import struct
 ## \htmlinclude direction.msg.html
 
 class direction(roslib.message.Message):
-  _md5sum = "6fa18bf6eb82a7be164685f64d3568e6"
+  _md5sum = "260b8897f970e5623bdcdc313ccbab8e"
   _type = "tele_mobile/direction"
   _has_header = False #flag to mark the presence of a Header object
   _full_text = """float64 x
@@ -15,11 +15,12 @@ float64 zen
 float64 xvel
 float64 yvel
 float64 avel
-
+float64 zen_reset
+float64 lock
 
 """
-  __slots__ = ['x','y','reset','zen','xvel','yvel','avel']
-  _slot_types = ['float64','float64','float64','float64','float64','float64','float64']
+  __slots__ = ['x','y','reset','zen','xvel','yvel','avel','zen_reset','lock']
+  _slot_types = ['float64','float64','float64','float64','float64','float64','float64','float64','float64']
 
   ## Constructor. Any message fields that are implicitly/explicitly
   ## set to None will be assigned a default value. The recommend
@@ -27,7 +28,7 @@ float64 avel
   ## changes.  You cannot mix in-order arguments and keyword arguments.
   ##
   ## The available fields are:
-  ##   x,y,reset,zen,xvel,yvel,avel
+  ##   x,y,reset,zen,xvel,yvel,avel,zen_reset,lock
   ##
   ## @param args: complete set of field values, in .msg order
   ## @param kwds: use keyword arguments corresponding to message field names
@@ -49,6 +50,10 @@ float64 avel
       self.yvel = 0.
     if self.avel is None:
       self.avel = 0.
+    if self.zen_reset is None:
+      self.zen_reset = 0.
+    if self.lock is None:
+      self.lock = 0.
 
   ## internal API method
   def _get_types(self): return direction._slot_types
@@ -57,7 +62,7 @@ float64 avel
   ## @param buff StringIO: buffer
   def serialize(self, buff):
     try:
-      buff.write(struct.pack('<7d', self.x, self.y, self.reset, self.zen, self.xvel, self.yvel, self.avel))
+      buff.write(struct.pack('<9d', self.x, self.y, self.reset, self.zen, self.xvel, self.yvel, self.avel, self.zen_reset, self.lock))
     except struct.error, se: self._check_types(se)
     except TypeError, te: self._check_types(te)
 
@@ -67,8 +72,8 @@ float64 avel
     try:
       end = 0
       start = end
-      end += 56
-      (self.x, self.y, self.reset, self.zen, self.xvel, self.yvel, self.avel,) = struct.unpack('<7d',str[start:end])
+      end += 72
+      (self.x, self.y, self.reset, self.zen, self.xvel, self.yvel, self.avel, self.zen_reset, self.lock,) = struct.unpack('<9d',str[start:end])
       return self
     except struct.error, e:
       raise roslib.message.DeserializationError(e) #most likely buffer underfill
@@ -79,7 +84,7 @@ float64 avel
   ## @param numpy module: numpy python module
   def serialize_numpy(self, buff, numpy):
     try:
-      buff.write(struct.pack('<7d', self.x, self.y, self.reset, self.zen, self.xvel, self.yvel, self.avel))
+      buff.write(struct.pack('<9d', self.x, self.y, self.reset, self.zen, self.xvel, self.yvel, self.avel, self.zen_reset, self.lock))
     except struct.error, se: self._check_types(se)
     except TypeError, te: self._check_types(te)
 
@@ -90,8 +95,8 @@ float64 avel
     try:
       end = 0
       start = end
-      end += 56
-      (self.x, self.y, self.reset, self.zen, self.xvel, self.yvel, self.avel,) = struct.unpack('<7d',str[start:end])
+      end += 72
+      (self.x, self.y, self.reset, self.zen, self.xvel, self.yvel, self.avel, self.zen_reset, self.lock,) = struct.unpack('<9d',str[start:end])
       return self
     except struct.error, e:
       raise roslib.message.DeserializationError(e) #most likely buffer underfill
