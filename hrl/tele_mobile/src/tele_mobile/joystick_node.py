@@ -48,8 +48,8 @@ class JoystickCommand:
             pass
 
 
-    def set_platform(self, x, y,reset, zen, xvel, yvel, avel, zen_reset):
-        cmd = direction(x, y, reset, zen, xvel, yvel, avel, zen_reset)
+    def set_platform(self, x, y,reset, zen, xvel, yvel, avel,zen_reset, lock):
+        cmd = direction(x, y, reset, zen, xvel, yvel, avel,zen_reset, lock)
         self.pub.publish(cmd)
         print "publishing:", cmd
         time.sleep(0.05)
@@ -111,6 +111,8 @@ if __name__ == '__main__':
 			if (event.type == JOYBUTTONDOWN):
 				if(event.button == 0):
 					reset = 1
+#				if(event.button == 1):
+#					lock = 1
 				if(event.button == 9):
 					zen_reset = 1
 				if(event.button == 4 or event.button == 5 ):
@@ -122,6 +124,8 @@ if __name__ == '__main__':
 			if (event.type == JOYBUTTONUP):
 				if(event.button == 0):
 					reset = 0
+#				if(event.button == 1):
+#					lock = 0
 				if(event.button == 9):
 					zen_reset = 0
 				if(event.button == 2 or event.button == 3 or event.button == 4 or event.button == 5):
@@ -133,7 +137,8 @@ if __name__ == '__main__':
 					seg_x = -event.value
 				if event.axis == 2:
 					seg_a = -event.value
-	
+				if event.axis == 3:
+					lock = (1 - event.value) / 2
 		if seg_x == 0 and seg_y == 0 and seg_a ==0:
 			connected = True
 
@@ -146,9 +151,9 @@ if __name__ == '__main__':
 #            rospy.signal_shutdown()
 
 		if connected:
-			xvel = seg_x * max_xvel
-			yvel = seg_y * max_yvel
-			avel = seg_a * max_avel
-			s.set_platform(x, y, reset, zen, xvel, yvel, avel, zen_reset) 
+			xvel = seg_x * max_xvel * lock
+			yvel = seg_y * max_yvel * lock
+			avel = seg_a * max_avel * lock
+			s.set_platform(x, y, reset, zen, xvel, yvel, avel, zen_reset, lock) 
 
-	s.set_platform(0, 0, 0, 0, 0, 0, 0, 0)
+	s.set_platform(0, 0, 0, 0, 0, 0, 0, 0, 0)
