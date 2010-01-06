@@ -92,6 +92,7 @@ if __name__ == '__main__':
 	x = 0.
 	y = 0.
 	reset = 0.
+	lock = 0.
 	zen = 0.
 	seg_x = 0.
 	seg_y = 0.
