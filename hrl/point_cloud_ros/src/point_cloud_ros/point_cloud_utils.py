@@ -3,7 +3,7 @@ from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
 from sensor_msgs.msg import ChannelFloat32
 import numpy as np
-#import psyco
+import time
 
 ## PointCloud  -> 3xN np matrix
 # @param ros_pointcloud - robot_msgs/PointCloud
@@ -29,12 +29,14 @@ def ros_pts_to_np(ros_pts):
 def np_points_to_ros(pts):
     p_list = []
     chlist = []
+
+#    p_list = [Point32(p[0,0], p[0,1], p[0,2]) for p in pts.T]
+#    chlist = np.zeros(pts.shape[1]).tolist()
     for p in pts.T:
         p_list.append(Point32(p[0,0],p[0,1],p[0,2]))
         chlist.append(0.)
 
     ch = ChannelFloat32('t',chlist)
-    #pc = PointCloud(None,p_list,[ch])
     pc = PointCloud()
     pc.points = p_list
     pc.channels = [ch]

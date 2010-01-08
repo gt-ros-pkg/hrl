@@ -33,7 +33,9 @@
 import roslib; roslib.load_manifest('point_cloud_ros')
 
 import rospy
-from robot_msgs.msg import *
+
+from sensor_msgs.msg import PointCloud
+from geometry_msgs.msg import Point32
 
 import numpy as np, math
 from numpy import pi
@@ -41,6 +43,7 @@ import sys, os, optparse, time
 import copy
 
 import hrl_lib.util as ut
+import point_cloud_ros.point_cloud_utils as pcu
 
 from enthought.mayavi import mlab
 
@@ -60,7 +63,7 @@ def generate_sphere():
     x,y,z = SphereToCart(rho,theta,phi)
 
     pts = np.matrix(np.row_stack((x,y,z)))
-    return np_points_to_ros(pts)
+    return pcu.np_points_to_ros(pts)
 
 def plot_cloud(pts):
     x = pts[0,:].A1
@@ -88,28 +91,6 @@ def plot_normals(pts,normals,curvature=None):
     mlab.quiver3d(x,y,z,u,v,w,mask_points=16,scale_factor=0.1)
 #    mlab.axes()
     mlab.show()
-
-def ros_pts_to_np(ros_pts):
-    ''' ros PointCloud.pts -> 3xN numpy matrix
-    '''
-    pts_list = []
-    for p in ros_pts:
-        pts_list.append([p.x,p.y,p.z])
-
-    return np.matrix(pts_list).T
-
-def np_points_to_ros(pts):
-    ''' 3xN np matrix -> ros PointCloud
-    '''
-    p_list = []
-    chlist = []
-    for p in pts.T:
-        p_list.append(Point32(p[0,0],p[0,1],p[0,2]))
-        chlist.append(0.)
-
-    ch = ChannelFloat32('t',chlist)
-    pc = PointCloud(None,p_list,[ch])
-    return pc
 
 def downsample_cb(cloud_down):
     print 'downsample_cb got called.'
@@ -179,11 +160,19 @@ if __name__ == '__main__':
         if sphere_flag:
             pc = generate_sphere()
 
-        if pc_fname!=None:
+        if pc_fname != None:
             pts = ut.load_pickle(pc_fname)
             print 'before np_points_to_ros'
-            pc = np_points_to_ros(pts)
-            print 'after np_points_to_ros'
+            t0 = time.time()
+            pc = pcu.np_points_to_ros(pts)
+            t1 = time.time()
+            print 'time to go from numpy to ros:', t1-t0
+
+            t0 = time.time()
+            pcu.ros_pointcloud_to_np(pc)
+            t1 = time.time()
+            print 'time to go from ros to numpy:', t1-t0
+            
 
         pub.publish(pc)
         rospy.spin()
