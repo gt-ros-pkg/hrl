@@ -8,7 +8,6 @@
   <depend package="rospy"/>
   <depend package="hrl_lib"/>
   <depend package="opencv2"/>
-  <depend package="cv_bridge"/>
   <depend package="hrl_opencv"/>
 </package>
 
