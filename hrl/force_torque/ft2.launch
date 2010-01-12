@@ -1,0 +1,4 @@
+<launch>
+    <node pkg="force_torque" name="ft2" type="force_torque_relay" args="--name=ft2" respawn="true"/>
+    <node pkg="force_torque" name="ft_poller_2" type="force_torque_poller" args="--name=ft2 --path=/dev/robot/fingerFT2" respawn="true"/>
+</launch>
