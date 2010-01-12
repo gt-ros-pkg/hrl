@@ -147,8 +147,30 @@ camera_parameters = {
             'type': 'Point Grey Firefly',
             'class': 'firefly',
             'uid': 8520136
-        }
+        },
 #########################################################################
 # End of cameras on ELE.
 #########################################################################
+        'remote_head' :
+        {
+            'calibration_image_width' : 1024.0,
+            'calibration_image_height' : 768.0, 
+
+            'focal_length_x_in_pixels' :   1396.772095,
+            'focal_length_y_in_pixels' :   1394.109619,
+            'optical_center_x_in_pixels' : 539.526184,
+            'optical_center_y_in_pixels' : 409.504578,
+
+            'lens_distortion_radial_1' :     -0.223415,
+            'lens_distortion_radial_2' :     0.223383,
+            'lens_distortion_tangential_1' : 0.003699,
+            'lens_distortion_tangential_2' : 0.001173,
+
+             'cv_cap_prop_mode' : 101,
+            'opencv_bayer_pattern' : cv.CV_BayerGR2RGB,
+            'color': True,
+            'type': 'Point Grey DragonFly2',
+            'class': 'dragonfly2',
+            'uid': 9030543
+        }
     }
