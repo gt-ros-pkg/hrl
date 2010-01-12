@@ -9,6 +9,8 @@
   <depend package="hrl_lib"/>
   <depend package="opencv2"/>
   <depend package="hrl_opencv"/>
+  <depend package="cv_bridge"/>
+  <depend package="sensor_msgs"/>
 </package>
 
 
