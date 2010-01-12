@@ -32,8 +32,8 @@ class camera:
     def _make_undistort_matrices(self):
         p = self.config
         some_arr = np.array([[p['focal_length_x_in_pixels'], 0, p['optical_center_x_in_pixels']],
-                                                     [0, p['focal_length_y_in_pixels'], p['optical_center_y_in_pixels']],
-                                                     [0, 0, 1.0]])
+                             [0, p['focal_length_y_in_pixels'], p['optical_center_y_in_pixels']],
+                             [0, 0, 1.0]])
         self.intrinsic_cvmat = ad.array2cvmat(some_arr)
         self.distortion_cvmat = ad.array2cvmat(np.array([[p['lens_distortion_radial_1'],
                                                        p['lens_distortion_radial_2'],

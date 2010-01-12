@@ -141,10 +141,11 @@ camera_parameters = {
             'lens_distortion_tangential_1' : 0,
             'lens_distortion_tangential_2' : 0,
 
+             'cv_cap_prop_mode' : 101,
             'opencv_bayer_pattern' :  cv.CV_BayerBG2BGR,
             'color': True,
-            'type': 'Point Grey DragonFly2',
-            'class': 'dragonfly2',
+            'type': 'Point Grey Firefly',
+            'class': 'firefly',
             'uid': 8520136
         }
 #########################################################################

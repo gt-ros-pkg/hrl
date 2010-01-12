@@ -21,6 +21,13 @@ import hrl_camera.hrl_camera as hc
 import hrl_camera.camera as cam
 
 
+from sensor_msgs.msg import CameraInfo
+#from sensor_msgs.msg import RegionOfInterest
+
+#import pdb
+#pdb.set_trace()
+
+
 if __name__ == '__main__':
     import optparse
     p = optparse.OptionParser()
@@ -59,16 +66,21 @@ if __name__ == '__main__':
     for camera_name, fps in camera_configs:
         topic_name = 'cvcamera_' + camera_name
         image_pub = rospy.Publisher(topic_name, Image)
+        config_pub = rospy.Publisher(topic_name+'_info', CameraInfo)
         camera = hc.find_camera(camera_name)
         if fps != None:
             print 'Setting', camera_name, 'frame rate to', fps
             camera.set_frame_rate(fps)
 
         bridge = CvBridge()
-        cameras.append((camera_name, topic_name, camera, bridge, image_pub))
+        m = camera.intrinsic_cvmat
+        intrinsic_list = [m[0,0], m[0,1], m[0,2], 0.0,
+                          m[1,0], m[1,1], m[1,2], 0.0,
+                          m[2,0], m[2,1], m[2,2], 0.0]
+        cameras.append((camera_name, topic_name, camera, bridge, image_pub, config_pub, intrinsic_list))
     rospy.init_node('cvcamera', anonymous=True)
 
-    for camera_name, topic_name, camera, _, _ in cameras:
+    for camera_name, topic_name, camera, _, _, _, _ in cameras:
         print '===================================================='
         print 'Opening OpenCV camera with ID', camera_name
         print 'Publishing on topic', topic_name
@@ -76,10 +88,11 @@ if __name__ == '__main__':
 
     while not rospy.is_shutdown():
         try:
-            for camera_name, topic_name, camera, bridge, image_pub in cameras:
+            for camera_name, topic_name, camera, bridge, image_pub, config_pub, intrinsic_list in cameras:
                 cv_image = cv.CloneImage(camera.get_frame())
                 rosimage = bridge.cv_to_imgmsg(cv_image, "bgr8")
                 image_pub.publish(rosimage)
+                config_pub.publish(CameraInfo(P=intrinsic_list))
         except cam.NoFrameException, e:
             print e
         except rospy.exceptions.ROSSerializationException, e:
