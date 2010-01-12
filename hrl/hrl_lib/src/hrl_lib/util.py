@@ -2,6 +2,8 @@ import numpy as np
 import pickle as pk
 import time
 
+from hrl_lib.msg import NumpyArray
+
 ##
 # Converts a list of numpy matrices to one large matrix
 # @param list_mat the list of little matrices
@@ -74,7 +76,6 @@ def bound(value, lower, upper):
     return ret_val
 
 
-from hrl_lib.msg import NumpyArray
 
 ## wraps a numpy array into hrl's datatype for sending np arrays
 # over ros.
