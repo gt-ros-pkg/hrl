@@ -125,8 +125,28 @@ camera_parameters = {
             'type': 'Point Grey DragonFly2',
             'class': 'dragonfly2',
             'uid': 9030523
-        }
+        },
 
+        'ele_utm_old' :
+        {
+            'calibration_image_width' : 640.0,
+            'calibration_image_height' : 480.0, 
+            'focal_length_x_in_pixels' :   358.804,
+            'focal_length_y_in_pixels' :   359.702,
+            'optical_center_x_in_pixels' : 309.151,
+            'optical_center_y_in_pixels' : 226.581,
+
+            'lens_distortion_radial_1' : -0.273398,
+            'lens_distortion_radial_2' : 0.0546037,
+            'lens_distortion_tangential_1' : 0,
+            'lens_distortion_tangential_2' : 0,
+
+            'opencv_bayer_pattern' :  cv.CV_BayerBG2BGR,
+            'color': True,
+            'type': 'Point Grey DragonFly2',
+            'class': 'dragonfly2',
+            'uid': 8520136
+        }
 #########################################################################
 # End of cameras on ELE.
 #########################################################################
