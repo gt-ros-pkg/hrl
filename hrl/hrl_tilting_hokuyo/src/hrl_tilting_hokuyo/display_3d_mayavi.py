@@ -78,7 +78,7 @@ def plot_points(pts,color=(1.,1.,1.),mode='point',scale_factor=0.01,scalar_list=
 # shown as spheres. The radius of the sphere also indicates the magnitude
 # of the curvature. If curvature is None then it is not plotted. The pts
 # are then displayed as pixels.
-def plot_normals(pts,normals,curvature=None):
+def plot_normals(pts,normals,curvature=None, mask_points=1, color=(0.,1.,0.)):
     x = pts[0,:].A1
     y = pts[1,:].A1
     z = pts[2,:].A1
@@ -91,12 +91,12 @@ def plot_normals(pts,normals,curvature=None):
         curvature = np.array(curvature)
         #idxs = np.where(curvature>0.03)
         #mlab.points3d(x[idxs],y[idxs],z[idxs],curvature[idxs],mode='sphere',scale_factor=0.1,mask_points=1)
-        mlab.points3d(x,y,z,curvature,mode='sphere',scale_factor=0.1,mask_points=1)
+        mlab.points3d(x,y,z,curvature,mode='sphere',scale_factor=0.1,mask_points=1, color=color)
 #        mlab.points3d(x,y,z,mode='point')
         mlab.colorbar()
     else:
         mlab.points3d(x,y,z,mode='point')
-    mlab.quiver3d(x,y,z,u,v,w,mask_points=16,scale_factor=0.1)
+    mlab.quiver3d(x,y,z,u,v,w,mask_points=mask_points,scale_factor=0.3, color=color)
 #    mlab.axes()
 
 ## Plot a yellow cuboid.
