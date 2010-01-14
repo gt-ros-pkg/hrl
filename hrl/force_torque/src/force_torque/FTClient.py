@@ -49,7 +49,7 @@ class FTClient(ru.GenericListener):
                 if len(self.log) > self.size_limit:
                     self.log = self.log[-size_limit:]
                     self.log_time = self.log_time[-size_limit:]
-            return m
+            return m, msg_time
 
         self.should_log = should_log
         self.size_limit = size_limit
@@ -73,21 +73,31 @@ class FTClient(ru.GenericListener):
     # @param avg how many force torque value to average
     # @param without_bias
     # @param fresh
+    # @param with_time_stamp 
     # @return an averaged force torque value (6x1 matrix)
-    def read(self, avg=1, without_bias=False, fresh=False):
+    def read(self, avg=1, without_bias=False, fresh=False, with_time_stamp=False):
         assert(avg > 0)
+        if avg > 1 and with_time_stamp:
+            raise RuntimeError('Can\'t request averaging and timestamping at the same time')
+
         rs = []
         for i in range(avg):
             if fresh:
-                r = ru.GenericListener.read(self, allow_duplication=False, willing_to_wait=True) 
+                r, msg_time = ru.GenericListener.read(self, allow_duplication=False, willing_to_wait=True) 
             else:
-                r = ru.GenericListener.read(self, allow_duplication=True, willing_to_wait=False) 
+                r, msg_time = ru.GenericListener.read(self, allow_duplication=True, willing_to_wait=False) 
             rs.append(r)
         readings = ut.list_mat_to_mat(rs, axis=1)
+
         if not without_bias:
-            return readings.mean(1) - self.bias_val
+            ret = readings.mean(1) - self.bias_val
         else:
-            return readings.mean(1)
+            ret = readings.mean(1)
+
+        if with_time_stamp:
+            return ret, msg_time
+        else:
+            return ret
 
     def bias(self):
         print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
