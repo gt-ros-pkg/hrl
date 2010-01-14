@@ -285,17 +285,15 @@ def pushback_edge(pts2d,pt):
 
     return pt_pushed
 
+## figure out a good direction to approach the surface.
+# @param grid - occupancy grid (binary) around the point of interest.
+#               assumes that it has a surface.
+# @param pt - 3d point which has to be approached.
+# @param display_list - if display_list are lists then point clouds etc. are added
+# for visualisation.
+# 
+# @return - closest_pt,approach_vector. 
 def find_approach_direction(grid,pt,display_list=None):
-    ''' figure out a good direction to approach the surface.
-        grid - occupancy grid (binary) around the point of interest.
-               assumes that it has a surface.
-        pt - 3d point which has to be approached.
-        
-        if display_list are lists then point clouds etc. are added
-        for visualisation.
-
-        returns - closest_pt,approach_vector. 
-    '''
     z_plane,max_count = grid.argmax_z(search_up=True)
     z_plane_meters = z_plane*grid.resolution[2,0]+grid.brf[2,0]
 
