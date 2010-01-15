@@ -90,6 +90,9 @@ class FTClient(ru.GenericListener):
         readings = ut.list_mat_to_mat(rs, axis=1)
 
         if not without_bias:
+            #print 'readiings.mean(1)', readings.mean(1)
+            #print 'self.bias_val', self.bias_val
+
             ret = readings.mean(1) - self.bias_val
         else:
             ret = readings.mean(1)
@@ -109,7 +112,7 @@ class FTClient(ru.GenericListener):
         print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
         print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
         print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-        r = ru.GenericListener.read(self, allow_duplication=False, willing_to_wait=True) 
+        r, msg_time = ru.GenericListener.read(self, allow_duplication=False, willing_to_wait=True) 
         if r != None:
             self.bias_val = r
 
