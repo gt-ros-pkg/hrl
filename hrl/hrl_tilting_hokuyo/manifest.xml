@@ -5,6 +5,8 @@
   <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>New BSD</license>
 
+  <url>http://www.ros.org/wiki/hrl_tilting_hokuyo</url>
+
   <depend package="rospy"/>
   <depend package="hrl_lib"/>
   <depend package="hrl_hokuyo"/>
