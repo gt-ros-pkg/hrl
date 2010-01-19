@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pickle as pk
 import time
@@ -129,8 +130,10 @@ def _choose_without_replacement(lists,previous_elements=[],ignore_count=0):
             for x in _choose_without_replacement(lists[1:],previous_elements + [elem, ],ignore_count+i+1):
                 yield x
 
-
-
-
+##
+# use festival text to speech to make a soud.
+# @param text - string to be said.
+def say(text):
+    os.system( 'echo "' + text + '" | festival --tts' )
 
 

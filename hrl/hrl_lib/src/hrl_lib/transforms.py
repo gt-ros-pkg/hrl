@@ -203,7 +203,13 @@ def rot_angle_direction(angle, direction):
     r = tft.rotation_matrix(angle, direction.A1)
     return np.matrix(r[0:3,0:3])
 
-
+##
+# convert a quaternion to a 3x3 rotation matrix.
+# @param q - quaternion (tf/transformation.py) (x,y,z,w)
+# @return 3x3 rotation matrix (np matrix)
+def quaternion_to_matrix(q):
+    arr = tft.quaternion_matrix(q)
+    return np.matrix(arr[0:3, 0:3])
 
 
 
