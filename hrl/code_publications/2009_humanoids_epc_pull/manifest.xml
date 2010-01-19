@@ -6,7 +6,7 @@
         Advait Jain and Charles C. Kemp. IEEE-RAS International Conference on
         Humanoid Robots (Humanoids), 2009.
     </description>
-    <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
+    <author>Advait Jain, Charles C. Kemp (Healthcare Robotics Lab, Georgia Tech)</author>
     <license>New BSD</license>
 
     <depend package="rospy"/>
