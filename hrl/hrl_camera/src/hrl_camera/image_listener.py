@@ -18,4 +18,5 @@ if __name__ == '__main__':
         while not rospy.is_shutdown():
             f = camera.get_frame()
             cv.ShowImage(ros_topic_name, f)
-            cv.WaitKey(33)
+            cv.WaitKey(10)
+
