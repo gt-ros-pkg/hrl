@@ -91,7 +91,11 @@ class FTSensor:
         return current_value
 
     def read_ft(self):
-        return binary_to_ft(self.read())
+        f = binary_to_ft(self.read())
+
+        if abs(f[0]) > 500.0:
+            exit()
+        return f
 
     #def binary_to_ft( self, raw_binary ):
     #    counts_per_force  = 192
