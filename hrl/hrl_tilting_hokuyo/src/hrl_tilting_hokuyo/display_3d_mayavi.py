@@ -73,12 +73,16 @@ def plot_points(pts,color=(1.,1.,1.),mode='point',scale_factor=0.01,scalar_list=
 # @param pts - 3xN np matrix
 # @param normals - 3xN np matrix of surface normals at the points in pts.
 # @param curvature - list of curvatures.
+# @param mask_points - how many point to skip while drawint the normals
+# @param color - of the arrows
+# @param scale_factor - modulate size of arrows.
 #
 # Surface normals are plotted as arrows at the pts, curvature is colormapped and
 # shown as spheres. The radius of the sphere also indicates the magnitude
 # of the curvature. If curvature is None then it is not plotted. The pts
 # are then displayed as pixels.
-def plot_normals(pts,normals,curvature=None, mask_points=1, color=(0.,1.,0.)):
+def plot_normals(pts, normals, curvature=None, mask_points=1,
+                 color=(0.,1.,0.), scale_factor = 0.1):
     x = pts[0,:].A1
     y = pts[1,:].A1
     z = pts[2,:].A1
@@ -96,7 +100,8 @@ def plot_normals(pts,normals,curvature=None, mask_points=1, color=(0.,1.,0.)):
         mlab.colorbar()
     else:
         mlab.points3d(x,y,z,mode='point')
-    mlab.quiver3d(x,y,z,u,v,w,mask_points=mask_points,scale_factor=0.3, color=color)
+    mlab.quiver3d(x, y, z, u, v, w, mask_points=mask_points,
+                  scale_factor=scale_factor, color=color)
 #    mlab.axes()
 
 ## Plot a yellow cuboid.
