@@ -39,6 +39,20 @@ import numpy as np, math
 color_list = [(1.,1.,1.),(1.,0.,0.),(0.,1.,0.),(0.,0.,1.),(1.,1.,0.),(1.,0.,1.),\
               (0.,1.,1.),(0.5,1.,0.5),(1.,0.5,0.5)]
 
+
+
+##
+# make a figure with a white background.
+def white_bg():
+    mlab.figure(fgcolor = (0,0,0), bgcolor = (1,1,1))
+
+##
+# save plot as a png
+# @param name - file name
+# size - (r,c) e.g. (1024, 768)
+def savefig(name, size):
+    mlab.savefig(name, size=size)
+
 ## plot 3D points connected to each other
 #
 # Check mlab.points3d documentation for details.
