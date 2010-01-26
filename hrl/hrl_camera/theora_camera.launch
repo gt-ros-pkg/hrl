@@ -1,0 +1,4 @@
+<launch>
+    <node pkg="hrl_camera" name="theora_cam" type="theora_pub" args="" respawn="true"/>
+    <node pkg="hrl_camera" name="ros_cam" type="hrl_ros_camera.py" args="--n dummy_deepthought --f 30" respawn="true"/>
+</launch>
