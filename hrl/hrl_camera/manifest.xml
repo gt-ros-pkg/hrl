@@ -11,6 +11,9 @@
   <depend package="hrl_opencv"/>
   <depend package="cv_bridge"/>
   <depend package="sensor_msgs"/>
+  <depend package="image_transport"/>
+  <depend package="compressed_image_transport"/>
+  <depend package="theora_image_transport"/>
 </package>
 
 
