@@ -33,7 +33,7 @@ int main(int argc, char **argv)
   image_transport::ImageTransport it(nh);
   Theora_obj t_obj;
   t_obj.set_pub(it);
-  ros::Subscriber cam_image = nh.subscribe("cvcamera_dummy_deepthought", 1, &Theora_obj::callback, &t_obj);
+  ros::Subscriber cam_image = nh.subscribe(argv[1], 1, &Theora_obj::callback, &t_obj);
 
   ros::spin();
 }
