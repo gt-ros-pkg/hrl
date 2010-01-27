@@ -1,11 +1,12 @@
 <package>
-  <description brief="sample_pkg">
-
-     sample_pkg
+  <description brief="ele_teleop">
+     ele_teleop
 
   </description>
-  <author>Hai Nguyen / haidai@gmail.com / Healthcare Robotics Lab, Georgia Tech</author>
+  <author>Marc Killpack / mkillpack3@gatech.edu / Healthcare Robotics Lab, Georgia Tech</author>
   <license>new BSD</license>
+  <review status="unreviewed" notes=""/>
+  <depend package="rospy"/>
 
 </package>
 
