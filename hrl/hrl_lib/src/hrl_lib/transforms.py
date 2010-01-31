@@ -211,6 +211,12 @@ def quaternion_to_matrix(q):
     arr = tft.quaternion_matrix(q)
     return np.matrix(arr[0:3, 0:3])
 
+
+def matrix_to_quaternion(r):
+    m = np.column_stack((r, np.matrix([0.,0.,0.]).T))
+    m = np.row_stack((m, np.matrix([0.,0.,0.,1.])))
+    return tft.quaternion_from_matrix(m)
+
 ##
 # convert rotation matrix to axis and angle.
 # @param rmat - 3x3 np matrix.
