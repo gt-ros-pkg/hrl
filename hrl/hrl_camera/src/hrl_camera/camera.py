@@ -122,8 +122,9 @@ class camera:
         fps = cv.GetCaptureProperty(self.capture, cv.CV_CAP_PROP_FPS)
         return fps
 
-    def set_brightness(self, brightness=150, shutter_time=97, gain=450):
-        csl.set_brightness(self.device, brightness, None, shutter_time, gain)
+    def set_brightness(self, brightness=150, shutter_time=97,
+                       gain=450, exposure=None):
+        csl.set_brightness(self.device, brightness, exposure, shutter_time, gain)
 
     ## auto - probably only used for displaying images.
     def set_auto(self):

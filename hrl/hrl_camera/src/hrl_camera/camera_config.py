@@ -153,21 +153,21 @@ camera_parameters = {
 #########################################################################
         'remote_head' :
         {
-            'calibration_image_width' : 1024.0,
-            'calibration_image_height' : 768.0, 
+            'calibration_image_width': 1024.0,
+            'calibration_image_height': 768.0, 
 
-            'focal_length_x_in_pixels' :   1396.772095,
-            'focal_length_y_in_pixels' :   1394.109619,
-            'optical_center_x_in_pixels' : 539.526184,
-            'optical_center_y_in_pixels' : 409.504578,
+            'focal_length_x_in_pixels':   863.136719,
+            'focal_length_y_in_pixels':   863.513672,
+            'optical_center_x_in_pixels': 546.340088,
+            'optical_center_y_in_pixels': 403.253998,
 
-            'lens_distortion_radial_1' :     -0.223415,
-            'lens_distortion_radial_2' :     0.223383,
-            'lens_distortion_tangential_1' : 0.003699,
-            'lens_distortion_tangential_2' : 0.001173,
+            'lens_distortion_radial_1':     -0.417464,
+            'lens_distortion_radial_2':     0.217398 ,
+            'lens_distortion_tangential_1': 0.002538 ,
+            'lens_distortion_tangential_2': 0.000321 ,
 
-             'cv_cap_prop_mode' : 101,
-            'opencv_bayer_pattern' : cv.CV_BayerGR2RGB,
+            'cv_cap_prop_mode': 101,
+            'opencv_bayer_pattern': cv.CV_BayerGR2RGB,
             'color': True,
             'type': 'Point Grey DragonFly2',
             'class': 'dragonfly2',

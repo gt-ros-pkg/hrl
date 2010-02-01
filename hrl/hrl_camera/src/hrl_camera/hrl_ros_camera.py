@@ -44,6 +44,10 @@ if __name__ == '__main__':
     p.add_option('--f2', action='store', type='float', dest='frame_rate2', 
                  default=None, help='frame rate')
 
+    p.add_option('--camera_settings', action='store', type='string',
+                 dest='cam_settings', default=None,
+                 help='<brightness>_<shutter>_<gain>_<exposure>')
+
     opt, args = p.parse_args()
 
     camera_configs = []
@@ -71,6 +75,9 @@ if __name__ == '__main__':
         if fps != None:
             print 'Setting', camera_name, 'frame rate to', fps
             camera.set_frame_rate(fps)
+        
+        if opt.cam_settings != None:
+            camera.set_brightness(*map(int, opt.cam_settings.split('_')))
 
         bridge = CvBridge()
         m = camera.intrinsic_cvmat
