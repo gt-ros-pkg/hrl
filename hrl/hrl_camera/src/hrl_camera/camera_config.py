@@ -192,7 +192,7 @@ camera_parameters = {
             'type': 'Point Grey DragonFly2',
             'class': 'dragonfly2',
             'uid': 9030543
-        }
+        },
 
         'lab_overhead' :
         {
@@ -215,5 +215,5 @@ camera_parameters = {
             'class': 'dragonfly2',
             #UUID obtained by calling 'python camera_uuid.py'
             'uid': None 
-            },
+            }
     }
