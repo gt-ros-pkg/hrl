@@ -8,3 +8,4 @@ Provides utility functions for use with OpenCV.  This package is mostly
 unused right now and its functions will be absorbed into hrl_lib in
 the future.
 
+*/

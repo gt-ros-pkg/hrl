@@ -2,7 +2,7 @@
   <description brief="hrl_camera">
      hrl_camera
   </description>
-  <author>Hai</author>
+  <author>Hai Nguyen, Advait Jain, Cressel Anderson, Marc Killpack</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <depend package="rospy"/>

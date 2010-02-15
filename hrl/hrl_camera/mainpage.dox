@@ -2,7 +2,8 @@
 \mainpage
 \htmlinclude manifest.html
 
-\section Overview
+
+\section overview Overview
 
 This hrl_camera package was designed simpler usage and management of cameras.
 It includes 3 components.  First, it includes scripts for making cameras
@@ -10,18 +11,20 @@ accessible over ROS.  Second, it provides a method to uniquely reference
 different cameras. Finally, it provides a python interfrace for
 cameras to be accessed using Python code.
 
-\section Usage
+\section usage Usage
 
 In Python, to use cameras declared in this package's camera_config.py: 
 
+\verbatim
 import hrl_camera.hrl_camera as hc
 camera_object = hc.find_camera('CAMERA_NAME')
+\endverbatim
 
 The function find_camera takes as input a string, looks up that string in
 the dictionary declared in camera_config.py, then instantiate and returns
 an object of the appropriate class.
 
-\section Entries in camera_config.py
+\section entries Entries in camera_config.py
 
 For the above steps to work, each entry in camera_config.py needs to be a
 dictionary entry mapping from a human friendly name (CAMERA_NAME in the above
@@ -31,7 +34,7 @@ object that needs to be instantiated and must be in the PYTHON_PATH of the
 process that executes find_camera.  The value in 'uid' should be the camera's
 UID provided by the utility camera_uid.py.
 
-\section Writing a New Camera Class
+\section camera_class Writing a New Camera Class
 
 To be compatible with this package new camera classes needs to have an
 __init__() method that takes in the configuration dictionary defined in
@@ -39,15 +42,16 @@ camera_config.py.  For examples, look at dragonfly2.py and firefly.py.
 
 \section Commandline Utilities
 
-./camera_uuid.py
+ - \b camera_uuid.py
     Prints out connected cameras and associated UIDs
 
-./hrl_ros_camera.py CAMERA_NAME
+ - \b hrl_ros_camera.py CAMERA_NAME
     Publishes images over ROS (topic "cv_camera_" + CAMERA_NAME with type Image).
     Publishes CameraInfo messages on topic "cv_camera_" + CAMERA_NAME + "_info".
     Works with cameras defined in camera_config.py
 
-./ros_camera.py OPENCV_ID
+ - \b ros_camera.py OPENCV_ID
     Publishes images over ROS (topic "cv_camera" + str(OPENCV_ID) with type Image).
     Works with any camera openable by OpenCV2.
 
+*/
