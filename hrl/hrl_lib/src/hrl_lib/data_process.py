@@ -1,12 +1,42 @@
 import numpy as np
 from scipy import interpolate
 
+##
+# filter a list given indices
+# @param alist a list
+# @param indices indices in that list to select
 def filter(alist, indices):    
     rlist = []
     for i in indices:
         rlist.append(alist[i])
     return rlist
 
+##
+# Given a list of 1d time arrays, find the sequence that started first and
+# subtract all sequences from its first time recording.
+#
+# @param list_of_time_arrays a list of 1d arrays 
+# @return list_of_time_arrays adjusted so that time arrays would start at 0
+def equalize_times(list_of_time_arrays):
+    start_times = []
+    end_times = []
+    for tarray in list_of_time_arrays:
+        start_times.append(tarray[0])
+        end_times.append(tarray[-1])
+
+    min_start = np.min(start_times)
+    max_end = np.max(end_times)
+
+    adjusted_list_of_time_arrays = []
+    for tarray in list_of_time_arrays:
+        adjusted_list_of_time_arrays.append(tarray - min_start)
+
+    return adjusted_list_of_time_arrays, min_start, max_end
+
+##
+# calc dx/dt
+# @param t matrix 1xn
+# @param x matrix mxn
 def gradient(t, x):
     #pdb.set_trace()
     dx = x[:, 2:] - x[:, 0:-2]
@@ -17,8 +47,17 @@ def gradient(t, x):
     dx_dt = np.column_stack((dx_dt, dx_dt[:,-1]))
     return dx_dt
 
+##
+# 1D interpolation
+#
+# @param x 1xn mat x to interpolate from
+# @param y 1xn mat y to interpolate from
+# @param xquery 1xn mat of query x's 
 def interpolate_1d(x, y, xquery):
     try:
+        x = x.A1
+        y = y.A1
+        xquery = xquery.A1
         minx = np.min(x)
         minx_query = np.min(xquery)
 
@@ -82,24 +121,3 @@ def histogram(index_list_list, elements_list_list, bin_size, min_index=None, max
     return bins, np.arange(min_index, max_index, bin_size)        
 
 
-##
-# Given a list of 1d time arrays, find the sequence that started first and
-# subtract all sequences from its first time recording.
-#
-# @param list_of_time_arrays a list of 1d arrays 
-# @return list_of_time_arrays adjusted so that time arrays would start at 0
-def equalize_times(list_of_time_arrays):
-    start_times = []
-    end_times = []
-    for tarray in list_of_time_arrays:
-        start_times.append(tarray[0])
-        end_times.append(tarray[-1])
-
-    min_start = np.min(start_times)
-    max_end = np.max(end_times)
-
-    adjusted_list_of_time_arrays = []
-    for tarray in list_of_time_arrays:
-        adjusted_list_of_time_arrays.append(tarray - min_start)
-
-    return adjusted_list_of_time_arrays, min_start, max_end
