@@ -61,6 +61,13 @@ class Client_M5e_ROS():
     def read(self, fresh=False):
         return self.listener.read(fresh=fresh)
 
+# client = MR.Client_M5e_ROS()
+
+# while True:
+#     a = client.read(True)
+#     #print a
+#     print [a.antenna_name, a.tagID, a.rssi]
+
 if __name__ == '__main__':
     import rfid.M5e as M
     import time
