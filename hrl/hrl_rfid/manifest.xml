@@ -1,11 +1,10 @@
 <package>
-  <description brief="rfid">
+  <description brief="hrl_rfid">
     RFID: Thing Magic M5e and M5e-Compact RFID Reader Interface Lib.
   </description>
   <author>Travis Deyle (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>new BSD</license>
   <depend package="hrl_lib" />  
-  <depend package="rospy" />  
 </package>
 
 
