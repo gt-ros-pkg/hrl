@@ -2,7 +2,7 @@
 # deprecated functions.  It will see numerous updates in the coming
 # days / weeks
 
-import roslib; roslib.update_path('rfid')
+import roslib; roslib.load_manifest('rfid')
 import rospy
 import rfid.M5e as M5e
 import rfid.M5e_ROS as M5e_R
