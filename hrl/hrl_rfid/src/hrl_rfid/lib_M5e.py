@@ -32,7 +32,7 @@
 ##  Written by Travis Deyle please remember me if you become rich and/or famous, and please  
 ##    refer to our related work(s) when writing papers.  Thanks.
 
-import sys, serial, time
+import sys, serial, time, string
 from threading import Thread
 
 
@@ -92,12 +92,13 @@ class M5e_Poller(Thread):
     
 class M5e:
     "Interface to Mercury M5e and M5e-Compact"
-    def __init__(self, portINT=-1, portSTR='/dev/robot/RFIDreader', baudrate=9600, 
+    def __init__(self, portSTR='/dev/robot/RFIDreader', baudrate=9600, 
         TXport=1, RXport=1, readPwr=2300, protocol='GEN2', compact=True, verbosity=1):
-        if portINT != -1:
-            self.port = portINT	# stores the serial port as 0-based integer
-        else:
-            self.port = portSTR	# stores it as a /dev-mapped string
+
+        try:
+            self.port = string.atoi( portSTR ) # stores the serial port as 0-based integer for Windows
+        except:
+            self.port = portSTR # stores it as a /dev-mapped string for Linux / Mac
         
         self.baudrate = baudrate    # should be 9600 for M5e by default.  May want to up the baud for faster reading (after bootup)
         self.TXport = TXport        # Initialized transmit antenna

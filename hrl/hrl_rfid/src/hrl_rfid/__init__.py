@@ -30,8 +30,8 @@
 
 __all__ = [
 'lib_M5e',
-'ros_inHandReader',
 'ros_M5e',
+'ros_M5e_client',
 'ui'
 ]
  
