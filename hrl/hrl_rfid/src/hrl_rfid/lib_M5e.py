@@ -37,7 +37,7 @@ from threading import Thread
 
 
 # This class is more general in that it allows custum antenna functions (if
-# using custom hardware) in addition to callbacks (such as the ROS publish)
+# using custom hardware) in addition to callbacks.
 
 class M5e_Poller(Thread):
     QUERY_MODE = 'query'
@@ -53,7 +53,6 @@ class M5e_Poller(Thread):
         
         print 'Creating M5e Polling Thread'
         self.start()
-        #print 'I was made!'
 
     def pause_poller(self):
         self.mode = ''
@@ -65,11 +64,6 @@ class M5e_Poller(Thread):
         self.mode         = self.TRACK_MODE
         self.tag_to_track = tag_id
     
-    def broadcast_ROS(self):
-        import rfid.M5e_ROS as M5e_ROS
-        self.broadcaster = M5e_ROS.Broadcast_M5e_ROS(self)
-        self.callbacks.append( broadcaster.broadcast )
-
     def run(self):
         while self.should_run:
             if self.mode == self.QUERY_MODE:
@@ -472,7 +466,8 @@ if __name__ == '__main__':
         ant, ids, rssi = data
         print data
 
-    r = M5e(readPwr=3000)
+    print 'Starting with read power 2300 centi-dBm.  Change to 3000 for M5e-full'
+    r = M5e(readPwr=2300)
     q = M5e_Poller(r, antfuncs=[P1, P2], callbacks=[PrintDatum])
 
     q.query_mode()

@@ -29,69 +29,175 @@
 
 
 
-
-import roslib; roslib.load_manifest('rfid')
+# ROS imports
+import roslib; roslib.load_manifest('hrl_rfid')
 import rospy
-from rfid.msg import RFIDread
-import time
-import rfid.M5e as M5e
+from hrl_rfid.msg import RFIDread
+from hrl_rfid.srv import StringArray_None
+from hrl_rfid.srv import StringArray_NoneResponse
+import hrl_rfid.lib_M5e as M5e
 import hrl_lib.rutils as ru
 
-class Broadcast_M5e_ROS():
-    def __init__(self):
+import time
+
+
+# Modeled off lib_M5e.M5e_Poller
+class ROS_M5e():
+    QUERY_MODE = 'query'
+    TRACK_MODE = 'track'
+    
+    def __init__(self, name = 'reader1', readPwr = 2300,
+                 portStr = '/dev/robot/RFIDreader',
+                 antFuncs = [], callbacks = []):
         try:
-            rospy.init_node('M5eRFIDServer')
-            print 'M5eRFIDServer: ros is up!'
-            print 'Please check out our related work @ http://www.hsi.gatech.edu/hrl/project_rfid.shtml'
+            rospy.init_node( 'rfid_m5e_' + name )
         except rospy.ROSException:
             pass
 
-        print 'M5eRFIDServer: connecting to M5e Poller'
-        print 'M5eRFIDServer: publishing RFID reader with type RFIDread' 
-        self.channel       = rospy.Publisher('rfid_reader', RFIDread)
-        
+        self.mode = ''
+        self.name = name + '_reader'
+
+        print 'ROS_M5e: Launching RFID Reader'
+        print 'ROS_M5e: Please check out our related work @ http://www.hsi.gatech.edu/hrl/project_rfid.shtml'
+
+        print 'ROS_M5e: '+self.name+' Building & Connecting to reader'
+        self.reader = M5e.M5e(readPwr=readPwr, portSTR = portStr)
+        self.antFuncs = antFuncs
+        self.callbacks = callbacks + [self.broadcast]
+
+        print 'ROS_M5e: publishing RFID reader with type RFIDread to channel /rfid/'+name+'_reader'
+        self.channel       = rospy.Publisher('/rfid/'+name+'_reader', RFIDread)
+        self._mode_service_obj = rospy.Service('/rfid/'+name+'_mode',
+                                                StringArray_None, self._mode_service)
+
+        print 'ROS_M5e: '+self.name+' Inialized and awaiting instructions'
+
+        while not rospy.is_shutdown():
+            if self.mode == self.QUERY_MODE:
+                for aF in self.antFuncs:
+                    antennaName = aF(self.reader)    # let current antFunc make appropriate changes
+                    results = self.reader.QueryEnvironment()
+                    if len(results) == 0:
+                        datum = [antennaName, '', -1]
+                        [cF(datum) for cF in self.callbacks]
+                    for tagid, rssi in results:
+                        datum = [antennaName, tagid, rssi]
+                        [cF(datum) for cF in self.callbacks]
+            elif self.mode == self.TRACK_MODE:
+                for aF in self.antFuncs:
+                    antennaName = aF(self.reader)    # let current antFunc make appropriate changes
+                    tagid = self.tag_to_track
+                    rssi = self.reader.TrackSingleTag(tagid)
+                    #if rssi != -1:
+                    datum = [antennaName, tagid, rssi]
+                    [cF(datum) for cF in self.callbacks]
+            else:
+                time.sleep(0.005)
+
+        print 'ROS_M5e: '+self.name+' Shutting down reader'
+
+
+            
     def broadcast(self, data):
         antName, tagid, rssi = data
         self.channel.publish(RFIDread(None, antName, tagid, rssi))
-
-class Client_M5e_ROS():
-    def __init__(self):
-        self.listener     = ru.GenericListener('rfid_client', RFIDread, 'rfid_reader', 20)
     
-    def read(self, fresh=False):
-        return self.listener.read(fresh=fresh)
+    # For internal use only
+    def _mode_service(self, data):
+        val = data.data
+        if len(val) == 0:
+            print 'ROS_M5e: Mode Service called with invalid argument: ', val
+        elif len(val) == 1:
+            if val[0] == self.QUERY_MODE:
+                print 'ROS_M5e: '+self.name+' Entering Query Mode'
+                self.mode = self.QUERY_MODE
+            else:
+                print 'ROS_M5e: '+self.name+' Stopping Reader'
+                self.mode = ''
+        elif len(val) == 2:
+            if val[0] == self.TRACK_MODE and len(val[1]) == 12:
+                print 'ROS_M5e: '+self.name+' Entering Track Mode: ', val[1]
+                self.mode = self.TRACK_MODE
+                self.tag_to_track = val[1]
+            else:
+                print 'ROS_M5e: Mode Service called with invalid argument: ', val
+        else:
+            print 'ROS_M5e: Mode Service called with invalid argument: ', val
+        return StringArray_NoneResponse()
 
-# client = MR.Client_M5e_ROS()
 
-# while True:
-#     a = client.read(True)
-#     #print a
-#     print [a.antenna_name, a.tagID, a.rssi]
+
+# -----------------------------------------------
+# Likely Callbacks: (various antennas)
+# -----------------------------------------------
+
+def EleLeftEar(M5e):
+    M5e.ChangeAntennaPorts(2,2)
+    return 'EleLeftEar'
+
+def EleRightEar(M5e):
+    M5e.ChangeAntennaPorts(1,1)
+    return 'EleRightEar'
+
+def Hand_Right_1(M5e):
+    # GPIO1 = 1, GPIO2 = 0
+    M5e.TransmitCommand('\x02\x96\x01\x01')
+    M5e.ReceiveResponse()
+    M5e.TransmitCommand('\x02\x96\x02\x00')
+    M5e.ReceiveResponse()
+    return 'Hand_Right_1'
+
+def Hand_Right_2(M5e):
+    # GPIO1 = 1, GPIO2 = 1
+    M5e.TransmitCommand('\x02\x96\x01\x01')
+    M5e.ReceiveResponse()
+    M5e.TransmitCommand('\x02\x96\x02\x01')
+    M5e.ReceiveResponse()
+    return 'Hand_Right_2'
+
+def Hand_Left_1(M5e):
+    # GPIO1 = 0, GPIO2 = 0
+    M5e.TransmitCommand('\x02\x96\x01\x00')
+    M5e.ReceiveResponse()
+    M5e.TransmitCommand('\x02\x96\x02\x00')
+    M5e.ReceiveResponse()
+    return 'Hand_Left_1'
+
+def Hand_Left_2(M5e):
+    # GPIO1 = 0, GPIO2 = 1
+    M5e.TransmitCommand('\x02\x96\x01\x00')
+    M5e.ReceiveResponse()
+    M5e.TransmitCommand('\x02\x96\x02\x01')
+    M5e.ReceiveResponse()
+    return 'Hand_Left_2'
+
+def PrintDatum(data):
+    ant, ids, rssi = data
+    print data
 
 if __name__ == '__main__':
-    import rfid.M5e as M
-    import time
+    import optparse
 
-    ros_serv = Broadcast_M5e_ROS()
+    p = optparse.OptionParser()
+    p.add_option('-d', action='store', type='string', dest='device',
+                 help='Which RFID device to initialize.')
+    opt, args = p.parse_args()
 
-    def EleLeftEar(M5e):
-        M5e.ChangeAntennaPorts(1,1)
-        return 'EleLeftEar'
+    if opt.device == 'ears':
+        print 'Starting Ears RFID Services'
+        ros_rfid = ROS_M5e( name = 'ears', readPwr = 3000,
+                            portStr = '/dev/robot/RFIDreader',
+                            antFuncs = [EleLeftEar, EleRightEar],
+                            callbacks = [] )
+        rospy.spin()
 
-    def EleRightEar(M5e):
-        M5e.ChangeAntennaPorts(2,2)
-        return 'EleRightEar'
-
-    def PrintDatum(data):
-        ant, ids, rssi = data
-        print data
-        
-    r = M.M5e(readPwr=3000)
-    print 'M5e RFID Server: started!'
-    q = M.M5e_Poller(r, antfuncs=[EleLeftEar, EleRightEar], callbacks=[ros_serv.broadcast])
-    #q = M.M5e_Poller(r, antfuncs=[EleLeftEar, EleRightEar], callbacks=[PrintDatum, ros_serv.broadcast])
-    q.query_mode()
-    
-    #q.stop()
+    if opt.device == 'inhand':
+        print 'Starting Ears RFID Services'
+        ros_rfid = ROS_M5e( name = 'inhand', readPwr = 3000,
+                            portStr = '/dev/robot/inHandReader',
+                            antFuncs = [Hand_Right_1, Hand_Right_2,
+                                        Hand_Left_1, Hand_Left_2 ],
+                            callbacks = [] )
+        rospy.spin()
 
 
