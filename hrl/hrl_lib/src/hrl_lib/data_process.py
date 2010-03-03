@@ -21,9 +21,13 @@ def equalize_times(list_of_time_arrays):
     start_times = []
     end_times = []
     for tarray in list_of_time_arrays:
-        start_times.append(tarray[0])
-        end_times.append(tarray[-1])
+        start_times.append(tarray[0,0])
+        end_times.append(tarray[0,-1])
 
+    #print start_times
+    #print end_times
+    #import pdb
+    #pdb.set_trace()
     min_start = np.min(start_times)
     max_end = np.max(end_times)
 
