@@ -60,13 +60,14 @@ def savefig(name, size):
 # @param color - 3 tuple of color. (float b/w 0 and 1)
 # @param mode - how to display the points ('point','sphere','cube' etc.)
 # @param scale_fator - controls size of the spheres. not sure what it means.
-def plot(pts,color=(1.,1.,1.),mode='point',scale_factor=0.01,scalar_list=None):
+def plot(pts,color=(1.,1.,1.), scalar_list=None):
     if scalar_list != None:
         mlab.plot3d(pts[0,:].A1,pts[1,:].A1,pts[2,:].A1,scalar_list,
-                representation = 'wireframe')
+                    representation = 'wireframe', tube_radius = None)
         mlab.colorbar()
     else:
-        mlab.plot3d(pts[0,:].A1,pts[1,:].A1,pts[2,:].A1,color=color, representation = 'wireframe')
+        mlab.plot3d(pts[0,:].A1,pts[1,:].A1,pts[2,:].A1,color=color,
+                    representation = 'wireframe', tube_radius = None)
 
 ## plot 3D points as a cloud.
 #
