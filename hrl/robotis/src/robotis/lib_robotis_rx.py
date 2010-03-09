@@ -28,7 +28,8 @@
 
 ## Controlling Robotis Dynamixel RX-28 & RX-64 servos from python
 ## using the USB2Dynamixel adaptor.
-## Authors: Advait Jain & Travis Deyle (Healthcare Robotics Lab, Georgia Tech.)
+
+## Authors: Travis Deyle & Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
 
 import serial
 import time
@@ -49,20 +50,23 @@ class USB2Dynamixel_Device():
         self.mutex = thread.allocate_lock()
         self.servo_dev = None
 
-        self.mutex.acquire()
+        self.acq_mutex()
         self._open_serial( baudrate )
-        self.mutex.release()
-        
-    def send_serial(self, msg):
+        self.rel_mutex()
+
+    def acq_mutex(self):
         self.mutex.acquire()
-        self.servo_dev.flushInput()
-        self.servo_dev.write( msg )
+
+    def rel_mutex(self):
         self.mutex.release()
 
+    def send_serial(self, msg):
+        # It is up to the caller to acquire / release mutex
+        self.servo_dev.write( msg )
+
     def read_serial(self, nBytes=1):
-        self.mutex.acquire()
+        # It is up to the caller to acquire / release mutex
         rep = self.servo_dev.read( nBytes )
-        self.mutex.release()
         return rep
 
     def _open_serial(self, baudrate):
@@ -101,7 +105,7 @@ class Robotis_Servo():
             'rad_per_enc': math.radians(300.0) / 1024.0, 
             'max_ang': math.radians(148),
             'min_ang': math.radians(-148),
-            'flipped': False
+            'flipped': False,
             'max_speed': math.radians(50)
             }
 
@@ -113,14 +117,13 @@ class Robotis_Servo():
 
         # ID exists on bus?
         self.servo_id = servo_id
-        if self.read_location(3) == None:
+        if self.read_address(3) == []:
             raise RuntimeError('lib_robotis_rx: Could not find ID (%d) on bus (%s)\n' %
                                ( servo_id, self.dyn.dev_name ))
 
         # Set Return Delay time - Used to determine when next status can be requested
-        data, err = self.read_location( 0x05, 1)
+        data = self.read_address( 0x05, 1)
         self.return_delay = data[0] * 2e-6
-        self.last_instr = time.time()
 
         # Set various parameters.  Load from servo_config.
         self.settings = {}
@@ -144,20 +147,38 @@ class Robotis_Servo():
     def is_moving(self):
         ''' returns True if servo is moving.
         '''
-        data,err = self.read_location( 0x2e, 1 )
+        data = self.read_address( 0x2e, 1 )
         return data[0] != 0
 
     def read_voltage(self):
         ''' returns voltage (Volts)
         '''
-        data,err = self.read_location( 0x2a, 1 )
+        data = self.read_address( 0x2a, 1 )
         return data[0] / 10.
 
     def read_temperature(self):
         ''' returns the temperature (Celcius)
         '''
-        data,err = self.read_location( 0x2b, 1 )
+        data = self.read_address( 0x2b, 1 )
         return data[0]
+
+    def read_load(self):
+        ''' number proportional to the torque applied by the servo.
+            sign etc. might vary with how the servo is mounted.
+        '''
+        data = self.read_address( 0x28, 2 )
+        load = data[0] + (data[1] >> 6) * 256
+        if data[1] >> 2 & 1 == 0:
+            return -1.0 * load
+        else:
+            return 1.0 * load
+
+    def read_encoder(self):
+        ''' returns position in encoder ticks
+        '''
+        data = self.read_address( 0x24, 2 )
+        enc_val = data[0] + data[1] * 256
+        return enc_val
 
     def read_angle(self):
         ''' returns the current servo angle (radians)
@@ -166,36 +187,6 @@ class Robotis_Servo():
         if self.settings['flipped']:
             ang = ang * -1.0
         return ang
-
-    def read_encoder(self):
-        ''' returns position in encoder ticks
-        '''
-        data,err = self.read_location( 0x24, 2 )
-        enc_val = data[0] + data[1] * 256
-        return enc_val
-
-    def read_load(self):
-        ''' number proportional to the torque applied by the servo.
-            sign etc. might vary with how the servo is mounted.
-        '''
-        data,err = self.read_location( 0x28, 2 )
-        load = data[0] + (data[1] >> 6) * 256
-        if data[1] >> 2 & 1 == 0:
-            return -1.0 * load
-        else:
-            return 1.0 * load
-
-    def enable_torque(self):
-        self.write_location(0x18, [1])
-
-    def disable_torque(self):
-        self.write_location(0x18, [0])
-
-    def move_to_encoder(self, n):
-        ''' move to encoder position n
-        '''
-        hi,lo = n / 256, n % 256
-        self.write_location( 0x1e, [lo,hi] )
 
     def move_angle(self, ang, angvel=None, blocking=True):
         ''' move to angle (radians)
@@ -214,26 +205,28 @@ class Robotis_Servo():
             return
         
         self.set_angvel(angvel)
-        #time.sleep(0.05) # shouldn't need anymore.  send send_instruction
 
-        #deg = math.degrees(ang)
-        #if self.flipped:
-        #    deg = deg * -1.0
-        #enc_ticks = int(round(deg/0.29))
-        #enc_ticks += self.home_encoder_value
-        #self.__move_to_encoder(enc_ticks)
-
-        if self.flipped:
+        if self.settings['flipped']:
             ang = ang * -1.0
         enc_tics = int(round( ang / self.settings['rad_per_enc'] ))
         enc_tics += self.settings['home_encoder']
         self.move_to_encoder( enc_tics )
 
         if blocking == True:
-            #time.sleep(0.05) # shouldn't need anymore.  send send_instruction
             while(self.is_moving()):
                 continue
 
+    def move_to_encoder(self, n):
+        ''' move to encoder position n
+        '''
+        hi,lo = n / 256, n % 256
+        return self.write_address( 0x1e, [lo,hi] )
+
+    def enable_torque(self):
+        return self.write_address(0x18, [1])
+
+    def disable_torque(self):
+        return self.write_address(0x18, [0])
 
     def set_angvel(self, angvel):
         ''' angvel - in rad/sec
@@ -241,38 +234,12 @@ class Robotis_Servo():
         rpm = angvel / (2 * math.pi) * 60.0
         angvel_enc = int(round( rpm / 0.111 ))
         hi,lo = angvel_enc / 256, angvel_enc % 256
-        self.write_location( 0x20, [lo,hi] )
+        return self.write_address( 0x20, [lo,hi] )
 
     def write_id(self, id):
         ''' changes the servo id
         '''
-        self.write_location( 0x03, [id] )
-
-    def write_location(self, address, data):
-        ''' writes data at the address.
-            data = [n1,n2 ...] list of numbers.
-        '''
-        msg = [ 0x03, address ] + data
-        self.send_instruction( msg, self.servo_id )
-
-    def read_location(self, address, nBytes=1):
-        ''' reads nBytes from address on the servo.
-            returns [n1,n2 ...], error
-            list of parameters, error byte.
-        '''
-
-        msg = [ 0x02, address, nBytes ]
-        self.send_instruction( msg, self.servo_id )
-        s = self.read_serial( 6 + nBytes )
-        if s == '':
-            print 'robotis_servo.read_location: Could not read from the servo.'
-            print 'Ensure that the 3-way switch on the USB2Dynamixel is at RS485.'
-            print 'Exiting...'
-            sys.exit(0) # Probably a bit drastic...
-        l = [ord(a) for a in s[4:-1]]
-        if l == []:
-            return None
-        return l[1:], l[0]
+        return self.write_address( 0x03, [id] )
 
     def __calc_checksum(self, msg):
         chksum = 0
@@ -281,17 +248,52 @@ class Robotis_Servo():
         chksum = ( ~chksum ) % 256
         return chksum
 
+    def read_address(self, address, nBytes=1):
+        ''' reads nBytes from address on the servo.
+            returns [n1,n2 ...] (list of parameters)
+        '''
+        msg = [ 0x02, address, nBytes ]
+        return self.send_instruction( msg, self.servo_id )
+
+    def write_address(self, address, data):
+        ''' writes data at the address.
+            data = [n1,n2 ...] list of numbers.
+            return [n1,n2 ...] (list of return parameters)
+        '''
+        msg = [ 0x03, address ] + data
+        return self.send_instruction( msg, self.servo_id )
+
     def send_instruction(self, instruction, id):
         msg = [ id, len(instruction) + 1 ] + instruction # instruction includes the command (1 byte + parameters. length = parameters+2)
         chksum = self.__calc_checksum( msg )
         msg = [ 0xff, 0xff ] + msg + [chksum]
         
-        # Must wait 'return_delay' seconds since last instruction
-        # packet in order to receive response
-        while time.time() - self.last_instr < self.return_delay:
-            time.sleep(1e-6)
+        self.dyn.acq_mutex()
         self.send_serial( msg )
-        self.last_instr = time.time()
+        data, err = self.receive_reply()
+        self.dyn.rel_mutex()
+        
+        if err != 0:
+            self.process_err( err )
+
+        return data
+
+    def process_err( self, err ):
+        raise RuntimeError('lib_robotis_rx: An error occurred: %d\n' % err)
+
+    def receive_reply(self):
+        start = self.dyn.read_serial( 2 )
+        if start != '\xff\xff':
+            raise RuntimeError('lib_robotis_rx: Failed to receive start bytes\n')
+        servo_id = self.dyn.read_serial( 1 )
+        if ord(servo_id) != self.servo_id:
+            raise RuntimeError('lib_robotis_rx: Incorrect servo ID received: %d\n' % ord(servo_id))
+        data_len = self.dyn.read_serial( 1 )
+        err = self.dyn.read_serial( 1 )
+        data = self.dyn.read_serial( ord(data_len) - 2 )
+        checksum = self.dyn.read_serial( 1 ) # I'm not going to check...
+        return [ord(v) for v in data], ord(err)
+        
 
     def send_serial(self, msg):
         """ sends the command to the servo
@@ -301,18 +303,18 @@ class Robotis_Servo():
             out += chr(m)
         self.dyn.send_serial( out )
 
-    def read_serial(self, nBytes=1):
-        rep = self.dyn.read_serial( nBytes )
-        return rep
-
 
 if __name__ == '__main__':
 
-    dyn = USB2Dynamixel_Device()
+    dyn = USB2Dynamixel_Device('/dev/robot/servo_left')
     pan = Robotis_Servo( dyn, 11 )
     tilt = Robotis_Servo( dyn, 12 )
 
-    print pan.read_angle(), tilt.read_angle()
+    t0 = time.time()
+    for i in xrange(200):
+        ang = pan.read_angle()
+    tt = time.time() - t0
+    print 'Avg time per read: ', tt / 200.
 
 #     p = optparse.OptionParser()
 #     p.add_option('-d', action='store', type='string', dest='servo_dev_name',
