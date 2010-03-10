@@ -204,9 +204,9 @@ def binary_to_ft( raw_binary ):
     Fx = ord(raw_binary[1])*65536+ord(raw_binary[2])*256+ord(raw_binary[3])
     Fy = ord(raw_binary[4])*65536+ord(raw_binary[5])*256+ord(raw_binary[6])
     Fz = ord(raw_binary[7])*65536+ord(raw_binary[8])*256+ord(raw_binary[9])
-    Tx = ord(raw_binary[1])*65536+ord(raw_binary[2])*256+ord(raw_binary[3])
-    Ty = ord(raw_binary[4])*65536+ord(raw_binary[5])*256+ord(raw_binary[6])
-    Tz = ord(raw_binary[7])*65536+ord(raw_binary[8])*256+ord(raw_binary[9])
+    Tx = ord(raw_binary[10])*65536+ord(raw_binary[11])*256+ord(raw_binary[12])
+    Ty = ord(raw_binary[13])*65536+ord(raw_binary[14])*256+ord(raw_binary[15])
+    Tz = ord(raw_binary[16])*65536+ord(raw_binary[17])*256+ord(raw_binary[18])
     
     _temp_val = []
     for c,list in zip([counts_per_force, counts_per_torque], [[Fx,Fy,Fz], [Tx,Ty,Tz]]):
