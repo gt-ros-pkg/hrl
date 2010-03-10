@@ -51,6 +51,8 @@ class robotis_servo():
         self.servo_dev = None
         self.__open_serial(baudrate)
 
+        print 'WARNING: robotis_servo.py is being deprecated.'
+
         self.servo_id = servo_id
         self.home_encoder_value = sc.servo_param[servo_id]['home_encoder']
 

@@ -71,7 +71,7 @@ class USB2Dynamixel_Device():
 
     def _open_serial(self, baudrate):
         try:
-            self.servo_dev = serial.Serial(self.dev_name, timeout=1.)
+            self.servo_dev = serial.Serial(self.dev_name, timeout=1.0)
             self.servo_dev.setBaudrate(baudrate)
             self.servo_dev.setParity('N')
             self.servo_dev.setStopbits(1)
@@ -81,9 +81,9 @@ class USB2Dynamixel_Device():
             self.servo_dev.flushInput()
 
         except (serial.serialutil.SerialException), e:
-            raise RuntimeError('lib_robotis_rx: Serial port not found!\n')
+            raise RuntimeError('lib_robotis: Serial port not found!\n')
         if(self.servo_dev == None):
-            raise RuntimeError('lib_robotis_rx: Serial port not found!\n')
+            raise RuntimeError('lib_robotis: Serial port not found!\n')
 
 
 
@@ -111,14 +111,16 @@ class Robotis_Servo():
 
         # Error Checking
         if USB2Dynamixel == None:
-            raise RuntimeError('lib_robotis_rx: Robotis Servo requires USB2Dynamixel!\n')
+            raise RuntimeError('lib_robotis: Robotis Servo requires USB2Dynamixel!\n')
         else:
             self.dyn = USB2Dynamixel
 
         # ID exists on bus?
         self.servo_id = servo_id
-        if self.read_address(3) == []:
-            raise RuntimeError('lib_robotis_rx: Could not find ID (%d) on bus (%s)\n' %
+        try:
+            self.read_address(3)
+        except:
+            raise RuntimeError('lib_robotis: Error encountered.  Could not find ID (%d) on bus (%s), or USB2Dynamixel 3-way switch in wrong position.\n' %
                                ( servo_id, self.dyn.dev_name ))
 
         # Set Return Delay time - Used to determine when next status can be requested
@@ -195,13 +197,13 @@ class Robotis_Servo():
             angvel = self.settings['max_speed']
 
         if angvel > self.settings['max_speed']:
-            print 'lib_robotis_rx.move_angle: angvel too high - %.2f deg/s' % (math.degrees(angvel))
-            print 'lib_robotis_rx.ignoring move command.'
+            print 'lib_robotis.move_angle: angvel too high - %.2f deg/s' % (math.degrees(angvel))
+            print 'lib_robotis.ignoring move command.'
             return
 
         if ang > self.settings['max_ang'] or ang < self.settings['min_ang']:
-            print 'lib_robotis_rx.move_angle: angle out of range- ', math.degrees(ang)
-            print 'lib_robotis_rx.ignoring move command.'
+            print 'lib_robotis.move_angle: angle out of range- ', math.degrees(ang)
+            print 'lib_robotis.ignoring move command.'
             return
         
         self.set_angvel(angvel)
@@ -269,8 +271,12 @@ class Robotis_Servo():
         msg = [ 0xff, 0xff ] + msg + [chksum]
         
         self.dyn.acq_mutex()
-        self.send_serial( msg )
-        data, err = self.receive_reply()
+        try:
+            self.send_serial( msg )
+            data, err = self.receive_reply()
+        except:
+            self.dyn.rel_mutex()
+            raise
         self.dyn.rel_mutex()
         
         if err != 0:
@@ -279,15 +285,15 @@ class Robotis_Servo():
         return data
 
     def process_err( self, err ):
-        raise RuntimeError('lib_robotis_rx: An error occurred: %d\n' % err)
+        raise RuntimeError('lib_robotis: An error occurred: %d\n' % err)
 
     def receive_reply(self):
         start = self.dyn.read_serial( 2 )
         if start != '\xff\xff':
-            raise RuntimeError('lib_robotis_rx: Failed to receive start bytes\n')
+            raise RuntimeError('lib_robotis: Failed to receive start bytes\n')
         servo_id = self.dyn.read_serial( 1 )
         if ord(servo_id) != self.servo_id:
-            raise RuntimeError('lib_robotis_rx: Incorrect servo ID received: %d\n' % ord(servo_id))
+            raise RuntimeError('lib_robotis: Incorrect servo ID received: %d\n' % ord(servo_id))
         data_len = self.dyn.read_serial( 1 )
         err = self.dyn.read_serial( 1 )
         data = self.dyn.read_serial( ord(data_len) - 2 )
@@ -302,6 +308,60 @@ class Robotis_Servo():
         for m in msg:
             out += chr(m)
         self.dyn.send_serial( out )
+
+
+
+
+
+def find_servos(dyn):
+    ''' Finds all servo IDs on the USB2Dynamixel '''
+    print 'Scanning for Servos.'
+    servos = []
+    dyn.servo_dev.setTimeout( 0.03 ) # To make the scan faster
+    for i in xrange(254):
+        try:
+            s = Robotis_Servo( dyn, i )
+            print '\n FOUND A SERVO @ ID %d\n' % i
+            servos.append( i )
+        except:
+            pass
+    dyn.servo_dev.setTimeout( 1.0 ) # Restore to original
+    return servos
+
+
+def recover_servo(dyn):
+    ''' Recovers a bricked servo by booting into diagnostic bootloader and resetting '''
+    raw_input('Make sure only one servo connected to USB2Dynamixel Device [ENTER]')
+    raw_input('Disconnect power from the servo, but leave USB2Dynamixel connected to USB. [ENTER]')
+
+    dyn.servo_dev.setBaudrate( 57600 )
+    
+    print 'Get Ready.  Be ready to reconnect servo power when I say \'GO!\''
+    print 'After a second, the red LED should become permanently lit.'
+    print 'After that happens, Ctrl + C to kill this program.'
+    print
+    print 'Then, you will need to use a serial terminal to issue additional commands.',
+    print 'Here is an example using screen as serial terminal:'
+    print
+    print 'Command Line:  screen /dev/robot/servo_left 57600'
+    print 'Type: \'h\''
+    print 'Response: Command : L(oad),G(o),S(ystem),A(pplication),R(eset),D(ump),C(lear)'
+    print 'Type: \'C\''
+    print 'Response:  * Clear EEPROM '
+    print 'Type: \'A\''
+    print 'Response: * Application Mode'
+    print 'Type: \'G\''
+    print 'Response:  * Go'
+    print
+    print 'Should now be able to reconnect to the servo using ID 1'
+    print
+    print
+    raw_input('Ready to reconnect power? [ENTER]')
+    print 'GO!'
+
+    while True:
+        s.write('#')
+        time.sleep(0.0001)
 
 
 if __name__ == '__main__':
