@@ -35,175 +35,130 @@
 # ROS imports
 import roslib
 roslib.load_manifest('robotis')
-roslib.load_manifest('hrl_lib')
 import rospy
 
-from hrl_rfid.msg import RFIDread
-from hrl_rfid.srv import StringArray_None
-from hrl_rfid.srv import StringArray_NoneResponse
-import hrl_rfid.lib_M5e as M5e
-import hrl_lib.rutils as ru
+from std_msgs.msg import Float64
+from robotis.srv import None_Float
+from robotis.srv import None_FloatResponse
+from robotis.srv import MoveAng
+from robotis.srv import MoveAngResponse
+from robotis.srv import None_Int32
+from robotis.srv import None_Int32Response
 
+import robotis.lib_robotis as rs
 import time
+import math
 
 
-# Modeled off lib_M5e.M5e_Poller
-class ROS_M5e():
-    QUERY_MODE = 'query'
-    TRACK_MODE = 'track'
-    
-    def __init__(self, name = 'reader1', readPwr = 2300,
-                 portStr = '/dev/robot/RFIDreader',
-                 antFuncs = [], callbacks = []):
+class ROS_Robotis_Server():
+    def __init__(self, servo = None, name = '' ):
+        if servo == None:
+            raise RuntimeError( 'ROS_Robotis_Servo: No servo specified for server.\n' )
+
+        self.servo = servo
+        self.name = name
+        
         try:
-            rospy.init_node( 'rfid_m5e_' + name )
+            rospy.init_node( 'robotis_servo_' + self.name )
         except rospy.ROSException:
             pass
 
-        self.mode = ''
-        self.name = name + '_reader'
+        print 'ROS_Robotis_Servo: Starting Server /robotis/servo_' + self.name
+        self.channel = rospy.Publisher('/robotis/servo_' + self.name, Float64)
 
-        print 'ROS_M5e: Launching RFID Reader'
-        print 'ROS_M5e: Please check out our related work @ http://www.hsi.gatech.edu/hrl/project_rfid.shtml'
+        self.__service_ang = rospy.Service('/robotis/servo_' + name + '_readangle',
+                                           None_Float, self.__cb_readangle)
 
-        print 'ROS_M5e: '+self.name+' Building & Connecting to reader'
-        self.reader = M5e.M5e(readPwr=readPwr, portSTR = portStr)
-        self.antFuncs = antFuncs
-        self.callbacks = callbacks + [self.broadcast]
+        self.__service_ismove = rospy.Service('/robotis/servo_' + name + '_ismoving',
+                                              None_Int32, self.__cb_ismoving)
 
-        print 'ROS_M5e: publishing RFID reader with type RFIDread to channel /rfid/'+name+'_reader'
-        self.channel       = rospy.Publisher('/rfid/'+name+'_reader', RFIDread)
-        self._mode_service_obj = rospy.Service('/rfid/'+name+'_mode',
-                                                StringArray_None, self._mode_service)
+        self.__service_moveang = rospy.Service('/robotis/servo_' + name + '_moveangle',
+                                               MoveAng, self.__cb_moveangle)
 
-        print 'ROS_M5e: '+self.name+' Inialized and awaiting instructions'
+    def __cb_readangle( self, request ):
+        ang = self.update_server()
+        return None_FloatResponse( ang )
 
-        while not rospy.is_shutdown():
-            if self.mode == self.QUERY_MODE:
-                for aF in self.antFuncs:
-                    antennaName = aF(self.reader)    # let current antFunc make appropriate changes
-                    results = self.reader.QueryEnvironment()
-                    if len(results) == 0:
-                        datum = [antennaName, '', -1]
-                        [cF(datum) for cF in self.callbacks]
-                    for tagid, rssi in results:
-                        datum = [antennaName, tagid, rssi]
-                        [cF(datum) for cF in self.callbacks]
-            elif self.mode == self.TRACK_MODE:
-                for aF in self.antFuncs:
-                    antennaName = aF(self.reader)    # let current antFunc make appropriate changes
-                    tagid = self.tag_to_track
-                    rssi = self.reader.TrackSingleTag(tagid)
-                    #if rssi != -1:
-                    datum = [antennaName, tagid, rssi]
-                    [cF(datum) for cF in self.callbacks]
-            else:
-                time.sleep(0.005)
+    def __cb_ismoving( self, request ):
+        status = self.servo.is_moving()
+        return None_Int32Response( int(status) )
 
-        print 'ROS_M5e: '+self.name+' Shutting down reader'
+    def __cb_moveangle( self, request ):
+        ang = request.angle
+        angvel = request.angvel
+        blocking = bool( request.blocking )
+        self.servo.move_angle( ang, angvel, blocking )
+        return MoveAngResponse()
+
+    def update_server(self):
+        ang = self.servo.read_angle()
+        self.channel.publish( Float64(ang) )
+        return ang
 
 
-            
-    def broadcast(self, data):
-        antName, tagid, rssi = data
-        self.channel.publish(RFIDread(None, antName, tagid, rssi))
-    
-    # For internal use only
-    def _mode_service(self, data):
-        val = data.data
-        if len(val) == 0:
-            print 'ROS_M5e: Mode Service called with invalid argument: ', val
-        elif len(val) == 1:
-            if val[0] == self.QUERY_MODE:
-                print 'ROS_M5e: '+self.name+' Entering Query Mode'
-                self.mode = self.QUERY_MODE
-            else:
-                print 'ROS_M5e: '+self.name+' Stopping Reader'
-                self.mode = ''
-        elif len(val) == 2:
-            if val[0] == self.TRACK_MODE and len(val[1]) == 12:
-                print 'ROS_M5e: '+self.name+' Entering Track Mode: ', val[1]
-                self.mode = self.TRACK_MODE
-                self.tag_to_track = val[1]
-            else:
-                print 'ROS_M5e: Mode Service called with invalid argument: ', val
-        else:
-            print 'ROS_M5e: Mode Service called with invalid argument: ', val
-        return StringArray_NoneResponse()
+class ROS_Robotis_Client():
+    def __init__(self, name = '' ):
+        self.name = name
 
+        self.__service_ang = rospy.ServiceProxy('/robotis/servo_' + name + '_readangle',
+                                                None_Float)
 
+        self.__service_ismove = rospy.ServiceProxy('/robotis/servo_' + name + '_ismoving',
+                                                   None_Int32)
+        
+        self.__service_moveang = rospy.ServiceProxy('/robotis/servo_' + name + '_moveangle',
+                                               MoveAng)
 
-# -----------------------------------------------
-# Likely Callbacks: (various antennas)
-# -----------------------------------------------
-
-def EleLeftEar(M5e):
-    M5e.ChangeAntennaPorts(2,2)
-    return 'EleLeftEar'
-
-def EleRightEar(M5e):
-    M5e.ChangeAntennaPorts(1,1)
-    return 'EleRightEar'
-
-def Hand_Right_1(M5e):
-    # GPIO1 = 1, GPIO2 = 0
-    M5e.TransmitCommand('\x02\x96\x01\x01')
-    M5e.ReceiveResponse()
-    M5e.TransmitCommand('\x02\x96\x02\x00')
-    M5e.ReceiveResponse()
-    return 'Hand_Right_1'
-
-def Hand_Right_2(M5e):
-    # GPIO1 = 1, GPIO2 = 1
-    M5e.TransmitCommand('\x02\x96\x01\x01')
-    M5e.ReceiveResponse()
-    M5e.TransmitCommand('\x02\x96\x02\x01')
-    M5e.ReceiveResponse()
-    return 'Hand_Right_2'
-
-def Hand_Left_1(M5e):
-    # GPIO1 = 0, GPIO2 = 0
-    M5e.TransmitCommand('\x02\x96\x01\x00')
-    M5e.ReceiveResponse()
-    M5e.TransmitCommand('\x02\x96\x02\x00')
-    M5e.ReceiveResponse()
-    return 'Hand_Left_1'
-
-def Hand_Left_2(M5e):
-    # GPIO1 = 0, GPIO2 = 1
-    M5e.TransmitCommand('\x02\x96\x01\x00')
-    M5e.ReceiveResponse()
-    M5e.TransmitCommand('\x02\x96\x02\x01')
-    M5e.ReceiveResponse()
-    return 'Hand_Left_2'
-
-def PrintDatum(data):
-    ant, ids, rssi = data
-    print data
+    def read_angle( self ):
+        resp = self.__service_ang()
+        ang = resp.value
+        return ang
+        
+    def is_moving( self ):
+        resp = self.__service_ismove()
+        return bool( resp.value )
+        
+    def move_angle( self, ang, angvel = math.radians(50), blocking = True ):
+        self.__service_moveang( ang, angvel, int(blocking) )
 
 if __name__ == '__main__':
-    import optparse
+    print 'Sample Server: '
 
-    p = optparse.OptionParser()
-    p.add_option('-d', action='store', type='string', dest='device',
-                 help='Which RFID device to initialize.')
-    opt, args = p.parse_args()
+    # Important note: You cannot (!) use the same device in another
+    # process. The device is only "thread-safe" within the same
+    # process (i.e.  between servos (and callbacks) instantiated
+    # within that process) 
+    
+    dev_name = '/dev/robot/servo_left'
+    ids = [11, 12]
+    names = ['pan', 'tilt']
 
-    if opt.device == 'ears':
-        print 'Starting Ears RFID Services'
-        ros_rfid = ROS_M5e( name = 'ears', readPwr = 3000,
-                            portStr = '/dev/robot/RFIDreader',
-                            antFuncs = [EleLeftEar, EleRightEar],
-                            callbacks = [] )
-        rospy.spin()
+    dyn = rs.USB2Dynamixel_Device( dev_name )
 
-    if opt.device == 'inhand':
-        print 'Starting Ears RFID Services'
-        ros_rfid = ROS_M5e( name = 'inhand', readPwr = 3000,
-                            portStr = '/dev/robot/inHandReader',
-                            antFuncs = [Hand_Right_1, Hand_Right_2,
-                                        Hand_Left_1, Hand_Left_2 ],
-                            callbacks = [] )
-        rospy.spin()
+    servos = [ rs.Robotis_Servo( dyn, i ) for i in ids ]
+    ros_servers = [ ROS_Robotis_Server( s, n ) for s,n in zip( servos, names ) ]
 
+    try:
+        while not rospy.is_shutdown():
+            [ s.update_server() for s in ros_servers ]
+            time.sleep(0.001)
+    except:
+        pass
+
+    for n in names:
+        print 'ROS_Robotis_Servo: Shutting Down /robotis/servo_'+n
+
+
+    
+## SAMPLE CLIENTS:
+        
+#     tilt = ROS_Robotis_Client( 'tilt' )
+#     tilt.move_angle( math.radians( 0 ), math.radians(10), blocking=False)
+#     while tilt.is_moving():
+#         print 'Tilt is moving'
+
+#     pan = ROS_Robotis_Client( 'pan' )
+#     pan.move_angle( math.radians( 0 ), math.radians(10), blocking=False)
+#     while pan.is_moving():
+#         print 'pan is moving'
 

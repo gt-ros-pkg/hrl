@@ -2,10 +2,16 @@
   <description brief="robotis">
      Contains python code to control robotis servos (Dynamixel series) using USB2Dynamixel adapter.
   </description>
-  <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
+  <author>Travis Deyle, Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>New BSD</license>
 
   <sysdepend os="ubuntu" version="8.04-hardy" package="python-serial"/>
+  <depend package="std_srvs"/>
+  <depend package="tf"/>
+  <export>
+    <cpp cflags="-I${prefix}/msg/cpp"/>
+  </export>
+
 
 </package>
 

@@ -365,36 +365,35 @@ def recover_servo(dyn):
 
 
 if __name__ == '__main__':
+    p = optparse.OptionParser()
+    p.add_option('-d', action='store', type='string', dest='dev_name',
+                 help='Required: Device string for USB2Dynamixel. [i.e. /dev/ttyUSB0 for Linux, \'0\' (for COM0) on Windows]')
+    p.add_option('--scan', action='store_true', dest='scan', default=False,
+                 help='Scan the device for servo IDs attached.')
+    p.add_option('--recover', action='store_true', dest='recover', default=False,
+                 help='Recover from a bricked servo (restores to factory defaults).')
+    p.add_option('--ang', action='store', type='float', dest='ang',
+                 help='Angle to move the servo to (degrees).')
+    p.add_option('--ang_vel', action='store', type='float', dest='ang_vel',
+                 help='angular velocity. (degrees/sec) [default = 50]', default=50)
+    p.add_option('--id', action='store', type='int', dest='id',
+                 help='id of servo to connect to, [default = 1]', default=1)
 
-    dyn = USB2Dynamixel_Device('/dev/robot/servo_left')
-    pan = Robotis_Servo( dyn, 11 )
-    tilt = Robotis_Servo( dyn, 12 )
+    opt, args = p.parse_args()
 
-    t0 = time.time()
-    for i in xrange(200):
-        ang = pan.read_angle()
-    tt = time.time() - t0
-    print 'Avg time per read: ', tt / 200.
+    if opt.dev_name == None:
+        p.print_help()
+        sys.exit(0)
 
-#     p = optparse.OptionParser()
-#     p.add_option('-d', action='store', type='string', dest='servo_dev_name',
-#                  default='/dev/robot/servo0', help='servo device string. [default= /dev/robot/servo0]')
-#     p.add_option('--ang', action='store', type='float', dest='ang',
-#                  help='angle to move the servo to (degrees).')
-#     p.add_option('--ang_vel', action='store', type='float', dest='ang_vel',
-#                  help='angular velocity. (degrees/sec) [default = 50]', default=50)
-#     p.add_option('--id', action='store', type='int', dest='id',
-#                  help='id of servo to connect to, [default = 2]', default=2)
+    dyn = USB2Dynamixel_Device(opt.dev_name)
 
-#     opt, args = p.parse_args()
-#     servo_dev_name = opt.servo_dev_name
-#     ang = opt.ang
-#     ang_vel = opt.ang_vel
-#     id = opt.id
+    if opt.scan:
+        find_servos( dyn )
 
-#     servo = robotis_servo(servo_dev_name,id)
-#     servo.move_angle(math.radians(ang), math.radians(ang_vel))
-#     time.sleep(0.5)
-#     print 'Servo angle:', math.degrees(servo.read_angle())
+    if opt.recover:
+        recover_servo( dyn )
 
-
+    if opt.ang != None:
+        servo = Robotis_Servo( dyn, opt.id )
+        servo.move_angle( math.radians(opt.ang), math.radians(opt.ang_vel) )
+    
