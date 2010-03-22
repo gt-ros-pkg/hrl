@@ -1,6 +1,8 @@
 <package>
   <description brief="robotis">
-     Contains python code to control robotis servos (Dynamixel series) using USB2Dynamixel adapter.
+    This package is designed to operate, query, and control Robotis
+    Dynamixel 'smart' Servos using a USB2Dynamixel adaptor.  It has
+    been tested on the RX-28 and RX-64 servo variants.
   </description>
   <author>Travis Deyle, Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>New BSD</license>
