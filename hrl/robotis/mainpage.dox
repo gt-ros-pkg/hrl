@@ -2,24 +2,62 @@
 \mainpage
 \htmlinclude manifest.html
 
-This code has been tested for the following servos:
-Robotis Dynamixel RX-28 and RX-64.
-
-One place to purchase the servos is
-http://www.crustcrawler.com/motors/RX28/index.php?prod=66
-
-This device gives a serial interface that this code
-uses to control the servo:
-http://www.crustcrawler.com/electronics/USB2Dynamixel/index.php?prod=65
 
 
-How to run the code:
+A more detailed coding tutorial, application overviews, and a servo disassembly can be found on <a href="http://www.hizook.com/blog/2010/03/14/robotis-dynamixel-servos-overview-applications-tear-down-and-open-source-software">Hizook.com</a>. Robotis Dynamixel servos and USB2Dynamixel adaptors (used for communication with the servos) can be purchased from <a href="http://www.trossenrobotics.com/c/robotis-dynamixel-robot-servos.aspx?af=Hizook">Trossen Robotics</a>.
 
-cd bin
+This package includes a stand-alone library (lib_robotis.py) for querying and controlling Robotis Dynamixel Servos. The code is written entirely in Python and is thread-safe, so that multiple servo objects can be controlled / queried "simultaneously" on the same USB2Dynamixel bus (within the same process). The library should function on Linux, Mac, and Windows (yay, python!), and the only dependency is pyserial for communications. The code has only been tested on the RX-28 and RX-64 variants. Sample usage is shown below; more comprehensive explanations can be found on <a href="http://www.hizook.com/blog/2010/03/14/robotis-dynamixel-servos-overview-applications-tear-down-and-open-source-software">Hizook.com</a>.
 
-1. ./robotis_servo -h   # this will print out the command line params that the code accepts.
+\verbatim
+from lib_robotis import *
+dyn = USB2Dynamixel_Device('/dev/ttyUSB0')
+p = Robotis_Servo( dyn, 11 )
+t = Robotis_Servo( dyn, 12 )
+t.move_angle( math.radians( 10 ), blocking = False )
+p.move_angle( math.radians( 10 ), blocking = False )
+\endverbatim
 
-2. ./robotis_servo -d /dev/ttyUSB0 --ang=30 --id=1  # moves a servo with id 1 connected to ttyUSB0 to angle 30 degrees.
+ROS wrappers (messages and services) have also been implemented to query and control the servos remotely. Again, sample usage is shown below and more comprehensive explanations can be found on <a href="http://www.hizook.com/blog/2010/03/14/robotis-dynamixel-servos-overview-applications-tear-down-and-open-source-software">Hizook.com</a>.
+
+\verbatim
+import roslib
+roslib.load_manifest('robotis')
+import rospy
+
+import robotis.lib_robotis as rs
+print 'Sample Server: '
+
+# Important note: You cannot (!) use the same device in another
+# process. The device is only "thread-safe" within the same process
+# (i.e.  between servos (and callbacks) instantiated within that
+# process)
+
+dev_name = '/dev/ttyUSB0'
+ids = [11, 12]
+names = ['pan', 'tilt']
+
+dyn = rs.USB2Dynamixel_Device( dev_name )
+
+servos = [ rs.Robotis_Servo( dyn, i ) for i in ids ]
+ros_servers = [ ROS_Robotis_Server( s, n ) for s,n in zip( servos, names ) ]
+
+try:
+    while not rospy.is_shutdown():
+        [ s.update_server() for s in ros_servers ]
+        time.sleep(0.001)
+except:
+    pass
+\endverbatim
+
+Older libraries (robotis_servo.py) are also present, but are now deprecated.
+
+\verbatim
+./robotis_servo -h # this will print out the command line params that the code accepts.
+
+./robotis_servo -d /dev/ttyUSB0 --ang=30 --id=1 # moves a servo with id 1 connected to ttyUSB0 to angle 30 degrees.
+\endverbatim
+
+
 
 \section rosapi ROS API
 
