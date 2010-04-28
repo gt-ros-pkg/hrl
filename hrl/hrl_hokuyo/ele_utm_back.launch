@@ -1,0 +1,20 @@
+<!--
+Launch this for the back EL-E UTM.
+-->
+
+<launch>
+    <node pkg="hokuyo_node" type="hokuyo_node" name="utm2" output="screen" respawn="true">
+        <remap from="scan" to="utm2_scan"/>
+        <param name="port" value="/dev/robot/hokuyo_H0903475"/>
+        <param name="max_ang_degrees" value="135"/>
+        <param name="min_ang_degrees" value="-135"/>
+        <param name="frameid" value="frameid_utm2"/>
+    </node>
+
+    <node name="static_tf_utm_back_broadcaster" pkg="tf" type="static_transform_publisher"
+        args="0.25 0 0.5 0 0 0 base_link frameid_utm2 50"
+        respawn="true" output="screen"/>
+
+</launch>
+
+
