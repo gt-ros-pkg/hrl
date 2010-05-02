@@ -6,6 +6,11 @@ Compliant Arm with Equilibrium Point Control.
 Advait Jain and Charles C. Kemp.
 IEEE International Conference on Robotics and Automation (ICRA), 2010.
 
+Python Code
+-----------
+The code is organized as a ROS-package. All the python code is in the
+src/2010_icra_epc_pull folder.
+
 
 Notes
 -----
