@@ -1,0 +1,78 @@
+
+import mekabot.hrl_robot as hr
+import hrl_lib.util as ut, hrl_lib.transforms as tr
+
+import math, numpy as np
+import copy
+
+import sys
+sys.path.append('../')
+import compliant_trajectories as ct
+import segway_motion_calc as smc
+
+
+def compute_workspace(z, hook_angle):
+    firenze = hr.M3HrlRobot(connect=False)
+    rot_mat = tr.Rz(hook_angle)*tr.Rx(math.radians(0))*tr.Ry(math.radians(-90))
+    delta_list = [math.radians(d) for d in [0.,0.,0.,0.,10.,10.,10.]]
+    x_list,y_list = [],[]
+    if z < -0.4:
+        xmin = 0.10
+        xmax = 0.65
+    else:
+        xmin = 0.15
+        xmax = 0.65
+
+    for x in np.arange(xmin,xmax,.01):
+        for y in np.arange(-0.1,-0.50,-0.01):
+            if x<0.3 and y>-0.2:
+                continue
+            q = firenze.IK('right_arm',np.matrix([x,y,z]).T,rot_mat)
+            if q != None and firenze.within_physical_limits_right(q,delta_list)==True:
+                x_list.append(x)
+                y_list.append(y)
+    return np.matrix([x_list,y_list])
+
+def create_workspace_dict():
+    dd = {}
+    ha_list = [math.radians(d) for d in [0.,90.,-90.]]
+    for ha in ha_list:
+        d = {}
+        for z in np.arange(-0.1,-0.55,-0.01):
+            print 'z:',z
+            pts2d = compute_workspace(z,hook_angle=ha)
+            d[z] = pts2d
+        dd[ha] = {}
+        dd[ha]['pts'] = d
+
+    ut.save_pickle(dd,'workspace_dict_'+ut.formatted_time()+'.pkl')
+
+
+def create_workspace_boundary(pkl_name):
+    dd = ut.load_pickle(pkl_name)
+    for ha in dd.keys():
+        pts_dict = dd[ha]['pts']
+        bndry_dict = {}
+        for z in pts_dict.keys():
+            print 'z:',z
+            wrkspc = pts_dict[z]
+            if wrkspc.shape[1] < 100:
+                pts_dict.pop(z)
+                continue
+            bndry = smc.compute_boundary(wrkspc)
+            bndry_dict[z] = bndry
+        dd[ha]['bndry'] = bndry_dict
+    ut.save_pickle(dd, pkl_name)
+
+
+
+create_workspace_dict()
+
+#if len(sys.argv) != 2:
+#    print 'Usage:', sys.argv[0], '<wrkspc dict pkl>'
+#    print 'Exiting ...'
+#    sys.exit()
+#create_workspace_boundary(sys.argv[1])
+
+
+

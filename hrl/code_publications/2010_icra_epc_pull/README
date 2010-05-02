@@ -1,0 +1,18 @@
+Publication
+------------
+Pulling Open Doors and Drawers: Coordinating an Omni-directional Base and a
+Compliant Arm with Equilibrium Point Control. 
+
+Advait Jain and Charles C. Kemp.
+IEEE International Conference on Robotics and Automation (ICRA), 2010.
+
+
+Notes
+-----
+To actually run on the robot, this code requires some robot specific
+control code. Please email the author if you are interested in
+looking at or using the robot specific code.
+
+
+
+

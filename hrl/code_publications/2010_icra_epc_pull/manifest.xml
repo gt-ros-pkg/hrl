@@ -1,0 +1,25 @@
+<package>
+  <description brief="2010_icra_epc_pull">
+        This package contains code associated with the following
+        publication: 
+        Pulling Open Doors and Drawers: Coordinating an Omni-directional Base and a Compliant Arm with Equilibrium Point Control.
+        Advait Jain and Charles C. Kemp. IEEE International Conference on Robotics and Automation (ICRA), 2010.
+  </description>
+  <author>Advait Jain, Charles C. Kemp (Healthcare Robotics Lab, Georgia Tech)</author>
+  <license>New BSD</license>
+
+  <depend package="rospy"/>
+  <depend package="geometry_msgs"/>
+
+  <depend package="hrl_lib"/>
+  <depend package="hrl_hokuyo"/>
+  <depend package="hrl_tilting_hokuyo"/>
+  <depend package="zenither"/>
+  <depend package="segway_vo"/>
+  <depend package="vis_odometry_feat"/>
+  <depend package="segway_omni"/>
+
+</package>
+
+
+
