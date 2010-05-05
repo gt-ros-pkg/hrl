@@ -1,0 +1,17 @@
+<!--
+Launch this on mecanum2 to start node for torso hokuyo
+-->
+
+<launch>
+    <node pkg="hokuyo_node" type="hokuyo_node" name="utm0" output="screen" respawn="true">
+        <remap from="scan" to="utm0_scan"/>
+        <param name="port" value="/dev/robot/hokuyo_H0803405"/>
+        <param name="max_ang_degrees" value="45"/>
+        <param name="min_ang_degrees" value="-45"/>
+        <param name="frameid" value="frameid_utm0"/>
+	<param name="intensity" value="true"/>
+    </node>
+
+</launch>
+
+
