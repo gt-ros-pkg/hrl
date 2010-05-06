@@ -30,9 +30,8 @@
 import roslib; roslib.load_manifest('hrl_tilting_hokuyo')
 import hrl_hokuyo.hokuyo_processing as hp
 import sys, optparse, os
-import util as uto
 import hrl_lib.util as ut
-import transforms as tr
+import hrl_lib.transforms as tr
 import numpy as np,math
 import time
 
@@ -237,7 +236,7 @@ def find_closest_pt(pts2d,pt,pt_closer=False):
 
     pts2d_r = pts2d_r[k_idxs]
     pts2d_a = pts2d_a[k_idxs]
-    pts2d = uto.cart_of_pol(np.matrix(np.row_stack((pts2d_r,pts2d_a))))
+    pts2d = ut.cart_of_pol(np.matrix(np.row_stack((pts2d_r,pts2d_a))))
 
     if pt_closer == False:
         edge_to_pt = pt[0:2,0]-pts2d
@@ -277,7 +276,7 @@ def pushback_edge(pts2d,pt):
     edge_to_pt_r = edge_to_pt_r[non_zero_idxs]
     edge_to_pt_r[0,:] = 1
     edge_to_pt_a = edge_to_pt_a[non_zero_idxs]
-    edge_to_pt_unit = uto.cart_of_pol(np.row_stack((edge_to_pt_r,edge_to_pt_a)))
+    edge_to_pt_unit = ut.cart_of_pol(np.row_stack((edge_to_pt_r,edge_to_pt_a)))
     push_vector = edge_to_pt_unit.mean(1)
     push_vector = push_vector/np.linalg.norm(push_vector)
     print 'push_vector:', push_vector.T
@@ -377,7 +376,7 @@ def find_approach_direction(grid,pt,display_list=None):
         print 'processing_3d.find_approach_direction: No edge points found'
         return None,None
 
-    pts2d = uto.cart_of_pol(np.matrix(np.row_stack((range_list,angle_list))))
+    pts2d = ut.cart_of_pol(np.matrix(np.row_stack((range_list,angle_list))))
 
     closest_pt_1 = find_closest_pt(pts2d,pt,pt_closer=False)
     if closest_pt_1 == None:
@@ -1118,7 +1117,7 @@ if __name__ == '__main__':
 
     l1 = dict['l1']
     l2 = dict['l2']
-    l2 = -0.055
+ #   l2 = -0.055
 #    l2 = 0.035
 
     if dict.has_key('pt'):

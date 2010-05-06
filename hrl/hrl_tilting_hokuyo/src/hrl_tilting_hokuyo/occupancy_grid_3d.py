@@ -34,7 +34,7 @@ import math, numpy as np
 import scipy.ndimage as ni
 import copy
 
-import hrl_lib.util as ut, transforms as tr
+import hrl_lib.util as ut, hrl_lib.transforms as tr
 
 
 ## subtract occupancy grids. og1 = og1-og2
@@ -98,6 +98,7 @@ class occupancy_grid_3d():
     # @param resolution - 3x1 matrix. size of each cell (in meters) along
     #                     the different directions.
     def __init__(self, brf, tlb, resolution, rotation_z=math.radians(0.)):
+        #print np.round((tlb-brf)/resolution).astype('int')+1
         self.grid = np.zeros(np.round((tlb-brf)/resolution).astype('int')+1,dtype='int')
 
         self.tlb = tlb
@@ -148,7 +149,7 @@ class occupancy_grid_3d():
             idx = np.where(np.min(np.multiply(pts[0:2,:]>self.brf[0:2,:],
                                               pts[0:2,:]<self.tlb[0:2,:]),0))[1]
         else:
-            idx = np.where(np.min(np.multiply(pts>self.brf,pts<self.tlb),0))[1]
+            idx = np.where(np.min(np.multiply(pts[0:3,:]>self.brf,pts[0:3,:]<self.tlb),0))[1]
 
         if idx.shape[1] == 0:
             print 'aha!'
@@ -156,9 +157,9 @@ class occupancy_grid_3d():
         pts = pts[:,idx.A1.tolist()]
 
         # Find coordinates
-        p_all = np.round((pts-self.brf)/self.resolution)
+        p_all = np.round((pts[0:3,:]-self.brf)/self.resolution)
         # Rotate points
-        pts = tr.Rz(self.rotation_z).T*pts
+        pts[0:3,:] = tr.Rz(self.rotation_z).T*pts[0:3,:]
 
         for i,p in enumerate(p_all.astype('int').T):
             if ignore_z:
