@@ -1,0 +1,18 @@
+<package>
+  <description brief="hrl_simple_arm_goals">
+    Python equivalents for move_Arm tutorials. (For example,
+    http://www.ros.org/wiki/move_arm/Tutorials/MoveArmPoseGoalComplex)
+  </description>
+  <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
+  <license>New BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/simple_armstack_goals</url>
+
+  <depend package="move_arm_msgs"/>
+  <depend package="actionlib"/>
+  <depend package="rospy"/>
+  <depend package="roscpp"/>
+
+</package>
+
+
