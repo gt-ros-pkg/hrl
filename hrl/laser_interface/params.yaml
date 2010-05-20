@@ -1,0 +1,22 @@
+laser_pointer_detector/SHADE_EXPOSURE               : 200 
+laser_pointer_detector/SHADE_DARK_IMAGE_THRESHOLD   : 100 
+laser_pointer_detector/SHADE_BRIGHT_IMAGE_THRESHOLD : 240 
+
+laser_pointer_detector/SUN_EXPOSURE                 : 56   
+laser_pointer_detector/SUN_DARK_IMAGE_THRESHOLD     : 60   
+laser_pointer_detector/SUN_BRIGHT_IMAGE_THRESHOLD   : 215  
+
+laser_pointer_detector/MAX_BLOB_AREA                : 400  
+laser_pointer_detector/LASER_POINT_SIZE             : 40.0 
+laser_pointer_detector/MIN_AGE                      : 5    
+laser_pointer_detector/NUMBER_OF_LEARNERS           : 10   
+laser_pointer_detector/PCA_VARIANCE_RETAIN          : 0.95 
+
+laser_pointer_detector/TRACKER_MAX_PIX_TRESHOLD     : 30.0 
+laser_pointer_detector/TRACKER_MAX_TIME_THRESHOLD   : 3     
+
+laser_pointer_detector/CLASSIFICATION_WINDOW_WIDTH  : 7     
+laser_pointer_detector/DEFAULT_DATASET_FILE         : 'nodes/PatchClassifier.dataset.pickle'
+laser_pointer_detector/CAMERA                       : 'videre_stereo'
+laser_pointer_detector/GATHER_MISCLASSIFIED_ONLY    : 1    
+
