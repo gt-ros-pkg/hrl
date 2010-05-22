@@ -6,11 +6,13 @@ import rospy
 
 import actionlib
 
-from kinematics_msgs.srv import GetKinematicSolverInfo
 from kinematics_msgs.srv import GetPositionFK, GetPositionFKRequest, GetPositionFKResponse
+from kinematics_msgs.srv import GetPositionIK, GetPositionIKRequest, GetPositionIKResponse
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal
 from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction
 from trajectory_msgs.msg import JointTrajectoryPoint
+
+import hrl_lib.transforms as tr
 
 class HRL_PR2():
 
@@ -21,12 +23,13 @@ class HRL_PR2():
                            'r_elbow_flex_joint', 'r_forearm_roll_joint',
                            'r_wrist_flex_joint', 'r_wrist_roll_joint']
 
-        rospy.wait_for_service('pr2_right_arm_kinematics/get_fk_solver_info');
         rospy.wait_for_service('pr2_right_arm_kinematics/get_fk');
-        self.fk_info = rospy.ServiceProxy('pr2_right_arm_kinematics/get_fk_solver_info',
-                                          GetKinematicSolverInfo)
+        rospy.wait_for_service('pr2_right_arm_kinematics/get_ik');
+
         self.fk_srv = rospy.ServiceProxy('pr2_right_arm_kinematics/get_fk',
                                          GetPositionFK)
+        self.ik_srv = rospy.ServiceProxy('pr2_right_arm_kinematics/get_ik',
+                                         GetPositionIK)
 
         self.joint_action_client = actionlib.SimpleActionClient('r_arm_controller/joint_trajectory_action', JointTrajectoryAction)
         self.gripper_action_client = actionlib.SimpleActionClient('r_gripper_controller/gripper_action', Pr2GripperCommandAction)
@@ -68,6 +71,36 @@ class HRL_PR2():
             ret = None
 
         return ret
+    
+    def IK(self, arm, p, rot, q_guess):
+        rospy.logwarn('Currently ignoring the arm parameter.')
+        ik_req = GetPositionIKRequest()
+        ik_req.timeout = rospy.Duration(5.)
+        ik_req.ik_request.ik_link_name = 'r_wrist_roll_link'
+        ik_req.ik_request.pose_stamped.header.frame_id = 'torso_lift_link'
+
+        ik_req.ik_request.pose_stamped.pose.position.x = p[0,0]
+        ik_req.ik_request.pose_stamped.pose.position.y = p[1,0]
+        ik_req.ik_request.pose_stamped.pose.position.z = p[2,0]
+
+        quat = tr.matrix_to_quaternion(rot)
+        ik_req.ik_request.pose_stamped.pose.orientation.x = quat[0]
+        ik_req.ik_request.pose_stamped.pose.orientation.y = quat[1]
+        ik_req.ik_request.pose_stamped.pose.orientation.z = quat[2]
+        ik_req.ik_request.pose_stamped.pose.orientation.w = quat[3]
+
+        ik_req.ik_request.ik_seed_state.joint_state.position = q_guess
+        ik_req.ik_request.ik_seed_state.joint_state.name = self.joint_names_list
+
+        ik_resp = self.ik_srv.call(ik_req)
+        if ik_resp.error_code.val == ik_resp.error_code.SUCCESS:
+            ret = ik_resp.solution.joint_state.position
+        else:
+            rospy.logerr('Inverse kinematics failed')
+            ret = None
+
+        return ret
+
 
 
 
@@ -81,6 +114,10 @@ if __name__ == '__main__':
     hrl_pr2.set_jointangles('right_arm', q)
     ee_pos = hrl_pr2.FK('right_arm', q)
     print 'FK result:', ee_pos.A1
+
+    ee_pos[0,0] -= 0.1
+    q_ik = hrl_pr2.IK('right_arm', ee_pos, tr.Rx(0.), q)
+    print 'q_ik:', [math.degrees(a) for a in q_ik]
 
     rospy.spin()
 

@@ -21,25 +21,25 @@ class EPC():
                    rapid_call_func=None):
 
         stop, ea = equi_pt_generator(*arg_list)
-        t_end = time.time()
+        t_end = rospy.get_time()
         while stop == '':
             t_end += time_step
-            self.robot.set_joint_angles(arm, q)
+            self.robot.set_jointangles(arm, ea)
             # self.robot.step() this should be within the rapid_call_func for the meka arms.
-            t1 = time.time()
+            t1 = rospy.get_time()
             while t1<t_end:
                 if rapid_call_func != None:
                     stop = rapid_call_func(arm)
                     if stop != '':
                         break
                 # self.robot.step() this should be within the rapid_call_func for the meka arms.
-                t1 = time.time()
+                t1 = rospy.get_time()
 
             stop, ea = equi_pt_generator(*arg_list)
 
             if stop == 'reset timing':
                 stop = ''
-                t_end = time.time()
+                t_end = rospy.get_time()
 
         return stop, ea
 
@@ -51,30 +51,39 @@ class EPC():
     def pull_back(self, arm, ea, rot_mat, distance):
         self.cep = self.robot.FK(arm, ea)
         self.dist_left = distance
+        self.ea = ea
 
         def eq_gen_pull_back(robot, arm, rot_mat):
-            if dist_left <= 0.:
+            if self.dist_left <= 0.:
                 return 'done', None
             step_size = 0.01
             self.cep[0,0] -= step_size
             self.dist_left -= step_size
-            ea = robot.IK(arm, self.cep, rot_mat)
+            ea = robot.IK(arm, self.cep, rot_mat, self.ea)
+            self.ea = ea
             if ea == None:
                 return 'IK fail', ea
-            return ea, ''
+            return '', ea
         
         arg_list = [self.robot, arm, rot_mat]
-        stop, ea = self.epc_motion(eq_gen_pull_back, 0.1, arg_list)
-
-
-
+        stop, ea = self.epc_motion(eq_gen_pull_back, 0.1, arm, arg_list)
+        print stop, ea
 
 if __name__ == '__main__':
-    print 'Hello World'
-
     import hrl_pr2
+    import hrl_lib.transforms as tr
+
+    rospy.init_node('epc_pr2', anonymous = True)
+    rospy.logout('epc_pr2: ready')
+
     pr2 = hrl_pr2.HRL_PR2()
     epc = EPC(pr2)
+
+    arm = 'right_arm'
+    ea = [0, 0, 0, 0, 0, 0, 0]
+    epc.robot.set_jointangles(arm, ea)
+#    rospy.sleep(2.)
+    epc.pull_back(arm, ea, tr.Rx(0), 0.2)
 
 
 
