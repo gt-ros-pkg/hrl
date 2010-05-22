@@ -41,7 +41,44 @@ class Door_EPC(epc.EPC):
         self.force_trajectory.time_list.append(t_now)
         return '' # log_state also used as a rapid_call_func
 
+    ##
+    # @param arm - 'right_arm' or 'left_arm'
+    # @param motion vec is in tl frame.
+    # @param step_size - distance (meters) through which CEP should move
+    # @param rot_mat - rotation matrix for IK
+    # @return JEP
+    def update_eq_point(self, arm, motion_vec, step_size, rot_mat):
+        self.eq_pt_cartesian = self.eq_pt_cartesian_ts
+        next_pt = self.eq_pt_cartesian + step_size * motion_vec
+        q_eq = self.robot.IK(arm, next_pt, rot_mat, self.q_guess)
+        self.eq_pt_cartesian = next_pt
+        self.eq_pt_cartesian_ts = self.eq_pt_cartesian
+        self.q_guess = q_eq
+        return q_eq
 
+    def common_stopping_conditions(self):
+        stop = ''
+        if self.q_guess == None:
+            stop = 'IK fail'
+
+        wrist_force = self.robot.get_wrist_force('right_arm',base_frame=True)
+        mag = np.linalg.norm(wrist_force)
+        print 'force magnitude:', mag
+        if mag > self.eq_force_threshold:
+            stop = 'force exceed'
+
+        if mag < 1.2 and self.hooked_location_moved:
+            if (self.prev_force_mag - mag) > 30.:
+                stop = 'slip: force step decrease and below thresold.'
+                #stop = ''
+            else:
+                self.slip_count += 1
+        else:
+            self.slip_count = 0
+
+        if self.slip_count == 10:
+            stop = 'slip: force below threshold for too long.'
+        return stop
 
     ## constantly update the estimate of the kinematics and move the
     # equilibrium point along the tangent of the estimated arc, and
@@ -57,7 +94,6 @@ class Door_EPC(epc.EPC):
         step_size = 0.1 * cep_vel # 0.1 is the time interval between calls to the equi_generator function (see pull)
         q_eq = self.update_eq_point(arm, self.eq_motion_vec, step_size,
                                     rot_mat)
-
         stop = self.common_stopping_conditions()
 
         wrist_force = self.robot.get_wrist_force(arm, base_frame=True)
@@ -186,7 +222,6 @@ class Door_EPC(epc.EPC):
         self.rad_vec_list.append(force_vec_ts.A1.tolist())
 
         return stop, q_eq
-
 
     def pull(self, arm, hook_angle, force_threshold, ea,
              kinematics_estimation = 'rotation_center', pull_left = False):
