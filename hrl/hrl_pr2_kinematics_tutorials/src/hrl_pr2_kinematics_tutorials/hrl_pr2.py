@@ -101,7 +101,22 @@ class HRL_PR2():
 
         return ret
 
+    # for compatibility with Meka arms on Cody. Need to figure out a
+    # good way to have a common interface to different arms.
+    def step(self):
+        return
+    
+    def end_effector_pos(self, arm):
+        q = self.get_joint_angles(arm)
+        return self.FK(arm, q)
 
+    def get_joint_angles(self, arm):
+        rospy.logerr('Need to implement this function.')
+        raise RuntimeError('Unimplemented function')
+
+    def get_wrist_force(self, arm, bias = True, base_frame = False):
+        rospy.logerr('Need to implement this function.')
+        raise RuntimeError('Unimplemented function')
 
 
 if __name__ == '__main__':

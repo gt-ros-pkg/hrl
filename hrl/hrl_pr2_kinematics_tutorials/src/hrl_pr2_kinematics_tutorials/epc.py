@@ -6,7 +6,6 @@ import rospy
 # More complex behaviors that use EPC should have their own ROS
 # packages.
 class EPC():
-
     def __init__(self, robot):
         self.robot = robot
 
