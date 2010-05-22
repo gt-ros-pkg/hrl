@@ -1,0 +1,18 @@
+<package>
+  <description brief="hrl_pr2_kinematics_tutorials">
+    Looking at the different PR2 arm tutorials and trying to come up
+    with equivalent python versions.
+  </description>
+  <author>Advait Jain (Healthcare Robotics Lab)</author>
+  <license>New BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_pr2_kinematics_tutorials</url>
+  <depend package="kinematics_msgs"/>
+  <depend package="pr2_arm_kinematics"/>
+  <depend package="pr2_controllers_msgs"/>
+  <depend package="rospy"/>
+  <depend package="actionlib"/>
+
+</package>
+
+
