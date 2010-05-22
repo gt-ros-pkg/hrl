@@ -114,6 +114,11 @@ class HRL_PR2():
         rospy.logerr('Need to implement this function.')
         raise RuntimeError('Unimplemented function')
 
+    # need for search and hook
+    def go_cartesian(self, arm):
+        rospy.logerr('Need to implement this function.')
+        raise RuntimeError('Unimplemented function')
+
     def get_wrist_force(self, arm, bias = True, base_frame = False):
         rospy.logerr('Need to implement this function.')
         raise RuntimeError('Unimplemented function')

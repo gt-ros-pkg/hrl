@@ -327,6 +327,46 @@ class Door_EPC(epc.EPC):
               }
         ut.save_pickle(dd,'mechanism_trajectories_robot_'+d['info']+'_'+ut.formatted_time()+'.pkl')
 
+    ## behavior to search around the hook_loc to try and get a good
+    # hooking grasp
+    # @param arm - 'right_arm' or 'left_arm'
+    # @param hook_angle - radians(0,-90,90) side,up,down
+    # @param hook_loc - 3x1 np matrix
+    # @param angle - angle between torso x axis and surface normal.
+    # @return s, jep (stopping string and last commanded JEP)
+    def search_and_hook(self, arm, hook_angle, hook_loc, angle,
+                        hooking_force_threshold = 5.):
+
+        rot_mat = rot_mat_from_angles(hook_angle, angle)
+        if arm == 'right_arm':
+            hook_dir = np.matrix([0.,1.,0.]).T # hook direc in home position
+        elif arm == 'left_arm':
+            hook_dir = np.matrix([0.,-1.,0.]).T # hook direc in home position
+        else:
+            raise RuntimeError('Unknown arm: %s', arm)
+        start_loc = hook_loc + rot_mat.T * hook_dir * -0.03 # 3cm direc opposite to hook.
+
+        # vector normal to surface and pointing into the surface.
+        normal_tl = tr.Rz(-angle) * np.matrix([1.0,0.,0.]).T
+
+        pt1 = start_loc - normal_tl * 0.1
+        pt1[2,0] -= 0.02 # funny error in meka control code? or is it gravity comp?
+        self.robot.go_cartesian(arm, pt1, rot_mat, speed=0.2)
+
+        vec = normal_tl * 0.2
+        s, jep = self.firenze.move_till_hit(arm, vec=vec, force_threshold=2.0,
+                                            rot=rot_mat, speed=0.07)
+
+        self.eq_pt_cartesian = self.firenze.FK(arm, jep)
+        self.eq_pt_cartesian_ts = self.firenze.FK(arm, jep)
+        self.start_pos = copy.copy(self.eq_pt_cartesian)
+        self.q_guess = jep
+        move_dir = rot_mat.T * hook_dir
+
+        arg_list = [arm, move_dir, rot_mat, hooking_force_threshold]
+        s, jep = self.compliant_motion(self.equi_generator_surface_follow, 0.05,
+                                       arm, arg_list)
+        return s, jep
 
 
 if __name__ == '__main__':
