@@ -7,5 +7,12 @@
   <review status="unreviewed" notes=""/>
   <depend package="rospy" />
   <depend package="std_msgs" />  
+  <depend package="geometry_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="message_filters"/>
+
   <depend package="opencv2"/>
+  <depend package="cv_bridge"/>
+
+  <depend package="hrl_lib"/>
 </package>

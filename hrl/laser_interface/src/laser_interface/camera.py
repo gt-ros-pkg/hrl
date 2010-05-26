@@ -146,6 +146,15 @@ def general_projection_matrix():
 #
 #    def __iter__(self):
 #        return self
+class ROSStereoListener:
+    def __init__(self, topics, rate=30.0, name='stereo_listener'):
+        from sensor_msgs.msg import Image
+        import hrl_lib.rutils as ru
+        listener = ru.GenericListener(name, [Image, Image], topics, rate)
+
+    def next(self):
+        return listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+
 
 class StereoFile:
     def __init__(self, left_file, right_file):

@@ -1,9 +1,0 @@
-<launch>
-    <!-- -->
-    <master auto='start'/>
-    <node pkg='namelookup' type='namelookup_server' args=''/>
-    <node pkg='xmlparam' type='xmlparam' args='cameras.xml'/>
-    <node pkg='xmlparam' type='xmlparam' args='params.xml'/>
-    <node pkg='laser_interface' type='laser_pointer_detector_node.py' output='screen' args='-d true'/>
-    <node pkg='laser_interface' type='user_interface_node.py' args='params.xml' output='screen'/>
-</launch>
