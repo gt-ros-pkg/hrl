@@ -10,7 +10,7 @@ import actionlib
 from kinematics_msgs.srv import GetPositionFK, GetPositionFKRequest, GetPositionFKResponse
 from kinematics_msgs.srv import GetPositionIK, GetPositionIKRequest, GetPositionIKResponse
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal, JointTrajectoryControllerState
-from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction
+from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction, Pr2GripperCommand
 from trajectory_msgs.msg import JointTrajectoryPoint
 from geometry_msgs.msg import PoseStamped
 
@@ -150,6 +150,15 @@ class HRL_PR2():
         ps.pose.orientation.w = quat[3]
         self.r_arm_cart_pub.publish(ps)
 
+    def open_gripper(self, arm):
+        self.gripper_action_client.send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=0.08, max_effort = -1)))
+
+    def close_gripper(self, arm):
+        self.gripper_action_client.send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=0.0, max_effort = -1)))
+
+    def get_wrist_force(self, arm):
+        pass
+
 
 if __name__ == '__main__':
     rospy.init_node('hrl_pr2', anonymous = True)
@@ -169,14 +178,16 @@ if __name__ == '__main__':
 
         rospy.spin()
 
+    if False:
+        q = [0, 0, 0, 0, 0, 0, 0]
+        ee_pos = hrl_pr2.FK('right_arm', q)
+        print 'FK result:', ee_pos.A1
 
-    q = [0, 0, 0, 0, 0, 0, 0]
-    ee_pos = hrl_pr2.FK('right_arm', q)
-    print 'FK result:', ee_pos.A1
+        p = np.matrix([0.9, -0.2, 0.]).T
+        rot = tr.Rx(0.)
+        hrl_pr2.set_cartesian('right_arm', p, rot)
 
-    p = np.matrix([0.9, -0.2, 0.]).T
-    rot = tr.Rx(0.)
-    hrl_pr2.set_cartesian('right_arm', p, rot)
+    hrl_pr2.close_gripper('right_arm')
 
 
 

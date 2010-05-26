@@ -2,7 +2,7 @@
 import roslib; roslib.load_manifest('hrl_pr2_kinematics_tutorials')
 import rospy
 
-import numpy as np
+import numpy as np, math
 
 ## Class defining the core EPC function and a few simple examples.
 # More complex behaviors that use EPC should have their own ROS
@@ -119,9 +119,17 @@ if __name__ == '__main__':
         rospy.sleep(2.)
         epc.pull_back(arm, ea, tr.Rx(0), 0.2)
 
-    p = np.matrix([0.9, -0.2, 0.]).T
+    p = np.matrix([0.9, -0.3, 0.]).T
     rot = tr.Rx(0.)
-    epc.pull_back_cartesian_control(arm, p, rot, 0.2)
+    rot = tr.Rx(math.radians(90.))
+
+    rospy.logout('Going to starting position')
+    epc.robot.open_gripper(arm)
+    epc.robot.set_cartesian(arm, p, rot)
+    raw_input('Hit ENTER to close the gripper')
+    epc.robot.close_gripper(arm)
+    raw_input('Hit ENTER to pull')
+    epc.pull_back_cartesian_control(arm, p, rot, 0.4)
 
 
 

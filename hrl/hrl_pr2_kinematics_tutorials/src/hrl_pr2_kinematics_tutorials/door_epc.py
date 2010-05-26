@@ -256,9 +256,7 @@ class Door_EPC(epc.EPC):
         time_dict = {}
         time_dict['before_pull'] = time.time()
 
-        stiffness_scale = self.robot.arm_settings[arm].stiffness_scale
         self.pull_trajectory = at.JointTrajectory()
-        self.jt_torque_trajectory = at.JointTrajectory()
         self.eq_pt_trajectory = at.JointTrajectory()
         self.force_trajectory = at.ForceTrajectory()
 
