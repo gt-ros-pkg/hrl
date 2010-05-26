@@ -8,8 +8,20 @@ from equilibrium_point_control.msg import MechanismKinematicsJac
 import epc
 from threading import RLock
 
+
+##
+# compute the end effector rotation matrix.
+# @param hook - hook angle. RADIANS(0, -90, 90) (hor, up, down)
+# @param angle - angle between robot and surface normal.
+# Angle about the Z axis through which the robot must turn to face
+# the surface.
+def rot_mat_from_angles(hook, surface):
+    rot_mat = tr.Rz(hook) * tr.Rx(surface)
+    return rot_mat
+
+
+
 class Door_EPC(epc.EPC):
-    
     def __init__(self, robot):
         epc.EPC.__init__(self, robot)
 
@@ -88,7 +100,7 @@ class Door_EPC(epc.EPC):
     # Is maintaining a radial force possible or not (based on hook
     # geometry and orientation)
     # @param cep_vel - tangential velocity of the cep in m/s
-    def equi_pt_generator_control_radial_force(self, arm, rot_mat,
+    def eqpt_gen_control_radial_force(self, arm, rot_mat,
                            h_force_possible, v_force_possible, cep_vel):
         self.log_state(arm)
         step_size = 0.1 * cep_vel # 0.1 is the time interval between calls to the equi_generator function (see pull)

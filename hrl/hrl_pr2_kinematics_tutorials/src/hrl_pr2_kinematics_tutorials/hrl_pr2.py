@@ -12,6 +12,7 @@ from kinematics_msgs.srv import GetPositionIK, GetPositionIKRequest, GetPosition
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal, JointTrajectoryControllerState
 from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction
 from trajectory_msgs.msg import JointTrajectoryPoint
+from geometry_msgs.msg import PoseStamped
 
 import hrl_lib.transforms as tr
 
@@ -35,6 +36,8 @@ class HRL_PR2():
 
         self.r_arm_state_lock = RLock()
         rospy.Subscriber('/r_arm_controller/state', JointTrajectoryControllerState, self.r_arm_state_cb)
+        self.r_arm_cart_pub = rospy.Publisher('/r_cart/command_pose', PoseStamped)
+        rospy.sleep(1.)
 
     def r_arm_state_cb(self, data):
         self.r_arm_state_lock.acquire()
@@ -130,24 +133,50 @@ class HRL_PR2():
         rospy.logerr('Need to implement this function.')
         raise RuntimeError('Unimplemented function')
 
+    def set_cartesian(self, arm, p, rot):
+        rospy.logwarn('Currently ignoring the arm parameter.')
+        ps = PoseStamped()
+        ps.header.stamp = rospy.rostime.get_rostime()
+        ps.header.frame_id = 'torso_lift_link'
+
+        ps.pose.position.x = p[0,0]
+        ps.pose.position.y = p[1,0]
+        ps.pose.position.z = p[2,0]
+
+        quat = tr.matrix_to_quaternion(rot)
+        ps.pose.orientation.x = quat[0]
+        ps.pose.orientation.y = quat[1]
+        ps.pose.orientation.z = quat[2]
+        ps.pose.orientation.w = quat[3]
+        self.r_arm_cart_pub.publish(ps)
+
 
 if __name__ == '__main__':
-
     rospy.init_node('hrl_pr2', anonymous = True)
     rospy.logout('hrl_pr2: ready')
 
     hrl_pr2 = HRL_PR2()
+
+    if False:
+        q = [0, 0, 0, 0, 0, 0, 0]
+        hrl_pr2.set_jointangles('right_arm', q)
+        ee_pos = hrl_pr2.FK('right_arm', q)
+        print 'FK result:', ee_pos.A1
+
+        ee_pos[0,0] -= 0.1
+        q_ik = hrl_pr2.IK('right_arm', ee_pos, tr.Rx(0.), q)
+        print 'q_ik:', [math.degrees(a) for a in q_ik]
+
+        rospy.spin()
+
+
     q = [0, 0, 0, 0, 0, 0, 0]
-    hrl_pr2.set_jointangles('right_arm', q)
     ee_pos = hrl_pr2.FK('right_arm', q)
     print 'FK result:', ee_pos.A1
 
-    ee_pos[0,0] -= 0.1
-    q_ik = hrl_pr2.IK('right_arm', ee_pos, tr.Rx(0.), q)
-    print 'q_ik:', [math.degrees(a) for a in q_ik]
-
-    rospy.spin()
-
+    p = np.matrix([0.9, -0.2, 0.]).T
+    rot = tr.Rx(0.)
+    hrl_pr2.set_cartesian('right_arm', p, rot)
 
 
 

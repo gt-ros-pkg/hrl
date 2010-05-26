@@ -2,6 +2,8 @@
 import roslib; roslib.load_manifest('hrl_pr2_kinematics_tutorials')
 import rospy
 
+import numpy as np
+
 ## Class defining the core EPC function and a few simple examples.
 # More complex behaviors that use EPC should have their own ROS
 # packages.
@@ -17,13 +19,16 @@ class EPC():
     # @return stop (the string which has the reason why the epc
     # motion stopped.), ea (last commanded equilibrium angles)
     def epc_motion(self, equi_pt_generator, time_step, arm, arg_list,
-                   rapid_call_func=None):
+                   rapid_call_func=None, control_function=None):
 
         stop, ea = equi_pt_generator(*arg_list)
         t_end = rospy.get_time()
         while stop == '':
             t_end += time_step
-            self.robot.set_jointangles(arm, ea)
+            #self.robot.set_jointangles(arm, ea)
+            #import pdb; pdb.set_trace()
+            control_function(arm, *ea)
+
             # self.robot.step() this should be within the rapid_call_func for the meka arms.
             t1 = rospy.get_time()
             while t1<t_end:
@@ -62,11 +67,38 @@ class EPC():
             self.ea = ea
             if ea == None:
                 return 'IK fail', ea
-            return '', ea
+            return '', [ea,]
         
         arg_list = [self.robot, arm, rot_mat]
-        stop, ea = self.epc_motion(eq_gen_pull_back, 0.1, arm, arg_list)
+        stop, ea = self.epc_motion(eq_gen_pull_back, 0.1, arm, arg_list,
+                                   control_function = self.robot.set_jointangles)
         print stop, ea
+
+    ## Pull back along a straight line (-ve x direction)
+    # @param arm - 'right_arm' or 'left_arm'
+    # @param ea - starting cep.
+    # @param rot_mat - rotation matrix defining end effector pose
+    # @param distance - how far back to pull.
+    def pull_back_cartesian_control(self, arm, cep, rot_mat, distance):
+        self.cep = cep
+        self.dist_left = distance
+
+        def eq_gen_pull_back(robot, arm, rot_mat):
+            if self.dist_left <= 0.:
+                return 'done', None
+            step_size = 0.01
+            self.cep[0,0] -= step_size
+            self.dist_left -= step_size
+            if self.cep[0,0] < 0.4:
+                return 'very close to the body: %.3f'%self.cep[0,0], None
+
+            return '', (self.cep, rot_mat)
+        
+        arg_list = [self.robot, arm, rot_mat]
+        stop, ea = self.epc_motion(eq_gen_pull_back, 0.1, arm, arg_list,
+                                   control_function = self.robot.set_cartesian)
+        print stop, ea
+
 
 if __name__ == '__main__':
     import hrl_pr2
@@ -79,10 +111,17 @@ if __name__ == '__main__':
     epc = EPC(pr2)
 
     arm = 'right_arm'
-    ea = [0, 0, 0, 0, 0, 0, 0]
-    epc.robot.set_jointangles(arm, ea, duration=4.0)
-#    rospy.sleep(2.)
-    epc.pull_back(arm, ea, tr.Rx(0), 0.2)
+
+    if False:
+        ea = [0, 0, 0, 0, 0, 0, 0]
+        ea = epc.robot.get_joint_angles(arm)
+        epc.robot.set_jointangles(arm, ea, duration=4.0)
+        rospy.sleep(2.)
+        epc.pull_back(arm, ea, tr.Rx(0), 0.2)
+
+    p = np.matrix([0.9, -0.2, 0.]).T
+    rot = tr.Rx(0.)
+    epc.pull_back_cartesian_control(arm, p, rot, 0.2)
 
 
 
