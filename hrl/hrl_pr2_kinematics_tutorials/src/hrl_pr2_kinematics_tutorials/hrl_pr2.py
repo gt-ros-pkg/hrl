@@ -1,5 +1,6 @@
 
 import numpy as np, math
+from threading import RLock
 
 import roslib; roslib.load_manifest('hrl_pr2_kinematics_tutorials')
 import rospy
@@ -8,16 +9,14 @@ import actionlib
 
 from kinematics_msgs.srv import GetPositionFK, GetPositionFKRequest, GetPositionFKResponse
 from kinematics_msgs.srv import GetPositionIK, GetPositionIKRequest, GetPositionIKResponse
-from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal
+from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal, JointTrajectoryControllerState
 from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 import hrl_lib.transforms as tr
 
 class HRL_PR2():
-
     def __init__(self):
-
         self.joint_names_list = ['r_shoulder_pan_joint',
                            'r_shoulder_lift_joint', 'r_upper_arm_roll_joint',
                            'r_elbow_flex_joint', 'r_forearm_roll_joint',
@@ -26,15 +25,21 @@ class HRL_PR2():
         rospy.wait_for_service('pr2_right_arm_kinematics/get_fk');
         rospy.wait_for_service('pr2_right_arm_kinematics/get_ik');
 
-        self.fk_srv = rospy.ServiceProxy('pr2_right_arm_kinematics/get_fk',
-                                         GetPositionFK)
-        self.ik_srv = rospy.ServiceProxy('pr2_right_arm_kinematics/get_ik',
-                                         GetPositionIK)
+        self.fk_srv = rospy.ServiceProxy('pr2_right_arm_kinematics/get_fk', GetPositionFK)
+        self.ik_srv = rospy.ServiceProxy('pr2_right_arm_kinematics/get_ik', GetPositionIK)
 
         self.joint_action_client = actionlib.SimpleActionClient('r_arm_controller/joint_trajectory_action', JointTrajectoryAction)
         self.gripper_action_client = actionlib.SimpleActionClient('r_gripper_controller/gripper_action', Pr2GripperCommandAction)
         self.joint_action_client.wait_for_server()
         self.gripper_action_client.wait_for_server()
+
+        self.r_arm_state_lock = RLock()
+        rospy.Subscriber('/r_arm_controller/state', JointTrajectoryControllerState, self.r_arm_state_cb)
+
+    def r_arm_state_cb(self, data):
+        self.r_arm_state_lock.acquire()
+        self.current_joint_angles = data.actual.positions
+        self.r_arm_state_lock.release()
 
     ## go to a joint configuration.
     # @param q - list of 7 joint angles in RADIANS.
@@ -111,8 +116,10 @@ class HRL_PR2():
         return self.FK(arm, q)
 
     def get_joint_angles(self, arm):
-        rospy.logerr('Need to implement this function.')
-        raise RuntimeError('Unimplemented function')
+        self.r_arm_state_lock.acquire()
+        q = self.current_joint_angles
+        self.r_arm_state_lock.release()
+        return q
 
     # need for search and hook
     def go_cartesian(self, arm):

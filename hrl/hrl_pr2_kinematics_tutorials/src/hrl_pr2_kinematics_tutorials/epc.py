@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     arm = 'right_arm'
     ea = [0, 0, 0, 0, 0, 0, 0]
-    epc.robot.set_jointangles(arm, ea)
+    epc.robot.set_jointangles(arm, ea, duration=4.0)
 #    rospy.sleep(2.)
     epc.pull_back(arm, ea, tr.Rx(0), 0.2)
 
