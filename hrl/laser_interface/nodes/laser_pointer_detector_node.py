@@ -84,15 +84,17 @@ from pkg import *
 from geometry_msgs.msg import Point
 from std_msgs.msg import String
 import sys, time
-import opencv as cv
-import opencv.highgui as hg
+import cv
+#import opencv as cv
+#import opencv.highgui as hg
+
 import laser_interface.camera as cam
 import laser_interface.random_forest as rf
 import laser_interface.dimreduce as dr
 import laser_interface.util as ut
 from   laser_interface.laser_detector import *
 from threading import RLock
-from pyrob.voice import say
+#from pyrob.voice import say
 
 def show_processed(image, masks, detection, blobs, detector):
     masker            = Mask(image)
@@ -100,7 +102,7 @@ def show_processed(image, masks, detection, blobs, detector):
     r, g, b           = splitter.split(image)
     thresholded_image = masker.mask(masks[0], r, g, b)
     draw_detection(thresholded_image, detection)
-    hg.cvShowImage('thresholded', thresholded_image)
+    cv.ShowImage('thresholded', thresholded_image)
 
     draw_detection(image, detection)
     draw_blobs(image, blobs)
@@ -110,9 +112,9 @@ def show_processed(image, masks, detection, blobs, detector):
     make_visible_binary_image(masks[1])
     make_visible_binary_image(masks[2])
 
-    hg.cvShowImage("video",       image)
-    hg.cvShowImage('motion',      masks[1])
-    hg.cvShowImage('intensity',   masks[2])
+    cv.ShowImage("video",       image)
+    cv.ShowImage('motion',      masks[1])
+    cv.ShowImage('intensity',   masks[2])
 
 def matrix_to_dataset(examples, type=1):
     outputs_mat      = np.matrix(np.zeros((1, examples.shape[1]), dtype='int'))
@@ -122,7 +124,7 @@ def matrix_to_dataset(examples, type=1):
 def confirmation_prompt(confirm_phrase):
     print confirm_phrase
     print 'y(es)/n(no)'
-    k = hg.cvWaitKey()
+    k = cv.WaitKey()
     if k == 'y':
         return True
     else:
@@ -187,7 +189,7 @@ class EmbodiedLaserDetector:
                     left_detection, left_intensity_motion_activations, self.left_detector)
         elif display:
             draw_detection(left_image, left_detection)
-            hg.cvShowImage('video', left_image)
+            cv.ShowImage('video', left_image)
 
         if left_detection != None and right_detection != None:
             if (self.expecting_correct_labels and self.expected_class == 0):
@@ -280,6 +282,7 @@ class LaserPointerDetectorNode:
             #self.video    = cam.StereoFile('measuring_tape_red_left.avi','measuring_tape_red_right.avi')
         else:
             self.video = video
+
         self.video_lock       = RLock()
         self.camera_model     = cam.ROSStereoCamera('videre_stereo')
         self.detector         = EmbodiedLaserDetector(self.camera_model, self.video)
@@ -347,12 +350,12 @@ class LaserPointerDetectorNode:
     def _make_windows(self):
         windows = ['video', 'right', 'thresholded', 'motion', 'intensity', 'patch', 'big_patch']
         for n in windows:
-            hg.cvNamedWindow(n, 1)
-        hg.cvMoveWindow("video",       0,   0)
-        hg.cvMoveWindow("right",       800, 0)
-        hg.cvMoveWindow("thresholded", 800, 0)
-        hg.cvMoveWindow("intensity",   0,   600)
-        hg.cvMoveWindow("motion",      800, 600)
+            cv.NamedWindow(n, 1)
+        cv.MoveWindow("video",       0,   0)
+        cv.MoveWindow("right",       800, 0)
+        cv.MoveWindow("thresholded", 800, 0)
+        cv.MoveWindow("intensity",   0,   600)
+        cv.MoveWindow("motion",      800, 600)
 
     def set_debug(self, v):
         self.detector.set_debug(v)
@@ -382,7 +385,7 @@ class LaserPointerDetectorNode:
                     diff = time.time() - start_time
                     print 'Main: Running at %.2f fps, took %.4f s' % (1.0 / diff, diff)
 
-                k = hg.cvWaitKey(10)
+                k = cv.WaitKey(10)
                 if   k == 'd':
                     self.display = not self.display
                 elif k == 'v':
@@ -421,7 +424,7 @@ if __name__ == '__main__':
         exposure = LaserPointerDetector.SUN_EXPOSURE
 
     if display == False:
-        hg.cvNamedWindow('key', 1)
+        cv.NamedWindow('key', 1)
 
     print 'Display set to', display
     print 'Exposure set to', exposure

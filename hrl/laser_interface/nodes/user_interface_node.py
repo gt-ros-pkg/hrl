@@ -138,7 +138,7 @@ frame = wx.Frame(None, wx.ID_ANY, name='Clickable World GUI', size=(800,600))
 win   = KeyHandler(frame) 
 frame.Show(True)
 win.SetFocus()
-rospy.ready(sys.argv[0])
+#rospy.ready(sys.argv[0])
 app.MainLoop()
 
 
