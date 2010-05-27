@@ -29,11 +29,16 @@
 #import videre as vd
 #import opencv as cv
 #from opencv import highgui as hg
+from pkg import *
+
 import cv
 import numpy as np
+from sensor_msgs.msg import CameraInfo
+
 import util as ut
 import math as m
-from pkg import *
+import time
+
 
 ###################################################################################################
 # Cameras
@@ -146,14 +151,23 @@ def general_projection_matrix():
 #
 #    def __iter__(self):
 #        return self
+
+
 class ROSStereoListener:
     def __init__(self, topics, rate=30.0, name='stereo_listener'):
         from sensor_msgs.msg import Image
+        from cv_bridge import CvBridge, CvBridgeError
         import hrl_lib.rutils as ru
-        listener = ru.GenericListener(name, [Image, Image], topics, rate)
+        self.listener = ru.GenericListener(name, [Image, Image], topics, rate)
+        self.lbridge = CvBridge()
+        self.rbridge = CvBridge()
 
     def next(self):
-        return listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+        print 'ros_stereo_listener'
+        lros, rros =  self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+        lcv = self.lbridge.imgmsg_to_cv(lros, 'bgr8')
+        rcv = self.rbridge.imgmsg_to_cv(rros, 'bgr8')
+        return lcv, rcv
 
 
 class StereoFile:
@@ -208,21 +222,22 @@ def file_sequence(files, loader, extension=None):
 ###################################################################################################
 # Geometric Cameras
 ###################################################################################################
-class StereoCamera:
-    def __init__(self, camera_left, camera_right, R, T):
-        self.camera_left  = camera_left
-        self.camera_right = camera_right 
-        self.R = R
-        self.T = T
+# StereoCamera(ROSCameraCalibration('/wide_stereo/left/image_rect_color'), ROSCameraCalibration('/wide_stereo/right/image_rect_color'))
+class ROSStereoCalibration:
+    def __init__(self, left_chan, right_chan):
+        self.left  = ROSCameraCalibration(left_chan)
+        self.right = ROSCameraCalibration(right_chan)
+        while not self.right.has_msg:
+            time.sleep(.2)
+        self.R = self.right.R
+        self.T = self.right.P[:, 3]
 
     ##
     # @param x 
     # @param xprime 2x1 matrices
     def triangulate_3d(self, x, xprime):
-        '''
-        '''
-        Klp = np.linalg.inv(self.camera_left.intrinsic_mat)
-        Krp = np.linalg.inv(self.camera_right.intrinsic_mat)
+        Klp = np.linalg.inv(self.left.K)
+        Krp = np.linalg.inv(self.right.K)
     
         w1    = Klp * point_to_homo(x)
         w2    = Krp * point_to_homo(xprime)
@@ -238,80 +253,98 @@ class StereoCamera:
         return {'point': p, 'error':np.linalg.norm(left_estimate- right_estimate)}
 
 
-class ProjectiveCamera:
+class ROSCameraCalibration:
+    def __init__(self, channel):
+        rospy.Subscriber(channel, CameraInfo, self.camera_info)
+        self.has_msg = False
 
-    ## 
-    #  Format for parameters:
-    #       focal_length_pixels        = (720.511045, 724.498871),
-    #       optical_center_pixels      = (324.277843, 236.260833),
-    #       lens_distortion_radial     = (-0.428665, 0.300025, -0.230655),
-    #  
-    def __init__(self, calibration_image_size, focal_length_pixels,
-                  optical_center_pixels, lens_distortion_radial):
-        self.calibration_image_size     =  calibration_image_size     
-        self.focal_length_pixels        =  focal_length_pixels           
-        self.optical_center_pixels      =  optical_center_pixels        
-        self.lens_distortion_radial     =  lens_distortion_radial       
-        self.intrinsic_mat        =    np.array([[focal_length_pixels[0], 0,                        optical_center_pixels[0]],
- 			                                     [0,                        focal_length_pixels[1], optical_center_pixels[1]],
-			                                     [0,                        0,                      1]]) 
-        self.inv_intrinsic_mat    = np.linalg.inv(np.matrix(self.intrinsic_mat)) 
+    def camera_info(self, msg):
+        self.distortion = np.matrix(msg.D)
+        self.K = np.reshape(np.matrix(msg.K), (3,3))
+        self.R = np.reshape(np.matrix(msg.R), (3,3))
+        self.P = np.reshape(np.matrix(msg.P), (3,4))
+        self.w = msg.width
+        self.h = msg.height
+        self.has_msg = True
 
-        self.intrinsic_mat_cv              = ut.numpymat2cvmat(self.intrinsic_mat) 
-        self.inv_intrinsic_mat_cv          = ut.numpymat2cvmat(self.inv_intrinsic_mat)
-        self.lens_distortion_radial_cv     = cv.CreateMat(4, 1, cv.CV_32FC1)
-        self.lens_distortion_radial_cv[0,0] = lens_distortion_radial[0]
-        self.lens_distortion_radial_cv[1,0] = lens_distortion_radial[1]
-        self.lens_distortion_radial_cv[2,0] = 0
-        #self.lens_distortion_radial_cv[2,0] = lens_distortion_radial[2]
-        self.lens_distortion_radial_cv[3,0] = 0
-        self.temp = None
+#class ROSMultiCameraCalibration:
+#    def __init__(self, channels):
+#        self.cameras = [ROSCameraCalibration(c) for c in channels]
 
-        self.mapx = cv.CreateMat(int(calibration_image_size[1]), int(calibration_image_size[0]), cv.CV_32FC1)
-        self.mapy = cv.CreateMat(int(calibration_image_size[1]), int(calibration_image_size[0]), cv.CV_32FC1)
-        cv.InitUndistortMap(self.intrinsic_mat_cv, self.lens_distortion_radial_cv, self.mapx, self.mapy)
+#class ProjectiveCamera:
+#
+#    ## 
+#    #  Format for parameters:
+#    #       focal_length_pixels        = (720.511045, 724.498871),
+#    #       optical_center_pixels      = (324.277843, 236.260833),
+#    #       lens_distortion_radial     = (-0.428665, 0.300025, -0.230655),
+#    #  
+#    def __init__(self, calibration_image_size, focal_length_pixels,
+#                  optical_center_pixels, lens_distortion_radial):
+#        self.calibration_image_size     =  calibration_image_size     
+#        self.focal_length_pixels        =  focal_length_pixels           
+#        self.optical_center_pixels      =  optical_center_pixels        
+#        self.lens_distortion_radial     =  lens_distortion_radial       
+#        self.intrinsic_mat        =    np.array([[focal_length_pixels[0], 0,                        optical_center_pixels[0]],
+# 			                                     [0,                        focal_length_pixels[1], optical_center_pixels[1]],
+#			                                     [0,                        0,                      1]]) 
+#        self.inv_intrinsic_mat    = np.linalg.inv(np.matrix(self.intrinsic_mat)) 
+#
+#        self.intrinsic_mat_cv              = ut.numpymat2cvmat(self.intrinsic_mat) 
+#        self.inv_intrinsic_mat_cv          = ut.numpymat2cvmat(self.inv_intrinsic_mat)
+#        self.lens_distortion_radial_cv     = cv.CreateMat(4, 1, cv.CV_32FC1)
+#        self.lens_distortion_radial_cv[0,0] = lens_distortion_radial[0]
+#        self.lens_distortion_radial_cv[1,0] = lens_distortion_radial[1]
+#        self.lens_distortion_radial_cv[2,0] = 0
+#        #self.lens_distortion_radial_cv[2,0] = lens_distortion_radial[2]
+#        self.lens_distortion_radial_cv[3,0] = 0
+#        self.temp = None
+#
+#        self.mapx = cv.CreateMat(int(calibration_image_size[1]), int(calibration_image_size[0]), cv.CV_32FC1)
+#        self.mapy = cv.CreateMat(int(calibration_image_size[1]), int(calibration_image_size[0]), cv.CV_32FC1)
+#        cv.InitUndistortMap(self.intrinsic_mat_cv, self.lens_distortion_radial_cv, self.mapx, self.mapy)
+#
+#
+#    def camera_matrix(self, g_T_c = homo_transform3d(R = np.eye(3), t = np.zeros((3,1)))):
+#        '''
+#            g_T_c - takes points in this camera's frame to global coordinate
+#        '''
+#        c_T_g = np.linalg.inv(g_T_c)
+#        #print 'c_T_g', c_T_g
+#        P     = general_projection_matrix()
+#        K     = np.matrix(self.intrinsic_mat)
+#
+#        C     = K * P * c_T_g
+#        return C
+#
+#    def undistort_img(self, image):
+#        if self.temp is None:
+#            self.temp = cv.CreateImage(cv.GetSize(image), 8, 3)
+#        #cv.cvUndistort2(image, self.temp, self.intrinsic_mat_cv, self.lens_distortion_radial_cv)
+#        cv.Remap(image, self.temp, self.mapx, self.mapy)
+#        return self.temp
 
+#class ROSProjectiveCamera(ProjectiveCamera):
+#    def __init__(self, name):
+#        master = rospy.getMaster()
+#        prefix = '/camera_models/' + name + '/'
+#        ProjectiveCamera.__init__(self, 
+#                (master[prefix + 'width'],    master[prefix + 'height']),
+#                (master[prefix + 'focal_x'],  master[prefix + 'focal_y']),
+#                (master[prefix + 'center_x'], master[prefix + 'center_y']),
+#                (master[prefix + 'radial_1'], master[prefix + 'radial_2']))
 
-    def camera_matrix(self, g_T_c = homo_transform3d(R = np.eye(3), t = np.zeros((3,1)))):
-        '''
-            g_T_c - takes points in this camera's frame to global coordinate
-        '''
-        c_T_g = np.linalg.inv(g_T_c)
-        #print 'c_T_g', c_T_g
-        P     = general_projection_matrix()
-        K     = np.matrix(self.intrinsic_mat)
-
-        C     = K * P * c_T_g
-        return C
-
-    def undistort_img(self, image):
-        if self.temp is None:
-            self.temp = cv.CreateImage(cv.GetSize(image), 8, 3)
-        #cv.cvUndistort2(image, self.temp, self.intrinsic_mat_cv, self.lens_distortion_radial_cv)
-        cv.Remap(image, self.temp, self.mapx, self.mapy)
-        return self.temp
-
-class ROSProjectiveCamera(ProjectiveCamera):
-    def __init__(self, name):
-        master = rospy.getMaster()
-        prefix = '/camera_models/' + name + '/'
-        ProjectiveCamera.__init__(self, 
-                (master[prefix + 'width'],    master[prefix + 'height']),
-                (master[prefix + 'focal_x'],  master[prefix + 'focal_y']),
-                (master[prefix + 'center_x'], master[prefix + 'center_y']),
-                (master[prefix + 'radial_1'], master[prefix + 'radial_2']))
-
-class ROSStereoCamera(StereoCamera):
-    def __init__(self, name):
-        master = rospy.getMaster()
-        prefix = '/camera_models/' + name + '/'
-        T      = np.matrix([master[prefix + 'translation_x'], master[prefix + 'translation_y'], master[prefix + 'translation_z']]).T
-        R      = np.matrix([[master[prefix + 'rotation_0_0'], master[prefix + 'rotation_0_1'], master[prefix + 'rotation_0_2']],
-                            [master[prefix + 'rotation_1_0'], master[prefix + 'rotation_1_1'], master[prefix + 'rotation_1_2']],
-                            [master[prefix + 'rotation_2_0'], master[prefix + 'rotation_2_1'], master[prefix + 'rotation_2_2']]])
-        left_cam  = master[prefix + 'left_cam']
-        right_cam = master[prefix + 'right_cam'] 
-        StereoCamera.__init__(self, ROSProjectiveCamera(left_cam), ROSProjectiveCamera(right_cam), R, T)
+#class ROSStereoCamera(StereoCamera):
+#    def __init__(self, name):
+#        master = rospy.getMaster()
+#        prefix = '/camera_models/' + name + '/'
+#        T      = np.matrix([master[prefix + 'translation_x'], master[prefix + 'translation_y'], master[prefix + 'translation_z']]).T
+#        R      = np.matrix([[master[prefix + 'rotation_0_0'], master[prefix + 'rotation_0_1'], master[prefix + 'rotation_0_2']],
+#                            [master[prefix + 'rotation_1_0'], master[prefix + 'rotation_1_1'], master[prefix + 'rotation_1_2']],
+#                            [master[prefix + 'rotation_2_0'], master[prefix + 'rotation_2_1'], master[prefix + 'rotation_2_2']]])
+#        left_cam  = master[prefix + 'left_cam']
+#        right_cam = master[prefix + 'right_cam'] 
+#        StereoCamera.__init__(self, ROSProjectiveCamera(left_cam), ROSProjectiveCamera(right_cam), R, T)
 
 ###################################################################################################
 # HDR experiments

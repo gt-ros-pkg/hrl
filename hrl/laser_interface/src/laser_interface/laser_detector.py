@@ -29,17 +29,19 @@
 from pkg import *
 #from opencv import highgui as hg
 #import opencv as cv
+import cv
 import numpy as np
+
 import pickle
 import itertools as it
 import pickle as pk
 import time
+import functools as ft
 
 #import videre as vd
 #import camera as cam
 import util as ut
 import random_forest as rf
-import functools as ft
 
 class Rect:
     def __init__(self, x, y, width, height):
@@ -136,8 +138,11 @@ def blob_statistics(binary_image, max_area=99999.0, max_dim=99999.0):
     '''
     statistics                = []
     storage                   = cv.CreateMemStorage(0)
-    number_contours, contours = cv.FindContours(binary_image, storage, cv.sizeof_CvContour, #TODO: FIGURE OUT WHAT THE EQUIV OF SIZEOF IS IN OPENCV2
-                 cv.CV_RETR_TREE, cv.CV_CHAIN_APPROX_SIMPLE, (0,0))
+    #FindContours(image,        storage, mode=CV_RETR_LIST, method=CV_CHAIN_APPROX_SIMPLE, offset=(0, 0))
+    number_contours, contours = cv.FindContours(binary_image, storage, cv.CV_RETR_TREE, cv.CV_CHAIN_APPROX_SIMPLE, (0,0))
+    #number_contours, contours = cv.FindContours(binary_image, storage, cv.sizeof_CvContour, cv.CV_RETR_TREE, cv.CV_CHAIN_APPROX_SIMPLE, (0,0))
+            #TODO: FIGURE OUT WHAT THE EQUIV OF SIZEOF IS IN OPENCV2
+
     moments = cv.Moments()
     original_ptr = contours
     while contours != None:
@@ -273,6 +278,7 @@ class SplitColors:
 
 class BrightnessThreshold:
     def __init__(self, sample_image, thres_low=60, thres_high=200):
+        #print sample_image.__class__
         self.thres_low  = thres_low
         self.thres_high = thres_high
         #self.csplit = SplitColors(sample_image)
@@ -579,7 +585,8 @@ class LaserPointerDetector:
                 self.classifier      = None
         else:
             self.classifier      = classifier
-        self.copy                = cv.CreateImage(sample_frame, 8, 3)
+        #self.copy                = cv.CreateImage(sample_frame, 8, 3)
+        self.copy                = cv.CreateImage(cv.GetSize(sample_frame), 8, 3)
         self.tracker             = Tracker(self.TRACKER_MAX_PIX_TRESHOLD, self.TRACKER_MAX_TIME_THRESHOLD)
         self.splitter            = SplitColors(sample_frame)
         self.combined_grey_scale = cv.CreateImage(cv.GetSize(sample_frame), 8, 1)

@@ -276,16 +276,18 @@ class EmbodiedLaserDetector:
         self.labels   = []
 
 class LaserPointerDetectorNode:
-    def __init__(self, topics, exposure = LaserPointerDetector.SUN_EXPOSURE, video = None, display=False):
+
+    def __init__(self, stereo_camera, exposure = LaserPointerDetector.SUN_EXPOSURE, video = None, display=False):
+        image_type = 'image_rect_color'
         if video is None:
-            self.video  = cam.ROSStereoListener(topics)
+            self.video  = cam.ROSStereoListener([stereo_camera + '/left/' + image_type, stereo_camera + '/right/' + image_type])
             #self.video    = cam.VidereStereo(0, gain=96, exposure=exposure)
             #self.video    = cam.StereoFile('measuring_tape_red_left.avi','measuring_tape_red_right.avi')
         else:
             self.video = video
 
         self.video_lock       = RLock()
-        self.camera_model     = cam.ROSStereoCamera('videre_stereo')
+        self.camera_model     = cam.ROSStereoCalibration(stereo_camera + '/left/camera_info' , stereo_camera + '/right/camera_info')
         self.detector         = EmbodiedLaserDetector(self.camera_model, self.video)
         self.exposure         = exposure
         self.display          = display
@@ -429,8 +431,8 @@ if __name__ == '__main__':
 
     print 'Display set to', display
     print 'Exposure set to', exposure
-    topics = ["/wide_stereo/left/image_color", "/wide_stereo/right/image_color"]
-    lpdn = LaserPointerDetectorNode(topics, exposure = exposure, display=display)
+    #topics = ["/wide_stereo/left/image_color", "/wide_stereo/right/image_color"]
+    lpdn = LaserPointerDetectorNode('/wide_stereo', exposure = exposure, display=display)
     if opt.time != None:
         lpdn.set_debug(True)
     lpdn.run()
