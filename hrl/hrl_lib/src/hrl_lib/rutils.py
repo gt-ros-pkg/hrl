@@ -199,11 +199,16 @@ class GenericListener:
             pass
         self.last_msg_returned   = None   #Last message returned to callers from this class
         self.last_call_back      = None   #Local time of last received message
-        self.delay_tolerance     = 1/10.0 #in seconds
+        self.delay_tolerance     = 1/frequency #in seconds
         self.reading             = {'message':None, 'msg_id':-1}
 
-        def callback(msg):
-            msg_number = msg.header.seq
+        def callback(*msg):
+            #If this is a tuple (using message filter)
+            if msg.__class__ == ().__class__:
+                msg_number = msg[0].header.seq
+            else:
+                msg_number = msg.header.seq
+
             if message_extractor != None:
                 self.reading  = {'message':message_extractor(msg), 'msg_id':msg_number}
             else:
@@ -212,7 +217,15 @@ class GenericListener:
             #Check for delayed messages
             self.last_call_back = time.time() #record when we have been called back last
 
-        rospy.Subscriber(listen_channel, message_type, callback)
+        if message_type.__class__ == [].__class__:
+            import message_filters
+            subscribers = [message_filters.Subscriber(channel, mtype) for channel, mtype in zip(listen_channel, message_type)]
+            queue_size = 10
+            ts = message_filters.TimeSynchronizer(subscribers, queue_size)
+            ts.registerCallback(callback)
+        else:
+            rospy.Subscriber(listen_channel, message_type, callback)
+
         self.node_name = node_name
         print node_name,': subscribed to', listen_channel
 
