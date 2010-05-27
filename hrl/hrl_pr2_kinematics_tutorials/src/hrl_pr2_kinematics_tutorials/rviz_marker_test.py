@@ -14,7 +14,6 @@ def get_marker_arrow(p_st, p_end, frame_id):
 
     m.ns = 'basic_shapes'
     m.id = 0
-    #m.type = Marker.CUBE
     m.type = Marker.ARROW
     m.action = Marker.ADD
 
@@ -22,16 +21,6 @@ def get_marker_arrow(p_st, p_end, frame_id):
     pt2 = Point(p_end[0,0], p_end[1,0], p_end[2,0])
     m.points.append(pt1)
     m.points.append(pt2)
-
-#    m.pose.position.x = p[0,0]
-#    m.pose.position.y = p[1,0]
-#    m.pose.position.z = p[2,0]
-#
-#    quat = tr.matrix_to_quaternion(rot)
-#    m.pose.orientation.x = quat[0]
-#    m.pose.orientation.y = quat[1]
-#    m.pose.orientation.z = quat[2]
-#    m.pose.orientation.w = quat[3]
 
     m.scale.x = 0.02;
     m.scale.y = 0.05;
@@ -50,9 +39,7 @@ if __name__ == '__main__':
 
     p1 = np.matrix([0.,0.,0.]).T
     p2 = np.matrix([0.,1.,0.]).T
-#    rot = tr.Rx(math.radians(90.))
     while not rospy.is_shutdown():
-#        marker = get_marker(p, rot)
         marker = get_marker_arrow(p1, p2, 'base_link')
         marker_pub.publish(marker)
         rospy.sleep(0.1)
