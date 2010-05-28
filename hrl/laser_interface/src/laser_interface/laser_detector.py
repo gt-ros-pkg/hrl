@@ -660,7 +660,11 @@ class LaserPointerDetector:
             print 'Too many...', len(intensity_motion_blob)
             return image, combined, None, intensity_motion_blob
 
-        components    = intensity_motion_blob
+        components = intensity_motion_blob
+        print 'LaserPointerDetector.detect: Found ', len(components), 
+	print 'comp after motion & intensity filter.'
+        print 'LaserPointerDetector.detect: classifier', self.classifier
+
         if self.classifier is not None:
             number_components_before = len(components)
             components = self.classifier.classify(image, components)
@@ -668,7 +672,7 @@ class LaserPointerDetector:
                 print '         PatchClassifier: %d -> %d' % (number_components_before, len(components))
         classify_time = time.time()
 
-        laser_blob    = select_laser_blob(components, approx_laser_point_size=self.LASER_POINT_SIZE)
+        laser_blob = select_laser_blob(components, approx_laser_point_size=self.LASER_POINT_SIZE)
         if laser_blob != None:
             tracks        = self.tracker.track(components_to_detections([laser_blob]))
             laser_track   = select_laser_track(tracks, self.MIN_AGE)
@@ -761,7 +765,7 @@ def blob_to_input_instance(image, blob, classification_window_width):
     big_r      = blob_to_rect(blob, classification_window_width=classification_window_width*2)
     if big_r == None or small_r == None:
         return None
-    print image.__class__
+    #print image.__class__
     #import pdb
     #pdb.set_trace()
     small_patch        = cv.CloneMat(cv.GetSubRect(image, small_r.as_cv_rect()))

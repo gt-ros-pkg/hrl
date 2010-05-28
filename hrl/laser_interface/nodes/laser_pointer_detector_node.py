@@ -123,7 +123,7 @@ def matrix_to_dataset(examples, type=1):
 
 def confirmation_prompt(confirm_phrase):
     print confirm_phrase
-    print 'y(es)/n(no)'
+    print 'y(es) / n(no)'
     k = cv.WaitKey()
     if k == 'y':
         return True
@@ -138,6 +138,7 @@ def append_examples_from_file(dataset, file):
         print 'append_examples_from_file: training file \'', file, '\'not found!'
     return dataset.num_examples()
 
+
 def print_friendly(votes):
     new_dict = {}
     total = 0
@@ -146,41 +147,55 @@ def print_friendly(votes):
         new_dict[new_key] = votes[k]
     return new_dict
 
-class EmbodiedLaserDetector:
-    def __init__(self, geometric_camera, hardware_camera, gather_misclassified_only = True):
-        self.stereo_cam                 = geometric_camera
-        self.gather_misclassified_only  = gather_misclassified_only
 
-        self.examples                   = []
-        self.labels                     = []
-        self.expected_class             = 0
-        self.expecting_correct_labels   = True
+class EmbodiedLaserDetector:
+
+    #def __init__(self, geometric_camera, hardware_camera, gather_misclassified_only = True):
+    def __init__(self, geometric_camera, hardware_camera):
+        self.stereo_cam = geometric_camera
+        #self.gather_misclassified_only  = gather_misclassified_only
+
+        self.examples = []
+        self.labels = []
+
+        #self.expected_class = 0
+        #self.train_mode = True
+	self.gather_positive_examples = False
+        self.clicked = False
         self.build_detectors(hardware_camera)
 
+
     def clear_examples(self):
-        self.examples                   = []
-        self.labels                     = []
+        self.examples = []
+        self.labels = []
+
 
     def build_detectors(self, hardware_camera):
         self.write()
-        frames                         = hardware_camera.next()
-        self.left_detector             = LaserPointerDetector(frames[0], exposure=exposure, 
+        frames = hardware_camera.next()
+        self.left_detector = LaserPointerDetector(frames[0], exposure=exposure, 
                                                     dataset=LaserPointerDetector.DEFAULT_DATASET_FILE,
-                                                    use_color=False, use_learning=self.gather_misclassified_only)
-        self.right_detector            = LaserPointerDetector(frames[1], exposure=exposure, 
+                                                    #use_color=False, use_learning=self.gather_misclassified_only)
+                                                    use_color=False, use_learning=True)
+        self.right_detector = LaserPointerDetector(frames[1], exposure=exposure, 
                                                     dataset=LaserPointerDetector.DEFAULT_DATASET_FILE,
                                                     classifier=self.left_detector.classifier,
-                                                    use_color=False, use_learning=self.gather_misclassified_only)
+                                                    use_color=False, use_learning=True)
+                                                    #use_color=False, use_learning=self.gather_misclassified_only)
         for i in xrange(10):
             frames = hardware_camera.next()
             self.left_detector.detect(frames[0])
             self.right_detector.detect(frames[1])
 
+
     def run(self, images, display=True, verbose=False, debug=False):
-        left_detection, left_intensity_motion_activations, left_image, left_combined_masks = self.left_detector.detect(images[0])
+        results = None
+        left_detection, left_intensity_motion_activations, left_image, left_combined_masks = \
+						self.left_detector.detect(images[0])
         self.record(left_detection, left_image, left_intensity_motion_activations)
 
-        right_detection, right_intensity_motion_activations, right_image, right_combined_masks = self.right_detector.detect(images[1])
+        right_detection, right_intensity_motion_activations, right_image, right_combined_masks = \
+                                                self.right_detector.detect(images[1])
         self.record(right_detection, right_image, right_intensity_motion_activations)
 
         if debug:
@@ -192,16 +207,23 @@ class EmbodiedLaserDetector:
             cv.ShowImage('video', left_image)
 
         if left_detection != None and right_detection != None:
-            if (self.expecting_correct_labels and self.expected_class == 0):
-                print 'EmbodiedLaserDetector: output suppressed, classified positive in both cameras.'
-            else:
-                return self.triangulate(left_detection, right_detection)
-        return None
+            #if (self.train_mode and self.expected_class == 0):
+            #    print 'EmbodiedLaserDetector: output suppressed, ',
+            #    print 'classified positive in both cameras.'
+            #else:
+            results = self.triangulate(left_detection, right_detection)
+
+	if self.clicked:
+            return results
+        else:
+            return None
+
 
     def set_debug(self, v):
         self.debug           = v
         self.left_detector.set_debug(v)
         self.right_detector.set_debug(v)
+
 
     def triangulate(self, left_cam_detection, right_cam_detection):
         print 'EmbodiedLaserDetector.triangulate: votes', print_friendly(right_cam_detection['votes']), print_friendly(left_cam_detection['votes'])
@@ -220,41 +242,37 @@ class EmbodiedLaserDetector:
             return None
 
     def record(self, picked_blob, image, other_candidates):
-        if self.expecting_correct_labels:
-            if self.expected_class == 1:
-                #We got it wrong
-                if picked_blob == None:
-                    for blob in other_candidates:
-                        instance = blob_to_input_instance(image, blob, LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
-                        if instance != None:
-                            self.examples.append(instance)
-                            self.labels.append(np.matrix([self.expected_class]))
-                    if len(other_candidates) > 0:
-                        print 'EmbodiedLaserDetector.record: expected 1 got 0', len(self.examples), 'instances'
-                #We got it right
-                elif picked_blob != None and not self.gather_misclassified_only: 
-                    instance = blob_to_input_instance(image, picked_blob, LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
-                    if instance != None:
-                        self.examples.append(instance)
-                        self.labels.append(np.matrix([self.expected_class]))
-                    print 'EmbodiedLaserDetector.record: expected 1 got 1, ', len(self.examples), 'instances'
-            
-            if self.expected_class == 0:
-                #We got it wrong
+	def store(label):
+            instance = blob_to_input_instance(image, picked_blob, 
+                	LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
+            if instance != None:
+                self.examples.append(instance)
+                self.labels.append(np.matrix([label]))
+
+	if self.gather_positive_examples:
+	    if self.clicked:
+	        #store as positives
+                if picked_blob != None: 
+                    store(1)
+                    print 'EmbodiedLaserDetector.record: expected 1 got 1, ', 
+                    print len(self.examples)
+	    else:
+                #store as negatives 
                 if picked_blob != None:
-                    instance = blob_to_input_instance(image, picked_blob, LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
-                    if instance != None:
-                        self.examples.append(instance)
-                        self.labels.append(np.matrix([self.expected_class]))
-                    print 'EmbodiedLaserDetector.record: expected 0 got 1,', len(self.examples), 'instances'
-                #We got it right
-                elif picked_blob == None and not self.gather_misclassified_only:
-                    for blob in other_candidates:
-                        instance = blob_to_input_instance(image, blob, LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
-                        if instance != None:
-                            self.examples.append(instance)
-                            self.labels.append(np.matrix([self.expected_class]))
-                    print 'EmbodiedLaserDetector.record: expected 0 got 0,', len(self.examples), 'instances'
+                    store(0)
+                    print 'EmbodiedLaserDetector.record: expected 0 got 1,', 
+                    print len(self.examples), 'instances'
+	else:
+	    if self.clicked:
+                pass
+                #don't store anything as this case is ambiguous
+	    else:
+                #store as negatives (false positives)
+                if picked_blob != None:
+                    store(0)
+                    print 'EmbodiedLaserDetector.record: expected 0 got 1,', 
+                    print len(self.examples), 'instances'
+
 
     def write(self):
         if not (len(self.examples) > 0):
@@ -274,6 +292,7 @@ class EmbodiedLaserDetector:
         print 'EmbodiedLaserDetector: recorded examples to disk.  Total in dataset', n
         self.examples = []
         self.labels   = []
+
 
 class LaserPointerDetectorNode:
 
@@ -301,6 +320,7 @@ class LaserPointerDetectorNode:
             rospy.init_node('laser_pointer_detector')
 	except:
 	    pass
+
         rospy.Subscriber(MOUSE_CLICK_TOPIC, String, self._click_handler)
         rospy.Subscriber(LASER_MODE_TOPIC, String, self._mode_handler)
         #rospy.TopicSub(MOUSE_CLICK_TOPIC, String, self._click_handler)
@@ -309,6 +329,7 @@ class LaserPointerDetectorNode:
         #Publish
         #self.topic = rospy.TopicPub(CURSOR_TOPIC, Position)
         self.topic = rospy.Publisher(CURSOR_TOPIC, Point)
+	#self.gather_positive_examples = False
 
         #Ready
         #rospy.ready(sys.argv[0])
@@ -317,37 +338,50 @@ class LaserPointerDetectorNode:
         message = evt.data
         if self.detector is not None:
             if message == 'True':
+		self.detector.clicked = True
                 print 'LaserPointerDetector.click_handler: click!'
-                #user clicked, want to suppress gathering of examples
-                self.detector.expecting_correct_labels   = False
+                ##user clicked, want to suppress gathering of examples
+                #self.detector.train_mode = False #run mode
+		##self.detector.expected_class = 1
             elif message == 'False':
-                print 'LaserPointerDetector.click_handler: Released click!'
-                #user released, want to gather negative examples
-                self.detector.expected_class = 0
-                self.detector.expecting_correct_labels   = True
+		self.detector.clicked = False
+                print 'LaserPointerDetector.click_handler: released click'
+                ##user released, want to gather negative examples
+                #self.detector.expected_class = 0
+                #self.detector.train_mode = True #train mode (to gather negative examples)
             else:
                 raise RuntimeError('unexpected click message from topic' + MOUSE_CLICK_TOPIC)
 
+#CLICKED OR NOT
+#GATHERING POSITIVE EXAMPLES OR NOT
+
     def _mode_handler(self, evt):
         message = evt.data
+	#print 'MODE!!!!', evt.data
         if(message == 'debug'):
             self.debug = not self.debug
             print 'LaserPointerDetector.mode_handler: debug', self.debug
+
         elif (message == 'display'):
             self.display = not self.display
             print 'LaserPointerDetector.mode_handler: display', self.display
+
         elif(message == 'verbose'):
             self.verbose = not self.verbose
             print 'LaserPointerDetector.mode_handler: verbose', self.verbose
-        elif(message == 'rebuild'):
+
+        elif(message == 'rebuild'): #Rebuild detector based on new training data
             self.video_lock.acquire()
             if self.detector is not None:
                 self.detector.build_detectors(self.video)
             self.video_lock.release()
-        elif(message == 'positive'):
+
+        elif(message == 'positive'): #Will toggle gathering positive examples
             if self.detector is not None:
-                self.detector.expected_class = 1
-                self.detector.expecting_correct_labels   = True
+		self.detector.gather_positive_examples = not self.detector.gather_positive_examples
+                #self.detector.expected_class = 1
+                #self.detector.train_mode   = True
+
         elif(message == 'clear'):
             self.detector.clear_examples()
         else:
@@ -368,14 +402,16 @@ class LaserPointerDetectorNode:
         self.debug = v
 
     def run(self):
+        #while not rospy.is_shutdown():
+	#    time.sleep(.2)
         try:
             #while not rospy.isShutdown():
+            #frames[0]      = self.camera_model.camera_left.undistort_img(frames[0])
+            #frames[1]      = self.camera_model.camera_right.undistort_img(frames[1])
             while not rospy.is_shutdown():
                 self.video_lock.acquire()
                 start_time     = time.time()
                 frames         = list(self.video.next())
-                #frames[0]      = self.camera_model.camera_left.undistort_img(frames[0])
-                #frames[1]      = self.camera_model.camera_right.undistort_img(frames[1])
                 undistort_time = time.time()
                 result         = self.detector.run(frames, display=self.display, verbose=self.verbose, debug=self.debug)
                 run_time       = time.time()
@@ -386,8 +422,8 @@ class LaserPointerDetectorNode:
                     self.topic.publish(Point(p[0,0], p[1,0], p[2,0]))
 
                 if self.debug:
-                    print '>> undistort %.2f' % (undistort_time - start_time)
-                    print '>> run %.4f' % (run_time - undistort_time)
+                    #print '>> undistort %.2f' % (undistort_time - start_time)
+                    #print '>> run %.4f' % (run_time - undistort_time)
                     diff = time.time() - start_time
                     print 'Main: Running at %.2f fps, took %.4f s' % (1.0 / diff, diff)
 
@@ -429,8 +465,13 @@ if __name__ == '__main__':
     else:
         exposure = LaserPointerDetector.SUN_EXPOSURE
 
-    #if display == False:
-    #    cv.NamedWindow('key', 1)
+    if display == False:
+        cv.NamedWindow('keyboard input window', 1)
+
+    print '==========================================================='
+    print '# Detections are red circles.                             ='
+    print '# Blobs are squares.                                      ='
+    print '==========================================================='
 
     print 'Display set to', display
     print 'Exposure set to', exposure
@@ -555,6 +596,51 @@ if __name__ == '__main__':
 
 
 
+
+
+                #if picked_blob != None:
+                #    instance = blob_to_input_instance(image, picked_blob, \
+		#			LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
+                #    if instance != None:
+                #        self.examples.append(instance)
+                #        self.labels.append(np.matrix([0]))
+
+#    def record(self, picked_blob, image, other_candidates):
+#        if self.train_mode:
+#            if self.expected_class == 1: #Expected positive examples
+#                #We got it wrong
+#                if picked_blob == None:
+#                    for blob in other_candidates:
+#                        instance = blob_to_input_instance(image, blob, LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
+#                        if instance != None:
+#                            self.examples.append(instance)
+#                            self.labels.append(np.matrix([self.expected_class]))
+#                    if len(other_candidates) > 0:
+#                        print 'EmbodiedLaserDetector.record: expected 1 got 0', len(self.examples), 'instances'
+#                We got it right
+#                elif picked_blob != None and not self.gather_misclassified_only: 
+#                    instance = blob_to_input_instance(image, picked_blob, LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
+#                    if instance != None:
+#                        self.examples.append(instance)
+#                        self.labels.append(np.matrix([self.expected_class]))
+#                    print 'EmbodiedLaserDetector.record: expected 1 got 1, ', len(self.examples), 'instances'
+#            
+#            if self.expected_class == 0:
+#                #We got it wrong
+#                if picked_blob != None:
+#                    instance = blob_to_input_instance(image, picked_blob, LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
+#                    if instance != None:
+#                        self.examples.append(instance)
+#                        self.labels.append(np.matrix([self.expected_class]))
+#                    print 'EmbodiedLaserDetector.record: expected 0 got 1,', len(self.examples), 'instances'
+#                #We got it right
+#                elif picked_blob == None and not self.gather_misclassified_only:
+#                    for blob in other_candidates:
+#                        instance = blob_to_input_instance(image, blob, LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
+#                        if instance != None:
+#                            self.examples.append(instance)
+#                            self.labels.append(np.matrix([self.expected_class]))
+#                    print 'EmbodiedLaserDetector.record: expected 0 got 0,', len(self.examples), 'instances'
 
 
 
