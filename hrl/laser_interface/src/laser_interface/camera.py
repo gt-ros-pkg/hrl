@@ -163,7 +163,7 @@ class ROSStereoListener:
         self.rbridge = CvBridge()
 
     def next(self):
-        print 'ros_stereo_listener'
+        #print 'ros_stereo_listener'
         lros, rros =  self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
         lcv = self.lbridge.imgmsg_to_cv(lros, 'bgr8')
         rcv = self.rbridge.imgmsg_to_cv(rros, 'bgr8')

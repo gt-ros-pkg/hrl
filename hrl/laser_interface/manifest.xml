@@ -12,6 +12,7 @@
   <depend package="message_filters"/>
 
   <depend package="opencv2"/>
+  <depend package="hrl_opencv"/>
   <depend package="cv_bridge"/>
 
   <depend package="hrl_lib"/>

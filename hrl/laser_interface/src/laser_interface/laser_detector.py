@@ -42,6 +42,7 @@ import functools as ft
 #import camera as cam
 import util as ut
 import random_forest as rf
+import hrl_opencv.adaptors as ad
 
 class Rect:
     def __init__(self, x, y, width, height):
@@ -51,8 +52,7 @@ class Rect:
         self.height = height
 
     def as_cv_rect(self):
-        return cv.Rectangle(int(round(self.x)),     int(round(self.y)), 
-                            int(round(self.width)), int(round(self.height)))
+        return (int(round(self.x)), int(round(self.y)), int(round(self.width)), int(round(self.height)))
 
     def top_left(self):
         #return cv.Point(int(round(self.x)), int(round(self.y)))
@@ -133,36 +133,62 @@ def remove_large_blobs(binary_image, max_area, max_dim=30):
     return binary_image
 
 def blob_statistics(binary_image, max_area=99999.0, max_dim=99999.0):
-    '''
-        WARNING: this function destructively modifies binary_image if max_area is set
-    '''
+    #'''
+    #    WARNING: this function destructively modifies binary_image if max_area is set
+    #'''
     statistics                = []
     storage                   = cv.CreateMemStorage(0)
     #FindContours(image,        storage, mode=CV_RETR_LIST, method=CV_CHAIN_APPROX_SIMPLE, offset=(0, 0))
-    number_contours, contours = cv.FindContours(binary_image, storage, cv.CV_RETR_TREE, cv.CV_CHAIN_APPROX_SIMPLE, (0,0))
+    contours = cv.FindContours(binary_image, storage, cv.CV_RETR_TREE, cv.CV_CHAIN_APPROX_SIMPLE, (0,0))
     #number_contours, contours = cv.FindContours(binary_image, storage, cv.sizeof_CvContour, cv.CV_RETR_TREE, cv.CV_CHAIN_APPROX_SIMPLE, (0,0))
             #TODO: FIGURE OUT WHAT THE EQUIV OF SIZEOF IS IN OPENCV2
 
-    moments = cv.Moments()
+    #moments = cv.Moments()
     original_ptr = contours
-    while contours != None:
-        bounding_rect = cv.BoundingRect(contours, 0)
-        bounding_rect = Rect(bounding_rect.x, bounding_rect.y, bounding_rect.width, bounding_rect.height)
-        cv.Moments(contours, moments, 0)
-        #area = moments.m00
-        #approximation to area since cvMoments' area seem broken
-        area = bounding_rect.width*bounding_rect.height
-        if moments.m00 == 0.0:
-            centroid = (bounding_rect.x, bounding_rect.y)
-        else:
-            centroid = (moments.m10/moments.m00, moments.m01/moments.m00)
+    #print 'GOT contours', len(contours), contours
+    #print 'GOT contours',  contours
+    #import pdb
+    #pdb.set_trace()
+    #for e in contours:
+    #    print e, e.__class__
 
-        if area > max_area or bounding_rect.width > max_dim or bounding_rect.height > max_dim:
-            cv.DrawContours(binary_image, contours, cv.Scalar(0), cv.Scalar(0), 0, cv.CV_FILLED) 
-        else:
-            stats = {'area': area, 'centroid': centroid, 'rect': bounding_rect}
-            statistics.append(stats)
-        contours = contours.h_next
+    while contours != None:
+        #print '.'
+	#import pdb
+	#pdb.set_trace()
+	try:
+            bx, by, bwidth, bheight = cv.BoundingRect(contours, 0)
+            bounding_rect = Rect(bx, by, bwidth, bheight)
+            moments = cv.Moments(contours, 0)
+            #area = moments.m00
+            #approximation to area since cvMoments' area seem broken
+            area = bounding_rect.width * bounding_rect.height
+	    if False:
+	        #NOT WORKING!!
+	        if moments.m00 == 0.0:
+                    centroid = (bounding_rect.x, bounding_rect.y)
+                else:
+                    centroid = (moments.m10/moments.m00, moments.m01/moments.m00)
+	    else:
+	        if bwidth > 0:
+	    	    cx = bx + bwidth/2.
+	        else:
+	    	    cx = bx
+
+	        if bheight > 0:
+	    	    cy = by + bheight/2.
+	        else:
+	    	    cy = by
+	        centroid = (cx, cy)
+
+            if area > max_area or bounding_rect.width > max_dim or bounding_rect.height > max_dim:
+                cv.DrawContours(binary_image, contours, cv.Scalar(0), cv.Scalar(0), 0, cv.CV_FILLED) 
+            else:
+                stats = {'area': area, 'centroid': centroid, 'rect': bounding_rect}
+                statistics.append(stats)
+            contours = contours.h_next()
+        except:
+	    break
     return statistics
 
 def select_laser_blob(blobs, approx_laser_point_size=40, min_area = 1.0):
@@ -373,7 +399,7 @@ class MotionSubtract:
         cv.CvtScale(thres_chan, self.green32_img)
         cv.Sub(self.green32_img, self.accumulator, self.difference_img)
         cv.Threshold(self.difference_img, self.thresholded_img, self.threshold, 1, cv.CV_THRESH_BINARY)
-        cv.Dilate(self.thresholded_img, self.thresholded_img, None, 1)
+        cv.Dilate(self.thresholded_img, self.thresholded_img, iterations=1)
         remove_large_blobs(self.thresholded_img, max_area = LaserPointerDetector.MAX_BLOB_AREA)
 
         return self.thresholded_img
@@ -410,7 +436,8 @@ class ColorLearner:
             patch_masked = mmask.mask(binary_patch, r,g,b)
 
             #Convert to numpy matrix
-            patch_np    = ut.cv2np(patch_masked, 'BGR')
+            #patch_np    = ut.cv2np(patch_masked, 'BGR')
+            patch_np    = ad.cvmat2array(patch_masked)
             if use_entire_patch:
                 #calculate mean
                 area        = patch_np.shape[0] * patch_np.shape[1]
@@ -734,15 +761,20 @@ def blob_to_input_instance(image, blob, classification_window_width):
     big_r      = blob_to_rect(blob, classification_window_width=classification_window_width*2)
     if big_r == None or small_r == None:
         return None
-    small_patch        = cv.CloneImage(cv.GetSubRect(image, small_r.as_cv_rect()))
-    big_patch          = cv.CloneImage(cv.GetSubRect(image, big_r.as_cv_rect()))
+    print image.__class__
+    #import pdb
+    #pdb.set_trace()
+    small_patch        = cv.CloneMat(cv.GetSubRect(image, small_r.as_cv_rect()))
+    big_patch          = cv.CloneMat(cv.GetSubRect(image, big_r.as_cv_rect()))
     cv.ShowImage('patch', small_patch)
     cv.ShowImage('big_patch', big_patch)
     big_patch_rescaled = cv.CreateImage((int(classification_window_width/2), int(classification_window_width/2)), 8, 3)
     cv.Resize(big_patch, big_patch_rescaled, cv.CV_INTER_LINEAR );
 
-    np_patch_small   = ut.cv2np(small_patch, 'BGR')
-    np_patch_big     = ut.cv2np(big_patch_rescaled, 'BGR')
+    #np_patch_small   = ut.cv2np(small_patch, 'BGR')
+    #np_patch_big     = ut.cv2np(big_patch_rescaled, 'BGR')
+    np_patch_small   = ad.cvmat2array(small_patch)
+    np_patch_big     = ad.cv2array(big_patch_rescaled)
     np_resized_small = np.matrix(np_patch_small.reshape(patch_size*patch_size*3, 1))
     np_resized_big   = np.matrix(np_patch_big.reshape(np_patch_big.shape[0] * np_patch_big.shape[1] * 3, 1))
     #print 'np_patch_small.shape, np_resized_small.shape, np_patch_big.shape, np_resized_big.shape', np_patch_small.shape, np_resized_small.shape, np_patch_big.shape, np_resized_big.shape

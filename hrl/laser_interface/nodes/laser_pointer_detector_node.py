@@ -297,7 +297,10 @@ class LaserPointerDetectorNode:
             self._make_windows()
 
         #Subscribe
-        rospy.init_node('laser_pointer_detector')
+	try:
+            rospy.init_node('laser_pointer_detector')
+	except:
+	    pass
         rospy.Subscriber(MOUSE_CLICK_TOPIC, String, self._click_handler)
         rospy.Subscriber(LASER_MODE_TOPIC, String, self._mode_handler)
         #rospy.TopicSub(MOUSE_CLICK_TOPIC, String, self._click_handler)
@@ -371,8 +374,8 @@ class LaserPointerDetectorNode:
                 self.video_lock.acquire()
                 start_time     = time.time()
                 frames         = list(self.video.next())
-                frames[0]      = self.camera_model.camera_left.undistort_img(frames[0])
-                frames[1]      = self.camera_model.camera_right.undistort_img(frames[1])
+                #frames[0]      = self.camera_model.camera_left.undistort_img(frames[0])
+                #frames[1]      = self.camera_model.camera_right.undistort_img(frames[1])
                 undistort_time = time.time()
                 result         = self.detector.run(frames, display=self.display, verbose=self.verbose, debug=self.debug)
                 run_time       = time.time()
@@ -426,8 +429,8 @@ if __name__ == '__main__':
     else:
         exposure = LaserPointerDetector.SUN_EXPOSURE
 
-    if display == False:
-        cv.NamedWindow('key', 1)
+    #if display == False:
+    #    cv.NamedWindow('key', 1)
 
     print 'Display set to', display
     print 'Exposure set to', exposure
