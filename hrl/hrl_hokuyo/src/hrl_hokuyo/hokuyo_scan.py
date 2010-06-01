@@ -180,7 +180,8 @@ class Utm():
                 print 'Utm: rospy already initialized. Got message', e
                 pass
 
-        rospy.Subscriber("utm%d_scan"%(utm_number), LaserScan, self.callback)
+        rospy.Subscriber("utm%d_scan"%(utm_number), LaserScan,
+                         self.callback, queue_size = 1)
 
     def callback(self, scan):
         self.lock.acquire()
