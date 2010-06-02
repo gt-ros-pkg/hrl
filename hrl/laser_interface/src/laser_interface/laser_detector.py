@@ -191,43 +191,31 @@ def blob_statistics(binary_image, max_area=99999.0, max_dim=99999.0):
 	    break
     return statistics
 
+## 
+# Throws away blobs that are too large, selects the largest one
+# 
 def select_laser_blob(blobs, approx_laser_point_size=40, min_area = 1.0):
-    '''
-        Throws away blobs that are too large, selects the largest one
-    '''
-    good_sized_blobs = []
+    size_filtered_blobs = []
     #rejected = False
     for b in blobs:
-        #print 'select_laser_blob', b['rect'].width, b['rect'].height, b['area'], b['centroid']
+        #print 'select_laser_blob:', b['rect'].width, b['rect'].height, b['area'], b['centroid']
         if b['rect'].width <= approx_laser_point_size and b['rect'].height <= approx_laser_point_size and b['area'] >= min_area:
-            good_sized_blobs.append(b)
-        #else:
-        #    rejected = True
-            #print 'REJECTED', b['rect'].width, b['rect'].height, b['area']
+            size_filtered_blobs.append(b)
 
-    #if len(blobs) > 0 and not rejected and len(good_sized_blobs) == 0:
-    #    print 'SOMETHING IS WRONG WITH THIS S.'
+    #if len(blobs) > 0:
+    #    print 'select_laser_blob: incoming', len(blobs), 'size filtered', len(size_filtered_blobs)
 
-    if len(good_sized_blobs) == 0:
-        #print 'select_laser_blob: len(good_sized_blobs) == 0, returning, good sized:', good_sized_blobs, 'blobs', blobs
+    if len(size_filtered_blobs) == 0:
         return None
-
-    #print 'has to choose largest of', len(good_sized_blobs), ' blobs'
-    #if len(good_sized_blobs) == 0 and len(blobs) > 0:
-    #    print "select_laser_blob: SIZE FILTER WORKED"
-    #def largest_blob(last_largest, current):
-    #    if last_largest == None or last_largest['area'] < current['area']:
-    #        return current
-    #reduced = reduce(largest_blob, good_sized_blobs)
 
     largest_area = 0
     largest_blob = None
-    for b in good_sized_blobs:
+    for b in size_filtered_blobs:
         if b['area'] > largest_area:
             largest_area = b['area']
             largest_blob = b
-    #print 'select_laser_blob: good_sized_blobs', good_sized_blobs
-    #print 'select_laser_blob: reduced to ', largest_blob
+    #if len(blobs) > 0:
+    #   print 'select_laser_blob:', largest_blob
     return largest_blob
 
 def select_laser_track(tracks, min_age):
@@ -303,10 +291,11 @@ class SplitColors:
         return (self.red_img, self.green_img, self.blue_img)
 
 class BrightnessThreshold:
-    def __init__(self, sample_image, thres_low=60, thres_high=200):
+    def __init__(self, sample_image, thres_low=60, thres_high=200, tune=False):
         #print sample_image.__class__
         self.thres_low  = thres_low
         self.thres_high = thres_high
+        self.set_thresholds([thres_low, thres_high])
         #self.csplit = SplitColors(sample_image)
         #if should_mask:
         #    self.mask   = Mask(sample_image)
@@ -316,6 +305,14 @@ class BrightnessThreshold:
         #self.should_mask = should_mask
         #self.channel = channel
         self.debug = False
+        self.tune = tune
+
+        #if tune:
+        #    cv.NamedWindow('low', 1)
+        #    cv.NamedWindow('high', 1)
+    def set_thresholds(self, thresholds):
+        self.thres_low = thresholds[0]
+        self.thresh_high = thresholds[1]
 
     def get_thresholded_image(self):
         return self.thresholded_combined
@@ -328,18 +325,28 @@ class BrightnessThreshold:
         #    thres_chan = r
         #elif self.channel == 'blue':
         #    thres_chan = b
+        if self.tune:
+            result_val = 255
+        else:
+            result_val = 1
 
         start_time = time.time()
-        cv.Threshold(thres_chan, self.thresholded_low, self.thres_low, 1, cv.CV_THRESH_BINARY)
+        cv.Threshold(thres_chan, self.thresholded_low, self.thres_low, result_val, cv.CV_THRESH_BINARY)
         threshold_time = time.time()
         cv.Dilate(self.thresholded_low, self.thresholded_low)
+        #if self.tune:
+        #    cv.ShowImage('low', self.thresholded_low)
+        #    cv.WaitKey(1)
         dilate_time = time.time()
         remove_large_blobs(self.thresholded_low, LaserPointerDetector.MAX_BLOB_AREA)
         remove_time = time.time()
 
-        cv.Threshold(thres_chan, self.thresholded_high, self.thres_high, 1, cv.CV_THRESH_BINARY)
+        cv.Threshold(thres_chan, self.thresholded_high, self.thres_high, result_val, cv.CV_THRESH_BINARY)
         threshold_time2 = time.time()
         cv.Dilate(self.thresholded_high, self.thresholded_high)
+        #if self.tune:
+        #    cv.ShowImage('high', self.thresholded_high)
+        #    cv.WaitKey(1)
         dilate_time2 = time.time()
         remove_large_blobs(self.thresholded_high, LaserPointerDetector.MAX_BLOB_AREA)
         remove_time2 = time.time()
@@ -580,7 +587,7 @@ class LaserPointerDetector:
     #DEFAULT_DATASET_FILE         = None
 
     def __init__(self, sample_frame, exposure, 
-            channel      = 'red', 
+            channel      = 'green', 
             dataset      = None, 
             use_color    = False, 
             use_learning = False, 
@@ -589,10 +596,13 @@ class LaserPointerDetector:
         if dataset == None:
             dataset = self.DEFAULT_DATASET_FILE
         if exposure == self.SHADE_EXPOSURE:
+            print 'LaserPointerDetector: using thresholds made for office environments (SHADE)'
             self.threshold = (self.SHADE_DARK_IMAGE_THRESHOLD, self.SHADE_BRIGHT_IMAGE_THRESHOLD)
         elif exposure == self.SUN_EXPOSURE:
+            print 'LaserPointerDetector: using thresholds made for sunny environments (SUN)'
             self.threshold = (self.SUN_DARK_IMAGE_THRESHOLD, self.SUN_BRIGHT_IMAGE_THRESHOLD)
         else:
+            print 'LaserPointerDetector: using thresholds made for sunny environments (SUN)'
             self.threshold = (self.SUN_DARK_IMAGE_THRESHOLD, self.SUN_BRIGHT_IMAGE_THRESHOLD)
 
         self.intensity_filter    = BrightnessThreshold(sample_frame, thres_low=self.threshold[0], 
@@ -609,6 +619,7 @@ class LaserPointerDetector:
                 loaded_dataset       = load_pickle(dataset)
                 self.classifier      = PatchClassifier(loaded_dataset, number_of_learners=self.NUMBER_OF_LEARNERS)
             except IOError, e:
+                print 'LaserPointerDetector: no data file detected, not using classifier'
                 self.classifier      = None
         else:
             self.classifier      = classifier
@@ -648,6 +659,7 @@ class LaserPointerDetector:
         motion_filtered       = self.motion_filter.subtract(coi)
         motion_time = time.time()
         combined              = self.combine.combine([intensity_filtered, motion_filtered])
+        #combined              = self.combine.combine([motion_filtered])
         combine_time = time.time()
 
         #Threshold image image after combining intensity & motion filters' outputs
@@ -661,15 +673,15 @@ class LaserPointerDetector:
             return image, combined, None, intensity_motion_blob
 
         components = intensity_motion_blob
-        print 'LaserPointerDetector.detect: Found ', len(components), 
-	print 'comp after motion & intensity filter.'
-        print 'LaserPointerDetector.detect: classifier', self.classifier
+        #print 'LaserPointerDetector.detect: Found ', len(components), 
+	#print 'comp after motion & intensity filter.'
+        #print 'LaserPointerDetector.detect: classifier', self.classifier
 
         if self.classifier is not None:
             number_components_before = len(components)
             components = self.classifier.classify(image, components)
             if number_components_before != len(components) and verbose:
-                print '         PatchClassifier: %d -> %d' % (number_components_before, len(components))
+                print 'LaserPointerDetector:         PatchClassifier: %d -> %d' % (number_components_before, len(components))
         classify_time = time.time()
 
         laser_blob = select_laser_blob(components, approx_laser_point_size=self.LASER_POINT_SIZE)
@@ -684,6 +696,7 @@ class LaserPointerDetector:
                 laser_blob['track'] = laser_track
             else:
                 laser_blob    = None
+            #print 'LaserPointerDetector: Detected a laser point.'
         selection_time = time.time()
 
         if self.debug:

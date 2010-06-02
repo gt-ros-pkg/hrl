@@ -229,27 +229,44 @@ class ROSStereoCalibration:
         self.right = ROSCameraCalibration(right_chan)
         while not self.right.has_msg:
             time.sleep(.2)
-        self.R = self.right.R
+
+        #self.R = self.right.R.T
+        self.R = np.matrix(np.eye(3)) #Using rectified images, no R needed.
+
         self.T = self.right.P[:, 3]
+        self.T[0,0] = -self.T[0,0] / self.right.P[0,0]
+
+        print self.R
+        print self.right.P[:,3].T
 
     ##
     # @param x 
-    # @param xprime 2x1 matrices
-    def triangulate_3d(self, x, xprime):
+    # @param xright 2x1 matrices
+    def triangulate_3d(self, xleft, xright):
         Klp = np.linalg.inv(self.left.K)
         Krp = np.linalg.inv(self.right.K)
     
-        w1    = Klp * point_to_homo(x)
-        w2    = Krp * point_to_homo(xprime)
-    
-        A     = np.concatenate((w1, -self.R.T * w2), axis=1)
+        wleft    = Klp * point_to_homo(xleft)
+        wright    = Krp * point_to_homo(xright)
+
+        print 'ROSStereoCalibration: xleft', wleft.T
+        print 'ROSStereoCalibration: xright', wright.T
+
+        A     = np.concatenate((wleft, -self.R * wright), axis=1)
         b     = self.T
     
         x_hat          = np.linalg.inv(A.T * A) * A.T * b
-        left_estimate  = x_hat[0,0] * w1
-        right_estimate = x_hat[1,0] * self.R * w2 + self.T
+        left_estimate  = x_hat[0,0] * wleft
+        right_estimate = x_hat[1,0] * self.R * wright + self.T
+        print 'ROSStereoCalibration: alpha, beta', x_hat
+        print 'ROSStereoCalibration: left est', left_estimate.T
+        print 'ROSStereoCalibration: right est', right_estimate.T
+        print 'A * x_hat', (A * x_hat).T
+        print 'T', b.T
+        print 'A*x-b', np.linalg.norm((A*x_hat) - b)
     
         p = (left_estimate + right_estimate)/2.0
+        print 'ROSStereoCalibration: p', p.T
         return {'point': p, 'error':np.linalg.norm(left_estimate- right_estimate)}
 
 
