@@ -30,12 +30,14 @@ class PhantomROS {
 	ros::Publisher pose_publisher;
 	ros::Subscriber haptic_sub;
     std::string frame_id;
+    OmniState *state;
 
-    void init() 
+    void init(OmniState *s) 
     {
         pose_publisher = n.advertise<geometry_msgs::PoseStamped>("omni_pose", 100);
         ros::param::param(std::string("publish_frame"), frame_id, std::string("/omni_frame"));
         haptic_sub = n.subscribe("force_feedback", 100, &PhantomROS::force_callback, this);
+        state = s;
     }
 
     /*******************************************************************************
@@ -43,37 +45,37 @@ class PhantomROS {
     *******************************************************************************/
     void force_callback(const geometry_msgs::WrenchConstPtr& wrench)
     {
-        state.force[0] = wrench->force.x;
-        state.force[1] = wrench->force.y;
-        state.force[2] = wrench->force.z;
+        state->force[0] = wrench->force.x;
+        state->force[1] = wrench->force.y;
+        state->force[2] = wrench->force.z;
     }
 
-    void publish_pose_stamped(OmniState &state)
+    void publish_pose_stamped()
     {
         geometry_msgs::PoseStamped pose_stamped;
         //btScalar *glmat = new btScalar[16];
 
         pose_stamped.header.frame_id = frame_id;
         pose_stamped.header.stamp = ros::Time::now();
-        pose_stamped.pose.position.x = state.position[0] / 1000.;
-        pose_stamped.pose.position.y = state.position[1] / 1000.;
-        pose_stamped.pose.position.z = state.position[2] / 1000.;
+        pose_stamped.pose.position.x = state->position[0] / 1000.;
+        pose_stamped.pose.position.y = state->position[1] / 1000.;
+        pose_stamped.pose.position.z = state->position[2] / 1000.;
 
         printf("=================== Transform ===================\n");
         for (int row = 0; row < 4; row++)
         {
             for (int col = 0; col < 4; col++)
             {
-                printf("%.3f, ", state.omni_mx[col][row]);
+                printf("%.3f, ", state->omni_mx[col][row]);
             }
             printf("\n");
         }
     
         tf::Transform transform;
-        transform.setOrigin(tf::Vector3(state.omni_mx[3][0], state.omni_mx[3][1], state.omni_mx[3][2]));
-        transform.getBasis().setValue(state.omni_mx[0][0], state.omni_mx[1][0], state.omni_mx[2][0],
-                                      state.omni_mx[0][1], state.omni_mx[1][1], state.omni_mx[2][1], 
-                                      state.omni_mx[0][2], state.omni_mx[1][2], state.omni_mx[2][2]);
+        transform.setOrigin(tf::Vector3(state->omni_mx[3][0], state->omni_mx[3][1], state->omni_mx[3][2]));
+        transform.getBasis().setValue(  state->omni_mx[0][0], state->omni_mx[1][0], state->omni_mx[2][0],
+                                        state->omni_mx[0][1], state->omni_mx[1][1], state->omni_mx[2][1], 
+                                        state->omni_mx[0][2], state->omni_mx[1][2], state->omni_mx[2][2]);
         pose_stamped.pose.orientation.x = transform.getRotation()[0];
         pose_stamped.pose.orientation.y = transform.getRotation()[1];
         pose_stamped.pose.orientation.z = transform.getRotation()[2];
@@ -179,23 +181,29 @@ int main(int argc, char** argv)
    // Init ROS 
    ////////////////////////////////////////////////////////////////
    ros::init(argc, argv, "omni_haptic_node");
+   OmniState state;
    PhantomROS omni_ros;
-   omni_ros.init();
+   omni_ros.init(&state);
 
    int publish_rate;
    omni_ros.n.param(std::string("publish_rate"), publish_rate, 50);
    ros::Rate loop_rate(publish_rate);
 
-   OmniState state;
    //hdScheduleAsynchronous(omni_state_callback, &state, HD_DEFAULT_SCHEDULER_PRIORITY);
    hdScheduleAsynchronous(omni_state_callback, &state, HD_DEFAULT_SCHEDULER_PRIORITY);
 
    ////////////////////////////////////////////////////////////////
    // Loop and publish 
    ////////////////////////////////////////////////////////////////
+   tf::TransformBroadcaster br;
+   tf::Transform transform;
+   transform.setOrigin(tf::Vector3(0., 0, 1.));
+   transform.setRotation(tf::Quaternion(0, 0, 1.57));
+
    while(ros::ok())
    {
-       omni_ros.publish_pose_stamped(state);
+       omni_ros.publish_pose_stamped();
+       br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/world", omni_ros.frame_id.c_str()));
        ros::spinOnce();
        loop_rate.sleep();
    }
