@@ -209,6 +209,10 @@ class GenericListener:
             else:
                 msg_number = msg.header.seq
 
+            #*msg makes everything a tuple.  If length is one, msg = (msg, )
+            if len(msg) == 1:
+                msg = msg[0]
+            
             if message_extractor != None:
                 self.reading  = {'message':message_extractor(msg), 'msg_id':msg_number}
             else:

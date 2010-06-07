@@ -41,8 +41,6 @@ import numpy as np
 class FTClient(ru.GenericListener):
     def __init__(self, topic_name, should_log=False, size_limit=100*60*60):
         def msg_converter(msg):
-            if msg.__class__ == ().__class__:  # Weird change in new version of ROS.  This allows backward compatibility (Travis 6/7/2010)
-                msg = msg[0]
             m = np.matrix(msg.data, 'f').T
             msg_time = msg.header.stamp.to_time()
             if self.should_log:
