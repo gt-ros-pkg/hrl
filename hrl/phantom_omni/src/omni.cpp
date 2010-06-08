@@ -17,6 +17,7 @@
 #include <HDU/hduMatrix.h>
 
 #include "phantom_omni/PhantomButtonEvent.h"
+#include <pthread.h>
 
 struct OmniState
 {
@@ -30,62 +31,13 @@ struct OmniState
 	//hduMatrix omni_mx;
 };
 
-/**
- * Test this.
- */
-void construct_transform(tf::Transform *transform, double theta, double alpha, double a, double d)
-{
-    double c_alpha = cos(alpha);
-    double s_alpha = sin(alpha);
-    double c_theta = cos(theta);
-    double s_theta = sin(theta);
-
-    transform->setOrigin(tf::Vector3(a, -s_alpha*d, c_alpha*d));
-    transform->getBasis().setValue(c_theta, -s_theta, 0,
-                                   c_alpha*s_theta, c_alpha*c_theta, -s_alpha,
-                                   s_alpha*s_theta, s_alpha*c_theta, c_alpha);
-    //B = np.matrix([[c(theta),         -s(theta),           0,         a], 
-    //               [c(alpha)*s(theta), c(alpha)*c(theta), -s(alpha), -s(alpha)*d], 
-    //               [s(alpha)*s(theta), s(alpha)*c(theta),  c(alpha),  c(alpha)*d], 
-    //               [0,                 0,                  0,         1]])
-}
-
-tf::Transform angles_to_transform(float *thetas)
-{
-    tf::Transform B_0_6 = btTransform::getIdentity();
-    double pi = M_PI;
-    double a[]     = {0.,  0.,    131., 0.,     0.,     0.,      0.};
-    double alpha[] = {0., -pi/2., 0.,  -pi/2., -pi/2., -pi/2.,   0};
-    double d[]     = {0., -137., -17.8, 17.8,  -131.,   0.,      38.7};
-    double t_off[] = {0.,  0.,    0.,   0.,     pi,     (3/2.)*pi, pi};
-
-    for (int i = 0; i < 6; i++)
-    {
-        tf::Transform t;
-        construct_transform(&t, t_off[i+1]+thetas[i+1], alpha[i], a[i],  d[i+1]);
-        B_0_6 = B_0_6 * t;
-    }
-    return B_0_6;
-}
-
-    //btVector3 v  = B_0_6.getBasis().getRow(0);
-    //btVector3 v1 = B_0_6.getBasis().getRow(1);
-    //btVector3 v2 = B_0_6.getBasis().getRow(2);
-    //B_0_6.setOrigin(tf::Vector3(B_0_6.getOrigin()[0]/ 1000.0,
-    //                            B_0_6.getOrigin()[1]/ 1000.0,
-    //                            B_0_6.getOrigin()[2]/ 1000.0));
-    //printf("========================== Transform ============================\n");
-    //printf("[[%f, %f, %f, %f],\n", v[0],  v[1],  v[2], B_0_6.getOrigin()[0]);
-    //printf(" [%f, %f, %f, %f],\n", v1[0], v1[1], v1[2], B_0_6.getOrigin()[1]);
-    //printf(" [%f, %f, %f, %f],\n", v2[0], v2[1], v2[2], B_0_6.getOrigin()[2]);
-    //printf("trans [%f %f %f].T\n", );
 
 class PhantomROS {
 
 	public:
 	ros::NodeHandle n;
 	ros::Publisher pose_publisher;
-	ros::Publisher omni_pose_publisher;
+	//ros::Publisher omni_pose_publisher;
 
     ros::Publisher button_publisher;
 	ros::Subscriber haptic_sub;
@@ -97,7 +49,7 @@ class PhantomROS {
     void init(OmniState *s) 
     {
         pose_publisher = n.advertise<geometry_msgs::PoseStamped>("omni_pose", 100);
-        omni_pose_publisher = n.advertise<geometry_msgs::PoseStamped>("omni_pose_internal", 100);
+        //omni_pose_publisher = n.advertise<geometry_msgs::PoseStamped>("omni_pose_internal", 100);
         button_publisher = n.advertise<phantom_omni::PhantomButtonEvent>("phantom_button", 100);
         ros::param::param(std::string("omni_name"), omni_name, std::string("omni1"));
         haptic_sub = n.subscribe("force_feedback", 100, &PhantomROS::force_callback, this);
@@ -124,59 +76,58 @@ class PhantomROS {
     void publish_omni_state()
     {
         //Construct transforms
-        tf::Transform link;
-        link.setOrigin(tf::Vector3(0., 0, 0.15));
-        link.setRotation(tf::Quaternion(0, 0, 0));
-        br.sendTransform(tf::StampedTransform(link, ros::Time::now(), "world", link_names[0].c_str()));
+        tf::Transform l0, sensable, l1, l2, l3, l4, l5, l6, l0_6;
+        l0.setOrigin(tf::Vector3(0., 0, 0.15));
+        l0.setRotation(tf::Quaternion(0, 0, 0));
+        br.sendTransform(tf::StampedTransform(l0, ros::Time::now(), "world", link_names[0].c_str()));
 
-        link.setOrigin(tf::Vector3(0., 0, 0));
-        link.setRotation(tf::Quaternion(-M_PI/2, 0, M_PI/2));
-        br.sendTransform(tf::StampedTransform(link, ros::Time::now(), "world", "sensable"));
+        sensable.setOrigin(tf::Vector3(0., 0, 0));
+        sensable.setRotation(tf::Quaternion(-M_PI/2, 0, M_PI/2));
+        br.sendTransform(tf::StampedTransform(sensable, ros::Time::now(), "world", "sensable"));
 
-        link.setOrigin(tf::Vector3(0., 0, 0.));
-        link.setRotation(tf::Quaternion(-state->thetas[1], 0, 0));
-        br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[0].c_str(), link_names[1].c_str()));
+        l1.setOrigin(tf::Vector3(0., 0, 0.));
+        l1.setRotation(tf::Quaternion(-state->thetas[1], 0, 0));
                                                                                                           
-        link.setOrigin(tf::Vector3(0., 0, 0.));                                                           
-        link.setRotation(tf::Quaternion(0, state->thetas[2], 0));                                         
-        br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[1].c_str(), link_names[2].c_str()));
+        l2.setOrigin(tf::Vector3(0., 0, 0.));                                                           
+        l2.setRotation(tf::Quaternion(0, state->thetas[2], 0));                                         
                                                                                                           
-        link.setOrigin(tf::Vector3(-.131, 0, 0.));                                                        
-        link.setRotation(tf::Quaternion(0, state->thetas[3], 0));                            
-        br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[2].c_str(), link_names[3].c_str()));
+        l3.setOrigin(tf::Vector3(-.131, 0, 0.));                                                        
+        l3.setRotation(tf::Quaternion(0, state->thetas[3], 0));                            
                                                                                                           
-        link.setOrigin(tf::Vector3(0., 0, -.137));                                                        
-        link.setRotation(tf::Quaternion(state->thetas[4]+M_PI, 0, 0));                       
-        br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[3].c_str(), link_names[4].c_str()));
+        l4.setOrigin(tf::Vector3(0., 0, -.137));                                                        
+        l4.setRotation(tf::Quaternion(state->thetas[4]+M_PI, 0, 0));                       
                                                                                                           
-        link.setOrigin(tf::Vector3(0., 0., 0.));                                                          
-        link.setRotation(tf::Quaternion(0., -state->thetas[5]+M_PI,0));                      
-        br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[4].c_str(), link_names[5].c_str()));
+        l5.setOrigin(tf::Vector3(0., 0., 0.));                                                          
+        l5.setRotation(tf::Quaternion(0., -state->thetas[5]+M_PI,0));                      
 
-        link.setOrigin(tf::Vector3(0., 0., 0.));
-        link.setRotation(tf::Quaternion(0.,0, state->thetas[6]+M_PI));
-        br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[5].c_str(), link_names[6].c_str()));
-
+        l6.setOrigin(tf::Vector3(0., 0., 0.));
+        l6.setRotation(tf::Quaternion(0.,0, state->thetas[6]+M_PI));
+        
+        l0_6 = l0 * l1 * l2 * l3 * l4 * l5 * l6;
+        br.sendTransform(tf::StampedTransform(l0_6, ros::Time::now(), link_names[0].c_str(), link_names[6].c_str()));
+        //Don't send these as they slow down haptics thread
+        //br.sendTransform(tf::StampedTransform(l1, ros::Time::now(), link_names[0].c_str(), link_names[1].c_str()));
+        //br.sendTransform(tf::StampedTransform(l2, ros::Time::now(), link_names[1].c_str(), link_names[2].c_str()));
+        //br.sendTransform(tf::StampedTransform(l3, ros::Time::now(), link_names[2].c_str(), link_names[3].c_str()));
+        //br.sendTransform(tf::StampedTransform(l4, ros::Time::now(), link_names[3].c_str(), link_names[4].c_str()));
+        //br.sendTransform(tf::StampedTransform(l5, ros::Time::now(), link_names[4].c_str(), link_names[5].c_str()));
+        //br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[5].c_str(), link_names[6].c_str()));
+        
         //Sample 'end effector' pose
         geometry_msgs::PoseStamped pose_stamped;
         pose_stamped.header.frame_id = link_names[6].c_str();
         pose_stamped.header.stamp = ros::Time::now();
         pose_stamped.pose.position.x = .03;
-        pose_stamped.pose.position.y = 0.0;
-        pose_stamped.pose.position.z = 0.0;
-        pose_stamped.pose.orientation.x = 0;
-        pose_stamped.pose.orientation.y = 0;
-        pose_stamped.pose.orientation.z = 0;
         pose_stamped.pose.orientation.w = 1.;
         pose_publisher.publish(pose_stamped);
 
-        geometry_msgs::PoseStamped omni_internal_pose;
-        omni_internal_pose.header.frame_id = "sensable";
-        omni_internal_pose.header.stamp = ros::Time::now();
-        omni_internal_pose.pose.position.x = state->position[0]/1000.0;
-        omni_internal_pose.pose.position.y = state->position[1]/1000.0;
-        omni_internal_pose.pose.position.z = state->position[2]/1000.0;
-        omni_pose_publisher.publish(omni_internal_pose);
+        //geometry_msgs::PoseStamped omni_internal_pose;
+        //omni_internal_pose.header.frame_id = "sensable";
+        //omni_internal_pose.header.stamp = ros::Time::now();
+        //omni_internal_pose.pose.position.x = state->position[0]/1000.0;
+        //omni_internal_pose.pose.position.y = state->position[1]/1000.0;
+        //omni_internal_pose.pose.position.z = state->position[2]/1000.0;
+        //omni_pose_publisher.publish(omni_internal_pose);
 
         if ((state->buttons[0] != state->buttons_prev[0]) or (state->buttons[1] != state->buttons_prev[1]))
         {
@@ -204,10 +155,6 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
 	hdGetDoublev(HD_CURRENT_JOINT_ANGLES,  omni_state->joints);
 	hdSetDoublev(HD_CURRENT_FORCE,         omni_state->force);  
 
-    //hduVector3Dd force_read; 
-	//hdGetDoublev(HD_CURRENT_FORCE,         force_read);  
-    //printf("%.3f %.3f %.3f\n", force_read[0], force_read[1], force_read[2]);
-
     //Get buttons
     int nButtons = 0;
     hdGetIntegerv(HD_CURRENT_BUTTONS, &nButtons);
@@ -215,6 +162,7 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
     omni_state->buttons[1] = (nButtons & HD_DEVICE_BUTTON_2) ? 1 : 0;
 
 	hdEndFrame(hdGetCurrentDevice());
+
     HDErrorInfo error;
     if (HD_DEVICE_ERROR(error = hdGetError()))
     {
@@ -223,13 +171,10 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
 			return HD_CALLBACK_DONE;
     }
 
-            //pos.joint2 = state.joint[2]-state.joint[1];		//joint[2] of omni is coupled with joint[1] angle
     float t[7] = {0., omni_state->joints[0], omni_state->joints[1], omni_state->joints[2]-omni_state->joints[1], 
                       omni_state->rot[0],    omni_state->rot[1],    omni_state->rot[2]};
     for (int i = 0; i < 7; i++)
         omni_state->thetas[i] = t[i];
-    //printf("%f %f %f\n", omni_state->rot[0], omni_state->rot[1], omni_state->rot[2]);
-
     return HD_CALLBACK_CONTINUE;
 }
 
@@ -273,6 +218,23 @@ void HHD_Auto_Calibration()
    ROS_INFO("\n\nCalibration complete.\n");
 }
 
+void *ros_publish(void *ptr)
+{
+   PhantomROS *omni_ros = (PhantomROS *) ptr;
+   int publish_rate;
+   omni_ros->n.param(std::string("publish_rate"), publish_rate, 50);
+   ros::Rate loop_rate(publish_rate);
+   ros::AsyncSpinner spinner(2);
+   spinner.start();
+
+   while(ros::ok())
+   {
+       omni_ros->publish_omni_state();
+       loop_rate.sleep();
+   }
+   return NULL;
+}
+
 int main(int argc, char** argv)
 {
    ////////////////////////////////////////////////////////////////
@@ -310,22 +272,14 @@ int main(int argc, char** argv)
    state.buttons_prev[0] = 0;
    state.buttons_prev[1] = 0;
    omni_ros.init(&state);
-
-   int publish_rate;
-   omni_ros.n.param(std::string("publish_rate"), publish_rate, 50);
-   ros::Rate loop_rate(publish_rate);
-
-   hdScheduleAsynchronous(omni_state_callback, &state, HD_DEFAULT_SCHEDULER_PRIORITY);
+   hdScheduleAsynchronous(omni_state_callback, &state, HD_MAX_SCHEDULER_PRIORITY);
 
    ////////////////////////////////////////////////////////////////
    // Loop and publish 
    ////////////////////////////////////////////////////////////////
-   while(ros::ok())
-   {
-       omni_ros.publish_omni_state();
-       ros::spinOnce();
-       loop_rate.sleep();
-   }
+   pthread_t publish_thread;
+   pthread_create(&publish_thread, NULL, ros_publish, (void*) &omni_ros);
+   pthread_join(publish_thread, NULL);
 
    ROS_INFO("Ending Session....\n");
    hdStopScheduler();
@@ -368,8 +322,73 @@ int main(int argc, char** argv)
 
 
 
+///**
+// * Test this.
+// */
+//void construct_transform(tf::Transform *transform, double theta, double alpha, double a, double d)
+//{
+//    double c_alpha = cos(alpha);
+//    double s_alpha = sin(alpha);
+//    double c_theta = cos(theta);
+//    double s_theta = sin(theta);
+//
+//    transform->setOrigin(tf::Vector3(a, -s_alpha*d, c_alpha*d));
+//    transform->getBasis().setValue(c_theta, -s_theta, 0,
+//                                   c_alpha*s_theta, c_alpha*c_theta, -s_alpha,
+//                                   s_alpha*s_theta, s_alpha*c_theta, c_alpha);
+//}
+//
+//tf::Transform angles_to_transform(float *thetas)
+//{
+//    tf::Transform B_0_6 = btTransform::getIdentity();
+//    double pi = M_PI;
+//    double a[]     = {0.,  0.,    131., 0.,     0.,     0.,      0.};
+//    double alpha[] = {0., -pi/2., 0.,  -pi/2., -pi/2., -pi/2.,   0};
+//    double d[]     = {0., -137., -17.8, 17.8,  -131.,   0.,      38.7};
+//    double t_off[] = {0.,  0.,    0.,   0.,     pi,     (3/2.)*pi, pi};
+//
+//    for (int i = 0; i < 6; i++)
+//    {
+//        tf::Transform t;
+//        construct_transform(&t, t_off[i+1]+thetas[i+1], alpha[i], a[i],  d[i+1]);
+//        B_0_6 = B_0_6 * t;
+//    }
+//    return B_0_6;
+//}
 
 
+        //tf::Transform link;
+        //link.setOrigin(tf::Vector3(0., 0, 0.15));
+        //link.setRotation(tf::Quaternion(0, 0, 0));
+        //br.sendTransform(tf::StampedTransform(link, ros::Time::now(), "world", link_names[0].c_str()));
+
+        //link.setOrigin(tf::Vector3(0., 0, 0));
+        //link.setRotation(tf::Quaternion(-M_PI/2, 0, M_PI/2));
+        //br.sendTransform(tf::StampedTransform(link, ros::Time::now(), "world", "sensable"));
+
+        //link.setOrigin(tf::Vector3(0., 0, 0.));
+        //link.setRotation(tf::Quaternion(-state->thetas[1], 0, 0));
+        //br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[0].c_str(), link_names[1].c_str()));
+        //                                                                                                  
+        //link.setOrigin(tf::Vector3(0., 0, 0.));                                                           
+        //link.setRotation(tf::Quaternion(0, state->thetas[2], 0));                                         
+        //br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[1].c_str(), link_names[2].c_str()));
+        //                                                                                                  
+        //link.setOrigin(tf::Vector3(-.131, 0, 0.));                                                        
+        //link.setRotation(tf::Quaternion(0, state->thetas[3], 0));                            
+        //br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[2].c_str(), link_names[3].c_str()));
+        //                                                                                                  
+        //link.setOrigin(tf::Vector3(0., 0, -.137));                                                        
+        //link.setRotation(tf::Quaternion(state->thetas[4]+M_PI, 0, 0));                       
+        //br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[3].c_str(), link_names[4].c_str()));
+        //                                                                                                  
+        //link.setOrigin(tf::Vector3(0., 0., 0.));                                                          
+        //link.setRotation(tf::Quaternion(0., -state->thetas[5]+M_PI,0));                      
+        //br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[4].c_str(), link_names[5].c_str()));
+
+        //link.setOrigin(tf::Vector3(0., 0., 0.));
+        //link.setRotation(tf::Quaternion(0.,0, state->thetas[6]+M_PI));
+        //br.sendTransform(tf::StampedTransform(link, ros::Time::now(), link_names[5].c_str(), link_names[6].c_str()));
 
 
 
