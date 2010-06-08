@@ -15,6 +15,8 @@
 #include <HDU/hduVector.h>
 #include <HDU/hduMatrix.h>
 
+#include "phantom_omni/PhantomButtonEvent.h"
+
 struct OmniState
 {
     hduVector3Dd position; //3x1 vector of position
@@ -22,6 +24,8 @@ struct OmniState
 	hduVector3Dd joints;
     hduVector3Dd force; //3 element double vector force[0], force[1], force[2]
     float thetas[7];
+    int buttons[2];
+    int buttons_prev[2];
 	//hduMatrix omni_mx;
 };
 
@@ -80,6 +84,7 @@ class PhantomROS {
 	public:
 	ros::NodeHandle n;
 	ros::Publisher pose_publisher;
+    ros::Publisher button_publisher;
 	ros::Subscriber haptic_sub;
     std::string omni_name;
     OmniState *state;
@@ -89,6 +94,7 @@ class PhantomROS {
     void init(OmniState *s) 
     {
         pose_publisher = n.advertise<geometry_msgs::PoseStamped>("omni_pose", 100);
+        button_publisher = n.advertise<phantom_omni::PhantomButtonEvent>("phantom_button", 100);
         ros::param::param(std::string("omni_name"), omni_name, std::string("omni1"));
         haptic_sub = n.subscribe("force_feedback", 100, &PhantomROS::force_callback, this);
         state = s;
@@ -111,7 +117,7 @@ class PhantomROS {
         state->force[2] = wrench->force.z;
     }
 
-    void publish_pose_stamped()
+    void publish_omni_state()
     {
         //Construct transforms
         tf::Transform link;
@@ -156,31 +162,15 @@ class PhantomROS {
         pose_stamped.pose.orientation.w = 1.;
         pose_publisher.publish(pose_stamped);
 
-        //std::string l1_str("_link1")
-        //std::string l1_str("_link2")
-        //std::string l1_str("_link3")
-        //std::string l1_str("_link4")
-        //std::string l1_str("_link5")
-        //std::string l1_str("_link6")
-
-
-        //tf::Transform transform = angles_to_transform(state->thetas);
-        //tf::Transform Ry90;
-        ////Ry90.setOrigin(
-        //Ry90.setOrigin(tf::Vector3(0., 0, 0.));
-        //Ry90.getBasis().setEulerYPR(0, M_PI/2.0, 0);
-        //transform.setBasis(Ry90.getBasis() * transform.getBasis());
-        ////br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/world", frame_id.c_str()));
-        //btScalar y, p, r;
-        //transform.getBasis().getEulerYPR(y, p, r);
-        //transform.getBasis().setEulerYPR(-r, p, r);
-        ////printf("%f\n", transform.getRotation()[2]);
-        ////pose_stamped.pose.setEuler(M_PI, 0, 0);
-        //pose_stamped.pose.orientation.x = transform.getRotation()[0];
-        //pose_stamped.pose.orientation.y = transform.getRotation()[1];
-        //pose_stamped.pose.orientation.z = transform.getRotation()[2];
-        //pose_stamped.pose.orientation.w = transform.getRotation()[3];
-        //pose_publisher.publish(pose_stamped);
+        if ((state->buttons[0] != state->buttons_prev[0]) or (state->buttons[1] != state->buttons_prev[1]))
+        {
+            phantom_omni::PhantomButtonEvent button_event;
+            button_event.grey_button = state->buttons[0];
+            button_event.white_button = state->buttons[1];
+            state->buttons_prev[0] = state->buttons[0];
+            state->buttons_prev[1] = state->buttons[1];
+            button_publisher.publish(button_event);
+        }
     }
 };
 
@@ -191,10 +181,19 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
 	hdBeginFrame(hdGetCurrentDevice());
 	//hdGetDoublev(HD_CURRENT_TRANSFORM,     omni_state->omni_mx);  Wrong
     //hdGetDoublev(HD_CURRENT_VELOCITY, omni_state>vel);            Too lagged
+
+    //Get angles, set forces
 	hdGetDoublev(HD_CURRENT_GIMBAL_ANGLES, omni_state->rot);      
 	hdGetDoublev(HD_CURRENT_POSITION,      omni_state->position);
 	hdGetDoublev(HD_CURRENT_JOINT_ANGLES,  omni_state->joints);
 	hdSetDoublev(HD_CURRENT_FORCE,         omni_state->force);  
+
+    //Get buttons
+    int nButtons = 0;
+    hdGetIntegerv(HD_CURRENT_BUTTONS, &nButtons);
+    omni_state->buttons[0] = (nButtons & HD_DEVICE_BUTTON_1) ? 1 : 0;
+    omni_state->buttons[1] = (nButtons & HD_DEVICE_BUTTON_2) ? 1 : 0;
+
 	hdEndFrame(hdGetCurrentDevice());
     HDErrorInfo error;
     if (HD_DEVICE_ERROR(error = hdGetError()))
@@ -275,7 +274,6 @@ int main(int argc, char** argv)
    hdStartScheduler(); 
    if (HD_DEVICE_ERROR(error = hdGetError()))
    {
-       //hduPrintError(stderr, &error, "Failed to start the scheduler");
        ROS_ERROR("Failed to start the scheduler");//, &error);
        return -1;           
    }
@@ -287,27 +285,24 @@ int main(int argc, char** argv)
    ros::init(argc, argv, "omni_haptic_node");
    OmniState state;
    PhantomROS omni_ros;
+   state.buttons[0] = 0;
+   state.buttons[1] = 0;
+   state.buttons_prev[0] = 0;
+   state.buttons_prev[1] = 0;
    omni_ros.init(&state);
 
    int publish_rate;
    omni_ros.n.param(std::string("publish_rate"), publish_rate, 50);
    ros::Rate loop_rate(publish_rate);
 
-   //hdScheduleAsynchronous(omni_state_callback, &state, HD_DEFAULT_SCHEDULER_PRIORITY);
    hdScheduleAsynchronous(omni_state_callback, &state, HD_DEFAULT_SCHEDULER_PRIORITY);
 
    ////////////////////////////////////////////////////////////////
    // Loop and publish 
    ////////////////////////////////////////////////////////////////
-   //tf::TransformBroadcaster br;
-   //tf::Transform transform;
-   //transform.setOrigin(tf::Vector3(0., 0, 1.));
-   //transform.setRotation(tf::Quaternion(0, 0, 0));
-
    while(ros::ok())
    {
-       omni_ros.publish_pose_stamped();
-       //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/world", omni_ros.frame_id.c_str()));
+       omni_ros.publish_omni_state();
        ros::spinOnce();
        loop_rate.sleep();
    }
@@ -320,6 +315,72 @@ int main(int argc, char** argv)
 }
 
 
+       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        //std::string l1_str("_link1")
+        //std::string l1_str("_link2")
+        //std::string l1_str("_link3")
+        //std::string l1_str("_link4")
+        //std::string l1_str("_link5")
+        //std::string l1_str("_link6")
+
+
+        //tf::Transform transform = angles_to_transform(state->thetas);
+        //tf::Transform Ry90;
+        ////Ry90.setOrigin(
+        //Ry90.setOrigin(tf::Vector3(0., 0, 0.));
+        //Ry90.getBasis().setEulerYPR(0, M_PI/2.0, 0);
+        //transform.setBasis(Ry90.getBasis() * transform.getBasis());
+        ////br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/world", frame_id.c_str()));
+        //btScalar y, p, r;
+        //transform.getBasis().getEulerYPR(y, p, r);
+        //transform.getBasis().setEulerYPR(-r, p, r);
+        ////printf("%f\n", transform.getRotation()[2]);
+        ////pose_stamped.pose.setEuler(M_PI, 0, 0);
+        //pose_stamped.pose.orientation.x = transform.getRotation()[0];
+        //pose_stamped.pose.orientation.y = transform.getRotation()[1];
+        //pose_stamped.pose.orientation.z = transform.getRotation()[2];
+        //pose_stamped.pose.orientation.w = transform.getRotation()[3];
+        //pose_publisher.publish(pose_stamped);
 
         //pose_stamped.pose.position.x = state->position[0] / 1000.;
         //pose_stamped.pose.position.y = state->position[1] / 1000.;
