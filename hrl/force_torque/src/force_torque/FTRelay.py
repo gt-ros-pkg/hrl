@@ -1,4 +1,10 @@
 #!/usr/bin/python
+import roslib
+roslib.load_manifest('force_torque')
+import rospy
+from geometry_msgs.msg import Vector3Stamped
+
+
 from threading import RLock
 
 class FTRelay:
@@ -22,6 +28,15 @@ class FTRelay:
         self.lock.release()
         return r
 
+def FTread_to_Force( ftval, frame_id ):
+    retval = Vector3Stamped()
+    retval.header.stamp = rospy.rostime.get_rostime()
+    retval.header.frame_id = frame_id
+    retval.vector.x = ftval[0]
+    retval.vector.y = ftval[1]
+    retval.vector.z = ftval[2]
+
+    return retval
 
 if __name__ == '__main__':
     import roslib; roslib.load_manifest('force_torque')
@@ -51,6 +66,7 @@ if __name__ == '__main__':
                     response=StringServiceResponse))
 
     channel = rospy.Publisher(ft_channel_name, FloatArray, tcp_nodelay=True)
+    chan_vec3 = rospy.Publisher(ft_channel_name + '_Vec3', Vector3Stamped, tcp_nodelay=True)    
     print node_name + ': publishing on channel', ft_channel_name
     #times = []
     biasft = None
@@ -66,6 +82,7 @@ if __name__ == '__main__':
             #print biasft.__class__, biasft
             ftvalue = (np.array(ftvalue) - biasft).tolist()
             channel.publish(FloatArray(rospy.Header(stamp=rospy.Time.from_seconds(tme)), ftvalue))
+            chan_vec3.publish( FTread_to_Force( ftvalue, opt.name ))
             #times.append(time.time())
         #else:
         #    time.sleep(1/5000.0)
