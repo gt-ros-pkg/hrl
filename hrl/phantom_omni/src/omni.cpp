@@ -2,6 +2,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_broadcaster.h>
 #include <geometry_msgs/Wrench.h>
+#include <geometry_msgs/WrenchStamped.h>
 
 #include <string.h>
 #include <stdio.h>
@@ -84,6 +85,8 @@ class PhantomROS {
 	public:
 	ros::NodeHandle n;
 	ros::Publisher pose_publisher;
+	ros::Publisher omni_pose_publisher;
+
     ros::Publisher button_publisher;
 	ros::Subscriber haptic_sub;
     std::string omni_name;
@@ -94,6 +97,7 @@ class PhantomROS {
     void init(OmniState *s) 
     {
         pose_publisher = n.advertise<geometry_msgs::PoseStamped>("omni_pose", 100);
+        omni_pose_publisher = n.advertise<geometry_msgs::PoseStamped>("omni_pose_internal", 100);
         button_publisher = n.advertise<phantom_omni::PhantomButtonEvent>("phantom_button", 100);
         ros::param::param(std::string("omni_name"), omni_name, std::string("omni1"));
         haptic_sub = n.subscribe("force_feedback", 100, &PhantomROS::force_callback, this);
@@ -124,6 +128,10 @@ class PhantomROS {
         link.setOrigin(tf::Vector3(0., 0, 0.15));
         link.setRotation(tf::Quaternion(0, 0, 0));
         br.sendTransform(tf::StampedTransform(link, ros::Time::now(), "world", link_names[0].c_str()));
+
+        link.setOrigin(tf::Vector3(0., 0, 0));
+        link.setRotation(tf::Quaternion(-M_PI/2, 0, M_PI/2));
+        br.sendTransform(tf::StampedTransform(link, ros::Time::now(), "world", "sensable"));
 
         link.setOrigin(tf::Vector3(0., 0, 0.));
         link.setRotation(tf::Quaternion(-state->thetas[1], 0, 0));
@@ -162,6 +170,14 @@ class PhantomROS {
         pose_stamped.pose.orientation.w = 1.;
         pose_publisher.publish(pose_stamped);
 
+        geometry_msgs::PoseStamped omni_internal_pose;
+        omni_internal_pose.header.frame_id = "sensable";
+        omni_internal_pose.header.stamp = ros::Time::now();
+        omni_internal_pose.pose.position.x = state->position[0]/1000.0;
+        omni_internal_pose.pose.position.y = state->position[1]/1000.0;
+        omni_internal_pose.pose.position.z = state->position[2]/1000.0;
+        omni_pose_publisher.publish(omni_internal_pose);
+
         if ((state->buttons[0] != state->buttons_prev[0]) or (state->buttons[1] != state->buttons_prev[1]))
         {
             phantom_omni::PhantomButtonEvent button_event;
@@ -187,6 +203,10 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
 	hdGetDoublev(HD_CURRENT_POSITION,      omni_state->position);
 	hdGetDoublev(HD_CURRENT_JOINT_ANGLES,  omni_state->joints);
 	hdSetDoublev(HD_CURRENT_FORCE,         omni_state->force);  
+
+    //hduVector3Dd force_read; 
+	//hdGetDoublev(HD_CURRENT_FORCE,         force_read);  
+    //printf("%.3f %.3f %.3f\n", force_read[0], force_read[1], force_read[2]);
 
     //Get buttons
     int nButtons = 0;

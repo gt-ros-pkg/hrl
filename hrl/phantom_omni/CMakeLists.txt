@@ -31,5 +31,5 @@ rosbuild_genmsg()
 #rospack_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
 
-rosbuild_add_executable(omni_master_node src/omni_master_node.cpp)
-target_link_libraries(omni_master_node HD HDU rt ncurses)
+rosbuild_add_executable(omni src/omni.cpp)
+target_link_libraries(omni HD HDU rt ncurses)
