@@ -181,19 +181,21 @@ if __name__ == '__main__':
     p = optparse.OptionParser()
     p.add_option('-d', action='store', type='string', dest='device',
                  help='Which RFID device to initialize.')
+    p.add_option('-p', action='store', type='int', dest='power', default=3000,
+                 help='Which RFID device to initialize.')
     opt, args = p.parse_args()
 
     if opt.device == 'ears':
         print 'Starting Ears RFID Services'
-        ros_rfid = ROS_M5e( name = 'ears', readPwr = 3000,
+        ros_rfid = ROS_M5e( name = 'ears', readPwr = opt.power,
                             portStr = '/dev/robot/RFIDreader',
                             antFuncs = [EleLeftEar, EleRightEar],
                             callbacks = [] )
         rospy.spin()
 
     if opt.device == 'inhand':
-        print 'Starting Ears RFID Services'
-        ros_rfid = ROS_M5e( name = 'inhand', readPwr = 3000,
+        print 'Starting Inhand RFID Services'
+        ros_rfid = ROS_M5e( name = 'inhand', readPwr = opt.power,
                             portStr = '/dev/robot/inHandReader',
                             antFuncs = [Hand_Right_1, Hand_Right_2,
                                         Hand_Left_1, Hand_Left_2 ],

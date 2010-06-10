@@ -38,7 +38,7 @@ import hrl_rfid.lib_M5e as M5e
 import hrl_lib.rutils as ru
 
 import time
-
+import thread
 
 class ROS_M5e_Client():
     QUERY_MODE = 'query'
@@ -46,15 +46,15 @@ class ROS_M5e_Client():
 
     def __init__(self, name = 'reader1'):
         self.name = name
-        self._create_ros_services()
+        self._create_ros_objects()
+        
+        def msg(datum):
+            return [datum.antenna_name, datum.tagID, datum.rssi]
+        
+        self.reader = ru.GenericListener( self.name+'_listener', RFIDread,
+                                          '/rfid/'+self.name+'_reader', 15.0, message_extractor = msg)
 
-    # For internal use only
-    def _create_ros_services(self):
-        reader_service_name = '/rfid/'+self.name+'_mode'
-        rospy.wait_for_service(reader_service_name)
-        self._mode_service_obj = rospy.ServiceProxy(reader_service_name,
-                                                    StringArray_None)
-      
+    # ROS Services
     def stop(self):
         self._mode_service_obj([ '' ])
 
@@ -63,3 +63,20 @@ class ROS_M5e_Client():
 
     def query_mode(self):
         self._mode_service_obj([ self.QUERY_MODE ])
+
+    # Create ROS Objects (for internal use only)
+    def _create_ros_objects(self):
+        reader_service_name = '/rfid/'+self.name+'_mode'
+        rospy.wait_for_service(reader_service_name)
+        self._mode_service_obj = rospy.ServiceProxy(reader_service_name,
+                                                    StringArray_None)
+
+    def read(self, antenna = ''):
+        if antenna == '':
+            return self.reader.read( warn=False )
+        else:
+            r = self.reader.read( warn=False )
+            while r[0] != antenna:
+                r = self.reader.read( warn=False )
+            return r
+        
