@@ -243,7 +243,7 @@ class GenericListener:
                 print self.node_name, ': have not heard back from publisher in', time_diff, 's'
 
     def _wait_for_first_read(self, quiet=False):
-        while self.reading['message'] == None:
+        while self.reading['message'] == None or not rospy.is_shutdown():
             time.sleep(.3)
             if not quiet:
                 print self.node_name, ': waiting for reading ...'
