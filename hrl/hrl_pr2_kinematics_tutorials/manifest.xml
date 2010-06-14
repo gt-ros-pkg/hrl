@@ -8,10 +8,16 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_pr2_kinematics_tutorials</url>
   <depend package="kinematics_msgs"/>
+  <depend package="geometry_msgs"/>
+  <depend package="visualization_msgs"/>
   <depend package="pr2_arm_kinematics"/>
   <depend package="pr2_controllers_msgs"/>
   <depend package="rospy"/>
   <depend package="actionlib"/>
+
+  <depend package="tf"/>
+  <depend package="hrl_lib"/>
+  <depend package="equilibrium_point_control"/>
 
 </package>
 

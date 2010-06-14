@@ -1,0 +1,13 @@
+
+roscd pr2_gazebo
+roslaunch pr2_empty_world.launch
+
+roscd pr2_arm_kinematics
+roslaunch launch/pr2_ik_rarm_node.launch
+
+
+
+rxplot ati_ft/data[0],/ee_wrench/linear/x ati_ft/data[1],/ee_wrench/linear/y ati_ft/data[2],/ee_wrench/linear/z -b10
+
+
+

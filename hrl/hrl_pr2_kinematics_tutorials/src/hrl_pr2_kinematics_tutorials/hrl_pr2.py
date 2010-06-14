@@ -15,6 +15,7 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 from geometry_msgs.msg import PoseStamped
 
 import hrl_lib.transforms as tr
+import time
 
 class HRL_PR2():
     def __init__(self):
@@ -179,14 +180,13 @@ if __name__ == '__main__':
         rospy.spin()
 
     if False:
-        q = [0, 0, 0, 0, 0, 0, 0]
-        ee_pos = hrl_pr2.FK('right_arm', q)
-        print 'FK result:', ee_pos.A1
-
-        p = np.matrix([0.9, -0.2, 0.]).T
-        rot = tr.Rx(0.)
+        p = np.matrix([0.9, -0.3, -0.15]).T
+        #rot = tr.Rx(0.)
+        rot = tr.Rx(math.radians(90.))
         hrl_pr2.set_cartesian('right_arm', p, rot)
 
+    hrl_pr2.open_gripper('right_arm')
+    time.sleep(5.)
     hrl_pr2.close_gripper('right_arm')
 
 
