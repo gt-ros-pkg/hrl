@@ -65,7 +65,7 @@ if __name__ == '__main__':
     camera = hc.find_camera(camera_name)
 
     if fps != None:
-        rospy.logout('Setting', camera_name, 'frame rate to', fps)
+        rospy.logout('Setting '+camera_name+' frame rate to %.2f'%(fps))
         camera.set_frame_rate(fps)
     
     if opt.cam_settings != None:
