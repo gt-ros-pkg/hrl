@@ -1,1 +1,0 @@
-src/hrl_camera/camera_uuid.py
