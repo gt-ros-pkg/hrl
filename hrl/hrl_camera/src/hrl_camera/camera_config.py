@@ -84,6 +84,8 @@ camera_parameters = {
             'type': 'Point Grey Firefly',
             'class': 'firefly',
             'color': True,
+            'frame_rate': 7.5,
+            'ros_topic': '/stereohead/left/color_image',
             'uid': 7140923
         },
 
@@ -103,6 +105,8 @@ camera_parameters = {
             'type': 'Point Grey Firefly',
             'class': 'firefly',
             'color': True,
+            'frame_rate': 7.5,
+            'ros_topic': '/stereohead/right/color_image',
             'uid': 7041054
         },
 

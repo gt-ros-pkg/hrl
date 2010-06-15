@@ -24,9 +24,9 @@ class camera:
 
         #create capture and related attributes
         self.capture = cv.CaptureFromCAM(self.device)
-#        if not self.capture:
-#            raise RuntimeError("Cannot open camera!\n")
-#        self._make_undistort_matrices()
+        if not self.capture:
+            raise RuntimeError("Cannot open camera!\n")
+        self._make_undistort_matrices()
 
 
     def _make_undistort_matrices(self):

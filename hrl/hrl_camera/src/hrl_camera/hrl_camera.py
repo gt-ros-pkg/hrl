@@ -1,17 +1,12 @@
 import camera_config as cc
+import camera_uuid as cu
 
-def find_camera(name, id = None):
+def find_camera(name):
     parameters = cc.camera_parameters[name]
-    if id == None:
-        import camera_uuid as cu
-        opencv_id = cu.lookup_by_name(name)
-    else:
-        opencv_id = id
+    opencv_id = cu.lookup_by_name(name)
     classname = parameters['class']
     import_statement = 'import ' + classname
     instantiation = classname + '.' + classname + '(parameters, opencv_id)'
-    print 'import_statement:', import_statement
-    print 'instantiation:', instantiation
     exec import_statement
     return eval(instantiation)
 
