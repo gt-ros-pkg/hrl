@@ -5,6 +5,8 @@
   <license>New BSD</license>
   <depend package="rospy"/>
   <depend package="hrl_lib"/>
+  <depend package="std_srvs"/>
+  <depend package="tf"/>
 
   <sysdepend os="ubuntu" version="8.04-hardy" package="python-numpy"/>
 
