@@ -25,7 +25,8 @@ class ROSImageClient:
         self.bridge = CvBridge()
         def message_extractor(ros_img):
             try:
-                cv_image = self.bridge.imgmsg_to_cv(ros_img, 'bgr8')
+                #cv_image = self.bridge.imgmsg_to_cv(ros_img, 'bgr8')
+                cv_image = self.bridge.imgmsg_to_cv(ros_img, desired_encoding = 'passthrough')
                 return cv_image
             except CvBridgeError, e:
                 return None
