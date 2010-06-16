@@ -1,11 +1,9 @@
 <package>
   <description brief="hrl_opencv">
-
-     hrl_opencv
-
+     Helper functions for use with OpenCV.
   </description>
-  <author>Hai Nguyen / haidai@gmail.com / Healthcare Robotics Lab, Georgia Tech</author>
-  <license>new BSD</license>
+  <author>Hai Nguyen, Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
+  <license>New BSD</license>
   <depend package="std_msgs" />  
   <depend package="sensor_msgs" />  
   <depend package="rospy" />  
