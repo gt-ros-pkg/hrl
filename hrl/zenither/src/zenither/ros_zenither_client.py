@@ -63,7 +63,7 @@ class ZenitherClient():
 
 
 def update_transform( height, broadcaster ):
-    # ELE only transform
+    # ELE only transform.  This is the old "global frame" lifted by the zenither height.
     broadcaster.sendTransform( (+0.20, 0.0, height),
                                tf.transformations.quaternion_from_euler( 0.0, 0.0, 0.0 ),
                                rospy.Time.now(),
