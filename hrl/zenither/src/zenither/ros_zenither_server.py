@@ -33,7 +33,7 @@ roslib.load_manifest('zenither')
 import zenither.lib_zenither as lib_z
 import rospy
 from hrl_lib.msg import FloatArray
-from hrl_lib.srv import Float_None
+from hrl_lib.srv import Float_Int
 import hrl_lib.rutils as ru
 import hrl_lib.util as ut
 from std_srvs.srv import Empty
@@ -66,7 +66,7 @@ class ZenitherServer(threading.Thread):
                                              Empty,
                                              self.set_origin )
         self.srv_move_position = rospy.Service( name + '/move_position',
-                                                Float_None,
+                                                Float_Int,
                                                 self.move_position )
         self.start()
 
@@ -86,6 +86,7 @@ class ZenitherServer(threading.Thread):
 
     def move_position( self, msg ):
         self.zenither.move_position( msg.value )
+        return True
 
     def set_origin( self, msg ):
         self.calibrating = True
@@ -97,7 +98,6 @@ class ZenitherServer(threading.Thread):
         self.zenither.set_origin()
         self.zenither.move_position(0.25)
         rospy.logout('ZenitherServer: Calibration complete')
-        rospy.logout('ZenitherServer: Creating a new object will enable brake.')
         self.calibrating = False
 
     def stop( self ):

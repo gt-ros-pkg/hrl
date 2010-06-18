@@ -32,7 +32,7 @@ import roslib
 roslib.load_manifest('zenither')
 import rospy
 from hrl_lib.msg import FloatArray
-from hrl_lib.srv import Float_None
+from hrl_lib.srv import Float_Int
 import hrl_lib.rutils as ru
 import hrl_lib.util as ut
 from std_srvs.srv import Empty
@@ -50,6 +50,10 @@ class ZenitherClient():
         self.sub = rospy.Subscriber('/zenither', FloatArray, self.pose_callback)
         self.height = None
         self.callbacks = []
+
+        rospy.wait_for_service( '/zenither/move_position' )
+        self.move_position = rospy.ServiceProxy( '/zenither/move_position',
+                                                 Float_Int )
         
     def pose( self ):
         return self.height
@@ -74,6 +78,7 @@ if __name__ == '__main__':
     import functools
     br = tf.TransformBroadcaster()
     zc = ZenitherClient( 'ele_zen_client' )
+    rospy.logout('ros_zenither_client: Starting tf broadcaster.')
     zc.callbacks.append( functools.partial(update_transform,
                                            broadcaster = br ))
 
