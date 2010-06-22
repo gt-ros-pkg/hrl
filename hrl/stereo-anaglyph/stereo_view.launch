@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="image_transport" name="left_cam_republish"  type="republish" args="theora in:=/narrow_stereo/left/image_rect_color raw out:=/narrow_stereo_raw/left/image_rect_color" respawn="true"/>
+    <node pkg="image_transport" name="right_cam_republish" type="republish" args="theora in:=/narrow_stereo/right/image_rect_color raw out:=/narrow_stereo_raw/right/image_rect_color" respawn="true"/>
+    <node pkg="stereo-anaglyph" name="anaglyph-view" type="red-cyan-anaglyph.py" args="-c /narrow_stereo_raw -d 20"/>
+</launch>

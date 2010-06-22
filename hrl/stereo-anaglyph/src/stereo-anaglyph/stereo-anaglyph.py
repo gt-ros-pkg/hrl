@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import roslib
 roslib.load_manifest('stereo-anaglyph')
 import rospy
