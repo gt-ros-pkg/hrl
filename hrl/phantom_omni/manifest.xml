@@ -11,6 +11,7 @@
   <depend package="geometry_msgs"/>
   <depend package="tf"/>
 
+  <rosdep name="libw1-mesa"/>
   <rosdep name="x11proto-dri2-dev"/>
   <rosdep name="libdrm-dev"/>
   <rosdep name="x11proto-gl-dev"/>
