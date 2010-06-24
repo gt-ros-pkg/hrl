@@ -1,5 +1,5 @@
 <package>
-  <description brief="Testing point_cloud_mapping from python">
+  <description brief="Using PCL, interfacing it with python etc.">
   </description>
   <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>New BSD</license>
@@ -9,12 +9,11 @@
 
   <depend package="sensor_msgs"/>
   <depend package="geometry_msgs"/>
-  <!--  <depend package="point_cloud_mapping" /> -->
+  <depend package="pcl" />
 
   <depend package="hrl_lib"/>
 
-  <sysdepend os="ubuntu" version="8.04-hardy" package="mayavi2"/>
-  <sysdepend os="ubuntu" version="8.04-hardy" package="python-numpy"/>
+  <rosdep name="mayavi2"/>
 
 </package>
 

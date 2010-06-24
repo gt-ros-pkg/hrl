@@ -1,4 +1,8 @@
 
+
+This might not work with cturtle. I need to make appropriate changes.
+
+
 numpy_pc_2009Jun02_181409.pkl: pickle of a 3xN numpy matrix of 3D points. This is a real point cloud of a door using a tilting laser range finder.
 
 python ros_point_clouder.py -h will give some information about the usage.
