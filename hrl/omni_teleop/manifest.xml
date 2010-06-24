@@ -1,0 +1,18 @@
+<package>
+  <description brief="omni_teleop">
+
+     omni_teleop
+
+  </description>
+  <author>haidai</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/omni_teleop</url>
+  <depend package="pr2_controllers_msgs"/>
+  <depend package="actionlib"/>
+  <depend package="phantom_omni"/>
+  <depend package="geometry_msgs"/>
+
+</package>
+
+
