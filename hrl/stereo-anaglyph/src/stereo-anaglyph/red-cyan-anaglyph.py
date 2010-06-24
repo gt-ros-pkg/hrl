@@ -79,12 +79,23 @@ if __name__ == '__main__':
     cv.ResizeWindow('stereo-anaglyph', 640, 480)
     cv.WaitKey(10)
     anaglyph_cyan_image_distance_correction = rospy.get_param('anaglyph_dist', opt.dist)
-    
+   
+    left = 65361
+    right = 65363 
+    escape = 27
     while not rospy.is_shutdown():
         l, r = stereo_listener.next()
         red_blue = anaglyph(l, r, anaglyph_cyan_image_distance_correction)
         cv.ShowImage('stereo-anaglyph', red_blue)
         k = cv.WaitKey(10)
+        if k == escape:
+            break
+        if k == left:
+            anaglyph_cyan_image_distance_correction = anaglyph_cyan_image_distance_correction - 1
+            print anaglyph_cyan_image_distance_correction
+        if k == right:
+            anaglyph_cyan_image_distance_correction = anaglyph_cyan_image_distance_correction + 1
+            print anaglyph_cyan_image_distance_correction
 
 
 
