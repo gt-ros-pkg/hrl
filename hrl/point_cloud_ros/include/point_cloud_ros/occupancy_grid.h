@@ -11,6 +11,8 @@
 #include <ros/console.h>
 #include <ros/assert.h>
 
+#include "pcl/point_cloud.h"
+#include <pcl/point_types.h>
 
 /**
  * @class OccupancyGrid
@@ -78,10 +80,13 @@ namespace occupancy_grid
 
             VoxelStatus getVoxel(unsigned int x, unsigned int y, unsigned int z);
 
+            void fillOccupancyGrid(pcl::PointCloud<pcl::PointXYZ> cloud);
             void printOccupancyGrid();
-            unsigned int sizeX();
-            unsigned int sizeY();
-            unsigned int sizeZ();
+            unsigned int nX();
+            unsigned int nY();
+            unsigned int nZ();
+
+            uint32_t* getData();
 
         private:
 
