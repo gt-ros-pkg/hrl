@@ -4,14 +4,28 @@
 
 namespace occupancy_grid
 {
-    OccupancyGrid::OccupancyGrid(unsigned int size_x, unsigned int size_y, unsigned int size_z)
+    OccupancyGrid::OccupancyGrid(float center_x, float center_y, float center_z,
+                                 float size_x, float size_y, float size_z,
+                                 float res_x, float res_y, float res_z)
     {
+        nx_ = int (size_x / res_x + 0.5);
+        ny_ = int (size_y / res_y + 0.5);
+        nz_ = int (size_z / res_z + 0.5);
+
+        res_x_ = res_x; 
+        res_y_ = res_y; 
+        res_z_ = res_z; 
+
         size_x_ = size_x; 
         size_y_ = size_y; 
         size_z_ = size_z; 
 
-        data_ = new uint32_t[size_x_ * size_y_ * size_z_];
-        for(unsigned int i = 0; i < size_x_ * size_y_ *size_z_; i++)
+        center_x_ = center_x; 
+        center_y_ = center_y; 
+        center_z_ = center_z; 
+
+        data_ = new uint32_t[nx_ * ny_ * nz_];
+        for(unsigned int i = 0; i < nx_ * ny_ *nz_; i++)
             data_[i] = 0;
     }
 
@@ -22,13 +36,13 @@ namespace occupancy_grid
 
     VoxelStatus OccupancyGrid::getVoxel(unsigned int x, unsigned int y, unsigned int z)
     {
-        if(x >= size_x_ || y >= size_y_ || z >= size_z_)
+        if(x >= nx_ || y >= ny_ || z >= nz_)
         {
             ROS_DEBUG("Error, voxel out of bounds. (%d, %d, %d)\n", x, y, z);
             return UNKNOWN;
         }
 
-        unsigned int voxel_status = data_[z * size_x_ * size_y_ + y * size_x_ + x];
+        unsigned int voxel_status = data_[z * nx_ * ny_ + y * nx_ + x];
         if (voxel_status == FREE)
             return FREE;
         if (voxel_status == MARKED)
@@ -36,30 +50,29 @@ namespace occupancy_grid
         return UNKNOWN;
     }
 
-
     unsigned int OccupancyGrid::sizeX()
     {
-        return size_x_;
+        return nx_;
     }
 
     unsigned int OccupancyGrid::sizeY()
     {
-        return size_y_;
+        return ny_;
     }
 
     unsigned int OccupancyGrid::sizeZ()
     {
-        return size_z_;
+        return nz_;
     }
 
     void OccupancyGrid::printOccupancyGrid()
     {
-        for(unsigned int z = 0; z < size_z_; z++)
+        for(unsigned int z = 0; z < nz_; z++)
         {
             printf("Layer z = %d:\n",z);
-            for(unsigned int y = 0; y < size_y_; y++)
+            for(unsigned int y = 0; y < ny_; y++)
             {
-                for(unsigned int x = 0 ; x < size_x_; x++)
+                for(unsigned int x = 0 ; x < nx_; x++)
                     printf((getVoxel(x, y, z)) == occupancy_grid::MARKED? "#" : ".");
                 printf("|\n");
             } 
@@ -70,8 +83,7 @@ namespace occupancy_grid
 int main(int argc, char *argv[])
 {
     ROS_INFO("Initializing voxel grid.\n");
-    int size_x = 3, size_y = 4, size_z = 5;
-    occupancy_grid::OccupancyGrid *v = new occupancy_grid::OccupancyGrid(size_x, size_y, size_z);
+    occupancy_grid::OccupancyGrid *v = new occupancy_grid::OccupancyGrid(0, 0, 0, 0.3, 0.4, 0.2, 0.05, 0.05, 0.05);
 
     //Visualize the output
     v->printOccupancyGrid();
