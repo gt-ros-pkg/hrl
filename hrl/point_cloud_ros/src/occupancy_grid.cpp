@@ -50,19 +50,48 @@ namespace occupancy_grid
         return UNKNOWN;
     }
 
-    unsigned int OccupancyGrid::sizeX()
+    unsigned int OccupancyGrid::nX()
     {
         return nx_;
     }
 
-    unsigned int OccupancyGrid::sizeY()
+    unsigned int OccupancyGrid::nY()
     {
         return ny_;
     }
 
-    unsigned int OccupancyGrid::sizeZ()
+    unsigned int OccupancyGrid::nZ()
     {
         return nz_;
+    }
+
+    uint32_t* OccupancyGrid::getData()
+    {
+        return data_;
+    }
+    
+    void OccupancyGrid::fillOccupancyGrid(pcl::PointCloud<pcl::PointXYZ> cloud)
+    {
+        float x, y, z;
+        int idx_x, idx_y, idx_z;
+        float min_x = center_x_ - size_x_ / 2;
+        float min_y = center_y_ - size_y_ / 2;
+        float min_z = center_z_ - size_z_ / 2;
+
+        for (size_t i = 0; i < cloud.points.size(); i++)
+        {
+            x = cloud.points[i].x;
+            y = cloud.points[i].y;
+            z = cloud.points[i].z;
+
+            idx_x = int( (x - min_x) / res_x_ + 0.5);
+            idx_y = int( (y - min_y) / res_y_ + 0.5);
+            idx_z = int( (z - min_z) / res_z_ + 0.5);
+
+            if (idx_x >= 0 and idx_x < (int)nx_ and idx_y >= 0 and \
+                idx_y < (int)ny_ and idx_z >= 0 and idx_z < (int)nz_)
+                data_[idx_z * nx_ * ny_ + idx_y * nx_ + idx_x] += 1;
+        }
     }
 
     void OccupancyGrid::printOccupancyGrid()
