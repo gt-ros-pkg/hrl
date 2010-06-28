@@ -1,5 +1,11 @@
 
 
+
+1) ./bin/pc_to_og points_in:=/narrow_stereo/points og_out:=occupancy_grid
+2) python src/point_cloud_ros/differencing_node.py
+3) ./bin/og_to_pc og_in:=difference_occupancy_grid
+
+
 To view the point clouds in rviz, I also need to run the
 static_transform_publisher:
 rosrun tf static_transform_publisher 0 0 0 0 0 0 1 /map /base_link 1000

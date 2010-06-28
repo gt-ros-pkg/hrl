@@ -15,8 +15,13 @@ target_link_libraries (bin/filter_voxel_grid pcl_io pcl_filters)
 #                         src/occupancy_grid.cpp
 #                         src/examples/og_sample.cpp)
 
-rosbuild_add_executable (bin/occupancy_grid_converter
+rosbuild_add_executable (bin/og_to_pc
                          src/occupancy_grid.cpp
-                         src/occupancy_grid_converter.cpp)
+                         src/og_to_pc.cpp)
+
+rosbuild_add_executable (bin/pc_to_og
+                         src/occupancy_grid.cpp
+                         src/pc_to_og.cpp)
+
 
 

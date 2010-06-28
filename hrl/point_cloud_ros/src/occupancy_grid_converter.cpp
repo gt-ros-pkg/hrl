@@ -20,14 +20,14 @@ class OccupancyGridConverter
 
     public:
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        OccupancyGridConverter () : nh_ ("~"), queue_size_ (100), og_in_ ("/og_in"), points_in_ ("/points_in"),
+        OccupancyGridConverter () : nh_ ("~"), queue_size_ (1), og_in_ ("/og_in"), points_in_ ("/points_in"),
                                     og_out_ ("/og_out"), points_out_ ("/points_out")
         {
+//            pub_points_ = nh_.advertise<sensor_msgs::PointCloud> (points_out_, queue_size_);
+            pub_og_ = nh_.advertise<point_cloud_ros::OccupancyGrid> (og_out_, queue_size_);
             // Subscribe to the cloud topic using both the old message format and the new
             sub_points_ = nh_.subscribe (points_in_, queue_size_, &OccupancyGridConverter::cloud_cb_points, this);
-            sub_og_ = nh_.subscribe (og_in_, queue_size_, &OccupancyGridConverter::cloud_cb_og, this);
-            pub_points_ = nh_.advertise<sensor_msgs::PointCloud> (points_out_, queue_size_);
-            pub_og_ = nh_.advertise<point_cloud_ros::OccupancyGrid> (og_out_, queue_size_);
+//            sub_og_ = nh_.subscribe (og_in_, queue_size_, &OccupancyGridConverter::cloud_cb_og, this);
             ROS_INFO ("OccupancyGridConverter initialized to transform from PointCloud (%s) to OccupancyGrid (%s).", nh_.resolveName (points_in_).c_str (), nh_.resolveName (og_out_).c_str ());
             ROS_INFO ("OccupancyGridConverter initialized to transform from OccupancyGrid (%s) to PointCloud (%s).", nh_.resolveName (og_in_).c_str (), nh_.resolveName (points_out_).c_str ());
         }
@@ -140,9 +140,8 @@ int main (int argc, char** argv)
 {
     // ROS init
     ros::init (argc, argv, "occupancy_grid_converter", ros::init_options::AnonymousName);
-
     OccupancyGridConverter p;
-    ros::spin ();
+    ros::spin();
 
     return (0);
 }
