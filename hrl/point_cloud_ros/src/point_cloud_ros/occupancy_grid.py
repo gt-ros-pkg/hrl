@@ -1,12 +1,6 @@
 
 import numpy as np, math
 
-import roslib; roslib.load_manifest('point_cloud_ros')
-import rospy
-
-import hrl_tilting_hokuyo.display_3d_mayavi as d3m
-from point_cloud_ros.msg import OccupancyGrid
-
 class occupancy_grid_3d():
 
     ##
