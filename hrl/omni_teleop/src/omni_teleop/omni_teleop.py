@@ -9,6 +9,7 @@ import actionlib
 import tf.transformations as tr
 import numpy as np
 import hrl_lib.tf_utils as tfu
+#import threading
 
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Wrench
@@ -159,6 +160,7 @@ class JTWrenchFeedback:
             self.omni_fb.publish(wr)
 
 
+#class ControlPR2Arm(threading.Thread):
 class ControlPR2Arm:
 
     def __init__(self, omni_name, #='omni1', 
@@ -170,6 +172,7 @@ class ControlPR2Arm:
             tfbroadcast, #=None,
             tflistener): #=None):
 
+        #threading.Thread.__init__(self)
         self.enabled = False
         self.zero_out_forces = True
 
@@ -182,16 +185,27 @@ class ControlPR2Arm:
         self.tflistener = tflistener
         self.tfbroadcast = tfbroadcast
         self.gripper_tip_frame = gripper_tip_frame
-
-        r = rospy.Rate(100.)
-        for i in range(50):
+	#self.start()
+        rate = rospy.Rate(30.0)
+	for i in range(10):
             self.send_transform_to_link_omni_and_pr2_frame()
-            r.sleep()
+            rate.sleep()
 
         self.omni_fb = rospy.Publisher(self.omni_name + '_force_feedback', Wrench)
         self.pr2_pub = rospy.Publisher(pr2_control_topic, PoseStamped)
-
+        #success = False
         self.scale_omni_l0 = np.abs(self.l0_rotate_base(self.scaling_in_base_frame))
+        #while (not success) and (not rospy.is_shutdown()):
+	#    try:
+        #        success = True
+        #        time.sleep(.1)
+        #    except tf.LookupException, e:
+        #        success = False
+        #        print 'tf.LookupException', e
+        #    except tf.ConnectivityException, e:
+        #        success = False
+        #        #print 'tf.ConnectivityException', e
+
         rospy.Subscriber(self.omni_name + '_pose', PoseStamped, self.omni_pose_cb)
         self.gripper_handler = GripperOmniHandler(self.omni_name + '_button', gripper_control_topic)
 
@@ -212,6 +226,11 @@ class ControlPR2Arm:
                          rospy.Time.now(),
                          self.omni_name,
                          "/torso_lift_link")
+    #def run(self):
+    #    rate = rospy.Rate(30.0)
+    #    while not rospy.is_shutdown():
+    #        self.send_transform_to_link_omni_and_pr2_frame()
+    #        rate.sleep()
 
     ##
     # Rotate a vector from omni_link0 to base_footprint frame
@@ -225,6 +244,7 @@ class ControlPR2Arm:
     # Transform from omni base link to torso lift link taking into account scaling
     def torso_T_omni(self, omni_tip, msg_frame):
         #Transform into link0 so we can scale
+        #print 'torso_t_omni', self.omni_name + '_link0', msg_frame
         z_T_6 = tfu.transform(self.omni_name + '_link0', msg_frame, self.tflistener)
         tip_0 = z_T_6 * omni_tip
         tip_0t = (np.array(tr.translation_from_matrix(tip_0)) * np.array(self.scale_omni_l0)).tolist()
@@ -296,7 +316,7 @@ class ControlPR2Arm:
             center_col_vec = np.matrix(center_t).T
 
             #Transmit some sanity check information
-            tip_tt, tip_tq = self.torso_T_omni(tfu.tf_as_matrix((center_t, center_q)), 'omni1')
+            tip_tt, tip_tq = self.torso_T_omni(tfu.tf_as_matrix((center_t, center_q)), self.omni_name)
             ps = PoseStamped()
             ps.header.frame_id = '/torso_lift_link'
             ps.header.stamp = rospy.get_rostime()
@@ -344,21 +364,21 @@ class OmniPR2Teleop:
                                     scaling_in_base_frame = [3.5, 3., 5.],
                                     tfbroadcast=self.tfbroadcast,
                                     tflistener=self.tflistener)
+
+        self.right_controller = ControlPR2Arm(
+                                    omni_name ='omni2', 
+                                    pr2_control_topic = 'r_cart/command_pose',
+                                    gripper_control_topic = 'r_gripper_controller',
+                                    gripper_tip_frame = 'r_gripper_tool_frame',
+                                    center_in_torso_frame = [1.2, -.3, -1], 
+                                    scaling_in_base_frame = [3.5, 3., 5.],
+                                    tfbroadcast=self.tfbroadcast,
+                                    tflistener=self.tflistener)
         #self.left_feedback = JTWrenchFeedback(wrench_topic = '/l_cart/state/wrench',
         #                            wrench_frame = '/l_gripper_tool_frame',
         #                            dest_frame = '/omni1_sensable',
         #                            force_feedback_topic = 'omni1_force_feedback',
         #                            tflistener = self.tflistener)
-
-        #self.right_controller = ControlPR2Arm(
-        #                            omni_name ='omni2', 
-        #                            pr2_control_topic = 'r_cart/command_pose',
-        #                            gripper_control_topic = 'r_gripper_controller',
-        #                            gripper_tip_frame = 'r_gripper_tool_frame',
-        #                            center_in_torso_frame = [1.2, -.3, -1], 
-        #                            scaling_in_base_frame = [3.5, 3., 5.],
-        #                            tfbroadcast=self.tfbroadcast,
-        #                            tflistener=self.tflistener)
 
         rospy.Subscriber('omni1_button', PhantomButtonEvent, self.omni_safety_lock_cb)
         rospy.Subscriber('omni2_button', PhantomButtonEvent, self.omni_safety_lock_cb)
@@ -374,24 +394,28 @@ class OmniPR2Teleop:
             rospy.loginfo('control ENABLED.')
             self.left_controller.set_control(True)
             #self.left_feedback.set_enable(True)
-            #self.right_controller.set_control(True)
+            self.right_controller.set_control(True)
         else:
             rospy.loginfo('control disabled.  Follow potential well to pose of arm.')
             self.left_controller.set_control(False)
             #self.left_feedback.set_enable(False)
-            #self.right_controller.set_control(False)
+            self.right_controller.set_control(False)
 
     def run(self):
-        rate = rospy.Rate(10.0)
+        rate = rospy.Rate(30.0)
         rospy.loginfo('running...')
         while not rospy.is_shutdown():
             self.left_controller.send_transform_to_link_omni_and_pr2_frame()
+            self.right_controller.send_transform_to_link_omni_and_pr2_frame()
             rate.sleep()
 
  
 if __name__ == '__main__':
+    import time
     o = OmniPR2Teleop()
     o.run()
+    #while not rospy.is_shutdown():
+    #    time.sleep(1.0)
 
 
 
