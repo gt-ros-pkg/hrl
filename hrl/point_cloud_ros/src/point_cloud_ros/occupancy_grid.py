@@ -55,9 +55,9 @@ def cb(og, param_list):
 if __name__ == '__main__':
 
     rospy.init_node('occupancy_grid_python')
-
     param_list = [None, False]
     rospy.Subscriber('occupancy_grid', OccupancyGrid, cb, param_list)
+    rospy.logout('Ready')
 
     while not rospy.is_shutdown():
         if param_list[1] == True:
