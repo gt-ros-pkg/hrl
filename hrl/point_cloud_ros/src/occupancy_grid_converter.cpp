@@ -34,7 +34,7 @@ class OccupancyGridConverter
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         /** \brief OccuancyGrid callback */
-        void cloud_cb_og (const point_cloud_ros::OccupancyGrid::ConstPtr &msg)
+        void cloud_cb_og (const point_cloud_ros::OccupancyGrid &msg)
         {
             if (pub_points_.getNumSubscribers () <= 0)
             {
@@ -42,15 +42,27 @@ class OccupancyGridConverter
                 return;
             }
 
-            sensor_msgs::PointCloud output;
-//            // Convert to the new PointCloud format
-//            if (!sensor_msgs::convertPointCloud2ToPointCloud (*msg, output))
-//            {
-//                ROS_ERROR ("[occupancy_grid_converter] Conversion from sensor_msgs::PointCloud2 to sensor_msgs::PointCloud failed!");
-//                return;
-//            }
-//            ROS_INFO ("[occupancy_grid_converter] Publishing a PointCloud with %d points on %s.", (int)output.points.size (), nh_.resolveName (points_out_).c_str ());
-            pub_points_.publish (output);
+            float cx = msg.center.x;
+            float cy = msg.center.y;
+            float cz = msg.center.z;
+
+            float rx = msg.resolution.x;
+            float ry = msg.resolution.y;
+            float rz = msg.resolution.z;
+
+            float sx = msg.grid_size.x;
+            float sy = msg.grid_size.y;
+            float sz = msg.grid_size.z;
+
+            occupancy_grid::OccupancyGrid *v = new
+                occupancy_grid::OccupancyGrid(cx, cy, cz, sx, sy, sz, rx, ry, rz);
+
+            uint32_t* d = v->getData();
+            int nCells = v->nX() * v->nY() * v->nZ();
+            for (int i=0; i<nCells; i++)
+                d[i] = msg.data[i];
+
+            pub_points_.publish(v->gridToPoints());
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

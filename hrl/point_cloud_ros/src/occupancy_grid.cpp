@@ -2,6 +2,8 @@
 #include "point_cloud_ros/occupancy_grid.h"
 #include "point_cloud_ros/OccupancyGrid.h"
 
+#include <ros/console.h>
+
 namespace occupancy_grid
 {
     OccupancyGrid::OccupancyGrid(float center_x, float center_y, float center_z,
@@ -76,6 +78,24 @@ namespace occupancy_grid
                 idx_y < (int)ny_ and idx_z >= 0 and idx_z < (int)nz_)
                 data_[idx_z * nx_ * ny_ + idx_y * nx_ + idx_x] += 1;
         }
+    }
+
+    sensor_msgs::PointCloud OccupancyGrid::gridToPoints()
+    {
+        sensor_msgs::PointCloud cloud;
+
+        for(unsigned int x_idx=0; x_idx<nx_; x_idx++)
+            for(unsigned int y_idx=0; y_idx<ny_; y_idx++)
+                for(unsigned int z_idx=0; z_idx<nz_; z_idx++)
+                    if (data_[z_idx * nx_ * ny_ + y_idx * nx_ + x_idx] > 0)
+                    {
+                        geometry_msgs::Point32 pt;
+                        pt.x = x_idx*res_x_ + center_x_ - size_x_/2;
+                        pt.y = y_idx*res_y_ + center_y_ - size_y_/2;
+                        pt.z = z_idx*res_z_ + center_z_ - size_z_/2;
+                        cloud.points.push_back(pt);
+                    }
+        return cloud;
     }
 
 };

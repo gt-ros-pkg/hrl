@@ -1,9 +1,9 @@
 #ifndef OCCUPANCY_GRID_OCCUPANCY_GRID_
 #define OCCUPANCY_GRID_OCCUPANCY_GRID_
 
-#include <ros/console.h>
-#include "pcl/point_cloud.h"
+#include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <sensor_msgs/PointCloud.h>
 
 /**
  * @class OccupancyGrid
@@ -27,7 +27,9 @@ namespace occupancy_grid
             ~OccupancyGrid();
 
             void fillOccupancyGrid(pcl::PointCloud<pcl::PointXYZ> cloud);
-            void printOccupancyGrid();
+
+            sensor_msgs::PointCloud gridToPoints();
+
             unsigned int nX();
             unsigned int nY();
             unsigned int nZ();

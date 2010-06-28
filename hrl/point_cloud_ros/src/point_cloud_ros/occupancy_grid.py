@@ -41,15 +41,6 @@ class occupancy_grid_3d():
 
         return np.matrix(np.row_stack([x,y,z]))
 
-
-def cb(og, param_list):
-    c = np.matrix([og.center.x, og.center.y, og.center.z]).T
-    s = np.matrix([og.grid_size.x, og.grid_size.y, og.grid_size.z]).T
-    r = np.matrix([og.resolution.x, og.resolution.y, og.resolution.z]).T
-    og3d = occupancy_grid_3d(c, s, r, np.array(og.data))
-    param_list[0] = og3d
-    param_list[1] = True
-
 if __name__ == '__main__':
     print 'Hello World'
 
