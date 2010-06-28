@@ -371,19 +371,19 @@ class OmniPR2Teleop:
     def set_state(self, s):
         self.enabled = s
         if self.enabled:
-            print 'OmniPR2Teleop: control ENABLED.'
+            rospy.loginfo('control ENABLED.')
             self.left_controller.set_control(True)
-            self.left_feedback.set_enable(True)
+            #self.left_feedback.set_enable(True)
             #self.right_controller.set_control(True)
         else:
-            print 'OmniPR2Teleop: control disabled.  Follow potential well to pose of arm.'
+            rospy.loginfo('control disabled.  Follow potential well to pose of arm.')
             self.left_controller.set_control(False)
-            self.left_feedback.set_enable(False)
+            #self.left_feedback.set_enable(False)
             #self.right_controller.set_control(False)
 
     def run(self):
         rate = rospy.Rate(10.0)
-        print 'OmniPR2Teleop: running...'
+        rospy.loginfo('running...')
         while not rospy.is_shutdown():
             self.left_controller.send_transform_to_link_omni_and_pr2_frame()
             rate.sleep()
