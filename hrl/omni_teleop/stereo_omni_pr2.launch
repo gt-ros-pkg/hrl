@@ -1,0 +1,11 @@
+<launch>
+<!--
+    <node pkg="phantom_omni" name="omni1_node" type="omni">
+        <param name="omni_name" value="omni1"/>
+    </node>
+-->
+
+    <include file="$(find teleop_microscribe)/c_jt.launch"/>
+    <include file="$(find stereo-anaglyph)/pr2_wide_stereo_view.launch"/>
+    <node pkg="omni_teleop" name="omni_teleop" type="omni_teleop.py" respawn="true"/>
+</launch>

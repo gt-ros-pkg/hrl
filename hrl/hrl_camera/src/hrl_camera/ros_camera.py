@@ -25,8 +25,7 @@ class ROSImageClient:
         self.bridge = CvBridge()
         def message_extractor(ros_img):
             try:
-                #cv_image = self.bridge.imgmsg_to_cv(ros_img, 'bgr8')
-                cv_image = self.bridge.imgmsg_to_cv(ros_img, desired_encoding = 'passthrough')
+                cv_image = self.bridge.imgmsg_to_cv(ros_img, 'bgr8')
                 return cv_image
             except CvBridgeError, e:
                 return None
@@ -34,6 +33,10 @@ class ROSImageClient:
                                            .1, message_extractor)
     def get_frame(self):
         return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False)
+
+    def next(self):
+        return self.get_frame()
+
 
 class ROSCamera(ROSImageClient):
     def __init__(self, topic_name):
@@ -44,6 +47,19 @@ class ROSCamera(ROSImageClient):
 
     def set_frame_rate(self, rate):
         print 'ROSCamera: **** WARNING: set_frame_rate unimplemented over ROS ****'
+
+
+class ROSStereoListener:
+    def __init__(self, topics, rate=30.0, name='stereo_listener'):
+        self.listener = ru.GenericListener(name, [Image, Image], topics, rate)
+        self.lbridge = CvBridge()
+        self.rbridge = CvBridge()
+
+    def next(self):
+        lros, rros =  self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+        lcv = self.lbridge.imgmsg_to_cv(lros, 'bgr8')
+        rcv = self.rbridge.imgmsg_to_cv(rros, 'bgr8')
+        return lcv, rcv
 
 
 if __name__ == '__main__':

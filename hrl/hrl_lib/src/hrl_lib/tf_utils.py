@@ -18,4 +18,14 @@ def rotate(to_frame, from_frame, tflistener, t=0):
     t, q = tflistener.lookupTransform(to_frame, from_frame, rospy.Time(t))
     return np.matrix(tr.quaternion_matrix(q)) 
 
+def quaternion_matrix(quat):
+    return np.matrix(tr.quaternion_matrix(quat))
 
+def translation_matrix(trans):
+    return np.matrix(tr.translation_matrix(trans))
+
+def posestamped_as_matrix(ps):
+    p = ps.pose
+    t = [p.position.x, p.position.y, p.position.z]
+    o = [p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
+    return tf_as_matrix((t, o)), ps.header.frame_id
