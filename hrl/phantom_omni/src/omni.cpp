@@ -42,18 +42,39 @@ class PhantomROS {
     ros::Publisher button_publisher;
 	ros::Subscriber haptic_sub;
     std::string omni_name;
+    std::string sensable_frame_name;
+    std::string link_names[7];
+
     OmniState *state;
     tf::TransformBroadcaster br;
-    std::string link_names[7];
 
     void init(OmniState *s) 
     {
-        pose_publisher = n.advertise<geometry_msgs::PoseStamped>("omni_pose", 100);
-        //omni_pose_publisher = n.advertise<geometry_msgs::PoseStamped>("omni_pose_internal", 100);
-        button_publisher = n.advertise<phantom_omni::PhantomButtonEvent>("phantom_button", 100);
         ros::param::param(std::string("omni_name"), omni_name, std::string("omni1"));
-        haptic_sub = n.subscribe("force_feedback", 100, &PhantomROS::force_callback, this);
-        state = s;
+
+        //Publish on NAME_pose
+        std::ostringstream stream00;
+        stream00 << omni_name << "_pose";
+        std::string pose_topic_name = std::string(stream00.str());
+        pose_publisher = n.advertise<geometry_msgs::PoseStamped>(pose_topic_name.c_str(), 100);
+        //omni_pose_publisher = n.advertise<geometry_msgs::PoseStamped>("omni_pose_internal", 100);
+
+        //Publish button state on NAME_button
+        std::ostringstream stream0;
+        stream0 << omni_name << "_button";
+        std::string button_topic = std::string(stream0.str());
+        button_publisher = n.advertise<phantom_omni::PhantomButtonEvent>(button_topic.c_str(), 100);
+
+        //Subscribe to NAME_force_feedback
+        std::ostringstream stream01;
+        stream01 << omni_name << "_force_feedback";
+        std::string force_feedback_topic = std::string(stream01.str());
+        haptic_sub = n.subscribe(force_feedback_topic.c_str(), 100, &PhantomROS::force_callback, this);
+
+        //Frame of force feedback (NAME_sensable)
+        std::ostringstream stream2;
+        stream2 << omni_name << "_sensable";
+        sensable_frame_name = std::string(stream2.str());
 
         for (int i = 0; i < 7; i++)
         {
@@ -61,6 +82,8 @@ class PhantomROS {
             stream1 << omni_name << "_link" << i;
             link_names[i] = std::string(stream1.str());
         }
+
+        state = s;
     }
 
     /*******************************************************************************
@@ -79,11 +102,12 @@ class PhantomROS {
         tf::Transform l0, sensable, l1, l2, l3, l4, l5, l6, l0_6;
         l0.setOrigin(tf::Vector3(0., 0, 0.15));
         l0.setRotation(tf::Quaternion(0, 0, 0));
-        br.sendTransform(tf::StampedTransform(l0, ros::Time::now(), "world", link_names[0].c_str()));
+        br.sendTransform(tf::StampedTransform(l0, ros::Time::now(), omni_name.c_str(), link_names[0].c_str()));
 
         sensable.setOrigin(tf::Vector3(0., 0, 0));
         sensable.setRotation(tf::Quaternion(-M_PI/2, 0, M_PI/2));
-        br.sendTransform(tf::StampedTransform(sensable, ros::Time::now(), "world", "sensable"));
+        br.sendTransform(tf::StampedTransform(sensable, ros::Time::now(), 
+			omni_name.c_str(), sensable_frame_name.c_str()));
 
         l1.setOrigin(tf::Vector3(0., 0, 0.));
         l1.setRotation(tf::Quaternion(-state->thetas[1], 0, 0));

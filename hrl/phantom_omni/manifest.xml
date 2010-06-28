@@ -10,6 +10,7 @@
   <depend package="rospy"/>
   <depend package="geometry_msgs"/>
   <depend package="tf"/>
+  <depend package="hrl_lib"/>
 
   <rosdep name="libw1-mesa"/>
   <rosdep name="x11proto-dri2-dev"/>
