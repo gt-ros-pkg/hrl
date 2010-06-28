@@ -34,7 +34,7 @@ class OccupancyGridConverter
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         /** \brief OccuancyGrid callback */
-        void cloud_cb_og (const point_cloud_ros::OccupancyGrid &msg)
+        void cloud_cb_og(const point_cloud_ros::OccupancyGridConstPtr &msg)
         {
             if (pub_points_.getNumSubscribers () <= 0)
             {
@@ -42,17 +42,17 @@ class OccupancyGridConverter
                 return;
             }
 
-            float cx = msg.center.x;
-            float cy = msg.center.y;
-            float cz = msg.center.z;
+            float cx = msg->center.x;
+            float cy = msg->center.y;
+            float cz = msg->center.z;
 
-            float rx = msg.resolution.x;
-            float ry = msg.resolution.y;
-            float rz = msg.resolution.z;
+            float rx = msg->resolution.x;
+            float ry = msg->resolution.y;
+            float rz = msg->resolution.z;
 
-            float sx = msg.grid_size.x;
-            float sy = msg.grid_size.y;
-            float sz = msg.grid_size.z;
+            float sx = msg->grid_size.x;
+            float sy = msg->grid_size.y;
+            float sz = msg->grid_size.z;
 
             occupancy_grid::OccupancyGrid *v = new
                 occupancy_grid::OccupancyGrid(cx, cy, cz, sx, sy, sz, rx, ry, rz);
@@ -60,25 +60,78 @@ class OccupancyGridConverter
             uint32_t* d = v->getData();
             int nCells = v->nX() * v->nY() * v->nZ();
             for (int i=0; i<nCells; i++)
-                d[i] = msg.data[i];
+                d[i] = msg->data[i];
 
-            pub_points_.publish(v->gridToPoints());
+            sensor_msgs::PointCloud pc = v->gridToPoints();
+            pc.header = msg->header;
+            pub_points_.publish(pc);
+
+            delete v;
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         /** \brief PointCloud (old format) callback */
-        void cloud_cb_points (const sensor_msgs::PointCloudConstPtr &msg)
+        void cloud_cb_points (const sensor_msgs::PointCloudConstPtr &cloud)
         {
             if (pub_og_.getNumSubscribers () <= 0)
             {
-                ROS_DEBUG ("[occupancy_grid_converter] Got a PointCloud with %d points on %s, but no subscribers.", (int)msg->points.size (), nh_.resolveName (points_in_).c_str ());
+                ROS_DEBUG ("[occupancy_grid_converter] Got a PointCloud with %d points on %s, but no subscribers.", (int)cloud->points.size(), nh_.resolveName(points_in_).c_str());
                 return;
             }
 
-            point_cloud_ros::OccupancyGrid output;
-            pub_og_.publish (output);
-        }
+            float cx = 0;
+            float cy = 0;
+            float cz = 0;
+            for (size_t i = 0; i < cloud->points.size(); i++)
+            {
+                cx += cloud->points[i].x;
+                cy += cloud->points[i].y;
+                cz += cloud->points[i].z;
+            }
 
+            cx = cx / cloud->points.size();
+            cy = cy / cloud->points.size();
+            cz = cz / cloud->points.size();
+            ROS_INFO("Centroid of the point cloud: (%.2f, %.2f, %.2f)", cx, cy, cz);
+
+            float rx, ry, rz;
+            rx = 0.02;
+            ry = 0.02;
+            rz = 0.02;
+
+            float sx, sy, sz;
+            sx = 1.5;
+            sy = 1.5;
+            sz = 1.5;
+            occupancy_grid::OccupancyGrid *v = new
+                occupancy_grid::OccupancyGrid(cx, cy, cz, sx, sy, sz, rx, ry, rz);
+            v->fillOccupancyGrid(*cloud);
+
+            point_cloud_ros::OccupancyGrid og_msg;
+            uint32_t* d = v->getData();
+            int nCells = v->nX() * v->nY() * v->nZ();
+
+            og_msg.data.resize(nCells);
+            for (int i=0; i<nCells; i++)
+                og_msg.data[i] = d[i];
+
+            og_msg.header = cloud->header;
+            og_msg.center.x = cx;
+            og_msg.center.y = cy;
+            og_msg.center.z = cz;
+
+            og_msg.resolution.x = rx;
+            og_msg.resolution.y = ry;
+            og_msg.resolution.z = rz;
+
+            og_msg.grid_size.x = sx;
+            og_msg.grid_size.y = sy;
+            og_msg.grid_size.z = sz;
+
+            pub_og_.publish(og_msg);
+
+            delete v;
+        }
 };
 
 /* ---[ */
@@ -92,4 +145,5 @@ int main (int argc, char** argv)
 
     return (0);
 }
+
 

@@ -1,0 +1,21 @@
+<!--
+Subscribes to PointCloud from the narrow stereo on the PR2, converts
+is to an occupancy grid and re-publishes it.
+The python node uses mayavi to display the occupancy grid as a
+point cloud.
+-->
+
+<launch>
+    <node pkg="point_cloud_ros" type="og_sample.py" name="og_sample.py" output="screen" respawn="false">
+    </node>
+
+    <node pkg="point_cloud_ros" type="occupancy_grid_converter"
+        name="occupancy_grid_converter" output="screen"
+        respawn="false" >
+        <remap from="points_in" to="/narrow_stereo/points"/>
+        <remap from="og_out" to="/occupancy_grid"/>
+    </node>
+</launch>
+
+
+

@@ -26,7 +26,7 @@ namespace occupancy_grid
 
             ~OccupancyGrid();
 
-            void fillOccupancyGrid(pcl::PointCloud<pcl::PointXYZ> cloud);
+            void fillOccupancyGrid(const sensor_msgs::PointCloud cloud);
 
             sensor_msgs::PointCloud gridToPoints();
 

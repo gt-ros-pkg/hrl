@@ -56,7 +56,7 @@ namespace occupancy_grid
         return data_;
     }
     
-    void OccupancyGrid::fillOccupancyGrid(pcl::PointCloud<pcl::PointXYZ> cloud)
+    void OccupancyGrid::fillOccupancyGrid(const sensor_msgs::PointCloud cloud)
     {
         float x, y, z;
         int idx_x, idx_y, idx_z;
