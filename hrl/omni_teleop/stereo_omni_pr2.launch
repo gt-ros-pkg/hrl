@@ -4,8 +4,8 @@
         <param name="omni_name" value="omni1"/>
     </node>
 -->
-
+    <machine name="c1" address="pr2c1.hsi.gatech.edu"/>
     <include file="$(find teleop_microscribe)/c_jt.launch"/>
     <include file="$(find stereo-anaglyph)/pr2_wide_stereo_view.launch"/>
-    <node pkg="omni_teleop" name="omni_teleop" type="omni_teleop.py" respawn="true"/>
+    <node pkg="omni_teleop" name="omni_teleop" type="omni_teleop.py" respawn="true" machine="c1"/>
 </launch>
