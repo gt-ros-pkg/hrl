@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="phantom_omni" type="omni" name="omni2_node">
+        <param name="omni_name" value="omni2" type="string"/>
+    </node>
+</launch>

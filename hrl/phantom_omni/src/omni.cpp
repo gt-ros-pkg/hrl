@@ -50,7 +50,7 @@ class PhantomROS {
 
     void init(OmniState *s) 
     {
-        ros::param::param(std::string("omni_name"), omni_name, std::string("omni1"));
+        ros::param::param(std::string("~omni_name"), omni_name, std::string("omni1"));
 
         //Publish on NAME_pose
         std::ostringstream stream00;
