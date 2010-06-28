@@ -71,8 +71,10 @@ class USB2Dynamixel_Device():
 
     def _open_serial(self, baudrate):
         try:
-            self.servo_dev = serial.Serial(self.dev_name, timeout=1.0)
-            self.servo_dev.setBaudrate(baudrate)
+            self.servo_dev = serial.Serial(self.dev_name, baudrate, timeout=1.0)
+            # Closing the device first seems to prevent "Access Denied" errors on WinXP
+            # (Conversations with Brian Wu @ MIT on 6/23/2010)
+            self.servo_dev.close()  
             self.servo_dev.setParity('N')
             self.servo_dev.setStopbits(1)
             self.servo_dev.open()
