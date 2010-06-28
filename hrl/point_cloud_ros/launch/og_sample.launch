@@ -1,0 +1,23 @@
+<!--
+Loads test_pcd.pcd and sends it to the python node as an occupancy
+grid. The python node uses mayavi to display the occupancy grid as a
+point cloud. Can also run rviz (with base_link as the fixed frame) to
+display the original point cloud.
+-->
+
+<launch>
+    <node pkg="point_cloud_ros" type="og_sample.py" name="og_sample.py" output="screen" respawn="false">
+    </node>
+
+    <node pkg="point_cloud_ros" type="og_sample" name="og_sample" output="screen" respawn="false"
+        args="$(find point_cloud_ros)/test_pcd.pcd" >
+    </node>
+
+    <node name="static_tf_broadcaster" pkg="tf" type="static_transform_publisher"
+        args="0 0 0 0 0 0 1 base_link map 1000"
+        respawn="false" output="screen"/>
+
+</launch>
+
+
+
