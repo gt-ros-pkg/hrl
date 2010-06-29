@@ -88,6 +88,8 @@ class PointCloudToOccupancyGrid
             og_msg.grid_size.y = sy;
             og_msg.grid_size.z = sz;
 
+            og_msg.occupancy_threshold = 1;
+
             pub_og_.publish(og_msg);
 
             delete v;
