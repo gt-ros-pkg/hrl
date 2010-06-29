@@ -26,7 +26,6 @@ servo_param = {
     7: {                        # EL-E safetyscreen tilt.
         'home_encoder': 373
        },
-    # 11 - 25 reserved!  (by Travis)
     11: {                        # RFID Left Pan
         'home_encoder': 430,
         'max_ang': math.radians( 141.0 ),
@@ -85,6 +84,18 @@ servo_param = {
         },
     26: {                        # Meka top Tilt
         'home_encoder': 400
+        },
+    27: {                        # PR2 RFID Left Pan
+        'home_encoder': 512
+        },
+    28: {                        # PR2 RFID Left Tilt
+        'home_encoder': 512
+        },
+    29: {                        # PR2 RFID Right Pan
+        'home_encoder': 544
+        },
+    30: {                        # PR2 RFID Right Tilt
+        'home_encoder': 504
         }
 
 }
