@@ -1,7 +1,7 @@
 
 This also works:
 
-1) ./bin/pc_to_og points_in:=/narrow_stereo/points og_out:=occuncy_grid
+1) ./bin/pc_to_og points_in:=/narrow_stereo/points og_out:=occupancy_grid
 2) python src/point_cloud_ros/differencing_node.py
 3) ./bin/og_to_pc og_in:=difference_occupancy_grid
 4) ./bin/og_to_pc og_in:=occupancy_grid points_out:=og_points
