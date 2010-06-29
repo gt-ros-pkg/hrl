@@ -48,7 +48,8 @@ def og3d_to_og_msg(og3d):
 # @param size -  3x1 np matrix.
 # @param resolution -  3x1 np matrix.
 # @param occupancy_threshold - integer
-def og_param_msg(center, size, resolution, occupancy_threshold):
+# @param frame_id - string.
+def og_param_msg(center, size, resolution, occupancy_threshold, frame_id):
     og = OccupancyGrid()
 
     og.center.x = center[0,0]
@@ -64,6 +65,8 @@ def og_param_msg(center, size, resolution, occupancy_threshold):
     og.resolution.z = resolution[2,0]
 
     og.occupancy_threshold = occupancy_threshold
+    og.header.frame_id = frame_id
+    og.header.stamp = rospy.rostime.get_rostime()
     return og
 
 if __name__ == '__main__':

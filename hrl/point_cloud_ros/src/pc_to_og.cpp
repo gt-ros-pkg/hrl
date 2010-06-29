@@ -1,6 +1,7 @@
 
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud.h>
+#include <tf/transform_listener.h>
 
 #include "point_cloud_ros/occupancy_grid.h"
 #include "point_cloud_ros/OccupancyGrid.h" // ROS Message
@@ -24,6 +25,9 @@ class PointCloudToOccupancyGrid
         geometry_msgs::Point32 resolution_;
         geometry_msgs::Point32 size_;
         int occupancy_threshold_;
+        string og_frame_id_;
+
+        tf::TransformListener tf_listener;
 
     public:
 
@@ -43,6 +47,7 @@ class PointCloudToOccupancyGrid
             size_.z = 0.1;
 
             occupancy_threshold_ = 1;
+            og_frame_id_ = "/base_link";
         }
 
         /** \brief PointCloud (old format) callback */
@@ -53,6 +58,14 @@ class PointCloudToOccupancyGrid
                 ROS_DEBUG ("[occupancy_grid_converter] Got a PointCloud with %d points on %s, but no subscribers.", (int)cloud->points.size(), nh_.resolveName(points_in_).c_str());
                 return;
             }
+
+            sensor_msgs::PointCloud c;
+            c.header = cloud->header;
+            c.points.resize((cloud->points).size());
+            for (unsigned int i=0; i<c.points.size(); i++)
+                c.points[i] = cloud->points[i];
+
+            tf_listener.transformPointCloud(og_frame_id_, c, c);
 
             float cx = center_.x;
             float cy = center_.y;
@@ -68,7 +81,7 @@ class PointCloudToOccupancyGrid
 
             occupancy_grid::OccupancyGrid *v = new
                 occupancy_grid::OccupancyGrid(cx, cy, cz, sx, sy, sz, rx, ry, rz);
-            v->fillOccupancyGrid(*cloud);
+            v->fillOccupancyGrid(c);
 
             point_cloud_ros::OccupancyGrid og_msg;
             uint32_t* d = v->getData();
@@ -78,7 +91,7 @@ class PointCloudToOccupancyGrid
             for (int i=0; i<nCells; i++)
                 og_msg.data[i] = d[i];
 
-            og_msg.header = cloud->header;
+            og_msg.header = c.header;
             og_msg.center.x = cx;
             og_msg.center.y = cy;
             og_msg.center.z = cz;
@@ -103,6 +116,7 @@ class PointCloudToOccupancyGrid
             size_ = og_param.grid_size;
             resolution_ = og_param.resolution;
             occupancy_threshold_ = og_param.occupancy_threshold;
+            og_frame_id_ = og_param.header.frame_id;
         }
 };
 
