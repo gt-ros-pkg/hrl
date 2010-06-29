@@ -42,6 +42,29 @@ def og3d_to_og_msg(og3d):
     og.header.stamp = rospy.rostime.get_rostime()
     return og
 
+## create an OccupancyGrid msg object for the purpose of setting the
+# grid parameters for pc_to_og node.
+# @param center -  3x1 np matrix.
+# @param size -  3x1 np matrix.
+# @param resolution -  3x1 np matrix.
+# @param occupancy_threshold - integer
+def og_param_msg(center, size, resolution, occupancy_threshold):
+    og = OccupancyGrid()
+
+    og.center.x = center[0,0]
+    og.center.y = center[1,0]
+    og.center.z = center[2,0]
+
+    og.grid_size.x = size[0,0]
+    og.grid_size.y = size[1,0]
+    og.grid_size.z = size[2,0]
+
+    og.resolution.x = resolution[0,0]
+    og.resolution.y = resolution[1,0]
+    og.resolution.z = resolution[2,0]
+
+    og.occupancy_threshold = occupancy_threshold
+    return og
 
 if __name__ == '__main__':
     rospy.init_node('og_sample_python')

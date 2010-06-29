@@ -12,6 +12,7 @@
 
   <depend package="hrl_lib"/>
   <depend package="hrl_tilting_hokuyo"/>
+  <depend package="visualization_msgs"/>
 
   <rosdep name="mayavi2"/>
 

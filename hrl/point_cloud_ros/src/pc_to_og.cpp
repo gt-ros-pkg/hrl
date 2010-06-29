@@ -13,21 +13,38 @@ class PointCloudToOccupancyGrid
         // ROS
         ros::NodeHandle nh_;
         ros::Subscriber sub_points_;
+        ros::Subscriber sub_og_params_;
         ros::Publisher pub_og_;
 
         int queue_size_;
         string points_in_, og_out_;
 
+        string og_params_;
+        geometry_msgs::Point32 center_;
+        geometry_msgs::Point32 resolution_;
+        geometry_msgs::Point32 size_;
+        int occupancy_threshold_;
+
     public:
 
-        PointCloudToOccupancyGrid () : nh_ ("~"), queue_size_ (1), points_in_ ("/points_in"), og_out_ ("/og_out")
+        PointCloudToOccupancyGrid () : nh_ ("~"), queue_size_ (1), points_in_ ("/points_in"), og_out_ ("/og_out"), og_params_ ("/og_params")
         {
             pub_og_ = nh_.advertise<point_cloud_ros::OccupancyGrid> (og_out_, queue_size_);
             sub_points_ = nh_.subscribe (points_in_, queue_size_, &PointCloudToOccupancyGrid::cloud_cb_points, this);
+            sub_og_params_ = nh_.subscribe(og_params_, queue_size_, &PointCloudToOccupancyGrid::og_params_cb, this);
             ROS_INFO ("PointCloudToOccupancyGrid initialized to transform from PointCloud (%s) to OccupancyGrid (%s).", nh_.resolveName (points_in_).c_str (), nh_.resolveName (og_out_).c_str ());
+
+            resolution_.x = 0.01;
+            resolution_.y = 0.01;
+            resolution_.z = 0.01;
+
+            size_.x = 0.1;
+            size_.y = 0.1;
+            size_.z = 0.1;
+
+            occupancy_threshold_ = 1;
         }
 
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         /** \brief PointCloud (old format) callback */
         void cloud_cb_points (const sensor_msgs::PointCloudConstPtr &cloud)
         {
@@ -37,30 +54,18 @@ class PointCloudToOccupancyGrid
                 return;
             }
 
-            float cx = 0;
-            float cy = 0;
-            float cz = 0;
-            for (size_t i = 0; i < cloud->points.size(); i++)
-            {
-                cx += cloud->points[i].x;
-                cy += cloud->points[i].y;
-                cz += cloud->points[i].z;
-            }
+            float cx = center_.x;
+            float cy = center_.y;
+            float cz = center_.z;
 
-            cx = cx / cloud->points.size();
-            cy = cy / cloud->points.size();
-            cz = cz / cloud->points.size();
-            ROS_INFO("Centroid of the point cloud: (%.2f, %.2f, %.2f)", cx, cy, cz);
+            float rx = resolution_.x;
+            float ry = resolution_.y;
+            float rz = resolution_.z;
 
-            float rx, ry, rz;
-            rx = 0.02;
-            ry = 0.02;
-            rz = 0.02;
+            float sx = size_.x;
+            float sy = size_.y;
+            float sz = size_.z;
 
-            float sx, sy, sz;
-            sx = 1.5;
-            sy = 1.5;
-            sz = 1.5;
             occupancy_grid::OccupancyGrid *v = new
                 occupancy_grid::OccupancyGrid(cx, cy, cz, sx, sy, sz, rx, ry, rz);
             v->fillOccupancyGrid(*cloud);
@@ -78,8 +83,7 @@ class PointCloudToOccupancyGrid
             og_msg.center.y = cy;
             og_msg.center.z = cz;
 
-            ROS_INFO("frame_id: %s", cloud->header.frame_id.c_str());
-
+//            ROS_INFO("frame_id: %s", cloud->header.frame_id.c_str());
             og_msg.resolution.x = rx;
             og_msg.resolution.y = ry;
             og_msg.resolution.z = rz;
@@ -88,11 +92,17 @@ class PointCloudToOccupancyGrid
             og_msg.grid_size.y = sy;
             og_msg.grid_size.z = sz;
 
-            og_msg.occupancy_threshold = 1;
-
+            og_msg.occupancy_threshold = occupancy_threshold_;
             pub_og_.publish(og_msg);
-
             delete v;
+        }
+
+        void og_params_cb(const point_cloud_ros::OccupancyGrid &og_param)
+        {
+            center_ = og_param.center;
+            size_ = og_param.grid_size;
+            resolution_ = og_param.resolution;
+            occupancy_threshold_ = og_param.occupancy_threshold;
         }
 };
 
