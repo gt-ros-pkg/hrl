@@ -31,12 +31,12 @@ class OccupancyGridToPointCloud
         /** \brief OccuancyGrid callback */
         void cloud_cb_og(const point_cloud_ros::OccupancyGridConstPtr &msg)
         {
-            ROS_INFO("cloud_cb_og called");
-            if (pub_points_.getNumSubscribers () <= 0)
-            {
-                ROS_DEBUG ("[occupancy_grid_converter] Got an OccuancyGrid but no subscribers.");
-                return;
-            }
+//            ROS_INFO("cloud_cb_og called");
+//            if (pub_points_.getNumSubscribers () <= 0)
+//            {
+//                ROS_DEBUG ("[occupancy_grid_converter] Got an OccuancyGrid but no subscribers.");
+//                return;
+//            }
 
             float cx = msg->center.x;
             float cy = msg->center.y;

@@ -22,6 +22,7 @@ def og_cb(og_msg, param_list):
         return
 
     pog.subtract(diff_og, curr_og)
+    print 'np.all(diff_og == 0)', np.all(diff_og == 0)
     param_list[0] = curr_og
 
     diff_og_msg = rog.og3d_to_og_msg(diff_og)

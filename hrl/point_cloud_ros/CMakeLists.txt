@@ -15,6 +15,10 @@ rosbuild_add_executable (bin/og_sample
                          src/occupancy_grid.cpp
                          src/examples/og_sample.cpp)
 
+rosbuild_add_executable (bin/og_difference
+                         src/occupancy_grid.cpp
+                         src/examples/og_difference.cpp)
+
 rosbuild_add_executable (bin/og_to_pc
                          src/occupancy_grid.cpp
                          src/og_to_pc.cpp)

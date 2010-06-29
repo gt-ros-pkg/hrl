@@ -55,45 +55,43 @@ int main(int argc, char *argv[])
     occupancy_grid::OccupancyGrid *v = new
         occupancy_grid::OccupancyGrid(cx, cy, cz, sx, sy, sz, rx, ry, rz);
 
-    ROS_INFO("Before filling OccupancyGrid");
-    v->fillOccupancyGrid(cloud);
-    ROS_INFO("After filling OccupancyGrid");
-
-    point_cloud_ros::OccupancyGrid og_msg;
-
-    uint32_t* d = v->getData();
-    int nCells = v->nX() * v->nY() * v->nZ();
-    og_msg.data.resize(nCells);
-    for (int i=0; i<nCells; i++)
-        og_msg.data[i] = d[i];
-
-
-
-    og_msg.header.frame_id = "base_link";
-    og_msg.header.stamp = ros::Time::now();
-    og_msg.center.x = cx;
-    og_msg.center.y = cy;
-    og_msg.center.z = cz;
-
-    og_msg.resolution.x = rx;
-    og_msg.resolution.y = ry;
-    og_msg.resolution.z = rz;
-
-    og_msg.grid_size.x = sx;
-    og_msg.grid_size.y = sy;
-    og_msg.grid_size.z = sz;
-
-    og_msg.occupancy_threshold = 1;
-
-    og_pub.publish(og_msg);
-
-    for (int i=0; i<5; i++)
+    for (int j=0; j<5; j++)
     {
-        cloud.header.stamp = ros::Time::now();
-        cloud_blob.header.stamp = ros::Time::now();
-        ROS_INFO("Iteration number: %d\n", i);
+        for (size_t i = 0; i < cloud.points.size(); i++)
+        {
+            cloud.points[i].x += j*0.02;
+            cloud.points[i].y += j*0.02;
+            cloud.points[i].z += j*0.02;
+        }
+
+        v->fillOccupancyGrid(cloud);
+        point_cloud_ros::OccupancyGrid og_msg;
+
+        uint32_t* d = v->getData();
+        int nCells = v->nX() * v->nY() * v->nZ();
+        og_msg.data.resize(nCells);
+        for (int i=0; i<nCells; i++)
+            og_msg.data[i] = d[i];
+
+        og_msg.header.frame_id = "base_link";
+        og_msg.header.stamp = ros::Time::now();
+        og_msg.center.x = cx;
+        og_msg.center.y = cy;
+        og_msg.center.z = cz;
+
+        og_msg.resolution.x = rx;
+        og_msg.resolution.y = ry;
+        og_msg.resolution.z = rz;
+
+        og_msg.grid_size.x = sx;
+        og_msg.grid_size.y = sy;
+        og_msg.grid_size.z = sz;
+
+        og_msg.occupancy_threshold = 1;
+
+        og_pub.publish(og_msg);
         pc_pub.publish(cloud_blob);
-        ros::Duration(5).sleep(); // sleep for half a second
+        ros::Duration(2).sleep(); // sleep for half a second
     }
 
 }

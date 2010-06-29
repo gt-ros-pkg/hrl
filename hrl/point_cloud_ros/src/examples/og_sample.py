@@ -33,7 +33,8 @@ if __name__ == '__main__':
     rospy.init_node('og_sample_python')
     rospy.logout('Ready')
 
-    mode = rospy.get_param('~mode')
+    #mode = rospy.get_param('~mode')
+    mode = 'mayavi'
 
     if mode == 'mayavi':
         while not rospy.is_shutdown():
