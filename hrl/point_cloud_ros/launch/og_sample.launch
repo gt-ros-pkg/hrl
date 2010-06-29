@@ -7,6 +7,7 @@ display the original point cloud.
 
 <launch>
     <node pkg="point_cloud_ros" type="og_sample.py" name="og_sample.py" output="screen" respawn="false">
+        <param name="mode" value="mayavi" />
     </node>
 
     <node pkg="point_cloud_ros" type="og_sample" name="og_sample" output="screen" respawn="false"

@@ -42,8 +42,8 @@ if __name__ == '__main__':
                 print 'grid_shape:', og3d.grid.shape
                 pts = og3d.grid_to_points()
                 print pts.shape
-                param_list[1] = False
-#                break
+#                param_list[1] = False
+                break
             rospy.sleep(0.1)
 
         d3m.plot_points(pts)

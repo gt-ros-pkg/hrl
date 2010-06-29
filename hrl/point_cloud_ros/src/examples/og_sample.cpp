@@ -3,6 +3,7 @@
 #include "point_cloud_ros/OccupancyGrid.h"
 #include <ros/console.h>
 #include "pcl/io/pcd_io.h"
+#include "sensor_msgs/point_cloud_conversion.h"
 
 int main(int argc, char *argv[])
 {
@@ -10,10 +11,10 @@ int main(int argc, char *argv[])
     ros::NodeHandle n;
 
     ros::Publisher og_pub = n.advertise<point_cloud_ros::OccupancyGrid>("occupancy_grid", 1);
-    ros::Publisher pc_pub = n.advertise<sensor_msgs::PointCloud2>("test_point_cloud", 1);
+    ros::Publisher pc_pub = n.advertise<sensor_msgs::PointCloud>("test_point_cloud", 1);
 
     sensor_msgs::PointCloud2 cloud_blob;
-    pcl::PointCloud<pcl::PointXYZ> cloud;
+    sensor_msgs::PointCloud cloud;
 
     if (pcl::io::loadPCDFile (argv[1], cloud_blob) == -1)
     {
@@ -22,8 +23,9 @@ int main(int argc, char *argv[])
     }
     ROS_INFO ("Loaded %d data points from test_pcd.pcd with the following fields: %s", (int)(cloud_blob.width * cloud_blob.height), pcl::getFieldsList (cloud_blob).c_str ());
 
-    // Convert to the templated message type
-    point_cloud::fromMsg (cloud_blob, cloud);
+    cloud_blob.header.frame_id = "base_link";
+    cloud_blob.header.stamp = ros::Time::now();
+    sensor_msgs::convertPointCloud2ToPointCloud(cloud_blob, cloud);
 
     ROS_INFO("Computing the centroid of the point cloud");
     float cx = 0;
@@ -66,8 +68,6 @@ int main(int argc, char *argv[])
         og_msg.data[i] = d[i];
 
 
-    cloud_blob.header.frame_id = "base_link";
-    cloud_blob.header.stamp = ros::Time::now();
 
     og_msg.header.frame_id = "base_link";
     og_msg.header.stamp = ros::Time::now();
@@ -83,13 +83,17 @@ int main(int argc, char *argv[])
     og_msg.grid_size.y = sy;
     og_msg.grid_size.z = sz;
 
+    og_msg.occupancy_threshold = 1;
+
     og_pub.publish(og_msg);
 
     for (int i=0; i<5; i++)
     {
+        cloud.header.stamp = ros::Time::now();
         cloud_blob.header.stamp = ros::Time::now();
         ROS_INFO("Iteration number: %d\n", i);
-        pc_pub.publish(cloud_blob);
+        //pc_pub.publish(cloud_blob);
+        pc_pub.publish(cloud);
         ros::Duration(5).sleep(); // sleep for half a second
     }
 
