@@ -1,0 +1,15 @@
+<package>
+  <description brief="hrl_pr2_gains">
+
+     hrl_pr2_gains
+
+  </description>
+  <author>Advait Jain </author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_pr2_gains</url>
+  <depend package="pr2_controller_configuration"/>
+
+</package>
+
+
