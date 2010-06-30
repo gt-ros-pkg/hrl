@@ -1,24 +1,15 @@
 <launch>
     <!-- Network -->
-    <machine name="c1" address="pr2c1.hsi.gatech.edu" 
-        ros-root="/opt/ros/cturtle/ros"    
-        ros-package-path="/opt/ros/cturtle/stacks:/u/haidai/svn/wg-ros-pkg:/u/haidai/svn/gt-ros-pkg" />
+    <include file="$(find omni_teleop)/machine.launch"/>
 
     <!-- Controls -->
-    <include file="$(find omni_teleop)/c_jt_c1.launch"/>
     <node pkg="phantom_omni" name="omni1_node" type="omni" respawn="true">
         <param name="omni_name" value="omni1"/>
     </node>
     <node pkg="omni_teleop" name="omni_teleop" type="omni_teleop.py" respawn="true" machine="c1"/>
 
     <!-- GUI -->
-    <node pkg="pr2_dashboard" name="$(anon pr2_dashboard)" type="pr2_dashboard"/>
+    <node pkg="pr2_dashboard" name="$(anon pr2_dashboard)" type="pr2_dashboard" respawn="true"/>
     <node pkg="rviz" name="$(anon rviz)" type="rviz"/>
     <include file="$(find stereo-anaglyph)/pr2_wide_stereo_view.launch"/>
-
-    <!-- 
-    <node pkg="phantom_omni" name="omni1_driver" type="omni" respawn="true"/> 
-    <node pkg="rxtools" type="rxplot" args="-b 20 /accelerometer/l_gripper_motor/samples[0]/x:y:z"/>
-    <node pkg="rxtools" type="rxplot" args="-b 20 /accelerometer/r_gripper_motor/samples[0]/x:y:z"/>
-    -->
 </launch>
