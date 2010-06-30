@@ -50,7 +50,7 @@ if __name__ == '__main__':
     rospy.logout('Ready')
 
     center = np.matrix([0.8, 0., 0.8]).T
-    size = np.matrix([0.4, 0.4, 0.6]).T
+    size = np.matrix([0.4, 0.4, 0.4]).T
     resolution = np.matrix([0.01, 0.01, 0.01]).T
     occupancy_threshold = 1
     frame_id = 'base_link'

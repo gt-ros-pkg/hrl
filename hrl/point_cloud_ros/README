@@ -1,4 +1,9 @@
 
+To plaback a bag file with an appropriate clock message, use:
+1) rosparam set use_sim_time true
+2) rosbag play 2010-06-29-12-35-23.bag --clock
+The --clock is what is important.
+
 This also works:
 
 1) ./bin/pc_to_og points_in:=/narrow_stereo/points og_out:=occupancy_grid
