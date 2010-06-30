@@ -55,13 +55,16 @@ if __name__ == '__main__':
     occupancy_threshold = 1
     frame_id = 'base_link'
 
-    scale = (0.05, 0.05, 0.05)
+    scale = (0.02, 0.02, 0.02)
     color = (0., 1., 0., 1.)
     shape = 'sphere'
     marker = simple_viz_marker(center.A1, scale, color, shape, frame_id)
     og_param = rog.og_param_msg(center, size, resolution,
                                 occupancy_threshold, frame_id)
 
+    marker_pub.publish(marker)
+    og_param_pub.publish(og_param)
+    rospy.sleep(0.01)
     while not rospy.is_shutdown():
         marker_pub.publish(marker)
         og_param_pub.publish(og_param)

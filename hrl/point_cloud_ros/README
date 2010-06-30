@@ -4,13 +4,15 @@ To plaback a bag file with an appropriate clock message, use:
 2) rosbag play 2010-06-29-12-35-23.bag --clock
 The --clock is what is important.
 
+
 This also works:
 
-1) ./bin/pc_to_og points_in:=/narrow_stereo/points og_out:=occupancy_grid
-2) python src/point_cloud_ros/differencing_node.py
-3) ./bin/og_to_pc og_in:=difference_occupancy_grid
-4) ./bin/og_to_pc og_in:=occupancy_grid points_out:=og_points
-5) rosrun rviz rviz
+1) ./bin/pc_to_og points_in:=/narrow_stereo_textured/points og_out:=occupancy_grid
+2) python src/examples/set_og_params.py
+3) python src/point_cloud_ros/differencing_node.py
+4) ./bin/og_to_pc og_in:=difference_occupancy_grid points_out:=difference_points_out
+5) ./bin/og_to_pc og_in:=occupancy_grid points_out:=og_points # optional
+6) rosrun rviz rviz
 
 
 This works:
