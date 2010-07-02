@@ -1,9 +1,3 @@
-<!--
-Subscribes to PointCloud from the narrow stereo on the PR2, converts
-is to an occupancy grid and re-publishes it.
-The python node uses mayavi to display the occupancy grid as a
-point cloud.
--->
 
 <launch>
 

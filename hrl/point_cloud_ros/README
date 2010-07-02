@@ -1,4 +1,10 @@
 
+rosbag play /home/advait/temp/2010-07-02-11-42-27.bag --clock
+roslaunch launch/og_converter.launch
+
+
+
+-------------------------------------------------------------------------------
 To plaback a bag file with an appropriate clock message, use:
 1) rosparam set use_sim_time true
 2) rosbag play 2010-06-29-12-35-23.bag --clock
