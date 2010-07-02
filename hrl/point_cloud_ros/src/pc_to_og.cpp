@@ -117,6 +117,7 @@ class PointCloudToOccupancyGrid
             resolution_ = og_param.resolution;
             occupancy_threshold_ = og_param.occupancy_threshold;
             og_frame_id_ = og_param.header.frame_id;
+            ROS_INFO("og_params_cb called");
         }
 };
 

@@ -7,15 +7,15 @@ point cloud.
 
 <launch>
 
-    <node pkg="point_cloud_ros" type="set_og_params.py" name="set_og_params" output="screen" respawn="false">
+    <node pkg="point_cloud_ros" type="pc_to_og" name="pc_to_og" output="screen" respawn="false" >
+        <remap from="points_in" to="/narrow_stereo_textured/points"/>
+        <remap from="og_out" to="/occupancy_grid"/>
+    </node>
+
+    <node pkg="point_cloud_ros" type="set_og_params.py" name="set_og_params" output="screen" respawn="true">
     </node>
 
     <node pkg="point_cloud_ros" type="differencing_node.py" name="og_differencing_node" output="screen" respawn="true">
-    </node>
-
-    <node pkg="point_cloud_ros" type="pc_to_og" name="pc_to_og" output="screen" respawn="false" >
-        <remap from="points_in" to="/narrow_stereo/points"/>
-        <remap from="og_out" to="/occupancy_grid"/>
     </node>
 
     <node pkg="point_cloud_ros" type="og_to_pc" name="og_to_pc_voi" output="screen" respawn="false" >

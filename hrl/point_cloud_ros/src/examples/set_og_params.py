@@ -44,13 +44,13 @@ def simple_viz_marker(loc, scale, color, shape, frame_id):
 
 if __name__ == '__main__':
     rospy.init_node('set_og_param_node')
-    og_param_pub = rospy.Publisher('og_params', OccupancyGrid)
-    marker_pub = rospy.Publisher('occupancy_grid_viz_marker', Marker)
+    og_param_pub = rospy.Publisher('/og_params', OccupancyGrid)
+    marker_pub = rospy.Publisher('/occupancy_grid_viz_marker', Marker)
 
     rospy.logout('Ready')
 
-    #center = np.matrix([0.8, 0., 0.8]).T
-    center = np.matrix([0.7, 0., 0.65]).T
+    center = np.matrix([0.8, 0., 0.8]).T # for single object bag file
+    #center = np.matrix([0.6, 0., 0.75]).T
     size = np.matrix([0.4, 0.4, 0.4]).T
     #resolution = np.matrix([0.01, 0.01, 0.01]).T
     resolution = np.matrix([0.005, 0.005, 0.005]).T
@@ -64,13 +64,11 @@ if __name__ == '__main__':
     og_param = rog.og_param_msg(center, size, resolution,
                                 occupancy_threshold, frame_id)
 
-    marker_pub.publish(marker)
-    og_param_pub.publish(og_param)
-    rospy.sleep(0.01)
+    r = rospy.Rate(2)
     while not rospy.is_shutdown():
         marker_pub.publish(marker)
         og_param_pub.publish(og_param)
-        rospy.sleep(1.0)
+        r.sleep()
 
     rospy.spin()
 

@@ -55,7 +55,8 @@ def subtract(og1, og2):
         print 'occupancy_grid_3d.subtract: The resolution of the two grids is not the same.'
         print 'res1, res2:', og1.resolution.A1.tolist(), og2.resolution.A1.tolist()
         print 'Exiting...'
-        raise RuntimeError('Trying to subtract grids with different resolutions')
+#        rospy.logfatal('Trying to subtract grids with different resolutions')
+        sys.exit()
 
     if np.any(og1.grid_shape!=og2.grid_shape):
         print 'Grid Sizes:', og1.grid_shape.A1, og2.grid_shape.A1
