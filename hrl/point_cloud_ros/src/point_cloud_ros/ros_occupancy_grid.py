@@ -9,12 +9,14 @@ from point_cloud_ros.msg import OccupancyGrid
 import point_cloud_ros.occupancy_grid as pog
 
 ## convert OccupancyGrid message to the  occupancy_grid_3d object.
+# @param to_binary - want the occupancy grid to be binarified.
 # @return occupancy_grid_3d object
-def og_msg_to_og3d(og):
+def og_msg_to_og3d(og, to_binary=True):
     c = np.matrix([og.center.x, og.center.y, og.center.z]).T
     s = np.matrix([og.grid_size.x, og.grid_size.y, og.grid_size.z]).T
     r = np.matrix([og.resolution.x, og.resolution.y, og.resolution.z]).T
-    og3d = pog.occupancy_grid_3d(c, s, r, np.array(og.data), og.occupancy_threshold)
+    og3d = pog.occupancy_grid_3d(c, s, r, np.array(og.data),
+                    og.occupancy_threshold, to_binary = to_binary)
     return og3d
 
 ## convert occupancy_grid_3d object to OccupancyGrid message.

@@ -23,20 +23,27 @@ def relay_cb(og, og_pub):
     og_pub.publish(og_new)
 
 
+def vis_occupancy_cb(og, param_list):
+    og3d = rog.og_msg_to_og3d(og, to_binary = False)
+    param_list[0] = og3d
+    param_list[1] = True
+
+
 if __name__ == '__main__':
 
     og_pub = rospy.Publisher('relay_og_out', OccupancyGrid)
     rospy.Subscriber('relay_og_in', OccupancyGrid, relay_cb, og_pub)
     param_list = [None, False]
-    rospy.Subscriber('occupancy_grid', OccupancyGrid, mayavi_cb, param_list)
 
     rospy.init_node('og_sample_python')
     rospy.logout('Ready')
 
     #mode = rospy.get_param('~mode')
-    mode = 'mayavi'
+    #mode = 'mayavi'
+    mode = 'vis_occupancy'
 
     if mode == 'mayavi':
+        rospy.Subscriber('occupancy_grid', OccupancyGrid, mayavi_cb, param_list)
         while not rospy.is_shutdown():
             if param_list[1] == True:
                 og3d = param_list[0]
@@ -49,6 +56,19 @@ if __name__ == '__main__':
 
         d3m.plot_points(pts)
         d3m.show()
+
+    if mode == 'vis_occupancy':
+        rospy.Subscriber('occupancy_grid', OccupancyGrid, vis_occupancy_cb, param_list)
+        import matplotlib_util.util as mpu
+        while not rospy.is_shutdown():
+            if param_list[1] == True:
+                og3d = param_list[0]
+                break
+            rospy.sleep(0.1)
+        occ_array = og3d.grid.flatten()
+        mpu.pl.hist(occ_array, 100)
+#        mpu.plot_yx(occ_array)
+        mpu.show()
     elif mode == 'relay':
         rospy.spin()
 

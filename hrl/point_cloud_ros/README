@@ -1,5 +1,5 @@
 
-rosbag play /home/advait/temp/2010-07-02-11-42-27.bag --clock
+rosbag play 2010-07-02-14-55-16.bag --clock
 roslaunch launch/og_converter.launch
 
 

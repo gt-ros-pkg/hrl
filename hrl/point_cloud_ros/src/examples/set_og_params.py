@@ -54,7 +54,7 @@ if __name__ == '__main__':
     size = np.matrix([0.4, 0.4, 0.4]).T
     #resolution = np.matrix([0.01, 0.01, 0.01]).T
     resolution = np.matrix([0.005, 0.005, 0.005]).T
-    occupancy_threshold = 1
+    occupancy_threshold = 5
     frame_id = 'base_link'
 
     scale = (0.02, 0.02, 0.02)

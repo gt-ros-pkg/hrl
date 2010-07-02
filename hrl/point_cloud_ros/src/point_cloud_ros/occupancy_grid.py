@@ -7,7 +7,7 @@ class occupancy_grid_3d():
     # @param resolution - 3x1 matrix. size of each cell (in meters) along
     #                     the different directions.
     def __init__(self, center, size, resolution, data,
-                 occupancy_threshold):
+                 occupancy_threshold, to_binary = True):
         self.grid_shape = size/resolution
         tlb = center + size/2
         brf = center + size/2
@@ -18,6 +18,12 @@ class occupancy_grid_3d():
         self.resolution = resolution
         self.center = center
 
+        if to_binary:
+            self.to_binary(occupancy_threshold)
+
+    ## binarize the grid
+    # @param occupancy_threshold - voxels with occupancy less than this are set to zero.
+    def to_binary(self, occupancy_threshold):
         filled = (self.grid >= occupancy_threshold)
         self.grid[np.where(filled==True)] = 1
         self.grid[np.where(filled==False)] = 0

@@ -13,9 +13,10 @@ from point_cloud_ros.msg import OccupancyGrid
 
 
 def og_cb(og_msg, param_list):
+    global occupancy_difference_threshold
     rospy.loginfo('og_cb called')
     diff_og = param_list[0]
-    curr_og = rog.og_msg_to_og3d(og_msg)
+    curr_og = rog.og_msg_to_og3d(og_msg, to_binary = False)
 
     if diff_og == None:
         param_list[0] = curr_og
@@ -25,12 +26,16 @@ def og_cb(og_msg, param_list):
     print 'np.all(diff_og == 0)', np.all(diff_og.grid == 0)
     param_list[0] = curr_og
 
+    diff_og.to_binary(occupancy_difference_threshold)
     diff_og_msg = rog.og3d_to_og_msg(diff_og)
 #    print 'dif_og_msg:', diff_og_msg
     diff_og_msg.header.frame_id = og_msg.header.frame_id
     diff_og_msg.header.stamp = og_msg.header.stamp
     param_list[1].publish(diff_og_msg)
 
+
+#------ arbitrarily set paramters -------
+occupancy_difference_threshold = 20
 
 
 if __name__ == '__main__':

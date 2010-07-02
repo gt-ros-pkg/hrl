@@ -1,7 +1,8 @@
 
 <launch>
 
-    <node pkg="point_cloud_ros" type="pc_to_og" name="pc_to_og" output="screen" respawn="false" >
+    <node pkg="point_cloud_ros" type="pc_to_og" name="pc_to_og"
+        output="screen" respawn="true" >
         <remap from="points_in" to="/narrow_stereo_textured/points"/>
         <remap from="og_out" to="/occupancy_grid"/>
     </node>
@@ -12,12 +13,14 @@
     <node pkg="point_cloud_ros" type="differencing_node.py" name="og_differencing_node" output="screen" respawn="true">
     </node>
 
-    <node pkg="point_cloud_ros" type="og_to_pc" name="og_to_pc_voi" output="screen" respawn="false" >
+    <node pkg="point_cloud_ros" type="og_to_pc" name="og_to_pc_voi"
+        output="screen" respawn="true" >
         <remap from="og_in" to="/occupancy_grid"/>
         <remap from="points_out" to="/points_out"/>
     </node>
 
-    <node pkg="point_cloud_ros" type="og_to_pc" name="og_to_pc_difference" output="screen" respawn="false" >
+    <node pkg="point_cloud_ros" type="og_to_pc"
+        name="og_to_pc_difference" output="screen" respawn="true" >
         <remap from="og_in" to="/difference_occupancy_grid"/>
         <remap from="points_out" to="/difference_points_out"/>
     </node>
