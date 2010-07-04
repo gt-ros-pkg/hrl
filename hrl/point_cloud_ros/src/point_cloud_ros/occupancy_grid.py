@@ -1,5 +1,8 @@
 
+import time
+import sys, os, copy
 import numpy as np, math
+import scipy.ndimage as ni
 
 class occupancy_grid_3d():
 
@@ -45,6 +48,36 @@ class occupancy_grid_3d():
         z = z_idx * self.resolution[2,0] + self.center[2,0] - self.size[2,0]/2
 
         return np.matrix(np.row_stack([x,y,z]))
+
+    def connected_comonents(self):
+        connect_structure = np.ones((3,3,3), dtype='int')
+        grid = self.grid
+        labeled_arr, n_labels = ni.label(grid, connect_structure)
+
+        if n_labels == 0:
+            return labeled_arr, n_labels
+
+        labels_list = range(1,n_labels+1)
+        count_objects = ni.sum(grid, labeled_arr, labels_list)
+        if n_labels == 1:
+            count_objects = [count_objects]
+
+        t0 = time.time()
+        new_labels_list = []
+
+        for c,l in zip(count_objects, labels_list):
+            if c > 10:
+                new_labels_list.append(l)
+            else:
+                labeled_arr[np.where(labeled_arr == l)] = 0
+
+        # relabel stuff
+        for nl,l in enumerate(new_labels_list):
+            labeled_arr[np.where(labeled_arr == l)] = nl+1
+        n_labels = len(new_labels_list)
+        t1 = time.time()
+        print 'time:', t1-t0
+        return labeled_arr, n_labels
 
 
 ## subtract occupancy grids. og1 = abs(og1-og2)

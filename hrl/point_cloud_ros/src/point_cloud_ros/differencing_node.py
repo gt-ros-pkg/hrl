@@ -1,11 +1,12 @@
 #!/usr/bin/python
 
 import numpy as np, math
+import scipy.ndimage as ni
 
 import roslib; roslib.load_manifest('point_cloud_ros')
 import rospy
 
-import hrl_tilting_hokuyo.display_3d_mayavi as d3m
+import hrl_lib.util as ut
 import point_cloud_ros.occupancy_grid as pog
 import point_cloud_ros.ros_occupancy_grid as rog
 
@@ -23,12 +24,14 @@ def og_cb(og_msg, param_list):
         return
 
     pog.subtract(diff_og, curr_og)
-    print 'np.all(diff_og == 0)', np.all(diff_og.grid == 0)
     param_list[0] = curr_og
 
     diff_og.to_binary(occupancy_difference_threshold)
+    # filter away the noise
+    diff_og.grid, n_labels = diff_og.connected_comonents()
+
+    print 'np.all(diff_og == 0)', np.all(diff_og.grid == 0)
     diff_og_msg = rog.og3d_to_og_msg(diff_og)
-#    print 'dif_og_msg:', diff_og_msg
     diff_og_msg.header.frame_id = og_msg.header.frame_id
     diff_og_msg.header.stamp = og_msg.header.stamp
     param_list[1].publish(diff_og_msg)
