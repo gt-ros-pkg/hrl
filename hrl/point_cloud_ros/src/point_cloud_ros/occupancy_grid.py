@@ -49,7 +49,9 @@ class occupancy_grid_3d():
 
         return np.matrix(np.row_stack([x,y,z]))
 
-    def connected_comonents(self):
+    ## 27-connected components.
+    # @param threshold - min allowed size of connected component
+    def connected_comonents(self, threshold):
         connect_structure = np.ones((3,3,3), dtype='int')
         grid = self.grid
         labeled_arr, n_labels = ni.label(grid, connect_structure)
@@ -66,7 +68,7 @@ class occupancy_grid_3d():
         new_labels_list = []
 
         for c,l in zip(count_objects, labels_list):
-            if c > 10:
+            if c > threshold:
                 new_labels_list.append(l)
             else:
                 labeled_arr[np.where(labeled_arr == l)] = 0

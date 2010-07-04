@@ -14,7 +14,7 @@ from point_cloud_ros.msg import OccupancyGrid
 
 
 def og_cb(og_msg, param_list):
-    global occupancy_difference_threshold
+    global occupancy_difference_threshold, connected_comonents_size_threshold
     rospy.loginfo('og_cb called')
     diff_og = param_list[0]
     curr_og = rog.og_msg_to_og3d(og_msg, to_binary = False)
@@ -28,7 +28,7 @@ def og_cb(og_msg, param_list):
 
     diff_og.to_binary(occupancy_difference_threshold)
     # filter away the noise
-    diff_og.grid, n_labels = diff_og.connected_comonents()
+    diff_og.grid, n_labels = diff_og.connected_comonents(connected_comonents_size_threshold)
 
     print 'np.all(diff_og == 0)', np.all(diff_og.grid == 0)
     diff_og_msg = rog.og3d_to_og_msg(diff_og)
@@ -38,8 +38,8 @@ def og_cb(og_msg, param_list):
 
 
 #------ arbitrarily set paramters -------
-occupancy_difference_threshold = 20
-
+occupancy_difference_threshold = 10
+connected_comonents_size_threshold = 50
 
 if __name__ == '__main__':
     rospy.init_node('pc_difference_node')
