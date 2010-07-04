@@ -39,9 +39,9 @@ class occupancy_grid_3d():
             array = self.grid
 
         idxs = np.where(array == 1)
-        x_idx = idxs[2]
+        x_idx = idxs[0]
         y_idx = idxs[1]
-        z_idx = idxs[0]
+        z_idx = idxs[2]
         
         x = x_idx * self.resolution[0,0] + self.center[0,0] - self.size[0,0]/2
         y = y_idx * self.resolution[1,0] + self.center[1,0] - self.size[1,0]/2

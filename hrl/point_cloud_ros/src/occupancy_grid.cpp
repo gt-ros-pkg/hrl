@@ -76,7 +76,8 @@ namespace occupancy_grid
 
             if (idx_x >= 0 and idx_x < (int)nx_ and idx_y >= 0 and \
                 idx_y < (int)ny_ and idx_z >= 0 and idx_z < (int)nz_)
-                data_[idx_z * nx_ * ny_ + idx_y * nx_ + idx_x] += 1;
+                data_[idx_x * nz_ * ny_ + idx_y * nz_ + idx_z] += 1;
+//                data_[idx_z * nx_ * ny_ + idx_y * nx_ + idx_x] += 1;
         }
     }
 
@@ -87,7 +88,7 @@ namespace occupancy_grid
         for(unsigned int x_idx=0; x_idx<nx_; x_idx++)
             for(unsigned int y_idx=0; y_idx<ny_; y_idx++)
                 for(unsigned int z_idx=0; z_idx<nz_; z_idx++)
-                    if (data_[z_idx * nx_ * ny_ + y_idx * nx_ + x_idx] > 0)
+                    if (data_[x_idx * nz_ * ny_ + y_idx * nz_ + z_idx] > 0)
                     {
                         geometry_msgs::Point32 pt;
                         pt.x = x_idx*res_x_ + center_x_ - size_x_/2;
