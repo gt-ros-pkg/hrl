@@ -27,8 +27,12 @@ def og_cb(og_msg, param_list):
     param_list[0] = curr_og
 
     diff_og.to_binary(occupancy_difference_threshold)
-    # filter away the noise
-    diff_og.grid, n_labels = diff_og.connected_comonents(connected_comonents_size_threshold)
+    # filter the noise
+    connect_structure = np.zeros((3,3,3), dtype=int)
+    connect_structure[:,1,1] = 1
+    diff_og.grid = ni.binary_opening(diff_og.grid, connect_structure,
+                                     iterations = 1)
+    #    diff_og.grid, n_labels = diff_og.connected_comonents(connected_comonents_size_threshold)
 
     print 'np.all(diff_og == 0)', np.all(diff_og.grid == 0)
     diff_og_msg = rog.og3d_to_og_msg(diff_og)
@@ -39,7 +43,7 @@ def og_cb(og_msg, param_list):
 
 #------ arbitrarily set paramters -------
 occupancy_difference_threshold = 10
-connected_comonents_size_threshold = 50
+connected_comonents_size_threshold = 10
 
 if __name__ == '__main__':
     rospy.init_node('pc_difference_node')
