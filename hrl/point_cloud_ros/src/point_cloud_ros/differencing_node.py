@@ -30,6 +30,7 @@ def og_cb(og_msg, param_list):
     # filter the noise
     connect_structure = np.zeros((3,3,3), dtype=int)
     connect_structure[1,1,:] = 1
+#    connect_structure[1,1,0] = 0
     diff_og.grid = ni.binary_opening(diff_og.grid, connect_structure,
                                      iterations = 1)
     #    diff_og.grid, n_labels = diff_og.connected_comonents(connected_comonents_size_threshold)
@@ -42,7 +43,7 @@ def og_cb(og_msg, param_list):
 
 
 #------ arbitrarily set paramters -------
-occupancy_difference_threshold = 10
+occupancy_difference_threshold = 5
 connected_comonents_size_threshold = 10
 
 if __name__ == '__main__':
