@@ -1,23 +1,23 @@
-laser_pointer_detector/SHADE_EXPOSURE               : 200 
-laser_pointer_detector/SHADE_DARK_IMAGE_THRESHOLD   : 72 
-laser_pointer_detector/SHADE_BRIGHT_IMAGE_THRESHOLD : 146
+shade_exposure               : 200 
+shade_dark_image_threshold   : 72 
+shade_bright_image_threshold : 146
 
-laser_pointer_detector/SUN_EXPOSURE                 : 56   
-laser_pointer_detector/SUN_DARK_IMAGE_THRESHOLD     : 60   
-laser_pointer_detector/SUN_BRIGHT_IMAGE_THRESHOLD   : 215  
+sun_exposure                 : 56   
+sun_dark_image_threshold     : 60   
+sun_bright_image_threshold   : 215  
 
-laser_pointer_detector/MAX_BLOB_AREA                : 400  
-laser_pointer_detector/LASER_POINT_SIZE             : 40.0 
-laser_pointer_detector/MIN_AGE                      : 5    
-laser_pointer_detector/NUMBER_OF_LEARNERS           : 40   
-laser_pointer_detector/PCA_VARIANCE_RETAIN          : 0.95 
+max_blob_area                : 400  
+laser_point_size             : 40.0 
+min_age                      : 5    
+number_of_learners           : 40   
+pca_variance_retain          : 0.95 
 
-laser_pointer_detector/TRACKER_MAX_PIX_TRESHOLD     : 30.0 
-laser_pointer_detector/TRACKER_MAX_TIME_THRESHOLD   : 3     
+tracker_max_pix_treshold     : 30.0 
+tracker_max_time_threshold   : 3     
 
-laser_pointer_detector/detector_frame               : '/wide_stereo_optical_frame'
-laser_pointer_detector/CLASSIFICATION_WINDOW_WIDTH  : 7     
-laser_pointer_detector/DEFAULT_DATASET_FILE         : 'nodes/PatchClassifier.dataset.pickle'
-laser_pointer_detector/CAMERA                       : 'videre_stereo'
-laser_pointer_detector/GATHER_MISCLASSIFIED_ONLY    : 1    
+detector_frame               : '/wide_stereo_optical_frame'
+classification_window_width  : 7     
+default_dataset_file         : 'nodes/PatchClassifier.dataset.pickle'
+camera                       : 'videre_stereo'
+gather_misclassified_only    : 1    
 
