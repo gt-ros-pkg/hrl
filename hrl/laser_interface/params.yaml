@@ -15,7 +15,7 @@ laser_pointer_detector/PCA_VARIANCE_RETAIN          : 0.95
 laser_pointer_detector/TRACKER_MAX_PIX_TRESHOLD     : 30.0 
 laser_pointer_detector/TRACKER_MAX_TIME_THRESHOLD   : 3     
 
-laser_pointer_detector/detector_frame               : '/wide_stereo_optical'
+laser_pointer_detector/detector_frame               : '/wide_stereo_optical_frame'
 laser_pointer_detector/CLASSIFICATION_WINDOW_WIDTH  : 7     
 laser_pointer_detector/DEFAULT_DATASET_FILE         : 'nodes/PatchClassifier.dataset.pickle'
 laser_pointer_detector/CAMERA                       : 'videre_stereo'

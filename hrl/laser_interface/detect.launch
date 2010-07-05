@@ -1,5 +1,5 @@
 <launch>
     <rosparam param="load" file="params.yaml"/>
-    <node pkg='laser_interface' type='laser_pointer_detector_node.py' output='screen' args='-d true'/>
-    <node pkg='laser_interface' type='user_interface_node.py' args='params.xml' output='screen'/>
+    <node name="laser_detector" pkg='laser_interface' type='laser_pointer_detector_node.py' output='screen' args='-d true'/>
+    <node name="laser_user_interface" pkg='laser_interface' type='user_interface_node.py' args='params.xml' output='screen'/>
 </launch>

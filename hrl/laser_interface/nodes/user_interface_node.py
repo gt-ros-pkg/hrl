@@ -105,6 +105,7 @@ class KeyHandler(wx.Window):
         c = unichr(evt.GetRawKeyCode())
         command = key_to_command(c)
         if command is not None:
+            #print 'publishing', command
             self.laser_mode_pub(command)
             self.set_text(command)
         else:

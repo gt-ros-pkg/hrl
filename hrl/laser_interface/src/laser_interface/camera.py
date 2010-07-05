@@ -230,21 +230,20 @@ class ROSStereoCalibration:
         while not self.right.has_msg:
             time.sleep(.2)
 
-        #self.R = self.right.R.T
-        self.R = np.matrix(np.eye(3)) #Using rectified images, no R needed.
-
-        self.T = self.right.P[:, 3]
-        self.T[0,0] = -self.T[0,0] / self.right.P[0,0]
-
-        print self.R
-        print self.right.P[:,3].T
+        self.R = np.matrix(np.eye(3))                  #Using rectified images, no R needed.
+        self.T = self.right.P[:, 3].copy()             #Copy so that we don't modify P by accident
+        self.T[0,0] = -self.T[0,0] / self.right.P[0,0] #Adjust for scaling term in projection matrix
 
     ##
     # @param x 
     # @param xright 2x1 matrices
     def triangulate_3d(self, xleft, xright):
-        Klp = np.linalg.inv(self.left.K)
-        Krp = np.linalg.inv(self.right.K)
+        #Klp = np.linalg.inv(self.left.K)
+        #Krp = np.linalg.inv(self.right.K)
+        # Use the K embedded in P instead K as 
+        # rectified images are the result of P
+        Klp = np.linalg.inv(self.left.P[0:3, 0:3]) 
+        Krp = np.linalg.inv(self.right.P[0:3, 0:3])
     
         wleft    = Klp * point_to_homo(xleft)
         wright    = Krp * point_to_homo(xright)

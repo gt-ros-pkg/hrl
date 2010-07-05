@@ -151,44 +151,48 @@ def blob_statistics(binary_image, max_area=99999.0, max_dim=99999.0):
     #pdb.set_trace()
     #for e in contours:
     #    print e, e.__class__
+    #import pdb
+    #pdb.set_trace()
 
     while contours != None:
-        #print '.'
+    #print '.'
 	#import pdb
 	#pdb.set_trace()
-	try:
+        try:
             bx, by, bwidth, bheight = cv.BoundingRect(contours, 0)
             bounding_rect = Rect(bx, by, bwidth, bheight)
             moments = cv.Moments(contours, 0)
             #area = moments.m00
             #approximation to area since cvMoments' area seem broken
             area = bounding_rect.width * bounding_rect.height
-	    if False:
-	        #NOT WORKING!!
-	        if moments.m00 == 0.0:
+            if False:
+                #NOT WORKING!!
+                if moments.m00 == 0.0:
                     centroid = (bounding_rect.x, bounding_rect.y)
                 else:
                     centroid = (moments.m10/moments.m00, moments.m01/moments.m00)
-	    else:
-	        if bwidth > 0:
-	    	    cx = bx + bwidth/2.
-	        else:
-	    	    cx = bx
-
-	        if bheight > 0:
-	    	    cy = by + bheight/2.
-	        else:
-	    	    cy = by
-	        centroid = (cx, cy)
-
-            if area > max_area or bounding_rect.width > max_dim or bounding_rect.height > max_dim:
-                cv.DrawContours(binary_image, contours, cv.Scalar(0), cv.Scalar(0), 0, cv.CV_FILLED) 
             else:
-                stats = {'area': area, 'centroid': centroid, 'rect': bounding_rect}
-                statistics.append(stats)
-            contours = contours.h_next()
-        except:
-	    break
+                if bwidth > 0:
+            	    cx = bx + bwidth/2.
+                else:
+            	    cx = bx
+    
+                if bheight > 0:
+            	    cy = by + bheight/2.
+                else:
+            	    cy = by
+                centroid = (cx, cy)
+    
+                if area > max_area or bounding_rect.width > max_dim or bounding_rect.height > max_dim:
+                    cv.DrawContours(binary_image, contours, cv.Scalar(0), cv.Scalar(0), 0, cv.CV_FILLED) 
+                else:
+                    stats = {'area': area, 'centroid': centroid, 'rect': bounding_rect}
+                    statistics.append(stats)
+                contours = contours.h_next()
+        except Exception, e:
+            pass
+            #This is due to OPENCV BUG and not being able to see inside contour object'
+        break
     return statistics
 
 ## 
@@ -444,7 +448,12 @@ class ColorLearner:
 
             #Convert to numpy matrix
             #patch_np    = ut.cv2np(patch_masked, 'BGR')
-            patch_np    = ad.cvmat2array(patch_masked)
+            #patch_np    = ad.cvmat2array(patch_masked)
+            import pdb
+            print 'Verify that the np.asarray works as intended'
+            pdb.set_trace()
+            patch_np = np.asarray(patch_masked)
+
             if use_entire_patch:
                 #calculate mean
                 area        = patch_np.shape[0] * patch_np.shape[1]
@@ -790,8 +799,10 @@ def blob_to_input_instance(image, blob, classification_window_width):
 
     #np_patch_small   = ut.cv2np(small_patch, 'BGR')
     #np_patch_big     = ut.cv2np(big_patch_rescaled, 'BGR')
-    np_patch_small   = ad.cvmat2array(small_patch)
+    #import pdb
+    np_patch_small   = np.asarray(small_patch)        #ad.cvmat2array(small_patch)
     np_patch_big     = ad.cv2array(big_patch_rescaled)
+    #pdb.set_trace()
     np_resized_small = np.matrix(np_patch_small.reshape(patch_size*patch_size*3, 1))
     np_resized_big   = np.matrix(np_patch_big.reshape(np_patch_big.shape[0] * np_patch_big.shape[1] * 3, 1))
     #print 'np_patch_small.shape, np_resized_small.shape, np_patch_big.shape, np_resized_big.shape', np_patch_small.shape, np_resized_small.shape, np_patch_big.shape, np_resized_big.shape

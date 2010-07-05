@@ -29,5 +29,6 @@ roslib.load_manifest('laser_interface')
 import rospy
 
 CURSOR_TOPIC      = 'cursor3d'
+VIZ_TOPIC         = 'viz_cursor_3d'
 MOUSE_CLICK_TOPIC = 'mouse_click'
 LASER_MODE_TOPIC  = 'laser_mode'

@@ -82,6 +82,8 @@
 from pkg import *
 from geometry_msgs.msg import PointStamped
 from std_msgs.msg import String
+#from visualization_msgs.msg import Marker
+from geometry_msgs.msg import PoseStamped
 import sys, time
 import cv
 
@@ -201,10 +203,9 @@ class EmbodiedLaserDetector:
 
         if left_detection != None and left_detection.has_key('vote'):
             print 'EmbodiedLaserDetector.triangulate: votes', print_friendly(left_detection['votes'])
-
-
-	if self.clicked:
-            return results
+            
+        if self.clicked:
+            return results 
         else:
             return None
 
@@ -213,7 +214,6 @@ class EmbodiedLaserDetector:
         self.debug           = v
         self.left_detector.set_debug(v)
         self.right_detector.set_debug(v)
-
 
     def triangulate(self, left_cam_detection, right_cam_detection):
         if right_cam_detection.has_key('votes'):
@@ -233,36 +233,38 @@ class EmbodiedLaserDetector:
             print 'EmbodiedLaserDetector.triangulate: was too far, ignoring'
             return None
 
+        return result
+
     def record(self, picked_blob, image, other_candidates):
-	def store(label):
+        def store(label):
             instance = blob_to_input_instance(image, picked_blob, 
-                	LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
+                        LaserPointerDetector.CLASSIFICATION_WINDOW_WIDTH)
             if instance != None:
                 self.examples.append(instance)
                 self.labels.append(np.matrix([label]))
 
-	if self.gather_positive_examples:
-	    if self.clicked:
-	        #store as positives
+        if self.gather_positive_examples:
+            if self.clicked:
+                #store as positives
                 if picked_blob != None: 
                     store(1)
                     print 'EmbodiedLaserDetector.record: expected 1 got 1, ', 
                     print len(self.examples)
-	    else:
+            else:
                 #store as negatives 
                 if picked_blob != None:
                     store(0)
-                    print 'EmbodiedLaserDetector.record: expected 0 got 1,', 
+                    print 'EmbodiedLaserDetector.record: expected 0 (no laser detections) but got 1 (laser detection),', 
                     print len(self.examples), 'instances'
-	else:
-	    if self.clicked:
+        else:
+            if self.clicked:
                 pass
                 #don't store anything as this case is ambiguous
-	    else:
+            else:
                 #store as negatives (false positives)
                 if picked_blob != None:
                     store(0)
-                    print 'EmbodiedLaserDetector.record: expected 0 got 1,', 
+                    print 'EmbodiedLaserDetector.record: expected 0 (no laser detections) got 1 (laser detection),', 
                     print len(self.examples), 'instances'
 
 
@@ -287,17 +289,19 @@ class EmbodiedLaserDetector:
 
 
 class LaserPointerDetectorNode:
-
-    def __init__(self, stereo_camera, exposure = LaserPointerDetector.SUN_EXPOSURE, video = None, display=False):
+    def __init__(self, camera_root_topic, calibration_root_topic, exposure = LaserPointerDetector.SUN_EXPOSURE, video = None, display=False):
         image_type = 'image_rect_color'
         if video is None:
-            self.video  = cam.ROSStereoListener([stereo_camera + '/left/' + image_type, stereo_camera + '/right/' + image_type])
+            self.video  = cam.ROSStereoListener(['/' + camera_root_topic + '/left/' + image_type, 
+                                                 '/' + camera_root_topic + '/right/' + image_type])
             #self.video    = cam.StereoFile('measuring_tape_red_left.avi','measuring_tape_red_right.avi')
         else:
             self.video = video
 
         self.video_lock       = RLock()
-        self.camera_model     = cam.ROSStereoCalibration(stereo_camera + '/left/camera_info' , stereo_camera + '/right/camera_info')
+        self.camera_model     = cam.ROSStereoCalibration('/' + calibration_root_topic + '/left/camera_info' , 
+                                                         '/' + calibration_root_topic + '/right/camera_info')
+        #self.camera_model     = cam.ROSStereoCalibration('/wide_stereo/left/camera_info' , '/wide_stereo/right/camera_info')
         self.detector         = EmbodiedLaserDetector(self.camera_model, self.video)
         self.exposure         = exposure
         self.display          = display
@@ -307,24 +311,25 @@ class LaserPointerDetectorNode:
             self._make_windows()
 
         #Subscribe
-	try:
+        try:
             rospy.init_node('laser_pointer_detector')
-	except:
-	    pass
-
+        except:
+            pass
+        
         rospy.Subscriber(MOUSE_CLICK_TOPIC, String, self._click_handler)
         rospy.Subscriber(LASER_MODE_TOPIC, String, self._mode_handler)
         self.topic = rospy.Publisher(CURSOR_TOPIC, PointStamped)
+        self.viz_topic = rospy.Publisher(VIZ_TOPIC, PoseStamped)
 
 
     def _click_handler(self, evt):
         message = evt.data
         if self.detector is not None:
             if message == 'True':
-		self.detector.clicked = True
+                self.detector.clicked = True
                 print 'LaserPointerDetector.click_handler: click!'
             elif message == 'False':
-		self.detector.clicked = False
+                self.detector.clicked = False
                 print 'LaserPointerDetector.click_handler: released click'
             else:
                 raise RuntimeError('unexpected click message from topic' + MOUSE_CLICK_TOPIC)
@@ -334,7 +339,7 @@ class LaserPointerDetectorNode:
 
     def _mode_handler(self, evt):
         message = evt.data
-	#print 'MODE!!!!', evt.data
+    #print 'MODE!!!!', evt.data
         if(message == 'debug'):
             self.debug = not self.debug
             print 'LaserPointerDetector.mode_handler: debug', self.debug
@@ -355,7 +360,7 @@ class LaserPointerDetectorNode:
 
         elif(message == 'positive'): #Will toggle gathering positive examples
             if self.detector is not None:
-		self.detector.gather_positive_examples = not self.detector.gather_positive_examples
+                self.detector.gather_positive_examples = not self.detector.gather_positive_examples
                 print 'LaserPointerDetector.mode_handler: gather_positive_examples', self.detector.gather_positive_examples
 
         elif(message == 'clear'):
@@ -378,6 +383,8 @@ class LaserPointerDetectorNode:
         self.debug = v
 
     def run(self):
+        #import pdb
+        #pdb.set_trace()
         try:
             while not rospy.is_shutdown():
                 self.video_lock.acquire()
@@ -386,16 +393,28 @@ class LaserPointerDetectorNode:
                 undistort_time = time.time()
                 result         = self.detector.run(frames, display=self.display, verbose=self.verbose, debug=self.debug)
                 run_time       = time.time()
-                self.video_lock.release()
-
+                self.video_lock.release() 
+                
                 if result != None:
                     p = result['point']
                     ps = PointStamped()
                     ps.header.stamp = rospy.get_rostime()
+                    #ps.header.frame_id = 'wide_stereo_optical_frame' #rospy.get_param('laser_pointer_detector/detector_frame')
                     ps.header.frame_id = rospy.get_param('laser_pointer_detector/detector_frame')
                     ps.point.x = p[0,0]
                     ps.point.y = p[1,0]
                     ps.point.z = p[2,0]
+
+                    pose_stamped = PoseStamped()
+                    pose_stamped.header = ps.header
+                    pose_stamped.pose.position = ps.point
+                    self.viz_topic.publish(pose_stamped)
+
+                    #m = Marker()
+                    #m.header = ps.header
+                    #print '===================================================='
+                    #print 'PUBLISHING', ps
+                    #print '===================================================='
                     self.topic.publish(ps)
                     #self.topic.publish(Point(p[0,0], p[1,0], p[2,0]))
 
@@ -424,8 +443,15 @@ class LaserPointerDetectorNode:
 if __name__ == '__main__':
     import optparse
     p = optparse.OptionParser()
+    p.add_option('-c', '-camera', action='store',
+                dest='camera', default='wide_stereo', 
+                help='stereo pair root topic (wide_stereo, narrow_stereo, etc)')
+    p.add_option('-k', '--calibration', action='store',
+                dest='calibration', default=None,
+                help='stereo pair calibration root topic (usually the same as given in -c)')
     p.add_option('-r', '--run',  action='store_true', 
                 dest='mode_run', help='classify')
+
     p.add_option('-o', '--office', action='store_true', dest='office', 
                  help='true for operating robot in office environments')
     p.add_option('-d', '--display',  action='store_true', 
@@ -449,15 +475,18 @@ if __name__ == '__main__':
     if display == False:
         cv.NamedWindow('keyboard input window', 1)
 
+    if opt.calibration == None:
+        opt.calibration = opt.camera
+
     print '==========================================================='
     print '# Detections are red circles.                             ='
     print '# Hypothesis blobs are blue squares.                      ='
     print '==========================================================='
-
     print 'Display set to', display
     print 'Exposure set to', exposure
+
     #topics = ["/wide_stereo/left/image_color", "/wide_stereo/right/image_color"]
-    lpdn = LaserPointerDetectorNode('/wide_stereo', exposure = exposure, display=display)
+    lpdn = LaserPointerDetectorNode(opt.camera, opt.calibration, exposure = exposure, display=display)
     if opt.time != None:
         lpdn.set_debug(True)
     lpdn.run()
