@@ -150,12 +150,13 @@ def print_friendly(votes):
 # Decides when to gather data
 class EmbodiedLaserDetector:
 
-    def __init__(self, geometric_camera, hardware_camera):
+    def __init__(self, geometric_camera, hardware_camera, dataset_file):
         self.examples = []
         self.labels = []
         self.gather_positive_examples = False
         self.clicked = False #clicked is here as data gathering logic is here
         self.stereo_cam = geometric_camera
+        self.dataset_file = dataset_file
         self.build_detectors(hardware_camera)
 
     def clear_examples(self):
@@ -165,8 +166,8 @@ class EmbodiedLaserDetector:
     def build_detectors(self, hardware_camera):
         self.write()
         frames = hardware_camera.next()
-        self.left_detector = LaserPointerDetector(frames[0])#, exposure=exposure)
-        self.right_detector = LaserPointerDetector(frames[1], #exposure=exposure, 
+        self.left_detector = LaserPointerDetector(frames[0], self.dataset_file)#, exposure=exposure)
+        self.right_detector = LaserPointerDetector(frames[1], self.dataset_file, #exposure=exposure, 
                 classifier=self.left_detector.classifier)
         for i in xrange(10):
             frames = hardware_camera.next()
@@ -268,11 +269,11 @@ class EmbodiedLaserDetector:
         print 'EmbodiedLaserDetector.write: inputs.shape, outputs.shape', inputs.shape, outputs.shape
         dim_reduce_set = rf.LinearDimReduceDataset(inputs, outputs)
         print 'EmbodiedLaserDetector.write: appending examples from disk to dataset'
-        n = append_examples_from_file(dim_reduce_set, file=self.left_detector.DEFAULT_DATASET_FILE)
+        n = append_examples_from_file(dim_reduce_set, file=self.dataset_file)
         print 'EmbodiedLaserDetector.write: calculating pca projection vectors'
         dim_reduce_set.set_projection_vectors(dr.pca_vectors(dim_reduce_set.inputs, percent_variance=LaserPointerDetector.PCA_VARIANCE_RETAIN))
         print 'EmbodiedLaserDetector.write: writing...'
-        dump_pickle(dim_reduce_set, self.left_detector.DEFAULT_DATASET_FILE)
+        dump_pickle(dim_reduce_set, self.dataset_file)
         print 'EmbodiedLaserDetector: recorded examples to disk.  Total in dataset', n
         self.examples = []
         self.labels   = []
@@ -283,20 +284,22 @@ class EmbodiedLaserDetector:
 class LaserPointerDetectorNode:
     def __init__(self, camera_root_topic, calibration_root_topic, 
             #exposure = LaserPointerDetector.SUN_EXPOSURE, 
-            video = None, display=False):
+            #video = None, 
+            dataset_file,
+            display=False):
 
         image_type = 'image_rect_color'
-        if video is None:
-            self.video  = cam.ROSStereoListener(['/' + camera_root_topic + '/left/' + image_type, 
-                                                 '/' + camera_root_topic + '/right/' + image_type])
-            #self.video    = cam.StereoFile('measuring_tape_red_left.avi','measuring_tape_red_right.avi')
-        else:
-            self.video = video
+        #if video is None:
+        #self.video    = cam.StereoFile('measuring_tape_red_left.avi','measuring_tape_red_right.avi')
+        #else:
+        #    self.video = video
+        self.video  = cam.ROSStereoListener(['/' + camera_root_topic + '/left/' + image_type, 
+                                             '/' + camera_root_topic + '/right/' + image_type])
 
         self.video_lock = RLock()
         self.camera_model = cam.ROSStereoCalibration('/' + calibration_root_topic + '/left/camera_info' , 
                                                      '/' + calibration_root_topic + '/right/camera_info')
-        self.detector = EmbodiedLaserDetector(self.camera_model, self.video)
+        self.detector = EmbodiedLaserDetector(self.camera_model, self.video, dataset_file)
         #self.exposure = exposure
         self.display = display
         self.debug = False #Require display = True
@@ -410,6 +413,9 @@ if __name__ == '__main__':
     p.add_option('-k', '--calibration', action='store',
                 dest='calibration', default=None,
                 help='stereo pair calibration root topic (usually the same as given in -c)')
+    p.add_option('-f', '--dataset', action='store',
+                dest='dataset_file', default='PatchClassifier.dataset.pickle', help='dataset for classifier')
+
     #p.add_option('-r', '--run',  action='store_true', 
     #            dest='mode_run', help='classify')
 
@@ -437,7 +443,8 @@ if __name__ == '__main__':
     print '# Hypothesis blobs are blue squares.                      ='
     print '==========================================================='
     #print 'Exposure set to', exposure
-    lpdn = LaserPointerDetectorNode(opt.camera, opt.calibration, display=opt.display)
+    lpdn = LaserPointerDetectorNode(opt.camera, opt.calibration, 
+            opt.dataset_file, display=opt.display)
     if opt.time != None:
         lpdn.set_debug(True)
     lpdn.run()

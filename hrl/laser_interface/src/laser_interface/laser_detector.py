@@ -172,7 +172,7 @@ class LaserPointerDetector:
 
     #These are currently set using parameters on the parameter server
     #TODO remove slash (/) by moving these somewhere else
-    def __init__(self, sample_frame, classifier = None):
+    def __init__(self, sample_frame, dataset_file, classifier = None):
         self.EXPOSURE = rospy.get_param('~exposure') #TODO: enforce this using dynamic reconfigure
         self.INTENSITY_THRESHOLD_LOW = rospy.get_param('~intensity_threshold_low')
         self.INTENSITY_THRESHOLD_HIGH = rospy.get_param('~intensity_threshold_high')
@@ -187,14 +187,18 @@ class LaserPointerDetector:
         self.TRACKER_MAX_TIME_THRESHOLD = rospy.get_param('~tracker_max_time_threshold') 
 
         self.CLASSIFICATION_WINDOW_WIDTH  = rospy.get_param('~classification_window_width') 
-        self.DATA_SET_FILE = rospy.get_param('~dataset_file') 
+        #self.DATA_SET_FILE = rospy.get_param('~dataset_file') 
         self.COLOR_CHANNEL = rospy.get_param('~color_channel')
 
         self.threshold = (self.INTENSITY_THRESHOLD_LOW, self.INTENSITY_THRESHOLD_HIGH)
         if classifier is None:
             try:
                 #TODO, assert that dataset dimensionality is equal to classifier dimensionality
-                loaded_dataset = load_pickle(self.DATA_SET_FILE)
+                #import os
+                #print os.getcwd()
+                #import pdb
+                #pdb.set_trace()
+                loaded_dataset = load_pickle(dataset_file)
                 self.classifier = PatchClassifier(loaded_dataset, 
                                     self.NUMBER_OF_LEARNERS, 
                                     self.CLASSIFICATION_WINDOW_WIDTH)
@@ -638,9 +642,6 @@ def blobs_list_to_classifier_matrix(img_blobs_list, classification_window_width)
 #    positive_examples_mat = blobs_list_to_classifier_matrix(positive_examples_list, classification_window_width)
 #    negative_examples_mat = blobs_list_to_classifier_matrix(negative_examples_list, classification_window_width)
 #    return matrices_to_dataset(positive_examples_list, negative_examples_list)
-
-
-
 
 
 
