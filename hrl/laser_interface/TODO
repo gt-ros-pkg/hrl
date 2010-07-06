@@ -1,0 +1,8 @@
+* Test ability to launch not on skynet
+* Verify that classifier is working
+* Create an easy way to tune vision constants
+* User interface node's dependence on GUI
+	http://letsmakerobots.com/node/9355
+	http://docs.python.org/howto/curses.html
+	http://www.google.com/#hl=en&q=get+mouse+input+without+X+linux+python&aq=f&aqi=&aql=&oq=&gs_rfai=&gs_upl=4223%2C103%2C9%2C1%2C54%2C84%2C9&fp=c401d881a5ff002f
+* Hook up to driving/grasping code
