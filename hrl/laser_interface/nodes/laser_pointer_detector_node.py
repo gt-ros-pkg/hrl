@@ -91,6 +91,7 @@ import laser_interface.random_forest as rf
 import laser_interface.dimreduce as dr
 import laser_interface.util as ut
 from   laser_interface.laser_detector import *
+imoprt laser_interface.blob as blob
 from threading import RLock
 
 def show_processed(image, masks, detection, blobs, detector):
@@ -102,7 +103,7 @@ def show_processed(image, masks, detection, blobs, detector):
     cv.ShowImage('thresholded', thresholded_image)
 
     draw_detection(image, detection)
-    draw_blobs(image, blobs, classification_window_width=rospy.get_param('~/classification_window_width'))
+    blob.draw_blobs(image, blobs, classification_window_width=rospy.get_param('~/classification_window_width'))
 
     make_visible_binary_image(masks[0])
     draw_detection(masks[0], detection)
@@ -129,7 +130,7 @@ def confirmation_prompt(confirm_phrase):
 
 def append_examples_from_file(dataset, file):
     try:
-        loaded_set = load_pickle(file)
+        loaded_set = ut.load_pickle(file)
         dataset.append(loaded_set)
     except IOError:
         rospy.logerr('append_examples_from_file: training file \'' + str(file) + '\'not found!')
@@ -208,7 +209,9 @@ class EmbodiedLaserDetector:
 
     def triangulate(self, left_cam_detection, right_cam_detection):
         if right_cam_detection.has_key('votes'):
-            rospy.loginfo('EmbodiedLaserDetector.triangulate: votes ' + str(print_friendly(right_cam_detection['votes']))  + ' ' + str(print_friendly(left_cam_detection['votes'])))
+            rospy.loginfo('EmbodiedLaserDetector.triangulate: votes ' \
+                          + str(print_friendly(right_cam_detection['votes']))  \
+                          + ' ' + str(print_friendly(left_cam_detection['votes'])))
         x  = np.matrix(left_cam_detection['centroid']).T
         xp = np.matrix(right_cam_detection['centroid']).T
         rospy.loginfo('triangulate: x' + str(x.T) + ' xp ' + str(xp.T))
@@ -228,7 +231,7 @@ class EmbodiedLaserDetector:
 
     def record(self, picked_blob, image, other_candidates):
         def store(label):
-            instance = blob_to_input_instance(image, picked_blob, 
+            instance = blob.blob_to_input_instance(image, picked_blob, 
                     self.left_detector.CLASSIFICATION_WINDOW_WIDTH)
             if instance != None:
                 self.examples.append(instance)
@@ -271,7 +274,7 @@ class EmbodiedLaserDetector:
         rospy.loginfo('EmbodiedLaserDetector.write: calculating pca projection vectors')
         dim_reduce_set.set_projection_vectors(dr.pca_vectors(dim_reduce_set.inputs, percent_variance=LaserPointerDetector.PCA_VARIANCE_RETAIN))
         rospy.loginfo('EmbodiedLaserDetector.write: writing...')
-        dump_pickle(dim_reduce_set, self.dataset_file)
+        ut.dump_pickle(dim_reduce_set, self.dataset_file)
         rospy.loginfo('EmbodiedLaserDetector: recorded examples to disk.  Total in dataset ' + str(n))
         self.examples = []
         self.labels   = []
