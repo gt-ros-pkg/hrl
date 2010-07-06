@@ -30,15 +30,12 @@ from pkg import *
 import cv
 import numpy as np
 
-import pickle
 import itertools as it
-import pickle as pk
 import time
 import functools as ft
 
 import util as ut
 import random_forest as rf
-import hrl_opencv.adaptors as ad
 import laser_interface.cv_actions as cvact
 import laser_interface.blob as blob
 
@@ -66,7 +63,7 @@ class LaserPointerDetector:
         if classifier is None:
             try:
                 #TODO, assert that dataset dimensionality is equal to classifier dimensionality
-                loaded_dataset = load_pickle(dataset_file)
+                loaded_dataset = ut.load_pickle(dataset_file)
                 self.classifier = PatchClassifier(loaded_dataset, 
                                     self.NUMBER_OF_LEARNERS, 
                                     self.CLASSIFICATION_WINDOW_WIDTH)

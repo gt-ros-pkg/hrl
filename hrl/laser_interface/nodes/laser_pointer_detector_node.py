@@ -91,7 +91,7 @@ import laser_interface.random_forest as rf
 import laser_interface.dimreduce as dr
 import laser_interface.util as ut
 from   laser_interface.laser_detector import *
-imoprt laser_interface.blob as blob
+import laser_interface.blob as blob
 from threading import RLock
 
 def show_processed(image, masks, detection, blobs, detector):
