@@ -1,0 +1,14 @@
+<package>
+  <description brief="gt_pr2">
+
+     gt_pr2
+
+  </description>
+  <author>haidai</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/gt_pr2</url>
+
+</package>
+
+

@@ -1,11 +1,13 @@
 <launch>
     <!-- Network -->
-    <include file="$(find omni_teleop)/machine.launch"/>
+    <include file="$(find gt_pr2)/machine.launch"/>
 
     <!-- Controls -->
     <node pkg="phantom_omni" name="omni1_node" type="omni" respawn="true">
         <param name="omni_name" value="omni1"/>
     </node>
+    <!--
+    -->
     <node pkg="omni_teleop" name="omni_teleop" type="omni_teleop.py" respawn="true" machine="c1"/>
 
     <!-- GUI -->
