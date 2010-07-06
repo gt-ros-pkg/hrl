@@ -203,7 +203,7 @@ class LaserPointerDetector:
                                     self.NUMBER_OF_LEARNERS, 
                                     self.CLASSIFICATION_WINDOW_WIDTH)
             except IOError, e:
-                print 'LaserPointerDetector: no data file detected, not using classifier'
+                rospy.logerr('LaserPointerDetector: no data file detected, not using classifier')
                 self.classifier = None
         else:
             self.classifier = classifier
@@ -247,7 +247,7 @@ class LaserPointerDetector:
         intensity_motion_blob = blob_statistics(self.combined_grey_scale)
 
         if len(intensity_motion_blob) > 100:
-            print 'Too many...', len(intensity_motion_blob)
+            rospy.logwarn('Too many... ' + str(len(intensity_motion_blob)))
             return image, combined, None, intensity_motion_blob
 
         components = intensity_motion_blob #components after motion & intensity filtering
@@ -255,16 +255,14 @@ class LaserPointerDetector:
             number_components_before = len(components)
             components = self.classifier.classify(image, components)
             if number_components_before != len(components):
-                #TODO: move this to rosinfo
-                print 'LaserPointerDetector:         PatchClassifier: %d -> %d' % (number_components_before, len(components))
+                rospy.logdebug( 'LaserPointerDetector:         PatchClassifier: %d -> %d' % (number_components_before, len(components)))
 
         laser_blob = select_laser_blob(components, approx_laser_point_size=self.LASER_POINT_SIZE)
         if laser_blob != None:
             tracks        = self.tracker.track(components_to_detections([laser_blob]))
             laser_track   = select_laser_track(tracks, self.MIN_AGE)
             if laser_blob != None and laser_track == None:
-                #TODO: move this to rosinfo
-                print '         Tracker: image motion filter activated.'
+                rospy.logdebug('         Tracker: image motion filter activated.')
             if laser_track is not None:
                 laser_blob          = laser_track.last_detection.component
                 laser_blob['track'] = laser_track
@@ -275,14 +273,14 @@ class LaserPointerDetector:
 
 class PatchClassifier:
     def __init__(self, dataset, number_of_learners, classification_window_width):
-        print 'PatchClassifier.__init__: dataset size', dataset.num_examples()
+        rospy.logdebug('PatchClassifier.__init__: dataset size ' + str(dataset.num_examples()))
         self.classification_window_width = classification_window_width
-        print 'PatchClassifier: building classifier...'
+        rospy.loginfo('PatchClassifier: building classifier...')
         #Reduce dimensionality before using for training
         dataset.reduce_input()
         self.dataset = dataset
         self.classifier = rf.RFBreiman(dataset, number_of_learners=number_of_learners)
-        print 'PatchClassifier: done building.'
+        rospy.loginfo('PatchClassifier: done building.')
 
     def classify(self, image, components):
         def predict_all(c):

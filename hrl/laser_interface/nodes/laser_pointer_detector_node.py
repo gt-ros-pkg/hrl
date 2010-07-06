@@ -80,8 +80,6 @@
 #
 
 from pkg import *
-rospy.init_node('laser_pointer_detector')
-#TODO this is a temporary fix for ~ namespaces
 from geometry_msgs.msg import PointStamped
 from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
@@ -134,7 +132,7 @@ def append_examples_from_file(dataset, file):
         loaded_set = load_pickle(file)
         dataset.append(loaded_set)
     except IOError:
-        print 'append_examples_from_file: training file \'', file, '\'not found!'
+        rospy.logerr('append_examples_from_file: training file \'' + str(file) + '\'not found!')
     return dataset.num_examples()
 
 def print_friendly(votes):
@@ -196,7 +194,7 @@ class EmbodiedLaserDetector:
             results = self.triangulate(left_detection, right_detection)
 
         if left_detection != None and left_detection.has_key('vote'):
-            print 'EmbodiedLaserDetector.triangulate: votes', print_friendly(left_detection['votes'])
+            rospy.loginfo('EmbodiedLaserDetector.triangulate: votes ' + str(print_friendly(left_detection['votes'])))
             
         if self.clicked:
             return results 
@@ -210,20 +208,20 @@ class EmbodiedLaserDetector:
 
     def triangulate(self, left_cam_detection, right_cam_detection):
         if right_cam_detection.has_key('votes'):
-            print 'EmbodiedLaserDetector.triangulate: votes', print_friendly(right_cam_detection['votes']), print_friendly(left_cam_detection['votes'])
+            rospy.loginfo('EmbodiedLaserDetector.triangulate: votes ' + str(print_friendly(right_cam_detection['votes']))  + ' ' + str(print_friendly(left_cam_detection['votes'])))
         x  = np.matrix(left_cam_detection['centroid']).T
         xp = np.matrix(right_cam_detection['centroid']).T
-        print 'triangulate: x', x.T, 'xp', xp.T
+        rospy.loginfo('triangulate: x' + str(x.T) + ' xp ' + str(xp.T))
         result = self.stereo_cam.triangulate_3d(x, xp)
-        print '3D point located at', result['point'].T, 
-        print 'distance %.2f error %.3f' % (np.linalg.norm(result['point']),  result['error'])
+        rospy.loginfo('3D point located at' + str(result['point'].T) + \
+                     ('distance %.2f error %.3f' % (np.linalg.norm(result['point']),  result['error'])))
         if result['point'][2,0] < 0:
             #Don't return anything if point is behind camera
-            print 'EmbodiedLaserDetector.triangulate: point was behind camera, ignoring'
+            rospy.loginfo('EmbodiedLaserDetector.triangulate: point was behind camera, ignoring')
             return None
 
         if result['point'][2,0] > 5:
-            print 'EmbodiedLaserDetector.triangulate: was too far, ignoring'
+            rospy.loginfo('EmbodiedLaserDetector.triangulate: was too far, ignoring')
             return None
 
         return result
@@ -241,14 +239,14 @@ class EmbodiedLaserDetector:
                 #store as positives
                 if picked_blob != None: 
                     store(1)
-                    print 'EmbodiedLaserDetector.record: expected 1 got 1, ', 
-                    print len(self.examples)
+                    rospy.loginfo('EmbodiedLaserDetector.record: expected 1 got 1, ' + \
+                                   str(len(self.examples)))
             else:
                 #store as negatives 
                 if picked_blob != None:
                     store(0)
-                    print 'EmbodiedLaserDetector.record: expected 0 (no laser detections) but got 1 (laser detection),', 
-                    print len(self.examples), 'instances'
+                    rospy.loginfo('EmbodiedLaserDetector.record: expected 0 (no laser detections) but got 1 (laser detection), ' + \
+                                  str(len(self.examples)) + ' instances')
         else:
             if self.clicked:
                 pass
@@ -257,24 +255,24 @@ class EmbodiedLaserDetector:
                 #store as negatives (false positives)
                 if picked_blob != None:
                     store(0)
-                    print 'EmbodiedLaserDetector.record: expected 0 (no laser detections) got 1 (laser detection),', 
-                    print len(self.examples), 'instances'
+                    rospy.loginfo('EmbodiedLaserDetector.record: expected 0 (no laser detections) got 1 (laser detection), ' + \
+                                   str(len(self.examples)) + 'instances')
 
     def write(self):
         if not (len(self.examples) > 0):
-            print 'EmbodiedLaserDetector.write: no examples to record'
+            rospy.loginfo('EmbodiedLaserDetector.write: no examples to record')
             return
         inputs  = ut.list_mat_to_mat(self.examples, axis = 1)
         outputs = ut.list_mat_to_mat(self.labels, axis = 1)
-        print 'EmbodiedLaserDetector.write: inputs.shape, outputs.shape', inputs.shape, outputs.shape
+        rospy.loginfo('EmbodiedLaserDetector.write: inputs.shape, outputs.shape ' + str(inputs.shape) + ' ' + str(outputs.shape))
         dim_reduce_set = rf.LinearDimReduceDataset(inputs, outputs)
-        print 'EmbodiedLaserDetector.write: appending examples from disk to dataset'
+        rospy.loginfo('EmbodiedLaserDetector.write: appending examples from disk to dataset')
         n = append_examples_from_file(dim_reduce_set, file=self.dataset_file)
-        print 'EmbodiedLaserDetector.write: calculating pca projection vectors'
+        rospy.loginfo('EmbodiedLaserDetector.write: calculating pca projection vectors')
         dim_reduce_set.set_projection_vectors(dr.pca_vectors(dim_reduce_set.inputs, percent_variance=LaserPointerDetector.PCA_VARIANCE_RETAIN))
-        print 'EmbodiedLaserDetector.write: writing...'
+        rospy.loginfo('EmbodiedLaserDetector.write: writing...')
         dump_pickle(dim_reduce_set, self.dataset_file)
-        print 'EmbodiedLaserDetector: recorded examples to disk.  Total in dataset', n
+        rospy.loginfo('EmbodiedLaserDetector: recorded examples to disk.  Total in dataset ' + str(n))
         self.examples = []
         self.labels   = []
 
@@ -316,10 +314,10 @@ class LaserPointerDetectorNode:
         if self.detector is not None:
             if message == 'True':
                 self.detector.clicked = True
-                print 'LaserPointerDetector.click_handler: click!'
+                rospy.loginfo('LaserPointerDetector.click_handler: click!')
             elif message == 'False':
                 self.detector.clicked = False
-                print 'LaserPointerDetector.click_handler: released click'
+                rospy.loginfo('LaserPointerDetector.click_handler: released click')
             else:
                 raise RuntimeError('unexpected click message from topic' + MOUSE_CLICK_TOPIC)
 
@@ -327,11 +325,11 @@ class LaserPointerDetectorNode:
         message = evt.data
         if(message == 'debug'):
             self.debug = not self.debug
-            print 'LaserPointerDetector.mode_handler: debug', self.debug
+            rospy.loginfo('LaserPointerDetector.mode_handler: debug' + str(self.debug))
 
         elif (message == 'display'):
             self.display = not self.display
-            print 'LaserPointerDetector.mode_handler: display', self.display
+            rospy.loginfo('LaserPointerDetector.mode_handler: display' + str(self.display))
 
         elif(message == 'rebuild'): #Rebuild detector based on new training data
             self.video_lock.acquire()
@@ -342,7 +340,7 @@ class LaserPointerDetectorNode:
         elif(message == 'positive'): #Will toggle gathering positive examples
             if self.detector is not None:
                 self.detector.gather_positive_examples = not self.detector.gather_positive_examples
-                print 'LaserPointerDetector.mode_handler: gather_positive_examples', self.detector.gather_positive_examples
+                rospy.loginfo('LaserPointerDetector.mode_handler: gather_positive_examples' + str(self.detector.gather_positive_examples))
 
         elif(message == 'clear'):
             self.detector.clear_examples()
@@ -438,11 +436,12 @@ if __name__ == '__main__':
     if opt.calibration == None:
         opt.calibration = opt.camera
 
-    print '==========================================================='
-    print '# Detections are red circles.                             ='
-    print '# Hypothesis blobs are blue squares.                      ='
-    print '==========================================================='
+    rospy.loginfo('===========================================================')
+    rospy.loginfo('# Detections are red circles.                             =')
+    rospy.loginfo('# Hypothesis blobs are blue squares.                      =')
+    rospy.loginfo('===========================================================')
     #print 'Exposure set to', exposure
+    rospy.init_node('laser_pointer_detector')
     lpdn = LaserPointerDetectorNode(opt.camera, opt.calibration, 
             opt.dataset_file, display=opt.display)
     if opt.time != None:
