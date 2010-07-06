@@ -29,6 +29,40 @@
 #from opencv import cv
 #from opencv import highgui
 import numpy as np
+
+def list_mat_to_mat(list_mat, axis=0):
+	return np.concatenate(tuple(list_mat), axis=axis)
+
+def load_pickle(filename):
+    p = open(filename, 'r')
+    picklelicious = pk.load(p)
+    p.close()
+    return picklelicious
+
+def dump_pickle(object, filename):
+    pickle_file = open(filename, 'w')
+    pk.dump(object, pickle_file)
+    pickle_file.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #import Image as Image
 
 
@@ -75,66 +109,62 @@ import numpy as np
 #				   cv.CV_8UC3	 : (np.uint8, 3),   
 #				   cv.CV_8UC4	 : (np.uint8, 4)}
 
-def numpymat2cvmat(nmat):
-    raise RuntimeError("numpymat2cvmat: use something else")
-    #cvmat = cv.cvCreateMat(nmat.shape[0],nmat.shape[1],cv.CV_32FC1)
-    #for i in range(nmat.shape[0]):
-    #    for j in range(nmat.shape[1]):
-    #        #print cvmat[i][j]
-    #        #print nmat[i,j]	  
-    #        cvmat[i,j] = nmat[i,j]	  
-    #return cvmat
+#def numpymat2cvmat(nmat):
+#    raise RuntimeError("numpymat2cvmat: use something else")
+#    #cvmat = cv.cvCreateMat(nmat.shape[0],nmat.shape[1],cv.CV_32FC1)
+#    #for i in range(nmat.shape[0]):
+#    #    for j in range(nmat.shape[1]):
+#    #        #print cvmat[i][j]
+#    #        #print nmat[i,j]	  
+#    #        cvmat[i,j] = nmat[i,j]	  
+#    #return cvmat
+#
+#def cvmat2numpymat(cvmat):
+#    raise RuntimeError("cvmat2numpymat: use something else")
+#	#nmat = np.zeros((cvmat.width,cvmat.height))
+#	#for i in range(cvmat.width):
+#	#	for j in range(cvmat.height):
+#	#		nmat[i][j] = cvmat[i][j]
+#	#return nmat
+#
+#def cv2np(im, format='RGB'):
+#    raise RuntimeError("cv2np: use something else")
+#	#if format == 'BGR':
+#	#	cv.cvCvtColor( im, im, cv.CV_BGR2RGB )
+#	#numpy_type, nchannels = cv2np_type_dict[cv.cvGetElemType(im)]
+#	#array_size = [im.height, im.width, nchannels]
+#	#np_im = np.frombuffer(im.imageData, dtype=numpy_type, 
+#    #        count=im.height*im.width*nchannels*(im.depth/8))
+#	#return np.reshape(np_im, array_size)
+#def np2cv(im):
+#    raise RuntimeError("np2cv: use something else")
+#    #image = np2pil( im )
+#    #image.save('test.bmp', 'BMP')
+#    #cvim = highgui.cvLoadImage('test.bmp')
+#    #return cvim
 
-def cvmat2numpymat(cvmat):
-    raise RuntimeError("cvmat2numpymat: use something else")
-	#nmat = np.zeros((cvmat.width,cvmat.height))
-	#for i in range(cvmat.width):
-	#	for j in range(cvmat.height):
-	#		nmat[i][j] = cvmat[i][j]
-	#return nmat
-
-def cv2np(im, format='RGB'):
-    raise RuntimeError("cv2np: use something else")
-	#if format == 'BGR':
-	#	cv.cvCvtColor( im, im, cv.CV_BGR2RGB )
-	#numpy_type, nchannels = cv2np_type_dict[cv.cvGetElemType(im)]
-	#array_size = [im.height, im.width, nchannels]
-	#np_im = np.frombuffer(im.imageData, dtype=numpy_type, 
-    #        count=im.height*im.width*nchannels*(im.depth/8))
-	#return np.reshape(np_im, array_size)
-
-def list_mat_to_mat(list_mat, axis=0):
-	return np.concatenate(tuple(list_mat), axis=axis)
-
-def np2cv(im):
-    raise RuntimeError("np2cv: use something else")
-    #image = np2pil( im )
-    #image.save('test.bmp', 'BMP')
-    #cvim = highgui.cvLoadImage('test.bmp')
-    #return cvim
-
-def np2pil( im ):
-    """ for grayscale - all values must be between 0 and 255.
-        not sure about color yet.
-    """
-    raise RuntimeError("np2pil: moved to hrl_lib.util")
-    ##TODO: print 'util.np2cv: works for texseg.py'
-    ##TODO: print 'util.np2cv: more extensive tests would be useful'
-    #if len(im.shape) == 3:
-    #    shp = im.shape
-    #    channels = shp[2]
-    #    height, width = shp[0], shp[1]
-    #elif len(im.shape) == 2:
-    #    height, width = im.shape
-    #    channels = 1
-    #else:
-    #    raise AssertionError("unrecognized shape for the input image. should be 3 or 2, but was %d." % len(im.shape))
-    #
-    #if channels == 3:
-    #    image = Image.fromstring( "RGB", (width, height), im.tostring() )
-    #if channels == 1:
-    #    im = np.array(im, dtype=np.uint8)
-    #    image = Image.fromarray(im)
-    #    #image = Image.fromstring( "L", (width, height), im.tostring() )
-    #
-    #return image
+#def np2pil( im ):
+#    """ for grayscale - all values must be between 0 and 255.
+#        not sure about color yet.
+#    """
+#    raise RuntimeError("np2pil: moved to hrl_lib.util")
+#    ##TODO: print 'util.np2cv: works for texseg.py'
+#    ##TODO: print 'util.np2cv: more extensive tests would be useful'
+#    #if len(im.shape) == 3:
+#    #    shp = im.shape
+#    #    channels = shp[2]
+#    #    height, width = shp[0], shp[1]
+#    #elif len(im.shape) == 2:
+#    #    height, width = im.shape
+#    #    channels = 1
+#    #else:
+#    #    raise AssertionError("unrecognized shape for the input image. should be 3 or 2, but was %d." % len(im.shape))
+#    #
+#    #if channels == 3:
+#    #    image = Image.fromstring( "RGB", (width, height), im.tostring() )
+#    #if channels == 1:
+#    #    im = np.array(im, dtype=np.uint8)
+#    #    image = Image.fromarray(im)
+#    #    #image = Image.fromstring( "L", (width, height), im.tostring() )
+#    #
+#    #return image
