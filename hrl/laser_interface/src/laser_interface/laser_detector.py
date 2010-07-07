@@ -43,8 +43,8 @@ class LaserPointerDetector:
     #These are currently set using parameters on the parameter server
     def __init__(self, sample_frame, dataset_file, classifier = None):
         self.EXPOSURE = rospy.get_param('~exposure') #TODO: enforce this using dynamic reconfigure
-        self.INTENSITY_THRESHOLD_LOW = rospy.get_param('~intensity_threshold_low')
-        self.INTENSITY_THRESHOLD_HIGH = rospy.get_param('~intensity_threshold_high')
+        #self.INTENSITY_THRESHOLD_LOW = rospy.get_param('~intensity_threshold_low')
+        #self.INTENSITY_THRESHOLD_HIGH = rospy.get_param('~intensity_threshold_high')
 
         self.MAX_BLOB_AREA = rospy.get_param('~max_blob_area') 
         self.LASER_POINT_SIZE = rospy.get_param('~laser_point_size') 
@@ -59,7 +59,9 @@ class LaserPointerDetector:
         #self.DATA_SET_FILE = rospy.get_param('~dataset_file') 
         self.COLOR_CHANNEL = rospy.get_param('~color_channel')
 
-        self.threshold = (self.INTENSITY_THRESHOLD_LOW, self.INTENSITY_THRESHOLD_HIGH)
+        #self.threshold = (self.INTENSITY_THRESHOLD_LOW, self.INTENSITY_THRESHOLD_HIGH)
+        #self.threshold = (rospy.get_param('~intensity_threshold_low'), rospy.get_param('~intensity_threshold_high'))
+
         if classifier is None:
             try:
                 #TODO, assert that dataset dimensionality is equal to classifier dimensionality
@@ -74,8 +76,7 @@ class LaserPointerDetector:
             self.classifier = classifier
 
         #Create opencv processing classes
-        self.intensity_filter = cvact.BrightnessThreshold(sample_frame, self.threshold[0], 
-                                    self.threshold[1], self.MAX_BLOB_AREA)
+        self.intensity_filter = cvact.BrightnessThreshold(sample_frame, self.MAX_BLOB_AREA)
         self.motion_filter = cvact.MotionSubtract(sample_frame, self.MAX_BLOB_AREA)
         self.combine = cvact.CombineMasks(sample_frame)
         self.tracker = Tracker(self.TRACKER_MAX_PIX_TRESHOLD, self.TRACKER_MAX_TIME_THRESHOLD) 
@@ -101,9 +102,9 @@ class LaserPointerDetector:
             channel = 0
         r, g, b               = self.splitter.split(image)
         coi = [r,g,b][channel]
-        #import pdb
-        #pdb.set_trace()
-        intensity_filtered    = self.intensity_filter.threshold(coi)
+        thres_low = rospy.get_param('~intensity_threshold_low')
+        thres_high = rospy.get_param('~intensity_threshold_high')
+        intensity_filtered    = self.intensity_filter.threshold(thres_low, thres_high, coi)
         motion_filtered       = self.motion_filter.subtract(coi)
         combined              = self.combine.combine([intensity_filtered, motion_filtered])
 

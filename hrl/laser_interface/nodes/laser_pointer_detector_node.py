@@ -92,23 +92,24 @@ import laser_interface.dimreduce as dr
 import laser_interface.util as ut
 from   laser_interface.laser_detector import *
 import laser_interface.blob as blob
+import laser_interface.cv_actions as cva
 from threading import RLock
 
 def show_processed(image, masks, detection, blobs, detector):
-    masker            = Mask(image)
-    splitter          = SplitColors(image)
+    masker            = cva.Mask(image)
+    splitter          = cva.SplitColors(image)
     r, g, b           = splitter.split(image)
     thresholded_image = masker.mask(masks[0], r, g, b)
     draw_detection(thresholded_image, detection)
     cv.ShowImage('thresholded', thresholded_image)
 
     draw_detection(image, detection)
-    blob.draw_blobs(image, blobs, classification_window_width=rospy.get_param('~/classification_window_width'))
+    blob.draw_blobs(image, blobs, classification_window_width=rospy.get_param('~classification_window_width'))
 
-    make_visible_binary_image(masks[0])
+    cva.make_visible_binary_image(masks[0])
     draw_detection(masks[0], detection)
-    make_visible_binary_image(masks[1])
-    make_visible_binary_image(masks[2])
+    cva.make_visible_binary_image(masks[1])
+    cva.make_visible_binary_image(masks[2])
 
     cv.ShowImage("video",       image)
     cv.ShowImage('motion',      masks[1])
@@ -307,7 +308,8 @@ class LaserPointerDetectorNode:
         #self.exposure = exposure
         self.display = display
         self.debug = False #Require display = True
-        if display:
+        self.windows_made = False
+        if self.display:
             self._make_windows()
 
         rospy.Subscriber(MOUSE_CLICK_TOPIC, String, self._click_handler)
@@ -335,11 +337,13 @@ class LaserPointerDetectorNode:
         message = evt.data
         if(message == 'debug'):
             self.debug = not self.debug
-            rospy.loginfo('LaserPointerDetector.mode_handler: debug' + str(self.debug))
+            rospy.loginfo('LaserPointerDetector.mode_handler: debug'  + str(self.debug))
+            self._make_windows()
 
         elif (message == 'display'):
             self.display = not self.display
-            rospy.loginfo('LaserPointerDetector.mode_handler: display' + str(self.display))
+            rospy.loginfo('LaserPointerDetector.mode_handler: display ' + str(self.display))
+            self._make_windows()
 
         elif(message == 'rebuild'): #Rebuild detector based on new training data
             self.video_lock.acquire()
@@ -358,6 +362,8 @@ class LaserPointerDetectorNode:
             raise RuntimeError('unexpected mode message from topic' + LASER_MODE_TOPIC)
         
     def _make_windows(self):
+        if self.windows_made:
+            return
         windows = ['video', 'right', 'thresholded', 'motion', 'intensity', 'patch', 'big_patch']
         for n in windows:
             cv.NamedWindow(n, 1)
@@ -366,6 +372,7 @@ class LaserPointerDetectorNode:
         cv.MoveWindow("thresholded", 800, 0)
         cv.MoveWindow("intensity", 0,   600)
         cv.MoveWindow("motion", 800, 600)
+        self.windows_made = True
 
     def set_debug(self, v):
         self.detector.set_debug(v)
@@ -376,7 +383,7 @@ class LaserPointerDetectorNode:
             while not rospy.is_shutdown():
                 self.video_lock.acquire()
                 frames = list(self.video.next())
-                result = self.detector.run(frames, display=self.display)
+                result = self.detector.run(frames, display=self.display, debug=self.debug)
                 self.video_lock.release() 
                 
                 if result != None:

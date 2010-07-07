@@ -32,20 +32,22 @@ class Rect:
     def __repr__(self):
         return 'Rect: ' + str(self.x) + ' ' + str(self.y)+ ' ' + str(self.width)+ ' ' + str(self.height)
 
-def remove_large_blobs(binary_image, max_area, max_dim=30):
-    blob_statistics(binary_image, max_area, max_dim)
+def remove_large_blobs(binary_image, max_area, max_dim=30):#, show=False):
+    blob_statistics(binary_image, max_area, max_dim)#, show=True)
     return binary_image
 
 ##
 #    WARNING: this function destructively modifies binary_image if max_area is set
 #
-def blob_statistics(binary_image, max_area=99999.0, max_dim=99999.0):
+def blob_statistics(binary_image, max_area=99999.0, max_dim=99999.0):#, show=False):
     statistics                = []
     storage                   = cv.CreateMemStorage(0)
     #FindContours(image,        storage, mode=CV_RETR_LIST, method=CV_CHAIN_APPROX_SIMPLE, offset=(0, 0))
     contours = cv.FindContours(binary_image, storage, cv.CV_RETR_TREE, cv.CV_CHAIN_APPROX_SIMPLE, (0,0))
     #number_contours, contours = cv.FindContours(binary_image, storage, cv.sizeof_CvContour, cv.CV_RETR_TREE, cv.CV_CHAIN_APPROX_SIMPLE, (0,0))
     #TODO: FIGURE OUT WHAT THE EQUIV OF SIZEOF IS IN OPENCV2
+    #import pdb
+    #pdb.set_trace()
 
     original_ptr = contours
     while contours != None:
@@ -73,7 +75,8 @@ def blob_statistics(binary_image, max_area=99999.0, max_dim=99999.0):
                 else:
             	    cy = by
                 centroid = (cx, cy)
-    
+                #if show: 
+                #    print 'areas is', area, bounding_rect.width, bounding_rect.height
                 if area > max_area or bounding_rect.width > max_dim or bounding_rect.height > max_dim:
                     cv.DrawContours(binary_image, contours, cv.Scalar(0), cv.Scalar(0), 0, cv.CV_FILLED) 
                 else:
@@ -83,7 +86,7 @@ def blob_statistics(binary_image, max_area=99999.0, max_dim=99999.0):
         except Exception, e:
             pass
             #This is due to OPENCV BUG and not being able to see inside contour object'
-        break
+            break
     return statistics
 
 def draw_blobs(frame, blobs, classification_window_width):

@@ -37,11 +37,11 @@ class SplitColors:
         return (self.red_img, self.green_img, self.blue_img)
 
 class BrightnessThreshold:
-    def __init__(self, sample_image, thres_low, thres_high, max_area): #, tune=False):
-        self.thres_low  = thres_low
-        self.thres_high = thres_high
+    def __init__(self, sample_image, max_area): #, tune=False):
+        #self.thres_low  = thres_low
+        #self.thres_high = thres_high
         self.max_area = max_area
-        self.set_thresholds([thres_low, thres_high])
+        #self.set_thresholds([thres_low, thres_high])
         #self.csplit = SplitColors(sample_image)
         #if should_mask:
         #    self.mask   = Mask(sample_image)
@@ -56,22 +56,24 @@ class BrightnessThreshold:
         #if tune:
         #    cv.NamedWindow('low', 1)
         #    cv.NamedWindow('high', 1)
-    def set_thresholds(self, thresholds):
-        self.thres_low = thresholds[0]
-        self.thresh_high = thresholds[1]
+    #def set_thresholds(self, thresholds):
+    #    self.thres_low = thresholds[0]
+    #    self.thresh_high = thresholds[1]
 
     def get_thresholded_image(self):
         return self.thresholded_combined
 
-    def threshold(self, thres_chan):
+    def threshold(self, thres_low, thres_high, thres_chan):
         result_val = 1 #Change result_val to 255 if need to view image
-        cv.Threshold(thres_chan, self.thresholded_low, self.thres_low, result_val, cv.CV_THRESH_BINARY)
+
+        cv.Threshold(thres_chan, self.thresholded_low, thres_low, result_val, cv.CV_THRESH_BINARY)
         cv.Dilate(self.thresholded_low, self.thresholded_low) #thresholded_low thresholded image using threshold for dark regions
         blob.remove_large_blobs(self.thresholded_low, self.max_area)
 
-        cv.Threshold(thres_chan, self.thresholded_high, self.thres_high, result_val, cv.CV_THRESH_BINARY)
+        cv.Threshold(thres_chan, self.thresholded_high, thres_high, result_val, cv.CV_THRESH_BINARY)
         cv.Dilate(self.thresholded_high, self.thresholded_high) #thresholded_high thresholded image using threshold for bright regions
-        blob.remove_large_blobs(self.thresholded_high, self.max_area)
+        blob.remove_large_blobs(self.thresholded_high, self.max_area)#, show=True)
+
         cv.Or(self.thresholded_low, self.thresholded_high, self.thresholded_combined)
         return self.thresholded_combined
 
