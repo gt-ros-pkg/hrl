@@ -101,7 +101,8 @@ class LaserPointerDetector:
             channel = 0
         r, g, b               = self.splitter.split(image)
         coi = [r,g,b][channel]
-
+        #import pdb
+        #pdb.set_trace()
         intensity_filtered    = self.intensity_filter.threshold(coi)
         motion_filtered       = self.motion_filter.subtract(coi)
         combined              = self.combine.combine([intensity_filtered, motion_filtered])

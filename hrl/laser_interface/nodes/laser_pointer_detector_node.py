@@ -164,6 +164,8 @@ class EmbodiedLaserDetector:
 
     def build_detectors(self, hardware_camera):
         self.write()
+        #import pdb
+        #pdb.set_trace()
         frames = hardware_camera.next()
         self.left_detector = LaserPointerDetector(frames[0], self.dataset_file)#, exposure=exposure)
         self.right_detector = LaserPointerDetector(frames[1], self.dataset_file, #exposure=exposure, 
@@ -301,6 +303,7 @@ class LaserPointerDetectorNode:
         self.camera_model = cam.ROSStereoCalibration('/' + calibration_root_topic + '/left/camera_info' , 
                                                      '/' + calibration_root_topic + '/right/camera_info')
         self.detector = EmbodiedLaserDetector(self.camera_model, self.video, dataset_file)
+        
         #self.exposure = exposure
         self.display = display
         self.debug = False #Require display = True
@@ -308,9 +311,13 @@ class LaserPointerDetectorNode:
             self._make_windows()
 
         rospy.Subscriber(MOUSE_CLICK_TOPIC, String, self._click_handler)
+        rospy.loginfo('Suscribed to ' + MOUSE_CLICK_TOPIC)
         rospy.Subscriber(LASER_MODE_TOPIC, String, self._mode_handler)
+        rospy.loginfo('Subscribed to ' + LASER_MODE_TOPIC)
         self.topic = rospy.Publisher(CURSOR_TOPIC, PointStamped)
+        rospy.loginfo('Publishing to ' + CURSOR_TOPIC)
         self.viz_topic = rospy.Publisher(VIZ_TOPIC, PoseStamped)
+        rospy.loginfo('Publishing to ' + VIZ_TOPIC)
 
     def _click_handler(self, evt):
         message = evt.data

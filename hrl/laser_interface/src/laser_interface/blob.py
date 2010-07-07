@@ -120,8 +120,8 @@ def blob_to_input_instance(image, blob, classification_window_width):
         return None
     small_patch        = cv.CloneMat(cv.GetSubRect(image, small_r.as_cv_rect()))
     big_patch          = cv.CloneMat(cv.GetSubRect(image, big_r.as_cv_rect()))
-    cv.ShowImage('patch', small_patch)
-    cv.ShowImage('big_patch', big_patch)
+    #cv.ShowImage('patch', small_patch)
+    #cv.ShowImage('big_patch', big_patch)
     big_patch_rescaled = cv.CreateImage((int(classification_window_width/2), int(classification_window_width/2)), 8, 3)
     cv.Resize(big_patch, big_patch_rescaled, cv.CV_INTER_LINEAR );
 
