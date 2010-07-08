@@ -12,6 +12,7 @@
   <depend package="visualization_msgs"/>
   <depend package="message_filters"/>
 
+  <depend package="dynamic_reconfigure"/>
   <depend package="opencv2"/>
   <depend package="hrl_opencv"/>
   <depend package="cv_bridge"/>

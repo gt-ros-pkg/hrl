@@ -1,0 +1,12 @@
+max_blob_area                : 400  
+laser_point_size             : 40.0 
+min_age                      : 5    
+number_of_learners           : 40   
+pca_variance_retain          : 0.95 
+
+tracker_max_pix_treshold     : 30.0 
+tracker_max_time_threshold   : 3     
+
+detector_frame               : '/wide_stereo_optical_frame'
+classification_window_width  : 7     
+color_channel                : green

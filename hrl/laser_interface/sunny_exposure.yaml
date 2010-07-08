@@ -1,0 +1,35 @@
+auto_black_level: False
+auto_exposure: False
+auto_exposure_alternate: False
+auto_gain: False
+auto_gain_alternate: False
+black_level: 0
+black_level_filter_length: 4
+black_level_step_size: 2
+brightness: 58
+camera_nodes: wide_stereo_left wide_stereo_right
+companding: True
+companding_alternate: True
+exposure: 0.017000000000000001
+exposure_alternate: 0.0030000000000000001
+ext_trig: True
+first_packet_offset: 0.0025000000000000001
+frame_id: wide_stereo_optical_frame
+gain: 27
+gain_alternate: 32
+height: 480
+horizontal_binning: 1
+horizontal_offset: 0
+imager_rate: 30.303030303030301
+max_exposure: 0.014000000000000002
+mirror_x: False
+mirror_y: False
+register_set: 0
+rising_edge_trig: True
+rotate_180: True
+trig_rate: 29.411764705882351
+trig_timestamp_topic: head_camera_trigger/trigger
+vertical_binning: 1
+vertical_offset: 0
+width: 640
+

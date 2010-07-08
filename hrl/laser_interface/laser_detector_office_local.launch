@@ -5,23 +5,7 @@
                 output="screen" 
                 args="-c wide_stereo_raw -k wide_stereo -f $(find laser_interface)/PatchClassifier.dataset.pickle">
         <rosparam file="$(find laser_interface)/office.yaml"/>
-        <rosparam>
-            exposure                     : 56
-            intensity_threshold_low      : 60
-            intensity_threshold_high     : 215
-            
-            max_blob_area                : 400  
-            laser_point_size             : 40.0 
-            min_age                      : 5    
-            number_of_learners           : 40   
-            pca_variance_retain          : 0.95 
-            
-            tracker_max_pix_treshold     : 30.0 
-            tracker_max_time_threshold   : 3     
-            
-            detector_frame               : '/wide_stereo_optical_frame'
-            classification_window_width  : 7     
-            color_channel                : green
-        </rosparam>
+        <rosparam file="$(find laser_interface)/detector.yaml"/>
     </node>
+    <node name="$(anon dynam_load)" pkg="hrl_lib" type="load_dynamic_config" args="/wide_stereo_both $(find laser_interface)/office_exposure.yaml"/>
 </launch>
