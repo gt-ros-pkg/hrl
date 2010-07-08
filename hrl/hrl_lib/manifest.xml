@@ -8,6 +8,7 @@
     <depend package="std_srvs"/>
     <depend package="geometry_msgs"/>
     <depend package="tf"/>
+    <depend package="dynamic_reconfigure"/>
     <export>
         <cpp cflags="-I${prefix}/msg/cpp"/>
     </export>
