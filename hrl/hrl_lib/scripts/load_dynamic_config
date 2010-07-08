@@ -1,5 +1,5 @@
-#!/urs/bin/python
-import roslib; roslib.load_manifest('load_dynamic_config')
+#!/usr/bin/python
+import roslib; roslib.load_manifest('hrl_lib')
 import rospy
 import dynamic_reconfigure.client
 import yaml
