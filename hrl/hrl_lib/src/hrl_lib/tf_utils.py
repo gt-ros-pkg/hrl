@@ -24,8 +24,11 @@ def quaternion_matrix(quat):
 def translation_matrix(trans):
     return np.matrix(tr.translation_matrix(trans))
 
-def posestamped_as_matrix(ps):
-    p = ps.pose
+def pose_as_matrix(p):
     t = [p.position.x, p.position.y, p.position.z]
     o = [p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
-    return tf_as_matrix((t, o)), ps.header.frame_id
+    return tf_as_matrix((t, o))
+
+def posestamped_as_matrix(ps):
+    p = ps.pose
+    return pose_as_matrix(p), ps.header.frame_id
