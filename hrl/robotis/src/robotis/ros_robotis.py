@@ -48,9 +48,11 @@ from robotis.srv import None_Int32Response
 import robotis.lib_robotis as rs
 import time
 import math
+from threading import Thread
 
 
 class ROS_Robotis_Server():
+    # This class provides ROS services for a select few lib_robotis functions
     def __init__(self, servo = None, name = '' ):
         if servo == None:
             raise RuntimeError( 'ROS_Robotis_Servo: No servo specified for server.\n' )
@@ -63,7 +65,9 @@ class ROS_Robotis_Server():
         except rospy.ROSException:
             pass
 
-        print 'ROS_Robotis_Servo: Starting Server /robotis/servo_' + self.name
+        #self.servo.disable_torque()
+
+        rospy.logout( 'ROS_Robotis_Servo: Starting Server /robotis/servo_' + self.name )
         self.channel = rospy.Publisher('/robotis/servo_' + self.name, Float64)
 
         self.__service_ang = rospy.Service('/robotis/servo_' + name + '_readangle',
@@ -96,9 +100,51 @@ class ROS_Robotis_Server():
         return ang
 
 
+class ROS_Robotis_Poller( Thread ):
+    # A utility class that will setup and poll a number of ROS_Robotis_Servos on one USB2Dynamixel
+    def __init__( self, dev_name, ids, names ):
+        Thread.__init__(self)
+
+        self.should_run = True
+        self.dev_name = dev_name
+        self.ids = ids
+        self.names = names
+
+        for n in self.names:
+            rospy.logout( 'ROS_Robotis_Servo: Starting Up /robotis/servo_' + n + ' on ' + self.dev_name )
+
+        self.dyn = rs.USB2Dynamixel_Device( self.dev_name )
+        self.servos = [ rs.Robotis_Servo( self.dyn, i ) for i in self.ids ]
+        self.ros_servers = [ ROS_Robotis_Server( s, n ) for s,n in zip( self.servos, self.names ) ]
+
+        rospy.logout( 'ROS_Robotis_Servo: Setup Complete on ' + self.dev_name )
+
+        self.start()
+
+    def run( self ):
+        while self.should_run:
+            [ s.update_server() for s in self.ros_servers ]
+            time.sleep(0.001)
+
+        for n in self.names:
+            rospy.logout( 'ROS_Robotis_Servo: Shutting Down /robotis/servo_' + n + ' on ' + self.dev_name )
+
+    def stop(self):
+        self.should_run = False
+        self.join(3)
+        if (self.isAlive()):
+            raise RuntimeError("ROS_Robotis_Servo: unable to stop thread")
+
+
+
 class ROS_Robotis_Client():
+    # Provides access to the ROS services in the server.
     def __init__(self, name = '' ):
         self.name = name
+
+        rospy.wait_for_service('/robotis/servo_' + name + '_readangle')
+        rospy.wait_for_service('/robotis/servo_' + name + '_ismoving')
+        rospy.wait_for_service('/robotis/servo_' + name + '_moveangle')
 
         self.__service_ang = rospy.ServiceProxy('/robotis/servo_' + name + '_readangle',
                                                 None_Float)
@@ -124,11 +170,14 @@ class ROS_Robotis_Client():
 if __name__ == '__main__':
     print 'Sample Server: '
 
-    # Important note: You cannot (!) use the same device in another
+    # Important note: You cannot (!) use the same device (dyn) in another
     # process. The device is only "thread-safe" within the same
     # process (i.e.  between servos (and callbacks) instantiated
     # within that process) 
     
+    # NOTE: If you are going to be polling the servers as in the snippet
+    #       below, I recommen using a poller!  See "SAMPLE POLLER" below.
+
     dev_name = '/dev/robot/servo_left'
     ids = [11, 12]
     names = ['pan', 'tilt']
@@ -148,6 +197,14 @@ if __name__ == '__main__':
     for n in names:
         print 'ROS_Robotis_Servo: Shutting Down /robotis/servo_'+n
 
+## SAMPLE POLLER
+
+# The above example just constantly polls all the servos, while also
+# making the services available.  This generally useful code is
+# encapsulated in a more general poller class (which also has nicer
+# shutdown / restart properties).  Thus, the above example is best used as:
+
+# ROS_Robotis_Poller( '/dev/robot/servo_left', [11,12], ['pan', 'tilt'] )
 
     
 ## SAMPLE CLIENTS:
