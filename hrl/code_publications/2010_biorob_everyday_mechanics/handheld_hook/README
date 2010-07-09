@@ -1,0 +1,29 @@
+
+
+Steps:
+
+To log forces:
+    * roscd force_torque; roslaunch ft2.launch
+    * python log_ft_data.py --log
+
+To log images:
+    ./run.sh <experiment number>
+
+    This will save all the images in a directory with the name
+    <experiment number>
+
+To play back images over ros:
+    python log_images.py -p -d <experiment number>
+    roslaunch checkerboard.launch
+    
+To save pose in a pkl:
+    run everything for playing back images over ros and
+
+    python checkerboard_poses_to_pickle.py
+    Ctrl-C this to save the pkl.
+
+To plot poses pkl:
+    python plot_poses.py -f poses_dict2010Jan12_193157.pkl
+    This is the pkl saved by checkerboard_poses_to_pickle.py
+
+

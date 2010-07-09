@@ -1,0 +1,16 @@
+<launch>
+
+    <include file="$(find modeling_forces)/handheld_hook/checkerboard.launch"/>
+
+    <node name="camera_publisher" pkg="hrl_camera"
+        type="hrl_ros_camera.py" output="log" respawn="false"
+        args="--n remote_head --f 15 --camera_settings 0_651_0_65">
+    </node>
+
+    <node name="camera_display" pkg="hrl_camera"
+        type="image_listener.py" output="log" respawn="false"
+        args="cvcamera_remote_head">
+    </node>
+
+</launch> 
+

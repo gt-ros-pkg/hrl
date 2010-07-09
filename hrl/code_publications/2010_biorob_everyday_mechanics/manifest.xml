@@ -1,0 +1,23 @@
+<package>
+  <description brief=".">
+        This package contains code associated with the following publication:
+        The Complex Structure of Simple Devices: A Survey of Trajectories and Forces that Open Doors and Drawers.
+        Advait Jain, Hai Nguyen, Mrinal Rath, Jason Okerman and Charles C. Kemp. IEEE RAS and EMBS International Conference on Biomedical Robotics and Biomechatronics (BioRob) 2010
+  </description>
+  <author>Advait Jain, Hai Nguyen, Charles C. Kemp (Healthcare Robotics Lab, Georgia Tech)</author>
+  <license>New BSD</license>
+
+  <depend package="rospy"/>
+  <depend package="hrl_lib"/>
+  <depend package="force_torque"/>
+  <depend package="opencv2"/>
+  <depend package="cv_bridge"/>
+  <depend package="hrl_camera"/>
+  <depend package="checkerboard_detector"/>
+
+  <depend package="hrl_tilting_hokuyo"/>
+  <depend package="equilibrium_point_control"/>
+</package>
+
+
+

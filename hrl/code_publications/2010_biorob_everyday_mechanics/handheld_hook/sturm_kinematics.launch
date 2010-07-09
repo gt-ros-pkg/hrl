@@ -1,0 +1,9 @@
+<launch>
+	<node pkg="articulation_models" type="model_learner_msg" name="model_learner" output="screen"> 
+        <param name="filter_models" value="rotational prismatic"/>
+    <param name="sigma_position" value="0.05"/>
+  </node>
+
+</launch>
+
+

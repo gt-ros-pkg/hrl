@@ -1,0 +1,31 @@
+<launch>
+
+ <group ns="checkerdetector" clear_params="true">
+    <param name="display" type="int" value="1"/>
+    <param name="frame_id" type="string" value="stereo_link"/>
+
+    <param name="rect0_size_x" type="double" value="0.01804"/>
+    <param name="rect0_size_y" type="double" value="0.01804"/>
+    <param name="grid0_size_x" type="int" value="5"/>
+    <param name="grid0_size_y" type="int" value="8"/>
+    <param name="type0" type="string" value="mechanism"/>
+
+    <!--
+    <param name="rect1_size_x" type="double" value="0.0189"/>
+    <param name="rect1_size_y" type="double" value="0.0189"/>
+    -->
+    <!-- hand checkerboard pattern is a bit smaller (Advait, Feb 9 2010) -->
+    <param name="rect1_size_x" type="double" value="0.01776"/>
+    <param name="rect1_size_y" type="double" value="0.01776"/>
+    <param name="grid1_size_x" type="int" value="3"/>
+    <param name="grid1_size_y" type="int" value="6"/>
+    <param name="type1" type="string" value="hand"/>
+
+    <node pkg="checkerboard_detector" type="checkerboard_detector"
+        name="checkerboard_detector" respawn="false" output="screen">
+      <remap from="image" to="/cvcamera_remote_head"/>
+      <remap from="camera_info" to="/cvcamera_remote_head_info"/>
+    </node>
+  </group>
+
+</launch> 

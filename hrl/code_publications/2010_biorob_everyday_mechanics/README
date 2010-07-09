@@ -1,0 +1,23 @@
+Publication
+------------
+The Complex Structure of Simple Devices: A Survey of Trajectories and Forces
+that Open Doors and Drawers.
+
+Advait Jain, Hai Nguyen, Mrinal Rath, Jason Okerman and Charles C. Kemp.
+
+IEEE RAS and EMBS International Conference on Biomedical Robotics and
+Biomechatronics (BioRob) 2010
+
+Code
+------
+A good starting point for looking at the code is the handhel_hook
+directory.  The logging and analysis happens through a combination of
+python code and bash scripts.
+
+
+Notes
+-----
+Hardware designs, videos and the publication is available at:
+www.hsi.gatech.edu/hrl/mechanics-biorob10.shtml
+
+
