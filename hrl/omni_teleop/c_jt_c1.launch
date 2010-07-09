@@ -1,5 +1,5 @@
 <launch>
-  <include file="$(find omni_teleop)/machine.launch"/>
+  <include file="$(find gt_pr2)/machine.launch"/>
   <node name="unspawn_arms"
         pkg="pr2_controller_manager" type="unspawner"
         args="l_arm_controller r_arm_controller" machine="c1"/>
