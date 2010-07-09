@@ -186,10 +186,26 @@ class ControlPR2Arm:
         self.tfbroadcast = tfbroadcast
         self.gripper_tip_frame = gripper_tip_frame
 	#self.start()
-        rate = rospy.Rate(30.0)
-	for i in range(10):
+        rate = rospy.Rate(100.0)
+	#for i in range(100):
+        #    self.send_transform_to_link_omni_and_pr2_frame()
+        #    rate.sleep()
+
+        rospy.loginfo('Attempting to link ' + omni_name + ' to the PR2\'s torso frame.')
+        success = False
+        while not success and (not rospy.is_shutdown()):
             self.send_transform_to_link_omni_and_pr2_frame()
             rate.sleep()
+            try:
+                self.scale_omni_l0 = np.abs(self.l0_rotate_base(self.scaling_in_base_frame))
+                success = True
+            except tf.LookupException, e:
+                pass
+                #print e
+            except tf.ConnectivityException, e:
+                pass
+                #print e
+        rospy.loginfo('Finished linking frame for %s' % omni_name)
 
         self.omni_fb = rospy.Publisher(self.omni_name + '_force_feedback', Wrench)
         self.pr2_pub = rospy.Publisher(pr2_control_topic, PoseStamped)
@@ -237,7 +253,7 @@ class ControlPR2Arm:
     def l0_rotate_base(self, vec_base):
         m = tfu.translation_matrix(vec_base)
         vec_l0 = tr.translation_from_matrix((tfu.rotate('/base_footprint', '/torso_lift_link', self.tflistener) * \
-                                                     tfu.rotate('/torso_lift_link', self.omni_name + '_link0', self.tflistener)).T * m)
+                                             tfu.rotate('/torso_lift_link', self.omni_name + '_link0', self.tflistener)).T * m)
         return np.array(vec_l0)
 
     ##
