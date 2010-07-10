@@ -234,6 +234,9 @@ class ROSCameraCalibration:
         self.h = msg.height
         self.has_msg = True
 
+    def project(self, p):
+        return self.P * p
+
 
 
 if __name__ == "__main__":

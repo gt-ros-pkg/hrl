@@ -31,4 +31,5 @@ import rospy
 CURSOR_TOPIC      = 'cursor3d'
 VIZ_TOPIC         = 'viz_cursor_3d'
 MOUSE_CLICK_TOPIC = 'mouse_click'
+MOUSE_DOUBLE_CLICK_TOPIC = 'mouse_left_double_click'
 LASER_MODE_TOPIC  = 'laser_mode'

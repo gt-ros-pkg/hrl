@@ -58,8 +58,11 @@ class KeyHandler(wx.Window):
     def __init__(self, parent):
         wx.Window.__init__(self, parent, -1, style=wx.WANTS_CHARS, name="sink")
         self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+
         self.Bind(wx.EVT_LEFT_DOWN, self.on_left_down)
         self.Bind(wx.EVT_LEFT_UP, self.on_left_up)
+        self.Bind(wx.EVT_LEFT_DCLICK, self.on_left_double_click)
+
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_SET_FOCUS, self.on_set_focus)
         self.Bind(wx.EVT_KILL_FOCUS, self.on_kill_focus)
@@ -69,6 +72,7 @@ class KeyHandler(wx.Window):
 
         self.mouse_click_pub = rospy.Publisher(MOUSE_CLICK_TOPIC, String).publish
         self.laser_mode_pub  = rospy.Publisher(LASER_MODE_TOPIC, String).publish
+        self.mouse_double_click_pub = rospy.Publisher(MOUSE_DOUBLE_CLICK_TOPIC, String).publish
         rospy.init_node('user_interface_node')
         self.SetBackgroundColour(wx.BLACK)
         self.focus = False
@@ -90,6 +94,10 @@ class KeyHandler(wx.Window):
     def on_kill_focus(self, evt):
         self.focus = False
         self.Refresh()
+
+    def on_left_double_click(self, evt):
+        self.mouse_double_click_pub('True')
+        self.set_text('DOUBLE CLICKED')
 
     def on_left_down(self, evt):
         self.mouse_click_pub('True')
