@@ -1,7 +1,7 @@
 <launch>
     <include file="$(find gt_pr2)/machine.launch"/>
     <node name="laser_user_interface" pkg='laser_interface' type='user_interface_node.py' args='params.xml' output='screen'/>
-    <node name="laser_pointer_detector" pkg="laser_interface" type="laser_pointer_detector_node.py" machine="c1"
+    <node name="laser_pointer_detector" pkg="laser_interface" type="laser_pointer_detector_node.py" machine="c2"
                 output="screen" 
                 args="-c wide_stereo -k wide_stereo -f $(find laser_interface)/PatchClassifier.dataset.pickle">
         <rosparam file="$(find laser_interface)/office.yaml"/>
