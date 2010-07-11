@@ -1,0 +1,5 @@
+<launch>
+    <include file="$(find gt_pr2)/machine.launch"/>
+    <include file="$(find laser_interface)/laser_interface_office.launch"/>
+    <node name="follow_light" pkg="laser_pointer_action" type="look_at_point_behavior.py" machine="c2"/>
+</launch>
