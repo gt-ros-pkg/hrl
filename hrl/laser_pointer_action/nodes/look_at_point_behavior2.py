@@ -42,10 +42,10 @@ class LookAtBehavior:
         self.base_client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
         self.move_pub = rospy.Publisher('look_at_point_goal', PoseStamped)
         self.tflistener = tf.TransformListener()
-        print 'Running'
+        rospy.loginfo( 'Running')
 
     def double_click_cb(self, a_str):
-        print 'Double CLICKED'
+        rospy.loginfo('Double CLICKED')
         self.double_click = True
 
     def laser_point_handler(self, point_stamped):
@@ -81,8 +81,7 @@ class LookAtBehavior:
         goal.target_pose.header.frame_id = target_link
         goal.target_pose.pose.position = geometry_msgs.msg.Point(t_base[0], t_base[1], 0)
         goal.target_pose.pose.orientation = geometry_msgs.msg.Quaternion(*q)
-        #self.base_client.send_goal(goal)
-        rospy.loginfo('Sent GOAL')
+        self.base_client.send_goal(goal)
         if wait:
             self.base_client.wait_for_result()
         if self.base_client.get_state() == GoalStatus.SUCCEEDED:
@@ -125,10 +124,10 @@ class LookAtBehavior:
                             xlim = [bx, self.camera_model.left.w - bx]
                             ylim = [by, self.camera_model.left.h - by]
                             if not in_bounds(p2d, xlim, ylim):
-                                rospy.loginfo('Looking at laser point msg#:' + str(self.message.header.seq))
+                                rospy.loginfo('\'turn\': Looking at laser point msg #: ' + str(self.message.header.seq))
                                 self.look_at(self.laser_point_base, True)
                     else:
-                        rospy.loginfo('\'turn\': double clicked. Transitioning to \'move\'')
+                        rospy.loginfo('\'turn\': double clicked. Transitioning to \'move\'.')
                         self.state = 'move'
                         self.move_state = 'send_cmd'
                         self.double_click = None
@@ -136,7 +135,7 @@ class LookAtBehavior:
             elif self.state == 'move':
                 if self.move_state == 'send_cmd':
                     if self.laser_point_base is not None:
-                        rospy.loginfo('Sending move command')
+                        rospy.loginfo('\'move\': Sending move command.')
                         self.move_base(self.laser_point_base, False)
                         self.move_state = 'check_status'
                         self.laser_point_base = None
@@ -146,17 +145,18 @@ class LookAtBehavior:
 
                 elif self.move_state == 'check_status':
                     if self.double_click is not None:
-                        rospy.loginfo('Canceling goal.')
+                        rospy.loginfo('\'move\': Canceling goal. Transitioning back to \'turn\'.')
                         self.base_client.cancel_goal()
                         self.state = 'turn'
                         self.move_state = None
                         self.double_click = None
                     else:
-                        if self.base_client.get_state() == GoalStatus.SUCCEEDED:
-                            rospy.loginfo('Reached goal. Transitioning to \'turn\'')
-                            self.state = 'turn'
-                            self.move_state = None
-                            self.double_click = None
+                        if False:
+                            if self.base_client.get_state() == GoalStatus.SUCCEEDED:
+                                rospy.loginfo('\'move\': Reached goal. Transitioning to \'turn\'.')
+                                self.state = 'turn'
+                                self.move_state = None
+                                self.double_click = None
                         #only if we exceed our wait oime
                         #else:
                         #    return False???
