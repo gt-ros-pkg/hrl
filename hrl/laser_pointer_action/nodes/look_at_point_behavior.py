@@ -40,7 +40,8 @@ class LookAtBehavior:
         rospy.init_node('look_at_point_behavior', anonymous=True)
         rospy.Subscriber('cursor3d', PointStamped, self.laser_point_handler)
         self.point_pub = rospy.Publisher('cursor3dcentered', PointStamped)
-        self.double_click = rospy.Subscriber('mouse_left_double_click', String, self.double_click_handler)
+        self.double_click = rospy.Subscriber('mouse_left_double_click', String, self.move_base_double_click)
+        self.double_click2 = rospy.Subscriber('mouse_left_double_click', String, self.cancel_move_base_double_click)
         self.camera_model = cam.ROSStereoCalibration('/' + camera_root_topic + '/left/camera_info' , 
                                                      '/' + camera_root_topic + '/right/camera_info')
         self.head_client = actionlib.SimpleActionClient('head_traj_controller/point_head_action', PointHeadAction)
@@ -52,10 +53,10 @@ class LookAtBehavior:
         #self.move_pub2 = rospy.Publisher('hai_constant', PoseStamped)
         self.tflistener = tf.TransformListener()
         self.lock.release()
-
         print 'running'
 
-    def double_click_handler(self, a_str):
+
+    def move_base_double_click(self, a_str):
         if self.message == None:
             rospy.logwarn('Unable to go, no message heard.')
             return
