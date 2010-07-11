@@ -98,7 +98,7 @@ class LookAtBehavior:
 
         self.head_client.send_goal(g)
         if wait:
-            self.head_client.wait_for_result()
+            self.head_client.wait_for_result(rospy.Duration(1.))
         if self.head_client.get_state() == GoalStatus.SUCCEEDED:
             return True
         else:
@@ -151,12 +151,11 @@ class LookAtBehavior:
                         self.move_state = None
                         self.double_click = None
                     else:
-                        if False:
-                            if self.base_client.get_state() == GoalStatus.SUCCEEDED:
-                                rospy.loginfo('\'move\': Reached goal. Transitioning to \'turn\'.')
-                                self.state = 'turn'
-                                self.move_state = None
-                                self.double_click = None
+                        if self.base_client.get_state() == GoalStatus.SUCCEEDED:
+                            rospy.loginfo('\'move\': Reached goal. Transitioning to \'turn\'.')
+                            self.state = 'turn'
+                            self.move_state = None
+                            self.double_click = None
                         #only if we exceed our wait oime
                         #else:
                         #    return False???
