@@ -405,7 +405,7 @@ class LaserPointerDetectorNode:
                 if self.display:
                     k = cv.WaitKey(10)
                 t1 = time.time()
-                rospy.logdebug('Running at ' + (1./(t1 - t0)) + ' hz.')
+                rospy.logdebug('Running at ' + str(1./(t1 - t0)) + ' hz.')
 
         except StopIteration, e:
             if self.state_object.__class__ == GatherExamples:
