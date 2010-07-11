@@ -381,6 +381,7 @@ class LaserPointerDetectorNode:
     def run(self):
         try:
             while not rospy.is_shutdown():
+                t0 = time.time()
                 self.video_lock.acquire()
                 frames = list(self.video.next())
                 result = self.detector.run(frames, display=self.display, debug=self.debug)
@@ -403,6 +404,8 @@ class LaserPointerDetectorNode:
 
                 if self.display:
                     k = cv.WaitKey(10)
+                t1 = time.time()
+                rospy.logdebug('Running at ' + (1./(t1 - t0)) + ' hz.')
 
         except StopIteration, e:
             if self.state_object.__class__ == GatherExamples:

@@ -70,7 +70,7 @@ class LaserPointerDetector:
                                     self.NUMBER_OF_LEARNERS, 
                                     self.CLASSIFICATION_WINDOW_WIDTH)
             except IOError, e:
-                rospy.logerr('LaserPointerDetector: no data file detected, not using classifier')
+                rospy.logerr('LaserPointerDetector: no data file detected (not using classifier) at loc' + dataset_file)
                 self.classifier = None
         else:
             self.classifier = classifier
