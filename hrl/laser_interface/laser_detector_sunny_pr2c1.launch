@@ -1,0 +1,9 @@
+<launch>
+    <node name="laser_pointer_detector" pkg="laser_interface" type="laser_pointer_detector_node.py" 
+                output="screen" 
+                args="-c wide_stereo -k wide_stereo -f $(find laser_interface)/PatchClassifier.dataset.pickle">
+        <rosparam file="$(find laser_interface)/sunny.yaml"/>
+        <rosparam file="$(find laser_interface)/detector.yaml"/>
+    </node>
+    <node name="$(anon dynam_load)" pkg="hrl_lib" type="load_dynamic_config" args="/wide_stereo_both $(find laser_interface)/sunny_exposure.yaml"/>
+</launch>
