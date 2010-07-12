@@ -151,7 +151,8 @@ class LookAtBehavior:
                         self.move_state = None
                         self.double_click = None
                     else:
-                        if self.base_client.get_state() == GoalStatus.SUCCEEDED:
+                        if self.base_client.get_state() == GoalStatus.SUCCEEDED or \
+                           self.base_client.simple_state == actionlib.SimpleGoalState.DONE:
                             rospy.loginfo('\'move\': Reached goal. Transitioning to \'turn\'.')
                             self.state = 'turn'
                             self.move_state = None
