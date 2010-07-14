@@ -14,6 +14,9 @@ from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAct
 from trajectory_msgs.msg import JointTrajectoryPoint
 from geometry_msgs.msg import PoseStamped
 
+from std_msgs.msg import Float64
+from sensor_msgs.msg import JointState
+
 import hrl_lib.transforms as tr
 import time
 
@@ -35,21 +38,47 @@ class HRL_PR2():
         self.joint_action_client.wait_for_server()
         self.gripper_action_client.wait_for_server()
 
-        self.r_arm_state_lock = RLock()
-        rospy.Subscriber('/r_arm_controller/state', JointTrajectoryControllerState, self.r_arm_state_cb)
+        self.arm_state_lock = RLock()
+        #rospy.Subscriber('/r_arm_controller/state', JointTrajectoryControllerState, self.r_arm_state_cb)
+        rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
         self.r_arm_cart_pub = rospy.Publisher('/r_cart/command_pose', PoseStamped)
+
+        self.r_arm_pub_l = []
+        self.joint_nm_list = ['shoulder_pan', 'shoulder_lift', 'upper_arm_roll',
+                              'elbow_flex', 'forearm_roll', 'wrist_flex',
+                              'wrist_roll']
+
+        self.r_arm_angles = None
+        self.r_arm_efforts = None
+
+        for nm in self.joint_nm_list:
+            self.r_arm_pub_l.append(rospy.Publisher('r_'+nm+'_controller/command', Float64))
+
         rospy.sleep(1.)
 
-    def r_arm_state_cb(self, data):
-        self.r_arm_state_lock.acquire()
-        self.current_joint_angles = data.actual.positions
-        self.r_arm_state_lock.release()
+    def joint_states_cb(self, data):
+        r_arm_angles = []
+        r_arm_efforts = []
+        r_jt_idx_list = [17, 18, 16, 20, 19, 21, 22]
+        for i,nm in enumerate(self.joint_nm_list):
+            idx = r_jt_idx_list[i]
+            if data.name[idx] != 'r_'+nm+'_joint':
+                raise RuntimeError('joint angle name does not match. Expected: %s, Actual: %s i: %d'%('r_'+nm+'_joint', data.name[idx], i))
+            r_arm_angles.append(data.position[idx])
+            r_arm_efforts.append(data.effort[idx])
+
+        self.arm_state_lock.acquire()
+        self.r_arm_angles = r_arm_angles
+        self.r_arm_efforts = r_arm_efforts
+        self.arm_state_lock.release()
 
     ## go to a joint configuration.
     # @param q - list of 7 joint angles in RADIANS.
     # @param duration - how long (SECONDS) before reaching the joint angles.
-    def set_jointangles(self, arm, q, duration=0.1):
+    def set_jointangles(self, arm, q, duration=0.15):
         rospy.logwarn('Currently ignoring the arm parameter.')
+#        for i,p in enumerate(self.r_arm_pub_l):
+#            p.publish(q[i])
         jtg = JointTrajectoryGoal()
         jtg.trajectory.joint_names = self.joint_names_list
         jtp = JointTrajectoryPoint()
@@ -120,9 +149,10 @@ class HRL_PR2():
         return self.FK(arm, q)
 
     def get_joint_angles(self, arm):
-        self.r_arm_state_lock.acquire()
-        q = self.current_joint_angles
-        self.r_arm_state_lock.release()
+        rospy.logwarn('Currently ignoring the arm parameter.')
+        self.arm_state_lock.acquire()
+        q = self.r_arm_angles
+        self.arm_state_lock.release()
         return q
 
     # need for search and hook

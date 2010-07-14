@@ -9,6 +9,9 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_pr2_gains</url>
   <depend package="pr2_controller_configuration"/>
+  <depend package="robot_mechanism_controllers"/>
+
+  <depend package="rospy"/>
 
 </package>
 

@@ -112,7 +112,7 @@ if __name__ == '__main__':
 
     arm = 'right_arm'
 
-    if True:
+    if False:
         ea = [0, 0, 0, 0, 0, 0, 0]
         ea = epc.robot.get_joint_angles(arm)
         rospy.logout('Going to starting position')
@@ -120,7 +120,7 @@ if __name__ == '__main__':
         raw_input('Hit ENTER to pull')
         epc.pull_back(arm, ea, tr.Rx(0), 0.2)
 
-    if False:
+    if True:
         p = np.matrix([0.9, -0.3, -0.15]).T
         rot = tr.Rx(0.)
         rot = tr.Rx(math.radians(90.))

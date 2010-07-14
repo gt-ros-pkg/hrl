@@ -17,7 +17,6 @@
 
   <depend package="tf"/>
   <depend package="hrl_lib"/>
-  <depend package="equilibrium_point_control"/>
 
 </package>
 
