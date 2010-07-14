@@ -112,24 +112,26 @@ if __name__ == '__main__':
 
     arm = 'right_arm'
 
-    if False:
+    if True:
         ea = [0, 0, 0, 0, 0, 0, 0]
         ea = epc.robot.get_joint_angles(arm)
+        rospy.logout('Going to starting position')
         epc.robot.set_jointangles(arm, ea, duration=4.0)
-        rospy.sleep(2.)
+        raw_input('Hit ENTER to pull')
         epc.pull_back(arm, ea, tr.Rx(0), 0.2)
 
-    p = np.matrix([0.9, -0.3, -0.15]).T
-    rot = tr.Rx(0.)
-    rot = tr.Rx(math.radians(90.))
+    if False:
+        p = np.matrix([0.9, -0.3, -0.15]).T
+        rot = tr.Rx(0.)
+        rot = tr.Rx(math.radians(90.))
 
-    rospy.logout('Going to starting position')
-#    epc.robot.open_gripper(arm)
-    epc.robot.set_cartesian(arm, p, rot)
-#    raw_input('Hit ENTER to close the gripper')
-#    epc.robot.close_gripper(arm)
-    raw_input('Hit ENTER to pull')
-    epc.pull_back_cartesian_control(arm, p, rot, 0.4)
+        rospy.logout('Going to starting position')
+    #    epc.robot.open_gripper(arm)
+        epc.robot.set_cartesian(arm, p, rot)
+    #    raw_input('Hit ENTER to close the gripper')
+    #    epc.robot.close_gripper(arm)
+        raw_input('Hit ENTER to pull')
+        epc.pull_back_cartesian_control(arm, p, rot, 0.4)
 
 
 

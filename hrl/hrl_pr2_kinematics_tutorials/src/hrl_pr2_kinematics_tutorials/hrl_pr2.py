@@ -154,8 +154,10 @@ class HRL_PR2():
     def open_gripper(self, arm):
         self.gripper_action_client.send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=0.08, max_effort = -1)))
 
-    def close_gripper(self, arm):
-        self.gripper_action_client.send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=0.0, max_effort = -1)))
+    ## close the gripper
+    # @param effort - supposed to be in Newtons. (-ve number => max effort)
+    def close_gripper(self, arm, effort = 15):
+        self.gripper_action_client.send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=0.0, max_effort = effort)))
 
     def get_wrist_force(self, arm):
         pass
@@ -186,8 +188,8 @@ if __name__ == '__main__':
         hrl_pr2.set_cartesian('right_arm', p, rot)
 
     hrl_pr2.open_gripper('right_arm')
-    time.sleep(5.)
-    hrl_pr2.close_gripper('right_arm')
+    raw_input('Hit ENTER to close')
+    hrl_pr2.close_gripper('right_arm', effort = 15)
 
 
 
