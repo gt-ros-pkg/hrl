@@ -5,6 +5,10 @@
   <author>Travis Deyle (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>new BSD</license>
   <depend package="hrl_lib" />  
+
+  <export>
+    <cpp cflags="-I${prefix}/msg/cpp -I${prefix}/srv/cpp"/>
+  </export>
 </package>
 
 

@@ -39,16 +39,21 @@ import hrl_rfid.lib_M5e as M5e
 import hrl_lib.rutils as ru
 
 import time
+from threading import Thread
 
 
 # Modeled off lib_M5e.M5e_Poller
-class ROS_M5e():
+class ROS_M5e( Thread ):
     QUERY_MODE = 'query'
     TRACK_MODE = 'track'
     
     def __init__(self, name = 'reader1', readPwr = 2300,
                  portStr = '/dev/robot/RFIDreader',
                  antFuncs = [], callbacks = []):
+
+        Thread.__init__(self)
+        self.should_run =  True
+
         try:
             rospy.init_node( 'rfid_m5e_' + name )
         except rospy.ROSException:
@@ -57,22 +62,27 @@ class ROS_M5e():
         self.mode = ''
         self.name = name + '_reader'
 
-        print 'ROS_M5e: Launching RFID Reader'
-        print 'ROS_M5e: Please check out our related work @ http://www.hsi.gatech.edu/hrl/project_rfid.shtml'
+        rospy.logout( 'ROS_M5e: Launching RFID Reader' )
+        rospy.logout( 'ROS_M5e: Please check out our related work @ http://www.hsi.gatech.edu/hrl/project_rfid.shtml' )
+        rospy.logout( 'ROS_M5e: '+self.name+' Building & Connecting to reader' )
 
-        print 'ROS_M5e: '+self.name+' Building & Connecting to reader'
-        self.reader = M5e.M5e(readPwr=readPwr, portSTR = portStr)
+        def prin( x ): rospy.logout( 'ROS_M5e: lib_M5e: ' + x ) # use rospy.logout in underlying lib's output
+
+        self.reader = M5e.M5e(readPwr=readPwr, portSTR = portStr, verbosity_func = prin)
         self.antFuncs = antFuncs
         self.callbacks = callbacks + [self.broadcast]
 
-        print 'ROS_M5e: publishing RFID reader with type RFIDread to channel /rfid/'+name+'_reader'
+        rospy.logout( 'ROS_M5e: publishing RFID reader with type RFIDread to channel /rfid/'+name+'_reader' )
         self.channel       = rospy.Publisher('/rfid/'+name+'_reader', RFIDread)
         self._mode_service_obj = rospy.Service('/rfid/'+name+'_mode',
                                                 StringArray_None, self._mode_service)
 
-        print 'ROS_M5e: '+self.name+' Inialized and awaiting instructions'
+        rospy.logout( 'ROS_M5e: '+self.name+' Inialized and awaiting instructions' )
 
-        while not rospy.is_shutdown():
+        self.start()  # Thread: calls self.run()
+
+    def run( self ): 
+        while self.should_run:
             if self.mode == self.QUERY_MODE:
                 for aF in self.antFuncs:
                     antennaName = aF(self.reader)    # let current antFunc make appropriate changes
@@ -94,9 +104,13 @@ class ROS_M5e():
             else:
                 time.sleep(0.005)
 
-        print 'ROS_M5e: '+self.name+' Shutting down reader'
+        rospy.logout( 'ROS_M5e: '+self.name+' Shutting down reader' )
 
-
+    def stop( self ):
+        self.should_run = False
+        self.join(3)
+        if (self.isAlive()):
+            raise RuntimeError("ROS_M5e: unable to stop thread")            
             
     def broadcast(self, data):
         antName, tagid, rssi = data
@@ -106,23 +120,23 @@ class ROS_M5e():
     def _mode_service(self, data):
         val = data.data
         if len(val) == 0:
-            print 'ROS_M5e: Mode Service called with invalid argument: ', val
+            rospy.logout( 'ROS_M5e: Mode Service called with invalid argument: ' + str(val) )
         elif len(val) == 1:
             if val[0] == self.QUERY_MODE:
-                print 'ROS_M5e: '+self.name+' Entering Query Mode'
+                rospy.logout( 'ROS_M5e: '+self.name+' Entering Query Mode' )
                 self.mode = self.QUERY_MODE
             else:
-                print 'ROS_M5e: '+self.name+' Stopping Reader'
+                rospy.logout( 'ROS_M5e: '+self.name+' Stopping Reader' )
                 self.mode = ''
         elif len(val) == 2:
             if val[0] == self.TRACK_MODE and len(val[1]) == 12:
-                print 'ROS_M5e: '+self.name+' Entering Track Mode: ', val[1]
+                rospy.logout( 'ROS_M5e: '+self.name+' Entering Track Mode: ' + str(val[1]) )
                 self.mode = self.TRACK_MODE
                 self.tag_to_track = val[1]
             else:
-                print 'ROS_M5e: Mode Service called with invalid argument: ', val
+                rospy.logout( 'ROS_M5e: Mode Service called with invalid argument: ' + str(val) )
         else:
-            print 'ROS_M5e: Mode Service called with invalid argument: ', val
+            rospy.logout( 'ROS_M5e: Mode Service called with invalid argument: ' + str(val) )
         return StringArray_NoneResponse()
 
 
@@ -192,6 +206,7 @@ if __name__ == '__main__':
                             antFuncs = [EleLeftEar, EleRightEar],
                             callbacks = [] )
         rospy.spin()
+        ros_rfid.stop()
 
     if opt.device == 'inhand':
         print 'Starting Inhand RFID Services'
@@ -201,5 +216,6 @@ if __name__ == '__main__':
                                         Hand_Left_1, Hand_Left_2 ],
                             callbacks = [] )
         rospy.spin()
+        ros_rfid.stop()
 
 

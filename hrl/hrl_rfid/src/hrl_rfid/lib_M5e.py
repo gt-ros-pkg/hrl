@@ -35,6 +35,9 @@
 import sys, serial, time, string
 from threading import Thread
 
+# A nice functional print function (Norvig)
+def prin(x): print x
+
 
 # This class is more general in that it allows custum antenna functions (if
 # using custom hardware) in addition to callbacks.
@@ -93,7 +96,10 @@ class M5e_Poller(Thread):
 class M5e:
     "Interface to Mercury M5e and M5e-Compact"
     def __init__(self, portSTR='/dev/robot/RFIDreader', baudrate=9600, 
-        TXport=1, RXport=1, readPwr=2300, protocol='GEN2', compact=True, verbosity=1):
+        TXport=1, RXport=1, readPwr=2300, protocol='GEN2', compact=True, verbosity_func=prin):
+
+        # verbosity_func should alawys take string as an input.  Lets us choose a selective 
+        #   print function (like rospy.logout) instead of built-in print.
 
         try:
             self.port = string.atoi( portSTR ) # stores the serial port as 0-based integer for Windows
@@ -106,60 +112,59 @@ class M5e:
         self.readPwr = readPwr      # Initialized read TX power in centi-dBm
         self.protocol = protocol    # Initialized protocol
         self.compact = compact
-        self.verbosity = verbosity
+        self.prin = verbosity_func
         self.ser = None
         
-        if verbosity > 0:
-            print 'Initializing M5e (or M5e-Compact)'
+        self.prin( 'Initializing M5e (or M5e-Compact)' )
         
         # Setup Serial port  (kinda Hacky, but it works and I don't want to waste time on it)
         #    Read/Write timeouts should be appropriate for data sizes being dealt with.  Keep this in mind
         
         failed = False
         try:
-            print '\tAttempting 230400 bps'
+            self.prin( '\tAttempting 230400 bps' )
             self.ser = serial.Serial(self.port, 230400, timeout=2, writeTimeout=2)
             # Check if BootLoader is running by issuing "Get BootLoader/Firmware Version"        
             self.TransmitCommand('\x00\x03')
             self.ReceiveResponse()      # automatically makes sure returned status = 0x0000
-            print '\tSuccessful at 230400 bps'
+            self.prin( '\tSuccessful at 230400 bps' )
         except:
             self.ser = None
             failed = True
-            print '\tFailed @ 230400 bps'
+            self.prin( '\tFailed @ 230400 bps' )
             pass
         
         if failed:
-            print '\tAttempting 9600 bps'
+            self.prin( '\tAttempting 9600 bps' )
             try:
                 self.ser = serial.Serial(self.port, 9600, timeout=2, writeTimeout=2)
                 self.TransmitCommand('\x00\x03')
                 self.ReceiveResponse()      # automatically makes sure returned status = 0x0000
-                print '\tSuccessful @ 9600 bps'
+                self.prin( '\tSuccessful @ 9600 bps' )
             except:
-                print '\tFailed 9600 bps'
+                self.prin( '\tFailed 9600 bps' )
                 self.ser = None
-                raise M5e_SerialPortError('Could not open serial port %d at baudrate %d or %d.' % (self.port,230400,9600))
+                raise M5e_SerialPortError('Could not open serial port %s at baudrate %d or %d.' % (str(self.port),230400,9600))
             
             # Change baud to 230400 bps (instead of 9600 default)
-            print '\tSwitching to 230400 bps'
+            self.prin( '\tSwitching to 230400 bps' )
             self.TransmitCommand('\x04\x06\x00\x03\x84\x00')
             self.ReceiveResponse()    
             self.ser = None
             try:
-                print '\tAttempting to reconnect @ 230400 bps'
+                self.prin( '\tAttempting to reconnect @ 230400 bps' )
                 self.ser = serial.Serial(self.port, 230400, timeout=2, writeTimeout=2)
                 # Check if BootLoader is running by issuing "Get BootLoader/Firmware Version"        
                 self.TransmitCommand('\x00\x03')
                 self.ReceiveResponse()      # automatically makes sure returned status = 0x0000
-                print '\tSuccessfully reconnected at 230400 bps'
+                self.prin( '\tSuccessfully reconnected at 230400 bps' )
             except:
                 self.ser = None
-                print '\tFailed @ 230400 bps'
+                self.prin( '\tFailed @ 230400 bps' )
                 pass
         
         if self.ser == None:
-            raise M5e_SerialPortError('Could not open serial port %d at baudrate %d or %d.' % (self.port,230400,9600))
+            raise M5e_SerialPortError('Could not open serial port %s at baudrate %d or %d.' % (str(self.port),230400,9600))
         
         # Check if BootLoader is running by issuing "Get BootLoader/Firmware Version"        
         self.TransmitCommand('\x00\x03')
