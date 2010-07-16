@@ -369,7 +369,7 @@ def recover_servo(dyn):
 if __name__ == '__main__':
     p = optparse.OptionParser()
     p.add_option('-d', action='store', type='string', dest='dev_name',
-                 help='Required: Device string for USB2Dynamixel. [i.e. /dev/ttyUSB0 for Linux, \'0\' (for COM0) on Windows]')
+                 help='Required: Device string for USB2Dynamixel. [i.e. /dev/ttyUSB0 for Linux, \'0\' (for COM1) on Windows]')
     p.add_option('--scan', action='store_true', dest='scan', default=False,
                  help='Scan the device for servo IDs attached.')
     p.add_option('--recover', action='store_true', dest='recover', default=False,
