@@ -21,7 +21,7 @@
     <!-- Load global navigation specific parameters. HDN: just frequencies of various things not real sensitive (except for last file) -->
     <rosparam file="$(find pr2_navigation_global)/config/local_costmap_params.yaml" command="load" />
     <rosparam file="$(find pr2_navigation_global)/config/global_costmap_params.yaml" command="load" />
-    <rosparam file="$(find gt_pr2)/navigation/base_local_planner_params.yaml" command="load" />
+    <rosparam file="$(find gt_pr2)/navigation/nav_global_base_local_planner_params.yaml" command="load" />
   </node>
 
 </launch>
