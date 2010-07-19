@@ -1,4 +1,0 @@
-#!/bin/sh
-python src/hrl_rfid/ros_M5e.py -d ears
-
-
