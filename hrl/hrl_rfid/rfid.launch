@@ -1,0 +1,7 @@
+<launch>
+  <!-- RFID-related -->
+
+  <node name="rfid_reader" pkg="hrl_rfid" type="ros_M5e.py"
+	output="screen" respawn="true" args="-d ears" />
+
+</launch>

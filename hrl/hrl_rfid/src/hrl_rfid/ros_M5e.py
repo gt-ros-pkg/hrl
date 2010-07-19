@@ -37,7 +37,6 @@ from hrl_rfid.msg import RFIDread
 from hrl_rfid.srv import StringArray_None
 from hrl_rfid.srv import StringArray_NoneResponse
 import hrl_rfid.lib_M5e as M5e
-import hrl_lib.rutils as ru
 
 import time
 from threading import Thread
