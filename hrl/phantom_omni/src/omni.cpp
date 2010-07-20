@@ -246,7 +246,7 @@ void *ros_publish(void *ptr)
 {
    PhantomROS *omni_ros = (PhantomROS *) ptr;
    int publish_rate;
-   omni_ros->n.param(std::string("publish_rate"), publish_rate, 50);
+   omni_ros->n.param(std::string("publish_rate"), publish_rate, 100);
    ros::Rate loop_rate(publish_rate);
    ros::AsyncSpinner spinner(2);
    spinner.start();
