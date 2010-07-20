@@ -6,7 +6,7 @@ vx_samples: 3
 vtheta_samples: 20
 goal_distance_bias: 0.8
 path_distance_bias: 0.6
-occdist_scale: 0.01
+occdist_scale: 0.1
 heading_lookahead: 0.325
 oscillation_reset_dist: 0.05
 acc_lim_th: 3.2
