@@ -76,9 +76,9 @@ class ROS_M5e_Client():
         if antenna == '':
             return self.last_read
         else:
-            r = last_read
+            r = self.last_read
             while r[0] != antenna:
                 time.sleep(0.02)
-                r = last_read
+                r = self.last_read
             return r
         
