@@ -2,4 +2,8 @@
     <machine name="c1" address="pr2c1.hsi.gatech.edu" 
         ros-root="/opt/ros/cturtle/ros"    
         ros-package-path="/opt/ros/cturtle/stacks:/u/haidai/svn/wg-ros-pkg:/u/haidai/svn/gt-ros-pkg" />
+
+    <machine name="c2" address="pr2c2.hsi.gatech.edu" 
+        ros-root="/opt/ros/cturtle/ros"    
+        ros-package-path="/opt/ros/cturtle/stacks:/u/haidai/svn/wg-ros-pkg:/u/haidai/svn/gt-ros-pkg" />
 </launch>
