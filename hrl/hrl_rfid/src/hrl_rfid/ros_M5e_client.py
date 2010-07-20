@@ -35,7 +35,6 @@ import rospy
 from hrl_rfid.msg import RFIDread
 from hrl_rfid.srv import StringArray_None
 import hrl_rfid.lib_M5e as M5e
-import hrl_lib.rutils as ru
 
 import time
 import thread
@@ -48,11 +47,13 @@ class ROS_M5e_Client():
         self.name = name
         self._create_ros_objects()
         
-        def msg(datum):
-            return [datum.antenna_name, datum.tagID, datum.rssi]
+        self.last_read = ['', '', -1] # antenna_name, tagID, rssi
         
-        self.reader = ru.GenericListener( self.name+'_listener', RFIDread,
-                                          '/rfid/'+self.name+'_reader', 15.0, message_extractor = msg)
+        rospy.init_node( self.name + '_listener', anonymous=True )
+        self.reader = rospy.Subscriber( '/rfid/' + self.name + '_reader', RFIDread, self.callback)        
+
+    def callback(self, datum):
+        self.last_read = [datum.antenna_name, datum.tagID, datum.rssi]
 
     # ROS Services
     def stop(self):
@@ -73,10 +74,11 @@ class ROS_M5e_Client():
 
     def read(self, antenna = ''):
         if antenna == '':
-            return self.reader.read( warn=False )
+            return self.last_read
         else:
-            r = self.reader.read( warn=False )
+            r = last_read
             while r[0] != antenna:
-                r = self.reader.read( warn=False )
+                time.sleep(0.02)
+                r = last_read
             return r
         

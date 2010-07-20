@@ -1,10 +1,9 @@
 <package>
   <description brief="hrl_rfid">
-    RFID: Thing Magic M5e and M5e-Compact RFID Reader Interface Lib.
+    UHF RFID: Thing Magic M5e and M5e-Compact UHF RFID Reader Interface Lib.
   </description>
   <author>Travis Deyle (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>new BSD</license>
-  <depend package="hrl_lib" />  
 
   <export>
     <cpp cflags="-I${prefix}/msg/cpp -I${prefix}/srv/cpp"/>
