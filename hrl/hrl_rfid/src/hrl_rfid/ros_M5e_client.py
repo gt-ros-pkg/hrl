@@ -48,8 +48,12 @@ class ROS_M5e_Client():
         self._create_ros_objects()
         
         self.last_read = ['', '', -1] # antenna_name, tagID, rssi
-        
-        rospy.init_node( self.name + '_listener', anonymous=True )
+
+        try:
+            rospy.init_node( self.name + '_listener', anonymous=True )
+        except rospy.ROSException:
+            pass
+
         self.reader = rospy.Subscriber( '/rfid/' + self.name + '_reader', RFIDread, self.callback)        
 
     def callback(self, datum):
