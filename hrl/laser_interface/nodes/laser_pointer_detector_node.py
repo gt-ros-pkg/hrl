@@ -270,12 +270,14 @@ class EmbodiedLaserDetector:
             return
         inputs  = ut.list_mat_to_mat(self.examples, axis = 1)
         outputs = ut.list_mat_to_mat(self.labels, axis = 1)
+        #import pdb
+        #pdb.set_trace()
         rospy.loginfo('EmbodiedLaserDetector.write: inputs.shape, outputs.shape ' + str(inputs.shape) + ' ' + str(outputs.shape))
         dim_reduce_set = rf.LinearDimReduceDataset(inputs, outputs)
         rospy.loginfo('EmbodiedLaserDetector.write: appending examples from disk to dataset')
         n = append_examples_from_file(dim_reduce_set, file=self.dataset_file)
         rospy.loginfo('EmbodiedLaserDetector.write: calculating pca projection vectors')
-        dim_reduce_set.set_projection_vectors(dr.pca_vectors(dim_reduce_set.inputs, percent_variance=LaserPointerDetector.PCA_VARIANCE_RETAIN))
+        dim_reduce_set.set_projection_vectors(dr.pca_vectors(dim_reduce_set.inputs, percent_variance=self.left_detector.PCA_VARIANCE_RETAIN))
         rospy.loginfo('EmbodiedLaserDetector.write: writing...')
         ut.dump_pickle(dim_reduce_set, self.dataset_file)
         rospy.loginfo('EmbodiedLaserDetector: recorded examples to disk.  Total in dataset ' + str(n))
