@@ -1,0 +1,16 @@
+<package>
+  <description brief="face_reinterpret">
+
+     face_reinterpret
+
+  </description>
+  <author>haidai</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/face_reinterpret</url>
+  <depend package='sensor_msgs'/>
+  <depend package='visualization_msgs'/>
+
+</package>
+
+
