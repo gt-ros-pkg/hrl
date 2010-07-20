@@ -2,8 +2,6 @@
 # usage: ./insert_license.sh <path to ros package>
 # e.g. ./insert_license.sh code_publications/2010_icra_epc_pull
 
-k
-
 if [ "$1" = "" ]; then
     echo "Usage: ./insert_license.sh <path to ros package>"
     exit
