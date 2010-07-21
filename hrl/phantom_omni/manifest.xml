@@ -2,7 +2,7 @@
   <description brief="phantom_omni">
      ROS Node for Sensable Phantom Omni devices.
   </description>
-  <author>Chi-Hung King, Hai Nguyen / Healthcare Robotics Lab, Georgia Tech</author>
+  <author>Hai Nguyen (haidai@gmail.com), and Chi-Hung King (jesushine@gmail.com) / Healthcare Robotics Lab, Georgia Tech</author>
   <license>new BSD</license>
   <review status="unreviewed" notes=""/>
 
