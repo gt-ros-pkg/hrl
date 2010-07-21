@@ -83,8 +83,8 @@ if __name__ == '__main__':
                opt.cam + '/right/image_rect_color']
     stereo_listener = rc.ROSStereoListener(cameras)
     cv.NamedWindow('stereo-anaglyph', 0)
-    cv.NamedWindow('left', 0)
-    cv.NamedWindow('right', 0)
+    #cv.NamedWindow('left', 0)
+    #cv.NamedWindow('right', 0)
     cv.ResizeWindow('stereo-anaglyph', 640, 480)
     cv.WaitKey(10)
     anaglyph_cyan_image_distance_correction = rospy.get_param('anaglyph_dist', opt.dist)
@@ -94,8 +94,8 @@ if __name__ == '__main__':
     escape = 27
     while not rospy.is_shutdown():
         l, r = stereo_listener.next()
-        cv.ShowImage('left', l)
-        cv.ShowImage('right', r)
+        #cv.ShowImage('left', l)
+        #cv.ShowImage('right', r)
         red_blue = anaglyph(l, r, anaglyph_cyan_image_distance_correction)
         cv.ShowImage('stereo-anaglyph', red_blue)
         k = cv.WaitKey(10)
