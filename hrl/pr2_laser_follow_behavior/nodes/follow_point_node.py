@@ -1,5 +1,5 @@
 import roslib
-roslib.load_manifest('laser_pointer_action')
+roslib.load_manifest('pr2_laser_follow_behavior')
 import rospy
 from geometry_msgs.msg import PointStamped
 from geometry_msgs.msg import PoseStamped

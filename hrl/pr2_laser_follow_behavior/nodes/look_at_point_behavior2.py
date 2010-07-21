@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import roslib
-roslib.load_manifest("laser_pointer_action")
+roslib.load_manifest("pr2_laser_follow_behavior")
 import rospy
 
 import numpy as np
