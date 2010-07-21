@@ -1,10 +1,10 @@
 <package>
   <description brief="laser_pointer_action">
-
-     laser_pointer_action
-
+      A example for how the laser pointer interface works the PR2.  In this
+      demo behavior, the PR2 tracks the detected point using its pan-tilt then
+      navigates towards it when the user double clicks the selected point.
   </description>
-  <author>haidai</author>
+  <author>Hai Nguyen / haidai@gmail.com</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/laser_pointer_action</url>
@@ -13,7 +13,6 @@
   <depend package="geometry_msgs"/>
   <depend package="laser_interface"/>
   <depend package="move_base_msgs"/>
-
 </package>
 
 
