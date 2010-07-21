@@ -1,6 +1,6 @@
 #!/usr/bin/env python  
 import roslib
-roslib.load_manifest('omni_teleop')
+roslib.load_manifest('pr2_omni_teleop')
 
 import math
 import numpy as np

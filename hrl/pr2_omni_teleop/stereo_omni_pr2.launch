@@ -8,7 +8,7 @@
     </node>
     <!--
     -->
-    <node pkg="omni_teleop" name="omni_teleop" type="omni_teleop.py" respawn="true" machine="c1"/>
+    <node pkg="pr2_omni_teleop" name="pr2_omni_teleop" type="pr2_omni_teleop.py" respawn="true" machine="c1"/>
 
     <!-- GUI -->
     <node pkg="pr2_dashboard" name="$(anon pr2_dashboard)" type="pr2_dashboard" respawn="true"/>
