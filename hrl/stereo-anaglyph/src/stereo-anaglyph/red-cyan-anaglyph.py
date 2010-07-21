@@ -12,6 +12,8 @@ def add_alpha_channel(bgr, alpha_val):
     chan1 = cv.CreateImage((w, h), cv.IPL_DEPTH_8U, 1)
     chan2 = cv.CreateImage((w, h), cv.IPL_DEPTH_8U, 1)
     chan3 = cv.CreateImage((w, h), cv.IPL_DEPTH_8U, 1)
+    [cv.Set(c, 0) for c in [chan1, chan2, chan3, bgra, alpha]]
+
     cv.Split(bgr, chan1, chan2, chan3, None)
     cv.Set(alpha, (alpha_val))
     cv.Merge(chan1, chan2, chan3, alpha, bgra)
@@ -25,7 +27,7 @@ def remove_channels(in_bgra, channel_indices):
     chan3 = cv.CreateImage((w,h), cv.IPL_DEPTH_8U, 1)
     chan4 = cv.CreateImage((w,h), cv.IPL_DEPTH_8U, 1)
     bgra  = cv.CreateImage((w,h), cv.IPL_DEPTH_8U, 4)
-
+    [cv.Set(c, 0) for c in [chan1, chan2, chan3, chan4, bgra]]
     cv.Split(in_bgra, chan1, chan2, chan3, chan4)
     chan_list = [chan1, chan2, chan3, chan4]
     for i in channel_indices:
@@ -40,6 +42,7 @@ def anaglyph(left_color, right_color, correction):
     #result = cv.CreateImage(cv.GetSize(right_color), cv.IPL_DEPTH_8U, 4)
     w, h = cv.GetSize(left_color)
     bgra = cv.CreateImage((w*2, h), cv.IPL_DEPTH_8U, 4)
+    cv.Set(bgra, 0)
     right_bgra = add_alpha_channel(right_color, round(255/2.)) #cyan (remove red?)
     left_bgra  = add_alpha_channel(left_color, round(255/2.)) #red (remove blue?, green?)
 
@@ -62,6 +65,10 @@ def anaglyph(left_color, right_color, correction):
     cv.Add(left_red, left_area, left_area)
     cv.Add(right_cyan, right_area, right_area)
 
+    #return right_cyan
+    #return left_red
+    #return left_bgra
+    #return bgra
     return valid_area
 
 if __name__ == '__main__':
@@ -76,6 +83,8 @@ if __name__ == '__main__':
                opt.cam + '/right/image_rect_color']
     stereo_listener = rc.ROSStereoListener(cameras)
     cv.NamedWindow('stereo-anaglyph', 0)
+    cv.NamedWindow('left', 0)
+    cv.NamedWindow('right', 0)
     cv.ResizeWindow('stereo-anaglyph', 640, 480)
     cv.WaitKey(10)
     anaglyph_cyan_image_distance_correction = rospy.get_param('anaglyph_dist', opt.dist)
@@ -85,6 +94,8 @@ if __name__ == '__main__':
     escape = 27
     while not rospy.is_shutdown():
         l, r = stereo_listener.next()
+        cv.ShowImage('left', l)
+        cv.ShowImage('right', r)
         red_blue = anaglyph(l, r, anaglyph_cyan_image_distance_correction)
         cv.ShowImage('stereo-anaglyph', red_blue)
         k = cv.WaitKey(10)
