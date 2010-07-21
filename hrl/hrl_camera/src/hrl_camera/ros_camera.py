@@ -57,8 +57,8 @@ class ROSStereoListener:
 
     def next(self):
         lros, rros =  self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
-        lcv = self.lbridge.imgmsg_to_cv(lros, 'bgr8')
-        rcv = self.rbridge.imgmsg_to_cv(rros, 'bgr8')
+        lcv = cv.CloneMat(self.lbridge.imgmsg_to_cv(lros, 'bgr8'))
+        rcv = cv.CloneMat(self.rbridge.imgmsg_to_cv(rros, 'bgr8'))
         return lcv, rcv
 
 
