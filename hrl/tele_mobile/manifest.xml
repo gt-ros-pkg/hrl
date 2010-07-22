@@ -2,7 +2,7 @@
   <description brief="tele_mobile">
       A package for teleoperation controls of segway, zenither, and dynamixel servos.
   </description>
-  <author>Chih-Hung King / Healthcare Robotics Lab, Georgia Tech</author>
+  <author>Chih-Hung King, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>new BSD</license>
   <depend package="rospy"/>  
   <depend package="zenither"/>  

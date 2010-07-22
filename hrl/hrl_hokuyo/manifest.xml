@@ -3,7 +3,7 @@
   Python class that uses hokuyo_node from ros-pkg to get scans from
   UTMs and player to get scans from URGs.
   </description>
-  <author>Advait Jain</author>
+  <author>Advait Jain, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>New BSD</license>
 
   <depend package="hokuyo_node"/>

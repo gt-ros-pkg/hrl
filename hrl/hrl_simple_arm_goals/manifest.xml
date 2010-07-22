@@ -3,7 +3,7 @@
     Python equivalents for move_Arm tutorials. (For example,
     http://www.ros.org/wiki/move_arm/Tutorials/MoveArmPoseGoalComplex)
   </description>
-  <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
+  <author>Advait Jain, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>New BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/simple_armstack_goals</url>

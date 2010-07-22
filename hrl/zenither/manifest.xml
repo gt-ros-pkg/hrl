@@ -1,7 +1,7 @@
 <package>
   <description brief="Code to control an Animatics Smart Servo. We use the Animatics servos to control Festo linear actuators.">
   </description>
-  <author>Cressel Anderson, Advait Jain, Hai Nguyen (Healthcare Robotics Lab, Georgia Tech)</author>
+  <author>Cressel Anderson, Advait Jain, Hai Nguyen, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>New BSD</license>
   <depend package="rospy"/>
   <depend package="hrl_lib"/>

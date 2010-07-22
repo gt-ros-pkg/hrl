@@ -2,7 +2,7 @@
   <description brief="segway_omni">
       A package for commanding omnidirectional Segway bases.
   </description>
-  <author>Cressel Anderson, Hai Nguyen, Marc Killpack / Healthcare Robotics Lab, Georgia Tech</author>
+  <author>Cressel Anderson, Hai Nguyen, Marc Killpack, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>new BSD</license>
   <depend package="rospy"/>  
   <depend package="zenither"/>  

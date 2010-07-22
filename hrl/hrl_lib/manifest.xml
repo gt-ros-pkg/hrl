@@ -2,7 +2,7 @@
     <description brief="hrl_lib">
         hrl_lib
     </description>
-    <author>Cressel Anderson, Travis Deyle, Advait Jain, Hai Nguyen (Healthcare Robotics Lab, Georgia Tech)</author>
+    <author>Cressel Anderson, Travis Deyle, Advait Jain, Hai Nguyen, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
     <license>New BSD</license>
 
     <depend package="std_srvs"/>

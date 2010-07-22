@@ -2,7 +2,7 @@
   <description brief="hrl_rfid">
     UHF RFID: Thing Magic M5e and M5e-Compact UHF RFID Reader Interface Lib.
   </description>
-  <author>Travis Deyle (Healthcare Robotics Lab, Georgia Tech)</author>
+  <author>Travis Deyle, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>new BSD</license>
   <depend package="rospy" />
 

@@ -3,7 +3,7 @@
     Code to combine two Robotis servos to form a Pan Tilt Unit (for a
     stereo camera.)
   </description>
-  <author>Advait Jain</author>
+  <author>Advait Jain, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>New BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/pan_tilt_robotis</url>
