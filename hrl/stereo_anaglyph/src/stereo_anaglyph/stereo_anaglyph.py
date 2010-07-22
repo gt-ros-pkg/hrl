@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import roslib
-roslib.load_manifest('stereo-anaglyph')
+roslib.load_manifest('stereo_anaglyph')
 import rospy
 import hrl_camera.ros_camera as rc
 import cv
