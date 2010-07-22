@@ -4,7 +4,7 @@
       demo behavior, the PR2 tracks the detected point using its pan-tilt then
       navigates towards it when the user double clicks the selected point.
   </description>
-  <author>Hai Nguyen / haidai@gmail.com</author>
+  <author>Hai Nguyen / haidai@gmail.com, Advisor - Prof. Charlie Kemp, Healthcare Robotics Lab, Georgia Tech</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/laser_pointer_action</url>
