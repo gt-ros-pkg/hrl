@@ -1,0 +1,17 @@
+<package>
+  <description brief="hai_sandbox">
+
+     hai_sandbox
+
+  </description>
+  <author>Hai Nguyen</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hai_sandbox</url>
+  <depend package="rospy"/>
+  <depend package="pr2_msgs"/>
+  <depend package="hrl_lib"/>
+
+</package>
+
+
