@@ -11,3 +11,18 @@ for topic, message, time in rosrecord.logplayer(f):
     if i > 10:
         break
 f.close()
+
+##
+# In this bag, give me messages from these topics
+# @param file_name
+# @param topics
+def bag_reader(file_name, topics):
+    f = open(file_name)
+    tdict = {}
+    for t in topics:
+        tdict[t] = True
+    for r in rosrecord.logplayer(f):
+        if tdict.has_key(r[0]):
+            yield r
+    f.close()
+
