@@ -72,11 +72,14 @@ def find_contact_images(bag_name, contact_times, all_times, topic_name):
 
 fname = sys.argv[1]
 fname_wide = sys.argv[2]
-press_lt = '/pressure/l_gripper_motor'
-press_rt = '/pressure/r_gripper_motor'
-forearm_cam_l = '/l_forearm_cam/image_rect_color'
-ws_l = '/wide_stereo/left/image_rect_color'
-ws_r = '/wide_stereo/right/image_rect_color'
+fname_cloud = sys.argv[3]
+
+press_lt = 'pressure/l_gripper_motor'
+press_rt = 'pressure/r_gripper_motor'
+forearm_cam_l = 'l_forearm_cam/image_rect_color'
+ws_l = 'wide_stereo/left/image_rect_color'
+ws_r = 'wide_stereo/right/image_rect_color'
+cloud_top = 'full_cloud'
 
 print 'reading pressure messages'
 #Get the pressure messages
@@ -88,7 +91,6 @@ all_cam_times = group_by_first_el([[top, msg.header.stamp.to_time()] for top, ms
 all_cam_times[forearm_cam_l] = [[top, msg.header.stamp.to_time()] for top, msg, t in ru.bag_iter(fname, [forearm_cam_l])]
 
 [msg.header.stamp.to_time() for top, msg, t in ru.bag_iter(fname, ['/wide_stereo/left/image_raw'])][0:4]
-
 
 print 'processing pressure'
 press_lmsgs = [msg for top, msg, t in msgs_dict[press_lt]]

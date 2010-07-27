@@ -11,6 +11,7 @@
   <depend package="rospy"/>
   <depend package="pr2_msgs"/>
   <depend package="hrl_lib"/>
+  <depend package="cv_bridge"/>
 
 </package>
 

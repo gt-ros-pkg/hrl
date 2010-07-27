@@ -1,0 +1,11 @@
+<launch>
+    
+<node pkg="laser_assembler" type="point_cloud_assembler" name="scan_assembler">
+    <remap from="scan" to="tilt_scan"/>
+    <param name="fixed_frame" value="base_footprint"/>
+</node>
+
+</launch>
+
+
+
