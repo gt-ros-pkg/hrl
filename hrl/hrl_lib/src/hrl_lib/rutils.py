@@ -29,6 +29,7 @@
 
 import roslib; roslib.load_manifest('hrl_lib')
 import rospy
+import rosrecord
 import std_srvs.srv as srv
 from hrl_lib.msg import FloatArray
 import tf
@@ -36,6 +37,41 @@ import tf.msg
 
 import time
 import numpy as np
+
+
+##
+# Iterator function for simplified filtered bag reading. Works with large bags/messages.
+#
+# @param file_name bag file name
+# @param topics list of topics that you care about (leave blank to get everything)
+# @return list of (topic_name, message, rostime) 
+def bag_iter(file_name, topics=[]):
+    f = open(file_name)
+    tdict = {}
+    for t in topics:
+        tdict[t] = True
+
+    for r in rosrecord.logplayer(f):
+        if tdict.has_key(r[0]):
+            yield r
+
+    f.close()
+
+##
+# Select topics from a given bag.  Use this only if you're dealing with small
+# messages as not everything will fit into RAM.
+#
+# @param file_name bag file name
+# @param topics list of topics that you care about (leave blank to get everything)
+# @return dict with each entry containing a list of [(topic_name, message, rostime), (...), ...]
+def bag_sel(file_name, topics=[]):
+    d = {}
+    for topic, msg, t in bag_iter(file_name, topics):
+        if not d.has_key(topic):
+            d[topic] = []
+        d[topic].append((topic, msg, t))
+    return d
+
 
 ##
 # Used on ROS server (service provider) side to conveniently declare
