@@ -16,6 +16,17 @@ def draw_surf(image, keypoints, color):
         cv.Circle(rimage, loc, 2, color, -1, cv.CV_AA)
     return rimage
 
+def draw_surf2(image, keypoints, colors):
+    rimage = clone(image)
+    for i, k in enumerate(keypoints):
+        loc, lap, size, d, hess = k 
+        loc = tuple(np.array(np.round(loc), dtype='int').tolist())
+        c = tuple(np.matrix(colors[:,i],dtype='int').T.A1)
+        color = (int(c[0]), int(c[1]), int(c[2]))
+        #cv.Circle(rimage, loc, int(round(size/2.)), color, 1, cv.CV_AA)
+        cv.Circle(rimage, loc, 5, color, 1, cv.CV_AA)
+    return rimage
+
 def draw_harris(image, keypoints, color):
     rimage = clone(image)
     for loc in keypoints:
