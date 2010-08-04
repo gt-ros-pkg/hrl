@@ -37,7 +37,25 @@ import tf.msg
 
 import time
 import numpy as np
+import geometry_msgs.msg as gm
 
+def np_to_pointcloud(points_mat, frame):
+    pc = sm.PointCloud()
+    pc.header.stamp = rospy.get_rostime()
+    pc.header.frame_id = frame
+    for i in range(points_mat.shape[1]):
+        p32 = gm.Point32()
+        p32.x = points_mat[0,i]
+        p32.y = points_mat[1,i]
+        p32.z = points_mat[2,i]
+        pc.points.append(p32)
+    return pc
+
+def pointcloud_to_np(pc):
+    plist = []
+    for p in pc.points:
+        plist.append([p.x, p.y, p.z])
+    return np.matrix(plist).T
 
 ##
 # Iterator function for simplified filtered bag reading. Works with large bags/messages.
