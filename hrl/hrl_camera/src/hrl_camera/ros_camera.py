@@ -37,6 +37,20 @@ class ROSImageClient:
     def next(self):
         return self.get_frame()
 
+class Prosilica(ROSImageClient):
+    def __init__(self, camera_name, mode):
+        self.camera_name = camera_name
+        srv_name = '/%s/request_image' % camera_name
+        topic_name = '/%s/image_rect_color' % camera_name
+        ROSImageClient.__init__(self, topic_name)
+        self.trigger_proxy = rospy.ServiceProxy(srv_name, ps.GetPolledImage)
+
+    def get_frame(self):
+        rq = ps.GetPolledImageRequest()
+        rq.response_namespace = '/%s' % self.camera_name
+        resp = self.trigger_proxy(rq)
+        return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False)
+
 
 class ROSCamera(ROSImageClient):
     def __init__(self, topic_name):
