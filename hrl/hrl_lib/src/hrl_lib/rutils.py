@@ -34,6 +34,7 @@ import std_srvs.srv as srv
 from hrl_lib.msg import FloatArray
 import tf
 import tf.msg
+import pr2_laser_snapshotter.srv as snp
 
 import time
 import numpy as np
@@ -56,6 +57,19 @@ def pointcloud_to_np(pc):
     for p in pc.points:
         plist.append([p.x, p.y, p.z])
     return np.matrix(plist).T
+
+class LaserScanner:
+    def __init__(self, service):
+        srv_name = '/%s/single_sweep_cloud' % service
+        self.sp = rospy.ServiceProxy(srv_name, snp.BuildCloudAngle)
+
+    def scan_np(self, start, end, duration):
+        resp = self.sp(start, end, duration)
+        return pointcloud_to_np(resp.cloud)
+
+    def scan(self, start, end, duration):
+        resp = self.sp(start, end, duration)
+        return resp.cloud
 
 ##
 # Iterator function for simplified filtered bag reading. Works with large bags/messages.
@@ -89,7 +103,6 @@ def bag_sel(file_name, topics=[]):
             d[topic] = []
         d[topic].append((topic, msg, t))
     return d
-
 
 ##
 # Used on ROS server (service provider) side to conveniently declare

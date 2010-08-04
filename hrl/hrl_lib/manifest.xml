@@ -9,6 +9,7 @@
     <depend package="geometry_msgs"/>
     <depend package="tf"/>
     <depend package="dynamic_reconfigure"/>
+    <depend package="pr2_laser_snapshotter"/>
     <export>
         <cpp cflags="-I${prefix}/msg/cpp"/>
     </export>
