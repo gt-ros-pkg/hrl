@@ -1,6 +1,9 @@
 <launch>
     <!-- Network -->
     <include file="$(find gt_pr2)/machine.launch"/>
+    <include file="$(find pr2_omni_teleop)/laser_scan.launch"/>
+    <include file="$(find pr2_omni_teleop)/prosilica_image_proc.launch"/>
+    <node name="$(anon dynam_load)" pkg="hrl_lib" type="load_dynamic_config" args="/prosilica_driver $(find pr2_omni_teleop)/prosilica_teleop_settings.yaml"/>
 
     <!-- Controls -->
     <node pkg="phantom_omni" name="omni1_node" type="omni" respawn="true">
