@@ -1,0 +1,15 @@
+{
+    auto_exposure: false, 
+    auto_gain: false,
+    auto_whitebalance: false, 
+    exposure: 0.40000000000000002,
+    frame_id: high_def_optical_frame, 
+    gain: 0, 
+    height: 0, 
+    trigger_mode: polled, 
+    whitebalance_blue: 100,
+    whitebalance_red: 100, 
+    width: 0, 
+    x_offset: 0, 
+    y_offset: 0
+}
