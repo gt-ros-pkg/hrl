@@ -64,8 +64,9 @@ class Prosilica(ROSImageClient):
 ##
 # from camera.py in laser_interface.
 class ROSCameraCalibration:
-    def __init__(self, channel):
-        rospy.Subscriber(channel, CameraInfo, self.camera_info)
+    def __init__(self, channel, offline=False):
+        if not offline:
+            rospy.Subscriber(channel, CameraInfo, self.camera_info)
         self.has_msg = False
 
     def camera_info(self, msg):
@@ -86,6 +87,8 @@ class ROSCameraCalibration:
     # @param from_frame None is default camera frame
     # @return 2x1 matrix
     def project(self, p, tf_listener=None, from_frame=None):
+        if not self.has_msg:
+            raise RuntimeError('Has not been initialized with a CameraInfo message (call camera_info).')
         if not(from_frame == None or from_frame == self.frame):
             p_cam = tfu.transform(self.frame, from_frame, tf_listener) \
                            * tfu.tf_as_matrix((p.A1.tolist(), tr.quaternion_from_euler(0,0,0)))
