@@ -14,6 +14,7 @@
   <depend package="image_transport"/>
   <depend package="compressed_image_transport"/>
   <depend package="theora_image_transport"/>
+  <depend package="polled_camera"/>
 </package>
 
 
