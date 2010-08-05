@@ -1,3 +1,3 @@
 <launch>
-  <node ns="prosilica" pkg="image_proc" type="image_proc" respawn="false" name="prosilica_image_proc" />
+  <node ns="prosilica" pkg="image_proc" type="image_proc" respawn="false" name="prosilica_image_proc" machine="c1"/>
 </launch>

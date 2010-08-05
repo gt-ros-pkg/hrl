@@ -1,0 +1,3 @@
+{allow_unsafe_settings: false, calibrate_time: true, cluster: 1, frame_id: laser_tilt_link,
+  intensity: true, max_ang: 1.5700000000000001, min_ang: -1.5700000000000001, port: /etc/ros/sensors/tilt_hokuyo,
+  skip: 0, time_offset: 0.0}

@@ -25,13 +25,13 @@
     </node>
     -->
 
-    <node pkg="laser_assembler" type="point_cloud_assembler" name="point_cloud_assembler_teleop" output="screen">
+    <node pkg="laser_assembler" type="point_cloud_assembler" name="point_cloud_assembler_teleop" output="screen" machine="c1">
         <remap from="cloud" to="tilt_scan_filtered"/>
         <param name="fixed_frame" type="string" value="/base_footprint" />
         <param name="max_clouds" type="int" value="1000"/>
     </node>
 
-    <node pkg="pr2_laser_snapshotter" type="point_cloud_srv" name="point_cloud_srv_teleop">
+    <node pkg="pr2_laser_snapshotter" type="point_cloud_srv" name="point_cloud_srv_teleop" machine="c1">
         <remap from="laser_scan_assembler/build_cloud" to="assemble_scans"/>
     </node>
 </launch>
