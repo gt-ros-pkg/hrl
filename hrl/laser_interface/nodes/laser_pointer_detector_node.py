@@ -80,8 +80,8 @@
 #
 
 from pkg import *
-from geometry_msgs.msg import PointStamped
 from std_msgs.msg import String
+from geometry_msgs.msg import PointStamped
 from geometry_msgs.msg import PoseStamped
 import sys, time
 import cv

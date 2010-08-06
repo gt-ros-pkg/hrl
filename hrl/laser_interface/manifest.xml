@@ -1,21 +1,20 @@
 <package>
-  <description brief="Detect laser pointers in the world.">
+  <description brief="Detect laser points in the world.">
       Detector that finds laser points in the world representing clicks.
   </description>
   <author>Hai Nguyen, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
+
   <depend package="rospy" />
   <depend package="std_msgs" />  
   <depend package="geometry_msgs"/>
   <depend package="sensor_msgs"/>
   <depend package="visualization_msgs"/>
-  <depend package="message_filters"/>
 
-  <depend package="dynamic_reconfigure"/>
-  <depend package="opencv2"/>
-  <depend package="hrl_opencv"/>
   <depend package="cv_bridge"/>
+  <depend package="opencv2"/>
 
+  <depend package="hrl_opencv"/> <!-- TODO: remove this -->
   <depend package="hrl_lib"/>
 </package>
