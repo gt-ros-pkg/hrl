@@ -89,9 +89,9 @@ if __name__ == '__main__':
     cv.WaitKey(10)
     anaglyph_cyan_image_distance_correction = rospy.get_param('anaglyph_dist', opt.dist)
    
-    left = 65361
-    right = 65363 
-    escape = 27
+    left = 1113937# 65361
+    right = 1113939#65363 
+    escape = 1048603#27
     while not rospy.is_shutdown():
         l, r = stereo_listener.next()
         #cv.ShowImage('left', l)
@@ -99,6 +99,7 @@ if __name__ == '__main__':
         red_blue = anaglyph(l, r, anaglyph_cyan_image_distance_correction)
         cv.ShowImage('stereo-anaglyph', red_blue)
         k = cv.WaitKey(10)
+        print k
         if k == escape:
             break
         if k == left:
