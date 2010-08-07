@@ -51,11 +51,12 @@ import copy
 
 import pygame_utils as pu
 
-from opencv.cv import *
-from opencv.highgui import *
+
+# Need to switch to Willow's OpenCV 2.0 python bindings at some point of time.
+# from opencv.cv import *
+# from opencv.highgui import *
 
 from ctypes import POINTER
-from ctypes import c_float
 
 MAX_DIST=1.0
 # pixel coordinates of origin
@@ -318,7 +319,6 @@ def find_door(start_pts_list,end_pts_list,pt_interest=None):
 
         door_idx = np.argmax(dist)
         return start_pts[:,door_idx].A1.tolist(),end_pts[:,door_idx].A1.tolist()
-
 
 def xy_map_to_np_image(xy_map,m_per_pixel,dilation_count=0,padding=50):
     ''' returns binary numpy image. (255 for occupied
