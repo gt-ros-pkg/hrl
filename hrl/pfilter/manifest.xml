@@ -1,0 +1,14 @@
+<package>
+  <description brief="pfilter">
+
+    A general particle filter implementation written in Python.  Modeled off Probabilistic Robotics.
+
+  </description>
+  <author>Travis Deyle, Hai Nguyen, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
+  <license>BSD</license>
+  <url>http://ros.org/wiki/pfilter</url>
+  <depend package="rospy"/>
+
+</package>
+
+
