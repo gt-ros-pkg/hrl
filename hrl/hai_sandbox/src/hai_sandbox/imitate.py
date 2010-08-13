@@ -13,7 +13,7 @@ import hrl_lib.rutils as ru
 import functools as ft
 import numpy as np
 import pdb
-
+import time
 
 class Joint:
 
@@ -22,6 +22,7 @@ class Joint:
         self.joint_names = rospy.get_param('/%s/joints' % name)
         self.pub = rospy.Publisher('%s/command' % name, tm.JointTrajectory)
         self.names_index = None
+        self.zero_vel = [0 for j in range(len(self.joint_names))]
 
     def pose(self, joint_states=None):
         if joint_states == None:
@@ -35,12 +36,16 @@ class Joint:
 
         return (np.matrix(joint_states.position).T)[self.joint_idx, 0]
 
-    def _create_trajectory(self, pos_mat, times):
+    def _create_trajectory(self, pos_mat, times, vel_mat=None):
         #Make JointTrajectoryPoints
         points = [tm.JointTrajectoryPoint() for i in range(pos_mat.shape[1])]
         for i in range(pos_mat.shape[1]):
             points[i].positions = pos_mat[:,i].A1.tolist()
-            points[i].velocities = [0 for j in range(len(self.joint_names))]
+            if vel_mat == None:
+                points[i].velocities = self.zero_vel
+            else:
+                points[i].velocities = vel_mat[:,i].A1.tolist()
+
         for i in range(pos_mat.shape[1]):
             points[i].time_from_start = rospy.Duration(times[i])
 
@@ -64,41 +69,15 @@ class PR2Arm(Joint):
         rospy.loginfo('pr2arm: waiting for server %s' % name)
         self.client.wait_for_server()
 
-        #self.joint_names = rospy.get_param('/%s/joints' % name)
-        #self.joint_provider = joint_provider
-        #self.names_index = None
-    #def pose(self, joint_states=None):
-    #    if joint_states == None:
-    #        joint_states = self.joint_provider()
-
-    #    if self.names_index == None:
-    #        self.names_index = {}
-    #        for i, n in enumerate(joint_states.name):
-    #            self.names_index[n] = i
-    #        self.joint_idx = [self.names_index[n] for n in self.joint_names]
-
-    #    return (np.matrix(joint_states.position).T)[self.joint_idx, 0]
-
     ##
     # @param pos_mat column matrix of poses
     # @param times array of times
-    def set_poses(self, pos_mat, times, block=True):
-        joint_traj = Joint._create_trajectory(self, pos_mat, times)
-
-        ##Make JointTrajectoryPoints
-        #points = [tm.JointTrajectoryPoint() for i in range(pos_mat.shape[1])]
-        #for i in range(pos_mat.shape[1]):
-        #    points[i].positions = pos_mat[:,i].A1.tolist()
-        #    points[i].velocities = [0 for j in range(7)]
-        #for i in range(pos_mat.shape[1]):
-        #    points[i].time_from_start = rospy.Duration(times[i])
+    def set_poses(self, pos_mat, times, vel_mat=None, block=True):
+        joint_traj = Joint._create_trajectory(self, pos_mat, times, vel_mat)
 
         #Create goal msg
         g = pm.JointTrajectoryGoal()
         g.trajectory = joint_traj
-        #g.trajectory.joint_names = self.joint_names
-        #g.trajectory.points = points
-        #g.trajectory.header.stamp = rospy.get_rostime()
         self.client.send_goal(g)
         if block:
             return self.client.wait_for_result()
@@ -119,7 +98,7 @@ class PR2Base:
         rospy.loginfo('pr2base: waiting for server')
         self.client.wait_for_server()
 
-    def set_pose(t, r, frame, block=True):
+    def set_pose(self, t, r, frame, block=True):
         g = mm.MoveBaseGoal()
         p = g.target_pose
         
@@ -182,18 +161,48 @@ state = 'init_manipulation'
 
 if state == 'drive':
     t, r = data['base_pose']
-    r = robot.base.set_pose(t, r, '/map')
+    print t
+    r = robot.base.set_pose(t, r, '/map', block=True)
     rospy.loginfo('result is %s' % str(r))
 
 #Put robot in the correct state
 if state == 'init_manipulation':
-    rospy.loginfo('init_manipulation')
+    rospy.loginfo('STATE init_manipulation')
     j0_dict = data['robot_pose']
     cpos = robot.pose()
-    robot.left_arm.set_poses (np.column_stack([cpos['larm'], j0_dict['poses']['larm']]), np.array([0.1, 1.]), block=False)
-    robot.right_arm.set_poses(np.column_stack([cpos['rarm'], j0_dict['poses']['rarm']]), np.array([0.1, 1.]), block=False)
-    robot.head.set_poses(np.column_stack([cpos['head_traj'], j0_dict['poses']['head_traj']]), np.array([.01, 1.]))
+    robot.left_arm.set_poses (np.column_stack([cpos['larm'], j0_dict['poses']['larm']]), np.array([0.1, 5.]), block=False)
+    robot.right_arm.set_poses(np.column_stack([cpos['rarm'], j0_dict['poses']['rarm']]), np.array([0.1, 5.]), block=False)
+    robot.head.set_poses(np.column_stack([cpos['head_traj'], j0_dict['poses']['head_traj']]), np.array([.01, 5.]))
     robot.torso.set_pose(j0_dict['poses']['torso'][0,0], block=True)
+    state = 'manipulate'
+
+if state == 'manipulate':
+    rospy.loginfo('STATE manipulate')
+    rospy.loginfo('there are %d states' % len(data['movement_states']))
+    for state in range(len(data['movement_states'])):
+        cur_state = data['movement_states'][state]
+        rospy.loginfo("starting %s" % cur_state['name'])
+
+        larm, lvel, ltime, rarm, rvel, rtime = zip(*[[jdict['poses']['larm'], jdict['vels']['larm'], jdict['time'], \
+                                                      jdict['poses']['rarm'], jdict['vels']['rarm'], jdict['time']] \
+                                                            for jdict in cur_state['joint_states']])
+
+        larm = np.column_stack(larm)
+        rarm = np.column_stack(rarm)
+        lvel = np.column_stack(lvel)
+        rvel = np.column_stack(rvel)
+        ltime = np.array(ltime) - cur_state['start_time']
+        rtime = np.array(rtime) - cur_state['start_time']
+
+        robot.left_arm.set_poses(larm[:,0], np.array([2.]), block=False)
+        robot.right_arm.set_poses(rarm[:,0], np.array([2.]), block=True)
+
+        robot.left_arm.set_poses(larm, ltime, vel_mat=lvel, block=False)
+        robot.right_arm.set_poses(rarm, rtime, vel_mat=rvel, block=True)
+
+        rospy.loginfo("%s FINISHED" % cur_state['name'])
+        time.sleep(5)
+
 
 ## Need a refinement step
 

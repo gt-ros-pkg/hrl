@@ -30,11 +30,10 @@ def segment_msgs(time_segments, msgs):
                 else:
                     break
 
-        if endt == 'end':
-            ex = len(msgs)
+        if endt != 'end':
             for i, m in enumerate(msgs[sx:]):
                 if m.header.stamp.to_time() > endt:
-                    ex = i + start
+                    ex = i + sx
                     break
 
         #pdb.set_trace()
@@ -173,7 +172,8 @@ if __name__ == '__main__':
     rospy.loginfo('Finding contact times')
     left_f, right_f, ptimes = ru.pressure_state_to_mat(pressures['msg'])
     contact_times = find_contact_times(left_f, right_f, ptimes, 250)
-    time_segments = [['start', contact_times[0]], [contact_times[0], 'end']]
+    #pdb.set_trace()
+    time_segments = [['start', contact_times[0]], [contact_times[0], contact_times[-1]], [contact_times[-1], 'end']]
 
     pressure_lseg = segment_msgs(time_segments, topics_dict['/pressure/l_gripper_motor']['msg'])
     pressure_rseg = segment_msgs(time_segments, topics_dict['/pressure/r_gripper_motor']['msg'])
@@ -208,9 +208,9 @@ if __name__ == '__main__':
 
         sdict = {'name': name,
                  'start_time': np.min(start_times),
-                 'cartesian': [lcart_seg[i], rcart_seg[i]],
-                 'joint_states': jseg_dicts[i],
-                 'pressure': [pressure_lseg[i], pressure_rseg[i]]
+                 #'cartesian': [lcart_seg[i], rcart_seg[i]],
+                 'joint_states': jseg_dicts[i]
+                 #'pressure': [pressure_lseg[i], pressure_rseg[i]]
                  } 
 
         movement_states.append(sdict)
@@ -220,7 +220,7 @@ if __name__ == '__main__':
     data = {'base_pose': pose_base, 
             'robot_pose': j0_dict,
             'arm': arm_used,
-            'movement_states': None}
+            'movement_states': movement_states}
 
     processed_bag_name = '%s_processed.pkl' % os.path.join(bag_path, filename)
     rospy.loginfo( 'saving to %s' % processed_bag_name )
