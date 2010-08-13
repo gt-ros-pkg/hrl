@@ -132,10 +132,11 @@ def imitate(data_fname):
                                                                 for jdict in cur_state['joint_states']])
     
             larm = np.column_stack(larm)
-            rarm = np.column_stack(rarm)
             lvel = np.column_stack(lvel)
-            rvel = np.column_stack(rvel)
             ltime = np.array(ltime) - cur_state['start_time']
+
+            rarm = np.column_stack(rarm)
+            rvel = np.column_stack(rvel)
             rtime = np.array(rtime) - cur_state['start_time']
     
             ## send trajectory. wait until contact state changes or traj. finished executing.
