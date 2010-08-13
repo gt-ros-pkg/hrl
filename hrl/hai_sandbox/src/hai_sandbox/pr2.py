@@ -8,6 +8,7 @@ import pr2_controllers_msgs.msg as pm
 import trajectory_msgs.msg as tm
 import pr2_mechanism_msgs.srv as pmm
 import std_msgs.msg as stdm
+import geometry_msgs.msg as gm
 
 import hrl_lib.rutils as ru
 import functools as ft
@@ -67,7 +68,10 @@ class PR2Arm(Joint):
         self.client = actionlib.SimpleActionClient('/%s/joint_trajectory_action' % joint_controller_name, pm.JointTrajectoryAction)
         rospy.loginfo('pr2arm: waiting for server %s' % joint_controller_name)
         self.client.wait_for_server()
+
         self.cart_posure_pub = rospy.Publisher("/%s/command_posture" % cart_controller_name, stdm.Float64MultiArray).publish
+        self.cart_pose_pub = rospy.Publisher("/%s/command_pose" % cart_controller_name, gm.PoseStamped).publish
+
         self.POSTURES = {
             'off':          np.matrix([]),
             'mantis':       np.matrix([0, 1, 0,  -1, 3.14, -1, 3.14]).T,
@@ -77,10 +81,28 @@ class PR2Arm(Joint):
             'old_elbowupl': np.matrix([0.79,0,1.6, -0.79,3.14, -0.79,5.49]).T,
             'elbowdownr':   np.matrix([-0.028262077316910873, 1.2946342642324222, -0.25785640577652386, -1.5498884526859626]).T, 
             'elbowdownl':   np.matrix([-0.0088195719039858515, 1.2834828245284853, 0.20338442004843196, -1.5565279256852611]).T
-        }
+            }
 
     def set_posture(self, posture_mat):
         self.cart_posure_pub(stdm.Float64MultiArray(data=posture_mat.A1.tolist()))
+
+    ##
+    # Send a cartesian pose to *_cart controllers
+    # @param trans len 3 list
+    # @param rot len 3 list
+    # @param frame string
+    # @param msg_time float
+    def set_cart_pose(self, trans, rot, frame, msg_time):
+        ps = gm.PoseStamped()
+        for i, field in enumerate(['x', 'y', 'z']):
+            exec('ps.pose.position.%s = trans[%d]' % (field, i))
+        for i, field in enumerate(['x', 'y', 'z', 'w']):
+            exec('ps.pose.orientation.%s = rot[%d]' % (field, i))
+        ps.header.frame_id = frame
+        ps.header.stamp = rospy.Time(msg_time)
+        #print '>>', rospy.get_rostime().to_time() - msg_time
+        #print ps
+        self.cart_pose_pub(ps)
 
     ##
     # @param pos_mat column matrix of poses

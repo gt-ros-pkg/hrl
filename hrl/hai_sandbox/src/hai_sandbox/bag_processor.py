@@ -113,9 +113,6 @@ class JointMsgConverter:
         return converted
 
 
-
-
-
 if __name__ == '__main__':
     import pylab as pb
 
@@ -211,7 +208,8 @@ if __name__ == '__main__':
 
         sdict = {'name': name,
                  'start_time': np.min(start_times),
-                 'cartesian': [lcart_seg[i], rcart_seg[i]],
+                 'cartesian': [[ru.ros_to_dict(ps) for ps in lcart_seg[i]], 
+                               [ru.ros_to_dict(ps) for ps in rcart_seg[i]]],
                  'joint_states': jseg_dicts[i]
                  #'pressure': [pressure_lseg[i], pressure_rseg[i]]
                  } 
