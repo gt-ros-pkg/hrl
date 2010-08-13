@@ -171,9 +171,12 @@ if __name__ == '__main__':
 
     rospy.loginfo('Finding contact times')
     left_f, right_f, ptimes = ru.pressure_state_to_mat(pressures['msg'])
+    #TODO: make this accept more contact stages
     contact_times = find_contact_times(left_f, right_f, ptimes, 250)
-    #pdb.set_trace()
-    time_segments = [['start', contact_times[0]], [contact_times[0], contact_times[-1]], [contact_times[-1], 'end']]
+    if len(contact_times) > 2:
+        time_segments = [['start', contact_times[0]], [contact_times[0], contact_times[-1]], [contact_times[-1], 'end']]
+    else:
+        time_segments = [['start', 'end']]
 
     pressure_lseg = segment_msgs(time_segments, topics_dict['/pressure/l_gripper_motor']['msg'])
     pressure_rseg = segment_msgs(time_segments, topics_dict['/pressure/r_gripper_motor']['msg'])
@@ -208,7 +211,7 @@ if __name__ == '__main__':
 
         sdict = {'name': name,
                  'start_time': np.min(start_times),
-                 #'cartesian': [lcart_seg[i], rcart_seg[i]],
+                 'cartesian': [lcart_seg[i], rcart_seg[i]],
                  'joint_states': jseg_dicts[i]
                  #'pressure': [pressure_lseg[i], pressure_rseg[i]]
                  } 
