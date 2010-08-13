@@ -1,6 +1,7 @@
 <launch>
     <!-- Network -->
     <include file="$(find gt_pr2)/machine.launch"/>
+    <include file="$(find pr2_omni_teleop)/c_jt_c1.launch"/>
     <include file="$(find pr2_omni_teleop)/laser_scan.launch"/>
     <include file="$(find pr2_omni_teleop)/prosilica_image_proc.launch"/>
     <!-- Fix exposure and white balance -->
@@ -18,6 +19,13 @@
     <node pkg="pr2_omni_teleop" name="track_grippers" type="track_gripper.py" respawn="true" machine="c2"/>
 
     <!-- GUI -->
+    <node pkg="fingertip_pressure" name="left_finger_tip" type="view_fingertip_pressure">
+        <remap from="board" to="/pressure/l_gripper_motor"/>
+    </node>
+    <node pkg="fingertip_pressure" name="right_finger_tip" type="view_fingertip_pressure">
+        <remap from="board" to="/pressure/r_gripper_motor"/>
+    </node>
+
     <node pkg="pr2_dashboard" name="$(anon pr2_dashboard)" type="pr2_dashboard" respawn="true"/>
     <node pkg="rviz" name="$(anon rviz)" type="rviz"/>
     <include file="$(find stereo_anaglyph)/pr2_wide_stereo_view.launch"/>
