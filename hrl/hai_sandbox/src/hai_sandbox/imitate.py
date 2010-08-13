@@ -148,73 +148,74 @@ class PR2:
         return {'larm': self.left_arm.pose(s), 'rarm': self.right_arm.pose(s), 'head_traj': self.head.pose(s)}
 
 
-
-loc_fname = sys.argv[1]
-data = ut.load_pickle(loc_fname)
-rospy.init_node('imitate')
-robot = PR2()
-state = 'init_manipulation'
-#    data = {'base_pose': pose_base, 
-#            'robot_pose': j0_dict,
-#            'arm': arm_used,
-#            'movement_states': None}
-
-if state == 'drive':
-    t, r = data['base_pose']
-    print t
-    r = robot.base.set_pose(t, r, '/map', block=True)
-    rospy.loginfo('result is %s' % str(r))
-
-#Put robot in the correct state
-if state == 'init_manipulation':
-    rospy.loginfo('STATE init_manipulation')
-    j0_dict = data['robot_pose']
-    cpos = robot.pose()
-    robot.left_arm.set_poses (np.column_stack([cpos['larm'], j0_dict['poses']['larm']]), np.array([0.1, 5.]), block=False)
-    robot.right_arm.set_poses(np.column_stack([cpos['rarm'], j0_dict['poses']['rarm']]), np.array([0.1, 5.]), block=False)
-    robot.head.set_poses(np.column_stack([cpos['head_traj'], j0_dict['poses']['head_traj']]), np.array([.01, 5.]))
-    robot.torso.set_pose(j0_dict['poses']['torso'][0,0], block=True)
-    state = 'manipulate'
-
-if state == 'manipulate':
-    rospy.loginfo('STATE manipulate')
-    rospy.loginfo('there are %d states' % len(data['movement_states']))
-    for state in range(len(data['movement_states'])):
-        cur_state = data['movement_states'][state]
-        rospy.loginfo("starting %s" % cur_state['name'])
-
-        larm, lvel, ltime, rarm, rvel, rtime = zip(*[[jdict['poses']['larm'], jdict['vels']['larm'], jdict['time'], \
-                                                      jdict['poses']['rarm'], jdict['vels']['rarm'], jdict['time']] \
-                                                            for jdict in cur_state['joint_states']])
-
-        larm = np.column_stack(larm)
-        rarm = np.column_stack(rarm)
-        lvel = np.column_stack(lvel)
-        rvel = np.column_stack(rvel)
-        ltime = np.array(ltime) - cur_state['start_time']
-        rtime = np.array(rtime) - cur_state['start_time']
-
-        robot.left_arm.set_poses(larm[:,0], np.array([2.]), block=False)
-        robot.right_arm.set_poses(rarm[:,0], np.array([2.]), block=True)
-
-        robot.left_arm.set_poses(larm, ltime, vel_mat=lvel, block=False)
-        robot.right_arm.set_poses(rarm, rtime, vel_mat=rvel, block=True)
-
-        rospy.loginfo("%s FINISHED" % cur_state['name'])
-        time.sleep(5)
-
-
-## Need a refinement step
-
-## load extracted file
-#
-##Need to be localized!!
-## NOT LEARNED: go into safe state.
-#
-## drive. learned locations. (might learn path/driving too?)
-#pose_base = base_T_map * pose_map
-#
-## move joints to initial state. learned initial state. (maybe coordinate this with sensors?)
-#
-## for each contact state
-##      send trajectory. wait until contact state changes or traj. finished executing.
+if __name__ == '__main__':
+    loc_fname = sys.argv[1]
+    data = ut.load_pickle(loc_fname)
+    rospy.init_node('imitate')
+    robot = PR2()
+    state = 'drive'
+    #    data = {'base_pose': pose_base, 
+    #            'robot_pose': j0_dict,
+    #            'arm': arm_used,
+    #            'movement_states': None}
+    
+    if state == 'drive':
+        t, r = data['base_pose']
+        print t
+        r = robot.base.set_pose(t, r, '/map', block=True)
+        rospy.loginfo('result is %s' % str(r))
+        state = 'init_manipulation'
+    
+    #Put robot in the correct state
+    if state == 'init_manipulation':
+        rospy.loginfo('STATE init_manipulation')
+        j0_dict = data['robot_pose']
+        cpos = robot.pose()
+        robot.left_arm.set_poses (np.column_stack([cpos['larm'], j0_dict['poses']['larm']]), np.array([0.1, 5.]), block=False)
+        robot.right_arm.set_poses(np.column_stack([cpos['rarm'], j0_dict['poses']['rarm']]), np.array([0.1, 5.]), block=False)
+        robot.head.set_poses(np.column_stack([cpos['head_traj'], j0_dict['poses']['head_traj']]), np.array([.01, 5.]))
+        robot.torso.set_pose(j0_dict['poses']['torso'][0,0], block=True)
+        state = 'manipulate'
+    
+    if state == 'manipulate':
+        rospy.loginfo('STATE manipulate')
+        rospy.loginfo('there are %d states' % len(data['movement_states']))
+        for state in range(len(data['movement_states'])):
+            cur_state = data['movement_states'][state]
+            rospy.loginfo("starting %s" % cur_state['name'])
+    
+            larm, lvel, ltime, rarm, rvel, rtime = zip(*[[jdict['poses']['larm'], jdict['vels']['larm'], jdict['time'], \
+                                                          jdict['poses']['rarm'], jdict['vels']['rarm'], jdict['time']] \
+                                                                for jdict in cur_state['joint_states']])
+    
+            larm = np.column_stack(larm)
+            rarm = np.column_stack(rarm)
+            lvel = np.column_stack(lvel)
+            rvel = np.column_stack(rvel)
+            ltime = np.array(ltime) - cur_state['start_time']
+            rtime = np.array(rtime) - cur_state['start_time']
+    
+            robot.left_arm.set_poses(larm[:,0], np.array([2.]), block=False)
+            robot.right_arm.set_poses(rarm[:,0], np.array([2.]), block=True)
+    
+            robot.left_arm.set_poses(larm, ltime, vel_mat=lvel, block=False)
+            robot.right_arm.set_poses(rarm, rtime, vel_mat=rvel, block=True)
+    
+            rospy.loginfo("%s FINISHED" % cur_state['name'])
+            time.sleep(5)
+    
+    
+    ## Need a refinement step
+    
+    ## load extracted file
+    #
+    ##Need to be localized!!
+    ## NOT LEARNED: go into safe state.
+    #
+    ## drive. learned locations. (might learn path/driving too?)
+    #pose_base = base_T_map * pose_map
+    #
+    ## move joints to initial state. learned initial state. (maybe coordinate this with sensors?)
+    #
+    ## for each contact state
+    ##      send trajectory. wait until contact state changes or traj. finished executing.
