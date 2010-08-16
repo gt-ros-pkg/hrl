@@ -156,3 +156,12 @@ def say(text):
     os.system( 'echo "' + text + '" | festival --tts' )
 
 
+## compute rank of a matrix.
+# code copied from:
+# http://mail.scipy.org/pipermail/numpy-discussion/2008-February/031218.html
+def matrixrank(A,tol=1e-8):
+    s = np.linalg.svd(A,compute_uv=0)
+    return sum( np.where( s>tol, 1, 0 ) )
+
+
+
