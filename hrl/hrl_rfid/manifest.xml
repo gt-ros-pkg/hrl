@@ -1,8 +1,21 @@
 <package>
   <description brief="hrl_rfid">
-    UHF RFID: Thing Magic M5e and M5e-Compact UHF RFID Reader Interface Lib.
+    UHF RFID (Ultra-High Frequency Radio Frequency Identification)
+    reader based on ThingMagic Mercury5e (M5e) and Mercury5e-Compact
+    (M5e-C) modules.  ThingMagic's highly-capable Gen2 UHF RFID
+    modules interact with low-cost "smart labels" (tags) at distances
+    up to 6 meters depending on choice of antennas (distances over 100
+    meters possible using highly-directive antennas!) even without
+    line-of-sight visibility, as RF penetrates most non-conducting
+    materials.  The reader can simultaneously query for hundreds of
+    tags in the environment at once or query for presence / absence of
+    a individual tag among a sea of others.  A stand-alone Python
+    library is provided as well as ROS wrappers.
   </description>
-  <author>Travis Deyle, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
+  <author>
+    Travis Deyle, Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab
+    at Georgia Tech) and Prof. Matt Reynolds (Duke University)
+  </author>
   <license>new BSD</license>
   <depend package="rospy" />
 
