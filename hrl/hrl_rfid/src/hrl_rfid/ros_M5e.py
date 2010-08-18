@@ -114,7 +114,9 @@ class ROS_M5e( Thread ):
             
     def broadcast(self, data):
         antName, tagid, rssi = data
-        self.channel.publish(RFIDread(None, antName, tagid, rssi))
+        rv = RFIDread( None, antName, tagid, rssi )
+        rv.header.stamp = rospy.Time.now()
+        self.channel.publish( rv )
     
     # For internal use only
     def _mode_service(self, data):
