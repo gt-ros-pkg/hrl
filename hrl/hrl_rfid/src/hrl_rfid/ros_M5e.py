@@ -97,7 +97,7 @@ class ROS_M5e( Thread ):
                 for aF in self.antFuncs:
                     antennaName = aF(self.reader)    # let current antFunc make appropriate changes
                     tagid = self.tag_to_track
-                    rssi = self.reader.TrackSingleTag(tagid)
+                    rssi = self.reader.TrackSingleTag(tagid, timeout=100)
                     #if rssi != -1:
                     datum = [antennaName, tagid, rssi]
                     [cF(datum) for cF in self.callbacks]
@@ -148,11 +148,13 @@ class ROS_M5e( Thread ):
 # -----------------------------------------------
 
 def EleLeftEar(M5e):
-    M5e.ChangeAntennaPorts(2,2)
+    M5e.ChangeAntennaPorts(1,1)
+    time.sleep(0.010)
     return 'EleLeftEar'
 
 def EleRightEar(M5e):
-    M5e.ChangeAntennaPorts(1,1)
+    M5e.ChangeAntennaPorts(2,2)
+    time.sleep(0.010)
     return 'EleRightEar'
 
 def Hand_Right_1(M5e):
