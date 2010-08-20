@@ -53,7 +53,7 @@ class tilt_hokuyo():
         self.l1 = l1
         self.l2 = l2
         
-    def scan(self, range, speed, save_scan=False,avg=1, _max_retries=2):
+    def scan(self, range, speed, save_scan=False,avg=1, _max_retries=0):
         ''' range - (start,end) in radians
             speed - scan speed in radians/sec
             save_scan - save a dict of pos_list,scan_list,l1,l2
