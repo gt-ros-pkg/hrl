@@ -3,6 +3,7 @@ import rospy
 
 import hrl_lib.util as ut
 import hai_sandbox.pr2 as pr2
+import pr2_msgs.msg as pm
 
 import numpy as np
 import time
@@ -11,6 +12,9 @@ import sys
 
 robot = None
 should_switch = False
+lmat0 = None
+rmat0 = None
+pressure_exceeded = False
 
 def dict_to_arm_arg(d):
     trans = [d['pose']['position']['x'], 
@@ -29,6 +33,26 @@ def shutdown():
         rospy.loginfo('switching back joint controllers')
         robot.controller_manager.switch(['l_arm_controller', 'r_arm_controller'], ['l_cart', 'r_cart'])
 
+def lpress_cb(pmsg):
+    global lmat0
+    global rmat0
+    global pressure_exceeded
+    lmat = np.matrix((pmsg.l_finger_tip)).T
+    rmat = np.matrix((pmsg.r_finger_tip)).T
+    if lmat0 == None:
+        lmat0 = lmat
+        rmat0 = rmat
+        return
+
+    lmat = lmat - lmat0
+    rmat = rmat - rmat0
+   
+    #touch detected
+    if np.any(np.abs(lmat) > 3000) or np.any(np.abs(rmat) > 3000):
+        rospy.loginfo('Pressure limit exceedeD!! %d %d' % (np.max(np.abs(lmat)), np.max(np.abs(rmat))))
+        pressure_exceeded = True
+
+
 def imitate(data_fname):
     #    data = {'base_pose': pose_base, 
     #            'robot_pose': j0_dict,
@@ -36,9 +60,12 @@ def imitate(data_fname):
     #            'movement_states': None}
     global robot
     global should_switch
+    global pressure_exceeded
     data = ut.load_pickle(data_fname)
     rospy.init_node('imitate')
     robot = pr2.PR2()
+    rospy.Subscriber('/pressure/l_gripper_motor', pm.PressureState, lpress_cb)
+    #rospy.Subscriber('/pressure/r_gripper_motor', pm.PressureState, self.lpress_cb)
     #self.pr2_pub = rospy.Publisher(pr2_control_topic, PoseStamped)
     state = 'init_manipulation'
 
@@ -64,7 +91,7 @@ def imitate(data_fname):
         robot.right_arm.set_poses(np.column_stack([cpos['rarm'], j0_dict['poses']['rarm']]), np.array([0.1, 5.]), block=False)
         robot.head.set_poses(np.column_stack([cpos['head_traj'], j0_dict['poses']['head_traj']]), np.array([.01, 5.]))
         robot.torso.set_pose(j0_dict['poses']['torso'][0,0], block=True)
-        state = 'manipulate_cart'
+        state = 'manipulate'
 
     if state == 'manipulate_cart':
         rospy.loginfo('STATE manipulate')
@@ -85,6 +112,10 @@ def imitate(data_fname):
         for state in range(len(data['movement_states'])):
             if rospy.is_shutdown():
                 break
+            if pressure_exceeded:
+                rospy.loginfo('Exiting movement state loop')
+                break
+
             cur_state = data['movement_states'][state]
             rospy.loginfo("starting %s" % cur_state['name'])
             left_cart  = cur_state['cartesian'][0]
@@ -94,6 +125,9 @@ def imitate(data_fname):
 
             for ldict, rdict in zip(left_cart, right_cart):
                 if rospy.is_shutdown():
+                    break
+                if pressure_exceeded:
+                    rospy.loginfo('Exiting inner movement state loop')
                     break
                 lps = dict_to_arm_arg(ldict)
                 rps = dict_to_arm_arg(rdict)

@@ -1,6 +1,55 @@
 import roslib; roslib.load_manifest('hai_sandbox')
 import cv
 import numpy as np
+import scipy.spatial as sp
+import math
+
+class SURFMatcher:
+    def __init__(self):
+        self.model_images = {}
+        self.model_fea = {}
+
+    def add_file(self, model_name, label): 
+        model_img = cv.LoadImage(model_name)
+        self.add_model(model_img, label)
+
+    def add_model(self, model_img, label):
+        mgray = grayscale(model_img)
+        m_loc, m_desc = surf(mgray)
+        self.model_images[label] = model_img
+        self.model_fea[label] = {'loc': m_loc, 'desc': m_desc}
+
+    def build_db(self):
+        fea_l = []
+        labels_l = []
+        locs_l = []
+        for k in self.model_fea:
+            fea_l.append(np.array(self.model_fea[k]['desc']))
+            locs_l.append(np.array(self.model_fea[k]['loc']))
+            labels_l.append(np.array([k for i in range(len(self.model_fea[k]['desc']))]))
+
+        self.labels = np.row_stack(labels_l)
+        self.locs = np.row_stack(locs_l)
+        self.tree = sp.KDTree(np.row_stack(fea_l))
+
+    def match(self, desc, thres=.6):
+        dists, idxs = self.tree.query(np.array(desc), 2)
+        ratio = dists[0] / dists[1]
+        if ratio < threshold:
+            desc = self.tree.data[idxs[0]]
+            loc = self.locs[idxs[0]]
+            return desc, loc
+        else:
+            return None
+
+def concat_images(a, b):
+    img_height = max(a.height, b.height)
+    c = cv.CreateImage((a.width+b.width, img_height), a.depth, a.channels)
+    a_area = cv.GetSubRect(c, (0,0, a.width, a.height))
+    b_area = cv.GetSubRect(c, (a.width, 0, b.width, b.height))
+    cv.Add(a, a_area, a_area)
+    cv.Add(b, b_area, b_area)
+    return c
 
 def clone(something):
     if something.__class__ == cv.cvmat:
@@ -10,10 +59,18 @@ def clone(something):
 
 def draw_surf(image, keypoints, color):
     rimage = clone(image)
+
     for loc, lap, size, d, hess in keypoints:
         loc = tuple(np.array(np.round(loc), dtype='int').tolist())
-        cv.Circle(rimage, loc, int(round(size/2.)), color, 1, cv.CV_AA)
+        circ_rad = int(round(size/4.))
+        cv.Circle(rimage, loc, circ_rad, color, 1, cv.CV_AA)
         cv.Circle(rimage, loc, 2, color, -1, cv.CV_AA)
+
+        drad = math.radians(d)
+        line_len = circ_rad
+        loc_end = (np.matrix(np.round( circ_rad * np.matrix([np.cos(drad), np.sin(drad)]).T + np.matrix(loc).T), dtype='int')).A1.tolist()
+        cv.Line(rimage, loc, tuple(loc_end), color, thickness=1, lineType=cv.CV_AA)
+
     return rimage
 
 def draw_surf2(image, keypoints, colors):
@@ -61,11 +118,17 @@ def star(image):
 ##
 # surf_keypoints => keypoints (x,y), laplacian, size, direction , hessian
 # surf_descriptors => list of len 128 lists
-def surf(image_gray, params=(1,1500,3,4)):
+def surf(image_gray, params=(1, 3000,3,4)):
     surf_stor = cv.CreateMemStorage()
     surf_r = cv.ExtractSURF(image_gray, None, surf_stor, params)
     del surf_stor
     return surf_r
+##
+# @param image image
+# @param params surf params
+def surf_color(image, params=(1,3000,3,4)):
+    gray = grayscale(image)
+    return surf(gray, params)
 
 ##
 # list of (x, y)

@@ -24,7 +24,7 @@ import scipy.spatial as sp
 #Find surf features closest to contact point
 
 #find contact points & transform gripper tip to base_frame
-class ExtractTransforms:
+class ListenAndFindContactLocs:
     def __init__(self):#, pointcloud_msg):
         #rospy.init_node('contact3d')
         rospy.Subscriber('/pressure/l_gripper_motor', pm.PressureState, self.lpress_cb)
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     proc_img_name = sys.argv[1]
     pickle_name = sys.argv[2]
     
-    data_dict = ut.load_pickle(pickle_name) #['camera_info', 'map_T_bf', 'pro_T_bf', 'points']
+    data_dict = ut.load_pickle(pickle_name) # ['camera_info', 'map_T_bf', 'pro_T_bf', 'points']
     proc_cam_info = ut.load_pickle('prosilica_caminfo.pkl')
 
     rospy.init_node('prosilica_set_view')
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     except Exception, e:
         print e
         print 'listening'         
-        et = ExtractTransforms()
+        et = ListenAndFindContactLocs()
         r = rospy.Rate(10)
         while not rospy.is_shutdown() and not et.contact_stopped:
             r.sleep()
