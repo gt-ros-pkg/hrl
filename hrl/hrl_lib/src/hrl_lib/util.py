@@ -10,6 +10,12 @@ from hrl_lib.msg import NumpyArray
 def getTime():
     return '['+time.strftime("%H:%M:%S", time.localtime())+']'
 
+def standard_rad(t):
+    if t > 0:
+        return ((t + np.pi) % (np.pi * 2))  - np.pi
+    else:
+        return ((t - np.pi) % (np.pi * -2)) + np.pi
+
 ##
 # Converts a list of numpy matrices to one large matrix
 # @param list_mat the list of little matrices
