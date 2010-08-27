@@ -181,18 +181,117 @@ class JointMsgConverter:
 
 ##
 # @param surf_locs list of ((x,y), lap, size, dir, hess)
-# @param point_cloud 3xn matrix
+# @param point_cloud_3d 3xn matrix
 # @param point_cloud_2d 2xn matrix
-def assign_3d_to_surf(surf_locs, point_cloud, point_cloud_2d):
+def assign_3d_to_surf(surf_locs, point_cloud_3d, point_cloud_2d):
     point_cloud_2d_tree = sp.KDTree(np.array(point_cloud_2d.T))
+    #print '>> shape of point_cloud_3d', point_cloud_3d.shape
 
     surf_loc3d = []
     for loc, lap, size, d, hess in surf_locs:
         idx = point_cloud_2d_tree.query(np.array(loc))[1]
-        surf_loc3d.append(point_cloud[:, idx])
+        surf_loc3d.append(point_cloud_3d[:, idx])
+        #print '   %s matched to %s 3d %s' % (str(loc), str(point_cloud_2d[:,idx].T), str(point_cloud_3d[:, idx].T))
+
     surf_loc3d = np.column_stack(surf_loc3d)
     return surf_loc3d
 
+def find_contacts(tflistener):
+    find_contact_locs = ListenAndFindContactLocs(tflistener)
+    r = rospy.Rate(10)
+    while not rospy.is_shutdown() and not find_contact_locs.contact_stopped:
+        print 'waiting for contact thread to finish'
+        r.sleep()
+    contact_locs = find_contact_locs.contact_locs
+    left_contacts, right_contacts = zip(*[(np.matrix(r[1][2]).T, np.matrix(r[1][3]).T) for r in contact_locs])
+    left_contacts = np.column_stack(left_contacts)
+    right_contacts = np.column_stack(right_contacts)
+    mid_contact_bf = (left_contacts[:,0] + right_contacts[:,0]) / 2.
+    return mid_contact_bf
+
+def project_2d_bounded(cam_info, point_cloud_cam):
+    point_cloud_2d_cam = cam_info.project(point_cloud_cam) 
+    # only count points in image bounds (should be in cam info)
+    _, in_bounds = np.where(np.invert((point_cloud_2d_cam[0,:] >= (cam_info.w-.6)) + (point_cloud_2d_cam[0,:] < 0) \
+                                    + (point_cloud_2d_cam[1,:] >= (cam_info.h-.6)) + (point_cloud_2d_cam[1,:] < 0)))
+    point_cloud_2d_cam = point_cloud_2d_cam[:, in_bounds.A1]
+    point_cloud_reduced_cam = point_cloud_cam[:, in_bounds.A1]
+
+    return point_cloud_2d_cam, point_cloud_reduced_cam
+
+def find3d_surf(start_conditions):
+    ## Project pointcloud into 2d
+    point_cloud_bf = ru.pointcloud_to_np(start_conditions['points'])
+    # from base_frame to prosilica frame
+    point_cloud_pro = tfu.transform_points(start_conditions['pro_T_bf'], point_cloud_bf)
+    point_cloud_2d_pro, point_cloud_reduced_pro = project_2d_bounded(start_conditions['camera_info'], point_cloud_pro)
+    #point_cloud_2d_pro = .project(point_cloud_pro) 
+    ## only count points in image bounds (should be in cam info)
+    #cam_info = start_conditions['camera_info']
+    #_, in_bounds = np.where(np.invert((point_cloud_2d_pro[0,:] >= (cam_info.w-.6)) + (point_cloud_2d_pro[0,:] < 0) \
+    #                                + (point_cloud_2d_pro[1,:] >= (cam_info.h-.6)) + (point_cloud_2d_pro[1,:] < 0)))
+    #point_cloud_2d_pro = point_cloud_2d_pro[:, in_bounds.A1]
+    #point_cloud_reduced_pro = point_cloud_pro[:, in_bounds.A1]
+
+    ## Find 3D SURF features
+    model_file_name = start_conditions['model_image']
+    model_surf_loc, model_surf_descriptors = fea.surf_color(cv.LoadImage(model_file_name))
+    surf_loc3d_pro = np.matrix(assign_3d_to_surf(model_surf_loc, point_cloud_reduced_pro, point_cloud_2d_pro))
+    return model_surf_loc, model_surf_descriptors, surf_loc3d_pro, point_cloud_2d_pro
+
+##########################################################################
+# TODO: need some parameters for processing 'model_image', maybe circles
+# of different sizes.
+def extract_object_localization_features2(start_conditions, tflistener):
+    mid_contact_bf = find_contacts(tflistener)
+    model_surf_loc, model_surf_descriptors, surf_loc3d_pro, point_cloud_2d_pro = find3d_surf(start_conditions)
+
+    #Find frame
+    surf_loc3d_bf = (np.linalg.inv(start_conditions['pro_T_bf']) \
+            * np.row_stack((surf_loc3d_pro, 1+np.zeros((1,surf_loc3d_pro.shape[1])))))[0:3,:]
+    frame_bf = create_frame(surf_loc3d_bf, p=np.matrix([-1, 0, 0.]).T)
+    center_bf = np.mean(surf_loc3d_bf, 1)
+
+    #Find out what the SURF features point to in this new frame
+    bf_R_pro = (start_conditions['pro_T_bf'][0:3, 0:3]).T
+    bf_R_obj = frame_bf
+    x_bf     = frame_bf[:,0]
+    x_pro    = bf_R_pro.T * x_bf
+    x_ang_pro = math.atan2(x_pro[1,0], x_pro[0,0])
+
+    surf_directions = []
+    for loc, lap, size, direction, hess in model_surf_loc:
+        surf_directions.append(ut.standard_rad(np.radians(direction) - x_ang_pro))
+
+    #for loc, lap, size, direction, hess in model_surf_loc:
+    #    drad = np.radians(direction)
+    #    #project direction into the cannonical object frame
+    #    #surf_dir_obj = object_frame_pro * np.matrix([np.cos(drad), np.sin(drad), 0.]).T
+    #    #obj_R_bf = frame_bf.T
+
+    #    bf_R_pro = (start_conditions['pro_T_bf'][0:3,0:3]).T
+    #    surf_dir_obj = frame_bf.T * bf_R_pro * np.matrix([np.cos(drad), np.sin(drad), 0.]).T 
+
+    #    #measure angle between SURF feature and x axis of object frame, store this as delta theta
+    #    delta_theta = math.atan2(surf_dir_obj[1,0], surf_dir_obj[0,0])
+    #    surf_directions.append(delta_theta)
+
+    ##print 'frame_bf.T', frame_bf.T
+    ##print 'bf_R_pro', (start_conditions['pro_T_bf'][0:3,0:3]).T
+
+
+    return {
+            'contact_bf': mid_contact_bf,
+            'surf_loc3d_pro': surf_loc3d_pro,
+            'surf_loc2d_pro': model_surf_loc,
+            'point_cloud_2d_pro': point_cloud_2d_pro,
+
+            'surf_directions': surf_directions,
+            'descriptors': model_surf_descriptors,
+
+            'frame_bf': frame_bf,
+            'center_bf': center_bf
+            }
 
 ##########################################################################
 # TODO: need some parameters for processing 'model_image', maybe circles
@@ -213,8 +312,8 @@ def extract_object_localization_features(start_conditions, tflistener):
     point_cloud_bf = ru.pointcloud_to_np(start_conditions['points'])
     point_cloud_pro = start_conditions['pro_T_bf'] * np.row_stack((point_cloud_bf, 1+np.zeros((1, point_cloud_bf.shape[1]))))
     point_cloud_2d_pro = start_conditions['camera_info'].project(point_cloud_pro[0:3,:])
-    surf_loc3d_arr = np.array(assign_3d_to_surf(model_surf_loc, point_cloud_bf, point_cloud_2d_pro))
-    surf_loc_tree_bf = sp.KDTree(surf_loc3d_arr.T)
+    surf_loc3d_arr_bf = np.array(assign_3d_to_surf(model_surf_loc, point_cloud_bf, point_cloud_2d_pro))
+    surf_loc_tree_bf = sp.KDTree(surf_loc3d_arr_bf.T)
 
     #################################################
     # not needed right now but can be useful later..
@@ -227,27 +326,32 @@ def extract_object_localization_features(start_conditions, tflistener):
     #data_dict['pro_T_bf']  * np.row_stack((mid_contact_bf, np
 
     surf_closest_idx = surf_loc_tree_bf.query(np.array(mid_contact_bf.T))[1] #Get surf feature at mid point
-    surf_closest3d   = surf_loc3d_arr[:, surf_closest_idx]
+    surf_closest3d   = surf_loc3d_arr_bf[:, surf_closest_idx]
     surf_closest_fea = model_surf_loc[surf_closest_idx]
 
     #Create a frame for this group of features
-    surf_loc_3d_pro = (start_conditions['pro_T_bf'] * np.row_stack([surf_loc3d_arr, 1 + np.zeros((1, surf_loc3d_arr.shape[1]))]))[0:3,:]
-    object_frame = create_frame(np.matrix(surf_loc_3d_pro))
+    surf_loc_3d_pro = (start_conditions['pro_T_bf'] * np.row_stack([surf_loc3d_arr_bf, 1 + np.zeros((1, surf_loc3d_arr_bf.shape[1]))]))[0:3,:]
+    object_frame_pro = create_frame(np.matrix(surf_loc_3d_pro))
 
     #Find out what the SURF features point to in this new frame
     surf_directions = []
     for loc, lap, size, direction, hess in model_surf_loc:
         drad = np.radians(direction)
         #project direction into the cannonical object frame
-        surf_dir_obj = object_frame * np.matrix([np.cos(drad), np.sin(drad), 0.]).T
+        surf_dir_obj = object_frame_pro * np.matrix([np.cos(drad), np.sin(drad), 0.]).T
 
         #measure angle between SURF feature and x axis of object frame, store this as delta theta
         delta_theta = math.atan2(surf_dir_obj[1,0], surf_dir_obj[0,0])
         surf_directions.append(delta_theta)
 
-    return {'descriptors': model_surf_descriptors, 
+    return {
+            'descriptors': model_surf_descriptors, 
             'directions': surf_directions, 
-            'closest_feature': surf_closest_fea[0]}
+            'contact_bf': mid_contact_bf,
+            'closest_feature': surf_closest_fea[0],
+            #'object_frame_bf': [np.mean(np.matrix(surf_loc3d_arr_bf), 1), create_frame(surf_loc3d_arr_bf)],
+            'object_frame_pro': [np.mean(np.matrix(surf_loc_3d_pro), 1), object_frame_pro, surf_loc_3d_pro]
+            }
 
     #surf_dir_obj => obj_dir
     #project all points ontocz
@@ -261,8 +365,9 @@ def extract_object_localization_features(start_conditions, tflistener):
 #    x axis
 #  # average all the predictions to get object's x direction
 
-def create_frame(points3d, p=np.matrix([0,0,1.]).T):
-    u, s, vh = np.linalg.svd(points3d)
+def create_frame(points3d, p=np.matrix([-1,0,0.]).T):
+    #pdb.set_trace()
+    u, s, vh = np.linalg.svd(np.cov(points3d))
     u = np.matrix(u)
 
     # Pick normal
@@ -272,8 +377,8 @@ def create_frame(points3d, p=np.matrix([0,0,1.]).T):
         normal = u[:,2]
 
     # pick the next direction as the one closest to to +z or +x
-    z_plus = np.matrix([0,0,1.0]).T
-    x_plus = np.matrix([1,0,0.0]).T
+    z_plus = np.matrix([0, 0, 1.0]).T
+    x_plus = np.matrix([1, 0, 0.0]).T
 
     u0 = u[:,0]
     u1 = u[:,1]
@@ -288,10 +393,38 @@ def create_frame(points3d, p=np.matrix([0,0,1.]).T):
 
     # Cross product for the final (is this the same as the final vector?)
     y_dir = np.cross(normal.T, x_dir.T).T
-    return np.column_stack([x_dir, y_dir, normal])
-    
-    
-
+    return np.matrix(np.column_stack([x_dir, y_dir, normal]))
+   
+#def create_frame2(contact_point, points3d, p=np.matrix([1,0,0.]).T):
+### contact point is the center, local plane from 3D points close to contact
+#    u, s, vh = np.linalg.svd(points3d)
+#    u = np.matrix(u)
+#    #pdb.set_trace()
+#
+#    # Pick normal
+#    if (u[:,2].T * p)[0,0] < 0:
+#        normal = -u[:,2]
+#    else:
+#        normal = u[:,2]
+#
+#    # pick the next direction as the one closest to to +z or +x
+#    z_plus = np.matrix([0,0,1.0]).T
+#    x_plus = np.matrix([1,0,0.0]).T
+#
+#    u0 = u[:,0]
+#    u1 = u[:,1]
+#
+#    mags = []
+#    pos_dirs = []
+#    for udir in [u0, u1, -u0, -u1]:
+#        for can_dir in [z_plus, x_plus]:
+#            mags.append((udir.T * can_dir)[0,0])
+#            pos_dirs.append(udir)
+#    x_dir = pos_dirs[np.argmax(mags)]
+#
+#    # Cross product for the final (is this the same as the final vector?)
+#    y_dir = np.cross(normal.T, x_dir.T).T
+#    return np.column_stack([x_dir, y_dir, normal])
 
 def process_bag(full_bag_name, prosilica_image_file, model_image_file, experiment_start_condition_pkl, arm_used='left'):
     bag_path, bag_name_ext = os.path.split(full_bag_name)
@@ -322,7 +455,7 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
     start_conditions['highdef_image'] = prosilica_image_file
     start_conditions['model_image'] = model_image_file
     rospy.loginfo('extracting object localization features')
-    start_conditions['pose_parameters'] = extract_object_localization_features(start_conditions, tl)
+    start_conditions['pose_parameters'] = extract_object_localization_features2(start_conditions, tl)
 
     #r = rospy.Rate(10)
     #while not rospy.is_shutdown() and not find_contact_locs.contact_stopped:
@@ -376,11 +509,6 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
     lcart_seg = segment_msgs(time_segments, topics_dict['/l_cart/command_pose']['msg'])
     rcart_seg = segment_msgs(time_segments, topics_dict['/r_cart/command_pose']['msg'])
 
-    #print contact_times - contact_times[0]
-    #print contact_times[1:] - contact_times[:-1]
-    #pb.plot(contact_times-contact_times[0], 'g.')
-    #pb.show()
-
     #Find the first robot pose
     ## Convert from joint state to dicts
     joint_states = topics_dict['/joint_states']['msg']
@@ -432,8 +560,6 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
 
 #python bag_processor.py 08_06/light/off/_2010-08-06-13-35-04.bag 08_06/light/off/off_start.png light_switch_model.png 08_06/light/off/off_start.pkl
 if __name__ == '__main__':
-    import pylab as pb
-
     arm_used = 'left'
     full_bag_name                  = sys.argv[1]
     prosilica_image_file           = sys.argv[2]
@@ -441,6 +567,31 @@ if __name__ == '__main__':
     experiment_start_condition_pkl = sys.argv[4]
 
     process_bag(full_bag_name, prosilica_image_file, model_image_file, experiment_start_condition_pkl)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    #print contact_times - contact_times[0]
+    #print contact_times[1:] - contact_times[:-1]
+    #pb.plot(contact_times-contact_times[0], 'g.')
+    #pb.show()
+
+
 
 # pose_base = [t, r], t is len3, r is len4
 # j0_dict {'poses': joint_poses, 'vels': joint_vel, 'efforts': joint_eff, 'time': msg.header.stamp.to_time()}
