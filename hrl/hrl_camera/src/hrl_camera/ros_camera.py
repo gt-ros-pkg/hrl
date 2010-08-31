@@ -37,7 +37,7 @@ class ROSImageClient:
         self.listener = ru.GenericListener('ROSImageClient', Image, topic_name, 
                                            .1, message_extractor)
     def get_frame(self):
-        return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False)
+        return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
 
     def next(self):
         return self.get_frame()
@@ -59,7 +59,7 @@ class Prosilica(ROSImageClient):
             rq = ps.GetPolledImageRequest()
             rq.response_namespace = '/%s' % self.camera_name
             resp = self.trigger_proxy(rq)
-        return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False)
+        return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
 
 ##
 # from camera.py in laser_interface.
@@ -68,6 +68,11 @@ class ROSCameraCalibration:
         if not offline:
             rospy.Subscriber(channel, CameraInfo, self.camera_info)
         self.has_msg = False
+
+    def wait_till_msg(self):
+        r = rospy.Rate(10)
+        while not self.has_msg:
+            r.sleep()
 
     def camera_info(self, msg):
         self.distortion = np.matrix(msg.D)
@@ -95,10 +100,11 @@ class ROSCameraCalibration:
             trans, q = tfu.matrix_as_tf(p_cam)
             p = np.matrix(trans).T
 
-        p = np.row_stack((p, np.matrix([1.])))
+        hrow = np.matrix(np.zeros((1,p.shape[1])))
+        p = np.row_stack((p, hrow))
         pp = self.P * p
-        pp = pp / pp[2,0]
-        return pp[0:2,0]
+        pp = pp / pp[2,:]
+        return pp[0:2,:]
 
 
 class ROSCamera(ROSImageClient):
