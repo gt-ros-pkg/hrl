@@ -39,6 +39,36 @@ import pr2_laser_snapshotter.srv as snp
 import time
 import numpy as np
 import geometry_msgs.msg as gm
+import sensor_msgs.msg as sm
+
+##
+# Converts any ros message class into a dictionary
+# (currently used to make PoseStamped messages picklable)
+# @param msg
+# @return a nested dict with rospy.Time turned into normal unix time float
+def ros_to_dict(msg):
+    d = {}
+    for f in msg.__slots__:
+        val = eval('msg.%s' % f)
+        methods = dir(val)
+        if 'to_time' in methods:
+            val = eval('val.to_time()')
+        elif '__slots__' in methods:
+            val = ros_to_dict(val)
+        d[f] = val
+    return d
+
+##
+# Converts a list of pr2_msgs/PressureState into a matrix
+#
+# @return left mat, right mat, array
+def pressure_state_to_mat(contact_msgs):
+    times = np.array([c.header.stamp.to_time() for c in contact_msgs])
+    left, right = zip(*[[list(c.l_finger_tip), list(c.r_finger_tip)] for c in contact_msgs])
+    
+    left = np.matrix(left).T
+    right = np.matrix(right).T
+    return left, right, times
 
 def np_to_pointcloud(points_mat, frame):
     pc = sm.PointCloud()
@@ -96,12 +126,24 @@ def bag_iter(file_name, topics=[]):
 # @param file_name bag file name
 # @param topics list of topics that you care about (leave blank to get everything)
 # @return dict with each entry containing a list of [(topic_name, message, rostime), (...), ...]
-def bag_sel(file_name, topics=[]):
+def bag_sel_(file_name, topics=[]):
+    print 'deprecated'
     d = {}
     for topic, msg, t in bag_iter(file_name, topics):
         if not d.has_key(topic):
             d[topic] = []
-        d[topic].append((topic, msg, t))
+        d[topic].append((topic, msg, t.to_time()))
+    return d
+
+def bag_sel(file_name, topics=[]):
+    d = {}
+    for topic, msg, t in bag_iter(file_name, topics):
+        if not d.has_key(topic):
+            d[topic] = {'topic':[], 'msg':[], 't':[]}
+        d[topic]['topic'].append(topic)
+        d[topic]['msg'].append(msg)
+        d[topic]['t'].append(t.to_time())
+        #d[topic].append((topic, msg, t.to_time()))
     return d
 
 ##
@@ -298,7 +340,8 @@ class GenericListener:
             rospy.Subscriber(listen_channel, message_type, callback)
 
         self.node_name = node_name
-        print node_name,': subscribed to', listen_channel
+        #print node_name,': subscribed to', listen_channel
+        rospy.loginfo('%s: subscribed to %s' % (node_name, listen_channel))
 
     def _check_for_delivery_hiccups(self):
         #If have received a message in the past
@@ -310,10 +353,12 @@ class GenericListener:
                 print self.node_name, ': have not heard back from publisher in', time_diff, 's'
 
     def _wait_for_first_read(self, quiet=False):
+        if not quiet:
+            rospy.loginfo('%s: waiting for reading ...' % self.node_name)
         while self.reading['message'] == None and not rospy.is_shutdown():
             time.sleep(.3)
-            if not quiet:
-                print self.node_name, ': waiting for reading ...'
+            #if not quiet:
+            #    print self.node_name, ': waiting for reading ...'
 
     ## 
     # Supported use cases
@@ -321,7 +366,7 @@ class GenericListener:
     # hokuyo - want to get a reading, can be stale, no duplication allowed (don't want a None), willing to wait for new data (default)
     # ft     - want to get a reading, can be stale, duplication allowed    (don't want a None), query speed important
     # NOT ALLOWED                                   duplication allowed,                        willing to wait for new data
-    def read(self, allow_duplication=False, willing_to_wait=True, warn=True, quiet=False):
+    def read(self, allow_duplication=False, willing_to_wait=True, warn=False, quiet=False):
         if allow_duplication:
             if willing_to_wait:
                 raise RuntimeError('Invalid settings for read.')
@@ -350,8 +395,6 @@ class GenericListener:
                     reading = self.reading
                     self.last_msg_returned = reading['msg_id']
                     return reading['message']
-
-
 
 class TransformBroadcaster:
 

@@ -14,6 +14,9 @@ def matrix_as_tf(mat):
 def transform(to_frame, from_frame, tflistener, t=0):
     return tf_as_matrix(tflistener.lookupTransform(to_frame, from_frame, rospy.Time(t)))
 
+def transform_points(T, points):
+    return (T * np.row_stack((points, 1+np.zeros((1, points.shape[1])))))[0:3,:]
+
 def rotate(to_frame, from_frame, tflistener, t=0):
     t, q = tflistener.lookupTransform(to_frame, from_frame, rospy.Time(t))
     return np.matrix(tr.quaternion_matrix(q)) 
