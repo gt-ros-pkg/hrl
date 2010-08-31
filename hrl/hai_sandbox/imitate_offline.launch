@@ -1,0 +1,4 @@
+<launch>
+    <!-- Laser filters -->
+    <include file="$(find pr2_omni_teleop)/laser_scan.launch"/>
+</launch>

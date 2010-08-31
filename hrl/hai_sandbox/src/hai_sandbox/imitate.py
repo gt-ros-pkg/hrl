@@ -7,6 +7,7 @@ import pr2_msgs.msg as pm
 import sensor_msgs.msg as sm
 import scipy.spatial as sp
 
+import hrl_lib.transforms as htf
 import hrl_lib.rutils as ru
 import numpy as np
 import time
@@ -132,13 +133,13 @@ def normalize_ang(a):
     return a
     
 
-def find_object_pose(image, point_cloud_msg, data_dict, pro_T_bf, cam_info):
+def find_object_pose(image, point_cloud_msg, data_dict, pro_T_bf, cam_info, RADIUS=.1):
     ## detect surf features, then match with features in model
     desc = data_dict['start_conditions']['pose_parameters']['descriptors']
     match_info = match_image(desc, image, .6)
     match_idxs = [r['model_idx'] for r in match_info]
     match_locs = [r['candidate_loc'] for r in match_info]
-    rospy.loginfo('Matched %d out of %d descriptors' % (len(desc), len(match_info)))
+    rospy.loginfo('Matched %d out of %d descriptors' % (len(match_info), len(desc)))
 
     ## convert surf features into 3d in baseframe
     # project into camera frame
@@ -146,13 +147,33 @@ def find_object_pose(image, point_cloud_msg, data_dict, pro_T_bf, cam_info):
     point_cloud_pro = tfu.transform_points(pro_T_bf, point_cloud_bf)
     point_cloud_2d_pro, point_cloud_reduced_pro = bp.project_2d_bounded(cam_info, point_cloud_pro)
 
+    # find the center point implied by surf points 
+    model_directions = np.matrix(data_dict['start_conditions']['pose_parameters']['surf_pose_dir2d'][:, match_idxs])
+    match_locs_mat = np.column_stack([np.matrix(l[0]).T for l in match_locs])
+
+    expected_position_set2d = match_locs_mat + model_directions
+    expected_position2d = np.mean(expected_position_set2d, 1)
+    expected_position2d = np.column_stack([expected_position2d, expected_position_set2d])
+    expected_position_locs = [[[expected_position2d[0,i], expected_position2d[1,i]]] for i in range(expected_position2d.shape[1])]
+    #expected_position_loc = [expected_positions2d[0,0], expected_positions2d[1,0]]
+    expected_position3d_pro = np.matrix(bp.assign_3d_to_surf(expected_position_locs,
+        point_cloud_reduced_pro, point_cloud_2d_pro))
+    expected_positions3d_bf = tfu.transform_points(np.linalg.inv(pro_T_bf), expected_position3d_pro)
+
     # assign 3d location to each surf feature
     matched_surf_loc3d_pro = np.matrix(bp.assign_3d_to_surf(match_locs, point_cloud_reduced_pro, point_cloud_2d_pro))
     matched_surf_loc3d_bf  = tfu.transform_points(np.linalg.inv(pro_T_bf), matched_surf_loc3d_pro)
   
     ## find the normal component
-    center_bf = np.mean(matched_surf_loc3d_bf, 1)
-    a_frame_bf = bp.create_frame(matched_surf_loc3d_bf, p= -center_bf)
+    #center_bf = np.mean(matched_surf_loc3d_bf, 1) #find center by voting.
+    center_bf = expected_positions3d_bf[:,0]
+    point_cloud_kd_bf = sp.KDTree(point_cloud_bf.T)
+    neighbor_idxs = point_cloud_kd_bf.query_ball_point(np.array(center_bf.T), RADIUS)
+    points_nearby_bf = point_cloud_bf[:, neighbor_idxs[0]]
+
+    #Instead of using the 3D location of matched SURF features, use the local neighborhood of points
+    #a_frame_bf = bp.create_frame(matched_surf_loc3d_bf, p= -center_bf)
+    a_frame_bf = bp.create_frame(points_nearby_bf, p= -center_bf)
     normal_bf = a_frame_bf[:,2]
     null_bf = a_frame_bf[:,0:2]
 
@@ -164,12 +185,12 @@ def find_object_pose(image, point_cloud_msg, data_dict, pro_T_bf, cam_info):
     #surf_dir_obj = frame_bf.T * bf_R_pro * np.matrix([np.cos(drad), np.sin(drad), 0.]).T 
     #delta_theta = math.atan2(surf_dir_obj[1,0], surf_dir_obj[0,0])
 
-    bf_R_pro = (data_dict['start_conditions']['pro_T_bf'][0:3,0:3]).T
-    frame_bf = data_dict['start_conditions']['pose_parameters']['frame_bf']
-    x_bf = frame_bf[:,0]
-    x_pro = bf_R_pro.T * x_bf
-    x_ang_pro = math.atan2(x_pro[1,0], x_pro[0,0])
-    rospy.loginfo('original x angle in prosilica frame is %.3f' % np.degrees(x_ang_pro))
+    # bf_R_pro = (data_dict['start_conditions']['pro_T_bf'][0:3,0:3]).T
+    # frame_bf = data_dict['start_conditions']['pose_parameters']['frame_bf']
+    # x_bf = frame_bf[:,0]
+    # x_pro = bf_R_pro.T * x_bf
+    # x_ang_pro = math.atan2(x_pro[1,0], x_pro[0,0])
+    #rospy.loginfo('original x angle in prosilica frame is %.3f' % np.degrees(x_ang_pro))
 
     #model_delta_thetas = []
     #for loc, lap, size, direction, hess in data_dict['start_conditions']['pose_parameters']['surf_loc2d_pro']:
@@ -191,8 +212,6 @@ def find_object_pose(image, point_cloud_msg, data_dict, pro_T_bf, cam_info):
     model_delta_thetas = np.array(data_dict['start_conditions']['pose_parameters']['surf_directions'])[match_idxs]
     cand_rad_angs = np.array([np.radians(d) for loc, lap, size, d, hess in match_locs])
     hypothesized_angles = np.array([ut.standard_rad(cand_rad_angs[i] - model_delta_thetas[i]) for i in range(len(model_delta_thetas))])
-    #for n in hypothesized_angles:
-    #    rospy.loginfo('tentative x ang %.3f' % np.degrees(n))
 
     #average these directions
     x_vec_hat_pro = np.matrix([np.mean(np.cos(hypothesized_angles)), np.mean(np.sin(hypothesized_angles)), 0.]).T
@@ -209,7 +228,8 @@ def find_object_pose(image, point_cloud_msg, data_dict, pro_T_bf, cam_info):
                                                                     np.sin(hypothesized_angles),
                                                                     np.zeros((1,len(hypothesized_angles)))])
     display_dict = {'surf_vecs_bf': surf_vecs_bf,
-                    'surf_loc3d_pro': matched_surf_loc3d_pro}
+                    'surf_loc3d_pro': matched_surf_loc3d_pro,
+                    'expected_positions3d_bf': expected_positions3d_bf}
 
     rospy.loginfo('Observed normal: %s' % str(normal_bf.T))
     rospy.loginfo('Inferred x direction: %s' % str(x_hat_bf.T))
@@ -235,23 +255,47 @@ def cv_to_ros(cvimg, frame_id):
     return rosimg
 
 class DisplayRecordedPoseReduced: 
-    def __init__(self):
+    def __init__(self, online, seconds_to_run):
+        self.online = online
+        self.seconds_to_run = seconds_to_run
         self.marker_pub = rospy.Publisher('object_frame', vm.Marker)
         self.point_cloud_pub = rospy.Publisher('original_point_cloud', sm.PointCloud)
         self.surf_pub = rospy.Publisher('surf_features', sm.PointCloud)
-        self.proc_pub = rospy.Publisher('/prosilica/image_rect_color', sm.Image)
-        self.caminfo = rospy.Publisher('/prosilica/camera_info', sm.CameraInfo)
-        self.tfbroadcast = tf.TransformBroadcaster()
+        self.expected_positions3d_pub = rospy.Publisher('expected_position3d_bf', sm.PointCloud)
+        self.left_arm_trajectory_pub = rospy.Publisher('left_arm_trajectory', sm.PointCloud)
+        self.right_arm_trajectory_pub = rospy.Publisher('right_arm_trajectory', sm.PointCloud)
+        self.contact_pub = rospy.Publisher('contact_bf', vm.Marker)
+        
+        if not self.online:
+            self.proc_pub = rospy.Publisher('/prosilica/image_rect_color', sm.Image)
+            self.caminfo = rospy.Publisher('/prosilica/camera_info', sm.CameraInfo)
+            self.tfbroadcast = tf.TransformBroadcaster()
     
     def display(self, frame_bf, center_bf,
-        point_cloud_bf, surf_loc3d_pro, proc_img, pro_T_bf):
+        point_cloud_bf, surf_loc3d_pro, proc_img, expected_position3d_bf, pro_T_bf,
+        left_arm_trajectory, right_arm_trajectory, contact_bf=None):
+
         frame_marker      = create_frame_marker(center_bf, frame_bf, .4, 'base_footprint')
         proc_image_msg    = cv_to_ros(proc_img, 'high_def_optical_frame')
         proc_cam_info_msg = ut.load_pickle('prosilica_caminfo.pkl')
         surf_pc           = ru.np_to_pointcloud(surf_loc3d_pro, 'high_def_optical_frame')
-        self.publish_messages(frame_marker, proc_image_msg, proc_cam_info_msg, surf_pc, point_cloud_bf, pro_T_bf)
+        expected_position3d_bf = ru.np_to_pointcloud(expected_position3d_bf, 'base_footprint')
+        left_arm_traj_bf = ru.np_to_pointcloud(left_arm_trajectory, 'base_footprint')
+        right_arm_traj_bf = ru.np_to_pointcloud(right_arm_trajectory, 'base_footprint')
+        if contact_bf != None:
+            contact_marker = single_marker(contact_bf, np.matrix([0,0,0,1.]).T, 'sphere', 'base_footprint', scale=[.02, .02, .02])
+        else:
+            contact_marker = None
 
-    def publish_messages(self, frame_marker, proc_image_msg, proc_cam_info_msg, surf_pc, point_cloud_bf, pro_T_bf):
+        self.publish_messages(frame_marker, proc_image_msg, proc_cam_info_msg,
+                surf_pc, point_cloud_bf, expected_position3d_bf, pro_T_bf,
+                left_arm_traj_bf, right_arm_traj_bf, contact_marker)
+
+    def publish_messages(self, frame_marker, proc_image_msg, proc_cam_info_msg,
+            surf_pc, point_cloud_bf, expected_position3d_bf, pro_T_bf,
+            left_arm_traj_bf, right_arm_traj_bf, contact_marker = None):
+        start_time = time.time()
+
         r = rospy.Rate(10.)
         while not rospy.is_shutdown():
             frame_marker.header.stamp = rospy.get_rostime()
@@ -259,19 +303,32 @@ class DisplayRecordedPoseReduced:
             proc_image_msg.header.stamp = rospy.get_rostime()
             proc_cam_info_msg.header.stamp = rospy.get_rostime()
             surf_pc.header.stamp = rospy.get_rostime()
+            expected_position3d_bf.header.stamp = rospy.get_rostime()
+            left_arm_traj_bf.header.stamp = rospy.get_rostime()
+            right_arm_traj_bf.header.stamp = rospy.get_rostime()
+            if contact_marker != None:
+                contact_marker.header.stamp = rospy.get_rostime()
 
             #print 'publishing.'
             self.marker_pub.publish(frame_marker)
-            self.proc_pub.publish(proc_image_msg)
             self.point_cloud_pub.publish(point_cloud_bf)
-            self.caminfo.publish(proc_cam_info_msg)
             self.surf_pub.publish(surf_pc)
+            self.expected_positions3d_pub.publish(expected_position3d_bf)
+            self.left_arm_trajectory_pub.publish(left_arm_traj_bf)
+            self.right_arm_trajectory_pub.publish(right_arm_traj_bf)
+            if contact_marker != None:
+                self.contact_pub.publish(contact_marker)
 
-            # Publish tf between point cloud and pro
-            t, r = tfu.matrix_as_tf(np.linalg.inv(pro_T_bf))
-            self.tfbroadcast.sendTransform(t, r, rospy.Time.now(), '/high_def_optical_frame', "/base_footprint")
+            if not self.online:
+                self.proc_pub.publish(proc_image_msg)
+                self.caminfo.publish(proc_cam_info_msg)
+                # Publish tf between point cloud and pro
+                t, r = tfu.matrix_as_tf(np.linalg.inv(pro_T_bf))
+                self.tfbroadcast.sendTransform(t, r, rospy.Time.now(), '/high_def_optical_frame', "/base_footprint")
 
             time.sleep(.1)
+            if (time.time() - start_time) > self.seconds_to_run:
+                break
 
 
 class DisplayRecordedPose: 
@@ -362,10 +419,10 @@ class Imitate:
 
     def __init__(self):
         rospy.init_node('imitate')
-        self.robot = None#pr2.PR2()
-        self.tf_listener = None #tf.TransformListener()
-        self.prosilica = None #rc.Prosilica('prosilica', 'streaming')
-        self.laser_scanner = None #ru.LaserScanner('point_cloud_srv')
+        self.robot = pr2.PR2()
+        self.tf_listener = tf.TransformListener()
+        self.prosilica = rc.Prosilica('prosilica', 'streaming')
+        self.laser_scanner = ru.LaserScanner('point_cloud_srv')
         rospy.Subscriber('pressure/l_gripper_motor', pm.PressureState, self.lpress_cb)
 
         self.should_switch = False
@@ -408,7 +465,7 @@ class Imitate:
             #  'object_frame'
 
         data = ut.load_pickle(data_fname)
-        state = 'fine_positioning_offline'
+        state = 'fine_positioning'
     
         ##Need to be localized!!
         ## NOT LEARNED: go into safe state.
@@ -419,8 +476,147 @@ class Imitate:
             print t
             r = robot.base.set_pose(t, r, '/map', block=True)
             rospy.loginfo('result is %s' % str(r))
-            state = 'init_manipulation'
+            state = 'start_pose'
         ## Need a refinement step
+
+
+        if state == 'fine_positioning':
+            # acquire sensor data
+            online = True
+            rospy.loginfo('Getting high res image')
+            if online: 
+                image  = self.prosilica.get_frame()
+            rospy.loginfo('Getting a laser scan')
+            if online:
+                points = None
+                while points == None:
+                    points = self.laser_scanner.scan(math.radians(180.), math.radians(-180.), 10.)
+                    print points.header
+                    if len(points.points) < 400:
+                        rospy.loginfo('Got point cloud with only %d points expected at least 400 points' % len(points.points))
+                        points = None
+                    else:
+                        rospy.loginfo('Got %d points point cloud' % len(points.points))
+                ut.save_pickle(points, 'tmp_points.pkl')
+                cv.SaveImage('tmp_light_switch.png', image)
+            if not online:
+                points = ut.load_pickle('tmp_points.pkl')
+                image = cv.LoadImage('tmp_light_switch.png')
+            
+            # find pose
+            rospy.loginfo('Finding object pose')
+            cam_info = rc.ROSCameraCalibration('/prosilica/camera_info')
+            rospy.loginfo('waiting for cam info message')
+            cam_info.wait_till_msg()
+            pro_T_bf = tfu.transform('/high_def_optical_frame', '/base_footprint', self.tf_listener)
+            bf_R_obj, center_bf, display_dict = find_object_pose(image, points, data, pro_T_bf, cam_info)
+
+
+            ## set base to base_pose_bf using odometry
+            #base_pose_bf = bf_T_obj * base_pose_obj
+
+            ## get pose of tip of arm in frame of object
+            rospy.loginfo('get pose of tip of arm in frame of object')
+            bf_T_obj = htf.composeHomogeneousTransform(bf_R_obj, center_bf)
+            rtip_objs = []
+            ltip_objs = []
+            rtip_pose_bf = []
+            ltip_pose_bf = []
+            joint_states_time = []
+            for state in range(len(data['movement_states'])):
+                cur_state = data['movement_states'][state]
+                for d in cur_state['joint_states']:
+                    rtip_objs.append(d['rtip_obj'][0])
+                    ltip_objs.append(d['ltip_obj'][0])
+                    rtip_pose_bf.append(bf_T_obj * tfu.tf_as_matrix(d['rtip_obj']))
+                    ltip_pose_bf.append(bf_T_obj * tfu.tf_as_matrix(d['ltip_obj']))
+                    joint_states_time.append(d['time'])
+
+            l_tip_objs_bf = tfu.transform_points(bf_T_obj, np.column_stack(ltip_objs))
+            r_tip_objs_bf = tfu.transform_points(bf_T_obj, np.column_stack(rtip_objs))
+
+            ## display results
+            rospy.loginfo('Sending out perception results (5 seconds).')
+            display = DisplayRecordedPoseReduced(True, 5)
+            display.display(bf_R_obj, center_bf, points,
+                    display_dict['surf_loc3d_pro'], image,
+                    display_dict['expected_positions3d_bf'], pro_T_bf,
+                    l_tip_objs_bf, r_tip_objs_bf)
+
+            state = 'start_pose'
+
+        ## Move joints to initial state. learned initial state. (maybe coordinate this with sensors?)
+        #Put robot in the correct state
+        if state == 'start_pose':
+            rospy.loginfo('STATE start_pose')
+            j0_dict = data['robot_pose']
+            cpos = self.robot.pose()
+            self.robot.left_arm.set_poses (np.column_stack([cpos['larm'], j0_dict['poses']['larm']]), np.array([0.1, 5.]), block=False)
+            self.robot.right_arm.set_poses(np.column_stack([cpos['rarm'], j0_dict['poses']['rarm']]), np.array([0.1, 5.]), block=False)
+            self.robot.head.set_poses(np.column_stack([cpos['head_traj'], j0_dict['poses']['head_traj']]), np.array([.01, 5.]))
+            self.robot.torso.set_pose(j0_dict['poses']['torso'][0,0], block=True)
+            state = 'manipulate_cart2'
+
+
+
+        if state == 'manipulate_cart2':
+            rospy.loginfo('STATE manipulate')
+            rospy.loginfo('there are %d states' % len(data['movement_states']))
+            rospy.loginfo('switching controllers')
+            self.robot.controller_manager.switch(['l_cart', 'r_cart'], ['l_arm_controller', 'r_arm_controller'])
+            self.should_switch = True
+            rospy.on_shutdown(self.shutdown)
+            self.robot.left_arm.set_posture(self.robot.left_arm.POSTURES['elbowupl'])
+            self.robot.right_arm.set_posture(self.robot.right_arm.POSTURES['elbowupr'])
+
+            ## For each contact state
+            for state in range(len(data['movement_states'])):
+                rospy.loginfo('Ready to start state %d.  Press <enter> to continue.' % state)
+                raw_input()
+                if rospy.is_shutdown():
+                    break
+
+                if self.pressure_exceeded:
+                    rospy.loginfo('Exiting movement state loop')
+                    break
+
+                cur_state = data['movement_states'][state]
+                rospy.loginfo("starting %s" % cur_state['name'])
+                start_time = cur_state['start_time']
+                wall_start_time = rospy.get_rostime().to_time()
+
+                # for each joint state message
+                for d in cur_state['joint_states']:
+                    # watch out for shut down and pressure exceeded signals
+                    if rospy.is_shutdown():
+                        break
+                    if self.pressure_exceeded:
+                        rospy.loginfo('Exiting inner movement state loop')
+                        break
+
+                    # sleep until the time when we should send this message
+                    msg_time = d['time']
+                    msg_time_from_start = msg_time - start_time
+                    cur_time = rospy.get_rostime().to_time()
+                    wall_time_from_start = (cur_time - wall_start_time)
+                    sleep_time = (msg_time_from_start - wall_time_from_start) - .005
+                    if sleep_time < 0:
+                        rospy.loginfo('sleep time < 0, %f' % sleep_time)
+                    if sleep_time > 0:
+                        time.sleep(sleep_time)
+
+                    # send cartesian command
+                    rtip_pose_bf = tfu.matrix_as_tf((bf_T_obj * tfu.tf_as_matrix(d['rtip_obj'])))
+                    ltip_pose_bf = tfu.matrix_as_tf((bf_T_obj * tfu.tf_as_matrix(d['ltip_obj'])))
+                    self.robot.left_arm.set_cart_pose(rtip_pose_bf[0], rtip_pose_bf[1], 
+                            'base_footprint', rospy.get_rostime().to_time())
+                    self.robot.right_arm.set_cart_pose(rtip_pose_bf[0], rtip_pose_bf[1], 
+                            'base_footprint', rospy.get_rostime().to_time())
+
+                rospy.loginfo("%s FINISHED" % cur_state['name'])
+                time.sleep(5)
+                self.robot.controller_manager.switch(['l_arm_controller', 'r_arm_controller'], ['l_cart', 'r_cart'])
+                self.should_switch = False
 
         if state == 'fine_positioning_offline':
             rospy.loginfo('Finding object pose (offline)')
@@ -434,49 +630,38 @@ class Imitate:
             #print bf_R_obj, center_bf
             print 'DONE!'
 
+            ################################################################
+            ## get pose of tip of arm in frame of object
+            rospy.loginfo('get pose of tip of arm in frame of object')
+            rtip_objs = []
+            ltip_objs = []
+            rtip_objs_bf = []
+            ltip_objs_bf = []
+            for state in range(len(data['movement_states'])):
+            #for state in range(1):
+                #state = 1
+                cur_state = data['movement_states'][state]
+                #print 'cur_state', state, len(cur_state['joint_states'])
+                for d in cur_state['joint_states']:
+                    rtip_objs.append(d['rtip_obj'][0])
+                    ltip_objs.append(d['ltip_obj'][0])
+                    rtip_objs_bf.append(d['rtip_bf'][0])
+                    ltip_objs_bf.append(d['ltip_bf'][0])
+            rtip_objs_obj = np.column_stack(rtip_objs)
+            ltip_objs_obj = np.column_stack(ltip_objs)
+
+            #rtip_objs_bf = []
+            #ltip_objs_bf = []
+            rtip_objs_bf = np.column_stack(rtip_objs_bf)
+            ltip_objs_bf = np.column_stack(ltip_objs_bf)
+
             rospy.loginfo('sending out results')
-            display = DisplayRecordedPoseReduced()
-            display.display(bf_R_obj, center_bf, points, display_dict['surf_loc3d_pro'], image, pro_T_bf)
-
-        if state == 'fine_positioning':
-            #################################
-            # acquire sensor data
-            rospy.loginfo('Getting high res image')
-            image  = self.prosilica.get_frame()
-            rospy.loginfo('Getting a laser scan')
-            points = self.laser_scanner.scan(math.radians(180.), math.radians(-180.), 20.)
-            ut.save_pickle(points, 'tmp_points.pkl')
-            cv.SaveImage('tmp_light_switch.png', image)
-            
-            #################################
-            # find pose
-            rospy.loginfo('Finding object pose')
-            cam_info = rc.ROSCameraCalibration('/prosilica/camera_info')
-            pro_T_bf = tfu.transform('/high_def_optical_frame', '/base_footprint', self.tf_listener)
-            bf_T_obj, surf_vecs_bf = find_object_pose(image, points, data, pro_T_bf, cam_info)
-            print 'DONE!'
-            print bf_T_obj, surf_vecs_bf
-
-            ## set base to base_pose_bf using odometry
-            #base_pose_bf = bf_T_obj * base_pose_obj
-
-            ## 
-            #traj_obj = ??
-            #traj_bf = bf_T_obj * traj_obj
-        
-        ## Move joints to initial state. learned initial state. (maybe coordinate this with sensors?)
-        #Put robot in the correct state
-        if state == 'init_manipulation':
-            rospy.loginfo('STATE init_manipulation')
-            j0_dict = data['robot_pose']
-            cpos = self.robot.pose()
-            self.robot.left_arm.set_poses (np.column_stack([cpos['larm'], j0_dict['poses']['larm']]), np.array([0.1, 5.]), block=False)
-            self.robot.right_arm.set_poses(np.column_stack([cpos['rarm'], j0_dict['poses']['rarm']]), np.array([0.1, 5.]), block=False)
-            self.robot.head.set_poses(np.column_stack([cpos['head_traj'], j0_dict['poses']['head_traj']]), np.array([.01, 5.]))
-            self.robot.torso.set_pose(j0_dict['poses']['torso'][0,0], block=True)
-            state = 'manipulate'
-
-            
+            display = DisplayRecordedPoseReduced(False, 10)
+            display.display(bf_R_obj, center_bf, points,
+                    display_dict['surf_loc3d_pro'], image, 
+                    display_dict['expected_positions3d_bf'], pro_T_bf,
+                    ltip_objs_bf, rtip_objs_bf, data['start_conditions']['pose_parameters']['contact_bf'])
+                    #ltips_bf, ltips_bf, data['pose_parameters']['contact_bf'])
 
     
         if state == 'manipulate_cart':
@@ -488,12 +673,10 @@ class Imitate:
             rospy.on_shutdown(self.shutdown)
             self.robot.left_arm.set_posture(self.robot.left_arm.POSTURES['elbowupl'])
             self.robot.right_arm.set_posture(self.robot.right_arm.POSTURES['elbowupr'])
-            #rospy.loginfo('switching controllers sleeping..')
-            #time.sleep(20)
-            #rospy.loginfo('resuming')
     
             self.robot.left_arm.set_posture(self.robot.left_arm.POSTURES['elbowupl'])
             self.robot.right_arm.set_posture(self.robot.right_arm.POSTURES['elbowupr'])
+
             ## For each contact state
             for state in range(len(data['movement_states'])):
 
@@ -561,10 +744,11 @@ class Imitate:
                 rvel = np.column_stack(rvel)
                 rtime = np.array(rtime) - cur_state['start_time']
         
-                ## send trajectory. wait until contact state changes or traj. finished executing.
+                ## Send the first pose and give the robot time to execute it.
                 self.robot.left_arm.set_poses(larm[:,0], np.array([2.]), block=False)
                 self.robot.right_arm.set_poses(rarm[:,0], np.array([2.]), block=True)
         
+                ## Send trajectory. wait until contact state changes or traj. finished executing.
                 self.robot.left_arm.set_poses(larm, ltime, vel_mat=lvel, block=False)
                 self.robot.right_arm.set_poses(rarm, rtime, vel_mat=rvel, block=True)
         
@@ -626,12 +810,12 @@ if __name__ == '__main__':
         #point_cloud_bf = ru.pointcloud_to_np(data_dict['start_conditions']['points'])
         #point_cloud_pro = (data_dict['start_conditions']['pro_T_bf'] * \
         #                    np.row_stack((point_cloud_bf, 1+np.zeros((1, point_cloud_bf.shape[1])))))[0:3,:]
-        #point_cloud_kd_pro = sp.KDTree(point_cloud_pro.T)
+        # point_cloud_kd_pro = sp.KDTree(point_cloud_pro.T)
 
         #center_pro = np.mean(np.matrix(surf_loc3d_pro), 1)
         #neighbor_idxs = point_cloud_kd_pro.query_ball_point(np.array(center_pro.T), .1)
         #points_nearby_pro = point_cloud_pro[:, neighbor_idxs[0]]
-        #points_nearby_pro_pc = ru.np_to_pointcloud(points_nearby_pro, 'high_def_optical_frame')
+        # points_nearby_pro_pc = ru.np_to_pointcloud(points_nearby_pro, 'high_def_optical_frame')
         #print 'point_cloud_pro.shape', point_cloud_pro.shape
 
         # create frame

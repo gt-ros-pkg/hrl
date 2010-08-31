@@ -5,6 +5,7 @@ import hrl_lib.util as ut
 import hrl_lib.rutils as ru
 
 import tf
+import hrl_lib.transforms as htf
 import hrl_lib.tf_utils as tfu
 import tf.transformations as tr
 import pr2_msgs.msg as pm
@@ -17,7 +18,9 @@ import numpy as np
 import math
 import cv
 import hai_sandbox.features as fea
+import hai_sandbox.pr2_kinematics as pr2k
 import pdb
+import sensor_msgs.msg as sm 
 #import perception3d.gaussian_curvature as gc
 
 def segment_msgs(time_segments, msgs):
@@ -69,15 +72,18 @@ def playback_bag(bag_name):
     print cmd
     os.system(cmd)
 
+class SimpleJointStateMsg:
+    def __init__(self, header, transforms_dict):
+        self.header = header
+        self.transforms_dict = transforms_dict
+
 # Find contact points & transform gripper tip to base_frame
-class ListenAndFindContactLocs:
+class ExtractTFData:
     def __init__(self, listener=None):#, pointcloud_msg):
-        #rospy.init_node('contact3d')
         rospy.Subscriber('/pressure/l_gripper_motor', pm.PressureState, self.lpress_cb)
-        self.ftip_frames = ['r_gripper_l_finger_tip_link',
-                            'r_gripper_r_finger_tip_link',
-                            'l_gripper_l_finger_tip_link',
-                            'l_gripper_r_finger_tip_link']
+        rospy.Subscriber('/joint_states', sm.JointState, self.joint_state_cb)
+        self.ftip_frames = ['r_gripper_tool_frame',
+                            'l_gripper_tool_frame']
 
         if listener != None:
             self.tflistener = listener
@@ -92,12 +98,25 @@ class ListenAndFindContactLocs:
         self.contact = False
         self.contact_stopped = False
         self.pointcloud_transform = None
-        #self.pointcloud_msg = pointcloud_msg
 
+        self.jstate_msgs = []
+        self.last_jstate_time = time.time() + 999999999.
+
+    def joint_state_cb(self, jmsg):
+        tdict = {}
+
+        # good for display purposes (independent of torso link etc)
+        tdict['bf_T_rtip'] = tfu.transform('/base_footprint', self.ftip_frames[0], self.tflistener)
+        tdict['bf_T_ltip'] = tfu.transform('/base_footprint', self.ftip_frames[1], self.tflistener)
+
+        # want FK from torso
+        tdict['torso_T_rtip'] = tfu.transform('/torso_lift_link', self.ftip_frames[0], self.tflistener)
+        tdict['torso_T_ltip'] = tfu.transform('/torso_lift_link', self.ftip_frames[1], self.tflistener)
+
+        #self.jstate_msgs.append(SimpleJointStateMsg(jmsg.header, tdict))
+        self.last_jstate_time = time.time()
 
     def lpress_cb(self, pmsg):
-        #print 'called'
-        #conv to mat
         lmat = np.matrix((pmsg.l_finger_tip)).T
         rmat = np.matrix((pmsg.r_finger_tip)).T
         if self.lmat0 == None:
@@ -109,6 +128,8 @@ class ListenAndFindContactLocs:
         lmat = lmat - self.lmat0
         rmat = rmat - self.rmat0
    
+        ##
+        # extract data during contact events
         #touch detected
         if np.any(np.abs(lmat) > 250) or np.any(np.abs(rmat) > 250): #TODO: replace this with something more sound
             #Contact has been made!! look up gripper tip location
@@ -188,7 +209,8 @@ def assign_3d_to_surf(surf_locs, point_cloud_3d, point_cloud_2d):
     #print '>> shape of point_cloud_3d', point_cloud_3d.shape
 
     surf_loc3d = []
-    for loc, lap, size, d, hess in surf_locs:
+    for s in surf_locs:
+        loc = s[0]
         idx = point_cloud_2d_tree.query(np.array(loc))[1]
         surf_loc3d.append(point_cloud_3d[:, idx])
         #print '   %s matched to %s 3d %s' % (str(loc), str(point_cloud_2d[:,idx].T), str(point_cloud_3d[:, idx].T))
@@ -196,18 +218,22 @@ def assign_3d_to_surf(surf_locs, point_cloud_3d, point_cloud_2d):
     surf_loc3d = np.column_stack(surf_loc3d)
     return surf_loc3d
 
-def find_contacts(tflistener):
-    find_contact_locs = ListenAndFindContactLocs(tflistener)
-    r = rospy.Rate(10)
-    while not rospy.is_shutdown() and not find_contact_locs.contact_stopped:
-        print 'waiting for contact thread to finish'
-        r.sleep()
+def find_contacts_and_fk(tflistener, arm):
+    find_contact_locs = ExtractTFData(tflistener)
+    while not rospy.is_shutdown() \
+            and (not find_contact_locs.contact_stopped) \
+            and ((time.time() - find_contact_locs.last_jstate_time) < 1.):
+        print 'waiting for ExtractTFData to finish.'
+        time.sleep(.5)
+    print 'got %d joint state messages' % len(find_contact_locs.jstate_msgs)
+
     contact_locs = find_contact_locs.contact_locs
-    left_contacts, right_contacts = zip(*[(np.matrix(r[1][2]).T, np.matrix(r[1][3]).T) for r in contact_locs])
-    left_contacts = np.column_stack(left_contacts)
-    right_contacts = np.column_stack(right_contacts)
-    mid_contact_bf = (left_contacts[:,0] + right_contacts[:,0]) / 2.
-    return mid_contact_bf
+    if arm == 'right':
+        contact_tips = [np.matrix(r[1][0]).T for r in contact_locs]
+    else:
+        contact_tips = [np.matrix(r[1][1]).T for r in contact_locs]
+    contact_tips = np.column_stack(contact_tips)
+    return contact_tips[:,0], find_contact_locs.jstate_msgs
 
 def project_2d_bounded(cam_info, point_cloud_cam):
     point_cloud_2d_cam = cam_info.project(point_cloud_cam) 
@@ -242,8 +268,8 @@ def find3d_surf(start_conditions):
 ##########################################################################
 # TODO: need some parameters for processing 'model_image', maybe circles
 # of different sizes.
-def extract_object_localization_features2(start_conditions, tflistener):
-    mid_contact_bf = find_contacts(tflistener)
+def extract_object_localization_features2(start_conditions, tflistener, arm_used):
+    mid_contact_bf, jstate_msgs = find_contacts_and_fk(tflistener, arm_used)
     model_surf_loc, model_surf_descriptors, surf_loc3d_pro, point_cloud_2d_pro = find3d_surf(start_conditions)
 
     #Find frame
@@ -259,36 +285,28 @@ def extract_object_localization_features2(start_conditions, tflistener):
     x_pro    = bf_R_pro.T * x_bf
     x_ang_pro = math.atan2(x_pro[1,0], x_pro[0,0])
 
+    center_pro = tfu.transform_points(start_conditions['pro_T_bf'], center_bf)
+    center2d_pro = start_conditions['camera_info'].project(center_pro)
+
     surf_directions = []
+    surf_dir_center = []
     for loc, lap, size, direction, hess in model_surf_loc:
         surf_directions.append(ut.standard_rad(np.radians(direction) - x_ang_pro))
+        direction_to_center = center2d_pro - np.matrix(loc).T
+        surf_dir_center.append(direction_to_center)
 
-    #for loc, lap, size, direction, hess in model_surf_loc:
-    #    drad = np.radians(direction)
-    #    #project direction into the cannonical object frame
-    #    #surf_dir_obj = object_frame_pro * np.matrix([np.cos(drad), np.sin(drad), 0.]).T
-    #    #obj_R_bf = frame_bf.T
-
-    #    bf_R_pro = (start_conditions['pro_T_bf'][0:3,0:3]).T
-    #    surf_dir_obj = frame_bf.T * bf_R_pro * np.matrix([np.cos(drad), np.sin(drad), 0.]).T 
-
-    #    #measure angle between SURF feature and x axis of object frame, store this as delta theta
-    #    delta_theta = math.atan2(surf_dir_obj[1,0], surf_dir_obj[0,0])
-    #    surf_directions.append(delta_theta)
-
-    ##print 'frame_bf.T', frame_bf.T
-    ##print 'bf_R_pro', (start_conditions['pro_T_bf'][0:3,0:3]).T
-
-
+    surf_dir_center = np.column_stack(surf_dir_center)
     return {
             'contact_bf': mid_contact_bf,
             'surf_loc3d_pro': surf_loc3d_pro,
             'surf_loc2d_pro': model_surf_loc,
             'point_cloud_2d_pro': point_cloud_2d_pro,
 
-            'surf_directions': surf_directions,
+            'surf_directions': surf_directions, #Orientation
+            'surf_pose_dir2d': surf_dir_center,   #Position
             'descriptors': model_surf_descriptors,
 
+            'jtransforms': jstate_msgs,
             'frame_bf': frame_bf,
             'center_bf': center_bf
             }
@@ -298,7 +316,7 @@ def extract_object_localization_features2(start_conditions, tflistener):
 # of different sizes.
 def extract_object_localization_features(start_conditions, tflistener):
     ## Find contacts
-    find_contact_locs = ListenAndFindContactLocs(tflistener)
+    find_contact_locs = ExtractTFData(tflistener)
     r = rospy.Rate(10)
     while not rospy.is_shutdown() and not find_contact_locs.contact_stopped:
         r.sleep()
@@ -394,37 +412,6 @@ def create_frame(points3d, p=np.matrix([-1,0,0.]).T):
     # Cross product for the final (is this the same as the final vector?)
     y_dir = np.cross(normal.T, x_dir.T).T
     return np.matrix(np.column_stack([x_dir, y_dir, normal]))
-   
-#def create_frame2(contact_point, points3d, p=np.matrix([1,0,0.]).T):
-### contact point is the center, local plane from 3D points close to contact
-#    u, s, vh = np.linalg.svd(points3d)
-#    u = np.matrix(u)
-#    #pdb.set_trace()
-#
-#    # Pick normal
-#    if (u[:,2].T * p)[0,0] < 0:
-#        normal = -u[:,2]
-#    else:
-#        normal = u[:,2]
-#
-#    # pick the next direction as the one closest to to +z or +x
-#    z_plus = np.matrix([0,0,1.0]).T
-#    x_plus = np.matrix([1,0,0.0]).T
-#
-#    u0 = u[:,0]
-#    u1 = u[:,1]
-#
-#    mags = []
-#    pos_dirs = []
-#    for udir in [u0, u1, -u0, -u1]:
-#        for can_dir in [z_plus, x_plus]:
-#            mags.append((udir.T * can_dir)[0,0])
-#            pos_dirs.append(udir)
-#    x_dir = pos_dirs[np.argmax(mags)]
-#
-#    # Cross product for the final (is this the same as the final vector?)
-#    y_dir = np.cross(normal.T, x_dir.T).T
-#    return np.column_stack([x_dir, y_dir, normal])
 
 def process_bag(full_bag_name, prosilica_image_file, model_image_file, experiment_start_condition_pkl, arm_used='left'):
     bag_path, bag_name_ext = os.path.split(full_bag_name)
@@ -440,8 +427,9 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
     rospy.init_node('bag_proceessor')
 
     tl = tf.TransformListener()
+
     print 'waiting for transform'
-    tl.waitForTransform('map', 'base_footprint', rospy.Time.now(), rospy.Duration(20))
+    tl.waitForTransform('map', 'base_footprint', rospy.Time(), rospy.Duration(20))
     # Extract the starting location
     p_base = tfu.transform('map', 'base_footprint', tl) \
             * tfu.tf_as_matrix(([0., 0., 0., 1.], tr.quaternion_from_euler(0,0,0)))
@@ -455,15 +443,7 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
     start_conditions['highdef_image'] = prosilica_image_file
     start_conditions['model_image'] = model_image_file
     rospy.loginfo('extracting object localization features')
-    start_conditions['pose_parameters'] = extract_object_localization_features2(start_conditions, tl)
-
-    #r = rospy.Rate(10)
-    #while not rospy.is_shutdown() and not find_contact_locs.contact_stopped:
-    #    r.sleep()
-    #contact_locs = find_contact_locs.contact_locs
-
-    #et = ListenAndFindContactLocs()
-    # ['camera_info', 'map_T_bf', 'pro_T_bf', 'points']
+    start_conditions['pose_parameters'] = extract_object_localization_features2(start_conditions, tl, arm_used)
 
     if bag_playback.is_alive():
         rospy.loginfo('Terminating playback process')
@@ -473,13 +453,10 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
         time.sleep(1)
         rospy.loginfo('Playback process terminated? %s' % str(not bag_playback.is_alive()))
 
-    #print 'got loc %.2f %.2f %.2f'% (t[0], t[1], t[2])
-    #loc_fname = '%s_loc.pkl' % os.path.join(bag_path, filename)
-    #print 'saving to %s' % loc_fname
-    #ut.save_pickle((t,r), loc_fname)
 
     ###############################################################################
     #Read bag using programmatic API
+    pr2_kinematics = pr2k.PR2Kinematics(tl)
     converter = JointMsgConverter()
     rospy.loginfo('opening bag, reading state topics')
     topics_dict = ru.bag_sel(full_bag_name, ['/joint_states', '/l_cart/command_pose', 
@@ -494,32 +471,60 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
     else:
         raise RuntimeError('arm_used invalid')
 
+    ## find contact times
     rospy.loginfo('Finding contact times')
     left_f, right_f, ptimes = ru.pressure_state_to_mat(pressures['msg'])
-    #TODO: make this accept more contact stages
+
+    ## create segments based on contacts
+    # TODO: make this accept more contact stages
     contact_times = find_contact_times(left_f, right_f, ptimes, 250)
     if len(contact_times) > 2:
         time_segments = [['start', contact_times[0]], [contact_times[0], contact_times[-1]], [contact_times[-1], 'end']]
     else:
         time_segments = [['start', 'end']]
 
+    rospy.loginfo('Splitting messages based on contact times')
+    ## split pressure readings based on contact times
     pressure_lseg = segment_msgs(time_segments, topics_dict['/pressure/l_gripper_motor']['msg'])
     pressure_rseg = segment_msgs(time_segments, topics_dict['/pressure/r_gripper_motor']['msg'])
 
+    ## split cartesian commands based on contact times
     lcart_seg = segment_msgs(time_segments, topics_dict['/l_cart/command_pose']['msg'])
     rcart_seg = segment_msgs(time_segments, topics_dict['/r_cart/command_pose']['msg'])
 
-    #Find the first robot pose
-    ## Convert from joint state to dicts
+    ## split joint states
     joint_states = topics_dict['/joint_states']['msg']
+    print 'there are %d joint state messages in bag' % len(joint_states)
+
     j_segs     = segment_msgs(time_segments, topics_dict['/joint_states']['msg'])
     jseg_dicts = [converter.msgs_to_dict(seg) for seg in j_segs]
+    # find the first set of joint states
     j0_dict    = jseg_dicts[0][0]
-    
-    #converter.msg_to_dict(j_segs[0][0])
-    #jseg_dicts = [[converter.msg_to_dict(j_msg) for j_msg in seg] for seg in j_segs]
+
+    ## perform FK
+    rospy.loginfo('Performing FK to find tip locations')
+    bf_T_obj = htf.composeHomogeneousTransform(start_conditions['pose_parameters']['frame_bf'], 
+                                               start_conditions['pose_parameters']['center_bf'])
+    obj_T_bf = np.linalg.inv(bf_T_obj)
+    for jseg_dict in jseg_dicts:
+        for d in jseg_dict:
+            rtip_bf = pr2_kinematics.right.fk('base_footprint',
+                    'r_wrist_roll_link', 'r_gripper_tool_frame',
+                    d['poses']['rarm'].A1.tolist())
+            ltip_bf =  pr2_kinematics.left.fk('base_footprint',
+                    'l_wrist_roll_link', 'l_gripper_tool_frame',
+                    d['poses']['larm'].A1.tolist())
+            rtip_obj = obj_T_bf * rtip_bf
+            ltip_obj = obj_T_bf * ltip_bf
+
+            d['rtip_obj'] = tfu.matrix_as_tf(rtip_obj)
+            d['ltip_obj'] = tfu.matrix_as_tf(ltip_obj)
+
+            d['rtip_bf'] = tfu.matrix_as_tf(rtip_bf)
+            d['ltip_bf'] = tfu.matrix_as_tf(ltip_bf)
     
     ###############################################################################
+    # make movement state dictionaries, one for each state
     movement_states = []
     for i, seg in enumerate(time_segments):
         name = "state_%d" % i
@@ -539,7 +544,7 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
 
         movement_states.append(sdict)
 
-    ###store in a dict
+    # store in a dict
     data = {'start_conditions': start_conditions, # ['camera_info', 'map_T_bf', 'pro_T_bf', 'points' (in base_frame), 
                                                   # 'highdef_image', 'model_image',
                                                     ## 'pose_parameters'
@@ -551,6 +556,7 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
             'arm': arm_used,
             'movement_states': movement_states}
 
+    # save dicts to pickles
     processed_bag_name = '%s_processed.pkl' % os.path.join(bag_path, filename)
     rospy.loginfo('saving to %s' % processed_bag_name)
     ut.save_pickle(data, processed_bag_name)
@@ -584,6 +590,151 @@ if __name__ == '__main__':
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   
+#def create_frame2(contact_point, points3d, p=np.matrix([1,0,0.]).T):
+### contact point is the center, local plane from 3D points close to contact
+#    u, s, vh = np.linalg.svd(points3d)
+#    u = np.matrix(u)
+#    #pdb.set_trace()
+#
+#    # Pick normal
+#    if (u[:,2].T * p)[0,0] < 0:
+#        normal = -u[:,2]
+#    else:
+#        normal = u[:,2]
+#
+#    # pick the next direction as the one closest to to +z or +x
+#    z_plus = np.matrix([0,0,1.0]).T
+#    x_plus = np.matrix([1,0,0.0]).T
+#
+#    u0 = u[:,0]
+#    u1 = u[:,1]
+#
+#    mags = []
+#    pos_dirs = []
+#    for udir in [u0, u1, -u0, -u1]:
+#        for can_dir in [z_plus, x_plus]:
+#            mags.append((udir.T * can_dir)[0,0])
+#            pos_dirs.append(udir)
+#    x_dir = pos_dirs[np.argmax(mags)]
+#
+#    # Cross product for the final (is this the same as the final vector?)
+#    y_dir = np.cross(normal.T, x_dir.T).T
+#    return np.column_stack([x_dir, y_dir, normal])
+
+
+
+
+
+
+
+
+
+
+    #for loc, lap, size, direction, hess in model_surf_loc:
+    #    drad = np.radians(direction)
+    #    #project direction into the cannonical object frame
+    #    #surf_dir_obj = object_frame_pro * np.matrix([np.cos(drad), np.sin(drad), 0.]).T
+    #    #obj_R_bf = frame_bf.T
+
+    #    bf_R_pro = (start_conditions['pro_T_bf'][0:3,0:3]).T
+    #    surf_dir_obj = frame_bf.T * bf_R_pro * np.matrix([np.cos(drad), np.sin(drad), 0.]).T 
+
+    #    #measure angle between SURF feature and x axis of object frame, store this as delta theta
+    #    delta_theta = math.atan2(surf_dir_obj[1,0], surf_dir_obj[0,0])
+    #    surf_directions.append(delta_theta)
+
+    ##print 'frame_bf.T', frame_bf.T
+    ##print 'bf_R_pro', (start_conditions['pro_T_bf'][0:3,0:3]).T
+
+
+
+
+
+
+
+
+
+
+    #r = rospy.Rate(10)
+    #while not rospy.is_shutdown() and not find_contact_locs.contact_stopped:
+    #    r.sleep()
+    #contact_locs = find_contact_locs.contact_locs
+    #et = ExtractTFData()
+    # ['camera_info', 'map_T_bf', 'pro_T_bf', 'points']
+
+
+
+
+
+
+
+    #print 'got loc %.2f %.2f %.2f'% (t[0], t[1], t[2])
+    #loc_fname = '%s_loc.pkl' % os.path.join(bag_path, filename)
+    #print 'saving to %s' % loc_fname
+    #ut.save_pickle((t,r), loc_fname)
 
 
     #print contact_times - contact_times[0]

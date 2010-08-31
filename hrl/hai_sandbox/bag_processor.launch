@@ -1,0 +1,14 @@
+<launch>
+    <!-- Setup timing -->
+    <rosparam>
+        use_sim_time: True
+    </rosparam>
+
+    <!-- Launch gazebo -->
+    <!-- <include file="$(find pr2_gazebo)/pr2_empty_world.launch"/> -->
+
+    <!-- Arm kinematics -->
+    <param name="robot_description" textfile="robot.xml"/>
+    <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch"/>
+    <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch"/>
+</launch>

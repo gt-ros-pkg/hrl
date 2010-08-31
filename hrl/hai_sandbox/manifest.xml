@@ -10,11 +10,20 @@
   <url>http://ros.org/wiki/hai_sandbox</url>
   <depend package="rospy"/>
   <depend package="pr2_msgs"/>
+  <depend package="std_msgs"/>
   <depend package="hrl_lib"/>
   <depend package="hrl_camera"/>
   <depend package="cv_bridge"/>
   <depend package="opencv2"/>
   <depend package="geometry_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="pr2_controllers_msgs"/>
+  <depend package="move_base_msgs"/>
+  <depend package="trajectory_msgs"/>
+  <depend package="actionlib"/>
+  <depend package="pr2_mechanism_msgs"/>
+  <depend package="visualization_msgs"/>
+  <depend package="kinematics_msgs"/>
 
 </package>
 
