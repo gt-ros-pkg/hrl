@@ -1,0 +1,241 @@
+<launch>
+    <include file="$(find joint_trajectory_replay)/tilt_controller.launch"/>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="head_up_full"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/head_up_full.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="head_down_full"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/head_down_full.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="raise_the_roof"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/raise_the_roof.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="arm_spin"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/arm_spin.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="head_down_up"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/head_down_up.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="head_look_around2"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/head_look_around3.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="both_arms_forward"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/both_arms_forward.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="both_arms_forward2"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/both_arms_forward2.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="both_arms_fold2"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/both_arms_fold2.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="both_arms_fold_end_pose"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/both_arms_fold_end_pose.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="head_turn"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/head_turn.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+
+
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="head_look_around"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/head_look_around.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="head_initial_pose00"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/head_initial_pose00.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="left_initial_pose00"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/left_initial_pose00.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="right_initial_pose00"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/right_initial_pose00.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="right_initial_pose0"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/right_initial_pose0.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="right_initial_pose"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/right_initial_pose.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="left_start"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/left_start.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="left_start2"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/left_start2.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="light_off"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/light_button_off4.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="light_on"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/light_button_on4.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="froo_froo"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/arm_froo_froo2.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="head_up"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/head_up2.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="head_down"/>
+      <param name="bag" type="string" value="$(find joint_trajectory_replay)/head_down2.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="arm_on"/>
+      <param name="bag" type="string" value="$(find hai_sandbox)/dance/arm_on.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+
+    <node name="$(anon joint_replay)" pkg="joint_trajectory_replay"
+    type="joint_replay.py" output="screen">
+      <remap from="trigger" to="arm_off"/>
+      <param name="bag" type="string" value="$(find hai_sandbox)/dance/arm_off.bag"/>
+      <param name="time_step" type="double" value="0.05"/>
+      <param name="cut" type="double" value="0"/>
+      <param name="ready_by" type="double" value=".5"/>
+    </node>
+</launch>

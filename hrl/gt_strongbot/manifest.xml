@@ -1,0 +1,14 @@
+<package>
+  <description brief="gt_strongbot">
+
+     gt_strongbot
+
+  </description>
+  <author>Hai</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/gt_strongbot</url>
+
+</package>
+
+
