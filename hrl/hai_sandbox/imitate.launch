@@ -2,18 +2,11 @@
     <!-- Network -->
     <include file="$(find gt_pr2)/machine.launch"/>
 
-    <!-- Navigation -->
+    <!-- Navigation-->
     <include file="$(find gt_pr2)/hsi_2dnav.launch"/>
 
     <!-- Laser Assemblers -->
-    <node pkg="laser_assembler" type="point_cloud_assembler" name="point_cloud_assembler_teleop" output="screen" machine="c1">
-        <remap from="cloud" to="tilt_scan_filtered"/>
-        <param name="fixed_frame" type="string" value="/base_footprint" />
-        <param name="max_clouds" type="int" value="1000"/>
-    </node>
-    <node pkg="pr2_laser_snapshotter" type="point_cloud_srv" name="point_cloud_srv_teleop" machine="c1">
-        <remap from="laser_scan_assembler/build_cloud" to="assemble_scans"/>
-    </node>
+    <include file="$(find pr2_omni_teleop)/laser_scan.launch"/>
 
     <!-- Enable Intensity -->
     <node name="$(anon dynam_load)" pkg="hrl_lib" type="load_dynamic_config" args="/tilt_hokuyo_node $(find pr2_omni_teleop)/tilt_hokuyo_intensity.yaml"/>
@@ -23,6 +16,7 @@
     <node name="$(anon dynam_load)" pkg="hrl_lib" type="load_dynamic_config" args="/prosilica_driver $(find pr2_omni_teleop)/prosilica_teleop_settings.yaml"/>
 
     <!-- Arm kinematics -->
+    <include file="$(find hai_sandbox)/cart_params.launch"/>
     <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch"/>
     <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch"/>
 </launch>
