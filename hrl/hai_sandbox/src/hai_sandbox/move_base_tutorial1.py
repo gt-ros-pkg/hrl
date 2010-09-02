@@ -15,7 +15,6 @@ class MoveBase:
     def __init__(self):
         rospy.init_node('drive')
         self.tw_pub = rospy.Publisher('base_controller/command', gm.Twist)
-        #rospy.Subscriber('trigger', trm.Trigger, self.trigger_cb)
         self.tl = tf.TransformListener()
 
     def go_ang(self, ang, speed):
@@ -38,10 +37,7 @@ class MoveBase:
         while not rospy.is_shutdown():
             pcurrent_base = tfu.transform('base_footprint', 'odom_combined', self.tl) #\
             current_ang = tr.euler_from_matrix(pcurrent_base[0:3, 0:3], 'sxyz')[2]
-            #relative_trans = np.linalg.inv(p0_base) * pcurrent_base
-            #relative_ang = math.degrees(tr.euler_from_matrix(relative_trans[0:3, 0:3], 'sxyz')[2])
             dist_so_far = dist_so_far + (ut.standard_rad(current_ang - last_ang))
-            #print 'dist_so_far %.3f dt %.3f diff %.3f' % (dist_so_far, dt, ut.standard_rad(current_ang - last_ang))
             if dt > 0 and dist_so_far > dt:
                 rospy.loginfo('stopped! %f %f' % (dist_so_far, dt))
                 break
@@ -53,11 +49,6 @@ class MoveBase:
                 break
 
             tw = gm.Twist()
-            tw.linear.x = 0
-            tw.linear.y = 0
-            tw.linear.z = 0
-            tw.angular.x = 0
-            tw.angular.y = 0#0#math.radians(10)
             tw.angular.z = math.radians(speed * sign)
 
             self.tw_pub.publish(tw)
