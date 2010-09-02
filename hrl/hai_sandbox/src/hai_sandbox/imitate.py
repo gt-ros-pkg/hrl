@@ -471,7 +471,7 @@ class Imitate:
             #  'object_frame'
 
         data = ut.load_pickle(data_fname)
-        state = 'drive'
+        state = 'start_pose'
     
         ##Need to be localized!!
         ## NOT LEARNED: go into safe state.
@@ -503,6 +503,8 @@ class Imitate:
             state = 'fine_positioning'
 
         if state == 'fine_positioning':
+            rospy.loginfo('Ready to start fine_positioning.  Press <enter> to continue.')
+            raw_input()
             # acquire sensor data
             online = True
             rospy.loginfo('Getting high res image')
@@ -559,12 +561,13 @@ class Imitate:
 
             ## display results
             rospy.loginfo('Sending out perception results (5 seconds).')
-            display = DisplayRecordedPoseReduced(True, 5)
+            display = DisplayRecordedPoseReduced(True, 20)
             display.display(bf_R_obj, center_bf, points,
                     display_dict['surf_loc3d_pro'], image,
                     display_dict['expected_positions3d_bf'], pro_T_bf,
                     l_tip_objs_bf, r_tip_objs_bf)
-
+            #raw_input()
+            #return
             state = 'manipulate_cart2'
 
         if state == 'manipulate_cart2':
