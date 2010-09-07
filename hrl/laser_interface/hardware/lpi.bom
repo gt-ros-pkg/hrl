@@ -1,0 +1,29 @@
+Partlist for laser pointer interface by Travis Deyle.
+
+NOTE: Double-check all parts before purchasing!
+
+Part   Value    Device            Package         Description                                  	  	 Distributor	Part #                                    
+BATT            M02               1X02_LONGPADS   Header 2                                               Sparkfun	PRT-09543                      
+C3     10uF     C-USC0805         C0805           CAPACITOR, American symbol                             Digikey	pcc2403ct-nd                      
+C4     2.2uF    C-USC0805         C0805           CAPACITOR, American symbol                             Digikey	pcc2483ct-nd                      
+C5     220uF    CPOL-USD/7343-31W D/7343-31W      POLARIZED CAPACITOR, American symbol                   Digikey        718-1349-1-nd              
+L1     6.8uH    POWER_CHOKE       POWER_CHOKE     							 Digikey 	732-2189-1-nd                                                       
+LASE            LED0603           LED-0603        LEDs                                                   Digikey	475-2506-1-nd                      
+LASER           M02               1X02_LONGPADS   Header 2                                               N/A            N/A          
+R1     DNP      R-US_R0603        R0603           RESISTOR, American symbol                              Digikey        311-10kgrct-nd              
+R3     10k      R-US_R0603        R0603           RESISTOR, American symbol                              Digikey        311-10kgrct-nd              
+R5     1k       R-US_R0603        R0603           RESISTOR, American symbol                              Digikey        311-1.0kgrct-nd              
+R7     820k     R-US_R0603        R0603           RESISTOR, American symbol                              Digikey        311-820kgrct-nd              
+R8     150k     R-US_R0603        R0603           RESISTOR, American symbol                              Digikey        311-150kgrct-nd              
+R9     10k      R-US_R0603        R0603           RESISTOR, American symbol                              Digikey        311-10kgrct-nd              
+R10    10k      R-US_R0603        R0603           RESISTOR, American symbol                              Digikey        311-10kgrct-nd              
+S1              SWITCH-SPSTSMD2   SWITCH-SPDT-SMD SPST Switch                                            Sparkfun	COM-08769                                                    
+SWITCH          M02               1X02_LONGPADS   Header 2                                        	 N/A		N/A
+T1              PMOSSOT223        SOT223          MOS FET 						 DigiKey 	NDT456PCT-ND                                             
+T2              NMOSSOT23         SOT-23          MOS FET                                                Digikey	bss138ct-nd                       
+T3              NMOSSOT23         SOT-23          MOS FET                                                Digikey        bss138ct-nd       
+U2     TPS61030 TPS61030          HTSSOP16PWP     Boost Converter.  Adjustable out (3.3-5.0V) 1A.	 DigiKey	296-14416-1-nd
+
+Laser pointer:  http://www.amazon.com/gp/product/B0018IA9E0?ie=UTF8&tag=hizook-20&linkCode=as2&camp=1789&creative=390957&creativeASIN=B0018IA9E0
+Mouse:		http://www.amazon.com/gp/product/B002BZYBZC?ie=UTF8&tag=hizook-20&linkCode=as2&camp=1789&creative=390957&creativeASIN=B002BZYBZC
+
