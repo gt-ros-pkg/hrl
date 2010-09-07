@@ -2,7 +2,7 @@
   <description brief="Detect laser points in the world.">
       Detector that finds laser points in the world representing clicks.
   </description>
-  <author>Hai Nguyen, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
+  <author>Hai Nguyen and Travis Deyle. Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
 
