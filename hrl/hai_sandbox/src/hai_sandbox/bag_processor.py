@@ -268,7 +268,7 @@ def find3d_surf(start_conditions):
 ##########################################################################
 # TODO: need some parameters for processing 'model_image', maybe circles
 # of different sizes.
-def extract_object_localization_features2(start_conditions, tflistener, arm_used):
+def extract_object_localization_features2(start_conditions, tflistener, arm_used, p_base_map):
     mid_contact_bf, jstate_msgs = find_contacts_and_fk(tflistener, arm_used)
     model_surf_loc, model_surf_descriptors, surf_loc3d_pro, point_cloud_2d_pro = find3d_surf(start_conditions)
 
@@ -430,7 +430,7 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
 
     print 'waiting for transform'
     tl.waitForTransform('map', 'base_footprint', rospy.Time(), rospy.Duration(20))
-    # Extract the starting location
+    # Extract the starting location map_T_bf
     p_base = tfu.transform('map', 'base_footprint', tl) \
             * tfu.tf_as_matrix(([0., 0., 0., 1.], tr.quaternion_from_euler(0,0,0)))
     t, r = tfu.matrix_as_tf(p_base)
@@ -443,7 +443,7 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
     start_conditions['highdef_image'] = prosilica_image_file
     start_conditions['model_image'] = model_image_file
     rospy.loginfo('extracting object localization features')
-    start_conditions['pose_parameters'] = extract_object_localization_features2(start_conditions, tl, arm_used)
+    start_conditions['pose_parameters'] = extract_object_localization_features2(start_conditions, tl, arm_used, p_base)
 
     if bag_playback.is_alive():
         rospy.loginfo('Terminating playback process')
