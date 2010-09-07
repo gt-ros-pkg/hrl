@@ -21,6 +21,8 @@ import hai_sandbox.features as fea
 import hai_sandbox.pr2_kinematics as pr2k
 import pdb
 import sensor_msgs.msg as sm 
+import hrl_pr2_lib.devices as hpr2
+
 #import perception3d.gaussian_curvature as gc
 
 def segment_msgs(time_segments, msgs):
@@ -473,7 +475,7 @@ def process_bag(full_bag_name, prosilica_image_file, model_image_file, experimen
 
     ## find contact times
     rospy.loginfo('Finding contact times')
-    left_f, right_f, ptimes = ru.pressure_state_to_mat(pressures['msg'])
+    left_f, right_f, ptimes = hpr2.pressure_state_to_mat(pressures['msg'])
 
     ## create segments based on contacts
     # TODO: make this accept more contact stages

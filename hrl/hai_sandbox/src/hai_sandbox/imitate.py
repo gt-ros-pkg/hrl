@@ -4,9 +4,11 @@ import rospy
 import hrl_lib.prob as pb
 import hrl_lib.util as ut
 import hai_sandbox.pr2 as pr2
+import hai_sandbox.msg as hm
 import pr2_msgs.msg as pm
 import sensor_msgs.msg as sm
 import scipy.spatial as sp
+import actionlib
 
 import tf.transformations as tr
 import hrl_lib.transforms as htf
@@ -27,6 +29,7 @@ import hai_sandbox.features as fea
 import hai_sandbox.bag_processor as bp
 import hrl_camera.ros_camera as rc
 import math
+import hrl_pr2_lib.devices as hpr2
 
 
 def dict_to_arm_arg(d):
@@ -458,7 +461,7 @@ class Imitate:
         self.robot = pr2.PR2(self.tf_listener)
         self.prosilica = rc.Prosilica('prosilica', 'streaming')
         self.wide_angle_camera = rc.ROSCamera('/wide_stereo/left/image_rect_color')
-        self.laser_scanner = ru.LaserScanner('point_cloud_srv')
+        self.laser_scanner = hpr2.LaserScanner('point_cloud_srv')
         self.cam_info = rc.ROSCameraCalibration('/prosilica/camera_info')
         rospy.loginfo('waiting for cam info message')
         self.cam_info.wait_till_msg()
@@ -916,8 +919,33 @@ class ControllerTest:
 
     
 if __name__ == '__main__':
-
     if True:
+        rospy.init_node('send_base_cmd')
+        client = actionlib.SimpleActionClient('go_angle', hm.GoAngleAction)
+        #client.wait_for_server()
+        pdb.set_trace()
+
+        goal = hm.GoAngleGoal()
+        goal.angle = math.radians(90)
+        print 'sending goal'
+        client.send_goal(goal)
+        print 'waiting'
+        client.wait_for_result()
+
+    if False:
+        rospy.init_node('send_base_cmd')
+        client = actionlib.SimpleActionClient('go_xy', hm.GoXYAction)
+        client.wait_for_server()
+        pdb.set_trace()
+
+        goal = hm.GoXYGoal()
+        goal.x = .2
+        print 'sending goal'
+        client.send_goal(goal)
+        print 'waiting'
+        client.wait_for_result()
+
+    if False:
         #prosilica = rc.Prosilica('prosilica', 'streaming')
         #pdb.set_trace()
         #f = prosilica.get_frame()
