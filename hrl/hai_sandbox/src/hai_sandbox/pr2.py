@@ -16,6 +16,8 @@ import hrl_lib.tf_utils as tfu
 import hrl_lib.rutils as ru
 import functools as ft
 import numpy as np
+import hai_sandbox.msg as hm
+import pdb
 
 class Joint:
 
@@ -128,6 +130,7 @@ class PR2Arm(Joint):
         joint_traj = Joint._create_trajectory(self, pos_mat, times, vel_mat)
 
         #Create goal msg
+        joint_traj.header.stamp = rospy.get_rostime() + rospy.Duration(1.)
         g = pm.JointTrajectoryGoal()
         g.trajectory = joint_traj
         self.client.send_goal(g)
@@ -136,12 +139,14 @@ class PR2Arm(Joint):
         return self.client.get_state()
 
     def set_pose(self, pos, nsecs=5., block=True):
+        #pdb.set_trace()
         for i in range(2):
             cpos = self.pose()
-        min_time = .1
+        #min_time = .1
         pos[4,0] = unwrap(cpos[4,0], pos[4,0])
         pos[6,0] = unwrap(cpos[6,0], pos[6,0])
-        self.set_poses(np.column_stack([cpos, pos]), np.array([min_time, min_time+nsecs]), block=block)
+        self.set_poses(np.column_stack([pos]), np.array([nsecs]), block=block)
+        #self.set_poses(np.column_stack([cpos, pos]), np.array([min_time, min_time+nsecs]), block=block)
 
 class PR2Head(Joint):
 
@@ -163,9 +168,32 @@ class PR2Base:
         self.tflistener = tflistener
         self.client = actionlib.SimpleActionClient('move_base', mm.MoveBaseAction)
         rospy.loginfo('pr2base: waiting for move_base')
-        self.client.wait_for_server()
+        #self.client.wait_for_server()
         rospy.loginfo('pr2base: waiting transforms')
         self.tflistener.waitForTransform('map', 'base_footprint', rospy.Time(), rospy.Duration(20))
+
+        self.go_angle_client = actionlib.SimpleActionClient('go_angle', hm.GoAngleAction)
+        self.go_xy_client = actionlib.SimpleActionClient('go_xy', hm.GoXYAction)
+
+    def turn_to(self, angle, block=True):
+        goal = hm.GoAngleGoal()
+        goal.angle = angle
+        self.go_angle_client.send_goal(goal)
+        if block:
+            self.go_angle_client.wait_for_result()
+
+    def turn_by(self, delta_ang, block=True):
+        current_ang_odom = tr.euler_from_matrix(tfu.transform('base_footprint',\
+                                'odom_combined', self.tflistener)[0:3, 0:3], 'sxyz')[2]
+        self.turn_to(current_ang_odom + delta_ang, block)
+
+    def move_to(self, xy_loc_bf, block=True):
+        goal = hm.GoXYGoal()
+        goal.x = xy_loc_bf[0,0]
+        goal.y = xy_loc_bf[1,0]
+        self.go_xy_client.send_goal(goal)
+        if block:
+            self.go_xy_client.wait_for_result()
 
     def set_pose(self, t, r, frame, block=True):
         g = mm.MoveBaseGoal()

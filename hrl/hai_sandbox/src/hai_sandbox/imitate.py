@@ -642,7 +642,7 @@ class Imitate:
         #take before sensor snapshot
         start_pose = self.robot.head.pose()
         self.robot.head.set_pose(np.radians(np.matrix([1.04, -20]).T), 1)
-        time.sleep(4)
+        time.sleep(3)
         for i in range(10):
             before_frame = self.wide_angle_camera.get_frame()
         cv.SaveImage('before.png', before_frame)
@@ -674,17 +674,19 @@ class Imitate:
 
     def pose_robot_behavior(self, data):
         j0_dict = data['robot_pose']
+        pdb.set_trace()
         self.robot.left_arm.set_pose(j0_dict['poses']['larm'], 5., block=False)
-        self.robot.right_arm.set_pose(j0_dict['poses']['rarm'], 5, block=False)
-        #pdb.set_trace()
-        self.robot.head.set_pose(j0_dict['poses']['head_traj'], 5)
+        self.robot.right_arm.set_pose(j0_dict['poses']['rarm'], 5., block=False)
+        self.robot.head.set_pose(j0_dict['poses']['head_traj'], 5.)
         self.robot.torso.set_pose(j0_dict['poses']['torso'][0,0], block=True)
 
     def run_explore(self, data_fname):
         data = ut.load_pickle(data_fname)
-        #pdb.set_trace()
+        self.coarse_drive_behavior(data)
         self.pose_robot_behavior(data)
+        pdb.set_trace()
         probot_bf, bf_T_obj = self.find_pose_behavior(data)
+        self.fine_drive_behavior(tfu.tf_as_matrix(probot_bf))
 
         mean = np.matrix([[0.0, 0.0, 0.0]]).T
         cov = np.matrix(np.eye(3) * .0002)
@@ -708,6 +710,49 @@ class Imitate:
         ut.save_pickle(failed_offsets, 'failed_offsets.pkl')
         ut.save_pickle([offsets[0]], 'successful_offset.pkl')
 
+    def fine_drive_behavior(self, probot_bf):
+        map_T_bf = tfu.transform('map', 'base_footprint', self.tf_listener)
+        probot_map = map_T_bf * probot_bf
+        #pdb.set_trace()
+        self.drive_ff(tfu.matrix_as_tf(probot_map))
+
+        #self.robot.base.move_to(np.matrix(probot_bf[0:2,3]), True)
+        #current_ang_bf = tr.euler_from_matrix(tfu.transform('odom_combined', 'base_footprint', self.tf_listener)[0:3, 0:3], 'sxyz')[2]
+        #odom_T_bf = tfu.transform('odom_combined', 'base_footprint', self.tf_listener)
+        #ang_odom = tr.euler_from_matrix((odom_T_bf * probot_bf)[0:3, 0:3], 'sxyz')[2]
+        #self.robot.base.turn_to(ang_odom, True)
+
+    def coarse_drive_behavior(self, data):
+        t, r = data['base_pose']
+        rospy.loginfo('Driving to location %s' % str(t))
+        rospy.loginfo('press <enter> to continue')
+        raw_input()
+
+        rvalue = self.robot.base.set_pose(t, r, '/map', block=True)
+        rospy.loginfo('result is %s' % str(rvalue))
+        tfinal, rfinal = self.robot.base.get_pose()
+        rospy.loginfo('final pose error (step 1): %.3f' % (np.linalg.norm(t - tfinal)))
+        self.drive_ff(data['base_pose'])
+
+        #bf_T_map = tfu.transform('base_footprint', 'map', self.tf_listener)
+        #p_bf = bf_T_map * tfu.tf_as_matrix(data['base_pose'])
+        #self.robot.base.move_to(p_bf[0:2,3], True)
+
+        #current_ang_map = tr.euler_from_matrix(tfu.transform('map', 'base_footprint', self.tf_listener)[0:3, 0:3], 'sxyz')[2]
+        #desired_ang_map = tr.euler_from_matrix(tfu.tf_as_matrix(data['base_pose']), 'sxyz')[2]
+        #delta_angle_map = desired_ang_map - current_ang_map
+        #self.robot.base.turn_by(delta_angle_map)
+
+    def drive_ff(self, tf_pose_map):
+        bf_T_map = tfu.transform('base_footprint', 'map', self.tf_listener)
+        p_bf = bf_T_map * tfu.tf_as_matrix(tf_pose_map)
+        self.robot.base.move_to(p_bf[0:2,3], True)
+
+        #Turn
+        current_ang_map = tr.euler_from_matrix(tfu.transform('map', 'base_footprint', self.tf_listener)[0:3, 0:3], 'sxyz')[2]
+        desired_ang_map = tr.euler_from_matrix(tfu.tf_as_matrix(tf_pose_map), 'sxyz')[2]
+        delta_angle_map = desired_ang_map - current_ang_map
+        self.robot.base.turn_by(delta_angle_map)
 
     def run(self, data_fname, state='fine_positioning'):
         ##                                                                   
@@ -919,7 +964,16 @@ class ControllerTest:
 
     
 if __name__ == '__main__':
+
     if True:
+        #prosilica = rc.Prosilica('prosilica', 'streaming')
+        #pdb.set_trace()
+        #f = prosilica.get_frame()
+        #print f
+        im = Imitate()
+        im.run_explore(sys.argv[1])
+
+    if False:
         rospy.init_node('send_base_cmd')
         client = actionlib.SimpleActionClient('go_angle', hm.GoAngleAction)
         #client.wait_for_server()
@@ -945,14 +999,6 @@ if __name__ == '__main__':
         print 'waiting'
         client.wait_for_result()
 
-    if False:
-        #prosilica = rc.Prosilica('prosilica', 'streaming')
-        #pdb.set_trace()
-        #f = prosilica.get_frame()
-        #print f
-
-        im = Imitate()
-        im.run_explore(sys.argv[1])
 
     if False:
         dd = DisplayRecordedPose()

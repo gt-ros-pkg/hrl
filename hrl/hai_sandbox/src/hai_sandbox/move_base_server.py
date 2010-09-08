@@ -58,8 +58,8 @@ class MoveBase:
 
         od_T_bf = tfu.transform('odom_combined', 'base_footprint', self.tl)
         target_odom = (od_T_bf * np.row_stack([target_base, np.matrix([0,1.]).T]))[0:2,0]
-        print 'target base', target_base.T
-        print 'target odom', target_odom.T
+        #print 'target base', target_base.T
+        #print 'target odom', target_odom.T
 
         while not rospy.is_shutdown():
             robot_odom = np.matrix(tfu.transform('odom_combined', 'base_footprint', self.tl)[0:2,3])
@@ -95,19 +95,20 @@ class MoveBase:
 
     ##
     # delta angle
-    def go_angle(self, delta_ang, tolerance=math.radians(4.), max_ang_vel=math.radians(20.), func=None):
+    def go_angle(self, target_odom, tolerance=math.radians(5.), max_ang_vel=math.radians(20.), func=None):
         self.tl.waitForTransform('base_footprint', 'odom_combined', rospy.Time(), rospy.Duration(10))
         rate = rospy.Rate(100)
-        k = math.radians(40)
+        k = math.radians(50)
 
-        current_ang_odom = tr.euler_from_matrix(tfu.transform('base_footprint', 'odom_combined', self.tl)[0:3, 0:3], 'sxyz')[2]
-        target_odom = current_ang_odom + delta_ang
+        #current_ang_odom = tr.euler_from_matrix(tfu.transform('base_footprint', 'odom_combined', self.tl)[0:3, 0:3], 'sxyz')[2]
+        #target_odom = current_ang_odom + delta_ang
 
         while not rospy.is_shutdown():
-            p0_base = tfu.transform('base_footprint', 'odom_combined', self.tl)
-            current_ang_odom = tr.euler_from_matrix(p0_base[0:3, 0:3], 'sxyz')[2]
+            robot_odom = tfu.transform('base_footprint', 'odom_combined', self.tl)
+            current_ang_odom = tr.euler_from_matrix(robot_odom[0:3, 0:3], 'sxyz')[2]
             diff = ut.standard_rad(current_ang_odom - target_odom)
             p = k * diff
+            #print diff
             if func != None:
                 func(diff)
             if np.abs(diff) < tolerance:
@@ -116,7 +117,7 @@ class MoveBase:
             tw = gm.Twist()
             vels = [p, np.sign(p) * max_ang_vel]
             tw.angular.z = vels[np.argmin(np.abs(vels))]
-            rospy.loginfo('diff %.3f vel %.3f' % (math.degrees(diff), math.degrees(tw.angular.z)))
+            #rospy.loginfo('diff %.3f vel %.3f' % (math.degrees(diff), math.degrees(tw.angular.z)))
             self.tw_pub.publish(tw)
             #rospy.loginfo('commanded %s' % str(tw))
             rate.sleep()
