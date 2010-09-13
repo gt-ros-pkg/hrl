@@ -26,7 +26,7 @@ class Joint:
         self.joint_names = rospy.get_param('/%s/joints' % name)
         self.pub = rospy.Publisher('%s/command' % name, tm.JointTrajectory)
         self.names_index = None
-        self.zero_vel = [0 for j in range(len(self.joint_names))]
+        self.zeros = [0 for j in range(len(self.joint_names))]
 
     def pose(self, joint_states=None):
         if joint_states == None:
@@ -45,8 +45,9 @@ class Joint:
         points = [tm.JointTrajectoryPoint() for i in range(pos_mat.shape[1])]
         for i in range(pos_mat.shape[1]):
             points[i].positions = pos_mat[:,i].A1.tolist()
+            points[i].accelerations = self.zeros
             if vel_mat == None:
-                points[i].velocities = self.zero_vel
+                points[i].velocities = self.zeros
             else:
                 points[i].velocities = vel_mat[:,i].A1.tolist()
 
@@ -145,6 +146,9 @@ class PR2Arm(Joint):
         #min_time = .1
         pos[4,0] = unwrap(cpos[4,0], pos[4,0])
         pos[6,0] = unwrap(cpos[6,0], pos[6,0])
+        #print '==============================='
+        #print cpos.T
+        #print pos.T
         self.set_poses(np.column_stack([pos]), np.array([nsecs]), block=block)
         #self.set_poses(np.column_stack([cpos, pos]), np.array([min_time, min_time+nsecs]), block=block)
 

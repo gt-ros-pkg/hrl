@@ -9,6 +9,7 @@ import pr2_msgs.msg as pm
 import sensor_msgs.msg as sm
 import scipy.spatial as sp
 import actionlib
+import hai_sandbox.cmd_process as cmdp
 
 import tf.transformations as tr
 import hrl_lib.transforms as htf
@@ -30,6 +31,7 @@ import hai_sandbox.bag_processor as bp
 import hrl_camera.ros_camera as rc
 import math
 import hrl_pr2_lib.devices as hpr2
+import os
 
 
 def dict_to_arm_arg(d):
@@ -77,11 +79,6 @@ def list_marker(points, colors, scale, mtype, mframe, duration=10.0, m_id=0):
     m.scale.x = scale[0]
     m.scale.y = scale[1]
     m.scale.z = scale[2]
-    #m.pose.orientation.x = 0
-    #m.pose.orientation.y = 0
-    #m.pose.orientation.z = 0
-    #m.pose.orientation.w = 1.
-    
 
     m.lifetime = rospy.Duration(duration)
 
@@ -136,7 +133,7 @@ def normalize_ang(a):
     while a > (2*np.pi):
         a = a - (2*np.pi)
     return a
-    
+
 
 def find_object_pose(image, point_cloud_msg, data_dict, pro_T_bf, cam_info, RADIUS=.1):
     ## detect surf features, then match with features in model
@@ -145,7 +142,7 @@ def find_object_pose(image, point_cloud_msg, data_dict, pro_T_bf, cam_info, RADI
     match_idxs = [r['model_idx'] for r in match_info]
     match_locs = [r['candidate_loc'] for r in match_info]
     rospy.loginfo('Matched %d out of %d descriptors' % (len(match_info), len(desc)))
-    if len(match_info) < 2:
+    if len(match_info) < 4:
         raise RuntimeError('Insufficient number of matches')
 
     ## convert surf features into 3d in baseframe
@@ -173,14 +170,12 @@ def find_object_pose(image, point_cloud_msg, data_dict, pro_T_bf, cam_info, RADI
     matched_surf_loc3d_bf  = tfu.transform_points(np.linalg.inv(pro_T_bf), matched_surf_loc3d_pro)
   
     ## find the normal component
-    #center_bf = np.mean(matched_surf_loc3d_bf, 1) #find center by voting.
     center_bf = expected_positions3d_bf[:,0]
     point_cloud_kd_bf = sp.KDTree(point_cloud_bf.T)
     neighbor_idxs = point_cloud_kd_bf.query_ball_point(np.array(center_bf.T), RADIUS)
     points_nearby_bf = point_cloud_bf[:, neighbor_idxs[0]]
 
     #Instead of using the 3D location of matched SURF features, use the local neighborhood of points
-    #a_frame_bf = bp.create_frame(matched_surf_loc3d_bf, p= -center_bf)
     a_frame_bf = bp.create_frame(points_nearby_bf, p= -center_bf)
     normal_bf = a_frame_bf[:,2]
     null_bf = a_frame_bf[:,0:2]
@@ -447,27 +442,33 @@ def image_diff_val(before_frame, after_frame):
     sdiff = np.sum(np.abs(ar - br)) / max_sum
     return sdiff
 
+#def record_action_bag(bag_name):
+#    cmd = 'rosbag record -O %s /pressure/l_gripper_motor /pressure/r_gripper_motor /accelerometer/l_gripper_motor /accelerometer/r_gripper_motor /joint_states /l_cart/command_pose /l_cart/command_posture /l_cart/state /r_cart/command_pose /r_cart/command_posture /r_cart/state /head_traj_controller/command /base_controller/command /l_gripper_controller/command /r_gripper_controller/command /torso_controller/command /torso_controller/state /base_scan /tf /laser_tilt_controller/laser_scanner_signal' % bag_name
+#    print cmd
+#    os.system(cmd)
 
 class Imitate:
 
-    def __init__(self):
+    def __init__(self, offline=False):
         rospy.init_node('imitate')
         self.should_switch = False
         self.lmat0 = None
         self.rmat0 = None
         self.pressure_exceeded = False
 
-        self.tf_listener = tf.TransformListener()
-        self.robot = pr2.PR2(self.tf_listener)
-        self.prosilica = rc.Prosilica('prosilica', 'streaming')
-        self.wide_angle_camera = rc.ROSCamera('/wide_stereo/left/image_rect_color')
-        self.laser_scanner = hpr2.LaserScanner('point_cloud_srv')
-        self.cam_info = rc.ROSCameraCalibration('/prosilica/camera_info')
-        rospy.loginfo('waiting for cam info message')
-        self.cam_info.wait_till_msg()
-        rospy.loginfo('got cam info')
-        rospy.Subscriber('pressure/l_gripper_motor', pm.PressureState, self.lpress_cb)
-        rospy.loginfo('finished init')
+        if not offline:
+            self.tf_listener = tf.TransformListener()
+            self.robot = pr2.PR2(self.tf_listener)
+            self.prosilica = rc.Prosilica('prosilica', 'streaming')
+            self.wide_angle_camera = rc.ROSCamera('/wide_stereo/left/image_rect_color')
+            self.laser_scanner = hpr2.LaserScanner('point_cloud_srv')
+            self.cam_info = rc.ROSCameraCalibration('/prosilica/camera_info')
+            rospy.loginfo('waiting for cam info message')
+            self.cam_info.wait_till_msg()
+            rospy.loginfo('got cam info')
+            rospy.Subscriber('pressure/l_gripper_motor', pm.PressureState, self.lpress_cb)
+            rospy.loginfo('finished init')
+
 
 
     def shutdown(self):
@@ -492,19 +493,18 @@ class Imitate:
             rospy.loginfo('Pressure limit exceedeD!! %d %d' % (np.max(np.abs(lmat)), np.max(np.abs(rmat))))
             self.pressure_exceeded = True
 
+    ##
+    # add gripper & head controls
     def manipulate_cartesian_behavior(self, data, bf_T_obj, offset=np.matrix([.01,0,-.01]).T):
         rospy.loginfo('STATE manipulate')
         rospy.loginfo('there are %d states' % len(data['movement_states']))
         rospy.loginfo('switching controllers')
-        #pdb.set_trace()
         self.robot.controller_manager.switch(['l_cart', 'r_cart'], ['l_arm_controller', 'r_arm_controller'])
         self.should_switch = True
         rospy.on_shutdown(self.shutdown)
         self.robot.left_arm.set_posture(self.robot.left_arm.POSTURES['elbowupl'])
         self.robot.right_arm.set_posture(self.robot.right_arm.POSTURES['elbowupr'])
 
-        #rospy.loginfo('Ready to start.  Press <enter> to continue.')
-        #raw_input()
         ## For each contact state
         for state in range(len(data['movement_states'])):
             if rospy.is_shutdown():
@@ -523,6 +523,7 @@ class Imitate:
             offset_mat = np.row_stack(( np.column_stack((np.matrix(np.eye(3)), offset)), np.matrix([0,0,0,1.])))
             tl_T_obj = tl_T_bf * bf_T_obj * offset_mat 
             left_tip_poses = []
+
             # for each joint state message
             for d in cur_state['joint_states']:
                 # watch out for shut down and pressure exceeded signals
@@ -544,6 +545,7 @@ class Imitate:
                 # send cartesian command
                 rtip_pose_bf = tfu.matrix_as_tf((tl_T_obj * tfu.tf_as_matrix(d['rtip_obj'])))
                 ltip_pose_bf = tfu.matrix_as_tf((tl_T_obj * tfu.tf_as_matrix(d['ltip_obj'])))
+
                 self.robot.left_arm.set_cart_pose(ltip_pose_bf[0], ltip_pose_bf[1], 
                         'torso_lift_link', rospy.Time.now().to_time())
                 self.robot.right_arm.set_cart_pose(rtip_pose_bf[0], rtip_pose_bf[1], 
@@ -559,7 +561,10 @@ class Imitate:
     def find_pose_behavior(self, data):
         j0_dict = data['robot_pose']
         cpos = self.robot.pose()
-        self.robot.head.set_poses(np.column_stack([cpos['head_traj'], j0_dict['poses']['head_traj']]), np.array([.01, 5.]))
+        #pdb.set_trace()
+        # make this follow a trajectory
+        self.robot.head.set_pose(data['movement_states'][0]['joint_states'][-1]['poses']['head_traj'], 1.)
+        #self.robot.head.set_poses(np.column_stack([cpos['head_traj'], j0_dict['poses']['head_traj']]), np.array([.01, 5.]))
         self.robot.torso.set_pose(j0_dict['poses']['torso'][0,0], block=True)
         #time.sleep(2)
 
@@ -642,12 +647,12 @@ class Imitate:
         #take before sensor snapshot
         start_pose = self.robot.head.pose()
         self.robot.head.set_pose(np.radians(np.matrix([1.04, -20]).T), 1)
-        time.sleep(3)
-        for i in range(10):
+        time.sleep(4)
+        for i in range(3):
             before_frame = self.wide_angle_camera.get_frame()
         cv.SaveImage('before.png', before_frame)
         f(*args)
-        for i in range(10):
+        for i in range(2):
             after_frame = self.wide_angle_camera.get_frame()
 
         cv.SaveImage('after.png', after_frame)
@@ -674,47 +679,104 @@ class Imitate:
 
     def pose_robot_behavior(self, data):
         j0_dict = data['robot_pose']
-        pdb.set_trace()
+        #pdb.set_trace()
         self.robot.left_arm.set_pose(j0_dict['poses']['larm'], 5., block=False)
         self.robot.right_arm.set_pose(j0_dict['poses']['rarm'], 5., block=False)
         self.robot.head.set_pose(j0_dict['poses']['head_traj'], 5.)
         self.robot.torso.set_pose(j0_dict['poses']['torso'][0,0], block=True)
 
     def run_explore(self, data_fname):
+        rospy.loginfo('loading demonstration pickle')
         data = ut.load_pickle(data_fname)
-        self.coarse_drive_behavior(data)
+        #pdb.set_trace()
+        #self.coarse_drive_behavior(data)
+        rospy.loginfo('posing robot')
         self.pose_robot_behavior(data)
-        pdb.set_trace()
-        probot_bf, bf_T_obj = self.find_pose_behavior(data)
-        self.fine_drive_behavior(tfu.tf_as_matrix(probot_bf))
+        #pdb.set_trace()
+
+        #Try this 3 times
+        adjustment_result = False
+        i = 0
+        while adjustment_result == False:
+            try:
+                probot_bf, bf_T_obj = self.find_pose_behavior(data)
+                adjustment_result = self.fine_drive_behavior(tfu.tf_as_matrix(probot_bf))
+            except RuntimeError, e:
+                rospy.loginfo('%s' % str(e))
+                continue
+            i = i + 1
+            if i > 3:
+                return
 
         mean = np.matrix([[0.0, 0.0, 0.0]]).T
         cov = np.matrix(np.eye(3) * .0002)
         cov[2,2] = .000005
         g = pb.Gaussian(mean, cov)
 
-        success = False
-        #pdb.set_trace()
         failed_offsets = []
         offsets = [np.matrix(np.zeros((3,1)))]
+
+        date_str = time.strftime('%A_%m_%d_%Y_%I:%M%p')
+        os.system('mkdir %s' % date_str)
+        os.system('mkdir %s/success' % date_str)
+        os.system('mkdir %s/failure' % date_str)
+        i = 0
+        success = False
         while (not rospy.is_shutdown()) and (not success):
             rospy.loginfo('=============================================')
             rospy.loginfo('Current offset is %s' % str(offsets[0].T))
+            tstart = time.time()
+
+            #Record scan, joint angles, pps sensor, effort, accelerometer
+            #       get a highres scan, get an image
+            bag_name = 'trial.bag'
+            cmd = 'rosbag record -O %s /pressure/l_gripper_motor /pressure/r_gripper_motor /accelerometer/l_gripper_motor /accelerometer/r_gripper_motor /joint_states /l_cart/command_pose /l_cart/command_posture /l_cart/state /r_cart/command_pose /r_cart/command_posture /r_cart/state /head_traj_controller/command /base_controller/command /l_gripper_controller/command /r_gripper_controller/command /torso_controller/command /torso_controller/state /base_scan /tf /laser_tilt_controller/laser_scanner_signal' % bag_name
+            recording_process = cmdp.CmdProcess(cmd.split())
+            recording_process.run()
+            rospy.loginfo('Getting a scan before action.')
+            before_scan = self.laser_scanner.scan(math.radians(180.), math.radians(-180.), 5.)
+
             if self.change_detect(self.manipulate_cartesian_behavior, [data, bf_T_obj, offsets[0]]):
                 rospy.loginfo('success!')
-                break
+                success = True
+                folder = 'success'
             else:
+                rospy.loginfo('failed.')
+                success = False
+                folder = 'failure'
                 failed_offsets.append(offsets[0])
-            offsets[0] = np.matrix(np.zeros((3,1))) + g.sample()
 
-        ut.save_pickle(failed_offsets, 'failed_offsets.pkl')
-        ut.save_pickle([offsets[0]], 'successful_offset.pkl')
+            recording_process.kill()
+            rospy.loginfo('Getting a scan after action.')
+            after_scan = self.laser_scanner.scan(math.radians(180.), math.radians(-180.), 5.)
+            scmd1 = 'mv %s %s/%s/trial%d.bag' % (bag_name, date_str, folder, i)
+            scmd2 = 'mv before.png %s/%s/trial%d_before.png' % (date_str, folder, i)
+            scmd3 = 'mv after.png %s/%s/trial%d_after.png' % (date_str, folder, i)
+            rospy.loginfo('Saving scans.')
+            ut.save_pickle({'before_scan': before_scan, 
+                            'after_scan': after_scan,
+                            'bf_T_obj': bf_T_obj,
+                            'offset': offsets[0]},
+                            '%s/%s/trial%d.pkl' % (date_str, folder, i))
+            for scmd in [scmd1, scmd2, scmd3]:
+                rospy.loginfo(scmd)
+                os.system(scmd)
+
+            offsets[0] = np.matrix(np.zeros((3,1))) + g.sample()
+            i = i + 1
+            rospy.loginfo('Trial took %f secs' % (time.time() - tstart))
+            if success:
+                break
+
+        #ut.save_pickle(failed_offsets, 'failed_offsets.pkl')
+        #ut.save_pickle([offsets[0]], 'successful_offset.pkl')
 
     def fine_drive_behavior(self, probot_bf):
         map_T_bf = tfu.transform('map', 'base_footprint', self.tf_listener)
         probot_map = map_T_bf * probot_bf
         #pdb.set_trace()
-        self.drive_ff(tfu.matrix_as_tf(probot_map))
+        return True
+        #return self.drive_ff(tfu.matrix_as_tf(probot_map))
 
         #self.robot.base.move_to(np.matrix(probot_bf[0:2,3]), True)
         #current_ang_bf = tr.euler_from_matrix(tfu.transform('odom_combined', 'base_footprint', self.tf_listener)[0:3, 0:3], 'sxyz')[2]
@@ -744,15 +806,27 @@ class Imitate:
         #self.robot.base.turn_by(delta_angle_map)
 
     def drive_ff(self, tf_pose_map):
+        #pdb.set_trace()
+        # tf_pose_map[0][0:2]
         bf_T_map = tfu.transform('base_footprint', 'map', self.tf_listener)
         p_bf = bf_T_map * tfu.tf_as_matrix(tf_pose_map)
+        rospy.loginfo('drive_ff %s' % str(p_bf[0:2,3]))
+        if np.linalg.norm(p_bf[0:2,3]) > .2:
+            rospy.loginfo('drive_ff rejecting command due to large displacement command')
+            return False
         self.robot.base.move_to(p_bf[0:2,3], True)
 
         #Turn
         current_ang_map = tr.euler_from_matrix(tfu.transform('map', 'base_footprint', self.tf_listener)[0:3, 0:3], 'sxyz')[2]
         desired_ang_map = tr.euler_from_matrix(tfu.tf_as_matrix(tf_pose_map), 'sxyz')[2]
         delta_angle_map = desired_ang_map - current_ang_map
+        if np.degrees(delta_angle_map) > 40:
+            rospy.loginfo('drive_ff rejecting command due to large rotation command')
+            return False
+
         self.robot.base.turn_by(delta_angle_map)
+
+        return True
 
     def run(self, data_fname, state='fine_positioning'):
         ##                                                                   
@@ -765,39 +839,43 @@ class Imitate:
             #  'closest_feature'
             #  'object_frame'
 
+        print 'loading data'
         data = ut.load_pickle(data_fname)
+        print 'done'
+        state = 'fine_positioning_offline'
+        pdb.set_trace()
     
         ##Need to be localized!!
         ## NOT LEARNED: go into safe state.
         
         ## coarse_driving. learned locations. (might learn path/driving too?)
-        if state == 'coarse_driving':
-            t, r = data['base_pose']
-            rospy.loginfo('Driving to location %s' % str(t))
-            rospy.loginfo('Ready to start driving.  Press <enter> to continue.')
-            raw_input()
-            rvalue = self.robot.base.set_pose(t, r, '/map', block=True)
-            rospy.loginfo('result is %s' % str(rvalue))
-            state = 'start_pose'
+        #if state == 'coarse_driving':
+        #    t, r = data['base_pose']
+        #    rospy.loginfo('Driving to location %s' % str(t))
+        #    rospy.loginfo('Ready to start driving.  Press <enter> to continue.')
+        #    raw_input()
+        #    rvalue = self.robot.base.set_pose(t, r, '/map', block=True)
+        #    rospy.loginfo('result is %s' % str(rvalue))
+        #    state = 'start_pose'
 
-            tfinal, rfinal = self.robot.base.get_pose()
-            print 'Final pose error: %.3f' % (np.linalg.norm(t - tfinal))
-            state = 'start_pose'
+        #    tfinal, rfinal = self.robot.base.get_pose()
+        #    print 'Final pose error: %.3f' % (np.linalg.norm(t - tfinal))
+        #    state = 'start_pose'
 
-        if state == 'start_pose':
-            rospy.loginfo('Ready to start start_pose.  Press <enter> to continue.')
-            self.pose_robot_behavior(data)
-            state = 'fine_positioning'
+        #if state == 'start_pose':
+        #    rospy.loginfo('Ready to start start_pose.  Press <enter> to continue.')
+        #    self.pose_robot_behavior(data)
+        #    state = 'fine_positioning'
 
-        if state == 'fine_positioning':
-            bf_T_obj = self.find_pose_behavior(data)
-            state = 'start_pose'
+        #if state == 'fine_positioning':
+        #    bf_T_obj = self.find_pose_behavior(data)
+        #    state = 'start_pose'
 
         ## Move joints to initial state. learned initial state. (maybe coordinate this with sensors?)
         #Put robot in the correct state
 
-        if state == 'manipulate_cart2':
-            self.manipulate_cartesian_behavior(data, bf_T_obj)
+        #if state == 'manipulate_cart2':
+        #    self.manipulate_cartesian_behavior(data, bf_T_obj)
 
         if state == 'fine_positioning_offline':
             rospy.loginfo('Finding object pose (offline)')
@@ -847,66 +925,66 @@ class Imitate:
                     data['start_conditions']['pose_parameters']['contact_bf'])
 
     
-        if state == 'manipulate_cart':
-            rospy.loginfo('STATE manipulate')
-            rospy.loginfo('there are %d states' % len(data['movement_states']))
-            rospy.loginfo('switching controllers')
-            self.robot.controller_manager.switch(['l_cart', 'r_cart'], ['l_arm_controller', 'r_arm_controller'])
-            self.should_switch = True
-            rospy.on_shutdown(self.shutdown)
-            self.robot.left_arm.set_posture(self.robot.left_arm.POSTURES['elbowupl'])
-            self.robot.right_arm.set_posture(self.robot.right_arm.POSTURES['elbowupr'])
+        #if state == 'manipulate_cart':
+        #    rospy.loginfo('STATE manipulate')
+        #    rospy.loginfo('there are %d states' % len(data['movement_states']))
+        #    rospy.loginfo('switching controllers')
+        #    self.robot.controller_manager.switch(['l_cart', 'r_cart'], ['l_arm_controller', 'r_arm_controller'])
+        #    self.should_switch = True
+        #    rospy.on_shutdown(self.shutdown)
+        #    self.robot.left_arm.set_posture(self.robot.left_arm.POSTURES['elbowupl'])
+        #    self.robot.right_arm.set_posture(self.robot.right_arm.POSTURES['elbowupr'])
     
-            self.robot.left_arm.set_posture(self.robot.left_arm.POSTURES['elbowupl'])
-            self.robot.right_arm.set_posture(self.robot.right_arm.POSTURES['elbowupr'])
+        #    self.robot.left_arm.set_posture(self.robot.left_arm.POSTURES['elbowupl'])
+        #    self.robot.right_arm.set_posture(self.robot.right_arm.POSTURES['elbowupr'])
 
-            ## For each contact state
-            for state in range(len(data['movement_states'])):
+        #    ## For each contact state
+        #    for state in range(len(data['movement_states'])):
 
-                if rospy.is_shutdown():
-                    break
+        #        if rospy.is_shutdown():
+        #            break
 
-                if self.pressure_exceeded:
-                    rospy.loginfo('Exiting movement state loop')
-                    break
+        #        if self.pressure_exceeded:
+        #            rospy.loginfo('Exiting movement state loop')
+        #            break
     
-                cur_state = data['movement_states'][state]
-                rospy.loginfo("starting %s" % cur_state['name'])
-                left_cart  = cur_state['cartesian'][0]
-                right_cart = cur_state['cartesian'][1]
-                start_time = cur_state['start_time']
-                wall_start_time = rospy.get_rostime().to_time()
+        #        cur_state = data['movement_states'][state]
+        #        rospy.loginfo("starting %s" % cur_state['name'])
+        #        left_cart  = cur_state['cartesian'][0]
+        #        right_cart = cur_state['cartesian'][1]
+        #        start_time = cur_state['start_time']
+        #        wall_start_time = rospy.get_rostime().to_time()
     
-                for ldict, rdict in zip(left_cart, right_cart):
-                    if rospy.is_shutdown():
-                        break
-                    if self.pressure_exceeded:
-                        rospy.loginfo('Exiting inner movement state loop')
-                        break
-                    lps = dict_to_arm_arg(ldict)
-                    rps = dict_to_arm_arg(rdict)
+        #        for ldict, rdict in zip(left_cart, right_cart):
+        #            if rospy.is_shutdown():
+        #                break
+        #            if self.pressure_exceeded:
+        #                rospy.loginfo('Exiting inner movement state loop')
+        #                break
+        #            lps = dict_to_arm_arg(ldict)
+        #            rps = dict_to_arm_arg(rdict)
     
-                    msg_time_from_start = ((lps[3] - start_time) + (rps[3] - start_time))/2.0
-                    cur_time = rospy.get_rostime().to_time()
-                    wall_time_from_start = (cur_time - wall_start_time)
+        #            msg_time_from_start = ((lps[3] - start_time) + (rps[3] - start_time))/2.0
+        #            cur_time = rospy.get_rostime().to_time()
+        #            wall_time_from_start = (cur_time - wall_start_time)
     
-                    sleep_time = (msg_time_from_start - wall_time_from_start) - .005
-                    if sleep_time < 0:
-                        rospy.loginfo('sleep time < 0, %f' % sleep_time)
+        #            sleep_time = (msg_time_from_start - wall_time_from_start) - .005
+        #            if sleep_time < 0:
+        #                rospy.loginfo('sleep time < 0, %f' % sleep_time)
     
-                    if sleep_time > 0:
-                        time.sleep(sleep_time)
+        #            if sleep_time > 0:
+        #                time.sleep(sleep_time)
     
-                    lps[3] = rospy.get_rostime().to_time()
-                    rps[3] = rospy.get_rostime().to_time()
-                    self.robot.left_arm.set_cart_pose(*lps)
-                    self.robot.right_arm.set_cart_pose(*rps)
-                #rospy.loginfo("%s FINISHED" % cur_state['name'])
-                #time.sleep(5)
+        #            lps[3] = rospy.get_rostime().to_time()
+        #            rps[3] = rospy.get_rostime().to_time()
+        #            self.robot.left_arm.set_cart_pose(*lps)
+        #            self.robot.right_arm.set_cart_pose(*rps)
+        #        #rospy.loginfo("%s FINISHED" % cur_state['name'])
+        #        #time.sleep(5)
     
-            self.robot.controller_manager.switch(['l_arm_controller', 'r_arm_controller'], ['l_cart', 'r_cart'])
-            self.should_switch = False
-        
+        #    self.robot.controller_manager.switch(['l_arm_controller', 'r_arm_controller'], ['l_cart', 'r_cart'])
+        #    self.should_switch = False
+        #
         if state == 'manipulate':
             rospy.loginfo('STATE manipulate')
             rospy.loginfo('there are %d states' % len(data['movement_states']))
@@ -938,9 +1016,9 @@ class Imitate:
                 rospy.loginfo("%s FINISHED" % cur_state['name'])
                 time.sleep(5)
     
-        ## rosbag implementation steps in time and also figures out how long to sleep until it needs to publish next message
-        ## Just play pose stamped back at 10 hz
-        ## For each contact state
+        ### rosbag implementation steps in time and also figures out how long to sleep until it needs to publish next message
+        ### Just play pose stamped back at 10 hz
+        ### For each contact state
 
 
 class ControllerTest:
@@ -964,14 +1042,15 @@ class ControllerTest:
 
     
 if __name__ == '__main__':
+    mode = sys.argv[1]
 
-    if True:
-        #prosilica = rc.Prosilica('prosilica', 'streaming')
-        #pdb.set_trace()
-        #f = prosilica.get_frame()
-        #print f
+    if mode == 'run':
         im = Imitate()
-        im.run_explore(sys.argv[1])
+        im.run_explore(sys.argv[2])
+
+    if mode == 'display':
+        im = Imitate(True)
+        im.run(sys.argv[2])
 
     if False:
         rospy.init_node('send_base_cmd')
