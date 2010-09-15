@@ -5,6 +5,7 @@ import hrl_lib.prob as pb
 import hrl_lib.util as ut
 import hai_sandbox.pr2 as pr2
 import hai_sandbox.msg as hm
+import hrl_lib.msg as hlm
 import pr2_msgs.msg as pm
 import sensor_msgs.msg as sm
 import scipy.spatial as sp
@@ -32,6 +33,7 @@ import hrl_camera.ros_camera as rc
 import math
 import hrl_pr2_lib.devices as hpr2
 import os
+import threading
 
 
 def dict_to_arm_arg(d):
@@ -442,10 +444,28 @@ def image_diff_val(before_frame, after_frame):
     sdiff = np.sum(np.abs(ar - br)) / max_sum
     return sdiff
 
+def image_diff_val2(before_frame, after_frame):
+    br = np.asarray(before_frame)
+    ar = np.asarray(after_frame)
+    max_sum = br.shape[0] * br.shape[1] * br.shape[2] * 255.
+    sdiff = np.abs((np.sum(br) / max_sum) - (np.sum(ar) / max_sum))
+    #sdiff = np.sum(np.abs(ar - br)) / max_sum
+    return sdiff
+
+
 #def record_action_bag(bag_name):
 #    cmd = 'rosbag record -O %s /pressure/l_gripper_motor /pressure/r_gripper_motor /accelerometer/l_gripper_motor /accelerometer/r_gripper_motor /joint_states /l_cart/command_pose /l_cart/command_posture /l_cart/state /r_cart/command_pose /r_cart/command_posture /r_cart/state /head_traj_controller/command /base_controller/command /l_gripper_controller/command /r_gripper_controller/command /torso_controller/command /torso_controller/state /base_scan /tf /laser_tilt_controller/laser_scanner_signal' % bag_name
 #    print cmd
 #    os.system(cmd)
+
+class ExecuteAction(threading.Thread):
+    def __init__(self, f, args):
+        threading.Thread.__init__(self)
+        self.f = f
+        self.args = args
+
+    def run(self):
+        self.f(*self.args)
 
 class Imitate:
 
@@ -457,6 +477,7 @@ class Imitate:
         self.pressure_exceeded = False
 
         if not offline:
+            self.behavior_marker_pub = rospy.Publisher('imitate_behavior_marker', hlm.String)
             self.tf_listener = tf.TransformListener()
             self.robot = pr2.PR2(self.tf_listener)
             self.prosilica = rc.Prosilica('prosilica', 'streaming')
@@ -477,7 +498,7 @@ class Imitate:
             self.robot.controller_manager.switch(['l_arm_controller', 'r_arm_controller'], ['l_cart', 'r_cart'])
     
     def lpress_cb(self, pmsg):
-        TOUCH_THRES = 3000
+        TOUCH_THRES = 4000
         lmat = np.matrix((pmsg.l_finger_tip)).T
         rmat = np.matrix((pmsg.r_finger_tip)).T
         if self.lmat0 == None:
@@ -511,6 +532,7 @@ class Imitate:
                 break
 
             if self.pressure_exceeded:
+                self.pressure_exceeded = False
                 rospy.loginfo('Exiting movement state loop')
                 break
 
@@ -524,6 +546,11 @@ class Imitate:
             tl_T_obj = tl_T_bf * bf_T_obj * offset_mat 
             left_tip_poses = []
 
+            #self.behavior_marker_pub = rospy.Publisher('imitate_behavior_marker', hlm.String)
+            m = hlm.String()
+            m.header.stamp = rospy.get_ros_time()
+            m.data = str(state)
+            self.behavior_marker_pub.publish(m)
             # for each joint state message
             for d in cur_state['joint_states']:
                 # watch out for shut down and pressure exceeded signals
@@ -553,6 +580,7 @@ class Imitate:
                 left_tip_poses.append(ltip_pose_bf[0])
 
             rospy.loginfo("%s FINISHED" % cur_state['name'])
+            self.behavior_marker_pub.publish(m)
         #time.sleep(5)
         self.robot.controller_manager.switch(['l_arm_controller', 'r_arm_controller'], ['l_cart', 'r_cart'])
         self.should_switch = False
@@ -648,21 +676,22 @@ class Imitate:
         start_pose = self.robot.head.pose()
         self.robot.head.set_pose(np.radians(np.matrix([1.04, -20]).T), 1)
         time.sleep(4)
-        for i in range(3):
+        for i in range(4):
             before_frame = self.wide_angle_camera.get_frame()
         cv.SaveImage('before.png', before_frame)
         f(*args)
-        for i in range(2):
+        time.sleep(2)
+        for i in range(3):
             after_frame = self.wide_angle_camera.get_frame()
 
         cv.SaveImage('after.png', after_frame)
-        sdiff = image_diff_val(before_frame, after_frame)
+        sdiff = image_diff_val2(before_frame, after_frame)
         #pdb.set_trace()
         self.robot.head.set_pose(start_pose, 1)
         time.sleep(3)        
         #take after snapshot
-        threshold = .7
-        rospy.loginfo('camera difference %.3f' % sdiff)
+        threshold = .03
+        rospy.loginfo('camera difference %.4f (thres %.3f)' % (sdiff, threshold))
         if sdiff > threshold:
             rospy.loginfo('difference detected!')
             return True
@@ -709,7 +738,7 @@ class Imitate:
                 return
 
         mean = np.matrix([[0.0, 0.0, 0.0]]).T
-        cov = np.matrix(np.eye(3) * .0002)
+        cov = np.matrix(np.eye(3) * .0004)
         cov[2,2] = .000005
         g = pb.Gaussian(mean, cov)
 
@@ -722,7 +751,8 @@ class Imitate:
         os.system('mkdir %s/failure' % date_str)
         i = 0
         success = False
-        while (not rospy.is_shutdown()) and (not success):
+        current_center = np.matrix(np.zeros((3,1)))
+        while (not rospy.is_shutdown()):# and (not success):
             rospy.loginfo('=============================================')
             rospy.loginfo('Current offset is %s' % str(offsets[0].T))
             tstart = time.time()
@@ -730,7 +760,7 @@ class Imitate:
             #Record scan, joint angles, pps sensor, effort, accelerometer
             #       get a highres scan, get an image
             bag_name = 'trial.bag'
-            cmd = 'rosbag record -O %s /pressure/l_gripper_motor /pressure/r_gripper_motor /accelerometer/l_gripper_motor /accelerometer/r_gripper_motor /joint_states /l_cart/command_pose /l_cart/command_posture /l_cart/state /r_cart/command_pose /r_cart/command_posture /r_cart/state /head_traj_controller/command /base_controller/command /l_gripper_controller/command /r_gripper_controller/command /torso_controller/command /torso_controller/state /base_scan /tf /laser_tilt_controller/laser_scanner_signal' % bag_name
+            cmd = 'rosbag record -O %s imitate_behavior_marker /pressure/l_gripper_motor /pressure/r_gripper_motor /accelerometer/l_gripper_motor /accelerometer/r_gripper_motor /joint_states /l_cart/command_pose /l_cart/command_posture /l_cart/state /r_cart/command_pose /r_cart/command_posture /r_cart/state /head_traj_controller/command /base_controller/command /l_gripper_controller/command /r_gripper_controller/command /torso_controller/command /torso_controller/state /base_scan /tf /laser_tilt_controller/laser_scanner_signal' % bag_name
             recording_process = cmdp.CmdProcess(cmd.split())
             recording_process.run()
             rospy.loginfo('Getting a scan before action.')
@@ -740,6 +770,8 @@ class Imitate:
                 rospy.loginfo('success!')
                 success = True
                 folder = 'success'
+                current_center = offsets[0]
+                rospy.loginfo('Updating current center to %s.' % str(current_center.T))
             else:
                 rospy.loginfo('failed.')
                 success = False
@@ -752,21 +784,31 @@ class Imitate:
             scmd1 = 'mv %s %s/%s/trial%d.bag' % (bag_name, date_str, folder, i)
             scmd2 = 'mv before.png %s/%s/trial%d_before.png' % (date_str, folder, i)
             scmd3 = 'mv after.png %s/%s/trial%d_after.png' % (date_str, folder, i)
-            rospy.loginfo('Saving scans.')
-            ut.save_pickle({'before_scan': before_scan, 
-                            'after_scan': after_scan,
-                            'bf_T_obj': bf_T_obj,
-                            'offset': offsets[0]},
-                            '%s/%s/trial%d.pkl' % (date_str, folder, i))
+            #Save pickle in a separate thread
+            def f(before_scan, after_scan, bf_T_obj, offsets, date_str, folder, i):
+                rospy.loginfo('Saving scans.')
+                ut.save_pickle({'before_scan': before_scan, 
+                                'after_scan': after_scan,
+                                'bf_T_obj': bf_T_obj,
+                                'offset': offsets[0]},
+                                '%s/%s/trial%d.pkl' % (date_str, folder, i))
+            e = ExecuteAction(f, [before_scan, after_scan, bf_T_obj, offsets, date_str, folder, i])
+            e.start()
             for scmd in [scmd1, scmd2, scmd3]:
                 rospy.loginfo(scmd)
                 os.system(scmd)
 
-            offsets[0] = np.matrix(np.zeros((3,1))) + g.sample()
+            offsets[0] = current_center + g.sample()
             i = i + 1
             rospy.loginfo('Trial took %f secs' % (time.time() - tstart))
             if success:
+                rospy.loginfo('Reset environment please!!')
+                raw_input()
+
+            if i > 200:
                 break
+            #if success:
+            #    break
 
         #ut.save_pickle(failed_offsets, 'failed_offsets.pkl')
         #ut.save_pickle([offsets[0]], 'successful_offset.pkl')
