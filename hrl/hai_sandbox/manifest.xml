@@ -26,6 +26,9 @@
   <depend package="pr2_mechanism_msgs"/>
   <depend package="visualization_msgs"/>
   <depend package="kinematics_msgs"/>
+  <depend package="hrl_pr2_lib"/>
+  <depend package="actionlib_msgs"/>
+  <depend package="theano"/>
 
 </package>
 
