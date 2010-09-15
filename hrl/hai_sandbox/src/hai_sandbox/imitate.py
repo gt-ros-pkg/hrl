@@ -548,7 +548,7 @@ class Imitate:
 
             #self.behavior_marker_pub = rospy.Publisher('imitate_behavior_marker', hlm.String)
             m = hlm.String()
-            m.header.stamp = rospy.get_ros_time()
+            m.header.stamp = rospy.get_rostime()
             m.data = str(state)
             self.behavior_marker_pub.publish(m)
             # for each joint state message
@@ -580,6 +580,7 @@ class Imitate:
                 left_tip_poses.append(ltip_pose_bf[0])
 
             rospy.loginfo("%s FINISHED" % cur_state['name'])
+            m.header.stamp = rospy.get_rostime()
             self.behavior_marker_pub.publish(m)
         #time.sleep(5)
         self.robot.controller_manager.switch(['l_arm_controller', 'r_arm_controller'], ['l_cart', 'r_cart'])
@@ -760,7 +761,7 @@ class Imitate:
             #Record scan, joint angles, pps sensor, effort, accelerometer
             #       get a highres scan, get an image
             bag_name = 'trial.bag'
-            cmd = 'rosbag record -O %s imitate_behavior_marker /pressure/l_gripper_motor /pressure/r_gripper_motor /accelerometer/l_gripper_motor /accelerometer/r_gripper_motor /joint_states /l_cart/command_pose /l_cart/command_posture /l_cart/state /r_cart/command_pose /r_cart/command_posture /r_cart/state /head_traj_controller/command /base_controller/command /l_gripper_controller/command /r_gripper_controller/command /torso_controller/command /torso_controller/state /base_scan /tf /laser_tilt_controller/laser_scanner_signal' % bag_name
+            cmd = 'rosbag record -O %s /imitate_behavior_marker /pressure/l_gripper_motor /pressure/r_gripper_motor /accelerometer/l_gripper_motor /accelerometer/r_gripper_motor /joint_states /l_cart/command_pose /l_cart/command_posture /l_cart/state /r_cart/command_pose /r_cart/command_posture /r_cart/state /head_traj_controller/command /base_controller/command /l_gripper_controller/command /r_gripper_controller/command /torso_controller/command /torso_controller/state /base_scan /tf /laser_tilt_controller/laser_scanner_signal' % bag_name
             recording_process = cmdp.CmdProcess(cmd.split())
             recording_process.run()
             rospy.loginfo('Getting a scan before action.')
