@@ -83,8 +83,6 @@ class ROS_M5e( Thread ):
 
         self.start()  # Thread: calls self.run()
 
-    def 
-
     def run( self ): 
         while self.should_run:
             if self.mode == self.QUERY_MODE:
@@ -95,11 +93,17 @@ class ROS_M5e( Thread ):
                         datum = [antennaName, '', -1]
                         [cF(datum) for cF in self.callbacks]
                     arr = []
+                    t_now = rospy.Time.now()
                     for tagid, rssi in results:
-                        arr.append( RFIDread( None, antennaName, tagid, rssi ) )
+                        rv = RFIDread( None, antennaName, tagid, rssi )
+                        rv.header.stamp = t_now
+                        arr.append( rv )
                         datum = [antennaName, tagid, rssi]
                         [cF(datum) for cF in self.callbacks]
-                    self.pub_arr.publish( arr )
+                    rfid_arr = RFIDreadArr()
+                    rfid_arr.header.stamp = t_now
+                    rfid_arr.arr = arr
+                    self.pub_arr.publish( rfid_arr )
             elif self.mode == self.TRACK_MODE:
                 for aF in self.antFuncs:
                     antennaName = aF(self.reader)    # let current antFunc make appropriate changes
