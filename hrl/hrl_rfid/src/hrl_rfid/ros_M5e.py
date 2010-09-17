@@ -34,6 +34,7 @@
 import roslib; roslib.load_manifest('hrl_rfid')
 import rospy
 from hrl_rfid.msg import RFIDread
+from hrl_rfid.msg import RFIDreadArr
 from hrl_rfid.srv import StringArray_None
 from hrl_rfid.srv import StringArray_NoneResponse
 import hrl_rfid.lib_M5e as M5e
@@ -74,12 +75,15 @@ class ROS_M5e( Thread ):
 
         rospy.logout( 'ROS_M5e: publishing RFID reader with type RFIDread to channel /rfid/'+name+'_reader' )
         self.channel       = rospy.Publisher('/rfid/'+name+'_reader', RFIDread)
+        self.pub_arr = rospy.Publisher('/rfid/'+name+'_reader_arr', RFIDreadArr)
         self._mode_service_obj = rospy.Service('/rfid/'+name+'_mode',
                                                 StringArray_None, self._mode_service)
 
         rospy.logout( 'ROS_M5e: '+self.name+' Inialized and awaiting instructions' )
 
         self.start()  # Thread: calls self.run()
+
+    def 
 
     def run( self ): 
         while self.should_run:
@@ -90,9 +94,12 @@ class ROS_M5e( Thread ):
                     if len(results) == 0:
                         datum = [antennaName, '', -1]
                         [cF(datum) for cF in self.callbacks]
+                    arr = []
                     for tagid, rssi in results:
+                        arr.append( RFIDread( None, antennaName, tagid, rssi ) )
                         datum = [antennaName, tagid, rssi]
                         [cF(datum) for cF in self.callbacks]
+                    self.pub_arr.publish( arr )
             elif self.mode == self.TRACK_MODE:
                 for aF in self.antFuncs:
                     antennaName = aF(self.reader)    # let current antFunc make appropriate changes
