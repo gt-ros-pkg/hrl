@@ -184,6 +184,7 @@ def construct_pressure_marker_message(data_dict, topic, base_color=np.matrix([1.
         times_dict[i] = []
         for record_number in range(len(data_dict[i][topic])):
             time_start = data_dict[0][topic][record_number]['t'][0]
+            #pdb.set_trace()
             times_dict[i].append(data_dict[i][topic][record_number]['t'] - time_start)
 
     state_time_offsets = {}
@@ -197,10 +198,11 @@ def construct_pressure_marker_message(data_dict, topic, base_color=np.matrix([1.
         print 'state', state, 'offset', state_time_offsets[state]['offset'], 'duration', state_time_offsets[state]['duration']
     
     for record_number in range(len(data_dict[0][topic])):
-        print record_number, len(data_dict[0][topic]), len(data_dict[1][topic]), len(data_dict[2][topic])
+        #print record_number, len(data_dict[0][topic]), len(data_dict[1][topic]), len(data_dict[2][topic])
         pressure_mat_l = np.column_stack([data_dict[i][topic][record_number]['left' ] for i in range(len(data_dict.keys()))])
         pressure_mat_r = np.column_stack([data_dict[i][topic][record_number]['right'] for i in range(len(data_dict.keys()))])
         pressure_mat = np.row_stack((pressure_mat_l, pressure_mat_r))
+        #pdb.set_trace()
         pressure_mat = (pressure_mat - pressure_mat[:,0])
 
         times_l = []
@@ -239,13 +241,13 @@ def construct_pressure_marker_message(data_dict, topic, base_color=np.matrix([1.
     #pdb.set_trace()
     max_pval = np.max(pressures)
     min_pval = np.min(pressures)
-    print 'min %d max %d' % (min_pval, max_pval)
+    #print 'min pressure reading %d max %d' % (min_pval, max_pval)
 
     #base_color        = np.matrix([1.,0, 0, 1.]).T
     colors_mat[0:4,:] = base_color * (np.abs(pressures) / 100.)
     marker      = viz.list_marker(all_points, colors_mat, [.05, .05, .05], 'points', 'pressure_viz')
-    #point_cloud = ru.np_to_colored_pointcloud(all_points, np.matrix(pressures)/100. + min_pval, 'pressure_viz')
-    return marker
+    point_cloud = ru.np_to_colored_pointcloud(all_points, np.matrix(pressures) + min_pval, 'pressure_viz')
+    return marker, point_cloud
 
 
 class DisplayDataWithRviz:
@@ -271,20 +273,23 @@ class DisplayDataWithRviz:
 
         red = np.matrix([1.,0, 0, 1.]).T
         green = np.matrix([0.,1., 0, 1.]).T
-        #succ_marker = construct_pressure_marker_message(successes, topic, green)
-        fail_marker = construct_pressure_marker_message(failures, topic, red)
+        succ_marker, succ_pc = construct_pressure_marker_message(successes, topic, green)
+        fail_marker, fail_pc = construct_pressure_marker_message(failures, topic, red)
         print 'publishing...'
         r = rospy.Rate(10)
         while not rospy.is_shutdown():
-            #self.succ_marker.publish(succ_marker)
+            self.succ_marker.publish(succ_marker)
             self.fail_marker.publish(fail_marker)
+
+            self.succ_pc_pub.publish(succ_pc)
+            self.fail_pc_pub.publish(fail_pc)
             r.sleep()
 
         #def list_marker(points, colors, scale, mtype, mframe, duration=10.0, m_id=0):
         #data_dict[i][ptop].append({'left': left_f, 'right': right_f, 't': ptimes})
 
 #data_dict [state number] [topic] [trial number] ['t' 'left' 'right']
-def average_reading_over_trials(data_dict):
+def average_reading_over_trials(data_dict, topic):
     #Construct list of list of matrices indexing [state][trial number] => contact information for both fingers
     contact_info = {}
     for state in data_dict.keys():
@@ -295,22 +300,41 @@ def average_reading_over_trials(data_dict):
     ret_dict = {}
     #shorten the trials to be the length of the shortest trial
     for state in contact_info.keys():
-        shortest_length = np.min(trial.shape[1] for trial in contact_info[state])
-        trimmed_mats    = [trial[:,shortest_length] for trial in contact_info[state]]
-        avg_reading     = np.sum(np.concatenate([np.reshape(trial, (trial.shape[0], trial.shape[1], 1)) for trial in trimmed_mats], 2)) / len(trimmed_mats)
-        div_point = avg_reading.shape[0]
+        shortest_length = np.min([trial.shape[1] for trial in contact_info[state]])
+        trimmed_mats    = [trial[:,:shortest_length] for trial in contact_info[state]]
+        avg_reading     = np.matrix(np.sum(np.concatenate([np.reshape(np.array(trial), (trial.shape[0], trial.shape[1], 1)) for trial in trimmed_mats], 2), 2) / len(trimmed_mats))
+        div_point = avg_reading.shape[0]/2.
         assert(div_point == 22)
-        ret_dict[state] = {topic: [{'t': contact_info[state][0][:shortest_length],
-                                    'left': avg_reading[:div_point, :],
-                                    'right': avg_reading[div_point:, :]}]
+        ret_dict[state] = {topic: [{'t':     data_dict[state][topic][0]['t'][:shortest_length] ,#contact_info[state][0][:shortest_length],
+                                    'left':  avg_reading[:div_point,:],
+                                    'right': avg_reading[div_point:,:]}] }
     return ret_dict
+
+def subtract_records(recorda, recordb, topic):
+    ret_dict = {}
+    for state in recorda.keys():
+        shortest_length = min(recorda[state][topic][0]['left'].shape[1], recordb[state][topic][0]['left'].shape[1])
+        ret_dict[state] = {topic: [{
+            't':     recorda[state][topic][0]['t'][:shortest_length],
+            'left':  np.abs(recorda[state][topic][0]['left'][:,:shortest_length] - recordb[state][topic][0]['left'][:,:shortest_length]),
+            'right': np.abs(recorda[state][topic][0]['right'][:,:shortest_length] - recordb[state][topic][0]['right'][:,:shortest_length])
+            }]}
+    return ret_dict
+
 
 #Debug this!
 class DiffDisplay:
 
     def __init__(self):
-        self.succ_marker = rospy.Publisher('succ_avg', vm.Marker)
-        self.fail_marker = rospy.Publisher('fail_avg', vm.Marker)
+        rospy.init_node('diff_display')
+        self.fail_marker = rospy.Publisher('diff_fail_avg', vm.Marker)
+        self.fail_pc_pub = rospy.Publisher('diff_fail_pc', sm.PointCloud)
+
+        self.succ_marker = rospy.Publisher('diff_succ_avg', vm.Marker)
+        self.succ_pc_pub = rospy.Publisher('diff_succ_pc', sm.PointCloud)
+
+        self.diff_marker = rospy.Publisher('diff_avg', vm.Marker)
+        self.diff_pc_pub = rospy.Publisher('diff_pc', sm.PointCloud)
 
     def display(self, succ_pickle, fail_pickle):
         # load in pickle
@@ -323,25 +347,39 @@ class DiffDisplay:
 
         red = np.matrix([1.,0, 0, 1.]).T
         green = np.matrix([0.,1., 0, 1.]).T
+        blue = np.matrix([0.,0,1.,1.]).T
+
         #data_dict [state number] [topic] [trial number] ['t' 'left' 'right']
-        succ_marker = construct_pressure_marker_message(average_reading_over_trials(successes), topic, green)
-        fail_marker = construct_pressure_marker_message(average_reading_over_trials(failures), topic, red)
+        succ_avg = average_reading_over_trials(successes, topic)
+        fail_avg = average_reading_over_trials(failures, topic)
+        diff_avg = subtract_records(succ_avg, fail_avg, topic)
+
+        succ_marker, succ_pc = construct_pressure_marker_message(succ_avg, topic, green)
+        fail_marker, fail_pc = construct_pressure_marker_message(fail_avg, topic, red)
+        diff_marker, diff_pc = construct_pressure_marker_message(diff_avg, topic, blue)
+
         r = rospy.Rate(10)
+        print 'publishing...'
         while not rospy.is_shutdown():
             self.succ_marker.publish(succ_marker)
             self.fail_marker.publish(fail_marker)
-            r.sleep()
 
+            self.succ_pc_pub.publish(succ_pc)
+            self.fail_pc_pub.publish(fail_pc)
+
+            self.diff_marker.publish(diff_marker)
+            self.diff_pc_pub.publish(diff_pc)
+            r.sleep()
 
 
 if __name__ == '__main__':
     import sys
 
     if 'preprocess' == sys.argv[1]:
-        #print 'Loading success bags..'
-        #succ_dict = success_failure_classification_preprocess(sys.argv[2])
-        #print 'Saving success dict.'
-        #ut.save_pickle(succ_dict, '%s/success_data.pkl' % sys.argv[2])
+        print 'Loading success bags..'
+        succ_dict = success_failure_classification_preprocess(sys.argv[2])
+        print 'Saving success dict.'
+        ut.save_pickle(succ_dict, '%s/success_data.pkl' % sys.argv[2])
 
         print 'Loading failure bags..'
         fail_dict = success_failure_classification_preprocess(sys.argv[3])
@@ -364,7 +402,7 @@ if __name__ == '__main__':
     if 'diff' == sys.argv[1]:
         d = DiffDisplay()
         #data_dict [state number] [topic] [trial number] ['t' 'left' 'right']
-        d.diff(sys.argv[2], sys.argv[3])
+        d.display(sys.argv[2], sys.argv[3])
 
 
 
