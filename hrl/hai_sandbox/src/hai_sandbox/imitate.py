@@ -21,7 +21,7 @@ import pdb
 import sys
 import visualization_msgs.msg as vm
 import geometry_msgs.msg as gm
-import std_msgs.msg as sdm
+#import std_msgs.msg as sdm
 import time
 import hrl_lib.tf_utils as tfu
 import tf
@@ -32,6 +32,7 @@ import hai_sandbox.bag_processor as bp
 import hrl_camera.ros_camera as rc
 import math
 import hrl_pr2_lib.devices as hpr2
+import hai_sandbox.viz as viz
 import os
 import threading
 
@@ -47,70 +48,6 @@ def dict_to_arm_arg(d):
     return [trans, rot, d['header']['frame_id'], d['header']['stamp']]
 
 
-def create_mdict():
-    mdict = {}
-    mdict['arrow']            = vm.Marker.ARROW
-    mdict['cube']             = vm.Marker.CUBE
-    mdict['sphere']           = vm.Marker.SPHERE
-    mdict['cylinder']         = vm.Marker.CYLINDER
-    mdict['line_strip']       = vm.Marker.LINE_STRIP
-    mdict['line_list']        = vm.Marker.LINE_LIST
-    mdict['cube_list']        = vm.Marker.CUBE_LIST
-    mdict['sphere_list']      = vm.Marker.SPHERE_LIST
-    mdict['points']           = vm.Marker.POINTS
-    mdict['text_view_facing'] = vm.Marker.TEXT_VIEW_FACING
-    mdict['mesh_resource']    = vm.Marker.MESH_RESOURCE
-    mdict['triangle_list']    = vm.Marker.TRIANGLE_LIST
-    return mdict
-
-
-def list_marker(points, colors, scale, mtype, mframe, duration=10.0, m_id=0):
-    m = vm.Marker()
-    m.header.frame_id = mframe
-    m.id = m_id
-    m.type = create_mdict()[mtype]
-    m.action = vm.Marker.ADD
-    m.points = [gm.Point(points[0,i], points[1,i], points[2,i]) for i in range(points.shape[1])]
-    #pdb.set_trace()
-    m.colors = [sdm.ColorRGBA(colors[0,i], colors[1,i], colors[2,i], colors[3,i]) for i in range(colors.shape[1])]
-
-    m.color.r = 1.
-    m.color.g = 0.
-    m.color.b = 0.
-    m.color.a = 1.
-    m.scale.x = scale[0]
-    m.scale.y = scale[1]
-    m.scale.z = scale[2]
-
-    m.lifetime = rospy.Duration(duration)
-
-    return m
-
-
-def single_marker(point, orientation, mtype, mframe, scale=[.2,.2,.2], color=[1.0, 0, 0,.5], duration=10.0, m_id=0):
-    m = vm.Marker()
-    m.header.frame_id = mframe
-    m.id = m_id
-    m.type = create_mdict()[mtype]
-    m.action = vm.Marker.ADD
-
-    m.pose.position.x = point[0,0]
-    m.pose.position.y = point[1,0]              
-    m.pose.position.z = point[2,0]              
-    m.pose.orientation.x = orientation[0,0]
-    m.pose.orientation.y = orientation[1,0]
-    m.pose.orientation.z = orientation[2,0]
-    m.pose.orientation.w = orientation[3,0]
-
-    m.scale.x = scale[0]
-    m.scale.y = scale[1]
-    m.scale.z = scale[2]
-    m.color.r = color[0]
-    m.color.g = color[1]
-    m.color.b = color[2]
-    m.color.a = color[3]
-    m.lifetime = rospy.Duration(duration)
-    return m
 
 
 def match_image(descriptors, image, threshold=.6):
@@ -244,17 +181,6 @@ def find_object_pose(image, point_cloud_msg, data_dict, pro_T_bf, cam_info, RADI
     y_bf = y_bf / np.linalg.norm(y_bf)
     return np.column_stack([x_hat_null_bf, y_bf, normal_bf]), center_bf, display_dict
 
-def create_frame_marker(center, frame, line_len, frame_id):
-    clist = []
-    plist = []
-    alpha = line_len
-    for i in range(3):
-        colors = np.matrix(np.zeros((4,2)))
-        colors[i,:] = 1.0
-        colors[3,:] = 1.0
-        clist.append(colors)
-        plist.append(np.column_stack([center, center+ alpha * frame[:,i]]))
-    return list_marker(np.column_stack(plist), np.column_stack(clist), [.01, 0, 0], 'line_list', frame_id)
 
 def cv_to_ros(cvimg, frame_id):
     bridge = CvBridge()
@@ -284,7 +210,7 @@ class DisplayRecordedPoseReduced:
         point_cloud_bf, surf_loc3d_pro, proc_img, expected_position3d_bf, pro_T_bf,
         left_arm_trajectory, right_arm_trajectory, fine_position_bf, contact_bf=None):
 
-        frame_marker      = create_frame_marker(center_bf, frame_bf, .4, 'base_footprint')
+        frame_marker      = viz.create_frame_marker(center_bf, frame_bf, .4, 'base_footprint')
         proc_image_msg    = cv_to_ros(proc_img, 'high_def_optical_frame')
         proc_cam_info_msg = ut.load_pickle('prosilica_caminfo.pkl')
         surf_pc           = ru.np_to_pointcloud(surf_loc3d_pro, 'high_def_optical_frame')
@@ -303,7 +229,7 @@ class DisplayRecordedPoseReduced:
         ps_fine_position_bf.pose.orientation.w = fine_position_bf[1][3] 
 
         if contact_bf != None:
-            contact_marker = single_marker(contact_bf, np.matrix([0,0,0,1.]).T, 'sphere', 'base_footprint', scale=[.02, .02, .02])
+            contact_marker = viz.single_marker(contact_bf, np.matrix([0,0,0,1.]).T, 'sphere', 'base_footprint', scale=[.02, .02, .02])
         else:
             contact_marker = None
 
@@ -399,10 +325,10 @@ class DisplayRecordedPose:
             nslocs.append(((surf_cloud_2d_pro[0,idx], surf_cloud_2d_pro[1,idx]), lap, size, d, hess))
         cv.SaveImage('proc_3d_proj_surf.png', fea.draw_surf(proc_cv, nslocs, (0, 200, 0)))
 
-        frame_marker      = create_frame_marker(center_bf, frame_bf, .4, 'base_footprint')
+        frame_marker      = viz.create_frame_marker(center_bf, frame_bf, .4, 'base_footprint')
         proc_image_msg    = cv_to_ros(cv.LoadImage(model_file_name), 'high_def_optical_frame')
         proc_cam_info_msg = ut.load_pickle('prosilica_caminfo.pkl')
-        contact_marker    = single_marker(contact_bf, np.matrix([0,0,0,1.]).T, 'sphere', 'base_footprint', scale=[.02, .02, .02])
+        contact_marker    = viz.single_marker(contact_bf, np.matrix([0,0,0,1.]).T, 'sphere', 'base_footprint', scale=[.02, .02, .02])
         surf_pc           = ru.np_to_pointcloud(surf_loc3d_pro, 'high_def_optical_frame')
         self.publish_messages(pc, frame_marker, contact_marker, surf_pc, proc_image_msg, proc_cam_info_msg, data_dict)
 
@@ -489,8 +415,6 @@ class Imitate:
             rospy.loginfo('got cam info')
             rospy.Subscriber('pressure/l_gripper_motor', pm.PressureState, self.lpress_cb)
             rospy.loginfo('finished init')
-
-
 
     def shutdown(self):
         if self.should_switch:
