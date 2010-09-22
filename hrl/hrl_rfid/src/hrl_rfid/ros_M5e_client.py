@@ -81,7 +81,7 @@ class ROS_M5e_Client():
             return self.last_read
         else:
             r = self.last_read
-            while r[0] != antenna:
+            while r[0] != antenna and not rospy.is_shutdown():
                 time.sleep(0.02)
                 r = self.last_read
             return r
