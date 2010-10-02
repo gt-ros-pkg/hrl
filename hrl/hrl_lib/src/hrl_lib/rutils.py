@@ -34,6 +34,7 @@ import std_srvs.srv as srv
 from hrl_lib.msg import FloatArray
 #import tf
 #import tf.msg
+from rospy.impl.tcpros import DEFAULT_BUFF_SIZE
 
 import time
 import numpy as np
@@ -394,6 +395,82 @@ class GenericListener:
                     reading = self.reading
                     self.last_msg_returned = reading['msg_id']
                     return reading['message']
+
+
+class RateSubscriber():
+    #Class for registering as a subscriber to a specified topic, where
+    #the messages are of a given type. Only calls the callback at a
+    #prescribed rate.
+    def __init__(self, rate, name, data_class, callback=None, callback_args=None,
+                 queue_size=None, buff_size=DEFAULT_BUFF_SIZE, tcp_nodelay=False):
+        #Constructor.
+
+        #NOTE: for the queue_size and buff_size
+        #parameters, rospy does not attempt to do intelligent merging
+        #between multiple Subscriber instances for the same topic. As
+        #they share the same underlying transport, multiple Subscribers
+        #to the same topic can conflict with one another if they set
+        #these parameters differently.
+
+        #@param rate: time in seconds for subscriber to call callback
+        #@type rate: float
+        #@param name: graph resource name of topic, e.g. 'laser'.
+        #@type  name: str
+        #@param data_class: data type class to use for messages,
+        #  e.g. std_msgs.msg.String
+        #@type  data_class: L{Message} class
+        #@param callback: function to call ( fn(data)) when data is
+        #  received. If callback_args is set, the function must accept
+        #  the callback_args as a second argument, i.e. fn(data,
+        #  callback_args).  NOTE: Additional callbacks can be added using
+        #  add_callback().
+        #@type  callback: str
+        #@param callback_args: additional arguments to pass to the
+        #  callback. This is useful when you wish to reuse the same
+        #  callback for multiple subscriptions.
+        #@type  callback_args: any
+        #@param queue_size: maximum number of messages to receive at
+        #  a time. This will generally be 1 or None (infinite,
+        #  default). buff_size should be increased if this parameter
+        #  is set as incoming data still needs to sit in the incoming
+        #  buffer before being discarded. Setting queue_size
+        #  buff_size to a non-default value affects all subscribers to
+        #  this topic in this process.
+        #@type  queue_size: int
+        #@param buff_size: incoming message buffer size in bytes. If
+        #  queue_size is set, this should be set to a number greater
+        #  than the queue_size times the average message size. Setting
+        #  buff_size to a non-default value affects all subscribers to
+        #  this topic in this process.
+        #@type  buff_size: int
+        #@param tcp_nodelay: if True, request TCP_NODELAY from
+        #  publisher.  Use of this option is not generally recommended
+        #  in most cases as it is better to rely on timestamps in
+        #  message data. Setting tcp_nodelay to True enables TCP_NODELAY
+        #  for all subscribers in the same python process.
+        #@type  tcp_nodelay: bool
+        #@raise ROSException: if parameters are invalid
+        self.rate = rate
+        self.callback = callback
+        self.lasttime = 0.0
+        self.sub = rospy.Subscriber(name, data_class, self.process_msg, callback_args,
+                              queue_size, buff_size, tcp_nodelay)
+    
+    def process_msg(self, data, callback_args=None):
+        delay = rospy.Time.now().to_sec() - self.lasttime
+        if delay >= self.rate or self.lasttime == 0.0:
+            if callback_args == None:
+                self.callback(data)
+            else:
+                self.callback(data, callback_args)
+            self.lasttime = rospy.Time.now().to_sec()
+
+    def unregister(self):
+        self.sub.unregister()
+
+    def get_num_connections():
+        return self.sub.get_num_connections()
+
 
 #class TransformBroadcaster:
 #
