@@ -1,7 +1,8 @@
 <package>
   <description brief="hrl_pr2_lib">
 
-     hrl_pr2_lib
+      Collection of small useful utilities for interlab use of
+      the PR2.
 
   </description>
   <author>haidai</author>
@@ -9,8 +10,15 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_pr2_lib</url>
   <depend package="pr2_laser_snapshotter"/>
+  <depend package="hrl_lib"/>
   <depend package="tf"/>
   <depend package="rospy"/>
+  <depend package="kinematics_msgs"/>
+  <depend package="geometry_msgs"/>
+  <depend package="visualization_msgs"/>
+  <depend package="pr2_arm_kinematics"/>
+  <depend package="pr2_controllers_msgs"/>
+  <depend package="actionlib"/>
 </package>
 
 
