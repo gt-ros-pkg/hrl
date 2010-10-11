@@ -79,7 +79,6 @@ def unwrap(cpos, npos):
     return npos
 
 
-
 class PR2Arm(Joint):
 
     def __init__(self, joint_controller_name, cart_controller_name, joint_provider):
