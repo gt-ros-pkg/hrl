@@ -12,11 +12,13 @@ import hai_sandbox.dimreduce as dimreduce
 import sensor_msgs.msg as sm
 import scipy.spatial as sp
 import pdb
+import scipy.stats as kde
 
-def select_time(data, time_rec, time_start, time_end):
-    #pdb.set_trace()
-    return data[:, np.where(np.multiply(time_rec >= time_start, time_rec < time_end))[0]]
 
+##
+# Takes in a folder, outputs a dictionary organized by data by contact segment,
+# topic, list of {'left', 'right', 't'}
+#
 def success_failure_classification_preprocess(folder_name):
     data_dict = None
     #counter = 0
@@ -67,52 +69,14 @@ def success_failure_classification_preprocess(folder_name):
         for ptop in ['/pressure/l_gripper_motor', '/pressure/r_gripper_motor']:
             for k in data_dict.keys():
                 print '>>', k, ptop, len(data_dict[k][ptop])
-        #for i in range(len(data_dict[i])
-        #print data_dict[i]
-            #topics = ['/pressure/l_gripper_motor', '/pressure/r_gripper_motor']
-        #counter = counter + 1
-        #print counter
-        #if counter > 2:
-        #    break
-        ########################################
-        ## ignore everything else for now
-        ########################################
-        ##accelerometer mat with times
-        #/accelerometer/l_gripper_motor 
-        #/accelerometer/r_gripper_motor
-
-        #
-        ##joint effort mat with times
-        #/joint_states 
-        #
-        ##cart_mat with times
-        #/l_cart/command_pose 
-        #/r_cart/command_pose 
-        #
-        ##ignore this one for now
-        #/l_cart/state 
-        #/r_cart/state
     return data_dict
 
+def select_time(data, time_rec, time_start, time_end):
+    #pdb.set_trace()
+    return data[:, np.where(np.multiply(time_rec >= time_start, time_rec < time_end))[0]]
 
-class PCAKNeighborClassifier:
-
-    def __init__(self):
-        pass
-
-    def learn_model(self, X, Y):
-        self.X = X
-        self.Y = Y
-        #svd X
-        #construct kd tree
-
-    def classify(self, x):
-        #project using svd
-        #look up in kd tree, return results
-        pass
-
-
-def break_record_matrices_into_chunks(data_dict, segmented_matrices, minimal_trial_lengths, chunk_times, topic):
+def break_record_matrices_into_chunks(data_dict, segmented_matrices, \
+        minimal_trial_lengths, chunk_times, topic):
     #For each state
     data_sets = {}
     for state in range(len(data_dict.keys())):
@@ -138,11 +102,192 @@ def break_record_matrices_into_chunks(data_dict, segmented_matrices, minimal_tri
     return data_sets
 
 
+class TimeSeriesVectorizer:
+
+    def __init__(self):
+        self.channels = {}
+        self.buffer_lengths = {}
+
+    def register_listener(self, vectorize_func, msg_type, topic, buffer_length_secs):
+        self.buffer_lengths[topic] = buffer_length_secs
+        def listener_func(msg):
+            amat = vectorize_func(msg)
+            t    = np.array([msg.header.stamp.to_time()])
+            if not self.channels.has_key(topic):
+                self.channels[topic] = [amat, t]
+            else:
+                self.channels[topic] = [np.column_stack((self.channels[topic][0], amat)), 
+                                        np.column_stack((self.channels[topic][1], t))]
+                                        
+            #select only messages n-seconds ago
+            n_seconds_ago = t[0] - buffer_length_secs
+            self.channels[topic][0] = self.channels[topic][0][:, np.where(self.channels[topic][1] >= n_seconds_ago)]
+        
+        rospy.Subscriber(topic, msg_type, listener_func)
+
+    def get_n_steps(self, topic, timestart, nsteps, wait=True): 
+        if timestart < self.channels[topic][1][0]:
+            raise RuntimeError('timestart <= self.channels[topic][1][0]')
+        r = rospy.Rate(100)
+        while selected == None:
+            selected = self.channels[topic][0][:, np.where(self.channels[topic][1] > timestart)][:, :nsteps]
+            if selected.shape[1] < nsteps:
+                if not wait:
+                    return None
+                else:
+                    selected = None
+                    r.sleep()
+            else:
+                return selected
+
+    def get_range(self, topic, time_start, time_end):
+        times = self.channels[topic][1]
+        selected = self.channels[topic][0][:, np.where((times > time_start) * (times <= time_end))]
+        return selected
+        
+
+#class SuccessProbabilityEstimator:
+class TestOnlineClassification:
+
+    def __init__(self):
+        self.vectorizer = TimeSeriesVectorizer()
+        def pressure_vectorizer(pmsg):
+            return np.row_stack((np.matrix((pmsg.l_finger_tip)).T, np.matrix((pmsg.r_finger_tip)).T))
+        self.vectorizer.register_listener(pressure_vectorizer, pm.PressureState, '/pressure/l_gripper_motor', 15.)
+
+    def start_classifying(self):
+        segment_idx = 0
+        segment_lengths = [20, 40, 30]
+        n_segments = len(segment_lengths)
+        for segment_idx in range(n_segments):
+            n_steps = segment_lengths[segment_idx]
+            selected = self.vectorizer.get_n_steps('/pressure/l_gripper_motor', \
+                    rospy.get_rostime().to_time(), n_steps)
+            print selected.shape
+
 
 class TimeSeriesClassifier:
 
     def __init__(self):
-        pass
+        self.vectorizer = TimeSeriesVectorizer()
+        def pressure_vectorizer(pmsg):
+            return np.row_stack((np.matrix((pmsg.l_finger_tip)).T, np.matrix((pmsg.r_finger_tip)).T))
+        self.vectorizer.register_listener(pressure_vectorizer, pm.PressureState, \
+                '/pressure/l_gripper_motor', 15.)
+
+    #TEST this when you have robot time!
+    def run(self):
+        models = self.models['models']
+        for state in len(models):
+            for chunk_idx in range(len(models[state])):
+                n_steps = chunk_params['chunk_dim'][state][chunk_idx]
+                x_mat    = self.vectorizer.get_n_steps('/pressure/l_gripper_motor', \
+                                rospy.get_rostime().to_time(), n_steps)
+
+                #x_mat = chunked_data[state][chunk_idx]['data'][record_idx]
+                x_vec = np.reshape(x_mat, (x_mat.shape[0] * x_mat.shape[1], 1))
+                projected_x = np.array((models[state][chunk_idx]['project'].T * x_vec).T)
+
+                succ_prob = models[state][chunk_idx]['kde'][0].evaluate(np.array(projected_x))
+                fail_prob = models[state][chunk_idx]['kde'][1].evaluate(np.array(projected_x))
+                prob = (succ_prob * succ_total) / ((fail_prob*fail_total) + (succ_total*succ_prob))
+                print 'state %d chunk %d prob %f' % (state, chunk_idx, prob)
+
+
+    def save_models(self, name='timeseries_pca_model.pkl'):
+        print 'saving models'
+        ut.save_pickle(self.models, name)
+
+    def load_models(self, name='timeseries_pca_model.pkl'):
+        print 'loading models'
+        self.models = ut.load_pickle(name)
+        #print self.models.__class__, self.models.keys()
+        models = self.models['models']
+        for state in range(len(models.keys())):
+            for chunk_idx in range(len(models[state])):
+                #print models.keys()
+                reduced_data = models[state][chunk_idx]['reduced'] 
+
+                #labels = np.column_stack((np.matrix(np.ones((1, num_pos))), np.matrix(np.zeros((1, num_neg)))))
+                success_data = reduced_data[:, (np.where(models[state][chunk_idx]['labels'] > 0))[1].A1]
+                failure_data = reduced_data[:, (np.where(models[state][chunk_idx]['labels'] == 0))[1].A1]
+
+                models[state][chunk_idx]['kde'] = [kde.gaussian_kde(np.array(success_data)), 
+                                                   kde.gaussian_kde(np.array(failure_data))]
+                #models[state][chunk_idx]['tree'] = sp.KDTree(np.array(reduced_data.T))
+
+    def create_model(self, succ_pickle, fail_pickle):
+        topic = '/pressure/l_gripper_motor'
+        SEGMENT_LENGTH = 1.0
+        VARIANCE_KEEP = .7
+
+        # load in pickle
+        print 'loading pickles'
+        successes = ut.load_pickle(succ_pickle)
+        failures = ut.load_pickle(fail_pickle)
+
+        #chop data set into little chunks
+        # data_sets[state][chunk_idx]['data', 'time'][chunk_record]
+        print 'preprocess pickles'
+        success_data_sets, failure_data_sets, chunk_params = self.preprocess_pickles(successes, \
+                failures, topic, SEGMENT_LENGTH)
+
+        # turn each set of records into a matrix
+        combined_sets = {}
+        for dset_name, datasets in zip(['success', 'failure'], [success_data_sets, failure_data_sets]):
+            #merge the two matrices from mat_set
+            mat_set = self.create_matrix_from_chunked_datasets(datasets)
+            for state in range(len(datasets.keys())):
+                if not combined_sets.has_key(state):
+                    combined_sets[state] = {}
+                for chunk_idx in range(len(datasets[state])):
+                    if not combined_sets[state].has_key(chunk_idx):
+                        combined_sets[state][chunk_idx] = {}
+                    combined_sets[state][chunk_idx][dset_name] = mat_set[state][chunk_idx]['data']
+                    combined_sets[state][chunk_idx]['time'] = mat_set[state][chunk_idx]['time']
+
+        # run PCA over the entire set
+        models = {}
+        for state in range(len(combined_sets.keys())):
+            models[state] = []
+            for chunk_idx in range(len(combined_sets[state])):
+                print 'building model for state', state, 'chunk idx', chunk_idx
+                # pdb.set_trace()
+                data_chunk = np.column_stack((combined_sets[state][chunk_idx]['success'], \
+                                              combined_sets[state][chunk_idx]['failure']))
+                num_pos = combined_sets[state][chunk_idx]['success'].shape[1]
+                num_neg = combined_sets[state][chunk_idx]['failure'].shape[1]
+                labels = np.column_stack((np.matrix(np.ones((1, num_pos))), np.matrix(np.zeros((1, num_neg)))))
+
+                projection_basis = dimreduce.pca_vectors(data_chunk, VARIANCE_KEEP)
+                print 'pca_basis:', projection_basis.shape
+                reduced_data = projection_basis.T * data_chunk
+                models[state].append({'time':    combined_sets[state][chunk_idx]['time'],
+                                      'project': projection_basis,
+                                      'reduced': reduced_data,
+                                      'labels':  labels,
+                                      'data':    data_chunk
+                                      #'tree':    sp.KDTree(np.array(reduced_data.T))
+                                      })
+
+        self.models = {'models':models, 
+                       'chunk_params': chunk_params}
+
+
+    def create_matrix_from_chunked_datasets(self, datasets):
+        mat_set = {}
+        for state in range(len(datasets.keys())):
+            mat_set[state] = {}
+            for chunk_idx in range(len(datasets[state])):
+                records_l = []
+                for chunk_record in range(len(datasets[state][chunk_idx]['data'])):
+                    a = datasets[state][chunk_idx]['data'][chunk_record]
+                    records_l.append(np.reshape(a, (a.shape[0]*a.shape[1], 1)))
+
+                mat_set[state][chunk_idx] = {}
+                mat_set[state][chunk_idx]['data'] = np.column_stack(records_l) 
+                mat_set[state][chunk_idx]['time'] = datasets[state][chunk_idx]['time']
+        return mat_set
 
     def preprocess_pickles(self, successes, failures, topic, segment_length):
         #Break matrices into segments based on state
@@ -200,37 +345,15 @@ class TimeSeriesClassifier:
                         'chunk_times': chunk_times,
                         'topic': topic}
         return success_data_sets, failure_data_sets, chunk_params
-                                                      
-
-    def save_models(self, name='timeseries_pca_model.pkl'):
-        print 'saving models'
-        ut.save_pickle(self.models, name)
-
-    def load_models(self, name='timeseries_pca_model.pkl'):
-        print 'loading models'
-        self.models = ut.load_pickle(name)
-
-    def create_matrix_from_chunked_datasets(self, datasets):
-        mat_set = {}
-        for state in range(len(datasets.keys())):
-            mat_set[state] = {}
-            for chunk_idx in range(len(datasets[state])):
-                records_l = []
-                for chunk_record in range(len(datasets[state][chunk_idx]['data'])):
-                    a = datasets[state][chunk_idx]['data'][chunk_record]
-                    records_l.append(np.reshape(a, (a.shape[0]*a.shape[1], 1)))
-
-                mat_set[state][chunk_idx] = {}
-                mat_set[state][chunk_idx]['data'] = np.column_stack(records_l) 
-                mat_set[state][chunk_idx]['time'] = datasets[state][chunk_idx]['time']
-        return mat_set
 
     def preprocess_individual_pickle(self, apickle):
         data = ut.load_pickle(apickle)
-        models, chunk_params = self.models
+        #models, chunk_params = self.models
+        models = self.models['models']
+        chunk_params = self.models['chunk_params']
         #break pickle into chunks given model.
         #chunks of equivalent time, chunks of equivalent dimensions
-        data_segmented = construct_list_of_segmented_matrices_from_trial_recording(data)
+        data_segmented = construct_list_of_segmented_matrices_from_trial_recording(data, chunk_params['topic'])
 
         # 1) break into time chunks
         chunked_data = break_record_matrices_into_chunks(data, data_segmented, \
@@ -250,145 +373,53 @@ class TimeSeriesClassifier:
         # a pickle can have multiple records...
         chunked_data = self.preprocess_individual_pickle(apickle)
         #mat_set = self.create_matrix_from_chunked_datasets(chunked_data)
-        models = self.models[0]
+        models = self.models['models']
 
-        for record_idx in chunked_data[0][0]['data']:
+        total_ex = models[0][0]['labels'].shape[1]
+        pos_ex = np.sum(models[0][0]['labels'])
+        neg_ex = total_ex - pos_ex
+        prior_pos = pos_ex / float(total_ex)
+        prior_neg = neg_ex / float(total_ex)
+
+        results = {}
+        NEIGHBORS = 3
+        for record_idx in range(len(chunked_data[0][0]['data'])):
             for state in range(len(models)):
+                if not results.has_key(state):
+                    results[state] = {}
                 for chunk_idx in range(len(models[state])):
-                    x_mat = chunked_data[state][chunk_idx]['data'][chunk_record]
-                    x_vec = np.reshape((a.shape[0] * a.shape[1], 1))
-                    projected_x = (models[state][chunk_idx]['project'].T * x_vec).T.A1
-                    nearest_neighbor = models[state][chunk_idx]['tree'].query(projected_x, 1)
-                    ???
-                    models
+                    if not results[state].has_key(chunk_idx):
+                        results[state][chunk_idx] = []
 
-    def create_model(self, succ_pickle, fail_pickle):
-        topic = '/pressure/l_gripper_motor'
-        SEGMENT_LENGTH = 1.0
-        VARIANCE_KEEP = .9
+                    x_mat = chunked_data[state][chunk_idx]['data'][record_idx]
+                    x_vec = np.reshape(x_mat, (x_mat.shape[0] * x_mat.shape[1], 1))
+                    projected_x = np.array((models[state][chunk_idx]['project'].T * x_vec).T)
 
-        # load in pickle
-        print 'loading pickles'
-        successes = ut.load_pickle(succ_pickle)
-        failures = ut.load_pickle(fail_pickle)
+                    #match_idx = models[state][chunk_idx]['tree'].query(projected_x, NEIGHBORS)[1]
+                    #success_density = estimate_density(models[state][chunk_idx]['prob_trees'][0], projected_x)
+                    #failure_density = estimate_density(models[state][chunk_idx]['prob_trees'][1], projected_x)
+                    # p(x | suc) * p (suc) / sum(), p (x | fail)
+                    succ_prob = models[state][chunk_idx]['kde'][0].evaluate(np.array(projected_x))
+                    fail_prob = models[state][chunk_idx]['kde'][1].evaluate(np.array(projected_x))
+                    succ_total = np.sum(models[state][chunk_idx]['labels']) / float(models[state][chunk_idx]['labels'].shape[1])
+                    fail_total = 1 - succ_total
 
-        #chop data set into little chunks
-        # data_sets[state][chunk_idx]['data', 'time'][chunk_record]
-        print 'preprocess pickles'
-        success_data_sets, failure_data_sets, chunk_params = self.preprocess_pickles(successes, \
-                failures, topic, SEGMENT_LENGTH)
+                    prob = (succ_prob * succ_total) / ((fail_prob*fail_total) + (succ_total*succ_prob))
+                    if np.isnan(prob):
+                        prob = 0.
 
-        # turn each set of records into a matrix
-        combined_sets = {}
-        for dset_name, datasets in zip(['success', 'failure'], [success_data_sets, failure_data_sets]):
-            #merge the two matrices from mat_set
-            mat_set = self.create_matrix_from_chunked_datasets(datasets)
-            for state in range(len(datasets.keys())):
-                combined_sets[state] = {}
-                for chunk_idx in range(len(datasets[state])):
-                    combined_sets[state][chunk_idx] = {}
-                    combined_sets[state][chunk_idx][dset_name] = mat_set[state][chunk_idx]['data']
-                    combined_sets[state][chunk_idx]['time'] = mat_set[state][chunk_idx]['time']
-        
-        #for dset_name, datasets in zip(['success', 'failure'], [success_data_sets, failure_data_sets]):
-        #    for state in range(len(datasets.keys())):
-        #        #print '>> state', state, 'num chunks', len(datasets[state])
-        #        if not combined_sets.has_key(state):
-        #            combined_sets[state] = {}
-        #        for chunk_idx in range(len(datasets[state])):
-        #            records_l = []
-        #            for chunk_record in range(len(datasets[state][chunk_idx]['data'])):
-        #                a = datasets[state][chunk_idx]['data'][chunk_record]
-        #                records_l.append(np.reshape(a, (a.shape[0]*a.shape[1], 1)))
+                    results[state][chunk_idx].append(prob > .5)
+                    print 'record idx %d state %d chunk %d label prob %.2f success? %d' % (record_idx, state, chunk_idx, prob, prob > .5)
+            print '============================='
 
-        #            if not combined_sets[state].has_key(chunk_idx):
-        #                combined_sets[state][chunk_idx] = {}
-
-        #            combined_sets[state][chunk_idx][dset_name] = np.column_stack(records_l) 
-        #            combined_sets[state][chunk_idx]['time'] = datasets[state][chunk_idx]['time']
-
-        # run PCA over the entire set
-        models = {}
-        for state in range(len(combined_sets.keys())):
-            models[state] = []
-            for chunk_idx in range(len(combined_sets[state])):
-                print 'building model for state', state, 'chunk idx', chunk_idx
-                #pdb.set_trace()
-                data_chunk = np.column_stack((combined_sets[state][chunk_idx]['success'], \
-                                           combined_sets[state][chunk_idx]['failure']))
-                num_pos = combined_sets[state][chunk_idx]['success'].shape[1]
-                num_neg = combined_sets[state][chunk_idx]['failure'].shape[1]
-                labels = np.column_stack(np.matrix(np.ones((1, num_pos))), np.matrix(np.zeros((1, num_neg))))
-
-                projection_basis = dimreduce.pca_vectors(data_chunk, VARIANCE_KEEP)
-                reduced_data = projection_basis.T * data_chunk
-                models[state].append({'time':    combined_sets[state][chunk_idx]['time'],
-                                      'project': projection_basis,
-                                      'reduced': reduced_data,
-                                      'labels':  labels,
-                                      'data':    data_chunk,
-                                      'tree':    sp.KDTree(np.array(reduced_data.T))})
-
-        self.models = {'models':models, 
-                       'chunk_params': chunk_params}
+        for state in range(len(models)):
+            for chunk_idx in range(len(models[state])):
+                correct = np.sum(results[state][chunk_idx])
+                all_val = float(len(results[state][chunk_idx]))
+                print all_val
+                print 'state %d chunk %d results %.3f' % (state, chunk_idx, correct/all_val)
                 
-
-        #def segment_pressure_dataset(pdict):
-        #    topics = ['/pressure/l_gripper_motor', '/pressure/r_gripper_motor']
-        #    for topic in topics:
-        #        #find longest record in terms of number of messages
-        #        shortest_left = 0
-        #        shortest_right = 0
-        #        for record in pdict[topic]:
-        #            shortest_left = min(record['left'].shape[1], shortest_left)
-        #            shortest_right = min(record['right'].shape[1], longest_right)
-        #            #pdb.set_trace()
-        #            #record['t'][0]
-        #        ##break up existing records
-        #        #for record in pdict[topic]:
-        #        #    record['left']
-        ## for each state
-        #for state_numb in range(len(successes.keys())):
-        #    #data_dict[i][ptop].append({'left': left_f, 'right': right_f, 't': ptimes})
-        #    segment_pressure_dataset(successes[state_numb])
-        #    failures[state_numb]
-        #    pdb.set_trace()
-
-                
-
-
-
-        #       for each record of success and failure
-        #           break into little equal chunks based on time in trial
-        #                 are these chunks the same size?
-        #                 cut each 'state' to the length of the shortest?
-        #           make a dataset out of the chunks along with labels (chunk_x, y)
-        #           store parameters for these chunks
-        # 
-        #       for each little chunk dataset, train a classifier
-        #           svd the dataset, select reasonable number of dimensions
-        #           create a kd tree
-        # 
-        # in the end we want 
-        # {1: [[PCAKNeighborClassifier, tstart, tend], [PCAKNeighborClassifier, tstart, tend]... ],
-        #  2: ...
-        #  3: ...
-        #  }
-        #pass
     
-    def classify(self, data_mat, time_mat):
-        pass
-
-
-class EventDetector:
-    def __init__(self):
-        # subscribe to pressure topics
-        # subscribe to behavior markers
-        pass
-       
-    def callback(self, msg):
-        # when we have enough data for a period in a behavior, classify..
-        pass
 
 def zero_out_time_in_trials(data_dict, topic):
     #print 'Finding times...'
@@ -421,19 +452,9 @@ def construct_pressure_marker_message(data_dict, topic, base_color=np.matrix([1.
    
     #Record the duration of each trial
     times_dict = zero_out_time_in_trials(data_dict, topic)
-    #print 'Finding times...'
-    #times_dict = {} # times_dict[state][ list of durations ]
-    #for i in range(len(data_dict.keys())):
-    #    times_dict[i] = []
-    #    for record_number in range(len(data_dict[i][topic])):
-    #        time_start = data_dict[0][topic][record_number]['t'][0]
-    #        #pdb.set_trace()
-    #        times_dict[i].append(data_dict[i][topic][record_number]['t'] - time_start)
-
     #Use the durations to figure out offsets
     state_time_offsets = {}
     state_time_offsets[-1] = {'duration':0, 'offset':0}
-    #state_time_offsets[0] = 0
     for state in range(len(times_dict.keys())):
         durations = [state_times[-1] - state_times[0] for state_times in times_dict[state]]
         duration_state = np.max(durations)
@@ -444,12 +465,6 @@ def construct_pressure_marker_message(data_dict, topic, base_color=np.matrix([1.
     #Create corrected timelines
     times_m_list = []
     for record_number in range(len(data_dict[0][topic])):
-        #range(len(data_dict[0][topic])):
-        #print record_number, len(data_dict[0][topic]), len(data_dict[1][topic]), len(data_dict[2][topic])
-        #pressure_mat_l = np.column_stack([data_dict[i][topic][record_number]['left' ] for i in range(len(data_dict.keys()))])
-        #pressure_mat_r = np.column_stack([data_dict[i][topic][record_number]['right'] for i in range(len(data_dict.keys()))])
-        #pressure_mat = np.row_stack((pressure_mat_l, pressure_mat_r))
-        #pdb.set_trace()
 
         #For each state figure out the time offset & store in times_l
         times_l = []
@@ -464,31 +479,6 @@ def construct_pressure_marker_message(data_dict, topic, base_color=np.matrix([1.
         times_m_list.append(times_m)
 
     
-    ##Create segmented matrices
-    #for record_number, list_pressure_mat \
-    #        in enumerate(construct_list_of_segmented_matrices_from_trial_recording(data_dict, topic)):
-    #    pressure_mat = np.column_stack(list_pressure_mat)
-    #    pressure_mat = (pressure_mat - pressure_mat[:,0])
-
-    #    X, Y = np.meshgrid(range(pressure_mat.shape[0]), range(pressure_mat.shape[1]))
-    #    x_multiplier = 1/15.
-    #    x_size = pressure_mat.shape[0] * x_multiplier
-
-    #    #y_multiplier = 1/10.
-    #    #y_size = pressure_mat.shape[1] * y_multiplier
-
-    #    #Y0 np.matrix(np.ones((pressure_mat.shape[0], 1)))= np.matrix(Y * y_multiplier)
-    #    X = np.matrix(X * x_multiplier) + x_size*record_number + (record_number*x_size / 3.)
-    #    Y = (np.matrix(np.ones((pressure_mat.shape[0], 1))) * times_m).T
-    #    Z = np.matrix(np.zeros(pressure_mat.shape))
-
-    #    points = np.row_stack((X.reshape(1, X.shape[0] * X.shape[1]),
-    #                           Y.reshape(1, Y.shape[0] * Y.shape[1]),
-    #                           Z.reshape(1, Z.shape[0] * Z.shape[1])))
-    #    colors = np.matrix(np.zeros((4, pressure_mat.shape[0]*pressure_mat.shape[1])))
-    #    pressures_l.append(pressure_mat.T.reshape((1,pressure_mat.shape[1] * pressure_mat.shape[0])))
-    #    points_ll.append(points)
-    #    colors_ll.append(colors)
 
     print 'constructing segmented matrices...'
     pressure_mats = []
@@ -496,29 +486,11 @@ def construct_pressure_marker_message(data_dict, topic, base_color=np.matrix([1.
         p = np.column_stack(lp) 
         p = p - p[:,0]
 
-        #min_p = np.min(p)
-        #range_p = float((np.max(p) - min_p))
-        #p = ((p - min_p) / range_p) * 1000.
-
         pressure_mats.append(p)
 
     print 'creating colored points...'
     pressures, all_points, colors_mat = create_colored_3d_points_from_matrices(pressure_mats, times_m_list)
 
-    #pressures = np.column_stack(pressures_l)
-    #all_points = np.column_stack(points_ll)
-    #colors_mat = np.column_stack(colors_ll)
-    #pdb.set_trace()
-    #max_pval = np.max(pressures)
-    #min_pval = np.min(pressures)
-    #print 'min pressure reading %d max %d' % (min_pval, max_pval)
-
-    #print 'making colors...'
-    #base_color        = np.matrix([1.,0, 0, 1.]).T
-    #colors_mat[0:4,:] = base_color * (np.abs(pressures) / 100.)
-    #print 'creating marker message'
-    #marker      = viz.list_marker(all_points, colors_mat, [.05, .05, .05], 'points', 'pressure_viz')
-    #return marker, point_cloud
     print 'creating pointcloud message'
     #point_cloud = ru.np_to_colored_pointcloud(all_points, np.matrix(pressures) + min_pval, 'pressure_viz')
     point_cloud = ru.np_to_colored_pointcloud(all_points, np.matrix(pressures), 'pressure_viz')
@@ -557,14 +529,9 @@ class DisplayDataWithRviz:
         print 'publishing...'
         r = rospy.Rate(10)
         while not rospy.is_shutdown():
-            #self.succ_marker.publish(succ_marker)
-            #self.fail_marker.publish(fail_marker)
             self.succ_pc_pub.publish(succ_pc)
             self.fail_pc_pub.publish(fail_pc)
             r.sleep()
-
-        #def list_marker(points, colors, scale, mtype, mframe, duration=10.0, m_id=0):
-        #data_dict[i][ptop].append({'left': left_f, 'right': right_f, 't': ptimes})
 
 ##
 # Create matrices split based on state
@@ -575,7 +542,6 @@ class DisplayDataWithRviz:
 #                                                        ['mat'] => 44xN mat
 def construct_list_of_segmented_matrices_from_trial_recording(data_dict, topic):
     segmented_matrices = []
-    #pdb.set_trace()
     for record_number in range(len(data_dict[0][topic])):
         segmented_matrix = []
         trecs = []
@@ -601,7 +567,6 @@ def create_colored_3d_points_from_matrices(matrices, index_list):
         X = np.matrix(X * X_MULTIPLIER) + x_size * i + (i * x_size / 3.)
         #Y = (np.matrix(np.ones((mat.shape[0], 1))) * times_m).T
         Y = (np.matrix(np.ones((mat.shape[0], 1))) * index_list[i]).T
-        #pdb.set_trace()
         Z = np.matrix(np.zeros(mat.shape)).T
 
         points = np.row_stack((X.reshape(1, X.shape[0] * X.shape[1]),
@@ -723,6 +688,11 @@ if __name__ == '__main__':
         classifier.create_model(sys.argv[2], sys.argv[3])
         classifier.save_models()
 
+    if 'test' == sys.argv[1]:
+        classifier = TimeSeriesClassifier()
+        classifier.load_models()
+        classifier.classify_pickle(sys.argv[2])
+
     #Debug this to display failure cases
     if 'display' == sys.argv[1]:
         d = DisplayDataWithRviz()
@@ -736,43 +706,64 @@ if __name__ == '__main__':
         d.display(sys.argv[2], sys.argv[3])
 
 
-        #for d in durations:
-        #    print '%.3f' % d
-
-        #all_start_times = [tarr[0] for tarr in times_dict[state]]
-        #state_time_offsets[state] = np.max(all_start_times)
-        #all_end_times = [tarr[-1] for tarr in times_dict[state]]
-        #state_time_offsets[state+1] = np.max(all_end_times)
-
-        #print 'Enter the state number len(successes) %d len(failures) %d:' % (len(successes), len(failures))
-        #state_numb = int(raw_input())
-
-        #print 'left (0)? right (1)?'
-        #fnumb = int(raw_input())
-        #if fnumb == 0:
-        #    finger = 'left'
-        #elif fnumb == 1:
-        #    finger = 'right'
-
-        #print 'record number? (%d)' % len(successes[state_numb][topic])
-        #record_number = int(raw_input())
 
 
-        #threshold = 3000
-        #pressures[np.where(pressures < threshold)] = 0
-        #pressures[np.where(pressures >= threshold)] = 1.
 
 
-            #times_list = []
-            #tstart = None
-            #for i in range(len(successes.keys())):
-            #    state_i_times = np.matrix(successes[i][topic][record_number]['t'])
-            #    if tstart == None:
-            #        tstart = state_i_times[0,0]
+#class VectorTimeSeriesClassifier:
+#
+#    def __init__(self):
+#        self.data = None
+#        self.times = None
+#        self.start_time = None
+#
+#    def add_data(self, t, mat):
+#        if self.data == None:
+#            self.data = mat
+#            self.times = [t]
+#        else:
+#            self.data = np.column_stack((self.data, mat))
+#            self.times.append(t)
+#
+#    def start_collecting_data(self):
+#        self.start_time = rospy.get_rostime().to_time()
+#
+#    def get_data(self, start_time_in_segment):
+#        #option 2
+#        #instead of gettting n data points back, can we interpolate?
+#        #given start time, end time, and number of points needed
+#        #we can interpolate to get those n points
+#
+#        #option 1
+#        np.array(self.times) - rospy.get_rostime().to_time()
+#        current_time = rospy.get_rostime().to_time() - self.start_time
+#        start_time_in_segment
 
-            #    state_i_times = state_i_times - tstart
-            #    tstart = state_i_times[:,-1] + 1.
+#need to keep track of time since start 
+#need to put data points into windows of data
 
-            #    times_list.append()
+#want data in consecutive matrices of the same size as what the classifier will
+# expect if we're still using the same
+# format
 
+#a)
+#collect messages into data
+#break up chunks of data but keep it as one large matrix
+
+#b)
+#consume data chunks as long as there is enough
+#get a message with a time after when we should expect messages
+#spit out a chunk when there are enough data points
+
+### how do we combine this event based classifier with RL?
+## This seems better
+# might get into dead locks?
+# can we run this in one process?
+#     rl agent executes a state
+#       while classifier listen for messages
+#     rl agent checks for state estimate.
+#
+# rl agent executes a state
+# waits for estimate... 
+# take state estimate then act.
 
