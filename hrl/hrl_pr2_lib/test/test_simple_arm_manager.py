@@ -67,9 +67,9 @@ if __name__ == "__main__":
 #   rospy.sleep(0.2)
 #   sam.move_arm(0, altpos, rot, 1.0)
 
-    smat = SmoothMoveArmTrajectory()
+    slat = SmoothLinearArmTrajectory()
     while True:
-        smat.beg_arm_traj(0, 0.2, dir=(0.,0.,1.), dur=None)
+        slat.beg_arm_traj(0, 0.2, dir=(0.,0.,1.), dur=None)
         rospy.sleep(5.15)
-        smat.beg_arm_traj(0, 0.2, dir=(0.,0.,-1.), dur=None)
+        slat.beg_arm_traj(0, 0.2, dir=(0.,0.,-1.), dur=None)
         rospy.sleep(5.15)

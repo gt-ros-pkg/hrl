@@ -124,4 +124,85 @@ def histogram(index_list_list, elements_list_list, bin_size, min_index=None, max
 
     return bins, np.arange(min_index, max_index, bin_size)        
 
+##
+# smooth the data using a window with requested size.
+# 
+# This method is based on the convolution of a scaled window with the signal.
+# The signal is prepared by introducing reflected copies of the signal 
+# (with the window size) in both ends so that transient parts are minimized
+# in the begining and end part of the output signal.
+# 
+# output:
+#     the smoothed signal
+#     
+# example:
+# 
+# t=linspace(-2,2,0.1)
+# x=sin(t)+randn(len(t))*0.1
+# y=smooth(x)
+# 
+# see also: 
+# 
+# numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
+# scipy.signal.lfilter
+# 
+# Copied from http://www.scipy.org/Cookbook/SignalSmooth
+# 
+# @param    x the input signal 
+# @param    window_len the dimension of the smoothing window; should be an odd integer
+# @param    window the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
+#           flat window will produce a moving average smoothing.
+# @return   the smoothed signal function
+def signal_smooth(x,window_len=11,window='hanning'):
 
+    if x.ndim != 1:
+        raise ValueError, "smooth only accepts 1 dimension arrays."
+
+    if x.size < window_len:
+        raise ValueError, "Input vector needs to be bigger than window size."
+
+
+    if window_len<3:
+        return x
+
+
+    if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
+        raise ValueError, "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
+
+    s=np.r_[x[window_len:1:-1],x,x[-1:-window_len:-1]]
+
+    # s=numpy.r_[2*x[0]-x[window_len:1:-1],x,2*x[-1]-x[-1:-window_len:-1]]
+    #print(len(s))
+    if window == 'flat': #moving average
+        w=ones(window_len,'d')
+    else:
+        w=eval('np.'+window+'(window_len)')
+
+    y=np.convolve(w/w.sum(),s,mode='same')
+    return y[window_len-1:-window_len+1]
+
+##
+# Returns the variance of the series x given mean function y
+# over a window of size window_len.
+# @param x the original signal
+# @param y the smoothed signal function
+# @param window_len size of the window to calculate variances over
+# @return the variance function
+def signal_variance(x,y, window_len=10):
+    if len(x) != len(y):
+        raise ValueError, "Must have same length"
+
+    vars = []
+    for i in range(len(x)):
+        cursum = 0. 
+        cura = i - window_len/2
+        curb = i + window_len/2
+        if cura < 0:
+            cura = 0
+        if curb > len(x):
+            curb = len(x)
+        for xval in x[cura:curb]:
+            cursum += (xval - y[i])**2
+        vars += [np.sqrt(cursum/(curb-cura))]
+    vars += [vars[len(vars)-1]]
+    return vars
