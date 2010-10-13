@@ -30,8 +30,20 @@ node_name = "simple_arm_trajectories"
 def log(str):
     rospy.loginfo(node_name + ": " + str)
 
+##
+# Class for simple management of the arms and grippers.
+# Provides functionality for moving the arms, opening and closing
+# the grippers, performing IK, and other functionality as it is
+# developed.
 class SimpleArmTrajectory(object):
-    def __init__(self, gripper_point=None):
+
+    ##
+    # Initializes all of the servers, clients, and variables
+    #
+    # @param gripper_point given the frame of the wrist_roll_link, this point offsets
+    #                      the location used in FK and IK, preferably to the tip of the
+    #                      gripper
+    def __init__(self, gripper_point=(0.23, 0.0, 0.0)):
         log("Loading SimpleArmTrajectory")
         self.joint_names_list = [['r_shoulder_pan_joint',
                            'r_shoulder_lift_joint', 'r_upper_arm_roll_joint',
@@ -86,17 +98,15 @@ class SimpleArmTrajectory(object):
 
         rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
 
-        if gripper_point is None:
-            self.off_point = (0.23, 0.0, 0.0)
-        else:
-            self.off_point = gripper_point
-
         rospy.sleep(1.)
 
         log("Finished loading SimpleArmManger")
 
+    ##
     # Callback for /joint_states topic. Updates current joint
     # angles and efforts for the arms constantly
+    #
+    # @param data JointState message recieved from the /joint_states topic
     def joint_states_cb(self, data):
         r_arm_angles = []
         r_arm_efforts = []
@@ -127,30 +137,18 @@ class SimpleArmTrajectory(object):
         self.l_arm_efforts = l_arm_efforts
         self.arm_state_lock[1].release()
 
-    ## go to a joint configuration.
-    # @param q - list of 7 joint angles in RADIANS.
-    # @param duration - how long (SECONDS) before reaching the joint angles.
-    def set_joint_angles(self, arm, q, duration=0.15):
+    ##
+    # Create a joint configuration trajectory goal.
+    #
+    # @param arm 0 for right, 1 for left
+    # @param q_arr list of lists of 7 joint angles in RADIANS.
+    # @param dur_arr list of how long (SECONDS) from the beginning of the trajectory
+    #                before reaching the joint angles.
+    def create_joint_angles_traj(self, arm, q_arr, dur_arr):
         if arm != 1:
             arm = 0
-        self.jtg[arm] = JointTrajectoryGoal()
-        self.jtg[arm].trajectory.joint_names = self.joint_names_list[arm]
-        jtp = JointTrajectoryPoint()
-        jtp.positions = q
-        jtp.velocities = [0 for i in range(len(q))]
-        jtp.accelerations = [0 for i in range(len(q))]
-        jtp.time_from_start = rospy.Duration(duration)
-        self.jtg[arm].trajectory.points.append(jtp)
-        self.joint_action_client[arm].send_goal(self.jtg[arm])
-
-    ## specify a joint configuration trajectory.
-    # @param q - list of 7 joint angles in RADIANS.
-    # @param duration - how long (SECONDS) before reaching the joint angles.
-    def set_joint_angles_traj(self, arm, q_arr, dur_arr):
-        if arm != 1:
-            arm = 0
-        self.jtg[arm] = JointTrajectoryGoal()
-        self.jtg[arm].trajectory.joint_names = self.joint_names_list[arm]
+        jtg = JointTrajectoryGoal()
+        jtg.trajectory.joint_names = self.joint_names_list[arm]
         for i in range(len(q_arr)):
             if q_arr[i] is None or type(q_arr[i]) is types.NoneType:
                 continue
@@ -159,17 +157,60 @@ class SimpleArmTrajectory(object):
             jtp.velocities = [0.] * 7
             jtp.accelerations = [0.] * 7
             jtp.time_from_start = rospy.Duration(dur_arr[i])
-            self.jtg[arm].trajectory.points.append(jtp)
-        self.joint_action_client[arm].send_goal(self.jtg[arm])
+            jtg.trajectory.points.append(jtp)
+        return jtg
 
+    ##
+    # Move the arm to a joint configuration.
+    #
+    # @param arm 0 for right, 1 for left
+    # @param q list of 7 joint angles in RADIANS.
+    # @param duration how long (SECONDS) before reaching the joint angles.
+    def set_joint_angles(self, arm, q, duration=1.):
+        if arm != 1:
+            arm = 0
+        self.jtg = create_joint_angles_traj(arm, [q], [duration])
+        self.joint_action_client[arm].send_goal(self.jtg)
+
+    ##
+    # Move the arm through a joint configuration trajectory goal.
+    #
+    # @param arm 0 for right, 1 for left
+    # @param q_arr list of lists of 7 joint angles in RADIANS.
+    # @param dur_arr list of how long (SECONDS) from the beginning of the trajectory
+    #                before reaching the joint angles.
+    def set_joint_angles_traj(self, arm, q_arr, dur_arr):
+        if arm != 1:
+            arm = 0
+        self.jtg = create_joint_angles_traj(arm, q_arr, dur_arr)
+        self.joint_action_client[arm].send_goal(self.jtg)
+
+    ##
+    # Is the arm currently moving?
+    #
+    # @param arm 0 for right, 1 for left
+    # @return True if moving, else False
     def is_arm_in_motion(self, arm):
         state = self.joint_action_client[arm].get_state()
         return state == GoalStatus.PENDING or state == GoalStatus.ACTIVE
 
+    ##
+    # Block until the arm has finished moving
+    # 
+    # @param arm 0 for right, 1 for left
+    # @param hz how often to check
     def wait_for_arm_completion(self, arm, hz=0.01):
         while self.is_arm_in_motion(arm):
             rospy.sleep(hz)
 
+    ##
+    # Transforms the given position by the offset position in the given quaternion
+    # rotation frame
+    #
+    # @param pos the current positions
+    # @param quat quaternion representing the rotation of the frame
+    # @param off_pos offset to move the position inside the quat's frame
+    # @return the new position as a matrix column
     def transform_in_frame(pos, quat, off_pos):
             invquatmat = np.mat(tftrans.quaternion_matrix(tftrans.quaternion_inverse(quat)))
             invquatmat[0:3,3] = np.matrix(pos).T
@@ -177,6 +218,12 @@ class SimpleArmTrajectory(object):
             transpos = invquatmat * trans
             return np.resize(transpos, (3, 1))
 
+    ##
+    # Performs Forward Kinematics on the given joint angles
+    #
+    # @param arm 0 for right, 1 for left
+    # @param q list of 7 joint angles in radians
+    # @return column matrix of cartesian position, column matrix of quaternion
     def FK(self, arm, q):
         if arm != 1:
             arm = 0
@@ -210,6 +257,14 @@ class SimpleArmTrajectory(object):
 
         return ret1, ret2
     
+    ##
+    # Performs Inverse Kinematics on the given position and rotation
+    #
+    # @param arm 0 for right, 1 for left
+    # @param p cartesian position in torso_lift_link frame
+    # @param rot quaternion rotation column or rotation matrix 
+    #                                            of wrist in torso_lift_link frame
+    # @param q_guess initial joint angles to use for finding IK
     def IK(self, arm, p, rot, q_guess):
         if arm != 1:
             arm = 0
@@ -255,6 +310,27 @@ class SimpleArmTrajectory(object):
 
         return ret
 
+    ##
+    # Evaluates IK for the given position and rotation to see if the arm could move
+    # @param arm 0 for right, 1 for left
+    # @param p cartesian position in torso_lift_link frame
+    # @param rot quaternion rotation column or rotation matrix 
+    #                                            of wrist in torso_lift_link frame
+    def can_move_arm(self, arm, pos, rot):
+        begq = self.get_joint_angles(arm)
+        endq = self.IK(arm, pos, rot, begq)
+        if endq is None:
+            return False
+        else:
+            return True
+
+    ##
+    # Moves the arm to the given position and rotation
+    #
+    # @param arm 0 for right, 1 for left
+    # @param pos cartesian position of end effector
+    # @param rot quaterninon or rotation matrix of the end effector
+    # @param dur length of time to do the motion in
     def move_arm(self, arm, pos, rot=None, dur=1.0):
         begq = self.get_joint_angles(arm)
         if rot is None:
@@ -265,9 +341,20 @@ class SimpleArmTrajectory(object):
         self.set_joint_angles(arm, endq, dur)
         return True
 
+    ##
+    # Move the arm through a trajectory defined by a series of positions and rotations
+    #
+    # @param arm 0 for right, 1 for left
+    # @param pos_arr list of positions to achieve during trajectory
+    # @param dur length of time to execute all trajectories in, all positions will
+    #            be given the same amount of time to reach the next point
+    #            (ignore if dur_arr is not None)
+    # @param rot_arr achieve these rotations along with those positions
+    #                if None, maintain original rotation
+    # @param dur_arr use these times for the time positions
     def move_arm_trajectory(self, arm, pos_arr, dur=1., rot_arr=None, dur_arr=None):
         if dur_arr is None:
-            dur_arr = np.linspace(0., dur, len(pos_arr))
+            dur_arr = np.linspace(0., dur, len(pos_arr) + 1)[1:]
         
         curq = self.get_joint_angles(arm)
         q_arr = []
@@ -289,24 +376,21 @@ class SimpleArmTrajectory(object):
                 curq = nextq
         log("IK Accuracy: %d/%d (%f)" % (trys-fails, trys, (trys-fails)/float(trys)))
         self.set_joint_angles_traj(arm, q_arr, dur_arr)
-
-    def can_move_arm(self, arm, pos, rot, dur=1.0):
-        begq = self.get_joint_angles(arm)
-        endq = self.IK(arm, pos, rot, begq)
-        if endq is None:
-            return False
-        else:
-            return True
-
-    # for compatibility with Meka arms on Cody. Need to figure out a
-    # good way to have a common interface to different arms.
-    def step(self):
-        return
     
+    ##
+    # Returns the current position, rotation of the arm.
+    #
+    # @param arm 0 for right, 1 for left
+    # @return rotation, position
     def end_effector_pos(self, arm):
         q = self.get_joint_angles(arm)
         return self.FK(arm, q)
 
+    ##
+    # Returns the list of 7 joint angles
+    #
+    # @param arm 0 for right, 1 for left
+    # @return list of 7 joint angles
     def get_joint_angles(self, arm):
         if arm != 1:
             arm = 0
@@ -348,53 +432,80 @@ class SimpleArmTrajectory(object):
 #       else:
 #           self.l_arm_cart_pub.publish(ps)
 
-    def open_gripper(self, arm):
-        self.gripper_action_client[arm].send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=0.08, max_effort = -1)))
+# TODO Evaluate gripper functions and parameters
 
-    ## close the gripper
+    ##
+    # Move the gripper the given amount with given amount of effort
+    #
+    # @param arm 0 for right, 1 for left
+    # @param amount the amount the gripper should be opened
     # @param effort - supposed to be in Newtons. (-ve number => max effort)
-    def close_gripper(self, arm, effort = 15):
-        self.gripper_action_client[arm].send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=0.0, max_effort = effort)))
+    def move_gripper(self, arm, amount=0.08, effort = 15):
+        self.gripper_action_client[arm].send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=amount, max_effort = -1)))
 
-    def get_wrist_force(self, arm):
-        pass
+    ##
+    # Open the gripper
+    #
+    # @param arm 0 for right, 1 for left
+    def open_gripper(self, arm):
+        self.move_gripper(arm, 0.08, -1)
+
+    ##
+    # Close the gripper
+    #
+    # @param arm 0 for right, 1 for left
+    def close_gripper(self, arm):
+        self.move_gripper(arm, 0.0, 15)
+
+#   def get_wrist_force(self, arm):
+#       pass
 
 # TODO Rename classes
     
-# Trajectory functions
-def smooth_traj_pos(t, k, T):
+####################################################
+# Smooth trajectory functions
+def _smooth_traj_pos(t, k, T):
     return -k / T**3 * np.sin(T * t) + k / T**2 * t
 
-def smooth_traj_vel(t, k, T):
+def _smooth_traj_vel(t, k, T):
     return -k / T**2 * np.cos(T * t) + k / T**2 
 
-def smooth_traj_acc(t, k, T):
+def _smooth_traj_acc(t, k, T):
     return k / T * np.sin(T * t) 
 
-def interpolate_traj(traj, k, T, num=10, begt=0., endt=1.):
-    return [traj(t,k,T) for t in np.linspace(begt, endt, num)]
-
 # length of time of the trajectory
-def traj_time(l, k):
+def _smooth_traj_time(l, k):
     return np.power(4 * np.pi**2 * l / k, 1./3.)
 
-class SmoothLinearArmTrajectory(SimpleArmTrajectory):
+def _interpolate_traj(traj, k, T, num=10, begt=0., endt=1.):
+    return [traj(t,k,T) for t in np.linspace(begt, endt, num)]
+
+####################################################
+
+##
+# Moves the arm through a linear trajectory in cartesian space.
+class LinearArmTrajectory(SimpleArmTrajectory):
     def __init__(self):
         super(SmoothLinearArmTrajectory,self).__init__()
 
-    def linear_move_arm(self, arm, dist,
+    ##
+    # Moves arm smoothly through this trajectory.
+    #
+    # @param arm
+    def smooth_linear_move_arm(self, arm, dist,
                              dir=(0.,0.,-1.), max_jerk=0.5, delta=0.01, dur=None):
         # Vector representing full transform of end effector
         traj_vec = [x/np.sqrt(np.vdot(dir,dir)) for x in dir]
         # number of steps to interpolate trajectory over
         num_steps = dist / delta
         # period of the trajectory 
-        trajt = traj_time(dist, max_jerk)
+        trajt = _smooth_traj_time(dist, max_jerk)
         print "trajt:", trajt
         period = 2. * np.pi / trajt
         # break the trajectory into interpolated parameterized function
         # from 0 to length of the trajectory
-        traj_mult = interpolate_traj(smooth_traj_pos, max_jerk, period, num_steps, 0., trajt) 
+        traj_mult = _interpolate_traj(_smooth_traj_pos, max_jerk, period, 
+                                      num_steps, 0., trajt) 
         # cartesian offset points of trajectory
         cart_traj = [(a*traj_vec[0],a*traj_vec[1],a*traj_vec[2]) for a in traj_mult]
         cur_pos, cur_rot = self.FK(0, self.get_joint_angles(0))
