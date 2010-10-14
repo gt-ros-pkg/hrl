@@ -82,6 +82,13 @@ def np_to_pointcloud(points_mat, frame):
         pc.points.append(p32)
     return pc
 
+def np_to_colored_pointcloud(points_mat, intensity, frame):
+    pc = np_to_pointcloud(points_mat, frame)
+    pc.channels.append(sm.ChannelFloat32())
+    pc.channels[0].name = 'intensity'
+    pc.channels[0].values = intensity.A1.tolist()
+    return pc
+
 def pointcloud_to_np(pc):
     plist = []
     for p in pc.points:
