@@ -373,7 +373,7 @@ class GenericListener:
     # hokuyo - want to get a reading, can be stale, no duplication allowed (don't want a None), willing to wait for new data (default)
     # ft     - want to get a reading, can be stale, duplication allowed    (don't want a None), query speed important
     # NOT ALLOWED                                   duplication allowed,                        willing to wait for new data
-    def read(self, allow_duplication=False, willing_to_wait=True, warn=False, quiet=False):
+    def read(self, allow_duplication=False, willing_to_wait=True, warn=False, quiet=True):
         if allow_duplication:
             if willing_to_wait:
                 raise RuntimeError('Invalid settings for read.')
