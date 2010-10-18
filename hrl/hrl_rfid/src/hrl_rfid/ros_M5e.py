@@ -90,7 +90,7 @@ class ROS_M5e( Thread ):
                     antennaName = aF(self.reader)    # let current antFunc make appropriate changes
                     results = self.reader.QueryEnvironment()
                     if len(results) == 0:
-                        results = [ '', -1 ] # [ tagid, rssi ]
+                        results = [[ '', -1 ]] # [[ tagid, rssi ], ...]
                         #datum = [antennaName, '', -1]
                         #[cF(datum) for cF in self.callbacks]
                     arr = []
