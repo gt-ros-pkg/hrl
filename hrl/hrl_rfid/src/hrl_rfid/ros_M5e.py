@@ -90,8 +90,9 @@ class ROS_M5e( Thread ):
                     antennaName = aF(self.reader)    # let current antFunc make appropriate changes
                     results = self.reader.QueryEnvironment()
                     if len(results) == 0:
-                        datum = [antennaName, '', -1]
-                        [cF(datum) for cF in self.callbacks]
+                        results = [ '', -1 ] # [ tagid, rssi ]
+                        #datum = [antennaName, '', -1]
+                        #[cF(datum) for cF in self.callbacks]
                     arr = []
                     t_now = rospy.Time.now()
                     for tagid, rssi in results:
