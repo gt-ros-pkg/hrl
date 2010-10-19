@@ -18,7 +18,7 @@ import numpy as np
 import math
 import cv
 import hai_sandbox.features as fea
-import hai_sandbox.pr2_kinematics as pr2k
+import hrl_pr2_lib.pr2_kinematics as pr2k
 import pdb
 import sensor_msgs.msg as sm 
 import hrl_pr2_lib.devices as hpr2

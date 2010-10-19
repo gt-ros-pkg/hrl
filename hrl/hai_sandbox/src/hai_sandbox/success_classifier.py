@@ -7,12 +7,14 @@ import hai_sandbox.bag_processor as bp
 import hrl_lib.util as ut
 import visualization_msgs.msg as vm
 import numpy as np
-import hai_sandbox.viz as viz
+import hrl_lib.viz as viz
 import hai_sandbox.dimreduce as dimreduce
 import sensor_msgs.msg as sm
 import scipy.spatial as sp
 import pdb
 import scipy.stats as kde
+import pr2_msgs.msg as pm
+import threading
 
 
 ##
@@ -110,27 +112,75 @@ class TimeSeriesVectorizer:
 
     def register_listener(self, vectorize_func, msg_type, topic, buffer_length_secs):
         self.buffer_lengths[topic] = buffer_length_secs
+
         def listener_func(msg):
             amat = vectorize_func(msg)
-            t    = np.array([msg.header.stamp.to_time()])
-            if not self.channels.has_key(topic):
-                self.channels[topic] = [amat, t]
+            t    = np.matrix([msg.header.stamp.to_time()])
+            got_lock = False
+            if self.channels[topic][0] == None:
+                self.channels[topic] = [amat, t, threading.RLock()]
             else:
-                self.channels[topic] = [np.column_stack((self.channels[topic][0], amat)), 
-                                        np.column_stack((self.channels[topic][1], t))]
+                lock = self.channels[topic][2]
+                lock.acquire()
+                got_lock = True
+                #print 'l locked'
+                new_record = [np.column_stack((self.channels[topic][0], amat)), 
+                              np.column_stack((self.channels[topic][1], t)),
+                              lock]
+                #print 'got something', new_record[0].shape
+                self.channels[topic] = new_record
+                #print 'time recorded is', t[0,0]
+                #print 'shape', self.channels[topic][0].shape
+                #lock.release()
+                #print 'l released'
                                         
+            lock = self.channels[topic][2]
+            if not got_lock:
+                lock.acquire()
+            #lock.acquire()
             #select only messages n-seconds ago
-            n_seconds_ago = t[0] - buffer_length_secs
-            self.channels[topic][0] = self.channels[topic][0][:, np.where(self.channels[topic][1] >= n_seconds_ago)]
-        
+            n_seconds_ago = t[0,0] - buffer_length_secs
+            records_in_range = (np.where(self.channels[topic][1] >= n_seconds_ago)[1]).A1
+            #print records_in_range, self.channels[topic][0].shape
+            self.channels[topic][0] = self.channels[topic][0][:, records_in_range]
+            #print 'shape after selection...', self.channels[topic][0].shape
+            lock.release()
+       
+        self.channels[topic] = [None]
         rospy.Subscriber(topic, msg_type, listener_func)
 
     def get_n_steps(self, topic, timestart, nsteps, wait=True): 
-        if timestart < self.channels[topic][1][0]:
-            raise RuntimeError('timestart <= self.channels[topic][1][0]')
+        #print 'timestart is', timestart
+        if self.channels[topic][0] != None:
+            if timestart < self.channels[topic][1][0,0]:
+                # [0,0] is the earliest, and [0,-1] is the latest
+                #print self.channels[topic][1][0,0], self.channels[topic][1][0,-1], self.channels[topic][1].shape
+                #print 'diff', self.channels[topic][1][0,0] - timestart
+                #print 'diff', self.channels[topic][1][0,-1] - timestart
+                #print timestart, self.channels[topic][1][0,0]
+                raise RuntimeError('timestart <= self.channels[topic][1][0,0]')
+
         r = rospy.Rate(100)
+        selected = None
         while selected == None:
-            selected = self.channels[topic][0][:, np.where(self.channels[topic][1] > timestart)][:, :nsteps]
+            if self.channels[topic][0] == None:
+                r.sleep()
+                continue
+
+            lock = self.channels[topic][2]
+            lock.acquire()
+            #print 'g locked'
+            #print self.channels[topic][0].shape
+            record_idxs = (np.where(self.channels[topic][1] > timestart)[1]).A1
+            #print record_idxs
+            #print record_idxs, self.channels[topic][0].shape
+            records_from_time = self.channels[topic][0][:, record_idxs]
+            #print 'records_from_time', records_from_time.shape, 'need', nsteps
+            #print '>>'
+            selected = records_from_time[:, :nsteps]
+            lock.release()
+            #print 'g released'
+            #r.sleep()
             if selected.shape[1] < nsteps:
                 if not wait:
                     return None
@@ -150,20 +200,25 @@ class TimeSeriesVectorizer:
 class TestOnlineClassification:
 
     def __init__(self):
+        rospy.init_node('success_classifier')
         self.vectorizer = TimeSeriesVectorizer()
         def pressure_vectorizer(pmsg):
             return np.row_stack((np.matrix((pmsg.l_finger_tip)).T, np.matrix((pmsg.r_finger_tip)).T))
         self.vectorizer.register_listener(pressure_vectorizer, pm.PressureState, '/pressure/l_gripper_motor', 15.)
+        #print 'registered'
 
     def start_classifying(self):
+        #print 'start_classifying'
         segment_idx = 0
-        segment_lengths = [20, 40, 30]
+        segment_lengths = [10, 20, 15]
         n_segments = len(segment_lengths)
         for segment_idx in range(n_segments):
             n_steps = segment_lengths[segment_idx]
+            #print 'getting_n_steps'
             selected = self.vectorizer.get_n_steps('/pressure/l_gripper_motor', \
                     rospy.get_rostime().to_time(), n_steps)
-            print selected.shape
+            print 'selected.shpae', selected.shape
+        print 'done!'
 
 
 class TimeSeriesClassifier:
@@ -419,7 +474,6 @@ class TimeSeriesClassifier:
                 print all_val
                 print 'state %d chunk %d results %.3f' % (state, chunk_idx, correct/all_val)
                 
-    
 
 def zero_out_time_in_trials(data_dict, topic):
     #print 'Finding times...'
@@ -495,7 +549,6 @@ def construct_pressure_marker_message(data_dict, topic, base_color=np.matrix([1.
     #point_cloud = ru.np_to_colored_pointcloud(all_points, np.matrix(pressures) + min_pval, 'pressure_viz')
     point_cloud = ru.np_to_colored_pointcloud(all_points, np.matrix(pressures), 'pressure_viz')
     return point_cloud
-
 
 class DisplayDataWithRviz:
 
@@ -704,6 +757,12 @@ if __name__ == '__main__':
         d = DiffDisplay()
         #data_dict [state number] [topic] [trial number] ['t' 'left' 'right']
         d.display(sys.argv[2], sys.argv[3])
+
+
+    if 'run' == sys.argv[1]:
+        t = TestOnlineClassification()
+        t.start_classifying()
+
 
 
 
