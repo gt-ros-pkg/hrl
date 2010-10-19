@@ -203,6 +203,6 @@ def signal_variance(x,y, window_len=10):
             curb = len(x)
         for xval in x[cura:curb]:
             cursum += (xval - y[i])**2
-        vars += [np.sqrt(cursum/(curb-cura))]
+        vars += [cursum / (curb-cura)]
     vars += [vars[len(vars)-1]]
     return vars

@@ -329,10 +329,7 @@ class GenericListener:
             if len(msg) == 1:
                 msg = msg[0]
             
-            if message_extractor != None:
-                self.reading  = {'message':message_extractor(msg), 'msg_id':msg_number}
-            else:
-                self.reading  = {'message':msg, 'msg_id':msg_number}
+            self.reading  = {'message':msg, 'msg_id':msg_number}
 
             #Check for delayed messages
             self.last_call_back = time.time() #record when we have been called back last
@@ -382,7 +379,10 @@ class GenericListener:
                 self._wait_for_first_read(quiet)
                 reading                = self.reading
                 self.last_msg_returned = reading['msg_id']
-                return reading['message']
+                if message_extractor != None:
+                    return message_extractor(reading['message'])
+                else:
+                    return reading['message']
         else:
             if willing_to_wait:
                 # hokuyo - want to get a reading, can be stale, no duplication allowed (don't want a None), willing to wait for new data (default)
@@ -393,7 +393,10 @@ class GenericListener:
                     time.sleep(1/1000.0)
                 reading = self.reading
                 self.last_msg_returned = reading['msg_id']
-                return reading['message']
+                if message_extractor != None:
+                    return message_extractor(reading['message'])
+                else:
+                    return reading['message']
             else:
                 # rfid   - want to get a reading, can be stale, no duplication allowed (allow None),        query speed important
                 if self.last_msg_returned == self.reading['msg_id']:
@@ -401,7 +404,10 @@ class GenericListener:
                 else:
                     reading = self.reading
                     self.last_msg_returned = reading['msg_id']
-                    return reading['message']
+                    if message_extractor != None:
+                        return message_extractor(reading['message'])
+                    else:
+                        return reading['message']
 
 ##
 #Class for registering as a subscriber to a specified topic, where
