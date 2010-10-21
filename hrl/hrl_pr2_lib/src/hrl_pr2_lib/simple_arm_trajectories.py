@@ -20,6 +20,7 @@ from sensor_msgs.msg import JointState
 
 import hrl_lib.transforms as tr
 import time
+import functools as ft
 
 import tf.transformations as tftrans
 import operator as op
@@ -40,10 +41,11 @@ class SimpleArmTrajectory(object):
     ##
     # Initializes all of the servers, clients, and variables
     #
+    # @param send_delay send trajectory points send_delay nanoseconds into the future
     # @param gripper_point given the frame of the wrist_roll_link, this point offsets
     #                      the location used in FK and IK, preferably to the tip of the
     #                      gripper
-    def __init__(self, gripper_point=(0.23, 0.0, 0.0)):
+    def __init__(self, send_delay=10000000, gripper_point=(0.23, 0.0, 0.0)):
         log("Loading SimpleArmTrajectory")
         self.joint_names_list = [['r_shoulder_pan_joint',
                            'r_shoulder_lift_joint', 'r_upper_arm_roll_joint',
@@ -53,6 +55,8 @@ class SimpleArmTrajectory(object):
                            'l_shoulder_lift_joint', 'l_upper_arm_roll_joint',
                            'l_elbow_flex_joint', 'l_forearm_roll_joint',
                            'l_wrist_flex_joint', 'l_wrist_roll_joint']]
+
+        self.off_point = gripper_point
 
         rospy.wait_for_service('pr2_right_arm_kinematics/get_fk');
         self.fk_srv = [rospy.ServiceProxy('pr2_right_arm_kinematics/get_fk', GetPositionFK),
@@ -169,8 +173,10 @@ class SimpleArmTrajectory(object):
     def set_joint_angles(self, arm, q, duration=1.):
         if arm != 1:
             arm = 0
-        self.jtg = create_joint_angles_traj(arm, [q], [duration])
+        self.jtg = self.create_joint_angles_traj(arm, [q], [duration])
+        self.arm_state_lock[arm].acquire()
         self.joint_action_client[arm].send_goal(self.jtg)
+        self.arm_state_lock[arm].release()
 
     ##
     # Move the arm through a joint configuration trajectory goal.
@@ -183,7 +189,9 @@ class SimpleArmTrajectory(object):
         if arm != 1:
             arm = 0
         self.jtg = create_joint_angles_traj(arm, q_arr, dur_arr)
+        self.arm_state_lock[arm].acquire()
         self.joint_action_client[arm].send_goal(self.jtg)
+        self.arm_state_lock[arm].release()
 
     ##
     # Is the arm currently moving?
@@ -209,12 +217,12 @@ class SimpleArmTrajectory(object):
     #
     # @param pos the current positions
     # @param quat quaternion representing the rotation of the frame
-    # @param off_pos offset to move the position inside the quat's frame
+    # @param off_point offset to move the position inside the quat's frame
     # @return the new position as a matrix column
-    def transform_in_frame(pos, quat, off_pos):
+    def transform_in_frame(self, pos, quat, off_point):
             invquatmat = np.mat(tftrans.quaternion_matrix(tftrans.quaternion_inverse(quat)))
             invquatmat[0:3,3] = np.matrix(pos).T
-            trans = np.matrix([self.off_pos[0],self.off_pos[1],self.off_pos[2],1.]).T
+            trans = np.matrix([self.off_point[0],self.off_point[1],self.off_point[2],1.]).T
             transpos = invquatmat * trans
             return np.resize(transpos, (3, 1))
 
@@ -237,7 +245,9 @@ class SimpleArmTrajectory(object):
         fk_req.robot_state.joint_state.position = q
 
         fk_resp = GetPositionFKResponse()
+        self.arm_state_lock[arm].acquire()
         fk_resp = self.fk_srv[arm].call(fk_req)
+        self.arm_state_lock[arm].release()
         if fk_resp.error_code.val == fk_resp.error_code.SUCCESS:
             x = fk_resp.pose_stamped[0].pose.position.x
             y = fk_resp.pose_stamped[0].pose.position.y
@@ -249,7 +259,7 @@ class SimpleArmTrajectory(object):
             quat = [q1,q2,q3,q4]
             
             # Transform point from wrist roll link to actuator
-            ret1 = transform_in_frame([x,y,z], quat, off_point)
+            ret1 = self.transform_in_frame([x,y,z], quat, off_point)
             ret2 = np.matrix(quat).T 
         else:
             rospy.logerr('Forward kinematics failed')
@@ -270,16 +280,16 @@ class SimpleArmTrajectory(object):
             arm = 0
 
         if rot[:].shape == (3, 3):
-            quat = tr.matrix_to_quaternion(rot)
+            quat = np.matrix(tr.matrix_to_quaternion(rot)).T
         elif rot[:].shape == (4, 1):
-            quat = rot
+            quat = np.matrix(rot)
         else:
             rospy.logerr('Inverse kinematics failed (bad rotation)')
             return None
 
         # Transform point back to wrist roll link
         neg_off = [-self.off_point[0],-self.off_point[1],-self.off_point[2]]
-        transpos = transform_in_frame(p.T.A[0], quat.T.A[0], neg_off)
+        transpos = self.transform_in_frame(p.T.A[0], quat.T.A[0], neg_off)
         
         ik_req = GetPositionIKRequest()
         ik_req.timeout = rospy.Duration(5.)
@@ -301,7 +311,9 @@ class SimpleArmTrajectory(object):
         ik_req.ik_request.ik_seed_state.joint_state.position = q_guess
         ik_req.ik_request.ik_seed_state.joint_state.name = self.joint_names_list[arm]
 
+        self.arm_state_lock[arm].acquire()
         ik_resp = self.ik_srv[arm].call(ik_req)
+        self.arm_state_lock[arm].release()
         if ik_resp.error_code.val == ik_resp.error_code.SUCCESS:
             ret = ik_resp.solution.joint_state.position
         else:
@@ -486,7 +498,7 @@ def _interpolate_traj(traj, k, T, num=10, begt=0., endt=1.):
 # Moves the arm through a linear trajectory in cartesian space.
 class LinearArmTrajectory(SimpleArmTrajectory):
     def __init__(self):
-        super(SmoothLinearArmTrajectory,self).__init__()
+        super(LinearArmTrajectory,self).__init__()
 
     ##
     # Moves arm smoothly through this trajectory.

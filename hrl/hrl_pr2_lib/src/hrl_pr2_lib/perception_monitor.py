@@ -27,7 +27,6 @@ def log(str):
 # @param msg AccelometerState message
 # @return (t, (x, y, z))
 def accel_state_processor(msg):
-    accel_msg = ros_to_dict(msg)
     x, y, z = 0., 0., 0.
     if msg.samples is None or len(msg.samples) == 0:
         return None
@@ -45,7 +44,7 @@ def accel_state_processor(msg):
 # rate and gathering up the results into a list
 class PeriodicLogger():
     ##
-    # initializes the monitor but doesn't start it
+    # initializes the logger but doesn't start it
     #
     # @param callback the function to be called each time
     # @param rate the rate in seconds at which to call the callback
@@ -56,51 +55,58 @@ class PeriodicLogger():
         self.rate = rate
         self.args = args
         self.is_running = False
-        self.num_calls = None
+        self.max_calls = None
+        self.num_calls = 0
+        self.beg_time = 0.
+        self.thread = None
 
     ##
-    # begins the monitor
-    # @param num_calls the maximum number of times to call the callback
-    def start(self, num_calls=None):
+    # begins the logger 
+    # @param max_calls the maximum number of times to call the callback
+    def start(self, max_calls=None):
         if self.is_running:
             return
-        self.num_calls = num_calls
+        self.max_calls = max_calls
         self.is_running = True
-            
-        self._run()
+        self.num_calls = 0
+        self.beg_time = rospy.Time.now().to_sec()
+        self.thread = threading.Timer(self.rate, self._run)
+        self.thread.start()
 
     def _run(self):
-        print "_run"
         if not self.is_running:
             return
+
+        act_time = self.beg_time + self.rate * (self.num_calls + 2)
+        interval = act_time - rospy.Time.now().to_sec()
+        self.thread = threading.Timer(interval, self._run)
+        self.thread.start()
+
         if self.args is None:
             retval = self.cb()
         else:
             retval = self.cb(*self.args)
-        print self.rate
         self.ret += [retval]
 
+        self.num_calls += 1
         # break if we have called the sufficent number of times
-        if self.num_calls is not None:
-            self.num_calls -= 1
-            if self.num_calls == 0:
+        if self.max_calls is not None:
+            if self.num_calls == self.max_calls:
                 self.is_running = False
                 return
-        self.t = threading.Timer(self.rate, self._run)
-        print "end _run"
 
     ##
     # stops the monitor
     # @return the result of the monitor
     def stop(self):
-        print "stop"
+        self.thread.cancel()
         if not self.is_running:
             return None
         self.is_running = False
         return self.ret
 
     ##
-    # If num_calls sets to automatically terminate, return the ret vals
+    # If max_calls sets to automatically terminate, return the ret vals
     def get_ret_vals(self):
         if self.is_running:
             return None
@@ -123,6 +129,9 @@ class PeriodicMonitor():
         self.rate = rate
         self.args = args
         self.is_running = False
+        self.num_calls = 0
+        self.beg_time = 0.
+        self.thread = None
         self.mean_model = None
         self.variance_model = None
         self.std_devs = 0.
@@ -131,8 +140,8 @@ class PeriodicMonitor():
     ##
     # begins the monitor
     # TODO DOCS
-    # @param num_calls the maximum number of times to call the callback
-    def start(self, mean_model, variance_model, std_devs=2.5, num_calls=None, 
+    # @param max_calls the maximum number of times to call the callback
+    def start(self, mean_model, variance_model, std_devs=2.5, max_calls=None, 
                                                 contingency=None, contingency_args=None):
         if len(mean_model) != len(variance_model):
             log("Models must be of same length")
@@ -143,17 +152,26 @@ class PeriodicMonitor():
         self.mean_model = mean_model
         self.variance_model = variance_model
         self.std_devs = std_devs
-        self.num_calls = num_calls
+        self.max_calls = max_calls
         self.contingency = contingency
         self.contincency_args = contingency_args
         self.model_index = 0
         self.failure = False
             
-        self._run()
+        self.num_calls = 0
+        self.beg_time = rospy.Time.now().to_sec()
+        self.thread = threading.Timer(self.rate, self._run)
+        self.thread.start()
 
     def _run(self):
         if not self.is_running:
             return
+
+        act_time = self.beg_time + self.rate * (self.num_calls + 2)
+        interval = act_time - rospy.Time.now().to_sec()
+        self.thread = threading.Timer(interval, self._run)
+        self.thread.start()
+
         if self.args is None:
             retval = self.cb()
         else:
@@ -180,24 +198,24 @@ class PeriodicMonitor():
             return
 
         # break if we have called the sufficent number of times
-        if not self.num_calls is None:
-            self.num_calls -= 1
-            if self.num_calls == 0:
+        if not self.max_calls is None:
+            self.max_calls -= 1
+            if self.max_calls == 0:
                 self.is_running = False
                 return
-        t = threading.Timer(self.rate, self._run)
 
     ##
     # stops the monitor
     # @return the result of the monitor
     def stop(self):
+        self.thread.cancel()
         if not self.is_running:
             return None
         self.is_running = False
         return self.ret
 
     ##
-    # If num_calls sets to automatically terminate, return the ret vals
+    # If max_calls sets to automatically terminate, return the ret vals
     def get_ret_vals(self):
         if self.is_running:
             return None
@@ -233,7 +251,7 @@ class ArmPerceptionMonitor( ):
     #
     # @param arm 0 if right, 1 if left
     # @param rate the rate at which the perception should capture states
-    def __init__(self, arm, rate=0.01):
+    def __init__(self, arm, rate=0.001):
         log("Initializing arm perception listeners")
 
         self.rate = rate
@@ -252,9 +270,11 @@ class ArmPerceptionMonitor( ):
         # TODO add callbacks for tactile sensors and joint torques
 
         
+        self.ploggers = {}
         self.pmonitors = {}
         self.datasets = {}
         for k in self.perceptions:
+            self.ploggers[k] = None
             self.pmonitors[k] = None
             self.datasets[k] = None
 
@@ -276,14 +296,14 @@ class ArmPerceptionMonitor( ):
         self.active = True
 
         for k in self.perceptions:
-            self.pmonitors[k] = PeriodicLogger(self.perceptions[k], self.rate)
+            self.ploggers[k] = PeriodicLogger(self.perceptions[k], self.rate)
             self.datasets[k] = None
 
         for k in self.perceptions:
             if duration is None:
-                self.pmonitors[k].start()
+                self.ploggers[k].start()
             else:
-                self.pmonitors[k].start(int(duration / self.rate) + 1)
+                self.ploggers[k].start(int(duration / self.rate))
 
         if not duration is None:
             threading.Timer(self._wait_stop_training, duration)
@@ -298,9 +318,9 @@ class ArmPerceptionMonitor( ):
 
         for k in self.perceptions:
             if self.datasets[k] is None:
-                self.datasets[k] = [self.pmonitors[k].stop()]
+                self.datasets[k] = [self.ploggers[k].stop()]
             else:
-                self.datasets[k] += [self.pmonitors[k].stop()]
+                self.datasets[k] += [self.ploggers[k].stop()]
         self.active = False
     
     ##
@@ -313,7 +333,7 @@ class ArmPerceptionMonitor( ):
         for k in self.perceptions:
             dataset = None
             while dataset is None:
-                dataset = self.pmonitors[k].get_ret_vals()
+                dataset = self.ploggers[k].get_ret_vals()
 
             if self.datasets[k] is None:
                 self.datasets[k] = [dataset]
@@ -334,7 +354,6 @@ class ArmPerceptionMonitor( ):
                                          var_smooth_wind=None):
 
         model_list = self.datasets[perception]
-        import pdb; pdb.set_trace()
         
         if model_list is None:
             log("No data to generate model for")
@@ -354,11 +373,11 @@ class ArmPerceptionMonitor( ):
 
         # dynamic finding of parameters
         if smooth_wind is None:
-            smooth_wind = min(max(10, int(min_len * 0.05)), 100)
+            smooth_wind = min(max(10, int(min_len * 0.15)), 150)
         if var_wind is None:
-            var_wind = min(max(10, int(min_len * 0.05)), 50)
+            var_wind = min(max(10, int(min_len * 0.15)), 50)
         if var_smooth_wind is None:
-            var_smooth_wind = min(max(10, int(min_len * 0.05)), 100)
+            var_smooth_wind = min(max(10, int(min_len * 0.15)), 150)
 
 
         ret_means, ret_vars = [], []
@@ -426,7 +445,7 @@ class ArmPerceptionMonitor( ):
                                              None, contingency, contingency_args)
         else:
             self.pmonitors[perception].start(mean_model, variance_model, std_devs, 
-                                             int(duration / self.rate) + 1, 
+                                             int(duration / self.rate), 
                                              contingency, contingency_args)
 
         if not duration is None:
@@ -483,22 +502,40 @@ if __name__ == '__main__':
 
     apm = ArmPerceptionMonitor(0, 0.001)
     apm.start_training()
-    rospy.sleep(5.)
+    rospy.sleep(4.)
     apm.stop_training()
-    means, vars = apm.generate_model("accelerometer", 100, 50)
+    means, vars = apm.generate_model("accelerometer")
+    print len(means)
     
     xm, ym, zm = zip(*means)
     xv, yv, zv = zip(*vars)
+    xv = map(np.sqrt, xv)
+    yv = map(np.sqrt, yv)
+    zv = map(np.sqrt, zv)
+    std_dev = 2.5
+    xmmax = [m + np.sqrt(v) * std_dev for m, v in zip(xm, xv)]
+    ymmax = [m + np.sqrt(v) * std_dev for m, v in zip(ym, yv)]
+    zmmax = [m + np.sqrt(v) * std_dev for m, v in zip(zm, zv)]
+    xmmin = [m - np.sqrt(v) * std_dev for m, v in zip(xm, xv)]
+    ymmin = [m - np.sqrt(v) * std_dev for m, v in zip(ym, yv)]
+    zmmin = [m - np.sqrt(v) * std_dev for m, v in zip(zm, zv)]
+    
     import matplotlib.pyplot as plt
     plt.subplot(321)
     plt.plot(xm)
+    plt.plot(xmmax)
+    plt.plot(xmmin)
     #plt.axis([0, len(xm), 0., 15.])
     plt.title("X mean")
     plt.subplot(323)
     plt.plot(ym)
+    plt.plot(ymmax)
+    plt.plot(ymmin)
     plt.title("Y mean")
     plt.subplot(325)
     plt.plot(zm)
+    plt.plot(zmmax)
+    plt.plot(zmmin)
     plt.title("Z mean")
 
     plt.subplot(322)

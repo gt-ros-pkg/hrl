@@ -1,4 +1,6 @@
+#! /usr/bin/python
 import numpy as np, math
+import sys
 from threading import RLock
 
 import roslib; roslib.load_manifest('hrl_pr2_lib')
@@ -6,8 +8,10 @@ import rospy
 
 import actionlib
 
-from hrl_lib.utils import 
-from hrl_lib.rutils import 
+from hrl_lib.util import save_pickle, load_pickle
+from hrl_lib.transforms import rotX, rotY, rotZ
+# from hrl_lib.rutils import 
+from hrl_pr2_lib.simple_arm_trajectories import SimpleArmTrajectory, LinearArmTrajectory
 
 node_name = "simple_grasp_learner" 
 
@@ -17,9 +21,17 @@ def log(str):
 SETUP_POS_PICKLE = "pickles//init_pos_r.pickle"
 ARM = 0 # right arm
 
+def save_setup_pos():
+    print "save_setup_pos"
+    slat = LinearArmTrajectory()
+    slat.move_arm(ARM, np.matrix((0.3, 0., -0.1)).T, rotY(1.), 4.)
+    slat.wait_for_arm_completion(0)
+    q = slat.get_joint_angles(0)
+    save_pickle(q, SETUP_POS_PICKLE)
+
 def grasp_learn(arm=ARM, hover_z=0.4, num_x=10, num_y=10, num_n=6,
                         rect=((0.4,-0.4),(0.8,0.4)), table_z=-0.3):
-    slat = SimpleLinearArmTrajectory()
+    slat = LinearArmTrajectory()
 
     grasp_xy_list = []
     for x in np.linspace(rect[0][0], rect[1][0], num_x):
@@ -44,14 +56,14 @@ def grasp_learn(arm=ARM, hover_z=0.4, num_x=10, num_y=10, num_n=6,
             
             grasp_dist = hover_z - table_z
             # move arm down
-            dur = self.slat.linear_move_arm(arm, grasp_dist, (0.,0.,-1.),  max_jerk=0.5)
+            dur = self.slat.smooth_linear_move_arm(arm, grasp_dist, (0.,0.,-1.),  max_jerk=0.5)
             self.slat.wait_for_arm_completion(arm)
             rospy.sleep(1.5)
 
             # TODO End monitoring sensors
 
             # move arm up
-            dur = self.slat.linear_move_arm(arm, grasp_dist, (0.,0.,1.),  max_jerk=0.5)
+            dur = self.slat.smooth_linear_move_arm(arm, grasp_dist, (0.,0.,1.),  max_jerk=0.5)
             self.slat.wait_for_arm_completion(arm)
             rospy.sleep(1.5)
 
@@ -61,7 +73,9 @@ def grasp_learn(arm=ARM, hover_z=0.4, num_x=10, num_y=10, num_n=6,
             
 
 def main():
-    grasp_learn()
+    rospy.init_node(node_name)
+    save_setup_pos()
+    # grasp_learn()
     return 0
 
 if __name__ == "__main__":
