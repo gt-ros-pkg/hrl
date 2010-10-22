@@ -60,28 +60,35 @@ class ForceFeedbackFilter:
         feedback = -1.0*self.kp*x_err-self.kd*x_dot
 
         #currently the calculated force feedback is published but not to omni, we use the velocity limited state from the controller
-        wr_ee = [state.F.force.x, state.F.force.y, state.F.force.z]
-        
+#        wr_ee = [state.F.force.x, state.F.force.y, state.F.force.z]
+        wr_ee = [feedback[0,0], feedback[1,0], feedback[2,0]]
+       
         #this is a simple FIR filter designed in Matlab to smooth the force estimate
         shift_right = np.array(self.history[:,0:self.FIR.size-1])
         new_col = np.array(wr_ee).reshape((3,1))
         self.history = np.matrix(np.hstack((new_col, shift_right)))
         wr_ee_filt = self.history*self.FIR
 
-        #find and use the rotation matrix from wrench to torso
+        #find and use the rotation matrix from wrench to torso                                                                   
+        df_R_ee = tfu.rotate(self.dest_frame, 'torso_lift_link', self.tflistener) * \
+                tfu.rotate('torso_lift_link', self.wrench_frame, self.tflistener)
+        wr_df = self.force_scaling*np.array(tr.translation_from_matrix(df_R_ee * tfu.translation_matrix([wr_ee_filt[0,0], wr_ee_filt[1,0], wr_ee_filt[2,0]])))
+
+        #limiting the max and min force feedback sent to omni                                                                    
+        wr_df = np.where(wr_df>self.omni_max_limit, self.omni_max_limit, wr_df)
+        wr_df = np.where(wr_df<self.omni_min_limit, self.omni_min_limit, wr_df)
 
         wr = Wrench()
-        wr.force.x = wr_ee_filt[0,0]
-        wr.force.y = wr_ee_filt[1,0]
-        wr.force.z = wr_ee_filt[2,0]
-        
-        test = Wrench()
-        test.force.x = feedback[0,0] #wr.force.x-self.force_old[0]
-        test.force.y = feedback[1,0] #wr.force.y-self.force_old[1]
-        test.force.z = feedback[2,0] #wr.force.z-self.force_old[2]
+        wr.force.x = wr_df[0,0]
+        wr.force.y = wr_df[1,0]
+        wr.force.z = wr_df[2,0]
              
         #publishing of two different wrenches calculated, DELETE first when all finished
-        self.filtered_fb.publish(wr)
+        if self.enable == False:
+            self.filtered_fb.publish(wr)
+
+        if self.enable == True:
+            self.omni_fb.publish(wr)
 
 #this could be used for trying to damp the force feedback, didn't work very well
 #         self.force_old[0] = wr.force.x
@@ -113,6 +120,23 @@ class FF_PR2Teleop:
             tflistener = self.tflistener,
             kp_name = '/r_cart/cart_gains/trans/p',
             kd_name = '/r_cart/cart_gains/trans/d')
+        rospy.Subscriber('omni1_button', PhantomButtonEvent, self.omni_safety_lock_cb)
+        rospy.Subscriber('omni2_button', PhantomButtonEvent, self.omni_safety_lock_cb)
+
+    def omni_safety_lock_cb(self, msg):
+        if msg.grey_button == 1 and msg.white_button == 1:
+            self.set_state(not self.enabled)
+
+    def set_state(self, s):
+        self.enabled = s
+        if self.enabled:
+            rospy.loginfo('control ENABLED.')
+#            self.left_feedback.set_enable(True)
+            self.right_feedback.set_enable(True)
+        else:
+            rospy.loginfo('control disabled.  Follow potential well to pose of arm.')
+#            self.left_feedback.set_enable(False)
+            self.right_feedback.set_enable(False)
 
     def run(self):
         rate = rospy.Rate(100.0)
