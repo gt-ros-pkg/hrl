@@ -1,6 +1,7 @@
 
 import numpy as np, math
 from threading import RLock, Timer
+import sys
 
 import roslib; roslib.load_manifest('hrl_pr2_lib')
 import rospy
@@ -195,6 +196,8 @@ class PR2Arms(object):
     def execute_trajectory(self, arm, jtg):
         if self.cur_traj[arm] is not None or self.cur_traj_timer[arm] is not None:
             log("Arm is currently executing trajectory")
+            if rospy.is_shutdown():
+                sys.exit()
             return
 
         self.cur_traj[arm] = jtg
@@ -207,8 +210,8 @@ class PR2Arms(object):
                                                          2 * self.send_delay)
 
         # setup first point throw
-        call_time = (jtg.trajectory.header.stamp.to_nsec() - self.send_delay -
-                     rospy.Time.now().to_nsec())
+        call_time = ((jtg.trajectory.header.stamp.to_nsec() - self.send_delay -
+                      rospy.Time.now().to_nsec()) / 1000000000.)
         self.cur_traj_timer[arm] = Timer(call_time, self._exec_traj, [arm])
         self.cur_traj_timer[arm].start()
 
@@ -233,6 +236,7 @@ class PR2Arms(object):
                                        [cur_dur],
                                        cur_exec_time)
         # send trajectory goal to node
+        print "cur_jtg", cur_jtg
         self.joint_action_client[arm].send_goal(cur_jtg)
 
         self.cur_traj_pos[arm] += 1
@@ -243,8 +247,10 @@ class PR2Arms(object):
         else:
             # setup next point throw
             next_exec_time = beg_time + jtg.trajectory.points[i+1].time_from_start.to_nsec()
-            call_time = next_exec_time - self.send_delay - rospy.Time.now().to_nsec()
+            call_time = ((next_exec_time - self.send_delay -
+                          rospy.Time.now().to_nsec()) / 1000000000.)
             self.cur_traj_timer[arm] = Timer(call_time, self._exec_traj, [arm])
+            self.cur_traj_timer[arm].start()
 
     ##
     # Stop the current arm trajectory.
@@ -277,7 +283,7 @@ class PR2Arms(object):
         if arm != 1:
             arm = 0
         jtg = self.create_JTG(arm, q_arr, dur_arr)
-        cur_time = rospy.Time.now().to_sec()
+        cur_time = rospy.Time.now().to_sec() + 2 * self.send_delay / 1000000000.
         jtg.trajectory.header.stamp = rospy.Duration(start_time + cur_time)
         self.execute_trajectory(arm, jtg)
 
@@ -287,7 +293,7 @@ class PR2Arms(object):
     # @param arm 0 for right, 1 for left
     # @return True if moving, else False
     def is_arm_in_motion(self, arm):
-        if self.cur_traj is not None:
+        if self.cur_traj[arm] is not None:
             return True
         state = self.joint_action_client[arm].get_state()
         return state == GoalStatus.PENDING or state == GoalStatus.ACTIVE
@@ -298,7 +304,7 @@ class PR2Arms(object):
     # @param arm 0 for right, 1 for left
     # @param hz how often to check
     def wait_for_arm_completion(self, arm, hz=0.01):
-        while self.is_arm_in_motion(arm):
+        while self.is_arm_in_motion(arm) and not rospy.is_shutdown():
             rospy.sleep(hz)
 
     ##
@@ -568,7 +574,7 @@ class PR2Arms(object):
     #
     # @param arm
     def smooth_linear_arm_trajectory(self, arm, dist,
-                                     dir=(0.,0.,-1.), max_jerk=0.5, delta=0.01, dur=None):
+                                     dir=(0.,0.,-1.), max_jerk=0.5, delta=0.09, dur=None):
 
         ####################################################
         # Smooth trajectory functions
@@ -603,7 +609,7 @@ class PR2Arms(object):
                                       num_steps, 0., trajt) 
         # cartesian offset points of trajectory
         cart_traj = [(a*traj_vec[0],a*traj_vec[1],a*traj_vec[2]) for a in traj_mult]
-        cur_pos, cur_rot = self.FK(0, self.get_joint_angles(0))
+        cur_pos, cur_rot = self.FK(arm, self.get_joint_angles(arm))
         # get actual positions of the arm by transforming the offsets
         arm_traj = [(ct[0] + cur_pos[0], ct[1] + cur_pos[1],
                                          ct[2] + cur_pos[2]) for ct in cart_traj]

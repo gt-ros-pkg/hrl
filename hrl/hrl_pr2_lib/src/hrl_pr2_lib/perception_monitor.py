@@ -227,10 +227,9 @@ class PeriodicMonitor():
 
     # TODO DOCS
     def wait_for_completion(rate=0.01):
-        while(self.is_running):
+        while self.is_running and not rospy.is_shutdown():
             rospy.sleep(rate)
         return not self.failure
-        
 
 ##
 # Monitors perception channels on the robot arms.
@@ -269,20 +268,22 @@ class ArmPerceptionMonitor( ):
         self.perceptions = { "accelerometer" : self.accel_listener.read }
         # TODO add callbacks for tactile sensors and joint torques
 
+        self.clear_vars()
         
+        log("Finished initialization")
+
+    ##
+    # Initialize variables
+    def clear_vars(self):
         self.ploggers = {}
         self.pmonitors = {}
         self.datasets = {}
         for k in self.perceptions:
-            self.ploggers[k] = None
+            self.ploggers[k] = PeriodicLogger(self.perceptions[k], self.rate)
             self.pmonitors[k] = None
-            self.datasets[k] = None
+            self.datasets[k] = []
 
         self.active = False
-        self.cur_means_model = None
-        self.cur_variance_model = None
-        
-        log("Finished initialization")
 
     ##
     # Begin capturing peception data for all of the listeners
@@ -294,10 +295,6 @@ class ArmPerceptionMonitor( ):
             log("Perception already active.")
             return
         self.active = True
-
-        for k in self.perceptions:
-            self.ploggers[k] = PeriodicLogger(self.perceptions[k], self.rate)
-            self.datasets[k] = None
 
         for k in self.perceptions:
             if duration is None:
@@ -317,10 +314,7 @@ class ArmPerceptionMonitor( ):
             return
 
         for k in self.perceptions:
-            if self.datasets[k] is None:
-                self.datasets[k] = [self.ploggers[k].stop()]
-            else:
-                self.datasets[k] += [self.ploggers[k].stop()]
+            self.datasets[k] += [self.ploggers[k].stop()]
         self.active = False
     
     ##
@@ -332,14 +326,25 @@ class ArmPerceptionMonitor( ):
 
         for k in self.perceptions:
             dataset = None
-            while dataset is None:
+            while dataset is None and not rospy.is_shutdown():
                 dataset = self.ploggers[k].get_ret_vals()
 
-            if self.datasets[k] is None:
-                self.datasets[k] = [dataset]
-            else:
-                self.datasets[k] += [dataset]
+            self.datasets[k] += [dataset]
         self.active = False
+
+    ##
+    # Save training data as a pickle with given filename
+    #
+    # @param filename name of the pickle
+    def pickle_datasets(self, filename):
+        save_pickle(self.datasets, filename)
+
+    ##
+    # Load training data as a pickle with given filename
+    #
+    # @param filename name of the pickle
+    def load_datasets(self, filename):
+        self.datasets = load_pickle(filename)
     
     ##
     # Returns a model function of the perception over several
@@ -461,10 +466,7 @@ class ArmPerceptionMonitor( ):
             return None
 
         for k in self.perceptions:
-            if self.datasets[k] is None:
-                self.datasets[k] = [self.pmonitors[k].stop()]
-            else:
-                self.datasets[k] += [self.pmonitors[k].stop()]
+            self.datasets[k] += [self.pmonitors[k].stop()]
         self.active = False
         return "success"
     
@@ -477,18 +479,15 @@ class ArmPerceptionMonitor( ):
 
         for k in self.perceptions:
             dataset = None
-            while dataset is None:
+            while dataset is None and not rospy.is_shutdown():
                 dataset = self.pmonitors[k].get_ret_vals()
 
-            if self.datasets[k] is None:
-                self.datasets[k] = [dataset]
-            else:
-                self.datasets[k] += [dataset]
+            self.datasets[k] += [dataset]
         self.active = False
 
     # TODO DOCS
     def wait_for_completion(rate=0.01):
-        while True:
+        while not rospy.is_shutdown():
             for k in self.perceptions:
                 if self.pmonitors[k].has_failed():
                     self.active = False
