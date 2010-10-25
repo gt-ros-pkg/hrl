@@ -129,6 +129,7 @@ class TimeSeriesVectorizer:
                               lock]
                 #print 'got something', new_record[0].shape
                 self.channels[topic] = new_record
+                #print 'after appending', self.channels[topic][0].shape, self.channels[topic][1].shape
                 #print 'time recorded is', t[0,0]
                 #print 'shape', self.channels[topic][0].shape
                 #lock.release()
@@ -143,6 +144,8 @@ class TimeSeriesVectorizer:
             records_in_range = (np.where(self.channels[topic][1] >= n_seconds_ago)[1]).A1
             #print records_in_range, self.channels[topic][0].shape
             self.channels[topic][0] = self.channels[topic][0][:, records_in_range]
+            self.channels[topic][1] = self.channels[topic][1][:, records_in_range]
+            #print 'after shortening', self.channels[topic][0].shape, self.channels[topic][1].shape
             #print 'shape after selection...', self.channels[topic][0].shape
             lock.release()
        
@@ -172,6 +175,7 @@ class TimeSeriesVectorizer:
             #print 'g locked'
             #print self.channels[topic][0].shape
             record_idxs = (np.where(self.channels[topic][1] > timestart)[1]).A1
+            #print self.channels[topic][0].shape, self.channels[topic][1].shape
             #print record_idxs
             #print record_idxs, self.channels[topic][0].shape
             records_from_time = self.channels[topic][0][:, record_idxs]
@@ -205,12 +209,11 @@ class TestOnlineClassification:
         def pressure_vectorizer(pmsg):
             return np.row_stack((np.matrix((pmsg.l_finger_tip)).T, np.matrix((pmsg.r_finger_tip)).T))
         self.vectorizer.register_listener(pressure_vectorizer, pm.PressureState, '/pressure/l_gripper_motor', 15.)
-        #print 'registered'
 
     def start_classifying(self):
         #print 'start_classifying'
         segment_idx = 0
-        segment_lengths = [10, 20, 15]
+        segment_lengths = [10, 10, 10]
         n_segments = len(segment_lengths)
         for segment_idx in range(n_segments):
             n_steps = segment_lengths[segment_idx]
@@ -218,12 +221,14 @@ class TestOnlineClassification:
             selected = self.vectorizer.get_n_steps('/pressure/l_gripper_motor', \
                     rospy.get_rostime().to_time(), n_steps)
             print 'selected.shpae', selected.shape
+            print selected
         print 'done!'
 
 
 class TimeSeriesClassifier:
 
     def __init__(self):
+        rospy.init_node('time_series_classifier')
         self.vectorizer = TimeSeriesVectorizer()
         def pressure_vectorizer(pmsg):
             return np.row_stack((np.matrix((pmsg.l_finger_tip)).T, np.matrix((pmsg.r_finger_tip)).T))
@@ -232,22 +237,42 @@ class TimeSeriesClassifier:
 
     #TEST this when you have robot time!
     def run(self):
+        #models = self.models['models']
+        for state in range(len(self.models['models'])):
+            for chunk_idx in range(len(self.models['models'][state])):
+                xmat = self.fetch_data(state, chunk_idx)
+                print self.probability(xmat, state, chunk_idx)
+
+    def fetch_data(self, state, chunk_idx):
+        chunk_params = self.models['chunk_params']
+        n_steps = chunk_params['chunk_dim'][state][chunk_idx]
+        x_mat = self.vectorizer.get_n_steps('/pressure/l_gripper_motor', \
+                     rospy.get_rostime().to_time(), n_steps)
+        return x_mat
+
+    def probability(self, x_mat, state, chunk_idx, successp):
         models = self.models['models']
-        for state in len(models):
-            for chunk_idx in range(len(models[state])):
-                n_steps = chunk_params['chunk_dim'][state][chunk_idx]
-                x_mat    = self.vectorizer.get_n_steps('/pressure/l_gripper_motor', \
-                                rospy.get_rostime().to_time(), n_steps)
+        chunk_params = self.models['chunk_params']
 
-                #x_mat = chunked_data[state][chunk_idx]['data'][record_idx]
-                x_vec = np.reshape(x_mat, (x_mat.shape[0] * x_mat.shape[1], 1))
-                projected_x = np.array((models[state][chunk_idx]['project'].T * x_vec).T)
+        #Subtract out the mean
+        x_vec = np.reshape(x_mat, (x_mat.shape[0] * x_mat.shape[1], 1)) - models[state][chunk_idx]['mean']
+        #project
+        projected_x = np.array((models[state][chunk_idx]['project'].T * x_vec).T)
 
-                succ_prob = models[state][chunk_idx]['kde'][0].evaluate(np.array(projected_x))
-                fail_prob = models[state][chunk_idx]['kde'][1].evaluate(np.array(projected_x))
-                prob = (succ_prob * succ_total) / ((fail_prob*fail_total) + (succ_total*succ_prob))
-                print 'state %d chunk %d prob %f' % (state, chunk_idx, prob)
+        succ_prob = models[state][chunk_idx]['kde'][0].evaluate(np.array(projected_x))
+        fail_prob = models[state][chunk_idx]['kde'][1].evaluate(np.array(projected_x))
+        succ_total = np.sum(models[state][chunk_idx]['labels']) / float(models[state][chunk_idx]['labels'].shape[1]) 
+        fail_total = 1 - succ_total
 
+        if successp:
+            prob = (succ_prob * succ_total) / ((fail_prob*fail_total) + (succ_total*succ_prob))
+        else:
+            prob = (fail_prob * fail_total) / ((fail_prob*fail_total) + (succ_total*succ_prob))
+
+        #print succ_prob, fail_prob, fail_total, succ_total
+        n_steps = chunk_params['chunk_dim'][state][chunk_idx]
+        print 'frame size %d state %d chunk %d prob %.3f' % (n_steps, state, chunk_idx, prob)
+        return prob
 
     def save_models(self, name='timeseries_pca_model.pkl'):
         print 'saving models'
@@ -272,6 +297,7 @@ class TimeSeriesClassifier:
                 #models[state][chunk_idx]['tree'] = sp.KDTree(np.array(reduced_data.T))
 
     def create_model(self, succ_pickle, fail_pickle):
+        print 'creating model...'
         topic = '/pressure/l_gripper_motor'
         SEGMENT_LENGTH = 1.0
         VARIANCE_KEEP = .7
@@ -314,13 +340,14 @@ class TimeSeriesClassifier:
                 num_neg = combined_sets[state][chunk_idx]['failure'].shape[1]
                 labels = np.column_stack((np.matrix(np.ones((1, num_pos))), np.matrix(np.zeros((1, num_neg)))))
 
-                projection_basis = dimreduce.pca_vectors(data_chunk, VARIANCE_KEEP)
-                print 'pca_basis:', projection_basis.shape
-                reduced_data = projection_basis.T * data_chunk
+                projection_basis, dmean = dimreduce.pca_vectors(data_chunk, VARIANCE_KEEP)
+                print 'pca_basis: number of dimensions', projection_basis.shape[1]
+                reduced_data = projection_basis.T * (data_chunk-dmean)
                 models[state].append({'time':    combined_sets[state][chunk_idx]['time'],
                                       'project': projection_basis,
                                       'reduced': reduced_data,
                                       'labels':  labels,
+                                      'mean':    dmean,
                                       'data':    data_chunk
                                       #'tree':    sp.KDTree(np.array(reduced_data.T))
                                       })
@@ -760,8 +787,11 @@ if __name__ == '__main__':
 
 
     if 'run' == sys.argv[1]:
-        t = TestOnlineClassification()
-        t.start_classifying()
+        #t = TestOnlineClassification()
+        #t.start_classifying()
+        t = TimeSeriesClassifier()
+        t.load_models()
+        t.run()
 
 
 
