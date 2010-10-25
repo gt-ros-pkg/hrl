@@ -170,10 +170,14 @@ class PR2Base:
     def __init__(self, tflistener):
         self.tflistener = tflistener
         self.client = actionlib.SimpleActionClient('move_base', mm.MoveBaseAction)
-        rospy.loginfo('pr2base: waiting for move_base')
+        #rospy.loginfo('pr2base: waiting for move_base')
         #self.client.wait_for_server()
-        rospy.loginfo('pr2base: waiting transforms')
-        self.tflistener.waitForTransform('map', 'base_footprint', rospy.Time(), rospy.Duration(20))
+        #rospy.loginfo('pr2base: waiting transforms')
+        #try:
+        #    self.tflistener.waitForTransform('map', 'base_footprint', rospy.Time(), rospy.Duration(20))
+        #except Exception, e:
+        #    print 'Transform from map to base_footprint not found! Did you launch the nav stack?'
+        #    pass
 
         self.go_angle_client = actionlib.SimpleActionClient('go_angle', hm.GoAngleAction)
         self.go_xy_client = actionlib.SimpleActionClient('go_xy', hm.GoXYAction)
@@ -271,6 +275,7 @@ class ControllerManager:
 
 class PR2:
     def __init__(self, tf_listener=None):
+        rospy.init_node('pr2', anonymous=True)
         if tf_listener == None:
             self.tf_listener = tf.TransformListener()
         else:
@@ -278,8 +283,8 @@ class PR2:
         jl = ru.GenericListener('joint_state_listener', sm.JointState, 'joint_states', 100)
         self.joint_provider = ft.partial(jl.read, allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
 
-        self.left_arm = PR2Arm('l_arm_controller',  'l_cart', self.joint_provider)
-        self.right_arm = PR2Arm('r_arm_controller', 'r_cart', self.joint_provider)
+        self.left = PR2Arm('l_arm_controller',  'l_cart', self.joint_provider)
+        self.right = PR2Arm('r_arm_controller', 'r_cart', self.joint_provider)
         self.head = PR2Head('head_traj_controller', self.joint_provider)
         self.base = PR2Base(self.tf_listener)
         self.torso = PR2Torso()
@@ -288,5 +293,5 @@ class PR2:
 
     def pose(self):
         s = self.joint_provider()
-        return {'larm': self.left_arm.pose(s), 'rarm': self.right_arm.pose(s), 'head_traj': self.head.pose(s)}
+        return {'larm': self.left.pose(s), 'rarm': self.right.pose(s), 'head_traj': self.head.pose(s)}
 
