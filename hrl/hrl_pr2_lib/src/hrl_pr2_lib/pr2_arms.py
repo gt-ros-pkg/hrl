@@ -1,3 +1,16 @@
+#######################################################################
+#
+#   USE pr2_object_manipulation/pr2_gripper_reactive_approach/controller_manager.py
+#   That code has much of the ideas at the bottom, with more.
+#
+#######################################################################
+
+
+
+
+
+
+# TODO Update code to throw points one at a time.  Sections are labled: "Hack"
 
 import numpy as np, math
 from threading import RLock, Timer
@@ -20,7 +33,7 @@ from std_msgs.msg import Float64
 from sensor_msgs.msg import JointState
 
 import hrl_lib.transforms as tr
-from hrl_lib.util import RateCaller
+from hrl_lib.rutils import RateCaller
 import time
 import functools as ft
 
@@ -163,11 +176,32 @@ class PR2Arms(object):
     # Create a joint configuration trajectory goal.
     #
     # @param arm 0 for right, 1 for left
-    # @param q_arr list of lists of 7 joint angles in RADIANS.
+    # @param pos_arr list of lists of 7 joint angles in RADIANS.
     # @param dur_arr list of how long (SECONDS) from the beginning of the trajectory
     #                before reaching the joint angles.
     # @param stamp header (rospy.Duration) stamp to give the trajectory 
-    def create_JTG(self, arm, q_arr, dur_arr, stamp=None):
+    # @param vel_arr list of lists of 7 joint velocities in RADIANS/sec.
+    # @param acc_arr list of lists of 7 joint accelerations in RADIANS/sec^2.
+    def create_JTG(self, arm, pos_arr, dur_arr, stamp=None, vel_arr=None, acc_arr=None):
+        # Hack
+        vel_arr = [[0.]*7]*len(pos_arr)
+        acc_arr = [[0.]*7]*len(pos_arr)
+
+        ##
+        # Compute joint velocities and acclereations.
+        def get_vel_acc(q_arr, d_arr):
+            vel_arr = [[0.]*7]
+            acc_arr = [[0.]*7]
+            for i in range(1, len(q_arr)):
+                vel, acc = [], []
+                for j in range(7):
+                    vel += [(q_arr[i][j] - q_arr[i-1][j]) / d_arr[i]]
+                    acc += [(vel[j] - vel_arr[i-1][j]) / d_arr[i]]
+                vel_arr += [vel]
+                acc_arr += [acc]
+                print vel, acc
+            return vel_arr, acc_arr
+
         if arm != 1:
             arm = 0
         jtg = JointTrajectoryGoal()
@@ -175,14 +209,30 @@ class PR2Arms(object):
             stamp = rospy.Time.now()
         else:
             jtg.trajectory.header.stamp = stamp
+
+        if len(pos_arr) > 1 and (vel_arr is None or acc_arr is None):
+            v_arr, a_arr = get_vel_acc(pos_arr, dur_arr)
+            if vel_arr is None:
+                vel_arr = v_arr
+            if acc_arr is None:
+                acc_arr = a_arr
+
         jtg.trajectory.joint_names = self.joint_names_list[arm]
-        for i in range(len(q_arr)):
-            if q_arr[i] is None or type(q_arr[i]) is types.NoneType:
+        for i in range(len(pos_arr)):
+            if pos_arr[i] is None or type(pos_arr[i]) is types.NoneType:
                 continue
             jtp = JointTrajectoryPoint()
-            jtp.positions = q_arr[i]
-            jtp.velocities = [0.] * 7
-            jtp.accelerations = [0.] * 7
+            jtp.positions = pos_arr[i]
+            if vel_arr is None:
+                vel = [0.] * 7
+            else:
+                vel = vel_arr[i]
+            jtp.velocities = vel
+            if acc_arr is None:
+                acc = [0.] * 7
+            else:
+                acc = acc_arr[i]
+            jtp.accelerations = acc
             jtp.time_from_start = rospy.Duration(dur_arr[i])
             jtg.trajectory.points.append(jtp)
         return jtg
@@ -199,15 +249,22 @@ class PR2Arms(object):
             if rospy.is_shutdown():
                 sys.exit()
             return
+        print "Yo 2"
 
-        self.cur_traj[arm] = jtg
+        # Hack
+        # self.cur_traj[arm] = jtg 
         self.cur_traj_pos[arm] = 0
 
         # if too far in past, shift forward the time the trajectory starts
         min_init_time = rospy.Time.now().to_sec() + 2 * self.send_delay
         if jtg.trajectory.header.stamp.to_nsec() < min_init_time:
-            jtg.trajectory.header.stamp = rospy.Duration(rospy.Time.now().to_sec(), 
+            jtg.trajectory.header.stamp = rospy.Time(rospy.Time.now().to_sec(), 
                                                          2 * self.send_delay)
+
+        print "dfsdfsfd", jtg
+        jtg.trajectory.header.stamp = rospy.Time.now()
+        self.joint_action_client[arm].send_goal(jtg) # Hack
+        return
 
         # setup first point throw
         call_time = ((jtg.trajectory.header.stamp.to_nsec() - self.send_delay -
@@ -234,7 +291,9 @@ class PR2Arms(object):
         cur_dur = jtg.trajectory.points[i].time_from_start.to_sec() - last_time_from
         cur_jtg = self.create_JTG(arm, [jtg.trajectory.points[i].positions],
                                        [cur_dur],
-                                       cur_exec_time)
+                                       cur_exec_time,
+                                       [jtg.trajectory.points[i].velocities],
+                                       [jtg.trajectory.points[i].accelerations])
         # send trajectory goal to node
         print "cur_jtg", cur_jtg
         self.joint_action_client[arm].send_goal(cur_jtg)
@@ -247,6 +306,7 @@ class PR2Arms(object):
         else:
             # setup next point throw
             next_exec_time = beg_time + jtg.trajectory.points[i+1].time_from_start.to_nsec()
+            print "diff times", next_exec_time / 1000000000. - cur_exec_time.to_sec() - cur_dur
             call_time = ((next_exec_time - self.send_delay -
                           rospy.Time.now().to_nsec()) / 1000000000.)
             self.cur_traj_timer[arm] = Timer(call_time, self._exec_traj, [arm])
@@ -293,8 +353,9 @@ class PR2Arms(object):
     # @param arm 0 for right, 1 for left
     # @return True if moving, else False
     def is_arm_in_motion(self, arm):
-        if self.cur_traj[arm] is not None:
-            return True
+        # Hack
+        # if self.cur_traj[arm] is not None:
+        #     return True
         state = self.joint_action_client[arm].get_state()
         return state == GoalStatus.PENDING or state == GoalStatus.ACTIVE
 
@@ -331,6 +392,8 @@ class PR2Arms(object):
     # @param q list of 7 joint angles in radians
     # @return column matrix of cartesian position, column matrix of quaternion
     def FK(self, arm, q):
+        if rospy.is_shutdown():
+            sys.exit()
         if arm != 1:
             arm = 0
         fk_req = GetPositionFKRequest()
@@ -411,7 +474,7 @@ class PR2Arms(object):
 
         ik_resp = self.ik_srv[arm].call(ik_req)
         if ik_resp.error_code.val == ik_resp.error_code.SUCCESS:
-            ret = ik_resp.solution.joint_state.position
+            ret = list(ik_resp.solution.joint_state.position)
         else:
             rospy.logerr('Inverse kinematics failed')
             ret = None
@@ -460,11 +523,14 @@ class PR2Arms(object):
     # @param rot_arr achieve these rotations along with those positions
     #                if None, maintain original rotation
     # @param dur_arr use these times for the time positions
-    def move_arm_trajectory(self, arm, pos_arr, dur=1., rot_arr=None, dur_arr=None):
+    # @param freeze_wrist if True, keeps the rotation of the wrist constant
+    def move_arm_trajectory(self, arm, pos_arr, dur=1.,
+                            rot_arr=None, dur_arr=None, freeze_wrist=False):
         if dur_arr is None:
             dur_arr = np.linspace(0., dur, len(pos_arr) + 1)[1:]
         
-        curq = self.get_joint_angles(arm)
+        initq = self.get_joint_angles(arm)
+        curq = initq
         q_arr = []
         fails, trys = 0, 0
         if rot_arr is None:
@@ -480,9 +546,16 @@ class PR2Arms(object):
             if nextq is None:
                 fails += 1
             trys += 1
-            if not (nextq is None):
+            if not nextq is None:
                 curq = nextq
         log("IK Accuracy: %d/%d (%f)" % (trys-fails, trys, (trys-fails)/float(trys)))
+        
+        if freeze_wrist:
+            for i in range(len(q_arr)):
+                if not q_arr[i] is None:
+                    q_arr[i] = (q_arr[i][0], q_arr[i][1], q_arr[i][2], q_arr[i][3],
+                                q_arr[i][4], q_arr[i][5], initq[6])
+
         self.set_joint_angles_traj(arm, q_arr, dur_arr)
     
     ##
@@ -573,19 +646,20 @@ class PR2Arms(object):
     # Moves arm smoothly through a linear trajectory.
     #
     # @param arm
-    def smooth_linear_arm_trajectory(self, arm, dist,
-                                     dir=(0.,0.,-1.), max_jerk=0.5, delta=0.09, dur=None):
+    def smooth_linear_arm_trajectory(self, arm, dist, dir=(0.,0.,-1.), max_jerk=0.25, 
+                                     delta=0.005, dur=None,
+                                     freeze_wrist=True, is_grasp_biased=True):
 
         ####################################################
         # Smooth trajectory functions
         def _smooth_traj_pos(t, k, T):
             return -k / T**3 * np.sin(T * t) + k / T**2 * t
 
-        # def _smooth_traj_vel(t, k, T):
-        #     return -k / T**2 * np.cos(T * t) + k / T**2 
-        # 
-        # def _smooth_traj_acc(t, k, T):
-        #     return k / T * np.sin(T * t) 
+        def _smooth_traj_vel(t, k, T):
+            return -k / T**2 * np.cos(T * t) + k / T**2 
+        
+        def _smooth_traj_acc(t, k, T):
+            return k / T * np.sin(T * t) 
 
         # length of time of the trajectory
         def _smooth_traj_time(l, k):
@@ -603,22 +677,113 @@ class PR2Arms(object):
         # period of the trajectory 
         trajt = _smooth_traj_time(dist, max_jerk)
         period = 2. * np.pi / trajt
+
         # break the trajectory into interpolated parameterized function
         # from 0 to length of the trajectory
-        traj_mult = _interpolate_traj(_smooth_traj_pos, max_jerk, period, 
-                                      num_steps, 0., trajt) 
+        traj_pos_mult = _interpolate_traj(_smooth_traj_pos, max_jerk, period, 
+                                          num_steps, 0., trajt) 
+#       traj_vel_mult = _interpolate_traj(_smooth_traj_vel, max_jerk, period, 
+#                                         num_steps, 0., trajt) 
+#       traj_acc_mult = _interpolate_traj(_smooth_traj_acc, max_jerk, period, 
+#                                         num_steps, 0., trajt) 
+
         # cartesian offset points of trajectory
-        cart_traj = [(a*traj_vec[0],a*traj_vec[1],a*traj_vec[2]) for a in traj_mult]
+        cart_pos_traj = [(a*traj_vec[0],a*traj_vec[1],a*traj_vec[2]) for a in traj_pos_mult]
+#       cart_vel_traj = [(a*traj_vec[0],a*traj_vec[1],a*traj_vec[2]) for a in traj_vel_mult]
+#       cart_acc_traj = [(a*traj_vec[0],a*traj_vec[1],a*traj_vec[2]) for a in traj_acc_mult]
+
         cur_pos, cur_rot = self.FK(arm, self.get_joint_angles(arm))
         # get actual positions of the arm by transforming the offsets
         arm_traj = [(ct[0] + cur_pos[0], ct[1] + cur_pos[1],
-                                         ct[2] + cur_pos[2]) for ct in cart_traj]
+                                         ct[2] + cur_pos[2]) for ct in cart_pos_traj]
         if dur is None:
             dur = trajt
-        self.move_arm_trajectory(arm, arm_traj, dur)
+
+        if is_grasp_biased:
+            self.grasp_biased_move_arm_trajectory(arm, arm_traj, dur, 
+                                                  freeze_wrist=freeze_wrist)
+        else:
+            self.move_arm_trajectory(arm, arm_traj, dur, freeze_wrist=freeze_wrist)
 
         # return the expected time of the trajectory
         return dur
+
+    ##
+    # Same as move_arm but tries to keep the elbow up.
+    def grasp_biased_IK(self, arm, pos, rot, q_guess, num_iters=5):
+        angs = q_guess
+        for i in range(num_iters):
+            angs = self.IK(arm, pos, rot, angs)
+            angs[1] -= 0.05
+            if angs[1] < -.54:
+                angs[1] = -.54
+            angs[2] -= 0.05
+            if angs[2] < -3.9:
+                angs[2] = -3.9
+            angs[5] += 0.05
+            if angs[5] > 0.:
+                angs[5] = 0.
+        return self.IK(arm, pos, rot, angs)
+
+    ##
+    # Same as move_arm but tries to keep the elbow up.
+    def grasp_biased_move_arm(self, arm, pos, rot=None, dur=4.0, num_iters=20):
+        if rot is None:
+            temp, rot = self.FK(arm, begq)
+        angs = self.get_joint_angles(arm)
+        angs = self.grasp_biased_IK(arm, pos, rot, angs)
+        self.set_joint_angles(arm, angs, dur)
+
+    ##
+    # Move the arm through a trajectory defined by a series of positions and rotations
+    #
+    # @param arm 0 for right, 1 for left
+    # @param pos_arr list of positions to achieve during trajectory
+    # @param dur length of time to execute all trajectories in, all positions will
+    #            be given the same amount of time to reach the next point
+    #            (ignore if dur_arr is not None)
+    # @param rot_arr achieve these rotations along with those positions
+    #                if None, maintain original rotation
+    # @param dur_arr use these times for the time positions
+    # @param freeze_wrist if True, keeps the rotation of the wrist constant
+    def grasp_biased_move_arm_trajectory(self, arm, pos_arr, dur=1.,
+                                         rot_arr=None, dur_arr=None, freeze_wrist=False):
+        bias_vec = np.array([0., -1., -1., 0., 0., 1., 0.])
+        q_radius = 0.012 # Calculated as q_radius = arctan( delta / wrist_flex_length )
+        q_off = q_radius * bias_vec / np.linalg.norm(bias_vec)
+
+        if dur_arr is None:
+            dur_arr = np.linspace(0., dur, len(pos_arr) + 1)[1:]
+        
+        initq = self.get_joint_angles(arm)
+        curq = initq
+        q_arr = []
+        fails, trys = 0, 0
+        if rot_arr is None:
+            temp, rot = self.FK(arm, curq)
+        
+        for i in range(len(pos_arr)):
+            if rot_arr is None:
+                cur_rot = rot
+            else:
+                cur_rot = rot_arr[i]
+            q_guess = (np.array(curq) + q_off).tolist()
+            nextq = self.IK(arm, pos_arr[i], cur_rot, q_guess)
+            q_arr += [nextq]
+            if nextq is None:
+                fails += 1
+            trys += 1
+            if not nextq is None:
+                curq = nextq
+        log("IK Accuracy: %d/%d (%f)" % (trys-fails, trys, (trys-fails)/float(trys)))
+        
+        if freeze_wrist:
+            for i in range(len(q_arr)):
+                if not q_arr[i] is None:
+                    q_arr[i] = (q_arr[i][0], q_arr[i][1], q_arr[i][2], q_arr[i][3],
+                                q_arr[i][4], q_arr[i][5], initq[6])
+
+        self.set_joint_angles_traj(arm, q_arr, dur_arr)
 
 if __name__ == '__main__':
     rospy.init_node(node_name, anonymous = True)
