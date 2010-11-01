@@ -197,7 +197,7 @@ class Behaviors:
         elif stop == 'pressure_accel':
             print 'USING ACCELEROMETERS'
             self.cman.start_gripper_event_detector(timeout=self.timeout)
-            stop_func = self._tactile_stop_func
+            stop_func = self._check_gripper_event
 
         return stop_func
 
@@ -323,6 +323,10 @@ class LightSwitchBehaviorTest:
         while not rospy.is_shutdown():
             r.sleep()
 
+    #def detect_event(self):
+    #    self.behaviors.cman.start_gripper_event_detector(timeout=40.)
+    #    stop_func = self.behaviors._tactile_stop_func
+    #    while stop_func():
 
 if __name__ == '__main__':
     l = LightSwitchBehaviorTest()
