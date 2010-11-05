@@ -18,7 +18,6 @@
   <depend package="actionlib"/>
   <depend package="move_base_msgs"/>
   <depend package="sensor_msgs"/>
-  <depend package="pr2_controller_msgs"/>
   <depend package="trajectory_msgs"/>
   <depend package="pr2_mechanism_msgs"/>
   <depend package="std_mgs"/>
