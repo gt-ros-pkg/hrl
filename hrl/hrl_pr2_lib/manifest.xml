@@ -20,7 +20,7 @@
   <depend package="sensor_msgs"/>
   <depend package="trajectory_msgs"/>
   <depend package="pr2_mechanism_msgs"/>
-  <depend package="std_mgs"/>
+  <depend package="std_msgs"/>
   <depend package="geometry_msgs"/>
 
   <depend package="kinematics_msgs"/>
