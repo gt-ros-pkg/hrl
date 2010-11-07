@@ -27,7 +27,7 @@
 #  \author Hai Nguyen (Healthcare Robotics Lab, Georgia Tech.)
 #  \author Marc Killpack (Healthcare Robotics Lab, Georgia Tech.)
 
-import roslib; roslib.load_manifest('segway_omni')
+import roslib; roslib.load_manifest('hrl_segway_omni')
 from hrl_lib.msg import PlanarBaseVel
 from geometry_msgs.msg import Twist
 import rospy

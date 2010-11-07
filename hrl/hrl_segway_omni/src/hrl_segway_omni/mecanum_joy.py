@@ -35,7 +35,7 @@ import sys, optparse
 import segway_command as sc
 import time as time
 import roslib
-roslib.load_manifest('segway_omni')
+roslib.load_manifest('hrl_segway_omni')
 import rospy
 
 import hrl_lib.util as ut

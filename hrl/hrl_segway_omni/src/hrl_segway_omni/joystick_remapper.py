@@ -1,4 +1,5 @@
-#! /usr/bin/python
+#!/usr/bin/python
+#
 # Copyright (c) 2009, Georgia Tech Research Corporation
 # All rights reserved.
 #
@@ -24,34 +25,53 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-#  \author Hai Nguyen (Healthcare Robotics Lab, Georgia Tech.)
+
+#  \author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
+#  \author Cressel Anderson (Healthcare Robotics Lab, Georgia Tech.)
 #  \author Marc Killpack (Healthcare Robotics Lab, Georgia Tech.)
 
-
-import roslib; roslib.load_manifest('hrl_segway_omni')
-from hrl_lib.msg import PlanarBaseVel
-import rospy
 import time
+import roslib
+roslib.load_manifest('hrl_segway_omni')
+import rospy
 
+from joy.msg import Joy
+from geometry_msgs.msg import Twist
 
-class SegwayCommand:
-    def __init__(self, topic='base', name='segway_command'):
-        self.pub = rospy.Publisher('base', PlanarBaseVel)
-        try:
-            rospy.init_node(name, anonymous=True)
-        except rospy.ROSException, e:
-            pass
+def joy_cb(data):
+    global tw
+#    print 'data.axes:', data.axes
+#    print 'data.buttons:', data.buttons
 
-    def set_velocity(self, xvel, yvel, angular_vel):
-        cmd = PlanarBaseVel(None, xvel, yvel, angular_vel)
-        self.pub.publish(cmd)
-        time.sleep(.001)
-		
+    dead_man_pressed = (data.buttons[4] == 1)
 
-if __name__ == '__main__':
-    s = SegwayCommand()
-    while not rospy.is_shutdown():
-        s.set_velocity(0, 0, 0)    #you can change this for testing, but for safety, the default is zero
+    xvel = data.axes[1] * max_xvel
+    yvel = data.axes[0] * max_yvel
+    avel = data.axes[2] * max_avel
+
+    tw = Twist()
+    if dead_man_pressed:
+        tw.linear.x = xvel
+        tw.linear.y = yvel
+        tw.angular.z = avel
+
+dead_man_pressed = False
+max_xvel = 0.25
+max_yvel = 0.2
+max_avel = 0.5
+
+rospy.init_node("cody_joystick_remapper", anonymous=False)
+pub = rospy.Publisher('cmd_vel', Twist)
+rospy.Subscriber('joy', Joy, joy_cb, None, 1)
+
+rospy.logout('Ready to Joystick the Segway')
+
+tw = Twist()
+
+while not rospy.is_shutdown():
+    rospy.sleep(0.1)
+    pub.publish(tw)
+
 
 
 
