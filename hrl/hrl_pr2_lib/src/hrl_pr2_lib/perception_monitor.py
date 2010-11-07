@@ -304,7 +304,8 @@ class ArmPerceptionMonitor( ):
     #
     # @param arm 0 if right, 1 if left
     # @param rate the rate at which the perception should capture states
-    def __init__(self, arm, rate=0.001):
+    # @param percept_mon_list list of perceptions to monitor; if None, do all
+    def __init__(self, arm, rate=0.001, percept_mon_list=None, model_zeros=None):
         log("Initializing arm perception listeners")
 
         self.rate = rate
@@ -315,6 +316,8 @@ class ArmPerceptionMonitor( ):
         else:
             armc = "l"
             is_right_arm = False
+
+        self.model_zeros = model_zeros
 
         accel_listener = GenericListener("accel_mon_node", AccelerometerState, 
                                  "accelerometer/" + armc + "_gripper_motor",
@@ -374,6 +377,14 @@ class ArmPerceptionMonitor( ):
                              "r_finger_pad_pressure" : r_finger_pad_pressure_listener.read, 
                              "l_finger_periph_pressure" : l_finger_periph_pressure_listener.read,
                              "l_finger_pad_pressure" : l_finger_pad_pressure_listener.read }
+
+        if percept_mon_list is not None:
+            trimmed_per = {}
+            for percept in percept_mon_list:
+                if percept in self.perceptions:
+                    trimmed_per[percept] = self.perceptions[percept]
+            self.perceptions = trimmed_per
+
         for k in self.perceptions:
             self.perceptions[k] = ft.partial(self.perceptions[k], willing_to_wait=False, quiet=True,
                                                                   warn=False, allow_duplication=True)
@@ -395,7 +406,6 @@ class ArmPerceptionMonitor( ):
     def clear_vars(self):
         self.datasets = {}
         self.models = {}
-        self.monitor = None
         for k in self.perceptions:
             self.datasets[k] = []
             self.models[k] = {"mean" : None, "variance" : None}
@@ -458,9 +468,9 @@ class ArmPerceptionMonitor( ):
     def generate_models(self, smooth_wind_dict=None, var_wind_dict=None):
 
         smooth_wind_default = 234
-        var_wind_default = 20
+        var_wind_default = 400
         var_smooth_wind = 143
-        for perception in ["accelerometer"]: #self.perceptions:
+        for perception in self.perceptions:
             data_list = self.datasets[perception]
             
             if data_list is None:
@@ -540,6 +550,30 @@ class ArmPerceptionMonitor( ):
 
         return self.models
 
+    def get_zeros(self, time=4.):
+        self._zeros = {}
+        for k in self.perceptions:
+            self._zeros[k] = None
+        self._n = 0
+            
+        monitor = RateCaller(self._sum_values, self.rate)
+        monitor.run()
+        rospy.sleep(time)
+        monitor.stop()
+
+        for k in self.perceptions:
+            self._zeros[k] /= self._n
+        return self._zeros
+
+    def _sum_values(self):
+        for k in self.perceptions:
+            add_data = np.array(self.perceptions[k]()[1])
+            if self._zeros[k] is None:
+                self._zeros[k] = copy.copy(add_data)
+            else:
+                self._zeros[k] += add_data
+        self._n += 1
+
     ##
     # Begin monitoring peception data to make sure it doesn't deviate from
     # the model provided.
@@ -548,10 +582,11 @@ class ArmPerceptionMonitor( ):
     # @param duration If None, continue capturing until stop is called.
     #                 Else, stop capturing after duration seconds have passed.
     def begin_monitoring(self, std_dev_dict=None, noise_dev_dict=None, duration=None,
-                               contingency=None, window_size=70,
+                               std_dev_default=2.0, noise_dev_default=0.25,
+                               contingency=None, window_size=70, current_zeros=None,
                                verbose=True):
-        self.std_dev_default = 2.0
-        self.noise_dev_default = 0.25
+        self.std_dev_default = std_dev_default
+        self.noise_dev_default = noise_dev_default
         if self.active:
             log("Perception already active.")
             return
@@ -562,6 +597,7 @@ class ArmPerceptionMonitor( ):
         self.noise_dev_dict = noise_dev_dict
         self.contingency = contingency
         self.window_size = window_size
+        self.current_zeros = current_zeros
         self.verbose = verbose
         self.sum_data = {}
         self.cur_pt = 0
@@ -583,7 +619,7 @@ class ArmPerceptionMonitor( ):
             self.dur_timer.start()
 
     def _monitor_data(self):
-        for k in ["accelerometer"]: #self.perceptions:
+        for k in self.perceptions:
             # update the running sum
             add_data = np.array(self.perceptions[k]()[1])
             if self.sum_data[k] is None:
@@ -594,11 +630,18 @@ class ArmPerceptionMonitor( ):
             # If we have enough data to monitor, we check to see if the values are in range
             if self.current_data[k].full():
                 avg = copy.copy(self.sum_data[k]) / float(self.window_size)
-                self.avg_list[k] += [avg]
                 # avg_msg = FloatArray(None, avg.tolist())
                 # avg_msg.header.stamp = rospy.Time.now()
                 # self.avg_pub[k].publish(avg_msg)
-                diff = avg - self.models[k]["mean"][self.cur_pt]
+                # publishing slows down the process...
+                if self.current_zeros is not None:
+                    if self.model_zeros is not None:
+                        avg += self.model_zeros[k] - self.current_zeros[k]
+                    else:
+                        # this is hacky, need to use zeros during training instead of first pt
+                        avg +=  self.models[k]["mean"][0] - self.current_zeros[k]
+                self.avg_list[k] += [avg]
+                diff = np.fabs(avg - self.models[k]["mean"][self.cur_pt])
                 deviation = np.array(np.sqrt(self.models[k]["variance"][self.cur_pt]))
                 noise_deviation = np.array(np.sqrt(self.models[k]["noise_variance"]))
                 if self.std_dev_dict is not None and self.std_dev_dict[k] is not None:
@@ -609,14 +652,18 @@ class ArmPerceptionMonitor( ):
                     noise_dev = self.noise_dev_dict[k]
                 else:
                     noise_dev = self.noise_dev_default
+
+                # This is the monitoring equation
                 is_outside_range = diff > (std_dev * deviation + noise_dev * noise_deviation)
+                # Uses both variance from various grasp tries and general noise variance
+
                 if any(is_outside_range):
                     # sensor has fallen outside acceptable range, trigger
                     if self.verbose:
                         for i, x in enumerate(is_outside_range):
                             if x:
-                                log("Value %d of the perception %s failed with difference %f" %
-                                                                                     (i, k, diff[i]))
+                                log("Value %d of the perception %s failed with difference %f"
+                                                                           % (i, k, diff[i]))
                     self.failure = True
                     self.contingency()
                     self.monitor.stop()
@@ -627,7 +674,8 @@ class ArmPerceptionMonitor( ):
             self.current_data[k].put(add_data)
 
         self.cur_pt += 1
-        if self.cur_pt == len(self.models["accelerometer"]["mean"]): #len(self.models[self.models.keys()[0]]["mean"]):
+        if self.cur_pt == len(self.models[self.models.keys()[0]]["mean"]):
+            print "ending early:", self.cur_pt
             self.end_monitoring()
 
     ##
