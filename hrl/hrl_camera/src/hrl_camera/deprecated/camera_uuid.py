@@ -32,6 +32,7 @@ def camera_names():
 # @param camera_name
 def lookup_by_name(camera_name):
     ids = camera_ids()
+    print 'ids:', ids
     return ids[cc.camera_parameters[camera_name]['uid']]
 
 if __name__ == '__main__':

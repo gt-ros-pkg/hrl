@@ -24,7 +24,7 @@ camera_parameters = {
             'class': 'firefly',
             #UUID obtained by calling 'python camera_uuid.py'
             'uid': None 
-            },
+        },
 
         'dummy_deepthought':
         {
@@ -44,6 +44,30 @@ camera_parameters = {
             'class': 'firefly',
             'uid': 7281161
         },
+
+#########################################################################
+# Start of cameras on Cody
+#########################################################################
+    'mekabotUTM':
+    {
+        'calibration_image_width' : 640.0,
+        'calibration_image_height' : 480.0,
+        'focal_length_x_in_pixels' : 362.381,
+        'focal_length_y_in_pixels' : 362.260,
+        'optical_center_x_in_pixels' : 275.630,
+        'optical_center_y_in_pixels' : 267.914,
+        'lens_distortion_radial_1' : -0.270544,
+        'lens_distortion_radial_2' : 0.0530850,
+        'lens_distortion_tangential_1' : 0,
+        'lens_distortion_tangential_2' : 0,
+        'opencv_bayer_pattern' : cv.CV_BayerGB2BGR,
+        #'opencv_bayer_pattern' : cv.CV_BayerBG2BGR,
+        'type': 'Point Grey Firefly',
+        'class': 'firefly',
+        'color': True,
+        'uid': 8520228
+    },
+
 
 
 #########################################################################

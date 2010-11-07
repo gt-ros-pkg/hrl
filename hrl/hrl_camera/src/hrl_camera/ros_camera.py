@@ -20,7 +20,6 @@ from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
 from cv_bridge.cv_bridge import CvBridge, CvBridgeError
 import hrl_lib.rutils as ru
-import polled_camera.srv as ps
 import numpy as np
 import hrl_lib.tf_utils as tfu
 import tf.transformations as tr
@@ -41,25 +40,6 @@ class ROSImageClient:
 
     def next(self):
         return self.get_frame()
-
-class Prosilica(ROSImageClient):
-    def __init__(self, camera_name, mode):
-        if mode == 'polled':
-            srv_name = '/%s/request_image' % camera_name
-            self.trigger_proxy = rospy.ServiceProxy(srv_name, ps.GetPolledImage)
-
-        self.mode = mode
-        self.camera_name = camera_name
-        topic_name = '/%s/image_rect_color' % camera_name
-        ROSImageClient.__init__(self, topic_name)
-
-    def get_frame(self):
-        if self.mode == 'polled':
-            #will get a rospy.service.ServiceException if mode is wrong
-            rq = ps.GetPolledImageRequest()
-            rq.response_namespace = '/%s' % self.camera_name
-            resp = self.trigger_proxy(rq)
-        return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
 
 ##
 # from camera.py in laser_interface.
