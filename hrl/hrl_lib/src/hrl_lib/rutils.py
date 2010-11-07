@@ -317,6 +317,7 @@ class GenericListener:
         self.last_call_back      = None   #Local time of last received message
         self.delay_tolerance     = 1/frequency #in seconds
         self.reading             = {'message':None, 'msg_id':-1}
+        self.message_extractor = message_extractor
 
         def callback(*msg):
             #If this is a tuple (using message filter)
@@ -379,8 +380,8 @@ class GenericListener:
                 self._wait_for_first_read(quiet)
                 reading                = self.reading
                 self.last_msg_returned = reading['msg_id']
-                if message_extractor != None:
-                    return message_extractor(reading['message'])
+                if self.message_extractor != None:
+                    return self.message_extractor(reading['message'])
                 else:
                     return reading['message']
         else:
@@ -393,8 +394,8 @@ class GenericListener:
                     time.sleep(1/1000.0)
                 reading = self.reading
                 self.last_msg_returned = reading['msg_id']
-                if message_extractor != None:
-                    return message_extractor(reading['message'])
+                if self.message_extractor != None:
+                    return self.message_extractor(reading['message'])
                 else:
                     return reading['message']
             else:
