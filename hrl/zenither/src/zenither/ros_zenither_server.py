@@ -24,93 +24,52 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-# ROS wrapper for lib_zenither.
 ## author Travis Deyle (Healthcare Robotics Lab, Georgia Tech.)
 
 
 import roslib
 roslib.load_manifest('zenither')
-import zenither.lib_zenither as lib_z
 import rospy
-from hrl_lib.msg import FloatArray
 from hrl_lib.srv import Float_Int
-import hrl_lib.rutils as ru
-import hrl_lib.util as ut
-from std_srvs.srv import Empty
-import tf
 
-import threading
 import time
 import sys
 
-class ZenitherServer(threading.Thread):
-    def __init__(self, zenither, frequency=100):
-        threading.Thread.__init__(self)
+class ZenitherServer():
+    def __init__(self, zenither):
         try:
             rospy.init_node('ZenitherServer')
             rospy.logout('ZenitherServer: Initialized Node')
         except rospy.ROSException:
             pass
 
-        self.frequency = frequency
-        self.should_run = True
-        self.calibrating = False
-        self.last_warn = -1.0
         self.zenither = zenither
-        self.zenither.callbacks.append( self.publish_position ) # callback used any time get_position_meters is called
+        self.srv_move_position = rospy.Service('/zenither/move_position',
+                                               Float_Int, self.move_position)
+        self.srv_apply_torque = rospy.Service('/zenither/stop',
+                                               Float_Int, self.estop)
+        self.srv_apply_torque = rospy.Service('/zenither/apply_torque',
+                                               Float_Int, self.apply_torque)
 
-        name = 'zenither'
-        rospy.logout('ZenitherServer: publishing %s', name + '_pose')
-        self.pub = rospy.Publisher(name, FloatArray)
-        self.srv_set_origin = rospy.Service( name + '/set_origin',
-                                             Empty,
-                                             self.set_origin )
-        self.srv_move_position = rospy.Service( name + '/move_position',
-                                                Float_Int,
-                                                self.move_position )
-        self.start()
-
-    def run( self ):
-        rospy.logout('ZenitherServer: Position publishing thread started')
-        while self.should_run and not rospy.is_shutdown():
-            time.sleep(1.0/self.frequency)
-            if not self.zenither.calibrated:
-                if time.time() - self.last_warn > 2.0 and not self.calibrating:
-                    rospy.logout('ZenitherServer: Origin not yet calibrated')
-                    self.last_warn = time.time()
-            else:
-                self.zenither.get_position_meters() # will callback publish_position from this call and any others during lower-level functions
-
-    def publish_position( self, pose ):
-        self.pub.publish( FloatArray( None, [pose] ))
-
-    def move_position( self, msg ):
-        self.zenither.move_position( msg.value )
+    def move_position(self, msg):
+        print 'move_position is UNTESTED'
+        #self.zenither.move_position( msg.value )
+        return True
+    
+    def apply_torque(self, req):
+        self.zenither.nadir(req.value)
         return True
 
-    def set_origin( self, msg ):
-        self.calibrating = True
-        rospy.logout('ZenitherServer: Initializing calibration')
-        raw_input('ZenitherServer: SAFE TO CALIBRATE? [Hit ENTER]')
-        self.zenither.nadir()
-        time.sleep(10)
-        self.zenither.estop() # This is somewhat of a hack...
-        self.zenither.set_origin()
-        self.zenither.move_position(0.25)
-        rospy.logout('ZenitherServer: Calibration complete')
-        self.calibrating = False
+    def estop(self, req):
+        self.zenither.estop()
+        return True
 
-    def stop( self ):
-        self.should_run = False 
-        self.join(3) 
-        if (self.isAlive()): 
-            raise RuntimeError('ZenitherServer: Unable to stop position publishing thread.')
+
 
 if __name__ == '__main__':
-    z = lib_z.Zenither('El-E')
-    zs = ZenitherServer( z )
-    while not rospy.is_shutdown():
-        time.sleep(0.1)
+    import zenither.zenither as zenither
+    z = zenither.Zenither('HRL2')
+    zs = ZenitherServer(z)
+    rospy.spin()
 
-    # rosservice call /zenither/set_origin
     # rosservice call /zenither/move_position 0.3

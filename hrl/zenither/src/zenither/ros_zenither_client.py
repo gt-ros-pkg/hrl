@@ -27,16 +27,12 @@
 # ROS wrapper for lib_zenither.
 ## author Travis Deyle (Healthcare Robotics Lab, Georgia Tech.)
 
+import zenither_config as zc
 
 import roslib
 roslib.load_manifest('zenither')
 import rospy
-from hrl_lib.msg import FloatArray
 from hrl_lib.srv import Float_Int
-import hrl_lib.rutils as ru
-import hrl_lib.util as ut
-from std_srvs.srv import Empty
-import tf
 
 import time
 import sys
@@ -44,42 +40,50 @@ import numpy as np, math
 
 
 class ZenitherClient():
-    def __init__(self, name):
+    def __init__(self, robot):
+        try:
+            rospy.init_node('ZenitherClient')
+            rospy.logout('ZenitherServer: Initialized Node')
+        except rospy.ROSException:
+            pass
 
-        rospy.init_node( name )
-        self.sub = rospy.Subscriber('/zenither', FloatArray, self.pose_callback)
-        self.height = None
-        self.callbacks = []
+        if robot not in zc.calib:
+            raise RuntimeError('unknown robot')
+        self.calib = zc.calib[robot]
 
-        rospy.wait_for_service( '/zenither/move_position' )
-        self.move_position = rospy.ServiceProxy( '/zenither/move_position',
-                                                 Float_Int )
+        srv = '/zenither/move_position'
+        rospy.wait_for_service(srv)
+        self.move_position = rospy.ServiceProxy(srv, Float_Int)
         
-    def pose( self ):
-        return self.height
+        srv = '/zenither/stop'
+        rospy.wait_for_service(srv)
+        self.stop = rospy.ServiceProxy(srv, Float_Int)
+        
+        srv = '/zenither/apply_torque'
+        rospy.wait_for_service(srv)
+        self.apply_torque = rospy.ServiceProxy(srv, Float_Int)
+        
+    def estop(self):
+        self.stop(0)
 
-    def pose_callback( self, msg ):
-        self.height = msg.data[0]
-        for cb in self.callbacks:
-            cb( self.height )
+    def zenith(self, torque=None):
+        if torque == None:
+            torque=self.calib['zenith_torque']
+        self.apply_torque(torque)
 
-    
+    def nadir(self, torque=None):
+        if torque == None:
+            torque=self.calib['nadir_torque']
+        self.apply_torque(torque)
 
-
-def update_transform( height, broadcaster ):
-    # ELE only transform.  This is the old "global frame" lifted by the zenither height.
-    broadcaster.sendTransform( (+0.20, 0.0, height),
-                               tf.transformations.quaternion_from_euler( 0.0, 0.0, 0.0 ),
-                               rospy.Time.now(),
-                               'zenither',
-                               'base_link' )
 
 if __name__ == '__main__':
-    import functools
-    br = tf.TransformBroadcaster()
-    zc = ZenitherClient( 'ele_zen_client' )
-    rospy.logout('ros_zenither_client: Starting tf broadcaster.')
-    zc.callbacks.append( functools.partial(update_transform,
-                                           broadcaster = br ))
+    import time
 
-    rospy.spin()
+    cl = ZenitherClient('HRL2')
+
+    cl.zenith()
+    time.sleep(0.5)
+    cl.estop()
+
+
