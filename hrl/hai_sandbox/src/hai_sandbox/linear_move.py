@@ -189,8 +189,10 @@ class Behaviors:
         self.cman = con.ControllerManager(arm, self.tf_listener, using_slip_controller=1)
         self.reactive_gr = rgr.ReactiveGrasper(self.cman)
         if arm == 'l':
+            self.tool_frame = 'l_gripper_tool_frame'
             ptopic = '/pressure/l_gripper_motor'
         else:
+            self.tool_frame = 'r_gripper_tool_frame'
             ptopic = '/pressure/r_gripper_motor'
         self.pressure_listener = PressureListener(ptopic)
 
@@ -201,6 +203,28 @@ class Behaviors:
         #rospy.Subscriber('cursor3d', PointStamped, self.laser_point_handler)
         #self.double_click = rospy.Subscriber('mouse_left_double_click', String, self.double_click_cb)
 
+    def reach(self, point):
+        self.set_pressure_threshold(150)
+        loc = self.current_location()[0]
+        front_loc = point.copy()
+        front_loc[0,0] = loc[0,0]
+        #pdb.set_trace()
+        r1 = self.move_absolute((front_loc, self.current_location()[1]), stop='pressure_accel')
+        if r1:
+            return r1
+        r2 = self.move_absolute((point, self.current_location()[1]), stop='pressure_accel')
+        self.move_relative_gripper(np.matrix([-.005, 0., 0.]).T, stop='none')
+        return r2
+
+    def press(self, direction, pressure=3500):
+        #make contact first
+        touchedp = self.move_relative_gripper(direction, stop='pressure_accel', pressure=150)
+        #now perform press
+        if touchedp:
+            return self.move_relative_gripper(direction, stop='pressure_accel', pressure=pressure)
+        else:
+            return touchedp
+
     def set_pressure_threshold(self, t):
         self.pressure_listener.set_threshold(t)
 
@@ -208,11 +232,19 @@ class Behaviors:
         stop_func = self._process_stop_option(stop)
         return self._move_cartesian(loc[0], loc[1], stop_func, timeout=self.timeout, settling_time=5.0)
 
-    def move_relative(self, movement, stop='pressure_accel'):
+    def move_relative_base(self, movement, stop='pressure_accel', pressure=150):
+        self.set_pressure_threshold(pressure)
         trans, rot = self.current_location()
         ntrans = trans + movement
         stop_func = self._process_stop_option(stop)
         return self._move_cartesian(ntrans, rot, stop_func, timeout=self.timeout, settling_time=5.0)
+
+    def move_relative_gripper(self, movement_tool, stop='pressure_accel', pressure=150):
+        #pdb.set_trace()
+        base_T_tool = tfu.transform('base_link', self.tool_frame, self.tf_listener)
+        movement_base = base_T_tool[0:3, 0:3] * movement_tool# np.concatenate((movement_tool, np.matrix([1])))
+        #pdb.set_trace()
+        return self.move_relative_base(movement_base, stop=stop, pressure=pressure)
 
     def twist(self, angle):
         pos, rot = self.cman.return_cartesian_pose() # in base_link
@@ -241,7 +273,7 @@ class Behaviors:
             stop_func = self._tactile_stop_func
 
         elif stop == 'pressure_accel':
-            print 'USING ACCELEROMETERS'
+            #print 'USING ACCELEROMETERS'
             #set a threshold for pressure & check for accelerometer readings
             self.pressure_listener.check_safety_threshold()
             self.pressure_listener.check_threshold()
@@ -378,7 +410,8 @@ class Behaviors:
         #return (left_touching, right_touching, palm_touching)
 
 
-class LightSwitchBehaviorTest:
+class BehaviorTest:
+
     def __init__(self):
         self.tf_listener = tf.TransformListener()
         self.behaviors = Behaviors('l', tf_listener=self.tf_listener)
@@ -392,62 +425,22 @@ class LightSwitchBehaviorTest:
 
 
     def click_cb(self, point):
-        #what other behavior would I want?
-        # touch then move away..
-        # move back but more slowly..
-        # want a safe physical
-        #   a safe exploration strategy
-        start_location = self.start_location
-        #start_location = (np.matrix([0.25, 0.15, 0.7]).T, np.matrix([0., 0., 0., 0.1]))
-
-        #movement = np.matrix([.4, 0., 0.]).T
         print '===================================================================='
-        print '===================================================================='
-        print '                           Got point!'
-        #point = np.matrix([0.63125642, -0.02918334, 1.2303758 ]).T
-        print 'CORRECTING', point.T
-        point[0,0] = point[0,0] - .15
-        print 'NEW', point.T
-        #movement = point - self.behaviors.current_location()[0]
+        point = point + np.matrix([-.15, 0, 0.]).T
         #pdb.set_trace()
-        #self.behaviors.linear_move(self.behaviors.current_location(), movement, stop='pressure_accel')
-        loc = self.behaviors.current_location()[0]
-        front_loc = point.copy()
-        front_loc[0,0] = loc[0,0]
-        self.behaviors.set_pressure_threshold(150)
-        self.behaviors.move_absolute((front_loc, self.behaviors.current_location()[1]), stop='pressure_accel')
-        self.behaviors.move_absolute((point, self.behaviors.current_location()[1]), stop='pressure_accel')
+        rospy.loginfo('REACHING')
+        self.behaviors.reach(point)
 
-        #Adjust for fingertip
-        #print 'move direction', movement.T
-        print 'point', point.T
-        print 'ending location', self.behaviors.current_location()[0].T
+        rospy.loginfo('PRESSING')
+        self.behaviors.press(np.matrix([0, 0, -.15]).T, 3500)
+        #code reward function
+        #monitor self collision => collisions with the environment are not self collisions
 
-        back_alittle = np.matrix([-.005, 0., 0.]).T
-        self.behaviors.move_relative(back_alittle, stop='none')
-        #self.behaviors.linear_move(self.behaviors.current_location(), back_alittle, stop='none')
-
-        #loc_before = self.behaviors.current_location()[0]
-        #loc_after = self.behaviors.current_location()[0]
-
-        #pdb.set_trace()
-        down = np.matrix([0., 0., -.2]).T
-        self.behaviors.set_pressure_threshold(150)
-        touchedp = self.behaviors.move_relative(down, stop='pressure_accel')
-        if touchedp:
-            self.behaviors.set_pressure_threshold(3500)
-            self.behaviors.move_relative(np.matrix([0,0,-.15]).T, stop='pressure_accel')
-
-        #self.behaviors.linear_move(self.behaviors.current_location(), down, stop='pressure_accel')
-        self.behaviors.move_relative(np.matrix([-.02, 0., 0.]).T, stop='none')
-
-        #self.behaviors.linear_move(self.behaviors.current_location(), back, stop='none')
-        #pdb.set_trace()
-        #b.twist(math.radians(30.))
-        #bd = BehaviorDescriptor()
+        rospy.loginfo('MOVING BACK')
+        self.behaviors.move_relative_gripper(np.matrix([-.02, 0., 0.]).T, stop='none')
+        rospy.loginfo('RESETING')
         self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
         print 'DONE.'
-
 
     def run(self):
         print 'running'
@@ -457,7 +450,7 @@ class LightSwitchBehaviorTest:
 
 
 if __name__ == '__main__':
-    l = LightSwitchBehaviorTest()
+    l = BehaviorTest()
     l.run()
 
 
@@ -490,6 +483,37 @@ if __name__ == '__main__':
 
 
 
+
+        #point = np.matrix([0.63125642, -0.02918334, 1.2303758 ]).T
+        #print 'move direction', movement.T
+        #print 'CORRECTING', point.T
+        #print 'NEW', point.T
+        #start_location = (np.matrix([0.25, 0.15, 0.7]).T, np.matrix([0., 0., 0., 0.1]))
+        #movement = np.matrix([.4, 0., 0.]).T
+        #what other behavior would I want?
+        # touch then move away..
+        # move back but more slowly..
+        # want a safe physical
+        #   a safe exploration strategy
+        #self.behaviors.linear_move(self.behaviors.current_location(), back_alittle, stop='none')
+        #loc_before = self.behaviors.current_location()[0]
+        #loc_after = self.behaviors.current_location()[0]
+        #pdb.set_trace()
+        #self.behaviors.linear_move(self.behaviors.current_location(), down, stop='pressure_accel')
+        #self.behaviors.linear_move(self.behaviors.current_location(), back, stop='none')
+        #pdb.set_trace()
+        #b.twist(math.radians(30.))
+        #bd = BehaviorDescriptor()
+        #movement = point - self.behaviors.current_location()[0]
+        #pdb.set_trace()
+        #self.behaviors.linear_move(self.behaviors.current_location(), movement, stop='pressure_accel')
+
+        #loc = self.behaviors.current_location()[0]
+        #front_loc = point.copy()
+        #front_loc[0,0] = loc[0,0]
+        #self.behaviors.set_pressure_threshold(150)
+        #self.behaviors.move_absolute((front_loc, self.behaviors.current_location()[1]), stop='pressure_accel')
+        #self.behaviors.move_absolute((point, self.behaviors.current_location()[1]), stop='pressure_accel')
 
 
 
