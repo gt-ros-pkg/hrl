@@ -24,6 +24,8 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+
+## author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
 ## author Travis Deyle (Healthcare Robotics Lab, Georgia Tech.)
 
 
