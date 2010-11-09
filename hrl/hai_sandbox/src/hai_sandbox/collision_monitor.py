@@ -16,8 +16,10 @@ class CollisionMonitor:
         service_name = 'environment_server_left_arm/get_state_validity'
         rospy.loginfo('waiting for ' + service_name)
         rospy.wait_for_service(service_name)
-        self.check_state_validity_client = rospy.ServiceProxy(service_name, psrv.GetStateValidity, persistent=True)
-        rospy.Subscriber('joint_states_throttle', sm.JointState, self.joint_state_cb)
+        self.check_state_validity_client = rospy.ServiceProxy(service_name, \
+                psrv.GetStateValidity, persistent=True)
+        rospy.Subscriber('joint_states', sm.JointState, self.joint_state_cb, \
+                queue_size=5, tcp_nodelay=True)
 
     def joint_state_cb(self, msg):
         if self.name_dict == None:
@@ -35,7 +37,14 @@ class CollisionMonitor:
         req.check_collisions = True
         res = self.check_state_validity_client(req)
         if not (res.error_code.val == res.error_code.SUCCESS):
-            rospy.loginfo('state is in COLLISION' + str(res.contacts))
+            contact_with_points = False
+            for c in res.contacts:
+                if c.contact_body_1 == 'points' or c.contact_body_2 == 'points':
+                    contact_with_points = True
+                else:
+                    print 'contact between', c.contact_body_1, c.contact_body_2
+            #if not contact_with_points:
+            #    rospy.loginfo('state is in COLLISION')
             
 def call_collision_monitor():
     a = CollisionMonitor()
@@ -49,7 +58,8 @@ def call_get_state_validity():
     service_name = 'environment_server_left_arm/get_state_validity'
     rospy.loginfo('waiting for ' + service_name)
     rospy.wait_for_service(service_name)
-    check_state_validity_client = rospy.ServiceProxy('environment_server_left_arm/get_state_validity', psrv.GetStateValidity)
+    check_state_validity_client = rospy.ServiceProxy('environment_server_left_arm/get_state_validity', \
+            psrv.GetStateValidity, persistent=True)
     req = psrv.GetStateValidityRequest()    
     req.robot_state.joint_state.name = ['l_shoulder_pan_joint', 'l_shoulder_lift_joint',
                                         'l_upper_arm_roll_joint', 'l_elbow_flex_joint',
@@ -71,7 +81,8 @@ def call_get_state_validity():
         #    rospy.loginfo('state is in collision')
 
 if __name__ == '__main__':
-    call_get_state_validity()
+    call_collision_monitor()
+    #call_get_state_validity()
 
     
 

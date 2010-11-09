@@ -641,7 +641,9 @@ class Imitate:
 
     def run_explore(self, data_fname):
         rospy.loginfo('loading demonstration pickle')
+        tpk = time.time()
         data = ut.load_pickle(data_fname)
+        print 'took %.2f secs' % (time.time() - tpk)
         #pdb.set_trace()
         #self.coarse_drive_behavior(data)
         rospy.loginfo('posing robot')
