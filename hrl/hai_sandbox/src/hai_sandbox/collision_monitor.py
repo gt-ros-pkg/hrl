@@ -1,3 +1,4 @@
+#! /usr/bin/python
 import roslib; roslib.load_manifest('hai_sandbox')
 import rospy
 import planning_environment_msgs.srv as psrv
@@ -8,24 +9,26 @@ import hai_sandbox.msg as hmsg
 
 class CollisionMonitor:
     def __init__(self, arm):
-        rospy.init_node('test_get_state_validity')
+        rospy.init_node('collision_monitor_' + arm)
         self.name_dict = None
-        self.arm_name = ['l_shoulder_pan_joint',   'l_shoulder_lift_joint',
-                         'l_upper_arm_roll_joint', 'l_elbow_flex_joint',
-                         'l_forearm_roll_joint',   'l_wrist_flex_joint', 'l_wrist_roll_joint',
-                         'r_shoulder_pan_joint',   'r_shoulder_lift_joint',
-                         'r_upper_arm_roll_joint', 'r_elbow_flex_joint',
-                         'r_forearm_roll_joint',   'r_wrist_flex_joint', 'r_wrist_rolr_joint']
+        link_names = ['_shoulder_pan_joint',   '_shoulder_lift_joint',
+                      '_upper_arm_roll_joint', '_elbow_flex_joint',
+                      '_forearm_roll_joint',   '_wrist_flex_joint', '_wrist_roll_joint']
+        self.arm_name = [arm + l for l in link_names]
 
-        service_name = 'environment_server_left_arm/get_state_validity'
+        if arm == 'l':
+            service_name = 'environment_server_left_arm/get_state_validity'
+        else:
+            service_name = 'environment_server_right_arm/get_state_validity'
+
+
         rospy.loginfo('waiting for ' + service_name)
         rospy.wait_for_service(service_name)
         self.check_state_validity_client = rospy.ServiceProxy(service_name, \
                 psrv.GetStateValidity, persistent=True)
         rospy.Subscriber('joint_states', sm.JointState, self.joint_state_cb, \
                 queue_size=5, tcp_nodelay=True)
-
-        self.contact_pub = rospy.Publisher('contact', hmsg.OnlineContact)
+        self.contact_pub = rospy.Publisher('contacts_' + arm, hmsg.OnlineContact)
 
     def joint_state_cb(self, msg):
         if self.name_dict == None:
@@ -57,8 +60,8 @@ class CollisionMonitor:
             #    rospy.loginfo('state is in COLLISION')
         
             
-def call_collision_monitor():
-    a = CollisionMonitor()
+def call_collision_monitor(arm):
+    a = CollisionMonitor(arm)
     rospy.loginfo('ready')
     r = rospy.Rate(10)
     while not rospy.is_shutdown():
@@ -91,8 +94,10 @@ def call_get_state_validity():
         #else:
         #    rospy.loginfo('state is in collision')
 
+
 if __name__ == '__main__':
-    call_collision_monitor()
+    import sys
+    call_collision_monitor(sys.argv[1])
     #call_get_state_validity()
 
     
