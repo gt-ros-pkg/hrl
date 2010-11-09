@@ -16,7 +16,7 @@
     <node name="$(anon dynam_load)" pkg="hrl_lib" type="load_dynamic_config" args="/prosilica_driver $(find pr2_omni_teleop)/prosilica_teleop_settings.yaml"/>
 
     <!-- Arm kinematics -->
-    <include file="$(find hai_sandbox)/cart_params.launch"/>
+    <include file="$(find hai_sandbox)/launch/cart_params.launch"/>
     <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch"/>
     <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch"/>
 </launch>
