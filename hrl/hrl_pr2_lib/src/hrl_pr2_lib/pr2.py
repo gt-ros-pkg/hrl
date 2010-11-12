@@ -275,7 +275,11 @@ class ControllerManager:
 
 class PR2:
     def __init__(self, tf_listener=None):
-        rospy.init_node('pr2', anonymous=True)
+        try:
+            rospy.init_node('pr2', anonymous=True)
+        except rospy.exceptions.ROSException, e:
+            pass
+
         if tf_listener == None:
             self.tf_listener = tf.TransformListener()
         else:

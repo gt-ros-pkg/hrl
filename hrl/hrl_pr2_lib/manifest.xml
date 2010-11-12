@@ -16,6 +16,7 @@
   <depend package="kinematics_msgs"/>
   <depend package="hrl_lib"/>
   <depend package="actionlib"/>
+  <depend package="actionlib_msgs"/>
   <depend package="move_base_msgs"/>
   <depend package="sensor_msgs"/>
   <depend package="trajectory_msgs"/>
