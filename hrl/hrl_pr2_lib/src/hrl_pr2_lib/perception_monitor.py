@@ -319,80 +319,94 @@ class ArmPerceptionMonitor( ):
 
         self.model_zeros = model_zeros
 
-        accel_listener = GenericListener("accel_mon_node", AccelerometerState, 
-                                 "accelerometer/" + armc + "_gripper_motor",
-                                 rate, accel_state_processor)
+        self.perceptions = {}
 
-        joint_angles_processor = ft.partial(joints_state_processor, 
-                                            right_arm=is_right_arm, 
-                                            angles_velocities_efforts=0)
-        joint_angles_listener = GenericListener("joint_angles_mon_node", JointState, 
-                                           "joint_states", rate, joint_angles_processor)
+        self.perception_names = [ "accelerometer",
+                                  "joint_angles",
+                                  "joint_velocities",
+                                  "joint_efforts",
+                                  "r_finger_periph_pressure",
+                                  "r_finger_pad_pressure", 
+                                  "l_finger_periph_pressure",
+                                  "l_finger_pad_pressure" ]
 
-        joint_velocities_processor = ft.partial(joints_state_processor, 
-                                            right_arm=is_right_arm, 
-                                            angles_velocities_efforts=1)
-        joint_velocities_listener = GenericListener("joint_efforts_mon_node", JointState, 
-                                          "joint_states", rate, joint_velocities_processor)
+        if percept_mon_list is None:
+            percept_mon_list = self.perception_names
 
-        joint_efforts_processor = ft.partial(joints_state_processor, 
-                                            right_arm=is_right_arm, 
-                                            angles_velocities_efforts=2)
-        joint_efforts_listener = GenericListener("joint_efforts_mon_node", JointState, 
-                                          "joint_states", rate, joint_efforts_processor)
+        if "accelerometer" in percept_mon_list:
+            accel_listener = GenericListener("accel_mon_node", AccelerometerState, 
+                                     "accelerometer/" + armc + "_gripper_motor",
+                                     rate, accel_state_processor)
+            self.perceptions["accelerometer"] = accel_listener.read
 
-        r_finger_periph_pressure_processor = ft.partial(pressure_state_processor, 
-                                        right_finger_tip=True, indicies=range(1,7))
-        r_finger_periph_pressure_listener = GenericListener("pressure_mon_node", PressureState, 
-                                                     "pressure/" + armc + "_gripper_motor", rate, 
-                                                     r_finger_periph_pressure_processor)
+        if "joint_angles" in percept_mon_list:
+            joint_angles_processor = ft.partial(joints_state_processor, 
+                                                right_arm=is_right_arm, 
+                                                angles_velocities_efforts=0)
+            joint_angles_listener = GenericListener("joint_angles_mon_node", JointState, 
+                                               "joint_states", rate, joint_angles_processor)
+            self.perceptions["joint_angles"] = joint_angles_listener.read
 
-        r_finger_pad_pressure_processor = ft.partial(pressure_state_processor, 
-                                        right_finger_tip=True, indicies=range(7,22))
-        r_finger_pad_pressure_listener = GenericListener("pressure_mon_node", PressureState, 
-                                                     "pressure/" + armc + "_gripper_motor", rate, 
-                                                     r_finger_pad_pressure_processor)
+        if "joint_velocities" in percept_mon_list:
+            joint_velocities_processor = ft.partial(joints_state_processor, 
+                                                right_arm=is_right_arm, 
+                                                angles_velocities_efforts=1)
+            joint_velocities_listener = GenericListener("joint_efforts_mon_node", JointState, 
+                                              "joint_states", rate, joint_velocities_processor)
+            self.perceptions["joint_velocities"] = joint_velocities_listener.read
 
-        l_finger_periph_pressure_processor = ft.partial(pressure_state_processor, 
-                                        right_finger_tip=False, indicies=range(1,7))
-        l_finger_periph_pressure_listener = GenericListener("pressure_mon_node", PressureState, 
-                                                     "pressure/" + armc + "_gripper_motor", rate, 
-                                                     l_finger_periph_pressure_processor)
+        if "joint_efforts" in percept_mon_list:
+            joint_efforts_processor = ft.partial(joints_state_processor, 
+                                                right_arm=is_right_arm, 
+                                                angles_velocities_efforts=2)
+            joint_efforts_listener = GenericListener("joint_efforts_mon_node", JointState, 
+                                              "joint_states", rate, joint_efforts_processor)
+            self.perceptions["joint_efforts"] = joint_efforts_listener.read
 
-        l_finger_pad_pressure_processor = ft.partial(pressure_state_processor, 
-                                        right_finger_tip=False, indicies=range(7,22))
-        l_finger_pad_pressure_listener = GenericListener("pressure_mon_node", PressureState, 
-                                                     "pressure/" + armc + "_gripper_motor", rate, 
-                                                     l_finger_pad_pressure_processor)
+        if "r_finger_periph_pressure" in percept_mon_list:
+            r_finger_periph_pressure_processor = ft.partial(pressure_state_processor, 
+                                            right_finger_tip=True, indicies=range(1,7))
+            r_finger_periph_pressure_listener = GenericListener("pressure_mon_node", PressureState, 
+                                                         "pressure/" + armc + "_gripper_motor", rate, 
+                                                         r_finger_periph_pressure_processor)
+            self.perceptions["r_finger_periph_pressure"] = r_finger_periph_pressure_listener.read
+
+        if "r_finger_pad_pressure" in percept_mon_list:
+            r_finger_pad_pressure_processor = ft.partial(pressure_state_processor, 
+                                            right_finger_tip=True, indicies=range(7,22))
+            r_finger_pad_pressure_listener = GenericListener("pressure_mon_node", PressureState, 
+                                                         "pressure/" + armc + "_gripper_motor", rate, 
+                                                         r_finger_pad_pressure_processor)
+            self.perceptions["r_finger_pad_pressure"] = r_finger_pad_pressure_listener.read
+
+        if "l_finger_periph_pressure" in percept_mon_list:
+            l_finger_periph_pressure_processor = ft.partial(pressure_state_processor, 
+                                            right_finger_tip=False, indicies=range(1,7))
+            l_finger_periph_pressure_listener = GenericListener("pressure_mon_node", PressureState, 
+                                                         "pressure/" + armc + "_gripper_motor", rate, 
+                                                         l_finger_periph_pressure_processor)
+            self.perceptions["l_finger_periph_pressure"] = l_finger_periph_pressure_listener.read
+
+        if "l_finger_pad_pressure" in percept_mon_list:
+            l_finger_pad_pressure_processor = ft.partial(pressure_state_processor, 
+                                            right_finger_tip=False, indicies=range(7,22))
+            l_finger_pad_pressure_listener = GenericListener("pressure_mon_node", PressureState, 
+                                                         "pressure/" + armc + "_gripper_motor", rate, 
+                                                         l_finger_pad_pressure_processor)
+            self.perceptions["l_finger_pad_pressure"] = l_finger_pad_pressure_listener.read
 
         # all callbacks should return data in this format:
         # (t (x1, x2, ...))
         # t is time in nanoseconds
 
-        self.perceptions = { "accelerometer" : accel_listener.read,
-                             "joint_angles" : joint_angles_listener.read,
-                             "joint_velocities" : joint_velocities_listener.read,
-                             "joint_efforts" : joint_efforts_listener.read,
-                             "r_finger_periph_pressure" : r_finger_periph_pressure_listener.read,
-                             "r_finger_pad_pressure" : r_finger_pad_pressure_listener.read, 
-                             "l_finger_periph_pressure" : l_finger_periph_pressure_listener.read,
-                             "l_finger_pad_pressure" : l_finger_pad_pressure_listener.read }
-
-        if percept_mon_list is not None:
-            trimmed_per = {}
-            for percept in percept_mon_list:
-                if percept in self.perceptions:
-                    trimmed_per[percept] = self.perceptions[percept]
-            self.perceptions = trimmed_per
-
         for k in self.perceptions:
             self.perceptions[k] = ft.partial(self.perceptions[k], willing_to_wait=False, quiet=True,
                                                                   warn=False, allow_duplication=True)
 
+
         self.clear_vars()
 
         self.logger = RateCaller(self._gather_perception, self.rate)
-        self.monitor = RateCaller(self._monitor_data, self.rate)
         
         log("Finished initialization")
 
@@ -499,11 +513,12 @@ class ArmPerceptionMonitor( ):
                 smooth_wind = smooth_wind_dict[perception]
 
             ret_means, ret_vars, ret_mean_models, ret_noise_vars = [], [], [], []
-            noise_vars = []
+            ret_times, noise_vars = [], []
             # find the number of coordinates from the first element
             num_coords = len(data_list[0][0][1])
             for coord in range(num_coords):
                 mean_models, variance_models = [], []
+                times = None
                 for stream in data_list:
                     # extract only the data stream for a single coordinate (all x values)
                     stream_coord = np.array(zip(*zip(*stream)[1])[coord])
@@ -526,12 +541,14 @@ class ArmPerceptionMonitor( ):
                 vars_model = signal_smooth(vars_model, var_smooth_wind)
                 vars_model = signal_smooth(vars_model, var_smooth_wind + 23)
 
+                ret_times += [times]
                 ret_means += [avg_means_model]
                 ret_vars += [vars_model]
                 ret_mean_models += [mean_models]
                 ret_noise_vars += [np.average(noise_vars)]
 
             # TODO deal with timestamp data in some way?
+            self.models[perception]["time"] = np.array(zip(*
             self.models[perception]["mean"] = np.array(zip(*ret_means))
             self.models[perception]["variance"] = np.array(zip(*ret_vars))
             a = ret_mean_models
@@ -575,22 +592,14 @@ class ArmPerceptionMonitor( ):
         self._n += 1
 
     ##
-    # Begin monitoring peception data to make sure it doesn't deviate from
-    # the model provided.
-    #
-    # TODO DOCS
-    # @param duration If None, continue capturing until stop is called.
-    #                 Else, stop capturing after duration seconds have passed.
-    def begin_monitoring(self, std_dev_dict=None, noise_dev_dict=None, duration=None,
+    # Sets up monitoring parameters
+    def setup_monitoring(self, std_dev_dict=None, noise_dev_dict=None, duration=None,
                                std_dev_default=2.0, noise_dev_default=0.25,
+                               tol_thresh_dict=None,
                                contingency=None, window_size=70, current_zeros=None,
-                               verbose=True):
+                               transform_dict=None, verbose=True, collide=True):
         self.std_dev_default = std_dev_default
         self.noise_dev_default = noise_dev_default
-        if self.active:
-            log("Perception already active.")
-            return
-        self.active = True
 
         self.current_data = {}
         self.std_dev_dict = std_dev_dict
@@ -598,78 +607,126 @@ class ArmPerceptionMonitor( ):
         self.contingency = contingency
         self.window_size = window_size
         self.current_zeros = current_zeros
+        self.transform_dict = transform_dict
+        self.tol_thresh_dict = tol_thresh_dict
         self.verbose = verbose
+        self.collide = collide
         self.sum_data = {}
         self.cur_pt = 0
         self.failure = False
         self.dur_timer = None
-        self.avg_pub = {}
         self.avg_list = {}
+        self.cum_avg = {}
+        self.c = {}
+        self.locks = {}
 
         for k in self.perceptions:
             self.current_data[k] = Queue.Queue(window_size)
             self.sum_data[k] = None
             self.avg_list[k] = []
-            self.avg_pub[k] = rospy.Publisher(k + "_avg", FloatArray)
+            self.c[k] = None
+            self.locks[k] = threading.Lock()
 
+    ##
+    # Begin monitoring peception data to make sure it doesn't deviate from
+    # the model provided.
+    #
+    # TODO DOCS
+    # @param duration If None, continue capturing until stop is called.
+    #                 Else, stop capturing after duration seconds have passed.
+    def begin_monitoring(self, models=None, model_zeros=None,
+                               std_dev_dict=None, noise_dev_dict=None, duration=None,
+                               std_dev_default=2.0, noise_dev_default=0.25,
+                               tol_thresh_dict=None,
+                               contingency=None, window_size=70, current_zeros=None,
+                               transform_dict=None, verbose=True, collide=True):
+        if self.active:
+            log("Perception already active.")
+            return
+        self.active = True
+        self.setup_monitoring(std_dev_dict=std_dev_dict, noise_dev_dict=noise_dev_dict,
+                               duration=duration, std_dev_default=std_dev_default, 
+                               noise_dev_default=noise_dev_default,                         
+                               tol_thresh_dict=tol_thresh_dict,
+                               contingency=contingency, window_size=window_size, 
+                               current_zeros=current_zeros, transform_dict=transform_dict, 
+                               verbose=verbose, collide=collide)
+        if models is not None:
+            self.models = models
+        if model_zeros is not None:
+            self.model_zeros = model_zeros
+
+        self.monitor = RateCaller(self._monitor_data, self.rate)
         self.monitor.run()
+        self.concur = False
+        self.sumcalls = {}
+        self.sumsave = {}
 
         if not duration is None:
             self.dur_timer = threading.Timer(self.end_monitoring, duration)
             self.dur_timer.start()
 
+    def _stable_summer(self, percept, data):
+        # kahanSum
+        k = percept
+        if percept not in self.sumcalls:
+            self.sumcalls[percept] = 1
+            self.sumsave[percept] = []
+        else:
+            self.sumcalls[percept] += 1
+
+        if self.c[k] is None:
+            self.c[k] = np.array([0.]*len(data))
+        if self.sum_data[k] is None:
+            self.sum_data[k] = copy.copy(data)
+        else:
+            y = data - self.c[k]
+            t = self.sum_data[k] + y
+            self.c[k] = (t - self.sum_data[k]) - y
+            self.sum_data[k] = t
+            self.sumsave[percept] += [self.sum_data[k]]
+
+
     def _monitor_data(self):
+        if self.concur:
+            print "HA!\n"*100
+        self.concur = True
         for k in self.perceptions:
             # update the running sum
-            add_data = np.array(self.perceptions[k]()[1])
-            if self.sum_data[k] is None:
-                self.sum_data[k] = copy.copy(add_data)
-            else:
-                self.sum_data[k] += add_data
+            add_data = np.array(copy.copy(self.perceptions[k]()[1]))
+
+            # apply necessary transforms
+            if self.transform_dict is not None:
+                if k in self.transform_dict:
+                    add_data = self.transform_dict[k](add_data)
+                    
+            self._stable_summer(k, add_data)
 
             # If we have enough data to monitor, we check to see if the values are in range
-            if self.current_data[k].full():
-                avg = copy.copy(self.sum_data[k]) / float(self.window_size)
-                # avg_msg = FloatArray(None, avg.tolist())
-                # avg_msg.header.stamp = rospy.Time.now()
-                # self.avg_pub[k].publish(avg_msg)
-                # publishing slows down the process...
-                if self.current_zeros is not None:
-                    if self.model_zeros is not None:
-                        avg += self.model_zeros[k] - self.current_zeros[k]
-                    else:
-                        # this is hacky, need to use zeros during training instead of first pt
-                        avg +=  self.models[k]["mean"][0] - self.current_zeros[k]
+            if self.cur_pt >= self.window_size: #self.current_data[k].full():
+                self.prev_sum = copy.deepcopy(self.sum_data)
+                avg = self.sum_data[k] / self.window_size
+                self.prev_avg = copy.deepcopy(avg)
                 self.avg_list[k] += [avg]
-                diff = np.fabs(avg - self.models[k]["mean"][self.cur_pt])
-                deviation = np.array(np.sqrt(self.models[k]["variance"][self.cur_pt]))
-                noise_deviation = np.array(np.sqrt(self.models[k]["noise_variance"]))
-                if self.std_dev_dict is not None and self.std_dev_dict[k] is not None:
-                    std_dev = self.std_dev_dict[k]
-                else:
-                    std_dev = self.std_dev_default
-                if self.noise_dev_dict is not None and self.noise_dev_dict[k] is not None:
-                    noise_dev = self.noise_dev_dict[k]
-                else:
-                    noise_dev = self.noise_dev_default
+                index, diff = self.collision_detect(k, avg)
+                if index != -1:
+                    log("Value %d of the perception %s failed with difference %f"
+                                                               % (index, k, diff))
+                    if diff > 5. and k == "accelerometer":
+                        print "avg_list", self.avg_list
+                        print "avg", avg
+                        for i in range(self.window_size+1):
+                            d = self.current_data[k].get()
+                            print d
+                            self.current_data[k].put(d)
 
-                # This is the monitoring equation
-                is_outside_range = diff > (std_dev * deviation + noise_dev * noise_deviation)
-                # Uses both variance from various grasp tries and general noise variance
 
-                if any(is_outside_range):
-                    # sensor has fallen outside acceptable range, trigger
-                    if self.verbose:
-                        for i, x in enumerate(is_outside_range):
-                            if x:
-                                log("Value %d of the perception %s failed with difference %f"
-                                                                           % (i, k, diff[i]))
                     self.failure = True
                     self.contingency()
                     self.monitor.stop()
 
                 rem_data = self.current_data[k].get()
-                self.sum_data[k] -= rem_data
+                self._stable_summer(k, -rem_data)
 
             self.current_data[k].put(add_data)
 
@@ -677,6 +734,8 @@ class ArmPerceptionMonitor( ):
         if self.cur_pt == len(self.models[self.models.keys()[0]]["mean"]):
             print "ending early:", self.cur_pt
             self.end_monitoring()
+
+        self.concur = False
 
     ##
     # Stop capturing perception data.  Store output data in datasets list for
@@ -687,6 +746,9 @@ class ArmPerceptionMonitor( ):
             log("Nothing to stop.")
             return self.avg_list 
 
+        print "Sum calls", self.sumcalls
+        if self.sumcalls["r_finger_periph_pressure"] == 202:
+            print self.sumsave
         self.monitor.stop()
         if self.dur_timer is not None:
             self.dur_timer.cancel()
@@ -694,6 +756,82 @@ class ArmPerceptionMonitor( ):
 
         self.active = False
         return self.avg_list
+
+    # Checks percept to see if the model indicates a collision with the current
+    # smoothed perception avg
+    # Returns index of perception and difference if collision, -1, 0 else
+    def collision_detect(self, percept, avg):
+        k = percept
+        # offset zeros into original perception frame
+        if self.current_zeros is not None:
+            if self.model_zeros is not None:
+                avg += self.model_zeros[k] - self.current_zeros[k]
+            else:
+                # this is hacky, need to use zeros during training instead of first pt
+                print "NOOOOOOOOOOOO!\n"*100
+                avg +=  self.models[k]["mean"][0] - self.current_zeros[k]
+        diff = np.fabs(avg - self.models[k]["mean"][self.cur_pt])
+        deviation = np.array(np.sqrt(self.models[k]["variance"][self.cur_pt]))
+        noise_deviation = np.array(np.sqrt(self.models[k]["noise_variance"]))
+        if self.std_dev_dict is not None and k in self.std_dev_dict:
+            std_dev = self.std_dev_dict[k]
+        else:
+            std_dev = self.std_dev_default
+        if self.noise_dev_dict is not None and k in self.noise_dev_dict:
+            noise_dev = self.noise_dev_dict[k]
+        else:
+            noise_dev = self.noise_dev_default
+        if self.tol_thresh_dict is not None and k in self.tol_thresh_dict:
+            tol_thresh = self.tol_thresh_dict[k]
+        else:
+            tol_thresh = 0.
+
+        # This is the monitoring equation
+        is_outside_range = diff > (std_dev * deviation + noise_dev * noise_deviation + 
+                                                                                 tol_thresh)
+        # Uses both variance from various grasp tries and general noise variance
+
+        if self.collide and any(is_outside_range):
+            # sensor has fallen outside acceptable range, trigger
+            for i, x in enumerate(is_outside_range):
+                if x:
+                    print "Average:", avg
+                    print "Last avg:", self.prev_avg
+                    print "Prev sum:", self.prev_sum
+                    print "MOD:", self.model_zeros[k]
+                    print "MON:", self.current_zeros[k]
+                    return i, diff[i]
+        return -1, 0.
+
+    def simulate_monitoring(self, monitor_data, models=None, model_zeros=None,
+                               std_dev_dict=None, noise_dev_dict=None, 
+                               duration=None,
+                               std_dev_default=2.0, noise_dev_default=0.25,
+                               tol_thresh_dict=None,
+                               contingency=None, window_size=70, current_zeros=None,
+                               transform_dict=None, verbose=True, collide=True):
+        self.setup_monitoring(std_dev_dict=std_dev_dict, noise_dev_dict=noise_dev_dict,
+                               duration=duration, std_dev_default=std_dev_default, 
+                               tol_thresh_dict=tol_thresh_dict,
+                               noise_dev_default=noise_dev_default,                                                         contingency=contingency, window_size=window_size, 
+                               current_zeros=current_zeros, transform_dict=transform_dict, 
+                               verbose=verbose, collide=collide)
+        if models is not None:
+            self.models = models
+        if model_zeros is not None:
+            self.model_zeros = model_zeros
+        self.cur_pt = self.window_size
+        collision = None
+        # i is the number of samples in the monitor data
+        for i in range(len(monitor_data[monitor_data.keys()[0]])):
+            for k in monitor_data:
+                index, diff = self.collision_detect(k, monitor_data[k][i])
+                if index != -1:
+                    collision = (k, index, diff)
+            self.cur_pt += 1
+        return collision
+        
+        
 
 if __name__ == '__main__':
     rospy.init_node(node_name, anonymous=True)
