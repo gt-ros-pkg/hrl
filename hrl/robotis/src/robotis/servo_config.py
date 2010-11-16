@@ -95,7 +95,7 @@ servo_param = {
         'home_encoder': 544
         },
     30: {                        # PR2 RFID Right Tilt
-        'home_encoder': 490
+        'home_encoder': 495
         }
 
 }
