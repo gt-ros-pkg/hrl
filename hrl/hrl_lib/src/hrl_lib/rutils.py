@@ -493,10 +493,24 @@ class RateListener():
 #        tfm = tf.msg.tfMessage([tf_stamped])
 #        self.pub_tf.publish(tfm)
 
-
-
-
-
+##
+# Calls the service with the given name and given parameters and returns
+# the output of the service.
+# @param service_name the full name of the service to be called
+# @param params the list of parameters to be passed into the service
+# @filename name of a pickle object to be created if not None
+def call_save_service(service_name, service_def, params, filename=None):
+    srv = rospy.ServiceProxy(service_name, service_def)
+    try:
+        resp = srv(*params)
+        if not filename is None:
+            save_pickle(resp, filename)
+        srv.close()
+        return resp
+    except rospy.ServiceException, e:
+        print "Service error"
+    srv.close()
+    return None
 
 
 

@@ -1,0 +1,20 @@
+<package>
+  <description brief="kelsey_sandbox">
+
+     kelsey_sandbox
+
+  </description>
+  <author>kelsey</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/kelsey_sandbox</url>
+  <depend package="rospy"/>
+  <depend package="roscpp"/>
+  <depend package="hrl_lib"/>
+  <depend package="hrl_pr2_lib"/>
+  <depend package="laser_interface"/>
+  <depend package="hrl_tilting_hokuyo"/>
+
+</package>
+
+
