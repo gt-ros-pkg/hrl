@@ -7,6 +7,28 @@ import numpy as np
 import time
 import hai_sandbox.msg as hmsg
 
+
+class CollisionClient:
+    def __init__(self, arm):
+        rospy.Subscriber('contacts_' + arm, hmsg.OnlineContact, self.collision_cb, tcp_nodelay=True)
+        self.contacted_with_self = [False, None, None]
+
+    def collision_cb(self, msg):
+        for c in msg.contacts:
+            if c.contact_body_1 == 'points' or c.contact_body_2 == 'points' \
+                    or c.contact_body_1 == None or c.contact_body_2 == None:
+                continue
+            else:
+                self.contacted_with_self = [True, c.contact_body_1, c.contact_body_2]
+
+    def check_self_contacts(self):
+        r = self.contacted_with_self
+        self.contacted_with_self = [False, None, None]
+        if r[0] == True:
+            rospy.loginfo('Contact made between %s and %s.' % (r[1], r[2]))
+        return r[0]
+
+
 class CollisionMonitor:
     def __init__(self, arm):
         rospy.init_node('collision_monitor_' + arm)

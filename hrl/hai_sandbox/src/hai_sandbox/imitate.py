@@ -16,7 +16,6 @@ import tf.transformations as tr
 import hrl_lib.transforms as htf
 import hrl_lib.rutils as ru
 import numpy as np
-import time
 import pdb
 import sys
 import visualization_msgs.msg as vm
