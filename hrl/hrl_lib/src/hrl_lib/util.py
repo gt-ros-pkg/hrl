@@ -1,7 +1,8 @@
 import os
 import numpy as np
-import pickle as pk
+import cPickle as pk
 import time
+import threading
 
 from hrl_lib.msg import NumpyArray
 
@@ -37,7 +38,11 @@ def formatted_time():
 # @param filename - name of the pkl
 # @return - object that had been pickled.
 def load_pickle(filename):
-    p = open(filename, 'r')
+    try:
+        p = open(filename, 'r')
+    except IOError:
+        print "hrl_lib.util: Pickle file cannot be opened."
+        return None
     picklelicious = pk.load(p)
     p.close()
     return picklelicious
@@ -168,6 +173,4 @@ def say(text):
 def matrixrank(A,tol=1e-8):
     s = np.linalg.svd(A,compute_uv=0)
     return sum( np.where( s>tol, 1, 0 ) )
-
-
 
