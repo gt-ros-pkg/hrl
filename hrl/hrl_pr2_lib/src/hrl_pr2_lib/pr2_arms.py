@@ -719,21 +719,27 @@ class PR2Arms(object):
         # return the expected time of the trajectory
         return dur
 
+    def bias_guess(self, q, joints_bias, bias_radius):
+        if bias_radius == 0.0:
+            return q
+        max_angs = np.array([.69, 1.33, 0.79, 0.0, 1000000.0, 0.0, 1000000.0])
+        min_angs = np.array([-2.27, -.54, -3.9, -2.34, -1000000.0, -2.15, -1000000.0])
+        q_off = bias_radius * np.array(joints_bias) / np.linalg.norm(joints_bias)
+        angs = np.array(q) + q_off
+        for i in range(7):
+            if angs[i] > max_angs[i]:
+                angs[i] = max_angs[i]
+            elif angs[i] < min_angs[i]:
+                angs[i] = min_angs[i]
+        return angs.tolist()
+
     ##
     # Same as move_arm but tries to keep the elbow up.
-    def grasp_biased_IK(self, arm, pos, rot, q_guess, num_iters=5):
+    def grasp_biased_IK(self, arm, pos, rot, q_guess, joints_bias=[0.]*7, bias_radius=0., num_iters=5):
         angs = q_guess
         for i in range(num_iters):
             angs = self.IK(arm, pos, rot, angs)
-            angs[1] -= 0.05
-            if angs[1] < -.54:
-                angs[1] = -.54
-            angs[2] -= 0.05
-            if angs[2] < -3.9:
-                angs[2] = -3.9
-            angs[5] += 0.05
-            if angs[5] > 0.:
-                angs[5] = 0.
+            angs = self.bias_guess(angs, joints_bias, bias_radius)
         return self.IK(arm, pos, rot, angs)
 
     ##
