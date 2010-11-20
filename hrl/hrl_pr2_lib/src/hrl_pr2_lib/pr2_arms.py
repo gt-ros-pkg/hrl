@@ -122,10 +122,6 @@ class PR2Arms(object):
         self.r_arm_cart_pub = rospy.Publisher('/r_cart/command_pose', PoseStamped)
         self.l_arm_cart_pub = rospy.Publisher('/l_cart/command_pose', PoseStamped)
 
-        self.joint_nm_list = ['shoulder_pan', 'shoulder_lift', 'upper_arm_roll',
-                              'elbow_flex', 'forearm_roll', 'wrist_flex',
-                              'wrist_roll']
-
         self.arm_angles = [None, None]
         self.arm_efforts = [None, None]
         self.jtg = [None, None]
@@ -147,19 +143,26 @@ class PR2Arms(object):
     def joint_states_cb(self, data):
         arm_angles = [[], []]
         arm_efforts = [[], []]
-        r_jt_idx_list = [17, 18, 16, 20, 19, 21, 22]
-        l_jt_idx_list = [31, 32, 30, 34, 33, 35, 36]
-        for i,nm in enumerate(self.joint_nm_list):
+        r_jt_idx_list = [0]*7
+        l_jt_idx_list = [0]*7
+        for i, jt_nm in enumerate(self.joint_names_list[0]):
+            r_jt_idx_list[i] = data.name.index(jt_nm)
+        for i, jt_nm in enumerate(self.joint_names_list[1]):
+            l_jt_idx_list[i] = data.name.index(jt_nm)
+
+        for i in range(7):
             idx = r_jt_idx_list[i]
-            if data.name[idx] != 'r_'+nm+'_joint':
+            if data.name[idx] != self.joint_names_list[0][i]:
                 raise RuntimeError('joint angle name does not match. Expected: %s, Actual: %s i: %d'%('r_'+nm+'_joint', data.name[idx], i))
-            arm_angles[0] += [data.position[idx]]
+            ang = self.normalize_ang(data.position[idx])
+            arm_angles[0] += [ang]
             arm_efforts[0] += [data.effort[idx]]
 
             idx = l_jt_idx_list[i]
-            if data.name[idx] != 'l_'+nm+'_joint':
+            if data.name[idx] != self.joint_names_list[1][i]:
                 raise RuntimeError('joint angle name does not match. Expected: %s, Actual: %s i: %d'%('r_'+nm+'_joint', data.name[idx], i))
-            arm_angles[1] += [data.position[idx]]
+            ang = self.normalize_ang(data.position[idx])
+            arm_angles[1] += [ang]
             arm_efforts[1] += [data.effort[idx]]
 
         self.arm_state_lock[0].acquire()
@@ -171,6 +174,14 @@ class PR2Arms(object):
         self.arm_angles[1] = arm_angles[1]
         self.arm_efforts[1] = arm_efforts[1]
         self.arm_state_lock[1].release()
+
+
+    def normalize_ang(self, ang):
+        while ang >= 2 * np.pi:
+            ang -= 2 * np.pi
+        while ang < 0.:
+            ang += 2 * np.pi
+        return ang
 
     ##
     # Create a joint configuration trajectory goal.
