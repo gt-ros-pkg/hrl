@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import numpy as np, math
+import scipy.stats as stats
 from threading import RLock
 
 import roslib; roslib.load_manifest('hrl_pr2_lib')
@@ -19,7 +20,7 @@ import threading
 import functools as ft
 import Queue
 
-import time, string, copy
+import time, string
 
 node_name = "arm_perception_monitor" 
 
@@ -33,17 +34,17 @@ def log(str):
 # @param msg AccelometerState message
 # @return (t, (x, y, z))
 def accel_state_processor(msg):
-    x, y, z = 0., 0., 0.
+    xyz = np.array([0.]*3)
     if msg.samples is None or len(msg.samples) == 0:
         return None
     for samp in msg.samples:
-        x += samp.x
-        y += samp.y
-        z += samp.z
-    x /= len(msg.samples)
-    y /= len(msg.samples)
-    z /= len(msg.samples)
-    return (msg.header.stamp.to_nsec(), (x, y, z))
+        xyz[0] += samp.x
+        xyz[1] += samp.y
+        xyz[2] += samp.z
+    xyz[0] /= len(msg.samples)
+    xyz[1] /= len(msg.samples)
+    xyz[2] /= len(msg.samples)
+    return (msg.header.stamp.to_nsec(), xyz)
 
 r_jt_idx_list = [17, 18, 16, 20, 19, 21, 22]
 l_jt_idx_list = [31, 32, 30, 34, 33, 35, 36]
@@ -56,40 +57,40 @@ joint_nm_list = ['shoulder_pan', 'shoulder_lift', 'upper_arm_roll',
 #
 # @param data JointState message recieved from the /joint_states topic
 def joints_state_processor(msg, right_arm=True, angles_velocities_efforts=0):
-    ret = []
+    ret = np.array([0.] * 7)
     for i,nm in enumerate(joint_nm_list):
         if right_arm:
             idx = r_jt_idx_list[i]
             if msg.name[idx] != 'r_'+nm+'_joint':
                 raise RuntimeError('joint angle name does not match. Expected: %s, Actual: %s i: %d'%('r_'+nm+'_joint', msg.name[idx], i))
             if angles_velocities_efforts == 1:
-                ret += [msg.velocity[idx]]
+                ret[i] = msg.velocity[idx]
             elif angles_velocities_efforts == 2:
-                ret += [msg.effort[idx]]
+                ret[i] = msg.effort[idx]
             else:
-                ret += [msg.position[idx]]
+                ret[i] = msg.position[idx]
         else:
 
             idx = l_jt_idx_list[i]
             if msg.name[idx] != 'l_'+nm+'_joint':
                 raise RuntimeError('joint angle name does not match. Expected: %s, Actual: %s i: %d'%('r_'+nm+'_joint', msg.name[idx], i))
             if angles_velocities_efforts == 1:
-                ret += [msg.velocity[idx]]
+                ret[i] = msg.velocity[idx]
             elif angles_velocities_efforts == 2:
-                ret += [msg.effort[idx]]
+                ret[i] = msg.effort[idx]
             else:
-                ret += [msg.position[idx]]
+                ret[i] = msg.position[idx]
     return (msg.header.stamp.to_nsec(), ret)
 
 def pressure_state_processor(msg, right_finger_tip=True, indicies=None):
-    ret = []
+    ret = np.array([0.] * len(indicies))
     if indicies is None:
         indicies = range(len(msg.r_finger_tip))
-    for i in indicies:
+    for i, ind in enumerate(indicies):
         if right_finger_tip:
-            ret += [ float(msg.r_finger_tip[i]) ]
+            ret[i] = msg.r_finger_tip[ind]
         else:
-            ret += [ float(msg.l_finger_tip[i]) ]
+            ret[i] = msg.l_finger_tip[ind]
     return (msg.header.stamp.to_nsec(), ret)
 
 ##
@@ -455,6 +456,7 @@ class ArmPerceptionMonitor( ):
         self.logger.stop()
 
         self.active = False
+        return len(self.datasets[self.datasets.keys()[0]][-1])
 
     ##
     # Save training data as a pickle with given filename
@@ -497,14 +499,7 @@ class ArmPerceptionMonitor( ):
 
             # get the minimum model length
             lens = [len(m) for m in data_list]
-            min_len = np.min(lens)
-            for data in data_list:
-                while len(data) > min_len:
-                    data.pop()
-
-            if min_len <= 10:
-                log("Too few datapoints for good model, min_len=" % (min_len))
-                return None
+            max_len = np.max(lens)
 
             # dynamic finding of parameters
             if smooth_wind_dict is None or smooth_wind_dict[perception] is None:
@@ -523,14 +518,22 @@ class ArmPerceptionMonitor( ):
                     # extract only the data stream for a single coordinate (all x values)
                     stream_coord = np.array(zip(*zip(*stream)[1])[coord])
                     cur_mean_model = signal_smooth(stream_coord, smooth_wind)
-                    mean_models += [np.array(cur_mean_model)]
+                    mean_models += [cur_mean_model]
                 
                     # sum up the squared difference over the whole model
                     noise_vars += [ ( sum([(x - y) ** 2 for x,y in zip(cur_mean_model,stream_coord)]) /
                                                      len(cur_mean_model) ) ]
 
                 # find the average case over the several runs
-                avg_means_model = reduce(np.add, mean_models) / len(mean_models)
+                avg_means_model = np.array([0.] * max_len)
+                for i in range(max_len):
+                    n = 0
+                    for j in range(len(mean_models)):
+                        if i < len(mean_models[j]):
+                            avg_means_model[i] += mean_models[j][i]
+                            n += 1
+                    avg_means_model[i] /= n
+
                 if var_wind_dict is None or var_wind_dict[perception] is None:
                     var_wind = var_wind_default
                 else:
@@ -548,7 +551,7 @@ class ArmPerceptionMonitor( ):
                 ret_noise_vars += [np.average(noise_vars)]
 
             # TODO deal with timestamp data in some way?
-            self.models[perception]["time"] = np.array(zip(*
+            # self.models[perception]["time"] = ret_times
             self.models[perception]["mean"] = np.array(zip(*ret_means))
             self.models[perception]["variance"] = np.array(zip(*ret_vars))
             a = ret_mean_models
@@ -558,11 +561,12 @@ class ArmPerceptionMonitor( ):
                 for val in range(len(a[0][0])):
                         t2 = []
                         for coord in range(len(a)):
-                                t2 += [a[coord][stream][val]]
-                        t1 += [t2]
+                                if val < len(a[coord][stream]):
+                                    t2 += [a[coord][stream][val]]
+                        t1 += [np.array(t2)]
                 b += [t1]
  
-            self.models[perception]["smoothed_signals"] = np.array(b)
+            self.models[perception]["smoothed_signals"] = b
             self.models[perception]["noise_variance"] = np.array(ret_noise_vars)
 
         return self.models
@@ -586,29 +590,33 @@ class ArmPerceptionMonitor( ):
         for k in self.perceptions:
             add_data = np.array(self.perceptions[k]()[1])
             if self._zeros[k] is None:
-                self._zeros[k] = copy.copy(add_data)
+                self._zeros[k] = np.copy(add_data)
             else:
                 self._zeros[k] += add_data
         self._n += 1
 
     ##
     # Sets up monitoring parameters
-    def setup_monitoring(self, std_dev_dict=None, noise_dev_dict=None, duration=None,
+    def setup_monitoring(self, models,
+                               std_dev_dict=None, noise_dev_dict=None, duration=None,
                                std_dev_default=2.0, noise_dev_default=0.25,
                                tol_thresh_dict=None,
                                contingency=None, window_size=70, current_zeros=None,
+                               sampling_rate = 4,
                                transform_dict=None, verbose=True, collide=True):
         self.std_dev_default = std_dev_default
         self.noise_dev_default = noise_dev_default
 
+        self.models = models
         self.current_data = {}
-        self.std_dev_dict = std_dev_dict
-        self.noise_dev_dict = noise_dev_dict
+        self.std_dev_dict = {}
+        self.noise_dev_dict = {}
         self.contingency = contingency
         self.window_size = window_size
-        self.current_zeros = current_zeros
+        self.current_zeros = {}
         self.transform_dict = transform_dict
         self.tol_thresh_dict = tol_thresh_dict
+        self.sampling_rate = sampling_rate
         self.verbose = verbose
         self.collide = collide
         self.sum_data = {}
@@ -621,11 +629,40 @@ class ArmPerceptionMonitor( ):
         self.locks = {}
 
         for k in self.perceptions:
-            self.current_data[k] = Queue.Queue(window_size)
+            self.current_data[k] = [None] * window_size
             self.sum_data[k] = None
             self.avg_list[k] = []
             self.c[k] = None
             self.locks[k] = threading.Lock()
+
+        self.create_max_min()
+
+
+    # Checks percept to see if the model indicates a collision with the current
+    # smoothed perception avg
+    # Returns index of perception and difference if collision, -1, 0 else
+    def create_max_min(self):
+        for k in self.models:
+            deviation = self.models[k]["variance"]
+            noise_deviation = np.sqrt(self.models[k]["noise_variance"])
+            if self.std_dev_dict is not None and k in self.std_dev_dict:
+                std_dev = np.array(self.std_dev_dict[k])
+            else:
+                std_dev = self.std_dev_default
+            if self.noise_dev_dict is not None and k in self.noise_dev_dict:
+                noise_dev = np.array(self.noise_dev_dict[k])
+            else:
+                noise_dev = self.noise_dev_default
+            if self.tol_thresh_dict is not None and k in self.tol_thresh_dict:
+                tol_thresh = np.array(self.tol_thresh_dict[k])
+            else:
+                tol_thresh = 0.
+
+            self.models[k]["dev"] = (std_dev * deviation + noise_dev * noise_deviation + tol_thresh)
+
+            # This is the monitoring equation
+            self.models[k]["max"] = self.models[k]["mean"] + self.models[k]["dev"]
+            self.models[k]["min"] = self.models[k]["mean"] - self.models[k]["dev"]
 
     ##
     # Begin monitoring peception data to make sure it doesn't deviate from
@@ -634,33 +671,40 @@ class ArmPerceptionMonitor( ):
     # TODO DOCS
     # @param duration If None, continue capturing until stop is called.
     #                 Else, stop capturing after duration seconds have passed.
-    def begin_monitoring(self, models=None, model_zeros=None,
+    def begin_monitoring(self, models, model_zeros=None,
                                std_dev_dict=None, noise_dev_dict=None, duration=None,
                                std_dev_default=2.0, noise_dev_default=0.25,
                                tol_thresh_dict=None,
                                contingency=None, window_size=70, current_zeros=None,
+                               sampling_rate = 4,
                                transform_dict=None, verbose=True, collide=True):
         if self.active:
             log("Perception already active.")
             return
         self.active = True
-        self.setup_monitoring(std_dev_dict=std_dev_dict, noise_dev_dict=noise_dev_dict,
+        self.setup_monitoring(models, 
+                               std_dev_dict=std_dev_dict, noise_dev_dict=noise_dev_dict,
                                duration=duration, std_dev_default=std_dev_default, 
                                noise_dev_default=noise_dev_default,                         
                                tol_thresh_dict=tol_thresh_dict,
                                contingency=contingency, window_size=window_size, 
+                               sampling_rate=sampling_rate,
                                current_zeros=current_zeros, transform_dict=transform_dict, 
                                verbose=verbose, collide=collide)
-        if models is not None:
-            self.models = models
+        # if models is not None:
+        #     self.models = models
         if model_zeros is not None:
             self.model_zeros = model_zeros
+        self.cur_pt = 0
+        self.collision_times = {}
+        self.collision_sums = {}
+        self.cur_col_time = 0
+        self.current_zeros = {}
 
-        self.monitor = RateCaller(self._monitor_data, self.rate)
+        self.monitor = RateCaller(self._monitor_data, self.rate * self.sampling_rate)
         self.monitor.run()
-        self.concur = False
-        self.sumcalls = {}
-        self.sumsave = {}
+        # self.sumcalls = {}
+        # self.sumsave = {}
 
         if not duration is None:
             self.dur_timer = threading.Timer(self.end_monitoring, duration)
@@ -669,73 +713,101 @@ class ArmPerceptionMonitor( ):
     def _stable_summer(self, percept, data):
         # kahanSum
         k = percept
-        if percept not in self.sumcalls:
-            self.sumcalls[percept] = 1
-            self.sumsave[percept] = []
-        else:
-            self.sumcalls[percept] += 1
+        # if percept not in self.sumcalls:
+        #     self.sumcalls[percept] = 1
+        #     self.sumsave[percept] = []
+        # else:
+        #     self.sumcalls[percept] += 1
 
         if self.c[k] is None:
             self.c[k] = np.array([0.]*len(data))
         if self.sum_data[k] is None:
-            self.sum_data[k] = copy.copy(data)
+            self.sum_data[k] = np.copy(data)
         else:
             y = data - self.c[k]
             t = self.sum_data[k] + y
             self.c[k] = (t - self.sum_data[k]) - y
             self.sum_data[k] = t
-            self.sumsave[percept] += [self.sum_data[k]]
+            # self.sumsave[percept] += [self.sum_data[k]]
 
 
     def _monitor_data(self):
-        if self.concur:
-            print "HA!\n"*100
-        self.concur = True
+        avg_dict = {}
+        sttime = rospy.Time.now().to_sec()
         for k in self.perceptions:
             # update the running sum
-            add_data = np.array(copy.copy(self.perceptions[k]()[1]))
+            add_data = self.perceptions[k]()[1]
 
             # apply necessary transforms
-            if self.transform_dict is not None:
-                if k in self.transform_dict:
-                    add_data = self.transform_dict[k](add_data)
+            # if self.transform_dict is not None:
+            #     if k in self.transform_dict:
+            #         add_data = self.transform_dict[k](add_data)
                     
             self._stable_summer(k, add_data)
 
             # If we have enough data to monitor, we check to see if the values are in range
             if self.cur_pt >= self.window_size: #self.current_data[k].full():
-                self.prev_sum = copy.deepcopy(self.sum_data)
-                avg = self.sum_data[k] / self.window_size
-                self.prev_avg = copy.deepcopy(avg)
-                self.avg_list[k] += [avg]
-                index, diff = self.collision_detect(k, avg)
-                if index != -1:
-                    log("Value %d of the perception %s failed with difference %f"
-                                                               % (index, k, diff))
-                    if diff > 5. and k == "accelerometer":
-                        print "avg_list", self.avg_list
-                        print "avg", avg
-                        for i in range(self.window_size+1):
-                            d = self.current_data[k].get()
-                            print d
-                            self.current_data[k].put(d)
+                # self.prev_sum = copy.deepcopy(self.sum_data)
+                avg_dict[k] = self.sum_data[k] / self.window_size
+                if not k in self.current_zeros:
+                    self.current_zeros[k] = np.array(self.models[k]["mean"][self.cur_pt * self.sampling_rate]) - avg_dict[k]
+                    # self.current_zeros[k] = - avg_dict[k]
+
+                avg_dict[k] += self.current_zeros[k]
+                self.avg_list[k] += [avg_dict[k]] * self.sampling_rate
+                # if self.cur_pt == self.window_size:
+                #     print self.avg_list[k]
+
+                # self.prev_avg = copy.deepcopy(avg)
+                # offset zeros into original perception frame
+                # if self.current_zeros is not None:
+                #     if False and self.model_zeros is not None:
+                #         avg_dict[k] += self.model_zeros[k] - self.current_zeros[k]
+                #     else:
+                #         # this is hacky, need to use zeros during training instead of first pt
+                #         # print "NOOOOOOOOOOOO!\n"*10
+                #         avg_dict[k] +=  np.array(self.models[k]["mean"][self.window_size]) - self.current_zeros[k]
+
+                # if collision_detected:
+                #     log("Value %d of the perception %s failed with difference %f"
+                #                                                % (index, k, diff))
+                #   # if diff > 5. and k == "accelerometer":
+                #   #     print "avg_list", self.avg_list
+                #   #     print "avg", avg
+                #   #     for i in range(self.window_size+1):
+                #   #         d = self.current_data[k].get()
+                #   #         print d
+                #   #         self.current_data[k].put(d)
 
 
-                    self.failure = True
-                    self.contingency()
-                    self.monitor.stop()
+                #   self.failure = True
+                #   self.contingency()
+                #   self.monitor.stop()
 
-                rem_data = self.current_data[k].get()
+                rem_data = self.current_data[k][self.cur_pt % self.window_size]
                 self._stable_summer(k, -rem_data)
 
-            self.current_data[k].put(add_data)
+            self.current_data[k][self.cur_pt % self.window_size] = add_data
+
+        if self.cur_pt >= self.window_size: #self.current_data[k].full():
+            collision_detected = self.collision_detect(avg_dict)
+            if self.collide and collision_detected:
+                print "collision reported"
+                self.failure = True
+                self.contingency()
+                self.monitor.stop()
+                return
+
 
         self.cur_pt += 1
-        if self.cur_pt == len(self.models[self.models.keys()[0]]["mean"]):
-            print "ending early:", self.cur_pt
+        if self.cur_pt * self.sampling_rate >= len(self.models[self.models.keys()[0]]["mean"]):
+            print "ending early:", self.cur_pt * self.sampling_rate
             self.end_monitoring()
+        endtime = rospy.Time.now().to_sec()
+        # if self.cur_pt % 10 == 0:
+        #     print "dur:", sttime - endtime
 
-        self.concur = False
+
 
     ##
     # Stop capturing perception data.  Store output data in datasets list for
@@ -746,9 +818,9 @@ class ArmPerceptionMonitor( ):
             log("Nothing to stop.")
             return self.avg_list 
 
-        print "Sum calls", self.sumcalls
-        if self.sumcalls["r_finger_periph_pressure"] == 202:
-            print self.sumsave
+        # print "Sum calls", self.sumcalls
+        # if self.sumcalls["r_finger_periph_pressure"] == 202:
+        #     print self.sumsave
         self.monitor.stop()
         if self.dur_timer is not None:
             self.dur_timer.cancel()
@@ -760,49 +832,121 @@ class ArmPerceptionMonitor( ):
     # Checks percept to see if the model indicates a collision with the current
     # smoothed perception avg
     # Returns index of perception and difference if collision, -1, 0 else
-    def collision_detect(self, percept, avg):
-        k = percept
-        # offset zeros into original perception frame
-        if self.current_zeros is not None:
-            if self.model_zeros is not None:
-                avg += self.model_zeros[k] - self.current_zeros[k]
-            else:
-                # this is hacky, need to use zeros during training instead of first pt
-                print "NOOOOOOOOOOOO!\n"*100
-                avg +=  self.models[k]["mean"][0] - self.current_zeros[k]
-        diff = np.fabs(avg - self.models[k]["mean"][self.cur_pt])
-        deviation = np.array(np.sqrt(self.models[k]["variance"][self.cur_pt]))
-        noise_deviation = np.array(np.sqrt(self.models[k]["noise_variance"]))
-        if self.std_dev_dict is not None and k in self.std_dev_dict:
-            std_dev = self.std_dev_dict[k]
-        else:
-            std_dev = self.std_dev_default
-        if self.noise_dev_dict is not None and k in self.noise_dev_dict:
-            noise_dev = self.noise_dev_dict[k]
-        else:
-            noise_dev = self.noise_dev_default
-        if self.tol_thresh_dict is not None and k in self.tol_thresh_dict:
-            tol_thresh = self.tol_thresh_dict[k]
-        else:
-            tol_thresh = 0.
+    def collision_detect(self, avg_dict):
+        # is_outside_range_dict = {}
+        z = {}
+        for k in avg_dict:
 
-        # This is the monitoring equation
-        is_outside_range = diff > (std_dev * deviation + noise_dev * noise_deviation + 
-                                                                                 tol_thresh)
-        # Uses both variance from various grasp tries and general noise variance
+            # This is the monitoring equation
+            # is_outside_range_dict[k] = ((avg_dict[k] > self.models[k]["max"][self.cur_pt * self.sampling_rate]) +
+            #                             (avg_dict[k] < self.models[k]["min"][self.cur_pt * self.sampling_rate]))
+            # Uses both variance from various grasp tries and general noise variance
 
-        if self.collide and any(is_outside_range):
-            # sensor has fallen outside acceptable range, trigger
-            for i, x in enumerate(is_outside_range):
-                if x:
-                    print "Average:", avg
-                    print "Last avg:", self.prev_avg
-                    print "Prev sum:", self.prev_sum
-                    print "MOD:", self.model_zeros[k]
-                    print "MON:", self.current_zeros[k]
-                    return i, diff[i]
-        return -1, 0.
+            z[k] = np.fabs(avg_dict[k] - self.models[k]["mean"][self.cur_pt * self.sampling_rate]) / (self.models[k]["dev"][self.cur_pt * self.sampling_rate])
 
+        # print "incoldet"
+        # collision_detected = self.collision_filtering(is_outside_range_dict)
+        collision_detected = self.collision_filtering(z)
+
+        # print "coldete", collision_detected
+        return collision_detected
+
+    def collision_filtering(self, z):
+        prob = 1.
+        for k in z:
+            # print z[k]
+            prob *= np.multiply.reduce(2 * stats.norm.cdf(-z[k]))
+            # print prob
+        CONFIDENCE = 1e-15
+        if prob < CONFIDENCE:
+            print prob
+            print "collision returned"
+            return True
+            print "-------------------------"
+            print num_percep_col
+            for k in sig_counts:
+                if sig_counts[k] >= PERCEPT_SIG_REQ[k]:
+                    print k, ":", sig_counts[k]
+            print "-------------------------"
+            return True
+
+        return False
+
+    # def collision_filtering(self, is_outside_range_dict):
+    #     isord = is_outside_range_dict
+    #     TIME_WINDOW = 10
+    #     NUM_PERCEPT_COL_REQ = 2
+    #     PERCEPT_SIG_REQ = { "accelerometer" : 2,
+    #                         "joint_angles" : 2,
+    #                         "joint_velocities" : 3,
+    #                         "joint_efforts" : 2,
+    #                         "r_finger_periph_pressure" : 2,
+    #                         "r_finger_pad_pressure" : 5, 
+    #                         "l_finger_periph_pressure" : 2,
+    #                         "l_finger_pad_pressure" : 5 }
+    #     num_percep_col = 0
+    #     sig_counts = {}
+    #     num_periph = 0
+    #     for k in isord:
+    #         # if any(isord[k]):
+    #         #     print k, isord
+    #         if not k in self.collision_times:
+    #             self.collision_times[k] = [np.array([0] * len(isord[k]))] * TIME_WINDOW
+    #             self.collision_sums[k] = np.array([0] * len(isord[k]))
+
+    #         # def queue_sum(q):
+    #         #     sum = None
+    #         #     for i in range(TIME_WINDOW):
+    #         #         val = q.get()
+    #         #         if sum is None:
+    #         #             sum = np.copy(val)
+    #         #         sum += val
+    #         #         q.put(val)
+    #         #     return sum
+    #         # c_sum = queue_sum(self.collision_times[k])
+
+    #         self.collision_sums[k] -= self.collision_times[k][self.cur_col_time]
+    #         self.cur_col_time = (self.cur_col_time + 1) % TIME_WINDOW
+    #         self.collision_times[k][self.cur_col_time] = np.int32(np.array(isord[k]))
+    #         self.collision_sums[k] += self.collision_times[k][self.cur_col_time]
+    #         def g0(x):
+    #             if x > 0:
+    #                 return 1
+    #             return 0
+    #         sig_count = np.sum(map(g0, self.collision_sums[k]))
+    #         sig_counts[k] = sig_count
+    #         if sig_count >= PERCEPT_SIG_REQ[k]:
+    #             # print "cols", k, isord[k]
+    #             if k == "r_finger_periph_pressure" or k == "l_finger_periph_pressure":
+    #                 num_periph += 1
+    #             num_percep_col += 1
+
+    #     # num_periph != 1 eliminates side object collision possibilities
+    #     if num_percep_col >= NUM_PERCEPT_COL_REQ and num_periph != 1:            
+    #         print "collision returned"
+    #         print "-------------------------"
+    #         print num_percep_col
+    #         for k in sig_counts:
+    #             if sig_counts[k] >= PERCEPT_SIG_REQ[k]:
+    #                 print k, ":", sig_counts[k]
+    #         print "-------------------------"
+    #         return True
+
+    #     return False
+
+        # if self.collide and any(is_outside_range):
+        #     # sensor has fallen outside acceptable range, trigger
+        #     for i, x in enumerate(is_outside_range):
+        #         if x:
+        #             # print "Average:", avg
+        #             # print "Last avg:", self.prev_avg
+        #             # print "Prev sum:", self.prev_sum
+        #             # print "MOD:", self.model_zeros[k]
+        #             # print "MON:", self.current_zeros[k]
+        #             return i, diff[i]
+        # return -1, 0.
+
+# @TODO add sampling_rate stuff
     def simulate_monitoring(self, monitor_data, models=None, model_zeros=None,
                                std_dev_dict=None, noise_dev_dict=None, 
                                duration=None,

@@ -62,19 +62,24 @@ GRASP_TIME = 2.0
 SETUP_VELOCITY = 0.4 # 0.15
 
 STD_DEV = 2.3 #3.5 #1.9
-NOISE_DEV = 0.2
+NOISE_DEV = 0.0
 DETECT_ERROR = -0.02
-STD_DEV_DICT = { "accelerometer" : np.array([2.5, 3.0, 3.0]),
-                 "joint_angles" : np.array([1.0, 1.0, 1.0, 1.0, 400.0, 1.0, 400.0]),
-                 "joint_efforts" : np.array([9.0] * 7),
-                 "joint_velocities" : np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]),
+STD_DEV_DICT = { "accelerometer" : np.array([3.0, 3.3, 3.3]),
+                 "joint_angles" : np.array([1.5, 1.5, 1.5, 1.5, 400.0, 1.5, 400.0]),
+                 "joint_efforts" : np.array([22.0] * 7),
+                 "joint_velocities" : np.array([3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0]),
                  "r_finger_periph_pressure" : np.array([80.0]*6), 
                  "r_finger_pad_pressure" : np.array([80.0]*15), 
                  "l_finger_periph_pressure" : np.array([80.0]*6), 
                  "l_finger_pad_pressure" : np.array([80.0]*15) }
-TOL_THRESH_DICT = { "joint_velocities" : np.array([0.08]*7),
-                    "joint_angles" : np.array([0.08]*7),
-                    "joint_efforts" : np.array([0.08]*7) }
+TOL_THRESH_DICT = { "accelerometer" : np.array([0.5, 0.5, 0.5]),
+                    "joint_velocities" : np.array([0.05]*7),
+                    "joint_angles" : np.array([0.02]*7),
+                    "joint_efforts" : np.array([1.0]*7),
+                    "r_finger_periph_pressure" : np.array([10.0]*6), 
+                    "r_finger_pad_pressure" : np.array([10.0]*15), 
+                    "l_finger_periph_pressure" : np.array([10.0]*6), 
+                    "l_finger_pad_pressure" : np.array([10.0]*15) }
 PERCEPT_MON_LIST = None #["accelerometer"]
 PERCEPT_GRASP_LIST = None 
 #["r_finger_periph_pressure", 
@@ -83,7 +88,7 @@ PERCEPT_GRASP_LIST = None
 #                 #"l_finger_pad_pressure"]
 #                 "joint_efforts" ] #["joint_angles"]#["joint_velocities"] #["r_finger_periph_pressure"] #["joint_efforts"] #["joint_angles"]
 ##STD_DEV_DICT = None
-MONITOR_WINDOW = 200
+MONITOR_WINDOW = 50
 
 PICKLES_LOC = "//src//hrl_pr2_lib//pickles//"
 GRASP_CONFIGS_FILE = "grasp_configs.pickle"
@@ -321,10 +326,15 @@ def collect_grasp_data(generate_models=False, skip_grasp=False):
                 apm.start_training()
                 # move arm down
                 print "Moving arm down"
+                sttime = rospy.Time.now().to_sec()
                 result = downward_grasp(cm, goal_pose, block=True)
+                endtime = rospy.Time.now().to_sec()
+                print "dur:", endtime - sttime
                 print result
                 print "Finished moving arm"
-                apm.stop_training()
+                length = apm.stop_training()
+                print "length:", length
+                print "len/dur", length / (endtime - sttime)
                 rospy.sleep(0.5)
             else:
                 break
@@ -358,20 +368,20 @@ def load_data_and_generate(grasp_data):
         ret += [(grasp[0], grasp[1], grasp[2], apm.models, grasp[4])]
         n += 1
         print "Generated %d models" % (n)
-    save_pickle(ret, GRASP_MODELS_FILE)
+    # save_pickle(ret, GRASP_MODELS_FILE)
     return ret
 
-def test_monitor(grasp_data):
-    apm = ArmPerceptionMonitor(ARM)
-    j = 0
-    while grasp_data[j][1] is None:
-        j += 1
-    apm.models = grasp_data[j][3]
-    def print_warn():
-        print "Warning! Outside model"
-    apm.begin_monitoring(contingency=print_warn)
-    raw_input()
-    apm.end_monitoring()
+# def test_monitor(grasp_data):
+#     apm = ArmPerceptionMonitor(ARM)
+#     j = 0
+#     while grasp_data[j][1] is None:
+#         j += 1
+#     apm.models = grasp_data[j][3]
+#     def print_warn():
+#         print "Warning! Outside model"
+#     apm.begin_monitoring(contingency=print_warn)
+#     raw_input()
+#     apm.end_monitoring()
 
 def save_current_zeros(filename=ZEROS_FILE):
     apm = ArmPerceptionMonitor(ARM, percept_mon_list=PERCEPT_MON_LIST)
@@ -382,12 +392,10 @@ def save_current_zeros(filename=ZEROS_FILE):
 def load_current_zeros(filename=ZEROS_FILE):
     return load_pickle(filename)
 
-def is_obj_in_gripper(cm=None, blocking = False):
+def is_obj_in_gripper(cm=None):
     if cm is None:
         cm = ControllerManager(armc)
-    cm.command_gripper(0.08, -1.0, False)
-    if blocking:
-        cm.gripper_action_client.wait_for_result(rospy.Duration(4.0))
+    return cm.get_current_gripper_opening() > 0.004
 
 def open_gripper(cm=None, blocking = False):
     if cm is None:
@@ -398,7 +406,7 @@ def open_gripper(cm=None, blocking = False):
 
 def perform_grasp(x, y, z=None, gripper_rot = np.pi / 2., grasp=None, is_place=False,
                   is_grasp=True, collide = True, return_pose=True,
-                  zeros = None, cm=None, apm=None):
+                  zeros = None, grasp_data=None, cm=None, apm=None):
     print "Performing grasp (%1.2f, %1.2f), rotation: %1.2f" % (x, y, gripper_rot)
     gripper_rot = normalize_rot(gripper_rot)
 
@@ -408,7 +416,7 @@ def perform_grasp(x, y, z=None, gripper_rot = np.pi / 2., grasp=None, is_place=F
         apm = ArmPerceptionMonitor(ARM, percept_mon_list=PERCEPT_GRASP_LIST)
 
     if grasp is None:
-        grasp = get_grasp_model(x, y, gripper_rot)
+        grasp = get_grasp_model(x, y, gripper_rot, grasp_data = grasp_data)
 
     #apm.datasets = grasp[2]
     #apm.models = grasp[3]
@@ -433,8 +441,8 @@ def perform_grasp(x, y, z=None, gripper_rot = np.pi / 2., grasp=None, is_place=F
     rospy.sleep(0.1)
 
     #if zeros is None:
-    zeros = apm.get_zeros(0.6)
-    print "Current zeros:", zeros
+    # zeros = apm.get_zeros(0.6)
+    # print "Current zeros:", zeros
 
     goal_pose = create_goal_pose(x, y, HOVER_Z - GRASP_DIST, get_gripper_pose(gripper_rot))
 
@@ -462,7 +470,8 @@ def perform_grasp(x, y, z=None, gripper_rot = np.pi / 2., grasp=None, is_place=F
 
     transforms = { "accelerometer" : rotate_acceleration }
         
-    apm.begin_monitoring(models = grasp[3], model_zeros = grasp[4], 
+    apm.begin_monitoring(grasp[3], 
+                         model_zeros = grasp[4], 
                          contingency=col.on_collision, window_size=MONITOR_WINDOW,
                          current_zeros=zeros, std_dev_default=STD_DEV, 
                          std_dev_dict = STD_DEV_DICT,
@@ -471,7 +480,16 @@ def perform_grasp(x, y, z=None, gripper_rot = np.pi / 2., grasp=None, is_place=F
                          transform_dict = transforms) 
     # move arm down
     print "Moving arm down"
-    downward_grasp(cm, goal_pose, block = False)
+    result = "no solution"
+    iters = 0
+    while result == "no solution" and iters < 10:
+        startt = rospy.Time.now().to_sec()
+        result = downward_grasp(cm, goal_pose, block = False)
+        print "Grasp result:", result
+        goal_pose.pose.position.x += random.uniform(-0.02, 0.02)
+        goal_pose.pose.position.y += random.uniform(-0.02, 0.02)
+        iters += 1
+
     if z is None:
         while not cm.check_joint_trajectory_done():
             if col.collided:
@@ -499,6 +517,8 @@ def perform_grasp(x, y, z=None, gripper_rot = np.pi / 2., grasp=None, is_place=F
             if rospy.is_shutdown():
                 return None
 
+    endt = rospy.Time.now().to_sec()
+    print "Grasp duration:", startt - endt
     print "Finished moving arm"
 
     avg_list = apm.end_monitoring()
@@ -569,6 +589,8 @@ def display_grasp_data(grasps, percept="accelerometer", indicies=range(3),
         models = grasp[3]
         means = models[percept]["mean"]
         vars = models[percept]["variance"]
+        maxs = models[percept]["max"]
+        mins = models[percept]["min"]
         if "smoothed_signals" in models[percept]:
             signals = models[percept]["smoothed_signals"]
             zip_signals = [ zip(*sig) for sig in signals ]
@@ -585,6 +607,8 @@ def display_grasp_data(grasps, percept="accelerometer", indicies=range(3),
 
         zip_means = np.array(zip(*means))
         zip_vars = np.array(zip(*vars))
+        zip_maxs = np.array(zip(*maxs))
+        zip_mins = np.array(zip(*mins))
         # print "monitor_data", monitor_data
         zip_monitors = []
         for d in monitor_data:
@@ -606,10 +630,11 @@ def display_grasp_data(grasps, percept="accelerometer", indicies=range(3),
             else:
                 noise_dev_term = 0.
 
-            mmax += [graph_means[w] + graph_devs[w] * std_dev + noise_dev_term 
-                                                                             + tol_thresh]
-            mmin += [graph_means[w] - graph_devs[w] * std_dev - noise_dev_term
-                                                                             - tol_thresh]
+            
+            # mmax += graph_means[w] + graph_devs[w] * std_dev + noise_dev_term 
+            #                                                                  + tol_thresh]
+            # mmin += [graph_means[w] - graph_devs[w] * std_dev - noise_dev_term
+            #                                                                  - tol_thresh]
 
         for k in range(len(indicies)):
             plt.subplot(rows, cols, i*cols + 1 + k)
@@ -622,7 +647,8 @@ def display_grasp_data(grasps, percept="accelerometer", indicies=range(3),
                     cnum += 1
                     cnum %= len(colors)
             for sig in zip_signals:
-                plt.plot(sig[indicies[k]], colors[2])
+                if indicies[k] < len(sig):
+                    plt.plot(sig[indicies[k]], colors[2])
             if i < len(zip_monitors):
                 zip_monitor = zip_monitors[i]
                 len_diff = len(graph_means[k]) - len(zip_monitor[indicies[k]])
@@ -630,11 +656,13 @@ def display_grasp_data(grasps, percept="accelerometer", indicies=range(3),
                 # add_vals = [zip_monitor[indicies[k]][0]] * len_diff
                 print len_diff
                 g = np.array(add_vals + list(zip_monitor[indicies[k]]))
-                g += grasp[4][percept][indicies[k]] - monitor_zeros[i][percept][indicies[k]]
+                # g += grasp[4][percept][indicies[k]] - monitor_zeros[i][percept][indicies[k]]
                 plt.plot(g.tolist(),colors[3])
             plt.plot(graph_means[k], colors[0])
-            plt.plot(mmax[k], colors[1])
-            plt.plot(mmin[k], colors[1])
+            plt.plot(zip_maxs[indicies[k]], colors[1])
+            plt.plot(zip_mins[indicies[k]], colors[1])
+            # plt.plot(mmax[k], colors[1])
+            # plt.plot(mmin[k], colors[1])
             plt.title("%1.2f, %1.2f: coord %d" % (grasp[0][0], grasp[0][1], k))
         j += 1
 
@@ -699,7 +727,7 @@ def grasp_object(obj, grasp=None, collide=True, is_place=False, zeros=None, cm=N
         return perform_grasp(obj[0][0], obj[0][1], z=obj[0][2], is_place=is_place,
                              gripper_rot=obj[1], grasp=grasp, zeros=zeros, cm=cm, apm=apm)
 
-def grasp_closest_object(x, y, grasp=None, collide=True, zeros=None, cm=None, apm=None):
+def grasp_closest_object(x, y, grasp=None, collide=True, repeat=True, zeros=None, cm=None, apm=None):
     print "detect in"
     objects = detect_tabletop_objects()
     print "detect out"
@@ -707,8 +735,11 @@ def grasp_closest_object(x, y, grasp=None, collide=True, zeros=None, cm=None, ap
         def dist(o):
             return (o[0][0] - x) ** 2 + (o[0][1] - y) ** 2
         obj = min(objects, key=dist)
-        (grasp, avg_list, collided, zeros) = grasp_object(obj, grasp=grasp, 
-                                                   collide=collide, zeros=zeros, cm=cm, apm=apm)
+        grasped = False
+        while not grasped:
+            (grasp, avg_list, collided, zeros) = grasp_object(obj, grasp=grasp, 
+                                                       collide=collide, zeros=zeros, cm=cm, apm=apm)
+            grasped = is_obj_in_gripper(cm)
         return obj, grasp, avg_list, collided, zeros
     else:
         print "No objects near point"
@@ -768,10 +799,13 @@ def normalize_rot(gripper_rot):
         gripper_rot += np.pi
     return gripper_rot
 
-def get_grasp_model(x, y, r, xyr_index = None):
+def get_grasp_model(x, y, r, xyr_index = None, grasp_data = None):
     r = normalize_rot(r)
-    if xyr_index is None:
-        xyr_index = load_pickle(GRASP_INDEX_FILE)
+    if grasp_data is None:
+        if xyr_index is None:
+            xyr_index = load_pickle(GRASP_INDEX_FILE)
+    else:
+        xyr_index = zip(*grasp_data)
     if len(xyr_index) > 0:
         def dist(o):
             if np.allclose(o[0][2], 0.0):
@@ -782,7 +816,10 @@ def get_grasp_model(x, y, r, xyr_index = None):
             return (o[0][0] - x) ** 2 + (o[0][1] - y) ** 2 + rot_dist
         xyr = min(xyr_index, key=dist)
         print "Distance to grasp model:", dist(xyr), "rotation diff:", xyr[0][2] - r 
-        return load_pickle(xyr[1])
+        if grasp_data is None:
+            return load_pickle(xyr[1])
+        else:
+            return xyr
     else:
         print "Bad index file"
         return None
@@ -1228,14 +1265,20 @@ def main():
     #laser_interface_demo()
     #return 0
 
+    # grasp_data = load_pickle(GRASP_DATA_FILE)
+    # for grasp in grasp_data:
+    #     for k in grasp[2]:
+    #         print len(grasp[2][k][0])
+    # return
+
     #visualize_objs()
     #return 0
 
-    #grasp_data = collect_grasp_data(generate_models=False, skip_grasp=False)
-    #return 0
+    # grasp_data = collect_grasp_data(generate_models=False, skip_grasp=False)
+    # return 0
 
-    #process_data() #load_pickle(GRASP_DATA_FILE)) #load_pickle(GRASP_DATA_FILE))
-    #return 0
+    # process_data() #load_pickle(GRASP_DATA_FILE)) #load_pickle(GRASP_DATA_FILE))
+    # return 0
 
     #trim_test_data()
     # return 0
@@ -1251,9 +1294,10 @@ def main():
 
     #test_random_grasps(250)
     #return 0 
-    #grasp = calc_model(0.6, 0.0, 0.08)
-    #display_grasp_data([grasp], "accelerometer")
-    #return 0
+
+    # grasp = calc_model(0.6, 0.0, 0.08)
+    # display_grasp_data([grasp], "accelerometer")
+    # return 0
 
     #global STD_DEV_DICT
     #xdev = 2.5
@@ -1319,7 +1363,7 @@ def main():
     # print "Done generating data"
     # return 0
 
-    # grasp_data = load_pickle(GRASP_DATA_FILE)
+    grasp_data = load_pickle(GRASP_MODELS_FILE)
     #grasp = get_grasp_model(0., 0.)
 
     # monitor_data += [grasp_closest_object(0.48, 0.07, cm=cm, apm=apm)]
@@ -1330,12 +1374,13 @@ def main():
     # display_grasp_data(grasp_data, "accelerometer", monitor_data=monitor_data, rows=1)
     # display_grasp_data(grasp_data, "r_finger_periph_pressure", rows=1)
     # monitor_data = perform_grasp(grasp_data, .58, .14, gripper_rot = 0.)
+    open_gripper(cm = cm)
     
     monitor_data = []
     monitor_zeros = []
     grasps = []
     collided_list = []
-    num_grasps = 50
+    num_grasps = 100
     num_collided = 0
     zeros = None
 
@@ -1350,7 +1395,8 @@ def main():
             #global STD_DEV_DICT
             #STD_DEV_DICT = None
             (grasp, monitor, collided, zeros) = perform_grasp(x, y, gripper_rot = rot, 
-                                               collide=True, is_grasp = True, 
+                                               collide=True, is_grasp = False, 
+                                               grasp_data = grasp_data,
                                                zeros=zeros, cm=cm, apm=apm)
         else:
             (obj, grasp, monitor, collided, zeros) = grasp_closest_object(x, y, collide=True, zeros=zeros, cm=cm, apm=apm)
@@ -1370,10 +1416,11 @@ def main():
 
         if ki.kbhit():
             if PERCEPT_GRASP_LIST is None:
-                percept = "accelerometer"
+                percept = "joint_velocities"
             else:
                 percept = PERCEPT_GRASP_LIST[0]
             display_grasp_data(grasps[-3:], percept, monitor_data=monitor_data[-3:], monitor_zeros=monitor_zeros[-3:])
+            # print monitor_data[-3:]
             break
 
     print "Accuracy: %d collisions out of %d grasps (%1.2f)" % (num_collided, num_grasps, 1. - float(num_collided) / num_grasps)
