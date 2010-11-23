@@ -9,29 +9,139 @@ import actionlib
 import tf.transformations as tr
 import numpy as np
 import hrl_lib.tf_utils as tfu
+import coefficients as coeff
 #import threading
 
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Wrench
 from geometry_msgs.msg import Twist
 from phantom_omni.msg import PhantomButtonEvent
-
+from teleop_controllers.msg import JTTeleopControllerState
 from actionlib_msgs.msg import *
 from pr2_controllers_msgs.msg import *
 from pr2_msgs.msg import AccelerometerState
 
-#def tf_as_matrix(tup):
-#    return np.matrix(tr.translation_matrix(tup[0])) * np.matrix(tr.quaternion_matrix(tup[1])) 
-#
-#def matrix_as_tf(mat):
-#    return (tr.translation_from_matrix(mat), tr.quaternion_from_matrix(mat))
-#
-#def transform(to_frame, from_frame, tflistener):
-#    return tf_as_matrix(tflistener.lookupTransform(to_frame, from_frame, rospy.Time(0)))
-#
-#def rotate(to_frame, from_frame, tflistener):
-#    t, q = tflistener.lookupTransform(to_frame, from_frame, rospy.Time(0))
-#    return np.matrix(tr.quaternion_matrix(q)) 
+
+class ForceFeedbackFilter:
+
+    def __init__(self, wrench_topic, dest_frame, wrench_frame, force_feedback_topic, tflistener, kp_name, kd_name):
+        self.wrench_frame = wrench_frame
+        self.dest_frame = dest_frame
+        self.tflistener = tflistener
+#        self.tflistener = tf.TransformListener()
+        self.omni_fb = rospy.Publisher(force_feedback_topic, Wrench)
+#        self.filtered_fb = rospy.Publisher('/filtered_fb', Wrench)
+        #REMOVE references to self.filtered_fb after check that everything is working
+        rospy.Subscriber(wrench_topic, JTTeleopControllerState, self.wrench_callback)
+        self.enable = False
+        self.FIR = coeff.coefficients
+        self.history = np.matrix(np.zeros((3,17)))
+        self.prev_time = rospy.Time.now().nsecs*1e-9
+        self.prev_dt = 0.0
+        self.omni_max_limit = np.array([7., 7., 7.])
+        self.omni_min_limit = np.array([-7., -7., -7.])
+        self.kp = rospy.get_param(kp_name)
+        self.kd = rospy.get_param(kd_name)
+        self.force_scaling = -0.04
+        self.force_old = np.zeros(3)
+
+    def set_force_scaling(self, scalar):
+        self.force_scaling = -1.*scalar
+
+    def set_enable(self, v):
+        self.enable = v
+
+    def wrench_callback(self, state):
+        #calculating force estimate from position error (does not compensate for motion error due to dynamics)
+        x_err = np.matrix([state.x_err.linear.x, state.x_err.linear.y, state.x_err.linear.z]).T
+        x_dot = np.matrix([state.xd.linear.x, state.xd.linear.y, state.xd.linear.z]).T
+        feedback = -1.0*self.kp*x_err-self.kd*x_dot
+
+        #currently the calculated force feedback is published but not to omni, we use the velocity limited state from the controller
+#        wr_ee = [state.F.force.x, state.F.force.y, state.F.force.z]
+        wr_ee = [feedback[0,0], feedback[1,0], feedback[2,0]]
+       
+        #this is a simple FIR filter designed in Matlab to smooth the force estimate
+        shift_right = np.array(self.history[:,0:self.FIR.size-1])
+        new_col = np.array(wr_ee).reshape((3,1))
+        self.history = np.matrix(np.hstack((new_col, shift_right)))
+        wr_ee_filt = self.history*self.FIR
+
+        #find and use the rotation matrix from wrench to torso                                                                   
+        df_R_ee = tfu.rotate(self.dest_frame, 'torso_lift_link', self.tflistener) * \
+                tfu.rotate('torso_lift_link', self.wrench_frame, self.tflistener)
+#        wr_df = self.force_scaling*np.array(tr.translation_from_matrix(df_R_ee * tfu.translation_matrix([wr_ee_filt[0,0], wr_ee_filt[1,0], wr_ee_filt[2,0]])))
+        wr_df = self.force_scaling*np.array(tr.translation_from_matrix(df_R_ee * tfu.translation_matrix([feedback[0,0], feedback[1,0], feedback[2,0]])))
+
+        #limiting the max and min force feedback sent to omni                                                                    
+        wr_df = np.where(wr_df>self.omni_max_limit, self.omni_max_limit, wr_df)
+        wr_df = np.where(wr_df<self.omni_min_limit, self.omni_min_limit, wr_df)
+
+        wr = Wrench()
+        wr.force.x = wr_df[0]
+        wr.force.y = wr_df[1]
+        wr.force.z = wr_df[2]
+             
+        #publishing of two different wrenches calculated, DELETE first when all finished
+       # if self.enable == False:
+       #    self.filtered_fb.publish(wr)
+
+        if self.enable == True:
+            self.omni_fb.publish(wr)
+
+#          #calculating force estimate from position error (does not compensate for motion error due to dynamics)
+#         x_err = np.matrix([state.x_err.linear.x, state.x_err.linear.y, state.x_err.linear.z]).T
+#         x_dot = np.matrix([state.xd.linear.x, state.xd.linear.y, state.xd.linear.z]).T
+#         feedback = -1.0*self.kp*x_err-self.kd*x_dot
+
+#         #currently the calculated force feedback is published but not to omni, we use the velocity limited state from the controller
+#         wr_ee = [feedback[0,0], feedback[1,0], feedback[2,0]]
+# #        wr_ee = [state.F.force.x, state.F.force.y, state.F.force.z]
+# #        wr_ee = [state.F.force.x, state.F.force.y, state.F.force.z]
+#         #this is a simple FIR filter designed in Matlab to smooth the force estimate
+#         shift_right = np.array(self.history[:,0:self.FIR.size-1])
+#         new_col = np.array(feedback).reshape((3,1))
+# #        new_col = np.array(wr_ee).reshape((3,1))
+#         self.history = np.matrix(np.hstack((new_col, shift_right)))
+#         wr_ee_filt = self.history*self.FIR
+#         #find and use the rotation matrix from wrench to torso
+#         df_R_ee = tfu.rotate(self.dest_frame, 'torso_lift_link', self.tflistener) * \
+#                 tfu.rotate('torso_lift_link', self.wrench_frame, self.tflistener)
+# #        wr_df = np.array(tr.translation_from_matrix(df_R_ee * tfu.translation_matrix([wr_ee_filt[0,0], wr_ee_filt[1,0], wr_ee_filt[2,0]])))
+# #        wr_df = self.force_scaling*np.array(tr.translation_from_matrix(df_R_ee * tfu.translation_matrix([wr_ee_filt[0,0], wr_ee_filt[1,0], wr_ee_filt[2,0]])))
+#         wr_df = self.force_scaling*np.array(tr.translation_from_matrix(df_R_ee * tfu.translation_matrix([state.F.force.x, state.F.force.y, state.F.force.z])))
+
+#         #limiting the max and min force feedback sent to omni
+#         wr_df = np.where(wr_df>self.omni_max_limit, self.omni_max_limit, wr_df)
+#         wr_df = np.where(wr_df<self.omni_min_limit, self.omni_min_limit, wr_df)
+
+#         wr = Wrench()
+#         wr.force.x = wr_df[0]
+#         wr.force.y = wr_df[1]
+#         wr.force.z = wr_df[2]
+
+# #        wr.force.x = rate  #wr_ee[0]
+# #        wr.force.y = wr_ee[1]
+# #        wr.force.z = wr_ee[2]
+        
+#         test = Wrench()
+#         test.force.x = feedback[0,0] #wr.force.x-self.force_old[0]
+#         test.force.y = feedback[1,0] #wr.force.y-self.force_old[1]
+#         test.force.z = feedback[2,0] #wr.force.z-self.force_old[2]
+             
+#         #publishing of two different wrenches calculated, DELETE first when all finished
+#         self.filtered_fb.publish(wr)
+#         if self.enable == True:
+#             self.omni_fb.publish(wr)      
+
+# #this could be used for trying to damp the force feedback, didn't work very well
+# #         self.force_old[0] = wr.force.x
+# #         self.force_old[1] = wr.force.y
+# #         self.force_old[2] = wr.force.z
+# #         dt = rospy.Time.now().nsecs*1e-9-self.prev_time
+# #         self.prev_time = rospy.Time.now().nsecs*1e-9
+# #         print "time step: ", dt
+
 
 def limit_range(numb, lower, upper):
     if lower > upper:
@@ -127,39 +237,6 @@ class AccelerometerFeedback:
         ps.pose.orientation.w = 1
         self.viz_pub.publish(ps)
 
-class JTWrenchFeedback:
-    def __init__(self, 
-            wrench_topic, #= '/l_cart/state/wrench', 
-            wrench_frame,#= '/l_gripper_tool_frame'): 
-            dest_frame, #'omni1_sensable'
-            force_feedback_topic, #'omni1_force_feedback
-            tflistener): 
-        self.wrench_frame = wrench_frame
-        self.dest_frame = dest_frame
-        self.tflistener = tflistener
-
-        self.omni_fb = rospy.Publisher(force_feedback_topic, Wrench)
-        rospy.Subscriber(wrench_topic, Twist, self.wrench_callback)
-        self.enable = False
-
-    def set_enable(self, v):
-        self.enable = v
-
-    def wrench_callback(self, w):
-        wr_tool = [w.linear.x, w.linear.y, w.linear.z]
-        df_R_wf = tfu.rotate(self.dest_frame, 'torso_lift_link', self.tflistener) * \
-                tfu.rotate('torso_lift_link', self.wrench_frame, self.tflistener)
-        wr_df = -.03 * np.array(tr.translation_from_matrix(df_R_wf * tfu.translation_matrix(wr_tool)))
-        #print 'called back!', np.linalg.norm(wr_df)
-
-        if self.enable:
-            wr = Wrench()
-            wr.force.x = wr_df[0]
-            wr.force.y = wr_df[1]
-            wr.force.z = wr_df[2]
-            self.omni_fb.publish(wr)
-
-
 #class ControlPR2Arm(threading.Thread):
 class ControlPR2Arm:
 
@@ -177,7 +254,8 @@ class ControlPR2Arm:
         self.zero_out_forces = True
 
         self.X_BOUNDS = [.3, 1.5] #Bound translation of PR2 arms in the X direction (in torso link frame)
-        self.kPos = 20.
+        self.kPos = 15.
+        self.kVel = 0.5
         self.kPos_close = 70.
         self.omni_name = omni_name
         self.center_in_torso_frame = center_in_torso_frame
@@ -185,6 +263,10 @@ class ControlPR2Arm:
         self.tflistener = tflistener
         self.tfbroadcast = tfbroadcast
         self.gripper_tip_frame = gripper_tip_frame
+        self.prev_time = rospy.Time.now().nsecs*1e-9
+        self.prev_dt = 0.0
+        self.tip_tt = np.zeros((3,1))
+        self.tip_tq = np.zeros((4,1))
 	#self.start()
         rate = rospy.Rate(100.0)
 	#for i in range(100):
@@ -209,30 +291,10 @@ class ControlPR2Arm:
 
         self.omni_fb = rospy.Publisher(self.omni_name + '_force_feedback', Wrench)
         self.pr2_pub = rospy.Publisher(pr2_control_topic, PoseStamped)
-        #success = False
         self.scale_omni_l0 = np.abs(self.l0_rotate_base(self.scaling_in_base_frame))
-        #while (not success) and (not rospy.is_shutdown()):
-	#    try:
-        #        success = True
-        #        time.sleep(.1)
-        #    except tf.LookupException, e:
-        #        success = False
-        #        print 'tf.LookupException', e
-        #    except tf.ConnectivityException, e:
-        #        success = False
-        #        #print 'tf.ConnectivityException', e
 
         rospy.Subscriber(self.omni_name + '_pose', PoseStamped, self.omni_pose_cb)
         self.gripper_handler = GripperOmniHandler(self.omni_name + '_button', gripper_control_topic)
-
-
-#class JTWrenchFeedback:
-#    def __init__(self, 
-#            wrench_topic, #= '/l_cart/state/wrench', 
-#            wrench_frame,#= '/l_gripper_tool_frame'): 
-#            dest_frame, #'omni1_sensable'
-#            force_feedback_topic, #'omni1_force_feedback
-#            tflistener): 
 
     ##
     # Link this omni to pr2 frame
@@ -242,12 +304,6 @@ class ControlPR2Arm:
                          rospy.Time.now(),
                          self.omni_name,
                          "/torso_lift_link")
-    #def run(self):
-    #    rate = rospy.Rate(30.0)
-    #    while not rospy.is_shutdown():
-    #        self.send_transform_to_link_omni_and_pr2_frame()
-    #        rate.sleep()
-
     ##
     # Rotate a vector from omni_link0 to base_footprint frame
     def l0_rotate_base(self, vec_base):
@@ -271,7 +327,8 @@ class ControlPR2Arm:
         tip_torso_mat = tll_T_0 * tfu.tf_as_matrix([tip_0t, tip_0q])
         tip_tt, tip_tq = tfu.matrix_as_tf(tip_torso_mat)
         tip_tt[0] = limit_range(tip_tt[0], self.X_BOUNDS[0], self.X_BOUNDS[1])
-        return tip_tt, tip_tq
+        self.tip_tt = tip_tt
+        self.tip_tq = tip_tq
 
     ##
     # Transfrom from torso lift link to link omni base link, taking into account scaling
@@ -299,8 +356,9 @@ class ControlPR2Arm:
         if self.enabled:
             #Get the omni's tip pose in the PR2's torso frame
             tip_omni, msg_frame = tfu.posestamped_as_matrix(msg)
-            tip_tt, tip_tq = self.torso_T_omni(tip_omni, msg_frame)
-
+            self.torso_T_omni(tip_omni, msg_frame)
+            tip_tt = self.tip_tt
+            tip_tq = self.tip_tq
             #Publish new arm pose
             ps = PoseStamped()
             ps.header.frame_id = '/torso_lift_link'
@@ -321,18 +379,9 @@ class ControlPR2Arm:
                 self.omni_fb.publish(wr)
                 self.zero_out_forces = False
         else:
-            tip_omni, msg_frame = tfu.posestamped_as_matrix(msg)
-            m_o1 = tfu.transform(self.omni_name, msg_frame, self.tflistener) * tip_omni
-            ee_point = np.matrix(tr.translation_from_matrix(m_o1)).T
-
-            #Make the center the current arm tip
-            tip_torso = tfu.transform('/torso_lift_link', self.gripper_tip_frame, self.tflistener) \
-                                  * tfu.tf_as_matrix(([0.,0.,0.], tr.quaternion_from_euler(0,0,0)))
-            center_t, center_q = self.omni_T_torso(tip_torso)
-            center_col_vec = np.matrix(center_t).T
-
-            #Transmit some sanity check information
-            tip_tt, tip_tq = self.torso_T_omni(tfu.tf_as_matrix((center_t, center_q)), self.omni_name)
+            #this is a zero order hold publishing the last received values until the control loop is active again
+            tip_tt = self.tip_tt
+            tip_tq = self.tip_tq
             ps = PoseStamped()
             ps.header.frame_id = '/torso_lift_link'
             ps.header.stamp = rospy.get_rostime()
@@ -345,15 +394,35 @@ class ControlPR2Arm:
             ps.pose.orientation.w = tip_tq[3]
             self.pr2_pub.publish(ps)
 
-            #Proportional control of force with some hack to keep omni from being unstable
+            #this is to make the omni force well move if the arm has moved but the commanded
+            #position of the arm has not changed
+            tip_omni, msg_frame = tfu.posestamped_as_matrix(msg)
+            m_o1 = tfu.transform(self.omni_name, msg_frame, self.tflistener) * tip_omni
+            ee_point = np.matrix(tr.translation_from_matrix(m_o1)).T
+            tip_torso = tfu.transform('/torso_lift_link', self.gripper_tip_frame, self.tflistener) \
+                                  * tfu.tf_as_matrix(([0.,0.,0.], tr.quaternion_from_euler(0,0,0)))
+            center_t, center_q = self.omni_T_torso(tip_torso)
+            center_col_vec = np.matrix(center_t).T
+
+
+            #err_dir = center_col_vec - ee_point
+            #if np.linalg.norm(err_dir) < .02:
+            #    force_o1 = self.kPos_close * err_dir 
+            #else:
+            #    if np.linalg.norm(err_dir) < .15:
+            #        force_o1 = self.kPos * err_dir
+            #    else:
+            #        force_o1 = 0. * err_dir
+#            dt = rospy.Time.now().nsecs*1e-9-self.prev_time
+#            self.prev_time = rospy.Time.now().nsecs*1e-9
+#            if dt>0:
+#                self.prev_dt = dt
             err_dir = center_col_vec - ee_point
-            if np.linalg.norm(err_dir) < .02:
-                force_o1 = self.kPos_close * err_dir 
+            if np.linalg.norm(err_dir) < .15:
+                force_o1 = self.kPos*err_dir
             else:
-                if np.linalg.norm(err_dir) < .15:
-                    force_o1 = self.kPos * err_dir
-                else:
-                    force_o1 = 0. * err_dir
+                force_o1 = 0.*err_dir
+
 
             #Send force control info
             force_s = tfu.transform(self.omni_name + '_sensable', self.omni_name, self.tflistener) * np.row_stack((force_o1, np.matrix([1.])))
@@ -382,22 +451,34 @@ class OmniPR2Teleop:
                                     tflistener=self.tflistener)
 
         self.right_controller = ControlPR2Arm(
-                                    omni_name ='omni2', 
-                                    pr2_control_topic = 'r_cart/command_pose',
-                                    gripper_control_topic = 'r_gripper_controller',
-                                    gripper_tip_frame = 'r_gripper_tool_frame',
-                                    center_in_torso_frame = [1.2, -.3, -1], 
-                                    scaling_in_base_frame = [3.5, 3., 5.],
-                                    tfbroadcast=self.tfbroadcast,
-                                    tflistener=self.tflistener)
-        #self.left_feedback = JTWrenchFeedback(wrench_topic = '/l_cart/state/wrench',
-        #                            wrench_frame = '/l_gripper_tool_frame',
-        #                            dest_frame = '/omni1_sensable',
-        #                            force_feedback_topic = 'omni1_force_feedback',
-        #                            tflistener = self.tflistener)
+                                   omni_name ='omni2', 
+                                   pr2_control_topic = 'r_cart/command_pose',
+                                   gripper_control_topic = 'r_gripper_controller',
+                                   gripper_tip_frame = 'r_gripper_tool_frame',
+                                   center_in_torso_frame = [1.2, -.3, -1], 
+                                   scaling_in_base_frame = [3.5, 3., 5.],
+                                   tfbroadcast=self.tfbroadcast,
+                                   tflistener=self.tflistener)
+
+        self.left_feedback = ForceFeedbackFilter(wrench_topic = '/l_cart/state', #'/l_cart/test/wrench_unfiltered', #
+              dest_frame = '/omni1_sensable',
+              wrench_frame = '/l_gripper_tool_frame', 
+              force_feedback_topic = 'omni1_force_feedback',
+              tflistener = self.tflistener,
+              kp_name = '/l_cart/cart_gains/trans/p',
+              kd_name = '/l_cart/cart_gains/trans/d')
+
+        self.right_feedback = ForceFeedbackFilter(wrench_topic = '/r_cart/state', #'/l_cart/test/wrench_unfiltered', #
+              dest_frame = '/omni2_sensable',
+              wrench_frame = '/r_gripper_tool_frame', 
+              force_feedback_topic = 'omni2_force_feedback',
+              tflistener = self.tflistener,
+              kp_name = '/r_cart/cart_gains/trans/p',
+              kd_name = '/r_cart/cart_gains/trans/d')
 
         rospy.Subscriber('omni1_button', PhantomButtonEvent, self.omni_safety_lock_cb)
         rospy.Subscriber('omni2_button', PhantomButtonEvent, self.omni_safety_lock_cb)
+        
         self.set_state(False)
 
     def omni_safety_lock_cb(self, msg):
@@ -409,334 +490,28 @@ class OmniPR2Teleop:
         if self.enabled:
             rospy.loginfo('control ENABLED.')
             self.left_controller.set_control(True)
-            #self.left_feedback.set_enable(True)
+            self.left_feedback.set_enable(True)
+            self.right_feedback.set_enable(True)
             self.right_controller.set_control(True)
+
         else:
             rospy.loginfo('control disabled.  Follow potential well to pose of arm.')
             self.left_controller.set_control(False)
-            #self.left_feedback.set_enable(False)
+            self.left_feedback.set_enable(False)
             self.right_controller.set_control(False)
-
+            self.right_feedback.set_enable(False)
+            
     def run(self):
-        rate = rospy.Rate(30.0)
+        rate = rospy.Rate(100.0)
         rospy.loginfo('running...')
         while not rospy.is_shutdown():
             self.left_controller.send_transform_to_link_omni_and_pr2_frame()
             self.right_controller.send_transform_to_link_omni_and_pr2_frame()
-            rate.sleep()
 
  
 if __name__ == '__main__':
-    import time
     o = OmniPR2Teleop()
     o.run()
-    #while not rospy.is_shutdown():
-    #    time.sleep(1.0)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#class OmniPR2Teleop:
-#
-#    def __init__(self):
-#        rospy.init_node('omni_frames')
-#        self.enabled = False
-#        self.zero_out_forces = True
-#
-#        self.kPos = 20.
-#        self.kPos_close = 70.
-#        self.OMNI_LEFT = 'omni1'
-#        self.LEFT_CENTER_TORSO = [1.0, 0.3, -1.]
-#        self.LEFT_SCALE_BASE   = [3.5, 3.,  5.]
-#
-#        ###############################################################               
-#        #Init TF
-#        ###############################################################               
-#        self.tfbroadcast = tf.TransformBroadcaster()
-#        self.tflistener = tf.TransformListener()
-#        rate = rospy.Rate(100.0)
-#        for i in range(30):
-#            self.send_transform_to_link_omni_and_pr2_frame()
-#            rate.sleep()
-#
-#        ###############################################################               
-#        #Init PR2 ROS channels
-#        ###############################################################               
-#        self.X_BOUNDS = [.3, 1.5]
-#        self.left_cart_pub = rospy.Publisher('l_cart/command_pose', PoseStamped)
-#
-#        ###############################################################               
-#        #Init Omni ROS channels
-#        ###############################################################               
-#        #Omni1 for left arm
-#        #self.omni_left_last_pose = None
-#        self.scale_omni_left_l0 = np.abs(self.l0_rotate_base(self.OMNI_LEFT, self.LEFT_SCALE_BASE))
-#        rospy.Subscriber(self.OMNI_LEFT + '_pose', PoseStamped, self.omni_left_pose_cb)
-#        rospy.Subscriber(self.OMNI_LEFT + '_button', PhantomButtonEvent, self.omni_left_safety_lock_cb)
-#        self.omni_left_fb = rospy.Publisher(self.OMNI_LEFT + '_force_feedback', Wrench)
-#        self.omni_left_button_handler = GripperOmniHandler(self.OMNI_LEFT + '_button', 'l_gripper_controller')
-#        #self.accel_fb = AccelerometerFeedback(self.OMNI_LEFT + '_sensable', '/accelerometer/l_gripper_motor', 'force_feedback', self.tflistener)
-#        print 'OmniPR2Teleop: distances scaled by', self.scale_omni_left_l0
-#
-#        #Omni2
-#        self.OMNI_RIGHT = 'omni2'
-#        self.omni_right_button_handler = GripperOmniHandler('omni2_button', 'r_gripper_controller')
-#        self.RIGHT_CENTER_TORSO = [1.0, -0.3, -1.]
-#        #self.RIGHT_SCALE_BASE = [ 0.635, -0.75, -0.7]
-#
-#        self.set_state(False)
-#
-#
-#    def send_transform_to_link_omni_and_pr2_frame(self):
-#        #self.tfbroadcast.sendTransform((0.6, 0.3, -0.3),
-#        self.tfbroadcast.sendTransform(self.LEFT_CENTER_TORSO,
-#                         #tuple(tf.transformations.quaternion_from_euler(0, 0, math.pi/2)),
-#                         tuple(tf.transformations.quaternion_from_euler(0, 0, 0)),
-#                         rospy.Time.now(),
-#                         self.OMNI_LEFT,
-#                         "torso_lift_link")
-#
-#        #self.tfbroadcast.sendTransform((0.6, -0.3, -0.3),
-#        #                 tuple(tf.transformations.quaternion_from_euler(0, 0, math.pi/2)),
-#        #                 rospy.Time.now(),
-#        #                 "omni2",
-#        #                 "torso_lift_link")
-#
-#    ##
-#    # Rotate a vector from omni_link0 to base_footprint frame
-#    def l0_rotate_base(self, omni_name, vec_base):
-#        m = np.matrix(tr.translation_matrix(vec_base))
-#        vec_omni1_l0 = tr.translation_from_matrix((tfu.rotate('base_footprint', 'torso_lift_link', self.tflistener) * \
-#                                                     tfu.rotate('torso_lift_link', omni_name + '_link0', self.tflistener)).T * m)
-#        return np.array(vec_omni1_l0)
-#
-#    def omni_left_safety_lock_cb(self, msg):
-#        if msg.grey_button == 1 and msg.white_button == 1:
-#            self.set_state(not self.enabled)
-#            #self.enabled = not self.enabled
-#
-#    def set_state(self, s):
-#        self.enabled = s
-#        if not self.enabled:
-#            print 'OmniPR2Teleop: DISABLED'
-#            self.omni_left_button_handler.set_enabled(False)
-#            self.omni_right_button_handler.set_enabled(False)
-#        else:
-#            print 'OmniPR2Teleop: ENABLED'
-#            self.omni_left_button_handler.set_enabled(True)
-#            self.omni_right_button_handler.set_enabled(True)
-#            self.zero_out_forces = True
-#
-#    ##
-#    # Transform from omni base link to torso lift link taking into account scaling
-#    def torso_T_omni(self, omni_tip, msg_frame):
-#        #Transform into link0 so we can scale
-#        z_T_6 = tfu.transform(self.OMNI_LEFT + '_link0', msg_frame, self.tflistener)
-#        tip_0 = z_T_6 * omni_tip
-#        tip_0t = (np.array(tr.translation_from_matrix(tip_0)) * np.array(self.scale_omni_left_l0)).tolist()
-#        tip_0q = tr.quaternion_from_matrix(tip_0)
-#
-#        #Transform into torso frame so we can bound arm workspace
-#        tll_T_0 = tfu.transform('/torso_lift_link', self.OMNI_LEFT + '_link0', self.tflistener)
-#        tip_torso_mat = tll_T_0 * tfu.tf_as_matrix([tip_0t, tip_0q])
-#        tip_tt, tip_tq = tfu.matrix_as_tf(tip_torso_mat)
-#        tip_tt[0] = limit_range(tip_tt[0], self.X_BOUNDS[0], self.X_BOUNDS[1])
-#        return tip_tt, tip_tq
-#
-#    ##
-#    # Transfrom from torso lift link to link omni base link, taking into account scaling
-#    def omni_T_torso(self, torso_mat):
-#        l0_mat = tfu.transform(self.OMNI_LEFT + '_link0', 'torso_lift_link', self.tflistener) * torso_mat
-#        l0_t = (np.array(tr.translation_from_matrix(l0_mat)) / np.array(self.scale_omni_left_l0)).tolist()
-#        l0_q = tr.quaternion_from_matrix(l0_mat)
-#        omni_pt_mat = tfu.transform(self.OMNI_LEFT, self.OMNI_LEFT + '_link0', self.tflistener) * tfu.tf_as_matrix((l0_t, l0_q))
-#        return tfu.matrix_as_tf(omni_pt_mat)
-#
-#    ##
-#    # Callback for the left omni
-#    def omni_left_pose_cb(self, msg):
-#        if self.enabled:
-#            tip_6, msg_frame = tfu.posestamped_as_matrix(msg)
-#            tip_tt, tip_tq = self.torso_T_omni(tip_6, msg_frame)
-#
-#            #Publish new arm pose
-#            ps = PoseStamped()
-#            ps.header.frame_id = '/torso_lift_link'
-#            ps.header.stamp = rospy.get_rostime()
-#            ps.pose.position.x = tip_tt[0]
-#            ps.pose.position.y = tip_tt[1]
-#            ps.pose.position.z = tip_tt[2]
-#            ps.pose.orientation.x = tip_tq[0]
-#            ps.pose.orientation.y = tip_tq[1]
-#            ps.pose.orientation.z = tip_tq[2]
-#            ps.pose.orientation.w = tip_tq[3]
-#            self.left_cart_pub.publish(ps)
-#            if self.zero_out_forces:
-#                wr = Wrench()
-#                wr.force.x = 0 
-#                wr.force.y = 0 
-#                wr.force.z = 0 
-#                self.omni_left_fb.publish(wr)
-#                self.zero_out_forces = False
-#        else:
-#
-#            tip_6, msg_frame = tfu.posestamped_as_matrix(msg)
-#            m_o1 = tfu.transform(self.OMNI_LEFT, msg_frame, self.tflistener) * tip_6
-#            ee_point = np.matrix(tr.translation_from_matrix(m_o1)).T
-#
-#            #Make the center the current arm tip #center = np.matrix([-.10, 0, .30]).T
-#            tip_torso = tfu.transform('torso_lift_link', 'l_gripper_tool_frame', self.tflistener) \
-#                                  * tfu.tf_as_matrix(([0.,0.,0.], tr.quaternion_from_euler(0,0,0)))
-#            center_t, center_q = self.omni_T_torso(tip_torso)
-#            center_col_vec = np.matrix(center_t).T
-#
-#            tip_tt, tip_tq = self.torso_T_omni(tfu.tf_as_matrix((center_t, center_q)), 'omni1')
-#            ps = PoseStamped()
-#            ps.header.frame_id = '/torso_lift_link'
-#            ps.header.stamp = rospy.get_rostime()
-#            ps.pose.position.x = tip_tt[0]
-#            ps.pose.position.y = tip_tt[1]
-#            ps.pose.position.z = tip_tt[2]
-#            ps.pose.orientation.x = tip_tq[0]
-#            ps.pose.orientation.y = tip_tq[1]
-#            ps.pose.orientation.z = tip_tq[2]
-#            ps.pose.orientation.w = tip_tq[3]
-#            self.left_cart_pub.publish(ps)
-#
-#            err_dir = center_col_vec - ee_point
-#            if np.linalg.norm(err_dir) < .02:
-#                force_o1 = self.kPos_close * err_dir 
-#            else:
-#                if np.linalg.norm(err_dir) < .15:
-#                    force_o1 = self.kPos * err_dir
-#                else:
-#                    force_o1 = 0. * err_dir
-#
-#            force_s = tfu.transform(self.OMNI_LEFT + '_sensable', self.OMNI_LEFT, self.tflistener) * np.row_stack((force_o1, np.matrix([1.])))
-#            wr = Wrench()
-#            wr.force.x = force_s[0]
-#            wr.force.y = force_s[1]
-#            wr.force.z = force_s[2]
-#            self.omni_left_fb.publish(wr)
-#
-#    def run(self):
-#        rate = rospy.Rate(10.0)
-#        print 'OmniPR2Teleop: running...'
-#        while not rospy.is_shutdown():
-#            self.send_transform_to_link_omni_and_pr2_frame()
-#            rate.sleep()
-
-
-
-
-
-
-
-
-            #Get the pose for tip (link6) in link0, multiply by scaling factor, publish back into command_pose
-            #tip_6 = tfu.translation_matrix([.04, 0, 0]) #* np.matrix(tr.quaternion_matrix(tr.quaternion_from_euler(0, math.pi, 0)))
-            #z_T_6 = tfu.transform(self.OMNI_LEFT + '_link0', self.OMNI_LEFT + '_link6', self.tflistener)
-
-            #tip_0 = z_T_6 * tip_6
-            #tip_0t = (np.array(tr.translation_from_matrix(tip_0)) * np.array(self.scale_omni_left_l0)).tolist()
-            #tip_0q = tr.quaternion_from_matrix(tip_0)
-
-            #tll_T_0 = tfu.transform('/torso_lift_link', self.OMNI_LEFT + '_link0', self.tflistener)
-            #tip_torso_mat = tll_T_0 * tfu.tf_as_matrix([tip_0t, tip_0q])
-            #tip_tt, tip_tq = tfu.matrix_as_tf(tip_torso_mat)
-
-            #x_bounds = [.3, 1.5]
-            #tip_tt[0] = limit_range(tip_tt[0], x_bounds[0], x_bounds[1])
-
-            #ps = PoseStamped()
-            #ps.header.frame_id = '/torso_lift_link'
-            #ps.header.stamp = rospy.get_rostime()
-            #ps.pose.position.x = tip_tt[0]
-            #ps.pose.position.y = tip_tt[1]
-            #ps.pose.position.z = tip_tt[2]
-            #ps.pose.orientation.x = tip_tq[0]
-            #ps.pose.orientation.y = tip_tq[1]
-            #ps.pose.orientation.z = tip_tq[2]
-            #ps.pose.orientation.w = tip_tq[3]
-            #self.left_cart_pub.publish(ps)
-
-
-
-        #for i in range(30):
-        #    self.send_transform_to_link_omni_and_pr2_frame()
-        #    rate.sleep()
-        #scale_omni1_l0 = np.abs(self.l0_rotate_base('omni1', [1., 3., 2.5]))
-        #scale_omni1_l0 = np.abs(self.l0_rotate_base('omni1', self.left_scale_base))
-
-
-        #self.left_cart_pub = rospy.Publisher('l_cart/command_pose', PoseStamped)
-        #PR2 range of motions in base_footprint
-        #self.pr2_limits_right = np.matrix([[.23, .94],
-        #                                   [-1.15, .64],
-        #                                   [.16, 1.67]])
-        #self.pr2_limits_left = self.pr2_limits_right.copy()
-        #self.pr2_limits_left[1,:] = - self.pr2_limits_left[1,:]
-        #Omni range of motion in omni1_link0
-        #self.omni_limits = np.matrix([[.06, -.39],
-        #                              [-.31, .31],
-        #                              [-.08, .44]])
-        #torso_T_base = tfu.transform('torso_lift_link', 'base_footprint', self.tflistener)
-        #self.right_center_base_foot = ((self.pr2_limits_right[:,0] + self.pr2_limits_right[:,1]) / 2.).A1.tolist()
-        #self.left_center_base_foot  = ((self.pr2_limits_left[:,0] + self.pr2_limits_left[:,1]) / 2.).A1.tolist()
-        #self.right_center_torso = tr.translation_from_matrix(torso_T_base * tr.translation_matrix(self.right_center_base_foot))
-        #self.left_center_torso  = tr.translation_from_matrix(torso_T_base * tr.translation_matrix(self.left_center_base_foot))
-        #self.left_center_torso = [ 0.635, 0.255, -0.07171129]
-
-            #f_T_0 = tfu.transform('base_footprint', 'torso_lift_link', self.tflistener) * tfu.transform('/torso_lift_link', '/omni1_link0', self.tflistener)
-            #tip_pose = f_T_0 * np.matrix([ps.pose.position.x, ps.pose.position.y, ps.pose.position.z, 1]).T
-            #print tip_t, tip_pose.T
-
-
-            #ps = PoseStamped()
-            #ps.header.frame_id = 'base_footprint'
-            #ps.header.stamp = rospy.get_rostime()
-            #ps.pose.position.x = .4 - self.left_center_base_foot[0]
-            #ps.pose.position.y =  self.left_center_base_foot[1]
-            #ps.pose.position.z =  self.left_center_base_foot[2]
-            #ps.pose.orientation.w = 1
-            #self.left_cart_pub.publish(ps)
-            #rate.sleep()
-
-
-        #pr2_range_l0  = (self.l0_rotate_base('omni1', np.abs(self.pr2_limits_left[:,0] - self.pr2_limits_left[:,1]).A1))
-        #omni_range_l0 = np.abs(self.omni_limits[:,0] - self.omni_limits[:,1]).A1
-        #scale_omni1_l0 = pr2_range_l0 / omni_range_l0
 
