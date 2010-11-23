@@ -218,7 +218,7 @@ def binary_to_ft( raw_binary ):
 
     Fx = _temp_val[0]
     Fy = _temp_val[1]
-    Fz = _temp_val[2]
+    Fz = -_temp_val[2]
     Tx = _temp_val[3]
     Ty = _temp_val[4]
     Tz = _temp_val[5]
