@@ -441,7 +441,7 @@ class OmniPR2Teleop:
         self.tflistener = tf.TransformListener()
 
         self.left_controller = ControlPR2Arm(
-                                    omni_name ='omni1', 
+                                    omni_name ='omni2', 
                                     pr2_control_topic = 'l_cart/command_pose',
                                     gripper_control_topic = 'l_gripper_controller',
                                     gripper_tip_frame = 'l_gripper_tool_frame',
@@ -451,7 +451,7 @@ class OmniPR2Teleop:
                                     tflistener=self.tflistener)
 
         self.right_controller = ControlPR2Arm(
-                                   omni_name ='omni2', 
+                                   omni_name ='omni1', 
                                    pr2_control_topic = 'r_cart/command_pose',
                                    gripper_control_topic = 'r_gripper_controller',
                                    gripper_tip_frame = 'r_gripper_tool_frame',
@@ -461,17 +461,17 @@ class OmniPR2Teleop:
                                    tflistener=self.tflistener)
 
         self.left_feedback = ForceFeedbackFilter(wrench_topic = '/l_cart/state', #'/l_cart/test/wrench_unfiltered', #
-              dest_frame = '/omni1_sensable',
+              dest_frame = '/omni2_sensable',
               wrench_frame = '/l_gripper_tool_frame', 
-              force_feedback_topic = 'omni1_force_feedback',
+              force_feedback_topic = 'omni2_force_feedback',
               tflistener = self.tflistener,
               kp_name = '/l_cart/cart_gains/trans/p',
               kd_name = '/l_cart/cart_gains/trans/d')
 
         self.right_feedback = ForceFeedbackFilter(wrench_topic = '/r_cart/state', #'/l_cart/test/wrench_unfiltered', #
-              dest_frame = '/omni2_sensable',
+              dest_frame = '/omni1_sensable',
               wrench_frame = '/r_gripper_tool_frame', 
-              force_feedback_topic = 'omni2_force_feedback',
+              force_feedback_topic = 'omni1_force_feedback',
               tflistener = self.tflistener,
               kp_name = '/r_cart/cart_gains/trans/p',
               kd_name = '/r_cart/cart_gains/trans/d')
