@@ -441,7 +441,7 @@ class OmniPR2Teleop:
         self.tflistener = tf.TransformListener()
 
         self.left_controller = ControlPR2Arm(
-                                    omni_name ='omni2', 
+                                    omni_name ='omni1', 
                                     pr2_control_topic = 'l_cart/command_pose',
                                     gripper_control_topic = 'l_gripper_controller',
                                     gripper_tip_frame = 'l_gripper_tool_frame',
@@ -489,15 +489,15 @@ class OmniPR2Teleop:
         self.enabled = s
         if self.enabled:
             rospy.loginfo('control ENABLED.')
-            self.left_controller.set_control(True)
-            self.left_feedback.set_enable(True)
+            #self.left_controller.set_control(True)
+            #self.left_feedback.set_enable(True)
             self.right_feedback.set_enable(True)
             self.right_controller.set_control(True)
 
         else:
             rospy.loginfo('control disabled.  Follow potential well to pose of arm.')
-            self.left_controller.set_control(False)
-            self.left_feedback.set_enable(False)
+            #self.left_controller.set_control(False)
+            #self.left_feedback.set_enable(False)
             self.right_controller.set_control(False)
             self.right_feedback.set_enable(False)
             
@@ -505,7 +505,7 @@ class OmniPR2Teleop:
         rate = rospy.Rate(100.0)
         rospy.loginfo('running...')
         while not rospy.is_shutdown():
-            self.left_controller.send_transform_to_link_omni_and_pr2_frame()
+            #self.left_controller.send_transform_to_link_omni_and_pr2_frame()
             self.right_controller.send_transform_to_link_omni_and_pr2_frame()
 
  
