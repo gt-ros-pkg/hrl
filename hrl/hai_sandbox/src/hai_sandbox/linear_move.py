@@ -20,9 +20,12 @@ from pr2_gripper_sensor_msgs.msg import PR2GripperEventDetectorGoal
 import pr2_msgs.msg as pm
 import hai_sandbox.collision_monitor as cmon
 import cv
-import hrl_camera.ros_camera as rc
 import time
 import subprocess as sb
+import hai_sandbox.find_split as fs
+import hrl_lib.rutils as ru
+import hrl_camera.ros_camera as rc
+
 
 #from sound_play.msg import SoundRequest
 
@@ -440,7 +443,14 @@ class BehaviorTest:
         self.tf_listener = tf.TransformListener()
         self.behaviors = Behaviors('l', tf_listener=self.tf_listener)
         self.robot = pr2.PR2(self.tf_listener)
-        self.wide_angle_camera = rc.ROSCamera('/wide_stereo/left/image_rect_color')
+        self.laser_scan = ru.LaserScanner('point_cloud_srv')
+        self.prosilica = rc.Prosilica('prosilica', 'streaming')
+        self.prosilica_cal = rc.ROSCameraCalibration('/prosilica/camera_info')
+        self.left_cal = rc.ROSCameraCalibration('/wide_stereo/left/camera_info')
+        self.right_cal = rc.ROSCameraCalibration('/wide_stereo/right/camera_info')
+
+        self.wide_angle_camera_left = rc.ROSCamera('/wide_stereo/left/image_rect_color')
+        self.wide_angle_camera_right = rc.ROSCamera('/wide_stereo/right/image_rect_color')
 
         #pdb.set_trace()
         self.laser_listener = LaserPointerClient(tf_listener=self.tf_listener, robot=self.robot)
@@ -459,12 +469,12 @@ class BehaviorTest:
         self.robot.head.set_pose(np.radians(np.matrix([1.04, -20]).T), 1)
         time.sleep(4)
         for i in range(4):
-            before_frame = self.wide_angle_camera.get_frame()
+            before_frame = self.wide_angle_camera_left.get_frame()
         cv.SaveImage('before.png', before_frame)
         f_return = f(*args)
         time.sleep(2)
         for i in range(3):
-            after_frame = self.wide_angle_camera.get_frame()
+            after_frame = self.wide_angle_camera_left.get_frame()
 
         cv.SaveImage('after.png', after_frame)
         sdiff = image_diff_val2(before_frame, after_frame)
@@ -537,64 +547,113 @@ class BehaviorTest:
             rospy.loginfo('moving back to start location failed due to "%s"' % r2)
             return 
 
-    ####def optimize_parameters(self, x0, x_range, behavior, objective_func, reset_env_func, reset_param):
-    ####    reset_retries = 3
-    ####    num_params = len(x0)
-    ####    x = copy.deepcopy(x0)
+    #def optimize_parameters(self, x0, x_range, behavior, objective_func, reset_env_func, reset_param):
+    #    reset_retries = 3
+    #    num_params = len(x0)
+    #    x = copy.deepcopy(x0)
 
-    ####    # for each parameter
-    ####    #for i in range(num_params):
-    ####    while i < num_params:
-    ####        #search for a good setting
-    ####        not_converged = True
-    ####        xmin = x_range[i, 0]
-    ####        xmax = x_range[i, 1]
+    #    # for each parameter
+    #    #for i in range(num_params):
+    #    while i < num_params:
+    #        #search for a good setting
+    #        not_converged = True
+    #        xmin = x_range[i, 0]
+    #        xmax = x_range[i, 1]
 
-    ####        while not_converged:
-    ####            current_val = x[i]
-    ####            candidates_i = [(x[i] + xmin) / 2., (x[i] + xmax) / 2.]
-    ####            successes = []
-    ####            for cand in candidates_i:
-    ####                x[i] = cand
-    ####                success = behavior(x)
-    ####                if success:
-    ####                    for reset_i in range(reset_retries):
-    ####                        reset_success = reset_env_func(*reset_param)
-    ####                        if reset_success:
-    ####                            break
-    ####                successes.append(success)
+    #        while not_converged:
+    #            current_val = x[i]
+    #            candidates_i = [(x[i] + xmin) / 2., (x[i] + xmax) / 2.]
+    #            successes = []
+    #            for cand in candidates_i:
+    #                x[i] = cand
+    #                success = behavior(x)
+    #                if success:
+    #                    for reset_i in range(reset_retries):
+    #                        reset_success = reset_env_func(*reset_param)
+    #                        if reset_success:
+    #                            break
+    #                successes.append(success)
 
-    ####            if successes[0] and successes[1]:
-    ####                raise RuntimeException('What? this isn\'t suppose to happen.')
-    ####            elif successes[0] and not successes[1]:
-    ####                next_val = candidates_i[0]
-    ####            elif successes[1] and not successes[0]:
-    ####                next_val = candidates_i[1]
-    ####            else:
-    ####                raise RuntimeException('What? this isn\'t suppose to happen.')
-
-
-    ####        #if all the trials are bad
-    ####        if not test(successes):
-    ####            #go back by 1 parameter
-    ####            i = i - 1
+    #            if successes[0] and successes[1]:
+    #                raise RuntimeException('What? this isn\'t suppose to happen.')
+    #            elif successes[0] and not successes[1]:
+    #                next_val = candidates_i[0]
+    #            elif successes[1] and not successes[0]:
+    #                next_val = candidates_i[1]
+    #            else:
+    #                raise RuntimeException('What? this isn\'t suppose to happen.')
 
 
-    ####        #if there are more than one good parameter
-    ####        for p in params
-    ####            ... = objective_func(p)
-
-    ####        i = i + 1
-
-    ####    return x
+    #        #if all the trials are bad
+    #        if not test(successes):
+    #            #go back by 1 parameter
+    #            i = i - 1
 
 
+    #        #if there are more than one good parameter
+    #        for p in params
+    #            ... = objective_func(p)
+
+    #        i = i + 1
+
+    #    return x
+
+
+    def record_perceptual_data(self, point_touched):
+        #what position should the robot be in?
+        #set arms to non-occluding pose
+
+        #record region around the finger where you touched
+        points = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 20.)
+        prosilica_image = self.prosilica.get_frame()
+        left  = self.wide_angle_camera_left.get_frame()
+        right = self.wide_angle_camera_left.get_frame()
+        while self.prosilica_cal.has_msg == False:
+            time.sleep(.1)
+
+        #which frames?
+        pro_T_bf = tfu.transform('/high_def_optical_frame', '/base_footprint', tf_listener)
+        laser_T_bf = tfu.transform('/laser_tilt_link', '/base_footprint', tf_listener)
+        tstring = time.strftime('%A_%m_%d_%Y_%I:%M%p')
+        ut.save_pickle({'touch_point': point
+                        'points_laser': points,
+
+                        'high_res': prosilica_image,
+                        'left_image': left,
+                        'right_image': right,
+
+                        'laser_T_bf': laser_T_bf, 
+                        'pro_T_bf': pro_T_bf,
+                        'point_touched': point_touched,
+                        
+                        'prosilica_cal', self.prosilica_cal}, 
+                        'left_cal', self.left_cal,
+                        'right_cal', self.right_cal
+                        ('interest_point_dataset_%s.pkl' % tstring))
+
+    def gather_interest_point_dataset(self, point):
+        for i in range(100):
+            # perturb_point
+            #gaussian_noise =
+            #npoint = 
+
+            success_off = self.light_switch1(point, 
+                            point_offset=np.matrix([-.15,0,0]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.005,0,0]).T,\
+                            press_pressure=2500, press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
+            rospy.loginfo('Lights turned off? %s' % str(success_off))
+            if success_off:
+                self.record_perceptual_data(point_touched)
+            
+            #Turn on lights
+            success_on = self.light_switch1(point, 
+                            point_offset=np.matrix([-.15,0,-.10]).T, press_contact_pressure=300, move_back_distance=np.matrix([-0.005, 0, 0]).T,
+                            press_pressure=2500, press_distance=np.matrix([0,0,.1]).T, visual_change_thres=.03)
 
 
 
     def click_cb(self, point):
         if self.critical_error:
-            rospy.loginfo('Behaviors suppressed due to uncleared critical error.')
+            rospy.loginfo('Behaviors supressed due to uncleared critical error.')
             return
 
         try:
