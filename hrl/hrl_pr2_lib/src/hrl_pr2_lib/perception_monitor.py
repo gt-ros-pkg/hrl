@@ -11,6 +11,7 @@ from hrl_lib.util import save_pickle, load_pickle
 from hrl_lib.msg import FloatArray
 from hrl_lib.rutils import GenericListener, ros_to_dict, RateCaller
 from hrl_lib.data_process import signal_smooth, signal_variance, signal_list_variance
+from tf.transformations import *
 
 from std_msgs.msg import Float64MultiArray
 from pr2_msgs.msg import AccelerometerState, PressureState
@@ -306,7 +307,8 @@ class ArmPerceptionMonitor( ):
     # @param arm 0 if right, 1 if left
     # @param rate the rate at which the perception should capture states
     # @param percept_mon_list list of perceptions to monitor; if None, do all
-    def __init__(self, arm, rate=0.001, percept_mon_list=None, model_zeros=None):
+    def __init__(self, arm, tf_listener=None, rate=0.001, 
+                 percept_mon_list=None, model_zeros=None):
         log("Initializing arm perception listeners")
 
         self.rate = rate
@@ -329,7 +331,8 @@ class ArmPerceptionMonitor( ):
                                   "r_finger_periph_pressure",
                                   "r_finger_pad_pressure", 
                                   "l_finger_periph_pressure",
-                                  "l_finger_pad_pressure" ]
+                                  "l_finger_pad_pressure",
+                                  "gripper_pose"]
 
         if percept_mon_list is None:
             percept_mon_list = self.perception_names
@@ -396,13 +399,24 @@ class ArmPerceptionMonitor( ):
                                                          l_finger_pad_pressure_processor)
             self.perceptions["l_finger_pad_pressure"] = l_finger_pad_pressure_listener.read
 
+        for k in self.perceptions:
+            self.perceptions[k] = ft.partial(self.perceptions[k], willing_to_wait=False, 
+                                             quiet=True,
+                                             warn=False, allow_duplication=True)
+
+        if "gripper_pose" in percept_mon_list:
+            def gripper_pose_lookup():
+                lct = tf_listener.getLatestCommonTime("/torso_lift_link", "/" + armc + "_wrist_roll_link")
+                pos, quat = tf_listener.lookupTransform("/torso_lift_link", "/" + armc + "_wrist_roll_link", lct)
+                return (lct.to_nsec(), np.array(pos + quat))
+
+            self.perceptions["gripper_pose"] = gripper_pose_lookup
+
+
         # all callbacks should return data in this format:
-        # (t (x1, x2, ...))
+        # (t, np.array([x1, x2, ...]))
         # t is time in nanoseconds
 
-        for k in self.perceptions:
-            self.perceptions[k] = ft.partial(self.perceptions[k], willing_to_wait=False, quiet=True,
-                                                                  warn=False, allow_duplication=True)
 
 
         self.clear_vars()
@@ -415,6 +429,10 @@ class ArmPerceptionMonitor( ):
         t1 = rospy.Time.now().to_sec()
         for k in self.perceptions:
             self.datasets[k][-1] += [self.perceptions[k]()]
+        t2 = rospy.Time.now().to_sec()
+        import random
+        if random.randint(0,100)==0:
+            print "Time:", t1-t2
 
     ##
     # Initialize variables
@@ -471,7 +489,7 @@ class ArmPerceptionMonitor( ):
     # @param filename name of the pickle
     def load(self, filename):
         self.datasets, self.models = load_pickle(filename)
-    
+
     ##
     # Generates model functions of all the perceptions over several
     # identical trajectories. Each of the parameters is a dictionary
@@ -481,95 +499,95 @@ class ArmPerceptionMonitor( ):
     # @param var_wind_dict window size of the variance function
     # @param var_smooth_wind_dict window size of the smoothing function on the variance
     # @return mean function, variance function
-    def generate_models(self, smooth_wind_dict=None, var_wind_dict=None):
+    # def generate_models(self, smooth_wind_dict=None, var_wind_dict=None):
 
-        smooth_wind_default = 234
-        var_wind_default = 400
-        var_smooth_wind = 143
-        for perception in self.perceptions:
-            data_list = self.datasets[perception]
-            
-            if data_list is None:
-                log("No data to generate model for")
-                return None
+    #     smooth_wind_default = 234
+    #     var_wind_default = 400
+    #     var_smooth_wind = 143
+    #     for perception in self.perceptions:
+    #         data_list = self.datasets[perception]
+    #         
+    #         if data_list is None:
+    #             log("No data to generate model for")
+    #             return None
 
-            if self.active:
-                log("Perception already active.")
-                return None
+    #         if self.active:
+    #             log("Perception already active.")
+    #             return None
 
-            # get the minimum model length
-            lens = [len(m) for m in data_list]
-            max_len = np.max(lens)
+    #         # get the minimum model length
+    #         lens = [len(m) for m in data_list]
+    #         max_len = np.max(lens)
 
-            # dynamic finding of parameters
-            if smooth_wind_dict is None or smooth_wind_dict[perception] is None:
-                smooth_wind = smooth_wind_default
-            else:
-                smooth_wind = smooth_wind_dict[perception]
+    #         # dynamic finding of parameters
+    #         if smooth_wind_dict is None or smooth_wind_dict[perception] is None:
+    #             smooth_wind = smooth_wind_default
+    #         else:
+    #             smooth_wind = smooth_wind_dict[perception]
 
-            ret_means, ret_vars, ret_mean_models, ret_noise_vars = [], [], [], []
-            ret_times, noise_vars = [], []
-            # find the number of coordinates from the first element
-            num_coords = len(data_list[0][0][1])
-            for coord in range(num_coords):
-                mean_models, variance_models = [], []
-                times = None
-                for stream in data_list:
-                    # extract only the data stream for a single coordinate (all x values)
-                    stream_coord = np.array(zip(*zip(*stream)[1])[coord])
-                    cur_mean_model = signal_smooth(stream_coord, smooth_wind)
-                    mean_models += [cur_mean_model]
-                
-                    # sum up the squared difference over the whole model
-                    noise_vars += [ ( sum([(x - y) ** 2 for x,y in zip(cur_mean_model,stream_coord)]) /
-                                                     len(cur_mean_model) ) ]
+    #         ret_means, ret_vars, ret_mean_models, ret_noise_vars = [], [], [], []
+    #         ret_times, noise_vars = [], []
+    #         # find the number of coordinates from the first element
+    #         num_coords = len(data_list[0][0][1])
+    #         for coord in range(num_coords):
+    #             mean_models, variance_models = [], []
+    #             times = None
+    #             for stream in data_list:
+    #                 # extract only the data stream for a single coordinate (all x values)
+    #                 stream_coord = np.array(zip(*zip(*stream)[1])[coord])
+    #                 cur_mean_model = signal_smooth(stream_coord, smooth_wind)
+    #                 mean_models += [cur_mean_model]
+    #             
+    #                 # sum up the squared difference over the whole model
+    #                 noise_vars += [ ( sum([(x - y) ** 2 for x,y in zip(cur_mean_model,stream_coord)]) /
+    #                                                  len(cur_mean_model) ) ]
 
-                # find the average case over the several runs
-                avg_means_model = np.array([0.] * max_len)
-                for i in range(max_len):
-                    n = 0
-                    for j in range(len(mean_models)):
-                        if i < len(mean_models[j]):
-                            avg_means_model[i] += mean_models[j][i]
-                            n += 1
-                    avg_means_model[i] /= n
+    #             # find the average case over the several runs
+    #             avg_means_model = np.array([0.] * max_len)
+    #             for i in range(max_len):
+    #                 n = 0
+    #                 for j in range(len(mean_models)):
+    #                     if i < len(mean_models[j]):
+    #                         avg_means_model[i] += mean_models[j][i]
+    #                         n += 1
+    #                 avg_means_model[i] /= n
 
-                if var_wind_dict is None or var_wind_dict[perception] is None:
-                    var_wind = var_wind_default
-                else:
-                    var_wind = var_wind_dict[perception]
-                # find the variance of the signal but use var_wind points around the centers
-                # to increase the sample size
-                vars_model = signal_list_variance(mean_models, avg_means_model, var_wind)
-                vars_model = signal_smooth(vars_model, var_smooth_wind)
-                vars_model = signal_smooth(vars_model, var_smooth_wind + 23)
+    #             if var_wind_dict is None or var_wind_dict[perception] is None:
+    #                 var_wind = var_wind_default
+    #             else:
+    #                 var_wind = var_wind_dict[perception]
+    #             # find the variance of the signal but use var_wind points around the centers
+    #             # to increase the sample size
+    #             vars_model = signal_list_variance(mean_models, avg_means_model, var_wind)
+    #             vars_model = signal_smooth(vars_model, var_smooth_wind)
+    #             vars_model = signal_smooth(vars_model, var_smooth_wind + 23)
 
-                ret_times += [times]
-                ret_means += [avg_means_model]
-                ret_vars += [vars_model]
-                ret_mean_models += [mean_models]
-                ret_noise_vars += [np.average(noise_vars)]
+    #             ret_times += [times]
+    #             ret_means += [avg_means_model]
+    #             ret_vars += [vars_model]
+    #             ret_mean_models += [mean_models]
+    #             ret_noise_vars += [np.average(noise_vars)]
 
-            # TODO deal with timestamp data in some way?
-            # self.models[perception]["time"] = ret_times
-            self.models[perception]["mean"] = np.array(zip(*ret_means))
-            self.models[perception]["variance"] = np.array(zip(*ret_vars))
-            a = ret_mean_models
-            b = []
-            for stream in range(len(a[0])):
-                t1 = []
-                for val in range(len(a[0][0])):
-                        t2 = []
-                        for coord in range(len(a)):
-                                if val < len(a[coord][stream]):
-                                    t2 += [a[coord][stream][val]]
-                        t1 += [np.array(t2)]
-                b += [t1]
+    #         # TODO deal with timestamp data in some way?
+    #         # self.models[perception]["time"] = ret_times
+    #         self.models[perception]["mean"] = np.array(zip(*ret_means))
+    #         self.models[perception]["variance"] = np.array(zip(*ret_vars))
+    #         a = ret_mean_models
+    #         b = []
+    #         for stream in range(len(a[0])):
+    #             t1 = []
+    #             for val in range(len(a[0][0])):
+    #                     t2 = []
+    #                     for coord in range(len(a)):
+    #                             if val < len(a[coord][stream]):
+    #                                 t2 += [a[coord][stream][val]]
+    #                     t1 += [np.array(t2)]
+    #             b += [t1]
  
-            self.models[perception]["smoothed_signals"] = b
-            self.models[perception]["noise_variance"] = np.array(ret_noise_vars)
+    #         self.models[perception]["smoothed_signals"] = b
+    #         self.models[perception]["noise_variance"] = np.array(ret_noise_vars)
 
-        return self.models
+    #     return self.models
 
     def get_zeros(self, time=4.):
         self._zeros = {}
@@ -602,14 +620,14 @@ class ArmPerceptionMonitor( ):
                                std_dev_default=2.0, noise_dev_default=0.25,
                                tol_thresh_dict=None,
                                contingency=None, window_size=70, current_zeros=None,
-                               sampling_rate = 4,
+                               sampling_rate = 1,
                                transform_dict=None, verbose=True, collide=True):
         self.std_dev_default = std_dev_default
         self.noise_dev_default = noise_dev_default
 
         self.models = models
         self.current_data = {}
-        self.std_dev_dict = {}
+        self.std_dev_dict = std_dev_dict
         self.noise_dev_dict = {}
         self.contingency = contingency
         self.window_size = window_size
@@ -644,21 +662,23 @@ class ArmPerceptionMonitor( ):
     def create_max_min(self):
         for k in self.models:
             deviation = self.models[k]["variance"]
-            noise_deviation = np.sqrt(self.models[k]["noise_variance"])
+            # noise_deviation = np.sqrt(self.models[k]["noise_variance"])
             if self.std_dev_dict is not None and k in self.std_dev_dict:
                 std_dev = np.array(self.std_dev_dict[k])
             else:
                 std_dev = self.std_dev_default
-            if self.noise_dev_dict is not None and k in self.noise_dev_dict:
-                noise_dev = np.array(self.noise_dev_dict[k])
-            else:
-                noise_dev = self.noise_dev_default
+            # if self.noise_dev_dict is not None and k in self.noise_dev_dict:
+            #     noise_dev = np.array(self.noise_dev_dict[k])
+            # else:
+            #     noise_dev = self.noise_dev_default
             if self.tol_thresh_dict is not None and k in self.tol_thresh_dict:
                 tol_thresh = np.array(self.tol_thresh_dict[k])
             else:
                 tol_thresh = 0.
 
-            self.models[k]["dev"] = (std_dev * deviation + noise_dev * noise_deviation + tol_thresh)
+            self.models[k]["dev"] = (std_dev * deviation + tol_thresh)
+            # self.models[k]["dev"] = (std_dev * deviation + noise_dev * noise_deviation + tol_thresh)
+
 
             # This is the monitoring equation
             self.models[k]["max"] = self.models[k]["mean"] + self.models[k]["dev"]
@@ -671,17 +691,20 @@ class ArmPerceptionMonitor( ):
     # TODO DOCS
     # @param duration If None, continue capturing until stop is called.
     #                 Else, stop capturing after duration seconds have passed.
-    def begin_monitoring(self, models, model_zeros=None,
+    def begin_monitoring(self, models=None, model_zeros=None,
                                std_dev_dict=None, noise_dev_dict=None, duration=None,
                                std_dev_default=2.0, noise_dev_default=0.25,
                                tol_thresh_dict=None,
                                contingency=None, window_size=70, current_zeros=None,
-                               sampling_rate = 4,
+                               sampling_rate = 1,
+                               only_pressure=False,
                                transform_dict=None, verbose=True, collide=True):
         if self.active:
             log("Perception already active.")
             return
         self.active = True
+
+
         self.setup_monitoring(models, 
                                std_dev_dict=std_dev_dict, noise_dev_dict=noise_dev_dict,
                                duration=duration, std_dev_default=std_dev_default, 
@@ -700,6 +723,13 @@ class ArmPerceptionMonitor( ):
         self.collision_sums = {}
         self.cur_col_time = 0
         self.current_zeros = {}
+        self.z_sum = {}
+        self.z_rsum = {}
+        self.z_list = {}
+        self.min_prob = 100000.0
+        self.cur_mals = {}
+        self.mals = None
+        self.only_pressure = only_pressure
 
         self.monitor = RateCaller(self._monitor_data, self.rate * self.sampling_rate)
         self.monitor.run()
@@ -750,7 +780,11 @@ class ArmPerceptionMonitor( ):
                 # self.prev_sum = copy.deepcopy(self.sum_data)
                 avg_dict[k] = self.sum_data[k] / self.window_size
                 if not k in self.current_zeros:
-                    self.current_zeros[k] = np.array(self.models[k]["mean"][self.cur_pt * self.sampling_rate]) - avg_dict[k]
+                    if not self.only_pressure:
+                        mean = np.array(self.models[k]["mean"][self.cur_pt * self.sampling_rate])
+                    else:
+                        mean = np.array(self.models[k]["mean"][0])
+                    self.current_zeros[k] = mean - avg_dict[k]
                     # self.current_zeros[k] = - avg_dict[k]
 
                 avg_dict[k] += self.current_zeros[k]
@@ -794,15 +828,18 @@ class ArmPerceptionMonitor( ):
             if self.collide and collision_detected:
                 print "collision reported"
                 self.failure = True
-                self.contingency()
+                if not self.contingency is None:
+                    self.contingency()
                 self.monitor.stop()
                 return
 
 
         self.cur_pt += 1
-        if self.cur_pt * self.sampling_rate >= len(self.models[self.models.keys()[0]]["mean"]):
-            print "ending early:", self.cur_pt * self.sampling_rate
-            self.end_monitoring()
+
+        if not self.only_pressure:
+            if self.cur_pt * self.sampling_rate >= 1.00 * len(self.models[self.models.keys()[0]]["mean"]):
+                print "ending early:", self.cur_pt * self.sampling_rate
+                self.end_monitoring()
         endtime = rospy.Time.now().to_sec()
         # if self.cur_pt % 10 == 0:
         #     print "dur:", sttime - endtime
@@ -818,6 +855,16 @@ class ArmPerceptionMonitor( ):
             log("Nothing to stop.")
             return self.avg_list 
 
+        print "-------------------------"
+        print "z averages:"
+        self.z_avg = {}
+        for k in self.z_sum:
+            self.z_avg[k] = self.z_sum[k] / self.cur_pt
+            print k, ":", self.z_avg[k]
+        print "-------------------------"
+        print "MINIMUM PROB"
+        print self.min_prob
+        print "-------------------------"
         # print "Sum calls", self.sumcalls
         # if self.sumcalls["r_finger_periph_pressure"] == 202:
         #     print self.sumsave
@@ -835,40 +882,103 @@ class ArmPerceptionMonitor( ):
     def collision_detect(self, avg_dict):
         # is_outside_range_dict = {}
         z = {}
+        mal_sum = 0.
         for k in avg_dict:
 
             # This is the monitoring equation
             # is_outside_range_dict[k] = ((avg_dict[k] > self.models[k]["max"][self.cur_pt * self.sampling_rate]) +
             #                             (avg_dict[k] < self.models[k]["min"][self.cur_pt * self.sampling_rate]))
             # Uses both variance from various grasp tries and general noise variance
+            if not self.only_pressure:
+                mean = self.models[k]["mean"][self.cur_pt * self.sampling_rate]
+                dev = self.models[k]["dev"][self.cur_pt * self.sampling_rate]
+            else:
+                mean = self.models[k]["mean"][0]
+                dev = self.models[k]["dev"][0]
 
-            z[k] = np.fabs(avg_dict[k] - self.models[k]["mean"][self.cur_pt * self.sampling_rate]) / (self.models[k]["dev"][self.cur_pt * self.sampling_rate])
+            cur_mal = ((avg_dict[k] - mean) / dev) ** 2
+            self.cur_mals[k] = cur_mal
+            mal_sum += np.add.reduce( ( (avg_dict[k] - mean) / dev) ** 2 )
+            z[k] = np.fabs(avg_dict[k] - mean) / dev 
+
+            if not k in self.z_sum:
+                self.z_sum[k] = np.copy(z[k])
+            else:
+                self.z_sum[k] += z[k]
 
         # print "incoldet"
         # collision_detected = self.collision_filtering(is_outside_range_dict)
+
+        # collision_detected = self.collision_filtering_mal(np.sqrt(mal_sum))
+        # return collision_detected
+
         collision_detected = self.collision_filtering(z)
 
         # print "coldete", collision_detected
         return collision_detected
 
+    def collision_filtering_mal(self, mal):
+        prob = 1.
+        TIME_WINDOW = 4
+        if self.mals is None:
+            self.mals = np.array([0.] * TIME_WINDOW)
+        self.mals[self.cur_pt % TIME_WINDOW] = mal
+
+        if self.cur_pt < TIME_WINDOW:
+            return False
+        mal_avg = np.add.reduce(self.mals / TIME_WINDOW)
+
+        MAL_THRESH = 8.0
+        if mal_avg > MAL_THRESH:
+            print "Collision with mal dist:", mal_avg
+            for k in self.cur_mals:
+                print k, self.cur_mals[k]
+            return True
+        return False
+
     def collision_filtering(self, z):
         prob = 1.
+        TIME_WINDOW = 4
         for k in z:
+            if not k in self.z_rsum:
+                self.z_rsum[k] = np.copy(z[k])
+                self.z_list[k] = [np.array([0.]*len(z[k]))] * TIME_WINDOW
+            else:
+                self.z_rsum[k] += z[k]
+            
+            self.z_rsum[k] -= self.z_list[k][self.cur_pt % TIME_WINDOW]
+            self.z_list[k][self.cur_pt % TIME_WINDOW] = z[k]
+
             # print z[k]
-            prob *= np.multiply.reduce(2 * stats.norm.cdf(-z[k]))
+            prob *= np.multiply.reduce(2 * stats.norm.cdf(-self.z_rsum[k] / TIME_WINDOW))
             # print prob
-        CONFIDENCE = 1e-15
+
+        if self.cur_pt < TIME_WINDOW:
+            return False
+
+        if prob < self.min_prob:
+            self.min_prob = prob
+
+        # CONFIDENCE = 1e-6
+        if not self.only_pressure:
+            # 4e-7 50/50
+            CONFIDENCE = 2.0e-6
+        else:
+            # pressure only confidence
+            CONFIDENCE = 1.e-5
+        if self.cur_pt % 20 == 0:
+            print "Current pt:", self.cur_pt, ", probability:", prob
         if prob < CONFIDENCE:
-            print prob
+            print "probability:", prob
             print "collision returned"
             return True
-            print "-------------------------"
-            print num_percep_col
-            for k in sig_counts:
-                if sig_counts[k] >= PERCEPT_SIG_REQ[k]:
-                    print k, ":", sig_counts[k]
-            print "-------------------------"
-            return True
+    #       print "-------------------------"
+    #       print num_percep_col
+    #       for k in sig_counts:
+    #           if sig_counts[k] >= PERCEPT_SIG_REQ[k]:
+    #               print k, ":", sig_counts[k]
+    #       print "-------------------------"
+    #       return True
 
         return False
 
@@ -974,9 +1084,141 @@ class ArmPerceptionMonitor( ):
                     collision = (k, index, diff)
             self.cur_pt += 1
         return collision
-        
-        
 
+    def resample_and_thin_data(self, monitor_data, sample_rate):
+        ret_data = {}
+        for k in monitor_data:
+            ret_data[k] = {}
+            ret_data[k]["mean"] = monitor_data[k]["mean"][::sample_rate]
+            ret_data[k]["variance"] = monitor_data[k]["variance"][::sample_rate]
+        return ret_data
+
+def split_signals(datasets):
+
+    for perception in datasets:
+        data_list = datasets[perception]
+
+        # get the minimum model length
+        lens = [len(m) for m in data_list]
+        max_len = np.max(lens)
+
+        # dynamic finding of parameters
+        if smooth_wind_dict is None or smooth_wind_dict[perception] is None:
+            smooth_wind = smooth_wind_default
+        else:
+            smooth_wind = smooth_wind_dict[perception]
+
+        ret_means, ret_vars, ret_mean_models, ret_noise_vars = [], [], [], []
+        ret_times, noise_vars = [], []
+        # find the number of coordinates from the first element
+        num_coords = len(data_list[0][0][1])
+        for coord in range(num_coords):
+            mean_models, variance_models = [], []
+            times = None
+            for stream in data_list:
+                # extract only the data stream for a single coordinate (all x values)
+                stream_coord = np.array(zip(*zip(*stream)[1])[coord])
+                cur_mean_model = signal_smooth(stream_coord, smooth_wind)
+                mean_models += [cur_mean_model]
+            
+                # sum up the squared difference over the whole model
+                noise_vars += [ ( sum([(x - y) ** 2 for x,y in zip(cur_mean_model,stream_coord)]) /
+                                                 len(cur_mean_model) ) ]
+
+            # find the average case over the several runs
+            avg_means_model = np.array([0.] * max_len)
+            for i in range(max_len):
+                n = 0
+                for j in range(len(mean_models)):
+                    if i < len(mean_models[j]):
+                        avg_means_model[i] += mean_models[j][i]
+                        n += 1
+                avg_means_model[i] /= n
+
+            if var_wind_dict is None or var_wind_dict[perception] is None:
+                var_wind = var_wind_default
+            else:
+                var_wind = var_wind_dict[perception]
+            # find the variance of the signal but use var_wind points around the centers
+            # to increase the sample size
+            vars_model = signal_list_variance(mean_models, avg_means_model, var_wind)
+            vars_model = signal_smooth(vars_model, var_smooth_wind)
+            vars_model = signal_smooth(vars_model, var_smooth_wind + 23)
+
+            ret_times += [times]
+            ret_means += [avg_means_model]
+            ret_vars += [vars_model]
+            ret_mean_models += [mean_models]
+            ret_noise_vars += [np.average(noise_vars)]
+
+        # TODO deal with timestamp data in some way?
+        # self.models[perception]["time"] = ret_times
+        self.models[perception]["mean"] = np.array(zip(*ret_means))
+        self.models[perception]["variance"] = np.array(zip(*ret_vars))
+        a = ret_mean_models
+        b = []
+        for stream in range(len(a[0])):
+            t1 = []
+            for val in range(len(a[0][0])):
+                    t2 = []
+                    for coord in range(len(a)):
+                            if val < len(a[coord][stream]):
+                                t2 += [a[coord][stream][val]]
+                    t1 += [np.array(t2)]
+            b += [t1]
+
+        self.models[perception]["smoothed_signals"] = b
+        self.models[perception]["noise_variance"] = np.array(ret_noise_vars)
+
+    return self.models
+
+##
+# Generates model functions of all the perceptions over several
+# identical trajectories. Each of the parameters is a dictionary
+# directing perceptions to their parameters.
+# 
+# @param smooth_wind_dict the window size of the smoothing function
+# @param var_wind_dict window size of the variance function
+# @param var_smooth_wind_dict window size of the smoothing function on the variance
+# @return mean function, variance function
+def generate_mean_grasp(datasets):
+
+    smooth_wind_default = 234
+    means = {}
+    for perception in datasets:
+        data_list = datasets[perception]
+
+        # get the minimum model length
+        lens = [len(m) for m in data_list]
+        max_len = np.max(lens)
+
+        ret_means = []
+        # find the number of coordinates from the first element
+        num_coords = len(data_list[0][0][1])
+        for coord in range(num_coords):
+            mean_models, variance_models = [], []
+            for stream in data_list:
+                # extract only the data stream for a single coordinate (all x values)
+                stream_coord = np.array(zip(*zip(*stream)[1])[coord])
+                cur_mean_model = signal_smooth(stream_coord, smooth_wind)
+                mean_models += [cur_mean_model]
+
+            # find the average case over the several runs
+            avg_means_model = np.array([0.] * max_len)
+            for i in range(max_len):
+                n = 0
+                for j in range(len(mean_models)):
+                    if i < len(mean_models[j]):
+                        avg_means_model[i] += mean_models[j][i]
+                        n += 1
+                avg_means_model[i] /= n
+
+            ret_means += [avg_means_model]
+
+        means[perception] = np.array(zip(*ret_means))
+
+    return means
+    
 if __name__ == '__main__':
     rospy.init_node(node_name, anonymous=True)
 
