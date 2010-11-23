@@ -440,15 +440,15 @@ class OmniPR2Teleop:
         self.tfbroadcast = tf.TransformBroadcaster()
         self.tflistener = tf.TransformListener()
 
-        self.left_controller = ControlPR2Arm(
-                                    omni_name ='omni1', 
-                                    pr2_control_topic = 'l_cart/command_pose',
-                                    gripper_control_topic = 'l_gripper_controller',
-                                    gripper_tip_frame = 'l_gripper_tool_frame',
-                                    center_in_torso_frame = [1.2, .3, -1], 
-                                    scaling_in_base_frame = [3.5, 3., 5.],
-                                    tfbroadcast=self.tfbroadcast,
-                                    tflistener=self.tflistener)
+#         self.left_controller = ControlPR2Arm(
+#                                     omni_name ='omni1', 
+#                                     pr2_control_topic = 'l_cart/command_pose',
+#                                     gripper_control_topic = 'l_gripper_controller',
+#                                     gripper_tip_frame = 'l_gripper_tool_frame',
+#                                     center_in_torso_frame = [1.2, .3, -1], 
+#                                     scaling_in_base_frame = [3.5, 3., 5.],
+#                                     tfbroadcast=self.tfbroadcast,
+#                                     tflistener=self.tflistener)
 
         self.right_controller = ControlPR2Arm(
                                    omni_name ='omni1', 
@@ -460,13 +460,13 @@ class OmniPR2Teleop:
                                    tfbroadcast=self.tfbroadcast,
                                    tflistener=self.tflistener)
 
-        self.left_feedback = ForceFeedbackFilter(wrench_topic = '/l_cart/state', #'/l_cart/test/wrench_unfiltered', #
-              dest_frame = '/omni2_sensable',
-              wrench_frame = '/l_gripper_tool_frame', 
-              force_feedback_topic = 'omni2_force_feedback',
-              tflistener = self.tflistener,
-              kp_name = '/l_cart/cart_gains/trans/p',
-              kd_name = '/l_cart/cart_gains/trans/d')
+#         self.left_feedback = ForceFeedbackFilter(wrench_topic = '/l_cart/state', #'/l_cart/test/wrench_unfiltered', #
+#               dest_frame = '/omni2_sensable',
+#               wrench_frame = '/l_gripper_tool_frame', 
+#               force_feedback_topic = 'omni2_force_feedback',
+#               tflistener = self.tflistener,
+#               kp_name = '/l_cart/cart_gains/trans/p',
+#               kd_name = '/l_cart/cart_gains/trans/d')
 
         self.right_feedback = ForceFeedbackFilter(wrench_topic = '/r_cart/state', #'/l_cart/test/wrench_unfiltered', #
               dest_frame = '/omni1_sensable',
@@ -477,7 +477,7 @@ class OmniPR2Teleop:
               kd_name = '/r_cart/cart_gains/trans/d')
 
         rospy.Subscriber('omni1_button', PhantomButtonEvent, self.omni_safety_lock_cb)
-        rospy.Subscriber('omni2_button', PhantomButtonEvent, self.omni_safety_lock_cb)
+#        rospy.Subscriber('omni2_button', PhantomButtonEvent, self.omni_safety_lock_cb)
         
         self.set_state(False)
 
