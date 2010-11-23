@@ -1,0 +1,16 @@
+<launch>
+    <!-- Network -->
+    <include file="$(find gt_pr2)/machine.launch"/>
+    <include file="$(find pr2_omni_teleop)/c_jt_c1.launch"/>
+    <!-- Controls -->
+    <node pkg="phantom_omni" name="omni1_node" type="omni" respawn="true">
+        <param name="omni_name" value="omni1"/>
+    </node>
+    <!--
+    -->
+    <node pkg="pr2_omni_teleop" name="track_grippers" type="track_gripper.py" respawn="true" machine="c2"/>
+    <include file="$(find stereo_anaglyph)/pr2_wide_stereo_view.launch"/>
+
+    <node pkg="pr2_omni_teleop" name="pr2_omni_teleop" type="pr2_omni_teleop.py" respawn="true" machine="c1"/>
+    <node pkg="pr2_dashboard" name="$(anon pr2_dashboard)" type="pr2_dashboard" respawn="true"/>
+</launch>

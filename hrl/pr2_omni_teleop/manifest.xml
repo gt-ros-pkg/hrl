@@ -3,7 +3,7 @@
     Integrated package that allowing PR2 teleoperation using two Phantom Omni's
     and the stereo_anaglyph viewer. 
   </description>
-  <author>Hai Nguyen, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
+  <author>Hai Nguyen, Marc Killpack  Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/pr2_omni_teleop</url>
