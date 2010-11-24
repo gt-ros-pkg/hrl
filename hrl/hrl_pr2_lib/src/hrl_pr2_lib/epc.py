@@ -54,43 +54,16 @@ class EPC():
 
         return stop, ea
 
-    ## Pull back along a straight line (-ve x direction)
-    # @param arm - 'right_arm' or 'left_arm'
-    # @param ea - starting equilibrium angle.
-    # @param rot_mat - rotation matrix defining end effector pose
-    # @param distance - how far back to pull.
-    def pull_back(self, arm, ea, rot_mat, distance):
-        cep = self.robot.FK(arm, ea)
-        self.dist_left = distance
-        self.ea = ea
-
-        def eq_gen_pull_back(robot, arm, rot_mat):
-            if self.dist_left <= 0.:
-                return 'done', None
-            step_size = 0.01
-            cep[0,0] -= step_size
-            self.dist_left -= step_size
-            ea = robot.IK(arm, cep, rot_mat, self.ea)
-            self.ea = ea
-            if ea == None:
-                return 'IK fail', ea
-            return '', [ea,]
-        
-        arg_list = [self.robot, arm, rot_mat]
-        stop, ea = self.epc_motion(eq_gen_pull_back, 0.1, arm, arg_list,
-                                   control_function = self.robot.set_jointangles)
-        print stop, ea
 
     ## Pull back along a straight line (-ve x direction)
     # @param arm - 'right_arm' or 'left_arm'
-    # @param ea - starting cep.
-    # @param rot_mat - rotation matrix defining end effector pose
     # @param distance - how far back to pull.
-    def pull_back_cartesian_control(self, arm, cep, rot_mat, distance):
-        cep = cep
+    def pull_back_cartesian_control(self, arm, distance):
+        cep, _ = self.robot.get_cep_jtt(arm)
+        cep_end = cep + distance * np.matrix([-1., 0., 0.]).T
         self.dist_left = distance
 
-        def eq_gen_pull_back(robot, arm, rot_mat):
+        def eq_gen_pull_back(cep):
             if self.dist_left <= 0.:
                 return 'done', None
             step_size = 0.01
@@ -98,13 +71,12 @@ class EPC():
             self.dist_left -= step_size
             if cep[0,0] < 0.4:
                 return 'very close to the body: %.3f'%cep[0,0], None
-
-            return '', (cep, rot_mat)
+            return '', (cep, None)
         
-        arg_list = [self.robot, arm, rot_mat]
-        stop, ea = self.epc_motion(eq_gen_pull_back, 0.1, arm, arg_list,
-                                   control_function = self.robot.set_cartesian)
-        print stop, ea
+        arg_list = [cep]
+        s = self.epc_motion(eq_gen_pull_back, 0.1, arm, arg_list,
+                    control_function = self.robot.set_cep_jtt)
+        print s
 
     def move_till_hit(self, arm, vec=np.matrix([0.3,0.,0.]).T, force_threshold=3.0,
                       speed=0.1, bias_FT=True):
@@ -223,14 +195,9 @@ if __name__ == '__main__':
     raw_input('Hit ENTER to search_and_hook')
     p1 = np.matrix([0.8, -0.22, -0.05]).T
     epc.search_and_hook(arm, p1)
+    epc.pull_back_cartesian_control(arm, 0.3)
 
-    raw_input('Hit ENTER to go back to a starting position')
-    p1 = np.matrix([0.6, -0.22, -0.05]).T
-    pr2_arms.go_cep_jtt(arm, p1)
     
-
-
-
 #    if False:
 #        ea = [0, 0, 0, 0, 0, 0, 0]
 #        ea = epc.robot.get_joint_angles(arm)
