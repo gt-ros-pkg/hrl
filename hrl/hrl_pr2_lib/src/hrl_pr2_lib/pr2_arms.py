@@ -893,10 +893,13 @@ if __name__ == '__main__':
 #        pr2_arm.set_cep_jtt(r_arm, cep_p)
 
     raw_input('Hit ENTER to move')
-    p1 = np.matrix([0.6, -0.22, -0.05]).T
+    p1 = np.matrix([0.91, -0.22, -0.05]).T
     pr2_arm.go_cep_jtt(r_arm, p1)
+
+    #rospy.sleep(10)
+    #pr2_arm.close_gripper(r_arm, effort = -1)
     raw_input('Hit ENTER to move')
-    p2 = np.matrix([0.88, -0.22, -0.05]).T
+    p2 = np.matrix([0.70, -0.22, -0.05]).T
     pr2_arm.go_cep_jtt(r_arm, p2)
 
 
