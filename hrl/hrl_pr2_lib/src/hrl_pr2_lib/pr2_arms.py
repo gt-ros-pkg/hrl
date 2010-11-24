@@ -653,6 +653,21 @@ class PR2Arms(object):
         else:
             return self.r_cep_pos, self.r_cep_rot
 
+    # rotational interpolation unimplemented.
+    def go_cep_jtt(self, arm, p):
+        step_size = 0.01
+        sleep_time = 0.1
+        cep_p, cep_rot = self.get_cep_jtt(arm)
+        unit_vec = (p-cep_p)
+        unit_vec = unit_vec / np.linalg.norm(unit_vec)
+        while np.linalg.norm(p-cep_p) > step_size:
+            cep_p += unit_vec * step_size
+            self.set_cep_jtt(arm, cep_p)
+            rospy.sleep(sleep_time)
+        self.set_cep_jtt(arm, p)
+        rospy.sleep(sleep_time)
+
+
 
 # TODO Evaluate gripper functions and parameters
 
@@ -859,10 +874,34 @@ if __name__ == '__main__':
         rot = tr.Rx(math.radians(90.))
         pr2_arm.set_cartesian('right_arm', p, rot)
 
-    raw_input('Hit ENTER to begin')
-    pr2_arm.open_gripper(0)
-    raw_input('Hit ENTER to close')
-    pr2_arm.close_gripper(0, effort = 15)
+#    #------ testing gripper opening and closing ---------
+#    raw_input('Hit ENTER to begin')
+#    pr2_arm.open_gripper(0)
+#    raw_input('Hit ENTER to close')
+#    pr2_arm.close_gripper(0, effort = 15)
+
+
+#    #------- testing set JEP ---------------
+#    raw_input('Hit ENTER to begin')
+    r_arm, l_arm = 0, 1
+#    cep_p, cep_rot = pr2_arm.get_cep_jtt(r_arm)
+#    print 'cep_p:', cep_p.A1
+#
+#    for i in range(5):
+#        cep_p[0,0] += 0.01
+#        raw_input('Hit ENTER to move')
+#        pr2_arm.set_cep_jtt(r_arm, cep_p)
+
+    raw_input('Hit ENTER to move')
+    p1 = np.matrix([0.6, -0.22, -0.05]).T
+    pr2_arm.go_cep_jtt(r_arm, p1)
+    raw_input('Hit ENTER to move')
+    p2 = np.matrix([0.88, -0.22, -0.05]).T
+    pr2_arm.go_cep_jtt(r_arm, p2)
+
+
+
+
 
 
 
