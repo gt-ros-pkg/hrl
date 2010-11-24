@@ -116,7 +116,6 @@ class EPC():
         cep = copy.copy(cep_start)
         def eq_gen(cep):
             force = self.robot.get_wrist_force(arm, base_frame = True)
-            print 'force:', force.A1
             force_projection = force.T*unit_vec *-1 # projection in direction opposite to motion.
             print 'force_projection:', force_projection
             if force_projection>force_threshold:
@@ -139,6 +138,70 @@ class EPC():
                                control_function = self.robot.set_cep_jtt)
 
 
+    def cep_gen_surface_follow(self, arm, move_dir, force_threshold,
+                               cep, cep_start):
+        wrist_force = self.robot.get_wrist_force(arm, base_frame=True)
+        if wrist_force[0,0] < -3.:
+            cep[0,0] -= 0.002
+        if wrist_force[0,0] > -1.:
+            cep[0,0] += 0.003
+    
+        if cep[0,0] > (cep_start[0,0]+0.05):
+            cep[0,0] = cep_start[0,0]+0.05
+    
+        step_size = 0.002
+        cep_t = cep + move_dir * step_size
+        cep[0,0] = cep_t[0,0]
+        cep[1,0] = cep_t[1,0]
+        cep[2,0] = cep_t[2,0]
+
+        v = cep - cep_start
+        if (wrist_force.T * move_dir)[0,0] < -force_threshold:
+            stop = 'got a hook'
+        elif np.linalg.norm(wrist_force) > 50.:
+            stop = 'force is large %f'%(np.linalg.norm(wrist_force))
+        elif (v.T * move_dir)[0,0] > 0.20:
+            stop = 'moved a lot without a hook'
+        else:
+            stop = ''
+        return stop, (cep, None)
+
+    # this function should be in a separate door opening class.
+    def search_and_hook(self, arm, hook_loc, hooking_force_threshold = 5.,
+                        hit_threshold=2., hit_motions = 1):
+        # this needs to be debugged. Hardcoded for now.
+        #if arm == 'right_arm' or arm == 0:
+        #    hook_dir = np.matrix([0., 1., 0.]).T # hook direc in home position
+        #    offset = -0.03
+        #elif arm == 'left_arm' or arm == 1:
+        #    hook_dir = np.matrix([0., -1., 0.]).T # hook direc in home position
+        #    offset = -0.03
+        #else:
+        #    raise RuntimeError('Unknown arm: %s', arm)
+        #start_loc = hook_loc + rot_mat.T * hook_dir * offset
+        start_loc = hook_loc + np.matrix([0., -0.03, 0.]).T
+
+        # vector normal to surface and pointing into the surface.
+        normal_tl = np.matrix([1.0, 0., 0.]).T
+
+        pt1 = start_loc - normal_tl * 0.1
+        self.robot.go_cep_jtt(arm, pt1)
+
+        vec = normal_tl * 0.2
+        rospy.sleep(1.)
+        for i in range(hit_motions):
+            s = self.move_till_hit(arm, vec=vec, force_threshold=hit_threshold, speed=0.07)
+
+        cep_start, _ = self.robot.get_cep_jtt(arm)
+        cep = copy.copy(cep_start)
+        move_dir = np.matrix([0., 1., 0.]).T
+        arg_list = [arm, move_dir, hooking_force_threshold, cep, cep_start]
+        s = self.epc_motion(self.cep_gen_surface_follow, 0.1, arm,
+                arg_list, control_function = self.robot.set_cep_jtt)
+        return s
+
+
+
 if __name__ == '__main__':
     import pr2_arms as pa
     rospy.init_node('epc_pr2', anonymous = True)
@@ -150,9 +213,23 @@ if __name__ == '__main__':
     r_arm, l_arm = 0, 1
     arm = r_arm
 
+#    #----- testing move_till_hit ------
+#    p1 = np.matrix([0.6, -0.22, -0.05]).T
+#    epc.robot.go_cep_jtt(arm, p1)
+#    epc.move_till_hit(arm)
+
+    raw_input('Hit ENTER to close')
+    pr2_arms.close_gripper(arm)
+    raw_input('Hit ENTER to search_and_hook')
+    p1 = np.matrix([0.8, -0.22, -0.05]).T
+    epc.search_and_hook(arm, p1)
+
+    raw_input('Hit ENTER to go back to a starting position')
     p1 = np.matrix([0.6, -0.22, -0.05]).T
-    epc.robot.go_cep_jtt(arm, p1)
-    epc.move_till_hit(arm)
+    pr2_arms.go_cep_jtt(arm, p1)
+    
+
+
 
 #    if False:
 #        ea = [0, 0, 0, 0, 0, 0, 0]
