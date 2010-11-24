@@ -17,6 +17,10 @@ from threading import RLock, Timer
 import sys
 
 import roslib; roslib.load_manifest('hrl_pr2_lib')
+roslib.load_manifest('force_torque') # hack by Advait
+import force_torque.force_torque_client as ftc
+import tf
+
 import rospy
 
 import actionlib
@@ -125,6 +129,9 @@ class PR2Arms(object):
 
         rospy.Subscriber('/r_cart/state', JTTeleopControllerState, self.r_cart_state_cb)
         rospy.Subscriber('/l_cart/state', JTTeleopControllerState, self.l_cart_state_cb)
+
+        self.r_arm_ftc = ftc.FTClient('force_torque_ft2')
+        self.tf_lstnr = tf.TransformListener()
 
         self.arm_angles = [None, None]
         self.arm_efforts = [None, None]
@@ -609,14 +616,25 @@ class PR2Arms(object):
         self.arm_state_lock[arm].release()
         return q
 
-    # need for search and hook
-#   def go_cartesian(self, arm):
-#       rospy.logerr('Need to implement this function.')
-#       raise RuntimeError('Unimplemented function')
 
-#   def get_wrist_force(self, arm, bias = True, base_frame = False):
-#       rospy.logerr('Need to implement this function.')
-#       raise RuntimeError('Unimplemented function')
+   def get_wrist_force(self, arm, bias = True, base_frame = False):
+       if arm != 0:
+           rospy.logerr('Unsupported arm: %d'%arm)
+           raise RuntimeError('Unimplemented function')
+
+       f = self.r_arm_ftc.read(without_bias = not bias)
+       if base_frame:
+           trans, quat = tf_lstnr.lookupTransform('/torso_lift_link',
+                                               '/ft2', rospy.Time(0))
+           rot = tr.quaternion_to_matrix(quat)
+           f = rot * f
+       return f[0:3, :]
+
+    def bias_wrist_ft(arm):
+       if arm != 0:
+           rospy.logerr('Unsupported arm: %d'%arm)
+           raise RuntimeError('Unimplemented function')
+       self.r_arm_ftc.bias()
 
 
     # set a cep using the Jacobian Transpose controller.
