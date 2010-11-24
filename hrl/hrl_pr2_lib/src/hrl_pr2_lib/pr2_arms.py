@@ -18,7 +18,7 @@ import sys
 
 import roslib; roslib.load_manifest('hrl_pr2_lib')
 roslib.load_manifest('force_torque') # hack by Advait
-import force_torque.force_torque_client as ftc
+import force_torque.FTClient as ftc
 import tf
 
 import rospy
@@ -617,20 +617,22 @@ class PR2Arms(object):
         return q
 
 
-   def get_wrist_force(self, arm, bias = True, base_frame = False):
-       if arm != 0:
-           rospy.logerr('Unsupported arm: %d'%arm)
-           raise RuntimeError('Unimplemented function')
+    # force that is being applied on the wrist.
+    def get_wrist_force(self, arm, bias = True, base_frame = False):
+        if arm != 0:
+            rospy.logerr('Unsupported arm: %d'%arm)
+            raise RuntimeError('Unimplemented function')
+ 
+        f = self.r_arm_ftc.read(without_bias = not bias)
+        f = f[0:3, :]
+        if base_frame:
+            trans, quat = self.tf_lstnr.lookupTransform('/torso_lift_link',
+                                                '/ft2', rospy.Time(0))
+            rot = tr.quaternion_to_matrix(quat)
+            f = rot * f
+        return -f # the negative is intentional (Advait, Nov 24. 2010.)
 
-       f = self.r_arm_ftc.read(without_bias = not bias)
-       if base_frame:
-           trans, quat = tf_lstnr.lookupTransform('/torso_lift_link',
-                                               '/ft2', rospy.Time(0))
-           rot = tr.quaternion_to_matrix(quat)
-           f = rot * f
-       return f[0:3, :]
-
-    def bias_wrist_ft(arm):
+    def bias_wrist_ft(self, arm):
        if arm != 0:
            rospy.logerr('Unsupported arm: %d'%arm)
            raise RuntimeError('Unimplemented function')

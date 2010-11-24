@@ -110,16 +110,21 @@ class EPC():
                       speed=0.1, bias_FT=True):
         unit_vec =  vec/np.linalg.norm(vec)
         time_step = 0.1
+        dist = np.linalg.norm(vec)
         step_size = speed * time_step
-        cep_start = self.robot.get_cep_jtt(arm)
+        cep_start, _ = self.robot.get_cep_jtt(arm)
         cep = copy.copy(cep_start)
         def eq_gen(cep):
             force = self.robot.get_wrist_force(arm, base_frame = True)
+            print 'force:', force.A1
             force_projection = force.T*unit_vec *-1 # projection in direction opposite to motion.
+            print 'force_projection:', force_projection
             if force_projection>force_threshold:
                 return 'done', None
             elif np.linalg.norm(force)>45.:
                 return 'large force', None
+            elif np.linalg.norm(cep_start-cep) >= dist:
+                return 'reached without contact', None
             else:
                 cep_t = cep + unit_vec * step_size
                 cep[0,0] = cep_t[0,0]
@@ -131,7 +136,7 @@ class EPC():
             self.robot.bias_wrist_ft(arm)
         rospy.sleep(0.5)
         return self.epc_motion(eq_gen, time_step, arm, [cep],
-                               self.robot.set_cep_jtt)
+                               control_function = self.robot.set_cep_jtt)
 
 
 if __name__ == '__main__':
@@ -139,8 +144,8 @@ if __name__ == '__main__':
     rospy.init_node('epc_pr2', anonymous = True)
     rospy.logout('epc_pr2: ready')
 
-    pr2_arms = PR2Arms()
-    epc = EPC(pr2)
+    pr2_arms = pa.PR2Arms()
+    epc = EPC(pr2_arms)
 
     r_arm, l_arm = 0, 1
     arm = r_arm
