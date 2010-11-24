@@ -29,11 +29,12 @@ from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAct
 from trajectory_msgs.msg import JointTrajectoryPoint
 from geometry_msgs.msg import PoseStamped
 
+from teleop_controllers.msg import JTTeleopControllerState
+
 from std_msgs.msg import Float64
 from sensor_msgs.msg import JointState
 
 import hrl_lib.transforms as tr
-from hrl_lib.rutils import RateCaller
 import time
 import functools as ft
 
@@ -87,7 +88,7 @@ class PR2Arms(object):
     #                      the location used in FK and IK, preferably to the tip of the
     #                      gripper
     def __init__(self, send_delay=50000000, gripper_point=(0.23, 0.0, 0.0)):
-        log("Loading SimpleArmTrajectory")
+        log("Loading PR2Arms")
 
         self.send_delay = send_delay
         self.off_point = gripper_point
@@ -100,11 +101,11 @@ class PR2Arms(object):
                            'l_elbow_flex_joint', 'l_forearm_roll_joint',
                            'l_wrist_flex_joint', 'l_wrist_roll_joint']]
 
-        rospy.wait_for_service('pr2_right_arm_kinematics/get_fk');
+                           #        rospy.wait_for_service('pr2_right_arm_kinematics/get_fk');
         self.fk_srv = [rospy.ServiceProxy('pr2_right_arm_kinematics/get_fk', GetPositionFK),
                        rospy.ServiceProxy('pr2_left_arm_kinematics/get_fk', GetPositionFK)] 
 
-        rospy.wait_for_service('pr2_right_arm_kinematics/get_ik');
+        #        rospy.wait_for_service('pr2_right_arm_kinematics/get_ik');
         self.ik_srv = [rospy.ServiceProxy('pr2_right_arm_kinematics/get_ik', GetPositionIK),
                        rospy.ServiceProxy('pr2_left_arm_kinematics/get_ik', GetPositionIK)]
 
@@ -113,14 +114,17 @@ class PR2Arms(object):
 
         self.gripper_action_client = [actionlib.SimpleActionClient('r_gripper_controller/gripper_action', Pr2GripperCommandAction),actionlib.SimpleActionClient('l_gripper_controller/gripper_action', Pr2GripperCommandAction)]
 
-        self.joint_action_client[0].wait_for_server()
-        self.joint_action_client[1].wait_for_server()
-        self.gripper_action_client[0].wait_for_server()
-        self.gripper_action_client[1].wait_for_server()
+#        self.joint_action_client[0].wait_for_server()
+#        self.joint_action_client[1].wait_for_server()
+#        self.gripper_action_client[0].wait_for_server()
+#        self.gripper_action_client[1].wait_for_server()
 
         self.arm_state_lock = [RLock(), RLock()]
         self.r_arm_cart_pub = rospy.Publisher('/r_cart/command_pose', PoseStamped)
         self.l_arm_cart_pub = rospy.Publisher('/l_cart/command_pose', PoseStamped)
+
+        rospy.Subscriber('/r_cart/state', JTTeleopControllerState, self.r_cart_state_cb)
+        rospy.Subscriber('/l_cart/state', JTTeleopControllerState, self.l_cart_state_cb)
 
         self.arm_angles = [None, None]
         self.arm_efforts = [None, None]
@@ -175,6 +179,20 @@ class PR2Arms(object):
         self.arm_efforts[1] = arm_efforts[1]
         self.arm_state_lock[1].release()
 
+
+    def r_cart_state_cb(self, msg):
+        ros_pt = msg.x_desi_filtered.pose.position
+        self.r_cep_pos = np.matrix([ros_pt.x, ros_pt.y, ros_pt.z]).T
+        ros_quat = msg.x_desi_filtered.pose.orientation
+        quat = (ros_quat.x, ros_quat.y, ros_quat.z, ros_quat.w)
+        self.r_cep_rot = tr.quaternion_to_matrix(quat)
+
+    def l_cart_state_cb(self, msg):
+        ros_pt = msg.x_desi_filtered.pose.position
+        self.l_cep_pos = np.matrix([ros_pt.x, ros_pt.y, ros_pt.z]).T
+        ros_quat = msg.x_desi_filtered.pose.orientation
+        quat = (ros_quat.x, ros_quat.y, ros_quat.z, ros_quat.w)
+        self.l_cep_rot = tr.quaternion_to_matrix(quat)
 
     def normalize_ang(self, ang):
         while ang >= 2 * np.pi:
@@ -600,26 +618,41 @@ class PR2Arms(object):
 #       rospy.logerr('Need to implement this function.')
 #       raise RuntimeError('Unimplemented function')
 
-#   def set_cartesian(self, arm, p, rot):
-#       if arm != 1:
-#           arm = 0
-#       ps = PoseStamped()
-#       ps.header.stamp = rospy.rostime.get_rostime()
-#       ps.header.frame_id = 'torso_lift_link'
 
-#       ps.pose.position.x = p[0,0]
-#       ps.pose.position.y = p[1,0]
-#       ps.pose.position.z = p[2,0]
+    # set a cep using the Jacobian Transpose controller.
+    def set_cep_jtt(self, arm, p, rot=None):
+        if arm != 1:
+            arm = 0
+        ps = PoseStamped()
+        ps.header.stamp = rospy.rostime.get_rostime()
+        ps.header.frame_id = 'torso_lift_link'
+ 
+        ps.pose.position.x = p[0,0]
+        ps.pose.position.y = p[1,0]
+        ps.pose.position.z = p[2,0]
+ 
+        if rot == None:
+            if arm == 0:
+                rot = self.r_cep_rot
+            else:
+                rot = self.l_cep_rot
 
-#       quat = tr.matrix_to_quaternion(rot)
-#       ps.pose.orientation.x = quat[0]
-#       ps.pose.orientation.y = quat[1]
-#       ps.pose.orientation.z = quat[2]
-#       ps.pose.orientation.w = quat[3]
-#       if arm == 0:
-#           self.r_arm_cart_pub.publish(ps)
-#       else:
-#           self.l_arm_cart_pub.publish(ps)
+        quat = tr.matrix_to_quaternion(rot)
+        ps.pose.orientation.x = quat[0]
+        ps.pose.orientation.y = quat[1]
+        ps.pose.orientation.z = quat[2]
+        ps.pose.orientation.w = quat[3]
+        if arm == 0:
+            self.r_arm_cart_pub.publish(ps)
+        else:
+            self.l_arm_cart_pub.publish(ps)
+
+    def get_cep_jtt(self, arm):
+        if arm == 0:
+            return self.r_cep_pos, self.r_cep_rot
+        else:
+            return self.r_cep_pos, self.r_cep_rot
+
 
 # TODO Evaluate gripper functions and parameters
 
@@ -630,7 +663,7 @@ class PR2Arms(object):
     # @param amount the amount the gripper should be opened
     # @param effort - supposed to be in Newtons. (-ve number => max effort)
     def move_gripper(self, arm, amount=0.08, effort = 15):
-        self.gripper_action_client[arm].send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=amount, max_effort = -1)))
+        self.gripper_action_client[arm].send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=amount, max_effort = effort)))
 
     ##
     # Open the gripper
@@ -643,8 +676,8 @@ class PR2Arms(object):
     # Close the gripper
     #
     # @param arm 0 for right, 1 for left
-    def close_gripper(self, arm):
-        self.move_gripper(arm, 0.0, 15)
+    def close_gripper(self, arm, effort = 15):
+        self.move_gripper(arm, 0.0, effort)
 
     # def get_wrist_force(self, arm):
     #     pass
@@ -806,16 +839,16 @@ if __name__ == '__main__':
     rospy.init_node(node_name, anonymous = True)
     log("Node initialized")
 
-    simparm = SimpleArmTrajectory()
+    pr2_arm = PR2Arms()
 
     if False:
         q = [0, 0, 0, 0, 0, 0, 0]
-        simparm.set_jointangles('right_arm', q)
+        pr2_arm.set_jointangles('right_arm', q)
         ee_pos = simparm.FK('right_arm', q)
         log('FK result:' + ee_pos.A1)
 
         ee_pos[0,0] -= 0.1
-        q_ik = simparm.IK('right_arm', ee_pos, tr.Rx(0.), q)
+        q_ik = pr2_arm.IK('right_arm', ee_pos, tr.Rx(0.), q)
         log('q_ik:' + [math.degrees(a) for a in q_ik])
 
         rospy.spin()
@@ -824,11 +857,12 @@ if __name__ == '__main__':
         p = np.matrix([0.9, -0.3, -0.15]).T
         #rot = tr.Rx(0.)
         rot = tr.Rx(math.radians(90.))
-        simparm.set_cartesian('right_arm', p, rot)
+        pr2_arm.set_cartesian('right_arm', p, rot)
 
-    simparm.open_gripper('right_arm')
+    raw_input('Hit ENTER to begin')
+    pr2_arm.open_gripper(0)
     raw_input('Hit ENTER to close')
-    simparm.close_gripper('right_arm', effort = 15)
+    pr2_arm.close_gripper(0, effort = 15)
 
 
 
