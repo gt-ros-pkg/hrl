@@ -123,7 +123,6 @@ class EPC():
         return self.epc_motion(eq_gen, time_step, arm, [cep],
                                control_function = self.robot.set_cep_jtt)
 
-
     def cep_gen_surface_follow(self, arm, move_dir, force_threshold,
                                cep, cep_start):
         wrist_force = self.robot.get_wrist_force(arm, base_frame=True)
@@ -151,44 +150,6 @@ class EPC():
         else:
             stop = ''
         return stop, (cep, None)
-
-    # this function should be in a separate door opening class.
-    def search_and_hook(self, arm, hook_loc, hooking_force_threshold = 5.,
-                        hit_threshold=2., hit_motions = 1):
-        # this needs to be debugged. Hardcoded for now.
-        #if arm == 'right_arm' or arm == 0:
-        #    hook_dir = np.matrix([0., 1., 0.]).T # hook direc in home position
-        #    offset = -0.03
-        #elif arm == 'left_arm' or arm == 1:
-        #    hook_dir = np.matrix([0., -1., 0.]).T # hook direc in home position
-        #    offset = -0.03
-        #else:
-        #    raise RuntimeError('Unknown arm: %s', arm)
-        #start_loc = hook_loc + rot_mat.T * hook_dir * offset
-        start_loc = hook_loc + np.matrix([0., -0.03, 0.]).T
-
-        # vector normal to surface and pointing into the surface.
-        normal_tl = np.matrix([1.0, 0., 0.]).T
-
-        pt1 = start_loc - normal_tl * 0.1
-        self.robot.go_cep_jtt(arm, pt1)
-
-        raw_input('Hit ENTER to go')
-
-        vec = normal_tl * 0.2
-        rospy.sleep(1.)
-        for i in range(hit_motions):
-            s = self.move_till_hit(arm, vec=vec, force_threshold=hit_threshold, speed=0.07)
-
-        cep_start, _ = self.robot.get_cep_jtt(arm)
-        cep = copy.copy(cep_start)
-        move_dir = np.matrix([0., 1., 0.]).T
-        arg_list = [arm, move_dir, hooking_force_threshold, cep, cep_start]
-        s = self.epc_motion(self.cep_gen_surface_follow, 0.1, arm,
-                arg_list, control_function = self.robot.set_cep_jtt)
-        return s
-
-
 
 if __name__ == '__main__':
     import pr2_arms as pa

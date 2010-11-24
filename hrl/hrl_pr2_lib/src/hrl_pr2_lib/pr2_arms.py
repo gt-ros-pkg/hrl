@@ -93,7 +93,6 @@ class PR2Arms(object):
     #                      gripper
     def __init__(self, send_delay=50000000, gripper_point=(0.23, 0.0, 0.0)):
         log("Loading PR2Arms")
-        rospy.sleep(0.5)
 
         self.send_delay = send_delay
         self.off_point = gripper_point
