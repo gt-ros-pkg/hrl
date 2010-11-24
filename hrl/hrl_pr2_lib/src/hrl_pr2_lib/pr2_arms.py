@@ -101,11 +101,11 @@ class PR2Arms(object):
                            'l_elbow_flex_joint', 'l_forearm_roll_joint',
                            'l_wrist_flex_joint', 'l_wrist_roll_joint']]
 
-                           #        rospy.wait_for_service('pr2_right_arm_kinematics/get_fk');
+        rospy.wait_for_service('pr2_right_arm_kinematics/get_fk');
         self.fk_srv = [rospy.ServiceProxy('pr2_right_arm_kinematics/get_fk', GetPositionFK),
                        rospy.ServiceProxy('pr2_left_arm_kinematics/get_fk', GetPositionFK)] 
 
-        #        rospy.wait_for_service('pr2_right_arm_kinematics/get_ik');
+        rospy.wait_for_service('pr2_right_arm_kinematics/get_ik');
         self.ik_srv = [rospy.ServiceProxy('pr2_right_arm_kinematics/get_ik', GetPositionIK),
                        rospy.ServiceProxy('pr2_left_arm_kinematics/get_ik', GetPositionIK)]
 
@@ -114,10 +114,10 @@ class PR2Arms(object):
 
         self.gripper_action_client = [actionlib.SimpleActionClient('r_gripper_controller/gripper_action', Pr2GripperCommandAction),actionlib.SimpleActionClient('l_gripper_controller/gripper_action', Pr2GripperCommandAction)]
 
-#        self.joint_action_client[0].wait_for_server()
-#        self.joint_action_client[1].wait_for_server()
-#        self.gripper_action_client[0].wait_for_server()
-#        self.gripper_action_client[1].wait_for_server()
+        self.joint_action_client[0].wait_for_server()
+        self.joint_action_client[1].wait_for_server()
+        self.gripper_action_client[0].wait_for_server()
+        self.gripper_action_client[1].wait_for_server()
 
         self.arm_state_lock = [RLock(), RLock()]
         self.r_arm_cart_pub = rospy.Publisher('/r_cart/command_pose', PoseStamped)
