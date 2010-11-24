@@ -93,6 +93,7 @@ class PR2Arms(object):
     #                      gripper
     def __init__(self, send_delay=50000000, gripper_point=(0.23, 0.0, 0.0)):
         log("Loading PR2Arms")
+        rospy.sleep(0.5)
 
         self.send_delay = send_delay
         self.off_point = gripper_point
@@ -186,10 +187,20 @@ class PR2Arms(object):
         self.arm_efforts[1] = arm_efforts[1]
         self.arm_state_lock[1].release()
 
-
     def r_cart_state_cb(self, msg):
+        trans, quat = self.tf_lstnr.lookupTransform('/torso_lift_link',
+                                 'r_gripper_tool_frame', rospy.Time(0))
+        rot = tr.quaternion_to_matrix(quat)
+        tip = np.matrix([0.13, 0., 0.]).T
+        self.r_ee_pos = rot*tip + np.matrix(trans).T
+        self.r_ee_rot = rot
+        
         ros_pt = msg.x_desi_filtered.pose.position
-        self.r_cep_pos = np.matrix([ros_pt.x, ros_pt.y, ros_pt.z]).T
+        x, y, z = ros_pt.x, ros_pt.y, ros_pt.z
+        self.r_cep_pos = np.matrix([x, y, z]).T
+        pt = rot.T * (np.matrix([x,y,z]).T - np.matrix(trans).T)
+        pt = pt + tip
+        self.r_cep_pos_hooktip = rot*pt + np.matrix(trans).T
         ros_quat = msg.x_desi_filtered.pose.orientation
         quat = (ros_quat.x, ros_quat.y, ros_quat.z, ros_quat.w)
         self.r_cep_rot = tr.quaternion_to_matrix(quat)
@@ -639,6 +650,21 @@ class PR2Arms(object):
        self.r_arm_ftc.bias()
 
 
+    def get_ee_jtt(self, arm):
+        if arm == 0:
+            return self.r_ee_pos, self.r_ee_rot
+        else:
+            return self.l_ee_pos, self.l_ee_rot
+
+    def get_cep_jtt(self, arm, hook_tip = False):
+        if arm == 0:
+            if hook_tip:
+                return self.r_cep_pos_hooktip, self.r_cep_rot
+            else:
+                return self.r_cep_pos, self.r_cep_rot
+        else:
+            return self.l_cep_pos, self.l_cep_rot
+
     # set a cep using the Jacobian Transpose controller.
     def set_cep_jtt(self, arm, p, rot=None):
         if arm != 1:
@@ -666,12 +692,6 @@ class PR2Arms(object):
             self.r_arm_cart_pub.publish(ps)
         else:
             self.l_arm_cart_pub.publish(ps)
-
-    def get_cep_jtt(self, arm):
-        if arm == 0:
-            return self.r_cep_pos, self.r_cep_rot
-        else:
-            return self.r_cep_pos, self.r_cep_rot
 
     # rotational interpolation unimplemented.
     def go_cep_jtt(self, arm, p):

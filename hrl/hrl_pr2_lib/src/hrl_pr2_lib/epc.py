@@ -10,6 +10,7 @@ import copy
 import roslib; roslib.load_manifest('hrl_pr2_lib')
 import rospy
 
+import hrl_lib.util as ut
 
 ## Class defining the core EPC function and a few simple examples.
 # More complex behaviors that use EPC should have their own ROS
@@ -17,6 +18,18 @@ import rospy
 class EPC():
     def __init__(self, robot):
         self.robot = robot
+        self.f_list = []
+        self.ee_list = []
+        self.cep_list = []
+
+    def log_state(self, arm):
+        # only logging the right arm.
+        f = self.robot.get_wrist_force(arm, base_frame=True)
+        self.f_list.append(f.A1.tolist())
+        cep, _ = self.robot.get_cep_jtt(arm, hook_tip=True)
+        self.cep_list.append(cep.A1.tolist())
+        ee, _ = self.robot.get_ee_jtt(arm)
+        self.ee_list.append(ee.A1.tolist())
 
     ##
     # @param equi_pt_generator: function that returns stop, ea  where ea: equilibrium angles and  stop: string which is '' for epc motion to continue
@@ -64,6 +77,7 @@ class EPC():
         self.dist_left = distance
 
         def eq_gen_pull_back(cep):
+            self.log_state(arm)
             if self.dist_left <= 0.:
                 return 'done', None
             step_size = 0.01
@@ -159,6 +173,8 @@ class EPC():
         pt1 = start_loc - normal_tl * 0.1
         self.robot.go_cep_jtt(arm, pt1)
 
+        raw_input('Hit ENTER to go')
+
         vec = normal_tl * 0.2
         rospy.sleep(1.)
         for i in range(hit_motions):
@@ -196,6 +212,14 @@ if __name__ == '__main__':
     p1 = np.matrix([0.8, -0.22, -0.05]).T
     epc.search_and_hook(arm, p1)
     epc.pull_back_cartesian_control(arm, 0.3)
+
+    d = {
+            'f_list': epc.f_list, 'ee_list': epc.ee_list,
+            'cep_list': epc.cep_list
+        }
+
+    ut.save_pickle(d, 'pr2_pull_'+ut.formatted_time()+'.pkl')
+
 
     
 #    if False:
