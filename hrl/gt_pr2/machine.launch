@@ -3,10 +3,6 @@
         ros-root="$(env ROS_ROOT)"    
         ros-package-path="$(env ROS_PACKAGE_PATH)" />
 
-    <machine name="c1_lan" address="10.68.0.1" 
-        ros-root="$(env ROS_ROOT)"    
-        ros-package-path="$(env ROS_PACKAGE_PATH)" />
-
     <machine name="c2" address="pr2c2.hsi.gatech.edu" 
         ros-root="$(env ROS_ROOT)"    
         ros-package-path="$(env ROS_PACKAGE_PATH)" />
