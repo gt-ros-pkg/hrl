@@ -150,7 +150,7 @@ class Door_EPC(epc.EPC):
         f_vec = -1*np.array([wrist_force[0,0], wrist_force[1,0],
                              wrist_force[2,0]])
         f_rad_mag = np.dot(f_vec, force_vec.A1)
-        err = f_rad_mag-2.
+        err = f_rad_mag-4.
         if err>0.:
             kp = -0.1
         else:
@@ -316,7 +316,7 @@ if __name__ == '__main__':
     raw_input('Hit ENTER to close')
     pr2_arms.close_gripper(arm)
     raw_input('Hit ENTER to start Door Opening')
-    p1 = np.matrix([0.8, -0.22, -0.05]).T
+    p1 = np.matrix([0.8, -0.45, -0.10]).T
 
     door_epc.search_and_hook(arm, p1)
     door_epc.pull(arm, force_threshold=40., cep_vel=0.05)
