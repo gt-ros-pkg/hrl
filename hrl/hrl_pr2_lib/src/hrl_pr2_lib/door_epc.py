@@ -9,7 +9,9 @@ import rospy
 
 from equilibrium_point_control.msg import MechanismKinematicsRot
 from equilibrium_point_control.msg import MechanismKinematicsJac
+from equilibrium_point_control.msg import ForceTrajectory
 from geometry_msgs.msg import Point32
+from std_msgs.msg import Empty
 
 import epc
 import hrl_lib.util as ut
@@ -24,13 +26,20 @@ class Door_EPC(epc.EPC):
         rospy.Subscriber('mechanism_kinematics_rot',
                          MechanismKinematicsRot,
                          self.mechanism_kinematics_rot_cb)
+        rospy.Subscriber('epc/stop', Empty, self.stop_cb)
+        # used in the ROS stop_cb and equi_pt_generator_control_radial_force
+        self.force_traj_pub = rospy.Publisher('epc/force_test', ForceTrajectory)
         self.mech_traj_pub = rospy.Publisher('mechanism_trajectory', Point32)
-        self.eq_pt_not_moving_counter = 0
 
     def init_log(self):
         self.f_list = []
         self.cep_list = []
         self.ee_list = []
+        self.ft = ForceTrajectory()
+        if self.mechanism_type != '':
+            self.ft.type = self.mechanism_type
+        else:
+            self.ft.type = 'rotary'
 
     def log_state(self, arm):
         # only logging the right arm.
@@ -40,6 +49,11 @@ class Door_EPC(epc.EPC):
         self.cep_list.append(cep.A1.tolist())
         ee, _ = self.robot.get_ee_jtt(arm)
         self.ee_list.append(ee.A1.tolist())
+        return ''
+
+    ## ROS callback. Stop and maintain position.
+    def stop_cb(self, cmd):
+        self.stopping_string = 'stop_cb called.'
 
     def common_stopping_conditions(self):
         stop = ''
@@ -92,8 +106,9 @@ class Door_EPC(epc.EPC):
             start_pos = curr_pos
 
         #mechanism kinematics.
-        self.mech_traj_pub.publish(Point32(curr_pos[0,0],
-                                   curr_pos[1,0], curr_pos[2,0]))
+        if self.started_pulling_on_handle:
+            self.mech_traj_pub.publish(Point32(curr_pos[0,0],
+                                       curr_pos[1,0], curr_pos[2,0]))
 
         self.fit_circle_lock.acquire()
         rad = self.rad
@@ -147,15 +162,38 @@ class Door_EPC(epc.EPC):
         
         self.prev_force_mag = mag
 
-        if self.init_tangent_vector == None:
+        if self.init_tangent_vector == None or self.started_pulling_on_handle == False:
             self.init_tangent_vector = copy.copy(tangential_vec_ts)
         c = np.dot(tangential_vec_ts.A1, self.init_tangent_vector.A1)
         ang = np.arccos(c)
+        if np.isnan(ang):
+            ang = 0.
 
+        tangential_vec = tangential_vec / np.linalg.norm(tangential_vec) # paranoia abot vectors not being unit vectors.
         dist_moved = np.dot((curr_pos - start_pos).A1, tangential_vec_ts.A1)
         ftan = abs(np.dot(wrist_force.A1, tangential_vec.A1))
-        print 'ftan:', ftan
-        print 'frad:', f_rad_mag
+        self.ft.tangential_force.append(ftan)
+        self.ft.radial_force.append(f_rad_mag)
+
+        if self.ft.type == 'rotary':
+            self.ft.configuration.append(ang)
+        else: # drawer
+            print 'dist_moved:', dist_moved
+            self.ft.configuration.append(dist_moved)
+
+        if self.started_pulling_on_handle:
+            self.force_traj_pub.publish(self.ft)
+
+        if self.started_pulling_on_handle == False:
+            if ftan > 6.:
+                self.started_pulling_on_handle_count += 1
+            else:
+                self.started_pulling_on_handle_count = 0
+                self.init_log() # reset logs until started pulling on the handle.
+                self.init_tangent_vector = None
+
+            if self.started_pulling_on_handle_count > 0:
+                self.started_pulling_on_handle = True
 
         if abs(dist_moved) > 0.09 and self.hooked_location_moved == False:
             # change the force threshold once the hook has started pulling.
@@ -167,7 +205,6 @@ class Door_EPC(epc.EPC):
                 stop = 'ftan threshold exceed: %f'%ftan
         else:
             self.ftan_threshold = max(self.ftan_threshold, ftan)
-
 
         if self.hooked_location_moved and ang > math.radians(90.):
             print 'Angle:', math.degrees(ang)
@@ -181,11 +218,17 @@ class Door_EPC(epc.EPC):
         cep[0,0] = cep_t[0,0]
         cep[1,0] = cep_t[1,0]
         cep[2,0] = cep_t[2,0]
-        print 'cep:', cep.A1
+
+        stop = stop + self.stopping_string
         return stop, (cep, None)
 
-    def pull(self, arm, force_threshold, cep_vel):
+    def pull(self, arm, force_threshold, cep_vel, mechanism_type=''):
+        self.mechanism_type = mechanism_type
+        self.stopping_string = ''
+        self.eq_pt_not_moving_counter = 0
+
         self.init_log()
+
         self.init_tangent_vector = None
         self.open_ang_exceed_count = 0.
 
@@ -194,6 +237,9 @@ class Door_EPC(epc.EPC):
         self.hooked_location_moved = False # flag to indicate when the hooking location started moving.
         self.prev_force_mag = np.linalg.norm(self.robot.get_wrist_force(arm))
         self.slip_count = 0
+
+        self.started_pulling_on_handle = False
+        self.started_pulling_on_handle_count = 0
 
         ee_pos, _ = self.robot.get_ee_jtt(arm)
 
@@ -205,7 +251,7 @@ class Door_EPC(epc.EPC):
         cep, _ = self.robot.get_cep_jtt(arm)
         arg_list = [arm, cep, cep_vel]
         result, _ = self.epc_motion(self.cep_gen_control_radial_force,
-                                    0.1, arm, arg_list, 
+                                    0.1, arm, arg_list, self.log_state,
                                     control_function = self.robot.set_cep_jtt)
 
         print 'EPC motion result:', result
@@ -215,10 +261,10 @@ class Door_EPC(epc.EPC):
 
         d = {
                 'f_list': self.f_list, 'ee_list': self.ee_list,
-                'cep_list': self.cep_list
+                'cep_list': self.cep_list, 'ftan_list': self.ft.tangential_force,
+                'config_list': self.ft.configuration, 'frad_list': self.ft.radial_force
             }
         ut.save_pickle(d,'pr2_pull_'+ut.formatted_time()+'.pkl')
-
 
     def search_and_hook(self, arm, hook_loc, hooking_force_threshold = 5.,
                         hit_threshold=2., hit_motions = 1):

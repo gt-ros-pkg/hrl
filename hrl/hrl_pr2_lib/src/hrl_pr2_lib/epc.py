@@ -47,11 +47,12 @@ class EPC():
                     stop = rapid_call_func(arm)
                     if stop != '':
                         break
-                # self.robot.step() this should be within the rapid_call_func for the meka arms.
+                #self.robot.step() this should be within the rapid_call_func for the meka arms
+                rospy.sleep(0.01)
                 t1 = rospy.get_time()
 
-            stop, ea = equi_pt_generator(*arg_list)
-
+            if stop == '':
+                stop, ea = equi_pt_generator(*arg_list)
             if stop == 'reset timing':
                 stop = ''
                 t_end = rospy.get_time()
