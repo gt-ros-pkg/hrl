@@ -4,7 +4,7 @@
 
     <node name="static_tf_ft2_broadcaster" pkg="tf"
         type="static_transform_publisher"
-        args="0 0 0 0.707106781 0 0.707106781 0 r_gripper_tool_frame ft2 500"
+        args="0 0 0 0.707106781 0 0.707106781 0 r_gripper_tool_frame ft2 50"
         respawn="false" output="screen"/>
 
 

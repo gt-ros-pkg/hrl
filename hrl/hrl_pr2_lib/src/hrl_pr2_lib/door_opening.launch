@@ -4,8 +4,7 @@
   <include file="$(find force_torque)/ft_instrumented.launch" />
   <include file="$(find hrl_pr2_lib)/test/test_sam_pipe.launch" />
   <node name="kinematic_estimator" pkg="equilibrium_point_control"
-      type="kinematics_estimator_least_squares.py">
-      <env name="ROS_PACKAGE_PATH" value="$(env ROS_PACKAGE_PATH)" />
+      type="kinematics_estimator_least_squares.py" machine="c1">
       <env name="PYTHONPATH" value="$(env PYTHONPATH)" />
   </node>
 </launch>
