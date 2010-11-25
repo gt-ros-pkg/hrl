@@ -22,15 +22,6 @@ class EPC():
         self.ee_list = []
         self.cep_list = []
 
-    def log_state(self, arm):
-        # only logging the right arm.
-        f = self.robot.get_wrist_force(arm, base_frame=True)
-        self.f_list.append(f.A1.tolist())
-        cep, _ = self.robot.get_cep_jtt(arm, hook_tip=True)
-        self.cep_list.append(cep.A1.tolist())
-        ee, _ = self.robot.get_ee_jtt(arm)
-        self.ee_list.append(ee.A1.tolist())
-
     ##
     # @param equi_pt_generator: function that returns stop, ea  where ea: equilibrium angles and  stop: string which is '' for epc motion to continue
     # @param rapid_call_func: called in the time between calls to the equi_pt_generator can be used for logging, safety etc.  returns string which is '' for epc motion to continue
@@ -71,13 +62,13 @@ class EPC():
     ## Pull back along a straight line (-ve x direction)
     # @param arm - 'right_arm' or 'left_arm'
     # @param distance - how far back to pull.
-    def pull_back_cartesian_control(self, arm, distance):
+    def pull_back_cartesian_control(self, arm, distance, logging_fn):
         cep, _ = self.robot.get_cep_jtt(arm)
         cep_end = cep + distance * np.matrix([-1., 0., 0.]).T
         self.dist_left = distance
 
         def eq_gen_pull_back(cep):
-            self.log_state(arm)
+            logging_fn(arm)
             if self.dist_left <= 0.:
                 return 'done', None
             step_size = 0.01
