@@ -35,6 +35,9 @@ class EPC():
         stop, ea = equi_pt_generator(*arg_list)
         t_end = rospy.get_time()
         while stop == '':
+            if rospy.is_shutdown():
+                stop = 'rospy shutdown'
+                continue
             t_end += time_step
             #self.robot.set_jointangles(arm, ea)
             #import pdb; pdb.set_trace()

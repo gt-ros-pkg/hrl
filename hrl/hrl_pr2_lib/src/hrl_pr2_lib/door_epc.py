@@ -150,7 +150,7 @@ class Door_EPC(epc.EPC):
         f_vec = -1*np.array([wrist_force[0,0], wrist_force[1,0],
                              wrist_force[2,0]])
         f_rad_mag = np.dot(f_vec, force_vec.A1)
-        err = f_rad_mag-4.
+        err = f_rad_mag-2.
         if err>0.:
             kp = -0.1
         else:
@@ -199,7 +199,7 @@ class Door_EPC(epc.EPC):
             # change the force threshold once the hook has started pulling.
             self.hooked_location_moved = True
             self.eq_force_threshold = ut.bound(mag+30.,20.,80.)
-            self.ftan_threshold = self.ftan_threshold + max(10., 1.5*ftan)
+            self.ftan_threshold = 1.2 * self.ftan_threshold + 20.
         if self.hooked_location_moved:
             if abs(tangential_vec_ts[2,0]) < 0.2 and ftan > self.ftan_threshold:
                 stop = 'ftan threshold exceed: %f'%ftan
@@ -267,7 +267,8 @@ class Door_EPC(epc.EPC):
         ut.save_pickle(d,'pr2_pull_'+ut.formatted_time()+'.pkl')
 
     def search_and_hook(self, arm, hook_loc, hooking_force_threshold = 5.,
-                        hit_threshold=2., hit_motions = 1):
+                        hit_threshold=2., hit_motions = 1,
+                        hook_direction = 'left'):
         # this needs to be debugged. Hardcoded for now.
         #if arm == 'right_arm' or arm == 0:
         #    hook_dir = np.matrix([0., 1., 0.]).T # hook direc in home position
@@ -278,7 +279,14 @@ class Door_EPC(epc.EPC):
         #else:
         #    raise RuntimeError('Unknown arm: %s', arm)
         #start_loc = hook_loc + rot_mat.T * hook_dir * offset
-        start_loc = hook_loc + np.matrix([0., -0.03, 0.]).T
+
+        if hook_direction == 'left':
+            offset = np.matrix([0., -0.03, 0.]).T
+            move_dir = np.matrix([0., 1., 0.]).T
+        elif hook_direction == 'up':
+            offset = np.matrix([0., 0., -0.03]).T
+            move_dir = np.matrix([0., 0., 1.]).T
+        start_loc = hook_loc + offset
 
         # vector normal to surface and pointing into the surface.
         normal_tl = np.matrix([1.0, 0., 0.]).T
@@ -295,7 +303,6 @@ class Door_EPC(epc.EPC):
 
         cep_start, _ = self.robot.get_cep_jtt(arm)
         cep = copy.copy(cep_start)
-        move_dir = np.matrix([0., 1., 0.]).T
         arg_list = [arm, move_dir, hooking_force_threshold, cep, cep_start]
         s = self.epc_motion(self.cep_gen_surface_follow, 0.1, arm,
                 arg_list, control_function = self.robot.set_cep_jtt)
@@ -316,18 +323,15 @@ if __name__ == '__main__':
     raw_input('Hit ENTER to close')
     pr2_arms.close_gripper(arm)
     raw_input('Hit ENTER to start Door Opening')
-    p1 = np.matrix([0.8, -0.45, -0.10]).T
 
-    door_epc.search_and_hook(arm, p1)
+    # for cabinets.
+    p1 = np.matrix([0.8, -0.30, -0.04]).T
+    door_epc.search_and_hook(arm, p1, hook_direction='left')
     door_epc.pull(arm, force_threshold=40., cep_vel=0.05)
 
-#    door_epc.pull_back_cartesian_control(arm, 0.3, door_epc.log_state)
-#
-#    d = {
-#            'f_list': door_epc.f_list, 'ee_list': door_epc.ee_list,
-#            'cep_list': door_epc.cep_list
-#        }
-#
-#    ut.save_pickle(d, 'pr2_pull_'+ut.formatted_time()+'.pkl')
+#    # hrl toolchest drawer.
+#    p1 = np.matrix([0.8, -0.2, -0.17]).T
+#    door_epc.search_and_hook(arm, p1, hook_direction='up')
+#    door_epc.pull(arm, force_threshold=40., cep_vel=0.05)
 
 
