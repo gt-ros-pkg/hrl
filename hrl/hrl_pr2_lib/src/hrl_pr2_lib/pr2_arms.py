@@ -548,8 +548,9 @@ class PR2Arms(object):
     # @param pos cartesian position of end effector
     # @param rot quaterninon or rotation matrix of the end effector
     # @param dur length of time to do the motion in
-    def move_arm(self, arm, pos, rot=None, dur=4.0):
-        begq = self.get_joint_angles(arm)
+    def move_arm(self, arm, pos, begq=None , rot=None, dur=4.0):
+        if begq = None:
+			begq = self.get_joint_angles(arm)
         if rot is None:
             temp, rot = self.FK(arm, begq)
         endq = self.IK(arm, pos, rot, begq)
