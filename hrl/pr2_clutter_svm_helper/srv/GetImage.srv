@@ -1,0 +1,4 @@
+string topic_name
+string msg_type #optional, will be Image
+---
+sensor_msgs/Image image

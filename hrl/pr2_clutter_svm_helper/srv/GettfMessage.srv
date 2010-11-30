@@ -1,0 +1,9 @@
+#This is used to get the latest available - tf.TransformListener ignores
+# results that are too old.  This service will not
+
+string topic_name #optional, will be tf
+string msg_type #optional, will be tfMessage
+string child_frame_id #if '', will match to any
+string frame_id #if '', will match to any
+---
+tf/tfMessage transform

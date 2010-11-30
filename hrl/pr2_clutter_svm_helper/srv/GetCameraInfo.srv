@@ -1,0 +1,4 @@
+string topic_name
+string msg_type #optional, will be CameraInfo
+---
+sensor_msgs/CameraInfo info

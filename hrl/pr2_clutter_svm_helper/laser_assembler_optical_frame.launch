@@ -1,0 +1,10 @@
+<launch>
+  <!--param name="/use_sim_time" value="True" /-->
+  <!-- This puts points in optical frame.  Makes it easy to transform into camera image. -->
+  <node type="laser_scan_assembler" pkg="laser_assembler"
+        name="assemble_scans_optical">
+    <remap from="scan" to="tilt_scan"/>
+    <param name="max_scans" type="int" value="200" />
+    <param name="fixed_frame" type="string" value="/wide_stereo_optical_frame" />
+  </node>
+</launch>

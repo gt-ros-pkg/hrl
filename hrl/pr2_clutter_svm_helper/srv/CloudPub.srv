@@ -1,0 +1,7 @@
+sensor_msgs/PointCloud cloud
+string frame_id   #frame_id, should match header
+#string topic_name   #topic to send cloud on
+#float period     #how often to publish, defaults to once
+#timing will default to now().
+---
+bool success
