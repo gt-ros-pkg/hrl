@@ -25,7 +25,7 @@
   <!--depend package="tf"/-->
   <depend package="opencv2"/>
   <depend package="hrl_lib"/>
-  <depend package="pr2_clutter_svm_helper">
+  <depend package="pr2_clutter_svm_helper"/>
   
   <!--Some image-processing and machine learning code currently uses opencv 2.0.  Roadmap is to upgrade everything to use ROS version of cv-->
   <rosdep name="python-opencv"/>
