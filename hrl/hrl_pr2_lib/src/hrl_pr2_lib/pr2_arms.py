@@ -318,6 +318,7 @@ class PR2Arms(object):
         self.cur_traj_timer[arm] = Timer(call_time, self._exec_traj, [arm])
         self.cur_traj_timer[arm].start()
 
+	
     ##
     # Callback for periodic joint trajectory point throwing
     def _exec_traj(self, arm):
@@ -558,6 +559,9 @@ class PR2Arms(object):
             return False
         self.set_joint_angles(arm, endq, dur)
         return True
+	
+    def cancel_trajectory(self, arm):
+        self.joint_action_client[arm].cancel_all_goals()
 
     ##
     # Move the arm through a trajectory defined by a series of positions and rotations
