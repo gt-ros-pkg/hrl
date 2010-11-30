@@ -28,6 +28,18 @@
 
 #  \author Jason Okerman, original: Martin Schuster (Healthcare Robotics Lab, Georgia Tech.)
 
+''' 
+    In order to run with pre-trained classifiers (default behavior),
+    please set DATA_LOCATION below to point to the /classifiers folder 
+    inside this package.  (TODO: make this happen by default).  
+    
+    Takes a pointcloud or laserscan, an image, the tf between them, and 
+        informatin from SVM trained classifiers and segments point cloud
+        to 'clutter' vs 'surface'. 
+    Results are ouputed as published topics.
+    Roadmap: we hope to improve types of inputs, and flexibility of ouputs.
+
+'''
 import roslib; roslib.load_manifest('clutter_svm_segmentation')
 roslib.load_manifest('pr2_clutter_svm_helper')
 import rospy
@@ -35,6 +47,7 @@ from sensor_msgs.msg import PointCloud
 
 ### Optional, below:
 #       roslib.load_manifest('display_stuff'); import save_labeled_cloud;
+#       Dependancy that will be integrated in later. Removed for now.
 
 import acquire_pr2_data; #from pr2_clutter_svm_helper
 
@@ -58,9 +71,11 @@ print getTime(), 'IMPORTS DONE'
 
 
 #------------------------
-ROBOT='PR2' #'PR2'#'desktopcanner'#'PR2' #'dummyScanner'=='codyRobot' #'desktopScanner'
+ROBOT='PR2' #'desktopcanner'#'dummyScanner'=='codyRobot' 
 DATASET_ID = 'pr2_example_0003'
-DATA_LOCATION = '/home/jokerman/Desktop/PR2/'
+DATA_LOCATION = '[your-computer]/folder-containing-XML-files'
+            #Note, this is also where results are optionally saved. 
+            #Folder should have subfolders 'results' and 'data'
 z_above_floor = 0
 #Theory:Imperitive to know "plane" of floor to do good classification in current scheme.
 #ground_plane_rotation = '' 
@@ -70,14 +85,17 @@ z_above_floor = 0
 
 #-------------------------
 '''Number of points to  '''
-NUMBER_OF_POINTS = 3500#some large number #Recommended between 1000 ~ 3000
+NUMBER_OF_POINTS = 2000#some large number #Recommended between 1000 ~ 3000. If too large, will be truncated to maximum number visible points.
 SCALE = 1
-IS_LABELED = True #What happens if false? Assume = No ROI cropping.  Might get skipped altogether.  TODO:check.
-USE_POLYGONS = True #this is required right now!  why?
+IS_LABELED = True #TODO: remove need for this.  Var used to indicate dataset which is fully defined with respect to ground plane.
+USE_POLYGONS = True #TODO: remove.  This can probably be skipped with same results.
 SAVE_INTENSITY_IMAGE = False
-CalibrationVisual = True
+CalibrationVisual = True #Whether to pop up a visual to confirm cam - to - laser mapping.
 
 MODE = 'all_post' # 'all', 'all_post' (ransac), 'color', 'laser'
+#Note Ransac settings are specified in processor.py. Search for "ransac"
+#TODO: bring those variables out to this file.
+
 
 displayOn = True 
 #---------------------------

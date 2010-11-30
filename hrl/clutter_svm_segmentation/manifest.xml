@@ -8,7 +8,7 @@
      The original training data is at: www.hrl.gatech.edu/data/clutter
      
      Brunt of the work is done by: processor.py
-     Main file is run_segmentation_PR2.py
+     Main file is: run_segmentation_PR2.py
 
   </description>
   <author>Jason Okerman, Martin Schuster, Advisors: Prof. Charlie Kemp and Jim Regh, Lab: Healthcare Robotics Lab at Georgia Tech</author>  <license>BSD</license>
