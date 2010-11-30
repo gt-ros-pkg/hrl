@@ -29,14 +29,14 @@
 #  \author Jason Okerman, original: Martin Schuster (Healthcare Robotics Lab, Georgia Tech.)
 
 import roslib; roslib.load_manifest('clutter_svm_segmentation')
-roslib.load_manifest('pr2_lcs_helper')
+roslib.load_manifest('pr2_clutter_svm_helper')
 import rospy
 from sensor_msgs.msg import PointCloud
 
 ### Optional, below:
 #       roslib.load_manifest('display_stuff'); import save_labeled_cloud;
 
-import acquire_pr2_data; #from pr2_lcs_helper
+import acquire_pr2_data; #from pr2_clutter_svm_helper
 
 from hrl_lib.util import getTime
 print getTime(), 'START'
