@@ -30,7 +30,12 @@
 
 
 """
-This program imports sensor data from the PR2 and runs segmentation.
+This program imports sensor data from the PR2.
+By default it will look for a cloud (/table_cloud), an image on wide_stereo
+left, and the necessary transformations, and camera_info. 
+It also can map the laser points into the image frame, and color the cloud with the projected camera image.
+
+This function runs well stand-alone, or can be imported and its functions called separately.
 
 Python implementation by: Jason Okerman
 """
