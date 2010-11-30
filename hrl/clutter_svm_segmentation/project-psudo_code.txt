@@ -1,0 +1,122 @@
+#  Sudo code for CLUTTER SVM SEGMENTATION
+
+#  This psudo-code represents the 
+
+setup links with roslib
+
+import functions, services, and object definitions
+
+specify parameters:
+    Robot type
+    default: method used to convert 3D -> 2D
+    defualt: Tilt angle
+    IsTraningSet -> 
+    Camera Settings K
+    Transform Matrix -> Rot and Trans matrices
+    Optional: N_max_classify -> Number of points for which to (1) generate feature vectors (2) label using a trained classifier
+    Optional: Photo ROI
+    Optional: 3D VOI
+    Folders: Location of Training XML 
+    Folders: Location to Save results and diagnostics
+    
+    IF IsTrainingSet:
+        import: Image, laser, or pointcloud, 3 ground points, K, Transform Matrix, hand-specified label polygons (wrt image)
+                (or) Database with all of the above
+        Process Polygons:
+            Generate binary mask images for each polygon label
+            Combine into one grayscale Image -> (0,1,2,3) : (unknown, clutter, surface, wall or other) {?Check internal representation}
+            
+        Process Raw:
+            Map 3D into 2D
+            Bound 2D points by ROI
+            {Optional: Bound 3D points by VOI}
+            label 3D points according to pixel label from polygon image
+        Return visual: png of colorcoded labeled 3D points projected into image.
+        Return labeled and bounded cloud: pts3d_bound, {NAME:labels_truth_bound or labels_bound}, camPts_bound, idx_list (Bool, not bounded)
+        Save hand-labeling results: Mask image, projected labeled image, 3D labeled cloud {format?}
+        
+        Optional: Use 3 ground points to get an R, T matrix between cloud and floor plane.
+        
+        Generate features:
+            Use pts3d_bound cloud and corresponding camPts, and vertical z-directection
+            Specify parameters and type for Tree: 
+                {Uncertain: 3cm neighborhoods, size of tree, type of classifier, etc}
+                {Can choose to ignore 3D properties or ignore color properties}
+            Generate 35 element training vector for all N_bound 3D points.
+            {Create conservative version of poly_image that ignores labels close to table-edge or image-edge boundaries}
+            Split feature vectors into 3 groups: SURFACE, CLUTTER, UNCLASSIFIED
+                Based on correspondence to poly_image_conservative.
+        
+        Optional: Repeat for each set in database, accumulating a long list of SURFACE and CLUTTER feature vectors.
+        
+        Pass SURFACE and CLUTTER feature arrays to a machine learner and train classifier model.
+        Save trained classifier model: as XML file 
+        Optional: Save feature vector lists CLUTTER and SURFACE.
+        
+        Done;
+    
+    IF NOT IsTrainingSet:
+        IF not LIVE:
+            Load (with Location), Transform matrix, config K, intensities, 3d Cloud, image, R between floor and 3D cloud, trans to floor, {angle of device}
+            {Conversion methods depend on Robot type.}
+        
+        IF LIVE: 
+            Capture Transform matrix, config K, intensities, 3d Cloud, image
+            {Conversion methods depend on Robot type.}
+        
+        Process Raw:
+            Map 3D into 2D
+            Bound 2D points by a ROI
+            {Optional: Bound 3D points by a VOI}
+        Return bounded cloud and camera points: pts3d_bound, intensities_bound, camPts_bound, idx_list (Bool, not bounded)
+        Optional: {Display/Save} visual to verify cloud lines up with image.
+        
+        Classify using trained XML model:
+            Uses: pts3d_bound, camPts_bound, {intensities_bound?}, normal direction to floor, {maybe R, and T between floor and 3D data}
+            Load definition of 35 dementions to consider
+            
+            Generate features:
+                Use pts3d_bound cloud and corresponding camPts, and vertical z-directection
+                Specify parameters and type for Tree: 
+                    {Uncertain: 3cm neighborhoods, size of tree, type of classifier, etc}
+                    {Can choose to ignore 3D properties or ignore color properties}
+                Generate 35 element training vector for all N_bound or N_max_classify (randomly subsamples) 3D points.
+            Return: array of feature vectors --> length N_max_classify or N_bound, each with 35 elements
+            Optional: Save training results -> feature_vectors
+            
+            Classify feature vectors using XML Classifier Model:
+                Load XML training model('all', 'color', 'range')
+                    {Element definitions MUST match that of classifier model}
+                    {Uncertain: how is confidence taken into account?}
+                Run a binary classification on each point/vector.
+        Return: labels_bound -> array of size {N_max_classify or N_bound} with labels (0,1,2,3) : (unknown, clutter, surface, wall or other) {?Check internal representation}
+                idx_max_classify --> bool of size {N_bound, or unnecessary if N_bound==N_max_classify}        
+        
+        Optional: Apply ransac plane {Strongly Recommended}
+            Uses normal to floor direction, labels_bound (to modify), pts3d, R and T to floor {if available?}
+            {Split virtical axis into "M" horizontal box volumes?}
+            {Ransac on pts in highest ranked box?}
+            Throw away those too far from plane.  
+            Do not add those close to plane but with "clutter" label from image.
+            Return dist_to_floor : integer {if known}
+            Return labels_bound
+            
+        Optional: Display visual: png of colorcoded labeled 3D points projected into image.
+        Optional: Save visual png
+        Optional: Display 3D labeled cloud in ROS
+        Optional: Save labeled 3D cloud {Format?}
+            
+        Done;
+            
+    OTHER:
+        Test quality of Trainer:
+            Uses labels_bound and a labels_truth_bound {if available}.
+            Return % of correctly classified SURFACE and CLUTTER points and TOTAL number of each
+        
+        {Save Test results and statistics from Training model, and training sets to LATEX}
+        
+        Done;
+        
+        
+        
+        

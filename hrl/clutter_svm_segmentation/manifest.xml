@@ -1,0 +1,35 @@
+<package>
+  <description brief="clutter_svm_segmentation">
+
+     Segmentation of 3d pointclouds in clutter vs. table surface
+     Uses classifiers trained from 104 hand-labeled clutter table
+     scans combing 3d LIDAR and camera color information.
+     
+     The original training data is at: www.hrl.gatech.edu/data/clutter
+     
+     Brunt of the work is done by: processor.py
+     Main file is run_segmentation_PR2.py
+
+  </description>
+  <author>Jason Okerman, Martin Schuster, Advisors: Prof. Charlie Kemp and Jim Regh, Lab: Healthcare Robotics Lab at Georgia Tech</author>  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/clutter_svm_segmentation</url>
+  <depend package="rospy"/>
+  <depend package="std_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="geometry_msgs"/>
+  <depend package="message_filters"/>
+  <!--depend package="hrl_hokuyo"/-->
+  <!--depend package="hrl_tilting_hokuyo"/-->
+  <!--depend package="hokuyo"/-->
+  <!--depend package="tf"/-->
+  <depend package="opencv2"/>
+  <depend package="hrl_lib"/>
+  <depend package="pr2_clutter_svm_helper">
+  
+  <!--Some image-processing and machine learning code currently uses opencv 2.0.  Roadmap is to upgrade everything to use ROS version of cv-->
+  <rosdep name="python-opencv"/>
+
+</package>
+
+
