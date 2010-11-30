@@ -44,6 +44,10 @@ from tabletop_object_detector.msg import TabletopDetectionResult
 
 from laser_interface.pkg import CURSOR_TOPIC, MOUSE_DOUBLE_CLICK_TOPIC
 
+#SETUP_POS = (0.62, 0.0, 0.035)
+#SETUP_POS_ANGS = [-0.6260155429349421, -0.53466276262236689, -1.9803303473514324, -1.1593322538276705, -0.89803655400181404, -1.4467120153069799, -2.728422563953746]
+#MAX_JERK = 0.2
+
 # TODO Externalize parameters
 
 NUM_X = 7#3#9#7 #4#7
@@ -68,6 +72,45 @@ BIAS_RADIUS = 0.012
 GRASP_TIME = 2.0
 SETUP_VELOCITY = 0.4 # 0.15
 
+STD_DEV = 2.3 #3.5 #1.9
+NOISE_DEV = 0.0
+DETECT_ERROR = -0.02
+STD_DEV_DICT = { "accelerometer" : np.array([6.4, 6.9, 6.9]),
+                 "joint_angles" : np.array([4.8, 4.8, 4.8, 4.8, 400.0, 3.25, 400.0]),
+                 "joint_efforts" : np.array([40.0, 30.0, 18.0, 22.0, 18.0, 10.0, 125.0]),
+                 "joint_velocities" : np.array([3.4, 6.4, 18.4, 3.4, 3.4, 3.4, 3.4]),
+                 "r_finger_periph_pressure" : np.array([10.0]*6), 
+                 "r_finger_pad_pressure" : np.array([10.0]*15), 
+                 "l_finger_periph_pressure" : np.array([10.0]*6), 
+                 "l_finger_pad_pressure" : np.array([10.0]*15),
+                 "gripper_pose" : np.array([1.0, 1.0, 4.0, 3.0, 3.0, 3.0, 3.0])}
+TOL_THRESH_DICT = { "accelerometer" : np.array([1.3, 1.3, 1.3]),
+                    "joint_velocities" : np.array([0.45]*7),
+                    "joint_angles" : np.array([0.08, 0.08, 0.08, 0.08, 0.08, 0.06, 0.08]),
+                    "joint_efforts" : np.array([4.0, 2.0, 1.0, 1.0, 1.0, 2.0, 2.0]),
+                    "r_finger_periph_pressure" : np.array([3.0]*6), 
+                    "r_finger_pad_pressure" : np.array([3.0]*15), 
+                    "l_finger_periph_pressure" : np.array([3.0]*6), 
+                    "l_finger_pad_pressure" : np.array([3.0]*15),
+                    "gripper_pose" : np.array([0.1, 0.1, 0.3, 100.1, 100.1, 100.1, 100.1])}
+# STD_DEV_DICT = { "accelerometer" : np.array([4.4, 4.9, 4.9]),
+#                  "joint_angles" : np.array([2.8, 2.8, 3.8, 2.8, 400.0, 1.25, 400.0]),
+#                  "joint_efforts" : np.array([30.0, 15.0, 11.0, 16.0, 12.0, 3.0, 125.0]),
+#                  "joint_velocities" : np.array([3.4, 6.4, 18.4, 3.4, 3.4, 3.4, 3.4]),
+#                  "r_finger_periph_pressure" : np.array([60.0]*6), 
+#                  "r_finger_pad_pressure" : np.array([60.0]*15), 
+#                  "l_finger_periph_pressure" : np.array([60.0]*6), 
+#                  "l_finger_pad_pressure" : np.array([60.0]*15),
+#                  "gripper_pose" : np.array([30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0])}
+# TOL_THRESH_DICT = { "accelerometer" : np.array([0.3, 0.3, 0.3]),
+#                     "joint_velocities" : np.array([0.45]*7),
+#                     "joint_angles" : np.array([0.05, 0.05, 0.05, 0.05, 0.05, 0.04, 0.05]),
+#                     "joint_efforts" : np.array([3.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]),
+#                     "r_finger_periph_pressure" : np.array([10.0]*6), 
+#                     "r_finger_pad_pressure" : np.array([10.0]*15), 
+#                     "l_finger_periph_pressure" : np.array([10.0]*6), 
+#                     "l_finger_pad_pressure" : np.array([10.0]*15),
+#                     "gripper_pose" : np.array([30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0])}
 RESAMPLE_RATE = 8
 PERCEPT_MON_LIST = None #["accelerometer"]
 PERCEPT_GRASP_LIST = None 
@@ -1648,98 +1691,10 @@ def monitor_pressure():
 #                 rospy.loginfo("Failure placing. Exiting...")
 #             rospy.signal_shutdown("SS")
 
-def GraspLearner():
-    def __init__(self):
-        ki = KeyboardInput()
-
-
-    def collect_grasp_data(ki, generate_models=False, skip_grasp=False):
-        cm = ControllerManager(armc)
-        apm = ArmPerceptionMonitor(ARM, tf_listener=cm.tf_listener, percept_mon_list=None)
-
-        #    if restart:
-        #        grasp_data = load_pickle(GRASP_DATA)
-        #        grasp_xyr_list = zip(*grasp_data)[0]
-        #    else:
-        #        grasp_xyr_list = get_xy_list()
-        #        grasp_data = []
-        grasp_xyr_list = get_xyr_list()
-        grasp_data = []
-        grasp_index = []
-
-        print "Opening gripper"
-        cm.command_gripper(0.08, -1.0, False)
-        cm.gripper_action_client.wait_for_result(rospy.Duration(4.0))
-
-        for c, xyr in enumerate(grasp_xyr_list):
-            # if c < 257:
-            #     continue
-            if rospy.is_shutdown():
-                return
-            print "---------------------------------------------------"
-            print "%1.2f completion" % (float(c) / len(grasp_xyr_list))
-            zeros = None
-            # Do grasping num_n times
-            for i in range(NUM_N):
-                pauser(ki)
-
-                # Move to grasp position
-                print "Moving to grasp position (%1.2f, %1.2f, %1.2f)" % xyr
-                grasp_pose = create_goal_pose(xyr[0], xyr[1], HOVER_Z, get_gripper_pose(xyr[2]))
-                setup_result = cm.move_arm_pose_biased(grasp_pose, JOINTS_BIAS, SETUP_VELOCITY, 
-                                        blocking = True)
-                rospy.sleep(0.5)
-                if skip_grasp:
-                    break
-                if setup_result is not None:
-                    if zeros is None:
-                        # wait for a bit to get the zeros here
-                        rospy.sleep(0.5)
-                        zeros = apm.get_zeros(0.6)
-
-                    goal_pose = create_goal_pose(xyr[0], xyr[1], 
-                                                  HOVER_Z - GRASP_DIST, get_gripper_pose(xyr[2]))
-                    # start gathering data
-                    apm.start_training()
-                    # move arm down
-                    print "Moving arm down"
-                    sttime = rospy.Time.now().to_sec()
-                    result = downward_grasp(cm, goal_pose, block=True)
-                    endtime = rospy.Time.now().to_sec()
-                    print "dur:", endtime - sttime
-                    print result
-                    print "Finished moving arm"
-                    length = apm.stop_training()
-                    print "length:", length
-                    print "len/dur", length / (endtime - sttime)
-                    rospy.sleep(0.5)
-                else:
-                    break
-
-            # can't move to initial position
-            if setup_result is None or skip_grasp:
-                continue
-
-            fn = None
-            if result != "no solution" and generate_models:
-                models = apm.generate_models()
-            else:
-                models = None
-            if result != "no solution":
-                # grasp_data += [(xyr, None, apm.datasets, models, zeros)]
-                fn = save_grasp([xyr, None, apm.datasets, models, zeros], GRASP_DATA_PREFIX)
-            else:
-                print "Grasp Failed, not adding data"
-            grasp_index.append([xyr, fn])
-            apm.clear_vars()
-
-        print "Saving Data"
-        #save_pickle(grasp_data, GRASP_DATA_FILE)
-        save_pickle(grasp_index, GRASP_DATA_INDEX_FILE)
-        print "Data save complete"
 
 def main():
     rospy.init_node(node_name)
+    # rospy.on_shutdown(die)
     setup_package_loc()
     ki = KeyboardInput()
 
