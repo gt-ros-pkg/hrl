@@ -1,6 +1,6 @@
 <package>
   <description brief="pr2_omni_teleop">
-    Integrated package that allowing PR2 teleoperation using two Phantom Omni's
+    Integrated package that allows PR2 teleoperation with force feedback using two Phantom Omni devices
     and the stereo_anaglyph viewer. 
   </description>
   <author>Hai Nguyen, Marc Killpack  Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
