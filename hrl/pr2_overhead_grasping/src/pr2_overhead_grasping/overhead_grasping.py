@@ -125,7 +125,7 @@ MONITOR_WINDOW = 4 # 50
 
 # TODO Externalize parameters into launch
 
-PICKLES_LOC = "//src//pr2_overhead_grasping//pickles//"
+PICKLES_LOC = "//pickles//"
 GRASP_CONFIGS_FILE = "grasp_configs.pickle"
 GRASP_DATA_FILE = "grasp_data.pickle"
 GRASP_MODELS_FILE = "grasp_models.pickle"
