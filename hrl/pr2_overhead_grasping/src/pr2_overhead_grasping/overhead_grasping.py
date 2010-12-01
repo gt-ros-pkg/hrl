@@ -28,8 +28,8 @@ from hrl_lib.keyboard_input import KeyboardInput
 from hrl_lib.transforms import rotX, rotY, rotZ
 from hrl_lib.data_process import signal_list_variance, signal_smooth
 from tf.transformations import *
-from hrl_pr2_lib.pr2_arms import PR2Arms
-from hrl_pr2_lib.perception_monitor import ArmPerceptionMonitor, generate_mean_grasp
+# from hrl_pr2_lib.pr2_arms import PR2Arms
+from perception_monitor import ArmPerceptionMonitor, generate_mean_grasp
 from visualization_msgs.msg import MarkerArray, Marker
 import dynamic_reconfigure.client
 import tf
