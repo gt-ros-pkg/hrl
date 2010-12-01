@@ -77,7 +77,7 @@ NOISE_DEV = 0.0
 DETECT_ERROR = -0.02
 STD_DEV_DICT = { "accelerometer" : np.array([6.4, 6.9, 6.9]),
                  "joint_angles" : np.array([4.8, 4.8, 4.8, 4.8, 400.0, 3.25, 400.0]),
-                 "joint_efforts" : np.array([40.0, 30.0, 18.0, 22.0, 18.0, 10.0, 125.0]),
+                 "joint_efforts" : np.array([30.0, 20.0, 14.0, 23.0, 18.0, 10.0, 125.0]),
                  "joint_velocities" : np.array([3.4, 6.4, 18.4, 3.4, 3.4, 3.4, 3.4]),
                  "r_finger_periph_pressure" : np.array([10.0]*6), 
                  "r_finger_pad_pressure" : np.array([10.0]*15), 
@@ -1692,11 +1692,41 @@ def monitor_pressure():
 #             rospy.signal_shutdown("SS")
 
 
-def main():
+def main(args):
     rospy.init_node(node_name)
     # rospy.on_shutdown(die)
     setup_package_loc()
     ki = KeyboardInput()
+ 
+    ################### Options #######################
+    import optparse
+    p = optparse.OptionParser()
+    p.add_option('-d', '--cdata', action='store_true', dest='collect_data', default=False,
+                 help="Run data collection")
+    p.add_option('-p', '--pdata', action='store_true', dest='process_data', default=False,
+                 help="Run data processing")
+    p.add_option('-r', '--randgrasp', action='store_true', dest='random_grasps', default=False,
+                 help="Grasp demo with random grasps, no vision.")
+    p.add_option('-v', '--visiongrasp', action='store_true', dest='vision_grasps', default=False,
+                 help="Grasp demo that picks up closest object to a point in the center of the table, with vision.")
+    p.add_option('-l', '--lasergrasp', action='store_true', dest='laser_grasps', default=False,
+                 help="Grasp demo with laser pointer control, with vision.")
+    opt, args = p.parse_args()
+    ####################################################
+
+    if opt.collect_data:
+        grasp_data = collect_grasp_data(ki, generate_models=False, skip_grasp=False)
+        return 0
+
+    if opt.process_data:
+        generate_space_models(ki)
+        write_model_index_file(prefix = GRASP_IND_PREFIX, index = GRASP_INDEX_FILE)
+        resample_model_data(apm)
+        return 0
+
+    if not (opt.random_grasps or opt.vision_grasps or opt.laser_grasps):
+        print "Must provide mode option"
+        return 1
 
     #x, y, z = get_laser_dclick()
     #laser_interface_demo()
@@ -1726,9 +1756,6 @@ def main():
 
     #visualize_objs()
     #return 0
-
-    # grasp_data = collect_grasp_data(ki, generate_models=False, skip_grasp=False)
-    # return 0
 
     # process_data() #load_pickle(GRASP_DATA_FILE)) #load_pickle(GRASP_DATA_FILE))
     # return 0
@@ -1858,15 +1885,15 @@ def main():
     zeros = None
     global z_sum
     z_sum = {}
+    move_to_setup(cm)
 
     for i in range(num_grasps):
         point_head([0.5, 0.0, -0.2], block=False)
-        move_to_setup(cm)
         if rospy.is_shutdown():
             break
         #x, y, rot = random.uniform(.45, .65), random.uniform(-.2, .2), random.uniform(0., 3.14)
 
-        if False:
+        if opt.random_grasps:
             #rot = 0.
             #global STD_DEV_DICT
             #STD_DEV_DICT = None
@@ -1878,7 +1905,7 @@ def main():
                                                collide=True, is_grasp = False, 
                                                #grasp_data = grasp_data,
                                                zeros=zeros, cm=cm, apm=apm)
-        elif True: 
+        elif opt.vision_grasps: 
             x, y = 0.5, 0.0
             (obj, grasp, monitor, collided, zeros) = grasp_closest_object(x, y, collide=True, zeros=zeros, cm=cm, apm=apm)
             rospy.sleep(0.3)
@@ -1886,7 +1913,7 @@ def main():
                 x, y, rot = random_grasp()
                 perform_grasp(x, y, gripper_rot=rot, zeros = zeros, collide=True, is_place=True,
                                                                      cm=cm, apm=apm)
-        else:
+        elif opt.laser_grasps:
             obj = None
             while obj is None:
                 x, y, z = get_laser_dclick(cm.tf_listener)
@@ -1920,8 +1947,8 @@ def main():
                 percept = "joint_efforts"
             else:
                 percept = PERCEPT_GRASP_LIST[0]
-            percept = "gripper_pose"
-            inds = [3, 4, 5, 6]
+            percept = "accelerometer"
+            inds = range(3) #[3, 4, 5, 6]
             display_grasp_data(grasps[-3:], percept, monitor_data=monitor_data[-3:], monitor_zeros=monitor_zeros[-3:], indicies=inds)
             # print monitor_data[-3:]
             break
@@ -1976,5 +2003,5 @@ def main():
     return 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv))
     
