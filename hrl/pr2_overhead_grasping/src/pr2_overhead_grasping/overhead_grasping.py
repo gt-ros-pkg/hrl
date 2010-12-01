@@ -11,7 +11,7 @@ import os
 from threading import RLock
 import threading
 
-import roslib; roslib.load_manifest('hrl_pr2_lib')
+import roslib; roslib.load_manifest('pr2_overhead_grasping')
 import rospy
 
 import actionlib
@@ -125,7 +125,7 @@ MONITOR_WINDOW = 4 # 50
 
 # TODO Externalize parameters into launch
 
-PICKLES_LOC = "//src//hrl_pr2_lib//pickles//"
+PICKLES_LOC = "//src//pr2_overhead_grasping//pickles//"
 GRASP_CONFIGS_FILE = "grasp_configs.pickle"
 GRASP_DATA_FILE = "grasp_data.pickle"
 GRASP_MODELS_FILE = "grasp_models.pickle"
@@ -161,7 +161,7 @@ def file_exists(fn):
 def setup_package_loc():
     global PACKAGE_LOC
     import os
-    grep = os.popen("rospack find hrl_pr2_lib|grep hrl_pr2_lib")
+    grep = os.popen("rospack find pr2_overhead_grasping|grep pr2_overhead_grasping")
     PACKAGE_LOC = grep.readlines()[0].rstrip()
 
 # TODO REMOVE
