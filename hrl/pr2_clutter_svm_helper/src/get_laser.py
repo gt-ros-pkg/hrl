@@ -27,7 +27,7 @@
 #
 
 #  \author Jason Okerman (Healthcare Robotics Lab, Georgia Tech.)
-import roslib; roslib.load_manifest('pr2_clutter_svm_helper')
+import roslib; roslib.load_manifest('pr2_clutter_helper')
 #depnds on sensor_msgs, opencv2, cv_bridge
 import rospy
 from sensor_msgs.msg import PointCloud

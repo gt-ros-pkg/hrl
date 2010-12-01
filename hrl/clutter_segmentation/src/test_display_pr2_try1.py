@@ -29,7 +29,7 @@
 #  \author Martin Schuster (Healthcare Robotics Lab, Georgia Tech.)
 
 import roslib; roslib.load_manifest('laser_camera_segmentation')
-roslib.load_manifest('pr2_lcs_helper')
+roslib.load_manifest('pr2_clutter_helper')
 import acquire_pr2_data;
 import rospy
 

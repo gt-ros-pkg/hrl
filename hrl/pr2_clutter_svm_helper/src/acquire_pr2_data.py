@@ -39,7 +39,7 @@ This function runs well stand-alone, or can be imported and its functions called
 
 Python implementation by: Jason Okerman
 """
-import roslib; roslib.load_manifest('pr2_clutter_svm_helper')
+import roslib; roslib.load_manifest('pr2_clutter_helper')
 
 #import sys
 #import os

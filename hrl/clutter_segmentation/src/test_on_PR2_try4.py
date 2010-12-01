@@ -28,8 +28,8 @@
 
 #  \author Martin Schuster (Healthcare Robotics Lab, Georgia Tech.)
 
-import roslib; roslib.load_manifest('clutter_svm_segmentation')
-#roslib.load_manifest('pr2_clutter_svm_helper')
+import roslib; roslib.load_manifest('clutter_segmentation')
+#roslib.load_manifest('pr2_clutter_helper')
 import rospy
 from sensor_msgs.msg import PointCloud
 

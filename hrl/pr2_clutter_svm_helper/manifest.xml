@@ -1,13 +1,16 @@
 <package>
-  <description brief="pr2_clutter_svm_helper">
+  <description brief="pr2_clutter_helper">
 
-     pr2_clutter_svm_helper
+     pr2_clutter_helper
      
      Helpful short functions for trapping an image, pointcloud,
        transforms from tf, camera_info from the PR2.
+     Used to grab data for the package "gt-ros-pkg/hrl/clutter_segmentation"
+       
      Works on bagged data as well (if --clock is published).
      
      Main source file: acquire_pr2_data.py
+     
      This collects and formats everythin needed by clutter_svm_segmentation.
      Also has code to map camera coloring into pointcloud and republish
         for easy viewing in ROS (Active if run stand-alone).
@@ -18,7 +21,7 @@
   <author>Jason Okerman, Advisors: Prof. Charlie Kemp and Jim Regh, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
-  <url>http://ros.org/wiki/pr2_clutter_svm_helper</url>
+  <url>http://ros.org/wiki/pr2_clutter_helper</url>
   <depend package="sensor_msgs"/>
   <depend package="geometry_msgs"/>
   <depend package="tf"/>

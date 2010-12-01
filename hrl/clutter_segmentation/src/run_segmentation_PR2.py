@@ -40,8 +40,8 @@
     Roadmap: we hope to improve types of inputs, and flexibility of ouputs.
 
 '''
-import roslib; roslib.load_manifest('clutter_svm_segmentation')
-roslib.load_manifest('pr2_clutter_svm_helper')
+import roslib; roslib.load_manifest('clutter_segmentation')
+roslib.load_manifest('pr2_clutter_helper')
 import rospy
 from sensor_msgs.msg import PointCloud
 
@@ -71,9 +71,11 @@ print getTime(), 'IMPORTS DONE'
 
 
 #------------------------
-ROBOT='PR2' #'desktopcanner'#'dummyScanner'=='codyRobot' 
+ROBOT='PR2' #'desktopcanner'#'dummyScanner'#'codyRobot' 
+            #Only supported is PR2 for current version [November 2010 release]
 DATASET_ID = 'pr2_example_0003'
-DATA_LOCATION = '[your-computer]/folder-containing-XML-files'
+DATA_LOCATION = '/home/jokerman/Desktop/PR2'
+            #CHANGE TO: '[your-computer]/folder-containing-XML-files'
             #Note, this is also where results are optionally saved. 
             #Folder should have subfolders 'results' and 'data'
 z_above_floor = 0

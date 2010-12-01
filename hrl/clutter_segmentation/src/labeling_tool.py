@@ -27,17 +27,22 @@
 #
 
 #  \author Martin Schuster (Healthcare Robotics Lab, Georgia Tech.)
+#  \author (new edits) Jason Okerman (Healthcare Robotics Lab, Georgia Tech.)
+
+'''
+    This source file is not currently supported.
+    It was made to help generate classifiers and label the clutter table datasets.
+
+'''
 
 #---------------
 # Define Import Location Variables
-#LOC_DATA_LABELING = '/home/martin/robot1_data/usr/martin/laser_camera_segmentation/labeling'
+
 LOC_DATA_LABELING = '/home/jokerman/svn/robot1_data/usr/martin/laser_camera_segmentation/labeling'
-#LOC_DATA_LABELING = '/home/jokerman/svn/robot1_data/usr/martin/placement/data/May31_2010_alpha'
-#LOC_DATA_LABELING = '/home/jokerman/svn/robot1_data/usr/jokerman/May31_2010_alpha'
 
 #
 
-import roslib; roslib.load_manifest('clutter_svm_segmentation')
+import roslib; roslib.load_manifest('clutter_segmentation')
 from opencv.highgui import cvLoadImage #unneeded?
 
 from PyQt4 import QtGui, QtCore

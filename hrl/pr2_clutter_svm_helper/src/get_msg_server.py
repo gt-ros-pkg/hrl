@@ -28,7 +28,7 @@
 
 #  \author Jason Okerman (Healthcare Robotics Lab, Georgia Tech.)
 
-import roslib; roslib.load_manifest('pr2_clutter_svm_helper')
+import roslib; roslib.load_manifest('pr2_clutter_helper')
 from pr2_lcs_helper.srv import * #specifically, get CameraInfo.srv"
 from sensor_msgs.msg import CameraInfo, PointCloud, Image
 #from geometry_msgs.msg import TransformStamped
