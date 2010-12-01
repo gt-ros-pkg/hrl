@@ -1,11 +1,18 @@
 <package>
   <description brief="pr2_overhead_grasping">
 
-      Quick overhead grasping for the PR2. Approaches from above
-      and detects collisions with either the object or table.
+      Quick overhead grasping for the PR2. Objects are percieved using
+      the tabletop_object_detector package and grasped from above using
+      interpolated IK, modified to keep the elbows up.  Collisions with
+      either the object or table are detected by monitoring all senses
+      available on the arms.  When a collision is detected, the gripper
+      closes and returns to its initial grasping position.  Functionality
+      is also provided to implement the laser_interface package, allowing
+      a user to control the manipulation using a laser pointer.
 
   </description>
-  <author>Kelsey Hawkins</author>
+  <author>Kelsey Hawkins, Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab
+    at Georgia Tech)</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/pr2_overhead_grasping</url>
