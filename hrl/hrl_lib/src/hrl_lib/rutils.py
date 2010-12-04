@@ -40,6 +40,7 @@ import time
 import numpy as np
 import geometry_msgs.msg as gm
 import sensor_msgs.msg as sm
+import threading
 
 ##
 # Converts any ros message class into a dictionary
@@ -317,14 +318,19 @@ class GenericListener:
         self.last_call_back      = None   #Local time of last received message
         self.delay_tolerance     = 1/frequency #in seconds
         self.reading             = {'message':None, 'msg_id':-1}
+        self.curid               = 0
         self.message_extractor = message_extractor
 
         def callback(*msg):
             #If this is a tuple (using message filter)
-            if msg.__class__ == ().__class__:
-                msg_number = msg[0].header.seq
+            if 'header' in dir(msg):
+                if msg.__class__ == ().__class__:
+                    msg_number = msg[0].header.seq
+                else:
+                    msg_number = msg.header.seq
             else:
-                msg_number = msg.header.seq
+                msg_number = self.curid
+                self.curid += 1
 
             #*msg makes everything a tuple.  If length is one, msg = (msg, )
             if len(msg) == 1:
@@ -377,10 +383,10 @@ class GenericListener:
                 raise RuntimeError('Invalid settings for read.')
             else: 
                 # ft - want to get a reading, can be stale, duplication allowed (but don't want a None), query speed important
-                self._wait_for_first_read(quiet)
+                #self._wait_for_first_read(quiet)
                 reading                = self.reading
                 self.last_msg_returned = reading['msg_id']
-                if self.message_extractor != None:
+                if self.message_extractor is not None:
                     return self.message_extractor(reading['message'])
                 else:
                     return reading['message']
@@ -394,7 +400,7 @@ class GenericListener:
                     time.sleep(1/1000.0)
                 reading = self.reading
                 self.last_msg_returned = reading['msg_id']
-                if self.message_extractor != None:
+                if self.message_extractor is not None:
                     return self.message_extractor(reading['message'])
                 else:
                     return reading['message']
@@ -405,8 +411,8 @@ class GenericListener:
                 else:
                     reading = self.reading
                     self.last_msg_returned = reading['msg_id']
-                    if message_extractor != None:
-                        return message_extractor(reading['message'])
+                    if self.message_extractor is not None:
+                        return self.message_extractor(reading['message'])
                     else:
                         return reading['message']
 
@@ -481,6 +487,44 @@ class RateListener():
     def get_num_connections():
         return self.sub.get_num_connections()
 
+
+class RateCaller():
+
+    def __init__(self, func, rate, args=None):
+        self.func = func
+        self.rate = rate
+        self.args = args
+        self.thread = None
+        self.is_running = False
+        self.beg_time = None
+
+    def run(self):
+        if not self.is_running:
+            self.beg_time = time.time()
+            self.num_time = 0
+            self.thread = threading.Timer(self.rate, self._run)
+            self.is_running = True
+            self.thread.start()
+
+    def _run(self):
+        if self.is_running:
+            if self.args is None:
+                self.func()
+            else:
+                self.func(*self.args)
+            self.num_time += 1
+
+            diff_time = time.time() - self.beg_time
+            timer_len = self.rate * (self.num_time + 1) - diff_time
+            if timer_len <= 0.:
+                timer_len = 0.
+            self.thread = threading.Timer(timer_len, self._run)
+            self.thread.start()
+
+    def stop(self):
+        if self.thread is not None and self.is_running:
+            self.thread.cancel()
+            self.is_running = False
 
 #class TransformBroadcaster:
 #

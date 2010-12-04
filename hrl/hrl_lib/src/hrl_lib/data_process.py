@@ -153,7 +153,7 @@ def histogram(index_list_list, elements_list_list, bin_size, min_index=None, max
 # @param    window the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
 #           flat window will produce a moving average smoothing.
 # @return   the smoothed signal function
-def signal_smooth(x,window_len=11,window='hanning'):
+def signal_smooth(x,window_len=11,window='hamming'):
 
     if x.ndim != 1:
         raise ValueError, "smooth only accepts 1 dimension arrays."
@@ -174,7 +174,7 @@ def signal_smooth(x,window_len=11,window='hanning'):
     # s=numpy.r_[2*x[0]-x[window_len:1:-1],x,2*x[-1]-x[-1:-window_len:-1]]
     #print(len(s))
     if window == 'flat': #moving average
-        w=ones(window_len,'d')
+        w=np.ones(window_len,'d')
     else:
         w=eval('np.'+window+'(window_len)')
 
@@ -188,7 +188,7 @@ def signal_smooth(x,window_len=11,window='hanning'):
 # @param y the smoothed signal function
 # @param window_len size of the window to calculate variances over
 # @return the variance function
-def signal_variance(x,y, window_len=10):
+def signal_variance(x, y, window_len=10):
     if len(x) != len(y):
         raise ValueError, "Must have same length"
 
@@ -206,3 +206,43 @@ def signal_variance(x,y, window_len=10):
         vars += [cursum / (curb-cura)]
     vars += [vars[len(vars)-1]]
     return vars
+
+##
+# TODO docs
+# Returns the variance of the series x given mean function y
+# over a window of size window_len.
+# @param x the original signal
+# @param y the smoothed signal function
+# @param window_len size of the window to calculate variances over
+# @return the variance function
+def signal_list_variance(x_list, means, window_len=10, num_samples=30, resample=1):
+    # if len(x_list[0]) != len(means):
+    #     raise ValueError, "Must have same length"
+
+    vars = []
+    num_samples_in_mean = num_samples / len(x_list)
+    for i in range(0, len(means), resample):
+        cursum = 0.
+        cura = i - window_len/2
+        curb = i + window_len/2
+        if cura < 0:
+            cura = 0
+        if curb > len(means):
+            curb = len(means)
+        step = (curb - cura) / num_samples_in_mean
+        n = 0
+        for x in x_list:
+            if cura >= len(x):
+                continue
+
+            ccurb = curb
+            cstep = step
+            if ccurb >= len(x):
+                ccurb = len(x)
+                cstep = (ccurb - cura) / num_samples_in_mean
+            if cstep > 0:
+                for xval in x[cura:ccurb:cstep]:
+                    cursum += (xval - means[i])**2
+                    n += 1
+        vars += [np.sqrt(cursum)/(n)]
+    return np.array(vars)
