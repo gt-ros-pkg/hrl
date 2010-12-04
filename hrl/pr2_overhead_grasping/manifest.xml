@@ -29,12 +29,9 @@
   <depend package="std_msgs"/>
   <depend package="geometry_msgs"/>
 
-  <depend package="kinematics_msgs"/>
-  <depend package="geometry_msgs"/>
   <depend package="visualization_msgs"/>
   <depend package="pr2_arm_kinematics"/>
   <depend package="pr2_controllers_msgs"/>
-  <depend package="actionlib"/>
   <depend package="pr2_gripper_reactive_approach"/>
   <depend package="tabletop_object_detector"/>
   <depend package="laser_interface"/>
