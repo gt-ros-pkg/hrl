@@ -108,7 +108,7 @@ class Robotis_Servo():
             'max_ang': math.radians(148),
             'min_ang': math.radians(-148),
             'flipped': False,
-            'max_speed': math.radians(50)
+            'max_speed': math.radians(100)
             }
 
         # Error Checking
@@ -147,6 +147,17 @@ class Robotis_Servo():
             else:
                 self.settings[ key ] = defaults[ key ]
 
+    def init_cont_turn(self):
+        '''sets CCW angle limit to zero and allows continuous turning (good for wheels).
+        After calling this method, simply use 'set_angvel' to command rotation.  This 
+        rotation is proportional to torque according to Robotis documentation.
+        '''
+        self.write_address(0x08, [0,0])
+
+    def kill_cont_turn(self):
+        '''resets CCW angle limits to allow commands through 'move_angle' again
+        '''
+        self.write_address(0x08, [255, 3])
 
     def is_moving(self):
         ''' returns True if servo is moving.
@@ -270,6 +281,7 @@ class Robotis_Servo():
     def send_instruction(self, instruction, id):
         msg = [ id, len(instruction) + 1 ] + instruction # instruction includes the command (1 byte + parameters. length = parameters+2)
         chksum = self.__calc_checksum( msg )
+        print "this is the msg variable:", msg
         msg = [ 0xff, 0xff ] + msg + [chksum]
         
         self.dyn.acq_mutex()
