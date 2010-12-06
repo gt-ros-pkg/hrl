@@ -1,6 +1,6 @@
 # Probability Utility Functions
 import numpy
-import fun
+#import fun
 from itertools import *
 from numpy.linalg.linalg import det
 from numpy.linalg.linalg import inv
