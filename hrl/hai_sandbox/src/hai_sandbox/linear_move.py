@@ -2,12 +2,10 @@ import roslib; roslib.load_manifest('hai_sandbox')
 import hrl_pr2_lib.pr2 as pr2
 #import hrl_pr2_lib.pr2_kinematics as pk
 import pdb
-import hrl_lib.util as ut
 import pr2_gripper_reactive_approach.reactive_grasp as rgr
 import pr2_gripper_reactive_approach.controller_manager as con
 import numpy as np
 import rospy
-import hrl_lib.tf_utils as tfu
 import tf.transformations as tr
 import object_manipulator.convert_functions as cf
 import math
@@ -23,8 +21,13 @@ import cv
 import time
 import subprocess as sb
 import hai_sandbox.find_split as fs
-import hrl_lib.rutils as ru
 import hrl_camera.ros_camera as rc
+#import hrl_pr2_lib.devices as de
+import hrl_pr2_lib.devices as hd
+import hrl_lib.rutils as ru
+import hrl_lib.tf_utils as tfu
+import hrl_lib.util as ut
+import hrl_lib.prob as pr
 
 
 #from sound_play.msg import SoundRequest
@@ -214,12 +217,13 @@ class Behaviors:
             return False, r1
 
         r2 = self.move_absolute((point, self.current_location()[1]), stop='pressure_accel', pressure=pressure_thres)
+        touch_loc = self.current_location()
         if r2 == None or r2 == 'pressure' or r2 == 'accel':
             self.move_relative_gripper(move_back_distance, stop='none', pressure=pressure_thres)
-            return True, r2
+            return True, r2, touch_loc
         else:
             #shouldn't get here
-            return False, r2
+            return False, r2, None
 
     def press(self, direction, press_pressure, contact_pressure):
         #make contact first
@@ -443,8 +447,9 @@ class BehaviorTest:
         self.tf_listener = tf.TransformListener()
         self.behaviors = Behaviors('l', tf_listener=self.tf_listener)
         self.robot = pr2.PR2(self.tf_listener)
-        self.laser_scan = ru.LaserScanner('point_cloud_srv')
-        self.prosilica = rc.Prosilica('prosilica', 'streaming')
+        self.laser_scan = hd.LaserScanner('point_cloud_srv')
+        #self.prosilica = rc.Prosilica('prosilica', 'streaming')
+        self.prosilica = rc.Prosilica('prosilica', 'polled')
         self.prosilica_cal = rc.ROSCameraCalibration('/prosilica/camera_info')
         self.left_cal = rc.ROSCameraCalibration('/wide_stereo/left/camera_info')
         self.right_cal = rc.ROSCameraCalibration('/wide_stereo/right/camera_info')
@@ -458,7 +463,6 @@ class BehaviorTest:
 
         #self.behaviors.set_pressure_threshold(300)
         self.start_location = (np.matrix([0.25, 0.10, 1.3]).T, np.matrix([0., 0., 0., 0.1]))
-        self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
 
         self.critical_error = False
 
@@ -498,9 +502,11 @@ class BehaviorTest:
         print '===================================================================='
         point = point + point_offset 
         rospy.loginfo('REACHING')
+        #self.behaviors.gripper_close()
+        self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
 
         #start_loc = self.current_location()
-        success, reason = self.behaviors.reach(point, press_contact_pressure, move_back_distance)
+        success, reason, touchloc = self.behaviors.reach(point, press_contact_pressure, move_back_distance)
         if not success:
             error_msg = 'Reach failed due to "%s"' % reason
             rospy.loginfo(error_msg)
@@ -508,7 +514,7 @@ class BehaviorTest:
             self.behaviors.move_absolute(self.start_location, stop='accel', \
                     pressure=press_contact_pressure)
             #raise TaskError(error_msg)
-            return False
+            return False, None
 
         rospy.loginfo('PRESSING')
         change, press_ret = self.camera_change_detect(visual_change_thres, self.behaviors.press, \
@@ -524,20 +530,20 @@ class BehaviorTest:
                 stop='none', pressure=press_contact_pressure)
         if r1 != None:
             rospy.loginfo('moving back failed due to "%s"' % r1)
-            return False
+            return False, None
 
         rospy.loginfo('RESETING')
         r2 = self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
         if r2 != None:
             rospy.loginfo('moving back to start location failed due to "%s"' % r2)
-            return False
+            return False, None
 
         rospy.loginfo('DONE.')
-        return change
+        return change, touchloc
 
 
     def light_switch2(self, point):
-        success, reason = self.behaviors.reach(point)
+        success, reason, touchloc = self.behaviors.reach(point)
         if not success:
             rospy.loginfo('Reach failed due to "%s"' % reason)
 
@@ -604,50 +610,73 @@ class BehaviorTest:
         #set arms to non-occluding pose
 
         #record region around the finger where you touched
-        points = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 20.)
+        rospy.loginfo('Getting laser scan.')
+        points = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 10.)
+        rospy.loginfo('Getting Prosilica image.')
         prosilica_image = self.prosilica.get_frame()
-        left  = self.wide_angle_camera_left.get_frame()
-        right = self.wide_angle_camera_left.get_frame()
+        rospy.loginfo('Getting image from left wide angle camera.')
+        left_image  = self.wide_angle_camera_left.get_frame()
+        rospy.loginfo('Getting image from right wide angle camera.')
+        right_image = self.wide_angle_camera_left.get_frame()
+        rospy.loginfo('Waiting for calibration.')
         while self.prosilica_cal.has_msg == False:
             time.sleep(.1)
 
         #which frames?
-        pro_T_bf = tfu.transform('/high_def_optical_frame', '/base_footprint', tf_listener)
-        laser_T_bf = tfu.transform('/laser_tilt_link', '/base_footprint', tf_listener)
+        rospy.loginfo('Getting transforms.')
+        pro_T_bf = tfu.transform('/high_def_optical_frame', '/base_footprint', self.tf_listener)
+        laser_T_bf = tfu.transform('/laser_tilt_link', '/base_footprint', self.tf_listener)
         tstring = time.strftime('%A_%m_%d_%Y_%I:%M%p')
-        ut.save_pickle({'touch_point': point
+        prosilica_name = '%s_highres.png' % tstring
+        left_name = '%s_left.png' % tstring
+        right_name = '%s_right.png' % tstring
+        rospy.loginfo('Saving images (basename %s)' % tstring)
+        cv.SaveImage(prosilica_name, prosilica_image)
+        cv.SaveImage(left_name, left_image)
+        cv.SaveImage(right_name, right_image)
+
+        rospy.loginfo('Saving pickles')
+        pickle_fname = '%s_interest_point_dataset.pkl' % tstring   
+        ut.save_pickle({'touch_point': point_touched,
                         'points_laser': points,
 
-                        'high_res': prosilica_image,
-                        'left_image': left,
-                        'right_image': right,
+                        'high_res': prosilica_name,
+                        'left_image': left_name,
+                        'right_image': right_name,
 
                         'laser_T_bf': laser_T_bf, 
                         'pro_T_bf': pro_T_bf,
                         'point_touched': point_touched,
                         
-                        'prosilica_cal', self.prosilica_cal}, 
-                        'left_cal', self.left_cal,
-                        'right_cal', self.right_cal
-                        ('interest_point_dataset_%s.pkl' % tstring))
+                        'prosilica_cal': self.prosilica_cal, 
+                        'left_cal': self.left_cal,
+                        'right_cal': self.right_cal},
+                        pickle_fname)
+        print 'Recorded to', pickle_fname
+
 
     def gather_interest_point_dataset(self, point):
+        gaussian = pr.Gaussian(np.matrix([0, 0, 0.]).T, np.matrix([[1., 0, 0], [0, .02**2, 0], [0, 0, .02**2]]))
+
         for i in range(100):
             # perturb_point
-            #gaussian_noise =
-            #npoint = 
+            gaussian_noise = gaussian.sample()
+            gaussian_noise[0,0] = 0
+            npoint = point + gaussian_noise
+            success_off, touchloc = self.light_switch1(npoint, 
+                            point_offset=np.matrix([-.15,0,0]).T, press_contact_pressure=300, 
+                            move_back_distance=np.matrix([-.005,0,0]).T, press_pressure=2500, 
+                            press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
 
-            success_off = self.light_switch1(point, 
-                            point_offset=np.matrix([-.15,0,0]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.005,0,0]).T,\
-                            press_pressure=2500, press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
             rospy.loginfo('Lights turned off? %s' % str(success_off))
             if success_off:
-                self.record_perceptual_data(point_touched)
+                self.record_perceptual_data(touchloc)
             
             #Turn on lights
-            success_on = self.light_switch1(point, 
-                            point_offset=np.matrix([-.15,0,-.10]).T, press_contact_pressure=300, move_back_distance=np.matrix([-0.005, 0, 0]).T,
-                            press_pressure=2500, press_distance=np.matrix([0,0,.1]).T, visual_change_thres=.03)
+            success_on, touchloc = self.light_switch1(npoint, 
+                            point_offset=np.matrix([-.15,0,-.10]).T, press_contact_pressure=300, 
+                            move_back_distance=np.matrix([-0.005, 0, 0]).T, press_pressure=2500, 
+                            press_distance=np.matrix([0,0,.1]).T, visual_change_thres=.03)
 
 
 
@@ -658,37 +687,39 @@ class BehaviorTest:
 
         try:
             print 'CLICKED on point', point.T
-            point = np.matrix([ 0.60956734, -0.00714498,  1.22718197]).T
-            pressure_parameters = range(1900, 2050, 30)
+            self.gather_interest_point_dataset(point)
+            #point = np.matrix([ 0.60956734, -0.00714498,  1.22718197]).T
+            #pressure_parameters = range(1900, 2050, 30)
 
-            successes = []
-            parameters = [np.matrix([-.15, 0, 0]).T, 300, np.matrix([-.005, 0, 0]).T, 3500, np.matrix([0,0,-.15]).T, .03]
+            #self.record_perceptual_data(point)
+            #successes = []
+            #parameters = [np.matrix([-.15, 0, 0]).T, 300, np.matrix([-.005, 0, 0]).T, 3500, np.matrix([0,0,-.15]).T, .03]
 
-            for p in pressure_parameters:
-                experiment = []
-                for i in range(4):
-                    #Turn off lights
-                    rospy.loginfo('Experimenting with press_pressure = %d' % p)
-                    success_off = self.light_switch1(point, 
-                                    point_offset=np.matrix([-.15,0,0]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.005,0,0]).T,\
-                                    press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
-                    experiment.append(success_off)
-                    rospy.loginfo('Lights turned off? %s' % str(success_off))
-                    return
+            #for p in pressure_parameters:
+            #    experiment = []
+            #    for i in range(4):
+            #        #Turn off lights
+            #        rospy.loginfo('Experimenting with press_pressure = %d' % p)
+            #        success_off = self.light_switch1(point, 
+            #                        point_offset=np.matrix([-.15,0,0]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.005,0,0]).T,\
+            #                        press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
+            #        experiment.append(success_off)
+            #        rospy.loginfo('Lights turned off? %s' % str(success_off))
+            #        return
 
-                    #Turn on lights
-                    success_on = self.light_switch1(point, 
-                                    point_offset=np.matrix([-.15,0,-.10]).T, press_contact_pressure=300, move_back_distance=np.matrix([-0.005, 0, 0]).T,
-                                    press_pressure=3500, press_distance=np.matrix([0,0,.1]).T, visual_change_thres=.03)
-                    #def light_switch1(self, point, 
-                    #        point_offset, press_contact_pressure, move_back_distance,
-                    #        press_pressure, press_distance, visual_change_thres):
+            #        #Turn on lights
+            #        success_on = self.light_switch1(point, 
+            #                        point_offset=np.matrix([-.15,0,-.10]).T, press_contact_pressure=300, move_back_distance=np.matrix([-0.005, 0, 0]).T,
+            #                        press_pressure=3500, press_distance=np.matrix([0,0,.1]).T, visual_change_thres=.03)
+            #        #def light_switch1(self, point, 
+            #        #        point_offset, press_contact_pressure, move_back_distance,
+            #        #        press_pressure, press_distance, visual_change_thres):
 
-                    print 'Lights turned on?', success_on
-                successes.append(experiment)
+            #        print 'Lights turned on?', success_on
+            #    successes.append(experiment)
 
-            ut.save_pickle({'pressure': pressure_parameters, 
-                            'successes': successes}, 'pressure_variation_results.pkl')
+            #ut.save_pickle({'pressure': pressure_parameters, 
+            #                'successes': successes}, 'pressure_variation_results.pkl')
 
         except RobotSafetyError, e:
             rospy.loginfo('Caught a robot safety exception "%s"' % str(e.parameter))
@@ -699,8 +730,12 @@ class BehaviorTest:
 
 
     def run(self):
-        print 'running'
+        #point = np.matrix([ 0.60956734, -0.00714498,  1.22718197]).T
+        #print 'RECORDING'
+        #self.record_perceptual_data(point)
+        #print 'DONE RECORDING'
         r = rospy.Rate(10)
+        rospy.loginfo('Ready.')
         while not rospy.is_shutdown():
             r.sleep()
 
