@@ -185,14 +185,14 @@ class Door_EPC(epc.EPC):
             self.force_traj_pub.publish(self.ft)
 
         if self.started_pulling_on_handle == False:
-            if ftan > 6.:
+            if ftan > 5.:
                 self.started_pulling_on_handle_count += 1
             else:
                 self.started_pulling_on_handle_count = 0
                 self.init_log() # reset logs until started pulling on the handle.
                 self.init_tangent_vector = None
 
-            if self.started_pulling_on_handle_count > 0:
+            if self.started_pulling_on_handle_count > 1:
                 self.started_pulling_on_handle = True
 
         if abs(dist_moved) > 0.09 and self.hooked_location_moved == False:
