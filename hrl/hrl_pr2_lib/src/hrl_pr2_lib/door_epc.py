@@ -49,6 +49,19 @@ class Door_EPC(epc.EPC):
         self.cep_list.append(cep.A1.tolist())
         ee, _ = self.robot.get_ee_jtt(arm)
         self.ee_list.append(ee.A1.tolist())
+
+        if self.started_pulling_on_handle == False:
+            print 'f[0,0]:', f[0,0]
+            if f[0,0] > 5.:
+                self.started_pulling_on_handle_count += 1
+            else:
+                self.started_pulling_on_handle_count = 0
+                self.init_log() # reset logs until started pulling on the handle.
+                self.init_tangent_vector = None
+
+            if self.started_pulling_on_handle_count > 1:
+                self.started_pulling_on_handle = True
+
         return ''
 
     ## ROS callback. Stop and maintain position.
@@ -96,8 +109,8 @@ class Door_EPC(epc.EPC):
         if self.started_pulling_on_handle == False:
             cep_vel = 0.02
 
-        step_size = 0.02 * cep_vel # 0.1 is the time interval between calls to the equi_generator function (see pull)
-        #step_size = 0.1 * cep_vel # 0.1 is the time interval between calls to the equi_generator function (see pull)
+        #step_size = 0.01 * cep_vel
+        step_size = 0.1 * cep_vel # 0.1 is the time interval between calls to the equi_generator function (see pull)
         stop = self.common_stopping_conditions()
         wrist_force = self.robot.get_wrist_force(arm, base_frame=True)
         print 'wrist_force:', wrist_force.A1
@@ -188,16 +201,18 @@ class Door_EPC(epc.EPC):
         if self.started_pulling_on_handle:
             self.force_traj_pub.publish(self.ft)
 
-        if self.started_pulling_on_handle == False:
-            if ftan > 5.:
-                self.started_pulling_on_handle_count += 1
-            else:
-                self.started_pulling_on_handle_count = 0
-                self.init_log() # reset logs until started pulling on the handle.
-                self.init_tangent_vector = None
-
-            if self.started_pulling_on_handle_count > 1:
-                self.started_pulling_on_handle = True
+#        if self.started_pulling_on_handle == False:
+#            ftan_pull_test = -np.dot(wrist_force.A1, tangential_vec.A1)
+#            print 'ftan_pull_test:', ftan_pull_test
+#            if ftan_pull_test > 5.:
+#                self.started_pulling_on_handle_count += 1
+#            else:
+#                self.started_pulling_on_handle_count = 0
+#                self.init_log() # reset logs until started pulling on the handle.
+#                self.init_tangent_vector = None
+#
+#            if self.started_pulling_on_handle_count > 1:
+#                self.started_pulling_on_handle = True
 
         if abs(dist_moved) > 0.09 and self.hooked_location_moved == False:
             # change the force threshold once the hook has started pulling.
@@ -255,8 +270,8 @@ class Door_EPC(epc.EPC):
         cep, _ = self.robot.get_cep_jtt(arm)
         arg_list = [arm, cep, cep_vel]
         result, _ = self.epc_motion(self.cep_gen_control_radial_force,
-                                    #0.1, arm, arg_list, self.log_state,
-                                    0.02, arm, arg_list, self.log_state,
+                                    0.1, arm, arg_list, self.log_state,
+                                    #0.01, arm, arg_list,
                                     control_function = self.robot.set_cep_jtt)
 
         print 'EPC motion result:', result
