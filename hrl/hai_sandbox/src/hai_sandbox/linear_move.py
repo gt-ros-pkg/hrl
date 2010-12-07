@@ -605,7 +605,7 @@ class BehaviorTest:
     #    return x
 
 
-    def record_perceptual_data(self, point_touched):
+    def record_perceptual_data(self, point_touched_bl):
         #what position should the robot be in?
         #set arms to non-occluding pose
 
@@ -624,8 +624,8 @@ class BehaviorTest:
 
         #which frames?
         rospy.loginfo('Getting transforms.')
-        pro_T_bf = tfu.transform('/high_def_optical_frame', '/base_footprint', self.tf_listener)
-        laser_T_bf = tfu.transform('/laser_tilt_link', '/base_footprint', self.tf_listener)
+        pro_T_bl = tfu.transform('/high_def_optical_frame', '/base_link', self.tf_listener)
+        laser_T_bl = tfu.transform('/laser_tilt_link', '/base_link', self.tf_listener)
         tstring = time.strftime('%A_%m_%d_%Y_%I:%M%p')
         prosilica_name = '%s_highres.png' % tstring
         left_name = '%s_left.png' % tstring
@@ -637,15 +637,15 @@ class BehaviorTest:
 
         rospy.loginfo('Saving pickles')
         pickle_fname = '%s_interest_point_dataset.pkl' % tstring   
-        ut.save_pickle({'touch_point': point_touched,
+        ut.save_pickle({'touch_point': point_touched_bl,
                         'points_laser': points,
 
                         'high_res': prosilica_name,
                         'left_image': left_name,
                         'right_image': right_name,
 
-                        'laser_T_bf': laser_T_bf, 
-                        'pro_T_bf': pro_T_bf,
+                        'laser_T_bl': laser_T_bl, 
+                        'pro_T_bl': pro_T_bl,
                         'point_touched': point_touched,
                         
                         'prosilica_cal': self.prosilica_cal, 
