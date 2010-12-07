@@ -7,6 +7,21 @@ from geometry_msgs.msg import Vector3Stamped
 
 from threading import RLock
 
+
+
+## 1D kalman filter update.
+def kalman_update(xhat, P, Q, R, z):
+    #time update
+    xhatminus = xhat
+    Pminus = P + Q
+    #measurement update
+    K = Pminus / (Pminus + R)
+    xhat = xhatminus + K * (z-xhatminus)
+    P = (1-K) * Pminus
+    return xhat, P
+
+
+
 class FTRelay:
     def __init__(self):
         self.lock = RLock()
@@ -66,10 +81,13 @@ if __name__ == '__main__':
                     response=StringServiceResponse))
 
     channel = rospy.Publisher(ft_channel_name, FloatArray, tcp_nodelay=True)
+    channel2 = rospy.Publisher(ft_channel_name + '_raw', FloatArray, tcp_nodelay=True)
     chan_vec3 = rospy.Publisher(ft_channel_name + '_Vec3', Vector3Stamped, tcp_nodelay=True)    
     print node_name + ': publishing on channel', ft_channel_name
     #times = []
     biasft = None
+    P_force = [1., 1., 1.]
+    xhat_force = [0., 0., 0.]
     while not rospy.is_shutdown():
     #while len(times) < 201:
         msg = ftserver.get_msg()
@@ -80,8 +98,19 @@ if __name__ == '__main__':
                 biasft = np.array(ftvalue)
                 print biasft
             #print biasft.__class__, biasft
-            ftvalue = (np.array(ftvalue) - biasft).tolist()
-            channel.publish(FloatArray(rospy.Header(stamp=rospy.Time.from_seconds(tme)), ftvalue))
+
+            ftvalue = np.array(ftvalue) - biasft
+            for i in range(3):
+                xhat, p = kalman_update(xhat_force[i], P_force[i],
+                        1e-3, 0.04, ftvalue[i])
+                P_force[i] = p
+                xhat_force[i] = xhat
+                #ftvalue[i] = xhat
+            ftvalue = ftvalue.tolist()
+
+            channel.publish(FloatArray(rospy.Header(stamp=rospy.Time.from_seconds(tme)),
+                xhat_force))
+            channel2.publish(FloatArray(rospy.Header(stamp=rospy.Time.from_seconds(tme)), ftvalue))
             chan_vec3.publish( FTread_to_Force( ftvalue, opt.name ))
             #times.append(time.time())
         #else:
