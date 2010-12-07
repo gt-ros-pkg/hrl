@@ -93,7 +93,11 @@ class Door_EPC(epc.EPC):
     # @param cep_vel - tangential velocity of the cep in m/s
     def cep_gen_control_radial_force(self, arm, cep, cep_vel):
         self.log_state(arm)
-        step_size = 0.1 * cep_vel # 0.1 is the time interval between calls to the equi_generator function (see pull)
+        if self.started_pulling_on_handle == False:
+            cep_vel = 0.02
+
+        step_size = 0.02 * cep_vel # 0.1 is the time interval between calls to the equi_generator function (see pull)
+        #step_size = 0.1 * cep_vel # 0.1 is the time interval between calls to the equi_generator function (see pull)
         stop = self.common_stopping_conditions()
         wrist_force = self.robot.get_wrist_force(arm, base_frame=True)
         print 'wrist_force:', wrist_force.A1
@@ -251,7 +255,8 @@ class Door_EPC(epc.EPC):
         cep, _ = self.robot.get_cep_jtt(arm)
         arg_list = [arm, cep, cep_vel]
         result, _ = self.epc_motion(self.cep_gen_control_radial_force,
-                                    0.1, arm, arg_list, self.log_state,
+                                    #0.1, arm, arg_list, self.log_state,
+                                    0.02, arm, arg_list, self.log_state,
                                     control_function = self.robot.set_cep_jtt)
 
         print 'EPC motion result:', result
