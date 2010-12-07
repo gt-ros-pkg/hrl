@@ -46,6 +46,9 @@ import tf.transformations as tftrans
 import operator as op
 import types
 
+from visualization_msgs.msg import Marker
+
+
 node_name = "pr2_arms" 
 
 def log(str):
@@ -140,6 +143,7 @@ class PR2Arms(object):
         self.cur_traj_timer = [None, None]
         self.cur_traj_pos = [None, None]
 
+        self.marker_pub = rospy.Publisher('/pr2_arms/viz_marker', Marker)
         rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
 
         rospy.sleep(1.)
@@ -190,9 +194,42 @@ class PR2Arms(object):
         trans, quat = self.tf_lstnr.lookupTransform('/torso_lift_link',
                                  'r_gripper_tool_frame', rospy.Time(0))
         rot = tr.quaternion_to_matrix(quat)
-        tip = np.matrix([0.13, 0., 0.]).T
+        tip = np.matrix([0.12, 0., 0.]).T
         self.r_ee_pos = rot*tip + np.matrix(trans).T
         self.r_ee_rot = rot
+
+
+        marker = Marker()
+        marker.header.frame_id = 'torso_lift_link'
+        time_stamp = rospy.Time.now()
+        marker.header.stamp = time_stamp
+        marker.ns = 'aloha land'
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+        marker.pose.position.x = self.r_ee_pos[0,0]
+        marker.pose.position.y = self.r_ee_pos[1,0]
+        marker.pose.position.z = self.r_ee_pos[2,0]
+        size = 0.02
+        marker.scale.x = size
+        marker.scale.y = size
+        marker.scale.z = size
+        marker.lifetime = rospy.Duration()
+
+        marker.id = 71
+        marker.pose.orientation.x = 0
+        marker.pose.orientation.y = 0
+        marker.pose.orientation.z = 0
+        marker.pose.orientation.w = 1
+
+        color = (0.5, 0., 0.0)
+        marker.color.r = color[0]
+        marker.color.g = color[1]
+        marker.color.b = color[2]
+        marker.color.a = 1.
+        self.marker_pub.publish(marker)
+
+
+
         
         ros_pt = msg.x_desi_filtered.pose.position
         x, y, z = ros_pt.x, ros_pt.y, ros_pt.z
