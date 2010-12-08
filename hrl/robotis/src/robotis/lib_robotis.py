@@ -29,7 +29,7 @@
 ## Controlling Robotis Dynamixel RX-28 & RX-64 servos from python
 ## using the USB2Dynamixel adaptor.
 
-## Authors: Travis Deyle & Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
+## Authors: Travis Deyle, Advait Jain & Marc Killpack (Healthcare Robotics Lab, Georgia Tech.)
 
 import serial
 import time
@@ -245,10 +245,14 @@ class Robotis_Servo():
 
     def set_angvel(self, angvel):
         ''' angvel - in rad/sec
-        '''
+        '''     
         rpm = angvel / (2 * math.pi) * 60.0
         angvel_enc = int(round( rpm / 0.111 ))
-        hi,lo = angvel_enc / 256, angvel_enc % 256
+        if angvel_enc<0:
+            hi,lo = abs(angvel_enc) / 256 + 4, abs(angvel_enc) % 256
+        else:
+            hi,lo = angvel_enc / 256, angvel_enc % 256
+        
         return self.write_address( 0x20, [lo,hi] )
 
     def write_id(self, id):
@@ -281,7 +285,6 @@ class Robotis_Servo():
     def send_instruction(self, instruction, id):
         msg = [ id, len(instruction) + 1 ] + instruction # instruction includes the command (1 byte + parameters. length = parameters+2)
         chksum = self.__calc_checksum( msg )
-        print "this is the msg variable:", msg
         msg = [ 0xff, 0xff ] + msg + [chksum]
         
         self.dyn.acq_mutex()

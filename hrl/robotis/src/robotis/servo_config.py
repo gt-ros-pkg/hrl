@@ -96,7 +96,12 @@ servo_param = {
         },
     30: {                        # PR2 RFID Right Tilt
         'home_encoder': 495
+        },
+    31: {                        # Playpen open/close
+        'home_encoder': 381
+        },
+    32: {                        # Conveyor for playpen
+        'home_encoder': 1
         }
-
 }
 
