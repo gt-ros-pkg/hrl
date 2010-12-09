@@ -51,7 +51,6 @@ class Door_EPC(epc.EPC):
         self.ee_list.append(ee.A1.tolist())
 
         if self.started_pulling_on_handle == False:
-            print 'f[0,0]:', f[0,0]
             if f[0,0] > 5.:
                 self.started_pulling_on_handle_count += 1
             else:
@@ -113,7 +112,6 @@ class Door_EPC(epc.EPC):
         step_size = 0.1 * cep_vel # 0.1 is the time interval between calls to the equi_generator function (see pull)
         stop = self.common_stopping_conditions()
         wrist_force = self.robot.get_wrist_force(arm, base_frame=True)
-        print 'wrist_force:', wrist_force.A1
         mag = np.linalg.norm(wrist_force)
 
         curr_pos, _ = self.robot.get_ee_jtt(arm)
@@ -134,6 +132,7 @@ class Door_EPC(epc.EPC):
         self.fit_circle_lock.release()
         cx, cy = cx_start, cy_start
         cz = cz_start
+        print 'cx, cy, r:', cx, cy, rad
 
         radial_vec = curr_pos - np.matrix([cx,cy,cz]).T
         radial_vec = radial_vec/np.linalg.norm(radial_vec)
@@ -237,6 +236,8 @@ class Door_EPC(epc.EPC):
         cep[0,0] = cep_t[0,0]
         cep[1,0] = cep_t[1,0]
         cep[2,0] = cep_t[2,0]
+        
+        print 'CEP:', cep.A1
 
         stop = stop + self.stopping_string
         return stop, (cep, None)
@@ -345,7 +346,9 @@ if __name__ == '__main__':
     raw_input('Hit ENTER to start Door Opening')
 
     # for cabinets.
-    p1 = np.matrix([0.8, -0.30, -0.04]).T
+    #p1 = np.matrix([0.8, -0.40, -0.04]).T # pos 3
+    #p1 = np.matrix([0.8, -0.10, -0.04]).T # pos 2
+    p1 = np.matrix([0.8, -0.25, -0.04]).T # pos 1
     door_epc.search_and_hook(arm, p1, hook_direction='left')
     door_epc.pull(arm, force_threshold=40., cep_vel=0.05)
 
