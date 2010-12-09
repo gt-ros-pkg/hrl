@@ -87,7 +87,7 @@ if __name__ == '__main__':
     #times = []
     biasft = None
     P_force = [1., 1., 1.]
-    xhat_force = [0., 0., 0.]
+    xhat_force = [0., 0., 0., 0., 0., 0.]
     while not rospy.is_shutdown():
     #while len(times) < 201:
         msg = ftserver.get_msg()
@@ -106,6 +106,9 @@ if __name__ == '__main__':
                 P_force[i] = p
                 xhat_force[i] = xhat
                 #ftvalue[i] = xhat
+            xhat_force[3] = ftvalue[3]
+            xhat_force[4] = ftvalue[4]
+            xhat_force[5] = ftvalue[5]
             ftvalue = ftvalue.tolist()
 
             channel.publish(FloatArray(rospy.Header(stamp=rospy.Time.from_seconds(tme)),
