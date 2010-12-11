@@ -206,21 +206,22 @@ class Behaviors:
 
     def reach(self, point, pressure_thres, move_back_distance):
         self.set_pressure_threshold(pressure_thres)
-        loc = self.current_location()[0]
+        loc_bl = self.current_location()[0]
         front_loc = point.copy()
-        front_loc[0,0] = loc[0,0]
+        front_loc[0,0] = loc_bl[0,0]
 
         start_loc = self.current_location()
+        #pdb.set_trace()
         r1 = self.move_absolute((front_loc, start_loc[1]), stop='pressure_accel', pressure=pressure_thres)
         if r1 != None: #if this step fails, we move back then return
             #self.move_absolute(start_loc, stop='accel')
             return False, r1
 
         r2 = self.move_absolute((point, self.current_location()[1]), stop='pressure_accel', pressure=pressure_thres)
-        touch_loc = self.current_location()
+        touch_loc_bl = self.current_location()
         if r2 == None or r2 == 'pressure' or r2 == 'accel':
             self.move_relative_gripper(move_back_distance, stop='none', pressure=pressure_thres)
-            return True, r2, touch_loc
+            return True, r2, touch_loc_bl
         else:
             #shouldn't get here
             return False, r2, None
@@ -274,6 +275,8 @@ class Behaviors:
     def gripper_open(self):
         self.reactive_gr.cm.command_gripper(.1, -1, 1)
 
+    ##
+    # @param a position in the base_link
     def current_location(self):
         pos, rot = self.cman.return_cartesian_pose()
         return np.matrix(pos).T, np.matrix(rot).T
@@ -303,7 +306,7 @@ class Behaviors:
 
     ##start up gripper event detector to detect when an object hits the table 
     #or when someone is trying to take an object from the robot
-    def start_gripper_event_detector(self, event_type = 'all', accel = 3.25, slip=.008, blocking = 0, timeout = 15.):
+    def start_gripper_event_detector(self, event_type = 'all', accel = 5.25, slip=.008, blocking = 0, timeout = 15.):
     
         goal = PR2GripperEventDetectorGoal()
         if event_type == 'accel':
@@ -462,7 +465,8 @@ class BehaviorTest:
         self.laser_listener.add_double_click_cb(self.click_cb)
 
         #self.behaviors.set_pressure_threshold(300)
-        self.start_location = (np.matrix([0.25, 0.10, 1.3]).T, np.matrix([0., 0., 0., 0.1]))
+        self.start_location = (np.matrix([0.25, 0.30, 1.3]).T, np.matrix([0., 0., 0., 0.1]))
+        self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
 
         self.critical_error = False
 
@@ -501,12 +505,12 @@ class BehaviorTest:
             press_pressure, press_distance, visual_change_thres):
         print '===================================================================='
         point = point + point_offset 
-        rospy.loginfo('REACHING')
+        rospy.loginfo('REACHING to ' + str(point))
         #self.behaviors.gripper_close()
         self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
 
         #start_loc = self.current_location()
-        success, reason, touchloc = self.behaviors.reach(point, press_contact_pressure, move_back_distance)
+        success, reason, touchloc_bl = self.behaviors.reach(point, press_contact_pressure, move_back_distance)
         if not success:
             error_msg = 'Reach failed due to "%s"' % reason
             rospy.loginfo(error_msg)
@@ -539,7 +543,7 @@ class BehaviorTest:
             return False, None
 
         rospy.loginfo('DONE.')
-        return change, touchloc
+        return change, touchloc_bl
 
 
     def light_switch2(self, point):
@@ -611,7 +615,7 @@ class BehaviorTest:
 
         #record region around the finger where you touched
         rospy.loginfo('Getting laser scan.')
-        points = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 10.)
+        points = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 40.)
         rospy.loginfo('Getting Prosilica image.')
         prosilica_image = self.prosilica.get_frame()
         rospy.loginfo('Getting image from left wide angle camera.')
@@ -646,7 +650,7 @@ class BehaviorTest:
 
                         'laser_T_bl': laser_T_bl, 
                         'pro_T_bl': pro_T_bl,
-                        'point_touched': point_touched,
+                        'point_touched': point_touched_bl,
                         
                         'prosilica_cal': self.prosilica_cal, 
                         'left_cal': self.left_cal,
@@ -662,21 +666,38 @@ class BehaviorTest:
             # perturb_point
             gaussian_noise = gaussian.sample()
             gaussian_noise[0,0] = 0
-            npoint = point + gaussian_noise
-            success_off, touchloc = self.light_switch1(npoint, 
-                            point_offset=np.matrix([-.15,0,0]).T, press_contact_pressure=300, 
+            #npoint = point + gaussian_noise
+            #success_off, touchloc_bl = self.light_switch1(npoint, 
+            #pdb.set_trace()
+            success_off, touchloc_bl = self.light_switch1(point, 
+                            point_offset=np.matrix([-.15, 0, 0]).T, press_contact_pressure=300, 
                             move_back_distance=np.matrix([-.005,0,0]).T, press_pressure=2500, 
                             press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
-
             rospy.loginfo('Lights turned off? %s' % str(success_off))
+
+            pdb.set_trace()
+            self.behaviors.move_absolute((np.matrix([.15, .45, 1.3]).T, self.start_location[1]), stop='pressure_accel')
+            self.record_perceptual_data(touchloc_bl)
+            self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
             if success_off:
-                self.record_perceptual_data(touchloc)
+                self.behaviors.move_absolute((np.matrix([.15, .45, 1.3]).T, self.start_location[1]), stop='pressure_accel')
+                self.record_perceptual_data(touchloc_bl)
+                self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
+
+                success_on, touchloc_bl2 = self.light_switch1(point, 
+                                point_offset=np.matrix([-.15,0,-.10]).T, press_contact_pressure=300, 
+                                move_back_distance=np.matrix([-0.005, 0, 0]).T, press_pressure=2500, 
+                                press_distance=np.matrix([0,0,.1]).T, visual_change_thres=.03)
+                ##1
+                #if success_on:
+                #    self.behaviors.move_absolute((np.matrix([.15, .45, 1.3]).T, self.start_location[1]), stop='pressure_accel')
+                #    self.record_perceptual_data(touchloc_bl)
+                #    self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
+                #Turn on lights
+                #success_on, touchloc_bl = self.light_switch1(npoint, 
+            else:
+                return
             
-            #Turn on lights
-            success_on, touchloc = self.light_switch1(npoint, 
-                            point_offset=np.matrix([-.15,0,-.10]).T, press_contact_pressure=300, 
-                            move_back_distance=np.matrix([-0.005, 0, 0]).T, press_pressure=2500, 
-                            press_distance=np.matrix([0,0,.1]).T, visual_change_thres=.03)
 
 
 
