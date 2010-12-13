@@ -2,7 +2,7 @@
   <description brief="phantom_omni">
      ROS Node for Sensable Phantom Omni devices.
   </description>
-  <author>Hai Nguyen, Chi-Hung King, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
+  <author>Hai Nguyen, Marc Killpack, Chi-Hung King, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>new BSD</license>
   <review status="unreviewed" notes=""/>
 

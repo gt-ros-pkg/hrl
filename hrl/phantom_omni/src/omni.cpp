@@ -17,23 +17,31 @@
 #include <HDU/hduMatrix.h>
 
 #include "phantom_omni/PhantomButtonEvent.h"
+#include "phantom_omni/OmniFeedback.h"
 #include <pthread.h>
 
 float prev_time;
 
 struct OmniState
 {
-    hduVector3Dd position; //3x1 vector of position
-    hduVector3Dd velocity; //3x1 vector of velocity
-    hduVector3Dd pos_hist1; //3x1 history of position 
-    hduVector3Dd pos_hist2; //3x1 history of position
+    hduVector3Dd position;  //3x1 vector of position
+    hduVector3Dd velocity;  //3x1 vector of velocity
+    hduVector3Dd inp_vel1;  //3x1 history of velocity used for filtering velocity estimate
+    hduVector3Dd inp_vel2;  
+    hduVector3Dd inp_vel3;  
+    hduVector3Dd out_vel1;  
+    hduVector3Dd out_vel2;  
+    hduVector3Dd out_vel3;
+    hduVector3Dd pos_hist1; //3x1 history of position used for 2nd order backward difference estimate of velocity 
+    hduVector3Dd pos_hist2; 
     hduVector3Dd rot;
     hduVector3Dd joints;
-    hduVector3Dd force; //3 element double vector force[0], force[1], force[2]
+    hduVector3Dd force;     //3 element double vector force[0], force[1], force[2]
     float thetas[7];
     int buttons[2];
     int buttons_prev[2];
-	//hduMatrix omni_mx;
+    bool lock;
+    hduVector3Dd lock_pos;
 };
 
 
@@ -88,32 +96,40 @@ class PhantomROS {
             link_names[i] = std::string(stream1.str());
         }
 
-        state = s;
-	state.buttons[0] = 0;
-	state.buttons[1] = 0;
-	state.buttons_prev[0] = 0;
-	state.buttons_prev[1] = 0;
-	state.velocity[0] = 0;
-	state.velocity[1] = 0;
-	state.velocity[2] = 0;
-	state.pos_hist1[0] = 0;
-	state.pos_hist1[1] = 0;
-	state.pos_hist1[2] = 0;
-	state.pos_hist2[0] = 0;
-	state.pos_hist2[1] = 0;
-	state.pos_hist2[2] = 0;
 
+        state = s;
+	state->buttons[0] = 0;
+	state->buttons[1] = 0;
+	state->buttons_prev[0] = 0;
+	state->buttons_prev[1] = 0;
+        hduVector3Dd zeros(0, 0, 0);
+	state->velocity = zeros;
+        state->inp_vel1 = zeros;  //3x1 history of velocity
+        state->inp_vel2 = zeros;  //3x1 history of velocity
+        state->inp_vel3 = zeros;  //3x1 history of velocity
+        state->out_vel1 = zeros;  //3x1 history of velocity
+        state->out_vel2 = zeros;  //3x1 history of velocity
+        state->out_vel3 = zeros;  //3x1 history of velocity
+        state->pos_hist1 = zeros; //3x1 history of position 
+        state->pos_hist2 = zeros; //3x1 history of position
+	state->lock = true;
+	state->lock_pos = zeros;
     }
 
     /*******************************************************************************
      ROS node callback.  
     *******************************************************************************/
-    void force_callback(const geometry_msgs::WrenchConstPtr& wrench)
+  //    void force_callback(const geometry_msgs::WrenchConstPtr& wrench)
+    void force_callback(const phantom_omni::OmniFeedbackConstPtr& omnifeed)
     {
-        state->force[0] = wrench->force.x;
-        state->force[1] = wrench->force.y;
-        state->force[2] = wrench->force.z;
-    }
+        state->force[0] = omnifeed->force.x;
+        state->force[1] = omnifeed->force.y;
+        state->force[2] = omnifeed->force.z;
+	state->lock_pos[0] = omnifeed->position.x;
+	state->lock_pos[1] = omnifeed->position.y;
+	state->lock_pos[2] = omnifeed->position.z;
+	//        state->force[2] = wrench->force.z;
+    } 
 
     void publish_omni_state()
     {
@@ -174,6 +190,11 @@ class PhantomROS {
 
         if ((state->buttons[0] != state->buttons_prev[0]) or (state->buttons[1] != state->buttons_prev[1]))
         {
+	    
+	  if ((state->buttons[0] == state->buttons[1]) and (state->buttons[0] == 1))
+	    {
+	      state->lock = !(state->lock);
+	    }
             phantom_omni::PhantomButtonEvent button_event;
             button_event.grey_button = state->buttons[0];
             button_event.white_button = state->buttons[1];
@@ -190,20 +211,32 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
 
     
 	hdBeginFrame(hdGetCurrentDevice());
-	//hdGetDoublev(HD_CURRENT_TRANSFORM,     omni_state->omni_mx);  Wrong
-    //hdGetDoublev(HD_CURRENT_VELOCITY, omni_state>vel);            Too lagged
-
     //Get angles, set forces
 	hdGetDoublev(HD_CURRENT_GIMBAL_ANGLES, omni_state->rot);      
 	hdGetDoublev(HD_CURRENT_POSITION,      omni_state->position);
 	hdGetDoublev(HD_CURRENT_JOINT_ANGLES,  omni_state->joints);
-	hdSetDoublev(HD_CURRENT_FORCE,         omni_state->force);  
 
-	omni_state->velocity = 1/0.02 * (omni_state->position*3 - 4*omni_state->pos_hist1 + omni_state->pos_hist2);
+        hduVector3Dd vel_buff(0, 0, 0);
+	vel_buff = (omni_state->position*3 - 4*omni_state->pos_hist1 + omni_state->pos_hist2)/0.002;  //mm/s, 2nd order backward dif
+        //	omni_state->velocity = 0.0985*(vel_buff+omni_state->inp_vel3)+0.2956*(omni_state->inp_vel1+omni_state->inp_vel2)-(-0.5772*omni_state->out_vel1+0.4218*omni_state->out_vel2 - 0.0563*omni_state->out_vel3);    //cutoff freq of 200 Hz
+      	omni_state->velocity = (.2196*(vel_buff+omni_state->inp_vel3)+.6588*(omni_state->inp_vel1+omni_state->inp_vel2))/1000.0-(-2.7488*omni_state->out_vel1+2.5282*omni_state->out_vel2 - 0.7776*omni_state->out_vel3);  //cutoff freq of 20 Hz
 	omni_state->pos_hist2 = omni_state->pos_hist1;
 	omni_state->pos_hist1 = omni_state->position;
-	printf("position x, y, z: %f %f %f \n", omni_state->position[0], omni_state->position[1], omni_state->position[2]);
+	omni_state->inp_vel3 = omni_state->inp_vel2;
+	omni_state->inp_vel2 = omni_state->inp_vel1;
+	omni_state->inp_vel1 = vel_buff;
+	omni_state->out_vel3 = omni_state->out_vel2;
+	omni_state->out_vel2 = omni_state->out_vel1;
+	omni_state->out_vel1 = omni_state->velocity;
+	//	printf("position x, y, z: %f %f %f \n", omni_state->position[0], omni_state->position[1], omni_state->position[2]);
+	//	printf("velocity x, y, z, time: %f %f %f \n", omni_state->velocity[0], omni_state->velocity[1],omni_state->velocity[2]);
+	if (omni_state->lock == true)
+          {
+	    omni_state->force = 0.04*(omni_state->lock_pos-omni_state->position) - 0.001*omni_state->velocity;	    
+	  }
 
+	hdSetDoublev(HD_CURRENT_FORCE,         omni_state->force);
+	
     //Get buttons
     int nButtons = 0;
     hdGetIntegerv(HD_CURRENT_BUTTONS, &nButtons);
@@ -301,15 +334,6 @@ int main(int argc, char** argv)
 
    ROS_INFO("Found %s.\n\n", hdGetString(HD_DEVICE_MODEL_TYPE));
    hdEnable(HD_FORCE_OUTPUT);
-   ////////////////////////////////////////////////////////////////
-   // Init ROS 
-   ////////////////////////////////////////////////////////////////
-   ros::init(argc, argv, "omni_haptic_node");
-   OmniState state;
-   PhantomROS omni_ros;
-   omni_ros.init(&state);
-   hdScheduleAsynchronous(omni_state_callback, &state, HD_MAX_SCHEDULER_PRIORITY);
-
    hdStartScheduler(); 
    if (HD_DEVICE_ERROR(error = hdGetError()))
    {
@@ -318,15 +342,15 @@ int main(int argc, char** argv)
    }
    HHD_Auto_Calibration();
 
-   // ////////////////////////////////////////////////////////////////
-   // // Init ROS 
-   // ////////////////////////////////////////////////////////////////
-   // ros::init(argc, argv, "omni_haptic_node");
-   // OmniState state;
-   // PhantomROS omni_ros;
+   ////////////////////////////////////////////////////////////////
+   // Init ROS 
+   ////////////////////////////////////////////////////////////////
+   ros::init(argc, argv, "omni_haptic_node");
+   OmniState state;
+   PhantomROS omni_ros;
 
-   // omni_ros.init(&state);
-   // hdScheduleAsynchronous(omni_state_callback, &state, HD_MAX_SCHEDULER_PRIORITY);
+   omni_ros.init(&state);
+   hdScheduleAsynchronous(omni_state_callback, &state, HD_MAX_SCHEDULER_PRIORITY);
 
    ////////////////////////////////////////////////////////////////
    // Loop and publish 
