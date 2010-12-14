@@ -176,7 +176,7 @@ class PhantomROS {
         geometry_msgs::PoseStamped pose_stamped;
         pose_stamped.header.frame_id = link_names[6].c_str();
         pose_stamped.header.stamp = ros::Time::now();
-        pose_stamped.pose.position.x = .03;
+        pose_stamped.pose.position.x = 0.0;   //was 0.03 to end of phantom
         pose_stamped.pose.orientation.w = 1.;
         pose_publisher.publish(pose_stamped);
 
