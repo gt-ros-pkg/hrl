@@ -15,7 +15,7 @@
     </node>
     <!--
     -->
-    <node pkg="pr2_omni_teleop" name="pr2_omni_teleop" type="pr2_omni_teleop.py" respawn="true" machine="c1"/>
+    <node pkg="pr2_omni_teleop" name="pr2_omni_teleop" type="pr2_omni_teleop.py" args="--arms r" output="screen" respawn="true" machine="c1"/>
     <node pkg="pr2_omni_teleop" name="track_grippers" type="track_gripper.py" respawn="true" machine="c2"/>
 
     <!-- GUI -->

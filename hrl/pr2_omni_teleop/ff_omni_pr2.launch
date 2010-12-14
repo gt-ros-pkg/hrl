@@ -11,6 +11,6 @@
     <node pkg="pr2_omni_teleop" name="track_grippers" type="track_gripper.py" respawn="true" machine="c2"/>
     <include file="$(find stereo_anaglyph)/pr2_wide_stereo_view.launch"/>
 
-    <node pkg="pr2_omni_teleop" name="pr2_omni_teleop" type="pr2_omni_teleop.py" respawn="true" machine="c1"/>
+    <node pkg="pr2_omni_teleop" name="pr2_omni_teleop" type="pr2_omni_teleop.py" args="--ff 1 --arms r" output="screen" respawn="true" machine="c1"/>
     <node pkg="pr2_dashboard" name="$(anon pr2_dashboard)" type="pr2_dashboard" respawn="true"/>
 </launch>
