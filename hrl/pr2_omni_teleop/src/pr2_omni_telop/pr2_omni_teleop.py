@@ -11,7 +11,6 @@ import numpy as np
 import hrl_lib.tf_utils as tfu
 import coefficients as coeff
 #import threading
-
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Wrench
 from phantom_omni.msg import OmniFeedback
@@ -35,7 +34,7 @@ class ForceFeedbackFilter:
         self.IIR_num = coeff.num
         self.IIR_den = coeff.den
         self.input_his = np.matrix(np.zeros((3,coeff.num.size)))
-        self.output_his = np.matrix(np.zeros(3,coeff.den.size)))
+        self.output_his = np.matrix(np.zeros((3,coeff.den.size)))
         # self.prev_time = rospy.Time.now().nsecs*1e-9
         # self.prev_dt = 0.0
         self.omni_max_limit = np.array([7., 7., 7.])
@@ -62,14 +61,13 @@ class ForceFeedbackFilter:
        
         #5th order IIR Butterworth filter designed in matlab to smooth force estimate
         self.input_his = np.matrix(np.hstack((np.array(wr_ee).reshape((3,1)), np.array(self.input_his[:,0:-1]))))
-        wr_ee_filt = self.input_his*self.IIR_num - self.output_his*self.IIR_den[1:]
-        self.output_his = np.matrix(np.hstack((np.array(wr_ee_filt), np.array(self.output.his[:,0:-1])
+        wr_ee_filt = self.input_his*self.IIR_num - self.output_his[:,:-1]*self.IIR_den[1:]
+        self.output_his = np.matrix(np.hstack((np.array(wr_ee_filt).reshape((3,1)), np.array(self.output_his[:,0:-1]))))
 
         #find and use the rotation matrix from wrench to torso                                                                   
-        df_R_ee = tfu.rotate(self.dest_frame, 'torso_lift_link', self.tflistener) * \
-                tfu.rotate('torso_lift_link', self.wrench_frame, self.tflistener)
-        wr_df = self.force_scaling*np.array(tr.translation_from_matrix(df_R_ee * tfu.translation_matrix([wr_ee_filt[0,0], wr_ee_filt[1,0], wr_ee_filt[2,0]])))
-#        wr_df = self.force_scaling*np.array(tr.translation_from_matrix(df_R_ee * tfu.translation_matrix([feedback[0,0], feedback[1,0], feedback[2,0]])))
+        df_R_ee = tfu.rotate(self.dest_frame, 'torso_lift_link', self.tflistener) * tfu.rotate('torso_lift_link', self.wrench_frame, self.tflistener)
+#        wr_df = self.force_scaling*np.array(tr.translation_from_matrix(df_R_ee * tfu.translation_matrix([wr_ee_filt[0,0], wr_ee_filt[1,0], wr_ee_filt[2,0]])))
+        wr_df = self.force_scaling*np.array(tr.translation_from_matrix(df_R_ee * tfu.translation_matrix([feedback[0,0], feedback[1,0], feedback[2,0]])))
 
         #limiting the max and min force feedback sent to omni                                                                    
         wr_df = np.where(wr_df>self.omni_max_limit, self.omni_max_limit, wr_df)
@@ -346,9 +344,12 @@ class ControlPR2Arm:
 
             #Send force control info
             wr = OmniFeedback()
-            wr.position.x = center_col_vec[0,0]
-            wr.position.y = center_col_vec[1,0]
-            wr.position.z = center_col_vec[2,0]
+            # offsets (0, -.268, -.15) introduced by Hai in phantom driver
+            # should be cleaned up at some point so that it is consistent with position returned by phantom -marc
+            lock_pos = tr.translation_matrix(np.matrix([0,-.268,-.150]))*tfu.transform(self.omni_name+'_sensable', self.omni_name, self.tflistener)*np.row_stack((center_col_vec, np.matrix([1.])))
+            wr.position.x = (lock_pos[0,0])*1000.0  #multiply by 1000 mm/m to get units phantom expects
+            wr.position.y = (lock_pos[1,0])*1000.0 
+            wr.position.z = (lock_pos[2,0])*1000.0 
             self.omni_fb.publish(wr)
 
 
@@ -429,10 +430,21 @@ class OmniPR2Teleop:
         rospy.loginfo('running...')
         while not rospy.is_shutdown():
             for cont in self.controller_list:
-                cont.send_tranform_to_link_omni_and_pr2_frame()
- 
+                cont.send_transform_to_link_omni_and_pr2_frame()
+
+
 if __name__ == '__main__':
-    o = OmniPR2Teleop('r', True)
+    import optparse
+    p = optparse.OptionParser()
+    
+    p.add_option('--arms', action='store', type='string', dest='arm', default='r', 
+                 help='this allows initialization of right, left or both arms with an input of r, l or b respectively')
+    p.add_option('--ff', action='store', type='int', dest='ff', default='0',
+                 help='enter 1 to activate force feedback, 0 otherwise')
+
+    opt, args = p.parse_args()
+
+    o = OmniPR2Teleop(opt.arm, opt.ff)
     o.run()
 
 
