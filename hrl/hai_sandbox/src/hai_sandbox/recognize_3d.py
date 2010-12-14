@@ -1,3 +1,4 @@
+import cv
 import roslib; roslib.load_manifest('hai_sandbox')
 import rospy
 import scipy.spatial as sp
@@ -8,7 +9,6 @@ import sensor_msgs.msg as sm
 import hrl_lib.rutils as ru
 import hrl_lib.tf_utils as tfu
 import numpy as np
-import cv
 import pdb
 import laser_interface.dimreduce as dr
 import laser_interface.blob as blob
@@ -39,8 +39,9 @@ def indices_of_points_in_view(points, cal_obj):
     return valid_indices
     #return points[:, valid_indices]
 
-
-## just use local template image
+##
+# given a 2d location and a window size, cut out a square of intensity values, returns (winsize*winsize)x1 array in range [0,1]
+# just use local template image
 def local_window(location, bw_image, winsize):
     loc = np.matrix(np.round(location), dtype='int')
     start = loc - winsize
@@ -54,14 +55,14 @@ def local_window(location, bw_image, winsize):
     else:
         #pdb.set_trace()
         subrect = bw_image[r.y:r.y+r.height, r.x:r.x+r.width, :]
-        intensity = np.reshape(subrect, (subrect.shape[0]*subrect.shape[1]*subrect.shape[2], 1))
+        intensity = np.matrix(np.reshape(subrect, (subrect.shape[0]*subrect.shape[1]*subrect.shape[2], 1))) / 255.
         return intensity
 
 ##
 #
 # @param cal_obj camera calibration object
 # @return 3xn int matrix of 3d points that are visible in the camera's frame
-# @return 3xn int matrix of rgb values of those points
+# @return 3xn int matrix of rgb values of those points in range [0,1]
 def laser_point_intensity(points_in_laser_frame, image_T_laser, image, cal_obj):
     points_in_image_frame = tfu.transform_points(image_T_laser, points_in_laser_frame)
     p2d = cal_obj.project(points_in_image_frame)
@@ -100,17 +101,20 @@ def select_volume(limits, points):
     #points_xyz = points_xy[:, np.where(np.multiply(points_xy[2, :] > zlim[0], points_xy[2, :] < zlim[1]))[1].A1]
     #return points_xyz
 
-def calculate_features_given_point(sampled_point, voi_tree, grid_resolution, data_pkl, win_size, intensity_image_array):
+def calculate_features_given_point(sampled_point, voi_tree, intensity_paired_with_3d_points, \
+        grid_resolution, data_pkl, win_size, intensity_image_array):
     indices_list = voi_tree.query_ball_point(np.array(sampled_point), grid_resolution/2.)
     if len(indices_list) > 4:
         points_in_ball_bl = np.matrix(voi_tree.data.T[:, indices_list])
+        intensity_in_ball_bl = intensity_paired_with_3d_points[:, indices_list]
         
         #calc normal
         normal_bl = calc_normal(points_in_ball_bl[0:3,:])
         
         #calc average color
-        avg_color = np.mean(points_in_ball_bl[3:,:], 1)
+        avg_color = np.mean(intensity_in_ball_bl, 1)
         mean_3d_bl = np.mean(points_in_ball_bl[0:3,:], 1)
+        #pdb.set_trace()
         
         #project mean into 2d
         mean_2d = data_pkl['prosilica_cal'].project(tfu.transform_points(data_pkl['pro_T_bl'], \
@@ -131,6 +135,9 @@ def calculate_features(fname, grid_resolution=.05, win_size=15):
     ##
     ## For each data pickle, generate features...
     ##
+    #print data_pkl.__class__, len(data_pkl)
+    #if data_pkl.__class__ == list:
+    #    pdb.set_trace()
     print 'original frame of pointcloud is ', data_pkl['points_laser'].header.frame_id
     bl_pc = ru.pointcloud_to_np(data_pkl['points_laser'])
     print 'original point cloud size', bl_pc.shape[1]
@@ -182,7 +189,8 @@ def calculate_features(fname, grid_resolution=.05, win_size=15):
     empty_queries = 0
 
     for sampled_point in sampled_points:
-        features = calculate_features_given_point(sampled_point, voi_tree,\
+        intensity_paired_with_3d_points = points_in_volume_bl[3:,:]
+        features = calculate_features_given_point(sampled_point, voi_tree, intensity_paired_with_3d_points,\
                         grid_resolution, data_pkl, win_size, intensity_image_array)
         if features != None:
             negative_samples.append(features)
@@ -192,29 +200,85 @@ def calculate_features(fname, grid_resolution=.05, win_size=15):
             empty_queries = empty_queries + 1
 
     positive_samples.append(calculate_features_given_point(closest_center_point_bl.T.A1,\
-                                voi_tree, grid_resolution, data_pkl, win_size, intensity_image_array))
+                                voi_tree, intensity_paired_with_3d_points, grid_resolution, data_pkl, win_size, intensity_image_array))
     positive_sample_points.append(closest_center_point_bl.T.A1)
     print 'empty queries', empty_queries, 'non empty', non_empty
 
     return bl_pc, colored_points_valid_bl, [positive_samples, positive_sample_points], [negative_samples, negative_sample_points]
 
-def train_model(dirname, fname, model_name):
-    file_names = glob.glob(pt.join(dirname, '*.pkl'))
-    #rospy.init_node('better_recognize3d')
-    positive_examples = []
-    negative_examples = []
-    for fname in file_names:
-        pos, ppoints, neg, npoints = calculate_features(dirname, fname)
-        positive_examples += pos
-        negative_examples += neg
+def train_model(dirname, features_file_name, model_name, variance_keep):
+    #pdb.set_trace()
+    if not pt.isfile(features_file_name):
+        data_files = glob.glob(pt.join(dirname, '*.pkl'))
+        #rospy.init_node('better_recognize3d')
 
-    print 'num positive samples', len(positive_examples), 
-    print 'num negative samples', len(negative_examples)
-    ut.save_pickle([positive_examples, negative_examples], 'recognize3d.pkl')
+        positive_examples = []
+        negative_examples = []
+
+        positive_points = []
+        negative_points = []
+
+        for data_file_name in data_files:
+            #pos, ppoints, neg, npoints = calculate_features(dirname, fname)
+            points_bl, colored_points_valid_bl, pos, neg = calculate_features(data_file_name)
+            positive_examples += pos[0]
+            negative_examples += neg[0]
+            positive_points += pos[1]
+            negative_points += neg[1]
+
+        print 'num positive samples', len(positive_examples), 
+        print 'num negative samples', len(negative_examples)
+        ut.save_pickle([positive_examples, negative_examples, positive_points, negative_points], features_file_name)
+
+    else:
+        positive_examples, negative_examples, positive_points, negative_points = ut.load_pickle(features_file_name)
+
+    #Turn raw features into matrix format
+    size_intensity = None
+    all_x = []
+    all_y = []
+    for examples, label in [(positive_examples, 1.0), (negative_examples, 0.)]:
+        #normal_bl 3x1 mat
+        #avg_color 3x1 mat
+        #intensity nx1 mat
+        normal_bls, avg_colors, intensities = zip(*examples)
+        normal_bls = np.column_stack(normal_bls) #each column is a different sample
+        avg_colors = np.column_stack(avg_colors)
+        intensities = np.column_stack(intensities)
+        if size_intensity == None:
+            size_intensity = intensities.shape[0]
+
+        #pdb.set_trace()
+        xs = np.row_stack((normal_bls, avg_colors, intensities)) #stack features
+        ys = np.zeros((1, len(examples))) + label
+        all_x.append(xs)
+        all_y.append(ys)
+
+    #pdb.set_trace()
+    train     = np.column_stack(all_x)
+    responses = np.column_stack(all_y)
+
+    #projection basis should be the same dimension as the data
+    start_intensities = train.shape[0] - size_intensity
+    intensities_rows  = train[start_intensities:, :]
+    intensities_mean  = np.mean(intensities_rows, 1)
+
+    projection_basis = dr.pca_vectors(intensities_rows, variance_keep)
+    reduced_intensities = projection_basis.T * (intensities_rows - intensities_mean)
+    #assert(intensities_rows.shape[0] == projection_basis.shape[0])
+    train = np.row_stack((train[:start_intensities, :], reduced_intensities))
+
     #Train classifier...
     #Run pca on intensity
+    #train => float32 mat, each row is an example
+    #responses => float32 mat, each column is a corresponding response
+    train = np.matrix(train.T, dtype='float32').copy()
+    responses = np.matrix(responses, dtype='float32').copy()
+    svm = cv.SVM(train, responses)
+    svm.train(train, responses)
+    svm.save(model_name)
+    return svm
 
-    return saved_model
 
 
 def test_model(model, test_dir):
@@ -287,13 +351,16 @@ class DisplayThread(threading.Thread):
 if __name__ == '__main__':
     dirname = sys.argv[1]
     #test_dir = sys.argv[2] 
-    fname = 'features_recognize3d.pkl'
-    model_name = 'trained_model.pkl'
+    features_file_name = 'features_recognize3d.pkl'
+    model_name = 'recognize_3d_trained_svm.xml'
 
     rospy.init_node('recognize3d_display')
-    dt = DisplayThread()
-    dt.display_training_data_set(dirname)
-    dt.run()
+    train_model(dirname, features_file_name, model_name, .95)
+    
+
+    #dt = DisplayThread()
+    #dt.display_training_data_set(dirname)
+    #dt.run()
 
     #if not pt.isfile(fname):
     #    train_model(dirname, fname, model_name)
