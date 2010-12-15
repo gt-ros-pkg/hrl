@@ -74,10 +74,10 @@ print getTime(), 'IMPORTS DONE'
 ROBOT='PR2' #'desktopcanner'#'dummyScanner'#'codyRobot' 
             #Only supported is PR2 for current version [November 2010 release]
 DATASET_ID = 'pr2_example_0003'
-DATA_LOCATION = '/home/jokerman/Desktop/PR2'
-            #CHANGE TO: '[your-computer]/folder-containing-XML-files'
-            #Note, this is also where results are optionally saved. 
-            #Folder should have subfolders 'results' and 'data'
+DATA_LOCATION = roslib.packages.get_pkg_dir('clutter_segmentation')+'/classifiers'
+            #If necessary change to: '[your-computer]/folder-containing-XML-files'
+            #Note, will also be where results are saved by default (saving is optional). 
+            #Specified folder should have subfolders 'results' and 'data'
 z_above_floor = 0
 #Theory:Imperitive to know "plane" of floor to do good classification in current scheme.
 #ground_plane_rotation = '' 
