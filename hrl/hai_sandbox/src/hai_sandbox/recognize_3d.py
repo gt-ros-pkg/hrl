@@ -102,7 +102,7 @@ def select_volume(limits, points):
     #return points_xyz
 
 def calculate_features_given_point(sampled_point, voi_tree, intensity_paired_with_3d_points, \
-        grid_resolution, data_pkl, win_size, intensity_image_array):
+        grid_resolution, data_pkl, win_size, intensity_image_array, verbose=False):
     indices_list = voi_tree.query_ball_point(np.array(sampled_point), grid_resolution/2.)
     if len(indices_list) > 4:
         points_in_ball_bl = np.matrix(voi_tree.data.T[:, indices_list])
@@ -124,14 +124,19 @@ def calculate_features_given_point(sampled_point, voi_tree, intensity_paired_wit
         features = local_window(mean_2d, intensity_image_array, win_size)
         if features != None:
             return [normal_bl, avg_color, features]
+        else:
+            if verbose:
+                print '>> local_window outside of image'
+    else:
+        print '>> not enough neighbors!'
 
     return None
 
+#def calculate_features_online():
+#    pass
 
-def calculate_features(fname, grid_resolution=.05, win_size=15):
-    print 'processing', fname
-    data_pkl = ut.load_pickle(fname)
 
+def calculate_features(fname, data_pkl, grid_resolution, win_size):
     ##
     ## For each data pickle, generate features...
     ##
@@ -200,93 +205,181 @@ def calculate_features(fname, grid_resolution=.05, win_size=15):
             empty_queries = empty_queries + 1
 
     positive_samples.append(calculate_features_given_point(closest_center_point_bl.T.A1,\
-                                voi_tree, intensity_paired_with_3d_points, grid_resolution, data_pkl, win_size, intensity_image_array))
+                                voi_tree, intensity_paired_with_3d_points, grid_resolution, data_pkl, \
+                                win_size, intensity_image_array, verbose=True))
+    if positive_samples[0] == None:
+        print 'OH NO! there is NO valid positive example for this dataset'
+
     positive_sample_points.append(closest_center_point_bl.T.A1)
     print 'empty queries', empty_queries, 'non empty', non_empty
 
     return bl_pc, colored_points_valid_bl, [positive_samples, positive_sample_points], [negative_samples, negative_sample_points]
 
-def train_model(dirname, features_file_name, model_name, variance_keep):
-    #pdb.set_trace()
-    if not pt.isfile(features_file_name):
-        data_files = glob.glob(pt.join(dirname, '*.pkl'))
-        #rospy.init_node('better_recognize3d')
+class Recognize3D:
 
-        positive_examples = []
-        negative_examples = []
+    def __init__(self):
+        self.POSITIVE = 1.0
+        self.NEGATIVE = 0.
 
-        positive_points = []
-        negative_points = []
+        self.projection_basis = None
+        self.intensities_mean = None
+        self.size_intensity = None
+        self.raw_data_dim = None
 
-        for data_file_name in data_files:
-            #pos, ppoints, neg, npoints = calculate_features(dirname, fname)
-            points_bl, colored_points_valid_bl, pos, neg = calculate_features(data_file_name)
-            positive_examples += pos[0]
-            negative_examples += neg[0]
-            positive_points += pos[1]
-            negative_points += neg[1]
+        fake_train = np.matrix(np.row_stack((np.matrix(range(8)), np.matrix(range(3,3+8)))), dtype='float32')
+        print 'fake_train.shape', fake_train.shape
+        fake_resp = np.matrix([1,0], dtype='float32')
+        self.svm = cv.SVM(fake_train, fake_resp)
+        self.display = DisplayThread()
 
-        print 'num positive samples', len(positive_examples), 
-        print 'num negative samples', len(negative_examples)
-        ut.save_pickle([positive_examples, negative_examples, positive_points, negative_points], features_file_name)
+    def load(self, model_name):
+        print 'loading model ', model_name
+        self.svm.load(model_name)
+        #construct an svm of the same size as real data, 6 + 2
+        p = ut.load_pickle(pt.splitext(model_name)[0] + '.pkl')
+        self.projection_basis = p['projection_basis']
+        self.intensities_mean = p['intensity_mean']
+        self.raw_data_dim         = p['raw_data_dim']
+        self.size_intensity   = p['size_intensity']
 
-    else:
-        positive_examples, negative_examples, positive_points, negative_points = ut.load_pickle(features_file_name)
+    def save(self, model_name):
+        print 'saving model to ', model_name
+        self.svm.save(model_name)
+        ut.save_pickle({'projection_basis': self.projection_basis,
+                        'intensity_mean': self.intensity_mean,
+                        'raw_data_dim': self.raw_data_dim,
+                        'size_intensity': self.size_intensity},\
+                        pt.splitext(model_name)[0] + '.pkl')
 
-    #Turn raw features into matrix format
-    size_intensity = None
-    all_x = []
-    all_y = []
-    for examples, label in [(positive_examples, 1.0), (negative_examples, 0.)]:
-        #normal_bl 3x1 mat
-        #avg_color 3x1 mat
-        #intensity nx1 mat
-        normal_bls, avg_colors, intensities = zip(*examples)
-        normal_bls = np.column_stack(normal_bls) #each column is a different sample
-        avg_colors = np.column_stack(avg_colors)
-        intensities = np.column_stack(intensities)
-        if size_intensity == None:
-            size_intensity = intensities.shape[0]
+    ##
+    #
+    # @param x a column vector of size (self.raw_data_dim x 1)
+    def classify(self, x):
+        start_intensities = self.raw_data_dim - self.size_intensity
+        other_fea   = x[:start_intensities, 0]
+        intensities = x[start_intensities:, 0]
+        reduced_intensities = self.projection_basis.T * intensities
+        x_reduced = np.row_stack((other_fea, reduced_intensities))
+        x_reduced = np.matrix(x_reduced.T, dtype='float32').copy()
+        #print 'x_reduced.shape', x_reduced.shape
+        return self.svm.predict(x_reduced)
 
+
+    def test_training_set(self, dataset_filename, grid_resolution, win_size):
+        data_pkl = ut.load_pickle(dataset_filename)
+        points_bl, colored_points_valid_bl, pos, neg = calculate_features(dataset_filename, data_pkl, grid_resolution, win_size)
+        #pos_fea, pos_points = pos
+        #neg_fea, neg_points = neg
+
+        all_fea = []
+        all_fea += pos[0]
+        all_fea += neg[0]
+        labels = []
+        for feas in all_fea:
+            label = self.classify(np.row_stack(feas))
+            labels.append(label)
+
+        all_pts = []
+        all_pts.append(np.matrix(pos[1]).T)
+        all_pts.append(np.matrix(neg[1]).T)
+
+        #call display
+        self.display.display_scan(points_bl, 
+                colored_points_valid_bl[0:3,:], 
+                colored_points_valid_bl[3:, :])
+        self.display.display_classification(np.column_stack(all_pts), 
+                np.matrix(labels), 'base_link')
+        self.display.run()
+
+
+    def train(self, dirname, features_file_name, variance_keep, \
+            grid_resolution=.05, win_size=15):
+        print 'training using data in', dirname
         #pdb.set_trace()
-        xs = np.row_stack((normal_bls, avg_colors, intensities)) #stack features
-        ys = np.zeros((1, len(examples))) + label
-        all_x.append(xs)
-        all_y.append(ys)
+        if not pt.isfile(features_file_name):
+            data_files = glob.glob(pt.join(dirname, '*.pkl'))
+            #rospy.init_node('better_recognize3d')
+    
+            positive_examples = []
+            negative_examples = []
+    
+            positive_points = []
+            negative_points = []
+    
+            print 'extracting features'
+            for data_file_name in data_files:
+                #pos, ppoints, neg, npoints = calculate_features(dirname, fname)
+                print 'processing', data_file_name
+                data_pkl = ut.load_pickle(data_file_name)
+                points_bl, colored_points_valid_bl, pos, neg = calculate_features(data_file_name, data_pkl, grid_resolution, win_size)
+                positive_examples += pos[0]
+                negative_examples += neg[0]
+                positive_points += pos[1]
+                negative_points += neg[1]
+    
+            print 'num positive samples', len(positive_examples), 
+            print 'num negative samples', len(negative_examples)
+            print 'saving features'
+            ut.save_pickle([positive_examples, negative_examples, positive_points, negative_points], features_file_name)
+        else:
+            print 'features has been calculated already (yay!) loading from', features_file_name
+            positive_examples, negative_examples, positive_points, negative_points = ut.load_pickle(features_file_name)
+    
+        #Turn raw features into matrix format
+        size_intensity = None
+        all_x = []
+        all_y = []
+        for examples, label in [(positive_examples, self.POSITIVE), (negative_examples, self.NEGATIVE)]:
+            #normal_bl 3x1 mat
+            #avg_color 3x1 mat
+            #intensity nx1 mat
+            pdb.set_trace()
+            normal_bls, avg_colors, intensities = zip(*examples)
+            normal_bls = np.column_stack(normal_bls) #each column is a different sample
+            avg_colors = np.column_stack(avg_colors)
+            intensities = np.column_stack(intensities)
+            if size_intensity == None:
+                size_intensity = intensities.shape[0]
+    
+            #pdb.set_trace()
+            xs = np.row_stack((normal_bls, avg_colors, intensities)) #stack features
+            ys = np.zeros((1, len(examples))) + label
+            all_x.append(xs)
+            all_y.append(ys)
+    
+        #pdb.set_trace()
+        train     = np.column_stack(all_x)
+        responses = np.column_stack(all_y)
+        self.raw_data_dim = train.shape[0]
+    
+        #projection basis should be the same dimension as the data
+        start_intensities = train.shape[0] - size_intensity
+        intensities_rows  = train[start_intensities:, :]
+        intensity_mean    = np.mean(intensities_rows, 1)
+    
+        print 'constructing pca basis'
+        projection_basis = dr.pca_vectors(intensities_rows, variance_keep)
+        reduced_intensities = projection_basis.T * (intensities_rows - intensity_mean  )
+        #assert(intensities_rows.shape[0] == projection_basis.shape[0])
+        train = np.row_stack((train[:start_intensities, :], reduced_intensities))
+    
+        print 'training classifier'
+        #Train classifier...
+        #Run pca on intensity
+        #train => float32 mat, each row is an example
+        #responses => float32 mat, each column is a corresponding response
+        train = np.matrix(train.T, dtype='float32').copy()
+        responses = np.matrix(responses, dtype='float32').copy()
+        svm = cv.SVM(train, responses)
+        svm.train(train, responses)
 
-    #pdb.set_trace()
-    train     = np.column_stack(all_x)
-    responses = np.column_stack(all_y)
-
-    #projection basis should be the same dimension as the data
-    start_intensities = train.shape[0] - size_intensity
-    intensities_rows  = train[start_intensities:, :]
-    intensities_mean  = np.mean(intensities_rows, 1)
-
-    projection_basis = dr.pca_vectors(intensities_rows, variance_keep)
-    reduced_intensities = projection_basis.T * (intensities_rows - intensities_mean)
-    #assert(intensities_rows.shape[0] == projection_basis.shape[0])
-    train = np.row_stack((train[:start_intensities, :], reduced_intensities))
-
-    #Train classifier...
-    #Run pca on intensity
-    #train => float32 mat, each row is an example
-    #responses => float32 mat, each column is a corresponding response
-    train = np.matrix(train.T, dtype='float32').copy()
-    responses = np.matrix(responses, dtype='float32').copy()
-    svm = cv.SVM(train, responses)
-    svm.train(train, responses)
-    svm.save(model_name)
-    return svm
+        self.svm = svm
+        self.projection_basis = projection_basis
+        self.intensity_mean = intensity_mean  
+        self.size_intensity = size_intensity
 
 
 
-def test_model(model, test_dir):
-    for d in test_dir:
-        data = ut.load_pickle(d)
-        display_data(d)
-        points, labels = model.classify(data)
-        display_classification(data, points, labels)
 
 class DisplayThread(threading.Thread):
 
@@ -318,14 +411,14 @@ class DisplayThread(threading.Thread):
         self.publish_queue.put([self.color_cloud_pub, valid_points_pro_msg])
 
 
-    def display_classification(self, points, label, frame):
+    def display_classification(self, points, labels, frame):
         colors = []
         for i in range(labels.shape[1]):
             if labels[0,i] == 0:
                 colors.append(np.matrix([1,0,0,1.]).T)
             else:
                 colors.append(np.matrix([0,1,0,1.]).T)
-        labels_msg = viz.list_marker(points, np.column_stack(colors), scale=.02, mtype='points', mframe=frame)
+        labels_msg = viz.list_marker(points, np.column_stack(colors), scale=[.02, .02, .02], mtype='points', mframe=frame)
         self.publish_queue.put([self.labels_pub, labels_msg])
 
 
@@ -350,12 +443,24 @@ class DisplayThread(threading.Thread):
 
 if __name__ == '__main__':
     dirname = sys.argv[1]
+    test_name = sys.argv[2]
     #test_dir = sys.argv[2] 
     features_file_name = 'features_recognize3d.pkl'
     model_name = 'recognize_3d_trained_svm.xml'
 
     rospy.init_node('recognize3d_display')
-    train_model(dirname, features_file_name, model_name, .95)
+    #train_model(dirname, features_file_name, model_name, .95)
+    #test_on_training_data(model_name, dirname)
+    
+    GRID_RESOLUTION = .025
+    WIN_SIZE = 15
+    VARIANCE_KEEP = .95
+
+    r3d = Recognize3D()
+    r3d.train(dirname, features_file_name, VARIANCE_KEEP, GRID_RESOLUTION, WIN_SIZE)
+    r3d.save(model_name)
+    r3d.load(model_name)
+    r3d.test_training_set(test_name, GRID_RESOLUTION, WIN_SIZE)
     
 
     #dt = DisplayThread()
