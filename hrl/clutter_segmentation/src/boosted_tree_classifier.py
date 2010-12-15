@@ -115,71 +115,71 @@ class boosted_tree_classifier(classifier) :
         #deactivate for now:
         max_traning_size = 1800000#2040000
         #if training_set_size < max_traning_size:
-        if True:       
-            train_data = cv.cvCreateMat(training_set_size,feature_vector_length,cv.CV_32FC1) #CvMat* cvCreateMat(int rows, int cols, int type)
-            train_labels = cv.cvCreateMat(training_set_size,1,cv.CV_32FC1)
-            
-            for dict in data:        
-                for index in range(dict['set_size']):
-                    #only train on surface and clutter
-                    if dict['labels'][index] == processor.LABEL_SURFACE or dict['labels'][index]== processor.LABEL_CLUTTER:
-                    
-                        #print ut.getTime(), point3d
-                        #print ut.getTime(), 'fvindexv',self.get_features_indexvector(features)
-                        #print ut.getTime(), 'len', len(self.get_features_indexvector(features))
-                        fv = (dict['features'][index])[self.processor.features.get_indexvector(self.features)]
-    
-                        #print ut.getTime(), 'fv',fv
-                        #print ut.getTime(), np.shape(fv)
-                        for fv_index, fv_value in enumerate(fv):
-                            train_data[current_training_set_index][fv_index] = fv_value
-                        train_labels[current_training_set_index] = dict['labels'][index]
-    #                    for fv_index, fv_value in enumerate(fv):
-    #                        print ut.getTime(), train_data[current_training_set_index][fv_index]
-    #                    print ut.getTime(), '##',train_labels[current_training_set_index],'##'                    
-                        #print ut.getTime(), 'fv ', fv
-                        #print ut.getTime(), 'tr ',train_data[index]
-                        current_training_set_index = current_training_set_index + 1
-            
-                        #if current_training_set_index % 4096 == 0:
-                        #    print ut.getTime(), 'label', dict['labels'][index], 'fv', fv        
-                        if current_training_set_index %  16384 == 0:
-                            print ut.getTime(), 'reading features:', current_training_set_index, 'of', training_set_size, '(',(float(current_training_set_index)/float(training_set_size)*100.0),'%)'
-    
-        else:
-            print ut.getTime(), 'more than',max_traning_size,'features, sample from them...'
-            #select 2040000 features:
-            all_data = []
-            all_labels = []
-            for dict in data:  
-                for index in range(dict['set_size']):
-                    if dict['labels'][index] == processor.LABEL_SURFACE or dict['labels'][index]== processor.LABEL_CLUTTER:
-                        fv = (dict['features'][index])[self.processor.features.get_indexvector(self.features)]
-                        all_data += [fv]
-                        all_labels += [dict['labels'][index]]
-                        
-                        current_training_set_index = current_training_set_index + 1    
-                        if current_training_set_index %  16384 == 0:
-                            print ut.getTime(), 'reading features:', current_training_set_index, 'of', training_set_size, '(',(float(current_training_set_index)/float(training_set_size)*100.0),'%)'
-            
-            del data
-            indices = np.array(random.sample(xrange(len(all_labels)),max_traning_size))
-            all_data = np.asarray(all_data)
-            all_labels = np.asarray(all_labels)
-            
-            all_data = all_data[indices]
-            all_labels = all_labels[indices]
-            
-            train_data = cv.cvCreateMat(max_traning_size,feature_vector_length,cv.CV_32FC1) #CvMat* cvCreateMat(int rows, int cols, int type)
-            train_labels = cv.cvCreateMat(max_traning_size,1,cv.CV_32FC1)
-                        
-            for index in range(max_traning_size):
-                for fv_index, fv_value in enumerate(all_data[index]):
-                    train_data[index][fv_index] = fv_value
-                    train_labels[index] = all_labels[index]
-                if index % 16384 == 0:
-                    print ut.getTime(), 'setting features:', (float(index)/float(max_traning_size))
-          
+        #if True:       
+        train_data = cv.cvCreateMat(training_set_size,feature_vector_length,cv.CV_32FC1) #CvMat* cvCreateMat(int rows, int cols, int type)
+        train_labels = cv.cvCreateMat(training_set_size,1,cv.CV_32FC1)
+        
+        for dict in data:        
+            for index in range(dict['set_size']):
+                #only train on surface and clutter
+                if dict['labels'][index] == processor.LABEL_SURFACE or dict['labels'][index]== processor.LABEL_CLUTTER:
+                
+                    #print ut.getTime(), point3d
+                    #print ut.getTime(), 'fvindexv',self.get_features_indexvector(features)
+                    #print ut.getTime(), 'len', len(self.get_features_indexvector(features))
+                    fv = (dict['features'][index])[self.processor.features.get_indexvector(self.features)]
+
+                    #print ut.getTime(), 'fv',fv
+                    #print ut.getTime(), np.shape(fv)
+                    for fv_index, fv_value in enumerate(fv):
+                        train_data[current_training_set_index][fv_index] = fv_value
+                    train_labels[current_training_set_index] = dict['labels'][index]
+#                    for fv_index, fv_value in enumerate(fv):
+#                        print ut.getTime(), train_data[current_training_set_index][fv_index]
+#                    print ut.getTime(), '##',train_labels[current_training_set_index],'##'                    
+                    #print ut.getTime(), 'fv ', fv
+                    #print ut.getTime(), 'tr ',train_data[index]
+                    current_training_set_index = current_training_set_index + 1
+        
+                    #if current_training_set_index % 4096 == 0:
+                    #    print ut.getTime(), 'label', dict['labels'][index], 'fv', fv        
+                    if current_training_set_index %  16384 == 0:
+                        print ut.getTime(), 'reading features:', current_training_set_index, 'of', training_set_size, '(',(float(current_training_set_index)/float(training_set_size)*100.0),'%)'
+##subsample from the features, NOT USED/NOT WORKING?
+#        else:
+#            print ut.getTime(), 'more than',max_traning_size,'features, sample from them...'
+#            #select 2040000 features:
+#            all_data = []
+#            all_labels = []
+#            for dict in data:  
+#                for index in range(dict['set_size']):
+#                    if dict['labels'][index] == processor.LABEL_SURFACE or dict['labels'][index]== processor.LABEL_CLUTTER:
+#                        fv = (dict['features'][index])[self.processor.features.get_indexvector(self.features)]
+#                        all_data += [fv]
+#                        all_labels += [dict['labels'][index]]
+#                        
+#                        current_training_set_index = current_training_set_index + 1    
+#                        if current_training_set_index %  16384 == 0:
+#                            print ut.getTime(), 'reading features:', current_training_set_index, 'of', training_set_size, '(',(float(current_training_set_index)/float(training_set_size)*100.0),'%)'
+#            
+#            del data
+#            indices = np.array(random.sample(xrange(len(all_labels)),max_traning_size))
+#            all_data = np.asarray(all_data)
+#            all_labels = np.asarray(all_labels)
+#            
+#            all_data = all_data[indices]
+#            all_labels = all_labels[indices]
+#            
+#            train_data = cv.cvCreateMat(max_traning_size,feature_vector_length,cv.CV_32FC1) #CvMat* cvCreateMat(int rows, int cols, int type)
+#            train_labels = cv.cvCreateMat(max_traning_size,1,cv.CV_32FC1)
+#                        
+#            for index in range(max_traning_size):
+#                for fv_index, fv_value in enumerate(all_data[index]):
+#                    train_data[index][fv_index] = fv_value
+#                    train_labels[index] = all_labels[index]
+#                if index % 16384 == 0:
+#                    print ut.getTime(), 'setting features:', (float(index)/float(max_traning_size))
+#          
           
         print ut.getTime(), 'start training Classifier'
 
@@ -200,12 +200,12 @@ class boosted_tree_classifier(classifier) :
         
         #cv_boost_params.max_categories = 2
         #cv_boost_params.priors = priors #TODO: activate them
-        self.cv_classifier = cv.CvDTree() #cv.CvBoost()
+        self.cv_classifier = cv.CvDTree() #cv.CvBoost() #TODO: CHANGE CLASSIFIER HERE
         train_datastructures = self.create_train_datastructures()
             
         (train_data, train_labels, type_mask) = train_datastructures
         print 'WARNING! use CvDTree (single decision trees) for now as load/save works!'#'boost'
-        print ut.getTime(), self.cv_classifier.train(train_data, cv.CV_ROW_SAMPLE, train_labels, None, None, type_mask ) 
+        print ut.getTime(), self.cv_classifier.train(train_data, cv.CV_ROW_SAMPLE, train_labels, None, None, type_mask ) #TODO: CHANGE CLASSIFIER HERE
        
         print ut.getTime(), 'traning finished'
        
@@ -311,7 +311,7 @@ class boosted_tree_classifier(classifier) :
         
         
     def load(self):
-        self.cv_classifier = cv.CvDTree() #cv.CvBoost()
+        self.cv_classifier = cv.CvDTree() #cv.CvBoost() #TODO: CHANGE CLASSIFIER HERE
         print ut.getTime(), 'loading Classifier',self.features
         self.cv_classifier.load(self.get_filename())
         

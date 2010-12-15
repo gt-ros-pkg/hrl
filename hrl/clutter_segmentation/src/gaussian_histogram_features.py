@@ -182,7 +182,7 @@ class gaussian_histogram_features(features):
             pts = self.processor.pts3d_bound
 
         #print 'i',index,'c', count
-        fv = []
+        fv = [] 
         
         indices = np.asarray(self.kdtree_queried_indices[count])
         invalid_value = np.shape(pts)[1]
@@ -274,16 +274,21 @@ class gaussian_histogram_features(features):
     
     
 
-        #cube of interest around point
+        #poi and width: cube of interest around point
+        #min, max, bincount gives the height slices    
     def generate_voi_histogram(self, poi, width):
         print 'poi',poi,'width',width
+        
+        # indices of points in volume of interest (poi)
         pts_indices = self.get_voi_pts_indices(poi, width)
         self.voi_pts_indices = pts_indices
         pts = np.asarray(self.processor.pts3d_bound)
-        pts = pts[:,pts_indices]
+        pts = pts[:,pts_indices] #truncate points to volume of interest
         self.voi_pts = pts
         #mlab.points3d(pts[0,:],pts[1,:],pts[2,:], mode='point')
         #mlab.show() 
+        
+        #go from 0 to 2m, create histogram with 80 bins = bin of 2.5cm (=height-slice)
         min = 0.
         max = 2.
         self.voi_bincount = 80
@@ -303,13 +308,15 @@ class gaussian_histogram_features(features):
         self.z_hist_spread = []
         for indices in self.z_hist_slices_indices:
             a = self.processor.pts3d_bound[:,indices]
+            # ev12 gives an indication about how far points are spread out in a specific height-slice
             u, ev12 = gaussian_curvature.spread(a)
             self.z_hist_spread += [(ev12[0], ev12[1])]
         
-        #create h,s histograms:
+        #create h,s,i histograms for each slice:
         pts_h = []
         pts_s = []
         #print self.processor.pts3d_bound
+        #TODO: does this use the volume of interest? should it???
         n,m = np.shape(np.asarray(self.processor.pts3d_bound))
         #print 'm',m,'len(self.processor.pts3d_bound[2,:].A1)',len(self.processor.pts3d_bound[2,:].A1)
         for index in range(m):
