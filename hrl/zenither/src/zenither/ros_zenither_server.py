@@ -48,12 +48,14 @@ class ZenitherServer():
             pass
 
         self.zenither = zenither
-        self.srv_move_position = rospy.Service('/zenither/move_position',
-                                               Float_Int, self.move_position)
-        self.srv_apply_torque = rospy.Service('/zenither/stop',
-                                               Float_Int, self.estop)
-        self.srv_apply_torque = rospy.Service('/zenither/apply_torque',
-                                               Float_Int, self.apply_torque)
+        self.smp = rospy.Service('/zenither/move_position', Float_Int,
+                                 self.move_position)
+        self.ss = rospy.Service('/zenither/stop', Float_Int,
+                                self.estop)
+        self.sat = rospy.Service('/zenither/apply_torque', Float_Int,
+                                 self.apply_torque)
+        self.stmp = rospy.Service('/zenither/torque_move_position',
+                                  Float_Int, self.torque_move_position)
 
     def move_position(self, msg):
         print 'move_position is UNTESTED'
@@ -66,6 +68,10 @@ class ZenitherServer():
 
     def estop(self, req):
         self.zenither.estop()
+        return True
+
+    def torque_move_position(self, req):
+        self.zenither.torque_move_position(req.value)
         return True
 
 

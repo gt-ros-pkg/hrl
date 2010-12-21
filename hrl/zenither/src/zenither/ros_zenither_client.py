@@ -29,16 +29,16 @@
 ## author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
 ## author Travis Deyle (Healthcare Robotics Lab, Georgia Tech.)
 
-import zenither_config as zc
+
+from threading import RLock
 
 import roslib
 roslib.load_manifest('zenither')
+import zenither_config as zc
 import rospy
 from hrl_lib.srv import Float_Int
+from hrl_lib.msg import FloatArray
 
-import time
-import sys
-import numpy as np, math
 
 
 class ZenitherClient():
@@ -64,7 +64,17 @@ class ZenitherClient():
         srv = '/zenither/apply_torque'
         rospy.wait_for_service(srv)
         self.apply_torque = rospy.ServiceProxy(srv, Float_Int)
+
+        srv = '/zenither/torque_move_position'
+        rospy.wait_for_service(srv)
+        self.torque_move_position = rospy.ServiceProxy(srv, Float_Int)
+
+        zenither_pose_topic = 'zenither_pose'
+        self.h = None
+        self.lock = RLock()
+        rospy.Subscriber(zenither_pose_topic, FloatArray, self.pose_cb)
         
+    #---------- functions to send zenither commands. -------------
     def estop(self):
         self.stop(0)
 
@@ -77,6 +87,21 @@ class ZenitherClient():
         if torque == None:
             torque=self.calib['nadir_torque']
         self.apply_torque(torque)
+
+
+    #--------- zenither height functions --------------
+    def pose_cb(self, fa):
+        self.lock.acquire()
+        self.h = fa.data[0]
+        self.lock.release()
+
+    ## return the current height of the zenither.
+    def height(self):
+        self.lock.acquire()
+        h = self.h
+        self.lock.release()
+        return h
+
 
 
 if __name__ == '__main__':
