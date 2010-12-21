@@ -27,6 +27,7 @@
 
 ## author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
 ## author Travis Deyle (Healthcare Robotics Lab, Georgia Tech.)
+## author Hai Nguyen (Healthcare Robotics Lab, Georgia Tech.)
 
 
 import roslib
@@ -36,6 +37,7 @@ from hrl_lib.srv import Float_Int
 
 import time
 import sys
+
 
 class ZenitherServer():
     def __init__(self, zenither):
@@ -70,7 +72,7 @@ class ZenitherServer():
 
 if __name__ == '__main__':
     import zenither.zenither as zenither
-    z = zenither.Zenither('HRL2')
+    z = zenither.Zenither('HRL2', pose_read_thread = True)
     zs = ZenitherServer(z)
     rospy.spin()
 
