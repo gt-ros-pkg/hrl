@@ -104,17 +104,21 @@ class FTClient(ru.GenericListener):
 
     def bias(self):
         print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
         print 'BIASING FT'
         print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-        r, msg_time = ru.GenericListener.read(self, allow_duplication=False, willing_to_wait=True) 
-        if r != None:
+
+        b_list = []
+        for i in range(20):
+            r, msg_time = ru.GenericListener.read(self, allow_duplication=False, willing_to_wait=True) 
+            b_list.append(r)
+
+        if b_list[0] != None:
+            r = np.mean(np.column_stack(b_list), 1)
             self.bias_val = r
+
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        print 'DONE biasing ft'
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
 
 if __name__ == '__main__':
     import optparse
@@ -125,12 +129,13 @@ if __name__ == '__main__':
     opt, args = p.parse_args()
 
     client = FTClient(opt.topic)
-    #client.bias()
+    client.bias()
     while not rospy.is_shutdown():
         el = client.read()
         if el != None:
-            print np.linalg.norm(el.T)
-        time.sleep(1/1000.0)
+            #print np.linalg.norm(el.T)
+            print el.A1
+        time.sleep(1/100.0)
 
 
 
