@@ -11,7 +11,7 @@ import object_manipulator.convert_functions as cf
 import math
 from actionlib_msgs.msg import GoalStatus
 import copy
-from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import PointStamped, Pose, PoseStamped, Point, Quaternion
 from std_msgs.msg import String
 import tf
 from pr2_gripper_sensor_msgs.msg import PR2GripperEventDetectorGoal
@@ -21,6 +21,7 @@ import cv
 import time
 import subprocess as sb
 import hai_sandbox.find_split as fs
+import hai_sandbox.recognize_3d as r3d
 import hrl_camera.ros_camera as rc
 #import hrl_pr2_lib.devices as de
 import hrl_pr2_lib.devices as hd
@@ -28,6 +29,7 @@ import hrl_lib.rutils as ru
 import hrl_lib.tf_utils as tfu
 import hrl_lib.util as ut
 import hrl_lib.prob as pr
+import scipy.spatial as sp
 
 
 #from sound_play.msg import SoundRequest
@@ -62,6 +64,18 @@ class Action:
     def __init__(self, name, params):
         self.name = name
         self.params = params
+
+def create_pose_stamped(pose, frame_id = 'base_link'):
+    m = PoseStamped()
+    m.header.frame_id = frame_id
+    #print "frame_id:", frame_id
+    #m.header.stamp = rospy.get_rostime()
+    m.header.stamp = rospy.Time()
+    m.pose = Pose(Point(*pose[0:3]), Quaternion(*pose[3:7]))
+    #print "desired position:", pplist(pose[0:3])
+    #print "desired orientation:", pplist(pose[3:7])
+    return m
+        
 
 class BehaviorDescriptor:
 
@@ -141,6 +155,12 @@ class PressureListener:
         self.threshold = None
         self.exceeded_threshold = False
 
+    def rezero(self):
+        self.lmat0 = None
+        self.rmat0 = None
+        self.exceeded_threshold = False
+        self.exceeded_safe_threshold = False
+
     def check_safety_threshold(self):
         r = self.exceeded_safe_threshold
         self.exceeded_safe_threshold = False #reset 
@@ -170,12 +190,14 @@ class PressureListener:
             self.exceeded_safe_threshold = True
 
         if self.threshold != None and (np.any(np.abs(lmat) > self.threshold) or np.any(np.abs(rmat) > self.threshold)):
-            print 'EXCEEDED threshold', self.threshold
+            #print 'EXCEEDED threshold', self.threshold
+            #print 'PressureListener: ', np.max(np.abs(lmat)), np.max(np.abs(rmat)), 'threshold', self.threshold
             self.exceeded_threshold = True
 
 
 class Behaviors:
-    def __init__(self, arm, tf_listener=None):
+
+    def __init__(self, arm, pr2_obj, tf_listener=None):
         try:
             rospy.init_node('linear_move', anonymous=True)
         except Exception, e:
@@ -186,23 +208,41 @@ class Behaviors:
         else:
             self.tf_listener = tf_listener
 
+        self.pr2 = pr2_obj
         self.cman = con.ControllerManager(arm, self.tf_listener, using_slip_controller=1)
         self.reactive_gr = rgr.ReactiveGrasper(self.cman)
         if arm == 'l':
             self.tool_frame = 'l_gripper_tool_frame'
             ptopic = '/pressure/l_gripper_motor'
+            self.arm_obj = self.pr2.left
+            self.ik_frame = 'l_wrist_roll_link'
+            self.tool_frame = 'l_gripper_tool_frame'
         else:
             self.tool_frame = 'r_gripper_tool_frame'
             ptopic = '/pressure/r_gripper_motor'
+            self.arm_obj = self.pr2.right
+            self.ik_frame = 'r_wrist_roll_link'
+            self.tool_frame = 'r_gripper_tool_frame'
+
+
         self.pressure_listener = PressureListener(ptopic, 5000)
         self.collision_monitor = cmon.CollisionClient(arm)
 
         self.cman.start_joint_controllers()
         self.cman.start_gripper_controller()
         self.timeout = 10.0
+        self.movement_mode = 'ik' #or cart
 
         #rospy.Subscriber('cursor3d', PointStamped, self.laser_point_handler)
         #self.double_click = rospy.Subscriber('mouse_left_double_click', String, self.double_click_cb)
+
+    def set_movement_mode_ik(self):
+        self.movement_mode = 'ik'
+        self.reactive_gr.cm.switch_to_joint_mode()
+        self.reactive_gr.cm.freeze_arm()
+
+    def set_movement_mode_cart(self):
+        self.movement_mode = 'cart'
 
     def reach(self, point, pressure_thres, move_back_distance):
         self.set_pressure_threshold(pressure_thres)
@@ -211,26 +251,39 @@ class Behaviors:
         front_loc[0,0] = loc_bl[0,0]
 
         start_loc = self.current_location()
-        #pdb.set_trace()
-        r1 = self.move_absolute((front_loc, start_loc[1]), stop='pressure_accel', pressure=pressure_thres)
-        if r1 != None: #if this step fails, we move back then return
+        self.pressure_listener.rezero()
+        r1 = self.move_absolute((front_loc, start_loc[1]), stop='pressure', pressure=pressure_thres)
+        if r1 != None and r1 != 'no solution': #if this step fails, we move back then return
             #self.move_absolute(start_loc, stop='accel')
-            return False, r1
+            return False, r1, None
 
-        r2 = self.move_absolute((point, self.current_location()[1]), stop='pressure_accel', pressure=pressure_thres)
+        #We expect impact here
+        try:
+            r2 = self.move_absolute((point, self.current_location()[1]), stop='pressure', pressure=pressure_thres)
+        except RobotSafetyError, e:
+            pass
         touch_loc_bl = self.current_location()
         if r2 == None or r2 == 'pressure' or r2 == 'accel':
-            self.move_relative_gripper(move_back_distance, stop='none', pressure=pressure_thres)
+            self.set_movement_mode_cart()
+            self.pressure_listener.rezero()
+            #b/c of stiction, we can't move precisely for small distances
+            self.move_relative_gripper(3.*move_back_distance, stop='none', pressure=pressure_thres)
+            self.move_relative_gripper(-2.*move_back_distance, stop='none', pressure=pressure_thres)
+            self.pressure_listener.rezero()
             return True, r2, touch_loc_bl
         else:
             #shouldn't get here
             return False, r2, None
 
+
     def press(self, direction, press_pressure, contact_pressure):
         #make contact first
+        self.set_movement_mode_cart()
+        #pdb.set_trace()
         r1 = self.move_relative_gripper(direction, stop='pressure', pressure=contact_pressure)
         #now perform press
         if r1 == 'pressure' or r1 == 'accel':
+            self.set_movement_mode_cart()
             r2 = self.move_relative_gripper(direction, stop='pressure_accel', pressure=press_pressure)
             if r2 == 'pressure' or r2 == 'accel' or r2 == None:
                 return True, r2
@@ -239,47 +292,74 @@ class Behaviors:
         else:
             return False, r1
 
+
     def set_pressure_threshold(self, t):
         self.pressure_listener.set_threshold(t)
+
 
     def move_absolute(self, loc, stop='pressure_accel', pressure=300):
         self.set_pressure_threshold(pressure)
         stop_funcs = self._process_stop_option(stop)
-        return self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
+        #return self._move_cartesian(loc[0], loc[1], stop_funcs, 
+        #                            timeout=self.timeout, settling_time=5.0)
+        self.set_movement_mode_cart()
+        self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
+        self.set_movement_mode_ik()
+        r = self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
+        diff = loc[0] - self.current_location()[0]
+        print 'move_absolute: diff is ', diff.T
+        print 'move_absolute: dist %.3f' % np.linalg.norm(diff)
+        return r
+
 
     def move_relative_base(self, movement, stop='pressure_accel', pressure=150):
         self.set_pressure_threshold(pressure)
         trans, rot = self.current_location()
         ntrans = trans + movement
         stop_funcs = self._process_stop_option(stop)
-        return self._move_cartesian(ntrans, rot, stop_funcs, timeout=self.timeout, settling_time=5.0)
+        #return self._move_cartesian(ntrans, rot, stop_funcs, 
+        #                            timeout=self.timeout, settling_time=5.0)
+        r = self._move_cartesian(ntrans, rot, stop_funcs, \
+                timeout=self.timeout, settling_time=5.0)
+        diff = self.current_location()[0] - (trans + movement)
+        print 'move_relative_base: diff is ', diff.T
+        print 'move_relative_base: dist %.3f' % np.linalg.norm(diff)
+        return r
+
 
     def move_relative_gripper(self, movement_tool, stop='pressure_accel', pressure=150):
         #pdb.set_trace()
         base_T_tool = tfu.transform('base_link', self.tool_frame, self.tf_listener)
-        movement_base = base_T_tool[0:3, 0:3] * movement_tool# np.concatenate((movement_tool, np.matrix([1])))
+        movement_base = base_T_tool[0:3, 0:3] * movement_tool # np.concatenate((movement_tool, np.matrix([1])))
         #pdb.set_trace()
         return self.move_relative_base(movement_base, stop=stop, pressure=pressure)
+
 
     def twist(self, angle):
         pos, rot = self.cman.return_cartesian_pose() # in base_link
         ax, ay, az = tr.euler_from_quaternion(rot) 
         nrot = tr.quaternion_from_euler(ax + angle, ay, az)
-        #pdb.set_trace()
         stop_funcs = self._process_stop_option(stop)
-        return self._move_cartesian(np.matrix(pos).T, np.matrix(nrot).T, stop_funcs, timeout=self.timeout, settling_time=5.0)
+        #return self._move_cartesian(np.matrix(pos).T, np.matrix(nrot).T, 
+        #                            stop_funcs, timeout=self.timeout, settling_time=5.0)
+        return self._move_cartesian(np.matrix(pos).T, np.matrix(nrot).T, \
+                stop_funcs, timeout=self.timeout, settling_time=5.0)
+
 
     def gripper_close(self):
         self.reactive_gr.compliant_close()
 
+
     def gripper_open(self):
         self.reactive_gr.cm.command_gripper(.1, -1, 1)
+
 
     ##
     # @param a position in the base_link
     def current_location(self):
-        pos, rot = self.cman.return_cartesian_pose()
+        pos, rot = tfu.matrix_as_tf(self.arm_obj.pose_cartesian())
         return np.matrix(pos).T, np.matrix(rot).T
+
 
     def _process_stop_option(self, stop):
         stop_funcs = []
@@ -287,7 +367,7 @@ class Behaviors:
         self.collision_monitor.check_self_contacts()
 
         stop_funcs.append([self.pressure_listener.check_safety_threshold, 'pressure_safety'])
-        stop_funcs.append([self.collision_monitor.check_self_contacts, 'self_collision'])
+        #stop_funcs.append([self.collision_monitor.check_self_contacts, 'self_collision'])
 
         if stop == 'pressure':
             self.pressure_listener.check_threshold()
@@ -303,6 +383,7 @@ class Behaviors:
             stop_funcs.append([self._check_gripper_event, 'accel'])
 
         return stop_funcs
+
 
     ##start up gripper event detector to detect when an object hits the table 
     #or when someone is trying to take an object from the robot
@@ -359,6 +440,18 @@ class Behaviors:
         else:
             return False
 
+
+    def _move_cartesian(self, position, orientation, \
+            stop_funcs=[], timeout = 3.0, settling_time = 0.5, \
+            frame='base_link', vel=.15):
+        if self.movement_mode == 'ik':
+            return self._move_cartesian_ik(position, orientation, stop_funcs, \
+                    timeout, settling_time, frame, vel=.15)
+        elif self.movement_mode == 'cart':
+            return self._move_cartesian_cart(position, orientation, stop_funcs, \
+                    timeout, settling_time)
+
+
     #def _tactile_stop_func(self):
     #    r1 = self.pressure_listener.check_threshold() 
     #    r2 = self.pressure_listener.check_safety_threshold()
@@ -367,13 +460,73 @@ class Behaviors:
     #    if r2:
     #        rospy.loginfo('Pressure safety limit EXCEEDED!')
     #    return r1 or r2
+    def _move_cartesian_ik(self, position, orientation, \
+            stop_funcs=[], timeout = 30., settling_time = 0.25, \
+            frame='base_link', vel=.15):
+        #pdb.set_trace()
+        #self.arm_obj.set_cart_pose_ik(cart_pose, total_time=motion_length, frame=frame, block=False)
+        #cart_pose = tfu.tf_as_matrix((position.A1.tolist(), orientation.A1.tolist()))
+
+        self.tf_listener.waitForTransform(self.ik_frame, self.tool_frame, rospy.Time(), rospy.Duration(10))
+        toolframe_T_ikframe = tfu.transform(self.tool_frame, self.ik_frame, self.tf_listener)
+        cart_pose = tfu.tf_as_matrix((position.A1.tolist(), orientation.A1.tolist()))
+        cart_pose = cart_pose * toolframe_T_ikframe
+        position, orientation = tfu.matrix_as_tf(cart_pose)
+
+        #goal_pose_ps = create_pose_stamped(position.A1.tolist() + orientation.A1.tolist(), frame)
+        goal_pose_ps = create_pose_stamped(position.tolist() + orientation.tolist(), frame)
+        r = self.reactive_gr.cm.move_cartesian_ik(goal_pose_ps, blocking=0, step_size=.005, \
+                pos_thres=.02, rot_thres=.1, timeout=rospy.Duration(timeout),
+                settling_time=rospy.Duration(settling_time), vel=vel)
+        if not (r == 'sent goal' or r == 'success'):
+            return r
+
+        #move_cartesian_ik(self, goal_pose, collision_aware = 0, blocking = 1,                            
+        #                  step_size = .005, pos_thres = .02, rot_thres = .1,                                
+        #                  timeout = rospy.Duration(30.),                                                    
+        #                  settling_time = rospy.Duration(0.25), vel = .15):   
+
+        stop_trigger = None
+        done_time = None
+        start_time = rospy.get_rostime()
+        while stop_trigger == None:
+            for f, name in stop_funcs:
+                if f():
+                    self.arm_obj.stop_trajectory_execution()
+                    stop_trigger = name
+                    rospy.loginfo('"%s" requested that motion should be stopped.' % (name))
+                    break
+
+            if timeout != 0. and rospy.get_rostime() - start_time > rospy.Duration(timeout):
+                rospy.loginfo("_move_cartesian_ik: motion timed out")
+                break
+
+            if (not done_time) and (not self.arm_obj.has_active_goal()):
+                #rospy.loginfo("check_cartesian_done returned 1")
+                done_time = rospy.get_rostime()
+
+            if done_time and rospy.get_rostime() - done_time > rospy.Duration(settling_time):
+                rospy.loginfo("_move_cartesian_ik: done settling")
+                break
+
+        if stop_trigger == 'pressure_safety':
+            raise RobotSafetyError(stop_trigger)
+        return stop_trigger
 
 
     ##move the wrist to a desired Cartesian pose while watching the fingertip sensors
     #settling_time is how long to wait after the controllers think we're there
-    def _move_cartesian(self, position, orienation, \
+    def _move_cartesian_cart(self, position, orientation, \
             stop_funcs=[], timeout = 3.0, settling_time = 0.5):
-        pose_stamped = cf.create_pose_stamped(position.T.A1.tolist() + orienation.T.A1.tolist())
+
+        self.tf_listener.waitForTransform(self.ik_frame, self.tool_frame, rospy.Time(), rospy.Duration(10))
+        toolframe_T_ikframe = tfu.transform(self.tool_frame, self.ik_frame, self.tf_listener)
+        cart_pose = tfu.tf_as_matrix((position.A1.tolist(), orientation.A1.tolist()))
+        cart_pose = cart_pose * toolframe_T_ikframe
+        position, orientation = tfu.matrix_as_tf(cart_pose)
+
+        #pose_stamped = cf.create_pose_stamped(position.T.A1.tolist() + orientation.T.A1.tolist())
+        pose_stamped = cf.create_pose_stamped(position.tolist() + orientation.tolist())
         rg = self.reactive_gr
         rg.check_preempt()
 
@@ -429,7 +582,8 @@ class Behaviors:
                 #rospy.loginfo("timed out")
                 break
 
-        if stop_trigger == 'pressure_safety' or stop_trigger == 'self_collision':
+        #if stop_trigger == 'pressure_safety' or stop_trigger == 'self_collision':
+        if stop_trigger == 'pressure_safety':
             raise RobotSafetyError(stop_trigger)
         return stop_trigger
 
@@ -448,8 +602,8 @@ class BehaviorTest:
     def __init__(self):
         rospy.init_node('linear_move', anonymous=True)
         self.tf_listener = tf.TransformListener()
-        self.behaviors = Behaviors('l', tf_listener=self.tf_listener)
-        self.robot = pr2.PR2(self.tf_listener)
+        self.robot = pr2.PR2(self.tf_listener, base=True)
+        self.behaviors = Behaviors('l', self.robot, tf_listener=self.tf_listener)
         self.laser_scan = hd.LaserScanner('point_cloud_srv')
         #self.prosilica = rc.Prosilica('prosilica', 'streaming')
         self.prosilica = rc.Prosilica('prosilica', 'polled')
@@ -464,12 +618,20 @@ class BehaviorTest:
         self.laser_listener = LaserPointerClient(tf_listener=self.tf_listener, robot=self.robot)
         self.laser_listener.add_double_click_cb(self.click_cb)
 
-        #self.behaviors.set_pressure_threshold(300)
-        self.start_location = (np.matrix([0.25, 0.30, 1.3]).T, np.matrix([0., 0., 0., 0.1]))
-        self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
-
         self.critical_error = False
 
+        #self.behaviors.set_pressure_threshold(300)
+        #TODO: define start location in frame attached to torso instead of base_link
+        self.start_location = (np.matrix([0.35, 0.30, 1.1]).T, np.matrix([0., 0., 0., 0.1]))
+        #self.start_location = (np.matrix([0.25, 0.30, 1.3]).T, np.matrix([0., 0., 0., 0.1]))
+        #pdb.set_trace()
+        self.behaviors.set_movement_mode_cart()
+
+    def go_to_home_pose(self):
+        self.behaviors.set_movement_mode_cart()
+        self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
+        self.behaviors.set_movement_mode_ik()
+        return self.behaviors.move_absolute(self.start_location, stop='pressure')
 
     def camera_change_detect(self, threshold, f, args):
         #take before sensor snapshot
@@ -505,11 +667,13 @@ class BehaviorTest:
             press_pressure, press_distance, visual_change_thres):
         print '===================================================================='
         point = point + point_offset 
-        rospy.loginfo('REACHING to ' + str(point))
+        rospy.loginfo('>>>> REACHING to ' + str(point))
         #self.behaviors.gripper_close()
-        self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
+        #TODO: have go_home check whether it is actually at that location
+        #self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
 
         #start_loc = self.current_location()
+        pdb.set_trace()
         success, reason, touchloc_bl = self.behaviors.reach(point, press_contact_pressure, move_back_distance)
         if not success:
             error_msg = 'Reach failed due to "%s"' % reason
@@ -520,27 +684,30 @@ class BehaviorTest:
             #raise TaskError(error_msg)
             return False, None
 
-        rospy.loginfo('PRESSING')
-        change, press_ret = self.camera_change_detect(visual_change_thres, self.behaviors.press, \
-                (press_distance, press_pressure, press_contact_pressure))
+        rospy.loginfo('>>>> PRESSING')
+        #should not be making contact
+        self.behaviors.pressure_listener.rezero()
+        change, press_ret = self.camera_change_detect(visual_change_thres, self.behaviors.press, (press_distance, press_pressure, press_contact_pressure))
         success, reason = press_ret
         if not success:
             rospy.loginfo('Press failed due to "%s"' % reason)
 
         #code reward function
         #monitor self collision => collisions with the environment are not self collisions
-        rospy.loginfo('MOVING BACK')
+        rospy.loginfo('>>>> MOVING BACK')
+        self.behaviors.set_movement_mode_cart()
         r1 = self.behaviors.move_relative_gripper(np.matrix([-.03, 0., 0.]).T, \
                 stop='none', pressure=press_contact_pressure)
         if r1 != None:
             rospy.loginfo('moving back failed due to "%s"' % r1)
             return False, None
 
-        rospy.loginfo('RESETING')
-        r2 = self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
-        if r2 != None:
+        rospy.loginfo('>>>> RESETING')
+        r2 = self.go_to_home_pose()
+        if r2 != None and r2 != 'no solution':
             rospy.loginfo('moving back to start location failed due to "%s"' % r2)
             return False, None
+        self.behaviors.pressure_listener.rezero()
 
         rospy.loginfo('DONE.')
         return change, touchloc_bl
@@ -615,7 +782,7 @@ class BehaviorTest:
 
         #record region around the finger where you touched
         rospy.loginfo('Getting laser scan.')
-        points = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 40.)
+        points = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 20.)
         rospy.loginfo('Getting Prosilica image.')
         prosilica_image = self.prosilica.get_frame()
         rospy.loginfo('Getting image from left wide angle camera.')
@@ -697,18 +864,125 @@ class BehaviorTest:
                 #success_on, touchloc_bl = self.light_switch1(npoint, 
             else:
                 return
-            
+    
+
+    def drive_approach_behavior(self, point_bl, dist_far):
+        # navigate close to point
+        #pdb.set_trace()
+        map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+        point_map = tfu.transform_points(map_T_base_link, point_bl)
+        t_current_map, r_current_map = self.robot.base.get_pose()
+        rospy.loginfo('drive_approach_behavior: point is %.3f m away"' % np.linalg.norm(t_current_map[0:2].T - point_map[0:2,0].T))
+
+        point_dist = np.linalg.norm(point_bl)
+        bounded_dist = np.max(point_dist - dist_far, 0)
+        point_close_bl = (point_bl / point_dist) * bounded_dist
+        point_close_map = tfu.transform_points(map_T_base_link, point_close_bl)
+        rvalue = self.robot.base.set_pose(point_close_map.T.A1.tolist(), \
+                                          r_current_map, '/map', block=True)
+        t_end, r_end = self.robot.base.get_pose()
+        rospy.loginfo('drive_approach_behavior: ended up %.3f m away from laser point' % np.linalg.norm(t_end[0:2] - point_map[0:2,0].T))
+        rospy.loginfo('drive_approach_behavior: ended up %.3f m away from goal' % np.linalg.norm(t_end[0:2] - point_close_map[0:2,0].T))
+        rospy.loginfo('drive_approach_behavior: returned %d' % rvalue)
+        return rvalue
 
 
+    def normal_approach_behavior(self, point_bl, voi_radius, dist_approach):
+        #TODO: Turn to face point
+        #TODO: make this scan around point instead of total scan of env
+        #determine normal
+        #pdb.set_trace()
+        map_T_base_link0 = tfu.transform('map', 'base_link', self.tf_listener)
+        point_map0 = tfu.transform_points(map_T_base_link0, point_bl)
+        self.turn_to_point(point_bl)
 
-    def click_cb(self, point):
+        point_bl = tfu.transform_points(tfu.transform('base_link', 'map', self.tf_listener), \
+                                        point_map0)
+        point_cloud_bl = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 2.5)
+        point_cloud_np_bl = ru.pointcloud_to_np(point_cloud_bl)
+        voi_points_bl, limits_bl = r3d.select_rect(point_bl, voi_radius, voi_radius, voi_radius, point_cloud_np_bl)
+        #TODO: use closest plane instead of closest points determined with KDTree
+        normal_bl = r3d.calc_normal(voi_points_bl)
+        point_in_front_mechanism_bl = point_bl + normal_bl * dist_approach
+        map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+        point_in_front_mechanism_map = tfu.transform_points(map_T_base_link, point_in_front_mechanism_bl)
+
+        #Navigate to point (TODO: check for collisions)
+        point_map = tfu.transform_points(map_T_base_link, point_bl)
+        t_current_map, r_current_map = self.robot.base.get_pose()
+        rospy.loginfo('normal_approach_behavior: driving for %.3f m to front of surface' \
+                % np.linalg.norm(t_current_map[0:2] - point_in_front_mechanism_map[0:2,0].T))
+        #pdb.set_trace()
+        rvalue = self.robot.base.set_pose(point_in_front_mechanism_map.T.A1.tolist(), r_current_map, 'map')
+        if rvalue != 3:
+            return rvalue
+
+        t1_current_map, r1_current_map = self.robot.base.get_pose()
+        rospy.loginfo('normal_approach_behavior: %.3f m away from from of surface' % np.linalg.norm(t1_current_map[0:2] - point_in_front_mechanism_map[0:2,0].T))
+
+        #Rotate to face point (TODO: check for collisions)
+        base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
+        point_bl = tfu.transform_points(base_link_T_map, point_map)
+        self.turn_to_point(point_bl)
+        return rvalue
+        #ang = math.atan2(point_bl[1,0], point_bl[0,0])
+        #self.robot.base.turn_by(ang, block=True)
+        #pdb.set_trace()
+
+
+    def turn_to_point(self, point_bl):
+        ang = math.atan2(point_bl[1,0], point_bl[0,0])
+        print 'turn_to_point: turning by %.2f deg' % math.degrees(ang)
+        self.robot.base.turn_by(-ang, block=True)
+
+
+    #TODO
+    def tuck(self):
+        pass
+
+
+    #TODO
+    def untuck(self):
+        pass
+
+
+    def click_cb(self, point_bl_t0):
         if self.critical_error:
             rospy.loginfo('Behaviors supressed due to uncleared critical error.')
             return
 
         try:
-            print 'CLICKED on point', point.T
-            self.gather_interest_point_dataset(point)
+            ##self.turn_to_point(point_bl_t0)
+            print 'CLICKED on point_bl', point_bl_t0.T
+            map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+            point_map = tfu.transform_points(map_T_base_link, point_bl_t0)
+
+            ret = self.drive_approach_behavior(point_bl_t0, dist_far=.6)
+            if ret != 3:
+                rospy.logerr('drive_approach_behavior failed!')
+                return
+
+            base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
+            point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
+
+            ret = self.normal_approach_behavior(point_bl_t1, voi_radius=.2, dist_approach=.50)
+            if ret != 3:
+                rospy.logerr('normal_approach_behavior failed!')
+                return
+
+            map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+            point_bl_t2 = tfu.transform_points(base_link_T_map, point_map)
+            print '>>>>> go_home_pose'
+            pdb.set_trace()
+            self.go_to_home_pose()
+            self.go_to_home_pose()
+            success_off = self.light_switch1(point_bl_t2, 
+                            #point_offset=np.matrix([-.15,0,0]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.01,0,0]).T,\
+                            point_offset=np.matrix([0,0,.03]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.01,0,0]).T,\
+                            press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
+
+            #pdb.set_trace()
+            #self.gather_interest_point_dataset(point)
             #point = np.matrix([ 0.60956734, -0.00714498,  1.22718197]).T
             #pressure_parameters = range(1900, 2050, 30)
 

@@ -18,7 +18,8 @@ import threading
 import Queue as qu
 import visualization_msgs.msg as vm
 import hrl_lib.viz as viz
-import mlpy
+
+#import mlpy
 
 
 def calc_normal(points3d, p=np.matrix([-1,0,0.]).T):
@@ -512,7 +513,7 @@ class Recognize3D:
             #rank each patch by distance to all positive examples
             all_pos_samples = train[np.where(responses == self.POSITIVE)[1].A1, :] #all pos examples so far
             ex_dists = []
-            for ex_idx in range(all_ex_from_scene.shape[0])
+            for ex_idx in range(all_ex_from_scene.shape[0]):
                 ex = all_ex_from_scene[ex_idx, :]
                 diff = all_pos_samples - ex
                 dists = np.power(np.sum(np.power(diff, 2), 1), .5)
