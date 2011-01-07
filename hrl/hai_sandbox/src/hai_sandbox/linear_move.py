@@ -252,19 +252,19 @@ class Behaviors:
 
         start_loc = self.current_location()
         self.pressure_listener.rezero()
-        r1 = self.move_absolute((front_loc, start_loc[1]), stop='pressure', pressure=pressure_thres)
-        r1 = self.move_absolute((front_loc, start_loc[1]), stop='pressure', pressure=pressure_thres)
+        r1, _ = self.move_absolute((front_loc, start_loc[1]), stop='pressure', pressure=pressure_thres)
+        r1, _ = self.move_absolute((front_loc, start_loc[1]), stop='pressure', pressure=pressure_thres)
         if r1 != None and r1 != 'no solution': #if this step fails, we move back then return
             #self.move_absolute(start_loc, stop='accel')
             return False, r1, None
 
         #We expect impact here
         try:
-            r2 = self.move_absolute((point, self.current_location()[1]), stop='pressure', pressure=pressure_thres)
+            r2, pos_error = self.move_absolute((point, self.current_location()[1]), stop='pressure', pressure=pressure_thres)
         except RobotSafetyError, e:
             pass
         touch_loc_bl = self.current_location()
-        if r2 == None or r2 == 'pressure' or r2 == 'accel':
+        if r2 == None or r2 == 'pressure' or r2 == 'accel' or pos_error < .05:
             self.set_movement_mode_cart()
             self.pressure_listener.rezero()
             #b/c of stiction, we can't move precisely for small distances
@@ -310,7 +310,7 @@ class Behaviors:
         diff = loc[0] - self.current_location()[0]
         print 'move_absolute: diff is ', diff.T
         print 'move_absolute: dist %.3f' % np.linalg.norm(diff)
-        return r
+        return r, np.linalg.norm(diff)
 
 
     def move_relative_base(self, movement, stop='pressure_accel', pressure=150):
@@ -627,7 +627,21 @@ class BehaviorTest:
         #self.start_location = (np.matrix([0.25, 0.30, 1.3]).T, np.matrix([0., 0., 0., 0.1]))
         #pdb.set_trace()
         self.behaviors.set_movement_mode_cart()
-        self.robot_state = 0
+        self.r1 = np.matrix([[-0.31006769,  1.2701541 , -2.07800829, -1.45963243, -4.35290489,
+                         -1.86052221,  5.07369192]]).T
+
+        self.l0 = np.matrix([[  1.05020383,  -0.34464327,   0.05654   ,  -2.11967694,
+                         -10.69100221,  -1.95457839,  -3.99544713]]).T
+
+        self.l1 = np.matrix([[  1.06181076,   0.42026402,   0.78775801,  -2.32394841,
+                         -11.36144995,  -1.93439025,  -3.14650108]]).T
+        
+        self.l2 = np.matrix([[  0.86275197,   0.93417818,   0.81181124,  -2.33654346,
+                         -11.36121856,  -2.14040499,  -3.15655164]]).T
+        
+        self.l3 = np.matrix([[ 0.54339568,  1.2537778 ,  1.85395725, -2.27255481, -9.92394984,
+                         -0.86489749, -3.00261708]]).T
+        self.tuck()
 
     def go_to_home_pose(self):
         self.behaviors.set_movement_mode_cart()
@@ -705,7 +719,7 @@ class BehaviorTest:
             return False, None
 
         rospy.loginfo('>>>> RESETING')
-        r2 = self.go_to_home_pose()
+        r2, pos_error = self.go_to_home_pose()
         if r2 != None and r2 != 'no solution':
             rospy.loginfo('moving back to start location failed due to "%s"' % r2)
             return False, None
@@ -721,7 +735,7 @@ class BehaviorTest:
             rospy.loginfo('Reach failed due to "%s"' % reason)
 
         rospy.loginfo('RESETING')
-        r2 = self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
+        r2, pos_error = self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
         if r2 != None:
             rospy.loginfo('moving back to start location failed due to "%s"' % r2)
             return 
@@ -938,29 +952,40 @@ class BehaviorTest:
         self.robot.base.turn_by(-ang, block=True)
 
 
-    #TODO
     def tuck(self):
-        pass
+        if np.linalg.norm(self.robot.left.pose() - self.l3) < .3:
+            rospy.loginfo('tuck: Already tucked. Ignoring request.')
+            return
+        self.robot.right.set_pose(self.r1, block=False)
+        self.robot.left.set_pose(self.l0, block=True)
+        poses = np.column_stack([self.l0, self.l1, self.l2, self.l3])
+        self.robot.left.set_poses(poses, np.array([0., 3., 6., 9]))
 
 
-    #TODO
     def untuck(self):
-        pass
+        if np.linalg.norm(self.robot.left.pose() - self.l0) < .3:
+            rospy.loginfo('untuck: Already untucked. Ignoring request.')
+            return
+        self.robot.right.set_pose(self.r1, 2., block=False)
+        self.robot.left.set_pose(self.l3, 2., block=True)
+        poses = np.column_stack([self.l3, self.l2, self.l1, self.l0])
+        self.robot.left.set_poses(poses, np.array([0., 3., 6., 9]))
 
 
     def click_cb(self, point_bl_t0):
         point_dist = np.linalg.norm(point_bl_t0[0:2,0])
-        rospy.loginfo('Point is %.3f away.' % point_dist)
-        if point_dist > .7:
-            rospy.loginfo('Point is greater than .7 m away.  Driving closer.' % point_dist)
+        rospy.loginfo('click_cb: Point is %.3f away.' % point_dist)
+        dist_threshold = .7
+        if point_dist > dist_threshold:
+            rospy.loginfo('click_cb: Point is greater than %.1f m away (%.3f).  Driving closer.' % (dist_threshold, point_dist))
             ##self.turn_to_point(point_bl_t0)
-            print 'CLICKED on point_bl', point_bl_t0.T
+            rospy.loginfo( 'click_cb: CLICKED on point_bl ' + str(point_bl_t0.T))
             map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
             point_map = tfu.transform_points(map_T_base_link, point_bl_t0)
 
             ret = self.drive_approach_behavior(point_bl_t0, dist_far=.6)
             if ret != 3:
-                rospy.logerr('drive_approach_behavior failed!')
+                rospy.logerr('click_cb: drive_approach_behavior failed!')
                 return
 
             base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
@@ -968,29 +993,31 @@ class BehaviorTest:
 
             ret = self.approach_perpendicular_to_surface(point_bl_t1, voi_radius=.2, dist_approach=.50)
             if ret != 3:
-                rospy.logerr('approach_perpendicular_to_surface failed!')
+                rospy.logerr('click_cb: approach_perpendicular_to_surface failed!')
                 return
 
             map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
             point_bl_t2 = tfu.transform_points(base_link_T_map, point_map)
-            rospy.loginfo('DONE DRIVING!')
+            rospy.loginfo('click_cb: DONE DRIVING!')
         else:
-            rospy.loginfo('Point is less than .6 m away.  Attempting manipulation' % point_dist)
+            rospy.loginfo('click_cb: Point is less than %.1f m away (%.3f).  Attempting manipulation' % (dist_threshold, point_dist))
             try:
-                print '>>>>> go_home_pose'
+                rospy.loginfo('click_cb: go_home_pose')
+                self.untuck()
                 self.go_to_home_pose()
                 self.go_to_home_pose()
                 success_off = self.light_switch1(point_bl_t0, 
                                 point_offset=np.matrix([0,0,.03]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.005,0,0]).T,\
                                 press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
+                self.tuck()
 
             except RobotSafetyError, e:
-                rospy.loginfo('Caught a robot safety exception "%s"' % str(e.parameter))
+                rospy.loginfo('click_cb: Caught a robot safety exception "%s"' % str(e.parameter))
                 self.behaviors.move_absolute(self.start_location, stop='accel')
 
             except TaskError, e:
-                rospy.loginfo('TaskError: %s' % str(e.parameter))
-            rospy.loginfo('DONE MANIPULATION!')
+                rospy.loginfo('click_cb: TaskError: %s' % str(e.parameter))
+            rospy.loginfo('click_cb: DONE MANIPULATION!')
 
 
 
