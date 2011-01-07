@@ -253,6 +253,7 @@ class Behaviors:
         start_loc = self.current_location()
         self.pressure_listener.rezero()
         r1 = self.move_absolute((front_loc, start_loc[1]), stop='pressure', pressure=pressure_thres)
+        r1 = self.move_absolute((front_loc, start_loc[1]), stop='pressure', pressure=pressure_thres)
         if r1 != None and r1 != 'no solution': #if this step fails, we move back then return
             #self.move_absolute(start_loc, stop='accel')
             return False, r1, None
@@ -626,6 +627,7 @@ class BehaviorTest:
         #self.start_location = (np.matrix([0.25, 0.30, 1.3]).T, np.matrix([0., 0., 0., 0.1]))
         #pdb.set_trace()
         self.behaviors.set_movement_mode_cart()
+        self.robot_state = 0
 
     def go_to_home_pose(self):
         self.behaviors.set_movement_mode_cart()
@@ -667,13 +669,13 @@ class BehaviorTest:
             press_pressure, press_distance, visual_change_thres):
         print '===================================================================='
         point = point + point_offset 
-        rospy.loginfo('>>>> REACHING to ' + str(point))
+        rospy.loginfo('>>>> REACHING to ' + str(point.T))
         #self.behaviors.gripper_close()
         #TODO: have go_home check whether it is actually at that location
         #self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
 
         #start_loc = self.current_location()
-        pdb.set_trace()
+        #pdb.set_trace()
         success, reason, touchloc_bl = self.behaviors.reach(point, press_contact_pressure, move_back_distance)
         if not success:
             error_msg = 'Reach failed due to "%s"' % reason
@@ -887,7 +889,7 @@ class BehaviorTest:
         return rvalue
 
 
-    def normal_approach_behavior(self, point_bl, voi_radius, dist_approach):
+    def approach_perpendicular_to_surface(self, point_bl, voi_radius, dist_approach):
         #TODO: Turn to face point
         #TODO: make this scan around point instead of total scan of env
         #determine normal
@@ -910,7 +912,7 @@ class BehaviorTest:
         #Navigate to point (TODO: check for collisions)
         point_map = tfu.transform_points(map_T_base_link, point_bl)
         t_current_map, r_current_map = self.robot.base.get_pose()
-        rospy.loginfo('normal_approach_behavior: driving for %.3f m to front of surface' \
+        rospy.loginfo('approach_perpendicular_to_surface: driving for %.3f m to front of surface' \
                 % np.linalg.norm(t_current_map[0:2] - point_in_front_mechanism_map[0:2,0].T))
         #pdb.set_trace()
         rvalue = self.robot.base.set_pose(point_in_front_mechanism_map.T.A1.tolist(), r_current_map, 'map')
@@ -918,7 +920,7 @@ class BehaviorTest:
             return rvalue
 
         t1_current_map, r1_current_map = self.robot.base.get_pose()
-        rospy.loginfo('normal_approach_behavior: %.3f m away from from of surface' % np.linalg.norm(t1_current_map[0:2] - point_in_front_mechanism_map[0:2,0].T))
+        rospy.loginfo('approach_perpendicular_to_surface: %.3f m away from from of surface' % np.linalg.norm(t1_current_map[0:2] - point_in_front_mechanism_map[0:2,0].T))
 
         #Rotate to face point (TODO: check for collisions)
         base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
@@ -947,11 +949,10 @@ class BehaviorTest:
 
 
     def click_cb(self, point_bl_t0):
-        if self.critical_error:
-            rospy.loginfo('Behaviors supressed due to uncleared critical error.')
-            return
-
-        try:
+        point_dist = np.linalg.norm(point_bl_t0[0:2,0])
+        rospy.loginfo('Point is %.3f away.' % point_dist)
+        if point_dist > .7:
+            rospy.loginfo('Point is greater than .7 m away.  Driving closer.' % point_dist)
             ##self.turn_to_point(point_bl_t0)
             print 'CLICKED on point_bl', point_bl_t0.T
             map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
@@ -965,63 +966,32 @@ class BehaviorTest:
             base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
             point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
 
-            ret = self.normal_approach_behavior(point_bl_t1, voi_radius=.2, dist_approach=.50)
+            ret = self.approach_perpendicular_to_surface(point_bl_t1, voi_radius=.2, dist_approach=.50)
             if ret != 3:
-                rospy.logerr('normal_approach_behavior failed!')
+                rospy.logerr('approach_perpendicular_to_surface failed!')
                 return
 
             map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
             point_bl_t2 = tfu.transform_points(base_link_T_map, point_map)
-            print '>>>>> go_home_pose'
-            pdb.set_trace()
-            self.go_to_home_pose()
-            self.go_to_home_pose()
-            success_off = self.light_switch1(point_bl_t2, 
-                            #point_offset=np.matrix([-.15,0,0]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.01,0,0]).T,\
-                            point_offset=np.matrix([0,0,.03]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.01,0,0]).T,\
-                            press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
+            rospy.loginfo('DONE DRIVING!')
+        else:
+            rospy.loginfo('Point is less than .6 m away.  Attempting manipulation' % point_dist)
+            try:
+                print '>>>>> go_home_pose'
+                self.go_to_home_pose()
+                self.go_to_home_pose()
+                success_off = self.light_switch1(point_bl_t0, 
+                                point_offset=np.matrix([0,0,.03]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.005,0,0]).T,\
+                                press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
 
-            #pdb.set_trace()
-            #self.gather_interest_point_dataset(point)
-            #point = np.matrix([ 0.60956734, -0.00714498,  1.22718197]).T
-            #pressure_parameters = range(1900, 2050, 30)
+            except RobotSafetyError, e:
+                rospy.loginfo('Caught a robot safety exception "%s"' % str(e.parameter))
+                self.behaviors.move_absolute(self.start_location, stop='accel')
 
-            #self.record_perceptual_data(point)
-            #successes = []
-            #parameters = [np.matrix([-.15, 0, 0]).T, 300, np.matrix([-.005, 0, 0]).T, 3500, np.matrix([0,0,-.15]).T, .03]
+            except TaskError, e:
+                rospy.loginfo('TaskError: %s' % str(e.parameter))
+            rospy.loginfo('DONE MANIPULATION!')
 
-            #for p in pressure_parameters:
-            #    experiment = []
-            #    for i in range(4):
-            #        #Turn off lights
-            #        rospy.loginfo('Experimenting with press_pressure = %d' % p)
-            #        success_off = self.light_switch1(point, 
-            #                        point_offset=np.matrix([-.15,0,0]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.005,0,0]).T,\
-            #                        press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
-            #        experiment.append(success_off)
-            #        rospy.loginfo('Lights turned off? %s' % str(success_off))
-            #        return
-
-            #        #Turn on lights
-            #        success_on = self.light_switch1(point, 
-            #                        point_offset=np.matrix([-.15,0,-.10]).T, press_contact_pressure=300, move_back_distance=np.matrix([-0.005, 0, 0]).T,
-            #                        press_pressure=3500, press_distance=np.matrix([0,0,.1]).T, visual_change_thres=.03)
-            #        #def light_switch1(self, point, 
-            #        #        point_offset, press_contact_pressure, move_back_distance,
-            #        #        press_pressure, press_distance, visual_change_thres):
-
-            #        print 'Lights turned on?', success_on
-            #    successes.append(experiment)
-
-            #ut.save_pickle({'pressure': pressure_parameters, 
-            #                'successes': successes}, 'pressure_variation_results.pkl')
-
-        except RobotSafetyError, e:
-            rospy.loginfo('Caught a robot safety exception "%s"' % str(e.parameter))
-            self.behaviors.move_absolute(self.start_location, stop='accel')
-
-        except TaskError, e:
-            rospy.loginfo('TaskError: %s' % str(e.parameter))
 
 
     def run(self):
@@ -1071,6 +1041,40 @@ if __name__ == '__main__':
 
 
 
+                #pdb.set_trace()
+                #self.gather_interest_point_dataset(point)
+                #point = np.matrix([ 0.60956734, -0.00714498,  1.22718197]).T
+                #pressure_parameters = range(1900, 2050, 30)
+
+                #self.record_perceptual_data(point)
+                #successes = []
+                #parameters = [np.matrix([-.15, 0, 0]).T, 300, np.matrix([-.005, 0, 0]).T, 3500, np.matrix([0,0,-.15]).T, .03]
+
+                #for p in pressure_parameters:
+                #    experiment = []
+                #    for i in range(4):
+                #        #Turn off lights
+                #        rospy.loginfo('Experimenting with press_pressure = %d' % p)
+                #        success_off = self.light_switch1(point, 
+                #                        point_offset=np.matrix([-.15,0,0]).T, press_contact_pressure=300, move_back_distance=np.matrix([-.005,0,0]).T,\
+                #                        press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, visual_change_thres=.03)
+                #        experiment.append(success_off)
+                #        rospy.loginfo('Lights turned off? %s' % str(success_off))
+                #        return
+
+                #        #Turn on lights
+                #        success_on = self.light_switch1(point, 
+                #                        point_offset=np.matrix([-.15,0,-.10]).T, press_contact_pressure=300, move_back_distance=np.matrix([-0.005, 0, 0]).T,
+                #                        press_pressure=3500, press_distance=np.matrix([0,0,.1]).T, visual_change_thres=.03)
+                #        #def light_switch1(self, point, 
+                #        #        point_offset, press_contact_pressure, move_back_distance,
+                #        #        press_pressure, press_distance, visual_change_thres):
+
+                #        print 'Lights turned on?', success_on
+                #    successes.append(experiment)
+
+                #ut.save_pickle({'pressure': pressure_parameters, 
+                #                'successes': successes}, 'pressure_variation_results.pkl')
 
 
 
