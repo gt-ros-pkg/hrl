@@ -12,6 +12,7 @@ from hrl_lib.msg import FloatArray
 from hrl_lib.rutils import GenericListener, ros_to_dict, RateCaller
 from hrl_lib.data_process import signal_smooth, signal_variance, signal_list_variance
 from tf.transformations import *
+from pr2_overhead_grasping.overhead_grasping import log, err, node_name
 
 from std_msgs.msg import Float64MultiArray
 from pr2_msgs.msg import AccelerometerState, PressureState
@@ -22,11 +23,6 @@ import functools as ft
 import Queue
 
 import time, string
-
-node_name = "arm_perception_monitor" 
-
-def log(str):
-    rospy.loginfo(node_name + ": " + str)
 
 ##
 # Processes the AccelerometerState message, returning an average of the
@@ -94,197 +90,6 @@ def pressure_state_processor(msg, right_finger_tip=True, indicies=None):
             ret[i] = msg.l_finger_tip[ind]
     return (msg.header.stamp.to_nsec(), ret)
 
-##
-# Periodically logs the output of a callback function by calling it at a certain
-# rate and gathering up the results into a list
-class PeriodicLogger():
-    ##
-    # initializes the logger but doesn't start it
-    #
-    # @param callback the function to be called each time
-    # @param rate the rate in seconds at which to call the callback
-    # @param args the function arguments to pass into the callback
-    def __init__(self, callback, rate=0.01, args=None):
-        self.ret = []
-        self.cb = callback
-        self.rate = rate
-        self.args = args
-        self.is_running = False
-        self.max_calls = None
-        self.num_calls = 0
-        self.beg_time = 0.
-        self.thread = None
-
-    ##
-    # begins the logger 
-    # @param max_calls the maximum number of times to call the callback
-    def start(self, max_calls=None):
-        if self.is_running:
-            return
-        self.max_calls = max_calls
-        self.is_running = True
-        self.num_calls = 0
-        self.beg_time = rospy.Time.now().to_sec()
-        self.thread = threading.Timer(self.rate, self._run)
-        self.thread.start()
-
-    def _run(self):
-        if not self.is_running:
-            return
-
-        act_time = self.beg_time + self.rate * (self.num_calls + 2)
-        interval = act_time - rospy.Time.now().to_sec()
-        self.thread = threading.Timer(interval, self._run)
-        self.thread.start()
-
-        if self.args is None:
-            retval = self.cb()
-        else:
-            retval = self.cb(*self.args)
-        self.ret += [retval]
-
-        self.num_calls += 1
-        # break if we have called the sufficent number of times
-        if self.max_calls is not None:
-            if self.num_calls == self.max_calls:
-                self.is_running = False
-                return
-
-    ##
-    # stops the monitor
-    # @return the result of the monitor
-    def stop(self):
-        self.thread.cancel()
-        if not self.is_running:
-            return None
-        self.is_running = False
-        return self.ret
-
-    ##
-    # If max_calls sets to automatically terminate, return the ret vals
-    def get_ret_vals(self):
-        if self.is_running:
-            return None
-        return self.ret
-
-##
-# Periodically monitors the output of a callback function by calling it at a certain
-# rate and compares it with a provided model to insure the value doesn't vary greatly
-# within a degree of tolerance provided by the variance function
-class PeriodicMonitor():
-    ##
-    # initializes the monitor but doesn't start it
-    #
-    # @param callback the function to be called each time
-    # @param rate the rate in seconds at which to call the callback
-    # @param args the function arguments to pass into the callback
-    def __init__(self, callback, rate=0.01, args=None):
-        self.ret = []
-        self.cb = callback
-        self.rate = rate
-        self.args = args
-        self.is_running = False
-        self.num_calls = 0
-        self.beg_time = 0.
-        self.thread = None
-        self.mean_model = None
-        self.variance_model = None
-        self.std_devs = 0.
-        self.failure = False
-
-    ##
-    # begins the monitor
-    # TODO DOCS
-    # @param max_calls the maximum number of times to call the callback
-    def start(self, mean_model, variance_model, std_devs=2.5, max_calls=None, 
-                                                contingency=None, contingency_args=None):
-        if len(mean_model) != len(variance_model):
-            log("Models must be of same length")
-            return
-        if self.is_running:
-            return
-        self.is_running = True
-        self.mean_model = mean_model
-        self.variance_model = variance_model
-        self.std_devs = std_devs
-        self.max_calls = max_calls
-        self.contingency = contingency
-        self.contincency_args = contingency_args
-        self.model_index = 0
-        self.failure = False
-            
-        self.num_calls = 0
-        self.beg_time = rospy.Time.now().to_sec()
-        self.thread = threading.Timer(self.rate, self._run)
-        self.thread.start()
-
-    def _run(self):
-        if not self.is_running:
-            return
-
-        act_time = self.beg_time + self.rate * (self.num_calls + 2)
-        interval = act_time - rospy.Time.now().to_sec()
-        self.thread = threading.Timer(interval, self._run)
-        self.thread.start()
-
-        if self.args is None:
-            retval = self.cb()
-        else:
-            retval = self.cb(*self.args)
-
-        # go through each coordinate in the vector
-        for coord_i in len(retval[1]):
-            diff = abs(retval[1][coord_i] - self.mean_model[self.model_index][coord_i])
-            deviation = np.sqrt(self.variance_model[self.model_index][coord_i])
-            if diff > self.std_devs * deviation:
-                # signal is outside allowable range
-                self.failure = True
-                self.is_running = False
-                # call contingency function
-                if contingency_args is None:
-                    self.contingency()
-                else:
-                    self.contingency(*contingency_args)
-                return
-        self.ret += [retval]
-        self.model_index += 1
-        if self.model_index == len(self.mean_model):
-            self.is_running = False
-            return
-
-        # break if we have called the sufficent number of times
-        if not self.max_calls is None:
-            self.max_calls -= 1
-            if self.max_calls == 0:
-                self.is_running = False
-                return
-
-    ##
-    # stops the monitor
-    # @return the result of the monitor
-    def stop(self):
-        self.thread.cancel()
-        if not self.is_running:
-            return None
-        self.is_running = False
-        return self.ret
-
-    ##
-    # If max_calls sets to automatically terminate, return the ret vals
-    def get_ret_vals(self):
-        if self.is_running:
-            return None
-        return self.ret
-
-    # TODO DOCS
-    def has_failed():
-        return self.failure
-
-    # TODO DOCS
-    def wait_for_completion(rate=0.01):
-        while self.is_running and not rospy.is_shutdown():
-            rospy.sleep(rate)
-        return not self.failure
 
 ##
 # Monitors perception channels on the robot arms. Important: rate must be the same for both
@@ -432,7 +237,7 @@ class ArmPerceptionMonitor( ):
         t2 = rospy.Time.now().to_sec()
         import random
         if random.randint(0,100)==0:
-            print "Time:", t1-t2
+            log("Time:", t1-t2)
 
     ##
     # Initialize variables
@@ -490,105 +295,6 @@ class ArmPerceptionMonitor( ):
     def load(self, filename):
         self.datasets, self.models = load_pickle(filename)
 
-    ##
-    # Generates model functions of all the perceptions over several
-    # identical trajectories. Each of the parameters is a dictionary
-    # directing perceptions to their parameters.
-    # 
-    # @param smooth_wind_dict the window size of the smoothing function
-    # @param var_wind_dict window size of the variance function
-    # @param var_smooth_wind_dict window size of the smoothing function on the variance
-    # @return mean function, variance function
-    # def generate_models(self, smooth_wind_dict=None, var_wind_dict=None):
-
-    #     smooth_wind_default = 234
-    #     var_wind_default = 400
-    #     var_smooth_wind = 143
-    #     for perception in self.perceptions:
-    #         data_list = self.datasets[perception]
-    #         
-    #         if data_list is None:
-    #             log("No data to generate model for")
-    #             return None
-
-    #         if self.active:
-    #             log("Perception already active.")
-    #             return None
-
-    #         # get the minimum model length
-    #         lens = [len(m) for m in data_list]
-    #         max_len = np.max(lens)
-
-    #         # dynamic finding of parameters
-    #         if smooth_wind_dict is None or smooth_wind_dict[perception] is None:
-    #             smooth_wind = smooth_wind_default
-    #         else:
-    #             smooth_wind = smooth_wind_dict[perception]
-
-    #         ret_means, ret_vars, ret_mean_models, ret_noise_vars = [], [], [], []
-    #         ret_times, noise_vars = [], []
-    #         # find the number of coordinates from the first element
-    #         num_coords = len(data_list[0][0][1])
-    #         for coord in range(num_coords):
-    #             mean_models, variance_models = [], []
-    #             times = None
-    #             for stream in data_list:
-    #                 # extract only the data stream for a single coordinate (all x values)
-    #                 stream_coord = np.array(zip(*zip(*stream)[1])[coord])
-    #                 cur_mean_model = signal_smooth(stream_coord, smooth_wind)
-    #                 mean_models += [cur_mean_model]
-    #             
-    #                 # sum up the squared difference over the whole model
-    #                 noise_vars += [ ( sum([(x - y) ** 2 for x,y in zip(cur_mean_model,stream_coord)]) /
-    #                                                  len(cur_mean_model) ) ]
-
-    #             # find the average case over the several runs
-    #             avg_means_model = np.array([0.] * max_len)
-    #             for i in range(max_len):
-    #                 n = 0
-    #                 for j in range(len(mean_models)):
-    #                     if i < len(mean_models[j]):
-    #                         avg_means_model[i] += mean_models[j][i]
-    #                         n += 1
-    #                 avg_means_model[i] /= n
-
-    #             if var_wind_dict is None or var_wind_dict[perception] is None:
-    #                 var_wind = var_wind_default
-    #             else:
-    #                 var_wind = var_wind_dict[perception]
-    #             # find the variance of the signal but use var_wind points around the centers
-    #             # to increase the sample size
-    #             vars_model = signal_list_variance(mean_models, avg_means_model, var_wind)
-    #             vars_model = signal_smooth(vars_model, var_smooth_wind)
-    #             vars_model = signal_smooth(vars_model, var_smooth_wind + 23)
-
-    #             ret_times += [times]
-    #             ret_means += [avg_means_model]
-    #             ret_vars += [vars_model]
-    #             ret_mean_models += [mean_models]
-    #             ret_noise_vars += [np.average(noise_vars)]
-
-    #         # TODO deal with timestamp data in some way?
-    #         # self.models[perception]["time"] = ret_times
-    #         self.models[perception]["mean"] = np.array(zip(*ret_means))
-    #         self.models[perception]["variance"] = np.array(zip(*ret_vars))
-    #         a = ret_mean_models
-    #         b = []
-    #         for stream in range(len(a[0])):
-    #             t1 = []
-    #             for val in range(len(a[0][0])):
-    #                     t2 = []
-    #                     for coord in range(len(a)):
-    #                             if val < len(a[coord][stream]):
-    #                                 t2 += [a[coord][stream][val]]
-    #                     t1 += [np.array(t2)]
-    #             b += [t1]
- 
-    #         self.models[perception]["smoothed_signals"] = b
-    #         self.models[perception]["noise_variance"] = np.array(ret_noise_vars)
-
-    #     return self.models
-
     def get_zeros(self, time=4.):
         self._zeros = {}
         for k in self.perceptions:
@@ -604,6 +310,9 @@ class ArmPerceptionMonitor( ):
             self._zeros[k] /= self._n
         return self._zeros
 
+    
+    ##
+    # Summer used in finding zeros.
     def _sum_values(self):
         for k in self.perceptions:
             add_data = np.array(self.perceptions[k]()[1])
@@ -656,9 +365,8 @@ class ArmPerceptionMonitor( ):
         self.create_max_min()
 
 
-    # Checks percept to see if the model indicates a collision with the current
-    # smoothed perception avg
-    # Returns index of perception and difference if collision, -1, 0 else
+    ##
+    # Creates perception maximum and minimum thresholds. Only used in visualization.
     def create_max_min(self):
         for k in self.models:
             deviation = np.array(self.models[k]["variance"])
@@ -678,7 +386,7 @@ class ArmPerceptionMonitor( ):
 
             import random
             if random.randint(0, 10) == 0 and True:
-                print deviation[0:20], len(deviation)
+                log(deviation[0:20], len(deviation))
             self.models[k]["dev"] = (std_dev * deviation + tol_thresh)
             # self.models[k]["dev"] = (std_dev * deviation + noise_dev * noise_deviation + tol_thresh)
 
@@ -743,6 +451,9 @@ class ArmPerceptionMonitor( ):
             self.dur_timer = threading.Timer(self.end_monitoring, duration)
             self.dur_timer.start()
 
+    ##
+    # Stable Kahan summation algorithm used to keep a running sum of recent percept
+    # data.
     def _stable_summer(self, percept, data):
         # kahanSum
         k = percept
@@ -764,6 +475,8 @@ class ArmPerceptionMonitor( ):
             # self.sumsave[percept] += [self.sum_data[k]]
 
 
+    ##
+    # Called periodically to check for collisions.
     def _monitor_data(self):
         avg_dict = {}
         sttime = rospy.Time.now().to_sec()
@@ -793,7 +506,7 @@ class ArmPerceptionMonitor( ):
                 avg_dict[k] += self.current_zeros[k]
                 self.avg_list[k] += [avg_dict[k]] * 2 # * self.sampling_rate
                 # if self.cur_pt == self.window_size:
-                #     print self.avg_list[k]
+                #     log(self.avg_list[k])
 
                 # self.prev_avg = copy.deepcopy(avg)
                 # offset zeros into original perception frame
@@ -802,18 +515,18 @@ class ArmPerceptionMonitor( ):
                 #         avg_dict[k] += self.model_zeros[k] - self.current_zeros[k]
                 #     else:
                 #         # this is hacky, need to use zeros during training instead of first pt
-                #         # print "NOOOOOOOOOOOO!\n"*10
+                #         # log("NOOOOOOOOOOOO!\n"*10)
                 #         avg_dict[k] +=  np.array(self.models[k]["mean"][self.window_size]) - self.current_zeros[k]
 
                 # if collision_detected:
                 #     log("Value %d of the perception %s failed with difference %f"
                 #                                                % (index, k, diff))
                 #   # if diff > 5. and k == "accelerometer":
-                #   #     print "avg_list", self.avg_list
-                #   #     print "avg", avg
+                #   #     log("avg_list", self.avg_list)
+                #   #     log("avg", avg)
                 #   #     for i in range(self.window_size+1):
                 #   #         d = self.current_data[k].get()
-                #   #         print d
+                #   #         log(d)
                 #   #         self.current_data[k].put(d)
 
 
@@ -829,7 +542,7 @@ class ArmPerceptionMonitor( ):
         if self.cur_pt >= self.window_size: #self.current_data[k].full():
             collision_detected = self.collision_detect(avg_dict)
             if self.collide and collision_detected:
-                print "collision reported"
+                log("collision reported")
                 self.failure = True
                 if not self.contingency is None:
                     self.contingency()
@@ -841,36 +554,35 @@ class ArmPerceptionMonitor( ):
 
         if not self.only_pressure:
             if self.cur_pt >= 1.00 * len(self.models[self.models.keys()[0]]["mean"]):
-                print "ending early:", self.cur_pt * self.sampling_rate
+                log("ending early:", self.cur_pt * self.sampling_rate)
                 self.end_monitoring()
         endtime = rospy.Time.now().to_sec()
         if self.cur_pt % 10 == 0:
-            print "dur:", sttime - endtime
+            log("dur:", sttime - endtime)
 
 
 
     ##
     # Stop capturing perception data.  Store output data in datasets list for
     # later statistics.
-    # TODO DOCS
     def end_monitoring(self):
         if not self.active:
             log("Nothing to stop.")
             return self.avg_list 
 
-        print "-------------------------"
-        print "z averages:"
+        log("-------------------------")
+        log("z averages:")
         self.z_avg = {}
         for k in self.z_sum:
             self.z_avg[k] = self.z_sum[k] / self.cur_pt
-            print k, ":", self.z_avg[k]
-        print "-------------------------"
-        print "MINIMUM PROB"
-        print self.min_prob
-        print "-------------------------"
-        # print "Sum calls", self.sumcalls
+            log(k, ":", self.z_avg[k])
+        log("-------------------------")
+        log("MINIMUM PROB")
+        log(self.min_prob)
+        log("-------------------------")
+        # log("Sum calls", self.sumcalls)
         # if self.sumcalls["r_finger_periph_pressure"] == 202:
-        #     print self.sumsave
+        #     log(self.sumsave)
         self.monitor.stop()
         if self.dur_timer is not None:
             self.dur_timer.cancel()
@@ -879,9 +591,9 @@ class ArmPerceptionMonitor( ):
         self.active = False
         return self.avg_list
 
-    # Checks percept to see if the model indicates a collision with the current
-    # smoothed perception avg
-    # Returns index of perception and difference if collision, -1, 0 else
+    ##
+    # Uses current average perceptions to determine if a collision has occured.
+    # TODO PICK FILTER AND DELETE OTHER
     def collision_detect(self, avg_dict):
         # is_outside_range_dict = {}
         z = {}
@@ -909,7 +621,7 @@ class ArmPerceptionMonitor( ):
             else:
                 self.z_sum[k] += z[k]
 
-        # print "incoldet"
+        # log("incoldet")
         # collision_detected = self.collision_filtering(is_outside_range_dict)
 
         # collision_detected = self.collision_filtering_mal(np.sqrt(mal_sum))
@@ -917,9 +629,11 @@ class ArmPerceptionMonitor( ):
 
         collision_detected = self.collision_filtering(z)
 
-        # print "coldete", collision_detected
+        # log("coldete", collision_detected)
         return collision_detected
 
+    ##
+    # Collision detection using Malhalonobis distance measure
     def collision_filtering_mal(self, mal):
         prob = 1.
         TIME_WINDOW = 4
@@ -932,16 +646,19 @@ class ArmPerceptionMonitor( ):
         mal_avg = np.add.reduce(self.mals / TIME_WINDOW)
 
         if self.cur_pt % 10 == 0:
-            print mal_avg
+            log(mal_avg)
         MAL_THRESH = 4.7
         if mal_avg > MAL_THRESH:
-            print "Collision with mal dist:", mal_avg
+            log("Collision with mal dist:", mal_avg)
             for k in self.cur_mals:
-                print k, self.cur_mals[k]
+                log(k, self.cur_mals[k])
             return True
         return False
 
+    ##
+    # Collision detection using joint probability z-test
     def collision_filtering(self, z):
+        # TODO FIX EXTERNAL VARS
         prob = 1.
         TIME_WINDOW = 8
         for k in z:
@@ -954,9 +671,9 @@ class ArmPerceptionMonitor( ):
             self.z_rsum[k] -= self.z_list[k][self.cur_pt % TIME_WINDOW]
             self.z_list[k][self.cur_pt % TIME_WINDOW] = z[k]
 
-            # print z[k]
+            # log(z[k])
             prob *= np.multiply.reduce(2 * stats.norm.cdf(-self.z_rsum[k] / TIME_WINDOW))
-            # print prob
+            # log(prob)
 
         if self.cur_pt < TIME_WINDOW:
             return False
@@ -967,104 +684,30 @@ class ArmPerceptionMonitor( ):
         # CONFIDENCE = 1e-6
         if not self.only_pressure:
             # 4e-7 50/50
-            CONFIDENCE = 2.2e-4 # 1.9e-4
+            CONFIDENCE = 2e-4 # 2.2e-4 # 1.9e-4
         else:
             # pressure only confidence
-            CONFIDENCE = 1.e-5
+            CONFIDENCE = 1.e-1
         if self.cur_pt % 20 == 0:
-            print "Current pt:", self.cur_pt, ", probability:", prob
+            log("Current pt:", self.cur_pt, ", probability:", prob)
         if prob < CONFIDENCE:
-            print "probability:", prob
-            print "z values"
+            log("probability:", prob)
+            log("z values")
             for k in z:
-                print k, z[k]
-            print "collision returned"
+                log(k, z[k])
+            log("collision returned")
             return True
-    #       print "-------------------------"
-    #       print num_percep_col
+    #       log("-------------------------")
+    #       log(num_percep_col)
     #       for k in sig_counts:
     #           if sig_counts[k] >= PERCEPT_SIG_REQ[k]:
-    #               print k, ":", sig_counts[k]
-    #       print "-------------------------"
+    #               log(k, ":", sig_counts[k])
+    #       log("-------------------------")
     #       return True
 
         return False
 
-    # def collision_filtering(self, is_outside_range_dict):
-    #     isord = is_outside_range_dict
-    #     TIME_WINDOW = 10
-    #     NUM_PERCEPT_COL_REQ = 2
-    #     PERCEPT_SIG_REQ = { "accelerometer" : 2,
-    #                         "joint_angles" : 2,
-    #                         "joint_velocities" : 3,
-    #                         "joint_efforts" : 2,
-    #                         "r_finger_periph_pressure" : 2,
-    #                         "r_finger_pad_pressure" : 5, 
-    #                         "l_finger_periph_pressure" : 2,
-    #                         "l_finger_pad_pressure" : 5 }
-    #     num_percep_col = 0
-    #     sig_counts = {}
-    #     num_periph = 0
-    #     for k in isord:
-    #         # if any(isord[k]):
-    #         #     print k, isord
-    #         if not k in self.collision_times:
-    #             self.collision_times[k] = [np.array([0] * len(isord[k]))] * TIME_WINDOW
-    #             self.collision_sums[k] = np.array([0] * len(isord[k]))
-
-    #         # def queue_sum(q):
-    #         #     sum = None
-    #         #     for i in range(TIME_WINDOW):
-    #         #         val = q.get()
-    #         #         if sum is None:
-    #         #             sum = np.copy(val)
-    #         #         sum += val
-    #         #         q.put(val)
-    #         #     return sum
-    #         # c_sum = queue_sum(self.collision_times[k])
-
-    #         self.collision_sums[k] -= self.collision_times[k][self.cur_col_time]
-    #         self.cur_col_time = (self.cur_col_time + 1) % TIME_WINDOW
-    #         self.collision_times[k][self.cur_col_time] = np.int32(np.array(isord[k]))
-    #         self.collision_sums[k] += self.collision_times[k][self.cur_col_time]
-    #         def g0(x):
-    #             if x > 0:
-    #                 return 1
-    #             return 0
-    #         sig_count = np.sum(map(g0, self.collision_sums[k]))
-    #         sig_counts[k] = sig_count
-    #         if sig_count >= PERCEPT_SIG_REQ[k]:
-    #             # print "cols", k, isord[k]
-    #             if k == "r_finger_periph_pressure" or k == "l_finger_periph_pressure":
-    #                 num_periph += 1
-    #             num_percep_col += 1
-
-    #     # num_periph != 1 eliminates side object collision possibilities
-    #     if num_percep_col >= NUM_PERCEPT_COL_REQ and num_periph != 1:            
-    #         print "collision returned"
-    #         print "-------------------------"
-    #         print num_percep_col
-    #         for k in sig_counts:
-    #             if sig_counts[k] >= PERCEPT_SIG_REQ[k]:
-    #                 print k, ":", sig_counts[k]
-    #         print "-------------------------"
-    #         return True
-
-    #     return False
-
-        # if self.collide and any(is_outside_range):
-        #     # sensor has fallen outside acceptable range, trigger
-        #     for i, x in enumerate(is_outside_range):
-        #         if x:
-        #             # print "Average:", avg
-        #             # print "Last avg:", self.prev_avg
-        #             # print "Prev sum:", self.prev_sum
-        #             # print "MOD:", self.model_zeros[k]
-        #             # print "MON:", self.current_zeros[k]
-        #             return i, diff[i]
-        # return -1, 0.
-
-# @TODO add sampling_rate stuff
+    # @TODO add sampling_rate stuff
     def simulate_monitoring(self, monitor_data, models=None, model_zeros=None,
                                std_dev_dict=None, noise_dev_dict=None, 
                                duration=None,
@@ -1093,6 +736,8 @@ class ArmPerceptionMonitor( ):
             self.cur_pt += 1
         return collision
 
+    # Reduces the amount of data in the monitor_data dataset by taking only every
+    # sample_rate samples.
     def resample_and_thin_data(self, monitor_data, sample_rate):
         ret_data = {}
         for k in monitor_data:
@@ -1101,6 +746,8 @@ class ArmPerceptionMonitor( ):
             ret_data[k]["variance"] = monitor_data[k]["variance"][::sample_rate]
         return ret_data
 
+##
+# Takes data, splits it, finds the variance, and returns the packaged data.
 def split_signals(datasets):
 
     for perception in datasets:
@@ -1181,14 +828,9 @@ def split_signals(datasets):
     return self.models
 
 ##
-# Generates model functions of all the perceptions over several
-# identical trajectories. Each of the parameters is a dictionary
-# directing perceptions to their parameters.
-# 
-# @param smooth_wind_dict the window size of the smoothing function
-# @param var_wind_dict window size of the variance function
-# @param var_smooth_wind_dict window size of the smoothing function on the variance
-# @return mean function, variance function
+# Takes a data structure representing the perception signals of a grasp configuration
+# over several runs and finds the average signal.  The resulting signals created
+# will be as long as the longest input data stream.
 def generate_mean_grasp(datasets):
 
     smooth_wind_default = 80
@@ -1227,6 +869,7 @@ def generate_mean_grasp(datasets):
 
     return means
     
+# TODO Remove or fix
 if __name__ == '__main__':
     rospy.init_node(node_name, anonymous=True)
 
