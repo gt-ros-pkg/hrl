@@ -1,3 +1,3 @@
 <launch>
-    <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/hsi_map.yaml" />
+    <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/hsi_jan14.yaml" />
 </launch>
