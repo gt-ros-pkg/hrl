@@ -4,6 +4,7 @@ import pr2_laser_snapshotter.srv as snp
 #import tf.msg
 import rospy
 import numpy as np
+import hrl_lib.rutils as ru
 
 
 ##
@@ -25,7 +26,7 @@ class LaserScanner:
 
     def scan_np(self, start, end, duration):
         resp = self.sp(start, end, duration)
-        return pointcloud_to_np(resp.cloud)
+        return ru.pointcloud_to_np(resp.cloud)
 
     def scan(self, start, end, duration):
         resp = self.sp(start, end, duration)

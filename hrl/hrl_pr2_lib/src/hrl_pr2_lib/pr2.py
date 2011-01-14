@@ -2,6 +2,7 @@ import roslib; roslib.load_manifest('hrl_pr2_lib')
 import rospy
 
 import actionlib
+import actionlib_msgs.msg as amsg
 import move_base_msgs.msg as mm
 import sensor_msgs.msg as sm
 import pr2_controllers_msgs.msg as pm
@@ -14,10 +15,23 @@ import tf
 import tf.transformations as tr
 import hrl_lib.tf_utils as tfu
 import hrl_lib.rutils as ru
+import hrl_lib.util as ut
 import functools as ft
 import numpy as np
 import hrl_pr2_lib.msg as hm
+from sound_play.libsoundplay import SoundClient
+from interpolated_ik_motion_planner import ik_utilities as iku
+import pr2_kinematics as pr2k
+import pdb
+
 #import pdb
+
+class KinematicsError(Exception):
+    def __init__(self, value):
+        self.parameter = value
+
+    def __str__(self):
+        return repr(self.parameter)
 
 class Joint:
 
@@ -65,6 +79,13 @@ class Joint:
         joint_trajectory = self._create_trajectory(pos_mat, times)
         self.pub.publish(joint_trajectory)
 
+#Test this
+def unwrap2(cpos, npos):
+    two_pi = 2*np.pi
+    nin = npos % two_pi
+    n_multiples_2pi = np.floor(cpos/two_pi)
+    return nin + n_multiples_2pi*two_pi
+
 
 def unwrap(cpos, npos):
     two_pi = 2*np.pi
@@ -79,10 +100,24 @@ def unwrap(cpos, npos):
     return npos
 
 
+def diff_arm_pose(pose1, pose2):
+    pcpy = pose2.copy()
+    pcpy[4,0] = unwrap2(pose1[4,0], pose2[4,0])
+    pcpy[6,0] = unwrap2(pose1[6,0], pose2[6,0])
+    diff = pose1 - pose2
+    for i in range(pose1.shape[0]):
+        diff[i,0] = ut.standard_rad(diff[i,0])
+    return diff
+
+
 class PR2Arm(Joint):
 
-    def __init__(self, joint_controller_name, cart_controller_name, joint_provider):
+    def __init__(self, joint_provider, tf_listener, arm):
+        joint_controller_name = arm + '_arm_controller'
+        cart_controller_name = arm + '_cart'
         Joint.__init__(self, joint_controller_name, joint_provider)
+        self.arm = arm
+        self.tf_listener = tf_listener
         self.client = actionlib.SimpleActionClient('/%s/joint_trajectory_action' % joint_controller_name, pm.JointTrajectoryAction)
         rospy.loginfo('pr2arm: waiting for server %s' % joint_controller_name)
         self.client.wait_for_server()
@@ -90,6 +125,12 @@ class PR2Arm(Joint):
 
         self.cart_posure_pub = rospy.Publisher("/%s/command_posture" % cart_controller_name, stdm.Float64MultiArray).publish
         self.cart_pose_pub = rospy.Publisher("/%s/command_pose" % cart_controller_name, gm.PoseStamped).publish
+        if arm == 'l':
+            self.full_arm_name = 'left'
+        else:
+            self.full_arm_name = 'left'
+        self.kinematics = pr2k.PR2ArmKinematics(self.full_arm_name, self.tf_listener)
+        self.ik_utilities = iku.IKUtilities(self.full_arm_name, self.tf_listener) 
 
         self.POSTURES = {
             'off':          np.matrix([]),
@@ -123,10 +164,92 @@ class PR2Arm(Joint):
         #print ps
         self.cart_pose_pub(ps)
 
+
+    def set_cart_pose_ik(self, cart, total_time, frame='base_link', block=True,
+            seed=None, pos_spacing=.001, rot_spacing=.001, best_attempt=True):
+        cpos                 = self.pose()
+        start_pos, start_rot = tfu.matrix_as_tf(self.pose_cartesian(frame))
+
+        #Check to see if there is an IK solution at end point.
+        target_pose = None
+        alpha = 1.
+        dir_endpoint = cart[0:3,3] - start_pos
+
+        while target_pose == None:
+            target_pose = self.kinematics.ik(perturbed_cart, frame, seed)
+
+        if target_pose == None:
+            raise KinematicsError('Unable to reach goal at %s.' % str(cart))
+
+        cpos                 = self.pose()
+        start_pos, start_rot = tfu.matrix_as_tf(self.pose_cartesian(frame))
+        end_pos, end_rot     = tfu.matrix_as_tf(cart)
+        interpolated_poses   = self.ik_utilities.interpolate_cartesian(start_pos, start_rot, end_pos, end_rot, pos_spacing, rot_spacing)
+        nsteps = len(interpolated_poses)
+        tstep = total_time / nsteps
+        tsteps = np.array(range(nsteps+1)) * tstep
+
+        valid_wps = []
+        valid_times = []
+        #last_valid = seed
+        #all_sols = []
+        if seed == None:
+            seed = cpos
+        for idx, pose in enumerate(interpolated_poses):
+            pos, rot = pose 
+            #sol = self.kinematics.ik(tfu.tf_as_matrix((pos,rot)), frame, seed=last_valid)
+            sol = self.kinematics.ik(tfu.tf_as_matrix((pos,rot)), frame, seed=seed)
+            if sol != None:
+                sol_cpy = sol.copy()
+                sol_cpy[4,0] = unwrap2(cpos[4,0], sol[4,0])
+                sol_cpy[6,0] = unwrap2(cpos[6,0], sol[6,0])
+                valid_wps.append(sol_cpy)
+                valid_times.append(tsteps[idx])
+                #cpos = sol_cpy
+                #all_sols.append(sol)
+                #last_valid = sol_cpy
+
+        #valid_wps.reverse()
+        #all_sols = np.column_stack(all_sols)
+        #pdb.set_trace()
+
+        if len(valid_wps) > 2:
+            rospy.loginfo('set_cart_pose_ik: number of waypoints %d' % len(valid_wps)) 
+            valid_wps_mat = np.column_stack(valid_wps)
+            valid_times_arr = np.array(valid_times) + .3
+            #self.set_pose(valid_wps_mat[:,0])
+            #pdb.set_trace()
+            self.set_poses(valid_wps_mat, valid_times_arr, block=block)
+        else:
+            raise KinematicsError('Unable to reach goal at %s. Not enough valid IK solutions.' % str(cart))
+
+
     ##
     # @param pos_mat column matrix of poses
     # @param times array of times
     def set_poses(self, pos_mat, times, vel_mat=None, block=True):
+        joint_traj = Joint._create_trajectory(self, pos_mat, times, vel_mat)
+
+        #Create goal msg
+        joint_traj.header.stamp = rospy.get_rostime() + rospy.Duration(1.)
+        g = pm.JointTrajectoryGoal()
+        g.trajectory = joint_traj
+        self.client.send_goal(g)
+        if block:
+            return self.client.wait_for_result()
+        return self.client.get_state()
+
+    def stop_trajectory_execution(self):
+        self.client.cancel_all_goals()
+
+    def has_active_goal(self):
+        s = self.client.get_state()
+        if s == amsg.GoalStatus.ACTIVE or s == amsg.GoalStatus.PENDING:
+            return True
+        else:
+            return False
+
+    def set_poses_monitored(self, pos_mat, times, vel_mat=None, block=True, time_look_ahead=.050):
         joint_traj = Joint._create_trajectory(self, pos_mat, times, vel_mat)
 
         #Create goal msg
@@ -151,6 +274,11 @@ class PR2Arm(Joint):
         self.set_poses(np.column_stack([pos]), np.array([nsecs]), block=block)
         #self.set_poses(np.column_stack([cpos, pos]), np.array([min_time, min_time+nsecs]), block=block)
 
+    def pose_cartesian(self, frame='base_link'):
+        gripper_tool_frame = self.arm + '_gripper_tool_frame'
+        return tfu.transform(frame, gripper_tool_frame, self.tf_listener)
+
+
 class PR2Head(Joint):
 
     def __init__(self, name, joint_provider):
@@ -170,18 +298,21 @@ class PR2Base:
     def __init__(self, tflistener):
         self.tflistener = tflistener
         self.client = actionlib.SimpleActionClient('move_base', mm.MoveBaseAction)
-        #rospy.loginfo('pr2base: waiting for move_base')
-        #self.client.wait_for_server()
-        #rospy.loginfo('pr2base: waiting transforms')
-        #try:
-        #    self.tflistener.waitForTransform('map', 'base_footprint', rospy.Time(), rospy.Duration(20))
-        #except Exception, e:
-        #    print 'Transform from map to base_footprint not found! Did you launch the nav stack?'
+        rospy.loginfo('pr2base: waiting for move_base')
+        self.client.wait_for_server()
+        rospy.loginfo('pr2base: waiting transforms')
+        try:
+            self.tflistener.waitForTransform('map', 'base_footprint', rospy.Time(), rospy.Duration(20))
+        except Exception, e:
+            rospy.loginfo('pr2base: WARNING! Transform from map to base_footprint not found! Did you launch the nav stack?')
         #    pass
 
         self.go_angle_client = actionlib.SimpleActionClient('go_angle', hm.GoAngleAction)
         self.go_xy_client = actionlib.SimpleActionClient('go_xy', hm.GoXYAction)
 
+    ##
+    # Turns to given angle using pure odometry
+    #
     def turn_to(self, angle, block=True):
         goal = hm.GoAngleGoal()
         goal.angle = angle
@@ -189,11 +320,17 @@ class PR2Base:
         if block:
             self.go_angle_client.wait_for_result()
 
+    ##
+    # Turns a relative amount given angle using pure odometry
+    #
     def turn_by(self, delta_ang, block=True):
         current_ang_odom = tr.euler_from_matrix(tfu.transform('base_footprint',\
                                 'odom_combined', self.tflistener)[0:3, 0:3], 'sxyz')[2]
         self.turn_to(current_ang_odom + delta_ang, block)
 
+    ##
+    # Move to xy_loc_bf
+    #
     def move_to(self, xy_loc_bf, block=True):
         goal = hm.GoXYGoal()
         goal.x = xy_loc_bf[0,0]
@@ -274,7 +411,7 @@ class ControllerManager:
 
 
 class PR2:
-    def __init__(self, tf_listener=None):
+    def __init__(self, tf_listener=None, arms=True, base=False):
         try:
             rospy.init_node('pr2', anonymous=True)
         except rospy.exceptions.ROSException, e:
@@ -287,15 +424,85 @@ class PR2:
         jl = ru.GenericListener('joint_state_listener', sm.JointState, 'joint_states', 100)
         self.joint_provider = ft.partial(jl.read, allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
 
-        self.left = PR2Arm('l_arm_controller',  'l_cart', self.joint_provider)
-        self.right = PR2Arm('r_arm_controller', 'r_cart', self.joint_provider)
+        if arms:
+            self.left = PR2Arm(self.joint_provider, self.tf_listener, 'l')
+            self.right = PR2Arm(self.joint_provider, self.tf_listener, 'r')
+
         self.head = PR2Head('head_traj_controller', self.joint_provider)
-        self.base = PR2Base(self.tf_listener)
+
+        if base:
+            self.base = PR2Base(self.tf_listener)
         self.torso = PR2Torso()
         self.controller_manager = ControllerManager()
+        self.sound = SoundClient()
 
 
     def pose(self):
         s = self.joint_provider()
         return {'larm': self.left.pose(s), 'rarm': self.right.pose(s), 'head_traj': self.head.pose(s)}
+
+
+if __name__ == '__main__':
+    pr2 = PR2()
+
+    #raw_input('put robot in final pose')
+    #pose2 = pr2.left.pose_cartesian()
+
+    #raw_input('put robot in initial pose')
+    pose1 = pr2.left.pose_cartesian()
+    pose2 = pose1.copy()
+    pose2[0,3] = pose2[0,3] + .2
+    r = rospy.Rate(4)
+    while not rospy.is_shutdown():
+         cart = pr2.left.pose_cartesian()
+         ik_sol = pr2.left.kinematics.ik(cart, 'base_link')
+         if ik_sol != None:
+             diff = pr2.left.kinematics.fk(ik_sol, 'base_link') - cart
+             pos_diff = diff[0:3,3]
+             print '%.2f %.2f %.2f' % (pos_diff[0,0], pos_diff[1,0], pos_diff[2,0])
+
+    #pdb.set_trace()
+    #print 'going to final pose'
+    #pr2.left.set_cart_pose_ik(pose2, 2.5)
+
+    #print 'going back to initial pose'
+    #pr2.left.set_cart_pose_ik(pose1, 2.5)
+
+
+    #r = rospy.Rate(4)
+    #while not rospy.is_shutdown():
+    #    cart   = pr2.left.pose_cartesian()
+    #    ik_sol = pr2.left.kinematics.ik(cart, 'base_link', seed=pr2.left.pose())
+    #    if ik_sol != None:
+    #        print ik_sol.T
+    #    r.sleep()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

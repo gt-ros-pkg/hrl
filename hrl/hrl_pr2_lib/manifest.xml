@@ -23,6 +23,7 @@
   <depend package="pr2_mechanism_msgs"/>
   <depend package="std_msgs"/>
   <depend package="geometry_msgs"/>
+  <depend package="sound_play"/>
 
   <depend package="kinematics_msgs"/>
   <depend package="geometry_msgs"/>

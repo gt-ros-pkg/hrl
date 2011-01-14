@@ -12,7 +12,7 @@ import sys
 import math
 import numpy as np
 import actionlib
-import hai_sandbox.msg as hm
+import hrl_pr2_lib.msg as hm
 
 class MoveBase:
 

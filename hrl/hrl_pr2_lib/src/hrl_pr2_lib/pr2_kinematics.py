@@ -32,7 +32,7 @@ class PR2ArmKinematics:
         rospy.wait_for_service("pr2_" + arm + "_arm_kinematics/get_ik")
         rospy.loginfo('PR2ArmKinematics: inverse kinematics services online.')
         self._ik_info = rospy.ServiceProxy('pr2_' + arm +'_arm_kinematics/get_ik_solver_info', ks.GetKinematicSolverInfo)
-        self._ik      = rospy.ServiceProxy('pr2_' + arm +'_arm_kinematics/get_ik', ks.GetPositionIK)
+        self._ik      = rospy.ServiceProxy('pr2_' + arm +'_arm_kinematics/get_ik', ks.GetPositionIK, persistent=True)
         self.ik_info_resp = self._ik_info()
         self.ik_joint_names = self.ik_info_resp.kinematic_solver_info.joint_names
         if arm == 'left':
@@ -46,7 +46,7 @@ class PR2ArmKinematics:
     # Inverse kinematics
     # @param cart_pose a 4x4 SE(3) pose
     # @param frame_of_pose frame cart_pose is given in, if None we assume that self.tool_frame is being used
-    # @param seed starting solution for IK solver
+    # @param seed starting solution for IK solver (list of floats or column np.matrix of floats)
     def ik(self, cart_pose, frame_of_pose='torso_lift_link', seed=None):
         #if frame_of_pose == self.tool_frame or frame_of_pose == None:
 
@@ -85,6 +85,8 @@ class PR2ArmKinematics:
                 p.append((minp + maxp) / 2.0)
             ik_req.ik_request.ik_seed_state.joint_state.position = p
         else:
+            if seed.__class__ == np.matrix:
+                seed = seed.T.A1.tolist()
             ik_req.ik_request.ik_seed_state.joint_state.position = seed
 
         response = self._ik(ik_req)
@@ -120,7 +122,7 @@ class PR2ArmKinematics:
         if not use_tool_frame:
             return solframe_T_wr
         else:
-            print 'redoing'
+            #print 'redoing'
             self.tflistener.waitForTransform(self.tool_frame, sol_link, rospy.Time(), rospy.Duration(10))
             wr_T_toolframe = tfu.transform(sol_link, self.tool_frame, self.tflistener)
             return solframe_T_wr * wr_T_toolframe
