@@ -1,0 +1,15 @@
+<package>
+  <description brief="arm_navigation_tutorials">
+
+     arm_navigation_tutorials
+
+  </description>
+  <author>Advait Jain</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/arm_navigation_tutorials</url>
+  <depend package="pr2_arm_navigation_tutorials"/>
+
+</package>
+
+

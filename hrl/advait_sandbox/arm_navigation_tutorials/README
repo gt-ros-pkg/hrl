@@ -1,0 +1,15 @@
+
+
+Follow instructions in this tutorial:
+
+http://www.ros.org/wiki/motion_planning_environment/Tutorials/Tutorial%20A
+
+Instead of using this launch command:
+roslaunch pr2_arm_navigation_actions environment_server_right_arm.launch
+
+launch the environment_server_right_arm.launch in the launch folder in
+this package to use different padding parameters.
+
+
+
+
