@@ -10,6 +10,7 @@
   <url>http://ros.org/wiki/arm_navigation_tutorials</url>
   <depend package="pr2_arm_navigation_tutorials"/>
   <depend package="rospy"/>
+  <depend package="hrl_lib"/>
 
 </package>
 
