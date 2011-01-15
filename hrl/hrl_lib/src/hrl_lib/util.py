@@ -78,12 +78,12 @@ def unipolar_limit( x, upper ):
     return x
 
 def cart_of_pol(p):
-   """ Finds cartesian coordinates of polar points [r, t]' """
-   r = p[0,:]
-   t = p[1,:]
-   x = numpy.multiply(numpy.cos(t), r)
-   y = numpy.multiply(numpy.sin(t), r)
-   return numpy.vstack((x,y))
+    """ Finds cartesian coordinates of polar points [r, t]' """
+    r = p[0,:]
+    t = p[1,:]
+    x = numpy.multiply(numpy.cos(t), r)
+    y = numpy.multiply(numpy.sin(t), r)
+    return numpy.vstack((x,y))
 
 def pol_of_cart(p):
     """ Find polar coordinates of cartesian points [x, y]' """
