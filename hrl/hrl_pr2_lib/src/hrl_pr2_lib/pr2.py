@@ -24,7 +24,37 @@ from interpolated_ik_motion_planner import ik_utilities as iku
 import pr2_kinematics as pr2k
 import pdb
 
-#import pdb
+
+#Test this
+def unwrap2(cpos, npos):
+    two_pi = 2*np.pi
+    nin = npos % two_pi
+    n_multiples_2pi = np.floor(cpos/two_pi)
+    return nin + n_multiples_2pi*two_pi
+
+
+def unwrap(cpos, npos):
+    two_pi = 2*np.pi
+    if cpos < npos:
+        while cpos < npos:
+            npos = npos - two_pi
+        npos = npos + two_pi
+    elif cpos > npos:
+        while cpos > npos:
+            npos = npos + two_pi
+        npos = npos - two_pi
+    return npos
+
+
+def diff_arm_pose(pose1, pose2):
+    pcpy = pose2.copy()
+    pcpy[4,0] = unwrap2(pose1[4,0], pose2[4,0])
+    pcpy[6,0] = unwrap2(pose1[6,0], pose2[6,0])
+    diff = pose1 - pose2
+    for i in range(pose1.shape[0]):
+        diff[i,0] = ut.standard_rad(diff[i,0])
+    return diff
+
 
 class KinematicsError(Exception):
     def __init__(self, value):
@@ -79,36 +109,6 @@ class Joint:
         joint_trajectory = self._create_trajectory(pos_mat, times)
         self.pub.publish(joint_trajectory)
 
-#Test this
-def unwrap2(cpos, npos):
-    two_pi = 2*np.pi
-    nin = npos % two_pi
-    n_multiples_2pi = np.floor(cpos/two_pi)
-    return nin + n_multiples_2pi*two_pi
-
-
-def unwrap(cpos, npos):
-    two_pi = 2*np.pi
-    if cpos < npos:
-        while cpos < npos:
-            npos = npos - two_pi
-        npos = npos + two_pi
-    elif cpos > npos:
-        while cpos > npos:
-            npos = npos + two_pi
-        npos = npos - two_pi
-    return npos
-
-
-def diff_arm_pose(pose1, pose2):
-    pcpy = pose2.copy()
-    pcpy[4,0] = unwrap2(pose1[4,0], pose2[4,0])
-    pcpy[6,0] = unwrap2(pose1[6,0], pose2[6,0])
-    diff = pose1 - pose2
-    for i in range(pose1.shape[0]):
-        diff[i,0] = ut.standard_rad(diff[i,0])
-    return diff
-
 
 class PR2Arm(Joint):
 
@@ -160,69 +160,7 @@ class PR2Arm(Joint):
             exec('ps.pose.orientation.%s = rot[%d]' % (field, i))
         ps.header.frame_id = frame
         ps.header.stamp = rospy.Time(msg_time)
-        #print '>>', rospy.get_rostime().to_time() - msg_time
-        #print ps
         self.cart_pose_pub(ps)
-
-
-    def set_cart_pose_ik(self, cart, total_time, frame='base_link', block=True,
-            seed=None, pos_spacing=.001, rot_spacing=.001, best_attempt=True):
-        cpos                 = self.pose()
-        start_pos, start_rot = tfu.matrix_as_tf(self.pose_cartesian(frame))
-
-        #Check to see if there is an IK solution at end point.
-        target_pose = None
-        alpha = 1.
-        dir_endpoint = cart[0:3,3] - start_pos
-
-        while target_pose == None:
-            target_pose = self.kinematics.ik(perturbed_cart, frame, seed)
-
-        if target_pose == None:
-            raise KinematicsError('Unable to reach goal at %s.' % str(cart))
-
-        cpos                 = self.pose()
-        start_pos, start_rot = tfu.matrix_as_tf(self.pose_cartesian(frame))
-        end_pos, end_rot     = tfu.matrix_as_tf(cart)
-        interpolated_poses   = self.ik_utilities.interpolate_cartesian(start_pos, start_rot, end_pos, end_rot, pos_spacing, rot_spacing)
-        nsteps = len(interpolated_poses)
-        tstep = total_time / nsteps
-        tsteps = np.array(range(nsteps+1)) * tstep
-
-        valid_wps = []
-        valid_times = []
-        #last_valid = seed
-        #all_sols = []
-        if seed == None:
-            seed = cpos
-        for idx, pose in enumerate(interpolated_poses):
-            pos, rot = pose 
-            #sol = self.kinematics.ik(tfu.tf_as_matrix((pos,rot)), frame, seed=last_valid)
-            sol = self.kinematics.ik(tfu.tf_as_matrix((pos,rot)), frame, seed=seed)
-            if sol != None:
-                sol_cpy = sol.copy()
-                sol_cpy[4,0] = unwrap2(cpos[4,0], sol[4,0])
-                sol_cpy[6,0] = unwrap2(cpos[6,0], sol[6,0])
-                valid_wps.append(sol_cpy)
-                valid_times.append(tsteps[idx])
-                #cpos = sol_cpy
-                #all_sols.append(sol)
-                #last_valid = sol_cpy
-
-        #valid_wps.reverse()
-        #all_sols = np.column_stack(all_sols)
-        #pdb.set_trace()
-
-        if len(valid_wps) > 2:
-            rospy.loginfo('set_cart_pose_ik: number of waypoints %d' % len(valid_wps)) 
-            valid_wps_mat = np.column_stack(valid_wps)
-            valid_times_arr = np.array(valid_times) + .3
-            #self.set_pose(valid_wps_mat[:,0])
-            #pdb.set_trace()
-            self.set_poses(valid_wps_mat, valid_times_arr, block=block)
-        else:
-            raise KinematicsError('Unable to reach goal at %s. Not enough valid IK solutions.' % str(cart))
-
 
     ##
     # @param pos_mat column matrix of poses
@@ -262,15 +200,10 @@ class PR2Arm(Joint):
         return self.client.get_state()
 
     def set_pose(self, pos, nsecs=5., block=True):
-        #pdb.set_trace()
         for i in range(2):
             cpos = self.pose()
-        #min_time = .1
         pos[4,0] = unwrap(cpos[4,0], pos[4,0])
         pos[6,0] = unwrap(cpos[6,0], pos[6,0])
-        #print '==============================='
-        #print cpos.T
-        #print pos.T
         self.set_poses(np.column_stack([pos]), np.array([nsecs]), block=block)
         #self.set_poses(np.column_stack([cpos, pos]), np.array([min_time, min_time+nsecs]), block=block)
 
@@ -312,7 +245,6 @@ class PR2Base:
 
     ##
     # Turns to given angle using pure odometry
-    #
     def turn_to(self, angle, block=True):
         goal = hm.GoAngleGoal()
         goal.angle = angle
@@ -322,7 +254,6 @@ class PR2Base:
 
     ##
     # Turns a relative amount given angle using pure odometry
-    #
     def turn_by(self, delta_ang, block=True):
         current_ang_odom = tr.euler_from_matrix(tfu.transform('base_footprint',\
                                 'odom_combined', self.tflistener)[0:3, 0:3], 'sxyz')[2]
@@ -330,7 +261,6 @@ class PR2Base:
 
     ##
     # Move to xy_loc_bf
-    #
     def move_to(self, xy_loc_bf, block=True):
         goal = hm.GoXYGoal()
         goal.x = xy_loc_bf[0,0]
@@ -378,27 +308,15 @@ class PR2Torso:
             self.torso.wait_for_result()
         return self.torso.get_state()
 
+
 class ControllerManager:
 
     def __init__(self):
         # LoadController        
-        #string name
-        #---
-        #bool ok
         self.load = rospy.ServiceProxy('pr2_controller_manager/load_controller', pmm.LoadController)
-
         # UnloadController        
-        #string name
-        #---
-        #bool ok
         self.unload = rospy.ServiceProxy('pr2_controller_manager/unload_controller', pmm.UnloadController)
-
         # SwitchController
-        #string[] start_controllers
-        #string[] stop_controllers
-        #int32 strictness
-        #int32 BEST_EFFORT=1
-        #int32 STRICT=2
         self._switch_controller = rospy.ServiceProxy('pr2_controller_manager/switch_controller', pmm.SwitchController)
 
     def switch(self, start_con, stop_con):
@@ -506,3 +424,62 @@ if __name__ == '__main__':
 
 
 
+#from class PR2Arm
+
+    #def set_cart_pose_ik(self, cart, total_time, frame='base_link', block=True,
+    #        seed=None, pos_spacing=.001, rot_spacing=.001, best_attempt=True):
+    #    cpos                 = self.pose()
+    #    start_pos, start_rot = tfu.matrix_as_tf(self.pose_cartesian(frame))
+
+    #    #Check to see if there is an IK solution at end point.
+    #    target_pose = None
+    #    alpha = 1.
+    #    dir_endpoint = cart[0:3,3] - start_pos
+
+    #    while target_pose == None:
+    #        target_pose = self.kinematics.ik(perturbed_cart, frame, seed)
+
+    #    if target_pose == None:
+    #        raise KinematicsError('Unable to reach goal at %s.' % str(cart))
+
+    #    cpos                 = self.pose()
+    #    start_pos, start_rot = tfu.matrix_as_tf(self.pose_cartesian(frame))
+    #    end_pos, end_rot     = tfu.matrix_as_tf(cart)
+    #    interpolated_poses   = self.ik_utilities.interpolate_cartesian(start_pos, start_rot, end_pos, end_rot, pos_spacing, rot_spacing)
+    #    nsteps = len(interpolated_poses)
+    #    tstep = total_time / nsteps
+    #    tsteps = np.array(range(nsteps+1)) * tstep
+
+    #    valid_wps = []
+    #    valid_times = []
+    #    #last_valid = seed
+    #    #all_sols = []
+    #    if seed == None:
+    #        seed = cpos
+    #    for idx, pose in enumerate(interpolated_poses):
+    #        pos, rot = pose 
+    #        #sol = self.kinematics.ik(tfu.tf_as_matrix((pos,rot)), frame, seed=last_valid)
+    #        sol = self.kinematics.ik(tfu.tf_as_matrix((pos,rot)), frame, seed=seed)
+    #        if sol != None:
+    #            sol_cpy = sol.copy()
+    #            sol_cpy[4,0] = unwrap2(cpos[4,0], sol[4,0])
+    #            sol_cpy[6,0] = unwrap2(cpos[6,0], sol[6,0])
+    #            valid_wps.append(sol_cpy)
+    #            valid_times.append(tsteps[idx])
+    #            #cpos = sol_cpy
+    #            #all_sols.append(sol)
+    #            #last_valid = sol_cpy
+
+    #    #valid_wps.reverse()
+    #    #all_sols = np.column_stack(all_sols)
+    #    #pdb.set_trace()
+
+    #    if len(valid_wps) > 2:
+    #        rospy.loginfo('set_cart_pose_ik: number of waypoints %d' % len(valid_wps)) 
+    #        valid_wps_mat = np.column_stack(valid_wps)
+    #        valid_times_arr = np.array(valid_times) + .3
+    #        #self.set_pose(valid_wps_mat[:,0])
+    #        #pdb.set_trace()
+    #        self.set_poses(valid_wps_mat, valid_times_arr, block=block)
+    #    else:
+    #        raise KinematicsError('Unable to reach goal at %s. Not enough valid IK solutions.' % str(cart))
