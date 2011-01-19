@@ -1,8 +1,8 @@
 #!/usr/bin/python
 
-import roslib; roslib.update_path('hrl_lib'); import rospy
-from hrl_lib.msg import String
-from hrl_lib.msg import RFID_Interface
+import roslib; roslib.load_manifest('hrl_lib'); import rospy
+# from hrl_lib.msg import String
+# from hrl_lib.msg import RFID_Interface
 import hrl_lib.util as ut
 import hrl_lib.rutils as ru
 import time
@@ -91,8 +91,8 @@ class ROS_UI_PC():
         self.ids = []
         self.ids_done = False
         self.graphical = graphical
-        self.images_db = '/home/haidai/svn/robot1/src/projects/08_03_dog_commands/images_db/'
-        self.pps_db = ut.load_pickle('/home/haidai/svn/robot1/src/projects/08_03_dog_commands/ele_rfid.pickle')
+        self.images_db = '/home/travis/svn/robot1/src/projects/08_03_dog_commands/images_db/'
+        self.pps_db = ut.load_pickle('/home/travis/svn/robot1/src/projects/08_03_dog_commands/ele_rfid.pickle')
 
     def process_robot_request(self, rfid_interface_msg):
         msg = rfid_interface_msg
@@ -301,15 +301,18 @@ if __name__ == '__main__':
     p = optparse.OptionParser()
     p.add_option('-d', action='store_true', dest='graphical',
                  help='Use a graphical display.')
+    p.add_option('-g', action='store_true', dest='client',
+                 help='Build Client?', default=False)
     opt, args = p.parse_args()
 
-    
-    pc = ROS_UI_PC(graphical = opt.graphical)
-    while not rospy.is_shutdown():
-        time.sleep(0.2)
-
-
-
+    if opt.client:
+        pc = ROS_UI_PC(graphical = opt.graphical)
+        pc.get_selection_graphical( ['person      '
+        rospy.spin()
+    else:
+        ro = ROS_UI_Robot()
+        ro.publish_tag_ids([ 'one', 'two', 'hello' ])
+        ro.receive_response()
 
 #     while True:
 #         print 'Waiting for robot action(s)...\n'
