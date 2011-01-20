@@ -1,15 +1,15 @@
 import roslib; roslib.load_manifest('hrl_pr2_lib')
 import rospy
 
-import pr2_gripper_reactive_approach.reactive_grasp as rgr 
-import pr2_gripper_reactive_approach.controller_manager as con 
-import object_manipulator.convert_functions as cf 
+import pr2_gripper_reactive_approach.reactive_grasp as rgr
+import pr2_gripper_reactive_approach.controller_manager as con
+import object_manipulator.convert_functions as cf
 
-from actionlib_msgs.msg import GoalStatus 
-from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion 
-from pr2_gripper_sensor_msgs.msg import PR2GripperEventDetectorGoal #TODO: manifest
+from actionlib_msgs.msg import GoalStatus
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
+from pr2_gripper_sensor_msgs.msg import PR2GripperEventDetectorGoal
 
-import hai_sandbox.collision_monitor as cmon #TODO: move collision monitor here
+import collision_monitor as cmon
 #import hrl_pr2_lib.devices as de
 import hrl_lib.tf_utils as tfu
 import hrl_pr2_lib.pressure_listener as pm
