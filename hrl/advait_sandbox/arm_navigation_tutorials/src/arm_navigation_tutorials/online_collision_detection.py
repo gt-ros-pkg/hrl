@@ -28,10 +28,7 @@ def joint_states_cb(data):
     req.robot_state.joint_state.header.stamp = rospy.Time.now()
     req.check_collisions = True
 
-    print 'Before Service call'
     res = get_state_validity.call(req)
-    print 'After'
-
     if res.error_code.val == res.error_code.SUCCESS:
         rospy.loginfo('Requested state is not in collision')
     else:

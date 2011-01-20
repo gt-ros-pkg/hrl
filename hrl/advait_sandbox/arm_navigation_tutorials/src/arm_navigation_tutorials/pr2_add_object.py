@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     pr2_arms = pa.PR2Arms()
     r_arm, l_arm = 0, 1
-    arm = l_arm
+    arm = r_arm
 
     raw_input('Touch the object and then hit ENTER.')
 
@@ -31,7 +31,7 @@ if __name__ == '__main__':
                              '/torso_lift_link', rospy.Time(0))
     height = ee_pos[2] + trans[2]
     ee_pos[2] = -trans[2]
-    ac.add_cylinder('pole', ee_pos, 0.1, height, '/torso_lift_link', pub)
+    ac.add_cylinder('pole', ee_pos, 0.02, height, '/torso_lift_link', pub)
 
 
 
