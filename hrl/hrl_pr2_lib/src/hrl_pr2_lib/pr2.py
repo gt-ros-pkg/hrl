@@ -18,6 +18,7 @@ import hrl_lib.rutils as ru
 import hrl_lib.util as ut
 import functools as ft
 import numpy as np
+import math
 import hrl_pr2_lib.msg as hm
 from sound_play.libsoundplay import SoundClient
 from interpolated_ik_motion_planner import ik_utilities as iku
@@ -250,14 +251,29 @@ class PR2Base:
         goal.angle = angle
         self.go_angle_client.send_goal(goal)
         if block:
+            rospy.loginfo('turn_to: waiting for turn..')
             self.go_angle_client.wait_for_result()
 
     ##
     # Turns a relative amount given angle using pure odometry
-    def turn_by(self, delta_ang, block=True):
+    def turn_by(self, delta_ang, block=True, overturn=False):
+        #overturn
+        if overturn and (abs(delta_ang) < math.radians(10.)):
+            #turn in that direction by an extra 15 deg
+            turn1 = np.sign(delta_ang) * math.radians(15.) + delta_ang
+            turn2 = -np.sign(delta_ang) * math.radians(15.)
+            rospy.loginfo('Requested really small turn angle.  Using overturn trick.')
+            self._turn_by(turn1, block=True)
+            self._turn_by(turn2, block)
+        else:
+            self._turn_by(delta_ang, block)
+
+
+    def _turn_by(self, delta_ang, block=True):
         current_ang_odom = tr.euler_from_matrix(tfu.transform('base_footprint',\
                                 'odom_combined', self.tflistener)[0:3, 0:3], 'sxyz')[2]
         self.turn_to(current_ang_odom + delta_ang, block)
+
 
     ##
     # Move to xy_loc_bf

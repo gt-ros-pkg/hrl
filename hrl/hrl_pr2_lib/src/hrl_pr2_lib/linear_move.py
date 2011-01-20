@@ -15,6 +15,7 @@ import hrl_lib.tf_utils as tfu
 import hrl_pr2_lib.pressure_listener as pm
 import numpy as np
 import tf
+import pdb
 
 
 class RobotSafetyError(Exception):
@@ -77,12 +78,13 @@ class LinearReactiveMovement:
         self.set_pressure_threshold(pressure)
         stop_funcs = self._process_stop_option(stop)
         self.set_movement_mode_cart()
+        #pdb.set_trace()
         self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
         self.set_movement_mode_ik()
         r = self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
         diff = loc[0] - self.current_location()[0]
-        print 'move_absolute: diff is ', diff.T
-        print 'move_absolute: dist %.3f' % np.linalg.norm(diff)
+        rospy.loginfo('move_absolute: diff is %s' % str(diff.T))
+        rospy.loginfo('move_absolute: dist %.3f' % np.linalg.norm(diff))
         return r, np.linalg.norm(diff)
 
     ##
@@ -202,20 +204,20 @@ class LinearReactiveMovement:
             if rg.cm.check_cartesian_really_done(pose_stamped, .0025, .05):
                 #rospy.loginfo("actually got there")
                 break
+#
+            # #check if the controllers think we're done
+            # if not done_time and rg.cm.check_cartesian_done():
+            #     #rospy.loginfo("check_cartesian_done returned 1")
+            #     done_time = rospy.get_rostime()
 
-            #check if the controllers think we're done
-            if not done_time and rg.cm.check_cartesian_done():
-                #rospy.loginfo("check_cartesian_done returned 1")
-                done_time = rospy.get_rostime()
-
-            #done settling
-            if done_time and rospy.get_rostime() - done_time > rospy.Duration(settling_time):
-                #rospy.loginfo("done settling")
-                break
+            # #done settling
+            # if done_time and rospy.get_rostime() - done_time > rospy.Duration(settling_time):
+            #     rospy.loginfo("done settling")
+            #     break
 
             #timed out
             if timeout != 0. and rospy.get_rostime() - start_time > rospy.Duration(timeout):
-                #rospy.loginfo("timed out")
+                rospy.loginfo("timed out")
                 break
 
         #if stop_trigger == 'pressure_safety' or stop_trigger == 'self_collision':
