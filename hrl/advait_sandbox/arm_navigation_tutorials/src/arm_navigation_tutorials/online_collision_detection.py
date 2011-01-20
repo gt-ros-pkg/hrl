@@ -28,7 +28,9 @@ def joint_states_cb(data):
     req.robot_state.joint_state.header.stamp = rospy.Time.now()
     req.check_collisions = True
 
+    print 'Before Service call'
     res = get_state_validity.call(req)
+    print 'After'
 
     if res.error_code.val == res.error_code.SUCCESS:
         rospy.loginfo('Requested state is not in collision')
@@ -42,11 +44,13 @@ if __name__ == '__main__':
 
     srv_nm = 'environment_server_right_arm/get_state_validity'
     rospy.wait_for_service(srv_nm)
-    get_state_validity = rospy.ServiceProxy(srv_nm, GetStateValidity)
+    get_state_validity = rospy.ServiceProxy(srv_nm, GetStateValidity,
+                                            persistent=True)
 
     rospy.Subscriber('/joint_states', JointState, joint_states_cb)
 
     rospy.spin()
+    get_state_validity.close()
 
     
 
