@@ -1,0 +1,15 @@
+<launch>
+
+  <!-- start gazebo with an simple world -->
+  <param name="/use_sim_time" value="true" />
+
+  <node name="gazebo" pkg="gazebo" type="gazebo" args="$(find pr2_arm_navigation_tutorials)/worlds/floorobj.world -r" respawn="false" >
+    <env name="LD_LIBRARY_PATH" value="$(find gazebo_plugins)/lib:$(find pr2_gazebo_plugins)/lib:$(find gazebo)/gazebo/lib:$(optenv LD_LIBRARY_PATH)" />
+    <env name="GAZEBO_RESOURCE_PATH" value="$(find pr2_ogre):$(find pr2_description):$(find gazebo_worlds):$(find gazebo)/gazebo/share/gazebo" />
+    <env name="OGRE_RESOURCE_PATH" value="$(find ogre)/ogre/lib/OGRE" />
+  </node>
+
+  <!-- start pr2 robot -->
+  <include file="$(find pr2_gazebo)/pr2.launch"/>
+
+</launch>
