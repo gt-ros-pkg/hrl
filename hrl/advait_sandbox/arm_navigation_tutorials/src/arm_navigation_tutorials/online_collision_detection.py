@@ -18,7 +18,7 @@ class online_collision_detector():
     def __init__(self):
         srv_nm = 'environment_server_right_arm/get_state_validity'
         rospy.wait_for_service(srv_nm)
-        self.get_state_validity = rospy.ServiceProxy(srv_nm, GetStateValidity,
+        self.state_validator = rospy.ServiceProxy(srv_nm, GetStateValidity,
                                                 persistent=True)
 
     def check_validity(self, pr2_arms, arm):
@@ -36,16 +36,12 @@ class online_collision_detector():
         req.robot_state.joint_state.header.stamp = rospy.Time.now()
         req.check_collisions = True
 
-        res = self.get_state_validity.call(req)
+        res = self.state_validator.call(req)
         return res
     
-    def __del__(self):
-        self.get_state_validity.close()
-
 
 if __name__ == '__main__':
     rospy.init_node('get_state_validity_python')
-
 
     pr2_arms = pa.PR2Arms()
     r_arm, l_arm = 0, 1
@@ -60,7 +56,5 @@ if __name__ == '__main__':
         else:
             rospy.loginfo('Requested state is in collision. Error code: %d'%(res.error_code.val))
 
-
-    
 
 

@@ -14,25 +14,25 @@ import hrl_pr2_lib.pr2_arms as pa
 
 
 
-def contact_info_list_to_np(cont_info_list):
+def contact_info_list_to_dict(cont_info_list):
     ci = cont_info_list[0]
     frm = ci.header.frame_id
     b1 = ci.contact_body_1
     b2 = ci.contact_body_2
+    contact_dict = {}
     pts_list = []
     for ci in cont_info_list:
         if frm != ci.header.frame_id:
             rospy.logerr('initial frame_id: %s and current frame_id: %s'%(frm, ci.header.frame_id))
-        if ci.contact_body_1 != b1:
-            rospy.logerr('initial body1: %s and current body1: %s'%(b1, ci.contact_body_1))
-        if ci.contact_body_2 != b2:
-            rospy.logerr('initial body2: %s and current body2: %s'%(b2, ci.contact_body_2))
 
-        pts_list.append((ci.position.x, ci.position.y, ci.position.z))
-    pts = np.matrix(pts_list).T
-    return pts
+        b1 = ci.contact_body_1
+        b2 = ci.contact_body_2
+        two_bodies = b1 + '+' + b2
+        if two_bodies not in contact_dict:
+            contact_dict[two_bodies] = []
+        contact_dict[two_bodies].append((ci.position.x, ci.position.y, ci.position.z))
 
-
+    return contact_dict
 
 
 if __name__ == '__main__':
@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
     trans, quat = pr2_arms.tf_lstnr.lookupTransform('/base_link',
                              '/torso_lift_link', rospy.Time(0))
-    height = ee_pos[2] + trans[2]
+    height = ee_pos[2] + trans[2] + 0.5
     ee_pos[2] = -trans[2]
     ac.add_cylinder('pole', ee_pos, 0.02, height, '/torso_lift_link', pub)
 
@@ -64,9 +64,9 @@ if __name__ == '__main__':
         if res.error_code.val ==  res.error_code.SUCCESS:
             rospy.loginfo('No contact')
         else:
-            contact_pts = contact_info_list_to_np(res.contacts)
-            print 'contact_pts:'
-            print contact_pts
+            contact_dict = contact_info_list_to_dict(res.contacts)
+            print 'different contact pairs:'
+            print contact_dict.keys()
 
 
 
