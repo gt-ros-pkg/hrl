@@ -9,21 +9,22 @@ from planning_environment_msgs.srv import GetStateValidity
 from planning_environment_msgs.srv import GetStateValidityRequest
 from sensor_msgs.msg import JointState
 
+roslib.load_manifest('hrl_pr2_lib')
+import hrl_pr2_lib.pr2_arms as pa
 
-def joint_states_cb(data):
+
+
+def check_validity(pr2_arms, arm):
+    q = pr2_arms.get_joint_angles(arm)
+
     joint_nm_list = ['r_shoulder_pan_joint', 'r_shoulder_lift_joint',
                      'r_upper_arm_roll_joint', 'r_elbow_flex_joint',
                      'r_forearm_roll_joint', 'r_wrist_flex_joint',
                      'r_wrist_roll_joint']
-    ang_list = []
-    for i, jt_nm in enumerate(joint_nm_list):
-        idx = data.name.index(jt_nm)
-        ang = tr.angle_within_mod180(data.position[idx])
-        ang_list.append(ang)
 
     req = GetStateValidityRequest()
     req.robot_state.joint_state.name = joint_nm_list
-    req.robot_state.joint_state.position = ang_list
+    req.robot_state.joint_state.position = q
 
     req.robot_state.joint_state.header.stamp = rospy.Time.now()
     req.check_collisions = True
@@ -36,6 +37,7 @@ def joint_states_cb(data):
 
 
 
+
 if __name__ == '__main__':
     rospy.init_node('get_state_validity_python')
 
@@ -44,9 +46,14 @@ if __name__ == '__main__':
     get_state_validity = rospy.ServiceProxy(srv_nm, GetStateValidity,
                                             persistent=True)
 
-    rospy.Subscriber('/joint_states', JointState, joint_states_cb)
+    pr2_arms = pa.PR2Arms()
+    r_arm, l_arm = 0, 1
+    arm = r_arm
 
-    rospy.spin()
+    while not rospy.is_shutdown():
+        rospy.sleep(0.1)
+        check_validity(pr2_arms, arm)
+
     get_state_validity.close()
 
     
