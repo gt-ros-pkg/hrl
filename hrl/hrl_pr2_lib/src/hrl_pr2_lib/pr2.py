@@ -167,6 +167,12 @@ class PR2Arm(Joint):
     # @param pos_mat column matrix of poses
     # @param times array of times
     def set_poses(self, pos_mat, times, vel_mat=None, block=True):
+        p = self.pose()
+        for i in range(pos_mat.shape[1]):
+            pos_mat[4,i] = unwrap2(p[4,0], pos_mat[4,i])
+            pos_mat[6,i] = unwrap2(p[6,0], pos_mat[6,i])
+            p = pos_mat[:,i]
+
         joint_traj = Joint._create_trajectory(self, pos_mat, times, vel_mat)
 
         #Create goal msg
