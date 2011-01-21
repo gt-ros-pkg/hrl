@@ -162,7 +162,7 @@ class ManipulationBehaviors:
         loc_bl = self.movement.current_location()[0]
         front_loc = point.copy()
         front_loc[0,0] = loc_bl[0,0]
-        #pdb.set_trace()
+        pdb.set_trace()
 
         if orientation == None:
             start_loc = self.movement.current_location()
@@ -187,14 +187,14 @@ class ManipulationBehaviors:
             r2 = None
 
         touch_loc_bl = self.movement.current_location()
-        if r2 == None or r2 == 'pressure' or r2 == 'accel' or pos_error < .05:
+        if r2 == 'no solution' or r2 == None or r2 == 'pressure' or r2 == 'accel' or pos_error < .05:
             self.movement.set_movement_mode_cart()
             self.movement.pressure_listener.rezero()
 
             #b/c of stiction, we can't move precisely for small distances, so move back then move forward again
             reach_dir = reach_direction / np.linalg.norm(reach_direction)
             cur_pose, cur_ang = self.movement.current_location()
-            p1 = cur_pose - (reach_dir * .1)
+            p1 = cur_pose - (reach_dir * .05)
             p2 = cur_pose + move_back_distance
             rospy.loginfo('moving back')
             _, pos_error = self.movement.move_absolute((p1, cur_ang), stop='None', pressure=pressure_thres)
@@ -258,7 +258,6 @@ class ApplicationBehaviors:
         self.wide_angle_camera_left = rc.ROSCamera('/wide_stereo/left/image_rect_color')
         self.wide_angle_camera_right = rc.ROSCamera('/wide_stereo/right/image_rect_color')
 
-        #pdb.set_trace()
         self.laser_listener = LaserPointerClient(tf_listener=self.tf_listener, robot=self.robot)
         self.laser_listener.add_double_click_cb(self.click_cb)
 
@@ -268,23 +267,20 @@ class ApplicationBehaviors:
         #TODO: define start location in frame attached to torso instead of base_link
         self.start_location = (np.matrix([0.35, 0.30, 1.1]).T, np.matrix([0., 0., 0., 0.1]))
         #self.start_location = (np.matrix([0.25, 0.30, 1.3]).T, np.matrix([0., 0., 0., 0.1]))
-        #pdb.set_trace()
 
-        # loading stored locations
+        #loading stored locations
         self.saved_locations_fname = 'saved_locations.pkl'
-        self.locations = []
+        self.location_centers = []
         self.location_labels = []
         self.location_data = []
 
         if os.path.isfile(self.saved_locations_fname):
             location_data = ut.load_pickle(self.saved_locations_fname) #each col is a 3d point, 3xn mat
             for idx, rloc in enumerate(location_data):
-                self.locations.append(rloc['center'])
+                self.location_centers.append(rloc['center'])
                 self.location_labels.append(idx)
-            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.locations).T))
+            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
             self.location_data = location_data
-
-
 
         # joint angles used for tuck
         self.behaviors.movement.set_movement_mode_cart()
@@ -298,8 +294,31 @@ class ApplicationBehaviors:
                          -11.36121856,  -2.14040499,  -3.15655164]]).T
         self.l3 = np.matrix([[ 0.54339568,  1.2537778 ,  1.85395725, -2.27255481, -9.92394984,
                          -0.86489749, -3.00261708]]).T
-        #pdb.set_trace()
         self.tuck()
+
+
+    def tuck(self):
+        ldiff = np.linalg.norm(pr2.diff_arm_pose(self.robot.left.pose(), self.l3))
+                # np.linalg.norm(self.robot.left.pose() - self.l3)
+        rdiff = np.linalg.norm(pr2.diff_arm_pose(self.robot.right.pose(), self.r1))
+        #rdiff = np.linalg.norm(self.robot.right.pose() - self.r1)
+        if ldiff < .3 and rdiff < .3:
+            rospy.loginfo('tuck: Already tucked. Ignoring request.')
+            return
+        self.robot.right.set_pose(self.r1, block=False)
+        self.robot.left.set_pose(self.l0, block=True)
+        poses = np.column_stack([self.l0, self.l1, self.l2, self.l3])
+        #pdb.set_trace()
+        self.robot.left.set_poses(poses, np.array([0., 1.5, 3, 4.5]))
+
+    def untuck(self):
+        if np.linalg.norm(self.robot.left.pose() - self.l0) < .3:
+            rospy.loginfo('untuck: Already untucked. Ignoring request.')
+            return
+        self.robot.right.set_pose(self.r1, 2., block=False)
+        self.robot.left.set_pose(self.l3, 2., block=True)
+        poses = np.column_stack([self.l3, self.l2, self.l1, self.l0])
+        self.robot.left.set_poses(poses, np.array([0., 3., 6., 9.])/2.)
 
     def go_to_home_pose(self):
         self.behaviors.movement.set_movement_mode_cart()
@@ -322,7 +341,6 @@ class ApplicationBehaviors:
 
         cv.SaveImage('after.png', after_frame)
         sdiff = image_diff_val2(before_frame, after_frame)
-        #pdb.set_trace()
         self.robot.head.set_pose(start_pose, 1)
         time.sleep(3)        
         #take after snapshot
@@ -341,7 +359,8 @@ class ApplicationBehaviors:
         print '===================================================================='
         point = point + point_offset 
         rospy.loginfo('>>>> REACHING to ' + str(point.T))
-        #self.behaviors.gripper_close()
+        self.behaviors.movement.gripper_close()
+        self.behaviors.movement.pressure_listener.rezero()
         #TODO: have go_home check whether it is actually at that location
         #self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
 
@@ -387,6 +406,7 @@ class ApplicationBehaviors:
         rospy.loginfo('DONE.')
         return change, touchloc_bl
 
+
     def light_switch2(self, point):
         success, reason, touchloc = self.behaviors.movement.reach(point)
         if not success:
@@ -400,40 +420,40 @@ class ApplicationBehaviors:
 
 
     def drawer(self, point):
-        #open gripper
-        self.behaviors.movement.gripper_open()
-
+        linear_movement = self.behaviors.movement
+        linear_movement.gripper_open()
         #pdb.set_trace()
-        #reach for point 
-        #for i in range(4):
-        self.behaviors.movement.move_absolute((self.start_location[0], \
-                    np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))))
-
-        success, reason, touchloc_bl = self.behaviors.reach(point, 300, np.matrix([-0.02, 0, 0]).T, 
+        linear_movement.move_absolute((self.start_location[0], np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))))
+        success, reason, touchloc_bl = self.behaviors.reach(point, 300, np.matrix([0.0, 0, 0]).T, 
                              reach_direction=np.matrix([0.1, 0, 0]).T, 
-                             orientation= np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0)))
+                             orientation=np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0)))
+
         if not success:
             error_msg = 'Reach failed due to "%s"' % reason
             rospy.loginfo(error_msg)
             rospy.loginfo('Failure recovery: moving back')
-            self.behaviors.movement.set_movement_mode_cart()
-            self.behaviors.movement.move_relative_gripper(np.matrix([-.1,0,0]).T, stop='pressure_accel', pressure=300)
+            linear_movement.set_movement_mode_cart()
+            linear_movement.move_relative_gripper(np.matrix([-.25,0,0]).T, stop='pressure_accel', pressure=300)
             #self.behaviors.movement.move_absolute(self.start_location, stop='accel', pressure=300)
 
         #grasp
-        self.behaviors.movement.gripper_close()
-        self.behaviors.movement.set_movement_mode_cart()
-        self.behaviors.movement.move_relative_gripper(np.matrix([-.25,0,0]).T, stop='none', pressure=1000)
+        linear_movement.gripper_close()
+        linear_movement.set_movement_mode_cart()
+        linear_movement.move_relative_gripper(np.matrix([-.25,0,0]).T, stop='none', pressure=1000)
 
-        self.behaviors.movement.set_movement_mode_cart()
-        self.behaviors.movement.gripper_open()
+        linear_movement.set_movement_mode_cart()
+        linear_movement.gripper_open()
         time.sleep(1)
 
-        self.behaviors.movement.pressure_listener.rezero()
-        self.behaviors.movement.move_relative_gripper(np.matrix([-.1,0,0]).T, stop='pressure_accel', pressure=300)
-        self.behaviors.movement.move_relative_base(np.matrix([0,0,0.3]).T, stop='pressure_accel', pressure=300)
+        linear_movement.pressure_listener.rezero()
+        #pdb.set_trace()
+        #linear_movement.move_relative_gripper(np.matrix([-.15, 0, 0]).T, stop='pressure_accel', pressure=300)
+        linear_movement.move_relative_base(np.matrix([-.2, .3, 0.3]).T, stop='pressure_accel', pressure=300)
+        linear_movement.set_movement_mode_ik()
 
 
+    ##
+    # Drive using within a dist_far distance of point_bl
     def drive_approach_behavior(self, point_bl, dist_far):
         # navigate close to point
         #pdb.set_trace()
@@ -454,7 +474,11 @@ class ApplicationBehaviors:
         rospy.loginfo('drive_approach_behavior: returned %d' % rvalue)
         return rvalue
 
+    ##
+    # Drive so that we are perpendicular to a wall at point_bl (radii voi_radius) 
+    # stop at dist_approach
     def approach_perpendicular_to_surface(self, point_bl, voi_radius, dist_approach):
+        return 3
         #TODO: Turn to face point
         #TODO: make this scan around point instead of total scan of env
         #determine normal
@@ -500,210 +524,192 @@ class ApplicationBehaviors:
         #self.robot.base.turn_by(ang, block=True)
         #pdb.set_trace()
 
+
+    def approach_location(self, point_bl, coarse_stop, fine_stop, voi_radius=.2):
+        return
+        point_dist = np.linalg.norm(point_bl[0:2,0])
+        rospy.loginfo('approach_location: Point is %.3f away.' % point_dist)
+        map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+        point_map = tfu.transform_points(map_T_base_link, point_bl)
+
+        dist_theshold = coarse_stop + .1
+        if point_dist > dist_theshold:
+            rospy.loginfo('approach_location: Point is greater than %.1f m away (%.3f).  Driving closer.' % (dist_theshold, point_dist))
+            rospy.loginfo('approach_location: CLICKED on point_bl ' + str(point_bl.T))
+
+            ret = self.drive_approach_behavior(point_bl, dist_far=coarse_stop)
+            base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
+            point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
+            if ret != 3:
+                dist_end = np.linalg.norm(point_bl_t1[0:2,0])
+                if dist_end > DIST_THRESHOLD:
+                    rospy.logerr('approach_location: drive_approach_behavior failed! %.3f' % dist_end)
+                    self.robot.sound.say("I am unable to navigate to that location")
+                    return
+
+            ret = self.approach_perpendicular_to_surface(point_bl_t1, voi_radius=voi_radius, dist_approach=fine_stop)
+            if ret != 3:
+                rospy.logerr('approach_location: approach_perpendicular_to_surface failed!')
+                return
+
+            self.robot.sound.say('done')
+            rospy.loginfo('approach_location: DONE DRIVING!')
+            return True
+        else:
+            return False
+
     def turn_to_point(self, point_bl, block=True):
         ang = math.atan2(point_bl[1,0], point_bl[0,0])
         rospy.loginfo('turn_to_point: turning by %.2f deg' % math.degrees(ang))
         #pdb.set_trace()
         self.robot.base.turn_by(-ang, block=block, overturn=True)
 
-    def tuck(self):
-        #pdb.set_trace()
-        ldiff = np.linalg.norm(pr2.diff_arm_pose(self.robot.left.pose(), self.l3))
-                # np.linalg.norm(self.robot.left.pose() - self.l3)
-        rdiff = np.linalg.norm(pr2.diff_arm_pose(self.robot.right.pose(), self.r1))
-        #rdiff = np.linalg.norm(self.robot.right.pose() - self.r1)
-        if ldiff < .3 and rdiff < .3:
-            rospy.loginfo('tuck: Already tucked. Ignoring request.')
-            return
-        self.robot.right.set_pose(self.r1, block=False)
-        self.robot.left.set_pose(self.l0, block=True)
-        poses = np.column_stack([self.l0, self.l1, self.l2, self.l3])
-        self.robot.left.set_poses(poses, np.array([0., 1.5, 3, 4.5]))
+    def run_behaviors(self, point_bl, stored_point=False):
+        driving_param = {'light_switch': {'coarse': .7, 'fine': .5, 'voi': .2},
+                         'drawer':       {'coarse': .7, 'fine': .7, 'voi': .2}}
 
-    def untuck(self):
-        if np.linalg.norm(self.robot.left.pose() - self.l0) < .3:
-            rospy.loginfo('untuck: Already untucked. Ignoring request.')
+        map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+        point_map = tfu.transform_points(map_T_base_link, point_bl)
+
+        matches = self.find_close_by_points(point_map)
+        if len(matches) > 0:
+            #pdb.set_trace()
+            ldata = self.location_data[self.location_labels[matches[0]]]
+            task = ldata['task']
+            rospy.loginfo('Found closeby location %s' % str(ldata))
+        else:
+            rospy.loginfo( 'No location matches found. Please enter location type:')
+            for i, k in enumerate(driving_param.keys()):
+                rospy.loginfo(' %d %s' %(i,k))
+            task_number = raw_input()
+            task = driving_param.keys()[int(task_number)]
+
+        rospy.loginfo('Task is %s' % task)
+        if self.approach_location(point_bl, 
+                coarse_stop=driving_param[task]['coarse'], 
+                fine_stop=driving_param[task]['fine'], 
+                voi_radius=driving_param[task]['voi']):
             return
-        self.robot.right.set_pose(self.r1, 2., block=False)
-        self.robot.left.set_pose(self.l3, 2., block=True)
-        poses = np.column_stack([self.l3, self.l2, self.l1, self.l0])
-        self.robot.left.set_poses(poses, np.array([0., 3., 6., 9.])/2.)
+
+        else:
+            ret = self.approach_perpendicular_to_surface(point_bl, 
+                    voi_radius=driving_param[task]['voi'], 
+                    dist_approach=driving_param[task]['fine'])
+
+            if ret != 3:
+                rospy.logerr('run_behaviors: approach_perpendicular_to_surface failed!')
+                return
+
+            base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
+            point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
+            try:
+                self.untuck()
+
+                if task == 'light_switch':
+                    MAX_RETRIES = 15
+                    rospy.loginfo('run_behaviors: go_home_pose')
+                    self.go_to_home_pose()
+                    gaussian = pr.Gaussian(np.matrix([ 0,      0,      0.]).T, \
+                                           np.matrix([[1.,     0,      0], \
+                                                      [0, .02**2,      0], \
+                                                      [0,      0, .02**2]]))
+                    retry_count = 0
+                    success = False
+                    gaussian_noise = np.matrix([0, 0, 0.0]).T
+                    point_offset = np.matrix([0, 0, 0.03]).T
+                    while not success:
+                        perturbation = gaussian_noise
+                        perturbed_point_bl = point_bl_t1 + perturbation
+                        success, _ = self.light_switch1(perturbed_point_bl, point_offset=point_offset, \
+                                press_contact_pressure=300, move_back_distance=np.matrix([-.0075,0,0]).T,\
+                                press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, \
+                                visual_change_thres=.03)
+                        gaussian_noise = gaussian.sample()
+                        gaussian_noise[0,0] = 0
+                        retry_count = retry_count + 1 
+
+                        if retry_count > MAX_RETRIES:
+                            self.robot.sound.say('giving up tried %d times already' % MAX_RETRIES)
+                            break
+                        elif not success:
+                             self.robot.sound.say('retrying')
+
+                    if success:
+                        self.robot.sound.say('successful!')
+
+                        if not stored_point or retry_count > 1:
+                            map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+                            perturbed_map = tfu.transform_points(map_T_base_link, perturbed_point_bl)
+                            self.location_add(perturbed_map, task)
+                            self.robot.sound.say('recorded point')
+
+                        #if retry_count > 1:
+                        #    if not self.add_perturbation_to_location(point_map, perturbation):
+                        #        self.robot.sound.say('unable to add perturbation to database! please fix')
+                    self.tuck()
+
+    
+                if task == 'drawer':
+                    self.drawer(point_bl_t1)
+                    self.tuck()
+                    self.robot.sound.say('done')
+                    self.location_add(point_map, task)
+                    
+                    #except lm.RobotSafetyError, e:
+                    #    rospy.loginfo('run_behaviors: Caught a robot safety exception "%s"' % str(e.parameter))
+                    #    #self.behaviors.movement.move_absolute(self.start_location, stop='accel')
+
+            except lm.RobotSafetyError, e:
+                rospy.loginfo('run_behaviors: Caught a robot safety exception "%s"' % str(e.parameter))
+                self.behaviors.movement.move_absolute(self.start_location, stop='accel')
+    
+            except TaskError, e:
+                rospy.loginfo('run_behaviors: TaskError: %s' % str(e.parameter))
+            rospy.loginfo('run_behaviors: DONE MANIPULATION!')
+            self.robot.sound.say('done')
+
 
     def click_cb(self, point_bl):
         if point_bl!= None:
             self.run_behaviors(point_bl)
         else:
-            if len(self.locations) < 1:
+            if len(self.location_centers) < 1:
                 return
             rospy.loginfo('click_cb: double clicked but no 3d point given')
             rospy.loginfo('click_cb: will use the last successful location given')
             base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
-            point_bl = tfu.transform_points(base_link_T_map, self.locations[-1])
-            rospy.loginfo('click_cb: using ' + str(self.locations[-1].T))
+            point_bl = tfu.transform_points(base_link_T_map, self.location_centers[-1])
+            rospy.loginfo('click_cb: using ' + str(self.location_centers[-1].T))
             self.run_behaviors(point_bl, stored_point=True)
 
-    def run_behaviors(self, point_bl_t0, stored_point=False):
-        DIST_STOP = .7
-        #DIST_THRESHOLD = .8 for lightswitch
-        DIST_THRESHOLD = .8 #for drawers
-        MAX_RETRIES = 15
-        #DIST_APPROACH = .5
-        DIST_APPROACH = .7
-        VOI_RADIUS = .2
 
-        #point_bl_t1 = np.matrix([[ 0.73846737,  0.07182931,  0.55951065]]).T
-        #print '>>>> POINT IS', point_bl_t1.T
-        #self.untuck()
-        #self.drawer(point_bl_t0)
-        #self.tuck()
-        #self.robot.sound.say('done')
-        #return
-
-        point_dist = np.linalg.norm(point_bl_t0[0:2,0])
-        rospy.loginfo('run_behaviors: Point is %.3f away.' % point_dist)
-        map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
-        point_map = tfu.transform_points(map_T_base_link, point_bl_t0)
-
-        if point_dist > DIST_THRESHOLD:
-            rospy.loginfo('run_behaviors: Point is greater than %.1f m away (%.3f).  Driving closer.' % (DIST_THRESHOLD, point_dist))
-            ##self.turn_to_point(point_bl_t0)
-            rospy.loginfo( 'run_behaviors: CLICKED on point_bl ' + str(point_bl_t0.T))
-
-            ret = self.drive_approach_behavior(point_bl_t0, dist_far=DIST_STOP)
-            if ret != 3:
-                base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
-                point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
-                dist_end = np.linalg.norm(point_bl_t1[0:2,0])
-                if dist_end > DIST_THRESHOLD:
-                    rospy.logerr('run_behaviors: drive_approach_behavior failed! %.3f' % dist_end)
-                    self.robot.sound.say("I am unable to navigate to that location")
-                    return
-
-            base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
-            point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
-
-            ret = self.approach_perpendicular_to_surface(point_bl_t1, voi_radius=VOI_RADIUS, dist_approach=DIST_APPROACH)
-            if ret != 3:
-                rospy.logerr('run_behaviors: approach_perpendicular_to_surface failed!')
-                return
-
-            #map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
-            #point_bl_t2 = tfu.transform_points(base_link_T_map, point_map)
-            self.robot.sound.say('done')
-            rospy.loginfo('run_behaviors: DONE DRIVING!')
-        elif False:
-            rospy.loginfo('run_behaviors: Point is less than %.1f m away (%.3f).  Attempting manipulation' \
-                            % (DIST_THRESHOLD, point_dist))
-            try:
-                ret = self.approach_perpendicular_to_surface(point_bl_t0, voi_radius=VOI_RADIUS, \
-                        dist_approach=DIST_APPROACH)
-                if ret != 3:
-                    rospy.logerr('run_behaviors: approach_perpendicular_to_surface failed!')
-                    return
-
-                base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
-                point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
-                rospy.loginfo('run_behaviors: go_home_pose')
-                self.untuck()
-                self.go_to_home_pose()
-
-                gaussian = pr.Gaussian(np.matrix([0, 0, 0.]).T, \
-                                       np.matrix([[1.,     0,      0], \
-                                                  [0, .02**2,      0], \
-                                                  [0,      0, .02**2]]))
-                success_off = False
-                gaussian_noise = np.matrix([0, 0, 0.0]).T
-                perturb_point = None
-                retry_count = 0
-                while not success_off:
-                    point_offset = np.matrix([0, 0, 0.03]).T
-                    perturbation = gaussian_noise
-                    perturbed_point_bl = point_bl_t1 + perturbation
-                    success_off, _ = self.light_switch1(perturbed_point_bl, point_offset=point_offset, \
-                            press_contact_pressure=300, move_back_distance=np.matrix([-.0075,0,0]).T,\
-                            press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, \
-                            visual_change_thres=.03)
-                    gaussian_noise = gaussian.sample()
-                    gaussian_noise[0,0] = 0
-                    retry_count = retry_count + 1 
-
-                    if retry_count > MAX_RETRIES:
-                        self.robot.sound.say('giving up tried %d times already' % MAX_RETRIES)
-                        break
-                    elif not success_off:
-                        self.robot.sound.say('retrying')
-
-                if success_off:
-                    self.robot.sound.say('successful!')
-                    #map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
-                    #perturbed_point_map = tfu.transform_points(map_T_base_link, perturbed_point_bl)
-
-                    if not stored_point:
-                        self.location_add(point_map)
-
-                    if retry_count > 1:
-                        if not self.add_perturbation_to_location(point_map, perturbation):
-                            self.robot.sound.say('unable to add perturbation to database! please fix')
-
-                self.tuck()
-            except lm.RobotSafetyError, e:
-                rospy.loginfo('run_behaviors: Caught a robot safety exception "%s"' % str(e.parameter))
-                self.behaviors.movement.move_absolute(self.start_location, stop='accel')
-
-            except TaskError, e:
-                rospy.loginfo('run_behaviors: TaskError: %s' % str(e.parameter))
-            rospy.loginfo('run_behaviors: DONE MANIPULATION!')
-            self.robot.sound.say('done')
-        else:
-            try:
-                ret = self.approach_perpendicular_to_surface(point_bl_t0, voi_radius=VOI_RADIUS, \
-                        dist_approach=DIST_APPROACH)
-                if ret != 3:
-                    rospy.logerr('run_behaviors: approach_perpendicular_to_surface failed!')
-                    return
-
-                base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
-                point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
-                rospy.loginfo('run_behaviors: go_home_pose')
-                self.untuck()
-                #self.go_to_home_pose()
-
-                print '>>>> POINT IS', point_bl_t1.T
-                #point_bl_t1 = np.matrix([[ 0.73846737,  0.07182931,  0.55951065]]).T
-                self.drawer(point_bl_t1)
-                self.robot.sound.say('done')
-            except lm.RobotSafetyError, e:
-                rospy.loginfo('run_behaviors: Caught a robot safety exception "%s"' % str(e.parameter))
-                self.behaviors.movement.move_absolute(self.start_location, stop='accel')
-
-    def find_location_idx(self, point_map):
+    def find_close_by_points(self, point_map):
         close_by_locs = self.locations_tree.query_ball_point(np.array(point_map.T), self.LOCATION_ADD_RADIUS)[0]
+        return close_by_locs
+
+
+    def find_close_by_points_match_task(self, point_map, task):
+        matches = self.find_close_by_points(point_map)
+        task_matches = []
+        for m in matches:
+            idx = self.location_labels[m]
+            ldata = self.location_data[idx]
+            if ldata['task'] == task:
+                task_matches.append(m)
+        return task_matches
+
+    def location_add(self, point_map, task):
+        close_by_locs = self.find_close_by_points_match_task(point_map, task)
         if len(close_by_locs) == 0:
-            return None
-        else:
-            return close_by_locs
-
-
-    def add_perturbation_to_location(self, point_map, perturbation):
-        locs = self.find_location_idx(point_map)
-        if locs != None:
-            location = self.location_data[self.location_labels(locs[0])]
-            if not location.has_key('perturbation'):
-                location['perturbation'] = []
-            location['perturbation'].append(perturbation)
-            return True
-        return False
-
-
-    def location_add(self, point_map):
-        #pdb.set_trace()
-        close_by_locs = self.find_location_idx(point_map)
-        if close_by_locs == None:
             rospy.loginfo('location_add: point not close to any existing location. creating new record.')
-            self.location_data.append({'center': point_map, 'points':[point_map]})
-            self.locations.append(point_map)
+            self.location_data.append({
+                'task': task, 
+                'center': point_map, 
+                'points':[point_map]})
+            self.location_centers.append(point_map)
             self.location_labels.append(len(self.location_data) - 1)
-            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.locations).T))
+            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+
         else:
             #If close by locations found then add to points list and update center
             location_idx = self.location_labels[close_by_locs[0]]
@@ -712,8 +718,8 @@ class ApplicationBehaviors:
             rospy.loginfo('location_add: point close to %d at %s.' % (location_idx, str(ldata['center'].T)))
             ldata['points'].append(point_map)
             ldata['center'] = np.column_stack(ldata['points']).mean(1)
-            self.locations[location_idx] = ldata['center']
-            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.locations).T))
+            self.location_centers[location_idx] = ldata['center']
+            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
 
         ut.save_pickle(self.location_data, self.saved_locations_fname)
         rospy.loginfo('location_add: saved point in map.')
@@ -836,6 +842,15 @@ if __name__ == '__main__':
 
 
 
+    #def add_perturbation_to_location(self, point_map, perturbation):
+    #    locs = self.find_close_by_points(point_map)
+    #    if locs != None:
+    #        location = self.location_data[self.location_labels(locs[0])]
+    #        if not location.has_key('perturbation'):
+    #            location['perturbation'] = []
+    #        location['perturbation'].append(perturbation)
+    #        return True
+    #    return False
 
 
 
@@ -847,6 +862,54 @@ if __name__ == '__main__':
 
 
 
+
+
+
+
+
+                #self.go_to_home_pose()
+                #print '>>>> POINT IS', point_bl_t1.T
+                #point_bl_t1 = np.matrix([[ 0.73846737,  0.07182931,  0.55951065]]).T
+        #DIST_THRESHOLD = .8 for lightswitch
+        #DIST_THRESHOLD = .85 #for drawers
+        #DIST_APPROACH = .5
+        #COARSE_STOP = .7
+        #FINE_STOP = .7
+        #VOI_RADIUS = .2
+
+        #point_dist = np.linalg.norm(point_bl_t0[0:2,0])
+        #rospy.loginfo('run_behaviors: Point is %.3f away.' % point_dist)
+        #map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+        #point_map = tfu.transform_points(map_T_base_link, point_bl_t0)
+
+        #if point_dist > DIST_THRESHOLD:
+        #    rospy.loginfo('run_behaviors: Point is greater than %.1f m away (%.3f).  Driving closer.' % (DIST_THRESHOLD, point_dist))
+        #    ##self.turn_to_point(point_bl_t0)
+        #    rospy.loginfo( 'run_behaviors: CLICKED on point_bl ' + str(point_bl_t0.T))
+
+        #    ret = self.drive_approach_behavior(point_bl_t0, dist_far=COARSE_STOP)
+        #    if ret != 3:
+        #        base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
+        #        point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
+        #        dist_end = np.linalg.norm(point_bl_t1[0:2,0])
+        #        if dist_end > DIST_THRESHOLD:
+        #            rospy.logerr('run_behaviors: drive_approach_behavior failed! %.3f' % dist_end)
+        #            self.robot.sound.say("I am unable to navigate to that location")
+        #            return
+
+        #    base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
+        #    point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
+
+        #    ret = self.approach_perpendicular_to_surface(point_bl_t1, voi_radius=VOI_RADIUS, dist_approach=FINE_STOP)
+        #    if ret != 3:
+        #        rospy.logerr('run_behaviors: approach_perpendicular_to_surface failed!')
+        #        return
+
+        #    #map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+        #    #point_bl_t2 = tfu.transform_points(base_link_T_map, point_map)
+        #    self.robot.sound.say('done')
+        #    rospy.loginfo('run_behaviors: DONE DRIVING!')
+        #elif False:
 
 
 
