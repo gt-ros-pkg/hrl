@@ -13,48 +13,53 @@ roslib.load_manifest('hrl_pr2_lib')
 import hrl_pr2_lib.pr2_arms as pa
 
 
+class online_collision_detector():
 
-def check_validity(pr2_arms, arm):
-    q = pr2_arms.get_joint_angles(arm)
+    def __init__(self):
+        srv_nm = 'environment_server_right_arm/get_state_validity'
+        rospy.wait_for_service(srv_nm)
+        self.get_state_validity = rospy.ServiceProxy(srv_nm, GetStateValidity,
+                                                persistent=True)
 
-    joint_nm_list = ['r_shoulder_pan_joint', 'r_shoulder_lift_joint',
-                     'r_upper_arm_roll_joint', 'r_elbow_flex_joint',
-                     'r_forearm_roll_joint', 'r_wrist_flex_joint',
-                     'r_wrist_roll_joint']
+    def check_validity(self, pr2_arms, arm):
+        q = pr2_arms.get_joint_angles(arm)
 
-    req = GetStateValidityRequest()
-    req.robot_state.joint_state.name = joint_nm_list
-    req.robot_state.joint_state.position = q
+        joint_nm_list = ['r_shoulder_pan_joint', 'r_shoulder_lift_joint',
+                         'r_upper_arm_roll_joint', 'r_elbow_flex_joint',
+                         'r_forearm_roll_joint', 'r_wrist_flex_joint',
+                         'r_wrist_roll_joint']
 
-    req.robot_state.joint_state.header.stamp = rospy.Time.now()
-    req.check_collisions = True
+        req = GetStateValidityRequest()
+        req.robot_state.joint_state.name = joint_nm_list
+        req.robot_state.joint_state.position = q
 
-    res = get_state_validity.call(req)
-    if res.error_code.val == res.error_code.SUCCESS:
-        rospy.loginfo('Requested state is not in collision')
-    else:
-        rospy.loginfo('Requested state is in collision. Error code: %d'%(res.error_code.val))
+        req.robot_state.joint_state.header.stamp = rospy.Time.now()
+        req.check_collisions = True
 
-
+        res = self.get_state_validity.call(req)
+        return res
+    
+    def __del__(self):
+        self.get_state_validity.close()
 
 
 if __name__ == '__main__':
     rospy.init_node('get_state_validity_python')
 
-    srv_nm = 'environment_server_right_arm/get_state_validity'
-    rospy.wait_for_service(srv_nm)
-    get_state_validity = rospy.ServiceProxy(srv_nm, GetStateValidity,
-                                            persistent=True)
 
     pr2_arms = pa.PR2Arms()
     r_arm, l_arm = 0, 1
     arm = r_arm
+    col_det = online_collision_detector()
 
     while not rospy.is_shutdown():
         rospy.sleep(0.1)
-        check_validity(pr2_arms, arm)
+        res = col_det.check_validity(pr2_arms, arm)
+        if res.error_code.val == res.error_code.SUCCESS:
+            rospy.loginfo('Requested state is not in collision')
+        else:
+            rospy.loginfo('Requested state is in collision. Error code: %d'%(res.error_code.val))
 
-    get_state_validity.close()
 
     
 
