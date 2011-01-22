@@ -19,8 +19,6 @@ import Queue as qu
 import visualization_msgs.msg as vm
 import hrl_lib.viz as viz
 
-#import mlpy
-
 
 def calc_normal(points3d, p=np.matrix([-1,0,0.]).T):
     #pdb.set_trace()
@@ -64,9 +62,6 @@ def local_window(location, bw_image, winsize, resize_to=None):
            subrect = rescaled
         intensity = np.matrix(np.reshape(subrect, (subrect.shape[0]*subrect.shape[1]*subrect.shape[2], 1))) / 255.
         return intensity
-#               
-#               
-
 
 
 ##
@@ -112,6 +107,18 @@ def select_volume(limits, points):
     #points_xyz = points_xy[:, np.where(np.multiply(points_xy[2, :] > zlim[0], points_xy[2, :] < zlim[1]))[1].A1]
     #return points_xyz
 
+
+##
+#
+# @param sampled_point point to calculate features for
+# @param voi_tree tree of 3d points
+# @param intensity_paired_with_3d_points 
+# @param grid_resolution resolution of grid points
+# @param data_pkl 
+# @param win_size
+# @param intensity_image_array
+# @param verbose
+#
 def calculate_features_given_point(sampled_point, voi_tree, intensity_paired_with_3d_points, \
         grid_resolution, data_pkl, win_size, intensity_image_array, verbose=False):
     indices_list = voi_tree.query_ball_point(np.array(sampled_point), grid_resolution/2.)
@@ -154,6 +161,12 @@ def calculate_features_given_point(sampled_point, voi_tree, intensity_paired_wit
 #    pass
 
 
+##
+# Calculate data vectors in a given image and pickle
+# @param fname file name
+# @param data_pkl
+# @param grid_resolution grid resolution to sample
+# @param win_size size of patch to collect
 def calculate_features(fname, data_pkl, grid_resolution, win_size):
     ##
     ## For each data pickle, generate features...
@@ -231,7 +244,9 @@ def calculate_features(fname, data_pkl, grid_resolution, win_size):
     positive_sample_points.append(closest_center_point_bl.T.A1)
     print 'empty queries', empty_queries, 'non empty', non_empty
 
-    return bl_pc, colored_points_valid_bl, [positive_samples, positive_sample_points], [negative_samples, negative_sample_points]
+    return bl_pc, colored_points_valid_bl, [positive_samples, positive_sample_points], \
+            [negative_samples, negative_sample_points]
+
 
 class Recognize3D:
 
@@ -400,19 +415,22 @@ class Recognize3D:
                 #pos, ppoints, neg, npoints = calculate_features(dirname, fname)
                 print 'processing', data_file_name
                 data_pkl = ut.load_pickle(data_file_name)
-                points_bl, colored_points_valid_bl, pos, neg = calculate_features(data_file_name, data_pkl, grid_resolution, win_size)
+                points_bl, colored_points_valid_bl, pos, neg = calculate_features(data_file_name, \
+                        data_pkl, grid_resolution, win_size)
                 positive_examples += pos[0]
                 negative_examples += neg[0]
-                positive_points += pos[1]
-                negative_points += neg[1]
+                positive_points   += pos[1]
+                negative_points   += neg[1]
     
             print 'num positive samples', len(positive_examples), 
             print 'num negative samples', len(negative_examples)
             print 'saving features'
-            ut.save_pickle([positive_examples, negative_examples, positive_points, negative_points], features_file_name)
+            ut.save_pickle([positive_examples, negative_examples, positive_points, negative_points], \
+                            features_file_name)
         else:
             print 'features has been calculated already (yay!) loading from', features_file_name
-            positive_examples, negative_examples, positive_points, negative_points = ut.load_pickle(features_file_name)
+            positive_examples, negative_examples, positive_points, negative_points = ut.load_pickle(\
+                    features_file_name)
 
         return positive_examples, negative_examples, positive_points, negative_points 
 
@@ -426,13 +444,14 @@ class Recognize3D:
         xs = np.row_stack((normal_bls, avg_colors, intensities)) #stack features
         return xs, intensities
 
-
+    ##
+    #
     def train(self, dirname, features_file_name, variance_keep, \
             grid_resolution=.05, win_size=15):
 
         #Get raw eatures
-        positive_examples, negative_examples, positive_points, negative_points = self.extract_features_from_dir(dirname,
-                features_file_name, grid_resolution, win_size)
+        positive_examples, negative_examples, positive_points, negative_points = self.extract_features_from_dir(\
+                dirname, features_file_name, grid_resolution, win_size)
     
         #Turn raw features into matrix format
         size_intensity = None
@@ -489,11 +508,13 @@ class Recognize3D:
         first_scene_name = data_files[0]
         first_scene_pickle = ut.load_pickle(first_scene_name)
         #TODO get more reasonable features
-        fpoints_bl, fcolored_points_valid_bl, fpos, fneg = calculate_features(first_scene_pickle, first_scene_pickle, grid_resolution, win_size)
+        fpoints_bl, fcolored_points_valid_bl, fpos, fneg = calculate_features(first_scene_pickle, \
+                first_scene_pickle, grid_resolution, win_size)
 
         #start with one scene 
         #1 positive and 1 negative
-        fpos_ex, _ = self.create_training_instances_from_raw_features(fpos[0]) #need new features beside from RAW intensity
+        fpos_ex, _ = self.create_training_instances_from_raw_features(fpos[0]) #need new features beside 
+                                                                               #from RAW intensity
         fneg_ex, _ = self.create_training_instances_from_raw_features(fneg[0])
         train = np.matrix(np.column_stack((fpos_ex, fneg_ex[:,0])).T, dtype='float32').copy()
         response = np.matrix([1,0.], dtype='float32').copy()
