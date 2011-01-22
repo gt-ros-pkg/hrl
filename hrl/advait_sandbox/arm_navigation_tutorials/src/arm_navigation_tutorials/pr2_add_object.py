@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
     trans, quat = pr2_arms.tf_lstnr.lookupTransform('/base_link',
                              '/torso_lift_link', rospy.Time(0))
-    height = ee_pos[2] + trans[2] + 0.5
+    height = ee_pos[2] + trans[2]
     ee_pos[2] = -trans[2]
     ac.add_cylinder('pole', ee_pos, 0.02, height, '/torso_lift_link', pub)
 
