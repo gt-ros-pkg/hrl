@@ -1,4 +1,4 @@
-import roslib; roslib.load_manifest('hai_sandbox')
+import roslib; roslib.load_manifest('hrl_lib')
 import rospy
 import visualization_msgs.msg as vm
 import geometry_msgs.msg as gm
