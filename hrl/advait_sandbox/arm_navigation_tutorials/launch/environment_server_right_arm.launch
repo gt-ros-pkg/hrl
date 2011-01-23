@@ -14,7 +14,7 @@
     <param name="bounding_planes" type="string" value="0 0 1 -0.01" />
 
     <param name="pointcloud_padd" type="double" value="0.00" />
-    <param name="use_collision_map" type="bool" value="false" />
+    <param name="use_collision_map" type="bool" value="true" />
 
     <param name="contacts_to_compute_for_display" type="int" value="500" />
 

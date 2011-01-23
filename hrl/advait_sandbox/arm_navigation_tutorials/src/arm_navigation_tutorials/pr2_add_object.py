@@ -8,15 +8,18 @@ import online_collision_detection as ocd
 import roslib; roslib.load_manifest('arm_navigation_tutorials')
 import rospy
 from mapping_msgs.msg import CollisionObject
+from visualization_msgs.msg import Marker
+
+import hrl_lib.viz as hv
 
 roslib.load_manifest('hrl_pr2_lib')
 import hrl_pr2_lib.pr2_arms as pa
 
 
-
 def contact_info_list_to_dict(cont_info_list):
     ci = cont_info_list[0]
     frm = ci.header.frame_id
+#    print 'frame:', frm
     b1 = ci.contact_body_1
     b2 = ci.contact_body_2
     contact_dict = {}
@@ -34,10 +37,34 @@ def contact_info_list_to_dict(cont_info_list):
 
     return contact_dict
 
+def visualize_contact_dict(cd, marker_pub):
+    color_list = [(1.,0.,0.), (0.,1.,0.), (0.,0.,1.), (1.,1.,0.),
+                  (1.,0.,1.), (0.,1.,1.), (0.5,1.,0.), (0.5,0.,1.),
+                  (0.,0.5,1.) ]
+    pts_list = []
+    cs_list = []
+    for i, k in enumerate(cd.keys()):
+        pts = np.matrix(cd[k]).T
+        c = color_list[i]
+        cs = np.ones((4, pts.shape[1]))
+        cs[0,:] = c[0]
+        cs[1,:] = c[1]
+        cs[2,:] = c[2]
+        pts_list.append(pts)
+        cs_list.append(cs)
+        print '# of contact points:', pts.shape[1]
+
+    m = hv.list_marker(np.column_stack(pts_list),
+                       np.column_stack(cs_list), (0.01, 0.01, 0.01),
+                       'points', 'base_footprint', duration=1.0)
+    m.header.stamp = rospy.Time.now()
+    marker_pub.publish(m)
+
 
 if __name__ == '__main__':
     rospy.init_node('pr2_skin_simulate')
     pub = rospy.Publisher('collision_object', CollisionObject)
+    marker_pub = rospy.Publisher('/skin/viz_marker', Marker)
 
     pr2_arms = pa.PR2Arms()
     r_arm, l_arm = 0, 1
@@ -50,7 +77,7 @@ if __name__ == '__main__':
     print 'ee_pos.shape:', ee_pos.shape
 
 
-    trans, quat = pr2_arms.tf_lstnr.lookupTransform('/base_link',
+    trans, quat = pr2_arms.tf_lstnr.lookupTransform('/base_footprint',
                              '/torso_lift_link', rospy.Time(0))
     height = ee_pos[2] + trans[2]
     ee_pos[2] = -trans[2]
@@ -65,8 +92,8 @@ if __name__ == '__main__':
             rospy.loginfo('No contact')
         else:
             contact_dict = contact_info_list_to_dict(res.contacts)
-            print 'different contact pairs:'
-            print contact_dict.keys()
+            print 'contact_dict.keys:', contact_dict.keys()
+            visualize_contact_dict(contact_dict, marker_pub)
 
 
 
