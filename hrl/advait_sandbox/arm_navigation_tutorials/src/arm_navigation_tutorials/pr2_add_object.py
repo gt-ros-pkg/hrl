@@ -43,6 +43,7 @@ def visualize_contact_dict(cd, marker_pub):
                   (0.,0.5,1.) ]
     pts_list = []
     cs_list = []
+    marker_list = []
     for i, k in enumerate(cd.keys()):
         pts = np.matrix(cd[k]).T
         c = color_list[i]
@@ -53,12 +54,23 @@ def visualize_contact_dict(cd, marker_pub):
         pts_list.append(pts)
         cs_list.append(cs)
         print '# of contact points:', pts.shape[1]
-
+        mn = np.mean(pts, 1)
+        quat = np.matrix([0.,0.,0.,1.]).T
+        m = hv.single_marker(mn, quat, 'arrow', 'base_footprint',
+                             duration=1., m_id = i+1) # keeping 0 for the list of points marker.
+        marker_list.append(m)
+    
     m = hv.list_marker(np.column_stack(pts_list),
                        np.column_stack(cs_list), (0.01, 0.01, 0.01),
-                       'points', 'base_footprint', duration=1.0)
-    m.header.stamp = rospy.Time.now()
+                       'points', 'base_footprint', duration=1.0,
+                       m_id=0)
+    t_now = rospy.Time.now()
+    m.header.stamp = t_now
     marker_pub.publish(m)
+
+    for m in marker_list:
+        m.header.stamp = rospy.Time.now()
+        marker_pub.publish(m)
 
 
 if __name__ == '__main__':
