@@ -12,7 +12,7 @@ from hrl_lib.msg import FloatArray
 from hrl_lib.rutils import GenericListener, ros_to_dict, RateCaller
 from hrl_lib.data_process import signal_smooth, signal_variance, signal_list_variance
 from tf.transformations import *
-from pr2_overhead_grasping.overhead_grasping import log, err, node_name
+from helpers import log, err, node_name
 
 from std_msgs.msg import Float64MultiArray
 from pr2_msgs.msg import AccelerometerState, PressureState

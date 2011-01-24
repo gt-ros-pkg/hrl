@@ -34,7 +34,6 @@ from visualization_msgs.msg import MarkerArray, Marker
 import dynamic_reconfigure.client
 import tf
 from laser_interface.pkg import CURSOR_TOPIC, MOUSE_DOUBLE_CLICK_TOPIC, CURSOR_TOPIC, MOUSE_R_CLICK_TOPIC, MOUSE_R_DOUBLE_CLICK_TOPIC
-import face_detector.msg
 
 # from pr2_gripper_reactive_approach.controller_manager import ControllerManager
 from hrl_pr2_lib.hrl_controller_manager import HRLControllerManager as ControllerManager
@@ -45,6 +44,7 @@ from tabletop_object_detector.srv import TabletopDetection
 from tabletop_object_detector.msg import TabletopDetectionResult
 
 from laser_interface.pkg import CURSOR_TOPIC, MOUSE_DOUBLE_CLICK_TOPIC
+from helpers import log, err, node_name
 
 #SETUP_POS = (0.62, 0.0, 0.035)
 #SETUP_POS_ANGS = [-0.6260155429349421, -0.53466276262236689, -1.9803303473514324, -1.1593322538276705, -0.89803655400181404, -1.4467120153069799, -2.728422563953746]
@@ -139,23 +139,6 @@ GRASP_INDEX_FILE = "model_indexed//grasp_model_index.pickle"
 GRASP_DATA_INDEX_FILE = "data_indexed//grasp_data_index.pickle"
 GRASP_DATA_PREFIX = "data_indexed//grasp_data"
 TEST_DATA_FILE = "test_data.pickle"
-
-node_name = "overhead_grasping"
-
-def log(*strs):
-    prstrs = ""
-    for s in strs:
-        prstrs += str(s) + " "
-    rospy.loginfo(node_name + ": " + prstrs)
-
-def err(*strs):
-    prstrs = ""
-    for s in strs:
-        prstrs += str(s) + " "
-    rospy.logerr(node_name + ": " + strs)
-
-
-# TODO Change pickle functions back to defaults, but use roslaunch files
 
 def _load_pickle(fn):
     global PACKAGE_LOC
@@ -560,8 +543,8 @@ class OverheadGrasper():
                                 close_models += [_load_pickle(data_index[ind][1])[3]]
 
                         if len(close_models) < 5:
-                            err("Rejecting %1.2f, %1.2f, %1.2f with number close models = %d" % ()
-                                        st[0], st[1], st[2], len(close_models))
+                            err("Rejecting %1.2f, %1.2f, %1.2f with number close models = %d" %
+                                    (st[0], st[1], st[2], len(close_models)))
                             st[2] += rs
                             continue
 
