@@ -1,9 +1,13 @@
+
+import numpy as np
+
 import roslib; roslib.load_manifest('hrl_lib')
 import rospy
 import visualization_msgs.msg as vm
 import geometry_msgs.msg as gm
 import std_msgs.msg as sdm
-import numpy as np
+
+import hrl_lib.transforms as tr
 
 ##
 # Creates a dictionary containing marker constants indexed by friendly names
@@ -87,4 +91,32 @@ def create_frame_marker(center, frame, line_len, frame_id):
         clist.append(colors)
         plist.append(np.column_stack([center, center+ alpha * frame[:,i]]))
     return viz.list_marker(np.column_stack(plist), np.column_stack(clist), [.01, 0, 0], 'line_list', frame_id)
+
+
+## make a quaternion from an arrow direction.
+# can use this quaternion as the pose of the arrow marker to vizualise
+# in rviz.
+# @param direc - 3x1 np matrix.
+# @return quaternion as a 4x1 np matrix
+def arrow_direction_to_quat(direc):
+    direc = direc / np.linalg.norm(direc)
+    t = np.matrix([1.,0.,0.]).T
+    if abs((t.T*direc)[0,0]) > 0.866:
+        t = np.matrix([0.,1.,0.]).T
+
+    v1 = direc
+    v2 = t - (t.T*v1)[0,0] * v1
+    v2 = v2 / np.linalg.norm(v2)
+    v3 = np.matrix(np.cross(v1.A1, v2.A1)).T
+    rot_mat = np.column_stack([v1, v2, v3])
+    q = np.matrix(tr.matrix_to_quaternion(rot_mat)).T
+    return q
+
+
+
+
+
+
+
+
 
