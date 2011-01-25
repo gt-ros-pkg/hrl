@@ -33,4 +33,6 @@
 
    <node pkg="pr2_head_action" name="pr2_head_action" type="pr2_head_action" />
 
+   <include file="$(find face_detector)/launch/face_detector_action.wide.launch"/>
+
 </launch>

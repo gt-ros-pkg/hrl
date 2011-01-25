@@ -2,7 +2,7 @@ import rospy
 import hrl_lib
 import yaml
 import os
-node_name = "overhead_grasping2"
+node_name = "overhead_grasping13"
 
 ARM = 0 # right arm
 
@@ -35,7 +35,7 @@ class FileOperations():
                        loc + "//collision_times.yaml")
         stream = file(ct_index_fn, "r")
         coll_times = yaml.load(stream)
-        return coll_times['collision_times']
+        return coll_times
 
     def save_coll_times(self, coll_times, loc):
         ct_index_fn = (self.package_loc + "//pickles//" + 
