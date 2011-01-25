@@ -246,3 +246,79 @@ def signal_list_variance(x_list, means, window_len=10, num_samples=30, resample=
                     n += 1
         vars += [np.sqrt(cursum)/(n)]
     return np.array(vars)
+
+class FastGaussConvolve():
+    def __init__(self, delta = 0.001, max_sigma = 5.0):
+        self.kernels = []
+        self.inds = np.linspace(-max_sigma, max_sigma, int(2 * max_sigma / delta) + 1)
+        for deg in range(3):
+            kernel = []
+            for v in self.inds:
+                if deg == 0:
+                    kernel.append(self.gauss(v))
+                elif deg == 1:
+                    kernel.append(self.gauss_d1(v))
+                elif deg == 2:
+                    kernel.append(self.gauss_d2(v))
+            self.kernels.append(kernel)
+        self.delta = delta
+        self.max_sigma = max_sigma
+
+    def _gauss_lookup(self, t, sigma_t, deg):
+        xs = t / sigma_t
+        if xs < -self.max_sigma or xs > self.max_sigma:
+            return None
+        gind = int((xs + self.max_sigma) / self.delta)
+        return self.kernels[deg][gind]
+    
+    def convolve_pt(self, signal, time_series, ind, deg, sigma_t):
+        ret = 0.
+        ind_dwn = ind
+        gauss_sum = 0.
+        while ind_dwn > 0:
+            time = time_series[ind_dwn] - time_series[ind]
+            gauss = self._gauss_lookup(time, sigma_t, deg)
+            if gauss is None:
+                break
+            ret += gauss * signal[ind_dwn]
+            gauss_sum += np.fabs(gauss)
+            ind_dwn -= 1
+        ind_up = ind + 1
+        while ind_up < len(signal):
+            time = time_series[ind_up] - time_series[ind]
+            gauss = self._gauss_lookup(time, sigma_t, deg)
+            if gauss is None:
+                break
+            ret += gauss * signal[ind_up]
+            gauss_sum += np.fabs(gauss)
+            ind_up += 1
+        return ret / gauss_sum
+
+    def convolve_signal(self, signal, time_series, deg, sigma_t):
+        window_len = int(self.max_sigma * sigma_t / self.delta)
+
+        avg_sig = sum(signal[0:20]) / 20.
+        s=np.r_[[avg_sig]*window_len,signal,[avg_sig]*window_len]
+        avg_diff = sum([time_series[i] - time_series[i-1] for i in range(1,20)]) / 19.
+        ts=np.r_[[avg_diff*i + time_series[0] for i in range(-window_len, 0)],time_series,[avg_diff*i + time_series[-1] for i in range(1, window_len+1)]]
+
+        ret_sig = []
+        i = window_len
+        while len(ret_sig) < len(signal):
+            ret_sig.append(self.convolve_pt(s, ts, i, deg, sigma_t))
+            i += 1
+
+        return ret_sig
+
+    def gauss(self, x, sig=1.):
+        return 1./np.sqrt(2. * np.pi * sig ** 2) * np.exp(-x**2/(2*sig**2))
+
+    def gauss_d1(self, x, sig=1.):
+        return (-2. * x * 1./(np.sqrt(2. * np.pi * sig ** 2) * 2 * sig**2) * 
+                np.exp(-x**2/(2*sig**2)))
+
+    def gauss_d2(self, x, sig=1.):
+        return (-2. * 1./(np.sqrt(2. * np.pi * sig ** 2) * 2 * sig**2) * 
+                np.exp(-x**2/(2*sig**2)) +
+                4. * x**2 * 1./(np.sqrt(2. * np.pi * sig ** 2) * 4 * sig**4) * 
+                np.exp(-x**2/(2*sig**2)))
