@@ -9,6 +9,61 @@ from interpolated_ik_motion_planner.ik_utilities import *
 from pr2_gripper_reactive_approach.controller_manager import *
 
 class HRLIKUtilities(IKUtilities):
+    #initialize all service functions
+    def __init__(self, whicharm, tf_listener = None, perception_running = 0): 
+        #whicharm is 'right' or 'left'
+        #set perception_running to 0 to disable collision-aware IK
+        self.srvroot = '/pr2_'+whicharm+'_arm_kinematics/'
+
+        self.perception_running = perception_running
+
+        rospy.loginfo("ik_utilities: waiting for IK services to be there")
+        rospy.wait_for_service(self.srvroot+'get_ik')
+        if self.perception_running:
+            rospy.wait_for_service(self.srvroot+'get_constraint_aware_ik')
+        rospy.wait_for_service(self.srvroot+'get_fk')
+        rospy.wait_for_service(self.srvroot+'get_ik_solver_info')
+        rospy.loginfo("ik_utilities: services found")
+
+        self.ik_service = rospy.ServiceProxy(self.srvroot+'get_ik', GetPositionIK)
+        if self.perception_running:
+            self.ik_service_with_collision = rospy.ServiceProxy(self.srvroot+'get_constraint_aware_ik', GetConstraintAwarePositionIK)
+        self.fk_service = rospy.ServiceProxy(self.srvroot+'get_fk', GetPositionFK)
+        self.query_service = rospy.ServiceProxy(self.srvroot+'get_ik_solver_info', GetKinematicSolverInfo)
+        
+        if tf_listener == None:
+            rospy.loginfo("ik_utilities: starting up tf_listener")
+            self.tf_listener = tf.TransformListener()
+        else:
+            self.tf_listener = tf_listener
+
+        self.marker_pub = rospy.Publisher('interpolation_markers', Marker)
+
+        #get and store the joint names and limits
+        #only one IK link available so far ('r_wrist_roll_link' or 'l_wrist_roll_link')
+        (self.joint_names, self.min_limits, self.max_limits, self.link_names) = \
+            self.run_query()
+        self.link_name = self.link_names[-1]
+
+        #dictionary for the possible kinematics error codes
+        self.error_code_dict = {}  #codes are things like SUCCESS, NO_IK_SOLUTION
+        for element in dir(ArmNavigationErrorCodes):
+            if element[0].isupper():
+                self.error_code_dict[eval('ArmNavigationErrorCodes.'+element)] = element
+
+        #good additional start angles to try for IK
+        self.start_angles_list = [[-0.697, 1.002, 0.021, -0.574, 0.286, -0.095, 1.699],
+                                  [-1.027, 0.996, 0.034, -0.333, -3.541, -0.892, 1.694],
+                                  [0.031, -0.124, -2.105, -1.145, -1.227, -1.191, 2.690],
+                                  [0.410, 0.319, -2.231, -0.839, -2.751, -1.763, 5.494],
+                                  [0.045, 0.859, 0.059, -0.781, -1.579, -0.891, 7.707],
+                                  [0.420, 0.759, 0.014, -1.099, -3.204, -1.907, 8.753],
+                                  [-0.504, 1.297, -1.857, -1.553, -4.453, -1.308, 9.572]]
+
+        #changes the set of ids used to show the arrows every other call
+        self.pose_id_set = 0
+
+        rospy.loginfo("ik_utilities: done init")
 
     #check a Cartesian path for consistent, non-colliding IK solutions
     #start_pose and end_pose are PoseStamped messages with the wrist poses
