@@ -4,6 +4,7 @@ import numpy as np, math
 
 import add_cylinder as ac
 import online_collision_detection as ocd
+import force_visualize_test as fvt
 
 import roslib; roslib.load_manifest('arm_navigation_tutorials')
 import rospy
@@ -37,7 +38,7 @@ def contact_info_list_to_dict(cont_info_list):
 
     return contact_dict
 
-def visualize_contact_dict(cd, marker_pub):
+def visualize_contact_dict(cd, marker_pub, fts):
     color_list = [(1.,0.,0.), (0.,1.,0.), (0.,0.,1.), (1.,1.,0.),
                   (1.,0.,1.), (0.,1.,1.), (0.5,1.,0.), (0.5,0.,1.),
                   (0.,0.5,1.) ]
@@ -55,11 +56,13 @@ def visualize_contact_dict(cd, marker_pub):
         cs_list.append(cs)
         print '# of contact points:', pts.shape[1]
         mn = np.mean(pts, 1)
-        quat = np.matrix([0.,0.,0.,1.]).T
-        m = hv.single_marker(mn, quat, 'arrow', 'base_footprint',
-                             duration=1., m_id = i+1) # keeping 0 for the list of points marker.
-        marker_list.append(m)
-    
+
+        f = fts.get_forces()
+        m1, m2 = fvt.get_arrow_text_markers(mn, f, 'base_footprint',
+                                            m_id = 2*i+1, duration=0.5)
+        marker_pub.publish(m1)
+        marker_pub.publish(m2)
+
     m = hv.list_marker(np.column_stack(pts_list),
                        np.column_stack(cs_list), (0.01, 0.01, 0.01),
                        'points', 'base_footprint', duration=1.0,
@@ -78,6 +81,8 @@ if __name__ == '__main__':
     pub = rospy.Publisher('collision_object', CollisionObject)
     marker_pub = rospy.Publisher('/skin/viz_marker', Marker)
 
+    fts = fvt.object_ft_sensors()
+    fts.bias_fts()
     pr2_arms = pa.PR2Arms()
     r_arm, l_arm = 0, 1
     arm = r_arm
@@ -105,7 +110,7 @@ if __name__ == '__main__':
         else:
             contact_dict = contact_info_list_to_dict(res.contacts)
             print 'contact_dict.keys:', contact_dict.keys()
-            visualize_contact_dict(contact_dict, marker_pub)
+            visualize_contact_dict(contact_dict, marker_pub, fts)
 
 
 

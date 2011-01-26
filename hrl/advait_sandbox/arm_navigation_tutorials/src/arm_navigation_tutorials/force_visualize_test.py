@@ -21,7 +21,6 @@ import force_torque.FTClient as ftc
 import tf
 
 class object_ft_sensors():
-
     def __init__(self):
         self.obj1_ftc = ftc.FTClient('force_torque_ft2')
         self.tf_lstnr = tf.TransformListener()
@@ -43,6 +42,23 @@ class object_ft_sensors():
        self.obj1_ftc.bias()
 
 
+def get_arrow_text_markers(p, f, frame, m_id, duration):
+    t_now = rospy.Time.now()
+    q = hv.arrow_direction_to_quat(f)
+    arrow_len = np.linalg.norm(f) * 0.04
+
+    scale = (arrow_len, 0.2, 0.2)
+    m1 = hv.single_marker(p, q, 'arrow', frame, scale, m_id = m_id,
+                          duration = duration)
+    m1.header.stamp = t_now
+
+    m2 = hv.single_marker(p, q, 'text_view_facing', frame,
+                          (0.1, 0.1, 0.1), m_id = m_id+1,
+                          duration = duration, color=(1.,0.,0.,1.))
+    m2.text = '%.1f N'%(np.linalg.norm(f))
+    m2.header.stamp = t_now
+    return m1, m2
+
 
 if __name__ == '__main__':
     rospy.init_node('force_visualize_test')
@@ -57,25 +73,11 @@ if __name__ == '__main__':
 
     while not rospy.is_shutdown():
         f = fts.get_forces()
-        #print 'force:', f.A1
-        rospy.sleep(0.1)
-
         p, r = pr2_arms.end_effector_pos(arm)
-        
-        t_now = rospy.Time.now()
-        q = hv.arrow_direction_to_quat(f)
-        arrow_len = np.linalg.norm(f) * 0.04
-
-        scale = (arrow_len, 0.2, 0.2)
-        m = hv.single_marker(p, q, 'arrow', 'torso_lift_link', scale, m_id=0)
-        m.header.stamp = t_now
-        marker_pub.publish(m)
-
-        m = hv.single_marker(p, q, 'text_view_facing',
-                'torso_lift_link', (0.1, 0.1, 0.1), m_id=1)
-        m.text = '%.1f N'%(np.linalg.norm(f))
-        m.header.stamp = t_now
-        marker_pub.publish(m)
+        m1, m2 = get_arrow_text_markers(p, f, 'torso_lift_link', 0, 1.)
+        marker_pub.publish(m1)
+        marker_pub.publish(m2)
+        rospy.sleep(0.1)
 
 
 
