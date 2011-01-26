@@ -2,7 +2,7 @@ import rospy
 import hrl_lib
 import yaml
 import os
-node_name = "overhead_grasping13"
+node_name = "overhead_grasping"
 
 ARM = 0 # right arm
 
@@ -62,6 +62,10 @@ class FileOperations():
             pass
         try:
             os.mkdir(self.package_loc + "//pickles//collision_data//" + directory)
+        except:
+            pass
+        try:
+            os.mkdir(self.package_loc + "//arff_files")
         except:
             pass
 
