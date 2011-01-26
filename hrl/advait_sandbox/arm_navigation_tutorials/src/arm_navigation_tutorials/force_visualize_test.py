@@ -72,7 +72,9 @@ if __name__ == '__main__':
 #        q = hv.arrow_direction_to_quat(d)
         
         q = hv.arrow_direction_to_quat(f)
-        m = hv.single_marker(p, q, 'arrow', 'torso_lift_link', m_id=0)
+        arrow_len = np.linalg.norm(f) * 0.04
+        scale = (arrow_len, 0.2, 0.2)
+        m = hv.single_marker(p, q, 'arrow', 'torso_lift_link', scale, m_id=0)
         t_now = rospy.Time.now()
         m.header.stamp = t_now
         marker_pub.publish(m)
