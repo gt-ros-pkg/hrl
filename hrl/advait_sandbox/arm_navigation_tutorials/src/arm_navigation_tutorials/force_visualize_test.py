@@ -55,21 +55,12 @@ if __name__ == '__main__':
     r_arm, l_arm = 0, 1
     arm = r_arm
 
-#    direc_list = [(1.,0.,0.), (0.,1.,0.), (0.,0.,1.), (-1,0.,0.),
-#                  (0.,-1,0.), (0.,0.,-1.), (1.,1.,0), (-1.,-1,-1)]
-#    i = 0
-
     while not rospy.is_shutdown():
         f = fts.get_forces()
         #print 'force:', f.A1
         rospy.sleep(0.1)
 
         p, r = pr2_arms.end_effector_pos(arm)
-        
-#        idx = i % len(direc_list)
-#        i += 1
-#        d = np.matrix(direc_list[idx]).T
-#        q = hv.arrow_direction_to_quat(d)
         
         t_now = rospy.Time.now()
         q = hv.arrow_direction_to_quat(f)
