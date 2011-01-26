@@ -37,12 +37,16 @@ def indices_of_points_in_view(points, cal_obj):
     valid_indices = np.where(np.multiply(np.multiply(points[0,:] > 0, points[0,:] < cal_obj.w-.6),
                                          np.multiply(points[1,:] > 0, points[1,:] < cal_obj.h-.6)))[1].A1
     return valid_indices
-    #return points[:, valid_indices]
+
 
 ##
-# given a 2d location and a window size, cut out a square of intensity values, returns (winsize*winsize)x1 array in range [0,1]
-# just use local template image
-#def local_window(location, bw_image, winsize):
+# Given a 2d location and a window size, cut out a square of intensity values, 
+# returns (winsize*winsize)x1 array in range [0,1] just use local template image
+#
+# @param location
+# @param bw_image
+# @param winsize
+# @param resize_to
 def local_window(location, bw_image, winsize, resize_to=None):
     loc = np.matrix(np.round(location), dtype='int')
     start = loc - winsize
@@ -65,12 +69,26 @@ def local_window(location, bw_image, winsize, resize_to=None):
 
 
 ##
+# Combines a point cloud with an intensity image
 #
+# @param points_in_laser_frame 3d points in laser frame
+# @param image OpenCV image
 # @param cal_obj camera calibration object
 # @return 3xn int matrix of 3d points that are visible in the camera's frame
 # @return 3xn int matrix of rgb values of those points in range [0,1]
-def laser_point_intensity(points_in_laser_frame, image_T_laser, image, cal_obj):
+def combine_scan_and_image_laser_frame(points_in_laser_frame, image_T_laser, image, cal_obj):
     points_in_image_frame = tfu.transform_points(image_T_laser, points_in_laser_frame)
+    return combine_scan_and_image(points_in_image_frame, image, cal_obj)
+
+##
+# Combines a point cloud with an intensity image
+#
+# @param points_in_image_frame 3d points in image frame
+# @param image OpenCV image
+# @param cal_obj camera calibration object
+# @return 3xn int matrix of 3d points that are visible in the camera's frame
+# @return 3xn int matrix of rgb values of those points in range [0,1]
+def combine_scan_and_image(points_in_image_frame, image, cal_obj):
     p2d = cal_obj.project(points_in_image_frame)
     valid_indicies = indices_of_points_in_view(p2d, cal_obj)
 
@@ -84,14 +102,25 @@ def laser_point_intensity(points_in_laser_frame, image_T_laser, image, cal_obj):
     #pdb.set_trace()
     return vpoints, (np.matrix(intensity_channels).T / 255.)
 
+##
+# Given a group of points, select the ones within rectangular volume
+#
+# @param center
+# @param w
+# @param h
+# @param depth
+# @param points 3xn mat
+def select_rect(center, w, h, depth, points):
+    limits = [[center[0,0]-w, center[0,0]+w], 
+                 [center[1,0]-h, center[1,0]+h], 
+                 [center[2,0]-depth, center[2,0]+depth]]
+    return select_volume(limits, points), limits
 
-def select_rect(center_point_bl, w, h, depth, points):
-    limits_bl = [[center_point_bl[0,0]-w, center_point_bl[0,0]+w], 
-                 [center_point_bl[1,0]-h, center_point_bl[1,0]+h], 
-                 [center_point_bl[2,0]-depth, center_point_bl[2,0]+depth]]
-    return select_volume(limits_bl, points), limits_bl
 
-
+##
+# Given a group of points and rectangular limits return points within limits
+# @param limits [[xmin, xmax], [ymin, ymax], [...]]
+# @param points 3xn mat
 def select_volume(limits, points):
     xlim, ylim, zlim = limits
     xlim_sat = np.multiply(points[0, :] > xlim[0], points[0, :] < xlim[1])
@@ -110,19 +139,20 @@ def select_volume(limits, points):
 
 ##
 #
-# @param sampled_point point to calculate features for
-# @param voi_tree tree of 3d points
-# @param intensity_paired_with_3d_points 
-# @param grid_resolution resolution of grid points
+# @param sampled_point - point to calculate features for
+# @param voi_tree tree of 3d points      - 3d points for which intensity information is provided 
+# @param intensity_paired_with_3d_points - 3xn matrix where each column is a RGB pixel intensity
+# @param grid_resolution - resolution of grid points
 # @param data_pkl 
 # @param win_size
-# @param intensity_image_array
+# @param intensity_image_array image in form of an array w x h x depth 
 # @param verbose
 #
 def calculate_features_given_point(sampled_point, voi_tree, intensity_paired_with_3d_points, \
         grid_resolution, data_pkl, win_size, intensity_image_array, verbose=False):
     indices_list = voi_tree.query_ball_point(np.array(sampled_point), grid_resolution/2.)
     if len(indices_list) > 4:
+        pdb.set_trace()
         points_in_ball_bl = np.matrix(voi_tree.data.T[:, indices_list])
         intensity_in_ball_bl = intensity_paired_with_3d_points[:, indices_list]
         
@@ -163,11 +193,12 @@ def calculate_features_given_point(sampled_point, voi_tree, intensity_paired_wit
 
 ##
 # Calculate data vectors in a given image and pickle
+#
 # @param fname file name
 # @param data_pkl
 # @param grid_resolution grid resolution to sample
 # @param win_size size of patch to collect
-def calculate_features(fname, data_pkl, grid_resolution, win_size):
+def calculate_features_from_files(fname, data_pkl, grid_resolution, win_size):
     ##
     ## For each data pickle, generate features...
     ##
@@ -182,7 +213,8 @@ def calculate_features(fname, data_pkl, grid_resolution, win_size):
     image_T_laser = data_pkl['pro_T_bl']
     image_fname = pt.join(pt.split(fname)[0], data_pkl['high_res'])
     intensity_image = cv.LoadImageM(image_fname)
-    points_valid_pro, colors = laser_point_intensity(bl_pc, image_T_laser, intensity_image, data_pkl['prosilica_cal'])
+    points_valid_pro, colors = combine_scan_and_image_laser_frame(bl_pc, image_T_laser, \
+            intensity_image, data_pkl['prosilica_cal'])
     print 'number of points visible in camera',  points_valid_pro.shape[1]
 
     # cut cloud to volume
@@ -191,7 +223,7 @@ def calculate_features(fname, data_pkl, grid_resolution, win_size):
 
     bl_T_pro = np.linalg.inv(data_pkl['pro_T_bl'])
     colored_points_valid_bl = np.row_stack((tfu.transform_points(bl_T_pro, \
-            points_valid_pro[0:3,:]), colors))
+            points_valid_pro[0:3,:]), colors)) #combined matrix (3xn 3d points) + (mxn color points) = [(m+3) x n matrix]
     points_in_volume_bl, limits_bl = select_rect(center_point_bl, .5, .5, .5, \
             colored_points_valid_bl)
     if points_in_volume_bl == None:
@@ -226,8 +258,9 @@ def calculate_features(fname, data_pkl, grid_resolution, win_size):
 
     for sampled_point in sampled_points:
         intensity_paired_with_3d_points = points_in_volume_bl[3:,:]
-        features = calculate_features_given_point(sampled_point, voi_tree, intensity_paired_with_3d_points,\
-                        grid_resolution, data_pkl, win_size, intensity_image_array)
+        features = calculate_features_given_point(sampled_point, voi_tree, \
+                intensity_paired_with_3d_points, grid_resolution, data_pkl, \
+                win_size, intensity_image_array)
         if features != None:
             negative_samples.append(features)
             negative_sample_points.append(sampled_point)
@@ -366,7 +399,7 @@ class Recognize3D:
 
     def test_training_set(self, dataset_filename, grid_resolution, win_size):
         data_pkl = ut.load_pickle(dataset_filename)
-        points_bl, colored_points_valid_bl, pos, neg = calculate_features(dataset_filename, data_pkl, grid_resolution, win_size)
+        points_bl, colored_points_valid_bl, pos, neg = calculate_features_from_files(dataset_filename, data_pkl, grid_resolution, win_size)
         #pos_fea, pos_points = pos
         #neg_fea, neg_points = neg
 
@@ -412,10 +445,10 @@ class Recognize3D:
     
             print 'extracting features'
             for data_file_name in data_files:
-                #pos, ppoints, neg, npoints = calculate_features(dirname, fname)
+                #pos, ppoints, neg, npoints = calculate_features_from_files(dirname, fname)
                 print 'processing', data_file_name
                 data_pkl = ut.load_pickle(data_file_name)
-                points_bl, colored_points_valid_bl, pos, neg = calculate_features(data_file_name, \
+                points_bl, colored_points_valid_bl, pos, neg = calculate_features_from_files(data_file_name, \
                         data_pkl, grid_resolution, win_size)
                 positive_examples += pos[0]
                 negative_examples += neg[0]
@@ -508,7 +541,7 @@ class Recognize3D:
         first_scene_name = data_files[0]
         first_scene_pickle = ut.load_pickle(first_scene_name)
         #TODO get more reasonable features
-        fpoints_bl, fcolored_points_valid_bl, fpos, fneg = calculate_features(first_scene_pickle, \
+        fpoints_bl, fcolored_points_valid_bl, fpos, fneg = calculate_features_from_files(first_scene_pickle, \
                 first_scene_pickle, grid_resolution, win_size)
 
         #start with one scene 
@@ -523,7 +556,7 @@ class Recognize3D:
         for scene_name in data_files[1:]:
             #extract patches
             scene_pickle = ut.load_pickle(scene_name)
-            points_bl, colored_points_valid_bl, pos, neg = calculate_features(scene_name, \
+            points_bl, colored_points_valid_bl, pos, neg = calculate_features_from_files(scene_name, \
                     scene_pickle, grid_resolution, win_size)
             all_neg_from_scene = self.create_training_instances_from_raw_features(neg[0]).T
             all_pos_from_scene = self.create_training_instances_from_raw_features(pos[0]).T
@@ -606,10 +639,10 @@ class Recognize3D:
     #
     #        print 'extracting features'
     #        for data_file_name in data_files:
-    #            #pos, ppoints, neg, npoints = calculate_features(dirname, fname)
+    #            #pos, ppoints, neg, npoints = calculate_features_from_files(dirname, fname)
     #            print 'processing', data_file_name
     #            data_pkl = ut.load_pickle(data_file_name)
-    #            points_bl, colored_points_valid_bl, pos, neg = calculate_features(data_file_name, data_pkl, grid_resolution, win_size)
+    #            points_bl, colored_points_valid_bl, pos, neg = calculate_features_from_files(data_file_name, data_pkl, grid_resolution, win_size)
     #            positive_examples += pos[0]
     #            negative_examples += neg[0]
     #            positive_points += pos[1]
@@ -741,7 +774,7 @@ class DisplayThread(threading.Thread):
 
     def display_training_data_set(self, fname, grid_resolution, win_size):
         data_pkl = ut.load_pickle(fname)
-        points_bl, colored_points_valid_bl, pos, neg = calculate_features(fname, data_pkl, grid_resolution, win_size)
+        points_bl, colored_points_valid_bl, pos, neg = calculate_features_from_files(fname, data_pkl, grid_resolution, win_size)
 
         colors = [np.matrix([0,1,0,1.]).T, np.matrix([0,0,1,1.]).T]
         colors_mat = []
@@ -761,7 +794,8 @@ class DisplayThread(threading.Thread):
 
 if __name__ == '__main__':
 
-    mode = 'rebalance'
+    #mode = 'rebalance'
+    mode = 'test'
     GRID_RESOLUTION = .03
     WIN_SIZE = 5
     features_file_name = 'features_recognize3d.pkl'
@@ -770,7 +804,7 @@ if __name__ == '__main__':
 
     if mode == 'test':
         dirname = sys.argv[1]
-        test_name = sys.argv[2]
+        #test_name = sys.argv[2]
         #test_dir = sys.argv[2] 
         #train_model(dirname, features_file_name, model_name, .95)
         #test_on_training_data(model_name, dirname)
@@ -780,7 +814,7 @@ if __name__ == '__main__':
         r3d.train(dirname, features_file_name, VARIANCE_KEEP, GRID_RESOLUTION, WIN_SIZE)
         r3d.save(model_name)
         #r3d.load(model_name)
-        r3d.test_training_set(test_name, GRID_RESOLUTION, WIN_SIZE)
+        #r3d.test_training_set(test_name, GRID_RESOLUTION, WIN_SIZE)
 
     elif mode == 'rebalance':
         test_name = sys.argv[1]
@@ -788,7 +822,7 @@ if __name__ == '__main__':
         r3d.load(model_name)
         print 'rebalancing dataset'
         #r3d.rebalance_data_set_retrain()
-        r3d.kmedoids_rebalance_data_set_retrain()
+        #r3d.kmedoids_rebalance_data_set_retrain()
         print 'knn data mat size:', r3d.knn.data.shape
         r3d.test_training_set(test_name, GRID_RESOLUTION, WIN_SIZE)
 
