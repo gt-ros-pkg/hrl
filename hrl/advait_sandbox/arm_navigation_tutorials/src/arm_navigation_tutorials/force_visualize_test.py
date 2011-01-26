@@ -71,11 +71,18 @@ if __name__ == '__main__':
 #        d = np.matrix(direc_list[idx]).T
 #        q = hv.arrow_direction_to_quat(d)
         
+        t_now = rospy.Time.now()
         q = hv.arrow_direction_to_quat(f)
         arrow_len = np.linalg.norm(f) * 0.04
+
         scale = (arrow_len, 0.2, 0.2)
         m = hv.single_marker(p, q, 'arrow', 'torso_lift_link', scale, m_id=0)
-        t_now = rospy.Time.now()
+        m.header.stamp = t_now
+        marker_pub.publish(m)
+
+        m = hv.single_marker(p, q, 'text_view_facing',
+                'torso_lift_link', (0.1, 0.1, 0.1), m_id=1)
+        m.text = '%.1f N'%(np.linalg.norm(f))
         m.header.stamp = t_now
         marker_pub.publish(m)
 
