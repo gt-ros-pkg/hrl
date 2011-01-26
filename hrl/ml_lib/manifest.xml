@@ -1,0 +1,14 @@
+<package>
+  <description brief="ml_lib">
+
+     ml_lib
+
+  </description>
+  <author>haidai</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/ml_lib</url>
+
+</package>
+
+
