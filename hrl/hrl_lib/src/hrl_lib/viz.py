@@ -80,7 +80,7 @@ def single_marker(point, orientation, mtype, mframe, scale=[.2,.2,.2], color=[1.
 
 ##
 # Creates a Marker message to display a coordinate frame
-def create_frame_marker(center, frame, line_len, frame_id):
+def create_frame_marker(center, frame, line_len, frame_id, m_id=0):
     clist = []
     plist = []
     alpha = line_len
@@ -90,7 +90,8 @@ def create_frame_marker(center, frame, line_len, frame_id):
         colors[3,:] = 1.0
         clist.append(colors)
         plist.append(np.column_stack([center, center+ alpha * frame[:,i]]))
-    return list_marker(np.column_stack(plist), np.column_stack(clist), [.01, 0, 0], 'line_list', frame_id)
+    return list_marker(np.column_stack(plist), np.column_stack(clist),
+                       [.01, 0, 0], 'line_list', frame_id, m_id=m_id)
 
 
 ## make a quaternion from an arrow direction.
