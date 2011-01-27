@@ -122,7 +122,7 @@ class ROS_Robotis_Poller( Thread ):
         self.start()
 
     def run( self ):
-        while self.should_run:
+        while self.should_run and not rospy.is_shutdown():
             [ s.update_server() for s in self.ros_servers ]
             time.sleep(0.001)
 
