@@ -1,0 +1,17 @@
+<package>
+  <description brief="pr2_arms_kdl">
+
+     pr2_arms_kdl
+
+  </description>
+  <author>Advait Jain</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/pr2_arms_kdl</url>
+  <depend package="rospy"/>
+  <depend package="kdl"/>
+  <depend package="hrl_lib"/>
+
+</package>
+
+
