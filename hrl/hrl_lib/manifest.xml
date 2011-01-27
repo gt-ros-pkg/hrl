@@ -11,6 +11,7 @@
     <depend package="visualization_msgs"/>
     <depend package="tf"/>
     <depend package="dynamic_reconfigure"/>
+    <depend package="kdl"/>
     <!-- <depend package="pr2_laser_snapshotter"/> -->
     <export>
         <cpp cflags="-I${prefix}/msg/cpp"/>
