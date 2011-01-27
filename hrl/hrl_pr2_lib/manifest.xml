@@ -35,9 +35,12 @@
   <depend package="pr2_msgs"/>
 
   <depend package="teleop_controllers"/>
+  <depend package="kdl"/>
+
   <depend package="object_manipulator"/>
   <depend package="pr2_gripper_sensor_msgs"/>
   <depend package="planning_environment_msgs"/>
+
 </package>
 
 
