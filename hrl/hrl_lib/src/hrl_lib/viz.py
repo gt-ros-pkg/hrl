@@ -90,7 +90,7 @@ def create_frame_marker(center, frame, line_len, frame_id):
         colors[3,:] = 1.0
         clist.append(colors)
         plist.append(np.column_stack([center, center+ alpha * frame[:,i]]))
-    return viz.list_marker(np.column_stack(plist), np.column_stack(clist), [.01, 0, 0], 'line_list', frame_id)
+    return list_marker(np.column_stack(plist), np.column_stack(clist), [.01, 0, 0], 'line_list', frame_id)
 
 
 ## make a quaternion from an arrow direction.
