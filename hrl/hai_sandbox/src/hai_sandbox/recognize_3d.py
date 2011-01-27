@@ -1,5 +1,6 @@
 import cv
 import roslib; roslib.load_manifest('hai_sandbox')
+
 import rospy
 import scipy.spatial as sp
 import hrl_lib.util as ut
@@ -18,123 +19,8 @@ import threading
 import Queue as qu
 import visualization_msgs.msg as vm
 import hrl_lib.viz as viz
-
-
-def calc_normal(points3d, p=np.matrix([-1,0,0.]).T):
-    #pdb.set_trace()
-    u, s, vh = np.linalg.svd(np.cov(points3d))
-    u = np.matrix(u)
-
-    # Pick normal
-    if (u[:,2].T * p)[0,0] < 0:
-        normal = -u[:,2]
-    else:
-        normal = u[:,2]
-    return normal
-
-
-def indices_of_points_in_view(points, cal_obj):
-    valid_indices = np.where(np.multiply(np.multiply(points[0,:] > 0, points[0,:] < cal_obj.w-.6),
-                                         np.multiply(points[1,:] > 0, points[1,:] < cal_obj.h-.6)))[1].A1
-    return valid_indices
-
-
-##
-# Given a 2d location and a window size, cut out a square of intensity values, 
-# returns (winsize*winsize)x1 array in range [0,1] just use local template image
-#
-# @param location
-# @param bw_image
-# @param winsize
-# @param resize_to
-def local_window(location, bw_image, winsize, resize_to=None):
-    loc = np.matrix(np.round(location), dtype='int')
-    start = loc - winsize
-    patch_size = winsize*2+1
-    img_width = bw_image.shape[1]
-    img_height = bw_image.shape[0]
-
-    r = blob.Rect(start[0,0], start[1,0], patch_size, patch_size).keep_inside(0, img_width-1, 0, img_height-1) #640, 480
-    if r.width < patch_size or r.height < patch_size:
-        return None
-    else:
-        #pdb.set_trace()
-        subrect = bw_image[r.y:r.y+r.height, r.x:r.x+r.width, :]
-        if resize_to != None:
-           rescaled = np.zeros((resize_to*2+1, resize_to*2+1, subrect.shape[2]), dtype='uint8')
-           cv.Resize(subrect, rescaled, cv.CV_INTER_LINEAR)
-           subrect = rescaled
-        intensity = np.matrix(np.reshape(subrect, (subrect.shape[0]*subrect.shape[1]*subrect.shape[2], 1))) / 255.
-        return intensity
-
-
-##
-# Combines a point cloud with an intensity image
-#
-# @param points_in_laser_frame 3d points in laser frame
-# @param image OpenCV image
-# @param cal_obj camera calibration object
-# @return 3xn int matrix of 3d points that are visible in the camera's frame
-# @return 3xn int matrix of rgb values of those points in range [0,1]
-def combine_scan_and_image_laser_frame(points_in_laser_frame, image_T_laser, image, cal_obj):
-    points_in_image_frame = tfu.transform_points(image_T_laser, points_in_laser_frame)
-    return combine_scan_and_image(points_in_image_frame, image, cal_obj)
-
-##
-# Combines a point cloud with an intensity image
-#
-# @param points_in_image_frame 3d points in image frame
-# @param image OpenCV image
-# @param cal_obj camera calibration object
-# @return 3xn int matrix of 3d points that are visible in the camera's frame
-# @return 3xn int matrix of rgb values of those points in range [0,1]
-def combine_scan_and_image(points_in_image_frame, image, cal_obj):
-    p2d = cal_obj.project(points_in_image_frame)
-    valid_indicies = indices_of_points_in_view(p2d, cal_obj)
-
-    vp2d = p2d[:, valid_indicies]
-    vp2d = np.matrix(np.round(vp2d), dtype='int')
-    #vpoints = points_in_laser_frame[:, valid_indicies]
-    vpoints = points_in_image_frame[:, valid_indicies]
-
-    imagea = np.asarray(image)
-    intensity_channels = imagea[vp2d[1,:].A1, vp2d[0,:].A1, :]
-    #pdb.set_trace()
-    return vpoints, (np.matrix(intensity_channels).T / 255.)
-
-##
-# Given a group of points, select the ones within rectangular volume
-#
-# @param center
-# @param w
-# @param h
-# @param depth
-# @param points 3xn mat
-def select_rect(center, w, h, depth, points):
-    limits = [[center[0,0]-w, center[0,0]+w], 
-                 [center[1,0]-h, center[1,0]+h], 
-                 [center[2,0]-depth, center[2,0]+depth]]
-    return select_volume(limits, points), limits
-
-
-##
-# Given a group of points and rectangular limits return points within limits
-# @param limits [[xmin, xmax], [ymin, ymax], [...]]
-# @param points 3xn mat
-def select_volume(limits, points):
-    xlim, ylim, zlim = limits
-    xlim_sat = np.multiply(points[0, :] > xlim[0], points[0, :] < xlim[1])
-    ylim_sat = np.multiply(points[1, :] > ylim[0], points[1, :] < ylim[1])
-    zlim_sat = np.multiply(points[2, :] > zlim[0], points[2, :] < zlim[1])
-    selected = np.multiply(np.multiply(xlim_sat, ylim_sat), zlim_sat)
-    if np.sum(selected) <= 0:
-        return None
-    return points[:, np.where(selected)[1].A1]
-
-    #points_x   = points[:, np.where(np.multiply(points[0, :] > xlim[0], points[0, :] < xlim[1]))[1].A1]
-    #points_xy  = points_x[:, np.where(np.multiply(points_x[1, :] > ylim[0], points_x[1, :] < ylim[1]))[1].A1]
-    #points_xyz = points_xy[:, np.where(np.multiply(points_xy[2, :] > zlim[0], points_xy[2, :] < zlim[1]))[1].A1]
-    #return points_xyz
+import ml_lib.dataset as ds
+import hrl_lib.image3d as i3d
 
 
 ##
@@ -157,7 +43,7 @@ def calculate_features_given_point(sampled_point, voi_tree, intensity_paired_wit
         intensity_in_ball_bl = intensity_paired_with_3d_points[:, indices_list]
         
         #calc normal
-        normal_bl = calc_normal(points_in_ball_bl[0:3,:])
+        normal_bl = i3d.calc_normal(points_in_ball_bl[0:3,:])
         
         #calc average color
         avg_color = np.mean(intensity_in_ball_bl, 1)
@@ -169,10 +55,10 @@ def calculate_features_given_point(sampled_point, voi_tree, intensity_paired_wit
                 mean_3d_bl))
         
         #get local features
-        features1 = local_window(mean_2d, intensity_image_array, win_size)
-        features2 = local_window(mean_2d, intensity_image_array, win_size*2, resize_to=win_size)
-        features4 = local_window(mean_2d, intensity_image_array, win_size*4, resize_to=win_size)
-        features8 = local_window(mean_2d, intensity_image_array, win_size*8, resize_to=win_size)
+        features1 = i3d.local_window(mean_2d, intensity_image_array, win_size)
+        features2 = i3d.local_window(mean_2d, intensity_image_array, win_size*2, resize_to=win_size)
+        features4 = i3d.local_window(mean_2d, intensity_image_array, win_size*4, resize_to=win_size)
+        features8 = i3d.local_window(mean_2d, intensity_image_array, win_size*8, resize_to=win_size)
         features = np.row_stack((features1, features2, features4, features8))
         #features = features1
         if features1 != None and features2 != None and features4 != None and features8 != None:
@@ -213,7 +99,7 @@ def calculate_features_from_files(fname, data_pkl, grid_resolution, win_size):
     image_T_laser = data_pkl['pro_T_bl']
     image_fname = pt.join(pt.split(fname)[0], data_pkl['high_res'])
     intensity_image = cv.LoadImageM(image_fname)
-    points_valid_pro, colors = combine_scan_and_image_laser_frame(bl_pc, image_T_laser, \
+    points_valid_pro, colors = i3d.combine_scan_and_image_laser_frame(bl_pc, image_T_laser, \
             intensity_image, data_pkl['prosilica_cal'])
     print 'number of points visible in camera',  points_valid_pro.shape[1]
 
@@ -224,7 +110,7 @@ def calculate_features_from_files(fname, data_pkl, grid_resolution, win_size):
     bl_T_pro = np.linalg.inv(data_pkl['pro_T_bl'])
     colored_points_valid_bl = np.row_stack((tfu.transform_points(bl_T_pro, \
             points_valid_pro[0:3,:]), colors)) #combined matrix (3xn 3d points) + (mxn color points) = [(m+3) x n matrix]
-    points_in_volume_bl, limits_bl = select_rect(center_point_bl, .5, .5, .5, \
+    points_in_volume_bl, limits_bl = i3d.select_rect(center_point_bl, .5, .5, .5, \
             colored_points_valid_bl)
     if points_in_volume_bl == None:
         print 'No 3D points in volume of interest!'
@@ -305,7 +191,6 @@ class Recognize3D:
         else:
             print 'USING SVM FOR QUERY PREDICTIONS'
 
-
     def load(self, model_name):
         print 'loading model ', model_name
         self.svm.load(model_name)
@@ -371,7 +256,6 @@ class Recognize3D:
         self.svm.train(rebalanced_train, rebalanced_resp)
         self.training_data = [rebalanced_train, rebalanced_resp]
         self.knn = sp.KDTree(np.array(rebalanced_train))
-        
 
     ##
     #
@@ -901,3 +785,112 @@ if __name__ == '__main__':
         #orig_cloud_pub.publish(opc_msg)
         #highres_cloud_pub.publish(pc_msg)
         #voi_cloud_pub.publish(voi_msg)
+
+###########################################################################
+
+
+#==========================================================================#
+
+    def calculate_features_from_files(fname, data_pkl, grid_resolution, win_size):
+        pass
+
+    def calculate_features_given_point(sampled_point, voi_tree, intensity_paired_with_3d_points, \
+            grid_resolution, data_pkl, win_size, intensity_image_array, verbose=False):
+        pass
+
+    def test_training_set(self, dataset_filename, grid_resolution, win_size):
+        pass
+
+    def extract_features_from_dir(self, dirname, features_file_name, grid_resolution, win_size):
+        pass
+
+    def create_training_instances_from_raw_features(self, examples):
+        pass
+
+    def train(self, dirname, features_file_name, variance_keep, grid_resolution=.05, win_size=15):
+        pass
+
+
+class Dataset3DManager:
+
+    def __init__(self, directory):
+        pass
+
+    def register_scan_to_intensity(self, points3d, image):
+        return points_with_intensity
+
+    def generate_features(self, registered_scan):
+        pass
+
+    def generate_input_instances(self):
+        return ds.Dataset(inputs, outputs)
+
+
+##
+# Different representations floating around
+#
+# ML Dataset
+#
+# list of features that can be concatenated to form datset inputs (has meta
+#           information about feature labels and how to reconstruct them)
+#
+# .pkl and image on disk 
+#         want to be able to generate features from a directory
+#         want to be able to generate features from a single file
+
+#
+# Want a class that loads pickles and turn them into feature representation (annotated dataset)
+# Want to be able to generate annotated datasets from live sensor data.
+# * annotated datasets can produce regular datasets and produce various displays of themselves
+# * annotated datasets can be cached
+
+# Want to be able to pick a feature vector and turn it back into a 2d/3d point
+# 
+
+def load_data_from_dir():
+    pass
+
+def load_data_from_file():
+    pass
+
+class IntensityCloudData:
+
+    def __init__(self, pointcloud_msg, image_T_laser, image):
+        pass
+
+    def make_dataset(self, grid_resolution, win_size):
+        return Dataset(inputs, None)
+
+    def get_location2d(self, dataset_index):
+        return loc2d
+
+    def get_location3d(self, dataset_index):
+        return loc3d
+
+    def feature_vec_at(self, loc3d):
+        pass
+
+class SVMActiveLearner:
+
+    def __init__(self, examples):
+        pass
+
+    def select_next_instance(self, instances):
+        return selected_index
+
+    def update_model(self, instance, label):
+        pass
+
+    def classify(instance):
+        pass
+
+
+
+
+
+
+
+
+
+
+
