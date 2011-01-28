@@ -108,7 +108,7 @@ if __name__ == '__main__':
     while not rospy.is_shutdown():
         q = pr2_arms.get_joint_angles(r_arm)
         p, r = pr2_kdl.FK_all('right_arm', q, 7)
-        m = hv.create_frame_marker(p, r.T, 0.3, 'torso_lift_link')
+        m = hv.create_frame_marker(p, r, 0.3, 'torso_lift_link')
         time_stamp = rospy.Time.now()
         m.header.stamp = time_stamp
         marker_pub.publish(m)
