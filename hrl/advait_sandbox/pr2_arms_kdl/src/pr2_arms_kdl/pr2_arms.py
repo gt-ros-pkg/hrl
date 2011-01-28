@@ -18,18 +18,19 @@ class PR2_arm_kdl():
 
     def create_right_chain(self):
         ch = kdl.Chain()
+        self.right_arm_base_offset_from_torso_lift_link = np.matrix([0., -0.188, 0.]).T
         # shoulder pan
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotZ),kdl.Frame(kdl.Vector(0.,-0.188,0.))))
+        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotZ),kdl.Frame(kdl.Vector(0.1,0.,0.))))
         # shoulder lift
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotY),kdl.Frame(kdl.Vector(0.1,0.,0.))))
+        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotY),kdl.Frame(kdl.Vector(0.,0.,0.))))
         # upper arm roll
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotX),kdl.Frame(kdl.Vector(0.,0.,0.))))
+        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotX),kdl.Frame(kdl.Vector(0.4,0.,0.))))
         # elbox flex
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotY),kdl.Frame(kdl.Vector(0.4,0.,0.))))
+        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotY),kdl.Frame(kdl.Vector(0.0,0.,0.))))
         # forearm roll
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotX),kdl.Frame(kdl.Vector(0.,0.,0.))))
+        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotX),kdl.Frame(kdl.Vector(0.321,0.,0.))))
         # wrist flex
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotY),kdl.Frame(kdl.Vector(0.321,0.,0.))))
+        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotY),kdl.Frame(kdl.Vector(0.,0.,0.))))
         # wrist roll
         ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotX),kdl.Frame(kdl.Vector(0.,0.,0.))))
         return ch
@@ -56,11 +57,13 @@ class PR2_arm_kdl():
             rospy.logerr(msg)
             raise RuntimeError(msg)
 
+    ## returns point in torso lift link.
     def FK_all(self, arm, q, link_number = 7):
         q = self.pr2_to_kdl(q)
         frame = self.FK_kdl(arm, q, link_number)
         pos = frame.p
         pos = ku.kdl_vec_to_np(pos)
+        pos = pos + self.right_arm_base_offset_from_torso_lift_link
         m = frame.M
         rot = ku.kdl_rot_to_np(m)
         return pos, rot
@@ -102,22 +105,14 @@ if __name__ == '__main__':
 
     r_arm, l_arm = 0, 1
 
-    q = [0.] * 7
-    q[0] = math.pi/2
-    print '--------- KDL ----------------'
-    print pr2_kdl.FK_all('right_arm', q, 7)
-    print '--------- PR2 ----------------'
-    print pr2_arms.FK(0, q)
-
-
-#    while not rospy.is_shutdown():
-#        q = pr2_arms.get_joint_angles(r_arm)
-#        p, r = pr2_kdl.FK_all('right_arm', q, 7)
-#        m = hv.create_frame_marker(p, r, 0.3, 'torso_lift_link')
-#        time_stamp = rospy.Time.now()
-#        m.header.stamp = time_stamp
-#        marker_pub.publish(m)
-#        rospy.sleep(0.1)
+    while not rospy.is_shutdown():
+        q = pr2_arms.get_joint_angles(r_arm)
+        p, r = pr2_kdl.FK_all('right_arm', q, 7)
+        m = hv.create_frame_marker(p, r.T, 0.3, 'torso_lift_link')
+        time_stamp = rospy.Time.now()
+        m.header.stamp = time_stamp
+        marker_pub.publish(m)
+        rospy.sleep(0.1)
 
 
 
