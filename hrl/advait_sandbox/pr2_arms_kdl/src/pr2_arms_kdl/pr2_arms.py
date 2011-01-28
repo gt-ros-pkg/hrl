@@ -1,9 +1,9 @@
+import PyKDL as kdl
 
 import numpy as np, math
 
 import roslib; roslib.load_manifest('pr2_arms_kdl')
 import rospy
-import PyKDL as kdl
 import hrl_lib.kdl_utils as ku
 
 
@@ -97,20 +97,27 @@ if __name__ == '__main__':
     
     rospy.init_node('kdl_pr2_test')
     marker_pub = rospy.Publisher('/kdl_pr2_arms/viz_marker', Marker)
-    pr2_arms = pa.PR2Arms()
+    pr2_arms = pa.PR2Arms(gripper_point=(0.,0.,0.))
     pr2_kdl = PR2_arm_kdl()
 
-    rospy.loginfo('Hello World')
     r_arm, l_arm = 0, 1
 
-    while not rospy.is_shutdown():
-        q = pr2_arms.get_joint_angles(r_arm)
-        p, r = pr2_kdl.FK_all('right_arm', q, 7)
-        m = hv.create_frame_marker(p, r, 0.3, 'torso_lift_link')
-        time_stamp = rospy.Time.now()
-        m.header.stamp = time_stamp
-        marker_pub.publish(m)
-        rospy.sleep(0.1)
+    q = [0.] * 7
+    q[0] = math.pi/2
+    print '--------- KDL ----------------'
+    print pr2_kdl.FK_all('right_arm', q, 7)
+    print '--------- PR2 ----------------'
+    print pr2_arms.FK(0, q)
+
+
+#    while not rospy.is_shutdown():
+#        q = pr2_arms.get_joint_angles(r_arm)
+#        p, r = pr2_kdl.FK_all('right_arm', q, 7)
+#        m = hv.create_frame_marker(p, r, 0.3, 'torso_lift_link')
+#        time_stamp = rospy.Time.now()
+#        m.header.stamp = time_stamp
+#        marker_pub.publish(m)
+#        rospy.sleep(0.1)
 
 
 
