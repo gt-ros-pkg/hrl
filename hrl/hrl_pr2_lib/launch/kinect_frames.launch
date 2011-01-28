@@ -1,5 +1,6 @@
 <launch>
-  <node pkg="tf" type="static_transform_publisher" name="kinect_mount_head_plate_joint" args="0 0 0.1295 0 0 0 0 /head_plate_frame /openni_camera 100" />
+  <node pkg="tf" type="static_transform_publisher" name="kinect_mount_head_plate_joint" args="0 0 0.0905 0 0 0 0 /head_plate_frame /kinect_mount_frame 100" />
+  <node pkg="tf" type="static_transform_publisher" name="kinect_mount_head_plate_joint" args="0 0 0.039 0 0 0 0 /kinect_mount_frame /openni_camera 100" />
 
   <node pkg="tf" type="static_transform_publisher" name="kinect_base_link" args="0 -0.02 0 0 0 0  /openni_camera /openni_depth_frame 100" />
   <node pkg="tf" type="static_transform_publisher" name="kinect_base_link1" args="0 -0.04 0 0 0 0  /openni_camera /openni_rgb_frame 100" />
