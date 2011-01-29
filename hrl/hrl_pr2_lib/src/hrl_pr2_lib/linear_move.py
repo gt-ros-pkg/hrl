@@ -2,7 +2,7 @@ import roslib; roslib.load_manifest('hrl_pr2_lib')
 import rospy
 
 import pr2_gripper_reactive_approach.reactive_grasp as rgr
-import hrl_controller_manager as con
+import pr2_gripper_reactive_approach.controller_manager as con
 import object_manipulator.convert_functions as cf
 
 from actionlib_msgs.msg import GoalStatus
@@ -52,7 +52,7 @@ class LinearReactiveMovement:
 
         self.pr2 = pr2
         self.pressure_listener = pm.PressureListener(ptopic, 5000)
-        self.cman = con.HRLControllerManager(arm, self.tf_listener, using_slip_controller=1)
+        self.cman = con.ControllerManager(arm, self.tf_listener, using_slip_controller=1)
         self.reactive_gr = rgr.ReactiveGrasper(self.cman)
         self.collision_monitor = cmon.CollisionClient(arm)
 
