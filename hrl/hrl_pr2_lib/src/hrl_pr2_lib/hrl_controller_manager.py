@@ -65,6 +65,9 @@ class HRLIKUtilities(IKUtilities):
 
         rospy.loginfo("ik_utilities: done init")
 
+    def __init__(self, whicharm, tf_listener = None, perception_running = 0):
+        IKUtilities.__init__(self, whicharm, tf_listener, perception_running)
+
     #check a Cartesian path for consistent, non-colliding IK solutions
     #start_pose and end_pose are PoseStamped messages with the wrist poses
     #start_angles are angles to try to stay close to
@@ -82,11 +85,14 @@ class HRLIKUtilities(IKUtilities):
     #if start_from_end is 1, find an IK solution for the end first and work backwards
     #returns the joint angle trajectory and the error codes (0=good, 
     #  1=collisions, 2=inconsistent, 3=out of reach, 4=aborted before checking)
+    # Added joints_bias and bias_radius which define a joint configuration all IK
+    # should prefer during the trajectory and bias_radius defines the rate at which
+    # to move in that direction
     def check_cartesian_path(self, start_pose, end_pose, start_angles, pos_spacing = 0.01, rot_spacing = 0.1, consistent_angle = math.pi/9., collision_aware = 1, collision_check_resolution = 1, steps_before_abort = -1, num_steps = 0, ordered_collision_operations = None, start_from_end = 0, IK_robot_state = None, link_padding = None, use_additional_start_angles = 0, joints_bias = None, bias_radius = 0.0):
-        if joints_bias is None:
-            joints_bias = [0.0] * 7
-
-        start_angles = self.bias_guess(start_angles, joints_bias, bias_radius)
+        if joints_bias is None: # CHANGE
+            joints_bias = [0.0] * 7 # CHANGE
+        
+        start_angles = self.bias_guess(start_angles, joints_bias, bias_radius) # CHANGE
 
         #sanity-checking
         if num_steps != 0 and num_steps < 2:
@@ -102,6 +108,7 @@ class HRLIKUtilities(IKUtilities):
         (end_pos, end_rot) = self.pose_stamped_to_lists(end_pose, 'base_link')
         if start_pos == None or end_pos == None:
             return (None, None)
+        
         #interpolate path
         steps = self.interpolate_cartesian(start_pos, start_rot, end_pos, end_rot, pos_spacing, rot_spacing, num_steps)
 
@@ -119,8 +126,8 @@ class HRLIKUtilities(IKUtilities):
         #go through each set of start angles, see if we can find a consistent trajectory
         for (start_angles_ind, start_angles) in enumerate(start_angles_list):
             trajectory = []
-            error_codes = []
-
+            error_codes = [] 
+            
             if use_additional_start_angles:
                 rospy.loginfo("start_angles_ind: %d"%start_angles_ind)
 
@@ -150,7 +157,7 @@ class HRLIKUtilities(IKUtilities):
                             solution = colliding_solution
                         else:
                             collision_aware_solution_found = 1
-                    else:
+                    else:                
                         solution = colliding_solution
 
                     trajectory.append(list(solution))
@@ -166,7 +173,7 @@ class HRLIKUtilities(IKUtilities):
                         error_codes.append(2)      #2=inconsistent
 
                     start_angles = solution
-                    start_angles = self.bias_guess(start_angles, joints_bias, bias_radius)
+                    start_angles = self.bias_guess(start_angles, joints_bias, bias_radius) #CHANGE
 
                 #check if we should abort due to finding too many invalid points
                 if error_codes[-1] > 0 and steps_before_abort >= 0 and stepind >= steps_before_abort:
@@ -178,11 +185,14 @@ class HRLIKUtilities(IKUtilities):
             #if we found a successful trajectory, stop and return it
             if not any(error_codes):
                 break
+
         if start_from_end:
-            trajectory.reverse()
+            trajectory.reverse()        
             error_codes.reverse()
         return (trajectory, error_codes)
 
+    ##
+    # Added function which biases the given angles towards a given configuration
     def bias_guess(self, q, joints_bias, bias_radius):
         if bias_radius == 0.0:
             return q
@@ -255,33 +265,34 @@ class HRLControllerManager(ControllerManager):
 
         #slip-sensing gripper action clients
         if self.using_slip_controller:
-            gripper_action_name = whicharm+'_gripper_fingersensor_controller/gripper_action'
-            gripper_find_contact_action_name = whicharm+'_gripper_fingersensor_controller/find_contact'
-            gripper_slip_servo_action_name = whicharm+'_gripper_fingersensor_controller/slip_servo'
-            gripper_place_action_name = whicharm+'_gripper_fingersensor_controller/place'
+            gripper_action_name = whicharm+'_gripper_sensor_controller/gripper_action'
+            gripper_find_contact_action_name = whicharm+'_gripper_sensor_controller/find_contact'
+            gripper_grab_action_name = whicharm+'_gripper_sensor_controller/grab'
+            gripper_event_detector_action_name = whicharm+'_gripper_sensor_controller/event_detector'
             self.gripper_action_client = actionlib.SimpleActionClient(gripper_action_name, Pr2GripperCommandAction)
             self.gripper_find_contact_action_client = actionlib.SimpleActionClient(gripper_find_contact_action_name, \
-                    GripperFindContactAction)
-            self.gripper_slip_servo_action_client = actionlib.SimpleActionClient(gripper_slip_servo_action_name, \
-                    GripperSlipServoAction)
-            self.gripper_place_action_client = actionlib.SimpleActionClient(gripper_place_action_name, \
-                    GripperPlaceAction)
+                                                                                                                                                         PR2GripperFindContactAction)
+            self.gripper_grab_action_client = actionlib.SimpleActionClient(gripper_grab_action_name, \
+                                                                                                                                                         PR2GripperGrabAction)
+            self.gripper_event_detector_action_client = actionlib.SimpleActionClient(gripper_event_detector_action_name, \
+                                                                                                                                                         PR2GripperEventDetectorAction)
 
-            #default gripper action client
+        #default gripper action client
         else:
             gripper_action_name = whicharm+'_gripper_controller/gripper_action'
-            #gripper_action_name = whicharm+'_gripper_fingersensor_controller/gripper_action'
             self.gripper_action_client = \
                     actionlib.SimpleActionClient(gripper_action_name, Pr2GripperCommandAction)
-
+            
         #move arm client is filled in the first time it's called
         self.move_arm_client = None
-
+        
         #wait for the joint trajectory and gripper action servers to be there
         self.wait_for_action_server(self.joint_action_client, joint_trajectory_action_name)
         self.wait_for_action_server(self.gripper_action_client, gripper_action_name)
         if self.using_slip_controller:
             self.wait_for_action_server(self.gripper_find_contact_action_client, gripper_find_contact_action_name)
+            self.wait_for_action_server(self.gripper_grab_action_client, gripper_grab_action_name)
+            self.wait_for_action_server(self.gripper_event_detector_action_client, gripper_event_detector_action_name)
 
         #initialize a tf listener
         if tf_listener == None:
@@ -290,12 +301,12 @@ class HRLControllerManager(ControllerManager):
             self.tf_listener = tf_listener
 
         #names of the controllers
-        self.cartesian_controllers = ['_arm_cartesian_pose_controller',
-                '_arm_cartesian_trajectory_controller']
+        self.cartesian_controllers = ['_arm_cartesian_pose_controller', 
+                                                                        '_arm_cartesian_trajectory_controller']
         self.cartesian_controllers = [self.whicharm+x for x in self.cartesian_controllers]
         self.joint_controller = self.whicharm+'_arm_controller'
         if self.using_slip_controller:
-            self.gripper_controller = self.whicharm+'_gripper_fingersensor_controller'
+            self.gripper_controller = self.whicharm+'_gripper_sensor_controller'
         else:
             self.gripper_controller = self.whicharm+'_gripper_controller'
 
@@ -315,9 +326,9 @@ class HRLControllerManager(ControllerManager):
         cartesian_check_moving_name = whicharm+'_arm_cartesian_trajectory_controller/check_moving'
         cartesian_move_to_name = whicharm+'_arm_cartesian_trajectory_controller/move_to'
         cartesian_preempt_name = whicharm+'_arm_cartesian_trajectory_controller/preempt'
-        self.wait_for_service(cartesian_check_moving_name)
+        self.wait_for_service(cartesian_check_moving_name)            
         self.wait_for_service(cartesian_move_to_name)
-        self.wait_for_service(cartesian_preempt_name)
+        self.wait_for_service(cartesian_preempt_name)            
         self.cartesian_moving_service = rospy.ServiceProxy(cartesian_check_moving_name, CheckMoving)
         self.cartesian_cmd_service = rospy.ServiceProxy(cartesian_move_to_name, MoveToPose)
         self.cartesian_preempt_service = rospy.ServiceProxy(cartesian_preempt_name, Empty)
@@ -326,22 +337,22 @@ class HRLControllerManager(ControllerManager):
         self.cart_params.set_params_to_gentle()
         self.reload_cartesian_controllers()
 
-        #create an IKUtilities class object
-        rospy.loginfo("creating IKUtilities class objects")
+        #create an HRLIKUtilities class object CHANGED
+        rospy.loginfo("creating HRLIKUtilities class objects")
         if whicharm == 'r':
             self.ik_utilities = HRLIKUtilities('right', self.tf_listener)
         else:
             self.ik_utilities = HRLIKUtilities('left', self.tf_listener)
-        rospy.loginfo("done creating IKUtilities class objects")
+        rospy.loginfo("done creating HRLIKUtilities class objects")
 
         #joint names for the arm
-        joint_names = ["_shoulder_pan_joint",
-                "_shoulder_lift_joint",
-                "_upper_arm_roll_joint",
-                "_elbow_flex_joint",
-                "_forearm_roll_joint",
-                "_wrist_flex_joint",
-                "_wrist_roll_joint"]
+        joint_names = ["_shoulder_pan_joint", 
+                                     "_shoulder_lift_joint", 
+                                     "_upper_arm_roll_joint", 
+                                     "_elbow_flex_joint", 
+                                     "_forearm_roll_joint", 
+                                     "_wrist_flex_joint", 
+                                     "_wrist_roll_joint"]
         self.joint_names = [whicharm + x for x in joint_names]
 
         rospy.loginfo("done with controller_manager init for the %s arm"%whicharm)
@@ -365,15 +376,22 @@ class HRLControllerManager(ControllerManager):
         #find a collision-free joint trajectory to move from the current pose 
         #to the desired pose using Cartesian interpolation
         (trajectory, error_codes) = self.ik_utilities.check_cartesian_path(start_pose, \
-                end_pose, current_angles, step_size, .1, math.pi/4, collision_aware, \
-                joints_bias = joints_bias, bias_radius = bias_radius)
+                                         end_pose, current_angles, step_size, .1, math.pi/4, collision_aware, \
+                                         joints_bias = joints_bias, bias_radius = bias_radius)
 
         #if some point is not possible, quit
         if any(error_codes):
             rospy.loginfo("can't execute an interpolated IK trajectory to that pose")
             return 0
 
-      #send the trajectory to the joint trajectory action
+#         print "found trajectory:"
+#         for point in trajectory:
+#             if type(point) == tuple:
+#                 print self.pplist(point)
+#             else:
+#                 print point
+
+        #send the trajectory to the joint trajectory action
         #print "moving through trajectory"
         self.command_joint_trajectory(trajectory, max_joint_vel)
         return 1
@@ -386,73 +404,29 @@ class HRLControllerManager(ControllerManager):
     #times out and quits after timeout, and waits settling_time after the 
     #controllers declare that they're done
     def move_cartesian_ik(self, goal_pose, collision_aware = 0, blocking = 1,
-            step_size = .005, pos_thres = .02, rot_thres = .1,
-            timeout = rospy.Duration(30.),
-            settling_time = rospy.Duration(0.25), vel = .15,
-            joints_bias = None, bias_radius = 0.0):
-
+                       step_size = .005, pos_thres = .02, rot_thres = .1,
+                       timeout = rospy.Duration(30.), 
+                       settling_time = rospy.Duration(0.25), vel = .15,
+                       joints_bias = None, bias_radius = 0.0):
+  
         #send the interpolated IK goal to the joint trajectory action
         result = self.command_interpolated_ik(goal_pose, collision_aware = collision_aware, \
-                step_size = step_size, max_joint_vel = vel, joints_bias = joints_bias, \
-                bias_radius = bias_radius)
+                                                step_size = step_size, max_joint_vel = vel, \
+                                                joints_bias = joints_bias, \
+                                                bias_radius = bias_radius)
         if not result:
             return "no solution"
         if not blocking:
             return "sent goal"
-
+  
         #blocking: wait for the joint trajectory action to get there or time out
         joint_action_result = self.wait_joint_trajectory_done(timeout)
         if joint_action_result == "timed out":
             return "timed out"
-
+        
         if self.check_cartesian_really_done(goal_pose, pos_thres, rot_thres):
             return "success"
         return "failed"
-
-
-    ##send an entire joint trajectory to the joint trajectory action (nonblocking)
-    def command_joint_trajectory(self, trajectory, max_joint_vel = 0.2, current_angles = None, blocking = 0):
-        self.check_controllers_ok('joint')
-
-        goal = JointTrajectoryGoal()
-        goal.trajectory.joint_names = self.joint_names
-
-        #normalize the trajectory so the continuous joints angles are close to the current angles
-        trajectory = self.normalize_trajectory(trajectory)
-
-        #start the trajectory 0.05 s from now
-        goal.trajectory.header.stamp = rospy.get_rostime() + rospy.Duration(0.05)
-
-        #get the current joint angles
-        if current_angles == None:
-            current_angles = list(self.get_current_arm_angles())
-
-        #set the first trajectory point to the current position
-        trajectory = [current_angles] + trajectory
-
-        #find appropriate times and velocities for the trajectory
-        (times, vels) = self.ik_utilities.trajectory_times_and_vels(trajectory, [max_joint_vel]*7)
-
-        # print "trajectory:"
-        # for point in trajectory:
-        #   print self.pplist(point)
-        # print "times:", self.pplist(times)
-        # print "vels:"
-        # for vel in vels:
-        #   print self.pplist(vel)
-
-        #fill in the trajectory message
-        for ind in range(len(trajectory)):
-            point = JointTrajectoryPoint(trajectory[ind], vels[ind], [0]*7, rospy.Duration(times[ind]))
-            goal.trajectory.points.append(point)
-
-        #send the goal
-        self.joint_action_client.send_goal(goal)
-
-        #if blocking, wait until it gets there
-        if blocking:
-            self.wait_joint_trajectory_done(timeout = rospy.Duration(times[-1]+5))
-
 
   ##use move_arm to get to a desired pose in a collision-free way (really, run IK and then call move arm to move to the IK joint angles)
     def move_arm_pose_biased(self, pose_stamped, joints_bias = [0.]*7, max_joint_vel=0.2,
