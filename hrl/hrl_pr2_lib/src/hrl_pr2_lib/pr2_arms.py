@@ -94,7 +94,8 @@ class PR2Arms(object):
     # @param gripper_point given the frame of the wrist_roll_link, this point offsets
     #                      the location used in FK and IK, preferably to the tip of the
     #                      gripper
-    def __init__(self, send_delay=50000000, gripper_point=(0.23, 0.0, 0.0)):
+    def __init__(self, send_delay=50000000, gripper_point=(0.23,0.0,0.0),
+                 force_torque = False):
         log("Loading PR2Arms")
 
         self.send_delay = send_delay
@@ -133,8 +134,9 @@ class PR2Arms(object):
         rospy.Subscriber('/r_cart/state', JTTeleopControllerState, self.r_cart_state_cb)
         rospy.Subscriber('/l_cart/state', JTTeleopControllerState, self.l_cart_state_cb)
 
-        self.r_arm_ftc = ftc.FTClient('force_torque_ft2')
-        self.tf_lstnr = tf.TransformListener()
+        if force_torque:
+            self.r_arm_ftc = ftc.FTClient('force_torque_ft2')
+            self.tf_lstnr = tf.TransformListener()
 
         self.arm_angles = [None, None]
         self.arm_efforts = [None, None]
