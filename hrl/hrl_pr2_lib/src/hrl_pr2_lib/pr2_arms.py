@@ -144,7 +144,8 @@ class PR2Arms(object):
         self.cur_traj_pos = [None, None]
 
         self.marker_pub = rospy.Publisher('/pr2_arms/viz_marker', Marker)
-        rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
+        rospy.Subscriber('/joint_states', JointState,
+                         self.joint_states_cb, queue_size=2)
 
         rospy.sleep(1.)
 
