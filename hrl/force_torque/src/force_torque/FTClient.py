@@ -54,7 +54,10 @@ class FTClient(ru.GenericListener):
         self.should_log = should_log
         self.size_limit = size_limit
         self.clear_log()
-        ru.GenericListener.__init__(self, 'FTClient', FloatArray, topic_name, 15.0, message_extractor = msg_converter)
+        ru.GenericListener.__init__(self, 'FTClient', FloatArray,
+                                    topic_name, 15.0,
+                                    message_extractor = msg_converter,
+                                    queue_size = 2)
         self.bias_val = np.matrix([0,0,0, 0,0,0.0]).T
 
     def set_logging(self, should_log):
@@ -77,8 +80,10 @@ class FTClient(ru.GenericListener):
     # @return an averaged force torque value (6x1 matrix)
     def read(self, avg=1, without_bias=False, fresh=False, with_time_stamp=False):
         assert(avg > 0)
-        if avg > 1 and with_time_stamp:
-            raise RuntimeError('Can\'t request averaging and timestamping at the same time')
+        if avg > 1:
+            freash = True
+            if with_time_stamp:
+                raise RuntimeError('Can\'t request averaging and timestamping at the same time')
 
         rs = []
         for i in range(avg):

@@ -327,7 +327,9 @@ class GenericListener:
     # @param listen_channel ROS channel to listen
     # @param frequency the frequency to expect messages (used to print warning statements to console)
     # @param message_extractor function to preprocess the message into a desired format
-    def __init__(self, node_name, message_type, listen_channel, frequency, message_extractor=None):
+    # @param queue_size ROS subscriber queue (None = infinite)
+    def __init__(self, node_name, message_type, listen_channel,
+                 frequency, message_extractor=None, queue_size=None):
         try:
             print node_name, ': inited node.'
             rospy.init_node(node_name, anonymous=True)
@@ -367,7 +369,8 @@ class GenericListener:
             ts = message_filters.TimeSynchronizer(subscribers, queue_size)
             ts.registerCallback(callback)
         else:
-            rospy.Subscriber(listen_channel, message_type, callback)
+            rospy.Subscriber(listen_channel, message_type, callback,
+                             queue_size = queue_size)
 
         self.node_name = node_name
         #print node_name,': subscribed to', listen_channel
