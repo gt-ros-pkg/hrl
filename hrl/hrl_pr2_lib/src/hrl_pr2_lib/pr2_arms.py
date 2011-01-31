@@ -136,7 +136,7 @@ class PR2Arms(object):
 
         if force_torque:
             self.r_arm_ftc = ftc.FTClient('force_torque_ft2')
-            self.tf_lstnr = tf.TransformListener()
+        self.tf_lstnr = tf.TransformListener()
 
         self.arm_angles = [None, None]
         self.arm_efforts = [None, None]
