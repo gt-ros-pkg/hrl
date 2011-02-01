@@ -157,20 +157,24 @@ class ManipulationBehaviors:
     # reach direction
     def reach(self, point, pressure_thres, move_back_distance, \
             reach_direction=np.matrix([0,0,0]).T, orientation=None):
+        MOVEMENT_TOLERANCE = .1
+        REACH_TOLERANCE = .1
 
         self.movement.set_pressure_threshold(pressure_thres)
         loc_bl = self.movement.current_location()[0]
         front_loc = point.copy()
         front_loc[0,0] = loc_bl[0,0]
-        pdb.set_trace()
+        #pdb.set_trace()
 
         if orientation == None:
             start_loc = self.movement.current_location()
             orientation = start_loc[1]
         self.movement.pressure_listener.rezero()
+        #pdb.set_trace()
         for i in range(2):
-            r1, _ = self.movement.move_absolute((front_loc, orientation), stop='pressure', pressure=pressure_thres)
-        if r1 != None and r1 != 'no solution': #if this step fails, we move back then return
+            r1, residual_error = self.movement.move_absolute((front_loc, orientation), stop='pressure', pressure=pressure_thres)
+
+        if residual_error > MOVEMENT_TOLERANCE or r1 != None and r1 != 'no solution': #if this step fails, we move back then return
             #self.move_absolute(start_loc, stop='accel')
             return False, r1, None
 
@@ -183,11 +187,12 @@ class ManipulationBehaviors:
             point_reach = point + reach_direction
             r2, pos_error = self.movement.move_absolute((point_reach, \
                     self.movement.current_location()[1]), stop='pressure', pressure=pressure_thres)
+
         except lm.RobotSafetyError, e:
             r2 = None
 
         touch_loc_bl = self.movement.current_location()
-        if r2 == 'no solution' or r2 == None or r2 == 'pressure' or r2 == 'accel' or pos_error < .05:
+        if r2 == 'no solution' or r2 == None or r2 == 'pressure' or r2 == 'accel' or (pos_error < (MOVEMENT_TOLERANCE + np.linalg.norm(reach_direction))):
             self.movement.set_movement_mode_cart()
             self.movement.pressure_listener.rezero()
 
@@ -273,6 +278,7 @@ class ApplicationBehaviors:
         self.location_centers = []
         self.location_labels = []
         self.location_data = []
+        self.locations_tree = None
 
         if os.path.isfile(self.saved_locations_fname):
             location_data = ut.load_pickle(self.saved_locations_fname) #each col is a 3d point, 3xn mat
@@ -284,41 +290,87 @@ class ApplicationBehaviors:
 
         # joint angles used for tuck
         self.behaviors.movement.set_movement_mode_cart()
-        self.r1 = np.matrix([[-0.31006769,  1.2701541 , -2.07800829, -1.45963243, -4.35290489,
-                         -1.86052221,  5.07369192]]).T
-        self.l0 = np.matrix([[  1.05020383,  -0.34464327,   0.05654   ,  -2.11967694,
-                         -10.69100221,  -1.95457839,  -3.99544713]]).T
-        self.l1 = np.matrix([[  1.06181076,   0.42026402,   0.78775801,  -2.32394841,
-                         -11.36144995,  -1.93439025,  -3.14650108]]).T
-        self.l2 = np.matrix([[  0.86275197,   0.93417818,   0.81181124,  -2.33654346,
-                         -11.36121856,  -2.14040499,  -3.15655164]]).T
-        self.l3 = np.matrix([[ 0.54339568,  1.2537778 ,  1.85395725, -2.27255481, -9.92394984,
-                         -0.86489749, -3.00261708]]).T
-        self.tuck()
-
-
-    def tuck(self):
-        ldiff = np.linalg.norm(pr2.diff_arm_pose(self.robot.left.pose(), self.l3))
-                # np.linalg.norm(self.robot.left.pose() - self.l3)
-        rdiff = np.linalg.norm(pr2.diff_arm_pose(self.robot.right.pose(), self.r1))
-        #rdiff = np.linalg.norm(self.robot.right.pose() - self.r1)
-        if ldiff < .3 and rdiff < .3:
-            rospy.loginfo('tuck: Already tucked. Ignoring request.')
-            return
-        self.robot.right.set_pose(self.r1, block=False)
-        self.robot.left.set_pose(self.l0, block=True)
-        poses = np.column_stack([self.l0, self.l1, self.l2, self.l3])
+        self.create_arm_poses()
         #pdb.set_trace()
-        self.robot.left.set_poses(poses, np.array([0., 1.5, 3, 4.5]))
+        #self.untuck()
+        self.tuck()
+        #self.r1 = np.matrix([[-0.31006769,  1.2701541 , -2.07800829, -1.45963243, -4.35290489,
+        #                 -1.86052221,  5.07369192]]).T
+        #self.l0 = np.matrix([[  1.05020383,  -0.34464327,   0.05654   ,  -2.11967694,
+        #                 -10.69100221,  -1.95457839,  -3.99544713]]).T
+        #self.l1 = np.matrix([[  1.06181076,   0.42026402,   0.78775801,  -2.32394841,
+        #                 -11.36144995,  -1.93439025,  -3.14650108]]).T
+        #self.l2 = np.matrix([[  0.86275197,   0.93417818,   0.81181124,  -2.33654346,
+        #                 -11.36121856,  -2.14040499,  -3.15655164]]).T
+        #self.l3 = np.matrix([[ 0.54339568,  1.2537778 ,  1.85395725, -2.27255481, -9.92394984,
+        #                 -0.86489749, -3.00261708]]).T
+
+
+    #def tuck(self):
+    #    ldiff = np.linalg.norm(pr2.diff_arm_pose(self.robot.left.pose(), self.l3))
+    #            # np.linalg.norm(self.robot.left.pose() - self.l3)
+    #    rdiff = np.linalg.norm(pr2.diff_arm_pose(self.robot.right.pose(), self.r1))
+    #    #rdiff = np.linalg.norm(self.robot.right.pose() - self.r1)
+    #    if ldiff < .3 and rdiff < .3:
+    #        rospy.loginfo('tuck: Already tucked. Ignoring request.')
+    #        return
+    #    self.robot.right.set_pose(self.r1, block=False)
+    #    self.robot.left.set_pose(self.l0, block=True)
+    #    poses = np.column_stack([self.l0, self.l1, self.l2, self.l3])
+    #    #pdb.set_trace()
+    #    self.robot.left.set_poses(poses, np.array([0., 1.5, 3, 4.5]))
+
+
+    #def untuck(self):
+    #    if np.linalg.norm(self.robot.left.pose() - self.l0) < .3:
+    #        rospy.loginfo('untuck: Already untucked. Ignoring request.')
+    #        return
+    #    self.robot.right.set_pose(self.r1, 2., block=False)
+    #    self.robot.left.set_pose(self.l3, 2.,  block=True)
+    #    poses = np.column_stack([self.l3, self.l2, self.l1, self.l0])
+    #    self.robot.left.set_poses(poses, np.array([0., 3., 6., 9.])/2.)
+
+    def create_arm_poses(self):
+        self.right_tucked = np.matrix([[-0.02362532,  1.10477102, -1.55669475, \
+                -2.12282706, -1.41751231, -1.84175899,  0.21436806]]).T
+
+        self.left_tucked = np.matrix([[ 0.05971848,  1.24980184,  1.79045674, \
+                -1.68333801, -1.73430635, -0.09838841, -0.08641928]]).T
+
+        #lift the right arm up a little bit
+        self.r0 = np.matrix([[-0.22774141,  0.7735819 , -1.45102092, \
+                -2.12152412, -1.14684579, -1.84850287,  0.21397648]]).T
+
+        #left arm rotates
+        self.l0 = np.matrix([[ 0.06021592,  1.24844832,  1.78901355, -1.68333801, 1.2, -0.10152105, -0.08641928]]).T
+
+        #left arm moves out
+        self.l1 = np.matrix([[0.94524406,  1.24726399,  1.78548574, -1.79148173,  1.20027637, -1.0, -0.08633226]]).T
+
+        #left arm rotates outward a little more
+        self.l2 = np.matrix([[ 1.53180837,  1.24362641,  1.78452361, -1.78829678,  1.1996979,-1.00446167, -0.08741998]]).T
 
     def untuck(self):
-        if np.linalg.norm(self.robot.left.pose() - self.l0) < .3:
-            rospy.loginfo('untuck: Already untucked. Ignoring request.')
+        #pdb.set_trace()
+        if np.linalg.norm(self.robot.left.pose() - self.left_tucked) < .3:
+            rospy.loginfo('untuck: not in tucked position.  Ignoring request')
             return
-        self.robot.right.set_pose(self.r1, 2., block=False)
-        self.robot.left.set_pose(self.l3, 2., block=True)
-        poses = np.column_stack([self.l3, self.l2, self.l1, self.l0])
-        self.robot.left.set_poses(poses, np.array([0., 3., 6., 9.])/2.)
+        #assume we are tucked
+        self.robot.right.set_pose(self.r0, 1.)
+        self.robot.left.set_poses(np.column_stack([self.l0, self.l1, self.l2]), \
+                                  np.array([1., 2., 3.]))
+        self.robot.right.set_pose(self.right_tucked, 1.)
+
+    def tuck(self):
+        #pdb.set_trace()
+        if np.linalg.norm(self.robot.left.pose() - self.left_tucked) < .5:
+            rospy.loginfo('tuck: Already tucked. Ignoring request.')
+            return
+        #lift the right arm up a little bit
+        self.robot.right.set_pose(self.r0, 1.)
+        self.robot.left.set_poses(np.column_stack([self.l2, self.l1, self.l0, self.left_tucked]), \
+                                  np.array([4., 5., 6., 7.]))
+        self.robot.right.set_pose(self.right_tucked, 1.)
 
     def go_to_home_pose(self):
         self.behaviors.movement.set_movement_mode_cart()
@@ -359,7 +411,9 @@ class ApplicationBehaviors:
         print '===================================================================='
         point = point + point_offset 
         rospy.loginfo('>>>> REACHING to ' + str(point.T))
+        #pdb.set_trace()
         self.behaviors.movement.gripper_close()
+        time.sleep(1)
         self.behaviors.movement.pressure_listener.rezero()
         #TODO: have go_home check whether it is actually at that location
         #self.behaviors.move_absolute(self.start_location, stop='pressure_accel')
@@ -478,13 +532,14 @@ class ApplicationBehaviors:
     # Drive so that we are perpendicular to a wall at point_bl (radii voi_radius) 
     # stop at dist_approach
     def approach_perpendicular_to_surface(self, point_bl, voi_radius, dist_approach):
-        return 3
+        #return 3
         #TODO: Turn to face point
         #TODO: make this scan around point instead of total scan of env
         #determine normal
         #pdb.set_trace()
         map_T_base_link0 = tfu.transform('map', 'base_link', self.tf_listener)
         point_map0 = tfu.transform_points(map_T_base_link0, point_bl)
+        #pdb.set_trace()
         self.turn_to_point(point_bl, block=False)
 
         point_bl = tfu.transform_points(tfu.transform('base_link', 'map', self.tf_listener), \
@@ -516,6 +571,7 @@ class ApplicationBehaviors:
         #Rotate to face point (TODO: check for collisions)
         base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
         point_bl = tfu.transform_points(base_link_T_map, point_map)
+        #pdb.set_trace()
         self.turn_to_point(point_bl, block=False)
         time.sleep(2.)
 
@@ -526,7 +582,7 @@ class ApplicationBehaviors:
 
 
     def approach_location(self, point_bl, coarse_stop, fine_stop, voi_radius=.2):
-        return
+        #return
         point_dist = np.linalg.norm(point_bl[0:2,0])
         rospy.loginfo('approach_location: Point is %.3f away.' % point_dist)
         map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
@@ -542,15 +598,15 @@ class ApplicationBehaviors:
             point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
             if ret != 3:
                 dist_end = np.linalg.norm(point_bl_t1[0:2,0])
-                if dist_end > DIST_THRESHOLD:
+                if dist_end > dist_theshold:
                     rospy.logerr('approach_location: drive_approach_behavior failed! %.3f' % dist_end)
                     self.robot.sound.say("I am unable to navigate to that location")
-                    return
+                    return False
 
             ret = self.approach_perpendicular_to_surface(point_bl_t1, voi_radius=voi_radius, dist_approach=fine_stop)
             if ret != 3:
                 rospy.logerr('approach_location: approach_perpendicular_to_surface failed!')
-                return
+                return False
 
             self.robot.sound.say('done')
             rospy.loginfo('approach_location: DONE DRIVING!')
@@ -584,6 +640,7 @@ class ApplicationBehaviors:
             task_number = raw_input()
             task = driving_param.keys()[int(task_number)]
 
+        self.robot.sound.say('task %s' % task.replace('_', ' '))
         rospy.loginfo('Task is %s' % task)
         if self.approach_location(point_bl, 
                 coarse_stop=driving_param[task]['coarse'], 
@@ -604,6 +661,9 @@ class ApplicationBehaviors:
             point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
             try:
                 self.untuck()
+                self.behaviors.movement.move_absolute(self.start_location, stop='pressure_accel')
+                self.behaviors.movement.move_absolute(self.start_location, stop='pressure_accel')
+                self.behaviors.movement.pressure_listener.rezero()
 
                 if task == 'light_switch':
                     MAX_RETRIES = 15
@@ -684,8 +744,11 @@ class ApplicationBehaviors:
 
 
     def find_close_by_points(self, point_map):
-        close_by_locs = self.locations_tree.query_ball_point(np.array(point_map.T), self.LOCATION_ADD_RADIUS)[0]
-        return close_by_locs
+        if self.locations_tree != None:
+            close_by_locs = self.locations_tree.query_ball_point(np.array(point_map.T), self.LOCATION_ADD_RADIUS)[0]
+            return close_by_locs
+        else:
+            return []
 
 
     def find_close_by_points_match_task(self, point_map, task):
@@ -1047,7 +1110,7 @@ if __name__ == '__main__':
     #            #can replace/delete/insert action
     #            #can pick a parameter and perturb it
 
-    #    pdb.set_trace()
+    #    #pdb.set_trace()
     #    print seed
 
         #point = np.matrix([0.63125642, -0.02918334, 1.2303758 ]).T
