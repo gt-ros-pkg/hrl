@@ -130,7 +130,7 @@ class PR2Arm(Joint):
         if arm == 'l':
             self.full_arm_name = 'left'
         else:
-            self.full_arm_name = 'left'
+            self.full_arm_name = 'right'
         self.kinematics = pr2k.PR2ArmKinematics(self.full_arm_name, self.tf_listener)
         self.ik_utilities = iku.IKUtilities(self.full_arm_name, self.tf_listener) 
 
@@ -333,6 +333,35 @@ class PR2Torso:
         return self.torso.get_state()
 
 
+class PR2Gripper:
+
+    def __init__(self, gripper):
+        self.gripper = gripper
+
+        if gripper == 'l':
+            self.client = actionlib.SimpleActionClient(
+                'l_gripper_controller/gripper_action', pm.Pr2GripperCommandAction)
+            self.full_gripper_name = 'left_gripper'
+        else:
+            self.client = actionlib.SimpleActionClient(
+                'r_gripper_controller/gripper_action', pm.Pr2GripperCommandAction)
+            self.full_gripper_name = 'right_gripper'
+        self.client.wait_for_server()
+
+    def close(self, block):
+        self.client.send_goal(pm.Pr2GripperCommandGoal(
+                pm.Pr2GripperCommand(position = 0.0, max_effort = -1)))
+        if block:
+            self.client.wait_for_result()
+        return self.client.get_state()
+
+    def open(self, block):
+        self.client.send_goal(pm.Pr2GripperCommandGoal(
+                pm.Pr2GripperCommand(position = 0.1, max_effort = -1)))
+        if block:
+            self.client.wait_for_result()
+        return self.client.get_state()
+
 class ControllerManager:
 
     def __init__(self):
@@ -353,7 +382,7 @@ class ControllerManager:
 
 
 class PR2:
-    def __init__(self, tf_listener=None, arms=True, base=False):
+    def __init__(self, tf_listener=None, arms=True, base=False, grippers=True):
         try:
             rospy.init_node('pr2', anonymous=True)
         except rospy.exceptions.ROSException, e:
@@ -369,6 +398,10 @@ class PR2:
         if arms:
             self.left = PR2Arm(self.joint_provider, self.tf_listener, 'l')
             self.right = PR2Arm(self.joint_provider, self.tf_listener, 'r')
+
+        if grippers:
+            self.left_gripper = PR2Gripper('l')
+            self.right_gripper = PR2Gripper('r')
 
         self.head = PR2Head('head_traj_controller', self.joint_provider)
 
