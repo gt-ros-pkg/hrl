@@ -19,6 +19,7 @@ import hrl_lib.util as ut
 import functools as ft
 import numpy as np
 import math
+import time
 import hrl_pr2_lib.msg as hm
 from sound_play.libsoundplay import SoundClient
 from interpolated_ik_motion_planner import ik_utilities as iku
@@ -270,6 +271,7 @@ class PR2Base:
             turn2 = -np.sign(delta_ang) * math.radians(15.)
             rospy.loginfo('Requested really small turn angle.  Using overturn trick.')
             self._turn_by(turn1, block=True)
+            time.sleep(3) #TODO remove this restriction
             self._turn_by(turn2, block)
         else:
             self._turn_by(delta_ang, block)
