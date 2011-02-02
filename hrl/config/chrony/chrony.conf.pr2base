@@ -64,7 +64,7 @@ local stratum 10
 
 # Allow computers on the unrouted nets to use the server.
 
-allow 128.61/4
+#allow 128.61/4
 allow 10/8
 allow 192.168/16
 allow 172.16/12
