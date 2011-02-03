@@ -1,0 +1,3 @@
+move_base_node:
+  TrajectoryPlannerROS:
+    y_vels: []

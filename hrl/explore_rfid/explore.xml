@@ -1,0 +1,14 @@
+<launch>
+  <node pkg="explore_hrl" type="explore" respawn="false" name="explore" output="screen" >
+    <rosparam file="$(find pr2_navigation_config)/move_base/costmap_common_params.yaml" command="load" ns="explore_costmap" />
+    <rosparam file="$(find explore_rfid)/explore_costmap_params.yaml" command="load" />
+    <param name="loop_closure_loop_dist_min" value="20.0"/>
+    <param name="loop_closure_loop_dist_max" value="30.0"/>
+    <param name="loop_closure_addition_dist_min" value="1.5"/>
+    <param name="loop_closure_slam_entropy_max" value="1.5"/>
+    <param name="graph_update_frequency" value="1.0"/>
+    <param name="potential_scale" value="0.0"/>
+    <param name="orientation_scale" value="0.0"/>
+    <remap from="slam_entropy" to="slam_gmapping/entropy"/>
+  </node>
+</launch>

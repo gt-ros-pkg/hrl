@@ -1,0 +1,21 @@
+<package>
+  <description brief="explore_rfid">
+
+     explore_rfid
+
+  </description>
+  <author>Travis Deyle</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <depend package="explore_hrl"/>
+  <depend package="pr2_navigation_slam"/>
+  <depend package="pr2_navigation_perception"/>
+  <depend package="pr2_navigation_teleop"/>
+  <depend package="pr2_machine"/>
+
+  <platform os="ubuntu" version="9.04"/>
+  <platform os="ubuntu" version="9.10"/>
+  <platform os="ubuntu" version="10.04"/>
+</package>
+
+

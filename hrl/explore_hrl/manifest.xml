@@ -1,0 +1,31 @@
+<package>
+  <description brief="explore_hrl">
+
+     explore_hrl
+
+  </description>
+  <author>Travis Deyle</author>
+  <license>BSD</license>
+  <url></url>
+  <depend package="roscpp"/>
+  <depend package="std_msgs"/>
+  <depend package="costmap_2d"/>
+  <depend package="actionlib"/>
+  <depend package="move_base_msgs"/>
+  <depend package="tf"/>
+  <depend package="roslib"/>
+  <depend package="navfn"/>
+  <depend package="visualization_msgs"/>
+  <depend package="geometry_msgs"/>
+  <depend package="nav_msgs"/>
+
+  <export>
+  <cpp cflags="-I${prefix}/include `rosboost-cfg --cflags`" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib `rosboost-cfg --lflags thread` -lexplore"/>
+  </export>
+
+  <platform os="ubuntu" version="9.04"/>
+  <platform os="ubuntu" version="9.10"/>
+  <platform os="ubuntu" version="10.04"/>
+</package>
+
+
