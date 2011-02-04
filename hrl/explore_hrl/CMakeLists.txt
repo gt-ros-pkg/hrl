@@ -9,8 +9,13 @@ include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
 #  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
 set(ROS_BUILD_TYPE Release)
 
+rosbuild_find_ros_package(actionlib_msgs)
+include(${actionlib_msgs_PACKAGE_PATH}/cmake/actionbuild.cmake)
+genaction()
+
 rosbuild_init()
 rosbuild_gensrv()
+rosbuild_genmsg()
 
 #set the default path for built executables to the "bin" directory
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
@@ -25,6 +30,15 @@ set_target_properties(explore_lib
                       PROPERTIES OUTPUT_NAME "explore")
 rosbuild_link_boost(explore_lib thread)
 
+rosbuild_add_library(explore_action_lib src/explore_frontier.cpp src/Vector.cpp src/Line.cpp src/Path.cpp src/loop_closure.cpp src/explore.cpp)
+set_target_properties(explore_action_lib
+                      PROPERTIES OUTPUT_NAME "explore_action")
+rosbuild_link_boost(explore_action_lib thread)
+
+
 # Explore
 rosbuild_add_executable(explore src/explore.cpp)
+rosbuild_add_executable(explore_action src/explore_action.cpp)
+
 target_link_libraries(explore explore_lib)
+target_link_libraries(explore_action explore_action_lib)

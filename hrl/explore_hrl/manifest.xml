@@ -13,6 +13,7 @@
   <depend package="actionlib"/>
   <depend package="move_base_msgs"/>
   <depend package="tf"/>
+  <depend package="actionlib_msgs"/>
   <depend package="roslib"/>
   <depend package="navfn"/>
   <depend package="visualization_msgs"/>

@@ -82,6 +82,10 @@ public:
 
   void spin();
 
+  void setPreemptFlag( bool state );
+
+  bool doneExploring( );
+
 private:
   /**
    * @brief  Make a global plan
@@ -135,6 +139,7 @@ private:
   navfn::NavfnROS* planner_;
   std::string robot_base_frame_;
   bool done_exploring_;
+  bool preempt_;
 
   ros::Publisher marker_publisher_;
   ros::Publisher marker_array_publisher_;

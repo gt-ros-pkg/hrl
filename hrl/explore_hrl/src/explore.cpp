@@ -60,6 +60,7 @@ Explore::Explore() :
   move_base_client_("move_base"),
   planner_(NULL),
   done_exploring_(false),
+  preempt_(false),
   explorer_(NULL)
 {
   ros::NodeHandle private_nh("~");
@@ -103,6 +104,7 @@ Explore::Explore() :
                                   *explore_costmap_ros_,
                                   client_mutex_,
                                   boost::bind(&Explore::makePlan, this));
+  ROS_INFO( "Done making Explore" );
 }
 
 Explore::~Explore() {
@@ -351,7 +353,7 @@ void Explore::execute() {
   makePlan();
 
   ros::Rate r(graph_update_frequency_);
-  while (node_.ok() && (!done_exploring_)) {
+  while (node_.ok() && (!done_exploring_) && (!preempt_)) {
     // Get the current pose and pass it to loop closure
     tf::Stamped<tf::Pose> robot_pose;
     getRobotPose(explore_costmap_ros_->getGlobalFrameID(), robot_pose);
@@ -361,10 +363,20 @@ void Explore::execute() {
 }
 
 void Explore::spin() {
+  ROS_INFO("Entering Explore:spin()");
   ros::spinOnce();
   boost::thread t(boost::bind( &Explore::execute, this ));
   ros::spin();
   t.join();
+}
+
+void Explore::setPreemptFlag( bool state ) {
+  ROS_INFO("explore notified of preempt request!");
+  preempt_ = state;
+}
+
+bool Explore::doneExploring( ) {
+  return done_exploring_;
 }
 
 }
