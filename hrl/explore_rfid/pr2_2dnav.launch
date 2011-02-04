@@ -1,6 +1,6 @@
 <launch>
   <include file="$(find pr2_machine)/$(env ROBOT).machine" />
-  <include file="$(find pr2_navigation_slam)/slam_gmapping.xml" />
+  <include file="$(find explore_rfid)/slam_gmapping.xml" />  <!-- borrowed from pr2_navigation_slam -->
   <include file="$(find pr2_navigation_teleop)/teleop.xml" />
   <include file="$(find pr2_navigation_perception)/lasers_and_filters.xml" />
   <include file="$(find pr2_navigation_perception)/ground_plane.xml" />
