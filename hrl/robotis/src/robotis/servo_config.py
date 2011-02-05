@@ -15,8 +15,10 @@ servo_param = {
     4: {                        # RFID Antenna Right Tilt
         'home_encoder': 330
        },
-    5: {                        # Tilting hokuyo on Firenze
-        'home_encoder': 338
+    5: {                        # Tilting kinect on Cody
+        'home_encoder': 975,
+        'max_ang': 0.24,
+        'min_ang': -1.42
        },
     6: {                        # EL-E stereohead Pan
         'home_encoder': 500,
