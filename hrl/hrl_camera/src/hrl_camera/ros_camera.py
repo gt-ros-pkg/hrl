@@ -64,7 +64,7 @@ class Prosilica(ROSImageClient):
 ##
 # from camera.py in laser_interface.
 class ROSCameraCalibration:
-    def __init__(self, channel, offline=False):
+    def __init__(self, channel=None, offline=False):
         if not offline:
             rospy.Subscriber(channel, CameraInfo, self.camera_info)
         self.has_msg = False
