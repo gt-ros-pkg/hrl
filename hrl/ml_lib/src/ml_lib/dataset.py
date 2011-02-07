@@ -10,6 +10,7 @@ class Dataset:
     def __init__(self, inputs, outputs):
         self.inputs  = inputs
         self.outputs = outputs
+        self.metadata = []
         assert(inputs.shape[1] == outputs.shape[1])
 
     def num_examples(self):
@@ -18,9 +19,26 @@ class Dataset:
     def num_attributes(self):
         return self.inputs.shape[0]
 
+    def add_attribute_descriptor(self, descriptor):
+        self.metadata.append(descriptor)
+        #self.metadata[descriptor.name] = descriptor
+
     def append(self, another_dataset):
-        self.inputs  = np.concatenate((self.inputs, another_dataset.inputs), axis=1)
-        self.outputs = np.concatenate((self.outputs, another_dataset.outputs), axis=1)
+        if self.inputs != None:
+            self.inputs  = np.concatenate((self.inputs, another_dataset.inputs), axis=1)
+        else:
+            self.inputs = another_dataset.inputs
+
+        if self.outputs != None:
+            self.outputs = np.concatenate((self.outputs, another_dataset.outputs), axis=1)
+        else:
+            self.outputs = another_dataset.outputs
+
+class AttributeDescriptor:
+    def __init__(self, name, extent):
+        self.name = name
+        self.extent = extent
+
 
 ###############################################################################
 # Operations on datasets
