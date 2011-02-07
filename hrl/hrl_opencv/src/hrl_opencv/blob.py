@@ -27,11 +27,11 @@ class Rect:
         return (int(round(self.x+self.width)), int(round(self.y+self.height)))
 
     def keep_inside(self, minx, maxx, miny, maxy):
-        x      = bound(self.x,       minx,  maxx)
-        y      = bound(self.y,       miny,  maxy)
-        mx     = bound(x+self.width, minx,  maxx)
-        my     = bound(y+self.height, miny, maxy)
-        return Rect(x,y, mx-x, my-y)
+        nx = bound(self.x, minx, maxx)
+        ny = bound(self.y, miny, maxy)
+        mx = bound(self.x + self.width, minx,  maxx)
+        my = bound(self.y + self.height, miny, maxy)
+        return Rect(nx, ny, mx-nx, my-ny)
 
     def __repr__(self):
         return 'Rect: ' + str(self.x) + ' ' + str(self.y)+ ' ' + str(self.width)+ ' ' + str(self.height)
