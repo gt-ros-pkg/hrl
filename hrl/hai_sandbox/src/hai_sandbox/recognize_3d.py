@@ -11,7 +11,13 @@ import threading
 import Queue as qu
 import os.path as pt
 import glob
-import svm
+#import pdb
+#pdb.set_trace()
+import libsvm.svm as svm
+import libsvm.svmutil as su
+
+import copy
+import os
 
 import ml_lib.dataset as ds
 import ml_lib.dimreduce as dr
@@ -22,6 +28,7 @@ import hrl_lib.util as ut
 import hrl_lib.viz as viz
 import hrl_lib.rutils as ru
 import hrl_lib.tf_utils as tfu
+import hrl_lib.prob as pr
 
 import pdb
 
@@ -40,8 +47,7 @@ def load_data_from_dir(dirname, grid_resolution, win_size, win3d_size, voi_bound
         data.append(ic_data)
     return data
 
-
-def load_data_from_file(fname, grid_resolution, win_size, win3d_size, voi_bounds_laser):
+def load_data_from_file(fname, rec_param):
     #load pickle
     data_pkl = ut.load_pickle(fname)
     print 'original frame of pointcloud is ', data_pkl['points_laser'].header.frame_id
@@ -55,26 +61,35 @@ def load_data_from_file(fname, grid_resolution, win_size, win3d_size, voi_bounds
 
     #make the data object 
     return IntensityCloudData(data_pkl['points_laser'], intensity_image, 
-            data_pkl['pro_T_bl'], data_pkl['prosilica_cal'],
-            grid_resolution, win_size, win3d_size, center_point_bl, voi_bounds_laser)
-
+                              data_pkl['pro_T_bl'], data_pkl['prosilica_cal'], 
+                              center_point_bl, rec_param)
+            #grid_resolution, win_size, win3d_size, center_point_bl, voi_bounds_laser)
 
 class IntensityCloudData:
 
     def __init__(self, pointcloud_msg, cvimage_mat, 
-            image_T_laser, calibration_obj, 
-            grid_resolution, win_size, win3d_size, 
-            voi_center_laser, voi_bounds_laser):
+            image_T_laser, calibration_obj, voi_center_laser, rec_param):
+            #grid_resolution, win_size, win3d_size, 
+            #voi_center_laser, voi_bounds_laser):
 
+        self.params = rec_param
+        #All parameters
+        # self.n_samples = 5000
+        # self.uni_mix = .7
+        # self.uncertainty = .15
+
+        # self.grid_resolution = grid_resolution
+        # self.win_size = win_size
+        # self.win3d_size = win3d_size
+        # self.voi_bl = voi_bounds_laser
+
+        #Data
         self.pointcloud_msg = pointcloud_msg
         self.image_T_laser = image_T_laser
         self.image_arr = np.asarray(cvimage_mat)
         self.image_cv = cvimage_mat
-        self.grid_resolution = grid_resolution
-        self.win_size = win_size
-        self.win3d_size = win3d_size
+
         self.calibration_obj = calibration_obj
-        self.voi_bl = voi_bounds_laser
         self.voi_center_laser = voi_center_laser
 
         #Quantities that will be calculated
@@ -90,8 +105,9 @@ class IntensityCloudData:
         self.points2d_valid = None
         #self.intensity_paired = None
 
-        #from _generate_loc_in_voi
+        #from _grid_sample_voi
         self.sampled_points = None
+        self.sampled_points2d = None
 
         #from _calculate_features
         self.feature_list = None
@@ -102,8 +118,11 @@ class IntensityCloudData:
 
         self._associate_intensity()
         self._limit_to_voi()
-        self._generate_loc_in_voi()
-
+        #self._grid_sample_voi()
+        self._random_sample_voi()
+        #fill out sizes dict
+        self.feature_vec_at_2d(np.matrix([calibration_obj.w/2., 
+                                         calibration_obj.h/2.]).T)
 
     def _associate_intensity(self):
         bl_pc = ru.pointcloud_to_np(self.pointcloud_msg)
@@ -112,7 +131,6 @@ class IntensityCloudData:
                 i3d.combine_scan_and_image_laser_frame(bl_pc, self.image_T_laser,\
                                             self.image_arr, self.calibration_obj)
         print 'number of points visible in camera', self.points_valid_image.shape[1]
-
 
     def _limit_to_voi(self):
         laser_T_image = np.linalg.inv(self.image_T_laser)
@@ -125,7 +143,9 @@ class IntensityCloudData:
 
         valid_columns, self.limits_laser = \
                 i3d.select_rect(self.voi_center_laser, 
-                                self.voi_bl[0], self.voi_bl[1], self.voi_bl[2], 
+                                self.params.voi_bl[0], 
+                                self.params.voi_bl[1], 
+                                self.params.voi_bl[2], 
                                 all_columns)
 
         ncolors = self.colors_valid.shape[0]
@@ -143,21 +163,87 @@ class IntensityCloudData:
 
         print 'number of points in voi', valid_columns.shape[1]
 
-
     # sample uniformly in voi 
-    def _generate_loc_in_voi(self):
+    def _grid_sample_voi(self):
         lim = self.limits_laser
-        res = self.grid_resolution
+        res = self.params.grid_resolution
         self.sampled_points = []
         for x in (np.arange(lim[0][0], lim[0][1], res) + (res/2.)):
             for y in (np.arange(lim[1][0], lim[1][1], res) + (res/2.)):
                 for z in (np.arange(lim[0][0], lim[2][1], res) + (res/2.)):
                     self.sampled_points.append([x,y,z])
 
+    def _in_limits(self, p3d):
+        l = self.limits_laser
+        if (l[0][0] < p3d[0,0]) and (p3d[0,0] < l[0][1]) and \
+           (l[1][0] < p3d[1,0]) and (p3d[1,0] < l[1][1]) and \
+           (l[2][0] < p3d[2,0]) and (p3d[2,0] < l[2][1]):
+            return True
+        else:
+            return False
 
-    def _calculate_features_at_sampled_intervals(self):
+    def _random_sample_voi(self):
+        #to generate initial distribution of points
+        #   randomly, uniformly sample for n points in 2d, add in prior information if available (gaussians)
+        #        for each 2d point p, associate with the 3d point closest to the camera
+        #        throw away all points not in VOI
+        self.sampled_points = []
+        self.sampled_points2d = []
+        print 'generating _random_sample_voi'
+        laser_T_image = np.linalg.inv(self.image_T_laser)
+        gaussian = pr.Gaussian(np.matrix([ 0,      0,                          0.]).T, \
+                               np.matrix([[1.,     0,                          0], \
+                                          [0, self.params.uncertainty**2,      0], \
+                                          [0,      0, self.params.uncertainty**2]]))
+
+
+        distr = {'u': 0, 'g':0}
+        while len(self.sampled_points) < self.params.n_samples:
+            if np.random.rand() < self.params.uni_mix:
+                d = 'u'
+                x = np.random.randint(0, self.calibration_obj.w)
+                y = np.random.randint(0, self.calibration_obj.h)
+            else:
+                d = 'g'
+                #pt = self.calibration_obj.project(tfu.transform_points(self.image_T_laser, self.voi_center_laser))
+                #x = int(round(pt[0,0] + np.random.randn() * 50))
+                #y = int(round(pt[1,0] + np.random.randn() * 50))
+                gaussian_noise = gaussian.sample()
+                gaussian_noise[0,0] = 0
+                sampled3d_pt_laser = self.voi_center_laser + gaussian_noise
+                sampled3d_pt_image = tfu.transform_points(self.image_T_laser, sampled3d_pt_laser)
+                sampled2d_pt = self.calibration_obj.project(sampled3d_pt_image)
+                pt = np.round(sampled2d_pt)
+                x = int(pt[0,0])
+                y = int(pt[1,0])
+                if x < 0 or x > (self.calibration_obj.w-.6) or y < 0 or (y > self.calibration_obj.h-.6):
+                    continue
+
+            #get projected 3d points within radius of N pixels
+            indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 5.)
+            if len(indices_list) < 1:
+                continue
+
+            #select 3d point closest to the camera (in image frame)
+            points3d_image = tfu.transform_points(self.image_T_laser, self.points3d_valid_laser[:, indices_list])
+            closest_p3d_image = points3d_image[:, np.argmin(points3d_image[2,:])]
+            closest_p3d_laser = tfu.transform_points(laser_T_image, closest_p3d_image)
+
+            #check if point is in VOI
+            if self._in_limits(closest_p3d_laser):
+                self.sampled_points.append(closest_p3d_laser.T.A1.tolist())
+                self.sampled_points2d.append([x,y])
+                distr[d] = distr[d] + 1
+                #pdb.set_trace()
+                #print len(self.sampled_points)
+
+        #print '>>>>>> u', distr['u'] / float(self.params.n_samples)
+        #print '>>>>>> g', distr['g'] / float(self.params.n_samples)
+
+    def _caculate_features_at_sampled_points(self):
         self.feature_list = []
         feature_loc_list = []
+        feature_loc2d_list = []
         non_empty = 0
         empty_queries = 0
         for i, sampled_point_laser in enumerate(self.sampled_points):
@@ -165,50 +251,48 @@ class IntensityCloudData:
             #if i == 157184:
             #    pdb.set_trace()
             sampled_point_laser = np.matrix(sampled_point_laser).T
-            feature = self.feature_vec_at(sampled_point_laser)
+            feature, point2d = self.feature_vec_at(sampled_point_laser)
             if feature != None:
                 self.feature_list.append(feature)
                 feature_loc_list.append(sampled_point_laser)
+                feature_loc2d_list.append(point2d)
                 non_empty = non_empty + 1
             else:
                 empty_queries = empty_queries + 1
         print 'empty queries', empty_queries, 'non empty', non_empty
         if len(feature_loc_list) > 0:
             self.feature_locs = np.column_stack(feature_loc_list)
+            self.feature_locs2d = np.column_stack(feature_loc2d_list)
         else:
             self.feature_locs = np.matrix([])
+            self.feature_locs2d = np.matrix([])
         #return bl_pc, colored_points_valid_bl, [positive_samples, positive_sample_points], \
         #        [negative_samples, negative_sample_points]
-
 
     def feature_vec_at_2d(self, loc2d, viz=False):
         #pdb.set_trace()
         indices = self.voi_tree_2d.query(np.array(loc2d.T), k=1)[1]
         closest_pt2d = self.points2d_valid[:, indices[0]]
         closest_pt3d = self.points3d_valid_laser[:, indices[0]]
-        return self.feature_vec_at(closest_pt3d, viz=viz), closest_pt2d
-
+        return self.feature_vec_at(closest_pt3d, viz=viz)[0], closest_pt3d, closest_pt2d
 
     def feature_vec_at_2d_mat(self, loc2d):
         indices = self.voi_tree_2d.query(np.array(loc2d.T), k=1)[1]
         closest_pt2d = self.points2d_valid[:, indices[0]]
         closest_pt3d = self.points3d_valid_laser[:, indices[0]]
-        #pdb.set_trace()
-        return self.feature_vec_at_mat(closest_pt3d), closest_pt2d
-
+        return self.feature_vec_at_mat(closest_pt3d), closest_pt3d, closest_pt2d
 
     def feature_vec_at_mat(self, point3d_laser, verbose=False):
-        f = self.feature_vec_at(point3d_laser, verbose)
+        f = self.feature_vec_at(point3d_laser, verbose)[0]
         if f != None:
             return np.row_stack(f)
-
 
     ##
     #
     # @param point3d_laser - point to calculate features for 3x1 matrix in laser frame
     # @param verbose
     def feature_vec_at(self, point3d_laser, verbose=False, viz=False):
-        indices_list = self.voi_tree.query_ball_point(np.array(point3d_laser.T), self.win3d_size)[0]
+        indices_list = self.voi_tree.query_ball_point(np.array(point3d_laser.T), self.params.win3d_size)[0]
         if len(indices_list) > 4:
             #pdb.set_trace()
             points_in_ball_bl = np.matrix(self.voi_tree.data.T[:, indices_list])
@@ -237,10 +321,10 @@ class IntensityCloudData:
             local_intensity = []
             for multiplier in [1,2,4,8,16,32]:
                 if multiplier == 1:
-                    features = i3d.local_window(point2d_image, self.image_arr, self.win_size, flatten=flatten)
+                    features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, flatten=flatten)
                 else:
-                    features = i3d.local_window(point2d_image, self.image_arr, self.win_size*multiplier, 
-                                                resize_to=self.win_size, flatten=flatten)
+                    features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size*multiplier, 
+                                                resize_to=self.params.win_size, flatten=flatten)
                 if features == None:
                     invalid_location = True
                     break
@@ -272,32 +356,31 @@ class IntensityCloudData:
                     self.sizes['normal'] = normal_bl.shape[0]
                     self.sizes['color'] = avg_color.shape[0]
 
-                return [normal_bl, avg_color, local_intensity]
+                return [normal_bl, avg_color, local_intensity], point2d_image
             else:
                 if verbose:
                     print '>> local_window outside of image'
         else:
             if verbose:
                 print '>> not enough neighbors!', len(indices_list)
-        return None
-
+        return None, None
 
     ##
     #
     # @return a matrix mxn where m is the number of features and n the number of examples
-    def make_dataset(self):
-        self._calculate_features_at_sampled_intervals()
+    def extract_vectorized_features(self):
+        self._caculate_features_at_sampled_points()
         #pdb.set_trace()
         normal_bls, avg_colors, intensities = zip(*self.feature_list)
         normal_bls = np.column_stack(normal_bls) #each column is a different sample
         avg_colors = np.column_stack(avg_colors)
         intensities = np.column_stack(intensities)
         xs = np.row_stack((normal_bls, avg_colors, intensities)) #stack features
-        return xs
+        return xs, self.feature_locs2d, self.feature_locs
+    #np.matrix(self.sampled_points2d).T, np.matrix(self.sampled_points).T
         #return ds.Dataset(xs, None)
         #return xs, intensities
         #return Dataset(inputs, None)
-
 
     def get_location2d(self, instance_indices):
         #pdb.set_trace()
@@ -308,7 +391,6 @@ class IntensityCloudData:
     #def get_location3d(self, dataset_index):
     #    return loc3d
 
-
 class SVM:
     ##
     # zero is on negative side of decision boundary
@@ -317,22 +399,44 @@ class SVM:
     def __init__(self, dataset):
         samples = dataset.inputs.T.tolist()
         labels = dataset.outputs.T.A1.tolist()
-        problem = svm.svm_problem(labels, samples)
-        #param = svm.svm_parameter(C=10, nr_weight=2, weight_label=[1,0], weight=[10,1])
-        param = svm.svm_parameter(C=10, kernel_type=svm.RBF)#, nr_weight=2, weight_label=[1,0], weight=[10,1])
-        self.model = svm.svm_model(problem, param)
-        self.nclasses = self.model.get_nr_class()
+        self.model = su.svm_train(labels, samples)
+        self.nsamples = len(samples)
 
-    def predict(self, instance):
-        return self.model.predict(instance.T.A1.tolist())
+        #problem = svm.svm_problem(labels, samples)
+        ##param = svm.svm_parameter(C=10, nr_weight=2, weight_label=[1,0], weight=[10,1])
+        #param = svm.svm_parameter(C=10, kernel_type=svm.RBF)#, nr_weight=2, weight_label=[1,0], weight=[10,1])
+        #self.model = svm.svm_model(problem, param)
+        #self.nclasses = self.model.get_nr_class()
+        #pdb.set_trace()
+        #print 'trained svm'
+    def sv_indices(self):
+        return np.where(self.model.get_support_vectors(self.nsamples))[0]
 
-    def distances(self, instance):
-        d = self.model.predict_values(instance.T.A1.tolist())
-        if self.nclasses == 2:
-            return d[(NEGATIVE, POSITIVE)]
-        else:
-            return d
+    def predict(self, instances):
+        xi = instances.T.tolist()
+        #pdb.set_trace()
+        return su.svm_predict([0]*instances.shape[1], xi, self.model)[0]
+        #return self.model.predict()
 
+    def distances(self, instances):
+        #d = self.model.predict_values()
+        xi = instances.T.tolist()
+        #pdb.set_trace()
+        dists = su.svm_predict([0]*instances.shape[1], xi, self.model)[2]
+        return (np.matrix(dists)).T.A1.tolist()
+        #nc = self.model.get_nr_class()
+        #ddict = {}
+        #ii = 0
+        #for i in range(nc):
+        #    for j in range(i+1, nc):
+        #        ddict[(i,j)] = dists[ii]
+        #        ii = ii+1
+        #if nc == 2:
+        #    #pdb.set_trace()
+        #    #print ddict
+        #    return - ddict[(NEGATIVE, POSITIVE)]
+        #else:
+        #    return ddict
 
 class DataScale:
 
@@ -352,36 +456,52 @@ class DataScale:
         return scaled
 
 
-class SVMActiveLearnerApp:
-
+class SVMPCA_ActiveLearner:
     def __init__(self):
-
         self.classifier = 'svm' #or 'knn'
         self.classifiers = {}
         self.n = 3.
-        #  fake_train = np.matrix(np.row_stack((np.matrix(range(8)), np.matrix(range(3,3+8)))), dtype='float32')
-        #  fake_resp = np.matrix([1,0], dtype='float32')
-        #  self.classifiers['svm'] = cv.SVM(fake_train, fake_resp)
+        # fake_train = np.matrix(np.row_stack((np.matrix(range(8)), np.matrix(range(3,3+8)))), dtype='float32')
+        # fake_resp = np.matrix([1,0], dtype='float32')
+        # self.classifiers['svm'] = cv.SVM(fake_train, fake_resp)
 
-        self.intensities_index = None
+        #self.intensities_index = None
         self.intensities_mean = None
         self.projection_basis = None
         self.reduced_dataset = None
         self.dataset = None
 
-    def select_next_instance(self, instances):
+    def get_closest_instances(self, instances, n=1):
         p_instances = np.matrix(self.partial_pca_project(instances))
         s_instances = self.scale.scale(p_instances)
-        distances = []
-        for i in range(s_instances.shape[1]):
-            d = self.classifiers['svm'].distances(s_instances[:,i])
-            distances.append(d)
-        distances = np.array(distances)
-        selected_index = np.argmin(np.abs(distances))
+        #distances = []
+        distances = np.array(self.classifiers['svm'].distances(s_instances))
+        #for i in range(s_instances.shape[1]):
+        #    d = self.classifiers['svm'].distances(s_instances[:,i])
+        #    distances.append(d)
+        #distances = np.array(distances)
+        selected_indices = np.argsort(np.abs(distances))[0:n]
+        return selected_indices.tolist(), distances[selected_indices]
+
+        #selected_index = np.argmin(np.abs(distances))
         #pdb.set_trace()
-        return selected_index, distances[selected_index]
+        #return selected_index, distances[selected_index]
 
+    def select_next_instances(self, instances, n=1):
+        data_idx, data_dists = self.get_closest_instances(instances, n)
+        data_dist = abs(data_dists[0])
+        sv_dist = abs(self.sv_dist[0])
 
+        #we've converged if distance to datapoint closest to decision boundary
+        #is no closer than distance to the support vectors. 
+        #So we return nothing as a proposal.
+        print 'SVMPCA_ActiveLearner: support vector dist %f data dist %f' % (sv_dist, data_dist)
+        if sv_dist <= data_dist:
+            return None, None
+        else:
+            return data_idx, data_dists
+
+    #def train(self, dataset, intensities_size, variance_keep=.95):
     def train(self, dataset, intensities_size, variance_keep=.95):
         #TODO: somehow generate labels for these datasets...
         self.dataset = dataset
@@ -389,14 +509,15 @@ class SVMActiveLearnerApp:
         responses = dataset.outputs
 
         #Calculate PCA vectors
-        self.intensities_index = dataset.num_attributes() - intensities_size 
+        #self.intensities_index = dataset.num_attributes() - intensities_size 
+        self.intensities_index = self.dataset.metadata[-1].extent[0]
         #ic_list[0].sizes['intensity']
         #pdb.set_trace()
-        self._calculate_pca_vectors(self.intensities_index, train, variance_keep)
+        self._calculate_pca_vectors(train, variance_keep)
         #pdb.set_trace()
         train = self.partial_pca_project(train)
     
-        print 'training classifier'
+        print 'SVMPCA_ActiveLearner.train: Training classifier.'
         #train => float32 mat, each row is an example
         #responses => float32 mat, each column is a corresponding response
         train = np.matrix(train, dtype='float32').copy()
@@ -414,26 +535,12 @@ class SVMActiveLearnerApp:
         #self.classifiers['knn'] = sp.KDTree(np.array(train.T.copy()))
         self.classifiers['knn'] = sp.KDTree(np.array(self.rescaled_dataset.inputs.T))
 
-    def load(self, fname):
-        print 'SVM SAVING LOADING NOT IMPLEMENTED'
-        #  self.classifier['svm'].load(fname)
-        p = ut.load_pickle(pt.splitext(model_name)[0] + '.pkl')
-        self.intensities_index = p['intensities_index']
-        self.intensities_mean  = p['intensities_mean']
-        self.projection_basis  = p['projection_basis']
-        self.reduced_dataset   = p['reduced_dataset']
+        sv_instances = self.dataset.inputs[:, self.classifiers['svm'].sv_indices()]
+        #pdb.set_trace()
+        self.sv_idx, self.sv_dist = self.get_closest_instances(sv_instances, 1)
 
-    def save(self, fname):
-        #self.classifier['svm'].save(fname)
-        print 'SVM SAVING LOADING NOT IMPLEMENTED'
-        ut.save_pickle({'intensities_index':self.intensities_index,
-                        'intensities_mean': self.intensities_mean, 
-                        'projection_basis': self.projection_basis,
-                        'reduced_dataset':  self.reduced_dataset},\
-                         pt.splitext(fname)[0] + '.pkl')
-
-    def classify(self, instance):
-        projected_inst = np.matrix(self.partial_pca_project(instance), dtype='float32').copy()
+    def classify(self, instances):
+        projected_inst = np.matrix(self.partial_pca_project(instances), dtype='float32').copy()
         scaled_inst = self.scale.scale(projected_inst)
         if self.classifier == 'knn':
             labels = self.reduced_dataset.outputs[:, \
@@ -448,17 +555,45 @@ class SVMActiveLearnerApp:
             r = self.classifiers['svm'].predict(scaled_inst)
             return r
 
-    def _calculate_pca_vectors(self, intensities_index, data, variance_keep):
+    def _calculate_pca_vectors(self, data, variance_keep):
         data_in = data[self.intensities_index:, :]
         self.intensities_mean = np.mean(data_in, 1)
-        print 'Constructing PCA basis'
+        print 'SVMPCA_ActiveLearner._calculate_pca_vectors: Constructing PCA basis'
         self.projection_basis = dr.pca_vectors(data_in, variance_keep)
-        print 'PCA basis size:', self.projection_basis.shape
+        print 'SVMPCA_ActiveLearner._calculate_pca_vectors: PCA basis size -', self.projection_basis.shape
 
     def partial_pca_project(self, instances):
         instances_in = instances[self.intensities_index:, :]
         reduced_intensities = self.projection_basis.T * (instances_in - self.intensities_mean)
         return np.row_stack((instances[:self.intensities_index, :], reduced_intensities))
+
+    #def refine_location(self, idx, ic_data_set):
+    #    while not_converged:
+    #        # look for projected 3d points close by (2d, at least n pixels away)
+    #        # extract features of 3d point
+    #        # look at decision distance to these features
+    #
+    #        #get feature vector for loc2d
+    #        ic_data.
+    #        d = self.classifiers['svm'].distances()
+
+    #def load(self, fname):
+    #    print 'SVM SAVING LOADING NOT IMPLEMENTED'
+    #    #  self.classifier['svm'].load(fname)
+    #    p = ut.load_pickle(pt.splitext(model_name)[0] + '.pkl')
+    #    self.intensities_index = p['intensities_index']
+    #    self.intensities_mean  = p['intensities_mean']
+    #    self.projection_basis  = p['projection_basis']
+    #    self.reduced_dataset   = p['reduced_dataset']
+
+    #def save(self, fname):
+    #    #self.classifier['svm'].save(fname)
+    #    print 'SVM SAVING LOADING NOT IMPLEMENTED'
+    #    ut.save_pickle({'intensities_index':self.intensities_index,
+    #                    'intensities_mean': self.intensities_mean, 
+    #                    'projection_basis': self.projection_basis,
+    #                    'reduced_dataset':  self.reduced_dataset},\
+    #                     pt.splitext(fname)[0] + '.pkl')
 
 #    def train_from_dir(self, dirname, features_file_name, variance_keep, \
 #                    grid_resolution=.05, win_size=15, win3d_size=.04,
@@ -476,12 +611,152 @@ class SVMActiveLearnerApp:
 #        dataset = None
 #        for ic in self.ic_list:
 #            if dataset == None:
-#                dataset = ic.make_dataset()
+#                dataset = ic.extract_vectorized_features()
 #            else:
-#                dataset = np.column_stack((dataset, ic.make_dataset()))
-#                #dataset.append(ic.make_dataset())
+#                dataset = np.column_stack((dataset, ic.extract_vectorized_features()))
+#                #dataset.append(ic.extract_vectorized_features())
 #
 #        self.train(dataset, ic_list[0].sizes['intensity'])
+
+class InterestPointDataset(ds.Dataset):
+
+    def __init__(self, inputs, outputs, pt2d, pt3d, feature_extractor):
+        ds.Dataset.__init__(self, inputs, outputs)
+        self.pt2d = pt2d
+        self.pt3d = pt3d
+        offset = 0
+        if feature_extractor != None:
+            for k in ['normal', 'color', 'intensity']:
+                start_idx = offset
+                end_idx = offset + feature_extractor.sizes[k]
+                self.add_attribute_descriptor(ds.AttributeDescriptor(k, (start_idx, end_idx)))
+                offset = end_idx
+
+    #def add(self, pt2d, pt3d, features, label):
+    def add(self, features, label, pt2d, pt3d):
+        self.inputs = np.column_stack((self.inputs, features))
+        self.outputs = np.column_stack((self.outputs, label))
+        self.pt2d.append(pt2d)#np.column_stack((self.pt2d, pt2d))
+        self.pt3d.append(pt3d)# = np.column_stack((self.pt3d, pt3d))
+
+    def copy(self):
+        ipd = InterestPointDataset(self.inputs.copy(), self.outputs.copy(), 
+                copy.copy(self.pt2d), copy.copy(self.pt3d), None)
+        ipd.metadata = copy.deepcopy(self.metadata)
+        return ipd
+
+
+class Recognize3DParam:
+
+    def __init__(self):
+        #Data extraction parameters
+        self.grid_resolution = .01
+        self.win_size = 5
+        self.win3d_size = .02
+        self.voi_bl = [.5, .5, .5]
+        self.radius = .5
+
+        #sampling parameters
+        self.n_samples = 5000
+        self.uni_mix = .7
+        self.uncertainty = .15
+
+        #variance
+        self.variance_keep = .98
+
+def draw_labeled_points(ic_data, dataset, image, pos_color=[255,102,55], neg_color=[0,184,245], scale=1.):
+    pt2d = np.column_stack(dataset.pt2d)
+    for l, color in [(POSITIVE, pos_color), (NEGATIVE, neg_color)]:
+        cols = np.where(l == dataset.outputs)[1]
+        #locs2d = np.matrix(np.round(ic_data.get_location2d(cols.A1)/scale), 'int')
+        locs2d = np.matrix(np.round(pt2d[:, cols.A1]/scale), 'int')
+        #locs2d = []
+        #for idx in cols:
+        #locs2d.append(np.matrix(np.round(dataset.pt2d[idx]/scale), 'int'))
+        #locs2d = np.column_stack(locs2d)
+        #pdb.set_trace()
+        draw_points(image, locs2d, color)
+
+def draw_points(img, img_pts, color, size=1):
+    for i in range(img_pts.shape[1]):
+        center = tuple(np.matrix(np.round(img_pts[:,i]),'int').T.A1.tolist())
+        cv.Circle(img, center, size, color, -1)
+
+
+class InterestPointAppBase:
+
+    def __init__(self, object_name, datafile):
+        #pdb.set_trace()
+        self.object_name = object_name
+
+        self.learner = None
+        self.rec_params = Recognize3DParam()
+
+        #updating/modifying dataset
+        self.have_not_trained_learner = True
+        self.dataset = None
+        self.dataset_cpy = None
+
+        #manage labeling of scanned data
+        self.feature_extractor = None
+        self.instances = None
+        self.points2d = None
+        self.points3d = None
+        self.classified_dataset = None
+
+        #loading/saving dataset
+        self.labeled_data_fname = datafile
+        if datafile != None:
+            self.load_labeled_data()
+        else:
+            self.labeled_data_fname = object_name + '_labeled.pkl'
+       
+    def load_labeled_data(self):
+        self.dataset = ut.load_pickle(self.labeled_data_fname)
+        print 'loaded from', self.labeled_data_fname
+        self.dataset.pt2d = [None] * len(self.dataset.pt2d)
+        self.dataset.pt3d = [None] * len(self.dataset.pt3d)
+        #self.ipdetector = InterestPointDetector(self.dataset)
+        self.train()
+        self.have_not_trained_learner = False
+
+    def has_enough_data(self):
+        pos_ex = np.sum(self.dataset.outputs)
+        neg_ex = self.dataset.outputs.shape[1] - pos_ex
+        if pos_ex > 2 and neg_ex > 2:
+            return True
+
+    def add_to_dataset(self, feature, label, pt2d, pt3d):
+        if self.dataset == None:
+            self.dataset = InterestPointDataset(feature, label, [pt2d], [pt3d], self.feature_extractor)
+        else:
+            self.dataset_cpy = self.dataset.copy()
+            self.dataset.add(feature, label, pt2d, pt3d)
+            if self.have_not_trained_learner:
+                self.train()
+
+    def undo_last_add(self):
+        if self.dataset_cpy != None:
+            self.dataset = self.dataset_cpy
+            self.dataset_cpy = None
+
+    def train(self):
+        if self.dataset != None and self.has_enough_data():
+            self.learner = SVMPCA_ActiveLearner()
+            self.learner.train(self.dataset, self.dataset.metadata[2].extent[0],
+                               self.rec_params.variance_keep)
+            self.have_not_trained_learner = False
+    
+    def classify(self):
+        #results = []
+        #for i in range(self.instances.shape[1]):
+        #    results.append(self.learner.classify(self.instances[:,i]))
+        #pdb.set_trace()
+        results = self.learner.classify(self.instances)
+        plist = [self.points2d[:, i] for i in range(self.points2d.shape[1])]
+        p3list = [self.points3d[:, i] for i in range(self.points3d.shape[1])]
+        self.classified_dataset = InterestPointDataset(self.instances, np.matrix(results), 
+                                                           plist, p3list, self.feature_extractor)
 
 
 class RvizDisplayThread(threading.Thread):
@@ -498,7 +773,6 @@ class RvizDisplayThread(threading.Thread):
         self.publish_queue = qu.Queue()
         self.run_pub_list = []
 
-
     def run(self):
         r = rospy.Rate(10)
         print 'DisplayThread: running!'
@@ -511,13 +785,11 @@ class RvizDisplayThread(threading.Thread):
             #for pub, msg in self.run_pub_list:
             #    pub.publish(msg)
 
-
     def step(self):
         while not self.publish_queue.empty():
             self.run_pub_list.append(self.publish_queue.get())
         for pub, msg in self.run_pub_list:
             pub.publish(msg)
-
 
     def display_pc(self, channel, points, frame='base_link'):
         if not self.pc_publishers.has_key(channel):
@@ -526,7 +798,6 @@ class RvizDisplayThread(threading.Thread):
         pc = ru.np_to_pointcloud(points, frame)
         self.publish_queue.put([self.pc_publishers[channel], pc])
 
-
     def display_scan(self, points_bl, valid_points_bl, intensity):
         #publish mapped cloud to verify
         #pdb.set_trace()
@@ -534,7 +805,6 @@ class RvizDisplayThread(threading.Thread):
         points_bl_msg = ru.np_to_pointcloud(points_bl, 'base_link')
         self.publish_queue.put([self.cloud_pub, points_bl_msg])
         self.publish_queue.put([self.color_cloud_pub, valid_points_pro_msg])
-
 
     def display_classification(self, points, labels, frame):
         colors = []
@@ -545,7 +815,6 @@ class RvizDisplayThread(threading.Thread):
                 colors.append(np.matrix([0,1,0,1.]).T)
         labels_msg = viz.list_marker(points, np.column_stack(colors), scale=[.02, .02, .02], mtype='points', mframe=frame)
         self.publish_queue.put([self.labels_pub, labels_msg])
-
 
     def display_training_data_set(self, fname, grid_resolution, win_size, win3d_size):
         data_pkl = ut.load_pickle(fname)
@@ -572,101 +841,160 @@ class RvizDisplayThread(threading.Thread):
                 ic_data.points_valid_image[3:,:])
 
 
-class CVGUI:
+class CVGUI4(InterestPointAppBase):
 
-    def __init__(self, fname):
-        self.grid_resolution = .01
-        self.win_size = 5
-        self.win3d_size = .02
-        voi_bounds_laser = [.5, .5, .5]
-        self.scale = 3.
-        self.variance_keep = .98
-        print 'Loading data.'
-        self.ic_data = load_data_from_file(fname, self.grid_resolution, self.win_size, self.win3d_size, voi_bounds_laser)
-        print 'Calculating features.'
-        if not pt.isfile('features_cache.pkl'):
-            self.ic_dataset = self.ic_data.make_dataset()
-            print 'Saving features.'
-            ut.save_pickle([self.ic_dataset, self.ic_data.feature_locs], 'features_cache.pkl')
-        else:
-            print 'Loading features.'
-            self.ic_dataset, self.ic_data.feature_locs = ut.load_pickle('features_cache.pkl')
+    def __init__(self, raw_data_fname, object_name, labeled_data_fname=None):
+        InterestPointAppBase.__init__(self, object_name, labeled_data_fname)
+        self.raw_data_fname = raw_data_fname
+        self.feature_extractor = None
+        self.load_scan(self.raw_data_fname)
 
-        self.classified_dataset = None
-
-        #initialize by clicking several positive points and several negative points
-        img = self.ic_data.image_cv
-        self.small_img = cv.CreateMat(img.rows/self.scale, img.cols/self.scale, cv.CV_8UC3)
-        cv.Resize(self.ic_data.image_cv, self.small_img)
-        cv.NamedWindow('image',   cv.CV_WINDOW_AUTOSIZE)
-        cv.NamedWindow('level1',  0)
-        cv.NamedWindow('level2',  0)
-        cv.NamedWindow('level4',  0)
-        cv.NamedWindow('level8',  0)
-        cv.NamedWindow('level16', 0)
-        cv.NamedWindow('level32', 0)
-
-        cv.SetMouseCallback('image', self.mouse_cb, None)
-        self.learner = None
-        self.data = {'pos': [], 'neg': []}
-
-        self.selected = None
+        #Setup displays
+        img = self.feature_extractor.image_cv
         self.curr_feature_list = None
+        self.scale = 3
+        self.frame_number = 0
+        self.small_img = cv.CreateMat(img.rows/self.scale, img.cols/self.scale, cv.CV_8UC3)
         self.disp = RvizDisplayThread()
+        self.selected = None
 
-#
-#
-#to generate initial distribution of points
-#   randomly, uniformly sample for n points in 2d, add in prior information if available (gaussians)
-#        for each 2d point p, associate with the 3d point closest to the camera
-#        throw away all points not in VOI
-#
+        cv.Resize(img, self.small_img)
+        cv.NamedWindow('image', cv.CV_WINDOW_AUTOSIZE)
+        self.win_names = ['level1', 'level2', 'level4', 'level8', 'level16', 'level32']
+        for w in self.win_names:
+            cv.NamedWindow(w, 0)
+        cv.SetMouseCallback('image', self.mouse_cb, None)
+        if not self.have_not_trained_learner:
+            self.feature_extractor.feature_vec_at_2d(np.matrix([img.rows/2, img.cols/2.0]).T)
+            self.classify()
 
-#
-#for each positively labeled example do a gradient search using SVM distances
-#
+    def load_scan(self, raw_data_fname):
+        self.feature_extractor = load_data_from_file(raw_data_fname, self.rec_params)
+        feature_cache_fname = pt.splitext(raw_data_fname)[0] + '_features.pkl'
+        if not pt.isfile(feature_cache_fname):
+            self.instances, self.points2d, self.points3d = self.feature_extractor.extract_vectorized_features()
+            ut.save_pickle([self.instances, self.points2d, self.points3d], feature_cache_fname)
+            print 'Saved cache to', feature_cache_fname
+        else:
+            self.instances, self.points2d, self.points3d = ut.load_pickle(feature_cache_fname)
+            print 'Loaded cache from', feature_cache_fname
 
+    def mouse_cb(self, event, x, y, flags, param):
+        if event == cv.CV_EVENT_LBUTTONDOWN:
+            label = POSITIVE
+        elif event == cv.CV_EVENT_RBUTTONDOWN:
+            label = NEGATIVE
+        else:
+            return
 
+        #Extract features
+        loc = np.matrix([x, y]).T * self.scale
+        feature_vec, closest_pt3d, closest_pt2d = self.feature_extractor.feature_vec_at_2d_mat(loc)
+        if feature_vec == None:
+            return
+        feature_list, _, _ = self.feature_extractor.feature_vec_at_2d(loc, viz=True)
+        self.curr_feature_list = feature_list[-1]
 
-#TODO
-# DONE what's up with points at image boundaries??
-# DONE loading and saving samples
-# Sample image a little better
-#     Issue: not enough precision, increasing density increases computation time too much
-# Hook up to robot
-# Add translation fix
+        #Add data point
+        self.add_to_dataset(feature_vec, np.matrix([label]), closest_pt2d, closest_pt3d)
+        self.draw()
 
-#
-# Get rid of overlapping points
-# Don't calculate features on the fly, precompute PCA/ICA for task?
-# Get rid of negative proposed points
-# Add hard decicision boundaries such as positive points cannot possibly be outside this area
-# Optimize SVM parameters
-#
+    def run(self):
+        self.disp.display_scan(ru.pointcloud_to_np(self.feature_extractor.pointcloud_msg), 
+                               self.feature_extractor.points3d_valid_laser, 
+                               self.feature_extractor.colors_valid)
+        self.draw()
+
+        while not rospy.is_shutdown():
+            self.disp.step()
+            k = cv.WaitKey(33)
+            if k != -1:
+                if k == ord(' '):
+                    self.train()
+                    self.classify()
+                    self.draw()
+
+                if k == ord('l'):
+                    selected_idx, selected_dist = self.learner.select_next_instances(self.instances)
+                    if selected_idx != None:
+                        self.selected = {'idx': selected_idx, 
+                                         'd': selected_dist, 
+                                         'loc2d': self.points2d[:, selected_idx], 
+                                         'label': None}
+                        flist, _, _ = self.feature_extractor.feature_vec_at_2d(self.points2d[:,selected_idx], viz=True)
+                        if flist != None:
+                            self.curr_feature_list = flist[-1]
+                        self.draw()
+                    else:
+                        print '======================='
+                        print '>> LEARNER CONVERGED <<'
+                        print '======================='
+                    
+                if k == ord('p'):
+                    if self.selected != None:
+                        self.selected['label'] = POSITIVE
+                        self.draw()
+
+                if k == ord('n'):
+                    if self.selected != None:
+                        self.selected['label'] = NEGATIVE
+                        self.draw()
+
+                if k == ord('a'):
+                    if self.selected != None and self.selected['label'] != None:
+                        idx = self.selected['idx']
+                        self.add_to_dataset(self.instances[:,idx], np.matrix([self.selected['label']]),
+                                            self.points2d[:,idx], self.points3d[:,idx])
+                        self.train()
+                        self.classify()
+                        self.selected = None
+                        self.draw()
+
+                if k == ord('u'):
+                    self.undo_last_add()
+                    self.train()
+                    self.classify()
+                    self.draw()
+
+                if k == ord('s'):
+                    if self.dataset != None:
+                        print 'saved to', self.labeled_data_fname
+                        ut.save_pickle(self.dataset, self.labeled_data_fname)
+
+                if k == ord('o'):
+                    self.load_labeled_data()
 
     def draw(self):
         img = cv.CloneMat(self.small_img)
-        for k, color in [['pos', [0,255,0]], ['neg', [0,0,255]]]:
-            pts = [img_pt for fea, img_pt in self.data[k]]
-            if len(pts) > 0:
-                self.draw_points(img, np.column_stack(pts), color, 2)
+
+        # draw labeled points
+        npt2d = []
+        ppt2d = []
+        for i in range(self.dataset.inputs.shape[1]):
+            if self.dataset.pt2d[i] != None:
+                if POSITIVE == self.dataset.outputs[0,i]:
+                    ppt2d.append(self.dataset.pt2d[i]/self.scale)
+                if NEGATIVE == self.dataset.outputs[0,i]:
+                    npt2d.append(self.dataset.pt2d[i]/self.scale)
+
+        #print 'neg points', npt2d
+        #print 'pos points', ppt2d
+
+        #pdb.set_trace()
+        if len(ppt2d) > 0:
+            draw_points(img, np.column_stack(ppt2d), [0,255,0], 2)
+        if len(npt2d) > 0:
+            draw_points(img, np.column_stack(npt2d), [0,0,255], 2)
+
+        #pdb.set_trace()
         self._draw_classified_dataset(img)
         self._draw_selected(img)
         cv.ShowImage('image', img)
         self._draw_features()
 
-    def draw_points(self, img, img_pts, color, size=1):
-        for i in range(img_pts.shape[1]):
-            cv.Circle(img, tuple(img_pts[:,i].T.A1.tolist()), size, color, -1)
-
-    def _draw_classified_dataset(self, img):
-        if self.classified_dataset == None:
-            return
-
-        for l, color in [(POSITIVE, [255,102,55]), (NEGATIVE, [0,184,245])]:
-            cols = np.where(l == self.classified_dataset.outputs)[1]
-            locs2d = np.matrix(np.round(self.ic_data.get_location2d(cols.A1)/self.scale), 'int')
-            self.draw_points(img, locs2d, color)
+        cv.SaveImage('active_learn%d.png' % self.frame_number, img)
+        self.frame_number = self.frame_number + 1
+        return img
 
     def _draw_selected(self, img):
         if self.selected == None:
@@ -680,129 +1008,45 @@ class CVGUI:
         elif self.selected['label'] == NEGATIVE:
             color = [0,0,255]
 
-        self.draw_points(img, self.selected['loc2d'], color, 4)
+        draw_points(img, self.selected['loc2d']/self.scale, color, 4)
+
+    def _draw_classified_dataset(self, img):
+        if self.classified_dataset == None:
+            return
+        #pdb.set_trace()
+        draw_labeled_points(self.feature_extractor, self.classified_dataset, img, scale=self.scale)
 
     def _draw_features(self):
-        for imgnp, win in zip(self.curr_feature_list, ['level1', 'level2', 'level4', 'level8', 'level16', 'level32']):
+        if self.curr_feature_list == None:
+            return
+        for imgnp, win in zip(self.curr_feature_list, self.win_names):
             cv.ShowImage(win, imgnp)
 
-    def mouse_cb(self, event, x, y, flags, param):
-        if event == cv.CV_EVENT_LBUTTONDOWN:
-            label = 'pos'
-        elif event == cv.CV_EVENT_RBUTTONDOWN:
-            label = 'neg'
-        else:
-            return
-
-        loc = np.matrix([x, y]).T * self.scale
-        feature_vec, closest_pt2d = self.ic_data.feature_vec_at_2d_mat(loc)
-        if feature_vec == None:
-            return
-        #img_pt = np.matrix(np.round(closest_pt2d / self.scale), dtype='int').T.A1.tolist()
-        img_pt = np.matrix(np.round(closest_pt2d / self.scale), dtype='int')
-        self.data[label].append([feature_vec, img_pt])
-
-        #if enough examples, train our classifier
-        if len(self.data['pos']) > 2 and len(self.data['neg']) > 2:
-            if self.learner == None:
-                self.train_learner()
-
-        #pdb.set_trace()
-        feature_list, _ = self.ic_data.feature_vec_at_2d(loc, viz=True)
-        if feature_list != None:
-            self.curr_feature_list = feature_list[-1]
-        self.draw()
-
-    def train_learner(self):
-        #train a new learner
-        self.learner = SVMActiveLearnerApp()
-        xlist = []
-        ylist = []
-        for k, label in [['pos', POSITIVE], ['neg', NEGATIVE]]:
-            for fea, _ in self.data[k]:
-                xlist.append(fea)
-                ylist.append(label)
-        #pdb.set_trace()
-        print 'retraining.. labels', ylist, 'num ex', len(ylist)
-        labeled_set = ds.Dataset(np.column_stack(xlist), np.column_stack(ylist))
-        self.learner.train(labeled_set, self.ic_data.sizes['intensity'], self.variance_keep)
-
-        results = []
-        for i in range(self.ic_dataset.shape[1]):
-            nlabel = self.learner.classify(self.ic_dataset[:, i])
-            results.append(nlabel)
-        #pdb.set_trace()
-        results = np.matrix(results)
-        self.classified_dataset = ds.Dataset(self.ic_dataset, results)
-        print 'positives', np.sum(results), 'total', results.shape
-
-    def run(self):
-        #pdb.set_trace()
-        self.disp.display_scan(ru.pointcloud_to_np(self.ic_data.pointcloud_msg), 
-                               self.ic_data.points3d_valid_laser, 
-                               self.ic_data.colors_valid)
-
-        cv.ShowImage('image', self.small_img)
-        while not rospy.is_shutdown():
-            self.disp.step()
-            k = cv.WaitKey(33)
-            if k != -1:
-                if k == ord(' '):
-                    self.train_learner()
-                    self.draw()
-
-                if k == ord('l'):
-                    selected_idx, selected_d = self.learner.select_next_instance(self.classified_dataset.inputs)
-                    loc = self.ic_data.get_location2d(selected_idx)
-                    selected_locs2d = np.matrix(np.round(loc/self.scale), 'int')
-                    self.selected = {'idx': selected_idx, 'd': selected_d, 'loc2d': selected_locs2d, 'label':None}
-
-                    feature_list, _ = self.ic_data.feature_vec_at_2d(loc, viz=True)
-                    if feature_list != None:
-                        self.curr_feature_list = feature_list[-1]
-                    self.draw()
-                    print selected_idx, selected_d, selected_locs2d
-
-                if k == ord('p'):
-                    if self.selected != None:
-                        self.selected['label'] = POSITIVE
-                    self.draw()
-
-                if k == ord('n'):
-                    if self.selected != None:
-                        self.selected['label'] = NEGATIVE
-                    self.draw()
-
-                if k == ord('a'):
-                    if self.selected != None and self.selected['label'] != None:
-                        if self.selected['label'] == POSITIVE:
-                            label = 'pos'
-                        else:
-                            label = 'neg'
-                        print '>> adding', label, 'example'
-                        feature_vec = self.classified_dataset.inputs[:, self.selected['idx']]
-                        self.data[label].append([feature_vec, self.selected['loc2d']])
-                        print 'retraining'
-                        self.train_learner()
-                        print 'DONE'
-                        self.selected = None
-                    self.draw()
-
-                if k == ord('s'):
-                    ut.save_pickle(self.data, 'active_learned_set.pkl')
-
-                if k == ord('o'):
-                    self.data = ut.load_pickle('active_learned_set.pkl')
-                    self.train_learner()
-                    self.draw()
-
-
+#if __name__ == '__main__':
+#    
+#    labels = [0, 0, 1, 1]
+#    samples = [[1, 1], [1, -1], [-1, 1], [-1, -1]]
+#    dataset = ds.Dataset(np.matrix(samples).T, np.matrix(labels))
+#    s = SVM(dataset)
+#    for i in range(len(samples)):
+#        print 'SAMPLE', i
+#        print s.distances(np.matrix(samples[i]).T)
+#    exit()
 
 if __name__ == '__main__':
     import sys
-
     #pops up a window displaying prosilica image
-    cvgui = CVGUI(sys.argv[1])
+    #cvgui = CVGUI(sys.argv[1])
+    #cvgui.run()
+
+    object_name = sys.argv[1]
+    raw_data_fname = sys.argv[2]
+    if len(sys.argv) > 3:
+        labeled_data_fname = sys.argv[3]
+    else:
+        labeled_data_fname = None
+
+    cvgui = CVGUI4(raw_data_fname, object_name, labeled_data_fname)
     cvgui.run()
 
 
@@ -814,6 +1058,25 @@ if __name__ == '__main__':
 
 
 
+#
+#for each positively labeled example do a gradient search using SVM distances
+#
+
+#TODO
+# DONE what's up with points at image boundaries??
+# DONE loading and saving samples
+# DONE Sample image a little better
+#        Issue: not enough precision, increasing density increases computation time too much
+# Hook up to robot
+# Add translation fix
+
+#
+# Get rid of overlapping points
+# Don't calculate features on the fly, precompute PCA/ICA for task?
+# Get rid of negative proposed points
+# Add hard decicision boundaries such as positive points cannot possibly be outside this area
+# Optimize SVM parameters
+#
 
 
 
@@ -840,6 +1103,497 @@ if __name__ == '__main__':
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#class InterestPointDetector:
+#
+#    def __init__(self, dataset=None):
+#        #Load learner
+#        #self.object_name = name
+#        self.learner = None
+#
+#        #self.cur_dataset = None
+#        #self.dataset_queue = []
+#        if dataset != None:
+#            self.train(dataset)
+#
+#    #def _draw_save_results(self, cloud, image, dataset):
+#    #    image_cpy = cv.CloneImage(image)
+#    #    r3d.draw_image_labels(ic_data, dataset, image_cpy)
+#    #    cv.SaveImage('%s_%s.png' % (self.object_name, str_from_time(cloud.header.stamp.to_time())), image_cpy)
+#    #self._draw_save_results(cloud, image, instances, results)
+#
+#    def find(self, cloud, image, image_T_laser, calib, center, radius):
+#        #extract features 
+#        self.rec_params.radius = radius
+#        ic_data = IntensityCloudData(cloud, image, image_T_laser, calib, center, self.rec_params)
+#
+#        #label
+#        instances, points_3d, points_2d = ic_data.extract_vectorized_features()
+#        results = []
+#        for i in range(instances.shape[1]):
+#            nlabel = self.learner.classify(instances[:, i])
+#            results.append(nlabel)
+#        results = np.matrix(results)
+#
+#        #want 3d location of each instance
+#        positive_indices = np.where(results == r3d.POSITIVE)[1]
+#        points_3d = points_3d[:, positive_indices]
+#        points_2d = points_2d[:, positive_indices]
+#        dataset = ds.Dataset(instances, results)
+#        #return a random point for now
+#        #rindex = np.random.randint(0, len(positive_indices))
+#        return points_2d, points_3d, dataset
+#
+#    def train(self, dataset):
+#        #if self._append_queued_up_dataset():
+#        self.learner = SVMPCA_ActiveLearner()
+#        #pdb.set_trace()
+#        self.learner.train(dataset, dataset.metadata[2].extent[0],
+#                           self.rec_params.variance_keep)
+#
+#    def save(self, fname):
+#        #self._append_queued_up_dataset()
+#        ut.save_pickle(self.cur_dataset, fname)
+#
+#    #def add_labeled_data(self, dataset):
+#    #    self.dataset_queue.append(dataset)
+#
+#    #def _append_queued_up_dataset(self):
+#    #    data_updated = False
+#    #    if self.cur_dataset == None:
+#    #        if len(self.dataset_queue) > 0:
+#    #            self.cur_dataset = self.dataset_queue.pop(0)
+#    #            data_updated = True
+#    #        else:
+#    #            return False
+#    #    else:
+#    #        for d in self.dataset_queue:
+#    #            self.cur_dataset.inputs = np.column_stack((self.cur_dataset.inputs, d.inputs))
+#    #            self.cur_dataset.outputs = np.column_stack((self.cur_dataset.outputs, d.outputs))
+#    #            data_updated = True
+#    #    return data_updated
+
+
+#class CVGUI3(InterestPointManager):
+#
+#    def __init__(self, raw_data_fname, object_name, labeled_data_fname=None):
+#        InterestPointManager.__init__(self, object_name, labeled_data_fname)
+#        self.raw_data_fname = raw_data_fname
+#        self.feature_extractor = None
+#        self.load_scan(self.raw_data_fname)
+#
+#        #Setup displays
+#        img = self.feature_extractor.image_cv
+#        self.curr_feature_list = None
+#        self.scale = 3
+#        self.frame_number = 0
+#        self.small_img = cv.CreateMat(img.rows/self.scale, img.cols/self.scale, cv.CV_8UC3)
+#        self.disp = RvizDisplayThread()
+#        self.selected = None
+#
+#        cv.Resize(img, self.small_img)
+#        cv.NamedWindow('image', cv.CV_WINDOW_AUTOSIZE)
+#        self.win_names = ['level1', 'level2', 'level4', 'level8', 'level16', 'level32']
+#        for w in self.win_names:
+#            cv.NamedWindow(w, 0)
+#        cv.SetMouseCallback('image', self.mouse_cb, None)
+#        if not self.blank:
+#            self.feature_extractor.feature_vec_at_2d
+#            self.classify()
+#
+#    def load_scan(self, raw_data_fname):
+#        self.feature_extractor = load_data_from_file(raw_data_fname, self.ipdetector.rec_params)
+#        feature_cache_fname = pt.splitext(raw_data_fname)[0] + '_features.pkl'
+#        if not pt.isfile(feature_cache_fname):
+#            self.instances, self.points2d, self.points3d = self.feature_extractor.extract_vectorized_features()
+#            ut.save_pickle([self.instances, self.points2d, self.points3d], feature_cache_fname)
+#            print 'Saved cache to', feature_cache_fname
+#        else:
+#            self.instances, self.points2d, self.points3d = ut.load_pickle(feature_cache_fname)
+#            print 'Loaded cache from', feature_cache_fname
+#
+#    def mouse_cb(self, event, x, y, flags, param):
+#        if event == cv.CV_EVENT_LBUTTONDOWN:
+#            label = POSITIVE
+#        elif event == cv.CV_EVENT_RBUTTONDOWN:
+#            label = NEGATIVE
+#        else:
+#            return
+#
+#        #Extract features
+#        loc = np.matrix([x, y]).T * self.scale
+#        feature_vec, closest_pt3d, closest_pt2d = self.feature_extractor.feature_vec_at_2d_mat(loc)
+#        if feature_vec == None:
+#            return
+#        feature_list, _, _ = self.feature_extractor.feature_vec_at_2d(loc, viz=True)
+#        self.curr_feature_list = feature_list[-1]
+#
+#        #Add data point
+#        self.add_to_dataset(feature_vec, np.matrix([label]), closest_pt2d, closest_pt3d)
+#        self.draw()
+#
+#    def run(self):
+#        self.disp.display_scan(ru.pointcloud_to_np(self.feature_extractor.pointcloud_msg), 
+#                               self.feature_extractor.points3d_valid_laser, 
+#                               self.feature_extractor.colors_valid)
+#        self.draw()
+#
+#        while not rospy.is_shutdown():
+#            self.disp.step()
+#            k = cv.WaitKey(33)
+#            if k != -1:
+#                if k == ord(' '):
+#                    self.train()
+#                    self.classify()
+#                    self.draw()
+#
+#                if k == ord('l'):
+#                    selected_idx, selected_dist = self.ipdetector.learner.select_next_instances(self.instances)
+#                    self.selected = {'idx': selected_idx, 
+#                                     'd': selected_dist, 
+#                                     'loc2d': self.points2d[:, selected_idx], 
+#                                     'label': None}
+#                    flist, _, _ = self.feature_extractor.feature_vec_at_2d(self.points2d[:,selected_idx], viz=True)
+#                    if flist != None:
+#                        self.curr_feature_list = flist[-1]
+#                    self.draw()
+#                    
+#                if k == ord('p'):
+#                    if self.selected != None:
+#                        self.selected['label'] = POSITIVE
+#                        self.draw()
+#
+#                if k == ord('n'):
+#                    if self.selected != None:
+#                        self.selected['label'] = NEGATIVE
+#                        self.draw()
+#
+#                if k == ord('a'):
+#                    if self.selected != None and self.selected['label'] != None:
+#                        idx = self.selected['idx']
+#                        self.add_to_dataset(self.instances[:,idx], np.matrix([self.selected['label']]),
+#                                            self.points2d[:,idx], self.points3d[:,idx])
+#                        self.train()
+#                        self.classify()
+#                        self.selected = None
+#                        self.draw()
+#
+#                if k == ord('s'):
+#                    if self.dataset != None:
+#                        print 'saved to', self.labeled_data_fname
+#                        ut.save_pickle(self.dataset, self.labeled_data_fname)
+#
+#                if k == ord('o'):
+#                    self.load_labeled_data()
+#
+#    def draw(self):
+#        img = cv.CloneMat(self.small_img)
+#
+#        # draw labeled points
+#        npt2d = []
+#        ppt2d = []
+#        for i in range(self.dataset.inputs.shape[1]):
+#            if self.dataset.pt2d[i] != None:
+#                if POSITIVE == self.dataset.outputs[0,i]:
+#                    ppt2d.append(self.dataset.pt2d[i]/self.scale)
+#                if NEGATIVE == self.dataset.outputs[0,i]:
+#                    npt2d.append(self.dataset.pt2d[i]/self.scale)
+#
+#        #print 'neg points', npt2d
+#        #print 'pos points', ppt2d
+#
+#        #pdb.set_trace()
+#        if len(ppt2d) > 0:
+#            draw_points(img, np.column_stack(ppt2d), [0,255,0], 2)
+#        if len(npt2d) > 0:
+#            draw_points(img, np.column_stack(npt2d), [0,0,255], 2)
+#
+#        #pdb.set_trace()
+#        self._draw_classified_dataset(img)
+#        self._draw_selected(img)
+#        cv.ShowImage('image', img)
+#        self._draw_features()
+#
+#        cv.SaveImage('active_learn%d.png' % self.frame_number, img)
+#        self.frame_number = self.frame_number + 1
+#        return img
+#
+#    def _draw_selected(self, img):
+#        if self.selected == None:
+#            return
+#        if self.selected['label'] == None:
+#            color = [255, 255, 255]
+#
+#        elif self.selected['label'] == POSITIVE:
+#            color = [0,255,0]
+#
+#        elif self.selected['label'] == NEGATIVE:
+#            color = [0,0,255]
+#
+#        draw_points(img, self.selected['loc2d']/self.scale, color, 4)
+#
+#    def _draw_classified_dataset(self, img):
+#        if self.classified_dataset == None:
+#            return
+#        #pdb.set_trace()
+#        draw_labeled_points(self.feature_extractor, self.classified_dataset, img, scale=self.scale)
+#
+#    def _draw_features(self):
+#        if self.curr_feature_list == None:
+#            return
+#        for imgnp, win in zip(self.curr_feature_list, self.win_names):
+#            cv.ShowImage(win, imgnp)
+#
+#
+#class CVGUI2:
+#
+#    def __init__(self, raw_data_fname, object_name, labeled_data_fname=None):
+#        self.object_name = object_name
+#        self.raw_data_fname = raw_data_fname
+#        self.labeled_data_fname = labeled_data_fname
+#        if self.labeled_data_fname != None:
+#            self.load_labeled_data()
+#        else:
+#            self.labeled_data_fname = object_name + '_labeled.pkl'
+#
+#        #Preprocess
+#        self.ipdetector = InterestPointDetector()
+#        self.feature_extractor = load_data_from_file(raw_data_fname, self.ipdetector.rec_params)
+#        feature_cache_fname = pt.splitext(self.raw_data_fname)[0] + '_features.pkl'
+#        if not pt.isfile(feature_cache_fname):
+#            self.instances, self.points2d, self.points3d = self.feature_extractor.extract_vectorized_features()
+#            ut.save_pickle([self.instances, self.points2d, self.points3d], feature_cache_fname)
+#            print 'Saved cache to', feature_cache_fname
+#        else:
+#            self.instances, self.points2d, self.points3d = ut.load_pickle(feature_cache_fname)
+#            print 'Loaded cache from', feature_cache_fname
+#
+#        #Setup windows
+#        self.scale = 3
+#        img = self.feature_extractor.image_cv
+#        self.small_img = cv.CreateMat(img.rows/self.scale, img.cols/self.scale, cv.CV_8UC3)
+#        cv.Resize(img, self.small_img)
+#        cv.NamedWindow('image', cv.CV_WINDOW_AUTOSIZE)
+#        self.win_names = ['level1', 'level2', 'level4', 'level8', 'level16', 'level32']
+#        for w in self.win_names:
+#            cv.NamedWindow(w, 0)
+#        cv.SetMouseCallback('image', self.mouse_cb, None)
+#        self.frame_number = 0
+#        self.disp = RvizDisplayThread()
+#
+#        self.blank = True
+#        self.curr_feature_list = None
+#        self.classified_dataset = None
+#        self.dataset = None
+#        self.selected = None
+#
+#    def load_labeled_data(self):
+#        if pt.isfile(self.labeled_data_fname):
+#            self.dataset = ut.load_pickle(self.labeled_data_fname)
+#            print 'loaded from', self.labeled_data_fname
+#            self.dataset.pt2d = [None] * len(self.dataset.pt2d)
+#            self.dataset.pt3d = [None] * len(self.dataset.pt3d)
+#            self.ipdetector = InterestPointDetector( self.dataset)
+#            self.ipdetector.train(self.dataset)
+#        else:
+#            print 'load_labeled_data: ', self.labeled_data_fname, 'does not exist'
+#
+#
+#    def add_to_dataset(self, feature, label, pt2d, pt3d):
+#        if self.dataset == None:
+#            self.dataset = InterestPointDataset(feature, label, [pt2d], [pt3d], self.feature_extractor)
+#        else:
+#            self.dataset.add(feature, label, pt2d, pt3d)
+#            pos_ex = np.sum(self.dataset.outputs)
+#            neg_ex = self.dataset.outputs.shape[1] - pos_ex
+#            if pos_ex > 2 and neg_ex > 2 and self.blank:
+#                self.train_learner()
+#                self.blank = False
+#
+#    def train_learner(self):
+#        if self.dataset != None: 
+#            #train
+#            self.ipdetector.train(self.dataset)
+#            #classify
+#            #pdb.set_trace()
+#            results = []
+#            for i in range(self.instances.shape[1]):
+#                results.append(self.ipdetector.learner.classify(self.instances[:,i]))
+#            #pdb.set_trace()
+#            plist = [self.points2d[:, i] for i in range(self.points2d.shape[1])]
+#            p3list = [self.points3d[:, i] for i in range(self.points3d.shape[1])]
+#            self.classified_dataset = InterestPointDataset(self.instances, np.matrix(results), 
+#                                                           plist, p3list, self.feature_extractor)
+#        
+#    def mouse_cb(self, event, x, y, flags, param):
+#        if event == cv.CV_EVENT_LBUTTONDOWN:
+#            label = POSITIVE
+#        elif event == cv.CV_EVENT_RBUTTONDOWN:
+#            label = NEGATIVE
+#        else:
+#            return
+#
+#        #Extract features
+#        loc = np.matrix([x, y]).T * self.scale
+#        feature_vec, closest_pt3d, closest_pt2d = self.feature_extractor.feature_vec_at_2d_mat(loc)
+#        if feature_vec == None:
+#            return
+#        feature_list, _, _ = self.feature_extractor.feature_vec_at_2d(loc, viz=True)
+#        self.curr_feature_list = feature_list[-1]
+#
+#        #Add data point
+#        #pdb.set_trace()
+#        self.add_to_dataset(feature_vec, np.matrix([label]), closest_pt2d, closest_pt3d)
+#        self.draw()
+#
+#    def run(self):
+#        cv.ShowImage('image', self.small_img)
+#        self.disp.display_scan(ru.pointcloud_to_np(self.feature_extractor.pointcloud_msg), 
+#                               self.feature_extractor.points3d_valid_laser, 
+#                               self.feature_extractor.colors_valid)
+#
+#        while not rospy.is_shutdown():
+#            self.disp.step()
+#            k = cv.WaitKey(33)
+#            if k != -1:
+#                if k == ord(' '):
+#                    self.train_learner()
+#
+#                if k == ord('l'):
+#                    selected_idx, selected_dist = self.ipdetector.learner.select_next_instances(self.instances)
+#                    self.selected = {'idx': selected_idx, 
+#                                     'd': selected_dist, 
+#                                     'loc2d': self.points2d[:, selected_idx], 
+#                                     'label': None}
+#                    flist, _, _ = self.feature_extractor.feature_vec_at_2d(self.points2d[:,selected_idx], viz=True)
+#                    if flist != None:
+#                        self.curr_feature_list = flist[-1]
+#                    self.draw()
+#                    
+#                if k == ord('p'):
+#                    if self.selected != None:
+#                        self.selected['label'] = POSITIVE
+#                        self.draw()
+#
+#                if k == ord('n'):
+#                    if self.selected != None:
+#                        self.selected['label'] = NEGATIVE
+#                        self.draw()
+#
+#                if k == ord('a'):
+#                    if self.selected != None and self.selected['label'] != None:
+#                        idx = self.selected['idx']
+#                        #pdb.set_trace()
+#                        self.add_to_dataset(self.instances[:,idx], np.matrix([self.selected['label']]),
+#                                            self.points2d[:,idx], self.points3d[:,idx])
+#                        self.train_learner()
+#                        self.selected = None
+#                        self.draw()
+#
+#                if k == ord('s'):
+#                    if self.dataset != None:
+#                        print 'saved to', self.labeled_data_fname
+#                        ut.save_pickle(self.dataset, self.labeled_data_fname)
+#
+#                if k == ord('o'):
+#                    self.load_labeled_data()
+#
+#    def draw(self):
+#        img = cv.CloneMat(self.small_img)
+#
+#        # draw labeled points
+#        npt2d = []
+#        ppt2d = []
+#        for i in range(self.dataset.inputs.shape[1]):
+#            if self.dataset.pt2d[i] != None:
+#                if POSITIVE == self.dataset.outputs[0,i]:
+#                    ppt2d.append(self.dataset.pt2d[i]/self.scale)
+#                if NEGATIVE == self.dataset.outputs[0,i]:
+#                    npt2d.append(self.dataset.pt2d[i]/self.scale)
+#
+#        #print 'neg points', npt2d
+#        #print 'pos points', ppt2d
+#
+#        #pdb.set_trace()
+#        if len(ppt2d) > 0:
+#            draw_points(img, np.column_stack(ppt2d), [0,255,0], 2)
+#        if len(npt2d) > 0:
+#            draw_points(img, np.column_stack(npt2d), [0,0,255], 2)
+#
+#        #pdb.set_trace()
+#        self._draw_classified_dataset(img)
+#        self._draw_selected(img)
+#        cv.ShowImage('image', img)
+#        self._draw_features()
+#
+#        cv.SaveImage('active_learn%d.png' % self.frame_number, img)
+#        self.frame_number = self.frame_number + 1
+#        return img
+#
+#    def _draw_selected(self, img):
+#        if self.selected == None:
+#            return
+#        if self.selected['label'] == None:
+#            color = [255, 255, 255]
+#
+#        elif self.selected['label'] == POSITIVE:
+#            color = [0,255,0]
+#
+#        elif self.selected['label'] == NEGATIVE:
+#            color = [0,0,255]
+#
+#        draw_points(img, self.selected['loc2d']/self.scale, color, 4)
+#
+#    def _draw_classified_dataset(self, img):
+#        if self.classified_dataset == None:
+#            return
+#        #pdb.set_trace()
+#        draw_labeled_points(self.feature_extractor, self.classified_dataset, img, scale=self.scale)
+#
+#    def _draw_features(self):
+#        if self.curr_feature_list == None:
+#            return
+#        for imgnp, win in zip(self.curr_feature_list, self.win_names):
+#            cv.ShowImage(win, imgnp)
         #pdb.set_trace()
         #spts = np.matrix(self.ic_data.sampled_points).T
         #self.disp.display_pc('sampled_points', spts)
@@ -959,7 +1713,317 @@ if __name__ == '__main__':
 
 
 
+#class InterestPointManager:
+#
+#    def __init__(self, object_name, datafile):
+#        #pdb.set_trace()
+#        self.object_name = object_name
+#        self.ipdetector = InterestPointDetector()
+#
+#        #updating/modifying dataset
+#        self.blank = True
+#        self.dataset = None
+#
+#        #manage labeling of scanned data
+#        self.feature_extractor = None
+#        self.instances = None
+#        self.points2d = None
+#        self.points3d = None
+#        self.classified_dataset = None
+#
+#        #loading/saving dataset
+#        self.labeled_data_fname = datafile
+#        if datafile != None:
+#            self.load_labeled_data()
+#        else:
+#            self.labeled_data_fname = object_name + '_labeled.pkl'
+#       
+#    def load_labeled_data(self):
+#        self.dataset = ut.load_pickle(self.labeled_data_fname)
+#        print 'loaded from', self.labeled_data_fname
+#        self.dataset.pt2d = [None] * len(self.dataset.pt2d)
+#        self.dataset.pt3d = [None] * len(self.dataset.pt3d)
+#        #self.ipdetector = InterestPointDetector(self.dataset)
+#        self.ipdetector.train(self.dataset)
+#        self.blank = False
+#
+#    def add_to_dataset(self, feature, label, pt2d, pt3d):
+#        if self.dataset == None:
+#            self.dataset = InterestPointDataset(feature, label, [pt2d], [pt3d], self.feature_extractor)
+#        else:
+#            self.dataset.add(feature, label, pt2d, pt3d)
+#            pos_ex = np.sum(self.dataset.outputs)
+#            neg_ex = self.dataset.outputs.shape[1] - pos_ex
+#            if pos_ex > 2 and neg_ex > 2 and self.blank:
+#                self.train()
+#                self.blank = False
+#
+#    def train(self):
+#        if self.dataset != None: 
+#            #train
+#            self.ipdetector.train(self.dataset)
+#
+#    def classify(self):
+#        results = []
+#        for i in range(self.instances.shape[1]):
+#            results.append(self.ipdetector.learner.classify(self.instances[:,i]))
+#        plist = [self.points2d[:, i] for i in range(self.points2d.shape[1])]
+#        p3list = [self.points3d[:, i] for i in range(self.points3d.shape[1])]
+#        self.classified_dataset = InterestPointDataset(self.instances, np.matrix(results), 
+#                                                           plist, p3list, self.feature_extractor)
 
+#class CVGUI:
+#
+#    def __init__(self, fname):
+#        self.fname = fname
+#
+#        #self.grid_resolution = .01
+#        #self.win_size = 5
+#        #self.win3d_size = .02
+#        #voi_bounds_laser = [.5, .5, .5]
+#
+#        self.params = Recognize3DParam()
+#        self.scale = 3.
+#        #self.variance_keep = .98
+#
+#        print 'Loading data.'
+#        self.ic_data = load_data_from_file(fname, self.params)
+#                                            #self.grid_resolution, self.win_size, 
+#                                            #self.win3d_size, voi_bounds_laser)
+#        print 'Calculating features.'
+#        self.features_name = 'features_cache.pkl'
+#        if not pt.isfile(self.features_name):
+#            self.ic_dataset = self.ic_data.extract_vectorized_features()
+#            print 'Saving features.'
+#            ut.save_pickle([self.ic_dataset, self.ic_data.feature_locs], self.features_name)
+#        else:
+#            print 'Loading features.'
+#            self.ic_dataset, self.ic_data.feature_locs = ut.load_pickle(self.features_name)
+#        self.classified_dataset = None
+#
+#        #initialize by clicking several positive points and several negative points
+#        img = self.ic_data.image_cv
+#        self.small_img = cv.CreateMat(img.rows/self.scale, img.cols/self.scale, cv.CV_8UC3)
+#        cv.Resize(self.ic_data.image_cv, self.small_img)
+#        cv.NamedWindow('image',   cv.CV_WINDOW_AUTOSIZE)
+#        self.win_names = ['level1', 'level2', 'level4', 'level8', 'level16', 'level32']
+#        for w in self.win_names:
+#            cv.NamedWindow(w, 0)
+#
+#        cv.SetMouseCallback('image', self.mouse_cb, None)
+#        self.learner = None
+#        self.data = {'pos': [], 'neg': []}
+#
+#        self.selected = None
+#        self.curr_feature_list = None
+#        self.disp = RvizDisplayThread()
+#        self.frame_number = 0
+#        self.loaded_data = None
+#
+#
+#    def draw(self):
+#        img = cv.CloneMat(self.small_img)
+#        for k, color in [['pos', [0,255,0]], ['neg', [0,0,255]]]:
+#            pts = [img_pt for fea, img_pt in self.data[k]]
+#            if len(pts) > 0:
+#                draw_points(img, np.column_stack(pts), color, 2)
+#        self._draw_classified_dataset(img)
+#        self._draw_selected(img)
+#        cv.ShowImage('image', img)
+#        self._draw_features()
+#
+#        cv.SaveImage('active_learn%d.png' % self.frame_number, img)
+#        self.frame_number = self.frame_number + 1
+#        return img
+#
+#    def _draw_classified_dataset(self, img):
+#        if self.classified_dataset == None:
+#            return
+#        #pdb.set_trace()
+#        draw_labeled_points(self.ic_data, self.classified_dataset, img)
+#
+#
+#    def _draw_selected(self, img):
+#        if self.selected == None:
+#            return
+#        if self.selected['label'] == None:
+#            color = [255, 255, 255]
+#
+#        elif self.selected['label'] == POSITIVE:
+#            color = [0,255,0]
+#
+#        elif self.selected['label'] == NEGATIVE:
+#            color = [0,0,255]
+#
+#        draw_points(img, self.selected['loc2d']/self.scale, color, 4)
+#
+#    def _draw_features(self):
+#        if self.curr_feature_list == None:
+#            return
+#        for imgnp, win in zip(self.curr_feature_list, self.win_names):
+#            cv.ShowImage(win, imgnp)
+#
+#    def mouse_cb(self, event, x, y, flags, param):
+#        if event == cv.CV_EVENT_LBUTTONDOWN:
+#            label = 'pos'
+#        elif event == cv.CV_EVENT_RBUTTONDOWN:
+#            label = 'neg'
+#        else:
+#            return
+#
+#        loc = np.matrix([x, y]).T * self.scale
+#        feature_vec, closest_pt3d, closest_pt2d = self.ic_data.feature_vec_at_2d_mat(loc)
+#        if feature_vec == None:
+#            return
+#        #img_pt = np.matrix(np.round(closest_pt2d / self.scale), dtype='int').T.A1.tolist()
+#        img_pt = np.matrix(np.round(closest_pt2d / self.scale), dtype='int')
+#        self.data[label].append([feature_vec, img_pt])
+#
+#        #if enough examples, train our classifier
+#        if len(self.data['pos']) > 2 and len(self.data['neg']) > 2:
+#            if self.learner == None:
+#                self.train_learner()
+#
+#        #pdb.set_trace()
+#        feature_list, _, _ = self.ic_data.feature_vec_at_2d(loc, viz=True)
+#        if feature_list != None:
+#            self.curr_feature_list = feature_list[-1]
+#        self.draw()
+#
+#    def _data_dict_to_dataset(self, data_dict):
+#        xlist = []
+#        ylist = []
+#        for k, label in [['pos', POSITIVE], ['neg', NEGATIVE]]:
+#            for fea, _ in data_dict[k]:
+#                xlist.append(fea)
+#                ylist.append(label)
+#
+#        print '_data_dict_to_dataset: labels', ylist, 'num ex', len(ylist)
+#        if len(xlist) > 0:
+#            labeled_set = ds.Dataset(np.column_stack(xlist), np.column_stack(ylist))
+#            return labeled_set
+#        else:
+#            return None
+#
+#    def train_learner(self):
+#        #train a new learner
+#        self.learner = SVMPCA_ActiveLearner()
+#        #xlist = []
+#        #ylist = []
+#        #for k, label in [['pos', POSITIVE], ['neg', NEGATIVE]]:
+#        #    for fea, _ in self.data[k]:
+#        #        xlist.append(fea)
+#        #        ylist.append(label)
+#
+#        #print 'retraining.. labels', ylist, 'num ex', len(ylist)
+#        #labeled_set = ds.Dataset(np.column_stack(xlist), np.column_stack(ylist))
+#        #pdb.set_trace()
+#        labeled_set = self._data_dict_to_dataset(self.data)
+#        if self.loaded_data != None:
+#            ldata = self._data_dict_to_dataset(self.loaded_data)
+#            if labeled_set != None:
+#                labeled_set.inputs = np.column_stack((ldata.inputs, labeled_set.inputs))
+#                labeled_set.outputs = np.column_stack((ldata.outputs, labeled_set.outputs))
+#            else:
+#                labeled_set = ldata
+#
+#        #pdb.set_trace()
+#        labeled_set.sizes = self.ic_data.sizes
+#        if labeled_set == None:
+#            return
+#
+#        #if self.loc2d
+#        #pdb.set_trace()
+#        print 'labeled_set.inputs.shape', labeled_set.inputs.shape
+#        self.learner.train(labeled_set, self.ic_data.sizes['intensity'], self.params.variance_keep)
+#
+#        results = []
+#        for i in range(self.ic_dataset.shape[1]):
+#            nlabel = self.learner.classify(self.ic_dataset[:, i])
+#            results.append(nlabel)
+#        #pdb.set_trace()
+#        results = np.matrix(results)
+#        self.classified_dataset = ds.Dataset(self.ic_dataset, results)
+#        print 'positives', np.sum(results), 'total', results.shape
+#
+#
+#    def run(self):
+#        #pdb.set_trace()
+#        self.disp.display_scan(ru.pointcloud_to_np(self.ic_data.pointcloud_msg), 
+#                               self.ic_data.points3d_valid_laser, 
+#                               self.ic_data.colors_valid)
+#
+#        cv.ShowImage('image', self.small_img)
+#        while not rospy.is_shutdown():
+#            self.disp.step()
+#            k = cv.WaitKey(33)
+#            if k != -1:
+#                if k == ord(' '):
+#                    self.train_learner()
+#                    #self.draw()
+#                    cv.SaveImage('active_learn%d.png' % self.frame_number, self.draw())
+#                    self.frame_number = self.frame_number + 1
+#
+#                if k == ord('l'):
+#                    selected_idx, selected_d = self.learner.select_next_instances(self.classified_dataset.inputs)
+#                    loc = self.ic_data.get_location2d(selected_idx)
+#                    selected_locs2d = np.matrix(np.round(loc/self.scale), 'int')
+#                    self.selected = {'idx': selected_idx, 'd': selected_d, 'loc2d': selected_locs2d, 'label':None}
+#
+#                    feature_list, _, _ = self.ic_data.feature_vec_at_2d(loc, viz=True)
+#                    if feature_list != None:
+#                        self.curr_feature_list = feature_list[-1]
+#                    cv.SaveImage('active_learn%d.png' % self.frame_number, self.draw())
+#                    self.frame_number = self.frame_number + 1
+#                    print selected_idx, selected_d, selected_locs2d
+#
+#                if k == ord('p'):
+#                    if self.selected != None:
+#                        self.selected['label'] = POSITIVE
+#                    #self.draw()
+#                    cv.SaveImage('active_learn%d.png' % self.frame_number, self.draw())
+#                    self.frame_number = self.frame_number + 1
+#
+#                if k == ord('n'):
+#                    if self.selected != None:
+#                        self.selected['label'] = NEGATIVE
+#                    #self.draw()
+#                    cv.SaveImage('active_learn%d.png' % self.frame_number, self.draw())
+#                    self.frame_number = self.frame_number + 1
+#
+#                if k == ord('a'):
+#                    if self.selected != None and self.selected['label'] != None:
+#                        if self.selected['label'] == POSITIVE:
+#                            label = 'pos'
+#                        else:
+#                            label = 'neg'
+#                        print '>> adding', label, 'example'
+#                        feature_vec = self.classified_dataset.inputs[:, self.selected['idx']]
+#                        self.data[label].append([feature_vec, self.selected['loc2d']])
+#                        print 'retraining'
+#                        self.train_learner()
+#                        print 'DONE'
+#                        self.selected = None
+#                    #self.draw()
+#                    cv.SaveImage('active_learn%d.png' % self.frame_number, self.draw())
+#                    self.frame_number = self.frame_number + 1
+#
+#                if k == ord('s'):
+#                    if self.loaded_data != None:
+#                        self.data['pos'] += self.loaded_data['pos']
+#                        self.data['neg'] += self.loaded_data['neg']
+#                    ut.save_pickle(self.data, 'active_learned_set.pkl')
+#
+#                if k == ord('o'):
+#                    self.loaded_data = ut.load_pickle('active_learned_set.pkl')
+#                    print 'loaded'
+#                    self.ic_data.feature_vec_at_2d(np.matrix([500, 500.]).T)
+#                    print 'training'
+#                    print 'drawing'
+#                    self.train_learner()
+#                    cv.SaveImage(os.path.splitext(self.fname)[0] + '.png', self.draw())
+#                    print 'done'
+#
 
 
 
