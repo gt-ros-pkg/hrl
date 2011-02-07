@@ -73,7 +73,7 @@ class LinearDimReduceDataset(ds.Dataset):
     # Performs randomized vector dim reduction
     # @param number_of_vectors number of vectors to generate/use
     def randomized_vectors_reduce(self, number_of_vectors):
-        self.set_projection_vectors(randomized_vectors(self.inputs, number_of_vectors)
+        self.set_projection_vectors(randomized_vectors(self.inputs, number_of_vectors))
 
     ##
     # returns full dimensioned inputs
