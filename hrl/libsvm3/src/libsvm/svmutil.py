@@ -113,7 +113,7 @@ def svm_train(arg1, arg2=None, arg3=None):
 	    -q : quiet mode (no outputs)
 	"""
 	prob, param = None, None
-	pdb.set_trace()
+	#pdb.set_trace()
 	if isinstance(arg1, (list, tuple)):
 		assert isinstance(arg2, (list, tuple))
 		y, x, options = arg1, arg2, arg3
@@ -226,6 +226,7 @@ def svm_predict(y, x, m, options=""):
 			nr_classifier = nr_class*(nr_class-1)//2
 		dec_values = (c_double * nr_classifier)()
 		for xi in x:
+			#pdb.set_trace()
 			xi, idx = gen_svm_nodearray(xi)
 			label = libsvm.svm_predict_values(m, xi, dec_values)
 			values = dec_values[:nr_classifier]
