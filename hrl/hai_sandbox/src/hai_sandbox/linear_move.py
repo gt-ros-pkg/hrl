@@ -79,7 +79,7 @@ class BehaviorDescriptor:
                      Action('linear_move', [Action('current_location', [])])]
         self.run(self.seed)
 
-
+#TODO move this
 class LaserPointerClient:
     def __init__(self, target_frame='/base_link', tf_listener=None, robot=None):
         self.dclick_cbs = []
@@ -133,7 +133,6 @@ class LaserPointerClient:
         self.point_cbs.append(func)
 
 
-
 def image_diff_val2(before_frame, after_frame):
     br = np.asarray(before_frame)
     ar = np.asarray(after_frame)
@@ -151,7 +150,6 @@ class ManipulationBehaviors:
         except Exception, e:
             rospy.loginfo('call to init_node failed')
         self.movement = lm.LinearReactiveMovement(arm, pr2_obj, tf_listener)
-
 
     ##
     # reach direction
@@ -215,7 +213,6 @@ class ManipulationBehaviors:
         else:
             #shouldn't get here
             return False, r2, None
-
 
     def press(self, direction, press_pressure, contact_pressure):
         #make contact first
@@ -304,6 +301,8 @@ class ApplicationBehaviors:
         #                 -11.36121856,  -2.14040499,  -3.15655164]]).T
         #self.l3 = np.matrix([[ 0.54339568,  1.2537778 ,  1.85395725, -2.27255481, -9.92394984,
         #                 -0.86489749, -3.00261708]]).T
+        self.learners = {}
+        self.load_classifier('light_switch', 'labeled_light_switch_data.pkl')
 
 
     #def tuck(self):
@@ -433,9 +432,12 @@ class ApplicationBehaviors:
             return False, None
 
         rospy.loginfo('>>>> PRESSING')
-        #should not be making contact
+
+        #Should not be making contact
         self.behaviors.movement.pressure_listener.rezero()
-        change, press_ret = self.camera_change_detect(visual_change_thres, self.behaviors.press, (press_distance, press_pressure, press_contact_pressure))
+        change, press_ret = self.camera_change_detect(visual_change_thres, \
+                self.behaviors.press, \
+                (press_distance, press_pressure, press_contact_pressure))
         success, reason = press_ret
         if not success:
             rospy.loginfo('Press failed due to "%s"' % reason)
@@ -460,7 +462,6 @@ class ApplicationBehaviors:
         rospy.loginfo('DONE.')
         return change, touchloc_bl
 
-
     def light_switch2(self, point):
         success, reason, touchloc = self.behaviors.movement.reach(point)
         if not success:
@@ -471,7 +472,6 @@ class ApplicationBehaviors:
         if r2 != None:
             rospy.loginfo('moving back to start location failed due to "%s"' % r2)
             return 
-
 
     def drawer(self, point):
         linear_movement = self.behaviors.movement
@@ -504,7 +504,6 @@ class ApplicationBehaviors:
         #linear_movement.move_relative_gripper(np.matrix([-.15, 0, 0]).T, stop='pressure_accel', pressure=300)
         linear_movement.move_relative_base(np.matrix([-.2, .3, 0.3]).T, stop='pressure_accel', pressure=300)
         linear_movement.set_movement_mode_ik()
-
 
     ##
     # Drive using within a dist_far distance of point_bl
@@ -580,7 +579,6 @@ class ApplicationBehaviors:
         #self.robot.base.turn_by(ang, block=True)
         #pdb.set_trace()
 
-
     def approach_location(self, point_bl, coarse_stop, fine_stop, voi_radius=.2):
         #return
         point_dist = np.linalg.norm(point_bl[0:2,0])
@@ -619,6 +617,9 @@ class ApplicationBehaviors:
         rospy.loginfo('turn_to_point: turning by %.2f deg' % math.degrees(ang))
         #pdb.set_trace()
         self.robot.base.turn_by(-ang, block=block, overturn=True)
+
+    def load_classifier(self, classifier_name, data_file_name):
+        self.learners[classifier_name] = ipa.InterestPointPerception(classifier_name, data_file_name, self.tf_listener)
 
     def run_behaviors(self, point_bl, stored_point=False):
         driving_param = {'light_switch': {'coarse': .7, 'fine': .5, 'voi': .2},
@@ -728,20 +729,26 @@ class ApplicationBehaviors:
             rospy.loginfo('run_behaviors: DONE MANIPULATION!')
             self.robot.sound.say('done')
 
-
     def click_cb(self, point_bl):
         if point_bl!= None:
-            self.run_behaviors(point_bl)
-        else:
-            if len(self.location_centers) < 1:
-                return
-            rospy.loginfo('click_cb: double clicked but no 3d point given')
-            rospy.loginfo('click_cb: will use the last successful location given')
-            base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
-            point_bl = tfu.transform_points(base_link_T_map, self.location_centers[-1])
-            rospy.loginfo('click_cb: using ' + str(self.location_centers[-1].T))
-            self.run_behaviors(point_bl, stored_point=True)
-
+            pdb.set_trace()
+            def light_behavior(point):
+                point_offset = np.matrix([0, 0, 0.03]).T
+                success, _ = self.light_switch1(point, point_offset=point_offset, \
+                                press_contact_pressure=300, move_back_distance=np.matrix([-.0075,0,0]).T,\
+                                press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, \
+                return success
+            self.autonomous_learn(point_bl, light_behavior, 'light_switch'): 
+        #    self.run_behaviors(point_bl)
+        #else:
+        #    if len(self.location_centers) < 1:
+        #        return
+        #    rospy.loginfo('click_cb: double clicked but no 3d point given')
+        #    rospy.loginfo('click_cb: will use the last successful location given')
+        #    base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
+        #    point_bl = tfu.transform_points(base_link_T_map, self.location_centers[-1])
+        #    rospy.loginfo('click_cb: using ' + str(self.location_centers[-1].T))
+        #    self.run_behaviors(point_bl, stored_point=True)
 
     def find_close_by_points(self, point_map):
         if self.locations_tree != None:
@@ -749,7 +756,6 @@ class ApplicationBehaviors:
             return close_by_locs
         else:
             return []
-
 
     def find_close_by_points_match_task(self, point_map, task):
         matches = self.find_close_by_points(point_map)
@@ -787,7 +793,6 @@ class ApplicationBehaviors:
         ut.save_pickle(self.location_data, self.saved_locations_fname)
         rospy.loginfo('location_add: saved point in map.')
 
-
     def run(self):
         #point = np.matrix([ 0.60956734, -0.00714498,  1.22718197]).T
         #print 'RECORDING'
@@ -798,7 +803,6 @@ class ApplicationBehaviors:
         rospy.loginfo('Ready.')
         while not rospy.is_shutdown():
             r.sleep()
-
 
     def record_perceptual_data(self, point_touched_bl):
         #what position should the robot be in?
@@ -832,21 +836,23 @@ class ApplicationBehaviors:
 
         rospy.loginfo('Saving pickles')
         pickle_fname = '%s_interest_point_dataset.pkl' % tstring   
-        ut.save_pickle({'touch_point': point_touched_bl,
-                        'points_laser': points,
 
-                        'high_res': prosilica_name,
-                        'left_image': left_name,
-                        'right_image': right_name,
+        data_pkl = {'touch_point': point_touched_bl,
+                    'points_laser': points,
 
-                        'laser_T_bl': laser_T_bl, 
-                        'pro_T_bl': pro_T_bl,
-                        'point_touched': point_touched_bl,
-                        
-                        'prosilica_cal': self.prosilica_cal, 
-                        'left_cal': self.left_cal,
-                        'right_cal': self.right_cal},
-                        pickle_fname)
+                    'high_res': prosilica_name,
+                    'left_image': left_name,
+                    'right_image': right_name,
+
+                    'laser_T_bl': laser_T_bl, 
+                    'pro_T_bl': pro_T_bl,
+                    'point_touched': point_touched_bl,
+                    
+                    'prosilica_cal': self.prosilica_cal, 
+                    'left_cal': self.left_cal,
+                    'right_cal': self.right_cal}
+
+        ut.save_pickle(data_pkl, pickle_fname)
         print 'Recorded to', pickle_fname
 
     def gather_interest_point_dataset(self, point):
@@ -890,6 +896,53 @@ class ApplicationBehaviors:
                 #success_on, touchloc_bl = self.light_switch1(npoint, 
             else:
                 return
+    
+    def autonomous_learn(self, point3d_bl, behavior, object_name): 
+        # We learn, but must moderate between spatial cues and requirements of
+        # the learner. Spatial cue is a heuristic that can guide to positive
+        # examples. Learning heuristic reduces the number of experiments to
+        # perform given that we know that we are generally *not* successful
+        # (assume that this procedure launches only during non mission critial circumstances).
+        # So in the case where we're actively learning we're going to ignore the spatial heuristic.
+        # Well... can we incorporate distance to the selected 3d point as a feature?
+        # ah!
+        learn_manager = self.learner[object_name]
+        #scan and extract features
+        learn_manager.scan(point3d_bl)
+        gaussian = pr.Gaussian(np.matrix([ 0,      0,      0.]).T, \
+                               np.matrix([[1.,     0,      0], \
+                                          [0, .02**2,      0], \
+                                          [0,      0, .02**2]]))
+
+        while not learn_manager.is_ready():
+             gaussian_noise = gaussian.sample()
+             gaussian_noise[0,0] = 0
+             pi = point3d_bl + gaussian_noise
+             label = behavior(pi)
+             learn_manager.add_example(pi, label)
+             learn_manager.train()
+             learn_manager.draw_and_send()
+
+        #Acquire data
+        #Given image, cloud, 3d point ask, extract features.
+        #while no_interruptions and stopping_criteria_not_reached
+        #    maximally_informative_point = get maximally informative point
+        #    label = behavior(maximally_informative_point)
+        #    retrain!
+        converged = False
+        while not converged:
+            indices, dists = learn_manager.select_next_instances(1)
+            if idx != None:
+                pt2d = learn_manager.points2d[:, indices[0]]
+                pt3d = learn_manager.points3d[:, indices[0]]
+                label = behavior(pt3d)
+                learn_manager.add_example(pt3d, label, pt2d)
+                learn_manager.train()
+                learn_manager.draw_and_send()
+            else:
+                converged = True
+
+
 
 if __name__ == '__main__':
     l = ApplicationBehaviors()
@@ -903,6 +956,88 @@ if __name__ == '__main__':
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        #def __init__(self, object_name, labeled_data_fname, tf_listener):
+        #make learner
+        #learner = SVMActiveLearnerApp()
+        #labeled_light_switch_dataset = ut.load_pickle(data_file_name)
+        #learner.train(labeled_light_switch_dataset, 
+        #              labeled_light_switch_dataset.sizes['intensity']
+        #              self.params.variance_keep)
+        #self.learners[classifier_name] = learner
+
+
+    #def locate_light_switch(self):
+    #    #capture data
+    #    pointcloud_msg = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 20.)
+    #    prosilica_image = self.prosilica.get_frame() #TODO check if this is a cvmat
+    #    while self.prosilica_cal.has_msg == False:
+    #        time.sleep(.1)
+
+    #    #preprocess 
+    #    ic_data = IntensityCloudData(pointcloud_msg, prosilica_image, 
+    #                    tfu.transform('/high_def_optical_frame', '/base_link', self.tf_listener), 
+    #                    self.prosilica_cal,                                                       
+    #                    r3d.Recognize3DParam())
+    #    instances = ic_data.extract_vectorized_features()
+
+    #    results = []
+    #    for i in range(instances.shape[1]):
+    #        nlabel = self.learners['light_switch'].classify(instances[:, i])
+    #        results.append(nlabel)
+
+    #    results = np.matrix(results)
+    #    positive_indices = np.where(results == r3d.POSITIVE)[1]
+
+    #    #want 3d location of each instance
+    #    positive_points_3d = ic_data.sampled_points[:, positive_indices]
+
+    #    #return a random point for now
+    #    rindex = np.random.randint(0, len(positive_indices))
+    #    return positive_points_3d[:,rindex]
 
 
     #def add_perturbation_to_location(self, point_map, perturbation):

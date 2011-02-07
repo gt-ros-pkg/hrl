@@ -658,13 +658,13 @@ class Recognize3DParam:
 
         #sampling parameters
         self.n_samples = 5000
-        self.uni_mix = .7
+        self.uni_mix = .5
         self.uncertainty = .15
 
         #variance
         self.variance_keep = .98
 
-def draw_labeled_points(ic_data, dataset, image, pos_color=[255,102,55], neg_color=[0,184,245], scale=1.):
+def draw_labeled_points(image, dataset, pos_color=[255,102,55], neg_color=[0,184,245], scale=1.):
     pt2d = np.column_stack(dataset.pt2d)
     for l, color in [(POSITIVE, pos_color), (NEGATIVE, neg_color)]:
         cols = np.where(l == dataset.outputs)[1]
@@ -681,6 +681,20 @@ def draw_points(img, img_pts, color, size=1):
     for i in range(img_pts.shape[1]):
         center = tuple(np.matrix(np.round(img_pts[:,i]),'int').T.A1.tolist())
         cv.Circle(img, center, size, color, -1)
+
+def draw_dataset(dataset, img, scale=1.):
+    npt2d = []
+    ppt2d = []
+    for i in range(dataset.inputs.shape[1]):
+        if dataset.pt2d[i] != None:
+            if POSITIVE == dataset.outputs[0,i]:
+                ppt2d.append(dataset.pt2d[i]/scale)
+            if NEGATIVE == dataset.outputs[0,i]:
+                npt2d.append(dataset.pt2d[i]/scale)
+    if len(ppt2d) > 0:
+        draw_points(img, np.column_stack(ppt2d), [0,255,0], 2)
+    if len(npt2d) > 0:
+        draw_points(img, np.column_stack(npt2d), [0,0,255], 2)
 
 
 class InterestPointAppBase:
@@ -966,27 +980,7 @@ class CVGUI4(InterestPointAppBase):
 
     def draw(self):
         img = cv.CloneMat(self.small_img)
-
-        # draw labeled points
-        npt2d = []
-        ppt2d = []
-        for i in range(self.dataset.inputs.shape[1]):
-            if self.dataset.pt2d[i] != None:
-                if POSITIVE == self.dataset.outputs[0,i]:
-                    ppt2d.append(self.dataset.pt2d[i]/self.scale)
-                if NEGATIVE == self.dataset.outputs[0,i]:
-                    npt2d.append(self.dataset.pt2d[i]/self.scale)
-
-        #print 'neg points', npt2d
-        #print 'pos points', ppt2d
-
-        #pdb.set_trace()
-        if len(ppt2d) > 0:
-            draw_points(img, np.column_stack(ppt2d), [0,255,0], 2)
-        if len(npt2d) > 0:
-            draw_points(img, np.column_stack(npt2d), [0,0,255], 2)
-
-        #pdb.set_trace()
+        draw_dataset(self.dataset, img, self.scale)
         self._draw_classified_dataset(img)
         self._draw_selected(img)
         cv.ShowImage('image', img)
@@ -995,6 +989,27 @@ class CVGUI4(InterestPointAppBase):
         cv.SaveImage('active_learn%d.png' % self.frame_number, img)
         self.frame_number = self.frame_number + 1
         return img
+
+        ## draw labeled points
+        #npt2d = []
+        #ppt2d = []
+        #for i in range(self.dataset.inputs.shape[1]):
+        #    if self.dataset.pt2d[i] != None:
+        #        if POSITIVE == self.dataset.outputs[0,i]:
+        #            ppt2d.append(self.dataset.pt2d[i]/self.scale)
+        #        if NEGATIVE == self.dataset.outputs[0,i]:
+        #            npt2d.append(self.dataset.pt2d[i]/self.scale)
+
+        ##print 'neg points', npt2d
+        ##print 'pos points', ppt2d
+
+        ##pdb.set_trace()
+        #if len(ppt2d) > 0:
+        #    draw_points(img, np.column_stack(ppt2d), [0,255,0], 2)
+        #if len(npt2d) > 0:
+        #    draw_points(img, np.column_stack(npt2d), [0,0,255], 2)
+
+        #pdb.set_trace()
 
     def _draw_selected(self, img):
         if self.selected == None:
@@ -1014,7 +1029,7 @@ class CVGUI4(InterestPointAppBase):
         if self.classified_dataset == None:
             return
         #pdb.set_trace()
-        draw_labeled_points(self.feature_extractor, self.classified_dataset, img, scale=self.scale)
+        draw_labeled_points(img, img, scale=self.scale)
 
     def _draw_features(self):
         if self.curr_feature_list == None:

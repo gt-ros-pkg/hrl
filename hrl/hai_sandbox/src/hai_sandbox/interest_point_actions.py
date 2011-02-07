@@ -8,7 +8,7 @@ import hrl_pr2_lib.devices as hd
 import hrl_camera.ros_camera as rc
 
 import hai_sandbox.recognize_3d as r3d
-import hai_sandbox.msg as hmsg
+#import hai_sandbox.msg as hmsg
 import geometry_msgs.msg as gmsg
 import tf
 from cv_bridge import CvBridge, CvBridgeError
@@ -18,11 +18,20 @@ import cv
 import datetime
 import hrl_lib.util as ut
 import math
-
+from cv_bridge import CvBridge, CvBridgeError
+from sensor_msgs.msg import Image
 
 def str_from_time(ctime):
     return datetime.datetime.fromtimestamp(ctime).strftime('%Y_%m_%d_%H_%M_%S')
 
+class ImagePublisher:
+
+    def __init__(self, channel):
+        self.bridge = CvBridge()
+        self.image_pub = rospy.Publisher(channel, Image)
+
+    def publish(self, cv_image): 
+        self.image_pub.publish(self.bridge.cv_to_imgmsg(cv_image, "bgr8"))
 
 class InterestPointPerception(r3d.InterestPointAppBase): 
 
@@ -35,6 +44,8 @@ class InterestPointPerception(r3d.InterestPointAppBase):
         self.laser_scan = hd.LaserScanner('point_cloud_srv')
         self.prosilica = rc.Prosilica('prosilica', 'polled')
         self.prosilica_cal = rc.ROSCameraCalibration('/prosilica/camera_info')
+        self.image_pub = ImagePublisher(object_name + '_perception')
+        self.last_added = None
 
     def scan(self, point3d):
         point_cloud_bl = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 2.5)
@@ -44,24 +55,43 @@ class InterestPointPerception(r3d.InterestPointAppBase):
         #Extract features
         self.feature_extractor = r3d.IntensityCloudData(point_cloud_bl, 
                 prosilica_image, image_T_laser, self.prosilica_cal, 
-                point3d, self.ipdetector.rec_params)
+                point3d, self.rec_params)
         self.instances, self.points2d, self.points3d = self.feature_extractor.extract_vectorized_features()
 
     def is_ready(self):
         return self.learner != None
 
-    def add_example(self, point3d, label, pt2d=None):
-        feature = self.feature_extractor.feature_vec_at_mat(point3d)
+    def add_example(self, point3d_bl, label, pt2d=None):
+        fex = self.feature_extractor
+        feature = fex.feature_vec_at_mat(point3d_bl)
+        pt2d = fex.calibration_obj.project(tfu.transform_point(fex.image_T_laser, point3d_bl))
         label = np.matrix(label)
-        self.add_to_dataset(feature, label, pt2d, point3d)
+        self.add_to_dataset(feature, label, pt2d, point3d_bl)
+        self.last_added = {'pt': pt2d, 'l': label}
 
     def select_next_instances(self, n):
-        return self.learner.select_next_instances(self.instances,n)
+        #selected_idx, selected_dist = self.learner.select_next_instances(self.instances, n)
+        return self.learner.select_next_instances(self.instances, n)
 
     def get_likely_success_points(self):
         #do something to reduce number of points
         points3d_pos = self.classified_dataset.pt3d[:, np.where(self.classified_dataset.outputs == r3d.POSITIVE)[1].A1]
         return points3d_pos
+
+    def draw_and_send(self):
+        self.classify()
+        img = cv.CloneMat(self.feature_extractor.image_cv)
+        #draw classified points.
+        colors = {r3d.POSITIVE: [0,255,0], r3d.NEGATIVE: [0,0,255]}
+        r3d.draw_labeled_points(img, self.classified_dataset)
+
+        #draw labeled data. 
+        r3d.draw_labeled_points(img, self.dataset, colors[r3d.POSITIVE], colors[r3d.NEGATIVE])
+
+        #draw latest addition and its label. 
+        r3d.draw_points(img, self.last_added['pt'], colors[self.last_added['l']], 4)
+
+        self.image_pub.publish(img)
 
 
 if __name__ == '__main__':
