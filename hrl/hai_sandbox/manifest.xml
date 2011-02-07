@@ -26,6 +26,7 @@
   <depend package="visualization_msgs"/>
   <depend package="kinematics_msgs"/>
   <depend package="hrl_pr2_lib"/>
+  <depend package="ml_lib"/>
   <depend package="actionlib_msgs"/>
   <depend package="planning_environment_msgs"/>
   <depend package="laser_interface"/>
@@ -33,6 +34,7 @@
 
   <depend package="pr2_gripper_reactive_approach"/>
   <depend package="pr2_msgs"/>
+  <depend package="libsvm3"/>
 </package>
 
 
