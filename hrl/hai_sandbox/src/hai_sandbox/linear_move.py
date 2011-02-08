@@ -35,6 +35,7 @@ import hrl_pr2_lib.linear_move as lm
 
 import hrl_pr2_lib.collision_monitor as cmon
 import hai_sandbox.recognize_3d as r3d
+import hai_sandbox.interest_point_actions as ipa
 
 #from sound_play.msg import SoundRequest
 
@@ -737,8 +738,9 @@ class ApplicationBehaviors:
                 success, _ = self.light_switch1(point, point_offset=point_offset, \
                                 press_contact_pressure=300, move_back_distance=np.matrix([-.0075,0,0]).T,\
                                 press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, \
+                                visual_change_thres=.03)
                 return success
-            self.autonomous_learn(point_bl, light_behavior, 'light_switch'): 
+            self.autonomous_learn(point_bl, light_behavior, 'light_switch')
         #    self.run_behaviors(point_bl)
         #else:
         #    if len(self.location_centers) < 1:

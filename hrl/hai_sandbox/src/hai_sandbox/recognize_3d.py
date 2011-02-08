@@ -720,14 +720,14 @@ class InterestPointAppBase:
 
         #loading/saving dataset
         self.labeled_data_fname = datafile
-        if datafile != None:
+        if datafile != None and pt.isfile(datafile):
             self.load_labeled_data()
         else:
             self.labeled_data_fname = object_name + '_labeled.pkl'
        
     def load_labeled_data(self):
         self.dataset = ut.load_pickle(self.labeled_data_fname)
-        print 'loaded from', self.labeled_data_fname
+        print 'Loaded from', self.labeled_data_fname
         self.dataset.pt2d = [None] * len(self.dataset.pt2d)
         self.dataset.pt3d = [None] * len(self.dataset.pt3d)
         #self.ipdetector = InterestPointDetector(self.dataset)
