@@ -224,9 +224,23 @@ class PR2Head(Joint):
 
     def __init__(self, name, joint_provider):
         Joint.__init__(self, name, joint_provider)
+        self.head_client = actionlib.SimpleActionClient('head_traj_controller/point_head_action', 
+                pm.PointHeadAction)
 
-    def look_at(self):
-        raise RuntimeError('not impletmented')
+    def look_at(self, pt3d, frame='base_link', wait=True):
+        g = pm.PointHeadGoal()
+        g.target.header.frame_id = frame
+        g.target.point = gm.Point(*pt3d.T.A1.tolist())
+        g.min_duration = rospy.Duration(1.0)
+        g.max_velocity = 10.
+
+        self.head_client.send_goal(g)
+        if wait:
+            self.head_client.wait_for_result(rospy.Duration(1.))
+        if self.head_client.get_state() == GoalStatus.SUCCEEDED:
+            return True
+        else:
+            return False
 
     def set_pose(self, pos, nsecs=5.):
         for i in range(2):
@@ -418,12 +432,13 @@ class PR2:
 
 
 if __name__ == '__main__':
-    pr2 = PR2()
+    #pr2 = PR2()
+    #pr2.controller_manager
 
-    #raw_input('put robot in final pose')
-    #pose2 = pr2.left.pose_cartesian()
+    raw_input('put robot in final pose')
+    pose2 = pr2.left.pose_cartesian()
 
-    #raw_input('put robot in initial pose')
+    raw_input('put robot in initial pose')
     pose1 = pr2.left.pose_cartesian()
     pose2 = pose1.copy()
     pose2[0,3] = pose2[0,3] + .2
@@ -436,21 +451,21 @@ if __name__ == '__main__':
              pos_diff = diff[0:3,3]
              print '%.2f %.2f %.2f' % (pos_diff[0,0], pos_diff[1,0], pos_diff[2,0])
 
-    #pdb.set_trace()
-    #print 'going to final pose'
-    #pr2.left.set_cart_pose_ik(pose2, 2.5)
+    pdb.set_trace()
+    print 'going to final pose'
+    pr2.left.set_cart_pose_ik(pose2, 2.5)
 
-    #print 'going back to initial pose'
-    #pr2.left.set_cart_pose_ik(pose1, 2.5)
+    print 'going back to initial pose'
+    pr2.left.set_cart_pose_ik(pose1, 2.5)
 
 
-    #r = rospy.Rate(4)
-    #while not rospy.is_shutdown():
-    #    cart   = pr2.left.pose_cartesian()
-    #    ik_sol = pr2.left.kinematics.ik(cart, 'base_link', seed=pr2.left.pose())
-    #    if ik_sol != None:
-    #        print ik_sol.T
-    #    r.sleep()
+    r = rospy.Rate(4)
+    while not rospy.is_shutdown():
+        cart   = pr2.left.pose_cartesian()
+        ik_sol = pr2.left.kinematics.ik(cart, 'base_link', seed=pr2.left.pose())
+        if ik_sol != None:
+            print ik_sol.T
+        r.sleep()
 
 
 

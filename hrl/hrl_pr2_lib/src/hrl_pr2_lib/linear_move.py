@@ -16,6 +16,9 @@ import hrl_pr2_lib.pressure_listener as pm
 import numpy as np
 import tf
 import pdb
+import time
+import hrl_lib.util as ut
+import math
 
 
 class RobotSafetyError(Exception):
@@ -25,6 +28,71 @@ class RobotSafetyError(Exception):
     def __str__(self):
         return repr(self.parameter)
 
+## NOT THREAD SAFE
+class ArmStoppedDetector:
+    def __init__(self, pos_thres=0.0001, rot_thres=0.001, time_settle=1., hz=30., n_step=3000):
+        self.pos_diff = []
+        self.rot_diff = []
+        self.times = []
+
+        self.last_pos = None
+        self.last_t = None
+        self.n_step = n_step
+        self.hz = hz
+        self.time_settle = time_settle
+
+        self.pos_thres = pos_thres
+        self.rot_thres = rot_thres
+        self.start_time = time.time()
+
+    def record_diff(self, loc_mat):
+        cur_t = time.time() - self.start_time
+        if self.last_t == None or (cur_t - self.last_t) > (1./self.hz):
+            pos, rot = tfu.matrix_as_tf(loc_mat)
+            if self.last_pos != None:
+                self.pos_diff.append(np.linalg.norm(np.matrix(pos) - np.matrix(self.last_pos[0])))
+
+                lp = np.array(self.last_pos[1]) / np.linalg.norm(self.last_pos[1])
+                r  = np.array(rot) / np.linalg.norm(rot)
+                #pdb.set_trace()
+                self.rot_diff.append(np.linalg.norm(lp - r))
+                self.times.append(cur_t)
+
+                sidx = len(self.pos_diff) - self.n_step
+                self.pos_diff = self.pos_diff[sidx:]
+                self.pose_diff = self.rot_diff[sidx:]
+
+            self.last_pos = tfu.matrix_as_tf(loc_mat)
+            self.last_t = cur_t
+
+    def is_stopped(self):
+        cur_t = time.time() - self.start_time
+        pos_over_thres_idx = np.where(np.array(self.pos_diff) > self.pos_thres)[0]
+        rot_over_thres_idx = np.where(np.array(self.rot_diff) > self.rot_thres)[0]
+        if len(pos_over_thres_idx) > 0 or len(rot_over_thres_idx) > 0:
+            max_times = []
+            if len(pos_over_thres_idx) > 0:
+                max_times.append(self.times[pos_over_thres_idx[-1]])
+            if len(rot_over_thres_idx) > 0:
+                max_times.append(self.times[rot_over_thres_idx[-1]])
+            tmax = np.max(max_times)
+            if (cur_t - tmax) > self.time_settle:
+                print cur_t - tmax, tmax, self.time_settle, max_times
+                return True
+            else:
+                return False
+        elif len(self.pos_diff) > (self.time_settle * self.hz):
+            return True
+        else:
+            return False
+
+
+        #if (np.any(np.array(self.pos_diff)) < self.pos_thres and
+        #        np.any(np.array(self.rot_diff)) < self.rot_thres):
+        #    return False
+        #else:
+        #    return True
+            
 
 class LinearReactiveMovement:
 
@@ -52,21 +120,27 @@ class LinearReactiveMovement:
 
         self.pr2 = pr2
         self.pressure_listener = pm.PressureListener(ptopic, 5000)
+
         self.cman = con.ControllerManager(arm, self.tf_listener, using_slip_controller=1)
         self.reactive_gr = rgr.ReactiveGrasper(self.cman)
         self.collision_monitor = cmon.CollisionClient(arm)
 
-        self.movement_mode = 'ik' #or cart
-        self.cman.start_joint_controllers()
-        self.cman.start_gripper_controller()
-        self.timeout = 10.0
+        #cpy from kaijen code
+        #gripper_event_detector_action_name = arm+'_gripper_sensor_controller/event_detector'
+        #self.gripper_event_detector_action_client = actionlib.SimpleActionClient(gripper_event_detector_action_name, \
+        #                                                                                     PR2GripperEventDetectorAction)
+
+        self.movement_mode = 'cart' #or cart
+        #self.cman.start_joint_controllers()
+        #self.cman.start_gripper_controller()
+        self.timeout = 50.
 
     ##
     # TODO is this redundant?
     # @return 3x1 pos matrix, and 4x1 orientation matrix both in base_link
-    def current_location(self):
-        pos, rot = tfu.matrix_as_tf(self.arm_obj.pose_cartesian())
-        return np.matrix(pos).T, np.matrix(rot).T
+    #def current_location(self):
+    #    pos, rot = tfu.matrix_as_tf(self.arm_obj.pose_cartesian())
+    #    return np.matrix(pos).T, np.matrix(rot).T
 
     ##
     # Moves to a given position, orientation
@@ -74,7 +148,7 @@ class LinearReactiveMovement:
     # @param loc (3x1 position matrix, 4x1 orientation matrix) in base_link
     # @param stop 'pressure_accel', 'pressure'
     # @param pressure pressure to use
-    def move_absolute(self, loc, stop='pressure_accel', pressure=300):
+    def move_absolute_old(self, loc, stop='pressure_accel', pressure=300):
         self.set_pressure_threshold(pressure)
         stop_funcs = self._process_stop_option(stop)
         self.set_movement_mode_cart()
@@ -82,10 +156,23 @@ class LinearReactiveMovement:
         self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
         self.set_movement_mode_ik()
         r = self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
-        diff = loc[0] - self.current_location()[0]
+        tfu.matrix_as_tf(self.arm_obj.pose_cartesian())[0]
+        #diff = loc[0] - self.current_location()[0]
+        diff = loc[0] - tfu.matrix_as_tf(self.arm_obj.pose_cartesian())[0]
         rospy.loginfo('move_absolute: diff is %s' % str(diff.T))
         rospy.loginfo('move_absolute: dist %.3f' % np.linalg.norm(diff))
         return r, np.linalg.norm(diff)
+
+
+    def move_absolute(self, loc, stop='pressure_accel', pressure=300):
+        self.set_pressure_threshold(pressure)
+        stop_funcs = self._process_stop_option(stop)
+        r = self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
+        diff = loc[0] - tfu.matrix_as_tf(self.arm_obj.pose_cartesian())[0]
+        rospy.loginfo('move_absolute: diff is %s' % str(diff.T))
+        rospy.loginfo('move_absolute: dist %.3f' % np.linalg.norm(diff))
+        return r, np.linalg.norm(diff)
+
 
     ##
     # Moves relative to tool frame
@@ -106,12 +193,14 @@ class LinearReactiveMovement:
     # @param pressure pressure to use
     def move_relative_base(self, movement, stop='pressure_accel', pressure=150):
         self.set_pressure_threshold(pressure)
-        trans, rot = self.current_location()
+        trans, rot = tfu.matrix_as_tf(self.arm_obj.pose_cartesian())[0]
         ntrans = trans + movement
         stop_funcs = self._process_stop_option(stop)
         r = self._move_cartesian(ntrans, rot, stop_funcs, \
                 timeout=self.timeout, settling_time=5.0)
-        diff = self.current_location()[0] - (trans + movement)
+
+
+        diff = tfu.matrix_as_tf(self.arm_obj.pose_cartesian())[0] - (trans + movement)
         print 'move_relative_base: diff is ', diff.T
         print 'move_relative_base: dist %.3f' % np.linalg.norm(diff)
         return r
@@ -151,6 +240,7 @@ class LinearReactiveMovement:
             return self._move_cartesian_cart(position, orientation, stop_funcs, \
                     timeout, settling_time)
 
+
     ##
     # move the wrist to a desired Cartesian pose while watching the fingertip sensors
     # settling_time is how long to wait after the controllers think we're there
@@ -179,6 +269,7 @@ class LinearReactiveMovement:
         #stopped = False
         stop_trigger = None
         #print 'enterning loop'
+        stop_detector = ArmStoppedDetector()
         while(1):
 
             rg.check_preempt()
@@ -201,10 +292,19 @@ class LinearReactiveMovement:
             #    break
 
             #check if we're actually there
-            if rg.cm.check_cartesian_really_done(pose_stamped, .0025, .05):
-                #rospy.loginfo("actually got there")
+            if rg.cm.check_cartesian_near_pose(pose_stamped, .0025, .05):
+                rospy.loginfo("_move_cartesian_cart: reached pose")
                 break
-#
+
+            stop_detector.record_diff(self.arm_obj.pose_cartesian())
+            if stop_detector.is_stopped():
+                rospy.loginfo("_move_cartesian_cart: arm stopped")
+                break
+
+            # if rg.cm.check_cartesian_really_done(pose_stamped, .0025, .05):
+            #     #rospy.loginfo("actually got there")
+            #     break
+            #
             # #check if the controllers think we're done
             # if not done_time and rg.cm.check_cartesian_done():
             #     #rospy.loginfo("check_cartesian_done returned 1")
@@ -216,13 +316,16 @@ class LinearReactiveMovement:
             #     break
 
             #timed out
-            if timeout != 0. and rospy.get_rostime() - start_time > rospy.Duration(timeout):
-                rospy.loginfo("timed out")
-                break
+            #if timeout != 0. and rospy.get_rostime() - start_time > rospy.Duration(timeout):
+            #    rospy.loginfo("_move_cartesian_cart: timed out")
+            #    break
 
         #if stop_trigger == 'pressure_safety' or stop_trigger == 'self_collision':
         if stop_trigger == 'pressure_safety':
             raise RobotSafetyError(stop_trigger)
+        name = ut.formatted_time() + '_stop_detector.pkl'
+        print 'saved', name
+        ut.save_pickle(stop_detector, name)
         return stop_trigger
 
     def _move_cartesian_ik(self, position, orientation, \
@@ -279,7 +382,7 @@ class LinearReactiveMovement:
         return stop_trigger
 
     def _check_gripper_event(self):
-
+        #state = self.gripper_event_detector_action_client.get_state()
         state = self.cman.get_gripper_event_detector_state()
         if state not in [GoalStatus.ACTIVE, GoalStatus.PENDING]:
             rospy.loginfo('Gripper event detected.')
@@ -346,3 +449,70 @@ class LinearReactiveMovement:
             stop_funcs.append([self._check_gripper_event, 'accel'])
 
         return stop_funcs
+
+
+
+
+if __name__ == '__main__':
+    mode = 'run'
+
+    if mode == 'plot':
+        import pylab as pb
+        import sys
+        
+        a = ut.load_pickle(sys.argv[1])
+        print len(a.pos_diff)
+        pb.plot(a.pos_diff)
+        pb.show()
+        
+        exit(0)
+
+    else:
+
+        import hrl_pr2_lib.pr2 as pr2
+        rospy.init_node('test_linear_move')
+        arm = 'r'
+        tflistener = tf.TransformListener()
+        robot = pr2.PR2(tflistener)
+        movement = LinearReactiveMovement(arm, robot, tflistener)
+
+        if mode == 'save':
+            poses = []
+            print 'going.....'
+            while True:
+                print 'waiting for input'
+                r = raw_input()
+                if r != 's':
+                    print 'getting pose.'
+                    p = movement.arm_obj.pose_cartesian()
+                    print 'pose is', p
+                    poses.append(p)
+                else:
+                    break
+
+            ut.save_pickle(poses, 'saved_poses.pkl')
+
+        elif mode == 'run':
+            poses = ut.load_pickle('saved_poses.pkl')
+            for p in poses:
+                print 'hit enter to move'
+                r = raw_input()
+                pos, rot = tfu.matrix_as_tf(p)
+                movement.set_movement_mode_cart()
+                movement.move_absolute2((np.matrix(pos), np.matrix(rot)))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
