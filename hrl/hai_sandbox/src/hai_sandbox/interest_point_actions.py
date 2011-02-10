@@ -18,20 +18,9 @@ import cv
 import datetime
 import hrl_lib.util as ut
 import math
-from cv_bridge import CvBridge, CvBridgeError
-from sensor_msgs.msg import Image
 
 def str_from_time(ctime):
     return datetime.datetime.fromtimestamp(ctime).strftime('%Y_%m_%d_%H_%M_%S')
-
-class ImagePublisher:
-
-    def __init__(self, channel):
-        self.bridge = CvBridge()
-        self.image_pub = rospy.Publisher(channel, Image)
-
-    def publish(self, cv_image): 
-        self.image_pub.publish(self.bridge.cv_to_imgmsg(cv_image, "bgr8"))
 
 class InterestPointPerception(r3d.InterestPointAppBase): 
 
@@ -44,11 +33,14 @@ class InterestPointPerception(r3d.InterestPointAppBase):
         self.laser_scan = hd.LaserScanner('point_cloud_srv')
         self.prosilica = rc.Prosilica('prosilica', 'polled')
         self.prosilica_cal = rc.ROSCameraCalibration('/prosilica/camera_info')
-        self.image_pub = ImagePublisher(object_name + '_perception')
+        self.image_pub = r3d.ImagePublisher(object_name + '_perception', self.prosilica_cal)
         self.last_added = None
+        self.disp = r3d.RvizDisplayThread(self.prosilica_cal)
+        self.disp.start()
 
     def scan(self, point3d):
-        point_cloud_bl = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 2.5)
+        rospy.loginfo('InterestPointPerception: scanning..')
+        point_cloud_bl = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 15)
         prosilica_image = self.prosilica.get_frame()
         image_T_laser = tfu.transform('/high_def_optical_frame', '/base_link', self.tf_listener)
 
@@ -56,7 +48,14 @@ class InterestPointPerception(r3d.InterestPointAppBase):
         self.feature_extractor = r3d.IntensityCloudData(point_cloud_bl, 
                 prosilica_image, image_T_laser, self.prosilica_cal, 
                 point3d, self.rec_params)
-        self.instances, self.points2d, self.points3d = self.feature_extractor.extract_vectorized_features()
+
+        fex = self.feature_extractor
+        self.disp.display_scan(fex.point_cloud3d_orig, fex.points3d_valid_laser, fex.colors_valid,
+                prosilica_image, self.prosilica_cal)
+
+        rospy.loginfo('InterestPointPerception: extracting features..')
+        #self.instances, self.points2d, self.points3d = self.feature_extractor.extract_vectorized_features()
+        rospy.loginfo('InterestPointPerception: finished extraction.')
 
     def is_ready(self):
         return self.learner != None
@@ -64,10 +63,13 @@ class InterestPointPerception(r3d.InterestPointAppBase):
     def add_example(self, point3d_bl, label, pt2d=None):
         fex = self.feature_extractor
         feature = fex.feature_vec_at_mat(point3d_bl)
-        pt2d = fex.calibration_obj.project(tfu.transform_point(fex.image_T_laser, point3d_bl))
+        if feature == None:
+            return False
+        pt2d = fex.calibration_obj.project(tfu.transform_points(fex.image_T_laser, point3d_bl))
         label = np.matrix(label)
         self.add_to_dataset(feature, label, pt2d, point3d_bl)
         self.last_added = {'pt': pt2d, 'l': label}
+        return True
 
     def select_next_instances(self, n):
         #selected_idx, selected_dist = self.learner.select_next_instances(self.instances, n)
@@ -91,7 +93,7 @@ class InterestPointPerception(r3d.InterestPointAppBase):
         #draw latest addition and its label. 
         r3d.draw_points(img, self.last_added['pt'], colors[self.last_added['l']], 4)
 
-        self.image_pub.publish(img)
+        self.image_pub.publish(img, self.feature_extractor.calibration_obj)
 
 
 if __name__ == '__main__':

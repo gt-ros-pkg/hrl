@@ -157,23 +157,24 @@ class ManipulationBehaviors:
     def reach(self, point, pressure_thres, move_back_distance, \
             reach_direction=np.matrix([0,0,0]).T, orientation=None):
         MOVEMENT_TOLERANCE = .1
-        REACH_TOLERANCE = .1
+        #REACH_TOLERANCE = .1
 
+        #self.movement.set_movement_mode_cart()
         self.movement.set_pressure_threshold(pressure_thres)
-        loc_bl = self.movement.current_location()[0]
+        loc_bl = self.movement.arm_obj.pose_cartesian_tf()[0]
         front_loc = point.copy()
         front_loc[0,0] = loc_bl[0,0]
         #pdb.set_trace()
 
         if orientation == None:
-            start_loc = self.movement.current_location()
+            start_loc = self.movement.arm_obj.pose_cartesian_tf()
             orientation = start_loc[1]
         self.movement.pressure_listener.rezero()
         #pdb.set_trace()
-        for i in range(2):
-            r1, residual_error = self.movement.move_absolute((front_loc, orientation), stop='pressure', pressure=pressure_thres)
+        #for i in range(2):
+        r1, residual_error = self.movement.move_absolute((front_loc, orientation), stop='pressure', pressure=pressure_thres)
 
-        if residual_error > MOVEMENT_TOLERANCE or r1 != None and r1 != 'no solution': #if this step fails, we move back then return
+        if residual_error > MOVEMENT_TOLERANCE or r1 != None: #if this step fails, we move back then return
             #self.move_absolute(start_loc, stop='accel')
             return False, r1, None
 
@@ -185,27 +186,29 @@ class ManipulationBehaviors:
             #reach_direction = reach_direction / np.linalg.norm(reach_direction)
             point_reach = point + reach_direction
             r2, pos_error = self.movement.move_absolute((point_reach, \
-                    self.movement.current_location()[1]), stop='pressure', pressure=pressure_thres)
+                    self.movement.arm_obj.pose_cartesian_tf()[1]), stop='pressure_accel', pressure=pressure_thres)
 
         except lm.RobotSafetyError, e:
             r2 = None
 
-        touch_loc_bl = self.movement.current_location()
-        if r2 == 'no solution' or r2 == None or r2 == 'pressure' or r2 == 'accel' or (pos_error < (MOVEMENT_TOLERANCE + np.linalg.norm(reach_direction))):
-            self.movement.set_movement_mode_cart()
+        touch_loc_bl = self.movement.arm_obj.pose_cartesian_tf()
+        #if r2 == None or r2 == 'pressure' or r2 == 'accel' or (pos_error < (MOVEMENT_TOLERANCE + np.linalg.norm(reach_direction))):
+        if r2 == 'pressure' or r2 == 'accel' or (pos_error < (MOVEMENT_TOLERANCE + np.linalg.norm(reach_direction))):
             self.movement.pressure_listener.rezero()
 
-            #b/c of stiction, we can't move precisely for small distances, so move back then move forward again
+            # b/c of stiction & low gains, we can't move precisely for small
+            # distances, so move back then move forward again
             reach_dir = reach_direction / np.linalg.norm(reach_direction)
-            cur_pose, cur_ang = self.movement.current_location()
-            p1 = cur_pose - (reach_dir * .05)
-            p2 = cur_pose + move_back_distance
-            rospy.loginfo('moving back')
-            _, pos_error = self.movement.move_absolute((p1, cur_ang), stop='None', pressure=pressure_thres)
-            self.movement.pressure_listener.rezero()
+            cur_pose, cur_ang = self.movement.arm_obj.pose_cartesian_tf()
 
-            rospy.loginfo('moving forward again')
-            _, pos_error = self.movement.move_absolute((p2, cur_ang), stop='None', pressure=pressure_thres)
+            #p1 = cur_pose - (reach_dir * .05)
+            #p2 = cur_pose + move_back_distance
+            #rospy.loginfo('moving back')
+            #_, pos_error = self.movement.move_absolute((p1, cur_ang), stop='None', pressure=pressure_thres)
+            #self.movement.pressure_listener.rezero()
+
+            #rospy.loginfo('moving forward again')
+            #_, pos_error = self.movement.move_absolute((p2, cur_ang), stop='None', pressure=pressure_thres)
 
             #self.movement.move_relative_gripper(4.*move_back_distance, stop='none', pressure=pressure_thres)
             #self.movement.move_relative_gripper(-3.*move_back_distance, stop='none', pressure=pressure_thres)
@@ -287,11 +290,12 @@ class ApplicationBehaviors:
             self.location_data = location_data
 
         # joint angles used for tuck
-        self.behaviors.movement.set_movement_mode_cart()
         self.create_arm_poses()
         #pdb.set_trace()
         #self.untuck()
-        self.tuck()
+        #self.behaviors.movement.set_movement_mode_ik()
+        #self.movement.set_movement_mode_ik()
+        #self.tuck()
         #self.r1 = np.matrix([[-0.31006769,  1.2701541 , -2.07800829, -1.45963243, -4.35290489,
         #                 -1.86052221,  5.07369192]]).T
         #self.l0 = np.matrix([[  1.05020383,  -0.34464327,   0.05654   ,  -2.11967694,
@@ -356,10 +360,12 @@ class ApplicationBehaviors:
             rospy.loginfo('untuck: not in tucked position.  Ignoring request')
             return
         #assume we are tucked
+        self.behaviors.movement.set_movement_mode_ik()
         self.robot.right.set_pose(self.r0, 1.)
         self.robot.left.set_poses(np.column_stack([self.l0, self.l1, self.l2]), \
                                   np.array([1., 2., 3.]))
         self.robot.right.set_pose(self.right_tucked, 1.)
+        self.behaviors.movement.set_movement_mode_cart()
 
     def tuck(self):
         #pdb.set_trace()
@@ -367,16 +373,18 @@ class ApplicationBehaviors:
             rospy.loginfo('tuck: Already tucked. Ignoring request.')
             return
         #lift the right arm up a little bit
+        self.behaviors.movement.set_movement_mode_ik()
         self.robot.right.set_pose(self.r0, 1.)
         self.robot.left.set_poses(np.column_stack([self.l2, self.l1, self.l0, self.left_tucked]), \
                                   np.array([4., 5., 6., 7.]))
         self.robot.right.set_pose(self.right_tucked, 1.)
+        self.behaviors.movement.set_movement_mode_cart()
 
     def go_to_home_pose(self):
-        self.behaviors.movement.set_movement_mode_cart()
-        self.behaviors.movement.move_absolute(self.start_location, stop='pressure_accel')
-        self.behaviors.movement.set_movement_mode_ik()
+        #self.behaviors.movement.set_movement_mode_cart()
         return self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
+        #self.behaviors.movement.set_movement_mode_ik()
+        #return self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
 
     def camera_change_detect(self, threshold, f, args):
         #take before sensor snapshot
@@ -408,6 +416,7 @@ class ApplicationBehaviors:
     def light_switch1(self, point, 
             point_offset, press_contact_pressure, move_back_distance,
             press_pressure, press_distance, visual_change_thres):
+        #pdb.set_trace()
         print '===================================================================='
         point = point + point_offset 
         rospy.loginfo('>>>> REACHING to ' + str(point.T))
@@ -423,6 +432,15 @@ class ApplicationBehaviors:
         success, reason, touchloc_bl = self.behaviors.reach(point, \
                 press_contact_pressure, move_back_distance, \
                 reach_direction=np.matrix([0.1,0,0]).T)
+
+        dist = np.linalg.norm(point - touchloc_bl[0])
+        print '===================================================================='
+        print '===================================================================='
+        #TODO assure that reaching motion did touch the point that we intended to touch.
+        rospy.loginfo('!! Touched point is %.3f m away from observed point !!' % dist)
+        print '===================================================================='
+        print '===================================================================='
+
         if not success:
             error_msg = 'Reach failed due to "%s"' % reason
             rospy.loginfo(error_msg)
@@ -446,7 +464,7 @@ class ApplicationBehaviors:
         #code reward function
         #monitor self collision => collisions with the environment are not self collisions
         rospy.loginfo('>>>> MOVING BACK')
-        self.behaviors.movement.set_movement_mode_cart()
+        #self.behaviors.movement.set_movement_mode_cart()
         r1 = self.behaviors.movement.move_relative_gripper(np.matrix([-.03, 0., 0.]).T, \
                 stop='none', pressure=press_contact_pressure)
         if r1 != None:
@@ -454,7 +472,7 @@ class ApplicationBehaviors:
             return False, None
 
         rospy.loginfo('>>>> RESETING')
-        r2, pos_error = self.go_to_home_pose()
+        r2, pos_error = self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
         if r2 != None and r2 != 'no solution':
             rospy.loginfo('moving back to start location failed due to "%s"' % r2)
             return False, None
@@ -487,16 +505,16 @@ class ApplicationBehaviors:
             error_msg = 'Reach failed due to "%s"' % reason
             rospy.loginfo(error_msg)
             rospy.loginfo('Failure recovery: moving back')
-            linear_movement.set_movement_mode_cart()
+            #linear_movement.set_movement_mode_cart()
             linear_movement.move_relative_gripper(np.matrix([-.25,0,0]).T, stop='pressure_accel', pressure=300)
             #self.behaviors.movement.move_absolute(self.start_location, stop='accel', pressure=300)
 
         #grasp
         linear_movement.gripper_close()
-        linear_movement.set_movement_mode_cart()
+        #linear_movement.set_movement_mode_cart()
         linear_movement.move_relative_gripper(np.matrix([-.25,0,0]).T, stop='none', pressure=1000)
 
-        linear_movement.set_movement_mode_cart()
+        #linear_movement.set_movement_mode_cart()
         linear_movement.gripper_open()
         time.sleep(1)
 
@@ -504,7 +522,7 @@ class ApplicationBehaviors:
         #pdb.set_trace()
         #linear_movement.move_relative_gripper(np.matrix([-.15, 0, 0]).T, stop='pressure_accel', pressure=300)
         linear_movement.move_relative_base(np.matrix([-.2, .3, 0.3]).T, stop='pressure_accel', pressure=300)
-        linear_movement.set_movement_mode_ik()
+        #linear_movement.set_movement_mode_ik()
 
     ##
     # Drive using within a dist_far distance of point_bl
@@ -622,14 +640,42 @@ class ApplicationBehaviors:
     def load_classifier(self, classifier_name, data_file_name):
         self.learners[classifier_name] = ipa.InterestPointPerception(classifier_name, data_file_name, self.tf_listener)
 
-    def run_behaviors(self, point_bl, stored_point=False):
+    def stationary_light_switch_behavior(self, point_bl):
+        while True:
+            print 'Enter a command u(ntuck), s(tart), l(ight), t(uck), e(x)it.'
+            a = raw_input()
+            
+            if a == 'u': 
+                self.untuck()
+
+            if a == 's':
+                self.behaviors.movement.pressure_listener.rezero()
+                self.behaviors.movement.set_movement_mode_cart()
+                self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
+                #pdb.set_trace()
+                #TODO: set start location to be some set joint angles
+
+            if a == 'l':
+                point_offset = np.matrix([0, 0, 0.03]).T
+                success, _ = self.light_switch1(point_bl, point_offset=point_offset, \
+                        press_contact_pressure=300, move_back_distance=np.matrix([-.0075,0,0]).T,\
+                        press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, \
+                        visual_change_thres=.03)
+
+            if a == 't':
+                self.tuck()
+
+            if a == 'x':
+                break
+
+    def location_activated_behaviors(self, point_bl, stored_point=False):
         driving_param = {'light_switch': {'coarse': .7, 'fine': .5, 'voi': .2},
                          'drawer':       {'coarse': .7, 'fine': .7, 'voi': .2}}
 
         map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
         point_map = tfu.transform_points(map_T_base_link, point_bl)
-
         matches = self.find_close_by_points(point_map)
+
         if len(matches) > 0:
             #pdb.set_trace()
             ldata = self.location_data[self.location_labels[matches[0]]]
@@ -656,21 +702,21 @@ class ApplicationBehaviors:
                     dist_approach=driving_param[task]['fine'])
 
             if ret != 3:
-                rospy.logerr('run_behaviors: approach_perpendicular_to_surface failed!')
+                rospy.logerr('location_activated_behaviors: approach_perpendicular_to_surface failed!')
                 return
 
             base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
             point_bl_t1 = tfu.transform_points(base_link_T_map, point_map)
             try:
                 self.untuck()
-                self.behaviors.movement.move_absolute(self.start_location, stop='pressure_accel')
-                self.behaviors.movement.move_absolute(self.start_location, stop='pressure_accel')
+                self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
                 self.behaviors.movement.pressure_listener.rezero()
 
                 if task == 'light_switch':
                     MAX_RETRIES = 15
-                    rospy.loginfo('run_behaviors: go_home_pose')
-                    self.go_to_home_pose()
+                    rospy.loginfo('location_activated_behaviors: go_home_pose')
+                    #self.go_to_home_pose()
+                    self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
                     gaussian = pr.Gaussian(np.matrix([ 0,      0,      0.]).T, \
                                            np.matrix([[1.,     0,      0], \
                                                       [0, .02**2,      0], \
@@ -718,39 +764,75 @@ class ApplicationBehaviors:
                     self.location_add(point_map, task)
                     
                     #except lm.RobotSafetyError, e:
-                    #    rospy.loginfo('run_behaviors: Caught a robot safety exception "%s"' % str(e.parameter))
+                    #    rospy.loginfo('location_activated_behaviors: Caught a robot safety exception "%s"' % str(e.parameter))
                     #    #self.behaviors.movement.move_absolute(self.start_location, stop='accel')
 
             except lm.RobotSafetyError, e:
-                rospy.loginfo('run_behaviors: Caught a robot safety exception "%s"' % str(e.parameter))
+                rospy.loginfo('location_activated_behaviors: Caught a robot safety exception "%s"' % str(e.parameter))
                 self.behaviors.movement.move_absolute(self.start_location, stop='accel')
     
             except TaskError, e:
-                rospy.loginfo('run_behaviors: TaskError: %s' % str(e.parameter))
-            rospy.loginfo('run_behaviors: DONE MANIPULATION!')
+                rospy.loginfo('location_activated_behaviors: TaskError: %s' % str(e.parameter))
+            rospy.loginfo('location_activated_behaviors: DONE MANIPULATION!')
             self.robot.sound.say('done')
 
     def click_cb(self, point_bl):
+        #point_bl = np.matrix([ 0.68509375,  0.06559023,  1.22422832]).T
+        #self.stationary_light_switch_behavior(point_bl)
+        #mode = 'autonomous'
+        #mode = 'light switch'
+        mode = 'capture data'
         if point_bl!= None:
-            pdb.set_trace()
-            def light_behavior(point):
+            #pdb.set_trace()
+            if mode == 'capture data':
+                #self.tuck()
+                self.robot.head.look_at(point_bl, 'base_link', True)
+                self.robot.sound.say("taking a scan")
+                self.record_perceptual_data(point_bl)
+                self.robot.sound.say("saved scan")
+
+            if mode == 'light switch':
                 point_offset = np.matrix([0, 0, 0.03]).T
-                success, _ = self.light_switch1(point, point_offset=point_offset, \
-                                press_contact_pressure=300, move_back_distance=np.matrix([-.0075,0,0]).T,\
-                                press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, \
-                                visual_change_thres=.03)
-                return success
-            self.autonomous_learn(point_bl, light_behavior, 'light_switch')
-        #    self.run_behaviors(point_bl)
-        #else:
-        #    if len(self.location_centers) < 1:
-        #        return
-        #    rospy.loginfo('click_cb: double clicked but no 3d point given')
-        #    rospy.loginfo('click_cb: will use the last successful location given')
-        #    base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
-        #    point_bl = tfu.transform_points(base_link_T_map, self.location_centers[-1])
-        #    rospy.loginfo('click_cb: using ' + str(self.location_centers[-1].T))
-        #    self.run_behaviors(point_bl, stored_point=True)
+                success, _ = self.light_switch1(point_bl, point_offset=point_offset, \
+                        press_contact_pressure=300, move_back_distance=np.matrix([-.0075,0,0]).T,\
+                        press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, \
+                        visual_change_thres=.03)
+
+                self.behaviors.movement.pressure_listener.rezero()
+                self.behaviors.movement.set_movement_mode_cart()
+                self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
+
+
+            if mode == 'autonomous learn':
+                def light_behavior(point):
+                    point_offset = np.matrix([0, 0, 0.03]).T
+                    success, _ = self.light_switch1(point, point_offset=point_offset, \
+                                    press_contact_pressure=300, move_back_distance=np.matrix([-.0075,0,0]).T,\
+                                    press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, \
+                                    visual_change_thres=.03)
+                    if success:
+                        return 1.0
+                    else:
+                        return 0.0
+
+                self.untuck()
+                self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
+                self.behaviors.movement.pressure_listener.rezero()
+                self.autonomous_learn(point_bl, light_behavior, 'light_switch')
+
+            if mode == 'location activated':
+                self.location_activated_behaviors(point_bl)
+
+        elif mode == 'location activated':
+            if len(self.location_centers) < 1:
+                return
+            rospy.loginfo('click_cb: double clicked but no 3d point given')
+            rospy.loginfo('click_cb: will use the last successful location given')
+            base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
+            point_bl = tfu.transform_points(base_link_T_map, self.location_centers[-1])
+            rospy.loginfo('click_cb: using ' + str(self.location_centers[-1].T))
+            self.location_activated_behaviors(point_bl, stored_point=True)
+
 
     def find_close_by_points(self, point_map):
         if self.locations_tree != None:
@@ -841,18 +923,20 @@ class ApplicationBehaviors:
 
         data_pkl = {'touch_point': point_touched_bl,
                     'points_laser': points,
-
-                    'high_res': prosilica_name,
-                    'left_image': left_name,
-                    'right_image': right_name,
-
                     'laser_T_bl': laser_T_bl, 
                     'pro_T_bl': pro_T_bl,
-                    'point_touched': point_touched_bl,
-                    
+
+                    'high_res': prosilica_name,
                     'prosilica_cal': self.prosilica_cal, 
+
+                    'left_image': left_name,
                     'left_cal': self.left_cal,
-                    'right_cal': self.right_cal}
+
+                    'right_image': right_name,
+                    'right_cal': self.right_cal,
+
+                    'point_touched': point_touched_bl}
+                    
 
         ut.save_pickle(data_pkl, pickle_fname)
         print 'Recorded to', pickle_fname
@@ -908,22 +992,28 @@ class ApplicationBehaviors:
         # So in the case where we're actively learning we're going to ignore the spatial heuristic.
         # Well... can we incorporate distance to the selected 3d point as a feature?
         # ah!
-        learn_manager = self.learner[object_name]
+        learn_manager = self.learners[object_name]
         #scan and extract features
+        self.robot.head.look_at(point3d_bl, 'base_link', True)
         learn_manager.scan(point3d_bl)
-        gaussian = pr.Gaussian(np.matrix([ 0,      0,      0.]).T, \
+        gaussian = pr.Gaussian(np.matrix([ 0,      0,     0.]).T, \
                                np.matrix([[1.,     0,      0], \
                                           [0, .02**2,      0], \
                                           [0,      0, .02**2]]))
 
+        #pdb.set_trace()
+        gaussian_noise = np.matrix([0,0,0.]).T
         while not learn_manager.is_ready():
-             gaussian_noise = gaussian.sample()
-             gaussian_noise[0,0] = 0
              pi = point3d_bl + gaussian_noise
              label = behavior(pi)
-             learn_manager.add_example(pi, label)
+             #look at point, then try to add again
+             if not learn_manager.add_example(pi, np.matrix([label])):
+                 rospy.logerr('Unable to extract features from point %s' % str(pi.T))
+                 continue
              learn_manager.train()
              learn_manager.draw_and_send()
+             gaussian_noise = gaussian.sample()
+             gaussian_noise[0,0] = 0
 
         #Acquire data
         #Given image, cloud, 3d point ask, extract features.
@@ -938,7 +1028,10 @@ class ApplicationBehaviors:
                 pt2d = learn_manager.points2d[:, indices[0]]
                 pt3d = learn_manager.points3d[:, indices[0]]
                 label = behavior(pt3d)
-                learn_manager.add_example(pt3d, label, pt2d)
+                #learn_manager.add_example(pt3d, np.matrix([label]), pt2d)
+                if not learn_manager.add_example(pi, np.matrix([label])):
+                    rospy.logerr('Unable to extract features from point %s' % str(pi.T))
+                    continue
                 learn_manager.train()
                 learn_manager.draw_and_send()
             else:
