@@ -16,9 +16,9 @@ servo_param = {
         'home_encoder': 330
        },
     5: {                        # Tilting kinect on Cody
-        'home_encoder': 975,
-        'max_ang': 0.24,
-        'min_ang': -1.42
+        'home_encoder': 443,
+        'max_ang': 1.0,
+        'min_ang': -1.4
        },
     6: {                        # EL-E stereohead Pan
         'home_encoder': 500,
