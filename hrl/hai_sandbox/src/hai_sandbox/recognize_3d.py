@@ -31,6 +31,8 @@ import hrl_lib.tf_utils as tfu
 import hrl_lib.prob as pr
 
 import pdb
+from cv_bridge import CvBridge, CvBridgeError
+from sensor_msgs.msg import Image
 
 POSITIVE = 1.0
 NEGATIVE = 0.
@@ -119,7 +121,6 @@ class IntensityCloudData:
         self._associate_intensity()
         self._limit_to_voi()
         #self._grid_sample_voi()
-        self._random_sample_voi()
         #fill out sizes dict
         self.feature_vec_at_2d(np.matrix([calibration_obj.w/2., 
                                          calibration_obj.h/2.]).T)
@@ -131,6 +132,7 @@ class IntensityCloudData:
                 i3d.combine_scan_and_image_laser_frame(bl_pc, self.image_T_laser,\
                                             self.image_arr, self.calibration_obj)
         print 'number of points visible in camera', self.points_valid_image.shape[1]
+        self.point_cloud3d_orig = bl_pc
 
     def _limit_to_voi(self):
         laser_T_image = np.linalg.inv(self.image_T_laser)
@@ -210,6 +212,7 @@ class IntensityCloudData:
                 #y = int(round(pt[1,0] + np.random.randn() * 50))
                 gaussian_noise = gaussian.sample()
                 gaussian_noise[0,0] = 0
+                #pdb.set_trace()
                 sampled3d_pt_laser = self.voi_center_laser + gaussian_noise
                 sampled3d_pt_image = tfu.transform_points(self.image_T_laser, sampled3d_pt_laser)
                 sampled2d_pt = self.calibration_obj.project(sampled3d_pt_image)
@@ -217,11 +220,14 @@ class IntensityCloudData:
                 x = int(pt[0,0])
                 y = int(pt[1,0])
                 if x < 0 or x > (self.calibration_obj.w-.6) or y < 0 or (y > self.calibration_obj.h-.6):
+                    #print 'missed 1'
                     continue
 
+            #pdb.set_trace()
             #get projected 3d points within radius of N pixels
-            indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 5.)
+            indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 20.)
             if len(indices_list) < 1:
+                #print 'MISSED 2'
                 continue
 
             #select 3d point closest to the camera (in image frame)
@@ -234,6 +240,10 @@ class IntensityCloudData:
                 self.sampled_points.append(closest_p3d_laser.T.A1.tolist())
                 self.sampled_points2d.append([x,y])
                 distr[d] = distr[d] + 1
+                if len(self.sampled_points) % 500 == 0:
+                    print len(self.sampled_points)
+            #else:
+            #    print d, 'NOT IN LIMITS'
                 #pdb.set_trace()
                 #print len(self.sampled_points)
 
@@ -247,6 +257,8 @@ class IntensityCloudData:
         non_empty = 0
         empty_queries = 0
         for i, sampled_point_laser in enumerate(self.sampled_points):
+            if i % 500 == 0:
+                print '_caculate_features_at_sampled_points:', i
             #if i == 6639:
             #if i == 157184:
             #    pdb.set_trace()
@@ -291,7 +303,7 @@ class IntensityCloudData:
     #
     # @param point3d_laser - point to calculate features for 3x1 matrix in laser frame
     # @param verbose
-    def feature_vec_at(self, point3d_laser, verbose=False, viz=False):
+    def feature_vec_at_old(self, point3d_laser, verbose=False, viz=False):
         indices_list = self.voi_tree.query_ball_point(np.array(point3d_laser.T), self.params.win3d_size)[0]
         if len(indices_list) > 4:
             #pdb.set_trace()
@@ -367,15 +379,71 @@ class IntensityCloudData:
 
     ##
     #
+    # @param point3d_laser - point to calculate features for 3x1 matrix in laser frame
+    # @param verbose
+    def feature_vec_at(self, point3d_laser, verbose=False, viz=False, k=4):
+        #project into 2d & get intensity window
+        point2d_image = self.calibration_obj.project(\
+                            tfu.transform_points(self.image_T_laser, point3d_laser))
+
+        #get local features
+        if viz == True:
+            flatten=False
+        else:
+            flatten=True
+
+        #find closest neighbors in 3D to get normal
+        invalid_location = False
+        local_intensity = []
+        for multiplier in [1,2,4,8,16,32]:
+            if multiplier == 1:
+                features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, flatten=flatten)
+            else:
+                features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size*multiplier, 
+                                            resize_to=self.params.win_size, flatten=flatten)
+            if features == None:
+                invalid_location = True
+                break
+            else:
+                local_intensity.append(features)
+
+        #Get 3d normal
+        indices_list = self.voi_tree.query(np.array(point3d_laser), k=k)[1]
+        points_in_ball_bl = np.matrix(self.voi_tree.data.T[:, indices_list])
+        normal_bl = i3d.calc_normal(points_in_ball_bl[0:3,:])
+
+        if not invalid_location:
+            if not viz:
+                local_intensity = np.row_stack(local_intensity)
+            if self.sizes == None:
+                #pdb.set_trace()
+                self.sizes = {}
+                self.sizes['intensity'] = local_intensity.shape[0]
+                self.sizes['normal'] = normal_bl.shape[0]
+                #self.sizes['color'] = avg_color.shape[0]
+
+            return [normal_bl, local_intensity], point2d_image
+        else:
+            if verbose:
+                print '>> local_window outside of image'
+
+            return None, None
+
+    ##
+    #
     # @return a matrix mxn where m is the number of features and n the number of examples
     def extract_vectorized_features(self):
+        self._random_sample_voi()
         self._caculate_features_at_sampled_points()
         #pdb.set_trace()
-        normal_bls, avg_colors, intensities = zip(*self.feature_list)
+        #normal_bls, avg_colors, intensities = zip(*self.feature_list)
+        normal_bls, intensities = zip(*self.feature_list)
         normal_bls = np.column_stack(normal_bls) #each column is a different sample
-        avg_colors = np.column_stack(avg_colors)
+        #avg_colors = np.column_stack(avg_colors)
         intensities = np.column_stack(intensities)
-        xs = np.row_stack((normal_bls, avg_colors, intensities)) #stack features
+
+        xs = np.row_stack((normal_bls, intensities)) #stack features
+        #xs = np.row_stack((normal_bls, avg_colors, intensities)) #stack features
         return xs, self.feature_locs2d, self.feature_locs
     #np.matrix(self.sampled_points2d).T, np.matrix(self.sampled_points).T
         #return ds.Dataset(xs, None)
@@ -657,9 +725,10 @@ class Recognize3DParam:
         self.radius = .5
 
         #sampling parameters
-        self.n_samples = 5000
+        #self.n_samples = 5000
+        self.n_samples = 2000
         self.uni_mix = .5
-        self.uncertainty = .15
+        self.uncertainty = .03
 
         #variance
         self.variance_keep = .98
@@ -773,11 +842,31 @@ class InterestPointAppBase:
                                                            plist, p3list, self.feature_extractor)
 
 
+class ImagePublisher:
+
+    def __init__(self, channel, cal=None):
+        self.bridge = CvBridge()
+        self.image_pub = rospy.Publisher(channel + '/image', Image)
+        if cal != None:
+            self.image_cal_pub = rospy.Publisher(channel + '/camera_info', sm.CameraInfo)
+            self.cal = cal
+        else:
+            self.image_cal_pub = None
+
+    def publish(self, cv_image): 
+        self.image_pub.publish(self.bridge.cv_to_imgmsg(cv_image, "bgr8"))
+        if self.image_cal_pub != None:
+            self.image_cal_pub.publish(self.cal.msg)
+
+
 class RvizDisplayThread(threading.Thread):
 
-    def __init__(self):
+    def __init__(self, cal=None):
         threading.Thread.__init__(self)
-        rospy.init_node('display')
+        try:
+            rospy.init_node('display')
+        except Exception,e:
+            print e
 
         self.color_cloud_pub = rospy.Publisher('color_cloud', sm.PointCloud)
         self.cloud_pub = rospy.Publisher('orig_cloud', sm.PointCloud)
@@ -785,6 +874,7 @@ class RvizDisplayThread(threading.Thread):
 
         self.labels_pub = rospy.Publisher('point_label', vm.Marker)
         self.publish_queue = qu.Queue()
+        self.image_pub = ImagePublisher('rviz_image', cal)
         self.run_pub_list = []
 
     def run(self):
@@ -812,13 +902,16 @@ class RvizDisplayThread(threading.Thread):
         pc = ru.np_to_pointcloud(points, frame)
         self.publish_queue.put([self.pc_publishers[channel], pc])
 
-    def display_scan(self, points_bl, valid_points_bl, intensity):
+    def display_scan(self, points_bl, valid_points_bl, intensity, image=None, cal=None):
         #publish mapped cloud to verify
         #pdb.set_trace()
         valid_points_pro_msg  = ru.np_to_rgb_pointcloud(valid_points_bl, intensity, 'base_link')
         points_bl_msg = ru.np_to_pointcloud(points_bl, 'base_link')
         self.publish_queue.put([self.cloud_pub, points_bl_msg])
         self.publish_queue.put([self.color_cloud_pub, valid_points_pro_msg])
+        if image != None:
+            self.publish_queue.put([self.image_pub, image])
+            #self.image_pub.publish(image)
 
     def display_classification(self, points, labels, frame):
         colors = []
