@@ -219,6 +219,10 @@ class PR2Arm(Joint):
         gripper_tool_frame = self.arm + '_gripper_tool_frame'
         return tfu.transform(frame, gripper_tool_frame, self.tf_listener)
 
+    def pose_cartesian_tf(self, frame='base_link'):
+        p, r = tfu.matrix_as_tf(self.pose_cartesian(frame))
+        return np.matrix(p).T, np.matrix(r).T
+
 
 class PR2Head(Joint):
 
@@ -237,7 +241,7 @@ class PR2Head(Joint):
         self.head_client.send_goal(g)
         if wait:
             self.head_client.wait_for_result(rospy.Duration(1.))
-        if self.head_client.get_state() == GoalStatus.SUCCEEDED:
+        if self.head_client.get_state() == amsg.GoalStatus.SUCCEEDED:
             return True
         else:
             return False
