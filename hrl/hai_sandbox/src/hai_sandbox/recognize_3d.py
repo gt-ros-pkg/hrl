@@ -34,6 +34,7 @@ import pdb
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 
+UNLABELED = 2.0
 POSITIVE = 1.0
 NEGATIVE = 0.
 
@@ -52,25 +53,26 @@ def load_data_from_dir(dirname, grid_resolution, win_size, win3d_size, voi_bound
 def load_data_from_file(fname, rec_param):
     #load pickle
     data_pkl = ut.load_pickle(fname)
-    print 'original frame of pointcloud is ', data_pkl['points_laser'].header.frame_id
+    print 'Original frame of pointcloud is ', data_pkl['points_laser'].header.frame_id
 
     #use pickle to load image
     image_fname = pt.join(pt.split(fname)[0], data_pkl['high_res'])
     intensity_image = cv.LoadImageM(image_fname)
 
-    center_point_bl = data_pkl['touch_point'][0]
-    print 'robot touched point cloud at point', center_point_bl.T
+    #center_point_bl = data_pkl['touch_point'][0]
+    center_point_bl = data_pkl['touch_point']
+    print 'Robot touched point cloud at point', center_point_bl.T
+    #pdb.set_trace()
 
     #make the data object 
     return IntensityCloudData(data_pkl['points_laser'], intensity_image, 
                               data_pkl['pro_T_bl'], data_pkl['prosilica_cal'], 
-                              center_point_bl, rec_param)
+                              center_point_bl, rec_param), data_pkl
 
 class IntensityCloudData:
 
     def __init__(self, pointcloud_msg, cvimage_mat, 
             image_T_laser, calibration_obj, voi_center_laser, rec_param):
-
 
         self.params = rec_param
 
@@ -114,11 +116,11 @@ class IntensityCloudData:
 
     def _associate_intensity(self):
         bl_pc = ru.pointcloud_to_np(self.pointcloud_msg)
-        print 'original point cloud size', bl_pc.shape[1]
+        print 'Original point cloud size', bl_pc.shape[1]
         self.points_valid_image, self.colors_valid, self.points2d_valid = \
                 i3d.combine_scan_and_image_laser_frame(bl_pc, self.image_T_laser,\
                                             self.image_arr, self.calibration_obj)
-        print 'number of points visible in camera', self.points_valid_image.shape[1]
+        print 'Number of points visible in camera', self.points_valid_image.shape[1]
         self.point_cloud3d_orig = bl_pc
 
     def _limit_to_voi(self):
@@ -130,6 +132,7 @@ class IntensityCloudData:
                                self.colors_valid,
                                self.points2d_valid)) 
 
+        #pdb.set_trace()
         valid_columns, self.limits_laser = \
                 i3d.select_rect(self.voi_center_laser, 
                                 self.params.voi_bl[0], 
@@ -150,7 +153,7 @@ class IntensityCloudData:
             print msg
             raise RuntimeError(msg)
 
-        print 'number of points in voi', valid_columns.shape[1]
+        print 'Number of points in voi', valid_columns.shape[1]
 
     # sample uniformly in voi 
     def _grid_sample_voi(self):
@@ -255,6 +258,7 @@ class IntensityCloudData:
 
 
     def feature_vec_at_2d(self, loc2d, viz=False):
+        #pdb.set_trace()
         indices = self.voi_tree_2d.query(np.array(loc2d.T), k=1)[1]
         closest_pt2d = self.points2d_valid[:, indices[0]]
         closest_pt3d = self.points3d_valid_laser[:, indices[0]]
@@ -361,7 +365,7 @@ class IntensityCloudData:
                 local_intensity.append(features)
 
         #Get 3d normal
-        indices_list = self.voi_tree.query(np.array(point3d_laser), k=k)[1]
+        indices_list = self.voi_tree.query(np.array(point3d_laser.T), k=k)[1]
         points_in_ball_bl = np.matrix(self.voi_tree.data.T[:, indices_list])
         normal_bl = i3d.calc_normal(points_in_ball_bl[0:3,:])
 
@@ -404,10 +408,12 @@ class SVM:
     # zero is on negative side of decision boundary
     # 0  /  1
     # -  /  +
-    def __init__(self, dataset):
+    def __init__(self, dataset, params):
         samples = dataset.inputs.T.tolist()
         labels = dataset.outputs.T.A1.tolist()
-        self.model = su.svm_train(labels, samples)
+        #pdb.set_trace()
+        print 'SVM: trianing with params => ', params
+        self.model = su.svm_train(labels, samples, params)
         self.nsamples = len(samples)
 
     def sv_indices(self):
@@ -421,6 +427,22 @@ class SVM:
         xi = instances.T.tolist()
         dists = su.svm_predict([0]*instances.shape[1], xi, self.model)[2]
         return (np.matrix(dists)).T.A1.tolist()
+
+
+def dataset_to_libsvm(dataset, filename):
+    f = open(filename, 'w')
+
+    for i in range(dataset.outputs.shape[1]):
+        if dataset.outputs[0,i] == POSITIVE:
+            f.write('+1 ')
+        else:
+            f.write('-1 ')
+        #instance
+        for j in range(dataset.inputs.shape[0]):
+            f.write('%d:%f ' % (j, dataset.inputs[j, i]))
+        f.write('\n')
+
+    f.close()
 
 
 class DataScale:
@@ -473,7 +495,7 @@ class SVMPCA_ActiveLearner:
         else:
             return data_idx, data_dists
 
-    def train(self, dataset, intensities_size, variance_keep=.95):
+    def train(self, dataset, intensities_size, svm_params, variance_keep=.95):
         #TODO: somehow generate labels for these datasets...
         self.dataset = dataset
         train = dataset.inputs
@@ -494,7 +516,9 @@ class SVMPCA_ActiveLearner:
         self.scale = DataScale()
         self.rescaled_dataset = ds.Dataset(self.scale.scale(self.reduced_dataset.inputs), 
                                            self.reduced_dataset.outputs)
-        self.classifiers['svm'] = SVM(self.rescaled_dataset)
+
+        #dataset_to_libsvm(self.rescaled_dataset, 'interest_point_data.libsvm')
+        self.classifiers['svm'] = SVM(self.rescaled_dataset, svm_params)
         self.classifiers['knn'] = sp.KDTree(np.array(self.rescaled_dataset.inputs.T))
 
         sv_instances = self.dataset.inputs[:, self.classifiers['svm'].sv_indices()]
@@ -531,24 +555,68 @@ class SVMPCA_ActiveLearner:
 
 class InterestPointDataset(ds.Dataset):
 
-    def __init__(self, inputs, outputs, pt2d, pt3d, feature_extractor):
+    def __init__(self, inputs, outputs, pt2d, pt3d, feature_extractor, scan_ids=None, idx_in_scan=None, sizes=None):
         ds.Dataset.__init__(self, inputs, outputs)
         self.pt2d = pt2d
         self.pt3d = pt3d
+        self.scan_ids = scan_ids
+        if scan_ids != None:
+            print 'scan id class', self.scan_ids.__class__
+        self.idx_in_scan = idx_in_scan
         offset = 0
-        if feature_extractor != None:
-            for k in ['normal', 'color', 'intensity']:
-                start_idx = offset
-              end_idx = offset + feature_extractor.sizes[k]
+        if feature_extractor != None or sizes != None:
+            if feature_extractor != None:
+                sizes = feature_extractor.sizes
+            for k in ['normal', 'intensity']:
+                start_idx = offset 
+                end_idx = offset + sizes[k]
                 self.add_attribute_descriptor(ds.AttributeDescriptor(k, (start_idx, end_idx)))
                 offset = end_idx
 
+
+    #def add_multiple(features, labels, pt2d, pt3d, scan_id=None, idx_in_scan=None):
+    #    self.inputs = np.column_stack((self.inputs, features))
+    #    self.outputs = np.column_stack((self.outputs, labels))
+    #    self.pt2d += pt2d
+    #    self.pt3d += pt3d
+    #    if scan_idx != None:
+    #        self.scan_id += scan_id
+    #    if idx_in_scan != None:
+    #        self.idx_in_scan += idx_in_scan
+
+
     #def add(self, pt2d, pt3d, features, label):
-    def add(self, features, label, pt2d, pt3d):
+    def add(self, features, label, pt2d, pt3d, scan_id=None, idx_in_scan=None):
+        print 'added point', pt2d[0,0], pt2d[1,0]
+        if np.abs(pt2d[1,0]) > 10000:
+            pdb.set_trace()
+        if np.abs(pt2d[0,0]) > 10000:
+            pdb.set_trace()
         self.inputs = np.column_stack((self.inputs, features))
         self.outputs = np.column_stack((self.outputs, label))
-        self.pt2d.append(pt2d)#np.column_stack((self.pt2d, pt2d))
-        self.pt3d.append(pt3d)# = np.column_stack((self.pt3d, pt3d))
+        self.pt2d = np.column_stack((self.pt2d, pt2d))
+        #self.pt2d.append(pt2d)#np.column_stack((self.pt2d, pt2d))
+        self.pt3d = np.column_stack((self.pt3d, pt3d))
+        #self.pt3d.append(pt3d)# = np.column_stack((self.pt3d, pt3d))
+        if scan_id != None:
+            self.scan_ids = np.column_stack((self.scan_ids, scan_id))
+            #print 'scan id class', self.scan_ids.__class__
+        if idx_in_scan != None:
+            self.idx_in_scan = np.column_stack((self.idx_in_scan, idx_in_scan))
+        
+        #print 'new pt2d shape', self.pt2d.shape
+        #self.scan_ids.append(scan)
+        #self.idx_in_scan.append(idx_in_scan)
+
+    def remove(self, instance_idx):
+        self.inputs = np.column_stack((self.inputs[:,0:instance_idx], self.inputs[:,instance_idx+1:]))
+        self.outputs = np.column_stack((self.outputs[:,0:instance_idx], self.outputs[:,instance_idx+1:]))
+        self.pt2d = np.column_stack((self.pt2d[:,0:instance_idx], self.pt2d[:,instance_idx+1:]))
+        self.pt3d = np.column_stack((self.pt3d[:,0:instance_idx], self.pt3d[:,instance_idx+1:]))
+        if self.scan_ids != None:
+            self.scan_ids = np.column_stack((self.scan_ids[:,0:instance_idx], self.scan_ids[:,instance_idx+1:]))
+        if self.idx_in_scan != None:
+            self.idx_in_scan = np.column_stack((self.idx_in_scan[:,0:instance_idx], self.idx_in_scan[:,instance_idx+1:]))
 
     def copy(self):
         ipd = InterestPointDataset(self.inputs.copy(), self.outputs.copy(), 
@@ -566,41 +634,47 @@ class Recognize3DParam:
         self.win3d_size = .02
         self.voi_bl = [.5, .5, .5]
         self.radius = .5
+        self.svm_params = '-s 0 -t 2 -g .0625 -c 4'
 
         #sampling parameters
         #self.n_samples = 5000
-        self.n_samples = 2000
-        self.uni_mix = .5
-        self.uncertainty = .03
+        self.n_samples = 5000
+        self.uni_mix = .3
+        self.uncertainty = .05
+        #print "Uncertainty is:", self.uncertainty
 
         #variance
         self.variance_keep = .98
 
 def draw_labeled_points(image, dataset, pos_color=[255,102,55], neg_color=[0,184,245], scale=1.):
-    pt2d = np.column_stack(dataset.pt2d)
+    #pt2d = np.column_stack(dataset.pt2d)
+    pt2d = dataset.pt2d 
     for l, color in [(POSITIVE, pos_color), (NEGATIVE, neg_color)]:
         cols = np.where(l == dataset.outputs)[1]
         locs2d = np.matrix(np.round(pt2d[:, cols.A1]/scale), 'int')
         draw_points(image, locs2d, color)
 
-def draw_points(img, img_pts, color, size=1):
+def draw_points(img, img_pts, color, size=1, thickness=-1):
     for i in range(img_pts.shape[1]):
         center = tuple(np.matrix(np.round(img_pts[:,i]),'int').T.A1.tolist())
-        cv.Circle(img, center, size, color, -1)
+        cv.Circle(img, center, size, color, thickness)
 
-def draw_dataset(dataset, img, scale=1.):
+def draw_dataset(dataset, img, scale=1., size=2, scan_id=None):
     npt2d = []
     ppt2d = []
     for i in range(dataset.inputs.shape[1]):
-        if dataset.pt2d[i] != None:
+        if dataset.pt2d[0,i] != None:
+            if scan_id != None and dataset.scan_ids != None:
+                if scan_id != dataset.scan_ids[0,i]:
+                    continue
             if POSITIVE == dataset.outputs[0,i]:
-                ppt2d.append(dataset.pt2d[i]/scale)
+                ppt2d.append(dataset.pt2d[:,i]/scale)
             if NEGATIVE == dataset.outputs[0,i]:
-                npt2d.append(dataset.pt2d[i]/scale)
+                npt2d.append(dataset.pt2d[:,i]/scale)
     if len(ppt2d) > 0:
-        draw_points(img, np.column_stack(ppt2d), [0,255,0], 2)
+        draw_points(img, np.column_stack(ppt2d), [0,255,0], size)
     if len(npt2d) > 0:
-        draw_points(img, np.column_stack(npt2d), [0,0,255], 2)
+        draw_points(img, np.column_stack(npt2d), [0,0,255], size)
 
 
 class InterestPointAppBase:
@@ -633,8 +707,10 @@ class InterestPointAppBase:
     def load_labeled_data(self):
         self.dataset = ut.load_pickle(self.labeled_data_fname)
         print 'Loaded from', self.labeled_data_fname
-        self.dataset.pt2d = [None] * len(self.dataset.pt2d)
-        self.dataset.pt3d = [None] * len(self.dataset.pt3d)
+        self.dataset.pt2d = np.zeros((2, len(self.dataset.pt2d))) + np.nan
+        self.dataset.pt3d = np.zeros((3, len(self.dataset.pt2d))) + np.nan
+        #self.dataset.pt2d = [None] * len(self.dataset.pt2d)
+        #self.dataset.pt3d = [None] * len(self.dataset.pt3d)
         #self.ipdetector = InterestPointDetector(self.dataset)
         self.train()
         self.have_not_trained_learner = False
@@ -647,7 +723,7 @@ class InterestPointAppBase:
 
     def add_to_dataset(self, feature, label, pt2d, pt3d):
         if self.dataset == None:
-            self.dataset = InterestPointDataset(feature, label, [pt2d], [pt3d], self.feature_extractor)
+            self.dataset = InterestPointDataset(feature, label, pt2d, pt3d, self.feature_extractor)
         else:
             self.dataset_cpy = self.dataset.copy()
             self.dataset.add(feature, label, pt2d, pt3d)
@@ -662,14 +738,16 @@ class InterestPointAppBase:
     def train(self):
         if self.dataset != None and self.has_enough_data():
             self.learner = SVMPCA_ActiveLearner()
-            self.learner.train(self.dataset, self.dataset.metadata[2].extent[0],
+            self.learner.train(self.dataset, self.dataset.metadata[1].extent[0],
                                self.rec_params.variance_keep)
             self.have_not_trained_learner = False
+            self.classify()
     
     def classify(self):
         results = self.learner.classify(self.instances)
         plist = [self.points2d[:, i] for i in range(self.points2d.shape[1])]
         p3list = [self.points3d[:, i] for i in range(self.points3d.shape[1])]
+        #pdb.set_trace()
         self.classified_dataset = InterestPointDataset(self.instances, np.matrix(results), 
                                                            plist, p3list, self.feature_extractor)
 
@@ -750,7 +828,7 @@ class RvizDisplayThread(threading.Thread):
 
     def display_training_data_set(self, fname, grid_resolution, win_size, win3d_size):
         data_pkl = ut.load_pickle(fname)
-        ic_data = load_data_from_file(fname, grid_resolution, win_size, win3d_size, voi_bounds_laser=[.5, .5, .5])
+        ic_data, _ = load_data_from_file(fname, grid_resolution, win_size, win3d_size, voi_bounds_laser=[.5, .5, .5])
 
         self.display_scan(ic_data.pointcloud_msg, 
                 ic_data.points_valid_image[0:3,:], 
@@ -785,7 +863,7 @@ class CVGUI4(InterestPointAppBase):
             self.classify()
 
     def load_scan(self, raw_data_fname):
-        self.feature_extractor = load_data_from_file(raw_data_fname, self.rec_params)
+        self.feature_extractor, _ = load_data_from_file(raw_data_fname, self.rec_params)
         feature_cache_fname = pt.splitext(raw_data_fname)[0] + '_features.pkl'
         if not pt.isfile(feature_cache_fname):
             self.instances, self.points2d, self.points3d = self.feature_extractor.extract_vectorized_features()
@@ -813,6 +891,7 @@ class CVGUI4(InterestPointAppBase):
 
         #Add data point
         self.add_to_dataset(feature_vec, np.matrix([label]), closest_pt2d, closest_pt3d)
+        #if self.learner != None:
         self.draw()
 
     def run(self):
@@ -882,10 +961,12 @@ class CVGUI4(InterestPointAppBase):
 
     def draw(self):
         img = cv.CloneMat(self.small_img)
-        draw_dataset(self.dataset, img, self.scale)
+        if self.dataset != None:
+            draw_dataset(self.dataset, img, self.scale)
         self._draw_classified_dataset(img)
         self._draw_selected(img)
         cv.ShowImage('image', img)
+
         self._draw_features()
 
         cv.SaveImage('active_learn%d.png' % self.frame_number, img)
@@ -909,7 +990,8 @@ class CVGUI4(InterestPointAppBase):
     def _draw_classified_dataset(self, img):
         if self.classified_dataset == None:
             return
-        draw_labeled_points(img, img, scale=self.scale)
+        #pdb.set_trace()
+        draw_labeled_points(img, self.classified_dataset, scale=self.scale)
 
     def _draw_features(self):
         if self.curr_feature_list == None:
@@ -918,18 +1000,516 @@ class CVGUI4(InterestPointAppBase):
             cv.ShowImage(win, imgnp)
 
 
+def inverse_indices(indices_exclude, num_elements):
+    temp_arr = np.zeros(num_elements)+1
+    temp_arr[indices_exclude] = 0
+    return np.where(temp_arr)[0]
+
+
+def preprocess_scan_extract_features(raw_data_fname):
+    rec_params = Recognize3DParam()
+    feature_extractor, data_pkl = load_data_from_file(raw_data_fname, rec_params)
+    image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['high_res'])
+    print 'Image name is', image_fname
+    img = cv.LoadImageM(image_fname)
+    feature_cache_fname = pt.splitext(raw_data_fname)[0] + '_features_dict.pkl'
+    instances, points2d, points3d = feature_extractor.extract_vectorized_features()
+    labels = np.matrix([UNLABELED] * instances.shape[1])
+
+    preprocessed_dict = {'instances': instances,
+                         'points2d': points2d,
+                         'points3d': points3d,
+                         'image': image_fname,
+                         'labels': labels,
+                         'sizes': feature_extractor.sizes}
+    ut.save_pickle(preprocessed_dict, feature_cache_fname)
+    return feature_cache_fname
+
+
+def preprocess_data_in_dir(dirname):
+    print 'Preprocessing data in', dirname
+    data_files = glob.glob(pt.join(dirname, '*dataset.pkl'))
+    print 'Found %d scans' % len(data_files)
+
+    for n in data_files:
+        print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+        print 'Loading', n
+        cn = preprocess_scan_extract_features(n)
+        print 'Saved to', cn
+        print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+
+def make_point_exclusion_test_set(training_dataset, all_data_dir):
+    #pdb.set_trace()
+    scan_names = glob.glob(pt.join(all_data_dir, '*_features_dict.pkl'))
+    dset = {'inputs': [], 'outputs': [], 'pt2d': [], 'pt3d': []}
+    sizes = None
+    i = 0
+    for sn in scan_names:
+        #load scan
+        print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+        print 'Loading scan', sn
+        cn = ut.load_pickle(sn)
+        if sizes == None:
+            sizes = cn['sizes']
+        selected_pts_in_train = np.where(training_dataset.scan_ids == sn)[1]
+        print '  There are %d points in scan' % cn['instances'].shape[1]
+
+        #if there are points in training set that are in this scan, unselect them
+        if len(selected_pts_in_train) > 0:
+            print '  There are %d of these points in the training set.' % len(selected_pts_in_train)
+            scan_ind = training_dataset.idx_in_scan[0, selected_pts_in_train].A1
+            select_ind = inverse_indices(scan_ind, cn['instances'].shape[1])
+            assert((len(scan_ind) + len(select_ind)) == cn['instances'].shape[1])
+        else:
+            select_ind = np.array(range(cn['instances'].shape[1]))
+        print '  Including %d points from this dataset' % len(select_ind)
+        
+        for datak, dsetk in [('instances', 'inputs'), ('labels', 'outputs'),\
+                  ('points2d', 'pt2d'), ('points3d', 'pt3d')]:
+            dset[dsetk].append(cn[datak][:, select_ind])
+        i = i + 1
+        if i > 2:
+            break
+
+    return InterestPointDataset(np.column_stack(dset['inputs']),\
+                                np.column_stack(dset['outputs']),\
+                                None, None, None, sizes = sizes)
+
+
+class ScanLabeler:
+
+    def __init__(self, dirname):
+        self.scan_dir_name = dirname
+        self.scan_names = glob.glob(pt.join(dirname, '*_features_dict.pkl'))
+
+        self.current_scan_pred = None
+        self.current_scan = None
+        self.cdisp = None
+
+        self.scan_idx = 0
+        self.scale = 1/3.
+        self.mode = 'GROUND_TRUTH'
+        self.training_sname = pt.split(dirname)[0] + '_training_set.pkl'
+        self.frame_number = 0
+
+        self.rec_params = Recognize3DParam()
+        self.learner = None
+        self.dataset = None #Training dataset
+
+        cv.NamedWindow('Scan', cv.CV_WINDOW_AUTOSIZE)
+        self.load_scan(self.scan_names[self.scan_idx])
+        cv.SetMouseCallback('Scan', self.mouse_cb, None)
+
+
+    def classify(self):
+        if self.learner != None:
+            print 'Classifying..'
+            #results = np.matrix(self.learner.classify(self.current_scan['instances']))
+            print '>>> THIS SCAN'
+            #pdb.set_trace()
+            results = self.print_accuracy(self.current_scan['instances'], self.current_scan['labels'])
+            self.current_scan_pred = InterestPointDataset(self.current_scan['instances'], results,
+                                        self.current_scan['points2d'], self.current_scan['points3d'], None)
+            if np.any(self.current_scan['labels'] == UNLABELED):
+                return
+
+            #pdb.set_trace()
+
+            #ncorrect = np.sum(self.current_scan['labels'] == results)
+            #print 'This scan: %.2f' % (100.*float(ncorrect) / float(self.current_scan['labels'].shape[1])), '% correct'
+
+        
+    def load_scan(self, fname):
+        print 'Loading scan', fname
+        self.cdisp = {}
+        self.current_scan = ut.load_pickle(fname)
+        #image_fname = pt.join(pt.split(fname)[0], self.current_scan['image'])
+        img = cv.LoadImageM(self.current_scan['image'])
+        self.cdisp['tree'] = sp.KDTree(np.array(self.current_scan['points2d'].T))
+        self.cdisp['cv'] = cv.CreateMat(int(round(img.rows*self.scale)), 
+                                        int(round(img.cols*self.scale)), cv.CV_8UC3)
+        cv.Resize(img, self.cdisp['cv'])
+        print 'loaded!'
+        self.classify()
+        self.draw()
+
+    def save_current(self):
+        print 'saving current scan\'s data'
+        fname = self.scan_names[self.scan_idx]
+        ut.save_pickle(self.current_scan, fname)
+        print 'done saving!'
+
+    def load_next(self):
+        self.scan_idx = max(min(self.scan_idx+1, len(self.scan_names)-1), 0)
+        self.load_scan(self.scan_names[self.scan_idx])
+
+    def load_prev(self):
+        self.scan_idx = min(max(self.scan_idx-1, 0), len(self.scan_names)-1)
+        self.load_scan(self.scan_names[self.scan_idx])
+
+    def draw(self):
+        img = cv.CloneMat(self.cdisp['cv'])
+
+        #Draw ground truth labels
+        #pdb.set_trace()
+        pidx = np.where(self.current_scan['labels'] == POSITIVE)[1].A1.tolist()
+        nidx = np.where(self.current_scan['labels'] == NEGATIVE)[1].A1.tolist()
+        uidx = np.where(self.current_scan['labels'] == UNLABELED)[1].A1.tolist()
+
+        if len(pidx) > 0:
+            ppoints = self.current_scan['points2d'][:, pidx]
+            draw_points(img, ppoints * self.scale, [0,255,0], 2, 1)
+
+        if len(nidx) > 0:
+            npoints = self.current_scan['points2d'][:, nidx]
+            draw_points(img, npoints * self.scale, [0,0,255], 2, 1)
+
+        if len(uidx) > 0:
+            upoints = self.current_scan['points2d'][:, uidx]
+            draw_points(img, upoints * self.scale, [255,255,255], 2, 1)
+
+        #Draw training set
+        if self.dataset != None:
+            #pdb.set_trace()
+            draw_dataset(self.dataset, img, 1./self.scale, 4, scan_id=self.scan_names[self.scan_idx])
+
+        if self.current_scan_pred != None:
+            draw_labeled_points(img, self.current_scan_pred, scale=1./self.scale)
+
+        cv.ShowImage('Scan', img)
+        cv.SaveImage('active_learn%d.png' % self.frame_number, img)
+        self.frame_number = self.frame_number + 1
+        print '- refreshed display -'
+
+    def step(self):
+        k = cv.WaitKey(33)
+        if k == ord('n'):
+            print 'Loading next scan..'
+            self.load_next()
+
+        if k == ord('p'):
+            print 'loading previous scan..'
+            self.load_prev()
+
+        if k == ord('0'):
+            self.current_scan['labels'][0, :] = NEGATIVE
+            self.draw()
+            print 'Labeling everything as negative!'
+
+        if k == ord('`'):
+            if self.mode == 'TRAINING_SET':
+                self.mode = 'GROUND_TRUTH'
+            else:
+                self.mode = 'TRAINING_SET'
+            print 'ScanLabeler GUI mode changed to', self.mode
+
+        if k == ord('c'):
+            self.save_current()
+            
+        if k == ord('s'):
+            if self.dataset != None:
+                ut.save_pickle(self.dataset, self.training_sname)
+                print 'saved to', self.training_sname
+
+        if k == ord('l'):
+            if self.dataset == None and pt.isfile(self.training_sname):
+                print 'loading training set from disk'
+                self.dataset = ut.load_pickle(self.training_sname)
+                print 'loaded', self.training_sname
+                self.draw()
+
+        if k == ord('t'):
+            if self.dataset != None:
+                print 'Making test set.'
+                curr_test_set = make_point_exclusion_test_set(self.dataset, self.scan_dir_name)
+                print 'Test set has %d instances' % curr_test_set.inputs.shape[1]
+                fname = raw_input('Enter test set name to save to: ')
+                print 'Saving to', fname
+                ut.save_pickle(curr_test_set, fname)
+                print 'Saved!'
+
+        if k == ord('r'):
+            self.train()
+            self.classify()
+            self.draw()
+
+        if k == ord(' '):
+            if self.learner != None:
+                selected_idx, selected_dist = self.learner.select_next_instances(self.current_scan['instances'])
+                if selected_idx != None:
+                    self.add_to_training_set(selected_idx)
+                    self.train()
+                    self.classify()
+                    self.draw()
+                else:
+                    print '======================='
+                    print '>> LEARNER CONVERGED <<'
+                    print '======================='
+
+        if k == ord('z'):
+            d = self.dataset
+            d1 = InterestPointDataset(self.current_scan['instances'], self.current_scan['labels'],
+                    self.current_scan['points2d'], self.current_scan['points3d'], 
+                    None, sizes=self.current_scan['sizes'])
+            self.load_next()
+            d1.add(self.current_scan['instances'], self.current_scan['labels'],
+                    self.current_scan['points2d'], self.current_scan['points3d'])
+
+            self.dataset = d1
+            self.train()
+            print 'generating libsvm dataset'
+            dfname = raw_input('enter dataset filename: ')
+            dataset_to_libsvm(self.learner.rescaled_dataset, dfname)
+            self.dataset = d
+            print 'done'
+
+    def automated_run(self):
+        # Run learner until convergence on initial scan
+        self.dataset = ut.load_pickle(self.training_sname)
+        self.train()
+        self.classify()
+        self.draw()
+        k = cv.WaitKey(33)
+
+        not_converged = True
+        i = 0
+        while not_converged:
+            selected_idx, selected_dist = self.learner.select_next_instances(self.current_scan['instances'])
+            if selected_idx != None:
+                self.add_to_training_set(selected_idx)
+                self.train()
+                fname = 'drawer_dataset_%d.libsvm' % i
+                dataset_to_libsvm(self.learner.rescaled_dataset, fname)
+                i = i + 1
+                print 'saved to', fname
+                self.classify()
+                self.draw()
+                k = cv.WaitKey(33)
+
+            else:
+                print '======================='
+                print '>> LEARNER CONVERGED <<'
+                print '======================='
+                print 'saving dataset to', self.training_sname
+                ut.save_pickle(self.dataset, self.training_sname)
+                print 'saved!'
+                not_converged = False
+
+    def run(self):
+        self.automated_run()
+        # Make a test set
+        while not rospy.is_shutdown():
+            self.step()
+
+    def mouse_cb(self, event, x, y, flags, param):
+        if not (event == cv.CV_EVENT_LBUTTONDOWN or \
+                event == cv.CV_EVENT_RBUTTONDOWN or \
+                event == cv.CV_EVENT_MBUTTONDOWN):
+            return
+        # Grab closest thing, change its label, and redraw
+        ck = [self.cdisp['tree'].query(np.array([x,y]) / self.scale, k=1)[1]]
+        cr = self.cdisp['tree'].query_ball_point(np.array([x,y]) / self.scale, 10.)
+        
+        print 'k nearest', len(ck), 'radius', len(cr)
+
+        if len(ck) > len(cr):
+            closest_idx = ck
+        else:
+            closest_idx = cr
+        #print 'clicked at img loc', np.array([x,y]) / self.scale
+        #print 'len(closest_idx)', len(closest_idx)
+
+        if self.mode == 'GROUND_TRUTH':
+            if event == cv.CV_EVENT_LBUTTONDOWN:
+                label = POSITIVE
+            elif event == cv.CV_EVENT_RBUTTONDOWN:
+                label = NEGATIVE
+            elif event == cv.CV_EVENT_MBUTTONDOWN:
+                label = UNLABELED
+            else:
+                return
+
+            print 'Current mode is', self.mode
+            #print 'old labels', self.current_scan['labels'][0, closest_idx]
+            self.current_scan['labels'][0, closest_idx] = label
+            #print 'new labels', self.current_scan['labels'][0, closest_idx]
+
+        
+        if self.mode == 'TRAINING_SET':
+            # Try to add selected point
+            if event == cv.CV_EVENT_LBUTTONDOWN:
+                self.add_to_training_set(closest_idx)
+                ## Don't add examples that have not been labeled (remove examples with the label UNLABELED)
+                #labeled_idx = []
+                #for idx in closest_idx:
+                #    if self.current_scan['labels'][0, idx] != UNLABELED:
+                #        labeled_idx.append(idx)
+
+                ## Don't add examples that have been added (keep index of examples added from this scan).
+                ## Search the list of labeled examples.
+                #filtered_idx = []
+                #if self.dataset != None:
+                #    for idx in labeled_idx:
+                #        #pdb.set_trace()
+                #        matched_idx = np.where(self.dataset.idx_in_scan == idx)[1].A1
+                #        if len(matched_idx) > 0:
+                #            if np.any(self.scan_names[self.scan_idx] == self.dataset.scan_ids[:, matched_idx]):
+                #                continue
+                #        filtered_idx.append(idx)
+                #else:
+                #    filtered_idx += labeled_idx
+
+                #pinfo = [self.current_scan[k][:, filtered_idx] for k in \
+                #                ['instances', 'labels', 'points2d', 'points3d']]
+                #pinfo.append(np.matrix([self.scan_names[self.scan_idx]] * len(filtered_idx)))
+                #pinfo.append(np.matrix(filtered_idx))
+                #self.add_to_dataset(pinfo)
+
+            # Try to remove the selected point
+            elif event == cv.CV_EVENT_RBUTTONDOWN:
+                self.remove_from_training_set(closest_idx)
+                #if self.dataset != None:
+                #    for idx in closest_idx:
+                #        matched_idx = np.where(self.dataset.idx_in_scan == idx)[1].A1
+                #        if len(matched_idx) > 0:
+                #            sm = np.where(self.scan_names[self.scan_idx] == self.dataset.scan_ids[:, matched_idx])[1]
+                #            if len(sm) > 0:
+                #                to_remove = matched_idx[sm]
+                #                print 'removing', len(sm), 'points'
+                #                for ridx in to_remove:
+                #                    self.dataset.remove(ridx)
+        self.draw()
+
+    def add_to_training_set(self, indices):
+        # Don't add examples that have not been labeled (remove examples with the label UNLABELED)
+        labeled_idx = []
+        for idx in indices:
+            if self.current_scan['labels'][0, idx] != UNLABELED:
+                labeled_idx.append(idx)
+        
+        # Don't add examples that have been added (keep index of examples added from this scan).
+        # Search the list of labeled examples.
+        filtered_idx = []
+        if self.dataset != None:
+            for idx in labeled_idx:
+                #pdb.set_trace()
+                matched_idx = np.where(self.dataset.idx_in_scan == idx)[1].A1
+                if len(matched_idx) > 0:
+                    if np.any(self.scan_names[self.scan_idx] == self.dataset.scan_ids[:, matched_idx]):
+                        continue
+                filtered_idx.append(idx)
+        else:
+            filtered_idx += labeled_idx
+        
+        filtered_idx = [filtered_idx[0]]
+        pinfo = [self.current_scan[k][:, filtered_idx] for k in \
+                        ['instances', 'labels', 'points2d', 'points3d']]
+        pinfo.append(np.matrix([self.scan_names[self.scan_idx]] * len(filtered_idx)))
+        pinfo.append(np.matrix(filtered_idx))
+
+        if self.dataset == None:
+            self.dataset = InterestPointDataset(pinfo[0], pinfo[1], pinfo[2], \
+                    pinfo[3], None, pinfo[4], pinfo[5], sizes=self.current_scan['sizes'])
+        else:
+            self.dataset.add(pinfo[0], pinfo[1], \
+                    pinfo[2], pinfo[3], pinfo[4], pinfo[5])
+
+        print '>> Number of examples in dataset:', self.dataset.inputs.shape[1]
+
+    def remove_from_training_set(self, indices):
+        if self.dataset != None:
+            for idx in indices:
+                matched_idx = np.where(self.dataset.idx_in_scan == idx)[1].A1
+                if len(matched_idx) > 0:
+                    sm = np.where(self.scan_names[self.scan_idx] == self.dataset.scan_ids[:, matched_idx])[1]
+                    if len(sm) > 0:
+                        to_remove = matched_idx[sm]
+                        print 'removing', len(sm), 'points'
+                        for ridx in to_remove:
+                            self.dataset.remove(ridx)
+
+    def has_enough_data(self):
+        pos_ex = np.sum(self.dataset.outputs)
+        neg_ex = self.dataset.outputs.shape[1] - pos_ex
+        if pos_ex > 2 and neg_ex > 2:
+            return True
+
+    def train(self):
+        if self.dataset != None and self.has_enough_data():
+            nneg = np.sum(self.dataset.outputs == NEGATIVE)
+            npos = np.sum(self.dataset.outputs == POSITIVE)
+            print '================= Training ================='
+            print 'NEG examples', nneg
+            print 'POS examples', npos
+            print 'TOTAL', self.dataset.outputs.shape[1]
+            neg_to_pos_ratio = float(nneg)/float(npos)
+            pdb.set_trace()
+            weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
+            self.learner = SVMPCA_ActiveLearner()
+            self.learner.train(self.dataset, self.dataset.metadata[1].extent[0],
+                               self.rec_params.svm_params + weight_balance,
+                               self.rec_params.variance_keep)
+
+            #correct = np.sum(self.dataset.outputs == np.matrix(self.learner.classify(self.dataset.inputs)))
+            #pdb.set_trace()
+            #print 'Test set: %.2f' % (100.* (float(correct)/float(self.dataset.outputs.shape[1]))), '% correct'
+            print '>>>> TEST SET PEFORMANCE'
+            self.print_accuracy(self.dataset.inputs, self.dataset.outputs)
+            print '=================  DONE  =================' 
+
+    def print_accuracy(self, instances, true_labels):
+        predicted = np.matrix(self.learner.classify(instances))
+
+        posidx = np.where(true_labels == POSITIVE)[1].A1
+        negidx = np.where(true_labels == NEGATIVE)[1].A1
+        print 'Confusion matrix:'
+        if len(negidx) > 0:
+            m00 = 100. * float(np.sum(NEGATIVE == predicted[:, negidx])) / len(negidx)
+            m01 = 100. * float(np.sum(POSITIVE == predicted[:, negidx])) / len(negidx)
+            print '-   %5.2f, %5.2f' % (m00, m01)
+
+        if len(posidx) > 0:
+            m10 = 100. * float(np.sum(NEGATIVE == predicted[:, posidx])) / len(posidx)
+            m11 = 100. * float(np.sum(POSITIVE == predicted[:, posidx])) / len(posidx)
+            print '+  %5.2f, %5.2f' % (m10, m11)
+
+        print '   Total %5.2f' % (100.* (float(np.sum(true_labels == predicted)) / true_labels.shape[1]))
+        return predicted
+
+        #print 'POS correct %.2f' % 100. * float(pcor) / len(posidx)
+        #print 'NEG correct %.2f' % 100. * float(ncor) / len(negidx)
+
+    def add_to_dataset(self, pinfo):
+        if self.dataset == None:
+            self.dataset = InterestPointDataset(pinfo[0], pinfo[1], pinfo[2], \
+                    pinfo[3], None, pinfo[4], pinfo[5], sizes=self.current_scan['sizes'])
+        else:
+            self.dataset.add(pinfo[0], pinfo[1], \
+                    pinfo[2], pinfo[3], pinfo[4], pinfo[5])
+
 
 if __name__ == '__main__':
     import sys
-    object_name = sys.argv[1]
-    raw_data_fname = sys.argv[2]
-    if len(sys.argv) > 3:
-        labeled_data_fname = sys.argv[3]
-    else:
-        labeled_data_fname = None
+    mode = 'label'
 
-    cvgui = CVGUI4(raw_data_fname, object_name, labeled_data_fname)
-    cvgui.run()
+    if mode == 'standalone':
+        object_name = sys.argv[1]
+        raw_data_fname = sys.argv[2]
+        if len(sys.argv) > 3:
+            labeled_data_fname = sys.argv[3]
+        else:
+            labeled_data_fname = None
+
+        cvgui = CVGUI4(raw_data_fname, object_name, labeled_data_fname)
+        cvgui.run()
+
+    if mode == 'preprocess':
+        preprocess_data_in_dir(sys.argv[1])
+
+    if mode == 'label':
+        s = ScanLabeler(sys.argv[1])
+        s.run()
+
 
 
 
