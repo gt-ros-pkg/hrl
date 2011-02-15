@@ -1247,20 +1247,20 @@ class ScanLabeler:
                     print '======================='
 
         if k == ord('z'):
-            d = self.dataset
-            d1 = InterestPointDataset(self.current_scan['instances'], self.current_scan['labels'],
-                    self.current_scan['points2d'], self.current_scan['points3d'], 
-                    None, sizes=self.current_scan['sizes'])
-            self.load_next()
-            d1.add(self.current_scan['instances'], self.current_scan['labels'],
-                    self.current_scan['points2d'], self.current_scan['points3d'])
+            #d = self.dataset
+            #d1 = InterestPointDataset(self.current_scan['instances'], self.current_scan['labels'],
+            #        self.current_scan['points2d'], self.current_scan['points3d'], 
+            #        None, sizes=self.current_scan['sizes'])
+            # self.load_next()
+            # d1.add(self.current_scan['instances'], self.current_scan['labels'],
+            #         self.current_scan['points2d'], self.current_scan['points3d'])
 
-            self.dataset = d1
-            self.train()
+            #self.dataset = d1
+            #self.train()
             print 'generating libsvm dataset'
             dfname = raw_input('enter dataset filename: ')
             dataset_to_libsvm(self.learner.rescaled_dataset, dfname)
-            self.dataset = d
+            #self.dataset = d
             print 'done'
 
     def automated_run(self):
@@ -1443,8 +1443,9 @@ class ScanLabeler:
             print 'POS examples', npos
             print 'TOTAL', self.dataset.outputs.shape[1]
             neg_to_pos_ratio = float(nneg)/float(npos)
-            pdb.set_trace()
+            #pdb.set_trace()
             weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
+            #weight_balance = ''
             self.learner = SVMPCA_ActiveLearner()
             self.learner.train(self.dataset, self.dataset.metadata[1].extent[0],
                                self.rec_params.svm_params + weight_balance,
