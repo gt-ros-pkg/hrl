@@ -156,9 +156,9 @@ class LinearReactiveMovement:
         self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
         self.set_movement_mode_ik()
         r = self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
-        tfu.matrix_as_tf(self.arm_obj.pose_cartesian())[0]
+        #tfu.matrix_as_tf(self.arm_obj.pose_cartesian())[0]
         #diff = loc[0] - self.current_location()[0]
-        diff = loc[0] - tfu.matrix_as_tf(self.arm_obj.pose_cartesian())[0]
+        diff = loc[0] - self.arm_obj.pose_cartesian_tf()[0]
         rospy.loginfo('move_absolute: diff is %s' % str(diff.T))
         rospy.loginfo('move_absolute: dist %.3f' % np.linalg.norm(diff))
         return r, np.linalg.norm(diff)
@@ -168,7 +168,7 @@ class LinearReactiveMovement:
         self.set_pressure_threshold(pressure)
         stop_funcs = self._process_stop_option(stop)
         r = self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
-        diff = loc[0] - tfu.matrix_as_tf(self.arm_obj.pose_cartesian())[0]
+        diff = loc[0] - self.arm_obj.pose_cartesian_tf()[0]
         rospy.loginfo('move_absolute: diff is %s' % str(diff.T))
         rospy.loginfo('move_absolute: dist %.3f' % np.linalg.norm(diff))
         return r, np.linalg.norm(diff)
@@ -193,14 +193,14 @@ class LinearReactiveMovement:
     # @param pressure pressure to use
     def move_relative_base(self, movement, stop='pressure_accel', pressure=150):
         self.set_pressure_threshold(pressure)
-        trans, rot = tfu.matrix_as_tf(self.arm_obj.pose_cartesian())[0]
+        trans, rot = self.arm_obj.pose_cartesian_tf()
         ntrans = trans + movement
         stop_funcs = self._process_stop_option(stop)
         r = self._move_cartesian(ntrans, rot, stop_funcs, \
                 timeout=self.timeout, settling_time=5.0)
 
 
-        diff = tfu.matrix_as_tf(self.arm_obj.pose_cartesian())[0] - (trans + movement)
+        diff = self.arm_obj.pose_cartesian_tf()[0] - (trans + movement)
         print 'move_relative_base: diff is ', diff.T
         print 'move_relative_base: dist %.3f' % np.linalg.norm(diff)
         return r
@@ -294,11 +294,13 @@ class LinearReactiveMovement:
             #check if we're actually there
             if rg.cm.check_cartesian_near_pose(pose_stamped, .0025, .05):
                 rospy.loginfo("_move_cartesian_cart: reached pose")
+                #stop_trigger = 'at_pose'
                 break
 
             stop_detector.record_diff(self.arm_obj.pose_cartesian())
             if stop_detector.is_stopped():
                 rospy.loginfo("_move_cartesian_cart: arm stopped")
+                #stop_trigger = 'stopped'
                 break
 
             # if rg.cm.check_cartesian_really_done(pose_stamped, .0025, .05):
@@ -323,9 +325,9 @@ class LinearReactiveMovement:
         #if stop_trigger == 'pressure_safety' or stop_trigger == 'self_collision':
         if stop_trigger == 'pressure_safety':
             raise RobotSafetyError(stop_trigger)
-        name = ut.formatted_time() + '_stop_detector.pkl'
-        print 'saved', name
-        ut.save_pickle(stop_detector, name)
+        #name = ut.formatted_time() + '_stop_detector.pkl'
+        #print 'saved', name
+        #ut.save_pickle(stop_detector, name)
         return stop_trigger
 
     def _move_cartesian_ik(self, position, orientation, \
