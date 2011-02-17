@@ -84,7 +84,7 @@ class ROS_M5e( Thread ):
         self.start()  # Thread: calls self.run()
 
     def run( self ): 
-        while self.should_run:
+        while self.should_run and not rospy.is_shutdown():
             if self.mode == self.QUERY_MODE:
                 for aF in self.antFuncs:
                     antennaName = aF(self.reader)    # let current antFunc make appropriate changes

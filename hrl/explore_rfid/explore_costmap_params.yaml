@@ -4,7 +4,8 @@ explore_planner:
   allow_unknown: false
 #Independent settings for the planner's costmap
 explore_costmap: 
-  global_frame: /map
+  #global_frame: /map
+  global_frame: /odom_combined
   robot_base_frame: base_footprint
   update_frequency: 5.0
   publish_frequency: 0.0
@@ -14,6 +15,8 @@ explore_costmap:
   map_topic: /map_reload
   raytrace_range: 2.0
   obstacle_range: 2.0
+  width: 60.0
+  height: 60.0
 #  map_topic: /map
 #  static_map: true
 #  global_frame: /map
