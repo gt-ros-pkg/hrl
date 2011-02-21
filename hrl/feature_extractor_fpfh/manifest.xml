@@ -1,0 +1,21 @@
+<package>
+  <description brief="feature_extractor">
+
+     feature_extractor_fpfh
+
+  </description>
+  <author>Hai Nguyen</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/feature_extractor</url>
+  <depend package="pcl"/>
+  <depend package="pcl_ros"/>
+  <depend package="pcl_visualization"/>
+  <depend package="eigen"/>
+  <depend package="sensor_msgs"/>
+  <!--<depend package="eigen3"/> 
+  <rosdep name="wxwidgets"/> -->
+
+</package>
+
+
