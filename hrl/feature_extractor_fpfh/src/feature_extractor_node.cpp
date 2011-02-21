@@ -20,6 +20,7 @@ typedef KdTree<PointXYZ>::Ptr KdTreePtr;
 bool fpfh_cb(feature_extractor_fpfh::FPFHCalc::Request &req,
              feature_extractor_fpfh::FPFHCalc::Response &res)
 {
+    float leaf_size = .01;
     pcl::VoxelGrid<sensor_msgs::PointCloud2> sor;
     sensor_msgs::PointCloud2::Ptr input_cloud(new sensor_msgs::PointCloud2());
     sensor_msgs::convertPointCloudToPointCloud2(req.input, *input_cloud);
@@ -27,7 +28,7 @@ bool fpfh_cb(feature_extractor_fpfh::FPFHCalc::Request &req,
 
     sensor_msgs::PointCloud2::Ptr cloud_filtered(new sensor_msgs::PointCloud2());
     sor.setInputCloud(input_cloud);
-    sor.setLeafSize (0.01, 0.01, 0.01);
+    sor.setLeafSize (leaf_size, leaf_size, leaf_size);
     sor.filter(*cloud_filtered);
     ROS_INFO("after filtering: %d points", cloud_filtered->width * cloud_filtered->height);
 
@@ -82,10 +83,36 @@ bool fpfh_cb(feature_extractor_fpfh::FPFHCalc::Request &req,
     res.hist.dim[2] = d3;
     unsigned int total_size = d1+d2+d3;
     res.hist.histograms.resize(total_size * cloud.points.size());
+    res.hist.points3d.resize(3*cloud.points.size());
 
+    ROS_INFO("copying into message...\n");
     for (unsigned int i = 0; i < cloud.points.size(); i++)
+    {
         for (unsigned int j = 0; j < total_size; j++)
+        {
             res.hist.histograms[i*total_size + j] = fphists->points[i].histogram[j];
+            //if (i == 0)
+            //{
+            //    printf(">> %.2f \n", fphists->points[i].histogram[j]);
+            //}
+
+            //if (i == 4)
+            //{
+            //    printf("X %.2f \n", fphists->points[i].histogram[j]);
+            //}
+        }
+
+        res.hist.points3d[3*i]   = cloud.points[i].x;
+        res.hist.points3d[3*i+1] = cloud.points[i].y;
+        res.hist.points3d[3*i+2] = cloud.points[i].z;
+        //if (i == 0)
+        //    printf(">> 0  %.4f %.4f %.4f \n", cloud.points[i].x, cloud.points[i].y, cloud.points[i].z);
+        //if (i == 4)
+        //    printf(">> 4  %.4f %.4f %.4f \n", cloud.points[i].x, cloud.points[i].y, cloud.points[i].z);
+    }
+
+    res.hist.npoints = cloud.points.size();
+    ROS_INFO("done.\n");
     //printf("%d\n", );
     // sensor_msgs::PointCloud2 req
     // new feature_extractor::FPFHist()
