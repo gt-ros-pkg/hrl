@@ -66,20 +66,22 @@ def load_data_from_file(fname, rec_param):
     #pdb.set_trace()
 
     #load syn locs
-    distance_feature_points = center_point_bl
+    distance_feature_points = None
     syn_locs_fname = pt.splitext(fname)[0] + '_synthetic_locs3d.pkl'
+    #pdb.set_trace()
     if pt.isfile(syn_locs_fname):
         print 'found synthetic locations file', syn_locs_fname
-        syn_locs = ut.load_pickle(syn_locs_fname)
-        distance_feature_points = np.column_stack((distance_feature_points, syn_locs))
-        data_pkl['synthetic_locs3d'] = syn_locs
+        distance_feature_points = ut.load_pickle(syn_locs_fname)
+        #distance_feature_points = np.column_stack((distance_feature_points, syn_locs))
+        #distance_feature_points = syn_locs
+        data_pkl['synthetic_locs3d'] = distance_feature_points
     else:
         print 'synthetic loc file not found', syn_locs_fname
 
     #make the data object 
     return IntensityCloudData(data_pkl['points_laser'], intensity_image, 
                               data_pkl['pro_T_bl'], data_pkl['prosilica_cal'], 
-                              center_point_bl, distance_feature_points, rec_param), data_pkl
+                              center_point_bl, center_point_bl, distance_feature_points, rec_param), data_pkl
 
 def dataset_to_libsvm(dataset, filename):
     f = open(filename, 'w')
@@ -204,6 +206,7 @@ def make_point_exclusion_test_set(training_dataset, all_data_dir, ext):
                                 np.column_stack(dset['outputs']),\
                                 None, None, None, sizes = sizes)
 
+
 class FPFH:
     def __init__(self):
         self.proxy = rospy.ServiceProxy('fpfh', fsrv.FPFHCalc)
@@ -216,10 +219,14 @@ class FPFH:
         points3d = np.matrix(res.hist.points3d).reshape((res.hist.npoints,3)).T
         return histogram, points3d
 
+
 class IntensityCloudData:
 
     def __init__(self, pointcloud_msg, cvimage_mat, 
-            image_T_laser, calibration_obj, voi_center_laser, distance_feature_points, rec_param):
+                 image_T_laser, calibration_obj, 
+                 voi_center_laser, expected_loc_laser, 
+                 distance_feature_points, 
+                 rec_param):
 
         self.params = rec_param
 
@@ -231,6 +238,7 @@ class IntensityCloudData:
 
         self.calibration_obj = calibration_obj
         self.voi_center_laser = voi_center_laser
+        self.expected_loc_laser = expected_loc_laser
         self.distance_feature_points = distance_feature_points
 
         #Quantities that will be calculated
@@ -458,8 +466,10 @@ class IntensityCloudData:
             local_intensity = []
             for multiplier in [1,2,4,8,16,32]:
                 if multiplier == 1:
+                    #pdb.set_trace()
                     features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, flatten=flatten)
                 else:
+                    #pdb.set_trace()
                     features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size*multiplier, 
                                                 resize_to=self.params.win_size, flatten=flatten)
                 if features == None:
@@ -496,19 +506,21 @@ class IntensityCloudData:
         point2d_image = self.calibration_obj.project(\
                             tfu.transform_points(self.image_T_laser, point3d_laser))
 
-        #get local features
+        #Calc intensity features
         if viz == True:
             flatten=False
         else:
             flatten=True
 
-        #find closest neighbors in 3D to get normal
+        # Find closest neighbors in 3D to get normal
         invalid_location = False
         local_intensity = []
         for multiplier in [1,2,4,8,16,32]:
             if multiplier == 1:
+                #pdb.set_trace()
                 features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, flatten=flatten)
             else:
+                #pdb.set_trace()
                 features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size*multiplier, 
                                             resize_to=self.params.win_size, flatten=flatten)
             if features == None:
@@ -517,26 +529,48 @@ class IntensityCloudData:
             else:
                 local_intensity.append(features)
 
-        #Get 3d normal
+        #Calc 3d normal
         # indices_list = self.voi_tree.query(np.array(point3d_laser.T), k=k)[1]
         # points_in_ball_bl = np.matrix(self.voi_tree.data.T[:, indices_list])
         # normal_bl = i3d.calc_normal(points_in_ball_bl[0:3,:])
+
+        #Get fpfh
         indices_list = self.fpfh_tree.query(np.array(point3d_laser.T), k=k)[1]
-        hists = self.fpfh_hist[:, indices_list]
+        hists = self.fpfh_hist[:, indices_list[0]]
         fpfh = np.mean(hists, 1)
-        distance_feas = np.power(np.sum(np.power(self.distance_feature_points - point3d_laser, 2), 0), .5)
-        #pdb.set_trace()
+        #if np.any(np.abs(fpfh) > 99999.):
+        #    pdb.set_trace()
+
+        #Get distance to expected location
+        expected_loc_fea = np.power(np.sum(np.power(self.expected_loc_laser - point3d_laser, 2), 0), .5).T
+
+        #Get synthetic distance poins
+        distance_feas = None
+        if self.distance_feature_points != None:
+            distance_feas = np.power(np.sum(np.power(self.distance_feature_points - point3d_laser, 2), 0), .5).T
 
         if not invalid_location:
             if not viz:
                 local_intensity = np.row_stack(local_intensity)
+                #if np.any(np.abs(local_intensity) > 99999.):
+                #    pdb.set_trace()
             if self.sizes == None:
                 self.sizes = {}
-                self.sizes['distance'] = distance_feas.shape[0]
-                self.sizes['intensity'] = local_intensity.shape[0]
+                self.sizes['expected_loc'] = expected_loc_fea.shape[0]
+                if distance_feas != None:
+                    self.sizes['distance'] = distance_feas.shape[0]
                 self.sizes['fpfh'] = fpfh.shape[0]
+                self.sizes['intensity'] = local_intensity.shape[0]
+            fea_calculated = []
 
-            return [distance_feas.T, fpfh, local_intensity], point2d_image
+            fea_calculated.append(expected_loc_fea)
+            if distance_feas != None:
+                fea_calculated.append(distance_feas)
+            fea_calculated.append(fpfh)
+            fea_calculated.append(local_intensity)
+
+            #return [distance_feas, fpfh, local_intensity], point2d_image
+            return fea_calculated, point2d_image
         else:
             if verbose:
                 print '>> local_window outside of image'
@@ -549,12 +583,12 @@ class IntensityCloudData:
     def extract_vectorized_features(self):
         self._random_sample_voi()
         self._caculate_features_at_sampled_points()
-        distances, fpfhs, intensities = zip(*self.feature_list)
-        distances = np.column_stack(distances)
-        fpfhs = np.column_stack(fpfhs) #each column is a different sample
-        intensities = np.column_stack(intensities)
-
-        xs = np.row_stack((distances, fpfhs, intensities)) #stack features
+        features_by_type = zip(*self.feature_list)
+        xs = np.row_stack([np.column_stack(f) for f in features_by_type])
+        #distances = np.column_stack(distances)
+        #fpfhs = np.column_stack(fpfhs) #each column is a different sample
+        #intensities = np.column_stack(intensities)
+        #xs = np.row_stack((distances, fpfhs, intensities)) #stack features
         return xs, self.feature_locs2d, self.feature_locs
 
     def get_location2d(self, instance_indices):
@@ -573,6 +607,7 @@ class SVM:
         labels = dataset.outputs.T.A1.tolist()
         #pdb.set_trace()
         print 'SVM: trianing with params => ', params
+        #pdb.set_trace()
         self.model = su.svm_train(labels, samples, params)
         self.nsamples = len(samples)
 
@@ -602,11 +637,12 @@ class DataScale:
             self.ranges = self.maxes - self.mins
             self.ranges[np.where(self.ranges < .001)[0], :] = 1.
             #pdb.set_trace()
+        #pdb.set_trace()
         scaled = (((data - self.mins) / self.ranges) * 2.) - 1
         return scaled
 
 class SVMPCA_ActiveLearner:
-    def __init__(self):
+    def __init__(self, use_pca):
         self.classifier = 'svm' #or 'knn'
         self.classifiers = {}
         self.n = 3.
@@ -615,8 +651,10 @@ class SVMPCA_ActiveLearner:
         self.projection_basis = None
         self.reduced_dataset = None
         self.dataset = None
+        self.use_pca = use_pca
 
     def get_closest_instances(self, instances, n=1):
+        #pdb.set_trace()
         p_instances = np.matrix(self.partial_pca_project(instances))
         s_instances = self.scale.scale(p_instances)
         distances = np.array(self.classifiers['svm'].distances(s_instances))
@@ -624,29 +662,33 @@ class SVMPCA_ActiveLearner:
         return selected_indices.tolist(), distances[selected_indices]
 
     def select_next_instances(self, instances, n=1):
+        #pdb.set_trace()
         data_idx, data_dists = self.get_closest_instances(instances, n)
         data_dist = abs(data_dists[0])
-        sv_dist = abs(self.sv_dist[0])
+        sv_dist   = abs(self.sv_dist[0])
 
         #we've converged if distance to datapoint closest to decision boundary
         #is no closer than distance to the support vectors. 
         #So we return nothing as a proposal.
         print 'SVMPCA_ActiveLearner: support vector dist %f data dist %f' % (sv_dist, data_dist)
-        if sv_dist <= data_dist:
+        if sv_dist < data_dist:
             return None, None
         else:
             return data_idx, data_dists
 
-    def train(self, dataset, intensities_size, svm_params, variance_keep=.95):
+    def train(self, dataset, svm_params, variance_keep=.95):
+        #pdb.set_trace()
         #TODO: somehow generate labels for these datasets...
         self.dataset = dataset
         train = dataset.inputs
         responses = dataset.outputs
 
         #Calculate PCA vectors
-        self.intensities_index = self.dataset.metadata[-1].extent[0]
-        self._calculate_pca_vectors(train, variance_keep)
-        train = self.partial_pca_project(train)
+        if self.use_pca:
+            self.intensities_index = self.dataset.metadata[-1].extent[0]
+            #pdb.set_trace()
+            self._calculate_pca_vectors(train, variance_keep)
+            train = self.partial_pca_project(train)
     
         print 'SVMPCA_ActiveLearner.train: Training classifier.'
         #train => float32 mat, each row is an example
@@ -663,8 +705,9 @@ class SVMPCA_ActiveLearner:
         self.classifiers['svm'] = SVM(self.rescaled_dataset, svm_params)
         self.classifiers['knn'] = sp.KDTree(np.array(self.rescaled_dataset.inputs.T))
 
-        sv_instances = self.dataset.inputs[:, self.classifiers['svm'].sv_indices()]
-        self.sv_idx, self.sv_dist = self.get_closest_instances(sv_instances, 1)
+        self.sv_instances = self.dataset.inputs[:, self.classifiers['svm'].sv_indices()]
+        #pdb.set_trace()
+        self.sv_idx, self.sv_dist = self.get_closest_instances(self.sv_instances, 1)
 
     def classify(self, instances):
         projected_inst = np.matrix(self.partial_pca_project(instances), dtype='float32').copy()
@@ -690,9 +733,12 @@ class SVMPCA_ActiveLearner:
         print 'SVMPCA_ActiveLearner._calculate_pca_vectors: PCA basis size -', self.projection_basis.shape
 
     def partial_pca_project(self, instances):
-        instances_in = instances[self.intensities_index:, :]
-        reduced_intensities = self.projection_basis.T * (instances_in - self.intensities_mean)
-        return np.row_stack((instances[:self.intensities_index, :], reduced_intensities))
+        if self.use_pca:
+            instances_in = instances[self.intensities_index:, :]
+            reduced_intensities = self.projection_basis.T * (instances_in - self.intensities_mean)
+            return np.row_stack((instances[:self.intensities_index, :], reduced_intensities))
+        else:
+            return instances
 
 class InterestPointDataset(ds.Dataset):
 
@@ -705,15 +751,48 @@ class InterestPointDataset(ds.Dataset):
             print 'scan id class', self.scan_ids.__class__
         self.idx_in_scan = idx_in_scan
         offset = 0
+
+        #Intensity has to be the last feature
         if feature_extractor != None or sizes != None:
             if feature_extractor != None:
                 sizes = feature_extractor.sizes
-            for k in ['normal', 'intensity']:
+            for k in ['distance', 'fpfh', 'intensity']:
+                #if k == 'distance': #TODO remove this
+                #    sizes[k] = 5
                 start_idx = offset 
                 end_idx = offset + sizes[k]
                 self.add_attribute_descriptor(ds.AttributeDescriptor(k, (start_idx, end_idx)))
                 offset = end_idx
 
+    #def distance_hack(self):
+    #    offset = 0
+    #    for m in self.metadata:
+    #        size_m = m.extent[1] - m.extent[0]
+    #        if m.name == 'distance':
+    #            m.extent = (0, 5)
+    #            offset = 5
+    #        else:
+    #            m.extent = [offset, offset+size_m]
+
+
+    def select_features(self, features):
+        fset = set(features)
+        selected_fea = []
+        meta_data = []
+        offset = 0
+        for meta in self.metadata:
+            m = copy.deepcopy(meta)
+            if fset.issuperset([m.name]):
+                # TODO FIX THIS
+                #if m.name == 'distance':
+                #    m.extent = [0,4]
+                size_m = m.extent[1] - m.extent[0]
+                selected_fea.append(self.inputs[m.extent[0]:m.extent[1], :])
+                m.extent = [offset, offset+size_m]
+                meta_data.append(m)
+                offset = offset + size_m
+        self.metadata = meta_data
+        self.inputs = np.row_stack(selected_fea)
 
     #def add_multiple(features, labels, pt2d, pt3d, scan_id=None, idx_in_scan=None):
     #    self.inputs = np.column_stack((self.inputs, features))
@@ -849,7 +928,7 @@ class InterestPointAppBase:
     def train(self):
         if self.dataset != None and self.has_enough_data():
             self.learner = SVMPCA_ActiveLearner()
-            self.learner.train(self.dataset, self.dataset.metadata[1].extent[0],
+            self.learner.train(self.dataset, self.dataset.metadata[2].extent[0],
                                self.rec_params.variance_keep)
             self.have_not_trained_learner = False
             self.classify()
@@ -1109,19 +1188,35 @@ class CVGUI4(InterestPointAppBase):
 
 class ScanLabeler:
 
-    def __init__(self, dirname, ext):
+    def __init__(self, dirname, ext, scan_to_train_on):
         self.scan_dir_name = dirname
         self.scan_names = glob.glob(pt.join(dirname, '*' + ext))
+        self.scan_names.append(self.scan_names.pop(0))
         self.feature_file_ext = ext
 
         self.current_scan_pred = None
         self.current_scan = None
         self.cdisp = None
 
+
         self.scan_idx = 0
+        matched = False
+        for i, n in enumerate(self.scan_names):
+            if n == scan_to_train_on:
+                self.scan_idx = i
+                matched=True
+
+        if not matched:
+            print 'ERROR: %s not found in dir %s' % (scan_to_train_on, dirname)
+
         self.scale = 1/3.
         self.mode = 'GROUND_TRUTH'
-        self.training_sname = pt.split(dirname)[0] + '_training_set.pkl'
+        #if training_sname == None:
+            #self.training_sname = pt.split(dirname)[0] + '_training_set.pkl'
+        self.training_sname = pt.splitext(self.scan_names[self.scan_idx])[0] + '_seed.pkl'
+        #else:
+        #    self.training_sname = seed_training_set
+        print 'Using seed dataset name', self.training_sname
         self.frame_number = 0
 
         self.rec_params = Recognize3DParam()
@@ -1167,6 +1262,7 @@ class ScanLabeler:
     def save_current(self):
         print 'saving current scan\'s data'
         fname = self.scan_names[self.scan_idx]
+        print 'WARNING: THIS SHOULD NOT BE CALLED.'
         ut.save_pickle(self.current_scan, fname)
         print 'done saving!'
 
@@ -1208,7 +1304,8 @@ class ScanLabeler:
             draw_labeled_points(img, self.current_scan_pred, scale=1./self.scale)
 
         cv.ShowImage('Scan', img)
-        cv.SaveImage('active_learn%d.png' % self.frame_number, img)
+        img_name = pt.splitext(self.scan_names[self.scan_idx])[0] + ('_active_learn%d.png' % self.frame_number)
+        cv.SaveImage(img_name, img)
         self.frame_number = self.frame_number + 1
         print '- refreshed display -'
 
@@ -1294,15 +1391,87 @@ class ScanLabeler:
             #self.dataset = d
             print 'done'
 
-    def automated_run(self):
+    def instance_to_image(self, instance):
+        #self.rec_params = Recognize3DParam()
+        winside = self.rec_params.win_size * 2 + 1
+        patch_size = winside*winside*3
+        #isidx
+        #ieidx
+        #intensity = instance[isidx:ieidx,0]
+        multipliers = [1,2,4,8,16,32]
+
+        offset = 0
+        patches = []
+        for i in range(len(multipliers)):
+            s = instance[offset:offset+patch_size, 0]
+            srange = np.max(s) - np.min(s)
+            s = np.array(np.abs(np.round(((s-np.min(s))/srange) * 255.)), 'uint8')
+            patches.append(np.reshape(s, (winside, winside, 3)))
+        return np.concatenate(patches, 1)
+        #return patches
+
+        #for multiplier in [1,2,4,8,16,32]:
+        #for islice in intensity_slices:
+        #    img = np.reshape(islice, (winside, winside, 3))
+        #    maxg = np.max(img)
+        #    ming = np.min(img)
+
+    def select_features(self, instances, features_to_use, sizes):
+        offset = 0
+        fset = set(features_to_use)
+        selected_fea = []
+        for k in ['expected_loc', 'distance', 'fpfh', 'intensity']:
+            if not sizes.has_key(k):
+                continue
+            start_idx = offset 
+            end_idx = offset + sizes[k]
+
+            if fset.issuperset([k]):
+                selected_fea.append(instances[start_idx:end_idx, :])
+            offset = end_idx
+
+        return np.row_stack(selected_fea)
+
+    def automated_run(self, features_to_use, exp_name):
         # Run learner until convergence on initial scan
+        #pdb.set_trace()
+        if set(features_to_use).issuperset(['intensity']):
+            use_pca = True
+        else:
+            use_pca = False
+
         if not pt.isfile(self.training_sname):
             print 'automated_run: Training file', self.training_sname, 'not found! exiting.'
             return
 
+        feature_sizes = self.current_scan['sizes']
+        #feature_sizes['distance'] = 5 #TODO fix this 4 reals
+        print 'automated_run: Using features', features_to_use
+        print 'automated_run: feature sizes'
+        for k in ['expected_loc', 'distance', 'fpfh', 'intensity']:
+            print k, feature_sizes[k]
+
+        total_dim = 0
+        for f in features_to_use:
+            total_dim += feature_sizes[f]
+
+        print 'automated_run: total feature size should be', total_dim
+        #pdb.set_trace()
+
+        #Select only the features we will use
+        self.current_scan['instances'] = self.select_features(self.current_scan['instances'], features_to_use, feature_sizes)
+        print 'automated_run: starting with %d dim in current_scan' % self.current_scan['instances'].shape[0]
+        #assert(total_dim == self.current_scan['instances'].shape[0])
+
         #Load the seed dataset to initialize active learner with
         self.dataset = ut.load_pickle(self.training_sname)
-        self.train()
+        #self.dataset.distance_hack()
+        #pdb.set_trace()
+        self.dataset.select_features(features_to_use)
+        #assert(total_dim == self.dataset.inputs.shape[0])
+        #self.dataset.inputs = self.select_features(self.dataset.inputs, features_to_use)
+
+        self.train(use_pca)
         self.classify_current_scan()
         self.draw()
         k = cv.WaitKey(33)
@@ -1311,6 +1480,7 @@ class ScanLabeler:
         print 'Loading scans we\'ll be testing on'
         self.scan_idx = 0 # Train on the first scan 
         BASE_FILE_NAME = pt.splitext(self.scan_names[self.scan_idx])[0]
+        print 'TRAINING ON SCAN NAMED', self.scan_names[self.scan_idx]
         all_scans_except_current = []
         indices_of_other_scans = inverse_indices(self.scan_idx, len(self.scan_names))
         for i in indices_of_other_scans:
@@ -1318,17 +1488,23 @@ class ScanLabeler:
             print '>>', sn
             scan_dict = ut.load_pickle(sn)
             reduced_sd = {}
-            reduced_sd['instances'] = scan_dict['instances']
+            reduced_sd['instances'] = self.select_features(scan_dict['instances'], features_to_use, feature_sizes)
             reduced_sd['labels'] = scan_dict['labels']
             reduced_sd['name'] = sn
             all_scans_except_current.append(reduced_sd)
-
+            if i > 0:
+                break
 
         i = 0
         not_converged = True
         train_set_statistics = []
         current_scan_statistics  = []
         perf_on_other_scans = []
+
+        if self.learner.projection_basis != None:
+            for basis_idx in range(self.learner.projection_basis.shape[1]):
+                image_arr = cv.fromarray(self.instance_to_image(self.learner.projection_basis[:,basis_idx]).copy())
+                cv.SaveImage('iter_init_basis_%d.png' % (basis_idx), image_arr)
 
         #Run active learner until convergence
         while not_converged:
@@ -1341,7 +1517,11 @@ class ScanLabeler:
             if ridx != None:
                 selected_idx = remaining_pt_indices[ridx]
                 self.add_to_training_set(selected_idx)
-                self.train()
+                self.train(use_pca)
+                if self.learner.projection_basis != None:
+                    for basis_idx in range(self.learner.projection_basis.shape[1]):
+                        image_arr = cv.fromarray(self.instance_to_image(self.learner.projection_basis[:,basis_idx]).copy())
+                        cv.SaveImage('iter_%d_basis_%d.png' % (i, basis_idx), image_arr)
                 self.classify_current_scan()
                 self.draw()
                 k = cv.WaitKey(33)
@@ -1384,10 +1564,11 @@ class ScanLabeler:
                 not_converged = False
 
         #Save training results
-        training_results_name = BASE_FILE_NAME + '_active_train_iter_results.pkl'
+        training_results_name = BASE_FILE_NAME + ('_active_train_iter_results_%s.pkl' % exp_name)
         ut.save_pickle({'train_set_statistics': train_set_statistics,
                         'current_scan_statistics': current_scan_statistics,
                         'perf_on_other_scans': perf_on_other_scans}, training_results_name)
+        print 'Saved training results to', training_results_name
 
         #######################################
         #Final tests
@@ -1404,9 +1585,10 @@ class ScanLabeler:
         for scan in all_scans_except_current:
             _, conf = self.evaluate_learner(scan['instances'], scan['labels'])
             final_perf_other_scans.append({'name': scan['name'], 'conf': conf})
+        train_results_fname = BASE_FILE_NAME + ('_active_final_results_%s.pkl' % exp_name)
         ut.save_pickle({'train_set_conf': cscan_conf,
-                        'other_scans_conf': final_perf_other_scans}, 
-                        BASE_FILE_NAME + '_active_final_results.pkl')
+                        'other_scans_conf': final_perf_other_scans}, train_results_fname)
+        print 'Saved results to', train_results_fname
 
     def run_gui(self):
         # Make a test set
@@ -1428,8 +1610,6 @@ class ScanLabeler:
             closest_idx = ck
         else:
             closest_idx = cr
-        #print 'clicked at img loc', np.array([x,y]) / self.scale
-        #print 'len(closest_idx)', len(closest_idx)
 
         if self.mode == 'GROUND_TRUTH':
             if event == cv.CV_EVENT_LBUTTONDOWN:
@@ -1451,56 +1631,21 @@ class ScanLabeler:
             # Try to add selected point
             if event == cv.CV_EVENT_LBUTTONDOWN:
                 self.add_to_training_set(closest_idx)
-                ## Don't add examples that have not been labeled (remove examples with the label UNLABELED)
-                #labeled_idx = []
-                #for idx in closest_idx:
-                #    if self.current_scan['labels'][0, idx] != UNLABELED:
-                #        labeled_idx.append(idx)
-
-                ## Don't add examples that have been added (keep index of examples added from this scan).
-                ## Search the list of labeled examples.
-                #filtered_idx = []
-                #if self.dataset != None:
-                #    for idx in labeled_idx:
-                #        #pdb.set_trace()
-                #        matched_idx = np.where(self.dataset.idx_in_scan == idx)[1].A1
-                #        if len(matched_idx) > 0:
-                #            if np.any(self.scan_names[self.scan_idx] == self.dataset.scan_ids[:, matched_idx]):
-                #                continue
-                #        filtered_idx.append(idx)
-                #else:
-                #    filtered_idx += labeled_idx
-
-                #pinfo = [self.current_scan[k][:, filtered_idx] for k in \
-                #                ['instances', 'labels', 'points2d', 'points3d']]
-                #pinfo.append(np.matrix([self.scan_names[self.scan_idx]] * len(filtered_idx)))
-                #pinfo.append(np.matrix(filtered_idx))
-                #self.add_to_dataset(pinfo)
 
             # Try to remove the selected point
             elif event == cv.CV_EVENT_RBUTTONDOWN:
                 self.remove_from_training_set(closest_idx)
-                #if self.dataset != None:
-                #    for idx in closest_idx:
-                #        matched_idx = np.where(self.dataset.idx_in_scan == idx)[1].A1
-                #        if len(matched_idx) > 0:
-                #            sm = np.where(self.scan_names[self.scan_idx] == self.dataset.scan_ids[:, matched_idx])[1]
-                #            if len(sm) > 0:
-                #                to_remove = matched_idx[sm]
-                #                print 'removing', len(sm), 'points'
-                #                for ridx in to_remove:
-                #                    self.dataset.remove(ridx)
         self.draw()
 
     def add_to_training_set(self, indices):
         # Don't add examples that have not been labeled (remove examples with the label UNLABELED)
         labeled_idx = []
         for idx in indices:
-            print 'add_to_training_set:', self.current_scan['labels'][0, idx].__class__
-            if np.array([self.current_scan['labels'][0, idx]]).shape[0] > 1:
-                pdb.set_trace()
-            if len(np.array([self.current_scan['labels'][0, idx]]).shape) > 1:
-                pdb.set_trace()
+            #print 'add_to_training_set:', self.current_scan['labels'][0, idx].__class__
+            #if np.array([self.current_scan['labels'][0, idx]]).shape[0] > 1:
+            #    pdb.set_trace()
+            #if len(np.array([self.current_scan['labels'][0, idx]]).shape) > 1:
+            #    pdb.set_trace()
 
             if self.current_scan['labels'][0, idx] != UNLABELED:
                 labeled_idx.append(idx)
@@ -1530,6 +1675,7 @@ class ScanLabeler:
         pinfo.append(np.matrix(filtered_idx))
 
         if self.dataset == None:
+            print 'WARNING: THIS BRANCH SHOULD BE REACHED DURING AUTONOMOUS RUN. add_to_training_set'
             self.dataset = InterestPointDataset(pinfo[0], pinfo[1], pinfo[2], \
                     pinfo[3], None, pinfo[4], pinfo[5], sizes=self.current_scan['sizes'])
         else:
@@ -1556,7 +1702,7 @@ class ScanLabeler:
         if pos_ex > 2 and neg_ex > 2:
             return True
 
-    def train(self):
+    def train(self, use_pca=True):
         if self.dataset != None and self.has_enough_data():
             nneg = np.sum(self.dataset.outputs == NEGATIVE)
             npos = np.sum(self.dataset.outputs == POSITIVE)
@@ -1566,8 +1712,8 @@ class ScanLabeler:
             print 'TOTAL', self.dataset.outputs.shape[1]
             neg_to_pos_ratio = float(nneg)/float(npos)
             weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
-            self.learner = SVMPCA_ActiveLearner()
-            self.learner.train(self.dataset, self.dataset.metadata[1].extent[0],
+            self.learner = SVMPCA_ActiveLearner(use_pca)
+            self.learner.train(self.dataset, 
                                self.rec_params.svm_params + weight_balance,
                                self.rec_params.variance_keep)
 
@@ -1697,17 +1843,31 @@ class FiducialPicker:
 
 if __name__ == '__main__':
     import sys
-    mode = 'preprocess'
+    import optparse
+    p = optparse.OptionParser()
+    p.add_option('-m', '--mode', action='store',
+                dest='mode', default='label', 
+                help='fiducialpicker, preprocess, or label')
+    p.add_option("-f", "--feature", action="append", type="string")
+    p.add_option("-t", "--test", action="store_true")
+    p.add_option("-r", "--train", action="store", default=None)
+    p.add_option("-n", "--expname", action="store", default="")
+    opt, args = p.parse_args()
+    mode = opt.mode
+
+    print '======================================='
+    print 'mode:', mode
+    print '======================================='
 
     if mode == 'fiducialpicker':
-        fp = FiducialPicker(sys.argv[1])
+        fp = FiducialPicker(args[0])
         fp.run()
 
     if mode == 'standalone':
-        object_name = sys.argv[1]
-        raw_data_fname = sys.argv[2]
+        object_name = args[0]
+        raw_data_fname = args[1]
         if len(sys.argv) > 3:
-            labeled_data_fname = sys.argv[3]
+            labeled_data_fname = args[2]
         else:
             labeled_data_fname = None
 
@@ -1716,19 +1876,33 @@ if __name__ == '__main__':
 
     if mode == 'preprocess':
         rospy.init_node('detect_fpfh', anonymous=True)
-        preprocess_data_in_dir(sys.argv[1], ext='_features_df_dict.pkl')
+        preprocess_data_in_dir(args[0], ext='_features_df2_dict.pkl')
 
     if mode == 'label':
-        s = ScanLabeler(sys.argv[1], ext='_features_fpfh_dict.pkl')
-        s.run_gui()
-        #s.automated_run()
+        scans = glob.glob(pt.join(args[0], '*' + '_features_df2_dict.pkl'))
+        for scan_name in scans:
+            s = ScanLabeler(args[0], ext='_features_df2_dict.pkl', scan_to_train_on=scan_name)
+            #pdb.set_trace()
+            if opt.test:
+                print 'Running automated tests'
+                print 'Using features', opt.feature
+                if len(opt.feature) == 1 and opt.feature[0] == 'distance':
+                    s.automated_run(['distance'], opt.expname)
+                else:
+                    s.automated_run(opt.feature, opt.expname)
+            else:
+                print 'launching gui.'
+                s.run_gui()
+
+        #s.automated_run(['intensity'])
+        #s.automated_run(['fpfh', 'intensity'])
 
     if mode == 'call_fpfh':
         rospy.init_node('detect_fpfh', anonymous=True)
         fpfh = rospy.ServiceProxy('fpfh', fsrv.FPFHCalc)
 
         print 'loading'
-        extractor, _ = load_data_from_file(sys.argv[1], Recognize3DParam())
+        extractor, _ = load_data_from_file(args[0], Recognize3DParam())
         #data_pkl = ut.load_pickle(sys.argv[1])
         req = fsrv.FPFHCalcRequest()
         print 'npoints', extractor.points3d_valid_laser.shape[1]
