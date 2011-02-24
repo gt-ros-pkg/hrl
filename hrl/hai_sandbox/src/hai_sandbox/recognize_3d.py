@@ -676,7 +676,7 @@ class SVMPCA_ActiveLearner:
         else:
             return data_idx, data_dists
 
-    def train(self, dataset, svm_params, variance_keep=.95):
+    def train(self, dataset, inputs_for_scaling, svm_params, variance_keep=.95):
         #pdb.set_trace()
         #TODO: somehow generate labels for these datasets...
         self.dataset = dataset
@@ -689,6 +689,7 @@ class SVMPCA_ActiveLearner:
             #pdb.set_trace()
             self._calculate_pca_vectors(train, variance_keep)
             train = self.partial_pca_project(train)
+            inputs_for_scaling = self.partial_pca_project(inputs_for_scaling)
     
         print 'SVMPCA_ActiveLearner.train: Training classifier.'
         #train => float32 mat, each row is an example
@@ -698,8 +699,13 @@ class SVMPCA_ActiveLearner:
 
         self.reduced_dataset = ds.Dataset(train.copy(), responses.copy())
         self.scale = DataScale()
-        self.rescaled_dataset = ds.Dataset(self.scale.scale(self.reduced_dataset.inputs), 
-                                           self.reduced_dataset.outputs)
+        if inputs_for_scaling == None:
+            inputs_for_scaling = self.reduced_dataset.inputs
+        else:
+            print 'SVMPCA_ActiveLearner.train: using large input set for setting scaling parameters'
+        self.scale.scale(inputs_for_scaling)
+        rescaled_inputs = self.scale.scale(self.reduced_dataset.inputs)
+        self.rescaled_dataset = ds.Dataset(rescaled_inputs, self.reduced_dataset.outputs)
 
         #dataset_to_libsvm(self.rescaled_dataset, 'interest_point_data.libsvm')
         self.classifiers['svm'] = SVM(self.rescaled_dataset, svm_params)
@@ -756,7 +762,8 @@ class InterestPointDataset(ds.Dataset):
         if feature_extractor != None or sizes != None:
             if feature_extractor != None:
                 sizes = feature_extractor.sizes
-            for k in ['distance', 'fpfh', 'intensity']:
+            #for k in ['distance', 'fpfh', 'intensity']:
+            for k in ['expected_loc', 'distance', 'fpfh', 'intensity']:
                 #if k == 'distance': #TODO remove this
                 #    sizes[k] = 5
                 start_idx = offset 
@@ -1188,11 +1195,12 @@ class CVGUI4(InterestPointAppBase):
 
 class ScanLabeler:
 
-    def __init__(self, dirname, ext, scan_to_train_on):
+    def __init__(self, dirname, ext, scan_to_train_on, seed_dset, features_to_use):
         self.scan_dir_name = dirname
         self.scan_names = glob.glob(pt.join(dirname, '*' + ext))
         self.scan_names.append(self.scan_names.pop(0))
         self.feature_file_ext = ext
+        self.features_to_use = features_to_use
 
         self.current_scan_pred = None
         self.current_scan = None
@@ -1211,11 +1219,11 @@ class ScanLabeler:
 
         self.scale = 1/3.
         self.mode = 'GROUND_TRUTH'
-        #if training_sname == None:
+        if seed_dset == None:
             #self.training_sname = pt.split(dirname)[0] + '_training_set.pkl'
-        self.training_sname = pt.splitext(self.scan_names[self.scan_idx])[0] + '_seed.pkl'
-        #else:
-        #    self.training_sname = seed_training_set
+            self.training_sname = pt.splitext(self.scan_names[self.scan_idx])[0] + '_seed.pkl'
+        else:
+            self.training_sname = seed_dset
         print 'Using seed dataset name', self.training_sname
         self.frame_number = 0
 
@@ -1235,8 +1243,9 @@ class ScanLabeler:
             #print '>>> THIS SCAN'
             #pdb.set_trace()
             #results = self.evaluate_learner(self.current_scan['instances'], self.current_scan['labels'])
-            results = np.matrix(self.learner.classify(self.current_scan['instances']))
-            self.current_scan_pred = InterestPointDataset(self.current_scan['instances'], results,
+            sdset = self.select_features(self.current_scan['instances'], self.features_to_use, self.current_scan['sizes'])
+            results = np.matrix(self.learner.classify(sdset))
+            self.current_scan_pred = InterestPointDataset(sdset, results,
                                         self.current_scan['points2d'], self.current_scan['points3d'], None)
             if np.any(self.current_scan['labels'] == UNLABELED):
                 return
@@ -1274,7 +1283,7 @@ class ScanLabeler:
         self.scan_idx = min(max(self.scan_idx-1, 0), len(self.scan_names)-1)
         self.load_scan(self.scan_names[self.scan_idx])
 
-    def draw(self):
+    def draw(self, save_postf=""):
         img = cv.CloneMat(self.cdisp['cv'])
 
         #Draw ground truth labels
@@ -1304,10 +1313,10 @@ class ScanLabeler:
             draw_labeled_points(img, self.current_scan_pred, scale=1./self.scale)
 
         cv.ShowImage('Scan', img)
-        img_name = pt.splitext(self.scan_names[self.scan_idx])[0] + ('_active_learn%d.png' % self.frame_number)
+        img_name = pt.splitext(self.scan_names[self.scan_idx])[0] + ('_active_learn%d%s.png' % (self.frame_number, save_postf))
         cv.SaveImage(img_name, img)
         self.frame_number = self.frame_number + 1
-        print '- refreshed display -'
+        print '- refreshed display - %s' % img_name
 
     def step(self):
         k = cv.WaitKey(33)
@@ -1336,6 +1345,7 @@ class ScanLabeler:
             
         if k == ord('s'):
             if self.dataset != None:
+                #pdb.set_trace()
                 ut.save_pickle(self.dataset, self.training_sname)
                 print 'saved to', self.training_sname
 
@@ -1357,7 +1367,7 @@ class ScanLabeler:
                 print 'Saved!'
 
         if k == ord('r'):
-            self.train()
+            self.train(self.select_features(self.current_scan['instances'], self.features_to_use, self.current_scan['sizes']))
             self.classify_current_scan()
             self.draw()
 
@@ -1366,7 +1376,8 @@ class ScanLabeler:
                 selected_idx, selected_dist = self.learner.select_next_instances(self.current_scan['instances'])
                 if selected_idx != None:
                     self.add_to_training_set(selected_idx)
-                    self.train()
+                    #self.train(self.train(self.current_scan['instances']))
+                    self.train(self.select_features(self.current_scan['instances'], self.features_to_use, self.current_scan['sizes']))
                     self.classify_current_scan()
                     self.draw()
                 else:
@@ -1432,13 +1443,13 @@ class ScanLabeler:
 
         return np.row_stack(selected_fea)
 
-    def automated_run(self, features_to_use, exp_name):
+    def automated_run(self, features_to_use, exp_name, use_pca=None):
         # Run learner until convergence on initial scan
-        #pdb.set_trace()
-        if set(features_to_use).issuperset(['intensity']):
-            use_pca = True
-        else:
-            use_pca = False
+        if use_pca == None:
+            if set(features_to_use).issuperset(['intensity']):
+                use_pca = True
+            else:
+                use_pca = False
 
         if not pt.isfile(self.training_sname):
             print 'automated_run: Training file', self.training_sname, 'not found! exiting.'
@@ -1459,26 +1470,30 @@ class ScanLabeler:
         #pdb.set_trace()
 
         #Select only the features we will use
+        #pdb.set_trace()
         self.current_scan['instances'] = self.select_features(self.current_scan['instances'], features_to_use, feature_sizes)
         print 'automated_run: starting with %d dim in current_scan' % self.current_scan['instances'].shape[0]
         #assert(total_dim == self.current_scan['instances'].shape[0])
 
         #Load the seed dataset to initialize active learner with
         self.dataset = ut.load_pickle(self.training_sname)
+        print 'automated_run: loaded seed training file', self.training_sname
         #self.dataset.distance_hack()
         #pdb.set_trace()
         self.dataset.select_features(features_to_use)
         #assert(total_dim == self.dataset.inputs.shape[0])
         #self.dataset.inputs = self.select_features(self.dataset.inputs, features_to_use)
 
-        self.train(use_pca)
+        #pdb.set_trace()
+        self.train(self.current_scan['instances'], use_pca)
         self.classify_current_scan()
-        self.draw()
+        #pdb.set_trace()
+        self.draw('_' + exp_name)
         k = cv.WaitKey(33)
 
         #Load all the scans we'll be testing on
         print 'Loading scans we\'ll be testing on'
-        self.scan_idx = 0 # Train on the first scan 
+        #self.scan_idx = 0 # Train on the first scan 
         BASE_FILE_NAME = pt.splitext(self.scan_names[self.scan_idx])[0]
         print 'TRAINING ON SCAN NAMED', self.scan_names[self.scan_idx]
         all_scans_except_current = []
@@ -1492,8 +1507,8 @@ class ScanLabeler:
             reduced_sd['labels'] = scan_dict['labels']
             reduced_sd['name'] = sn
             all_scans_except_current.append(reduced_sd)
-            if i > 0:
-                break
+            #if i > 0:
+                #break
 
         i = 0
         not_converged = True
@@ -1504,7 +1519,7 @@ class ScanLabeler:
         if self.learner.projection_basis != None:
             for basis_idx in range(self.learner.projection_basis.shape[1]):
                 image_arr = cv.fromarray(self.instance_to_image(self.learner.projection_basis[:,basis_idx]).copy())
-                cv.SaveImage('iter_init_basis_%d.png' % (basis_idx), image_arr)
+                cv.SaveImage('%s_%s_iter_init_basis_%d.png' % (BASE_FILE_NAME, exp_name, basis_idx), image_arr)
 
         #Run active learner until convergence
         while not_converged:
@@ -1517,13 +1532,14 @@ class ScanLabeler:
             if ridx != None:
                 selected_idx = remaining_pt_indices[ridx]
                 self.add_to_training_set(selected_idx)
-                self.train(use_pca)
+                #self.train(use_pca)
+                self.train(self.current_scan['instances'], use_pca)
                 if self.learner.projection_basis != None:
                     for basis_idx in range(self.learner.projection_basis.shape[1]):
                         image_arr = cv.fromarray(self.instance_to_image(self.learner.projection_basis[:,basis_idx]).copy())
-                        cv.SaveImage('iter_%d_basis_%d.png' % (i, basis_idx), image_arr)
+                        cv.SaveImage('%s_%s_iter_%d_basis_%d.png' % (BASE_FILE_NAME, exp_name, i, basis_idx), image_arr)
                 self.classify_current_scan()
-                self.draw()
+                self.draw('_' + exp_name)
                 k = cv.WaitKey(33)
                 #fname = 'drawer_dataset_%d.libsvm' % i
                 #dataset_to_libsvm(self.learner.rescaled_dataset, fname)
@@ -1559,7 +1575,7 @@ class ScanLabeler:
                 print '======================='
                 print 'saving dataset to', self.training_sname
                 #ut.save_pickle(self.dataset, self.training_sname)
-                ut.save_pickle(self.dataset, BASE_FILE_NAME + '_converged_dset.pkl')
+                ut.save_pickle(self.dataset, BASE_FILE_NAME + ('_converged_dset_%s.pkl' % exp_name))
                 print 'saved!'
                 not_converged = False
 
@@ -1675,6 +1691,7 @@ class ScanLabeler:
         pinfo.append(np.matrix(filtered_idx))
 
         if self.dataset == None:
+            #pdb.set_trace()
             print 'WARNING: THIS BRANCH SHOULD BE REACHED DURING AUTONOMOUS RUN. add_to_training_set'
             self.dataset = InterestPointDataset(pinfo[0], pinfo[1], pinfo[2], \
                     pinfo[3], None, pinfo[4], pinfo[5], sizes=self.current_scan['sizes'])
@@ -1702,7 +1719,7 @@ class ScanLabeler:
         if pos_ex > 2 and neg_ex > 2:
             return True
 
-    def train(self, use_pca=True):
+    def train(self, inputs_for_scaling, use_pca=True):
         if self.dataset != None and self.has_enough_data():
             nneg = np.sum(self.dataset.outputs == NEGATIVE)
             npos = np.sum(self.dataset.outputs == POSITIVE)
@@ -1714,6 +1731,7 @@ class ScanLabeler:
             weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
             self.learner = SVMPCA_ActiveLearner(use_pca)
             self.learner.train(self.dataset, 
+                               inputs_for_scaling,
                                self.rec_params.svm_params + weight_balance,
                                self.rec_params.variance_keep)
 
@@ -1852,6 +1870,8 @@ if __name__ == '__main__':
     p.add_option("-t", "--test", action="store_true")
     p.add_option("-r", "--train", action="store", default=None)
     p.add_option("-n", "--expname", action="store", default="")
+    p.add_option("-p", "--pca", action="store_true", default=None)
+    p.add_option("-s", "--seed", action="store", default=None)
     opt, args = p.parse_args()
     mode = opt.mode
 
@@ -1879,20 +1899,33 @@ if __name__ == '__main__':
         preprocess_data_in_dir(args[0], ext='_features_df2_dict.pkl')
 
     if mode == 'label':
-        scans = glob.glob(pt.join(args[0], '*' + '_features_df2_dict.pkl'))
-        for scan_name in scans:
-            s = ScanLabeler(args[0], ext='_features_df2_dict.pkl', scan_to_train_on=scan_name)
-            #pdb.set_trace()
-            if opt.test:
-                print 'Running automated tests'
-                print 'Using features', opt.feature
-                if len(opt.feature) == 1 and opt.feature[0] == 'distance':
-                    s.automated_run(['distance'], opt.expname)
-                else:
-                    s.automated_run(opt.feature, opt.expname)
+        s = ScanLabeler(args[0], ext='_features_df2_dict.pkl', scan_to_train_on=opt.train, seed_dset=opt.seed, features_to_use=opt.feature)
+        #pdb.set_trace()
+        if opt.test:
+            print 'Running automated tests'
+            print 'Using features', opt.feature
+            if len(opt.feature) == 1 and opt.feature[0] == 'distance':
+                s.automated_run(['distance'], opt.expname, opt.pca)
             else:
-                print 'launching gui.'
-                s.run_gui()
+                s.automated_run(opt.feature, opt.expname, opt.pca)
+        else:
+            print 'launching gui.'
+            s.run_gui()
+
+        #scans = glob.glob(pt.join(args[0], '*' + '_features_df2_dict.pkl'))
+        #for scan_name in scans:
+        #    s = ScanLabeler(args[0], ext='_features_df2_dict.pkl', scan_to_train_on=scan_name)
+        #    #pdb.set_trace()
+        #    if opt.test:
+        #        print 'Running automated tests'
+        #        print 'Using features', opt.feature
+        #        if len(opt.feature) == 1 and opt.feature[0] == 'distance':
+        #            s.automated_run(['distance'], opt.expname, opt.pca)
+        #        else:
+        #            s.automated_run(opt.feature, opt.expname, opt.pca)
+        #    else:
+        #        print 'launching gui.'
+        #        s.run_gui()
 
         #s.automated_run(['intensity'])
         #s.automated_run(['fpfh', 'intensity'])
