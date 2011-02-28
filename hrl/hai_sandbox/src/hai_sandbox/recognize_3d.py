@@ -795,10 +795,11 @@ class InterestPointDataset(ds.Dataset):
             for k in ['expected_loc', 'distance', 'fpfh', 'intensity']:
                 #if k == 'distance': #TODO remove this
                 #    sizes[k] = 5
-                start_idx = offset 
-                end_idx = offset + sizes[k]
-                self.add_attribute_descriptor(ds.AttributeDescriptor(k, (start_idx, end_idx)))
-                offset = end_idx
+                if sizes.has_key(k):
+                    start_idx = offset 
+                    end_idx = offset + sizes[k]
+                    self.add_attribute_descriptor(ds.AttributeDescriptor(k, (start_idx, end_idx)))
+                    offset = end_idx
 
     #def distance_hack(self):
     #    offset = 0
@@ -1473,7 +1474,93 @@ class ScanLabeler:
 
         return np.row_stack(selected_fea)
 
-    def automated_run(self, features_to_use, exp_name, use_pca=None):
+    def test_feature_perf(self, features_to_use, exp_name, use_pca=None):
+        #Make folder for results
+        BASE_FILE_NAME = pt.splitext(insert_folder_name(self.scan_names[self.scan_idx], exp_name))[0] #pt.splitext(self.scan_names[self.scan_idx])[0]
+        try:
+            os.mkdir(pt.split(BASE_FILE_NAME)[0])
+        except OSError, e:
+            if e.errno != 17:
+                pdb.set_trace()
+                raise e
+
+        #Decide whether to use PCA
+        if use_pca == None:
+            if set(features_to_use).issuperset(['intensity']):
+                use_pca = True
+            else:
+                use_pca = False
+
+        if not pt.isfile(self.training_sname):
+            print 'test_feature_perf: Training file', self.training_sname, 'not found! exiting.'
+            return
+
+        feature_sizes = self.current_scan['sizes']
+        rcurrent_scan = self.select_features(self.current_scan['instances'], features_to_use, feature_sizes)
+
+        #Construct new dataset
+        nsizes = {}
+        for f in features_to_use:
+            nsizes[f] = feature_sizes[f]
+
+        self.dataset = InterestPointDataset(rcurrent_scan, self.current_scan['labels'], 
+                            self.current_scan['points2d'], self.current_scan['points3d'], None,
+                            scan_ids=np.matrix(range(self.current_scan['instances'].shape[1])), sizes=nsizes)
+
+        print 'Training on scan named:', self.scan_names[self.scan_idx]
+        self.train(rcurrent_scan, use_pca)
+        self.classify_current_scan()
+        self.draw(exp_name)
+        k = cv.WaitKey(33)
+
+        #for i in indices_of_other_scans:
+        #    sn = self.scan_names[i]
+        #    print '>>', sn
+        #    scan_dict = ut.load_pickle(sn)
+        #    reduced_sd = {}
+        #    reduced_sd['instances'] = self.select_features(scan_dict['instances'], features_to_use, feature_sizes)
+        #    reduced_sd['labels'] = scan_dict['labels']
+        #    reduced_sd['name'] = sn
+        #    all_scans_except_current.append(reduced_sd)
+
+
+        print '>>>> Test set peformance'
+        _, train_conf = self.evaluate_learner(self.dataset.inputs, self.dataset.outputs)
+        train_set_statistics = []
+        train_set_statistics.append({'conf': train_conf, 
+                                     'size': self.dataset.inputs.shape[1]})
+
+        print '>>>> Performance on unseen scans'
+        print 'Loading scans we\'ll be testing on'
+        #all_scans_except_current = []
+        indices_of_other_scans = inverse_indices(self.scan_idx, len(self.scan_names))
+
+        conf_unseen = []
+        for i in indices_of_other_scans:
+            self.load_scan(self.scan_names[i])
+            self.classify_current_scan()
+            self.draw(exp_name)
+            k = cv.WaitKey(33)
+            sdset = self.select_features(self.current_scan['instances'], self.features_to_use, self.current_scan['sizes'])
+            _, conf = self.evaluate_learner(sdset, self.current_scan['labels'], verbose=False)
+            conf_unseen.append({'name': self.scan_names[i], 'conf': conf})
+        perf_on_other_scans = []
+        perf_on_other_scans.append(conf_unseen)
+
+        # conf_unseen = []
+        # for scan in all_scans_except_current:
+        #     _, conf = self.evaluate_learner(scan['instances'], scan['labels'], verbose=False)
+        #     conf_unseen.append({'name': scan['name'], 'conf': conf})
+
+        #Save training results
+        training_results_name = BASE_FILE_NAME + 'active_train_iter_results.pkl'
+        ut.save_pickle({'train_set_statistics': train_set_statistics,
+                        #'current_scan_statistics': current_scan_statistics,
+                        'perf_on_other_scans': perf_on_other_scans}, training_results_name)
+        print 'Saved training results to', training_results_name
+
+
+    def active_learn_test(self, features_to_use, exp_name, use_pca=None):
         BASE_FILE_NAME = pt.splitext(insert_folder_name(self.scan_names[self.scan_idx], exp_name))[0] #pt.splitext(self.scan_names[self.scan_idx])[0]
         try:
             os.mkdir(pt.split(BASE_FILE_NAME)[0])
@@ -1490,13 +1577,13 @@ class ScanLabeler:
                 use_pca = False
 
         if not pt.isfile(self.training_sname):
-            print 'automated_run: Training file', self.training_sname, 'not found! exiting.'
+            print 'active_learn_test: Training file', self.training_sname, 'not found! exiting.'
             return
 
         feature_sizes = self.current_scan['sizes']
         #feature_sizes['distance'] = 5 #TODO fix this 4 reals
-        print 'automated_run: Using features', features_to_use
-        print 'automated_run: feature sizes'
+        print 'active_learn_test: Using features', features_to_use
+        print 'active_learn_test: feature sizes'
         for k in ['expected_loc', 'distance', 'fpfh', 'intensity']:
             print k, feature_sizes[k]
 
@@ -1504,54 +1591,23 @@ class ScanLabeler:
         for f in features_to_use:
             total_dim += feature_sizes[f]
 
-        print 'automated_run: total feature size should be', total_dim
-        #pdb.set_trace()
+        print 'active_learn_test: total feature size should be', total_dim
 
         #Select only the features we will use
-        #pdb.set_trace()
         rcurrent_scan = self.select_features(self.current_scan['instances'], features_to_use, feature_sizes)
-        #cv.SaveImage(BASE_FILE_NAME + '_all_data.png', \
-        #        instances_to_image(
-        #            self.rec_params.win_size,
-        #            self.select_features(self.current_scan['instances'], ['intensity'], feature_sizes),
-        #            0., 1.))
-        #print 'automated_run: starting with %d dim in current_scan' % self.current_scan['instances'].shape[0]
-        #assert(total_dim == self.current_scan['instances'].shape[0])
 
         #Load the seed dataset to initialize active learner with
         self.dataset = ut.load_pickle(self.training_sname)
-        print 'automated_run: loaded seed training file', self.training_sname
-        #self.dataset.distance_hack()
-        #pdb.set_trace()
+        print 'active_learn_test: loaded seed training file', self.training_sname
         self.dataset.select_features(features_to_use)
-        #assert(total_dim == self.dataset.inputs.shape[0])
-        #self.dataset.inputs = self.select_features(self.dataset.inputs, features_to_use)
 
-        #pdb.set_trace()
         self.train(rcurrent_scan, use_pca)
         self.classify_current_scan()
-        #pdb.set_trace()
         self.draw(exp_name)
         k = cv.WaitKey(33)
 
-        if self.learner.projection_basis != None:
-            #img_arrs = []
-            #for basis_idx in range(self.learner.projection_basis.shape[1]):
-            #    img_arrs.append(self.instance_to_image(self.learner.projection_basis[:,basis_idx]).copy())
-            #cv.SaveImage(BASE_FILE_NAME + '_iter_init_basis.png', cv.fromarray(np.concatenate(img_arrs, 0).copy()))
-            cv.SaveImage(BASE_FILE_NAME + '_iter_init_basis.png', 
-                    instances_to_image(self.rec_params.win_size, 
-                        self.learner.projection_basis, 
-                        np.min(self.learner.projection_basis), 
-                        np.max(self.learner.projection_basis)))
-            #pdb.set_trace()
-            cv.SaveImage(BASE_FILE_NAME + '_intensity_set.png', \
-                    instances_to_image(self.rec_params.win_size, self.dataset.features_named(['intensity']), 0., 1.))
-
-
         #Load all the scans we'll be testing on
         print 'Loading scans we\'ll be testing on'
-        #self.scan_idx = 0 # Train on the first scan 
         print 'TRAINING ON SCAN NAMED', self.scan_names[self.scan_idx]
         all_scans_except_current = []
         indices_of_other_scans = inverse_indices(self.scan_idx, len(self.scan_names))
@@ -1573,85 +1629,62 @@ class ScanLabeler:
         current_scan_statistics  = []
         perf_on_other_scans = []
 
-            #samples = self.dataset.features_named(['intensity'])
-            #iarr2 = []
-            #for sai in range(samples.shape[1]):
-            #    iarr2.append(
-
-            #self.dataset.inputs[self.dataset.metadata,:]
-            #cv.SaveImage('%s_iter_init_basis_%d.png' % (BASE_FILE_NAME, basis_idx), image_arr)
+        #if not active_train:
+        #    remaining_pt_indices = inverse_indices(self.dataset.idx_in_scan, rcurrent_scan.shape[1])
+        #    self.add_to_training_set(remaining_pt_indices)
 
         #Run active learner until convergence
         while not_converged:
+            if self.learner.projection_basis != None:
+                cv.SaveImage(BASE_FILE_NAME + ('_iter_%d_basis.png' % i),\
+                             instances_to_image(\
+                                self.rec_params.win_size,\
+                                self.learner.projection_basis,\
+                                np.min(self.learner.projection_basis),\
+                                np.max(self.learner.projection_basis)))
+                cv.SaveImage(BASE_FILE_NAME + ('_intensity_set_%d.png' % i),\
+                             instances_to_image(self.rec_params.win_size, self.dataset.features_named(['intensity']),\
+                                                0., 1.))
+
+            self.classify_current_scan()
+            self.draw(exp_name)
+            k = cv.WaitKey(33)
+
+            print '>>>> Test set peformance'
+            _, train_conf = self.evaluate_learner(self.dataset.inputs, self.dataset.outputs)
+            train_set_statistics.append({'conf': train_conf, 
+                                         'size': self.dataset.inputs.shape[1]})
+
+            print '>>>> Performance on current scan'
+            remaining_instances = rcurrent_scan[:, remaining_pt_indices]
+            remaining_outputs = rcurrent_scan[:, remaining_pt_indices]
+            _, rem_conf  = self.evaluate_learner(remaining_instances, remaining_outputs)
+            current_scan_statistics.append({'conf': rem_conf})
+
+            print '>>>> Performance on unseen scans'
+            conf_unseen = []
+            for scan in all_scans_except_current:
+                _, conf = self.evaluate_learner(scan['instances'], scan['labels'], verbose=False)
+                conf_unseen.append({'name': scan['name'], 'conf': conf})
+            perf_on_other_scans.append(conf_unseen)
+
             #Only select points that have *not* been added
+            #if active_train:
             remaining_pt_indices = inverse_indices(self.dataset.idx_in_scan, rcurrent_scan.shape[1])
             ridx, selected_dist = self.learner.select_next_instances(rcurrent_scan[:, remaining_pt_indices])
-            #pdb.set_trace()
+            #else:
+            #    ridx = None
 
             if ridx != None:
                 selected_idx = remaining_pt_indices[ridx]
                 self.add_to_training_set(selected_idx)
-                #self.train(use_pca)
-                #self.train(self.current_scan['instances'], use_pca)
                 self.train(rcurrent_scan, use_pca)
-                if self.learner.projection_basis != None:
-                    cv.SaveImage(BASE_FILE_NAME + ('_iter_%d_basis.png' % i),\
-                                 instances_to_image(\
-                                    self.rec_params.win_size,\
-                                    self.learner.projection_basis,\
-                                    np.min(self.learner.projection_basis),\
-                                    np.max(self.learner.projection_basis)))
-                    cv.SaveImage(BASE_FILE_NAME + ('_intensity_set_%d.png' % i),\
-                                 instances_to_image(self.rec_params.win_size, self.dataset.features_named(['intensity']),\
-                                                    0., 1.))
-                    #img_arrs = []
-                    #for basis_idx in range(self.learner.projection_basis.shape[1]):
-                    #    #image_arr = cv.fromarray(self.instance_to_image(self.learner.projection_basis[:,basis_idx]).copy())
-                    #    img_arrs.append(self.instance_to_image(self.learner.projection_basis[:,basis_idx]).copy())
-                    #    #cv.SaveImage('%s_iter_init_basis_%d.png' % (BASE_FILE_NAME, basis_idx), image_arr)
-                    #cv.SaveImage(BASE_FILE_NAME + ('iter_%d_basis.png' % i), cv.fromarray(np.concatenate(img_arrs, 0).copy()))
-
-                    ##cv.SaveImage('%s_iter_init_basis_%d.png' % (BASE_FILE_NAME, basis_idx), image_arr)
-                    #for basis_idx in range(self.learner.projection_basis.shape[1]):
-                    #    image_arr = cv.fromarray(self.instance_to_image(self.learner.projection_basis[:,basis_idx]).copy())
-                    #    cv.SaveImage(pt.join(BASE_FILE_NAME, 'iter_%d_basis_%d.png' % (i, basis_idx)), image_arr)
-                self.classify_current_scan()
-                self.draw(exp_name)
-                k = cv.WaitKey(33)
-                #fname = 'drawer_dataset_%d.libsvm' % i
-                #dataset_to_libsvm(self.learner.rescaled_dataset, fname)
-                #print 'saved to', fname
-
-                print '>>>> Test set peformance'
-                _, train_conf = self.evaluate_learner(self.dataset.inputs, self.dataset.outputs)
-                train_set_statistics.append({'conf': train_conf, 
-                                             'size': self.dataset.inputs.shape[1]})
-
-                print '>>>> Performance on current scan'
-                #Make a new dataset with only unselected elements..
-                remaining_instances = rcurrent_scan[:, remaining_pt_indices]
-                remaining_outputs = rcurrent_scan[:, remaining_pt_indices]
-                _, rem_conf  = self.evaluate_learner(remaining_instances, remaining_outputs)
-                current_scan_statistics.append({'conf': rem_conf})
-                #self.classify_current_scan() #classification of all points
-
-                print '>>>> Performance on unseen scans'
-                #pdb.set_trace()
-                conf_unseen = []
-                for scan in all_scans_except_current:
-                    _, conf = self.evaluate_learner(scan['instances'], scan['labels'], verbose=False)
-                    conf_unseen.append({'name': scan['name'], 'conf': conf})
-                perf_on_other_scans.append(conf_unseen)
-
-                print '>>>> Performance on all scans'
-
                 i = i + 1
             else:
                 print '======================='
                 print '>> LEARNER CONVERGED <<'
                 print '======================='
                 print 'saving dataset to', self.training_sname
-                #ut.save_pickle(self.dataset, self.training_sname)
                 ut.save_pickle(self.dataset, BASE_FILE_NAME + '_converged_dset.pkl')
                 print 'saved!'
                 not_converged = False
@@ -1662,26 +1695,24 @@ class ScanLabeler:
                         'current_scan_statistics': current_scan_statistics,
                         'perf_on_other_scans': perf_on_other_scans}, training_results_name)
         print 'Saved training results to', training_results_name
-
         #######################################
         #Final tests
+        ##Test current scan
+        #remaining_pt_indices = inverse_indices(self.dataset.idx_in_scan, 
+        #                                       self.current_scan['instances'].shape[1])
+        #remaining_instances = rcurrent_scan[:, remaining_pt_indices]
+        #remaining_outputs = self.current_scan['labels'][:, remaining_pt_indices]
+        #_, cscan_conf  = self.evaluate_learner(remaining_instances, remaining_outputs)
 
-        #Test current scan
-        remaining_pt_indices = inverse_indices(self.dataset.idx_in_scan, 
-                                               self.current_scan['instances'].shape[1])
-        remaining_instances = rcurrent_scan[:, remaining_pt_indices]
-        remaining_outputs = self.current_scan['labels'][:, remaining_pt_indices]
-        _, cscan_conf  = self.evaluate_learner(remaining_instances, remaining_outputs)
-
-        #Test on other datasets
-        final_perf_other_scans = []
-        for scan in all_scans_except_current:
-            _, conf = self.evaluate_learner(scan['instances'], scan['labels'])
-            final_perf_other_scans.append({'name': scan['name'], 'conf': conf})
-        train_results_fname = BASE_FILE_NAME + 'active_final_results.pkl'
-        ut.save_pickle({'train_set_conf': cscan_conf,
-                        'other_scans_conf': final_perf_other_scans}, train_results_fname)
-        print 'Saved results to', train_results_fname
+        ##Test on other datasets
+        #final_perf_other_scans = []
+        #for scan in all_scans_except_current:
+        #    _, conf = self.evaluate_learner(scan['instances'], scan['labels'])
+        #    final_perf_other_scans.append({'name': scan['name'], 'conf': conf})
+        #train_results_fname = BASE_FILE_NAME + 'active_final_results.pkl'
+        #ut.save_pickle({'train_set_conf': cscan_conf,
+        #                'other_scans_conf': final_perf_other_scans}, train_results_fname)
+        #print 'Saved results to', train_results_fname
 
     def run_gui(self):
         # Make a test set
@@ -1986,12 +2017,20 @@ if __name__ == '__main__':
             print 'Running automated tests'
             print 'Using features', opt.feature
             if len(opt.feature) == 1 and opt.feature[0] == 'distance':
-                s.automated_run(['distance'], opt.expname, opt.pca)
+                s.active_learn_test(['distance'], opt.expname, opt.pca)
             else:
-                s.automated_run(opt.feature, opt.expname, opt.pca)
+                s.active_learn_test(opt.feature, opt.expname, opt.pca)
         else:
             print 'launching gui.'
             s.run_gui()
+
+    if mode == 'feature':
+        s = ScanLabeler(args[0], ext='_features_df2_dict.pkl', scan_to_train_on=opt.train, 
+                seed_dset=opt.seed, features_to_use=opt.feature)
+        if len(opt.feature) == 1 and opt.feature[0] == 'distance':
+            s.test_feature_perf(['distance'], opt.expname, opt.pca)
+        else:
+            s.test_feature_perf(opt.feature, opt.expname, opt.pca)
 
         #scans = glob.glob(pt.join(args[0], '*' + '_features_df2_dict.pkl'))
         #for scan_name in scans:
@@ -2001,15 +2040,15 @@ if __name__ == '__main__':
         #        print 'Running automated tests'
         #        print 'Using features', opt.feature
         #        if len(opt.feature) == 1 and opt.feature[0] == 'distance':
-        #            s.automated_run(['distance'], opt.expname, opt.pca)
+        #            s.active_learn_test(['distance'], opt.expname, opt.pca)
         #        else:
-        #            s.automated_run(opt.feature, opt.expname, opt.pca)
+        #            s.active_learn_test(opt.feature, opt.expname, opt.pca)
         #    else:
         #        print 'launching gui.'
         #        s.run_gui()
 
-        #s.automated_run(['intensity'])
-        #s.automated_run(['fpfh', 'intensity'])
+        #s.active_learn_test(['intensity'])
+        #s.active_learn_test(['fpfh', 'intensity'])
 
     if mode == 'call_fpfh':
         rospy.init_node('detect_fpfh', anonymous=True)
