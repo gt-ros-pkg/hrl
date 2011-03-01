@@ -1523,8 +1523,8 @@ class ScanLabeler:
             scan_idx = self.search_dataset_id(sname)
             if scan_idx == None:
                 print 'ERROR: %s not found in dir given' % (sname)
-            dset_trained_on.append(self.scan_idx)
-            self.load_scan(self.scan_names[self.scan_idx])
+            dset_trained_on.append(scan_idx)
+            self.load_scan(self.scan_names[scan_idx])
             rcurrent_scan = self.select_features(self.current_scan['instances'], features_to_use, feature_sizes)
             scan_ids = np.matrix([sname]*rcurrent_scan.shape[1])
             idx_in_scan = np.matrix(range(rcurrent_scan.shape[1]))
@@ -1537,11 +1537,16 @@ class ScanLabeler:
                                  self.current_scan['points3d'], scan_id=scan_ids, idx_in_scan=idx_in_scan)
 
         self.train(self.dataset.inputs, use_pca)
-        self.classify_current_scan()
-        self.draw(exp_name)
+        #pdb.set_trace()
+        for d in dset_trained_on:
+            self.load_scan(self.scan_names[d])
+            self.scan_idx = d
+            self.classify_current_scan()
+            self.draw(exp_name)
+
         k = cv.WaitKey(33)
 
-        print '>>>> Test set peformance'
+        print '>>>> Training set peformance'
         _, train_conf = self.evaluate_learner(self.dataset.inputs, self.dataset.outputs)
         train_set_statistics = []
         train_set_statistics.append({'conf': train_conf, 
@@ -1635,8 +1640,8 @@ class ScanLabeler:
             reduced_sd['labels'] = scan_dict['labels']
             reduced_sd['name'] = sn
             all_scans_except_current.append(reduced_sd)
-            if i > 0:
-               break
+            #if i > 0:
+            #   break
 
         i = 0
         converged = False
@@ -1663,19 +1668,21 @@ class ScanLabeler:
             self.draw(exp_name)
             k = cv.WaitKey(33)
 
-            print '>>>> Test set peformance'
+            print '>>>> Train set peformance'
             _, train_conf = self.evaluate_learner(self.dataset.inputs, self.dataset.outputs)
             train_set_statistics.append({'conf': train_conf, 
                                          'size': self.dataset.inputs.shape[1]})
 
-            print '>>>> Performance on current scan'
+            print '>>>> Performance on current scan (correlated test set)'
             remaining_pt_indices = inverse_indices(self.dataset.idx_in_scan, rcurrent_scan.shape[1])
             remaining_instances = rcurrent_scan[:, remaining_pt_indices]
-            remaining_outputs = rcurrent_scan[:, remaining_pt_indices]
+            remaining_outputs = self.current_scan['labels'][:, remaining_pt_indices]
+            #remaining_outputs = rcurrent_scan[:, remaining_pt_indices]
+            #pdb.set_trace()
             _, rem_conf  = self.evaluate_learner(remaining_instances, remaining_outputs)
             current_scan_statistics.append({'conf': rem_conf})
 
-            print '>>>> Performance on unseen scans'
+            print '>>>> Performance on unseen scans (test set)'
             conf_unseen = []
             for scan in all_scans_except_current:
                 _, conf = self.evaluate_learner(scan['instances'], scan['labels'], verbose=False)
@@ -1695,8 +1702,12 @@ class ScanLabeler:
                 else:
                     should_run = False
 
-                if converged:
+                if converged and converged_at_iter == None:
                     converged_at_iter = i
+
+                if i > 100 and converged:
+                    should_run = False
+
             else:
                 should_run = False
 
