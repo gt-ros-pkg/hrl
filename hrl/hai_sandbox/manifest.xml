@@ -35,6 +35,7 @@
   <depend package="pr2_gripper_reactive_approach"/>
   <depend package="pr2_msgs"/>
   <depend package="libsvm3"/>
+  <depend package="feature_extractor_fpfh"/>
 </package>
 
 
