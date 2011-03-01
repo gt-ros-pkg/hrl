@@ -108,17 +108,29 @@ Explore::Explore() :
 }
 
 Explore::~Explore() {
-  if(loop_closure_ != NULL)
+  if(loop_closure_ != NULL){
+    ROS_INFO("explore: Action Destroying old explore loop_closure");
     delete loop_closure_;
+    ROS_INFO("Done.");
+  }
 
-  if(planner_ != NULL)
+  if(planner_ != NULL) {
+    ROS_INFO("explore: Action Destroying old explore planner");
     delete planner_;
+    ROS_INFO("Done.");
+  }
 
-  if(explorer_ != NULL)
+  if(explorer_ != NULL) {
+    ROS_INFO("explore: Action Destroying old explore explorer");
     delete explorer_;
+    ROS_INFO("Done.");
+  }
 
-  if(explore_costmap_ros_ != NULL)
+  if(explore_costmap_ros_ != NULL){
+    ROS_INFO("explore: Action Destroying old explore costmap");
     delete explore_costmap_ros_;
+    ROS_INFO("Done.");
+  }
 }
 
 bool Explore::isDone( explore_hrl::isDone_srv::Request &req, explore_hrl::isDone_srv::Response &res ){
@@ -310,8 +322,15 @@ void Explore::makePlan() {
       ROS_INFO("We finsihed exploring the map. Hooray.");
     }
     
+
+    if (visualize_) {
+        publishMap();
+    }
     //make sure to unlock the mutex when we're done
     client_mutex_.unlock();
+  }
+  else {
+    ROS_WARN("Explore: Mutex acquire failed!");
   }
 }
 
@@ -371,7 +390,7 @@ void Explore::spin() {
 }
 
 void Explore::setPreemptFlag( bool state ) {
-  ROS_INFO("explore notified of preempt request!");
+  ROS_INFO("Explore preempt state set to %d.", state);
   preempt_ = state;
 }
 
