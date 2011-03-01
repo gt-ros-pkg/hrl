@@ -12,10 +12,10 @@ def conf_to_percent(rec):
 
 def plot_classifier_performance(fname, pname, plot_all):
     results = ut.load_pickle(fname)
-    pdb.set_trace()
-    results['train_set_statistics']    # [ {'conf', 'size'}, {}...]
-    results['current_scan_statistics'] # [ {'conf'} {}...]
-    results['perf_on_other_scans']     # [[{'name', 'conf'}, {}...] [{} {}...]...]
+    #pdb.set_trace()
+    #results['train_set_statistics']    # [ {'conf', 'size'}, {}...]
+    #results['current_scan_statistics'] # [ {'conf'} {}...]
+    #results['perf_on_other_scans']     # [[{'name', 'conf'}, {}...] [{} {}...]...]
     #where conf is {'mat', 'neg', 'pos'}
     
     scores = {}
@@ -28,22 +28,41 @@ def plot_classifier_performance(fname, pname, plot_all):
     for k in scores.keys():
         scores[k] = zip(*scores[k])
     
-    train_neg, train_pos = zip(*[conf_to_percent(d['conf']) for d in results['train_set_statistics']])
-    test_neg, test_pos = zip(*[conf_to_percent(d['conf']) for d in results['current_scan_statistics']])
+
+    if results.has_key('current_scan_statistics'):
+        train_neg, train_pos = zip(*[conf_to_percent(d['conf']) for d in results['train_set_statistics']])
+    else:
+        train_neg = train_pos = None
+
+    if results.has_key('current_scan_statistics'):
+        test_neg, test_pos = zip(*[conf_to_percent(d['conf']) for d in results['current_scan_statistics']])
+    else:
+        test_neg = test_pos = None
+
     n_iterations = np.array(range(len(results['train_set_statistics'])))
     
+    #======================================================================
     pb.figure(1)
-    pb.plot(n_iterations, train_neg, label='train ' + pname)
-    pb.plot(n_iterations, test_neg, label='test ' + pname)
+    if results.has_key('train_set_statistics'):
+        pb.plot(n_iterations, train_neg, label='train ' + pname)
+    if test_neg != None):
+        pb.plot(n_iterations, test_neg, label='test ' + pname)
     if plot_all:
         for i, k in enumerate(scores.keys()):
             pb.plot(n_iterations, scores[k][0], '--', label=str(i))
+    if results.has_key('current_scan_statistics'):
+
     pb.title('True negatives')
     pb.legend()
     
+    #======================================================================
     pb.figure(2)
-    pb.plot(n_iterations, train_pos, label='train ' + pname)
-    pb.plot(n_iterations, test_pos, label='test ' + pname)
+    if train_pos != None:
+        pb.plot(n_iterations, train_pos, label='train ' + pname)
+    if test_pos != None:
+        pb.plot(n_iterations, test_pos, label='test ' + pname)
+    if results.has_key('current_scan_statistics'):
+
     print 'mapping from dataset to id'
     if plot_all:
         for i, k in enumerate(scores.keys()):
