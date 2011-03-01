@@ -1,0 +1,24 @@
+<package>
+  <description brief="UI_segment_object">
+
+     UI_segment_object
+
+  </description>
+  <author>Marc Killpack / mkillpack3@gatech.edu / Healthcare Robotics Lab, Georgia Tech</author>
+  <license>new BSD</license>
+  <review status="unreviewed" notes=""/>
+
+  <depend package="cv_bridge"/>
+  <depend package="opencv2"/>
+  <depend package="image_transport"/>
+  <depend package="sensor_msgs"/>
+  <depend package="openni"/>
+  <depend package="roslib"/>
+  <depend package="roscpp"/>
+  <depend package="pcl"/>
+  <depend package="pcl_ros"/>
+  <depend package="geometry_msgs" />
+
+</package>
+
+

@@ -1,0 +1,10 @@
+<launch>
+  <node pkg="openni_camera" type="openni_node" name="playpen_kinect" output="screen" >
+    <remap from="camera" to="playpen_kinect"/>
+    <param name="registration_type" value="2" />
+    <param name="image_input_format" value="6" />
+    <rosparam command="load" file="$(find openni_camera)/info/openni_params.yaml" />
+  </node>
+  <include file="$(find pr2_playpen)/launch/kinect_frames_playpen.launch"/>
+</launch>
+

@@ -1,0 +1,7 @@
+<launch>
+    <!-- Network -->
+    <include file="$(find gt_pr2)/machine.launch"/>
+    <include file="$(find pr2_omni_teleop)/c_jt_c1.launch"/>
+
+    <node pkg="pr2_omni_teleop" name="pr2_omni_teleop" type="pr2_omni_teleop.py" args="--ff 1 --arms r" output="screen" respawn="true" machine="c1"/>
+</launch>

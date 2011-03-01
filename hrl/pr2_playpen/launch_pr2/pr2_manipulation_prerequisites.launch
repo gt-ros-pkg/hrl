@@ -1,0 +1,36 @@
+<launch>
+  <!-- load perception -->
+  <!-- this launch file was moved inside this package in order to change laser settings -->
+  <include file="$(find pr2_playpen)/launch_pr2/laser+stereo-perception.launch"/>
+
+  <!-- load planning -->
+  <include file="$(find pr2_arm_navigation_planning)/launch/ompl_planning.launch"/>
+
+  <!-- load move_arm -->
+  <include file="$(find pr2_arm_navigation_actions)/launch/move_right_arm.launch"/>
+  <include file="$(find pr2_arm_navigation_actions)/launch/move_left_arm.launch"/>
+
+  <!-- load planning_environment -->
+  <include file="$(find pr2_arm_navigation_actions)/launch/environment_server_right_arm.launch"/>
+  <include file="$(find pr2_arm_navigation_actions)/launch/environment_server_left_arm.launch"/>
+
+  <!-- load controllers -->
+  <include file="$(find pr2_arm_navigation_filtering)/launch/both_arms_filters.launch"/>
+
+  <!-- load ik -->
+  <include file="$(find pr2_arm_navigation_kinematics)/launch/right_arm_collision_free_ik.launch"/>
+  <include file="$(find pr2_arm_navigation_kinematics)/launch/left_arm_collision_free_ik.launch"/>
+
+  <!-- change controller gains -->
+  <node name="change_controller_gains" pkg="pr2_object_manipulation_launch" type="change_joint_controller_gains.py" />
+
+  <!-- interpolated IK -->
+  <node name="interpolated_ik_node_right" pkg="interpolated_ik_motion_planner" 
+    type="interpolated_ik_motion_planner.py" args="r" respawn="false" machine="c2"/>
+  <node name="interpolated_ik_node_left" pkg="interpolated_ik_motion_planner" 
+    type="interpolated_ik_motion_planner.py" args="l" respawn="false" machine="c2"/>
+
+  <!-- joint trajectory normalization -->
+  <include file="$(find trajectory_filter_server)/launch/trajectory_unnormalize.launch"/>
+
+</launch>

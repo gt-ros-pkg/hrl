@@ -1,0 +1,24 @@
+<launch>
+  <!-- manipulation prerequisites -->
+  <include file="$(find pr2_playpen)/launch_pr2/pr2_manipulation_prerequisites.launch"/>
+
+  <!-- manipulation -->
+  <include file="$(find pr2_object_manipulation_launch)/launch/pr2_manipulation.launch"/>
+  <param name="/object_manipulator_node/default_database_planner" 
+         value="/objects_database_node/database_grasp_planning" />
+
+  <!-- tabletop perception -->
+  <include file="$(find pr2_playpen)/launch_pr2/tabletop_node.launch"/>
+  <!--  <include file="$(find pr2_playpen)/launch_pr2/tabletop_node_kinect.launch"/> -->
+  <!--  <include file="$(find tabletop_object_detector)/launch/tabletop_node.launch"/> -->
+  <param name="/tabletop_node/use_database" value="false"/>
+  <param name="/tabletop_node/model_set" value="REDUCED_MODEL_SET" />
+  <param name="/tabletop_node/get_model_list_srv" value="/objects_database_node/get_model_list" />	
+  <param name="/tabletop_node/get_model_mesh_srv" value="/objects_database_node/get_model_mesh" />	
+
+  <node pkg="tabletop_collision_map_processing" name="tabletop_collision_map_processing" 
+        type="tabletop_collision_map_processing_node" respawn="false" output="screen"/>
+  <param name="tabletop_collision_map_processing/get_model_mesh_srv" 
+         value="/objects_database_node/get_model_mesh" />
+
+</launch>

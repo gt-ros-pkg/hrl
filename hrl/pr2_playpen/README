@@ -1,0 +1,9 @@
+for manipulation stack to work in general on playpen:
+
+do:
+-roslaunch pr2_playpen pr2_UI_segment.launch
+-roslaunch pr2_playpen pr2_tabletop_manipulation.launch
+#####(I've added this to launch files -rosservice call laser_tilt_controller/set_periodic_cmd '{ command: { header: { stamp: 0 }, profile: "linear" , period: 10 , amplitude: 1 , offset: 0 }}')
+-rosrun pr2_playpen willow_pick_and_place
+
+It is essential for arms to be high enough and off to the side for collision map to work with manipulation stack

@@ -1,0 +1,15 @@
+<launch>
+  <include file="$(find pr2_playpen)/launch/playpen_calibrate.launch" />  
+
+  <node name="reconfig_kinect_playpen" pkg="dynamic_reconfigure" type="dynparam" args="load kinect_head $(find pr2_playpen)/launch_pr2/calib_kinect_params.yaml" />
+
+  <node name="ar_kinect" pkg="ar_kinect" type="ar_kinect" respawn="true" output="screen">
+    <remap from="/camera/rgb/image_color" to="/playpen_kinect/rgb/image_color" />
+    <remap from="/camera/rgb/camera_info" to="/playpen_kinect/rgb/camera_info" />
+    <remap from="/camera/depth/points2" to="/playpen_kinect/depth/points2" />
+    <remap from="ar_pose_markers" to="artag_calibration" />
+    <param name="marker_pattern_list" type="string" value="$(find pr2_playpen)/launch/objects_kinect"/>
+    <param name="marker_data_directory" type="string" value="$(find ar_pose)"/>
+    <param name="threshold" type="int" value="100"/>
+  </node>
+</launch>

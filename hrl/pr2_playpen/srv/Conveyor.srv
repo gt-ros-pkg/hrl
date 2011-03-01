@@ -1,0 +1,3 @@
+float32 distance   #distance in meters for conveyor to advance
+---
+int8 success       #1 is yes 0 is no
