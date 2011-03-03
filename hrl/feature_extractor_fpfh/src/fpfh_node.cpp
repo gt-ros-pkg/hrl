@@ -14,18 +14,24 @@
 #include "feature_extractor_fpfh/FPFHHist.h"
 #include "feature_extractor_fpfh/fpfh_node.h"
 
+#include "message_filters/subscriber.h"
+#include "message_filters/time_synchronizer.h"
+
 using namespace pcl;
 using namespace std;
+using namespace message_filters;
 typedef KdTree<PointXYZ>::Ptr KdTreePtr;
+
+using namespace message_filters;
 
 
 FPFHNode::FPFHNode(ros::NodeHandle &n): n_(n)
 {
-    hist_publisher = n.advertise<feature_extractor_fpfh::FPFHHist>("fpfh_hist", 10);
-    points_subscriber = n.subscribe("points", 1, &FPFHNode::points_cb, this);
+    hist_publisher = n_.advertise<feature_extractor_fpfh::FPFHHist>("fpfh_hist", 10);
 }
 
-void FPFHNode::points_cb(const sensor_msgs::PointCloud2::ConstPtr &input_cloud)
+void FPFHNode::callback(const sensor_msgs::Image::ConstPtr& image, 
+                        const sensor_msgs::PointCloud2::ConstPtr& input_cloud)
 {
     if (hist_publisher.getNumSubscribers() <= 0)
     {
@@ -33,7 +39,7 @@ void FPFHNode::points_cb(const sensor_msgs::PointCloud2::ConstPtr &input_cloud)
         return;
     }
 
-    float leaf_size = .01;
+    float leaf_size = .02;
     ROS_DEBUG("cloud has %d points", input_cloud->width * input_cloud->height);
     sensor_msgs::PointCloud2::Ptr cloud_filtered(new sensor_msgs::PointCloud2());
     pcl::VoxelGrid<sensor_msgs::PointCloud2> sor;
@@ -104,18 +110,41 @@ void FPFHNode::points_cb(const sensor_msgs::PointCloud2::ConstPtr &input_cloud)
         hist.points3d[3*i+2] = cloud.points[i].z;
     }
     hist.npoints = cloud.points.size();
+
+    hist.image.header = image->header;
+    hist.image.height = image->height;
+    hist.image.width = image->width;
+    hist.image.encoding = image->encoding;
+    hist.image.is_bigendian = image->is_bigendian;
+    hist.image.step = image->step;
+    hist.image.data.resize(image->data.size());
+    for (unsigned int i = 0; i < image->data.size(); i++)
+    {
+        hist.image.data[i] = image->data[i];
+    }
+
     hist_publisher.publish(boost::make_shared<const feature_extractor_fpfh::FPFHHist>(hist));
     ROS_DEBUG("publish histogram done.\n");
 
 }
-        
-int main(int argc, char **argv)
+
+int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "fpfh_feature_extractor");
-  ros::NodeHandle n;
-  FPFHNode fn = FPFHNode(n);
-  ROS_INFO("ready.\n");
+  ros::init(argc, argv, "fpfh_calc");
+  ros::NodeHandle nh;
+  FPFHNode mc(nh);
+
+  message_filters::Subscriber<sensor_msgs::Image> image_sub(nh, "image", 1);
+  message_filters::Subscriber<sensor_msgs::PointCloud2> pc_sub(nh, "points2", 1);
+  TimeSynchronizer<sensor_msgs::Image, sensor_msgs::PointCloud2> sync(image_sub, pc_sub, 10);
+  sync.registerCallback(boost::bind(&FPFHNode::callback, &mc, _1, _2));
+
+  ROS_INFO("spinning!");
   ros::spin();
   return 0;
 }
+
+
+
+
 

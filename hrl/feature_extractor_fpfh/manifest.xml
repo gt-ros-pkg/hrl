@@ -13,6 +13,7 @@
   <depend package="pcl_visualization"/>
   <depend package="eigen"/>
   <depend package="sensor_msgs"/>
+  <depend package="message_filters"/>
   <!--<depend package="eigen3"/> 
   <rosdep name="wxwidgets"/> -->
 
