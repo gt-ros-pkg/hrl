@@ -1,0 +1,16 @@
+<package>
+  <description brief="move_arm_tutorials">
+
+     move_arm_tutorials
+
+  </description>
+  <author>Advait Jain</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/move_arm_tutorials</url>
+  <depend package="rospy"/>
+  <depend package="move_arm"/>
+
+</package>
+
+
