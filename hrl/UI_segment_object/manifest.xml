@@ -1,7 +1,7 @@
 <package>
   <description brief="UI_segment_object">
 
-     UI_segment_object
+     This nodes provides a simple user interface to designate a surface or point from a 2D image for which we want 3D data from the Kinect.  The main functionality is available via service calls.
 
   </description>
   <author>Marc Killpack / mkillpack3@gatech.edu,  Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
