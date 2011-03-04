@@ -22,7 +22,7 @@ import math
 import time
 import hrl_pr2_lib.msg as hm
 from sound_play.libsoundplay import SoundClient
-from interpolated_ik_motion_planner import ik_utilities as iku
+#from interpolated_ik_motion_planner import ik_utilities as iku
 import pr2_kinematics as pr2k
 import pdb
 
@@ -132,7 +132,7 @@ class PR2Arm(Joint):
         else:
             self.full_arm_name = 'right'
         self.kinematics = pr2k.PR2ArmKinematics(self.full_arm_name, self.tf_listener)
-        self.ik_utilities = iku.IKUtilities(self.full_arm_name, self.tf_listener) 
+        #self.ik_utilities = iku.IKUtilities(self.full_arm_name, self.tf_listener) 
 
         self.POSTURES = {
             'off':          np.matrix([]),
