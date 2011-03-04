@@ -420,10 +420,10 @@ sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointC
   if (new_plane_coeff==true)
     {
       new_plane_coeff = false;
-      seg.setInputCloud (cloud_xyz2.makeShared());
-      seg.segment (inliers, coefficients);
     }
 
+  seg.setInputCloud (cloud_xyz2.makeShared());
+  seg.segment (inliers, coefficients);
 
   extract.setInputCloud(cloud_xyz2.makeShared());
   extract.setIndices(boost::make_shared<pcl::PointIndices>(inliers));
