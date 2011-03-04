@@ -4,7 +4,7 @@ import roslib; roslib.load_manifest('hai_sandbox')
 import rospy
 import sensor_msgs.msg as sm
 import visualization_msgs.msg as vm
-import feature_extractor_fpfh.srv as fsrv
+#import feature_extractor_fpfh.srv as fsrv
 
 import numpy as np
 import scipy.spatial as sp
@@ -31,9 +31,14 @@ import hrl_lib.rutils as ru
 import hrl_lib.tf_utils as tfu
 import hrl_lib.prob as pr
 
-import pdb
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
+
+import message_filters
+import feature_extractor_fpfh.msg as fmsg
+import hrl_camera.ros_camera as rc
+import hai_sandbox.kinect_listener as kl
+import pdb
 
 UNLABELED = 2.0
 POSITIVE = 1.0
@@ -109,6 +114,43 @@ def load_data_from_file(fname, rec_param):
                               data_pkl['pro_T_bl'], data_pkl['prosilica_cal'], 
                               center_point_bl, center_point_bl, distance_feature_points, rec_param), data_pkl
 
+
+def load_data_from_file_kinect(fname, rec_param):
+    #load pickle
+    data_pkl = ut.load_pickle(fname)
+    #print 'Original frame of pointcloud is ', data_pkl['points_laser'].header.frame_id
+
+    #use pickle to load image
+    image_fname = pt.join(pt.split(fname)[0], data_pkl['image'])
+    intensity_image = cv.LoadImageM(image_fname)
+
+    #center_point_bl = data_pkl['touch_point'][0]
+    center_point_bl = data_pkl['touch_point']
+    print 'Robot touched point cloud at point', center_point_bl.T
+    #pdb.set_trace()
+
+    #load syn locs
+    distance_feature_points = None
+    syn_locs_fname = pt.splitext(fname)[0] + '_synthetic_locs3d.pkl'
+    #pdb.set_trace()
+    if pt.isfile(syn_locs_fname):
+        print 'found synthetic locations file', syn_locs_fname
+        distance_feature_points = ut.load_pickle(syn_locs_fname)
+        #distance_feature_points = np.column_stack((distance_feature_points, syn_locs))
+        #distance_feature_points = syn_locs
+        data_pkl['synthetic_locs3d'] = distance_feature_points
+    else:
+        print 'synthetic loc file not found', syn_locs_fname
+
+    #make the data object 
+    #TODO: use the kinect version?
+    return IntensityCloudData(data_pkl['points3d'], intensity_image, 
+                              data_pkl['k_T_bl'], data_pkl['cal'], 
+                              center_point_bl, center_point_bl, distance_feature_points, 
+                              rec_param), data_pkl
+
+
+
 def dataset_to_libsvm(dataset, filename):
     f = open(filename, 'w')
 
@@ -160,10 +202,13 @@ def inverse_indices(indices_exclude, num_elements):
     return np.where(temp_arr)[0]
 
 #'_features_dict.pkl'
-def preprocess_scan_extract_features(raw_data_fname, ext):
+def preprocess_scan_extract_features(raw_data_fname, ext, kinect=True):
     rec_params = Recognize3DParam()
     feature_extractor, data_pkl = load_data_from_file(raw_data_fname, rec_params)
-    image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['high_res'])
+    if not kinect:
+        image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['high_res'])
+    else:
+        image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['image'])
     print 'Image name is', image_fname
     img = cv.LoadImageM(image_fname)
     feature_cache_fname = pt.splitext(raw_data_fname)[0] + ext
@@ -177,7 +222,6 @@ def preprocess_scan_extract_features(raw_data_fname, ext):
                          'points3d': points3d,
                          'image': image_fname,
                          'labels': labels,
-                         #'synthetic_locs3d': data_pkl['synthetic_locs3d'],
                          'sizes': feature_extractor.sizes}
     if data_pkl.has_key('synthetic_locs3d'):
         preprocessed_dict['synthetic_locs3d'] = data_pkl['synthetic_locs3d']
@@ -234,7 +278,6 @@ def make_point_exclusion_test_set(training_dataset, all_data_dir, ext):
                                 np.column_stack(dset['outputs']),\
                                 None, None, None, sizes = sizes)
 
-
 class FPFH:
     def __init__(self):
         self.proxy = rospy.ServiceProxy('fpfh', fsrv.FPFHCalc)
@@ -247,6 +290,216 @@ class FPFH:
         points3d = np.matrix(res.hist.points3d).reshape((res.hist.npoints,3)).T
         return histogram, points3d
 
+
+class IntensityCloudDataKinect:
+
+    def __init__(self, points3d, fpfh_points, fpfh_hist, cvimage_mat, expected_loc_bl, 
+                 calibration_obj, rec_param, image_T_bl, distance_feature_points=None):
+
+        points3d = points3d[:, np.where(ut.norm(points3d) < rec_param.robot_reach_radius)[1].A1]
+        self.points3d = points3d
+        self.fpfh_points = fpfh_points
+        self.fpfh_hist = fpfh_hist
+        self.cvimage_mat = cvimage_mat
+        self.image_arr = np.asarray(cvimage_mat)
+        self.expected_loc_bl = expected_loc_bl
+        self.calibration_obj = calibration_obj
+        self.distance_feature_points = distance_feature_points
+        self.params = rec_param
+        self.sizes = None
+        self.image_T_bl = image_T_bl
+
+        self.points2d = self.calibration_obj.project(points3d)
+        self.fpfh_tree_bl = sp.KDTree(np.array(self.fpfh_points.T))
+        self.voi_tree_2d = sp.KDTree(np.array(self.points2d.T))
+
+
+    ##
+    #
+    # @param point3d - point to calculate features for 3x1 matrix
+    # @param verbose
+    # @param viz
+    # @param k
+    def feature_vec_at(self, point3d_bl, verbose=False, viz=False, k=4):
+        #project into 2d & get intensity window
+        point2d_image = self.calibration_obj.project(\
+                    tfu.transform_points(self.image_T_bl, point3d_bl))
+        flatten = not viz
+
+        # Find closest neighbors in 3D to get normal
+        invalid_location = False
+        local_intensity = []
+        for multiplier in self.params.win_multipliers:
+            if multiplier == 1:
+                features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, 
+                                            flatten=flatten)
+            else:
+                features = i3d.local_window(point2d_image, self.image_arr, 
+                                            self.params.win_size*multiplier, 
+                                            resize_to=self.params.win_size, flatten=flatten)
+            if features == None:
+                invalid_location = True
+                break
+            else:
+                local_intensity.append(features)
+
+        #Get fpfh
+        indices_list = self.fpfh_tree_bl.query(np.array(point3d_bl.T), k=k)[1]
+        hists = self.fpfh_hist[:, indices_list[0]]
+        fpfh = np.mean(hists, 1)
+
+        #Get distance to expected location
+        expected_loc_fea = None
+        if self.expected_loc_bl != None:
+            #expected_loc_img = tfu.tranform_points(self.image_T_bl, self.expected_loc_bl)
+            expected_loc_fea = np.power(np.sum(np.power(self.expected_loc_bl - point3d_bl, 2), 0), .5).T
+
+        #Get synthetic distance poins
+        distance_feas = None
+        if self.distance_feature_points != None:
+            distance_feas = np.power(np.sum(np.power(self.distance_feature_points - point3d_bl, 2), 0), .5).T
+
+        if not invalid_location:
+            if not viz:
+                local_intensity = np.row_stack(local_intensity)
+
+            if self.sizes == None:
+                self.sizes = {}
+
+                if expected_loc_fea != None:
+                    self.sizes['expected_loc'] = expected_loc_fea.shape[0]
+
+                if distance_feas != None:
+                    self.sizes['distance'] = distance_feas.shape[0]
+
+                self.sizes['fpfh'] = fpfh.shape[0]
+
+                self.sizes['intensity'] = local_intensity.shape[0]
+
+            fea_calculated = []
+
+            if expected_loc_fea != None:
+                fea_calculated.append(expected_loc_fea)
+
+            if distance_feas != None:
+                fea_calculated.append(distance_feas)
+
+            fea_calculated.append(fpfh)
+            fea_calculated.append(local_intensity)
+
+            return fea_calculated, point2d_image
+        else:
+            if verbose:
+                print '>> local_window outside of image'
+
+            return None, None
+
+    def _random_sample_voi(self):
+        #to generate initial distribution of points
+        #   randomly, uniformly sample for n points in 2d, add in prior information if available (gaussians)
+        #        for each 2d point p, associate with the 3d point closest to the camera
+        #        throw away all points not in VOI
+        self.sampled_points = []
+        self.sampled_points2d = []
+
+        print 'generating _random_sample_voi'
+        # laser_T_image = np.linalg.inv(self.image_T_laser)
+        bl_T_image = np.linalg.inv(self.image_T_bl)
+        gaussian = pr.Gaussian(np.matrix([ 0,      0,                          0.]).T, \
+                               np.matrix([[1.,     0,                          0], \
+                                          [0, self.params.uncertainty**2,      0], \
+                                          [0,      0, self.params.uncertainty**2]]))
+
+
+        distr = {'u': 0, 'g':0}
+        while len(self.sampled_points) < self.params.n_samples:
+            #Generate 2d point
+            if np.random.rand() < self.params.uni_mix or self.expected_loc_bl == None:
+                d = 'u'
+                x = np.random.randint(0, self.calibration_obj.w)
+                y = np.random.randint(0, self.calibration_obj.h)
+            else:
+                d = 'g'
+                gaussian_noise = gaussian.sample()
+                gaussian_noise[0,0] = 0
+                sampled3d_pt_image = self.expected_loc_bl + gaussian_noise
+                #sampled3d_pt_image = tfu.transform_points(self.image_T_laser, sampled3d_pt_laser)
+                sampled2d_pt = self.calibration_obj.project(sampled3d_pt_image)
+                pt = np.round(sampled2d_pt)
+                x = int(pt[0,0])
+                y = int(pt[1,0])
+                if x < 0 or x > (self.calibration_obj.w-.6) or y < 0 or (y > self.calibration_obj.h-.6):
+                    continue
+
+            #get projected 3d points within radius of N pixels
+            indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 10.)
+            #indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 20.)
+            if len(indices_list) < 1:
+                continue
+
+            #select 3d point closest to the camera (in image frame)
+            #points3d_image = tfu.transform_points(self.image_T_laser, 
+            #                    self.points3d_valid_laser[:, indices_list])
+
+            points3d_image = self.points3d[:, indices_list]
+            closest_z_idx = np.argmin(points3d_image[2,:])
+            #closest_p3d_laser = tfu.transform_points(laser_T_image, closest_p3d_image)
+            closest_p3d = tfu.transform_points(bl_T_image, points3d_image[:, closest_z_idx])
+            closest_p2d = self.points2d[:, closest_z_idx]
+            #closest_p3d_laser = tfu.transform_points(laser_T_image, closest_p3d_image)
+
+            #check if point is in VOI
+            #if self._in_limits(closest_p3d):
+            self.sampled_points.append(closest_p3d.T.A1.tolist())
+            self.sampled_points2d.append(closest_p2d.T.A1.tolist())
+            #self.sampled_points2d.append([x,y])
+            distr[d] = distr[d] + 1
+            if len(self.sampled_points) % 500 == 0:
+                print len(self.sampled_points)
+
+    def _caculate_features_at_sampled_points(self):
+        self.feature_list = []
+        feature_loc_list = []
+        feature_loc2d_list = []
+        non_empty = 0
+        empty_queries = 0
+        for i, sampled_point_laser in enumerate(self.sampled_points):
+            if i % 500 == 0:
+                print '_caculate_features_at_sampled_points:', i
+
+            sampled_point_laser = np.matrix(sampled_point_laser).T
+            feature, point2d = self.feature_vec_at(sampled_point_laser)
+            if feature != None:
+                self.feature_list.append(feature)
+                feature_loc_list.append(sampled_point_laser)
+                feature_loc2d_list.append(point2d)
+                non_empty = non_empty + 1
+            else:
+                empty_queries = empty_queries + 1
+        print 'empty queries', empty_queries, 'non empty', non_empty
+        if len(feature_loc_list) > 0:
+            self.feature_locs = np.column_stack(feature_loc_list)
+            self.feature_locs2d = np.column_stack(feature_loc2d_list)
+        else:
+            self.feature_locs = np.matrix([])
+            self.feature_locs2d = np.matrix([])
+
+    #def _in_limits(self, p3d_bl):
+    #    #TODO transform point to base link
+    #    l = self.limits_base_link
+    #    if (l[0][0] < p3d[0,0]) and (p3d[0,0] < l[0][1]) and \
+    #       (l[1][0] < p3d[1,0]) and (p3d[1,0] < l[1][1]) and \
+    #       (l[2][0] < p3d[2,0]) and (p3d[2,0] < l[2][1]):
+    #        return True
+    #    else:
+    #        return False
+
+    def extract_vectorized_features(self):
+        self._random_sample_voi()
+        self._caculate_features_at_sampled_points()
+        features_by_type = zip(*self.feature_list)
+        xs = np.row_stack([np.column_stack(f) for f in features_by_type])
+        return xs, self.feature_locs2d, self.feature_locs
 
 class IntensityCloudData:
 
@@ -895,15 +1148,27 @@ class InterestPointDataset(ds.Dataset):
         ipd.metadata = copy.deepcopy(self.metadata)
         return ipd
 
+    @classmethod
+    def add_to_dataset(cls, dataset, features, label, pt2d, pt3d, scan_id, idx_in_scan, sizes):
+        if dataset == None:
+            dataset = InterestPointDataset(feature, label, pt2d, pt3d, None, scan_id, idx_in_scan, sizes)
+        else:
+            dataset.add(features, label, pt2d, pt3d, scan_id=scan_id, idx_in_scan=idx_in_scan)
+        return dataset
+
+
 class Recognize3DParam:
 
     def __init__(self):
         #Data extraction parameters
         self.grid_resolution = .01
         self.win_size = 5
+        self.win_multipliers = [1,2,4,8,16,32]
+
         self.win3d_size = .02
         self.voi_bl = [.5, .5, .5]
         self.radius = .5
+        self.robot_reach_radius = 2.5
         self.svm_params = '-s 0 -t 2 -g .0625 -c 4'
 
         #sampling parameters
@@ -916,8 +1181,6 @@ class Recognize3DParam:
 
         #variance
         self.variance_keep = .98
-
-
 
 class InterestPointAppBase:
 
@@ -1238,6 +1501,48 @@ class CVGUI4(InterestPointAppBase):
         for imgnp, win in zip(self.curr_feature_list, self.win_names):
             cv.ShowImage(win, imgnp)
 
+
+#class Recognize3D:
+#
+#    def practice(self, labeler):
+#        call feature detector
+#
+#        if not converged:
+#            get svm choice
+#            get label from labeler
+#
+#    def execute(self):
+#        calls feature detector
+#        get svm classification
+#
+#
+#class ScanLabeler2:
+#
+#    def __init__(self):
+#        bring up windows and find files
+#
+#    def step(self):
+#        user input
+#        cases
+#            run one step of learning
+#                get svm choice
+#                get label from labeled dataset
+#            
+#            or 
+#
+#            classify
+#
+#            or 
+#        
+#            user click labels
+#
+#    def test_script1(self):
+#        pass
+#
+#    def test_script2(self):
+#        pass
+
+
 class ScanLabeler:
 
     def __init__(self, dirname, ext, scan_to_train_on, seed_dset, features_to_use):
@@ -1256,17 +1561,9 @@ class ScanLabeler:
             print 'ERROR: %s not found in dir %s' % (scan_to_train_on, dirname)
             self.scan_idx = 0
 
-        #matched = False
-        #for i, n in enumerate(self.scan_names):
-        #    if n == scan_to_train_on:
-        #        self.scan_idx = i
-        #        matched=True
-        #if not matched:
-
         self.scale = 1/3.
         self.mode = 'GROUND_TRUTH'
         if seed_dset == None:
-            #self.training_sname = pt.split(dirname)[0] + '_training_set.pkl'
             self.training_sname = pt.splitext(self.scan_names[self.scan_idx])[0] + '_seed.pkl'
         else:
             self.training_sname = seed_dset
@@ -1296,7 +1593,8 @@ class ScanLabeler:
             #print '>>> THIS SCAN'
             #pdb.set_trace()
             #results = self.evaluate_learner(self.current_scan['instances'], self.current_scan['labels'])
-            sdset = self.select_features(self.current_scan['instances'], self.features_to_use, self.current_scan['sizes'])
+            sdset = self.select_features(self.current_scan['instances'], 
+                    self.features_to_use, self.current_scan['sizes'])
             results = np.matrix(self.learner.classify(sdset))
             self.current_scan_pred = InterestPointDataset(sdset, results,
                                         self.current_scan['points2d'], self.current_scan['points3d'], None)
@@ -1640,8 +1938,6 @@ class ScanLabeler:
             reduced_sd['labels'] = scan_dict['labels']
             reduced_sd['name'] = sn
             all_scans_except_current.append(reduced_sd)
-            #if i > 0:
-            #   break
 
         i = 0
         converged = False
@@ -1904,7 +2200,6 @@ class ScanLabeler:
             self.dataset.add(pinfo[0], pinfo[1], \
                     pinfo[2], pinfo[3], pinfo[4], pinfo[5])
 
-
 class FiducialPicker:
 
     def __init__(self, fname):
@@ -1980,6 +2275,36 @@ class FiducialPicker:
         while not rospy.is_shutdown():
             self.step()
 
+
+class KinectFeatureExtractor:
+    def __init__(self, tf_listener, kinect_listener=None):
+        import tf
+        self.cal = rc.ROSCameraCalibration('camera/rgb/camera_info')
+        if tf_listener == None:
+            self.tf_listener = tf.TransformListener()
+        else:
+            self.tf_listener = tf_listener
+        if kinect_listener == None:
+            self.kinect_listener = kl.KinectListener()
+        else:
+            self.kinect_listener = kinect_listener
+        self.rec_params = Recognize3DParam()
+        self.rec_params.n_samples = 100
+
+    def read(self, expected_loc_bl=None): 
+        print ">> Waiting for mesg.." 
+        rdict = self.kinect_listener.read()
+        print ">> Got message" 
+        calibration_obj = self.cal
+        image_T_bl = tfu.transform('openni_rgb_optical_frame', 'base_link', 
+                                   self.tf_listener)
+        extractor = IntensityCloudDataKinect( rdict['points3d'], rdict['hpoints3d'], 
+                        rdict['histogram'], rdict['image'], expected_loc_bl, 
+                        calibration_obj, self.rec_params, image_T_bl, 
+                        distance_feature_points=None)
+        xs, locs2d, locs3d = extractor.extract_vectorized_features()
+        print '>> Extracted features!'
+        return xs, locs2d, locs3d, rdict['image'], rdict
 
 
 if __name__ == '__main__':
@@ -2070,4 +2395,80 @@ if __name__ == '__main__':
         print 'done'
         print 'done'
 
+    if mode == 'kinect':
+        #import roslib; roslib.load_manifest('hai_sandbox')
+        #import rospy
+        #from sensor_msgs.msg import Image
+        rospy.init_node('kinect_features')
+        kfe = KinectFeatureExtractor()
+        fname = opt.train[0]
+
+        dataset = ut.load_pickle(fname)
+        nneg = np.sum(dataset.outputs == NEGATIVE)
+        npos = np.sum(dataset.outputs == POSITIVE)
+        print '================= Training ================='
+        print 'NEG examples', nneg
+        print 'POS examples', npos
+        print 'TOTAL', dataset.outputs.shape[1]
+        neg_to_pos_ratio = float(nneg)/float(npos)
+        weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
+        learner = SVMPCA_ActiveLearner(use_pca=True)
+        trained = False
+        ip = ImagePublisher('active_learn')
+
+        while not rospy.is_shutdown():
+            #calculate features
+            xs, locs2d, locs3d, rdict['image'], rdict = kfe.read()
+            if not trained:
+                learner.train(dataset, xs, kfe.rec_params.svm_params + weight_balance,
+                              kfe.rec_params.variance_keep)
+                trained = True
+            
+            #predict
+            results = np.matrix(learner.classify(sdset))
+            current_scan_pred = InterestPointDataset(xs, results, locs2d, locs3d, None)
+
+            #Draw
+            img = cv.CloneMat(cdisp['cv'])
+            draw_labeled_points(img, current_scan_pred, scale=1./self.scale)
+            ip.publish(img)
+
+        rospy.spin()
+        #def callback(image, fpfh_hist): 
+        #    print "got messages!" 
+        #    print image.header.frame_id, fpfh_hist.header.frame_id 
+        #    histogram = np.matrix(fpfh_hist.histograms).reshape((fpfh_hist.npoints, 33)).T 
+        #    points3d = np.matrix(fpfh_hist.points3d).reshape((fpfh_hist.npoints, 3)).T 
+        #    cvimage_mat = 
+        #    IntensityCloudDataKinect(points3d, histogram, cvimage_mat, expected_loc_bl, 
+        #          calibration_obj, rec_param, image_T_bl, distance_feature_points=None)
+
+
+        #CvBridge()
+        #rospy.init_node('kinect_features')
+        #image_sub = message_filters.Subscriber('/camera/rgb/image_color', sm.Image)
+        #fpfh_hist_sub = message_filters.Subscriber('fpfh_hist', fmsg.FPFHHist)
+        #ts = message_filters.TimeSynchronizer([image_sub, fpfh_hist_sub], 10)
+        #ts.registerCallback(callback)
+        #print 'reading and spinning!'
+        #rospy.spin()
+
+
+
+
+
+
+
+        #self.limits_base_link = [[expected_loc_bl[0,0]-self.params.voi_bl[0], expected_loc_bl[0,0]+self.params.voi_bl[0]],
+        #                         [expected_loc_bl[1,0]-self.params.voi_bl[1], expected_loc_bl[1,0]+self.params.voi_bl[1]],
+        #                         [expected_loc_bl[2,0]-self.params.voi_bl[2], expected_loc_bl[2,0]+self.params.voi_bl[2]]]
+
+
+        #TODO: finish this
+        #valid_columns, self.limits_laser = \
+        #        i3d.select_rect(self.voi_center_laser, 
+        #                        self.params.voi_bl[0], 
+        #                        self.params.voi_bl[1], 
+        #                        self.params.voi_bl[2], 
+        #                        all_columns)
 

@@ -11,8 +11,11 @@ import rospy
 from geometry_msgs.msg import PointStamped, Point 
 import tf.transformations as tr
 from std_msgs.msg import String
+#import sensor_msgs.msg as smsg
+#import message_filters
 import tf
 import cv
+import functools as ft
 
 #import copy
 import numpy as np
@@ -35,7 +38,8 @@ import hrl_pr2_lib.linear_move as lm
 
 import hrl_pr2_lib.collision_monitor as cmon
 import hai_sandbox.recognize_3d as r3d
-import hai_sandbox.interest_point_actions as ipa
+#import hai_sandbox.interest_point_actions as ipa
+#import hai_sandbox.kinect_listener as kl
 
 #from sound_play.msg import SoundRequest
 
@@ -267,6 +271,15 @@ class ApplicationBehaviors:
         self.laser_listener = LaserPointerClient(tf_listener=self.tf_listener, robot=self.robot)
         self.laser_listener.add_double_click_cb(self.click_cb)
 
+        #self.kinect_listener = kl.KinectListener()
+        #self.kinect_cal = rc.ROSCameraCalibration('camera/rgb/camera_info')
+        self.kinect_features = r3d.KinectFeatureExtractor(self.tf_listener)
+
+        #self.kinect_img_sub = message_filters.Subscriber('/camera/rgb/image_color', smsg.Image)
+        #self.kinect_depth_sub = message_filters.Subscriber('/camera/depth/points2', smsg.PointCloud2)
+        #ts = message_filters.TimeSynchronizer([image_sub, depth_sub], 10)
+        #ts.registerCallback(callback)
+
         self.critical_error = False
 
         #self.behaviors.set_pressure_threshold(300)
@@ -307,7 +320,48 @@ class ApplicationBehaviors:
         #self.l3 = np.matrix([[ 0.54339568,  1.2537778 ,  1.85395725, -2.27255481, -9.92394984,
         #                 -0.86489749, -3.00261708]]).T
         self.learners = {}
-        self.load_classifier('light_switch', 'labeled_light_switch_data.pkl')
+        #self.load_classifier('light_switch', 'labeled_light_switch_data.pkl')
+        #self.load_classifier('light_switch', 'somepickle.pkl')
+        self.img_pub = r3d.ImagePublisher('active_learn')
+
+
+    def load_classifier(self, name, fname):
+        print 'loading classifier'
+        dataset = ut.load_pickle(fname)
+        self.train(dataset, name)
+
+    def train(self, dataset, name):
+        rec_params = self.kinect_features.rec_params
+        nneg = np.sum(dataset.outputs == r3d.NEGATIVE) #TODO: this was copied and pasted from r3d
+        npos = np.sum(dataset.outputs == r3d.POSITIVE)
+        print '================= Training ================='
+        print 'NEG examples', nneg
+        print 'POS examples', npos
+        print 'TOTAL', self.dataset.outputs.shape[1]
+        neg_to_pos_ratio = float(nneg)/float(npos)
+        weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
+        print 'training'
+        learner = r3d.SVMPCA_ActiveLearner(use_pca=True)
+        #TODO: figure out something scaling inputs field!
+        learner.train(dataset, dataset.inputs,
+                      rec_params.svm_params + weight_balance,
+                      rec_params.variance_keep)
+        self.learners[name] = {'learner': learner, 'dataset': dataset}
+        print 'done loading'
+
+
+    def draw_dots_nstuff(self, img, points2d, labels):
+        pidx = np.where(labels == r3d.POSITIVE)[1].A1.tolist()
+        nidx = np.where(labels == r3d.NEGATIVE)[1].A1.tolist()
+        scale = 1
+
+        if len(pidx) > 0:
+            ppoints = points2d[:, pidx]
+            r3d.draw_points(img, ppoints * scale, [0,255,0], 2, 1)
+
+        if len(nidx) > 0:
+            npoints = points2d[:, nidx]
+            r3d.draw_points(img, npoints * scale, [0,0,255], 2, 1)
 
 
     #def tuck(self):
@@ -637,8 +691,9 @@ class ApplicationBehaviors:
         #pdb.set_trace()
         self.robot.base.turn_by(-ang, block=block, overturn=True)
 
-    def load_classifier(self, classifier_name, data_file_name):
-        self.learners[classifier_name] = ipa.InterestPointPerception(classifier_name, data_file_name, self.tf_listener)
+    #def load_classifier(self, classifier_name, data_file_name):
+    #    self.learners[classifier_name] = ipa.InterestPointPerception(classifier_name, 
+    #            data_file_name, self.tf_listener)
 
     def stationary_light_switch_behavior(self, point_bl):
         while True:
@@ -713,48 +768,62 @@ class ApplicationBehaviors:
                 self.behaviors.movement.pressure_listener.rezero()
 
                 if task == 'light_switch':
-                    MAX_RETRIES = 15
-                    rospy.loginfo('location_activated_behaviors: go_home_pose')
-                    #self.go_to_home_pose()
-                    self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
-                    gaussian = pr.Gaussian(np.matrix([ 0,      0,      0.]).T, \
-                                           np.matrix([[1.,     0,      0], \
-                                                      [0, .02**2,      0], \
-                                                      [0,      0, .02**2]]))
-                    retry_count = 0
-                    success = False
-                    gaussian_noise = np.matrix([0, 0, 0.0]).T
-                    point_offset = np.matrix([0, 0, 0.03]).T
-                    while not success:
-                        perturbation = gaussian_noise
-                        perturbed_point_bl = point_bl_t1 + perturbation
-                        success, _ = self.light_switch1(perturbed_point_bl, point_offset=point_offset, \
-                                press_contact_pressure=300, move_back_distance=np.matrix([-.0075,0,0]).T,\
-                                press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, \
-                                visual_change_thres=.03)
-                        gaussian_noise = gaussian.sample()
-                        gaussian_noise[0,0] = 0
-                        retry_count = retry_count + 1 
-
-                        if retry_count > MAX_RETRIES:
-                            self.robot.sound.say('giving up tried %d times already' % MAX_RETRIES)
-                            break
-                        elif not success:
-                             self.robot.sound.say('retrying')
-
-                    if success:
-                        self.robot.sound.say('successful!')
-
-                        if not stored_point or retry_count > 1:
-                            map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
-                            perturbed_map = tfu.transform_points(map_T_base_link, perturbed_point_bl)
-                            self.location_add(perturbed_map, task)
-                            self.robot.sound.say('recorded point')
-
-                        #if retry_count > 1:
-                        #    if not self.add_perturbation_to_location(point_map, perturbation):
-                        #        self.robot.sound.say('unable to add perturbation to database! please fix')
+                    #self.location_add(perturbed_map, task)
+                    # TODO: what happens when we first encounter this location?! experiment n times to create dataset?
+                    self.practice(point_bl_t1, 
+                            ft.partial(self.light_switch1, 
+                                point_offset=np.matrix([0,0,.03]).T,
+                                press_contact_pressure=300,
+                                move_back_distance=np.matrix([-.0075,0,0]).T,
+                                press_pressure=3500,
+                                press_distance=np.matrix([0,0,-.15]).T,
+                                visual_change_thres=.03), 
+                            'light_switch')
                     self.tuck()
+
+                    if False: #Old branch where we retry blindly
+                        MAX_RETRIES = 15
+                        rospy.loginfo('location_activated_behaviors: go_home_pose')
+                        #self.go_to_home_pose()
+                        self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
+                        gaussian = pr.Gaussian(np.matrix([ 0,      0,      0.]).T, \
+                                               np.matrix([[1.,     0,      0], \
+                                                          [0, .02**2,      0], \
+                                                          [0,      0, .02**2]]))
+                        retry_count = 0
+                        success = False
+                        gaussian_noise = np.matrix([0, 0, 0.0]).T
+                        point_offset = np.matrix([0, 0, 0.03]).T
+                        while not success:
+                            perturbation = gaussian_noise
+                            perturbed_point_bl = point_bl_t1 + perturbation
+                            success, _ = self.light_switch1(perturbed_point_bl, point_offset=point_offset, \
+                                    press_contact_pressure=300, move_back_distance=np.matrix([-.0075,0,0]).T,\
+                                    press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, \
+                                    visual_change_thres=.03)
+                            gaussian_noise = gaussian.sample()
+                            gaussian_noise[0,0] = 0
+                            retry_count = retry_count + 1 
+
+                            if retry_count > MAX_RETRIES:
+                                self.robot.sound.say('giving up tried %d times already' % MAX_RETRIES)
+                                break
+                            elif not success:
+                                 self.robot.sound.say('retrying')
+
+                        if success:
+                            self.robot.sound.say('successful!')
+
+                            if not stored_point or retry_count > 1:
+                                map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+                                perturbed_map = tfu.transform_points(map_T_base_link, perturbed_point_bl)
+                                self.location_add(perturbed_map, task)
+                                self.robot.sound.say('recorded point')
+
+                            #if retry_count > 1:
+                            #    if not self.add_perturbation_to_location(point_map, perturbation):
+                            #        self.robot.sound.say('unable to add perturbation to database! please fix')
+                        self.tuck()
 
     
                 if task == 'drawer':
@@ -783,12 +852,13 @@ class ApplicationBehaviors:
         #mode = 'light switch'
         mode = 'capture data'
         if point_bl!= None:
-            #pdb.set_trace()
             if mode == 'capture data':
-                #self.tuck()
                 self.robot.head.look_at(point_bl, 'base_link', True)
                 self.robot.sound.say("taking a scan")
-                self.record_perceptual_data(point_bl)
+                #self.record_perceptual_data(point_bl)
+                #pdb.set_trace()
+                rdict = self.kinect_features.kinect_listener.read()
+                self.record_perceptual_data_kinect(point_bl, rdict)
                 self.robot.sound.say("saved scan")
 
             if mode == 'light switch':
@@ -851,6 +921,33 @@ class ApplicationBehaviors:
                 task_matches.append(m)
         return task_matches
 
+    def location_add(self, point_map, task, data):
+        close_by_locs = self.find_close_by_points_match_task(point_map, task)
+        if len(close_by_locs) == 0:
+            rospy.loginfo('location_add: point not close to any existing location. creating new record.')
+            self.location_data.append({
+                'task': task, 
+                'center': point_map, 
+                'perceptual_dataset': None,
+                'points':[point_map]})
+            self.location_centers.append(point_map)
+            self.location_labels.append(len(self.location_data) - 1)
+            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+        else:
+            #If close by locations found then add to points list and update center
+            location_idx = self.location_labels[close_by_locs[0]]
+            ldata = self.location_data[location_idx]
+
+            rospy.loginfo('location_add: point close to %d at %s.' % (location_idx, str(ldata['center'].T)))
+            ldata['points'].append(point_map)
+            ldata['center'] = np.column_stack(ldata['points']).mean(1)
+            self.location_centers[location_idx] = ldata['center']
+            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+
+        ut.save_pickle(self.location_data, self.saved_locations_fname)
+        rospy.loginfo('location_add: saved point in map.')
+
+
     def location_add(self, point_map, task):
         close_by_locs = self.find_close_by_points_match_task(point_map, task)
         if len(close_by_locs) == 0:
@@ -888,13 +985,17 @@ class ApplicationBehaviors:
         while not rospy.is_shutdown():
             r.sleep()
 
-    def record_perceptual_data(self, point_touched_bl):
+    def record_perceptual_data_laser_scanner(self, point_touched_bl):
         #what position should the robot be in?
         #set arms to non-occluding pose
 
         #record region around the finger where you touched
         rospy.loginfo('Getting laser scan.')
-        points = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 20.)
+        points = []
+        for i in range(3):
+            rospy.loginfo('scan %d' % i)
+            points.append(self.laser_scan.scan(math.radians(180.), math.radians(-180.), 20./3.))
+
         rospy.loginfo('Getting Prosilica image.')
         prosilica_image = self.prosilica.get_frame()
         rospy.loginfo('Getting image from left wide angle camera.')
@@ -933,10 +1034,83 @@ class ApplicationBehaviors:
                     'left_cal': self.left_cal,
 
                     'right_image': right_name,
-                    'right_cal': self.right_cal,
-
-                    'point_touched': point_touched_bl}
+                    'right_cal': self.right_cal}
+                    #'point_touched': point_touched_bl}
                     
+
+        ut.save_pickle(data_pkl, pickle_fname)
+        print 'Recorded to', pickle_fname
+
+    #def record_processed_data_kinect2(self, point3d_bl, kinect_fea):
+    #    instances, locs2d_image, locs3d_bl, image = kinect_fea #self.kinect_features.read(point3d_bl)
+    #    #rospy.loginfo('Getting a kinect reading')
+
+    #    tstring = time.strftime('%A_%m_%d_%Y_%I:%M%p')
+    #    kimage_name = '%s_highres.png' % tstring
+    #    cv.SaveImage(kimage_name, kimage)
+
+    #    preprocessed_dict = {'instances': instances,
+    #                         'points2d': locs2d_image,
+    #                         'points3d': locs3d_bl,
+    #                         'image': kimage_name,
+    #                         'labels': labels,
+    #                         'sizes': feature_extractor.sizes}
+
+
+        #self.kinect_features.read(point3d_bl)
+        #rdict = self.kinect_listener.read()
+        #kimage = rdict['image']
+        #rospy.loginfo('Waiting for calibration.')
+        #while self.kinect_cal.has_msg == False:
+        #    time.sleep(.1)
+
+        #which frames?
+        #rospy.loginfo('Getting transforms.')
+        #k_T_bl = tfu.transform('openni_rgb_optical_frame', '/base_link', self.tf_listener)
+        #tstring = time.strftime('%A_%m_%d_%Y_%I:%M%p')
+        #kimage_name = '%s_highres.png' % tstring
+        #rospy.loginfo('Saving images (basename %s)' % tstring)
+        #cv.SaveImage(kimage_name, kimage)
+        #rospy.loginfo('Saving pickles')
+        #pickle_fname = '%s_interest_point_dataset.pkl' % tstring   
+
+        #data_pkl = {'touch_point': point3d_bl,
+        #            'points3d': rdict['points3d'],
+        #            'image': kimage_name,
+        #            'cal': self.prosilica_cal, 
+        #            'k_T_bl': k_T_bl}
+                    #'point_touched': point3d_bl}
+
+        #ut.save_pickle(data_pkl, pickle_fname)
+        #print 'Recorded to', pickle_fname
+
+    def record_perceptual_data_kinect(self, point3d_bl, rdict=None):
+        rospy.loginfo('saving dataset..')
+        #self.kinect_features.read(point3d_bl)
+        if rdict == None:
+            rospy.loginfo('Getting a kinect reading')
+            rdict = self.kinect_listener.read()
+        kimage = rdict['image']
+        rospy.loginfo('Waiting for calibration.')
+        while self.kinect_features.cal.has_msg == False:
+            time.sleep(.1)
+
+        #which frames?
+        rospy.loginfo('Getting transforms.')
+        k_T_bl = tfu.transform('openni_rgb_optical_frame', '/base_link', self.tf_listener)
+        tstring = time.strftime('%A_%m_%d_%Y_%I:%M%p')
+        kimage_name = '%s_highres.png' % tstring
+        rospy.loginfo('Saving images (basename %s)' % tstring)
+        cv.SaveImage(kimage_name, kimage)
+        rospy.loginfo('Saving pickles')
+        pickle_fname = '%s_interest_point_dataset.pkl' % tstring   
+
+        data_pkl = {'touch_point': point3d_bl,
+                    'points3d': rdict['points3d'],
+                    'image': kimage_name,
+                    'cal': self.kinect_features.cal, 
+                    'k_T_bl': k_T_bl}
+                    #'point_touched': point3d_bl}
 
         ut.save_pickle(data_pkl, pickle_fname)
         print 'Recorded to', pickle_fname
@@ -982,6 +1156,60 @@ class ApplicationBehaviors:
                 #success_on, touchloc_bl = self.light_switch1(npoint, 
             else:
                 return
+
+    ##
+    # The behavior can be making a service call to a GUI that ask users how to label
+    def practice(self, point3d_bl, behavior, learner_name):
+        instances, locs2d_image, locs3d_bl, image, raw_dict = self.kinect_features.read(point3d_bl)
+        self.record_perceptual_data_kinect(point3d_bl, raw_dict)
+        converged = False
+        indices_added = []
+        rec_params = self.kinect_features.rec_params
+
+        while not converged:
+            #Find remaining instances
+            remaining_pt_indices = inverse_indices(indices_added, instances.shape[1])
+            remaining_instances = instances[:, remaining_pt_indices]
+            ridx, selected_dist, converged = self.learner.select_next_instances_no_terminate(remaining_instances)
+            selected_idx = remaining_pt_indices[ridx]
+            indices_added.append(selected_idx)
+
+            #Get label
+            label = behavior(locs3d_bl[:, selected_idx])
+            #self.location_add(locs3e_bl[:, selected_idx], leraner_name, 
+
+            #Retrain
+            #TODO FIX THIS FUNCTION IT NO WORKY WORKY
+            #self.learners[learner_name]['dataset'].add(instances[:,selected_idx], label, 
+            #        locs2d_image[:, selected_idx], locs3d_bl[:, selected_idx])
+            self.train(self.learners[learner_name]['dataset'], learner_name)
+
+            #Classify
+            predictions = np.matrix(self.learners[learner_name]['learner'].classify(instances))
+
+            #draw
+            img = cv.CloneMat(image)
+            self.draw_dots_nstuff(img, locs3d_image, predictions)
+
+            #publish
+            self.img_pub.publish(img)
+
+    def execute_behavior(self, point3d_bl, behavior, learner_name):
+        instances, locs2d_image, locs3d_bl, image = self.kinect_features.read(point3d_bl)
+        rec_params = self.kinect_features.rec_params
+        predictions = np.matrix(self.learners[learner_name]['learner'].classify(instances))
+
+        #select the positive predictions
+        locs3d_bl[:, np.where(predictions == r3d.POSITIVE)[1].A1.tolist()]
+        #get the median
+
+        #draw
+        img = cv.CloneMat(image)
+        self.draw_dots_nstuff(img, locs3d_image, predictions)
+
+        #publish
+        self.img_pub.publish(img)
+
     
     def autonomous_learn(self, point3d_bl, behavior, object_name): 
         # We learn, but must moderate between spatial cues and requirements of
