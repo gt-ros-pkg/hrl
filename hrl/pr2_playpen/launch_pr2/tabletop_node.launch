@@ -4,6 +4,7 @@
 	<!--operational parameters-->
 	<param name="perform_fit_merge" value="true" />
 	<param name="fit_merge_threshold" value="0.05" />
+	<param name="processing_frame" value="torso_lift_link" />
 
 	<!-- which debug markers will be published-->
         <param name="publish_table_marker" value="true" />

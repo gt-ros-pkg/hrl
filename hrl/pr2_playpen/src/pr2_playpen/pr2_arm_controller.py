@@ -28,6 +28,7 @@ def limit_range(numb, lower, upper):
 class ControlPR2Arm:
 
     def __init__(self, pr2_control_topic, # = 'l_cart/command_pose',
+            current_post_topic, 
             gripper_control_topic,  #'l_gripper_controller'
             gripper_tip_frame, #'l_gripper_tool_frame'
             center_in_torso_frame, #=[1,.3,-1], 
@@ -46,7 +47,7 @@ class ControlPR2Arm:
         self.tip_q = np.zeros((4,1))
         self.gripper_server = actionlib.SimpleActionClient(gripper_control_topic+'/gripper_action', Pr2GripperCommandAction)
         self.gripper_server.wait_for_server()
-        rate = rospy.Rate(100.0)
+        rate = rospy.Rate(50.0)
 
         success = False
         while not success and (not rospy.is_shutdown()):
@@ -111,6 +112,14 @@ class ControlPR2Arm:
         # tip_t = self.tip_t
         # tip_q = self.tip_q
         #Publish new arm pose
+        cur_ps = rospy.wait_for_message(topic, PoseStamped)
+        print "this is the cur_ps :", cur_ps
+
+        cur_tip_t = np.array([cur_ps.pose.position.x, cur_ps.pose.position.y, cur_ps.pose.position.z])
+        cur_tip_q = np.array([cur_pos.pose.orientation.x, cur_pos.pose.orientation.y, 
+                              cur_pos.pose.orientation.z, cur_pos.pose.orientation.w])
+        ##########do a comparison here and break up the trajectory into chunks###########
+
         ps = PoseStamped()
         ps.header.frame_id = '/torso_lift_link'
         ps.header.stamp = rospy.get_rostime()
@@ -139,6 +148,7 @@ class PR2Playpen:
 
         self.left_controller = ControlPR2Arm(
             pr2_control_topic = 'l_cart/command_pose',
+            current_pose_topic = 'l_cart/state/x',
             gripper_control_topic = 'l_gripper_controller',
             gripper_tip_frame = 'l_gripper_tool_frame',
             center_in_torso_frame = [1.2, .3, -1], 
@@ -156,6 +166,7 @@ class PR2Playpen:
         
         self.right_controller = ControlPR2Arm(
             pr2_control_topic = 'r_cart/command_pose',
+            current_pose_topic = 'r_cart/state/x',
             gripper_control_topic = 'r_gripper_controller',
             gripper_tip_frame = 'r_gripper_tool_frame',
             center_in_torso_frame = [1.2, -.3, -1], 
@@ -198,6 +209,30 @@ if __name__ == '__main__':
     # cur_time = rospy.Time.to_sec(rospy.Time.now())
     # while rospy.Time.to_sec(rospy.Time.now())-cur_time < 1:
     #     o.right_controller.cmd_pose(tip_t_r, tip_q_r)
+    cur_time = rospy.Time.to_sec(rospy.Time.now())
+
+    while rospy.Time.to_sec(rospy.Time.now())-cur_time < 6:
+        o.right_controller.cmd_pose(np.array([0.62, 0.0, 0.16]), np.array([0.5, 0.48, -0.48, 0.53]))
+
+# object pos and quat :
+# [0.59988641331230275, 0.10248554748385291, 0.54227626323699951] [0.0, 0.0, 0.6218676307650518, 0.78312237217861513]
+# static transfrom from base to link ((-0.050000000000000003, 0.0, 0.91475823349895902), (0.0, 0.0, 0.0, 1.0))
+
+
+    cur_time = rospy.Time.to_sec(rospy.Time.now())
+    while rospy.Time.to_sec(rospy.Time.now())-cur_time < 6:
+        o.right_controller.cmd_pose(np.array([0.600+0.06, 0.106, -0.32]), np.array([0.408, 0.560, -0.421, 0.585]))
+
+    o.right_controller.gripper_server.send_goal(Pr2GripperCommandGoal(
+                                                Pr2GripperCommand(position = 0.0, max_effort = 20)), 
+                                                done_cb = None, feedback_cb = None)
+    rospy.sleep(10)
+
+    cur_time = rospy.Time.to_sec(rospy.Time.now())
+
+    while rospy.Time.to_sec(rospy.Time.now())-cur_time < 6:
+        o.right_controller.cmd_pose(np.array([0.62, 0.0, 0.16]), np.array([0.5, 0.48, -0.48, 0.53]))
+
 
     while not rospy.is_shutdown():
         o.left_controller.cmd_pose(tip_t_l, tip_q_l)
