@@ -38,6 +38,10 @@ import hrl_pr2_lib.linear_move as lm
 
 import hrl_pr2_lib.collision_monitor as cmon
 import hai_sandbox.recognize_3d as r3d
+from hai_sandbox.recognize_3d import InterestPointDataset
+#import psyco
+#psyco.full()
+
 #import hai_sandbox.interest_point_actions as ipa
 #import hai_sandbox.kinect_listener as kl
 
@@ -321,7 +325,7 @@ class ApplicationBehaviors:
         #                 -0.86489749, -3.00261708]]).T
         self.learners = {}
         #self.load_classifier('light_switch', 'labeled_light_switch_data.pkl')
-        #self.load_classifier('light_switch', 'somepickle.pkl')
+        self.load_classifier('light_switch', 'friday_730_light_switch2.pkl')
         self.img_pub = r3d.ImagePublisher('active_learn')
 
 
@@ -337,7 +341,7 @@ class ApplicationBehaviors:
         print '================= Training ================='
         print 'NEG examples', nneg
         print 'POS examples', npos
-        print 'TOTAL', self.dataset.outputs.shape[1]
+        print 'TOTAL', dataset.outputs.shape[1]
         neg_to_pos_ratio = float(nneg)/float(npos)
         weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
         print 'training'
@@ -353,16 +357,21 @@ class ApplicationBehaviors:
     def draw_dots_nstuff(self, img, points2d, labels):
         pidx = np.where(labels == r3d.POSITIVE)[1].A1.tolist()
         nidx = np.where(labels == r3d.NEGATIVE)[1].A1.tolist()
+        uidx = np.where(labels == r3d.UNLABELED)[1].A1.tolist()
+
         scale = 1
 
-        if len(pidx) > 0:
-            ppoints = points2d[:, pidx]
-            r3d.draw_points(img, ppoints * scale, [0,255,0], 2, 1)
+        if len(uidx) > 0:
+            upoints = points2d[:, uidx]
+            r3d.draw_points(img, upoints * scale, [255,255,255], 2, -1)
 
         if len(nidx) > 0:
             npoints = points2d[:, nidx]
-            r3d.draw_points(img, npoints * scale, [0,0,255], 2, 1)
+            r3d.draw_points(img, npoints * scale, [0,0,255], 2, -1)
 
+        if len(pidx) > 0:
+            ppoints = points2d[:, pidx]
+            r3d.draw_points(img, ppoints * scale, [0,255,0], 2, -1)
 
     #def tuck(self):
     #    ldiff = np.linalg.norm(pr2.diff_arm_pose(self.robot.left.pose(), self.l3))
@@ -850,8 +859,23 @@ class ApplicationBehaviors:
         #self.stationary_light_switch_behavior(point_bl)
         #mode = 'autonomous'
         #mode = 'light switch'
-        mode = 'capture data'
+        mode = 'live_label'
         if point_bl!= None:
+            if mode == 'live_label':
+                #self.execute_behavior(point_bl, 
+                light_switch_beh = ft.partial(self.light_switch1, 
+                                        point_offset=np.matrix([0,0,.03]).T,
+                                        press_contact_pressure=300,
+                                        move_back_distance=np.matrix([-.0075,0,0]).T,
+                                        press_pressure=3500,
+                                        press_distance=np.matrix([0,0,-.15]).T,
+                                        visual_change_thres=.03)
+                point_map = tfu.transform_points(tfu.transform('map', 'base_link', self.tf_listener), point_bl)
+
+                while not rospy.is_shutdown():
+                    point_bl_cur = tfu.transform_points(tfu.transform('base_link', 'map', self.tf_listener), point_map)
+                    self.execute_behavior(point_bl_cur, light_switch_beh, 'light_switch')
+
             if mode == 'capture data':
                 self.robot.head.look_at(point_bl, 'base_link', True)
                 self.robot.sound.say("taking a scan")
@@ -1195,19 +1219,21 @@ class ApplicationBehaviors:
             self.img_pub.publish(img)
 
     def execute_behavior(self, point3d_bl, behavior, learner_name):
-        instances, locs2d_image, locs3d_bl, image = self.kinect_features.read(point3d_bl)
+        instances, locs2d_image, locs3d_bl, image, _ = self.kinect_features.read(point3d_bl)
         rec_params = self.kinect_features.rec_params
         predictions = np.matrix(self.learners[learner_name]['learner'].classify(instances))
 
         #select the positive predictions
-        locs3d_bl[:, np.where(predictions == r3d.POSITIVE)[1].A1.tolist()]
+        #locs3d_bl[:, np.where(predictions == r3d.POSITIVE)[1].A1.tolist()]
+        #behavior(infered_point)
         #get the median
 
         #draw
         img = cv.CloneMat(image)
-        self.draw_dots_nstuff(img, locs3d_image, predictions)
+        self.draw_dots_nstuff(img, locs2d_image, predictions)
 
         #publish
+        print 'publishing.'
         self.img_pub.publish(img)
 
     

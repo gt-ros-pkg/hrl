@@ -2294,7 +2294,7 @@ class KinectFeatureExtractor:
         else:
             self.kinect_listener = kinect_listener
         self.rec_params = Recognize3DParam()
-        self.rec_params.n_samples = 100
+        #self.rec_params.n_samples = 100
 
     def read(self, expected_loc_bl=None): 
         print ">> Waiting for mesg.." 
