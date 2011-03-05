@@ -15,6 +15,11 @@
   <depend package="tabletop_object_detector" />
   <depend package="tabletop_collision_map_processing" />
   <depend package="UI_segment_object" />
+  <depend package="object_manipulator" />
+  <depend package="rospy" />
+  <depend package="tf" />
+  <depend package="teleop_controllers" />
+
 </package>
 
 
