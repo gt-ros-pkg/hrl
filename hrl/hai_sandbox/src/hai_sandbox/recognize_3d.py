@@ -1907,7 +1907,8 @@ class ScanLabeler:
         print 'active_learn_test: Using features', features_to_use
         print 'active_learn_test: feature sizes'
         for k in ['expected_loc', 'distance', 'fpfh', 'intensity']:
-            print k, feature_sizes[k]
+            if feature_sizes.has_key(k):
+                print k, feature_sizes[k]
 
         total_dim = 0
         for f in features_to_use:
