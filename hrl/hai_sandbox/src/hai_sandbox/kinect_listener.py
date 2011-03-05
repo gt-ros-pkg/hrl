@@ -16,7 +16,15 @@ class KinectListener:
         self.bridge = CvBridge()
 
     def read(self):
-        fpfh_hist = self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+        cur_time = rospy.Time.now().to_sec()
+        if wait_fresh:
+            not_fresh = True
+            while not_fresh:
+                fpfh_hist = self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+                if not (fpfh_hist.header.stamp.to_sec() < cur_time):
+                    not_fresh = False
+                else:
+                    rospy.loginfo("fpfh message time is in the past by %.2f secs"% (cur_time - fpfh_hist.header.stamp.to_sec()))
 
         histogram = np.matrix(fpfh_hist.histograms).reshape((fpfh_hist.hist_npoints, 33)).T 
         hist_points = np.matrix(fpfh_hist.hpoints3d).reshape((fpfh_hist.hist_npoints, 3)).T 

@@ -4,7 +4,7 @@ import roslib; roslib.load_manifest('hai_sandbox')
 import rospy
 import sensor_msgs.msg as sm
 import visualization_msgs.msg as vm
-#import feature_extractor_fpfh.srv as fsrv
+import feature_extractor_fpfh.srv as fsrv
 
 import numpy as np
 import scipy.spatial as sp
@@ -53,12 +53,14 @@ def instances_to_image(win_size, instances, min_val, max_val):
 def instance_to_image(win_size, instance, min_val, max_val):
     winside = win_size*2+1
     patch_size = winside*winside*3
-    multipliers = [1,2,4,8,16,32]
+    #multipliers = [1,2,4,8,16,32]
     srange = max_val - min_val
 
     offset = 0
     patches = []
-    for i in range(len(multipliers)):
+    num_patches = instance.shape[0] / patch_size
+    #for i in range(len(multipliers)):
+    for i in range(num_patches):
         s = instance[offset:offset+patch_size, 0]
         s = np.array(np.abs(np.round(((s-min_val)/srange) * 255.)), 'uint8')
         patches.append(np.reshape(s, (winside, winside, 3)))
@@ -117,6 +119,7 @@ def load_data_from_file(fname, rec_param):
 
 def load_data_from_file_kinect(fname, rec_param):
     #load pickle
+    #pdb.set_trace()
     data_pkl = ut.load_pickle(fname)
     #print 'Original frame of pointcloud is ', data_pkl['points_laser'].header.frame_id
 
@@ -127,28 +130,21 @@ def load_data_from_file_kinect(fname, rec_param):
     #center_point_bl = data_pkl['touch_point'][0]
     center_point_bl = data_pkl['touch_point']
     print 'Robot touched point cloud at point', center_point_bl.T
-    #pdb.set_trace()
-
-    #load syn locs
     distance_feature_points = None
     syn_locs_fname = pt.splitext(fname)[0] + '_synthetic_locs3d.pkl'
-    #pdb.set_trace()
     if pt.isfile(syn_locs_fname):
         print 'found synthetic locations file', syn_locs_fname
         distance_feature_points = ut.load_pickle(syn_locs_fname)
-        #distance_feature_points = np.column_stack((distance_feature_points, syn_locs))
-        #distance_feature_points = syn_locs
         data_pkl['synthetic_locs3d'] = distance_feature_points
     else:
         print 'synthetic loc file not found', syn_locs_fname
 
-    #make the data object 
-    #TODO: use the kinect version?
-    return IntensityCloudData(data_pkl['points3d'], intensity_image, 
-                              data_pkl['k_T_bl'], data_pkl['cal'], 
-                              center_point_bl, center_point_bl, distance_feature_points, 
-                              rec_param), data_pkl
-
+    ex = FPFH()
+    fpfh_hist, fpfh_points = ex.get_features(data_pkl['points3d'])
+    fpfh_tree = sp.KDTree(np.array(fpfh_points.T))
+    return IntensityCloudDataKinect(data_pkl['points3d'], fpfh_points, fpfh_hist, 
+            intensity_image, center_point_bl, data_pkl['cal'], rec_param, 
+            data_pkl['k_T_bl'], distance_feature_points), data_pkl
 
 
 def dataset_to_libsvm(dataset, filename):
@@ -204,10 +200,11 @@ def inverse_indices(indices_exclude, num_elements):
 #'_features_dict.pkl'
 def preprocess_scan_extract_features(raw_data_fname, ext, kinect=True):
     rec_params = Recognize3DParam()
-    feature_extractor, data_pkl = load_data_from_file(raw_data_fname, rec_params)
     if not kinect:
+        feature_extractor, data_pkl = load_data_from_file(raw_data_fname, rec_params)
         image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['high_res'])
     else:
+        feature_extractor, data_pkl = load_data_from_file_kinect(raw_data_fname, rec_params)
         image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['image'])
     print 'Image name is', image_fname
     img = cv.LoadImageM(image_fname)
@@ -229,7 +226,7 @@ def preprocess_scan_extract_features(raw_data_fname, ext, kinect=True):
     ut.save_pickle(preprocessed_dict, feature_cache_fname)
     return feature_cache_fname
 
-def preprocess_data_in_dir(dirname, ext):
+def preprocess_data_in_dir(dirname, ext, kinect=True):
     print 'Preprocessing data in', dirname
     data_files = glob.glob(pt.join(dirname, '*dataset.pkl'))
     print 'Found %d scans' % len(data_files)
@@ -237,7 +234,7 @@ def preprocess_data_in_dir(dirname, ext):
     for n in data_files:
         print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
         print 'Loading', n
-        cn = preprocess_scan_extract_features(n, ext)
+        cn = preprocess_scan_extract_features(n, ext, kinect=True)
         print 'Saved to', cn
         print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
 
@@ -308,6 +305,7 @@ class IntensityCloudDataKinect:
         self.params = rec_param
         self.sizes = None
         self.image_T_bl = image_T_bl
+        #pdb.set_trace()
 
         self.points2d = self.calibration_obj.project(points3d)
         self.fpfh_tree_bl = sp.KDTree(np.array(self.fpfh_points.T))
@@ -422,8 +420,10 @@ class IntensityCloudDataKinect:
                 d = 'g'
                 gaussian_noise = gaussian.sample()
                 gaussian_noise[0,0] = 0
-                sampled3d_pt_image = self.expected_loc_bl + gaussian_noise
+                sampled3d_pt_bl = self.expected_loc_bl + gaussian_noise
                 #sampled3d_pt_image = tfu.transform_points(self.image_T_laser, sampled3d_pt_laser)
+                #pdb.set_trace()
+                sampled3d_pt_image = tfu.transform_points(self.image_T_bl, sampled3d_pt_bl)
                 sampled2d_pt = self.calibration_obj.project(sampled3d_pt_image)
                 pt = np.round(sampled2d_pt)
                 x = int(pt[0,0])
@@ -745,7 +745,8 @@ class IntensityCloudData:
 
             invalid_location = False
             local_intensity = []
-            for multiplier in [1,2,4,8,16,32]:
+            #for multiplier in [1,2,4,8,16,32]:
+            for multiplier in self.params.win_multipliers:
                 if multiplier == 1:
                     #pdb.set_trace()
                     features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, flatten=flatten)
@@ -796,7 +797,8 @@ class IntensityCloudData:
         # Find closest neighbors in 3D to get normal
         invalid_location = False
         local_intensity = []
-        for multiplier in [1,2,4,8,16,32]:
+        #for multiplier in [1,2,4,8,16,32]:
+        for multiplier in self.params.win_multipliers:
             if multiplier == 1:
                 #pdb.set_trace()
                 features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, flatten=flatten)
@@ -1163,7 +1165,8 @@ class Recognize3DParam:
         #Data extraction parameters
         self.grid_resolution = .01
         self.win_size = 5
-        self.win_multipliers = [1,2,4,8,16,32]
+        #self.win_multipliers = [1,2,4,8,16,32] for prosilica
+        self.win_multipliers = [1,2,4,8]
 
         self.win3d_size = .02
         self.voi_bl = [.5, .5, .5]
@@ -1561,7 +1564,8 @@ class ScanLabeler:
             print 'ERROR: %s not found in dir %s' % (scan_to_train_on, dirname)
             self.scan_idx = 0
 
-        self.scale = 1/3.
+        #self.scale = 1/3.
+        self.scale = 1.
         self.mode = 'GROUND_TRUTH'
         if seed_dset == None:
             self.training_sname = pt.splitext(self.scan_names[self.scan_idx])[0] + '_seed.pkl'
@@ -2034,7 +2038,7 @@ class ScanLabeler:
             return
         # Grab closest thing, change its label, and redraw
         ck = [self.cdisp['tree'].query(np.array([x,y]) / self.scale, k=1)[1]]
-        cr = self.cdisp['tree'].query_ball_point(np.array([x,y]) / self.scale, 10.)
+        cr = self.cdisp['tree'].query_ball_point(np.array([x,y]) / self.scale, 2.)
         
         print 'k nearest', len(ck), 'radius', len(cr)
 
@@ -2321,6 +2325,7 @@ if __name__ == '__main__':
     p.add_option("-p", "--pca", action="store_true", default=None)
     p.add_option("-s", "--seed", action="store", default=None, help='not strictly neccessary if you use pickles ending with _seed.pkl')
     p.add_option("-e", "--end", action="store_true", default=False)
+    p.add_option("-k", "--kinect", action="store_true", default=True)
     opt, args = p.parse_args()
     mode = opt.mode
 
@@ -2345,7 +2350,7 @@ if __name__ == '__main__':
 
     if mode == 'preprocess':
         rospy.init_node('detect_fpfh', anonymous=True)
-        preprocess_data_in_dir(args[0], ext='_features_df2_dict.pkl')
+        preprocess_data_in_dir(args[0], ext='_features_df2_dict.pkl', kinect=opt.kinect)
 
     if mode == 'label':
         s = ScanLabeler(args[0], ext='_features_df2_dict.pkl', scan_to_train_on=opt.train, 
