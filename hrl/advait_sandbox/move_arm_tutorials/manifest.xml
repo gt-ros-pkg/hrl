@@ -10,6 +10,8 @@
   <url>http://ros.org/wiki/move_arm_tutorials</url>
   <depend package="rospy"/>
   <depend package="move_arm"/>
+  <depend package="move_arm_msgs"/>
+  <depend package="actionlib"/>
 
 </package>
 
