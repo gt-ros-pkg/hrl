@@ -105,7 +105,7 @@ class ControlPR2Arm:
 
     ##
     # Callback for pose of omni
-    def cmd_pose(self, tip_t, tip_q):
+    def cmd_pose(self, goal_tip_t, goal_tip_q):
             #Get the omni's tip pose in the PR2's torso frame
 #         tip_omni, msg_frame = tfu.posestamped_as_matrix(msg)
 #         self.torso_T_playpen(tip_omni, msg_frame)
@@ -116,29 +116,42 @@ class ControlPR2Arm:
         print "this is the cur_ps :", cur_ps
 
         cur_tip_t = np.array([cur_ps.pose.position.x, cur_ps.pose.position.y, cur_ps.pose.position.z])
-        cur_tip_q = np.array([cur_pos.pose.orientation.x, cur_pos.pose.orientation.y, 
-                              cur_pos.pose.orientation.z, cur_pos.pose.orientation.w])
+        cur_tip_q = np.array([cur_ps.pose.orientation.x, cur_ps.pose.orientation.y, 
+                              cur_ps.pose.orientation.z, cur_ps.pose.orientation.w])
+        diff_pos = goal_tip_t - cur_tip_t
+        max_speed = 0.5  # m/s max desired speed of the arm
+        factor = np.ceil(np.max(diff_pos)/(max_speed*rate.sleep_dur.to_sec()))
+        dp = diff_pos/factor
+        dq = (goal_tip_q-cur_tip_q)/factor
+
+        ps = PoseStamped()        
         ##########do a comparison here and break up the trajectory into chunks###########
+        ps.header.frame_id = '/torso_lift_link'        
+        tip_t = cur_tip_t + 2*dp
+        tip_q = cur_tip_q + 2*dq
+        while np.max(np.abs(diff_pos)) > np.max(np.abs(tip_t-cur_tip_t+dp)):
+            ps.header.stamp = rospy.get_rostime()
+            ps.pose.position.x = tip_t[0]+dp[0]
+            ps.pose.position.y = tip_t[1]+dp[1]
+            ps.pose.position.z = tip_t[2]+dp[2]
+            ps.pose.orientation.x = tip_q[0]+dq[0]
+            ps.pose.orientation.y = tip_q[1]+dq[1]
+            ps.pose.orientation.z = tip_q[2]+dq[2]
+            ps.pose.orientation.w = tip_q[3]+dq[3]
+            self.pr2_pub.publish(ps)
+            i = i+1
+            rate.sleep()
 
-        ps = PoseStamped()
-        ps.header.frame_id = '/torso_lift_link'
         ps.header.stamp = rospy.get_rostime()
-        ps.pose.position.x = tip_t[0]
-        ps.pose.position.y = tip_t[1]
-        ps.pose.position.z = tip_t[2]
-        ps.pose.orientation.x = tip_q[0]
-        ps.pose.orientation.y = tip_q[1]
-        ps.pose.orientation.z = tip_q[2]
-        ps.pose.orientation.w = tip_q[3]
+        ps.pose.position.x = goal_tip_t[0]
+        ps.pose.position.y = goal_tip_t[1]
+        ps.pose.position.z = goal_tip_t[2]
+        ps.pose.orientation.x = goal_tip_q[0]
+        ps.pose.orientation.y = goal_tip_q[1]
+        ps.pose.orientation.z = goal_tip_q[2]
+        ps.pose.orientation.w = goal_tip_q[3]
         self.pr2_pub.publish(ps)
-
-#         if self.zero_out_forces:
-#             wr = OmniFeedback()
-#             wr.force.x = 0 
-#             wr.force.y = 0 
-#             wr.force.z = 0 
-#             self.omni_fb.publish(wr)
-#             self.zero_out_forces = False
+        rate.sleep()
 
 class PR2Playpen:
     def __init__(self):
