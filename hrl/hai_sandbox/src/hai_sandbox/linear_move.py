@@ -253,88 +253,127 @@ class ManipulationBehaviors:
         return self.movement._move_cartesian(np.matrix(pos).T, np.matrix(nrot).T, \
                 stop_funcs, timeout=self.timeout, settling_time=5.0)
 
+###
+# One large dictionary indexed by unique ids contain location records.
+# These ids are related by spatial location which we use to find locations.
+# Operations supported
+#
+#   0)   loading the locations database
+#   0.1) saving locations database
+#   1)   adding locations
+#   2)   querying given point
+#   3)   listing all locations
+#             (name, ids)
+#   4)   listing locations closest to given point
+#             (name, ids)
+###
 
-class ApplicationBehaviors:
+class LocationManager:
 
-    def __init__(self):
+    def __init__(self, name):
+        self.saved_locations_fname = name
         self.LOCATION_ADD_RADIUS = .5
-        rospy.init_node('linear_move', anonymous=True)
-        self.tf_listener = tf.TransformListener()
-        self.robot = pr2.PR2(self.tf_listener, base=True)
-        self.behaviors = ManipulationBehaviors('l', self.robot, tf_listener=self.tf_listener)
-        self.laser_scan = hd.LaserScanner('point_cloud_srv')
-        #self.prosilica = rc.Prosilica('prosilica', 'streaming')
-        self.prosilica = rc.Prosilica('prosilica', 'polled')
-        self.prosilica_cal = rc.ROSCameraCalibration('/prosilica/camera_info')
-        self.left_cal = rc.ROSCameraCalibration('/wide_stereo/left/camera_info')
-        self.right_cal = rc.ROSCameraCalibration('/wide_stereo/right/camera_info')
+        self.tree = None   #spatial indexing tree
+        self.centers = None #3xn array of centers
 
-        self.wide_angle_camera_left = rc.ROSCamera('/wide_stereo/left/image_rect_color')
-        self.wide_angle_camera_right = rc.ROSCamera('/wide_stereo/right/image_rect_color')
+        self.ids = [] #ids that corresponds with centers that indexes into data
+        self.data = {} 
 
-        self.laser_listener = LaserPointerClient(tf_listener=self.tf_listener, robot=self.robot)
-        self.laser_listener.add_double_click_cb(self.click_cb)
-
-        #self.kinect_listener = kl.KinectListener()
-        #self.kinect_cal = rc.ROSCameraCalibration('camera/rgb/camera_info')
-        self.kinect_features = r3d.KinectFeatureExtractor(self.tf_listener)
-
-        #self.kinect_img_sub = message_filters.Subscriber('/camera/rgb/image_color', smsg.Image)
-        #self.kinect_depth_sub = message_filters.Subscriber('/camera/depth/points2', smsg.PointCloud2)
-        #ts = message_filters.TimeSynchronizer([image_sub, depth_sub], 10)
-        #ts.registerCallback(callback)
-
-        self.critical_error = False
-
-        #self.behaviors.set_pressure_threshold(300)
-        #TODO: define start location in frame attached to torso instead of base_link
-        self.start_location = (np.matrix([0.35, 0.30, 1.1]).T, np.matrix([0., 0., 0., 0.1]))
-        #self.start_location = (np.matrix([0.25, 0.30, 1.3]).T, np.matrix([0., 0., 0., 0.1]))
-
-        #loading stored locations
-        self.saved_locations_fname = 'saved_locations.pkl'
-        self.location_centers = []
-        self.location_labels = []
-        self.location_data = []
-        self.locations_tree = None
-
-        if os.path.isfile(self.saved_locations_fname):
-            location_data = ut.load_pickle(self.saved_locations_fname) #each col is a 3d point, 3xn mat
-            for idx, rloc in enumerate(location_data):
-                self.location_centers.append(rloc['center'])
-                self.location_labels.append(idx)
-            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
-            self.location_data = location_data
-
-        # joint angles used for tuck
-        self.create_arm_poses()
-        #pdb.set_trace()
-        #self.untuck()
-        #self.behaviors.movement.set_movement_mode_ik()
-        #self.movement.set_movement_mode_ik()
-        #self.tuck()
-        #self.r1 = np.matrix([[-0.31006769,  1.2701541 , -2.07800829, -1.45963243, -4.35290489,
-        #                 -1.86052221,  5.07369192]]).T
-        #self.l0 = np.matrix([[  1.05020383,  -0.34464327,   0.05654   ,  -2.11967694,
-        #                 -10.69100221,  -1.95457839,  -3.99544713]]).T
-        #self.l1 = np.matrix([[  1.06181076,   0.42026402,   0.78775801,  -2.32394841,
-        #                 -11.36144995,  -1.93439025,  -3.14650108]]).T
-        #self.l2 = np.matrix([[  0.86275197,   0.93417818,   0.81181124,  -2.33654346,
-        #                 -11.36121856,  -2.14040499,  -3.15655164]]).T
-        #self.l3 = np.matrix([[ 0.54339568,  1.2537778 ,  1.85395725, -2.27255481, -9.92394984,
-        #                 -0.86489749, -3.00261708]]).T
         self.learners = {}
-        #self.load_classifier('light_switch', 'labeled_light_switch_data.pkl')
-        self.load_classifier('light_switch', 'friday_730_light_switch2.pkl')
-        self.img_pub = r3d.ImagePublisher('active_learn')
+        self._load_database()
+        self.train_all_classifiers()
+        self.task_types = ['light_switch', 'light_rocker', 'drawer']
+        self.driving_param = {'light_switch': {'coarse': .7, 'fine': .5, 'voi': .2},
+                              'light_rocker': {'coarse': .7, 'fine': .5, 'voi': .2},
+                              'drawer':       {'coarse': .7, 'fine': .7, 'voi': .2}}
 
 
-    def load_classifier(self, name, fname):
-        print 'loading classifier'
-        dataset = ut.load_pickle(fname)
-        self.train(dataset, name)
 
-    def train(self, dataset, name):
+    def _load_database(self):
+        #                           tree         dict
+        #indexes of locations in tree => ids list => location data
+        d = ut.load_pickle(self.saved_locations_fname)
+        self.ids = d['ids']
+        self.centers = d['centers']
+        self.data = d['data']
+        self.tree = sp.KDTree(np.array(self.centers).T)
+
+
+    def _save_database(self):
+        ut.save_pickle({'centers': self.centers,
+                        'ids': self.ids,
+                        'data': self.data}, self.saved_locations_fname)
+
+
+    def create_new(self, task_type, point_map):
+        taskid = time.strftime('%A_%m_%d_%Y_%I:%M%p') + ('_%s' % task_type)
+        os.mkdir(taskid)
+
+        if self.centers == None:
+            self.centers = point_map
+        else:
+            np.column_stack((self.centers, point_map))
+        self.tree = sp.KDTree(np.array(self.centers.T))
+
+        self.ids.append(taskid)
+        self.data[taskid] = {'task': task_type,
+                             'center': point_map,
+                             'points': point_map,
+                             'dataset': None}
+        self._save_database()
+        return taskid
+
+
+    def _id_to_center_idx(self, task_id):
+        for i, tid in enumerate(self.ids):
+            if tid == task_id:
+                return i
+        return None
+
+
+    def update(self, task_id, point_map):
+        #If close by locations found then add to points list and update center
+        ldata = self.data[taskid]
+        ldata['points'] = np.column_stack((point_map, ldata['points']))
+        ldata['center'] = ldata['points'].mean(1)
+
+        center_idx = self._id_to_center_idx(task_id)
+        self.centers[:, center_idx] = ldata['center']
+        self.tree = sp.KDTree(np.array(self.centers).T)
+
+
+    def list_all(self):
+        rlist = []
+        for k in self.data.keys():
+            rlist.append([k, self.data[k]['task']])
+        return rlist
+
+
+    def list_close_by(self, point_map, task=None):
+        if self.tree != None:
+            indices = self.tree.query_ball_point(np.array(point_map.T), self.LOCATION_ADD_RADIUS)
+            ids_selected = []
+            for i in indices:
+                sid = self.ids[i]
+                stask = self.data[sid]['task']
+                if task == None:
+                    ids_selected.append([sid, stask])
+                else:
+                    if task == stask:
+                        ids_selected.append([sid, stask])
+            return ids_selected
+        else:
+            return []
+
+
+    def train_all_classifiers(self):
+        for k in self.data.keys():
+            dataset = self.data[k]['dataset']
+            if dataset != None:
+                self.train(dataset, k)
+
+
+    def train(self, dataset, task_id):
         rec_params = self.kinect_features.rec_params
         nneg = np.sum(dataset.outputs == r3d.NEGATIVE) #TODO: this was copied and pasted from r3d
         npos = np.sum(dataset.outputs == r3d.POSITIVE)
@@ -350,28 +389,228 @@ class ApplicationBehaviors:
         learner.train(dataset, dataset.inputs,
                       rec_params.svm_params + weight_balance,
                       rec_params.variance_keep)
-        self.learners[name] = {'learner': learner, 'dataset': dataset}
-        print 'done loading'
+        self.learners[task_id] = {'learner': learner, 'dataset': dataset}
 
 
-    def draw_dots_nstuff(self, img, points2d, labels):
+
+    #def load_classifier(self, name, fname):
+    #    print 'loading classifier'
+    #    dataset = ut.load_pickle(fname)
+    #    self.train(dataset, name)
+
+        #self.location_labels = []
+        #self.location_data = []
+        #if os.path.isfile(self.saved_locations_fname):
+        #    location_data = ut.load_pickle(self.saved_locations_fname) #each col is a 3d point, 3xn mat
+        #    for idx, rloc in enumerate(location_data):
+        #        self.location_centers.append(rloc['center'])
+        #        self.location_labels.append(idx)
+        #    self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+        #    self.location_data = location_data
+        #if os.path.isfile(self.saved_locations_fname):
+        #    location_data = ut.load_pickle(self.saved_locations_fname) #each col is a 3d point, 3xn mat
+        #    for idx, rloc in enumerate(location_data):
+        #        self.location_centers.append(rloc['center'])
+        #        self.location_labels.append(idx)
+        #    self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+        #    self.location_data = location_data
+        #pass
+
+        #location_idx = self.location_labels[close_by_locs[0]]
+        #ldata = self.location_data[location_idx]
+
+        #rospy.loginfo('location_add: point close to %d at %s.' % (location_idx, str(ldata['center'].T)))
+        #ldata['points'].append(point_map)
+        #ldata['center'] = np.column_stack(ldata['points']).mean(1)
+        #self.location_centers[location_idx] = ldata['center']
+        #self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+#    def update_center(self, center_id, point_map):
+#        #If close by locations found then add to points list and update center
+#        location_idx = self.location_labels[close_by_locs[0]]
+#        ldata = self.location_data[location_idx]
+#
+#        rospy.loginfo('location_add: point close to %d at %s.' % (location_idx, str(ldata['center'].T)))
+#        ldata['points'].append(point_map)
+#        ldata['center'] = np.column_stack(ldata['points']).mean(1)
+#        self.location_centers[location_idx] = ldata['center']
+#        self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+#
+
+
+    #def location_add(self, point_map, task, data):
+    #    close_by_locs = self.find_close_by_points_match_task(point_map, task)
+    #    if len(close_by_locs) == 0:
+    #        rospy.loginfo('location_add: point not close to any existing location. creating new record.')
+    #        self.location_data.append({
+    #            'task': task, 
+    #            'center': point_map, 
+    #            'perceptual_dataset': None,
+    #            'points':[point_map]})
+    #        self.location_centers.append(point_map)
+    #        self.location_labels.append(len(self.location_data) - 1)
+    #        self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+    #    else:
+    #        #If close by locations found then add to points list and update center
+    #        location_idx = self.location_labels[close_by_locs[0]]
+    #        ldata = self.location_data[location_idx]
+
+    #        rospy.loginfo('location_add: point close to %d at %s.' % (location_idx, str(ldata['center'].T)))
+    #        ldata['points'].append(point_map)
+    #        ldata['center'] = np.column_stack(ldata['points']).mean(1)
+    #        self.location_centers[location_idx] = ldata['center']
+    #        self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+
+    #    ut.save_pickle(self.location_data, self.saved_locations_fname)
+    #    rospy.loginfo('location_add: saved point in map.')
+
+#    def find_close_by_points(self, point_map):
+#        if self.locations_tree != None:
+#            close_by_locs = self.locations_tree.query_ball_point(np.array(point_map.T), self.LOCATION_ADD_RADIUS)[0]
+#            return close_by_locs
+#        else:
+#            return []
+
+#   3)   listing all locations
+#   4)   listing locations closest to given point, with and without task
+
+
+    #def find_close_by_points_match_task(self, point_map, task):
+    #    matches = self.find_close_by_points(point_map)
+    #    task_matches = []
+    #    for m in matches:
+    #        idx = self.location_labels[m]
+    #        ldata = self.location_data[idx]
+    #        if ldata['task'] == task:
+    #            task_matches.append(m)
+    #    return task_matches
+    
+
+class ApplicationBehaviors:
+
+    def __init__(self):
+
+        rospy.init_node('linear_move', anonymous=True)
+        self.tf_listener = tf.TransformListener()
+        self.robot = pr2.PR2(self.tf_listener, base=True)
+        self.behaviors = ManipulationBehaviors('l', self.robot, tf_listener=self.tf_listener)
+        self.laser_scan = hd.LaserScanner('point_cloud_srv')
+
+        self.prosilica = rc.Prosilica('prosilica', 'polled')
+        self.prosilica_cal = rc.ROSCameraCalibration('/prosilica/camera_info')
+
+        self.left_cal = rc.ROSCameraCalibration('/wide_stereo/left/camera_info')
+        self.right_cal = rc.ROSCameraCalibration('/wide_stereo/right/camera_info')
+
+        self.wide_angle_camera_left = rc.ROSCamera('/wide_stereo/left/image_rect_color')
+        self.wide_angle_camera_right = rc.ROSCamera('/wide_stereo/right/image_rect_color')
+
+        self.laser_listener = LaserPointerClient(tf_listener=self.tf_listener, robot=self.robot)
+        self.laser_listener.add_double_click_cb(self.click_cb)
+        self.kinect_features = r3d.KinectFeatureExtractor(self.tf_listener)
+
+
+        self.critical_error = False
+
+        #self.behaviors.set_pressure_threshold(300)
+        #TODO: define start location in frame attached to torso instead of base_link
+
+        self.start_location = (np.matrix([0.35, 0.30, 1.1]).T, np.matrix([0., 0., 0., 0.1]))
+        self.create_arm_poses()
+        self.learners = {}
+
+        #self.load_classifier('light_switch', 'friday_730_light_switch2.pkl')
+        self.img_pub = r3d.ImagePublisher('active_learn')
+        self.locations_man = LocationManager('locations_v1.pkl')
+
+        #self.LOCATION_ADD_RADIUS = .5
+        #self.kinect_listener = kl.KinectListener()
+        #self.kinect_cal = rc.ROSCameraCalibration('camera/rgb/camera_info')
+
+        #self.kinect_img_sub = message_filters.Subscriber('/camera/rgb/image_color', smsg.Image)
+        #self.kinect_depth_sub = message_filters.Subscriber('/camera/depth/points2', smsg.PointCloud2)
+        #ts = message_filters.TimeSynchronizer([image_sub, depth_sub], 10)
+        #ts.registerCallback(callback)
+
+        #self.load_classifier('light_switch', 'labeled_light_switch_data.pkl')
+        #self.start_location = (np.matrix([0.25, 0.30, 1.3]).T, np.matrix([0., 0., 0., 0.1]))
+
+        #loading stored locations
+        #self.saved_locations_fname = 'saved_locations.pkl'
+        #self.location_centers = []
+        #self.location_labels = []
+        #self.location_data = []
+        #self.locations_tree = None
+
+        #if os.path.isfile(self.saved_locations_fname):
+        #    location_data = ut.load_pickle(self.saved_locations_fname) #each col is a 3d point, 3xn mat
+        #    for idx, rloc in enumerate(location_data):
+        #        self.location_centers.append(rloc['center'])
+        #        self.location_labels.append(idx)
+        #    self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+        #    self.location_data = location_data
+
+        # joint angles used for tuck
+        #pdb.set_trace()
+        #self.untuck()
+        #self.behaviors.movement.set_movement_mode_ik()
+        #self.movement.set_movement_mode_ik()
+        #self.tuck()
+        #self.r1 = np.matrix([[-0.31006769,  1.2701541 , -2.07800829, -1.45963243, -4.35290489,
+        #                 -1.86052221,  5.07369192]]).T
+        #self.l0 = np.matrix([[  1.05020383,  -0.34464327,   0.05654   ,  -2.11967694,
+        #                 -10.69100221,  -1.95457839,  -3.99544713]]).T
+        #self.l1 = np.matrix([[  1.06181076,   0.42026402,   0.78775801,  -2.32394841,
+        #                 -11.36144995,  -1.93439025,  -3.14650108]]).T
+        #self.l2 = np.matrix([[  0.86275197,   0.93417818,   0.81181124,  -2.33654346,
+        #                 -11.36121856,  -2.14040499,  -3.15655164]]).T
+        #self.l3 = np.matrix([[ 0.54339568,  1.2537778 ,  1.85395725, -2.27255481, -9.92394984,
+        #                 -0.86489749, -3.00261708]]).T
+
+    def load_classifier(self, name, fname):
+        print 'loading classifier'
+        dataset = ut.load_pickle(fname)
+        self.train(dataset, name)
+
+    #def train(self, dataset, name):
+    #    rec_params = self.kinect_features.rec_params
+    #    nneg = np.sum(dataset.outputs == r3d.NEGATIVE) #TODO: this was copied and pasted from r3d
+    #    npos = np.sum(dataset.outputs == r3d.POSITIVE)
+    #    print '================= Training ================='
+    #    print 'NEG examples', nneg
+    #    print 'POS examples', npos
+    #    print 'TOTAL', dataset.outputs.shape[1]
+    #    neg_to_pos_ratio = float(nneg)/float(npos)
+    #    weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
+    #    print 'training'
+    #    learner = r3d.SVMPCA_ActiveLearner(use_pca=True)
+    #    #TODO: figure out something scaling inputs field!
+    #    learner.train(dataset, dataset.inputs,
+    #                  rec_params.svm_params + weight_balance,
+    #                  rec_params.variance_keep)
+    #    self.learners[name] = {'learner': learner, 'dataset': dataset}
+    #    print 'done loading'
+
+
+    def draw_dots_nstuff(self, img, points2d, labels, picked_loc):
         pidx = np.where(labels == r3d.POSITIVE)[1].A1.tolist()
         nidx = np.where(labels == r3d.NEGATIVE)[1].A1.tolist()
         uidx = np.where(labels == r3d.UNLABELED)[1].A1.tolist()
 
-        scale = 1
-
+        #scale = 1
         if len(uidx) > 0:
             upoints = points2d[:, uidx]
-            r3d.draw_points(img, upoints * scale, [255,255,255], 2, -1)
+            r3d.draw_points(img, upoints, [255,255,255], 2, -1)
 
         if len(nidx) > 0:
             npoints = points2d[:, nidx]
-            r3d.draw_points(img, npoints * scale, [0,0,255], 2, -1)
+            r3d.draw_points(img, npoints, [0,0,255], 2, -1)
 
         if len(pidx) > 0:
             ppoints = points2d[:, pidx]
-            r3d.draw_points(img, ppoints * scale, [0,255,0], 2, -1)
+            r3d.draw_points(img, ppoints, [0,255,0], 2, -1)
+
+        if picked_loc != None:
+            r3d.draw_points(img, picked_loc, [255, 0, 0], 4, -1)
 
     #def tuck(self):
     #    ldiff = np.linalg.norm(pr2.diff_arm_pose(self.robot.left.pose(), self.l3))
@@ -854,13 +1093,212 @@ class ApplicationBehaviors:
             rospy.loginfo('location_activated_behaviors: DONE MANIPULATION!')
             self.robot.sound.say('done')
 
+    def location_approach_driving(self):
+        if self.approach_location(point_bl, 
+                coarse_stop=driving_param[task]['coarse'], 
+                fine_stop=driving_param[task]['fine'], 
+                voi_radius=driving_param[task]['voi']):
+            rospy.logerr('location_approach_driving: intial approach failed')
+            return False, 'initial approach'
+        else:
+            ret = self.approach_perpendicular_to_surface(point_bl, 
+                    voi_radius=driving_param[task]['voi'], 
+                    dist_approach=driving_param[task]['fine'])
+            if ret != 3:
+                rospy.logerr('location_approach_driving: approach_perpendicular_to_surface failed!')
+                return False, 'approach_perpendicular_to_surface'
+
+
+    def get_behavior_by_task(self, task_type):
+        if task_type == 'light_switch':
+            return ft.partial(self.light_switch1, 
+                        point_offset=np.matrix([0,0,.03]).T,
+                        press_contact_pressure=300,
+                        move_back_distance=np.matrix([-.0075,0,0]).T,
+                        press_pressure=3500,
+                        press_distance=np.matrix([0,0,-.15]).T,
+                        visual_change_thres=.03)
+        elif task_type == 'light_rocker':
+            pdb.set_trace()
+            #TODO
+        elif task_type == 'drawer':
+            pdb.set_trace()
+            #TODO
+        else:
+            pdb.set_trace()
+            #TODO
+
+
+
+    def transition_arm_to_manipulation_posture(self, task_type):
+        #TODO: specialize this
+
+        if task_type == 'light_switch':
+            self.untuck()
+            self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
+            self.behaviors.movement.pressure_listener.rezero()
+
+        elif task_type == 'light_rocker':
+            self.untuck()
+            self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
+            self.behaviors.movement.pressure_listener.rezero()
+
+        elif task_type == 'drawer':
+            self.untuck()
+            self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
+            self.behaviors.movement.pressure_listener.rezero()
+
+        else:
+            self.untuck()
+            self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
+            self.behaviors.movement.pressure_listener.rezero()
+
+    def scenario_user_clicked_at_location(self, point_bl):
+        #If that location is new:
+        map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+        point_map = tfu.transform_points(map_T_base_link, point_bl)
+        close_by_locs = self.locations_man.list_close_by(point_map)
+
+        if len(close_by_locs) <= 0:
+            #initialize new location
+            rospy.loginfo('Select task type:')
+            for i, ttype in enumerate(self.locations_man.task_types):
+                print i, ttype
+            task_type = self.locations_man[int(raw_input())]
+            rospy.loginfo('Selected task %s' % task_type)
+
+            ret = self.location_approach_driving()
+            if not ret[0]:
+                return False, ret[1]
+
+            self.transition_arm_to_manipulation_posture(task_type)
+
+            rospy.loginfo('if existing dataset exists enter that dataset\'s name')
+            print 'friday_730_light_switch2.pkl'
+            filename = raw_input()
+
+            #If we have data for perceptual bias
+            if len(filename) > 0:
+                dataset = ut.load_pickle(filename)
+                task_id = self.locations_man.create_new(task_type, point_map)
+                self.locations_man.data[task_id]['dataset'] = dataset
+                self.locations_man.train(dataset, task_id)
+                #TODO: we actually want to find only the successful location
+                pdb.set_trace()
+                self.execute_behavior(self.get_behavior_by_task(task_type), task_id, point_bl)
+
+            #If we don't have data
+            else:
+                def has_pos_and_neg(labels):
+                    if np.sum(labels == r3d.POSITIVE) > 0 and np.sum(labels == r3d.NEGATIVE) > 0:
+                        return True
+                    else:
+                        return False
+
+                # stop when have at least 1 pos and 1 neg
+                # points_bl, features, p2d, labels 
+                fea_dict = self.blind_exploration2(
+                        self.get_behavior_by_task(task_type),
+                        point_bl, stop_fun=has_pos_and_neg)
+
+                #Transform to map frame
+                map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+                point_success_map = tfu.transform_points(map_T_base_link, 
+                        fea_dict['points3d'][:, np.where(fea_dict['labels'] == r3d.POSITIVE).A1[0]])
+                points_map = tfu.transform_points(map_T_base_link, fea_dict['points3d'])
+
+                #Create a new task
+                task_id = self.locations_man.create_new(task_type, point_success_map)
+
+                #Create a new dataset
+                self.locations_man.data[task_id]['dataset'] = \
+                        r3d.InterestPointDataset.add_to_dataset(
+                                None, fea_dict['instances'], fea_dict['labels'], 
+                                fea_dict['points2d'], fea_dict['points3d'], 
+                                #scan_idx, idx_in_scan, sizes=fea_dict['sizes']) TODO fill this out when we have scan indices
+                                None, None, sizes=fea_dict['sizes'])
+
+       else: #len(close_by_locs) == 1:
+           task_id, task_type = close_by_locs[0]
+
+           rospy.loginfo('Selected task %s' % task_type)
+           ret = self.location_approach_driving()
+           if not ret[0]:
+               return False, ret[1]
+           self.transition_arm_to_manipulation_posture(task_type)
+
+           #TODO not done!!
+           pdb.set_trace()
+           #close_by_locs = self.locations_man.list_close_by(point_map)
+           self.execute_behavior(self.get_behavior_by_task(task_type), task_id, point_bl)
+                                
+       #elif len(close_by_locs) > 1:
+       #    for i, rec in enumerate(close_by_locs):
+       #        tid, ttype = rec
+       #        print i, tid, ttype
+       #    rospy.loginfo('Select a location')
+       ##else:
+       ##    pdb.set_trace() 
+       #    #Therea are predefined locations close by!
+       #     self.execute_behavior(self.get_behavior_by_task(task_type), task_id, point_bl)
+
+    #1.5) User selects location from an interface. Maybe commandline...
+    def scenario_user_select_location(self):
+        pass
+
+    def scenario_practice_run_mode(self):
+        pass
+
     def click_cb(self, point_bl):
         #point_bl = np.matrix([ 0.68509375,  0.06559023,  1.22422832]).T
         #self.stationary_light_switch_behavior(point_bl)
         #mode = 'autonomous'
         #mode = 'light switch'
-        mode = 'live_label'
+        mode = 'location_execute'
+
         if point_bl!= None:
+            #1) User points at location and selects a behavior.
+            if mode == 'location_execute':
+                self.scenario_user_clicked_at_location(point_bl)
+
+                ##If that location is new:
+                #map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+                #point_map = tfu.transform_points(map_T_base_link, point_bl)
+                #close_by_locs = self.locations_man.list_close_by(point_map)
+
+                #if len(close_by_locs) <= 0:
+                #    #initialize new location
+                #    rospy.loginfo('Select task type:')
+                #    for i, ttype in enumerate(self.locations_man.task_types):
+                #        print i, ttype
+                #    task_type = self.locations_man[int(raw_input())]
+                #    task_id = self.locations_man.create_new(task_type, point_map)
+
+                #    rospy.loginfo('if existing dataset exists enter that dataset\'s name')
+                #    print 'friday_730_light_switch2.pkl'
+                #    filename = raw_input()
+                #    if len(filename) > 0:
+                #        dataset = ut.load_pickle(filename)
+                #        self.locations_man.data[task_id]['dataset'] = dataset
+                #        self.locations_man.train(dataset, task_id)
+                #    else:
+                #        self.last_ditch_execution(
+
+                elif len(close_by_locs) == 1:
+                    task_id, task = close_by_locs[0]
+                    rospy.loginfo('Executing task %s with id % s', task, task_id)
+                    self.execute_behavior(task_id, point_bl)
+
+                elif len(close_by_locs) > 1:
+                    #TODO: implement this case
+                    rospy.logerr('ERROR: unimplemented')
+                    pdb.set_trace()
+                    self.execute_behavior(task_id, point_bl)
+                else:
+                    rospy.logerr('ERROR: we shouldn\'t have reached here')
+                    pdb.set_trace()
+
+
             if mode == 'live_label':
                 #self.execute_behavior(point_bl, 
                 light_switch_beh = ft.partial(self.light_switch1, 
@@ -918,85 +1356,95 @@ class ApplicationBehaviors:
                 self.location_activated_behaviors(point_bl)
 
         elif mode == 'location activated':
-            if len(self.location_centers) < 1:
-                return
-            rospy.loginfo('click_cb: double clicked but no 3d point given')
-            rospy.loginfo('click_cb: will use the last successful location given')
-            base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
-            point_bl = tfu.transform_points(base_link_T_map, self.location_centers[-1])
-            rospy.loginfo('click_cb: using ' + str(self.location_centers[-1].T))
-            self.location_activated_behaviors(point_bl, stored_point=True)
+            all_locs = self.locations_man.list_all()
+            for i, pair in enumerate(all_locs):
+                key, task = pair
+                print i, task, key
+
+            rospy.loginfo('Select location to execute action')
+            selected = int(raw_input())
 
 
-    def find_close_by_points(self, point_map):
-        if self.locations_tree != None:
-            close_by_locs = self.locations_tree.query_ball_point(np.array(point_map.T), self.LOCATION_ADD_RADIUS)[0]
-            return close_by_locs
-        else:
-            return []
+            #if len(self.location_centers) < 1:
+            #    return
+            #rospy.loginfo('click_cb: double clicked but no 3d point given')
+            #rospy.loginfo('click_cb: will use the last successful location given')
 
-    def find_close_by_points_match_task(self, point_map, task):
-        matches = self.find_close_by_points(point_map)
-        task_matches = []
-        for m in matches:
-            idx = self.location_labels[m]
-            ldata = self.location_data[idx]
-            if ldata['task'] == task:
-                task_matches.append(m)
-        return task_matches
-
-    def location_add(self, point_map, task, data):
-        close_by_locs = self.find_close_by_points_match_task(point_map, task)
-        if len(close_by_locs) == 0:
-            rospy.loginfo('location_add: point not close to any existing location. creating new record.')
-            self.location_data.append({
-                'task': task, 
-                'center': point_map, 
-                'perceptual_dataset': None,
-                'points':[point_map]})
-            self.location_centers.append(point_map)
-            self.location_labels.append(len(self.location_data) - 1)
-            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
-        else:
-            #If close by locations found then add to points list and update center
-            location_idx = self.location_labels[close_by_locs[0]]
-            ldata = self.location_data[location_idx]
-
-            rospy.loginfo('location_add: point close to %d at %s.' % (location_idx, str(ldata['center'].T)))
-            ldata['points'].append(point_map)
-            ldata['center'] = np.column_stack(ldata['points']).mean(1)
-            self.location_centers[location_idx] = ldata['center']
-            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
-
-        ut.save_pickle(self.location_data, self.saved_locations_fname)
-        rospy.loginfo('location_add: saved point in map.')
+            #base_link_T_map = tfu.transform('base_link', 'map', self.tf_listener)
+            #point_bl = tfu.transform_points(base_link_T_map, self.location_centers[-1])
+            #rospy.loginfo('click_cb: using ' + str(self.location_centers[-1].T))
+            #self.location_activated_behaviors(point_bl, stored_point=True)
 
 
-    def location_add(self, point_map, task):
-        close_by_locs = self.find_close_by_points_match_task(point_map, task)
-        if len(close_by_locs) == 0:
-            rospy.loginfo('location_add: point not close to any existing location. creating new record.')
-            self.location_data.append({
-                'task': task, 
-                'center': point_map, 
-                'points':[point_map]})
-            self.location_centers.append(point_map)
-            self.location_labels.append(len(self.location_data) - 1)
-            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+    #def find_close_by_points(self, point_map):
+    #    if self.locations_tree != None:
+    #        close_by_locs = self.locations_tree.query_ball_point(np.array(point_map.T), self.LOCATION_ADD_RADIUS)[0]
+    #        return close_by_locs
+    #    else:
+    #        return []
 
-        else:
-            #If close by locations found then add to points list and update center
-            location_idx = self.location_labels[close_by_locs[0]]
-            ldata = self.location_data[location_idx]
+    #def find_close_by_points_match_task(self, point_map, task):
+    #    matches = self.find_close_by_points(point_map)
+    #    task_matches = []
+    #    for m in matches:
+    #        idx = self.location_labels[m]
+    #        ldata = self.location_data[idx]
+    #        if ldata['task'] == task:
+    #            task_matches.append(m)
+    #    return task_matches
 
-            rospy.loginfo('location_add: point close to %d at %s.' % (location_idx, str(ldata['center'].T)))
-            ldata['points'].append(point_map)
-            ldata['center'] = np.column_stack(ldata['points']).mean(1)
-            self.location_centers[location_idx] = ldata['center']
-            self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+    #def location_add(self, point_map, task, data):
+    #    close_by_locs = self.find_close_by_points_match_task(point_map, task)
+    #    if len(close_by_locs) == 0:
+    #        rospy.loginfo('location_add: point not close to any existing location. creating new record.')
+    #        self.location_data.append({
+    #            'task': task, 
+    #            'center': point_map, 
+    #            'perceptual_dataset': None,
+    #            'points':[point_map]})
+    #        self.location_centers.append(point_map)
+    #        self.location_labels.append(len(self.location_data) - 1)
+    #        self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+    #    else:
+    #        #If close by locations found then add to points list and update center
+    #        location_idx = self.location_labels[close_by_locs[0]]
+    #        ldata = self.location_data[location_idx]
 
-        ut.save_pickle(self.location_data, self.saved_locations_fname)
-        rospy.loginfo('location_add: saved point in map.')
+    #        rospy.loginfo('location_add: point close to %d at %s.' % (location_idx, str(ldata['center'].T)))
+    #        ldata['points'].append(point_map)
+    #        ldata['center'] = np.column_stack(ldata['points']).mean(1)
+    #        self.location_centers[location_idx] = ldata['center']
+    #        self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+
+    #    ut.save_pickle(self.location_data, self.saved_locations_fname)
+    #    rospy.loginfo('location_add: saved point in map.')
+
+
+    #def location_add(self, point_map, task):
+    #    close_by_locs = self.find_close_by_points_match_task(point_map, task)
+    #    if len(close_by_locs) == 0:
+    #        rospy.loginfo('location_add: point not close to any existing location. creating new record.')
+    #        self.location_data.append({
+    #            'task': task, 
+    #            'center': point_map, 
+    #            'points':[point_map]})
+    #        self.location_centers.append(point_map)
+    #        self.location_labels.append(len(self.location_data) - 1)
+    #        self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+
+    #    else:
+    #        #If close by locations found then add to points list and update center
+    #        location_idx = self.location_labels[close_by_locs[0]]
+    #        ldata = self.location_data[location_idx]
+
+    #        rospy.loginfo('location_add: point close to %d at %s.' % (location_idx, str(ldata['center'].T)))
+    #        ldata['points'].append(point_map)
+    #        ldata['center'] = np.column_stack(ldata['points']).mean(1)
+    #        self.location_centers[location_idx] = ldata['center']
+    #        self.locations_tree = sp.KDTree(np.array(np.column_stack(self.location_centers).T))
+
+    #    ut.save_pickle(self.location_data, self.saved_locations_fname)
+    #    rospy.loginfo('location_add: saved point in map.')
 
     def run(self):
         #point = np.matrix([ 0.60956734, -0.00714498,  1.22718197]).T
@@ -1218,19 +1666,153 @@ class ApplicationBehaviors:
             #publish
             self.img_pub.publish(img)
 
-    def execute_behavior(self, point3d_bl, behavior, learner_name):
-        instances, locs2d_image, locs3d_bl, image, _ = self.kinect_features.read(point3d_bl)
+    def save_dataset(self, point, name, rdict):
+        pass
+        #TODO...
+
+    #TODO TEST
+    #BOOKMARK 3/7 4:03 AM
+    #LAST DITCH EXECUTION(point, stop_fun):
+    #def blind_exploration(self, behavior, point_bl, stop_fun, max_retries=15):
+    #    gaussian = pr.Gaussian(np.matrix([ 0,      0,      0.]).T, \
+    #                           np.matrix([[1.,     0,      0], \
+    #                                      [0, .02**2,      0], \
+    #                                      [0,      0, .02**2]]))
+
+    #    iter_count = 0
+    #    gaussian_noise = np.matrix([0, 0, 0.0]).T #We want to try the given point first
+    #    labels = []
+    #    points_tried = []
+
+    #    #while we have not succeeded and not stop_fun(points tried):
+    #    while iter_count < MAX_RETRIES and stop_fun(np.matrix(labels)):
+    #        perturbation = gaussian_noise
+    #        perturbed_point_bl = point_bl + perturbation
+
+    #        self.robot.sound.say('executing behavior')
+    #        success, reason = behavior(perturbed_point_bl)
+    #        points_tried.append(perturbed_point_bl)
+
+    #        #add point and label to points tried
+    #        if success:
+    #            labels.append(r3d.POSITIVE)
+    #        else:
+    #            labels.append(r3d.NEGATIVE)
+
+    #        #perturb point
+    #        gaussian_noise = gaussian.sample()
+    #        gaussian_noise[0,0] = 0
+    #        iter_count = iter_count + 1 
+    #   
+    #   self.robot.sound.say('tried %d times' % iter_count)
+    #   return np.column_stack(points_tried)
+
+
+    def blind_exploration2(self, behavior, point_bl, stop_fun, max_retries=15):
+        param = r3d.Recognize3DParam()
+        param.uncertainty_x = 1.
+        param.uncertainty_y = .02
+        param.uncertainty_z = .02
+        MAX_RETRIES = 15
+
+        # instances, locs2d, locs3d, image, rdict, sizes = 
+        fea_dict = self.kinect_features.read(expected_loc_bl=point_bl, params=param)
+        
+        dists = ut.norm(fea_dict['points3d'] - point_bl)
+        ordering = np.argsort(dists).A1
+        points3d_sampled = fea_dict['points3d'][:, ordering]
+
+        iter_count = 0
+        labels = []
+        points_tried = []
+        tinstances = []
+        sp2d = []
+        while iter_count < MAX_RETRIES and stop_fun(np.matrix(labels)):
+            self.robot.sound.say('executing behavior')
+            success, reason = behavior(points3d_sampled[:, iter_count])
+            points_tried.append(perturbed_point_bl)
+            tinstances.append(fea_dict['instances'][:,iter_count])
+            sp3d.append(fea_dict['points2d'][:,iter_count])
+            #add point and label to points tried
+            if success:
+                labels.append(r3d.POSITIVE)
+            else:
+                labels.append(r3d.NEGATIVE)
+
+       self.robot.sound.say('tried %d times' % iter_count)
+       return {'points3d': np.column_stack(points_tried), 
+               'instances': np.column_stack(tinstances), 
+               'points2d': np.column_stack(sp2d), 
+               'labels': np.matrix(labels),
+               'sizes': fea_dict['sizes']}
+
+       #if iter_count > MAX_RETRIES:
+       #    self.robot.sound.say('giving up tried %d times already' % MAX_RETRIES)
+       #    break
+       #elif not success:
+       #     self.robot.sound.say('retrying')
+
+    #   return points tried record
+            #success, _ = self.light_switch1(perturbed_point_bl, point_offset=point_offset, \
+            #        press_contact_pressure=300, move_back_distance=np.matrix([-.0075,0,0]).T,\
+            #        press_pressure=3500, press_distance=np.matrix([0,0,-.15]).T, \
+            #        visual_change_thres=.03)
+
+    #   points tried = []
+    #   while we have not succeeded and not stop_fun(points tried):
+    #       label = behavior(point)
+    #       add point and label to points tried
+    #       perturb point
+    #   return points tried record
+
+    def execute_behavior(self, behavior, task_id, point3d_bl):
+    #def execute_behavior(self, point3d_bl, behavior, learner_name):
+        #Extract features
+        # instances, locs2d_image, locs3d_bl, image, rdict 
+        f = self.kinect_features.read(point3d_bl)
         rec_params = self.kinect_features.rec_params
-        predictions = np.matrix(self.learners[learner_name]['learner'].classify(instances))
 
-        #select the positive predictions
-        #locs3d_bl[:, np.where(predictions == r3d.POSITIVE)[1].A1.tolist()]
-        #behavior(infered_point)
-        #get the median
+        #Classify
+        predictions = np.matrix(self.learners[learner_name]['learner'].classify(f['instances']))
+        loc2d_max = None
 
+        #Save dataset in location's folder
+        self.save_dataset(point, name, f['rdict'])
+
+        pos_indices = (np.where(r3d.POSITIVE == predictions)[1]).A1
+        #If found some positives:
+        if len(pos_indices) > 0:
+            #select from the positive predictions the prediction with the most spatial support
+            locs2d = f['points2d'][:, pos_indices]
+            loc2d_max = r3d.find_max_in_density(locs2d)
+            dists = ut.norm(f['points2d']- loc2d_max)
+            pdb.set_trace()
+
+            pos_min = np.argmin(dists)
+            selected_3d = f['points3d'][:, pos_min]
+            label = behavior(selected_3d)
+            #TODO: add to dataset, save dataset
+            #      active learn add(point)
+            if label != r3d.POSITIVE:
+                #We were wrong so we add this to our dataset and retrain
+                dataset = self.learners[learner_name]['dataset']
+                r3d.InterestPointDataset.add_to_dataset(dataset, f['instances'][:, pos_min], 
+                        np.array([r3d.NEGATIVE]), loc2d_max, selected_3d, 
+                        scan_id, idx_in_scan, sizes)
+            #TODO: Update this location's statistic (either SUCCEED OR FAIL)
+        #else if no positives found (or if we need practice):
+        else:
+            pass
+            #    if no positives found:
+            #        FAIL. Update the location's statistic with this failure. 
+            #    points tried = Last ditch execution (point, stop when we have one success or if we tried too much)
+            #    if successful:
+            #        active learn add(points tried)
+            #    else:
+            #        declare failure and give up
         #draw
-        img = cv.CloneMat(image)
-        self.draw_dots_nstuff(img, locs2d_image, predictions)
+        img = cv.CloneMat(f['image'])
+        self.draw_dots_nstuff(img, f['points2d'], predictions, loc2d_max)
 
         #publish
         print 'publishing.'

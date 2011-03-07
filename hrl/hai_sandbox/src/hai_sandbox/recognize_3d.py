@@ -38,6 +38,8 @@ import message_filters
 import feature_extractor_fpfh.msg as fmsg
 import hrl_camera.ros_camera as rc
 import hai_sandbox.kinect_listener as kl
+import scipy, pylab
+import scipy.stats as sct
 import pdb
 
 UNLABELED = 2.0
@@ -403,11 +405,11 @@ class IntensityCloudDataKinect:
         print 'generating _random_sample_voi'
         # laser_T_image = np.linalg.inv(self.image_T_laser)
         bl_T_image = np.linalg.inv(self.image_T_bl)
-        gaussian = pr.Gaussian(np.matrix([ 0,      0,                          0.]).T, \
-                               np.matrix([[1.,     0,                          0], \
-                                          [0, self.params.uncertainty**2,      0], \
-                                          [0,      0, self.params.uncertainty**2]]))
-
+        gaussian = pr.Gaussian(np.matrix([ 0.,      0,                            0.]).T, \
+                               np.matrix([[self.uncertainty_x**2, 0,             0.], \
+                                          [0., self.params.uncertainty_y**2,      0.], \
+                                          [0.,      0, self.params.uncertainty_z**2]]))
+        gaussian_noise = np.matrix([0, 0, 0.0]).T #We want to try the given point first
 
         distr = {'u': 0, 'g':0}
         while len(self.sampled_points) < self.params.n_samples:
@@ -418,11 +420,10 @@ class IntensityCloudDataKinect:
                 y = np.random.randint(0, self.calibration_obj.h)
             else:
                 d = 'g'
+                #The first point sampled should be the given point
+                sampled3d_pt_bl = self.expected_loc_bl + gaussian_noise
                 gaussian_noise = gaussian.sample()
                 gaussian_noise[0,0] = 0
-                sampled3d_pt_bl = self.expected_loc_bl + gaussian_noise
-                #sampled3d_pt_image = tfu.transform_points(self.image_T_laser, sampled3d_pt_laser)
-                #pdb.set_trace()
                 sampled3d_pt_image = tfu.transform_points(self.image_T_bl, sampled3d_pt_bl)
                 sampled2d_pt = self.calibration_obj.project(sampled3d_pt_image)
                 pt = np.round(sampled2d_pt)
@@ -1179,7 +1180,10 @@ class Recognize3DParam:
         #self.n_samples = 5000
         self.n_samples = 2000
         self.uni_mix = .3
-        self.uncertainty = .05
+
+        self.uncertainty_x = 1
+        self.uncertainty_y = .05
+        self.uncertainty_z = .05
         #print "Uncertainty is:", self.uncertainty
 
         #variance
@@ -1545,6 +1549,29 @@ class CVGUI4(InterestPointAppBase):
 #    def test_script2(self):
 #        pass
 
+def find_max_in_density(locs2d):
+    x = locs2d[0,:]
+    y = locs2d[1,:]
+
+    max_x = np.max(x)
+    max_y = np.max(y)
+    min_x = np.min(x)
+    min_y = np.min(y)
+
+    X, Y = scipy.mgrid[min_x:max_x:500j, min_y:max_y:500j]
+    positions = scipy.c_[X.ravel(), Y.ravel()]
+    values = scipy.c_[locs2d[0,:].A1, locs2d[1,:].A1]
+    kernel = sct.kde.gaussian_kde(values.T)
+    Z = np.reshape(kernel(positions.T).T, X.T.shape)
+    loc_max = np.argmax(Z)
+    loc2d_max = np.matrix([X.flatten()[loc_max], Y.flatten()[loc_max]]).T
+    return loc2d_max, Z
+    
+    #pylab.imshow(np.rot90(Z, 2), cmap=pylab.cm.gist_earth_r, extent=[0,img.cols, 0, img.rows])
+    #pylab.imshow(img, cmap=pylab.cm.gist_earth_r, extent=[0,img.cols, 0, img.rows])
+    #pylab.plot(locs2d[0,:].A1, locs2d[1,:].A1, 'k.', markersize=2)
+    #pylab.plot([loc2d_max[0,0]], [loc2d_max[1,0]], 'gx')
+    #cv.ShowImage("Positive Density", 255 * (np.rot90(Z)/np.max(Z)))
 
 class ScanLabeler:
 
@@ -1579,8 +1606,10 @@ class ScanLabeler:
         self.dataset = None #Training dataset
 
         cv.NamedWindow('Scan', cv.CV_WINDOW_AUTOSIZE)
+        cv.NamedWindow('Positive Density', cv.CV_WINDOW_AUTOSIZE)
         self.load_scan(self.scan_names[self.scan_idx])
         cv.SetMouseCallback('Scan', self.mouse_cb, None)
+
 
     def search_dataset_id(self, scan_name):
         scan_idx = None
@@ -1639,6 +1668,7 @@ class ScanLabeler:
 
     def draw(self, save_postf=""):
         img = cv.CloneMat(self.cdisp['cv'])
+        #density_img = cv.fromarray(np.zeros((img.rows, img.cols)))
 
         #Draw ground truth labels
         #pdb.set_trace()
@@ -1665,7 +1695,33 @@ class ScanLabeler:
 
         if self.current_scan_pred != None:
             draw_labeled_points(img, self.current_scan_pred, scale=1./self.scale)
+            locs2d = self.current_scan_pred.pt2d[:, (np.where(POSITIVE == self.current_scan_pred.outputs)[1]).A1]
 
+            loc_max, Z = find_max(locs2d)
+            print 'Max location is', loc_max.T
+            cv.ShowImage("Positive Density", 255 * (np.rot90(Z)/np.max(Z)))
+
+            #X, Y = scipy.mgrid[0:img.cols:500j, 0:img.rows:500j]
+            #positions = scipy.c_[X.ravel(), Y.ravel()]
+            #values = scipy.c_[locs2d[0,:].A1, locs2d[1,:].A1]
+            #kernel = sct.kde.gaussian_kde(values.T)
+            #Z = np.reshape(kernel(positions.T).T, X.T.shape)
+            #loc_max = np.argmax(Z)
+            #loc2d_max = np.matrix([X.flatten()[loc_max], Y.flatten()[loc_max]]).T
+            ##pdb.set_trace()
+
+            #pylab.imshow(np.rot90(Z, 2), cmap=pylab.cm.gist_earth_r, extent=[0,img.cols, 0, img.rows])
+            ##pylab.imshow(img, cmap=pylab.cm.gist_earth_r, extent=[0,img.cols, 0, img.rows])
+            #pylab.plot(locs2d[0,:].A1, locs2d[1,:].A1, 'k.', markersize=2)
+            #pylab.plot([loc2d_max[0,0]], [loc2d_max[1,0]], 'gx')
+            #pdb.set_trace()
+            #pylab.show()
+            #draw_labeled_points(density_img, self.current_scan_pred, 
+            #        scale=1./self.scale, pos_color=[255, 255, 255], neg_color=[0,0,0])
+            #cv.Smooth(density_img, density_img, cv.CV_GAUSSIAN, 151, 151, 2)
+
+        #Display
+        #cv.ShowImage('Positive Density', density_img)
         cv.ShowImage('Scan', img)
         path = pt.splitext(insert_folder_name(self.scan_names[self.scan_idx], save_postf))[0]
         img_name = path + ('_active_learn%d.png' % (self.frame_number))
@@ -2296,20 +2352,29 @@ class KinectFeatureExtractor:
         self.rec_params = Recognize3DParam()
         #self.rec_params.n_samples = 100
 
-    def read(self, expected_loc_bl=None): 
+    def read(self, expected_loc_bl=None, params=None): 
         print ">> Waiting for mesg.." 
         rdict = self.kinect_listener.read()
         print ">> Got message" 
         calibration_obj = self.cal
         image_T_bl = tfu.transform('openni_rgb_optical_frame', 'base_link', 
                                    self.tf_listener)
-        extractor = IntensityCloudDataKinect( rdict['points3d'], rdict['hpoints3d'], 
+
+        if params == None:
+            params = self.rec_params
+        extractor = IntensityCloudDataKinect(rdict['points3d'], rdict['hpoints3d'], 
                         rdict['histogram'], rdict['image'], expected_loc_bl, 
-                        calibration_obj, self.rec_params, image_T_bl, 
+                        calibration_obj, params, image_T_bl, 
                         distance_feature_points=None)
         xs, locs2d, locs3d = extractor.extract_vectorized_features()
         print '>> Extracted features!'
-        return xs, locs2d, locs3d, rdict['image'], rdict
+        return {'instances': xs, 
+                'points2d': locs2d, 
+                'points3d': locs3d, 
+                'image': image, 
+                'rdict': rdict,
+                'sizes': sizes}
+        #return xs, locs2d, locs3d, rdict['image'], rdict, extractor.sizes
 
 
 if __name__ == '__main__':
