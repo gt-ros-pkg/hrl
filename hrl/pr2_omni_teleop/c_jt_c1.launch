@@ -2,7 +2,7 @@
   <include file="$(find gt_pr2)/machine.launch"/>
   <node name="unspawn_arms"
         pkg="pr2_controller_manager" type="unspawner"
-        args="l_arm_controller r_arm_controller" machine="c1"/>
+        args="l_arm_controller r_arm_controller" machine="pr2c1"/>
 
   <rosparam ns="r_cart">
     type: JTTeleopController
@@ -13,11 +13,11 @@
     pose_command_filter: 0.01
     cart_gains:
       trans:
-        p: 800.0
-        d: 15.0
+        p: 100.0
+        d: 25.0
       rot:
-        p: 80.0
-        d: 1.2
+        p: 14.0
+        d: 0.8
     joint_feedforward:
       r_shoulder_pan_joint: 3.33
       r_shoulder_lift_joint: 1.16
@@ -75,13 +75,13 @@
 
   <node name="spawn_cart"
         pkg="pr2_controller_manager" type="spawner"
-        args="l_cart r_cart" machine="c1"/>
+        args="l_cart r_cart" machine="pr2c1"/>
 
   <node name="r_posture"
         pkg="teleop_controllers" type="posture.py"
-        args="r_cart elbowupr" machine="c1"/>
+        args="r_cart elbowupr" machine="pr2c1"/>
   <node name="l_posture"
         pkg="teleop_controllers" type="posture.py"
-        args="l_cart elbowupl" machine="c1"/>
+        args="l_cart elbowupl" machine="pr2c1"/>
 
 </launch>
