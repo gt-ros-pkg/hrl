@@ -28,7 +28,8 @@ def limit_range(numb, lower, upper):
 class ControlPR2Arm:
 
     def __init__(self, pr2_control_topic, # = 'l_cart/command_pose',
-            current_post_topic, 
+            desired_pose_topic, 
+            current_pose_topic, 
             gripper_control_topic,  #'l_gripper_controller'
             gripper_tip_frame, #'l_gripper_tool_frame'
             center_in_torso_frame, #=[1,.3,-1], 
@@ -36,22 +37,23 @@ class ControlPR2Arm:
             tflistener): #=None):
 
         self.zero_out_forces = True
-
+        self.desired_pose_topic = desired_pose_topic
         self.X_BOUNDS = [.3, 1.5] #Bound translation of PR2 arms in the X direction (in torso link frame)
         self.center_in_torso_frame = center_in_torso_frame
         self.tflistener = tflistener
         self.tfbroadcast = tfbroadcast
         self.gripper_tip_frame = gripper_tip_frame
+        self.current_pose_topic = current_pose_topic
         self.prev_dt = 0.0
         self.tip_t = np.zeros((3,1))
         self.tip_q = np.zeros((4,1))
         self.gripper_server = actionlib.SimpleActionClient(gripper_control_topic+'/gripper_action', Pr2GripperCommandAction)
         self.gripper_server.wait_for_server()
-        rate = rospy.Rate(50.0)
+        self.rate = rospy.Rate(2.0)
 
         success = False
         while not success and (not rospy.is_shutdown()):
-            rate.sleep()
+            self.rate.sleep()
             try:
                 print "need to implement tf stuff still"
                 success = True
@@ -74,35 +76,6 @@ class ControlPR2Arm:
 #                          "/torso_lift_link")
 ####################################################################################################################
 ####################################################################################################################
-
-
-    ##
-    # Transform from omni base link to torso lift link taking into account scaling
-    def torso_T_playpen(self, omni_tip, msg_frame):
-        #Transform into link0 so we can scale
-        #print 'torso_t_omni', self.omni_name + '_link0', msg_frame
-        z_T_6 = tfu.transform(self.omni_name + '_link0', msg_frame, self.tflistener)
-        tip_0 = z_T_6 * omni_tip
-        tip_0t = (np.array(tr.translation_from_matrix(tip_0)) * np.array(self.scale_omni_l0)).tolist()
-        tip_0q = tr.quaternion_from_matrix(tip_0)
-
-        #Transform into torso frame so we can bound arm workspace
-        tll_T_0 = tfu.transform('/torso_lift_link', self.omni_name + '_link0', self.tflistener)
-        tip_torso_mat = tll_T_0 * tfu.tf_as_matrix([tip_0t, tip_0q])
-        tip_t, tip_q = tfu.matrix_as_tf(tip_torso_mat)
-        tip_t[0] = limit_range(tip_t[0], self.X_BOUNDS[0], self.X_BOUNDS[1])
-        self.tip_t = tip_t
-        self.tip_q = tip_q
-
-    ##
-    # Transfrom from torso lift link to link omni base link, taking into account scaling
-    def playpen_T_torso(self, torso_mat):
-        l0_mat = tfu.transform(self.omni_name + '_link0', '/torso_lift_link', self.tflistener) * torso_mat
-        l0_t = (np.array(tr.translation_from_matrix(l0_mat)) / np.array(self.scale_omni_l0)).tolist()
-        l0_q = tr.quaternion_from_matrix(l0_mat)
-        omni_pt_mat = tfu.transform(self.omni_name, self.omni_name + '_link0', self.tflistener) * tfu.tf_as_matrix((l0_t, l0_q))
-        return tfu.matrix_as_tf(omni_pt_mat)
-
     ##
     # Callback for pose of omni
     def cmd_pose(self, goal_tip_t, goal_tip_q):
@@ -112,15 +85,15 @@ class ControlPR2Arm:
         # tip_t = self.tip_t
         # tip_q = self.tip_q
         #Publish new arm pose
-        cur_ps = rospy.wait_for_message(topic, PoseStamped)
+        cur_ps = rospy.wait_for_message(self.current_pose_topic, PoseStamped)
         print "this is the cur_ps :", cur_ps
 
         cur_tip_t = np.array([cur_ps.pose.position.x, cur_ps.pose.position.y, cur_ps.pose.position.z])
         cur_tip_q = np.array([cur_ps.pose.orientation.x, cur_ps.pose.orientation.y, 
                               cur_ps.pose.orientation.z, cur_ps.pose.orientation.w])
         diff_pos = goal_tip_t - cur_tip_t
-        max_speed = 0.5  # m/s max desired speed of the arm
-        factor = np.ceil(np.max(diff_pos)/(max_speed*rate.sleep_dur.to_sec()))
+        max_speed = 0.1  # m/s max desired speed of the arm
+        factor = np.ceil(np.max(np.abs(diff_pos))/(max_speed*self.rate.sleep_dur.to_sec()))
         dp = diff_pos/factor
         dq = (goal_tip_q-cur_tip_q)/factor
 
@@ -129,18 +102,25 @@ class ControlPR2Arm:
         ps.header.frame_id = '/torso_lift_link'        
         tip_t = cur_tip_t + 2*dp
         tip_q = cur_tip_q + 2*dq
-        while np.max(np.abs(diff_pos)) > np.max(np.abs(tip_t-cur_tip_t+dp)):
+        for i in xrange(factor):
             ps.header.stamp = rospy.get_rostime()
-            ps.pose.position.x = tip_t[0]+dp[0]
-            ps.pose.position.y = tip_t[1]+dp[1]
-            ps.pose.position.z = tip_t[2]+dp[2]
-            ps.pose.orientation.x = tip_q[0]+dq[0]
-            ps.pose.orientation.y = tip_q[1]+dq[1]
-            ps.pose.orientation.z = tip_q[2]+dq[2]
-            ps.pose.orientation.w = tip_q[3]+dq[3]
+            tip_t = tip_t + dp
+            tip_q = tip_q + dq
+            ps.pose.position.x = tip_t[0]
+            ps.pose.position.y = tip_t[1]
+            ps.pose.position.z = tip_t[2]
+            ps.pose.orientation.x = tip_q[0]
+            ps.pose.orientation.y = tip_q[1]
+            ps.pose.orientation.z = tip_q[2]
+            ps.pose.orientation.w = tip_q[3]
+            # while des_ps != ps:
+            #     self.pr2_pub.publish(ps)
+            #     rospy.sleep(5)
+            #     des_ps = rospy.wait_for_message(self.desired_pose_topic, PoseStamped)
+            #     print "this is desired", des_ps
             self.pr2_pub.publish(ps)
-            i = i+1
-            rate.sleep()
+            print ps
+            self.rate.sleep()
 
         ps.header.stamp = rospy.get_rostime()
         ps.pose.position.x = goal_tip_t[0]
@@ -151,7 +131,7 @@ class ControlPR2Arm:
         ps.pose.orientation.z = goal_tip_q[2]
         ps.pose.orientation.w = goal_tip_q[3]
         self.pr2_pub.publish(ps)
-        rate.sleep()
+        self.rate.sleep()
 
 class PR2Playpen:
     def __init__(self):
@@ -161,6 +141,7 @@ class PR2Playpen:
 
         self.left_controller = ControlPR2Arm(
             pr2_control_topic = 'l_cart/command_pose',
+            desired_pose_topic = 'l_cart/state/x_desi',
             current_pose_topic = 'l_cart/state/x',
             gripper_control_topic = 'l_gripper_controller',
             gripper_tip_frame = 'l_gripper_tool_frame',
@@ -179,6 +160,7 @@ class PR2Playpen:
         
         self.right_controller = ControlPR2Arm(
             pr2_control_topic = 'r_cart/command_pose',
+            desired_pose_topic = 'r_cart/state/x_desi',
             current_pose_topic = 'r_cart/state/x',
             gripper_control_topic = 'r_gripper_controller',
             gripper_tip_frame = 'r_gripper_tool_frame',
@@ -211,26 +193,21 @@ if __name__ == '__main__':
     tip_t_l = np.array([0.23, 0.6, -0.05])
     tip_q_l = np.array([-0.51, 0.54, 0.48, 0.46])
 
-    o.right_controller.gripper_server.send_goal(Pr2GripperCommandGoal(
-                                                Pr2GripperCommand(position = 0.09, max_effort = 40)), 
-                                                done_cb = None, feedback_cb = None)
+    # o.right_controller.gripper_server.send_goal(Pr2GripperCommandGoal(
+    #                                             Pr2GripperCommand(position = 0.09, max_effort = 40)), 
+    #                                             done_cb = None, feedback_cb = None)
 
+#    o.right_controller.cmd_pose(np.array([0.62, 0.0, 0.16]), np.array([0.5, 0.48, -0.48, 0.53]))
 #    while not rospy.is_shutdown():
 
     # o.left_controller.cmd_pose(tip_t_l, tip_q_l)
 
-    # cur_time = rospy.Time.to_sec(rospy.Time.now())
-    # while rospy.Time.to_sec(rospy.Time.now())-cur_time < 1:
-    #     o.right_controller.cmd_pose(tip_t_r, tip_q_r)
+
+
     cur_time = rospy.Time.to_sec(rospy.Time.now())
 
     while rospy.Time.to_sec(rospy.Time.now())-cur_time < 6:
         o.right_controller.cmd_pose(np.array([0.62, 0.0, 0.16]), np.array([0.5, 0.48, -0.48, 0.53]))
-
-# object pos and quat :
-# [0.59988641331230275, 0.10248554748385291, 0.54227626323699951] [0.0, 0.0, 0.6218676307650518, 0.78312237217861513]
-# static transfrom from base to link ((-0.050000000000000003, 0.0, 0.91475823349895902), (0.0, 0.0, 0.0, 1.0))
-
 
     cur_time = rospy.Time.to_sec(rospy.Time.now())
     while rospy.Time.to_sec(rospy.Time.now())-cur_time < 6:
@@ -250,3 +227,5 @@ if __name__ == '__main__':
     while not rospy.is_shutdown():
         o.left_controller.cmd_pose(tip_t_l, tip_q_l)
         o.right_controller.cmd_pose(tip_t_r, tip_q_r)
+#    o.left_controller.cmd_pose(tip_t_l, tip_q_l)
+#    o.right_controller.cmd_pose(tip_t_r, tip_q_r)
