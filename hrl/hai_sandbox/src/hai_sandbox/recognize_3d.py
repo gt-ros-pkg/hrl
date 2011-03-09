@@ -402,11 +402,12 @@ class IntensityCloudDataKinect:
         self.sampled_points = []
         self.sampled_points2d = []
 
+        #pdb.set_trace()
         print 'generating _random_sample_voi'
         # laser_T_image = np.linalg.inv(self.image_T_laser)
         bl_T_image = np.linalg.inv(self.image_T_bl)
         gaussian = pr.Gaussian(np.matrix([ 0.,      0,                            0.]).T, \
-                               np.matrix([[self.uncertainty_x**2, 0,             0.], \
+                               np.matrix([[self.params.uncertainty_x**2, 0,             0.], \
                                           [0., self.params.uncertainty_y**2,      0.], \
                                           [0.,      0, self.params.uncertainty_z**2]]))
         gaussian_noise = np.matrix([0, 0, 0.0]).T #We want to try the given point first
@@ -476,7 +477,9 @@ class IntensityCloudDataKinect:
                 feature_loc2d_list.append(point2d)
                 non_empty = non_empty + 1
             else:
+                #pdb.set_trace()
                 empty_queries = empty_queries + 1
+        #pdb.set_trace()
         print 'empty queries', empty_queries, 'non empty', non_empty
         if len(feature_loc_list) > 0:
             self.feature_locs = np.column_stack(feature_loc_list)
@@ -496,6 +499,7 @@ class IntensityCloudDataKinect:
     #        return False
 
     def extract_vectorized_features(self):
+        #pdb.set_trace()
         self._random_sample_voi()
         self._caculate_features_at_sampled_points()
         features_by_type = zip(*self.feature_list)
@@ -691,6 +695,7 @@ class IntensityCloudData:
                 feature_loc2d_list.append(point2d)
                 non_empty = non_empty + 1
             else:
+                pdb.set_trace()
                 empty_queries = empty_queries + 1
         print 'empty queries', empty_queries, 'non empty', non_empty
         if len(feature_loc_list) > 0:
@@ -1154,7 +1159,7 @@ class InterestPointDataset(ds.Dataset):
     @classmethod
     def add_to_dataset(cls, dataset, features, label, pt2d, pt3d, scan_id, idx_in_scan, sizes):
         if dataset == None:
-            dataset = InterestPointDataset(feature, label, pt2d, pt3d, None, scan_id, idx_in_scan, sizes)
+            dataset = InterestPointDataset(features, label, pt2d, pt3d, None, scan_id, idx_in_scan, sizes)
         else:
             dataset.add(features, label, pt2d, pt3d, scan_id=scan_id, idx_in_scan=idx_in_scan)
         return dataset
@@ -2338,7 +2343,7 @@ class FiducialPicker:
 
 
 class KinectFeatureExtractor:
-    def __init__(self, tf_listener, kinect_listener=None):
+    def __init__(self, tf_listener, kinect_listener=None, rec_params=None):
         import tf
         self.cal = rc.ROSCameraCalibration('camera/rgb/camera_info')
         if tf_listener == None:
@@ -2349,7 +2354,10 @@ class KinectFeatureExtractor:
             self.kinect_listener = kl.KinectListener()
         else:
             self.kinect_listener = kinect_listener
-        self.rec_params = Recognize3DParam()
+
+        if rec_params == None:
+            rec_params = Recognize3DParam()
+        self.rec_params = rec_params
         #self.rec_params.n_samples = 100
 
     def read(self, expected_loc_bl=None, params=None): 
@@ -2371,9 +2379,9 @@ class KinectFeatureExtractor:
         return {'instances': xs, 
                 'points2d': locs2d, 
                 'points3d': locs3d, 
-                'image': image, 
+                'image': rdict['image'], 
                 'rdict': rdict,
-                'sizes': sizes}
+                'sizes': extractor.sizes}
         #return xs, locs2d, locs3d, rdict['image'], rdict, extractor.sizes
 
 
