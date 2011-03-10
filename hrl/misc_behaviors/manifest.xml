@@ -1,0 +1,17 @@
+<package>
+  <description brief="misc_behaviors">
+     Misc. PR2 behaviors that are either actionlib, ROS service, or just smach-ready.
+  </description>
+  <author>Travis Deyle</author>
+  <license>BSD</license>
+  <url>http://ros.org/wiki/misc_behaviors</url>
+  <depend package="rospy" />
+  <depend package="actionlib" />
+  <depend package="actionlib_msgs" />
+  <depend package="smach" />
+  <depend package="smach_ros" />
+  <depend package="pr2_controllers_msgs" />
+  <depend package="trajectory_msgs" />
+</package>
+
+

@@ -289,7 +289,7 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
 	float dist;
 	dist = sqrt( pow( p.x - p_init.x, 2 ) + pow( p.y - p_init.y, 2 ));
 
-	if ( dist <= 1.5 ){
+	if ( dist <= 1.0 ){
 	  map_.data[idx] = segment_id;  // This used to be up before "assert" block above.
 	  points_in_seg += 1;
 	  //ROS_INFO( "Dist to start cell: %3.2f", dist );
@@ -335,8 +335,11 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
     uint size = segment.size();
 
     //we want to make sure that the frontier is big enough for the robot to fit through
-    if (size * costmap.getResolution() < costmap.getInscribedRadius())
-      continue;
+    //  This seems like a goofy heuristic rather than fact.  What happens if we don't do this...?
+    if (size * costmap.getResolution() < costmap.getInscribedRadius()){
+      ROS_INFO( "Discarding segment...?" );
+      //continue;
+    }
 
     float x = 0, y = 0;
     btVector3 d(0,0,0);
