@@ -80,6 +80,27 @@ LoopClosure::LoopClosure(double addition_dist_min,
 
 LoopClosure::~LoopClosure()
 {
+
+  // Same as visualizeGraph -- Just DELETE instead of add.
+  visualization_msgs::MarkerArray markers;
+  marker_id_ = 0;
+  //first we'll go through each node in the graph and  add a marker for it
+  for(unsigned int i = 0; i < nodes_.size(); ++i){
+    visualizeNode(nodes_[i]->pose_, markers);
+  }
+
+  //we'll also add all the edges in the graph... there may be duplicates here, but that should be ok
+  for(unsigned int i = 0; i < graph_.size(); ++i){
+    for(unsigned int j = 0; j < graph_[i].size(); ++j){
+      visualizeEdge(nodes_[i]->pose_, nodes_[graph_[i][j]]->pose_, markers);
+    }
+  }
+
+  for ( unsigned int i = 0; i < markers.markers.size(); i++)
+    markers.markers[i].action = visualization_msgs::Marker::DELETE;
+
+  marker_publisher_.publish(markers);
+
   delete planner_;
 }
 

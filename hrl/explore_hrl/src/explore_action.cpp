@@ -37,6 +37,8 @@ void ExploreAction::executeCB( const explore_hrl::ExploreGoalConstPtr &goal ){
   private_nh.setParam("explore_costmap/raytrace_range", goal->radius + 0.1 );
   private_nh.setParam("explore_costmap/obstacle_range", goal->radius );
 
+  // Give everything a second to settle before reinitializing.
+  ros::Duration(1.0).sleep();
 
   ROS_INFO("%s: Action Creating new explore", action_name_.c_str());
   e_ = new Explore();

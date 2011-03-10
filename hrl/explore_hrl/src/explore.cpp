@@ -108,6 +108,22 @@ Explore::Explore() :
 }
 
 Explore::~Explore() {
+
+  // Reset markers (if applicable)
+  if (visualize_ and explorer_ != NULL) {
+    ROS_INFO("explore: Destroy old markers");
+    std::vector<Marker> markers;
+    explorer_->getVisualizationMarkers(markers);
+    visualization_msgs::MarkerArray marker_array;
+    marker_array.set_markers_size(markers.size());
+    for (unsigned int i=0; i < markers.size(); i++){
+      marker_array.markers[i] = markers[i];
+      marker_array.markers[i].action = Marker::DELETE;
+    }
+    marker_array_publisher_.publish(marker_array);
+    ROS_INFO("explore: Done.");
+  }
+
   if(loop_closure_ != NULL){
     ROS_INFO("explore: Action Destroying old explore loop_closure");
     delete loop_closure_;
@@ -127,7 +143,7 @@ Explore::~Explore() {
   }
 
   if(explore_costmap_ros_ != NULL){
-    ROS_INFO("explore: Action Destroying old explore costmap");
+    ROS_INFO("explore: Action Destroying old explore costmap (WARN: New one might not have probs)");
     delete explore_costmap_ros_;
     ROS_INFO("Done.");
   }

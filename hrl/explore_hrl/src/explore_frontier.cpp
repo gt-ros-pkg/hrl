@@ -42,7 +42,7 @@
 #include <explore_hrl/explore_frontier.h>
 #include <explore_hrl/Line.h>
 #include <explore_hrl/Vector.h>
-
+#include <math.h>
 
 using namespace visualization_msgs;
 using namespace geom;
@@ -197,6 +197,7 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
   int w = costmap.getSizeInCellsX();
   int h = costmap.getSizeInCellsY();
   int size = (w * h);
+  int pts = 0;
 
   map_.info.width = w;
   map_.info.height = h;
@@ -204,6 +205,7 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
   map_.info.resolution = costmap.getResolution();
   map_.info.origin.position.x = costmap.getOriginX();
   map_.info.origin.position.y = costmap.getOriginY();
+
 
   // Find all frontiers (open cells next to unknown cells).
   const unsigned char* map = costmap.getCharMap();
@@ -224,12 +226,14 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
          ((idx-w >= 0) && (map[idx-w] == NO_INFORMATION))))
     {
       map_.data[idx] = -128;
+      //ROS_INFO("Candidate Point %d.", pts++ );
     } else {
       map_.data[idx] = -127;
     }
   }
 
   // Clean up frontiers detected on separate rows of the map
+  //   I don't know what this means -- Travis.
   idx = map_.info.height - 1;
   for (unsigned int y=0; y < map_.info.width; y++) {
     map_.data[idx] = -127;
@@ -241,15 +245,21 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
   std::vector< std::vector<FrontierPoint> > segments;
   for (int i = 0; i < size; i++) {
     if (map_.data[i] == -128) {
-      std::vector<int> neighbors;
+      std::vector<int> neighbors, candidates;
       std::vector<FrontierPoint> segment;
       neighbors.push_back(i);
+
+      int points_in_seg = 0;
+      unsigned int mx, my;
+      geometry_msgs::Point p_init, p;
+
+      costmap.indexToCells(i, mx, my);
+      costmap.mapToWorld(mx, my, p_init.x, p_init.y);
 
       // claim all neighbors
       while (neighbors.size() > 0) {
         int idx = neighbors.back();
         neighbors.pop_back();
-        map_.data[idx] = segment_id;
 
         btVector3 tot(0,0,0);
         int c = 0;
@@ -270,28 +280,44 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
           c++;
         }
         assert(c > 0);
-        segment.push_back(FrontierPoint(idx, tot / c));
 
-        // consider 8 neighborhood
-        if (((idx-1)>0) && (map_.data[idx-1] == -128))
-          neighbors.push_back(idx-1);
-        if (((idx+1)<size) && (map_.data[idx+1] == -128))
-          neighbors.push_back(idx+1);
-        if (((idx-map_.info.width)>0) && (map_.data[idx-map_.info.width] == -128))
-          neighbors.push_back(idx-map_.info.width);
-        if (((idx-map_.info.width+1)>0) && (map_.data[idx-map_.info.width+1] == -128))
-          neighbors.push_back(idx-map_.info.width+1);
-        if (((idx-map_.info.width-1)>0) && (map_.data[idx-map_.info.width-1] == -128))
-          neighbors.push_back(idx-map_.info.width-1);
-        if (((idx+(int)map_.info.width)<size) && (map_.data[idx+map_.info.width] == -128))
-          neighbors.push_back(idx+map_.info.width);
-        if (((idx+(int)map_.info.width+1)<size) && (map_.data[idx+map_.info.width+1] == -128))
-          neighbors.push_back(idx+map_.info.width+1);
-        if (((idx+(int)map_.info.width-1)<size) && (map_.data[idx+map_.info.width-1] == -128))
-          neighbors.push_back(idx+map_.info.width-1);
+	// Only adjust the map and add idx to segment when its near enough to start point.
+	//    This should prevent greedy approach where all cells belong to one frontier!
+
+	costmap.indexToCells(idx, mx, my);
+	costmap.mapToWorld(mx, my, p.x, p.y);
+	float dist;
+	dist = sqrt( pow( p.x - p_init.x, 2 ) + pow( p.y - p_init.y, 2 ));
+
+	if ( dist <= 1.5 ){
+	  map_.data[idx] = segment_id;  // This used to be up before "assert" block above.
+	  points_in_seg += 1;
+	  //ROS_INFO( "Dist to start cell: %3.2f", dist );
+
+	  segment.push_back(FrontierPoint(idx, tot / c));
+
+	  // consider 8 neighborhood
+	  if (((idx-1)>0) && (map_.data[idx-1] == -128))
+	    neighbors.push_back(idx-1);
+	  if (((idx+1)<size) && (map_.data[idx+1] == -128))
+	    neighbors.push_back(idx+1);
+	  if (((idx-map_.info.width)>0) && (map_.data[idx-map_.info.width] == -128))
+	    neighbors.push_back(idx-map_.info.width);
+	  if (((idx-map_.info.width+1)>0) && (map_.data[idx-map_.info.width+1] == -128))
+	    neighbors.push_back(idx-map_.info.width+1);
+	  if (((idx-map_.info.width-1)>0) && (map_.data[idx-map_.info.width-1] == -128))
+	    neighbors.push_back(idx-map_.info.width-1);
+	  if (((idx+(int)map_.info.width)<size) && (map_.data[idx+map_.info.width] == -128))
+	    neighbors.push_back(idx+map_.info.width);
+	  if (((idx+(int)map_.info.width+1)<size) && (map_.data[idx+map_.info.width+1] == -128))
+	    neighbors.push_back(idx+map_.info.width+1);
+	  if (((idx+(int)map_.info.width-1)<size) && (map_.data[idx+map_.info.width-1] == -128))
+	    neighbors.push_back(idx+map_.info.width-1);
+	}
       }
 
       segments.push_back(segment);
+      ROS_INFO( "Segment %d has %d costmap cells", segment_id, points_in_seg );
       segment_id--;
       if (segment_id < -127)
         break;
@@ -299,6 +325,7 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
   }
 
   int num_segments = 127 - segment_id;
+  ROS_INFO("Segments: %d", num_segments );
   if (num_segments <= 0)
     return;
 
