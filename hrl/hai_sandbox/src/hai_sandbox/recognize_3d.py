@@ -2368,6 +2368,8 @@ class KinectFeatureExtractor:
         image_T_bl = tfu.transform('openni_rgb_optical_frame', 'base_link', 
                                    self.tf_listener)
 
+        print 'number of points', rdict['points3d'].shape[1]
+
         if params == None:
             params = self.rec_params
         extractor = IntensityCloudDataKinect(rdict['points3d'], rdict['hpoints3d'], 
