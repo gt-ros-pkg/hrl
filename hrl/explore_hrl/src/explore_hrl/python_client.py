@@ -30,7 +30,8 @@ def explore_client( radius ):
     client.wait_for_result()
 
     # Prints out the result of executing the action
-    return client.get_result()  # A FibonacciResult
+    #return client.get_result()  # A FibonacciResult
+    return client.get_state()
 
 if __name__ == '__main__':
     import optparse
@@ -43,6 +44,9 @@ if __name__ == '__main__':
         # publish and subscribe over ROS.
         rospy.init_node('explore_client_py')
         result = explore_client( opt.radius )
-        print 'Result: ', result
+        if result == actionlib.GoalStatus.SUCCEEDED:
+            print 'SUCCEEDED'
+        else:
+            print 'FAILED'
     except rospy.ROSInterruptException:
         print "program interrupted before completion"
