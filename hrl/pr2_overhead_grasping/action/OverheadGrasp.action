@@ -1,0 +1,24 @@
+# Constants:
+
+# Perform blind grasp at location (x, y) with gripper rotation (rot) 
+uint8 MANUAL_GRASP=1
+
+# Use built-in perception to grasp closest object to (x, y) point on table
+# only works when is_grasp == True
+uint8 VISION_GRASP=2 
+
+# Perform blind grasp at random location and gripper rotation
+uint8 RANDOM_GRASP=3
+
+# Goal:
+bool is_grasp # True if this is a grasp, False if this is a place
+uint8 grasp_type # defined above
+float32 x 
+float32 y
+float32 rot
+# float32 z # to be added later
+---
+# Result:
+string grasp_result
+---
+# Feedback message:
