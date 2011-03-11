@@ -19,6 +19,7 @@
   <depend package="rospy" />
   <depend package="tf" />
   <depend package="teleop_controllers" />
+  <depend package="pr2_overhead_grasping" />
 
 </package>
 
