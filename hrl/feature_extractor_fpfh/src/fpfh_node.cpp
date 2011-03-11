@@ -30,6 +30,14 @@ FPFHNode::FPFHNode(ros::NodeHandle &n): n_(n)
     hist_publisher = n_.advertise<feature_extractor_fpfh::FPFHHist>("fpfh_hist", 10);
 }
 
+
+void FPFHNode::process_point_cloud(const sensor_msgs::Image::ConstPtr& image, 
+                        const sensor_msgs::PointCloud2::ConstPtr& input_cloud,
+                        const feature_extractor_fpfh::FPFHHist &hist)
+{
+}
+
+
 void FPFHNode::callback(const sensor_msgs::Image::ConstPtr& image, 
                         const sensor_msgs::PointCloud2::ConstPtr& input_cloud)
 {
