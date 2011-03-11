@@ -79,7 +79,7 @@ bool ExploreFrontier::getFrontiers(Costmap2DROS& costmap, std::vector<geometry_m
 }
 
 float ExploreFrontier::getFrontierCost(const Frontier& frontier) {
-  planner_->computePotential( frontier.pose.position );
+  //planner_->computePotential( frontier.pose.position );
   ROS_DEBUG("cost of frontier: %f, at position: (%.2f, %.2f, %.2f)\n", planner_->getPointPotential(frontier.pose.position), 
       frontier.pose.position.x, frontier.pose.position.y, tf::getYaw(frontier.pose.orientation));
   if (planner_ != NULL)
