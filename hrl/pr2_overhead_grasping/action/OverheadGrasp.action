@@ -12,6 +12,7 @@ uint8 RANDOM_GRASP=3
 
 # Goal:
 bool is_grasp # True if this is a grasp, False if this is a place
+bool disable_head # do not move the head
 uint8 grasp_type # defined above
 float32 x 
 float32 y
