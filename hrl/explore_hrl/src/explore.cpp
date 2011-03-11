@@ -178,12 +178,18 @@ bool Explore::mapCallback(nav_msgs::GetMap::Request  &req,
 
   res.map.set_data_size(size);
   for (int i=0; i<size; i++) {
-    if (map[i] == NO_INFORMATION)
-      res.map.data[i] = -1;
-    else if (map[i] == LETHAL_OBSTACLE)
+    // if (map[i] == NO_INFORMATION || map[i] == INSCRIBED_INFLATED_OBSTACLE )
+    //   res.map.data[i] = -1;
+    // else if (map[i] == LETHAL_OBSTACLE)
+    //   res.map.data[i] = 100;
+    // else
+    //   res.map.data[i] = 0;
+    if (map[i] == LETHAL_OBSTACLE )
       res.map.data[i] = 100;
-    else
+    else if (map[i] == FREE_SPACE)
       res.map.data[i] = 0;
+    else
+      res.map.data[i] = -1;
   }
 
   return true;

@@ -79,6 +79,7 @@ bool ExploreFrontier::getFrontiers(Costmap2DROS& costmap, std::vector<geometry_m
 }
 
 float ExploreFrontier::getFrontierCost(const Frontier& frontier) {
+  planner_->computePotential( frontier.pose.position );
   ROS_DEBUG("cost of frontier: %f, at position: (%.2f, %.2f, %.2f)\n", planner_->getPointPotential(frontier.pose.position), 
       frontier.pose.position.x, frontier.pose.position.y, tf::getYaw(frontier.pose.orientation));
   if (planner_ != NULL)
@@ -217,7 +218,11 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
     costmap.mapToWorld(mx, my, p.x, p.y);
 
     //check if the point has valid potential and is next to unknown space
-    bool valid_point = planner_->validPointPotential(p);
+    //bool valid_point = planner_->validPointPotential(p);
+    //bool valid_point = planner_->computePotential(p) && planner_->validPointPotential(p);
+    //bool valid_point = (map[idx] < LETHAL_OBSTACLE);
+    //bool valid_point = (map[idx] < INSCRIBED_INFLATED_OBSTACLE );
+    bool valid_point = (map[idx] == FREE_SPACE);
 
     if ((valid_point && map) &&
         (((idx+1 < size) && (map[idx+1] == NO_INFORMATION)) ||
@@ -337,8 +342,8 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
     //we want to make sure that the frontier is big enough for the robot to fit through
     //  This seems like a goofy heuristic rather than fact.  What happens if we don't do this...?
     if (size * costmap.getResolution() < costmap.getInscribedRadius()){
-      ROS_INFO( "Discarding segment...?" );
-      //continue;
+      ROS_INFO( "Discarding segment... too small?" );
+      continue;
     }
 
     float x = 0, y = 0;
@@ -361,6 +366,14 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
 
     frontier.pose.orientation = tf::createQuaternionMsgFromYaw(btAtan2(d.y(), d.x()));
     frontier.size = size;
+
+    geometry_msgs::Point p;
+    p.x = map_.info.origin.position.x + map_.info.resolution * (x);  // frontier.pose.position
+    p.y = map_.info.origin.position.y + map_.info.resolution * (y);
+    if (!planner_->validPointPotential(p)){
+      ROS_INFO( "Discarding segment... can't reach?" );
+      continue;
+    }
 
     frontiers_.push_back(frontier);
   }
