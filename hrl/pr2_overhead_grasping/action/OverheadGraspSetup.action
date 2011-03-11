@@ -1,0 +1,8 @@
+# Constants:
+
+# Goal:
+bool disable_head # don't move head during grasp setup
+---
+# Result:
+---
+# Feedback message:
