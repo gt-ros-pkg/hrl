@@ -998,24 +998,25 @@ class SVMPCA_ActiveLearner:
         #pdb.set_trace()
         #TODO: somehow generate labels for these datasets...
         self.dataset = dataset
-        train = dataset.inputs
+        trainingset = dataset.inputs
         responses = dataset.outputs
 
         #Calculate PCA vectors
         if self.use_pca:
             self.intensities_index = self.dataset.metadata[-1].extent[0]
             #pdb.set_trace()
-            self._calculate_pca_vectors(train, variance_keep)
-            train = self.partial_pca_project(train)
+            rebalanced_set = self._balance_classes(trainingset, responses)
+            self._calculate_pca_vectors(rebalanced_set, variance_keep)
+            trainingset = self.partial_pca_project(trainingset)
             inputs_for_scaling = self.partial_pca_project(inputs_for_scaling)
     
         print 'SVMPCA_ActiveLearner.train: Training classifier.'
         #train => float32 mat, each row is an example
         #responses => float32 mat, each column is a corresponding response
-        train = np.matrix(train, dtype='float32').copy()
+        trainingset = np.matrix(trainingset, dtype='float32').copy()
         responses = np.matrix(responses, dtype='float32').copy()
 
-        self.reduced_dataset = ds.Dataset(train.copy(), responses.copy())
+        self.reduced_dataset = ds.Dataset(trainingset.copy(), responses.copy())
         self.scale = DataScale()
         if inputs_for_scaling == None:
             inputs_for_scaling = self.reduced_dataset.inputs
@@ -1048,6 +1049,29 @@ class SVMPCA_ActiveLearner:
             #pdb.set_trace()
             r = self.classifiers['svm'].predict(scaled_inst)
             return r
+
+    def _balance_classes(self, data, labels):
+        posidx = np.where(labels == POSITIVE)[1].A1
+        negidx = np.where(labels == NEGATIVE)[1].A1
+        diff = abs(posidx.shape[0] - negidx.shape[0])
+        if diff == 0:
+            return
+
+        rospy.loginfo('SVMPCA_ActiveLearner: _balance_classes difference in class sizes is %d' % diff)
+
+        posex = data[:, posidx]
+        negex = data[:, negidx]
+        if posidx.shape[0] < negidx.shape[0]:
+            rospy.loginfo('SVMPCA_ActiveLearner. _balance_classes making data from POSITIVE instances')
+            sset = posex
+        else:
+            rospy.loginfo('SVMPCA_ActiveLearner. _balance_classes making data from NEGATIVE instances')
+            sset = negex
+        
+        rsubset = sset[:, np.random.randint(0, sset.shape[1], diff)]
+        rospy.loginfo('SVMPCA_ActiveLearner: _balance_classes created %d instances to make up for it' % rsubset.shape[1])
+
+        return np.column_stack((posex, negex, rsubset))
 
     def _calculate_pca_vectors(self, data, variance_keep):
         data_in = data[self.intensities_index:, :]
@@ -1194,7 +1218,8 @@ class Recognize3DParam:
         self.grid_resolution = .01
         self.win_size = 5
         #self.win_multipliers = [1,2,4,8,16,32] for prosilica
-        self.win_multipliers = [1,2,4,8,16,32]
+        #self.win_multipliers = [1,2,4,8,16,32]
+        self.win_multipliers = [8,16,32]
 
         self.win3d_size = .02
         self.voi_bl = [.5, .5, .5]
