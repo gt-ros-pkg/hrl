@@ -285,9 +285,12 @@ class FPFH:
         req = fsrv.FPFHCalcRequest()
         req.input = ru.np_to_pointcloud(points3d, frame)
         res = self.proxy(req)
-        histogram = np.matrix(res.hist.histograms).reshape((res.hist.npoints,33)).T
-        points3d = np.matrix(res.hist.points3d).reshape((res.hist.npoints,3)).T
-        return histogram, points3d
+        
+        histogram = np.matrix(res.hist.histograms).reshape((res.hist.hist_npoints,33)).T
+        hpoints3d = np.matrix(res.hist.hpoints3d).reshape((res.hist.hist_npoints,3)).T
+        points3d = np.matrix(res.hist.origpoints).reshape((res.hist.original_npoints,3)).T
+
+        return histogram, hpoints3d, points3d
 
 
 class IntensityCloudDataKinect:
@@ -508,23 +511,29 @@ class IntensityCloudDataKinect:
 
 class IntensityCloudData:
 
-    def __init__(self, pointcloud_msg, cvimage_mat, 
-                 image_T_laser, calibration_obj, 
-                 voi_center_laser, expected_loc_laser, 
+    def __init__(self, pointcloud, cvimage_mat, 
+                 image_T_bl, calibration_obj, 
+                 voi_center_bl, expected_loc_bl, 
                  distance_feature_points, 
                  rec_param):
 
         self.params = rec_param
 
+        if pointcloud.__class__ == np.matrix:
+            self.pointcloud = pointcloud
+        else:
+            assert(pointcloud.header.frame_id == 'base_link')
+            self.pointcloud = ru.pointcloud_to_np(pointcloud)
+
         #Data
-        self.pointcloud_msg = pointcloud_msg
-        self.image_T_laser = image_T_laser
+        #self.pointcloud_msg = pointcloud_msg
+        self.image_T_bl = image_T_bl
         self.image_arr = np.asarray(cvimage_mat)
         self.image_cv = cvimage_mat
 
         self.calibration_obj = calibration_obj
-        self.voi_center_laser = voi_center_laser
-        self.expected_loc_laser = expected_loc_laser
+        self.voi_center_bl = voi_center_bl
+        self.expected_loc_bl = expected_loc_bl
         self.distance_feature_points = distance_feature_points
 
         #Quantities that will be calculated
@@ -533,9 +542,9 @@ class IntensityCloudData:
         self.colors_valid = None
 
         #from _limit_to_voi
-        self.limits_laser = None
+        self.limits_bl = None
         self.voi_tree = None
-        self.points3d_valid_laser = None
+        self.points3d_valid_bl = None
         self.points2d_valid = None
 
         #from _grid_sample_voi
@@ -549,51 +558,52 @@ class IntensityCloudData:
         #feature sizes
         self.sizes = None
 
+        self._fpfh()
         self._associate_intensity()
         self._limit_to_voi()
-        self._fpfh()
         #self._grid_sample_voi()
         #fill out sizes dict
         self.feature_vec_at_2d(np.matrix([calibration_obj.w/2., 
                                          calibration_obj.h/2.]).T)
 
     def _fpfh(self):
+        rospy.loginfo('Calculating fpfh')
         ex = FPFH()
-        self.fpfh_hist, self.fpfh_points = ex.get_features(self.points3d_valid_laser)
+        self.fpfh_hist, self.fpfh_points, self.ds_cloud = ex.get_features(self.pointcloud)
         self.fpfh_tree = sp.KDTree(np.array(self.fpfh_points.T))
 
     def _associate_intensity(self):
-        bl_pc = ru.pointcloud_to_np(self.pointcloud_msg)
+        bl_pc = self.ds_cloud #ru.pointcloud_to_np(self.pointcloud_msg)
         print 'Original point cloud size', bl_pc.shape[1]
         self.points_valid_image, self.colors_valid, self.points2d_valid = \
-                i3d.combine_scan_and_image_laser_frame(bl_pc, self.image_T_laser,\
+                i3d.combine_scan_and_image_laser_frame(bl_pc, self.image_T_bl,\
                                             self.image_arr, self.calibration_obj)
         print 'Number of points visible in camera', self.points_valid_image.shape[1]
         self.point_cloud3d_orig = bl_pc
 
     def _limit_to_voi(self):
-        laser_T_image = np.linalg.inv(self.image_T_laser)
+        bl_T_image = np.linalg.inv(self.image_T_bl)
         #combined matrix (3xn 3d points) + (mxn color points) = [(m+3) x n matrix]
         all_columns = \
-                np.row_stack((tfu.transform_points(laser_T_image,\
+                np.row_stack((tfu.transform_points(bl_T_image,\
                                                    self.points_valid_image[0:3,:]),\
                                self.colors_valid,
                                self.points2d_valid)) 
 
         #pdb.set_trace()
-        valid_columns, self.limits_laser = \
-                i3d.select_rect(self.voi_center_laser, 
+        valid_columns, self.limits_bl = \
+                i3d.select_rect(self.voi_center_bl, 
                                 self.params.voi_bl[0], 
                                 self.params.voi_bl[1], 
                                 self.params.voi_bl[2], 
                                 all_columns)
 
         ncolors = self.colors_valid.shape[0]
-        self.points3d_valid_laser = valid_columns[0:3,:]
+        self.points3d_valid_bl = valid_columns[0:3,:]
         self.colors_valid = valid_columns[3:3+ncolors,:]
         self.points2d_valid = valid_columns[-2:, :]
 
-        self.voi_tree = sp.KDTree(np.array(self.points3d_valid_laser.T))
+        self.voi_tree = sp.KDTree(np.array(self.points3d_valid_bl.T))
         self.voi_tree_2d = sp.KDTree(np.array(self.points2d_valid.T))
 
         if valid_columns == None:
@@ -603,9 +613,10 @@ class IntensityCloudData:
 
         print 'Number of points in voi', valid_columns.shape[1]
 
+
     # sample uniformly in voi 
     def _grid_sample_voi(self):
-        lim = self.limits_laser
+        lim = self.limits_bl
         res = self.params.grid_resolution
         self.sampled_points = []
         for x in (np.arange(lim[0][0], lim[0][1], res) + (res/2.)):
@@ -614,7 +625,7 @@ class IntensityCloudData:
                     self.sampled_points.append([x,y,z])
 
     def _in_limits(self, p3d):
-        l = self.limits_laser
+        l = self.limits_bl
         if (l[0][0] < p3d[0,0]) and (p3d[0,0] < l[0][1]) and \
            (l[1][0] < p3d[1,0]) and (p3d[1,0] < l[1][1]) and \
            (l[2][0] < p3d[2,0]) and (p3d[2,0] < l[2][1]):
@@ -629,12 +640,14 @@ class IntensityCloudData:
         #        throw away all points not in VOI
         self.sampled_points = []
         self.sampled_points2d = []
+
         print 'generating _random_sample_voi'
-        laser_T_image = np.linalg.inv(self.image_T_laser)
+        bl_T_image = np.linalg.inv(self.image_T_bl)
         gaussian = pr.Gaussian(np.matrix([ 0,      0,                          0.]).T, \
-                               np.matrix([[1.,     0,                          0], \
-                                          [0, self.params.uncertainty**2,      0], \
-                                          [0,      0, self.params.uncertainty**2]]))
+                               np.matrix([[self.params.uncertainty_x**2, 0,      0], \
+                                          [0, self.params.uncertainty_y**2,      0], \
+                                          [0,      0, self.params.uncertainty_z**2]]))
+        gaussian_noise = np.matrix([0, 0, 0.0]).T #We want to try the given point first
 
 
         distr = {'u': 0, 'g':0}
@@ -645,10 +658,11 @@ class IntensityCloudData:
                 y = np.random.randint(0, self.calibration_obj.h)
             else:
                 d = 'g'
+                sampled3d_pt_bl = self.expected_loc_bl + gaussian_noise
                 gaussian_noise = gaussian.sample()
                 gaussian_noise[0,0] = 0
-                sampled3d_pt_laser = self.voi_center_laser + gaussian_noise
-                sampled3d_pt_image = tfu.transform_points(self.image_T_laser, sampled3d_pt_laser)
+                #sampled3d_pt_bl = self.voi_center_bl + gaussian_noise
+                sampled3d_pt_image = tfu.transform_points(self.image_T_bl, sampled3d_pt_bl)
                 sampled2d_pt = self.calibration_obj.project(sampled3d_pt_image)
                 pt = np.round(sampled2d_pt)
                 x = int(pt[0,0])
@@ -658,20 +672,24 @@ class IntensityCloudData:
                     continue
 
             #get projected 3d points within radius of N pixels
-            indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 20.)
+            #indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 20.)
+            indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 10.)
             if len(indices_list) < 1:
                 #print 'MISSED 2'
                 continue
 
             #select 3d point closest to the camera (in image frame)
-            points3d_image = tfu.transform_points(self.image_T_laser, self.points3d_valid_laser[:, indices_list])
-            closest_p3d_image = points3d_image[:, np.argmin(points3d_image[2,:])]
-            closest_p3d_laser = tfu.transform_points(laser_T_image, closest_p3d_image)
+            points3d_image = tfu.transform_points(self.image_T_bl, self.points3d_valid_bl[:, indices_list])
+            closest_z_idx = np.argmin(points3d_image[2,:])
+            closest_p3d_image = points3d_image[:, closest_z_idx]
+            closest_p2d = self.points2d_valid[:, closest_z_idx]
+            closest_p3d_bl = tfu.transform_points(bl_T_image, closest_p3d_image)
 
             #check if point is in VOI
-            if self._in_limits(closest_p3d_laser):
-                self.sampled_points.append(closest_p3d_laser.T.A1.tolist())
-                self.sampled_points2d.append([x,y])
+            if self._in_limits(closest_p3d_bl):
+                self.sampled_points.append(closest_p3d_bl.T.A1.tolist())
+                self.sampled_points2d.append(closest_p2d.T.A1.tolist())
+                #self.sampled_points2d.append([x,y])
                 distr[d] = distr[d] + 1
                 if len(self.sampled_points) % 500 == 0:
                     print len(self.sampled_points)
@@ -683,15 +701,15 @@ class IntensityCloudData:
         feature_loc2d_list = []
         non_empty = 0
         empty_queries = 0
-        for i, sampled_point_laser in enumerate(self.sampled_points):
+        for i, sampled_point_bl in enumerate(self.sampled_points):
             if i % 500 == 0:
                 print '_caculate_features_at_sampled_points:', i
 
-            sampled_point_laser = np.matrix(sampled_point_laser).T
-            feature, point2d = self.feature_vec_at(sampled_point_laser)
+            sampled_point_bl = np.matrix(sampled_point_bl).T
+            feature, point2d = self.feature_vec_at(sampled_point_bl)
             if feature != None:
                 self.feature_list.append(feature)
-                feature_loc_list.append(sampled_point_laser)
+                feature_loc_list.append(sampled_point_bl)
                 feature_loc2d_list.append(point2d)
                 non_empty = non_empty + 1
             else:
@@ -709,96 +727,97 @@ class IntensityCloudData:
         #pdb.set_trace()
         indices = self.voi_tree_2d.query(np.array(loc2d.T), k=1)[1]
         closest_pt2d = self.points2d_valid[:, indices[0]]
-        closest_pt3d = self.points3d_valid_laser[:, indices[0]]
+        closest_pt3d = self.points3d_valid_bl[:, indices[0]]
         return self.feature_vec_at(closest_pt3d, viz=viz)[0], closest_pt3d, closest_pt2d
 
     def feature_vec_at_2d_mat(self, loc2d):
         indices = self.voi_tree_2d.query(np.array(loc2d.T), k=1)[1]
         closest_pt2d = self.points2d_valid[:, indices[0]]
-        closest_pt3d = self.points3d_valid_laser[:, indices[0]]
+        closest_pt3d = self.points3d_valid_bl[:, indices[0]]
         return self.feature_vec_at_mat(closest_pt3d), closest_pt3d, closest_pt2d
 
-    def feature_vec_at_mat(self, point3d_laser, verbose=False):
-        f = self.feature_vec_at(point3d_laser, verbose)[0]
+    def feature_vec_at_mat(self, point3d_bl, verbose=False):
+        f = self.feature_vec_at(point3d_bl, verbose)[0]
         if f != None:
             return np.row_stack(f)
 
+    ###
+    ##
+    ## @param point3d_laser - point to calculate features for 3x1 matrix in laser frame
+    ## @param verbose
+    #def feature_vec_at_old(self, point3d_laser, verbose=False, viz=False):
+    #    indices_list = self.voi_tree.query_ball_point(np.array(point3d_laser.T), self.params.win3d_size)[0]
+    #    if len(indices_list) > 4:
+    #        points_in_ball_bl = np.matrix(self.voi_tree.data.T[:, indices_list])
+    #        intensity_in_ball_bl = self.colors_valid[:, indices_list]
+    #        
+    #        #calc normal
+    #        normal_bl = i3d.calc_normal(points_in_ball_bl[0:3,:])
+    #        
+    #        #calc average color
+    #        avg_color = np.mean(intensity_in_ball_bl, 1)
+    #        
+    #        #project mean into 2d
+    #        point2d_image = self.calibration_obj.project(tfu.transform_points(self.image_T_laser,\
+    #                point3d_laser))
+    #        
+    #        #get local features
+    #        if viz == True:
+    #            flatten=False
+    #        else:
+    #            flatten=True
+
+    #        invalid_location = False
+    #        local_intensity = []
+    #        #for multiplier in [1,2,4,8,16,32]:
+    #        for multiplier in self.params.win_multipliers:
+    #            if multiplier == 1:
+    #                #pdb.set_trace()
+    #                features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, flatten=flatten)
+    #            else:
+    #                #pdb.set_trace()
+    #                features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size*multiplier, 
+    #                                            resize_to=self.params.win_size, flatten=flatten)
+    #            if features == None:
+    #                invalid_location = True
+    #                break
+    #            else:
+    #                local_intensity.append(features)
+
+    #        if not invalid_location:
+    #            if not viz:
+    #                local_intensity = np.row_stack(local_intensity)
+    #            if self.sizes == None:
+    #                #pdb.set_trace()
+    #                self.sizes = {}
+    #                self.sizes['intensity'] = local_intensity.shape[0]
+    #                self.sizes['normal'] = normal_bl.shape[0]
+    #                self.sizes['color'] = avg_color.shape[0]
+
+    #            return [normal_bl, avg_color, local_intensity], point2d_image
+    #        else:
+    #            if verbose:
+    #                print '>> local_window outside of image'
+    #    else:
+    #        if verbose:
+    #            print '>> not enough neighbors!', len(indices_list)
+    #    return None, None
+
     ##
     #
-    # @param point3d_laser - point to calculate features for 3x1 matrix in laser frame
+    # @param point3d_bl - point to calculate features for 3x1 matrix in bl frame
     # @param verbose
-    def feature_vec_at_old(self, point3d_laser, verbose=False, viz=False):
-        indices_list = self.voi_tree.query_ball_point(np.array(point3d_laser.T), self.params.win3d_size)[0]
-        if len(indices_list) > 4:
-            points_in_ball_bl = np.matrix(self.voi_tree.data.T[:, indices_list])
-            intensity_in_ball_bl = self.colors_valid[:, indices_list]
-            
-            #calc normal
-            normal_bl = i3d.calc_normal(points_in_ball_bl[0:3,:])
-            
-            #calc average color
-            avg_color = np.mean(intensity_in_ball_bl, 1)
-            
-            #project mean into 2d
-            point2d_image = self.calibration_obj.project(tfu.transform_points(self.image_T_laser,\
-                    point3d_laser))
-            
-            #get local features
-            if viz == True:
-                flatten=False
-            else:
-                flatten=True
-
-            invalid_location = False
-            local_intensity = []
-            #for multiplier in [1,2,4,8,16,32]:
-            for multiplier in self.params.win_multipliers:
-                if multiplier == 1:
-                    #pdb.set_trace()
-                    features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, flatten=flatten)
-                else:
-                    #pdb.set_trace()
-                    features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size*multiplier, 
-                                                resize_to=self.params.win_size, flatten=flatten)
-                if features == None:
-                    invalid_location = True
-                    break
-                else:
-                    local_intensity.append(features)
-
-            if not invalid_location:
-                if not viz:
-                    local_intensity = np.row_stack(local_intensity)
-                if self.sizes == None:
-                    #pdb.set_trace()
-                    self.sizes = {}
-                    self.sizes['intensity'] = local_intensity.shape[0]
-                    self.sizes['normal'] = normal_bl.shape[0]
-                    self.sizes['color'] = avg_color.shape[0]
-
-                return [normal_bl, avg_color, local_intensity], point2d_image
-            else:
-                if verbose:
-                    print '>> local_window outside of image'
-        else:
-            if verbose:
-                print '>> not enough neighbors!', len(indices_list)
-        return None, None
-
-    ##
-    #
-    # @param point3d_laser - point to calculate features for 3x1 matrix in laser frame
-    # @param verbose
-    def feature_vec_at(self, point3d_laser, verbose=False, viz=False, k=4):
+    def feature_vec_at(self, point3d_bl, verbose=False, viz=False, k=4):
         #project into 2d & get intensity window
-        point2d_image = self.calibration_obj.project(\
-                            tfu.transform_points(self.image_T_laser, point3d_laser))
+        try:
+            point2d_image = self.calibration_obj.project(\
+                                tfu.transform_points(self.image_T_bl, point3d_bl))
+        except Exception, e:
+            print e
+            pdb.set_trace()
 
         #Calc intensity features
-        if viz == True:
-            flatten=False
-        else:
-            flatten=True
+        flatten = not viz
 
         # Find closest neighbors in 3D to get normal
         invalid_location = False
@@ -819,24 +838,25 @@ class IntensityCloudData:
                 local_intensity.append(features)
 
         #Calc 3d normal
-        # indices_list = self.voi_tree.query(np.array(point3d_laser.T), k=k)[1]
+        # indices_list = self.voi_tree.query(np.array(point3d_bl.T), k=k)[1]
         # points_in_ball_bl = np.matrix(self.voi_tree.data.T[:, indices_list])
         # normal_bl = i3d.calc_normal(points_in_ball_bl[0:3,:])
 
         #Get fpfh
-        indices_list = self.fpfh_tree.query(np.array(point3d_laser.T), k=k)[1]
+        indices_list = self.fpfh_tree.query(np.array(point3d_bl.T), k=k)[1]
         hists = self.fpfh_hist[:, indices_list[0]]
         fpfh = np.mean(hists, 1)
         #if np.any(np.abs(fpfh) > 99999.):
         #    pdb.set_trace()
 
         #Get distance to expected location
-        expected_loc_fea = np.power(np.sum(np.power(self.expected_loc_laser - point3d_laser, 2), 0), .5).T
+        if self.expected_loc_bl != None:
+            expected_loc_fea = np.power(np.sum(np.power(self.expected_loc_bl - point3d_bl, 2), 0), .5).T
 
         #Get synthetic distance poins
         distance_feas = None
         if self.distance_feature_points != None:
-            distance_feas = np.power(np.sum(np.power(self.distance_feature_points - point3d_laser, 2), 0), .5).T
+            distance_feas = np.power(np.sum(np.power(self.distance_feature_points - point3d_bl, 2), 0), .5).T
 
         if not invalid_location:
             if not viz:
@@ -852,11 +872,13 @@ class IntensityCloudData:
                 self.sizes['intensity'] = local_intensity.shape[0]
             fea_calculated = []
 
-            fea_calculated.append(expected_loc_fea)
+            if expected_loc_fea != None:
+                fea_calculated.append(expected_loc_fea)
+
             if distance_feas != None:
                 fea_calculated.append(distance_feas)
+
             fea_calculated.append(fpfh)
-            #pdb.set_trace()
             fea_calculated.append(local_intensity)
 
             #return [distance_feas, fpfh, local_intensity], point2d_image
@@ -883,9 +905,9 @@ class IntensityCloudData:
 
     def get_location2d(self, instance_indices):
         #pdb.set_trace()
-        sampled_points3d_laser = self.feature_locs[:,instance_indices]
-        return self.calibration_obj.project(tfu.transform_points(self.image_T_laser, \
-                sampled_points3d_laser))
+        sampled_points3d_bl = self.feature_locs[:,instance_indices]
+        return self.calibration_obj.project(tfu.transform_points(self.image_T_bl, \
+                sampled_points3d_bl))
 
 class SVM:
     ##
@@ -1172,7 +1194,7 @@ class Recognize3DParam:
         self.grid_resolution = .01
         self.win_size = 5
         #self.win_multipliers = [1,2,4,8,16,32] for prosilica
-        self.win_multipliers = [1,2,4,8]
+        self.win_multipliers = [1,2,4,8,16,32]
 
         self.win3d_size = .02
         self.voi_bl = [.5, .5, .5]
@@ -2341,6 +2363,93 @@ class FiducialPicker:
         while not rospy.is_shutdown():
             self.step()
 
+class NarrowTextureFeatureExtractor:
+    def __init__(self, prosilica, narrow_texture, prosilica_cal, projector, tf_listener, rec_params=None):
+        self.cal = prosilica_cal
+        self.prosilica = prosilica
+        self.narrow_texture = narrow_texture
+        self.tf_listener = tf_listener
+        self.projector = projector
+
+        if rec_params == None:
+            rec_params = Recognize3DParam()
+        self.rec_params = rec_params
+
+    def read(self, expected_loc_bl, params=None):
+        #self.laser_scan.scan(math.radians(180.), math.radians(-180.), 2.315)
+        rospy.loginfo('grabbing point cloud')
+        pointcloud_msg = self.narrow_texture.read()
+        rospy.loginfo('grabbing prosilica frame')
+        self.projector.set(False)
+        cvimage_mat = self.prosilica.get_frame()
+        self.projector.set(True)
+        rospy.loginfo('processing')
+        pointcloud_ns = ru.pointcloud_to_np(pointcloud_msg)
+        pointcloud_bl = tfu.transform_points(tfu.transform('base_link',\
+                                                            'narrow_stereo_optical_frame', self.tf_listener),\
+                                            pointcloud_ns)
+
+        image_T_bl = tfu.transform('high_def_optical_frame', 'base_link', self.tf_listener)
+
+        if params == None:
+            params = self.rec_params
+
+        #laser_T_bl = tfu.transform('/laser_tilt_link', '/base_link', self.tf_listener)
+        extractor = IntensityCloudData(pointcloud_bl, cvimage_mat, image_T_bl, self.cal, 
+                             expected_loc_bl, expected_loc_bl, None, params)
+        xs, locs2d, locs3d = extractor.extract_vectorized_features()
+
+        rdict = {'histogram': extractor.fpfh_hist,
+                 'hpoints3d': extractor.fpfh_points,
+                 'points3d': extractor.point_cloud3d_orig,
+                 'image': cvimage_mat}
+
+        return {'instances': xs, 
+                'points2d': locs2d, 
+                'points3d': locs3d, 
+                'image': rdict['image'], 
+                'rdict': rdict,
+                'sizes': extractor.sizes}
+
+class LaserScannerFeatureExtractor:
+    def __init__(self, prosilica, laser_scan, prosilica_cal, tf_listener, rec_params=None):
+        self.cal = prosilica_cal
+        self.prosilica = prosilica
+        self.laser_scan = laser_scan
+        self.tf_listener = tf_listener
+
+        if rec_params == None:
+            rec_params = Recognize3DParam()
+        self.rec_params = rec_params
+
+    def read(self, expected_loc_bl, params=None):
+        cvimage_mat = self.prosilica.get_frame()
+        pointcloud_msg = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 2.315)
+        image_T_laser = tfu.transform('/high_def_optical_frame', '/base_link', self.tf_listener)
+        calibration_obj = self.cal
+        voi_center_laser = expected_loc_bl
+        expected_loc_laser = expected_loc_bl
+        distance_feature_points = None
+
+        if params == None:
+            params = self.rec_params
+
+        #laser_T_bl = tfu.transform('/laser_tilt_link', '/base_link', self.tf_listener)
+        extractor = IntensityCloudData(pointcloud_msg, cvimage_mat, image_T_laser, calibration_obj, 
+                 voi_center_laser, expected_loc_laser, distance_feature_points, params)
+        xs, locs2d, locs3d = extractor.extract_vectorized_features()
+
+        rdict = {'histogram': extractor.fpfh_hist,
+                 'hpoints3d': fpfh_points,
+                 'points3d': extractor.point_cloud3d_orig,
+                 'image': cvimage_mat}
+
+        return {'instances': xs, 
+                'points2d': locs2d, 
+                'points3d': locs3d, 
+                'image': rdict['image'], 
+                'rdict': rdict,
+                'sizes': extractor.sizes}
 
 class KinectFeatureExtractor:
     def __init__(self, tf_listener, kinect_listener=None, rec_params=None):

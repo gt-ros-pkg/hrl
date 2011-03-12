@@ -26,6 +26,7 @@ import scipy.spatial as sp
 import pdb
 import os
 import os.path as pt
+import math
 
 import hrl_camera.ros_camera as rc
 import hrl_pr2_lib.pr2 as pr2
@@ -456,7 +457,7 @@ class LocationManager:
         if dataset == None:
             return
 
-        #rec_params = self.kinect_features.rec_params
+        #rec_params = self.feature_ex.rec_params
         nneg = np.sum(dataset.outputs == r3d.NEGATIVE) #TODO: this was copied and pasted from r3d
         npos = np.sum(dataset.outputs == r3d.POSITIVE)
         print '================= Training ================='
@@ -484,37 +485,49 @@ class ApplicationBehaviors:
         rospy.init_node('linear_move', anonymous=True)
         self.tf_listener = tf.TransformListener()
         self.robot = pr2.PR2(self.tf_listener, base=True)
-        #pdb.set_trace()
+        #self.robot = pr2.PR2(self.tf_listener, base=False)
         self.behaviors = ManipulationBehaviors('l', self.robot, tf_listener=self.tf_listener)
-        self.laser_scan = hd.LaserScanner('point_cloud_srv')
+        #self.laser_scan = hd.LaserScanner('point_cloud_srv')
 
         self.prosilica = rc.Prosilica('prosilica', 'polled')
         self.prosilica_cal = rc.ROSCameraCalibration('/prosilica/camera_info')
 
-        self.left_cal = rc.ROSCameraCalibration('/wide_stereo/left/camera_info')
-        self.right_cal = rc.ROSCameraCalibration('/wide_stereo/right/camera_info')
+        #self.left_cal = rc.ROSCameraCalibration('/wide_stereo/left/camera_info')
+        #self.right_cal = rc.ROSCameraCalibration('/wide_stereo/right/camera_info')
 
         self.wide_angle_camera_left = rc.ROSCamera('/wide_stereo/left/image_rect_color')
-        self.wide_angle_camera_right = rc.ROSCamera('/wide_stereo/right/image_rect_color')
+        #self.wide_angle_camera_right = rc.ROSCamera('/wide_stereo/right/image_rect_color')
 
         self.laser_listener = LaserPointerClient(tf_listener=self.tf_listener, robot=self.robot)
         self.laser_listener.add_double_click_cb(self.click_cb)
 
-
         self.rec_params = r3d.Recognize3DParam()
-        self.kinect_features = r3d.KinectFeatureExtractor(self.tf_listener, rec_params=self.rec_params)
+        
+        #self.OPTICAL_FRAME = 'high_def_optical_frame'
+        self.OPTICAL_FRAME = 'high_def_optical_frame'
+        #self.POINTCLOUD_FRAME = 'narrow_stereo_optical_frame'
+        self.feature_ex = r3d.NarrowTextureFeatureExtractor(self.prosilica, 
+                hd.PointCloudReceiver('narrow_stereo_textured/points'),
+                self.prosilica_cal, 
+                self.robot.projector,
+                self.tf_listener, self.rec_params)
+        #self.feature_ex = r3d.LaserScannerFeatureExtractor(self.prosilica, self.laser_scan, 
+        #        self.prosilica_cal, self.tf_listener, self.rec_params)
+        #self.feature_ex = r3d.KinectFeatureExtractor(self.tf_listener, rec_params=self.rec_params)
 
         self.critical_error = False
         #self.behaviors.set_pressure_threshold(300)
         #TODO: define start location in frame attached to torso instead of base_link
 
         self.start_location = (np.matrix([0.35, 0.30, 1.1]).T, np.matrix([0., 0., 0., 0.1]))
+        self.folded_pose = np.matrix([ 0.10134791, -0.29295995,  0.41193769]).T
         self.create_arm_poses()
         self.learners = {}
 
         #self.load_classifier('light_switch', 'friday_730_light_switch2.pkl')
         self.img_pub = r3d.ImagePublisher('active_learn')
-        self.locations_man = LocationManager('locations_v1.pkl', rec_params=self.rec_params)
+        self.locations_man = LocationManager('locations_narrow_v11.pkl', rec_params=self.rec_params)
+        #self.robot.projector.set_prosilica_inhibit(True)
 
 
     def load_classifier(self, name, fname):
@@ -543,8 +556,6 @@ class ApplicationBehaviors:
         if len(pidx) > 0:
             ppoints = points2d[:, pidx]
             r3d.draw_points(img, ppoints, [0,255,0], 2, -1)
-
-
 
     def create_arm_poses(self):
         self.right_tucked = np.matrix([[-0.02362532,  1.10477102, -1.55669475, \
@@ -1046,15 +1057,23 @@ class ApplicationBehaviors:
 
 
     def manipulation_posture(self, task_type):
+        #self.robot.projector.set(False)
+        for i in range(3):
+            self.prosilica.get_frame()
+        self.robot.projector.set(True)
+        #rospy.sleep(1)
+        if np.linalg.norm(self.start_location[0] - self.robot.left.pose_cartesian_tf()[0]) < .3:
+            return
+
         #TODO: specialize this
         if task_type == 'light_switch_down' or task_type == 'light_switch_up':
-            self.robot.torso.set_pose(.1, True)
+            self.robot.torso.set_pose(.2, True)
             self.untuck()
             self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
             self.behaviors.movement.pressure_listener.rezero()
 
         elif task_type == 'light_rocker' or task_type == 'light_switch_up':
-            self.robot.torso.set_pose(.1, True)
+            self.robot.torso.set_pose(.2, True)
             self.untuck()
             self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
             self.behaviors.movement.pressure_listener.rezero()
@@ -1067,7 +1086,12 @@ class ApplicationBehaviors:
         else:
             pdb.set_trace()
 
+
     def driving_posture(self, task_type):
+        self.robot.projector.set(False)
+        if np.linalg.norm(self.folded_pose - self.robot.left.pose_cartesian_tf()[0]) < .1:
+            return
+
         #TODO: specialize this
         self.robot.torso.set_pose(0.03, True)
         if task_type == 'light_switch_down' or task_type == 'light_switch_up':
@@ -1081,21 +1105,23 @@ class ApplicationBehaviors:
         else:
             pdb.set_trace()
 
-    def kinect_look_at(self, point_bl, block=True):
+    def look_at(self, point_bl, block=True):
         #pdb.set_trace()
-        self.robot.head.look_at(point_bl-np.matrix([0,0,.2]).T, 
-                pointing_frame="openni_rgb_frame", 
-                pointing_axis=np.matrix([1,0,0.]).T, 
-                wait=block)
+        #self.robot.head.look_at(point_bl-np.matrix([0,0,.2]).T, 
+        #        pointing_frame=self.OPTICAL_FRAME, 
+        #        pointing_axis=np.matrix([1,0,0.]).T, 
+        #        wait=block)
+        self.robot.head.look_at(point_bl-np.matrix([0,0,.15]).T, pointing_frame=self.OPTICAL_FRAME, 
+                pointing_axis=np.matrix([1,0,0.]).T, wait=block)
 
     def scenario_user_clicked_at_location(self, point_bl):
+        #pdb.set_trace()
         #If that location is new:
-        self.kinect_look_at(point_bl, False)
+        self.look_at(point_bl, False)
         map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
         point_map = tfu.transform_points(map_T_base_link, point_bl)
         close_by_locs = self.locations_man.list_close_by(point_map)
         #close_by_locs = self.locations_man.list_all()#(point_map)
-        #pdb.set_trace()
 
         #if False:
         #if True:
@@ -1111,8 +1137,9 @@ class ApplicationBehaviors:
             #if not ret[0]:
             #    return False, ret[1]
 
-            #self.manipulation_posture(task_type)
-            self.kinect_look_at(point_bl, False)
+            #pdb.set_trace()
+            self.manipulation_posture(task_type)
+            self.look_at(point_bl, False)
 
             rospy.loginfo('if existing dataset exists enter that dataset\'s name')
             print 'friday_730_light_switch2.pkl'
@@ -1127,9 +1154,9 @@ class ApplicationBehaviors:
                 for n in range(LocationManager.RELIABILITY_RECORD_LIM):
                     self.locations_man.update_execution_record(task_id, 1)
                 self.locations_man.data[task_id]['dataset'] = dataset
-                #rec_params = self.kinect_features.rec_params
+                #rec_params = self.feature_ex.rec_params
                 #def train(self, rec_params, dataset, task_id):
-                self.locations_man.train(self.kinect_features.rec_params, dataset, task_id)
+                self.locations_man.train(self.feature_ex.rec_params, dataset, task_id)
                 #TODO: we actually want to find only the successful location
                 #pdb.set_trace()
                 self.execute_behavior(self.get_behavior_by_task(task_type), task_id, point_bl)
@@ -1147,15 +1174,26 @@ class ApplicationBehaviors:
                 task_id = self.locations_man.create_new_location(task_type, np.matrix([0,0,0.]).T)
                 ctask_id = self.locations_man.create_new_location(ctask_type, np.matrix([0,0,0.]).T)
 
+
                 #Stop when have at least 1 pos and 1 neg
+                pdb.set_trace()
+                self.look_at(point_bl, True)
                 self.seed_dataset_explore(task_id, ctask_id, point_bl, stop_fun=has_pos_and_neg)
+
+                pdb.set_trace()
+                if (self.locations_man.data[ctask_id]['dataset'] == None) or \
+                        not has_pos_and_neg(self.locations_man.data[ctask_id]['dataset'].outputs.A1):
+                    self.look_at(point_bl, True)
+                    self.seed_dataset_explore(ctask_id, task_id, point_bl, stop_fun=has_pos_and_neg)
 
                 #Figure out behavior centers in map frame
                 tdataset  = self.locations_man.data[task_id]['dataset']
                 tpoint_bl = tdataset.pt3d[:, np.where(tdataset.outputs == r3d.POSITIVE)[1].A1[0]]
+                self.balance_positives_and_negatives(tdataset)
 
                 cdataset  = self.locations_man.data[ctask_id]['dataset']
                 cpoint_bl = cdataset.pt3d[:, np.where(cdataset.outputs == r3d.POSITIVE)[1].A1[0]]
+                self.balance_positives_and_negatives(cdataset)
 
                 map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
                 point_success_map = tfu.transform_points(map_T_base_link, tpoint_bl)
@@ -1174,7 +1212,6 @@ class ApplicationBehaviors:
                 self.locations_man.train(task_id)
                 self.locations_man.train(ctask_id)
                 rospy.loginfo('Done initializing new location!')
-
         else:
             task_id, task_type = close_by_locs[0]
             ctask_id = self.locations_man.data[task_id]['complementary_task_id']
@@ -1184,9 +1221,9 @@ class ApplicationBehaviors:
             #if not ret[0]:
             #    return False, ret[1]
             #self.driving_posture(task_type)
-            pdb.set_trace()
-            #self.manipulation_posture(task_type)
-            self.kinect_look_at(point_bl, False)
+            #pdb.set_trace()
+            self.manipulation_posture(task_type)
+            self.look_at(point_bl, False)
             #close_by_locs = self.locations_man.list_close_by(point_map)
 
             if self.locations_man.is_reliable(task_id):
@@ -1220,7 +1257,7 @@ class ApplicationBehaviors:
         self.manipulation_posture(task_type)
         bl_T_map = tfu.transform('base_link', 'map', self.tf_listener)
         point_bl = tfu.transform_points(bl_T_map, point_map)
-        self.kinect_look_at(point_bl, False)
+        self.look_at(point_bl, False)
 
         self.robot.sound.say('Executing behavior')
         self.execute_behavior(picked_task, point_bl)
@@ -1256,7 +1293,7 @@ class ApplicationBehaviors:
                 self.manipulation_posture(task_type)
                 bl_T_map = tfu.transform('base_link', 'map', self.tf_listener)
                 point_bl = tfu.transform_points(bl_T_map, point_map)
-                self.kinect_look_at(point_bl, False)
+                self.look_at(point_bl, False)
 
                 #Practice
                 self.robot.sound.say('practicing')
@@ -1269,6 +1306,8 @@ class ApplicationBehaviors:
 
 
     def click_cb(self, point_bl):
+        #self.look_at(point_bl)
+        #return
         #point_bl = np.matrix([ 0.68509375,  0.06559023,  1.22422832]).T
         #self.stationary_light_switch_behavior(point_bl)
         #mode = 'autonomous'
@@ -1339,8 +1378,10 @@ class ApplicationBehaviors:
                 self.robot.sound.say("taking a scan")
                 #self.record_perceptual_data(point_bl)
                 #pdb.set_trace()
-                rdict = self.kinect_features.kinect_listener.read()
-                self.record_perceptual_data_kinect(point_bl, rdict)
+                #rdict = self.feature_ex.kinect_listener.read()
+                rdict = self.feature_ex.read()['rdict']
+                #self.record_perceptual_data(point_bl, 'openni_rgb_optical_frame', rdict=rdict)
+                self.record_perceptual_data(point_bl, self.OPTICAL_FRAME, rdict=rdict)
                 self.robot.sound.say("saved scan")
 
             if mode == 'light switch':
@@ -1391,83 +1432,87 @@ class ApplicationBehaviors:
         #print 'RECORDING'
         #self.record_perceptual_data(point)
         #print 'DONE RECORDING'
+        #kdict, fname = self.read_features_save(task_id, point3d_bl, param)
+        #point = np.matrix([ 0.60956734, -0.00714498,  1.22718197]).T
+        #f = self.feature_ex.read(point, self.rec_params)
 
         r = rospy.Rate(10)
         rospy.loginfo('Ready.')
         while not rospy.is_shutdown():
             r.sleep()
 
-    def record_perceptual_data_laser_scanner(self, point_touched_bl):
-        #what position should the robot be in?
-        #set arms to non-occluding pose
+    #def record_perceptual_data_laser_scanner(self, point_touched_bl):
+    #    #what position should the robot be in?
+    #    #set arms to non-occluding pose
 
-        #record region around the finger where you touched
-        rospy.loginfo('Getting laser scan.')
-        points = []
-        for i in range(3):
-            rospy.loginfo('scan %d' % i)
-            points.append(self.laser_scan.scan(math.radians(180.), math.radians(-180.), 20./3.))
+    #    #record region around the finger where you touched
+    #    rospy.loginfo('Getting laser scan.')
+    #    points = []
+    #    for i in range(3):
+    #        rospy.loginfo('scan %d' % i)
+    #        points.append(self.laser_scan.scan(math.radians(180.), math.radians(-180.), 20./3.))
 
-        rospy.loginfo('Getting Prosilica image.')
-        prosilica_image = self.prosilica.get_frame()
-        rospy.loginfo('Getting image from left wide angle camera.')
-        left_image  = self.wide_angle_camera_left.get_frame()
-        rospy.loginfo('Getting image from right wide angle camera.')
-        right_image = self.wide_angle_camera_left.get_frame()
-        rospy.loginfo('Waiting for calibration.')
-        while self.prosilica_cal.has_msg == False:
-            time.sleep(.1)
+    #    rospy.loginfo('Getting Prosilica image.')
+    #    prosilica_image = self.prosilica.get_frame()
+    #    rospy.loginfo('Getting image from left wide angle camera.')
+    #    left_image  = self.wide_angle_camera_left.get_frame()
+    #    rospy.loginfo('Getting image from right wide angle camera.')
+    #    right_image = self.wide_angle_camera_left.get_frame()
+    #    rospy.loginfo('Waiting for calibration.')
+    #    while self.prosilica_cal.has_msg == False:
+    #        time.sleep(.1)
 
-        #which frames?
-        rospy.loginfo('Getting transforms.')
-        pro_T_bl = tfu.transform('/high_def_optical_frame', '/base_link', self.tf_listener)
-        laser_T_bl = tfu.transform('/laser_tilt_link', '/base_link', self.tf_listener)
-        tstring = time.strftime('%A_%m_%d_%Y_%I:%M%p')
-        prosilica_name = '%s_highres.png' % tstring
-        left_name = '%s_left.png' % tstring
-        right_name = '%s_right.png' % tstring
-        rospy.loginfo('Saving images (basename %s)' % tstring)
-        cv.SaveImage(prosilica_name, prosilica_image)
-        cv.SaveImage(left_name, left_image)
-        cv.SaveImage(right_name, right_image)
+    #    #which frames?
+    #    rospy.loginfo('Getting transforms.')
+    #    pro_T_bl = tfu.transform('/self.OPTICAL_FRAMEhigh_def_optical_frame', '/base_link', self.tf_listener)
+    #    laser_T_bl = tfu.transform('/laser_tilt_link', '/base_link', self.tf_listener)
+    #    tstring = time.strftime('%A_%m_%d_%Y_%I:%M%p')
+    #    prosilica_name = '%s_highres.png' % tstring
+    #    left_name = '%s_left.png' % tstring
+    #    right_name = '%s_right.png' % tstring
+    #    rospy.loginfo('Saving images (basename %s)' % tstring)
+    #    cv.SaveImage(prosilica_name, prosilica_image)
+    #    cv.SaveImage(left_name, left_image)
+    #    cv.SaveImage(right_name, right_image)
 
-        rospy.loginfo('Saving pickles')
-        pickle_fname = '%s_interest_point_dataset.pkl' % tstring   
+    #    rospy.loginfo('Saving pickles')
+    #    pickle_fname = '%s_interest_point_dataset.pkl' % tstring   
 
-        data_pkl = {'touch_point': point_touched_bl,
-                    'points_laser': points,
-                    'laser_T_bl': laser_T_bl, 
-                    'pro_T_bl': pro_T_bl,
+    #    data_pkl = {'touch_point': point_touched_bl,
+    #                'points_laser': points,
+    #                'laser_T_bl': laser_T_bl, 
+    #                'pro_T_bl': pro_T_bl,
 
-                    'high_res': prosilica_name,
-                    'prosilica_cal': self.prosilica_cal, 
+    #                'high_res': prosilica_name,
+    #                'prosilica_cal': self.prosilica_cal, 
 
-                    'left_image': left_name,
-                    'left_cal': self.left_cal,
+    #                'left_image': left_name,
+    #                'left_cal': self.left_cal,
 
-                    'right_image': right_name,
-                    'right_cal': self.right_cal}
-                    #'point_touched': point_touched_bl}
-                    
+    #                'right_image': right_name,
+    #                'right_cal': self.right_cal}
+    #                #'point_touched': point_touched_bl}
+    #                
 
-        ut.save_pickle(data_pkl, pickle_fname)
-        print 'Recorded to', pickle_fname
+    #    ut.save_pickle(data_pkl, pickle_fname)
+    #    print 'Recorded to', pickle_fname
 
-
-    def record_perceptual_data_kinect(self, point3d_bl, rdict=None, folder_name=None):
+    def record_perceptual_data(self, point3d_bl, image_frame, rdict=None, folder_name=None):
         rospy.loginfo('saving dataset..')
-        #self.kinect_features.read(point3d_bl)
+        #self.feature_ex.read(point3d_bl)
         if rdict == None:
             rospy.loginfo('Getting a kinect reading')
-            rdict = self.kinect_listener.read()
+            rdict = self.feature_ex.read()['rdict']
+            #rdict = self.kinect_listener.read()
         kimage = rdict['image']
         rospy.loginfo('Waiting for calibration.')
-        while self.kinect_features.cal.has_msg == False:
+        while self.feature_ex.cal.has_msg == False:
             time.sleep(.1)
 
         #which frames?
         rospy.loginfo('Getting transforms.')
-        k_T_bl = tfu.transform('openni_rgb_optical_frame', '/base_link', self.tf_listener)
+        #k_T_bl = tfu.transform('openni_rgb_optical_frame', '/base_link', self.tf_listener)
+        k_T_bl = tfu.transform(image_frame, '/base_link', self.tf_listener)
         tstring = time.strftime('%A_%m_%d_%Y_%I:%M%p')
         kimage_name = '%s_highres.png' % tstring
         rospy.loginfo('Saving images (basename %s)' % tstring)
@@ -1480,7 +1525,7 @@ class ApplicationBehaviors:
         data_pkl = {'touch_point': point3d_bl,
                     'points3d': rdict['points3d'],
                     'image': kimage_name,
-                    'cal': self.kinect_features.cal, 
+                    'cal': self.feature_ex.cal, 
                     'k_T_bl': k_T_bl}
                     #'point_touched': point3d_bl}
 
@@ -1542,9 +1587,9 @@ class ApplicationBehaviors:
         behavior = self.get_behavior_by_task(self.locations_man.data[task_id]['task'])
         head_pose = self.robot.head.pose()
 
-        kdict['image_T_bl'] = tfu.transform('openni_rgb_optical_frame', 'base_link', self.tf_listener)
+        kdict['image_T_bl'] = tfu.transform(self.OPTICAL_FRAME, 'base_link', self.tf_listener)
         point3d_img = tfu.transform_points(kdict['image_T_bl'], point3d_bl)
-        point2d_img = self.kinect_features.cal.project(point3d_img)
+        point2d_img = self.feature_ex.cal.project(point3d_img)
 
         labels = []
         points3d_tried = []
@@ -1574,22 +1619,22 @@ class ApplicationBehaviors:
             #==================================================
             img = cv.CloneMat(kdict['image'])
             #Draw the center
-            r3d.draw_points(img, point2d_img, [255, 0, 0], 4, 2)
+            r3d.draw_points(img, point2d_img, [255, 0, 0], 5, 2)
             #Draw possible points
-            r3d.draw_points(img, kdict['points2d'], [255, 255, 255], 2, -1)
+            r3d.draw_points(img, kdict['points2d'], [255, 255, 255], 4, -1)
             #Draw what we have so far
             if len(points2d_tried) > 0:
                 _, pos_exp, neg_exp = separate_by_labels(np.column_stack(points2d_tried), np.matrix(labels))
-                r3d.draw_points(img, pos_exp, [50, 255, 0], 4, 1)
-                r3d.draw_points(img, neg_exp, [50, 0, 255], 4, 1)
+                r3d.draw_points(img, pos_exp, [50, 255, 0], 5, 1)
+                r3d.draw_points(img, neg_exp, [50, 0, 255], 5, 1)
 
             predictions = np.matrix(self.locations_man.learners[task_id].classify(kdict['instances']))
             _, pos_pred, neg_pred = separate_by_labels(kdict['points2d'], predictions)
-            r3d.draw_points(img, pos_pred, [255, 204, 51], 2, -1)
-            r3d.draw_points(img, neg_pred, [51, 204, 255], 2, -1)
+            r3d.draw_points(img, pos_pred, [255, 204, 51], 3, -1)
+            r3d.draw_points(img, neg_pred, [51, 204, 255], 3, -1)
 
             #Draw what we're selecting
-            r3d.draw_points(img, kdict['points2d'][:, selected_idx], [0, 184, 245], 3, -1)
+            r3d.draw_points(img, kdict['points2d'][:, selected_idx], [255, 51, 204], 4, -1)
             self.img_pub.publish(img)
 
 
@@ -1597,6 +1642,7 @@ class ApplicationBehaviors:
             # Excecute!!
             #==================================================
             self.robot.head.set_pose(head_pose, 1)
+            self.robot.projector.set(False)
             if np.linalg.norm(kdict['points3d'][:, selected_idx] - point3d_bl) > negative_cut_off:
                 rospy.loginfo('#########################################')
                 rospy.loginfo('Point outside of negative cut off!! Eliminating %s' % (str(kdict['points3d'][:, selected_idx].T)))
@@ -1621,6 +1667,7 @@ class ApplicationBehaviors:
                         success, _ = behavior(kdict['points3d'][:, selected_idx])
                 else:
                     success, _ = behavior(kdict['points3d'][:, selected_idx])
+            self.robot.projector.set(True)
 
             if success:
                 color = [0,255,0]
@@ -1691,8 +1738,30 @@ class ApplicationBehaviors:
         print 'returning from', task_id
         print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
 
+    def balance_positives_and_negatives(self, dataset):
+        pdb.set_trace() #bug here
+        poslist = np.where(dataset.outputs == r3d.POSITIVE)[1].A1
+        neglist = np.where(dataset.outputs == r3d.NEGATIVE)[1].A1
+        npoint = min(len(poslist), len(neglist))
+        assert(npoint > 0)
+        sindices = poslist[:npoint]+neglist[:npoint]
+        dataset.pt3d    = dataset.pt3d[:, sindices]
+        dataset.pt2d    = dataset.pt2d[:, sindices]
+        dataset.outputs = dataset.outputs[:, sindices]
+        dataset.inputs  = dataset.inputs[:, sindices]
+
 
     def seed_dataset_explore(self, task_id, ctask_id, point_bl, stop_fun, max_retries=15, closeness_tolerance=.01, positive_escape=.04):
+        #rospy.loginfo('seed_dataset_explore: %s' % task_id)
+        ##case label
+        #if self.locations_man.data[task_id]['dataset'] != None:
+        #    case_labels = self.locations_man.data[task_id]['dataset'].outputs.A1.tolist()
+        #else:
+        #    case_labels = []
+        #if stop_fun(case_labels):
+        #    rospy.loginfo('seed_dataset_explore: stop function satisfied with label set. not executing.')
+        #    return
+
         params = r3d.Recognize3DParam()
         params.uncertainty_x = 1.
         params.uncertainty_y = .02
@@ -1703,7 +1772,7 @@ class ApplicationBehaviors:
         #Scan
         fea_dict, _ = self.read_features_save(task_id, point_bl, params)
         behavior = self.get_behavior_by_task(self.locations_man.data[task_id]['task'])
-        image_T_bl = tfu.transform('openni_rgb_optical_frame', 'base_link', self.tf_listener)
+        image_T_bl = tfu.transform(self.OPTICAL_FRAME, 'base_link', self.tf_listener)
         fea_dict['image_T_bl'] = image_T_bl
         
         #Rearrange sampled points by distance
@@ -1716,7 +1785,7 @@ class ApplicationBehaviors:
 
         #Figure out where to draw given point for visualization
         point3d_img = tfu.transform_points(fea_dict['image_T_bl'], point_bl)
-        point2d_img = self.kinect_features.cal.project(point3d_img)
+        point2d_img = self.feature_ex.cal.project(point3d_img)
    
         #Book keeping for loop
         points3d_tried = []
@@ -1744,29 +1813,17 @@ class ApplicationBehaviors:
             # Excecute!!
             #==================================================
             self.robot.head.set_pose(start_pose, 1)
+            self.robot.projector.set(False)
             success, reason = behavior(points3d_sampled[:, sampled_idx])
-
-            #==================================================
-            # Reset Environment
-            #==================================================
-            if success:
-                label = r3d.POSITIVE
-                if ctask_id != None:
-                    #If we were successful, call blind exploration with the undo behavior
-                    def any_pos_sf(labels_mat):
-                        if np.any(r3d.POSITIVE == labels_mat):
-                            return True
-                        return False
-
-                    ctask_point = points3d_sampled[:, sampled_idx]
-                    self.seed_dataset_explore(ctask_id, None, ctask_point, stop_fun=any_pos_sf, 
-                            max_retries=max_retries, closeness_tolerance=closeness_tolerance)
-            else:
-                label = r3d.NEGATIVE
+            self.robot.projector.set(True)
 
             #==================================================
             # Book keeping
             #==================================================
+            if success:
+                label = r3d.POSITIVE
+            else:
+                label = r3d.NEGATIVE
             points3d_tried.append(points3d_sampled[:, sampled_idx])
             points2d_tried.append(points2d_sampled[:, sampled_idx])
             labels.append(label)
@@ -1777,6 +1834,24 @@ class ApplicationBehaviors:
                          'labels':    np.matrix([label])}
             self.locations_man.add_perceptual_data(task_id, datapoint)
             self.locations_man.save_database()
+
+            #==================================================
+            # Reset Environment
+            #==================================================
+            if success:
+                self.robot.head.set_pose(start_pose, 1)
+                if ctask_id != None:
+                    #If we were successful, call blind exploration with the undo behavior
+                    def any_pos_sf(labels_mat):
+                        if np.any(r3d.POSITIVE == labels_mat):
+                            return True
+                        return False
+
+                    ctask_point = points3d_sampled[:, sampled_idx]
+                    #pdb.set_trace()
+                    self.seed_dataset_explore(ctask_id, None, ctask_point, stop_fun=any_pos_sf, 
+                            max_retries=max_retries, closeness_tolerance=closeness_tolerance)
+
             iter_count = iter_count + 1
             sampled_idx = sampled_idx + 1
 
@@ -1784,30 +1859,30 @@ class ApplicationBehaviors:
             # DRAW
             #==================================================
             img = cv.CloneMat(fea_dict['image'])
-            r3d.draw_points(img, points2d_sampled, [255, 255, 255], 2, -1)
+            r3d.draw_points(img, points2d_sampled, [255, 255, 255], 3, -1)
             _, pos_points, neg_points = separate_by_labels(np.column_stack(points2d_tried), np.matrix(labels))
-            r3d.draw_points(img, point2d_img, [255, 0, 0], 4, 2)
-            r3d.draw_points(img, pos_points, [0, 255, 0], 2, -1)
-            r3d.draw_points(img, neg_points, [0, 0, 255], 2, -1)
-            r3d.draw_points(img, points2d_tried[-1], [0, 184, 245], 3, -1)
+            r3d.draw_points(img, point2d_img, [255, 0, 0], 6, 2)
+            r3d.draw_points(img, pos_points, [0, 255, 0], 4, -1)
+            r3d.draw_points(img, neg_points, [0, 0, 255], 4, -1)
+            r3d.draw_points(img, points2d_tried[-1], [0, 184, 245], 6, -1)
             self.img_pub.publish(img)
     
         rospy.loginfo('Tried %d times' % iter_count)
 
-
     def read_features_save(self, task_id, point3d_bl, params=None):
-        f = self.kinect_features.read(point3d_bl, params=params)
-        file_name = self.record_perceptual_data_kinect(point3d_bl, f['rdict'], folder_name=task_id)
+        rospy.sleep(1.)
+        f = self.feature_ex.read(point3d_bl, params=params)
+        file_name = self.record_perceptual_data(point3d_bl, self.OPTICAL_FRAME, rdict=f['rdict'], folder_name=task_id)
 
-        image_T_bl = tfu.transform('openni_rgb_optical_frame', 'base_link', self.tf_listener)
-        point3d_img = tfu.transform_points(image_T_bl, point3d_bl)
-        point2d_img = self.kinect_features.cal.project(point3d_img)
+        #image_T_bl = tfu.transform(self.OPTICAL_FRAME, 'base_link', self.tf_listener)
+        #point3d_img = tfu.transform_points(image_T_bl, point3d_bl)
+        #point2d_img = self.feature_ex.cal.project(point3d_img)
 
-        img = cv.CloneMat(f['image'])
-        self.draw_dots_nstuff(img, f['points2d'], 
-                np.matrix([r3d.UNLABELED]* f['points2d'].shape[1]), 
-                point2d_img)
-        self.img_pub.publish(img)
+        #img = cv.CloneMat(f['image'])
+        #self.draw_dots_nstuff(img, f['points2d'], 
+        #        np.matrix([r3d.UNLABELED]* f['points2d'].shape[1]), 
+        #        point2d_img)
+        #self.img_pub.publish(img)
 
         return f, file_name
         #self.save_dataset(point, name, f['rdict'])
@@ -2011,7 +2086,7 @@ if __name__ == '__main__':
     #        fea_dict, _ = self.read_features_save(task_id, point_bl, params)
     #        image_T_bl = tfu.transform('openni_rgb_optical_frame', 'base_link', self.tf_listener)
     #        fea_dict['image_T_bl'] = image_T_bl
-    #    #fea_dict = self.kinect_features.read(expected_loc_bl=point_bl, params=param)
+    #    #fea_dict = self.feature_ex.read(expected_loc_bl=point_bl, params=param)
     #    
     #    dists = ut.norm(fea_dict['points3d'] - point_bl)
     #    ordering = np.argsort(dists).A1
@@ -2021,7 +2096,7 @@ if __name__ == '__main__':
     #    start_pose = self.robot.head.pose()
 
     #    point3d_img = tfu.transform_points(fea_dict['image_T_bl'], point_bl)
-    #    point2d_img = self.kinect_features.cal.project(point3d_img)
+    #    point2d_img = self.feature_ex.cal.project(point3d_img)
    
     #    sampled_idx = 0
     #    iter_count = 0
@@ -2320,7 +2395,7 @@ if __name__ == '__main__':
 
 
     #def train(self, dataset, name):
-    #    rec_params = self.kinect_features.rec_params
+    #    rec_params = self.feature_ex.rec_params
     #    nneg = np.sum(dataset.outputs == r3d.NEGATIVE) #TODO: this was copied and pasted from r3d
     #    npos = np.sum(dataset.outputs == r3d.POSITIVE)
     #    print '================= Training ================='
@@ -2448,7 +2523,7 @@ if __name__ == '__main__':
 
 
     #def record_processed_data_kinect2(self, point3d_bl, kinect_fea):
-    #    instances, locs2d_image, locs3d_bl, image = kinect_fea #self.kinect_features.read(point3d_bl)
+    #    instances, locs2d_image, locs3d_bl, image = kinect_fea #self.feature_ex.read(point3d_bl)
     #    #rospy.loginfo('Getting a kinect reading')
 
     #    tstring = time.strftime('%A_%m_%d_%Y_%I:%M%p')
@@ -2463,7 +2538,7 @@ if __name__ == '__main__':
     #                         'sizes': feature_extractor.sizes}
 
 
-        #self.kinect_features.read(point3d_bl)
+        #self.feature_ex.read(point3d_bl)
         #rdict = self.kinect_listener.read()
         #kimage = rdict['image']
         #rospy.loginfo('Waiting for calibration.')
@@ -2505,7 +2580,7 @@ if __name__ == '__main__':
 #    def repeat_action(self, task_id, ctask_id, point3d_bl, sampling_object, stop_fun, fea_dict=None):
 #
 #        # instances, locs2d_image, locs3d_bl, image, raw_dict = 
-#        #kf_dict = self.kinect_features.read(point3d_bl)
+#        #kf_dict = self.feature_ex.read(point3d_bl)
 #        param = r3d.Recognize3DParam()
 #        param.uncertainty_x = 1.
 #        param.n_samples = 2000
@@ -2519,7 +2594,7 @@ if __name__ == '__main__':
 #
 #        kdict['image_T_bl'] = tfu.transform('openni_rgb_optical_frame', 'base_link', self.tf_listener)
 #        point3d_img = tfu.transform_points(kdict['image_T_bl'], point3d_bl)
-#        point2d_img = self.kinect_features.cal.project(point3d_img)
+#        point2d_img = self.feature_ex.cal.project(point3d_img)
 #
 #        labels = []
 #        points3d_tried = []
@@ -2622,7 +2697,7 @@ if __name__ == '__main__':
     #def save_dataset(self, task_id, point, rdict):
     #    pt.join(task_id, 
     #    self.locations_man
-    #    self.record_perceptual_data_kinect(point, rdict)
+    #    self.record_perceptual_data(point, rdict)
     #    #TODO...
 
     #TODO TEST
