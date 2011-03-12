@@ -10,6 +10,7 @@ import trajectory_msgs.msg as tm
 import pr2_mechanism_msgs.srv as pmm
 import std_msgs.msg as stdm
 import geometry_msgs.msg as gm
+import dynamic_reconfigure.client as dc
 
 import tf
 import tf.transformations as tr
@@ -231,10 +232,17 @@ class PR2Head(Joint):
         self.head_client = actionlib.SimpleActionClient('head_traj_controller/point_head_action', 
                 pm.PointHeadAction)
 
-    def look_at(self, pt3d, frame='base_link', wait=True):
+    def look_at(self, pt3d, frame='base_link', pointing_frame="wide_stereo_link", 
+                pointing_axis=np.matrix([1, 0, 0.]).T, wait=True):
         g = pm.PointHeadGoal()
         g.target.header.frame_id = frame
         g.target.point = gm.Point(*pt3d.T.A1.tolist())
+
+        #pdb.set_trace()
+        g.pointing_frame = pointing_frame
+        g.pointing_axis.x = pointing_axis[0,0] 
+        g.pointing_axis.y = pointing_axis[1,0]
+        g.pointing_axis.z = pointing_axis[2,0]
         g.min_duration = rospy.Duration(1.0)
         g.max_velocity = 10.
 
@@ -337,9 +345,10 @@ class PR2Base:
         return tfu.matrix_as_tf(p_base)
 
 
-class PR2Torso:
+class PR2Torso(Joint):
 
-    def __init__(self):
+    def __init__(self, joint_provider):
+        Joint.__init__(self, 'torso_controller', joint_provider)
         self.torso = actionlib.SimpleActionClient('torso_controller/position_joint_action', pm.SingleJointPositionAction)
         rospy.loginfo('waiting for torso_controller')
         self.torso.wait_for_server()
@@ -379,6 +388,24 @@ class PR2Gripper:
         if block:
             self.client.wait_for_result()
         return self.client.get_state()
+
+class StructuredLightProjector:
+    def __init__(self):
+        self.client = dc.Client("camera_synchronizer_node")
+        self.node_config = self.client.get_configuration()
+
+    def set(self, on):
+        self.node_config["projector_mode"] = 2
+        if on:
+            self.node_config["narrow_stereo_trig_mode"] = 3
+        else:
+            self.node_config["narrow_stereo_trig_mode"] = 2
+        self.client.update_configuration(self.node_config)
+
+    def set_prosilica_inhibit(self, on):
+        self.node_config['prosilica_projector_inhibit'] = on
+        self.client.update_configuration(self.node_config)
+
 
 class ControllerManager:
 
@@ -425,9 +452,10 @@ class PR2:
 
         if base:
             self.base = PR2Base(self.tf_listener)
-        self.torso = PR2Torso()
+        self.torso = PR2Torso(self.joint_provider)
         self.controller_manager = ControllerManager()
         self.sound = SoundClient()
+        self.projector = StructuredLightProjector()
 
 
     def pose(self):
@@ -435,41 +463,41 @@ class PR2:
         return {'larm': self.left.pose(s), 'rarm': self.right.pose(s), 'head_traj': self.head.pose(s)}
 
 
-if __name__ == '__main__':
-    #pr2 = PR2()
-    #pr2.controller_manager
-
-    raw_input('put robot in final pose')
-    pose2 = pr2.left.pose_cartesian()
-
-    raw_input('put robot in initial pose')
-    pose1 = pr2.left.pose_cartesian()
-    pose2 = pose1.copy()
-    pose2[0,3] = pose2[0,3] + .2
-    r = rospy.Rate(4)
-    while not rospy.is_shutdown():
-         cart = pr2.left.pose_cartesian()
-         ik_sol = pr2.left.kinematics.ik(cart, 'base_link')
-         if ik_sol != None:
-             diff = pr2.left.kinematics.fk(ik_sol, 'base_link') - cart
-             pos_diff = diff[0:3,3]
-             print '%.2f %.2f %.2f' % (pos_diff[0,0], pos_diff[1,0], pos_diff[2,0])
-
-    pdb.set_trace()
-    print 'going to final pose'
-    pr2.left.set_cart_pose_ik(pose2, 2.5)
-
-    print 'going back to initial pose'
-    pr2.left.set_cart_pose_ik(pose1, 2.5)
-
-
-    r = rospy.Rate(4)
-    while not rospy.is_shutdown():
-        cart   = pr2.left.pose_cartesian()
-        ik_sol = pr2.left.kinematics.ik(cart, 'base_link', seed=pr2.left.pose())
-        if ik_sol != None:
-            print ik_sol.T
-        r.sleep()
+#if __name__ == '__main__':
+#    #pr2 = PR2()
+#    #pr2.controller_manager
+#
+#    raw_input('put robot in final pose')
+#    pose2 = pr2.left.pose_cartesian()
+#
+#    raw_input('put robot in initial pose')
+#    pose1 = pr2.left.pose_cartesian()
+#    pose2 = pose1.copy()
+#    pose2[0,3] = pose2[0,3] + .2
+#    r = rospy.Rate(4)
+#    while not rospy.is_shutdown():
+#         cart = pr2.left.pose_cartesian()
+#         ik_sol = pr2.left.kinematics.ik(cart, 'base_link')
+#         if ik_sol != None:
+#             diff = pr2.left.kinematics.fk(ik_sol, 'base_link') - cart
+#             pos_diff = diff[0:3,3]
+#             print '%.2f %.2f %.2f' % (pos_diff[0,0], pos_diff[1,0], pos_diff[2,0])
+#
+#    pdb.set_trace()
+#    print 'going to final pose'
+#    pr2.left.set_cart_pose_ik(pose2, 2.5)
+#
+#    print 'going back to initial pose'
+#    pr2.left.set_cart_pose_ik(pose1, 2.5)
+#
+#
+#    r = rospy.Rate(4)
+#    while not rospy.is_shutdown():
+#        cart   = pr2.left.pose_cartesian()
+#        ik_sol = pr2.left.kinematics.ik(cart, 'base_link', seed=pr2.left.pose())
+#        if ik_sol != None:
+#            print ik_sol.T
+#        r.sleep()
 
 
 

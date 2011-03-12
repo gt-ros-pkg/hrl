@@ -1,4 +1,5 @@
 
+import sensor_msgs.msg as sm
 import pr2_laser_snapshotter.srv as snp
 #import tf
 #import tf.msg
@@ -32,12 +33,31 @@ class LaserScanner:
         resp = self.sp(start, end, duration)
         return resp.cloud
 
-#class TransformBroadcaster:
-#    def __init__(self):
-#        self.pub_tf = rospy.Publisher("/tf", tf.msg.tfMessage)
-#
-#    ## send transform as a tfmessage.
-#    # @param tf_stamped - object of class TransformStamped (rosmsg show TransformStamped)
-#    def send_transform(self,tf_stamped):
-#        tfm = tf.msg.tfMessage([tf_stamped])
-#        self.pub_tf.publish(tfm)
+def sweep_param_to_tilt_param(angle_begin, angle_end, duration):
+    amplitude = abs(angle_end - angle_begin)/2.0 
+    offset = (angle_end + angle_begin)/2.0 
+    period = duration*2.0
+    return {'amplitude': amplitude, 'offset':offset, 'period': period}
+
+class PointCloudReceiver:
+    def __init__(self, topic):
+        self.listener = ru.GenericListener('point_cloud_receiver', sm.PointCloud, topic, .2)
+        self.topic = topic
+
+    def read(self):
+        cur_time = rospy.Time.now().to_sec()
+        not_fresh = True
+
+        while not_fresh:
+            pcmsg = self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+            if not (pcmsg.header.stamp.to_sec() < cur_time):
+                not_fresh = False
+            tdif = rospy.Time.now().to_sec() - cur_time
+            if tdif > 10.:
+                rospy.logerr('Have not heard from %s for %.2f seconds.' % (self.topic, tdif))
+            rospy.sleep(.1)
+
+        return pcmsg
+
+
+
