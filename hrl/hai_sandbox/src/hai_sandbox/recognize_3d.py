@@ -713,7 +713,7 @@ class IntensityCloudData:
                 feature_loc2d_list.append(point2d)
                 non_empty = non_empty + 1
             else:
-                pdb.set_trace()
+                #pdb.set_trace()
                 empty_queries = empty_queries + 1
         print 'empty queries', empty_queries, 'non empty', non_empty
         if len(feature_loc_list) > 0:
@@ -1055,7 +1055,7 @@ class SVMPCA_ActiveLearner:
         negidx = np.where(labels == NEGATIVE)[1].A1
         diff = abs(posidx.shape[0] - negidx.shape[0])
         if diff == 0:
-            return
+            return data
 
         rospy.loginfo('SVMPCA_ActiveLearner: _balance_classes difference in class sizes is %d' % diff)
 
