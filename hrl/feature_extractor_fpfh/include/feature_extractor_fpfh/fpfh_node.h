@@ -4,12 +4,14 @@
 #include "sensor_msgs/PointCloud2.h"                                                                   
 #include "sensor_msgs/Image.h"
 #include "sensor_msgs/CameraInfo.h"
+#include "feature_extractor_fpfh/FPFHHist.h"
 
 class FPFHNode
 {
     protected:
         ros::NodeHandle n_;
         ros::Publisher hist_publisher;
+        ros::ServiceServer fpfh_service;
         //ros::Subscriber points_subscriber;
 
     public:
@@ -25,9 +27,12 @@ class FPFHNode
         //  // Solve all of perception here...
         //}
 
-        void callback(const sensor_msgs::Image::ConstPtr& , const sensor_msgs::PointCloud2::ConstPtr& );
+        void message_cb(const sensor_msgs::Image::ConstPtr& , const sensor_msgs::PointCloud2::ConstPtr& );
         //{
           // Solve all of perception here...
+        void process_point_cloud(const sensor_msgs::PointCloud2::ConstPtr&, feature_extractor_fpfh::FPFHHist &);
+
+        bool fpfh_srv_cb(feature_extractor_fpfh::FPFHCalc::Request &, feature_extractor_fpfh::FPFHCalc::Response &);
         //}
 };
 

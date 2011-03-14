@@ -35,10 +35,18 @@ FPFHNode::FPFHNode(ros::NodeHandle &n): n_(n)
 bool FPFHNode::fpfh_srv_cb(feature_extractor_fpfh::FPFHCalc::Request &req,
              feature_extractor_fpfh::FPFHCalc::Response &res)
 {
-    const sensor_msgs::PointCloud2::ConstPtr input_cloud((const sensor_msgs::PointCloud2*) &req.input);
+    //ROS_INFO("cloud has %d points", req.input->width * req.input->height);
     //feature_extractor_fpfh::FPFHHist::ConstPtr hist(&res.hist);
+    //sensor_msgs::PointCloud2 cloud2;
+    sensor_msgs::PointCloud2 *cloud2 = new sensor_msgs::PointCloud2();
+    sensor_msgs::convertPointCloudToPointCloud2(req.input, *cloud2);
+    ROS_INFO("cloud has %d points", cloud2->width * cloud2->height);
+
+    const sensor_msgs::PointCloud2::ConstPtr input_cloud((const sensor_msgs::PointCloud2 *) cloud2);
+    ROS_INFO("done1\n");
     process_point_cloud(input_cloud, res.hist);
-    ROS_INFO("done.\n");
+    ROS_INFO("done2\n");
+    //delete cloud2;
     return true;
 }
 
@@ -46,7 +54,8 @@ bool FPFHNode::fpfh_srv_cb(feature_extractor_fpfh::FPFHCalc::Request &req,
 void FPFHNode::process_point_cloud(const sensor_msgs::PointCloud2::ConstPtr& input_cloud,
                                    feature_extractor_fpfh::FPFHHist &hist)
 {
-    float fpfh_leaf_size = .02;
+    ROS_INFO("done3\n");
+    float fpfh_leaf_size = .01;
     ROS_INFO("cloud has %d points", input_cloud->width * input_cloud->height);
 
     sensor_msgs::PointCloud2::Ptr cloud_filtered(new sensor_msgs::PointCloud2());
@@ -65,7 +74,9 @@ void FPFHNode::process_point_cloud(const sensor_msgs::PointCloud2::ConstPtr& inp
     PointCloud<PointXYZ> pcl_input_cloud_small;
     fromROSMsg(*cloud_filtered2, pcl_input_cloud_small);
 
-    ROS_INFO("after filtering: %d points", cloud_filtered->width * cloud_filtered->height);
+    ROS_INFO("after coarse filtering: %d points", cloud_filtered->width * cloud_filtered->height);
+    ROS_INFO("after fine filtering: %d points", cloud_filtered2->width * cloud_filtered2->height);
+
     if ((cloud_filtered->width * cloud_filtered->height) == 0)
     {
         return;
@@ -76,14 +87,17 @@ void FPFHNode::process_point_cloud(const sensor_msgs::PointCloud2::ConstPtr& inp
     std::vector<int> indices;
     indices.resize (cloud.points.size());
     for (size_t i = 0; i < indices.size (); ++i) { indices[i] = i; }
+    ROS_INFO("here1");
 
     KdTreePtr tree;
     tree.reset(new KdTreeFLANN<PointXYZ> (false));
     tree->setInputCloud(cloud.makeShared());
 
+    ROS_INFO("here2");
     PointCloud<Normal>::Ptr normals(new PointCloud<Normal>());
     boost::shared_ptr< vector<int> > indicesptr(new vector<int> (indices));
     NormalEstimation<PointXYZ, Normal> normal_estimator;
+    ROS_INFO("here4");
 
     normal_estimator.setIndices(indicesptr);
     normal_estimator.setSearchMethod(tree);
@@ -98,6 +112,7 @@ void FPFHNode::process_point_cloud(const sensor_msgs::PointCloud2::ConstPtr& inp
     FPFHEstimationOMP<PointXYZ, Normal, FPFHSignature33> fpfh(4);    // instantiate 4 threads
     // object
     PointCloud<FPFHSignature33>::Ptr fphists (new PointCloud<FPFHSignature33>());
+    ROS_INFO("here5");
 
     // set parameters
     int d1, d2, d3;
@@ -112,6 +127,7 @@ void FPFHNode::process_point_cloud(const sensor_msgs::PointCloud2::ConstPtr& inp
     fpfh.setInputCloud(cloud.makeShared());
     fpfh.compute(*fphists);
 
+    ROS_INFO("here6");
     hist.header = input_cloud->header;
     hist.dim[0] = d1;
     hist.dim[1] = d2;
@@ -133,6 +149,7 @@ void FPFHNode::process_point_cloud(const sensor_msgs::PointCloud2::ConstPtr& inp
     }
     hist.hist_npoints = cloud.points.size();
 
+    ROS_INFO("here7");
     hist.origpoints.resize(3*pcl_input_cloud_small.points.size());
     for (unsigned int i = 0; i < pcl_input_cloud_small.points.size(); i++)
     {
@@ -141,6 +158,7 @@ void FPFHNode::process_point_cloud(const sensor_msgs::PointCloud2::ConstPtr& inp
         hist.origpoints[3*i+2] = pcl_input_cloud_small.points[i].z;
     }
     hist.original_npoints = pcl_input_cloud_small.size();
+    ROS_INFO("here8");
 }
 
 
