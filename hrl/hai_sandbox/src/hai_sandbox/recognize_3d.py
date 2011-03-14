@@ -142,11 +142,35 @@ def load_data_from_file_kinect(fname, rec_param):
         print 'synthetic loc file not found', syn_locs_fname
 
     ex = FPFH()
-    fpfh_hist, fpfh_points = ex.get_features(data_pkl['points3d'])
-    fpfh_tree = sp.KDTree(np.array(fpfh_points.T))
-    return IntensityCloudDataKinect(data_pkl['points3d'], fpfh_points, fpfh_hist, 
-            intensity_image, center_point_bl, data_pkl['cal'], rec_param, 
-            data_pkl['k_T_bl'], distance_feature_points), data_pkl
+    fpfh_hist, fpfh_points, points3d = ex.get_features(data_pkl['points3d'])
+    # fpfh_tree = sp.KDTree(np.array(fpfh_points.T))
+    #return IntensityCloudDataKinect(data_pkl['points3d'], fpfh_points, fpfh_hist, 
+    #        intensity_image, center_point_bl, data_pkl['cal'], rec_param, 
+    #        data_pkl['k_T_bl'], distance_feature_points), data_pkl
+    return IntensityCloudDataKinect(points3d, fpfh_points, fpfh_hist, 
+                intensity_image, center_point_bl, data_pkl['cal'],
+                rec_param, data_pkl['k_T_bl'], None), data_pkl
+
+def load_data_from_file2(fname, rec_param):
+    data_pkl = ut.load_pickle(fname)
+    image_fname = pt.join(pt.split(fname)[0], data_pkl['image'])
+    intensity_image = cv.LoadImageM(image_fname)
+    center_point_bl = data_pkl['touch_point']
+
+    print 'Robot touched point cloud at point', center_point_bl.T
+    distance_feature_points = None
+    syn_locs_fname = pt.splitext(fname)[0] + '_synthetic_locs3d.pkl'
+    if pt.isfile(syn_locs_fname):
+        print 'found synthetic locations file', syn_locs_fname
+        distance_feature_points = ut.load_pickle(syn_locs_fname)
+        data_pkl['synthetic_locs3d'] = distance_feature_points
+    else:
+        print 'synthetic loc file not found', syn_locs_fname
+
+    return IntensityCloudData(data_pkl['points3d'], intensity_image,
+            data_pkl['k_T_bl'], data_pkl['cal'], center_point_bl, center_point_bl, 
+            None, rec_param), data_pkl
+
 
 
 def dataset_to_libsvm(dataset, filename):
@@ -206,7 +230,7 @@ def preprocess_scan_extract_features(raw_data_fname, ext, kinect=True):
         feature_extractor, data_pkl = load_data_from_file(raw_data_fname, rec_params)
         image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['high_res'])
     else:
-        feature_extractor, data_pkl = load_data_from_file_kinect(raw_data_fname, rec_params)
+        feature_extractor, data_pkl = load_data_from_file2(raw_data_fname, rec_params)
         image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['image'])
     print 'Image name is', image_fname
     img = cv.LoadImageM(image_fname)
@@ -416,6 +440,8 @@ class IntensityCloudDataKinect:
         gaussian_noise = np.matrix([0, 0, 0.0]).T #We want to try the given point first
 
         distr = {'u': 0, 'g':0}
+        print 'looping'
+        pdb.set_trace()
         while len(self.sampled_points) < self.params.n_samples:
             #Generate 2d point
             if np.random.rand() < self.params.uni_mix or self.expected_loc_bl == None:
@@ -459,7 +485,7 @@ class IntensityCloudDataKinect:
             self.sampled_points2d.append(closest_p2d.T.A1.tolist())
             #self.sampled_points2d.append([x,y])
             distr[d] = distr[d] + 1
-            if len(self.sampled_points) % 500 == 0:
+            if len(self.sampled_points) % 50 == 0:
                 print len(self.sampled_points)
 
     def _caculate_features_at_sampled_points(self):
@@ -1282,8 +1308,10 @@ class InterestPointAppBase:
     def has_enough_data(self):
         pos_ex = np.sum(self.dataset.outputs)
         neg_ex = self.dataset.outputs.shape[1] - pos_ex
-        if pos_ex > 2 and neg_ex > 2:
+        if pos_ex > 0 and neg_ex > 0:
             return True
+        else:
+            return False
 
     def add_to_dataset(self, feature, label, pt2d, pt3d):
         if self.dataset == None:
@@ -1643,8 +1671,8 @@ class ScanLabeler:
             print 'ERROR: %s not found in dir %s' % (scan_to_train_on, dirname)
             self.scan_idx = 0
 
-        #self.scale = 1/3.
-        self.scale = 1.
+        self.scale = 1/3.
+        #self.scale = 1.
         self.mode = 'GROUND_TRUTH'
         if seed_dset == None:
             self.training_sname = pt.splitext(self.scan_names[self.scan_idx])[0] + '_seed.pkl'
@@ -1749,9 +1777,9 @@ class ScanLabeler:
             draw_labeled_points(img, self.current_scan_pred, scale=1./self.scale)
             locs2d = self.current_scan_pred.pt2d[:, (np.where(POSITIVE == self.current_scan_pred.outputs)[1]).A1]
 
-            loc_max, Z = find_max(locs2d)
-            print 'Max location is', loc_max.T
-            cv.ShowImage("Positive Density", 255 * (np.rot90(Z)/np.max(Z)))
+        #    loc_max, Z = find_max_in_density(locs2d)
+        #    print 'Max location is', loc_max.T
+        #    cv.ShowImage("Positive Density", 255 * (np.rot90(Z)/np.max(Z)))
 
             #X, Y = scipy.mgrid[0:img.cols:500j, 0:img.rows:500j]
             #positions = scipy.c_[X.ravel(), Y.ravel()]
@@ -1830,6 +1858,7 @@ class ScanLabeler:
                 print 'Saved!'
 
         if k == ord('r'):
+            print "Training"
             self.train(self.select_features(self.current_scan['instances'], self.features_to_use, self.current_scan['sizes']))
             self.classify_current_scan()
             self.draw()
@@ -2246,7 +2275,7 @@ class ScanLabeler:
     def has_enough_data(self):
         pos_ex = np.sum(self.dataset.outputs)
         neg_ex = self.dataset.outputs.shape[1] - pos_ex
-        if pos_ex > 2 and neg_ex > 2:
+        if pos_ex > 0 and neg_ex > 0:
             return True
 
     def train(self, inputs_for_scaling, use_pca=True):

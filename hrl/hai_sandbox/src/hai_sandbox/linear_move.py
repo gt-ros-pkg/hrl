@@ -1521,14 +1521,17 @@ class ApplicationBehaviors:
         rospy.loginfo('Getting transforms.')
         #k_T_bl = tfu.transform('openni_rgb_optical_frame', '/base_link', self.tf_listener)
         k_T_bl = tfu.transform(image_frame, '/base_link', self.tf_listener)
+
         tstring = time.strftime('%A_%m_%d_%Y_%I:%M%p')
         kimage_name = '%s_highres.png' % tstring
+        pickle_fname = '%s_interest_point_dataset.pkl' % tstring   
+        if folder_name != None:
+            kimage_name = pt.join(folder_name, kimage_name)
+            pickle_fname = pt.join(folder_name, pickle_fname)
+
         rospy.loginfo('Saving images (basename %s)' % tstring)
         cv.SaveImage(kimage_name, kimage)
         rospy.loginfo('Saving pickles')
-        pickle_fname = '%s_interest_point_dataset.pkl' % tstring   
-        if folder_name != None:
-            pickle_fname = pt.join(folder_name, pickle_fname)
 
         data_pkl = {'touch_point': point3d_bl,
                     'points3d': rdict['points3d'],
