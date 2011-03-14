@@ -129,10 +129,15 @@ private:
 
   bool goalOnBlacklist(const geometry_msgs::PoseStamped& goal);
 
+  bool isRepeatGoal(const geometry_msgs::PoseStamped& goal);  // Prevent duplicate goals
+
   ros::NodeHandle node_;
   ros::ServiceServer isDone_srv_;
   tf::TransformListener tf_;
   costmap_2d::Costmap2DROS* explore_costmap_ros_;
+
+  geometry_msgs::PoseStamped goal_pose_last_;
+  bool goal_pose_last_defined_;
 
   actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> move_base_client_;
 

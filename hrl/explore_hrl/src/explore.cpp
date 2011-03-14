@@ -61,7 +61,9 @@ Explore::Explore() :
   planner_(NULL),
   done_exploring_(false),
   preempt_(false),
-  explorer_(NULL)
+  explorer_(NULL),
+  goal_pose_last_(),
+  goal_pose_last_defined_(false)
 {
   ros::NodeHandle private_nh("~");
 
@@ -225,6 +227,14 @@ void Explore::publishMap() {
     else
       map.data[i] = 0;
   }
+  // for (int i=0; i<size; i++) {
+  //   if (char_map[i] == NO_INFORMATION)
+  //     map.data[i] = -1;
+  //   else if (char_map[i] == LETHAL_OBSTACLE)
+  //     map.data[i] = 100;
+  //   else
+  //     map.data[i] = 0;
+  // }
 
   map_publisher_.publish(map);
 }
@@ -276,8 +286,8 @@ void Explore::makePlan() {
     return;
 
   //check to see if we have control of the action client
-  if(client_mutex_.try_lock()){
-
+  //if(client_mutex_.try_lock()){
+  if (true){
     tf::Stamped<tf::Pose> robot_pose;
     getRobotPose(explore_costmap_ros_->getGlobalFrameID(), robot_pose);
     geometry_msgs::Point robot_point;
@@ -334,7 +344,17 @@ void Explore::makePlan() {
       //explore_costmap_ros_->clearRobotFootprint(); // help prevent phantom obstacles, especially at startup
       move_base_msgs::MoveBaseGoal goal;
       goal.target_pose = goal_pose;
-      move_base_client_.sendGoal(goal, boost::bind(&Explore::reachedGoal, this, _1, _2, goal_pose));
+
+      if (isRepeatGoal( goal.target_pose )){
+	ROS_INFO("Explore: This appears to be a duplicate goal.");
+	frontier_blacklist_.push_back( goal.target_pose );
+	if (!done_exploring_){
+	  makePlan();
+	}
+      }
+      else {
+	move_base_client_.sendGoal(goal, boost::bind(&Explore::reachedGoal, this, _1, _2, goal_pose));
+      }
 
       if (visualize_) {
         publishGoal(goal_pose.pose);
@@ -354,6 +374,40 @@ void Explore::makePlan() {
   }
   else {
     ROS_WARN("Explore: Mutex acquire failed!");
+  }
+}
+
+bool Explore::isRepeatGoal(const geometry_msgs::PoseStamped& goal){
+  // Prevent duplicate goal selections.  This tends to happen at
+  // startup if there is unknown space that cannot be cleared by LRF
+  // on PR2.
+
+  // Skip over the first time this is called.
+  if (!goal_pose_last_defined_){
+    goal_pose_last_defined_ = true;
+    goal_pose_last_ = goal;
+    return false;
+  }
+
+  double x_diff = fabs(goal.pose.position.x - goal_pose_last_.pose.position.x);
+  double y_diff = fabs(goal.pose.position.y - goal_pose_last_.pose.position.y);
+  double ang_diff = tf::getYaw( goal.pose.orientation ) - tf::getYaw( goal_pose_last_.pose.orientation );
+
+  // Update last pose.
+  goal_pose_last_ = goal;
+
+  while (ang_diff < -3.14159) ang_diff += 2.0 * 3.14159;
+  while (ang_diff > 3.14159) ang_diff -= 2.0 * 3.14159;
+
+  ROS_INFO( "Differences: %3.2f %3.2f %3.2f", x_diff, y_diff, ang_diff );
+
+  if (x_diff < 2 * explore_costmap_ros_->getResolution() && 
+      y_diff < 2 * explore_costmap_ros_->getResolution() &&
+      fabs( ang_diff ) < 5.0 * (3.14158 / 180.0)){
+    return true;
+  }
+  else {
+    return false;
   }
 }
 
@@ -390,6 +444,7 @@ void Explore::execute() {
     ROS_WARN("Waiting to connect to move_base server");
 
   ROS_INFO("Connected to move_base server");
+  goal_pose_last_defined_ = false;
 
   // This call sends the first goal, and sets up for future callbacks.
   makePlan();
