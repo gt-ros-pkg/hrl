@@ -70,7 +70,7 @@ bool fpfh_cb(feature_extractor_fpfh::FPFHCalc::Request &req,
     fpfh.setNrSubdivisions(d1, d2, d3);
     fpfh.setIndices(indicesptr);
     fpfh.setSearchMethod(tree);
-    fpfh.setKSearch(indices.size());
+    fpfh.setKSearch(50);
 
     // estimate
     ROS_INFO("Calculating fpfh...\n");
