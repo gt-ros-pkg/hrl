@@ -343,7 +343,7 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
     //  This seems like a goofy heuristic rather than fact.  What happens if we don't do this...?
     if (size * costmap.getResolution() < costmap.getInscribedRadius()){
       ROS_INFO( "Discarding segment... too small?" );
-      continue;
+      //continue;
     }
 
     float x = 0, y = 0;
@@ -372,7 +372,7 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
     p.y = map_.info.origin.position.y + map_.info.resolution * (y);
     if (!planner_->validPointPotential(p)){
       ROS_INFO( "Discarding segment... can't reach?" );
-      continue;
+      //continue;
     }
 
     frontiers_.push_back(frontier);

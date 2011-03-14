@@ -331,6 +331,7 @@ void Explore::makePlan() {
     }
 
     if (valid_plan) {
+      //explore_costmap_ros_->clearRobotFootprint(); // help prevent phantom obstacles, especially at startup
       move_base_msgs::MoveBaseGoal goal;
       goal.target_pose = goal_pose;
       move_base_client_.sendGoal(goal, boost::bind(&Explore::reachedGoal, this, _1, _2, goal_pose));

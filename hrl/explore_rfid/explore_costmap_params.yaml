@@ -1,7 +1,8 @@
 loop_closure_planner:
   allow_unknown: false
 explore_planner:
-  allow_unknown: false
+  allow_unknown: true
+#  allow_unknown: false
 #Independent settings for the planner's costmap
 explore_costmap: 
   global_frame: /odom_combined
