@@ -294,7 +294,7 @@ void ExploreFrontier::findFrontiers(Costmap2DROS& costmap_) {
 	float dist;
 	dist = sqrt( pow( p.x - p_init.x, 2 ) + pow( p.y - p_init.y, 2 ));
 
-	if ( dist <= 1.0 ){
+	if ( dist <= 0.8 ){
 	  map_.data[idx] = segment_id;  // This used to be up before "assert" block above.
 	  points_in_seg += 1;
 	  //ROS_INFO( "Dist to start cell: %3.2f", dist );
