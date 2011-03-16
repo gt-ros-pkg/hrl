@@ -10,11 +10,12 @@
   <include file="$(find pr2_navigation_perception)/lasers_and_filters.xml" />
   <include file="$(find pr2_navigation_perception)/ground_plane.xml" />
 
-  <include file="$(find pr2_navigation_slam)/move_base.xml" />
+  <!-- <include file="$(find pr2_navigation_slam)/move_base.xml" /> -->
   <!-- <include file="$(find gt_pr2)/navigation/move_base.xml" /> -->
+  <include file="$(find explore_rfid)/move_base_sbpl.xml" />
 
-  <include file="$(find explore_rfid)/explore.xml" />
-  <rosparam file="$(find explore_rfid)/base_local_planner_params.yaml" command="load" />
+  <!-- <include file="$(find explore_rfid)/explore.xml" /> -->
+  <!-- <rosparam file="$(find explore_rfid)/base_local_planner_params.yaml" command="load" /> -->
 
   
 
