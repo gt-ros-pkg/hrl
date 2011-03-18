@@ -982,7 +982,7 @@ class DataScale:
         return scaled
 
 class SVMPCA_ActiveLearner:
-    def __init__(self, use_pca):
+    def __init__(self, use_pca, reconstruction_std_lim=None, reconstruction_err_toler=None, old_learner=None):
         self.classifier = 'svm' #or 'knn'
         self.classifiers = {}
         self.n = 3.
@@ -992,6 +992,17 @@ class SVMPCA_ActiveLearner:
         self.reduced_dataset = None
         self.dataset = None
         self.use_pca = use_pca
+        self.reconstruction_std_lim = reconstruction_std_lim
+        self.reconstruction_err_toler = reconstruction_err_toler
+
+        if old_learner != None:
+            self.intensities_mean = old_learner.intensities_mean
+            self.intensities_std = old_learner.intensities_std
+            self.projection_basis = old_learner.projection_basis
+            self.intensities_index = old_learner.intensities_index
+            self.recon_err_raw = old_learner.recon_err_raw
+            self.reconstruction_error = old_learner.reconstruction_error
+            self.pca_data = old_learner.pca_data
 
     def get_closest_instances(self, instances, n=1):
         #pdb.set_trace()
@@ -1033,14 +1044,15 @@ class SVMPCA_ActiveLearner:
         trainingset = dataset.inputs
         responses = dataset.outputs
 
-        #Calculate PCA vectors
-        if self.use_pca:
+        #Calculate PCA vectors (also try do detect if our PCA vectors need updating)
+        if self.use_pca: #and self.projection_basis == None:
             self.intensities_index = self.dataset.metadata[-1].extent[0]
-            #pdb.set_trace()
-            rebalanced_set = self._balance_classes(trainingset, responses)
-            self._calculate_pca_vectors(rebalanced_set, variance_keep)
-            trainingset = self.partial_pca_project(trainingset)
-            inputs_for_scaling = self.partial_pca_project(inputs_for_scaling)
+            #rebalanced_set = self._balance_classes(trainingset, responses)
+            #self._calculate_pca_vectors(rebalanced_set, variance_keep)
+            self._calculate_pca_vectors(inputs_for_scaling, variance_keep)
+
+        trainingset = self.partial_pca_project(trainingset)
+        inputs_for_scaling = self.partial_pca_project(inputs_for_scaling)
     
         print 'SVMPCA_ActiveLearner.train: Training classifier.'
         #train => float32 mat, each row is an example
@@ -1106,15 +1118,65 @@ class SVMPCA_ActiveLearner:
         return np.column_stack((posex, negex, rsubset))
 
     def _calculate_pca_vectors(self, data, variance_keep):
+        #if pt.isfile('pca3.pkl'):
+        #    d = ut.load_pickle('pca3.pkl')
+        #    self.intensities_index = d['idx']
+        #    self.intensities_std = d['std']
+        #    self.intensities_mean = d['mean']
+        #    self.projection_basis = d['basis']
+        #    return
+
         data_in = data[self.intensities_index:, :]
+        #we already have pca vectors
+        if self.intensities_mean != None:
+            normed_data = (data_in - self.intensities_mean) / self.intensities_std
+            if not self.is_dataset_far_from_pca_subspace(self.projection_basis.T * normed_data, normed_data):
+                print 'SVMPCA_ActiveLearner: is_dataset_far_from_pca_subspace no, dataset is not far.'
+                return
+            else:
+                print 'SVMPCA_ActiveLearner: is_dataset_far_from_pca_subspace yes, dataset is far. recalculating pca.'
+                #pdb.set_trace()
+                nsamples = data_in.shape[1]
+                data_in  = np.column_stack((data_in, self.pca_data[self.intensities_index, :]))
+                ntotal   = data_in.shape[1]
+                data_in  = data_in[:, np.random.permutation(np.array(range(ntotal)))[0:nsamples]]
+
         self.intensities_mean = np.mean(data_in, 1)
+        self.intensities_std = np.std(data_in, 1)
+
         data_in_shifted = data_in - self.intensities_mean
-        self.intensities_std = np.std(data_in_shifted, 1)
         data_in_normed = data_in_shifted / self.intensities_std
         #pdb.set_trace()
         print 'SVMPCA_ActiveLearner._calculate_pca_vectors: Constructing PCA basis'
-        self.projection_basis = dr.pca_vectors(data_in_shifted, variance_keep)
+        self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)
         print 'SVMPCA_ActiveLearner._calculate_pca_vectors: PCA basis size -', self.projection_basis.shape
+
+        reconstruction = self.projection_basis * (self.projection_basis.T * data_in_normed)
+        self.recon_err_raw = ut.norm(data_in_normed - reconstruction)
+        self.reconstruction_error = self.calc_reconstruction_errors(self.projection_basis.T*data_in_normed, data_in_normed)
+        self.pca_data = data
+
+        #pdb.set_trace()
+
+        #ut.save_pickle({'idx': self.intensities_index,
+        #                'mean': self.intensities_mean,
+        #                'std': self.intensities_std,
+        #                'basis': self.projection_basis}, 'pca3.pkl')
+
+    def calc_reconstruction_errors(self, projected_instances, original_instances):
+        pdb.set_trace()
+        errors = ut.norm((self.projection_basis * projected_instances) - original_instances)
+        mal_dist_errors = (errors - np.mean(self.recon_err_raw)) / (np.std(self.recon_err_raw)**2)
+        nhigh_errors = np.sum(np.abs(mal_dist_errors).A1 > self.reconstruction_std_lim)
+        npoints = original_instances.shape[1]
+        percent_error = nhigh_errors / (float(npoints))
+        rospy.loginfo('calc_reconstruction_errors: %.2f (%d / %d) with high reconstruction errors' \
+                % (percent_error, nhigh_errors, npoints))
+        return percent_error
+
+    def is_dataset_far_from_pca_subspace(self, projected_instances, original_instances):
+        percent_error = self.calc_reconstruction_errors(projected_instances, original_instances)
+        return percent_error > (self.reconstruction_error + self.reconstruction_err_toler)
 
     def partial_pca_project(self, instances):
         if self.use_pca:
@@ -1282,7 +1344,9 @@ class Recognize3DParam:
         #print "Uncertainty is:", self.uncertainty
 
         #variance
-        self.variance_keep = .98
+        self.variance_keep = .95
+        self.reconstruction_std_lim = 1.
+        self.reconstruction_err_toler = .05
 
 class InterestPointAppBase:
 
@@ -2339,7 +2403,10 @@ class ScanLabeler:
             #weight_balance = ' -w0 1 -w1 5.0'
             weight_balance = ' -w0 1 -w1 %.2f' % (neg_to_pos_ratio)
             #weight_balance = ""
-            self.learner = SVMPCA_ActiveLearner(use_pca)
+            self.learner = SVMPCA_ActiveLearner(use_pca, 
+                    self.rec_params.reconstruction_std_lim, 
+                    self.rec_params.reconstruction_err_toler,
+                    self.learner)
             self.learner.train(self.dataset, 
                                inputs_for_scaling,
                                self.rec_params.svm_params + weight_balance,
