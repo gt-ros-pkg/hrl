@@ -169,7 +169,7 @@ def load_data_from_file2(fname, rec_param):
 
     return IntensityCloudData(data_pkl['points3d'], intensity_image,
             data_pkl['k_T_bl'], data_pkl['cal'], center_point_bl, center_point_bl, 
-            None, rec_param), data_pkl
+            distance_feature_points, rec_param), data_pkl
 
 
 
@@ -205,7 +205,7 @@ def draw_dataset(dataset, img, scale=1., size=2, scan_id=None):
     npt2d = []
     ppt2d = []
     for i in range(dataset.inputs.shape[1]):
-        if dataset.pt2d[0,i] != None:
+        if dataset.pt2d != None and dataset.pt2d[0,i] != None:
             if scan_id != None and dataset.scan_ids != None:
                 if scan_id != dataset.scan_ids[0,i]:
                     continue
@@ -224,14 +224,14 @@ def inverse_indices(indices_exclude, num_elements):
     return np.where(temp_arr)[0]
 
 #'_features_dict.pkl'
-def preprocess_scan_extract_features(raw_data_fname, ext, kinect=True):
+def preprocess_scan_extract_features(raw_data_fname, ext):
     rec_params = Recognize3DParam()
-    if not kinect:
-        feature_extractor, data_pkl = load_data_from_file(raw_data_fname, rec_params)
-        image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['high_res'])
-    else:
-        feature_extractor, data_pkl = load_data_from_file2(raw_data_fname, rec_params)
-        image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['image'])
+    #if not kinect:
+    #    feature_extractor, data_pkl = load_data_from_file(raw_data_fname, rec_params)
+    #    image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['high_res'])
+    #else:
+    feature_extractor, data_pkl = load_data_from_file2(raw_data_fname, rec_params)
+    image_fname = pt.join(pt.split(raw_data_fname)[0], data_pkl['image'])
     print 'Image name is', image_fname
     img = cv.LoadImageM(image_fname)
     feature_cache_fname = pt.splitext(raw_data_fname)[0] + ext
@@ -252,7 +252,7 @@ def preprocess_scan_extract_features(raw_data_fname, ext, kinect=True):
     ut.save_pickle(preprocessed_dict, feature_cache_fname)
     return feature_cache_fname
 
-def preprocess_data_in_dir(dirname, ext, kinect=True):
+def preprocess_data_in_dir(dirname, ext):
     print 'Preprocessing data in', dirname
     data_files = glob.glob(pt.join(dirname, '*dataset.pkl'))
     print 'Found %d scans' % len(data_files)
@@ -260,7 +260,7 @@ def preprocess_data_in_dir(dirname, ext, kinect=True):
     for n in data_files:
         print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
         print 'Loading', n
-        cn = preprocess_scan_extract_features(n, ext, kinect=True)
+        cn = preprocess_scan_extract_features(n, ext)
         print 'Saved to', cn
         print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
 
@@ -944,8 +944,9 @@ class SVM:
         samples = dataset.inputs.T.tolist()
         labels = dataset.outputs.T.A1.tolist()
         #pdb.set_trace()
-        print 'SVM: trianing with params => ', params
+        print 'SVM: training with params => ', params
         #pdb.set_trace()
+        #dataset_to_libsvm(dataset, 'total_set_light_switch_libsvm.data')
         self.model = su.svm_train(labels, samples, params)
         self.nsamples = len(samples)
 
@@ -976,6 +977,7 @@ class DataScale:
             self.ranges[np.where(self.ranges < .001)[0], :] = 1.
             #pdb.set_trace()
         #pdb.set_trace()
+        #pdb.set_trace()
         scaled = (((data - self.mins) / self.ranges) * 2.) - 1
         return scaled
 
@@ -993,7 +995,11 @@ class SVMPCA_ActiveLearner:
 
     def get_closest_instances(self, instances, n=1):
         #pdb.set_trace()
-        p_instances = np.matrix(self.partial_pca_project(instances))
+        if self.use_pca:
+            p_instances = np.matrix(self.partial_pca_project(instances))
+        else:
+            p_instances = instances
+            #pdb.set_trace()
         s_instances = self.scale.scale(p_instances)
         distances = np.array(self.classifiers['svm'].distances(s_instances))
         selected_indices = np.argsort(np.abs(distances))[0:n]
@@ -1102,14 +1108,19 @@ class SVMPCA_ActiveLearner:
     def _calculate_pca_vectors(self, data, variance_keep):
         data_in = data[self.intensities_index:, :]
         self.intensities_mean = np.mean(data_in, 1)
+        data_in_shifted = data_in - self.intensities_mean
+        self.intensities_std = np.std(data_in_shifted, 1)
+        data_in_normed = data_in_shifted / self.intensities_std
+        #pdb.set_trace()
         print 'SVMPCA_ActiveLearner._calculate_pca_vectors: Constructing PCA basis'
-        self.projection_basis = dr.pca_vectors(data_in, variance_keep)
+        self.projection_basis = dr.pca_vectors(data_in_shifted, variance_keep)
         print 'SVMPCA_ActiveLearner._calculate_pca_vectors: PCA basis size -', self.projection_basis.shape
 
     def partial_pca_project(self, instances):
         if self.use_pca:
-            instances_in = instances[self.intensities_index:, :]
-            reduced_intensities = self.projection_basis.T * (instances_in - self.intensities_mean)
+            #pdb.set_trace()
+            instances_in = (instances[self.intensities_index:, :] - self.intensities_mean) / self.intensities_std
+            reduced_intensities = self.projection_basis.T * instances_in
             return np.row_stack((instances[:self.intensities_index, :], reduced_intensities))
         else:
             return instances
@@ -1198,6 +1209,10 @@ class InterestPointDataset(ds.Dataset):
             pdb.set_trace()
         self.inputs = np.column_stack((self.inputs, features))
         self.outputs = np.column_stack((self.outputs, label))
+        #if pt2d != None:
+        #    if self.pt2d == None:
+        #        self.pt2d = pt2d
+        #    else:
         self.pt2d = np.column_stack((self.pt2d, pt2d))
         #self.pt2d.append(pt2d)#np.column_stack((self.pt2d, pt2d))
         self.pt3d = np.column_stack((self.pt3d, pt3d))
@@ -1242,16 +1257,18 @@ class Recognize3DParam:
     def __init__(self):
         #Data extraction parameters
         self.grid_resolution = .01
-        self.win_size = 5
+        self.win_size = 10
         #self.win_multipliers = [1,2,4,8,16,32] for prosilica
         #self.win_multipliers = [1,2,4,8,16,32]
-        self.win_multipliers = [8,16,32]
+        self.win_multipliers = [2,4,8,16]
 
         self.win3d_size = .02
         self.voi_bl = [.5, .5, .5]
         self.radius = .5
         self.robot_reach_radius = 2.5
-        self.svm_params = '-s 0 -t 2 -g .0625 -c 4'
+        #self.svm_params = '-s 0 -t 2 -g .0625 -c 4'
+        self.svm_params = '-s 0 -t 2 -g .125 -c 4'
+        #self.svm_params = '-s 0 -t 2 -g 3.0 -c 4'
 
         #sampling parameters
         #self.n_samples = 5000
@@ -1859,13 +1876,17 @@ class ScanLabeler:
 
         if k == ord('r'):
             print "Training"
-            self.train(self.select_features(self.current_scan['instances'], self.features_to_use, self.current_scan['sizes']))
+            self.train(self.select_features(self.current_scan['instances'], 
+                self.features_to_use, self.current_scan['sizes']))
             self.classify_current_scan()
             self.draw()
 
         if k == ord(' '):
             if self.learner != None:
-                selected_idx, selected_dist = self.learner.select_next_instances(self.current_scan['instances'])
+                dset = self.select_features(self.current_scan['instances'], 
+                        self.features_to_use, self.current_scan['sizes'])
+                #self.current_scan['instances']
+                selected_idx, selected_dist = self.learner.select_next_instances(dset)
                 if selected_idx != None:
                     self.add_to_training_set(selected_idx)
                     #self.train(self.train(self.current_scan['instances']))
@@ -1928,6 +1949,7 @@ class ScanLabeler:
                 selected_fea.append(instances[start_idx:end_idx, :])
             offset = end_idx
 
+        #pdb.set_trace()
         return np.row_stack(selected_fea)
 
     def test_feature_perf(self, scans_to_train_on, features_to_use, exp_name, use_pca=None):
@@ -2018,6 +2040,27 @@ class ScanLabeler:
                         #'current_scan_statistics': current_scan_statistics,
                         'perf_on_other_scans': perf_on_other_scans}, training_results_name)
         print 'Saved training results to', training_results_name
+
+
+    def generate_dataset_for_hyperparameter_grid_search(self, features_to_use):
+        feature_sizes = self.current_scan['sizes']
+
+        for sname in self.scan_names:
+            print 'generate_dataset_for_hyperparameter_grid_search: loading %s' % sname
+            self.load_scan(sname)
+            rcurrent_scan = self.select_features(self.current_scan['instances'], features_to_use, feature_sizes)
+            scan_ids = np.matrix([sname]*rcurrent_scan.shape[1])
+            idx_in_scan = np.matrix(range(rcurrent_scan.shape[1]))
+            if self.dataset == None:
+                self.dataset = InterestPointDataset(rcurrent_scan, self.current_scan['labels'], 
+                                    self.current_scan['points2d'], self.current_scan['points3d'], 
+                                    None, scan_ids=scan_ids, idx_in_scan=idx_in_scan, sizes=nsizes)
+            else:
+                self.dataset.add(rcurrent_scan, self.current_scan['labels'], self.current_scan['points2d'],
+                                 self.current_scan['points3d'], scan_id=scan_ids, idx_in_scan=idx_in_scan)
+
+        self.train(self.dataset.inputs, True)
+
 
 
     def active_learn_test(self, features_to_use, exp_name, use_pca=None, run_till_end=False):
@@ -2176,7 +2219,7 @@ class ScanLabeler:
             return
         # Grab closest thing, change its label, and redraw
         ck = [self.cdisp['tree'].query(np.array([x,y]) / self.scale, k=1)[1]]
-        cr = self.cdisp['tree'].query_ball_point(np.array([x,y]) / self.scale, 2.)
+        cr = self.cdisp['tree'].query_ball_point(np.array([x,y]) / self.scale, 5.)
         
         print 'k nearest', len(ck), 'radius', len(cr)
 
@@ -2230,7 +2273,10 @@ class ScanLabeler:
         if self.dataset != None:
             for idx in labeled_idx:
                 #pdb.set_trace()
-                matched_idx = np.where(self.dataset.idx_in_scan == idx)[1].A1
+                if self.dataset.idx_in_scan == None:
+                    matched_idx = []
+                else:
+                    matched_idx = np.where(self.dataset.idx_in_scan == idx)[1].A1
                 if len(matched_idx) > 0:
                     if np.any(self.scan_names[self.scan_idx] == self.dataset.scan_ids[:, matched_idx]):
                         continue
@@ -2287,8 +2333,11 @@ class ScanLabeler:
             print 'POS examples', npos
             print 'TOTAL', self.dataset.outputs.shape[1]
             neg_to_pos_ratio = float(nneg)/float(npos)
-            weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
+            #weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
             #weight_balance = ' -w0 1 -w1 %.2f' % 2.
+            #weight_balance = ""
+            #weight_balance = ' -w0 1 -w1 5.0'
+            weight_balance = ' -w0 1 -w1 %.2f' % (neg_to_pos_ratio)
             #weight_balance = ""
             self.learner = SVMPCA_ActiveLearner(use_pca)
             self.learner.train(self.dataset, 
@@ -2300,6 +2349,17 @@ class ScanLabeler:
             #pdb.set_trace()
             #print 'Test set: %.2f' % (100.* (float(correct)/float(self.dataset.outputs.shape[1]))), '% correct'
             #self.evaluate_learner(self.dataset.inputs, self.dataset.outputs)
+
+            BASE_FILE_NAME = 'pca_fast'
+            i = 111
+            cv.SaveImage(BASE_FILE_NAME + ('_iter_%d_basis.png' % i),\
+                         instances_to_image(\
+                            self.rec_params.win_size,\
+                            self.learner.projection_basis,\
+                            np.min(self.learner.projection_basis),\
+                            np.max(self.learner.projection_basis)))
+
+
             print '=================  DONE  =================' 
 
     def evaluate_learner(self, instances, true_labels, verbose=True):
@@ -2348,16 +2408,17 @@ class FiducialPicker:
         #load pickle and display image
         self.fname = fname
         self.data_pkl = ut.load_pickle(fname)
-        image_fname = pt.join(pt.split(fname)[0], self.data_pkl['high_res'])
+        image_fname = pt.join(pt.split(fname)[0], self.data_pkl['image'])
         self.img = cv.LoadImageM(image_fname)
         self.clicked_points = None
         self.clicked_points3d = None
 
         #make a map in image coordinates
-        bl_pc = ru.pointcloud_to_np(self.data_pkl['points_laser'])
-        self.image_T_laser = self.data_pkl['pro_T_bl']
+        #bl_pc = ru.pointcloud_to_np(self.data_pkl['points3d'])
+        bl_pc = self.data_pkl['points3d']
+        self.image_T_laser = self.data_pkl['k_T_bl']
         self.image_arr = np.asarray(self.img)
-        self.calibration_obj = self.data_pkl['prosilica_cal']
+        self.calibration_obj = self.data_pkl['cal']
         self.points_valid_image, self.colors_valid, self.points2d_valid = \
                 i3d.combine_scan_and_image_laser_frame(bl_pc, self.image_T_laser,\
                                             self.image_arr, self.calibration_obj)
@@ -2564,7 +2625,8 @@ if __name__ == '__main__':
     p.add_option("-p", "--pca", action="store_true", default=None)
     p.add_option("-s", "--seed", action="store", default=None, help='not strictly neccessary if you use pickles ending with _seed.pkl')
     p.add_option("-e", "--end", action="store_true", default=False)
-    p.add_option("-k", "--kinect", action="store_true", default=True)
+    p.add_option("-l", "--locations", action="store", default=None)
+    #p.add_option("-k", "--kinect", action="store_true", default=True)
     opt, args = p.parse_args()
     mode = opt.mode
 
@@ -2589,7 +2651,31 @@ if __name__ == '__main__':
 
     if mode == 'preprocess':
         rospy.init_node('detect_fpfh', anonymous=True)
-        preprocess_data_in_dir(args[0], ext='_features_df2_dict.pkl', kinect=opt.kinect)
+        preprocess_data_in_dir(args[0], ext='_features_df2_dict.pkl')
+
+    if mode == 'locations':
+        if opt.locations != None:
+            locations = ut.load_pickle(opt.locations)
+            keys = locations['data'].keys()
+            for i, key in enumerate(keys):
+                print i, key
+            picked_i = int(raw_input('pick a key to use'))
+            seed_dset = keys[i]
+            fname = raw_input('pick a file name')
+            dset = locations['data'][seed_dset]['dataset']
+            dset.idx_in_scan = np.matrix(dset.inputs.shape[1] * [0])
+            dset.scan_ids = np.matrix(dset.inputs.shape[1] * [''])
+            #dset.pt2d = None
+            ut.save_pickle(dset, fname)
+            pdb.set_trace()
+            print 'saved %s' % fname
+
+
+    if mode == 'hyper':
+        s = ScanLabeler(args[0], ext='_features_df2_dict.pkl', scan_to_train_on=opt.train, 
+                seed_dset=opt.seed, features_to_use=opt.feature)
+        s.generate_dataset_for_hyperparameter_grid_search(opt.feature)
+
 
     if mode == 'label':
         s = ScanLabeler(args[0], ext='_features_df2_dict.pkl', scan_to_train_on=opt.train, 
