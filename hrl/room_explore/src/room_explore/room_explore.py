@@ -1,0 +1,305 @@
+#!/usr/bin/python
+
+import roslib
+roslib.load_manifest('room_explore')
+import rospy
+
+import tf
+from threading import Thread
+import actionlib
+
+from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
+from visualization_msgs.msg import MarkerArray
+from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Vector3, PoseStamped, Quaternion
+from std_msgs.msg import ColorRGBA
+
+from explore_hrl.msg import ExploreAction, ExploreResult, ExploreGoal
+
+import yaml
+import numpy as np, math
+
+room = '/home/travis/svn/gt-ros-pkg/hrl/room_explore/rooms/sim.yaml'
+
+def retfalse():
+    return False
+
+class TFthread( Thread ):
+    def __init__( self, df ):
+        Thread.__init__( self )
+        try:
+            rospy.init_node( 'TFthread' )
+        except:
+            pass # parent probably already initialized node.
+        self.df = df # yaml dictionary of rooms
+        self.bc = tf.TransformBroadcaster()
+        self.should_run = True
+        self.start()
+
+    def publish_transform( self ):
+        for room in self.df.keys():
+            self.bc.sendTransform( ( self.df[room]['position']['x'],
+                                     self.df[room]['position']['y'],
+                                     self.df[room]['position']['z'] ),
+                                   ( self.df[room]['orientation']['x'],
+                                     self.df[room]['orientation']['y'],
+                                     self.df[room]['orientation']['z'],
+                                     self.df[room]['orientation']['w'] ),
+                                   rospy.Time.now(),
+                                   room,
+                                   'map' )
+
+    def run( self ):
+        rospy.logout( 'TFthread: Starting ' + self.name )
+        r = rospy.Rate( 10 )
+        while self.should_run and not rospy.is_shutdown():
+            self.publish_transform()
+            try:
+                r.sleep()
+            except:
+                pass # ROS exception.
+        rospy.logout( 'TFthread: Starting ' + self.name )
+        
+    def stop( self ):
+        # Kill off the poller thread.
+        self.should_run = False
+        self.join(5)
+        if (self.isAlive()):
+            raise RuntimeError('TFthread: Unable to stop thread ' + self.name)
+
+
+# if __name__ == '__main__':
+#     f = open( room )
+#     dat = yaml.load( f )
+#     f.close()
+
+#     TFthread( dat )
+#     rospy.spin()
+
+def standard_rad(t):
+    if t > 0:
+        return ((t + np.pi) % (np.pi * 2))  - np.pi
+    else:
+        return ((t - np.pi) % (np.pi * -2)) + np.pi
+
+
+class RoomExplore( Thread ):
+    def __init__( self, room ):
+        Thread.__init__( self )
+        try:
+            rospy.init_node( 'RoomExplore' )
+        except:
+            pass
+        self.should_run = True
+        
+        self.height = 9.0 # room['height']
+        self.width = 7.0 # room['width']
+
+        self.listener = tf.TransformListener()
+        self.listener.waitForTransform( '/base_link', '/map', rospy.Time(0), timeout = rospy.Duration(100))
+
+        self.setup_poses( radius = 1.5 ) # also initializes radius
+
+        self.pub = rospy.Publisher( 'visarr', Marker )
+        self._as = actionlib.SimpleActionServer( '/explore', ExploreAction, execute_cb = self.action_request )
+        self._as.start()
+        self.start()
+
+    def action_request( self, goal ):
+        rospy.logout( 'room_explore: action_request received for radius: \'%2.2f\'' % goal.radius )
+        
+        def preempt_func():
+            # self._as should be in scope and bound @ function def. (I think for python...)
+            check = self._as.is_preempt_requested()
+            if check:
+                rospy.logout( 'room_explore: action_request preempted!' )
+            return check
+
+        rv = self.begin_explore( goal.radius, preempt_func = preempt_func )
+        rospy.logout( 'room_explore: action_request received result %d' % int(rv) )
+
+        if rv == True:
+            self._as.set_succeeded( ServoResult( int(rv) ))
+
+
+    def begin_explore( self, radius, preempt_func = retfalse ):
+        client = actionlib.SimpleActionClient( 'move_base', MoveBaseAction )
+        rospy.logout( 'Waiting for move_base server' )
+        client.wait_for_server()
+
+        rospy.logout( 'room_explore: setting radius' )
+        all_goals = self.setup_poses( radius )
+        for goal in all_goals:
+            print 'room_explore: sending goal ', goal
+            goal.target_pose.header.stamp = rospy.Time.now()
+
+            client.send_goal( goal )
+            rospy.sleep( 1.0 )
+
+            time_last_moving = rospy.Time.now()
+            new_pose = self.current_robot_position()
+            ref_pose = self.current_robot_position()
+
+            r = rospy.Rate( 5 )
+            while not rospy.is_shutdown():
+                #rospy.logout( 'room_explore: loop' )
+                if not client.get_state() == actionlib.SimpleGoalState.ACTIVE:
+                    rospy.logout( 'room_explore: client no longer active' )
+                    print 'State: ', client.get_state()
+                    break
+
+                if preempt_func():
+                    rospy.logout( 'room_explore: preempted at a higher level.' )
+                    break
+
+                #print 'Curr_pose: ', self.current_robot_position()
+                new_pose = self.current_robot_position()
+                #print 'New_pose: ', new_pose
+
+
+                dx = new_pose[0] - ref_pose[0]
+                dy = new_pose[1] - ref_pose[1]
+                #print 'new: ', new_pose
+                #print 'ref: ', ref_pose
+
+                da = new_pose[-1] - ref_pose[-1] # yaw
+                #print 'da: ', da
+                
+                if dx*dx + dy*dy > 0.02 or da*da > math.radians( 5 ):
+                    time_last_moving = rospy.Time.now()
+                    ref_pose = self.current_robot_position()
+                    rospy.logout('WE ARE MOVING')
+
+                if rospy.Time.now() - time_last_moving > rospy.Duration( 5 ):
+                    rospy.logout( 'We do not appear to have moved.  Aborting current goal.' )
+                    client.cancel_all_goals() # Should force a break on GoalState
+
+                r.sleep()
+                
+            client.cancel_all_goals() # Just in case
+
+            if preempt_func(): # immediately exit if overall action preempted
+                break
+
+        return True
+                        
+
+    def current_robot_position( self ):
+        ps = PoseStamped()
+        ps.header.stamp = rospy.Time(0)
+        ps.header.frame_id = '/base_link'
+        ps.pose.orientation.w = 1.0
+
+        try:
+            ps_map = self.listener.transformPose( '/map', ps )
+        except:
+            rospy.logout( 'room_explore: Transform failed' )
+            ps_map = PoseStamped()
+            ps_map.header.stamp = rospy.Time.now()
+            ps_map.header.frame_id = '/map'
+            ps_map.pose.orientation = new_quat
+
+        roll, pitch, yaw = tf.transformations.euler_from_quaternion(( ps_map.pose.orientation.x,
+                                                                      ps_map.pose.orientation.y,
+                                                                      ps_map.pose.orientation.z,
+                                                                      ps_map.pose.orientation.w ))
+
+        rv = [ ps_map.pose.position.x,
+               ps_map.pose.position.y,
+               ps_map.pose.position.z,
+               roll,
+               pitch,
+               yaw ]
+        #print 'RV: ', rv
+            
+        return rv
+        
+
+    def setup_poses( self, radius ):
+        self.radius = radius
+        xdir = np.arange( self.radius / 2.0, self.height + self.radius / 2.0, self.radius )
+        ydir = np.arange( self.radius / 2.0, self.width + self.radius / 2.0, self.radius )
+
+        move_dir = 0.0
+        self.poses = []
+        mod = 0
+        for y in ydir:
+            if mod == 0:
+                xord = xdir
+            else:
+                xord = xdir[::-1]
+                
+            for x in xord:
+                goal = MoveBaseGoal()
+                goal.target_pose.header.frame_id = '/sim'
+                goal.target_pose.header.stamp = rospy.Time.now()
+                goal.target_pose.pose.position.x = x
+                goal.target_pose.pose.position.y = y
+                quat = tf.transformations.quaternion_from_euler( 0.0, 0.0, move_dir )
+                goal.target_pose.pose.orientation.x = quat[0]
+                goal.target_pose.pose.orientation.y = quat[1]
+                goal.target_pose.pose.orientation.z = quat[2]
+                goal.target_pose.pose.orientation.w = quat[3]
+
+                self.poses.append( goal )
+            move_dir = standard_rad( move_dir + np.pi )
+            mod = ( mod + 1 ) % 2
+        return self.poses
+
+    
+    def run( self ):
+        rospy.logout( 'RoomExplore: Starting ' + self.name )
+        r = rospy.Rate( 2 )
+        while self.should_run and not rospy.is_shutdown():
+            self.publish_markers()
+            try:
+                r.sleep()
+            except:
+                pass # ROS exception.
+        rospy.logout( 'RoomExplore: Starting ' + self.name )
+        
+    def stop( self ):
+        # Kill off the poller thread.
+        self.should_run = False
+        self.join(5)
+        if (self.isAlive()):
+            raise RuntimeError('RoomExplore: Unable to stop thread ' + self.name)
+        
+
+    def publish_markers( self ):
+        for i,g in enumerate(self.poses):
+            m = Marker()
+            m.ns = 'sample_positions'
+            m.id = i
+            m.action = m.ADD
+            m.type = m.ARROW
+            m.header.frame_id = '/sim'
+            m.header.stamp = rospy.Time.now()
+            m.scale = Vector3( 0.15, 1.0, 1.0 )
+            m.color = ColorRGBA( 0.2, 0.2, 1.0, 0.5 )
+            m.pose = g.target_pose.pose
+
+            self.pub.publish( m )
+
+    def goals( self ):
+        return self.poses
+
+
+
+#self.explore_act = actionlib.SimpleActionClient('explore', explore_hrl.msg.ExploreAction)
+
+
+
+if __name__ == '__main__':
+    f = open( room )
+    dat = yaml.load( f )
+    f.close()
+
+    TFthread( dat )
+    
+    re = RoomExplore( dat['sim'] )
+    re.begin_explore( 2.5 )
+    
+    rospy.spin()
+    
+        
