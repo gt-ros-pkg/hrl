@@ -280,6 +280,7 @@ void Explore::getRobotPose(std::string frame, tf::Stamped<tf::Pose>& pose){
   }
 }
 
+
 void Explore::makePlan() {
   //since this gets called on handle activate
   if(explore_costmap_ros_ == NULL)
@@ -427,16 +428,16 @@ void Explore::reachedGoal(const actionlib::SimpleClientGoalState& status,
     const move_base_msgs::MoveBaseResultConstPtr& result, geometry_msgs::PoseStamped frontier_goal){
   if(status == actionlib::SimpleClientGoalState::ABORTED){
     frontier_blacklist_.push_back(frontier_goal);
-    ROS_ERROR("Here");
+    ROS_ERROR("Adding current goal to blacklist");
   }
 
-  if(!done_exploring_){
-    //create a plan from the frontiers left and send a new goal to move_base
-    makePlan();
-  }
-  else{
-    ROS_INFO("We finsihed exploring the map. Hooray.");
-  }
+  // if(!done_exploring_){
+  //   //create a plan from the frontiers left and send a new goal to move_base
+  //   makePlan();
+  // }
+  // else{
+  //   ROS_INFO("We finsihed exploring the map. Hooray.");
+  // }
 }
 
 void Explore::execute() {
@@ -447,16 +448,57 @@ void Explore::execute() {
   goal_pose_last_defined_ = false;
 
   // This call sends the first goal, and sets up for future callbacks.
+  ROS_INFO("explore: ONE");
   makePlan();
+  ROS_INFO("explore: TWO");
 
-  ros::Rate r(graph_update_frequency_);
+  //ros::Rate r(graph_update_frequency_);
+  ros::Rate r(5.0);
+  ros::Time time_last_moving = ros::Time::now();
+  tf::Stamped<tf::Pose> robot_pose;
+  geometry_msgs::PoseStamped new_pose, ref_pose;
+  
+  getRobotPose(explore_costmap_ros_->getGlobalFrameID(), robot_pose);
+  ROS_INFO("explore: THREE");
+
+  // I don't know how to use bullet tf...
+  tf::poseStampedTFToMsg( robot_pose, new_pose );
+  ref_pose = new_pose;
+  ROS_INFO("explore: FOUR");
+
   while (node_.ok() && (!done_exploring_) && (!preempt_)) {
     // Get the current pose and pass it to loop closure
-    tf::Stamped<tf::Pose> robot_pose;
     getRobotPose(explore_costmap_ros_->getGlobalFrameID(), robot_pose);
+    tf::poseStampedTFToMsg( robot_pose, new_pose );
     loop_closure_->updateGraph(robot_pose);
+    //ROS_INFO("explore: FIVE");
+    
+    if (move_base_client_.getState() == actionlib::SimpleClientGoalState::ACTIVE){
+      //ROS_INFO("explore: SIX");
+      float dx,dy,da;
+      // Check to see if we've moved...
+      dx = new_pose.pose.position.x - ref_pose.pose.position.x;
+      dy = new_pose.pose.position.y - ref_pose.pose.position.y;
+      da = tf::getYaw(new_pose.pose.orientation) - tf::getYaw(ref_pose.pose.orientation);
+      if (dx*dx+dy*dy > 0.02 or da*da > 5 * 3.14159 / 180.0){ // Yep, so reset time and new reference position
+	time_last_moving = ros::Time::now();
+	ref_pose = new_pose;
+      }
+
+      // If we haven't moved in 5 seconds, ditch this goal!
+      if (ros::Time::now() - time_last_moving > ros::Duration( 5 )){
+	ROS_INFO( "We appear to not be moving... aborting goal." );
+	move_base_client_.cancelAllGoals();
+      }
+    }
+    else{ // Time to send a new frontier.
+      makePlan();
+      ref_pose = new_pose;
+      time_last_moving = ros::Time::now();
+    }
     r.sleep();
   }
+  move_base_client_.cancelAllGoals();
 }
 
 void Explore::spin() {

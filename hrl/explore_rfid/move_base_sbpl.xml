@@ -9,7 +9,7 @@
   <node pkg="move_base" type="move_base" respawn="false" name="move_base_node" output="screen">
     <remap from="odom" to="base_odometry/odom" />
     <remap from="cmd_vel" to="navigation/cmd_vel" />
-    <param name="footprint_padding" value="0.01" />
+    <param name="footprint_padding" value="0.03" />
     <param name="controller_frequency" value="10.0" />
     <param name="controller_patience" value="100.0" />
     <param name="base_global_planner" value="SBPLLatticePlanner" />
