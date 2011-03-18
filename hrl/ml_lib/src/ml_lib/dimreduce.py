@@ -4,6 +4,7 @@ roslib.load_manifest('ml_lib')
 
 import numpy as np
 import dataset as ds
+import hrl_lib.util as ut
 
 def pca_gain_threshold(s, percentage_change_threshold=.15):
     if s.__class__ != np.ndarray:
@@ -28,8 +29,26 @@ def pca(data):
     u, s, vh = np.linalg.svd(cov_data)
     return u,s,vh
 
+def pca_eigenface_trick(data):
+    u, s, vh = np.linalg.svd(data.T * data)
+    orig_u = data * u
+    orig_u = orig_u / ut.norm(orig_u)
+    return data*u, s, None
+
 def pca_vectors(data, percent_variance):
-    u, s, vh = pca(data)
+    #import pdb
+    #pdb.set_trace()
+    if data.shape[1] < data.shape[0]:
+        print 'pca_vectors: using pca_eigenface_trick since number of data points is less than dim'
+        u, s, _ = pca_eigenface_trick(data)
+        #u1, s1, _ = pca(data)
+    else:
+        print 'pca_vectors: using normal PCA...'
+        u, s, _ = pca(data)
+    #u, s, _ = pca(data)
+    #import pdb
+    #pdb.set_trace()
+
     number_of_vectors = pca_variance_threshold(s, percent_variance=percent_variance)
     return np.matrix(u[:,0:number_of_vectors+1])
 

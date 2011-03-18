@@ -8,6 +8,7 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/ml_lib</url>
+  <depend package="hrl_lib"/>
 
 </package>
 
