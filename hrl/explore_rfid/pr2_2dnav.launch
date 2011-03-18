@@ -3,8 +3,10 @@
 
   <!-- Choose either amcl or gmapping to give /map => /odom_combined -->
   <!-- <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find explore_rfid)/sim_map.yaml" /> -->
-  <!-- <include file="$(find pr2_navigation_global)/amcl_node.xml" /> -->
-  <include file="$(find explore_rfid)/slam_gmapping.xml" />
+    <node name="$(anon mapserver)" pkg="map_server" type="map_server" 
+	  args="$(find explore_rfid)/maps/hsi.yaml" />
+  <include file="$(find pr2_navigation_global)/amcl_node.xml" />
+  <!-- <include file="$(find explore_rfid)/slam_gmapping.xml" /> -->
 
   <include file="$(find pr2_navigation_teleop)/teleop.xml" />
   <include file="$(find pr2_navigation_perception)/lasers_and_filters.xml" />
@@ -14,7 +16,7 @@
   <!-- <include file="$(find gt_pr2)/navigation/move_base.xml" /> -->
   <include file="$(find explore_rfid)/move_base_sbpl.xml" />
 
-  <!-- <include file="$(find explore_rfid)/explore.xml" /> -->
+  <include file="$(find explore_rfid)/explore.xml" />
   <!-- <rosparam file="$(find explore_rfid)/base_local_planner_params.yaml" command="load" /> -->
 
   

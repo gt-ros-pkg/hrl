@@ -5,7 +5,7 @@
 
   <node pkg="explore_hrl" type="explore_action" respawn="true" name="explore" output="screen" >
     <!-- <rosparam file="$(find pr2_navigation_config)/move_base/costmap_common_params.yaml" command="load" ns="explore_costmap" /> -->
-    <rosparam file="$(find explore_rfid)/explore_costmap_params.yaml" command="load" />
+    <rosparam file="$(find explore_rfid)/params/explore_costmap_params.yaml" command="load" />
     <param name="loop_closure_loop_dist_min" value="20.0"/>
     <param name="loop_closure_loop_dist_max" value="30.0"/>
     <param name="loop_closure_addition_dist_min" value="1.5"/>
