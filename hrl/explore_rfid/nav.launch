@@ -6,5 +6,7 @@
     <remap from="global_plan" to="move_base_node/SBPLLatticePlanner/plan" />
     <remap from="local_plan" to="move_base_node/TrajectoryPlannerROS/local_plan" />
     <remap from="robot_footprint" to="move_base_node/local_costmap/robot_footprint"/>
+    <remap from="particlecloud" to="particlecloud" />
+    <remap from="initialpos" to="initialpos" />
   </node>
 </launch>
