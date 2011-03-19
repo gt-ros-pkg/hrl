@@ -19,10 +19,15 @@ def pca_variance_threshold(eigen_values, percent_variance=.9):
     eigen_sum    = np.sum(eigen_values)
     #print 'pca_variance_threshold: eigen_sum', eigen_sum
     eigen_normed = np.cumsum(eigen_values) / eigen_sum
-    positions    = np.where(eigen_normed > percent_variance)
+    positions    = np.where(eigen_normed >= percent_variance)
     print 'pca_variance_threshold: percent_variance', percent_variance
-    #print positions
-    return positions[0][0]
+    #print 'eigen_normed', eigen_normed
+    #import pdb
+    #pdb.set_trace()
+    if positions[0].shape[0] == 0:
+        return eigen_normed.shape[0]-1
+    else:
+        return positions[0][0]
 
 def pca(data):
     cov_data = np.cov(data)
@@ -33,7 +38,7 @@ def pca_eigenface_trick(data):
     u, s, vh = np.linalg.svd(data.T * data)
     orig_u = data * u
     orig_u = orig_u / ut.norm(orig_u)
-    return data*u, s, None
+    return orig_u, s, None
 
 def pca_vectors(data, percent_variance):
     #import pdb
@@ -42,6 +47,8 @@ def pca_vectors(data, percent_variance):
         print 'pca_vectors: using pca_eigenface_trick since number of data points is less than dim'
         u, s, _ = pca_eigenface_trick(data)
         #u1, s1, _ = pca(data)
+        #print 'S', s
+        #print 'S1', s1
     else:
         print 'pca_vectors: using normal PCA...'
         u, s, _ = pca(data)
