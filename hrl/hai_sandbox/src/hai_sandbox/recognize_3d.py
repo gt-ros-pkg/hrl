@@ -962,6 +962,7 @@ class SVM:
         dists = su.svm_predict([0]*instances.shape[1], xi, self.model)[2]
         return (np.matrix(dists)).T.A1.tolist()
 
+
 class DataScale:
 
     def __init__(self):
@@ -981,28 +982,114 @@ class DataScale:
         scaled = (((data - self.mins) / self.ranges) * 2.) - 1
         return scaled
 
+
+class PCAIntensities:
+
+    def __init__(self, intensities_index, reconstruction_std_lim, reconstruction_err_toler):
+        self.intensities_mean     = None
+        self.intensities_std      = None
+        self.projection_basis     = None
+        self.intensities_index    = intensities_index
+        self.recon_err_raw        = None
+        self.reconstruction_error = None
+        self.pca_data             = None
+        self.reconstruction_std_lim = reconstruction_std_lim
+        self.reconstruction_err_toler = reconstruction_err_toler
+
+    def calculate_pca_vectors(self, data, variance_keep, incremental=True):
+        data_in = data[self.intensities_index:, :]
+        #we already have pca vectors
+        #pdb.set_trace()
+        if not incremental and self.intensities_mean != None:
+            normed_data = (data_in - self.intensities_mean) / self.intensities_std
+            if not self.is_dataset_far_from_pca_subspace(self.projection_basis.T * normed_data, normed_data):
+                print 'PCAIntensities: is_dataset_far_from_pca_subspace no, dataset is not far.'
+                return
+            else:
+                print 'PCAIntensities: is_dataset_far_from_pca_subspace yes, dataset is far. recalculating pca.'
+                #pdb.set_trace()
+                nsamples = min(data_in.shape[1], 2000) #2000 is the max that we can handle
+                data_in  = np.column_stack((data_in, self.pca_data[self.intensities_index, :]))
+                ntotal   = data_in.shape[1]
+                data_in  = data_in[:, np.random.permutation(np.array(range(ntotal)))[0:nsamples]]
+
+        self.intensities_mean = np.mean(data_in, 1)
+        self.intensities_std = np.std(data_in, 1)
+        self.intensities_std[np.where(self.intensities_std == 0)[0].A1, :] = 1
+
+        data_in_shifted = data_in - self.intensities_mean
+        data_in_normed = data_in_shifted / self.intensities_std
+        #pdb.set_trace()
+        print 'PCAIntensities.calculate_pca_vectors: Constructing PCA basis'
+        self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)
+        print 'PCAIntensities.calculate_pca_vectors: PCA basis size -', self.projection_basis.shape
+
+        projected = (self.projection_basis.T * data_in_normed)
+        reconstruction = self.projection_basis * projected
+        self.recon_err_raw = ut.norm(data_in_normed - reconstruction)
+        self.recon_mean = np.mean(self.recon_err_raw)
+        self.recon_std = np.std(self.recon_err_raw)
+        self.reconstruction_error = self.calc_reconstruction_errors(projected, data_in_normed)
+        self.pca_data = data
+
+    def calc_reconstruction_errors(self, projected_instances, original_instances):
+        errors = ut.norm((self.projection_basis * projected_instances) - original_instances)
+        mal_dist_errors = (errors - self.recon_mean) / (self.recon_std**2)
+        nhigh_errors = np.sum(np.abs(mal_dist_errors).A1 > self.reconstruction_std_lim)
+        npoints = original_instances.shape[1]
+        percent_error = nhigh_errors / (float(npoints))
+        rospy.loginfo('calc_reconstruction_errors: %.2f (%d / %d) with high reconstruction errors' \
+                % (percent_error, nhigh_errors, npoints))
+        return percent_error
+
+    def is_dataset_far_from_pca_subspace(self, projected_instances, original_instances):
+        percent_error = self.calc_reconstruction_errors(projected_instances, original_instances)
+        return percent_error > (self.reconstruction_error + self.reconstruction_err_toler)
+
+    def partial_pca_project(self, instances):
+        #pdb.set_trace()
+        instances_in = (instances[self.intensities_index:, :] - self.intensities_mean) / self.intensities_std
+        reduced_intensities = self.projection_basis.T * instances_in
+        return np.row_stack((instances[:self.intensities_index, :], reduced_intensities))
+
 class SVMPCA_ActiveLearner:
-    def __init__(self, use_pca, reconstruction_std_lim=None, reconstruction_err_toler=None, old_learner=None):
+    def __init__(self, use_pca, reconstruction_std_lim=None, 
+                 reconstruction_err_toler=None, old_learner=None, pca=None):
         self.classifier = 'svm' #or 'knn'
         self.classifiers = {}
         self.n = 3.
 
-        self.intensities_mean = None
-        self.projection_basis = None
+        #self.intensities_mean = None
+        #self.projection_basis = None
         self.reduced_dataset = None
         self.dataset = None
+
         self.use_pca = use_pca
         self.reconstruction_std_lim = reconstruction_std_lim
         self.reconstruction_err_toler = reconstruction_err_toler
+        self.pca = None
 
         if old_learner != None:
-            self.intensities_mean = old_learner.intensities_mean
-            self.intensities_std = old_learner.intensities_std
-            self.projection_basis = old_learner.projection_basis
-            self.intensities_index = old_learner.intensities_index
-            self.recon_err_raw = old_learner.recon_err_raw
-            self.reconstruction_error = old_learner.reconstruction_error
-            self.pca_data = old_learner.pca_data
+            self.pca = old_learner.pca
+
+        if pca != None:
+            self.pca = pca
+
+        #pdb.set_trace()
+        #if old_learner != None:
+        #    self.intensities_mean = old_learner.intensities_mean
+        #    self.intensities_std = old_learner.intensities_std
+        #    self.projection_basis = old_learner.projection_basis
+        #    self.intensities_index = old_learner.intensities_index
+        #    self.recon_err_raw = old_learner.recon_err_raw
+        #    self.reconstruction_error = old_learner.reconstruction_error
+        #    self.pca_data = old_learner.pca_data
+
+    def partial_pca_project(self, instances):
+        if self.use_pca:
+            return self.pca.partial_pca_project(instances)
+        else:
+            return instances
 
     def get_closest_instances(self, instances, n=1):
         #pdb.set_trace()
@@ -1046,10 +1133,14 @@ class SVMPCA_ActiveLearner:
 
         #Calculate PCA vectors (also try do detect if our PCA vectors need updating)
         if self.use_pca: #and self.projection_basis == None:
-            self.intensities_index = self.dataset.metadata[-1].extent[0]
+            #self.intensities_index = self.dataset.metadata[-1].extent[0]
             #rebalanced_set = self._balance_classes(trainingset, responses)
             #self._calculate_pca_vectors(rebalanced_set, variance_keep)
-            self._calculate_pca_vectors(inputs_for_scaling, variance_keep)
+            #self._calculate_pca_vectors(inputs_for_scaling, variance_keep)
+            if self.pca == None:
+                self.pca = PCAIntensities(self.dataset.metadata[-1].extent[0], self.reconstruction_std_lim, self.reconstruction_err_toler)
+            self.pca.calculate_pca_vectors(inputs_for_scaling, variance_keep, incremental=False)
+            #self.pca.calculate_pca_vectors(rebalanced_set, variance_keep, incremental=True)
 
         trainingset = self.partial_pca_project(trainingset)
         inputs_for_scaling = self.partial_pca_project(inputs_for_scaling)
@@ -1075,10 +1166,10 @@ class SVMPCA_ActiveLearner:
         self.classifiers['knn'] = sp.KDTree(np.array(self.rescaled_dataset.inputs.T))
 
         self.sv_instances = self.dataset.inputs[:, self.classifiers['svm'].sv_indices()]
-        #pdb.set_trace()
         self.sv_idx, self.sv_dist = self.get_closest_instances(self.sv_instances, 1)
 
     def classify(self, instances):
+        #pdb.set_trace()
         projected_inst = np.matrix(self.partial_pca_project(instances), dtype='float32').copy()
         scaled_inst = self.scale.scale(projected_inst)
         if self.classifier == 'knn':
@@ -1117,44 +1208,44 @@ class SVMPCA_ActiveLearner:
 
         return np.column_stack((posex, negex, rsubset))
 
-    def _calculate_pca_vectors(self, data, variance_keep):
-        #if pt.isfile('pca3.pkl'):
-        #    d = ut.load_pickle('pca3.pkl')
-        #    self.intensities_index = d['idx']
-        #    self.intensities_std = d['std']
-        #    self.intensities_mean = d['mean']
-        #    self.projection_basis = d['basis']
-        #    return
+    #def _calculate_pca_vectors(self, data, variance_keep):
+    #    #if pt.isfile('pca3.pkl'):
+    #    #    d = ut.load_pickle('pca3.pkl')
+    #    #    self.intensities_index = d['idx']
+    #    #    self.intensities_std = d['std']
+    #    #    self.intensities_mean = d['mean']
+    #    #    self.projection_basis = d['basis']
+    #    #    return
 
-        data_in = data[self.intensities_index:, :]
-        #we already have pca vectors
-        if self.intensities_mean != None:
-            normed_data = (data_in - self.intensities_mean) / self.intensities_std
-            if not self.is_dataset_far_from_pca_subspace(self.projection_basis.T * normed_data, normed_data):
-                print 'SVMPCA_ActiveLearner: is_dataset_far_from_pca_subspace no, dataset is not far.'
-                return
-            else:
-                print 'SVMPCA_ActiveLearner: is_dataset_far_from_pca_subspace yes, dataset is far. recalculating pca.'
-                #pdb.set_trace()
-                nsamples = data_in.shape[1]
-                data_in  = np.column_stack((data_in, self.pca_data[self.intensities_index, :]))
-                ntotal   = data_in.shape[1]
-                data_in  = data_in[:, np.random.permutation(np.array(range(ntotal)))[0:nsamples]]
+    #    data_in = data[self.intensities_index:, :]
+    #    #we already have pca vectors
+    #    if self.intensities_mean != None:
+    #        normed_data = (data_in - self.intensities_mean) / self.intensities_std
+    #        if not self.is_dataset_far_from_pca_subspace(self.projection_basis.T * normed_data, normed_data):
+    #            print 'SVMPCA_ActiveLearner: is_dataset_far_from_pca_subspace no, dataset is not far.'
+    #            return
+    #        else:
+    #            print 'SVMPCA_ActiveLearner: is_dataset_far_from_pca_subspace yes, dataset is far. recalculating pca.'
+    #            #pdb.set_trace()
+    #            nsamples = data_in.shape[1]
+    #            data_in  = np.column_stack((data_in, self.pca_data[self.intensities_index, :]))
+    #            ntotal   = data_in.shape[1]
+    #            data_in  = data_in[:, np.random.permutation(np.array(range(ntotal)))[0:nsamples]]
 
-        self.intensities_mean = np.mean(data_in, 1)
-        self.intensities_std = np.std(data_in, 1)
+    #    self.intensities_mean = np.mean(data_in, 1)
+    #    self.intensities_std = np.std(data_in, 1)
 
-        data_in_shifted = data_in - self.intensities_mean
-        data_in_normed = data_in_shifted / self.intensities_std
-        #pdb.set_trace()
-        print 'SVMPCA_ActiveLearner._calculate_pca_vectors: Constructing PCA basis'
-        self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)
-        print 'SVMPCA_ActiveLearner._calculate_pca_vectors: PCA basis size -', self.projection_basis.shape
+    #    data_in_shifted = data_in - self.intensities_mean
+    #    data_in_normed = data_in_shifted / self.intensities_std
+    #    #pdb.set_trace()
+    #    print 'SVMPCA_ActiveLearner._calculate_pca_vectors: Constructing PCA basis'
+    #    self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)
+    #    print 'SVMPCA_ActiveLearner._calculate_pca_vectors: PCA basis size -', self.projection_basis.shape
 
-        reconstruction = self.projection_basis * (self.projection_basis.T * data_in_normed)
-        self.recon_err_raw = ut.norm(data_in_normed - reconstruction)
-        self.reconstruction_error = self.calc_reconstruction_errors(self.projection_basis.T*data_in_normed, data_in_normed)
-        self.pca_data = data
+    #    reconstruction = self.projection_basis * (self.projection_basis.T * data_in_normed)
+    #    self.recon_err_raw = ut.norm(data_in_normed - reconstruction)
+    #    self.reconstruction_error = self.calc_reconstruction_errors(self.projection_basis.T*data_in_normed, data_in_normed)
+    #    self.pca_data = data
 
         #pdb.set_trace()
 
@@ -1163,29 +1254,29 @@ class SVMPCA_ActiveLearner:
         #                'std': self.intensities_std,
         #                'basis': self.projection_basis}, 'pca3.pkl')
 
-    def calc_reconstruction_errors(self, projected_instances, original_instances):
-        pdb.set_trace()
-        errors = ut.norm((self.projection_basis * projected_instances) - original_instances)
-        mal_dist_errors = (errors - np.mean(self.recon_err_raw)) / (np.std(self.recon_err_raw)**2)
-        nhigh_errors = np.sum(np.abs(mal_dist_errors).A1 > self.reconstruction_std_lim)
-        npoints = original_instances.shape[1]
-        percent_error = nhigh_errors / (float(npoints))
-        rospy.loginfo('calc_reconstruction_errors: %.2f (%d / %d) with high reconstruction errors' \
-                % (percent_error, nhigh_errors, npoints))
-        return percent_error
+    #def calc_reconstruction_errors(self, projected_instances, original_instances):
+    #    pdb.set_trace()
+    #    errors = ut.norm((self.projection_basis * projected_instances) - original_instances)
+    #    mal_dist_errors = (errors - np.mean(self.recon_err_raw)) / (np.std(self.recon_err_raw)**2)
+    #    nhigh_errors = np.sum(np.abs(mal_dist_errors).A1 > self.reconstruction_std_lim)
+    #    npoints = original_instances.shape[1]
+    #    percent_error = nhigh_errors / (float(npoints))
+    #    rospy.loginfo('calc_reconstruction_errors: %.2f (%d / %d) with high reconstruction errors' \
+    #            % (percent_error, nhigh_errors, npoints))
+    #    return percent_error
 
-    def is_dataset_far_from_pca_subspace(self, projected_instances, original_instances):
-        percent_error = self.calc_reconstruction_errors(projected_instances, original_instances)
-        return percent_error > (self.reconstruction_error + self.reconstruction_err_toler)
+    #def is_dataset_far_from_pca_subspace(self, projected_instances, original_instances):
+    #    percent_error = self.calc_reconstruction_errors(projected_instances, original_instances)
+    #    return percent_error > (self.reconstruction_error + self.reconstruction_err_toler)
 
-    def partial_pca_project(self, instances):
-        if self.use_pca:
-            #pdb.set_trace()
-            instances_in = (instances[self.intensities_index:, :] - self.intensities_mean) / self.intensities_std
-            reduced_intensities = self.projection_basis.T * instances_in
-            return np.row_stack((instances[:self.intensities_index, :], reduced_intensities))
-        else:
-            return instances
+    #def partial_pca_project(self, instances):
+    #    if self.use_pca:
+    #        #pdb.set_trace()
+    #        instances_in = (instances[self.intensities_index:, :] - self.intensities_mean) / self.intensities_std
+    #        reduced_intensities = self.projection_basis.T * instances_in
+    #        return np.row_stack((instances[:self.intensities_index, :], reduced_intensities))
+    #    else:
+    #        return instances
 
 class InterestPointDataset(ds.Dataset):
 
@@ -1947,6 +2038,8 @@ class ScanLabeler:
 
         if k == ord(' '):
             if self.learner != None:
+                print "selecting.."
+                #pdb.set_trace()
                 dset = self.select_features(self.current_scan['instances'], 
                         self.features_to_use, self.current_scan['sizes'])
                 #self.current_scan['instances']
@@ -1954,7 +2047,8 @@ class ScanLabeler:
                 if selected_idx != None:
                     self.add_to_training_set(selected_idx)
                     #self.train(self.train(self.current_scan['instances']))
-                    self.train(self.select_features(self.current_scan['instances'], self.features_to_use, self.current_scan['sizes']))
+                    self.train(self.select_features(self.current_scan['instances'], 
+                        self.features_to_use, self.current_scan['sizes']))
                     self.classify_current_scan()
                     self.draw()
                 else:
@@ -2198,13 +2292,13 @@ class ScanLabeler:
 
         #Run active learner until convergence
         while should_run:
-            if self.learner.projection_basis != None:
+            if self.learner.pca.projection_basis != None:
                 cv.SaveImage(BASE_FILE_NAME + ('_iter_%d_basis.png' % i),\
                              instances_to_image(\
                                 self.rec_params.win_size,\
-                                self.learner.projection_basis,\
-                                np.min(self.learner.projection_basis),\
-                                np.max(self.learner.projection_basis)))
+                                self.learner.pca.projection_basis,\
+                                np.min(self.learner.pca.projection_basis),\
+                                np.max(self.learner.pca.projection_basis)))
                 cv.SaveImage(BASE_FILE_NAME + ('_intensity_set_%d.png' % i),\
                              instances_to_image(self.rec_params.win_size, self.dataset.features_named(['intensity']),\
                                                 0., 1.))
@@ -2422,9 +2516,9 @@ class ScanLabeler:
             cv.SaveImage(BASE_FILE_NAME + ('_iter_%d_basis.png' % i),\
                          instances_to_image(\
                             self.rec_params.win_size,\
-                            self.learner.projection_basis,\
-                            np.min(self.learner.projection_basis),\
-                            np.max(self.learner.projection_basis)))
+                            self.learner.pca.projection_basis,\
+                            np.min(self.learner.pca.projection_basis),\
+                            np.max(self.learner.pca.projection_basis)))
 
 
             print '=================  DONE  =================' 

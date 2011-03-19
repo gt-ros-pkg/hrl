@@ -355,6 +355,7 @@ class LocationManager:
                              'dataset_raw': None,
                              'gather_data': gather_data,
                              'complementary_task_id': None,
+                             'pca': None,
                              'execution_record': []}
         self.save_database()
         return taskid
@@ -467,7 +468,16 @@ class LocationManager:
         neg_to_pos_ratio = float(nneg)/float(npos)
         weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
         print 'training'
-        learner = r3d.SVMPCA_ActiveLearner(use_pca=True)
+        #learner = r3d.SVMPCA_ActiveLearner(use_pca=True)
+        previous_learner = None
+        if self.learners.has_key(task_id):
+            previous_learner = self.learners[task_id]
+        learner = SVMPCA_ActiveLearner(use_pca=True, 
+                    self.rec_params.reconstruction_std_lim, 
+                    self.rec_params.reconstruction_err_toler,
+                    previous_learner, pca=self.data[task_id]['pca'])
+        self.data[task_id]['pca'] = learner.pca
+
         #TODO: figure out something scaling inputs field!
         learner.train(dataset, dataset.inputs,
                       rec_params.svm_params + weight_balance,
@@ -1182,7 +1192,6 @@ class ApplicationBehaviors:
                 task_id = self.locations_man.create_new_location(task_type, np.matrix([0,0,0.]).T)
                 ctask_id = self.locations_man.create_new_location(ctask_type, np.matrix([0,0,0.]).T)
 
-
                 #Stop when have at least 1 pos and 1 neg
                 pdb.set_trace()
                 self.look_at(point_bl, True)
@@ -1750,7 +1759,7 @@ class ApplicationBehaviors:
         print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
 
     def balance_positives_and_negatives(self, dataset):
-        pdb.set_trace() #bug here
+        #pdb.set_trace() #bug here
         poslist = np.where(dataset.outputs == r3d.POSITIVE)[1].A1.tolist()
         neglist = np.where(dataset.outputs == r3d.NEGATIVE)[1].A1.tolist()
         npoint = min(len(poslist), len(neglist))
