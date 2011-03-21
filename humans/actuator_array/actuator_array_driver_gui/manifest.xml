@@ -1,0 +1,20 @@
+<package>
+  <description brief="Simple GUI for viewing and controlling the state of an actuator array">
+
+     This package provides a simple GUI for viewing and controlling the state of an actuator array.
+     The joint names to be controlled are read from the parameter server. Joint limits are extracted
+     from the "robot_description." 
+
+  </description>
+  <author>Stephen Williams</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/actuator_array_driver_gui</url>
+  
+  <depend package="rospy"/>
+  <depend package="sensor_msgs"/>
+  <depend package="std_srvs"/>
+
+</package>
+
+
