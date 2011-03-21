@@ -1,0 +1,344 @@
+<?xml version="1.0"?>
+
+<!--  Copyright (c) 2011, A.M.Howard, S.Williams                                         -->
+<!--  All rights reserved.                                                               -->
+<!--                                                                                     -->
+<!--  Redistribution and use in source and binary forms, with or without                 -->
+<!--  modification, are permitted provided that the following conditions are met:        -->
+<!--      * Redistributions of source code must retain the above copyright               -->
+<!--        notice, this list of conditions and the following disclaimer.                -->
+<!--      * Redistributions in binary form must reproduce the above copyright            -->
+<!--        notice, this list of conditions and the following disclaimer in the          -->
+<!--        documentation and/or other materials provided with the distribution.         -->
+<!--      * Neither the name of the <organization> nor the                               -->
+<!--        names of its contributors may be used to endorse or promote products         -->
+<!--        derived from this software without specific prior written permission.        -->
+<!--                                                                                     -->
+<!--  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND    -->
+<!--  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED      -->
+<!--  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE             -->
+<!--  DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY                 -->
+<!--  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES         -->
+<!--  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;       -->
+<!--  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND        -->
+<!--  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT         -->
+<!--  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS      -->
+<!--  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                       -->
+
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+	<!-- The following included files set up definitions of parts of the robot body -->
+	<include filename="$(find pioneer_arm_description)/urdf/pioneer_arm.materials.xacro" />
+	<include filename="$(find pioneer_arm_description)/urdf/pioneer_arm.gazebo.xacro" />
+	<include filename="$(find pioneer_arm_description)/urdf/pioneer_arm.controller.xacro" />
+
+	<property name="pi" value="3.141592654" />
+	
+	<xacro:macro name="pioneer_arm_urdf" params="parent robot_description x y z roll pitch yaw">
+		<!-- TODO: Determine reasonable values for: contact_coefficients, joint:effort, dynamics, safety_limits  -->
+		
+		<!-- Connect the arm base to the parent link provided -->
+		<joint name="Joint_Base" type="fixed" >
+			<origin xyz="${x} ${y} ${z}" rpy="${roll} ${pitch} ${yaw}" />
+			<parent link="${parent}" />
+			<child link="Link0" />
+		</joint>
+		
+		<!-- Create the arm -->
+		<link name="Link0">
+			<inertial>
+				<origin xyz=" 0.00000  0.00000  0.01250" rpy=" 0.00000  0.00000  0.00000" />
+				<mass value="1.0" />
+				<inertia ixx="0.01" ixy="0.00" ixz="0.00" iyy="0.01" iyz="0.00" izz="0.01" />
+			</inertial>
+			
+			<collision>
+				<origin xyz=" 0.00000  0.00000  0.01250" rpy=" 0.00000  0.00000  0.00000" />
+				<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
+				<geometry>
+					<box size="0.13000 0.13000 0.02500" />
+				</geometry>
+			</collision>
+			
+			<visual>
+				<origin xyz=" 0.00000  0.00000  0.01250" rpy=" 0.00000  0.00000  0.00000" />
+				<geometry>
+					<mesh scale="0.001 0.001 0.001" filename="package://pioneer_arm_description/Media/models/Base.mesh" />
+				</geometry>
+				<material name="PioneerArm_Black1" />
+			</visual>
+		</link>
+    
+    	<joint name="Joint0" type="revolute">
+			<origin xyz=" 0.00000  0.00000  0.02500" rpy=" 0.00000  0.00000  0.00000" />
+			<parent link="Link0" />
+			<child link="Link1" />
+			<axis xyz="0 0 -1" />
+			<limit lower="-1.5707963268" upper="1.5707963268" effort="100.0" velocity="0.7853981634" />
+			<dynamics damping="0.0" friction="0.0" />
+		</joint>
+		
+		<link name="Link1">
+			<inertial>
+				<origin xyz=" 0.02175  0.00000  0.03600" rpy=" 0.00000  0.00000  0.00000" />
+				<mass value="0.50" />
+				<inertia ixx="0.01" ixy="0.00" ixz="0.00" iyy="0.01" iyz="0.00" izz="0.01" />
+			</inertial>
+			
+			<collision>
+				<origin xyz=" 0.02175  0.00000  0.03600" rpy=" 0.00000  0.00000  0.00000" />
+				<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
+				<geometry>
+					<box size="0.14350 0.10000 0.07200" />
+				</geometry>
+			</collision>
+			
+			<visual>
+				<origin xyz=" 0.02175  0.00000  0.03600" rpy=" 0.00000  0.00000  0.00000" />
+				<geometry>
+					<mesh scale="0.001 0.001 0.001" filename="package://pioneer_arm_description/Media/models/Link01.mesh" />
+				</geometry>
+				<material name="PioneerArm_Black2" />
+			</visual>
+		</link>
+
+    	<joint name="Joint1" type="revolute">
+			<origin xyz=" 0.06875  0.00000  0.04700" rpy=" 0.00000  0.00000  0.00000" />
+			<parent link="Link1" />
+			<child link="Link2" />
+			<axis xyz="0 -1 0" />
+			<limit lower="-1.308996939" upper="2.3561944902" effort="100.0" velocity="0.7853981634" />
+			<dynamics damping="0.0" friction="0.0" />
+		</joint>
+		
+		<link name="Link2">
+			<inertial>
+				<origin xyz=" 0.07725  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<mass value="0.30" />
+				<inertia ixx="0.01" ixy="0.00" ixz="0.00" iyy="0.01" iyz="0.00" izz="0.01" />
+			</inertial>
+			
+			<collision>
+				<origin xyz=" 0.07725  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
+				<geometry>
+					<box size="0.20500 0.06800 0.05000" />
+				</geometry>
+			</collision>
+			
+			<visual>
+				<origin xyz=" 0.07725  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<geometry>
+					<mesh scale="0.001 0.001 0.001" filename="package://pioneer_arm_description/Media/models/Link02.mesh" />
+				</geometry>
+				<material name="PioneerArm_Black1" />
+			</visual>
+		</link>
+    
+        <joint name="Joint2" type="revolute">
+			<origin xyz=" 0.16000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+			<parent link="Link2" />
+			<child link="Link3" />
+			<axis xyz="0 -1 0" />
+			<limit lower="-2.0943951024" upper="1.5707963268" effort="100.0" velocity="0.7853981634" />
+			<dynamics damping="0.0" friction="0.0" />
+		</joint>
+
+		<link name="Link3">
+			<inertial>
+				<origin xyz=" 0.03900  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<mass value="0.10" />
+				<inertia ixx="0.01" ixy="0.00" ixz="0.00" iyy="0.01" iyz="0.00" izz="0.01" />
+			</inertial>
+			
+			<collision>
+				<origin xyz=" 0.03900  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
+				<geometry>
+					<box size="0.12350 0.04000 0.04000" />
+				</geometry>
+			</collision>
+			
+			<visual>
+				<origin xyz=" 0.03900  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<geometry>
+					<mesh scale="0.001 0.001 0.001" filename="package://pioneer_arm_description/Media/models/Link03.mesh" />
+				</geometry>
+				<material name="PioneerArm_Black2" />
+			</visual>
+		</link>
+
+        <joint name="Joint3" type="revolute">
+			<origin xyz=" 0.10100  0.00900  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+			<parent link="Link3" />
+			<child link="Link4" />
+			<axis xyz="1 0 0" />
+			<limit lower="-1.5707963268" upper="1.5707963268" effort="100.0" velocity="0.7853981634" />
+			<dynamics damping="0.0" friction="0.0" />
+		</joint>
+		
+		<link name="Link4">
+			<inertial>
+				<origin xyz=" 0.03125  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<mass value="0.10" />
+				<inertia ixx="0.01" ixy="0.00" ixz="0.00" iyy="0.01" iyz="0.00" izz="0.01" />
+			</inertial>
+			
+			<collision>
+				<origin xyz=" 0.03125  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
+				<geometry>
+					<box size="0.06300 0.06500 0.03500" />
+				</geometry>
+			</collision>
+			
+			<visual>
+				<origin xyz=" 0.03125  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<geometry>
+					<mesh scale="0.001 0.001 0.001" filename="package://pioneer_arm_description/Media/models/Link04.mesh" />
+				</geometry>
+				<material name="PioneerArm_Black1" />
+			</visual>
+		</link>
+		
+        <joint name="Joint4" type="revolute">
+			<origin xyz=" 0.03675 -0.00900  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+			<parent link="Link4" />
+			<child link="Link5" />
+			<axis xyz="0 1 0" />
+			<limit lower="-1.5707963268" upper="1.5707963268" effort="100.0" velocity="0.7853981634" />
+			<dynamics damping="0.0" friction="0.0" />
+		</joint>
+
+		<link name="Link5">
+			<inertial>
+				<origin xyz=" 0.03275  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<mass value="0.10" />
+				<inertia ixx="0.01" ixy="0.00" ixz="0.00" iyy="0.01" iyz="0.00" izz="0.01" />
+			</inertial>
+			
+			<collision>
+				<origin xyz=" 0.03275  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
+				<geometry>
+					<box size="0.09400 0.04200 0.02000" />
+				</geometry>
+			</collision>
+			
+			<visual>
+				<origin xyz=" 0.03275  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<geometry>
+					<mesh scale="0.001 0.001 0.001" filename="package://pioneer_arm_description/Media/models/Link05.mesh" />
+				</geometry>
+				<material name="PioneerArm_Black2" />
+			</visual>
+		</link>
+
+        <joint name="Joint5" type="revolute">
+			<origin xyz=" 0.00000 0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+			<parent link="Link5" />
+			<child link="GripperLink" />
+			<axis xyz="0 0 1" />
+			<limit lower="-0.5235987756" upper="1.2217304764" effort="100.0" velocity="0.7853981634" />
+			<dynamics damping="0.0" friction="0.0" />
+		</joint>
+
+		<link name="GripperLink">
+			<inertial>
+				<origin xyz=" 0.00000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<mass value="0.01" />
+				<inertia ixx="0.01" ixy="0.00" ixz="0.00" iyy="0.01" iyz="0.00" izz="0.01" />
+			</inertial>
+			
+			<collision>
+				<origin xyz=" 0.00000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
+				<geometry>
+					<box size="0.001 0.001 0.001" />
+				</geometry>
+			</collision>
+			
+			<visual>
+				<origin xyz=" 0.00000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<geometry>
+					<box size="0.001 0.001 0.001" />
+				</geometry>
+				<material name="PioneerArm_Black1" />
+			</visual>
+		</link>
+
+        <joint name="RightGripperJoint" type="prismatic">
+			<origin xyz=" 0.10000 -0.01060  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+			<parent link="Link5" />
+			<child link="RightGripper" />
+			<axis xyz="0 -1 0" />
+			<limit lower="0.0" upper="0.026" effort="100.0" velocity="0.0117" />
+			<dynamics damping="0" friction="0" />
+			<mimic joint="Joint5" multiplier="0.0148969027" offset="-0.5235987756"/>
+		</joint>
+
+		<link name="RightGripper">
+			<inertial>
+				<origin xyz=" 0.00000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<mass value="0.05" />
+				<inertia ixx="0.01" ixy="0.00" ixz="0.00" iyy="0.01" iyz="0.00" izz="0.01" />
+			</inertial>
+			
+			<collision>
+				<origin xyz=" 0.00000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
+				<geometry>
+					<box size="0.05600 0.02120 0.00500" />
+				</geometry>
+			</collision>
+			
+			<visual>
+				<origin xyz=" 0.00000  0.00000  0.00000" rpy="   ${pi}  0.00000  0.00000" />
+				<geometry>
+					<mesh scale="0.001 0.001 0.001" filename="package://pioneer_arm_description/Media/models/Gripper.mesh" />
+				</geometry>
+				<material name="PioneerArm_Black1" />
+			</visual>
+		</link>
+
+        <joint name="LeftGripperJoint" type="prismatic">
+			<origin xyz=" 0.10000  0.01060  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+			<parent link="Link5" />
+			<child link="LeftGripper" />
+			<axis xyz="0 1 0" />
+			<limit lower="0.0" upper="0.026" effort="1.0" velocity="0.0117" />
+			<dynamics damping="0" friction="0" />
+			<mimic joint="Joint5" multiplier="0.0148969027" offset="-0.5235987756"/>
+		</joint>
+
+		<link name="LeftGripper">
+			<inertial>
+				<origin xyz=" 0.00000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<mass value="0.05" />
+				<inertia ixx="0.01" ixy="0.00" ixz="0.00" iyy="0.01" iyz="0.00" izz="0.01" />
+			</inertial>
+			
+			<collision>
+				<origin xyz=" 0.00000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
+				<geometry>
+					<box size="0.05600 0.02120 0.00500" />
+				</geometry>
+			</collision>
+			
+			<visual>
+				<origin xyz=" 0.00000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+				<geometry>
+					<mesh scale="0.001 0.001 0.001" filename="package://pioneer_arm_description/Media/models/Gripper.mesh" />
+				</geometry>
+				<material name="PioneerArm_Black1" />
+			</visual>
+		</link>
+
+		<!-- Add additional information for simulation/control -->
+	 	<xacro:pioneer_arm_gazebo />
+		<xacro:pioneer_arm_controller robot_description="${robot_description}" />
+
+	</xacro:macro>
+
+</robot>

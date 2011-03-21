@@ -1,0 +1,5 @@
+<launch>
+
+	<param name="robot_description" command="$(find pioneer_arm_description)/scripts/insert_pioneer_arm.py --file $(find p2os_urdf)/defs/pioneer3dx.xacro --link top_plate --x -0.150 --yaw 3.141592654 " />
+
+</launch>

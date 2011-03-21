@@ -1,0 +1,32 @@
+<package>
+  <description brief="Patch for p2os_driver to control the 5-dof Pioneer Arm">
+    <p>	
+	This package contains a patch file for the <a href="http://www.ros.org/wiki/p2os_driver">p2os_driver</a> from USC that
+	enables control of the 5-dof Pioneer Arm. The build script automatically downloads the p2os_driver package internally, 
+	patches it, and builds a new driver called p2os_with_arm. This package does not rebuild the custom p2os_driver messages, 
+	and thus requires the original p2os_driver package to be installed and operational first.
+    </p>
+    <p>
+    This patch will be sent upstream to the maintainer of the p2os_driver package for possible inclusion in a future release.
+    </p>
+  </description>
+  
+  <author>Stephen Williams</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/p2os_with_arm_driver</url>
+  
+  <depend package="roscpp"/>
+  <depend package="std_msgs"/>
+  <depend package="nav_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="std_srvs"/>
+  <depend package="tf"/>
+  <depend package="diagnostic_updater"/>
+  <depend package="angles"/>
+  <depend package="p2os_driver"/>
+  <depend package="urdf"/>
+  
+</package>
+
+

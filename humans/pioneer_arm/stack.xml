@@ -1,0 +1,16 @@
+<stack>
+  <description brief="Contains packages for controlling and simulating a Pioneer 5-DOF robotic arm">
+  
+  	Contains packages for controlling and simulating a Pioneer 5-DOF robotic arm
+  	
+  </description>
+  <author>Maintained by Stephen Williams</author>
+  <license>BSD</license>  
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/pioneer_arm</url>
+  
+  <depend stack="ros" />
+  <depend stack="robot_model" />
+  <depend stack="p2os" />
+
+</stack>

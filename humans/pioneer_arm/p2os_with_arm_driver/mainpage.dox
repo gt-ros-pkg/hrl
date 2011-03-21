@@ -1,0 +1,13 @@
+/**
+\mainpage
+\htmlinclude manifest.html
+
+\section rosapi  ROS API
+
+List of nodes:
+- \b p2os_with_arm : the p2os driver node
+
+\section codeapi  Code API
+There is node code API for this package.
+
+*/

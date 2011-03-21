@@ -1,0 +1,30 @@
+<package>
+  <description brief="URDF for a Pioneer 5-DOF robotic arm">
+
+     This package contains the URDF for a Pioneer 5-DOF robotic arm. Because this modular 
+     arm may be attached to any existing robot (e.g. a Pioneer 3DX, a Pioneer 3AT, ...), 
+     some amount of indirection is required to a viable URDF. A custom Python script is 
+     included that reads an existing robot URDF/Xacro file, inserts the Pioneer Arm URDF,
+     then loads the result into the standard "robot_description" parameter. The original 
+     robot description is not modified by this process.
+
+  </description>
+  <author>Stephen Williams</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/pioneer_arm_description</url>
+  
+  <export>
+    <gazebo gazebo_media_path="${prefix}" />
+  </export>
+  
+  <depend package="xacro"/>
+  <depend package="gazebo"/>
+  <depend package="gazebo_plugins"/>
+  <depend package="actuator_array_gazebo_plugin"/>
+  <depend package="p2os_urdf"/>
+  <depend package="rospy"/>
+
+</package>
+
+

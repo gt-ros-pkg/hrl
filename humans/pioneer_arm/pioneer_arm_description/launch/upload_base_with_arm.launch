@@ -1,0 +1,5 @@
+<launch>
+
+	<param name="robot_description" command="$(find pioneer_arm_description)/scripts/insert_pioneer_arm.py --file $(find pioneer_arm_description)/urdf/robot_base.urdf.xacro --link base_link --z 0.0250 " />
+	
+</launch>

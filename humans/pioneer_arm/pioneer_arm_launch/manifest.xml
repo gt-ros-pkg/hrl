@@ -1,0 +1,19 @@
+<package>
+  <description brief="Launch files for simulating and controlling a Pioneer 5-DOF robotic arm">
+
+     Launch files for simulating and controlling a Pioneer 5-DOF robotic arm.
+
+  </description>
+  <author>Stephen Williams</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/pioneer_arm_launch</url>
+  
+  <depend package="robot_state_publisher"/>
+  <depend package="p2os_urdf"/>
+  <depend package="pioneer_arm_description"/>
+  <depend package="p2os_with_arm_driver"/>
+
+</package>
+
+
