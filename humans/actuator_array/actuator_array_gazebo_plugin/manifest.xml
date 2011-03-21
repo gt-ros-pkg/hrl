@@ -1,0 +1,31 @@
+<package>
+  <description brief="Gazebo Plugin to control an array of position-controlled actuators">
+
+     This package provides a Gazebo Plugin to control an array of position-controlled actuators, 
+     such as RC Servos. In addition to the standard parameters for update rate and robot namespace,
+     a series of "joint" elements are provided. Each "joint" element must provide a "name" and, 
+     optionally, a "home" position and a set of PID parameters that control the joint stiffness
+     inside Gazebo. Joint limits, max velocities, etc. are read from the "robot_description" parameter.
+
+  </description>
+  <author>Stephen Williams</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/actuator_array_gazebo_plugin</url>
+  
+  <depend package="roscpp"/>
+  <depend package="gazebo"/>
+  <depend package="angles"/>
+  <depend package="sensor_msgs"/>
+  <depend package="std_srvs"/>
+  <depend package="control_toolbox"/>
+  <depend package="urdf"/>
+  <depend package="actuator_array_driver"/>
+
+  <export>
+    <gazebo plugin_path="${prefix}/lib" />
+  </export>
+
+</package>
+
+

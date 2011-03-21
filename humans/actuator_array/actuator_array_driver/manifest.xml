@@ -1,0 +1,33 @@
+<package>
+  <description brief="A base class for an ActuatorArrayDriver node">
+    <p>	
+	This package contains a base class for an ActuatorArrayDriver. This is intended for use with chains of R/C Servos or other
+	similar devices where position (and velocity) commands are sent at irregular intervals, as opposed to the tight, real-time
+	control loop of the <a href="http://www.ros.org/wiki/pr2_controller_manager">PR2 Controller Manager</a> system. 
+    </p>
+    <p>
+    This base class performs some standard functionality, such as parsing joint limits out of the robot_description, subscribing to 
+    a 'command' topic, publishing on the 'joint_states' topic, and setting up a 'stop' and 'home' service call. This is designed to 
+    work as a stand-alone driver for controlling/tele-operating a chain of servos, or in conjunction with the 
+    <a href="http://www.ros.org/wiki/actuator_array_trajectory_controller">ActuatoryArrayTrajectoryController</a>. However, this is 
+    provided as a convenience only, and is not required for successful operation with the ActuatoryArrayTrajectoryController.
+    </p>
+  </description>
+
+  <author>Stephen Williams</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/actuator_array_driver</url>
+  
+  <export>
+    <cpp cflags="-I${prefix}/include" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lactuator_array_driver" />
+  </export>
+  
+  <depend package="roscpp"/>
+  <depend package="sensor_msgs"/>
+  <depend package="std_srvs"/>
+  <depend package="urdf"/>
+
+</package>
+
+

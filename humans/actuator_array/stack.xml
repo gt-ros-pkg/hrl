@@ -1,0 +1,18 @@
+<stack>
+  <description brief="Contains packages for communicating, controlling, simulating, or otherwise concerning chains of position-controlled actuators (i.e. rc servos)">
+  
+  <p>
+  This stack contains packages communicating, controlling, simulating, or otherwise concerning chains of position-controlled 
+  actuators (i.e. rc servos).
+  </p>
+  
+  </description>
+  
+  <author>Maintained by Stephen Williams</author>
+  <license>BSD</license>  
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/actuator_array</url>
+  
+  <depend stack="ros" />
+
+</stack>

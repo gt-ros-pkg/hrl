@@ -1,0 +1,32 @@
+/**
+\mainpage
+\htmlinclude manifest.html
+
+\b actuator_array_driver is a base class for an ActuatorArrayDriver node.
+
+This package contains a base class for an ActuatorArrayDriver. This is intended for use with chains of R/C Servos or other
+similar devices where position (and velocity) commands are sent at irregular intervals, as opposed to the tight, real-time
+control loop of the <a href="http://www.ros.org/wiki/pr2_controller_manager">PR2 Controller Manager</a> system. 
+
+This base class performs some standard functionality, such as parsing joint limits out of the robot_description, subscribing to 
+a 'command' topic, publishing on the 'joint_states' topic, and setting up a 'stop' and 'home' service call. This is designed to 
+work as a stand-alone driver for controlling/tele-operating a chain of servos, or in conjunction with the 
+<a href="http://www.ros.org/wiki/actuator_array_trajectory_controller">ActuatoryArrayTrajectoryController</a>. However, this is 
+provided as a convenience only, and is not required for successful operation with the ActuatoryArrayTrajectoryController.
+
+
+\section summary Summary
+
+This package contains a base class for an ActuatorArrayDriver. The base class has capabilities to read the robot_description, 
+subscribe to the 'command' topic, publish on the 'joint_states' topic, and creates a 'stop' and 'home' service. However, the 
+actual communication with the underlying hardware is left to the designer of the derived classes.
+
+\section usage Usage
+
+The ActuatorArrayDriver base class contains pure virtual functions, and cannot be used directly. Instead, a class should be 
+derived from the ActuatorArrayDriver base class, and custom implementations of the 'command_()', 'read_()', 'stop_()', and 
+'home_()' must be coded that communicate with the underlying hardware. Additionally, a custom constructor needs to be implemented
+that, at the very least, sets the joint names in the joints_ map, and initializes the publishers/subscribers/etc. A call to the
+included 'init()' function in the base class can perform the latter step if desired. 
+
+*/
