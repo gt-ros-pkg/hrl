@@ -19,7 +19,6 @@ class Dataset:
     def num_attributes(self):
         return self.inputs.shape[0]
 
-<<<<<<< HEAD:hrl/ml_lib/src/ml_lib/dataset.py
     def add_attribute_descriptor(self, descriptor):
         self.metadata.append(descriptor)
         #self.metadata[descriptor.name] = descriptor
@@ -40,11 +39,6 @@ class AttributeDescriptor:
         self.name = name
         self.extent = extent
 
-=======
-    def append(self, another_dataset):
-        self.inputs  = np.concatenate((self.inputs, another_dataset.inputs), axis=1)
-        self.outputs = np.concatenate((self.outputs, another_dataset.outputs), axis=1)
->>>>>>> kelsey-dev:hrl/ml_lib/src/ml_lib/dataset.py
 
 ###############################################################################
 # Operations on datasets
