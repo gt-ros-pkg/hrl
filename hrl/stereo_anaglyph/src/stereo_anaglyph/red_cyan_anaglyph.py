@@ -74,19 +74,28 @@ def anaglyph(left_color, right_color, correction):
 if __name__ == '__main__':
     import optparse
     import time
+    from sensor_msgs.msg import Image
+    from cv_bridge.cv_bridge import CvBridge, CvBridgeError
+
     p = optparse.OptionParser()
     p.add_option('-c', action='store', default='/wide_stereo', type='string', dest='cam', help='which camera to listen to')
     p.add_option('-d', action='store', default=30, type='int', dest='dist', help='separation distance')
+    p.add_option('-s', action='store_true', dest='headless', help='headless mode')
     opt, args = p.parse_args()
 
     cameras = [opt.cam + '/left/image_rect_color', 
                opt.cam + '/right/image_rect_color']
     stereo_listener = rc.ROSStereoListener(cameras)
-    cv.NamedWindow('stereo-anaglyph', 0)
-    #cv.NamedWindow('left', 0)
-    #cv.NamedWindow('right', 0)
-    cv.ResizeWindow('stereo-anaglyph', 640, 480)
-    cv.WaitKey(10)
+    if not opt.headless:
+        #cv.NamedWindow('left', 0)
+        #cv.NamedWindow('right', 0)
+        cv.NamedWindow('stereo-anaglyph', 0)
+        cv.ResizeWindow('stereo-anaglyph', 640, 480)
+        cv.WaitKey(10)
+    else:
+        bridge = CvBridge()
+        image_pub = rospy.Publisher('stereo_anaglyph', Image)
+
     anaglyph_cyan_image_distance_correction = rospy.get_param('anaglyph_dist', opt.dist)
    
     left = 1113937# 65361
@@ -94,20 +103,25 @@ if __name__ == '__main__':
     escape = 1048603#27
     while not rospy.is_shutdown():
         l, r = stereo_listener.next()
-        #cv.ShowImage('left', l)
-        #cv.ShowImage('right', r)
         red_blue = anaglyph(l, r, anaglyph_cyan_image_distance_correction)
-        cv.ShowImage('stereo-anaglyph', red_blue)
-        k = cv.WaitKey(10)
-        print k
-        if k == escape:
-            break
-        if k == left:
-            anaglyph_cyan_image_distance_correction = anaglyph_cyan_image_distance_correction - 1
-            print anaglyph_cyan_image_distance_correction
-        if k == right:
-            anaglyph_cyan_image_distance_correction = anaglyph_cyan_image_distance_correction + 1
-            print anaglyph_cyan_image_distance_correction
+        if not opt.headless:
+            #cv.ShowImage('left', l)
+            #cv.ShowImage('right', r)
+            cv.ShowImage('stereo-anaglyph', red_blue)
+            k = cv.WaitKey(10)
+            print k
+            if k == escape:
+                break
+            if k == left:
+                anaglyph_cyan_image_distance_correction = anaglyph_cyan_image_distance_correction - 1
+                print anaglyph_cyan_image_distance_correction
+            if k == right:
+                anaglyph_cyan_image_distance_correction = anaglyph_cyan_image_distance_correction + 1
+                print anaglyph_cyan_image_distance_correction
+        else:
+            rosimage = bridge.cv_to_imgmsg(red_blue, "bgra8")
+            image_pub.publish(rosimage)
+
 
 
 
