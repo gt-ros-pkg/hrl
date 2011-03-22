@@ -29,7 +29,7 @@
 
 import roslib; roslib.load_manifest('hrl_lib')
 import rospy
-import rosrecord
+#import rosrecord
 import std_srvs.srv as srv
 from hrl_lib.msg import FloatArray
 #import tf
