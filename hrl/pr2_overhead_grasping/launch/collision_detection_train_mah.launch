@@ -1,0 +1,37 @@
+<launch>
+
+  <node pkg="pr2_overhead_grasping" type="mahalanobis_dist" name="$(anon mahalanobis_dist)" output="screen">
+    <param name="bag_path" value="$(find pr2_overhead_grasping)/bags/"/>
+    <rosparam param="bag_names">
+       [coll_data_11110_f.bag,
+        coll_data_11210_f.bag,
+        coll_data_11310_f.bag,
+        coll_data_11410_f.bag,
+        coll_data_12110_f.bag,
+        coll_data_12210_f.bag,
+        coll_data_12310_f.bag,
+        coll_data_12410_f.bag,
+        coll_data_13110_f.bag,
+        coll_data_13210_f.bag,
+        coll_data_13310_f.bag,
+        coll_data_13410_f.bag,
+        coll_data_00000.bag]
+    </rosparam>
+    <rosparam param="bag_labels">
+       [1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0]
+    </rosparam>
+    <param name="is_validation" value="true"/>
+  </node>                 
+</launch>

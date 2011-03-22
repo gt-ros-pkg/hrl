@@ -1,9 +1,10 @@
 <launch>
    <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch"/>
-   <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch"/>
+   <!--<include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch"/>-->
+   <!--<include file="$(find hrl_pr2_lib)/launch/openni_kinect.launch"/> -->
 
     <node pkg="pr2_gripper_reactive_approach" name="reactive_grasp_server_r" type="reactive_grasp_server.py" args="r" />
-    <node pkg="pr2_gripper_reactive_approach" name="reactive_grasp_server_l" type="reactive_grasp_server.py" args="l" />
+    <!--<node pkg="pr2_gripper_reactive_approach" name="reactive_grasp_server_l" type="reactive_grasp_server.py" args="l" /> -->
 
     <node pkg="tabletop_object_detector" name="tabletop_node" type="tabletop_node" respawn="false" output="screen">
 
@@ -16,6 +17,7 @@
     <!--topic remapping-->
         <remap from="cloud_old_in" to="narrow_stereo_textured/points" />
         <remap from="cloud_new_in" to="narrow_stereo_textured/points2" />
+        <!--<remap from="cloud_new_in" to="kinect_head/depth/points2" />-->
         <remap from="object_detection_srv" to="object_detection" />
         <remap from="markers_out" to="tabletop_detector_markers" />
 
@@ -33,7 +35,5 @@
     </node>
 
    <node pkg="pr2_head_action" name="pr2_head_action" type="pr2_head_action" />
-
-   <include file="$(find face_detector)/launch/face_detector_action.wide.launch"/>
 
 </launch>

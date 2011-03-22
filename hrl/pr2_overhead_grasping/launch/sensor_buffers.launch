@@ -1,0 +1,6 @@
+<launch>
+  <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen"/>
+
+  <node pkg="nodelet" type="nodelet" name="JointStateBuffer" args="load sensors/joint_state_nodelet standalone_nodelet" output="screen">
+  </node>                 
+</launch>

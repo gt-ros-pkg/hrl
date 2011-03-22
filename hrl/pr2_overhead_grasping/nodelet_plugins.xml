@@ -1,0 +1,22 @@
+<library path="lib/libcollision_detection">
+  <class name="collision_detection/sensor_filter" type="collision_detection::SensorFilter" base_class_type="nodelet::Nodelet">
+  <description>
+      Filters arm sensor data to produce gaussian features at 100hz.
+  </description>
+  </class>
+  <class name="collision_detection/collision_monitor" type="collision_detection::CollisionMonitor" base_class_type="nodelet::Nodelet">
+  <description>
+      Handles collision monitoring, control node.
+  </description>
+  </class>
+  <class name="collision_detection/random_forest" type="collision_detection::RandomForest" base_class_type="nodelet::Nodelet">
+  <description>
+      Random Forest classifier to classify collisions.
+  </description>
+  </class>
+  <class name="collision_detection/force_torque_monitor" type="collision_detection::ForceTorqueMonitor" base_class_type="nodelet::Nodelet">
+  <description>
+      Monitors FT sensor for thresholded force in positive z direction.
+  </description>
+  </class>
+</library>

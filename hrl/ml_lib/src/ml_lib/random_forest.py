@@ -29,7 +29,7 @@ class RFBase:
     #                              returns the label with the most votes
     def predict(self, data, vote_combine_function=None):
         def predict_(learner):
-            return learner.predict(learner.transform_input(data))
+            return learner.predict(learner.transform_input(data, learner))
         predictions = map(predict_,self.learners)
         if vote_combine_function is not None:
             return vote_combine_function(predictions)
@@ -38,6 +38,9 @@ class RFBase:
 
     def train(self, dataset):
         pass
+
+    def avg_tree_depth(self):
+        return np.average(map(DecisionTree.get_tree_depth, self.learners))
 
 
 ##
@@ -73,15 +76,18 @@ class RFRandomInputSubset(RFBase):
             reduced_sample     = Dataset(subset_input, examples_subset.outputs)
             tree               = DecisionTree(reduced_sample)
             tree.dimensions_subset = dims
-            def transform_input(input):
-                return input[dims, :]
-            tree.transform_input = transform_input
             return tree
 
         if self.number_of_dimensions == None:
             self.number_of_dimensions = min(np.log2(dataset.num_attributes()) + 1, 1)
         points_per_sample = dataset.num_examples() * 1.0 / 3.0
-        self.learners     = map(train_trees, ds.bootstrap_samples(dataset, self.number_of_learners, points_per_sample))
+        in_bags, out_bags = ds.bootstrap_samples(dataset, 
+                                                 self.number_of_learners, 
+                                                 points_per_sample)
+        self.learners     = map(train_trees, in_bags)
+
+    def transform_input(self, input, tree=None):
+        return input[tree.dimensions_subset, :]
 
 
 def binary_less_than(attribute, threshold, input_vec):
@@ -91,8 +97,8 @@ def binary_greater_than(attribute, threshold, input_vec):
     return input_vec[attribute,0] > threshold
 
 def create_binary_tests(attribute, threshold):
-    return [ft.partial(binary_less_than, attribute, threshold), 
-            ft.partial(binary_greater_than, attribute, threshold)]
+    return [('binary_less_than', attribute, threshold), 
+            ('binary_greater_than', attribute, threshold)]
 
 ###############################################################################
 # Helper functions
@@ -107,7 +113,9 @@ def mode_exhaustive(set):
     mdict = dict()
     for s in set:
         has_stored = False
-        for k in mdict.keys():
+        keys = mdict.keys()
+        keys.sort() # sorting these keys gives determinism to the classifier
+        for k in keys:
             if k == s:
                 mdict[k] = 1+mdict[k]
                 has_stored = True
@@ -117,7 +125,9 @@ def mode_exhaustive(set):
     #Find the key with maximum votes
     max_key   = None
     max_count = -1
-    for k in mdict.keys():
+    keys = mdict.keys()
+    keys.sort() # sorting these keys gives determinism to the classifier
+    for k in keys:
         if mdict[k] > max_count:
             max_key   = k
             max_count = mdict[k]
@@ -186,9 +196,6 @@ def totally_random_split(dataset):
     split_pt = dataset.inputs[attr, np.random.randint(0, dataset.num_examples())]
     return attr, split_pt
 
-def identity(x):
-    return x
-
 ###############################################################################
 # Basic DecisionTree that the random forest is based on
 class DecisionTree:
@@ -233,9 +240,32 @@ class DecisionTree:
             return self.prediction[:, np.random.randint(0, self.prediction.shape[1])]
         else:
             for test, child in self.children:
-                if test(input):
+                test_func_name, attribute, threshold = test
+                if test_func_name == 'binary_less_than':
+                    test_func = binary_less_than
+                elif test_func_name == 'binary_greater_than':
+                    test_func = binary_greater_than
+                else:
+                    rospy.logerr("DecisionTree bad function name : %s" % 
+                                                               test_func_name)
+                if test_func(attribute, threshold, input):
                     return child.predict(input)
             raise RuntimeError("DecisionTree: splits not exhaustive, unable to split for input" + str(input.T))
+
+    ##
+    # Identity function
+    def transform_input(self, input, tree=None):
+        return input
+            
+    def get_tree_depth(self):
+        if self.prediction is not None:
+            return 1
+
+        depths = []
+        for test, child in self.children:
+            depths.append(child.get_tree_depth() + 1)
+
+        return max(depths)
 
 
 ##
@@ -350,9 +380,23 @@ def evaluate_classifier(building_func, data, times=10.0, percentage=None, extra_
 
 if __name__ == '__main__':
     test_iris         = False
-    test_pickle       = True
+    test_pickle       = False
     test_number_trees = False
     test_pca          = False
+    test_packing      = False
+    test_new_design   = True
+
+    import pickle as pk
+    def save_pickle(pickle, filename):
+        p = open(filename, 'w')
+        picklelicious = pk.dump(pickle, p)
+        p.close()
+    def load_pickle(filename):
+        p = open(filename, 'r')
+        picklelicious = pk.load(p)
+        p.close()
+        return picklelicious
+
     if test_iris:
         #Setup for repeated testing
         iris_array = np.matrix(np.loadtxt('iris.data', dtype='|S30', delimiter=','))
@@ -372,12 +416,6 @@ if __name__ == '__main__':
         #    print "Test RFBreiman"
         #    evaluate_classifier(RFEntropySplitRandomInputSubset, dataset, 1, .7)
     if test_pickle:
-        import pickle as pk
-        def load_pickle(filename):
-            p = open(filename, 'r')
-            picklelicious = pk.load(p)
-            p.close()
-            return picklelicious
 
         def print_separator(times=2):
             for i in xrange(times):
@@ -407,9 +445,64 @@ if __name__ == '__main__':
                 print tree_type
                 evaluate_classifier(tree_type, dataset, 10, .95, 
                         extra_args={'number_of_learners': 70}, test_pca=test_pca)
+    if test_packing:
+        train = np.mat(np.random.rand(4, 20))
+        resp = np.mat(np.round(np.random.rand(1, 20)))
+        data = ds.Dataset(train, resp)
+        dt = DecisionTree(data)
+        packed = dt.pack_tree()
+        print packed
+        new_dt = DecisionTree()
+        new_dt.unpack_tree(packed)
+        bad = False
+        for i in range(500):
+            np.random.seed(i)
+            test = np.mat(np.random.rand(4, 1))
+            np.random.seed(1)
+            pred_old = dt.predict(test)
+            np.random.seed(1)
+            pred_new = new_dt.predict(test)
+            if pred_old != pred_new:
+                print "Not same prediction:"
+                print pred_old, pred_new
+                bad = True
+        if not bad:
+            print "Prediction tests successful!"
 
+        dt = RFBreiman(data)
+        packed = dt.pack_rf()
+        new_dt = RFBreiman()
+        new_dt.unpack_rf(packed)
+        bad = False
+        for i in range(500):
+            np.random.seed(i)
+            test = np.mat(np.random.rand(4, 1))
+            np.random.seed(1)
+            pred_old, _ = dt.predict(test)
+            np.random.seed(1)
+            pred_new, _ = new_dt.predict(test)
+            if pred_old != pred_new:
+                print "RF Not same prediction:"
+                print pred_old, pred_new
+                bad = True
+        if not bad:
+            print "RF Prediction tests successful!"
 
-
-
+    if test_new_design:
+        np.random.seed(2)
+        train = np.mat(np.random.rand(4, 20))
+        resp = np.mat(np.round(np.random.rand(1, 20)))
+        data = ds.Dataset(train, resp)
+        dt = RFBreiman(data)
+        save_pickle(dt, "rfbreiman.pickle")
+        dt = load_pickle("rfbreiman.pickle")
+        preds = []
+        for i in range(500):
+            np.random.seed(i)
+            test = np.mat(np.random.rand(4, 1))
+            np.random.seed(1)
+            pred, pred_dict = dt.predict(test)
+            preds.append(pred[0,0])
+        print preds
 
 

@@ -2,6 +2,8 @@
 ## {{{ http://code.activestate.com/recipes/572182/ (r2)
 import sys, termios, atexit
 from select import select
+import roslib; roslib.load_manifest('hrl_lib')
+import rospy
 
 class KeyboardInput():
     def __init__(self):
@@ -38,6 +40,24 @@ class KeyboardInput():
     def kbhit(self):
         dr,dw,de = select([sys.stdin], [], [], 0)
         return dr <> []
+
+    def pauser(self):
+        if self.kbhit():
+            ch = self.getch()
+            if ch == 'p':
+                rospy.loginfo("PAUSED")
+                while not rospy.is_shutdown() and ch != 'c':
+                    ch = self.getch()
+                    rospy.sleep(0.01)
+                rospy.loginfo("CONTINUING")
+
+    def pause(self):
+        rospy.loginfo("PAUSED")
+        ch = 'd'
+        while not rospy.is_shutdown() and ch != 'c':
+            ch = self.getch()
+            rospy.sleep(0.01)
+        rospy.loginfo("CONTINUING")
 
 if __name__ == '__main__':
     ki = KeyboardInput()

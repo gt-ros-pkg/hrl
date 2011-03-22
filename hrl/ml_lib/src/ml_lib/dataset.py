@@ -19,6 +19,7 @@ class Dataset:
     def num_attributes(self):
         return self.inputs.shape[0]
 
+<<<<<<< HEAD:hrl/ml_lib/src/ml_lib/dataset.py
     def add_attribute_descriptor(self, descriptor):
         self.metadata.append(descriptor)
         #self.metadata[descriptor.name] = descriptor
@@ -39,6 +40,11 @@ class AttributeDescriptor:
         self.name = name
         self.extent = extent
 
+=======
+    def append(self, another_dataset):
+        self.inputs  = np.concatenate((self.inputs, another_dataset.inputs), axis=1)
+        self.outputs = np.concatenate((self.outputs, another_dataset.outputs), axis=1)
+>>>>>>> kelsey-dev:hrl/ml_lib/src/ml_lib/dataset.py
 
 ###############################################################################
 # Operations on datasets
@@ -80,12 +86,18 @@ def split_continuous(dataset, attribute, split_point):
 # @param points_per_sample number of points in each sample
 # @return an iterator over bootstrap samples
 def bootstrap_samples(dataset, number_samples, points_per_sample):
+    in_bags, out_bags = [], []
     for i in xrange(number_samples):
         selected_pts     = np.random.randint(0, dataset.inputs.shape[1], points_per_sample)
+        n_selected_pts = np.setdiff1d(range(dataset.inputs.shape[1]), selected_pts)
         selected_inputs  = dataset.inputs[:, selected_pts]
         selected_outputs = dataset.outputs[:, selected_pts]
+        n_selected_inputs  = dataset.inputs[:, n_selected_pts]
+        n_selected_outputs = dataset.outputs[:, n_selected_pts]
         #print 'Dataset.bootstrap count', i
-        yield Dataset(selected_inputs, selected_outputs)
+        in_bags.append(Dataset(selected_inputs, selected_outputs))
+        out_bags.append(Dataset(n_selected_inputs, n_selected_outputs))
+    return in_bags, out_bags
 
 
 ###############################################################################

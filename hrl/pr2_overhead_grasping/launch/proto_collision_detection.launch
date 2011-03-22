@@ -1,0 +1,5 @@
+<launch>
+  <include file="$(find pr2_overhead_grasping)/launch/init_params.launch"/>
+   <include file="$(find pr2_overhead_grasping)/launch/simple_grasp_pipeline.launch"/>
+
+</launch>

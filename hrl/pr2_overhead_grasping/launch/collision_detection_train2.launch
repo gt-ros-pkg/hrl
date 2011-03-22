@@ -1,0 +1,44 @@
+<launch>
+
+  <node pkg="pr2_overhead_grasping" type="random_forest" name="random_forest" output="screen">
+    <param name="bag_path" value="$(find pr2_overhead_grasping)/bags/"/>
+    <rosparam param="bag_names">
+       [coll_data_11110.bag,
+        coll_data_11210.bag,
+        coll_data_11310.bag,
+        coll_data_11410.bag,
+        coll_data_12110.bag,
+        coll_data_12210.bag,
+        coll_data_12310.bag,
+        coll_data_12410.bag,
+        coll_data_13110.bag,
+        coll_data_13210.bag,
+        coll_data_13310.bag,
+        coll_data_13410.bag,
+        coll_data_00000.bag]
+    </rosparam>
+    <rosparam param="bag_labels">
+       [1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0]
+    </rosparam>
+    <param name="num_trees" value="100"/>
+    <param name="training_mode" value="true"/>
+    <param name="is_validation" value="true"/>
+    <param name="pos_id" value="0"/>
+    <param name="classify_first" value="true"/>
+    <param name="filter" value="true" />
+    <param name="filter_thresh" value="0.3" />
+    <param name="filter_out" value="collision_filtered.bag"/>
+  </node>                 
+</launch>

@@ -1,0 +1,16 @@
+<launch>
+
+  <node pkg="pr2_overhead_grasping" type="mahalanobis_dist" name="$(anon mahalanobis_dist)" output="screen">
+    <param name="bag_path" value="$(find pr2_overhead_grasping)/bags/"/>
+    <rosparam param="bag_names">
+       [coll_data_00000_1.bag]
+    </rosparam>
+    <rosparam param="bag_labels">
+       [0]
+    </rosparam>
+    <param name="training_mode" value="true"/>
+    <param name="mahal_bag_name" value="mahal_cov_coll_2.bag"/>
+    <param name="is_validation" value="false"/>
+    <param name="eigen_thresh" value="0.00000001"/>
+  </node>                 
+</launch>

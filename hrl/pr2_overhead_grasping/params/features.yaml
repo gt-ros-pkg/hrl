@@ -1,0 +1,45 @@
+overhead_grasping/data_sampling_rate : 0.01
+overhead_grasping/perception_order : [ "accelerometer" ,
+                    "joint_angles",
+                    "joint_velocities",
+                    "joint_efforts",
+                    "gripper_pose",
+                    "r_finger_periph_pressure",
+                    "r_finger_pad_pressure",
+                    "l_finger_periph_pressure",
+                    "l_finger_pad_pressure"]
+
+# impact parameters
+overhead_grasping/i_degree_dict : { "accelerometer" : [[1, 2], [1, 2], [1, 2]],
+                 "joint_angles" : [[1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]],
+                 "joint_efforts" : [[1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]],
+                 "joint_velocities" : [[1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]],
+                 "r_finger_periph_pressure" : [[]],
+                 "r_finger_pad_pressure" : [[]],
+                 "l_finger_periph_pressure" : [[]], 
+                 "l_finger_pad_pressure" : [[]],
+                 "gripper_pose" : [[1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]]}
+overhead_grasping/i_filter_beg_delay : 0.10
+overhead_grasping/i_filter_cen_delay : 0.05
+overhead_grasping/i_min_sigma : 0.02
+overhead_grasping/i_max_sigma : 0.04
+overhead_grasping/i_num_sigma : 3
+
+# collision type parameters
+overhead_grasping/t_degree_dict : { "accelerometer" : [[1, 2], [1, 2], [1, 2]],
+                 "joint_angles" : [[1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]],
+                 "joint_efforts" : [[1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]],
+                 "joint_velocities" : [[1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]],
+                 "r_finger_periph_pressure" : [[]],
+                 "r_finger_pad_pressure" : [[]],
+                 "l_finger_periph_pressure" : [[]], 
+                 "l_finger_pad_pressure" : [[]],
+                 "gripper_pose" : [[1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]]}
+overhead_grasping/t_filter_beg_delay : 0.30
+overhead_grasping/t_filter_cen_delay : 0.15
+overhead_grasping/t_min_sigma : 0.02
+overhead_grasping/t_max_sigma : 0.20
+overhead_grasping/t_num_sigma : 5
+
+# static parameters
+overhead_grasping/static_sigma_index : 2

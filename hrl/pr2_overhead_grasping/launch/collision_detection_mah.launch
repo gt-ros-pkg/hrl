@@ -1,0 +1,34 @@
+<launch>
+  <include file="$(find pr2_overhead_grasping)/launch/init_params.launch"/>
+  <include file="$(find pr2_overhead_grasping)/launch/simple_grasp_pipeline.launch"/>
+  <node pkg="nodelet" type="nodelet" name="coll_manager"  args="manager" output="screen">
+    <param name="num_worker_threads" type="int" value="5" />
+  </node>
+
+  <node pkg="nodelet" type="nodelet" name="sensor_filter_r" args="load collision_detection/sensor_filter coll_manager" output="screen">
+    <param name="arm" type="str" value="r"/>
+  </node>                 
+  <!--
+  <node pkg="nodelet" type="nodelet" name="collision_monitor_r" args="load collision_detection/collision_monitor coll_manager" output="screen">
+    <param name="arm" type="str" value="r"/>
+    <param name="collision_id" type="int" value="1"/>
+    <param name="collision_thresh" type="int" value="60"/>
+    <rosparam param="classifier_topics">
+        [r_arm_collision_detect]
+    </rosparam>
+  </node>
+  --> 
+  <node pkg="pr2_overhead_grasping" type="mahalanobis_dist" name="$(anon mahalanobis_dist_r)" output="screen">
+    <param name="training_mode" type="bool" value="false"/>
+    <param name="classify_topic" type="str" value="r_arm_features"/>
+    <param name="results_topic" type="str" value="r_arm_collision_detect"/>
+    <param name="loaded_topic" type="str" value="r_arm_cd_loaded"/>
+    <param name="classifier_name" type="str" value="Collision Detection"/>
+    <param name="classifier_id" type="int" value="0"/>
+    <param name="bag_path" value="$(find pr2_overhead_grasping)/bags/"/>
+
+    <param name="mahal_bag_name" value="mahal_cov_coll_2.bag"/>
+    <param name="is_validation" value="false"/>
+    <param name="eigen_thresh" value="0.00000001"/>
+  </node>                 
+</launch>

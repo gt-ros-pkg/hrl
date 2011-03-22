@@ -1,0 +1,5 @@
+
+overhead_grasping/grasp_coll_data_dir : "collision_data"
+overhead_grasping/i_rtree_classifier : "classifiers//i_rtree_classifier.pickle"
+overhead_grasping/t_rtree_classifier : "classifiers//t_rtree_classifier.pickle"
+

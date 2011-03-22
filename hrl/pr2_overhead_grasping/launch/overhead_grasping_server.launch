@@ -1,0 +1,7 @@
+<launch>
+   <include file="$(find pr2_overhead_grasping)/launch/simple_grasp_pipeline.launch"/>
+    <node pkg="pr2_overhead_grasping" name="overhead_grasping" type="overhead_grasping.py" args="-s" output="screen">
+        <!--<param name="cl_args" type="str" value="-s" />-->
+    </node>
+
+</launch>

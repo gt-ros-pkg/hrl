@@ -1,0 +1,18 @@
+<launch>
+
+  <node pkg="pr2_overhead_grasping" type="random_forest" name="random_forest" output="screen">
+    <param name="bag_path" value="$(find pr2_overhead_grasping)/bags/"/>
+    <rosparam param="bag_names">
+       [collision_filtered.bag,
+        coll_data_00000.bag]
+    </rosparam>
+    <rosparam param="bag_labels">
+       [1,
+        0]
+    </rosparam>
+    <param name="num_trees" value="100"/>
+    <param name="training_mode" value="true"/>
+    <param name="is_validation" value="false"/>
+    <param name="forest_bag_name" value="collision_forest_all_fil.bag"/>
+  </node>                 
+</launch>

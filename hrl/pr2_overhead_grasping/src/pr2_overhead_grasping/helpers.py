@@ -22,6 +22,9 @@ class FileOperations():
     def save_pickle(self, p, fn):
         hrl_lib.util.save_pickle(p, self.package_loc + "//pickles//" + fn)
 
+    def get_pickle_name(self, fn):
+        return self.package_loc + "//pickles//" + fn
+
     def file_exists(self, fn):
         return os.path.exists(self.package_loc + "//pickles//" + fn)
     
@@ -42,6 +45,12 @@ class FileOperations():
                        loc + "//collision_times.yaml")
         stream = file(ct_index_fn, "w")
         yaml.dump(coll_times, stream)
+
+    def load_yaml_file(self, fn):
+        ct_index_fn = (self.package_loc + "//yaml//" + fn)
+        stream = file(ct_index_fn, "r")
+        coll_times = yaml.load(stream)
+        return coll_times
 
     def make_directories(self, directory):
         try:
@@ -68,7 +77,11 @@ class FileOperations():
             os.mkdir(self.package_loc + "//arff_files")
         except:
             pass
-
+        try:
+            os.mkdir(self.package_loc + "//pickles//classifiers")
+        except:
+            pass
+ 
 
 def log(*strs):
     prstrs = ""
@@ -82,21 +95,9 @@ def err(*strs):
         prstrs += str(s) + " "
     rospy.logerr(node_name + ": " + prstrs)
 
-def pauser(ki):
-    if ki.kbhit():
-        ch = ki.getch()
-        if ch == 'p':
-            log("PAUSED")
-            while not rospy.is_shutdown() and ch != 'c':
-                ch = ki.getch()
-                rospy.sleep(0.1)
-            log("CONTINUING")
-
 def wait_for_key(ki, key='c'):
     ch = None
     while not rospy.is_shutdown() and ch != key:
         ch = ki.getch()
         rospy.sleep(0.1)
     log("CONTINUING")
-
-

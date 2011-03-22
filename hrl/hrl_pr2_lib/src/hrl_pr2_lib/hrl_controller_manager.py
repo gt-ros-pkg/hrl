@@ -1,3 +1,5 @@
+# Extension and modification of code originally written by Kaijen Hsiao
+
 #! /usr/bin/python
 import numpy as np, math
 
@@ -67,6 +69,7 @@ class HRLIKUtilities(IKUtilities):
 
     def __init__(self, whicharm, tf_listener = None, perception_running = 0):
         IKUtilities.__init__(self, whicharm, tf_listener, perception_running)
+
 
     #check a Cartesian path for consistent, non-colliding IK solutions
     #start_pose and end_pose are PoseStamped messages with the wrist poses
@@ -209,8 +212,9 @@ class HRLIKUtilities(IKUtilities):
 
     ##
     # runs ik but tries to bias it towards the given bias configuration
-    def run_biased_ik(self, pose_stamped, joints_bias = [0.]*7, num_iters=6):
-        angs = [0.]*7
+    def run_biased_ik(self, pose_stamped, joints_bias = [0.]*7, 
+                      num_iters=6, init_angs=[0.]*7):
+        angs = init_angs
         has_solution = False
         for i in range(num_iters):
             (solution, error_code) = self.run_ik(pose_stamped, angs, \
@@ -377,12 +381,14 @@ class HRLControllerManager(ControllerManager):
         #to the desired pose using Cartesian interpolation
         (trajectory, error_codes) = self.ik_utilities.check_cartesian_path(start_pose, \
                                          end_pose, current_angles, step_size, .1, math.pi/4, collision_aware, \
-                                         joints_bias = joints_bias, bias_radius = bias_radius)
+                                         joints_bias = joints_bias, bias_radius = bias_radius,
+                                         steps_before_abort=-1)
 
         #if some point is not possible, quit
-        if any(error_codes):
-            rospy.loginfo("can't execute an interpolated IK trajectory to that pose")
-            return 0
+        # if any(error_codes):
+        #     rospy.loginfo("can't execute an interpolated IK trajectory to that pose")
+        #     return 0
+        trajectory = np.array(trajectory)[np.where(np.array(error_codes) == 0)].tolist()
 
 #         print "found trajectory:"
 #         for point in trajectory:
@@ -430,8 +436,20 @@ class HRLControllerManager(ControllerManager):
 
   ##use move_arm to get to a desired pose in a collision-free way (really, run IK and then call move arm to move to the IK joint angles)
     def move_arm_pose_biased(self, pose_stamped, joints_bias = [0.]*7, max_joint_vel=0.2,
-                                        blocking = 1):
-        solution = self.ik_utilities.run_biased_ik(pose_stamped, joints_bias)
+                                        blocking = 1, init_angs=[0.]*7):
+        init_pos = [pose_stamped.pose.position.x, pose_stamped.pose.position.y, 
+                    pose_stamped.pose.position.z] 
+
+        for i in range(10):
+            cur_pos = np.array(init_pos) + np.random.uniform(i * 0.0015, i * 0.0015, 3)
+            pose_stamped.pose.position.x = cur_pos[0]
+            pose_stamped.pose.position.y = cur_pos[1]
+            pose_stamped.pose.position.z = cur_pos[2]
+            solution = self.ik_utilities.run_biased_ik(pose_stamped, joints_bias, 
+                                                       init_angs=init_angs)
+            if solution:
+                break
+
         if not solution:
             rospy.logerr("no IK solution found for goal pose!")
             return None

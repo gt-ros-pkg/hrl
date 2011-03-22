@@ -17,8 +17,11 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/pr2_overhead_grasping</url>
   <depend package="rospy"/>
+  <depend package="rosbag"/>
   <depend package="tf"/>
 
+  <depend package="actionlib_msgs"/>
+  <depend package="eigen3"/>
   <depend package="kinematics_msgs"/>
   <depend package="hrl_lib"/>
   <depend package="hrl_pr2_lib"/>
@@ -28,7 +31,10 @@
   <depend package="trajectory_msgs"/>
   <depend package="pr2_mechanism_msgs"/>
   <depend package="std_msgs"/>
+  <depend package="cv_bridge"/>
+  <depend package="opencv2"/>
   <depend package="geometry_msgs"/>
+  <depend package="ml_lib"/>
 
   <depend package="visualization_msgs"/>
   <depend package="pr2_arm_kinematics"/>
@@ -36,6 +42,12 @@
   <depend package="pr2_gripper_reactive_approach"/>
   <depend package="tabletop_object_detector"/>
   <depend package="laser_interface"/>
+  <depend package="face_detector"/>
+  <depend package="pr2_playpen"/>
+  <depend package="nodelet"/>
+  <export>
+      <nodelet plugin="${prefix}/nodelet_plugins.xml" />
+  </export>
 </package>
 
 

@@ -1,0 +1,10 @@
+<launch>
+  <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen">
+    <param name="num_worker_threads" type="int" value="4" />
+  </node>
+
+  <node pkg="nodelet" type="nodelet" name="random_forest_1" args="load collision_detection/random_forest standalone_nodelet" output="screen">
+    <param name="classify_topic" type="str" value="rf_classify_1"/>
+    <param name="results_topic" type="str" value="rf_votes_1"/>
+  </node>                 
+</launch>

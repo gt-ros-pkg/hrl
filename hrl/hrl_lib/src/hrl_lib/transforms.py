@@ -93,7 +93,6 @@ def composeHomogeneousTransform(rot, disp):
     t = np.row_stack((np.column_stack((rot, disp)),te))
     return t
 
-
 def angle_within_mod180(angle):
     ''' angle in radians.
         returns angle within -pi and +pi

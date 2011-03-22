@@ -10,7 +10,11 @@
   <url>http://ros.org/wiki/kelsey_sandbox</url>
   <depend package="rospy"/>
   <depend package="roscpp"/>
+  <depend package="std_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="pr2_msgs"/>
   <depend package="hrl_lib"/>
+  <depend package="pr2_overhead_grasping"/>
   <depend package="hrl_pr2_lib"/>
   <depend package="laser_interface"/>
   <depend package="hrl_tilting_hokuyo"/>

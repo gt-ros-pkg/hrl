@@ -389,7 +389,7 @@ class GenericListener:
         if not quiet:
             rospy.loginfo('%s: waiting for reading ...' % self.node_name)
         while self.reading['message'] == None and not rospy.is_shutdown():
-            time.sleep(.3)
+            time.sleep(0.1)
             #if not quiet:
             #    print self.node_name, ': waiting for reading ...'
 

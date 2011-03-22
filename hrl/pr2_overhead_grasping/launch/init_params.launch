@@ -1,6 +1,6 @@
 <launch>
     <rosparam command="load" file="$(find pr2_overhead_grasping)/params/consistent.yaml"/>
-    <rosparam command="load" file="$(find pr2_overhead_grasping)/params/testing.yaml"/>
     <rosparam command="load" file="$(find pr2_overhead_grasping)/params/execution.yaml"/>
     <rosparam command="load" file="$(find pr2_overhead_grasping)/params/filenames.yaml"/>
+    <rosparam command="load" file="$(find pr2_overhead_grasping)/params/features.yaml"/>
 </launch>

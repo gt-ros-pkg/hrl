@@ -1,0 +1,17 @@
+<launch>
+  <include file="$(find pr2_overhead_grasping)/launch/init_params.launch"/>
+  <include file="$(find pr2_overhead_grasping)/launch/simple_grasp_pipeline.launch"/>
+  <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen">
+    <param name="num_worker_threads" type="int" value="4" />
+  </node>
+
+  <node pkg="nodelet" type="nodelet" name="sensor_filter_r" args="load collision_detection/sensor_filter standalone_nodelet" output="screen">
+    <param name="arm" type="str" value="r"/>
+  </node>                 
+  <node pkg="nodelet" type="nodelet" name="force_torque_monitor" args="load collision_detection/force_torque_monitor standalone_nodelet" output="screen">
+    <param name="arm" type="str" value="r"/>
+    <param name="z_thresh" type="double" value="4.0" />
+    <param name="delay_time" type="double" value="0.5" />
+    <param name="label" type="int" value="4" />
+  </node>                 
+</launch>

@@ -1,0 +1,68 @@
+<launch>
+  <include file="$(find pr2_overhead_grasping)/launch/init_params.launch"/>
+  <include file="$(find pr2_overhead_grasping)/launch/simple_grasp_pipeline.launch"/>
+  <node pkg="nodelet" type="nodelet" name="coll_manager"  args="manager" output="screen">
+    <param name="num_worker_threads" type="int" value="5" />
+  </node>
+
+  <node pkg="nodelet" type="nodelet" name="sensor_filter_r" args="load collision_detection/sensor_filter coll_manager" output="screen">
+    <param name="arm" type="str" value="r"/>
+  </node>                 
+  <node pkg="nodelet" type="nodelet" name="collision_monitor_r" args="load collision_detection/collision_monitor coll_manager" output="screen">
+    <param name="arm" type="str" value="r"/>
+    <param name="collision_id" type="int" value="1"/>
+    <param name="collision_thresh" type="int" value="60"/>
+    <rosparam param="classifier_topics">
+        [r_arm_collision_detect,
+         r_arm_gripper_direct,
+         r_arm_forearm_direct,
+         r_arm_uprarm_direct]
+    </rosparam>
+  </node>                 
+  <node pkg="nodelet" type="nodelet" name="force_torque_monitor" args="load collision_detection/force_torque_monitor standalone_nodelet" output="screen">
+    <param name="arm" type="str" value="r"/>
+    <param name="z_thresh" type="double" value="4.0" />
+    <param name="delay_time" type="double" value="0.15" />
+    <param name="label" type="int" value="4" />
+  </node>                 
+  <node pkg="pr2_overhead_grasping" type="random_forest" name="$(anon random_forest_r)" output="screen">
+    <param name="training_mode" type="bool" value="false"/>
+    <param name="classify_topic" type="str" value="r_arm_features"/>
+    <param name="results_topic" type="str" value="r_arm_collision_detect"/>
+    <param name="loaded_topic" type="str" value="r_arm_cd_loaded"/>
+    <param name="classifier_name" type="str" value="Collision Detection"/>
+    <param name="classifier_id" type="int" value="0"/>
+    <param name="forest_bag_name" type="str" value="collision_forest_all.bag"/>
+    <param name="bag_path" value="$(find pr2_overhead_grasping)/bags/"/>
+  </node>                 
+  <node pkg="pr2_overhead_grasping" type="random_forest" name="$(anon random_forest_r)" output="screen">
+    <param name="training_mode" type="bool" value="false"/>
+    <param name="classify_topic" type="str" value="r_arm_features"/>
+    <param name="results_topic" type="str" value="r_arm_gripper_direct"/>
+    <param name="loaded_topic" type="str" value="r_arm_cd_loaded"/>
+    <param name="classifier_name" type="str" value="Wrist direction"/>
+    <param name="classifier_id" type="int" value="1"/>
+    <param name="forest_bag_name" type="str" value="collision_forest_wrist.bag"/>
+    <param name="bag_path" value="$(find pr2_overhead_grasping)/bags/"/>
+  </node>                 
+  <node pkg="pr2_overhead_grasping" type="random_forest" name="$(anon random_forest_r)" output="screen">
+    <param name="training_mode" type="bool" value="false"/>
+    <param name="classify_topic" type="str" value="r_arm_features"/>
+    <param name="results_topic" type="str" value="r_arm_forearm_direct"/>
+    <param name="loaded_topic" type="str" value="r_arm_cd_loaded"/>
+    <param name="classifier_name" type="str" value="Forearm direction"/>
+    <param name="classifier_id" type="int" value="2"/>
+    <param name="forest_bag_name" type="str" value="collision_forest_forearm.bag"/>
+    <param name="bag_path" value="$(find pr2_overhead_grasping)/bags/"/>
+  </node>                 
+  <node pkg="pr2_overhead_grasping" type="random_forest" name="$(anon random_forest_r)" output="screen">
+    <param name="training_mode" type="bool" value="false"/>
+    <param name="classify_topic" type="str" value="r_arm_features"/>
+    <param name="results_topic" type="str" value="r_arm_uprarm_direct"/>
+    <param name="loaded_topic" type="str" value="r_arm_cd_loaded"/>
+    <param name="classifier_name" type="str" value="Upper arm direction"/>
+    <param name="classifier_id" type="int" value="3"/>
+    <param name="forest_bag_name" type="str" value="collision_forest_uprarm.bag"/>
+    <param name="bag_path" value="$(find pr2_overhead_grasping)/bags/"/>
+  </node>                 
+</launch>
