@@ -19,7 +19,7 @@ from explore_hrl.msg import ExploreAction, ExploreResult, ExploreGoal
 import yaml
 import numpy as np, math
 
-room = '/home/travis/svn/gt-ros-pkg/hrl/room_explore/rooms/sim.yaml'
+room = '/home/travis/svn/gt-ros-pkg/hrl/room_explore/rooms/rooms.yaml'
 
 def retfalse():
     return False
@@ -50,7 +50,7 @@ class TFthread( Thread ):
                                    'map' )
 
     def run( self ):
-        rospy.logout( 'TFthread: Starting ' + self.name )
+        rospy.logout( 'TFthread: Starting ' )
         r = rospy.Rate( 10 )
         while self.should_run and not rospy.is_shutdown():
             self.publish_transform()
@@ -58,14 +58,14 @@ class TFthread( Thread ):
                 r.sleep()
             except:
                 pass # ROS exception.
-        rospy.logout( 'TFthread: Starting ' + self.name )
+        rospy.logout( 'TFthread: Starting ')
         
     def stop( self ):
         # Kill off the poller thread.
         self.should_run = False
         self.join(5)
         if (self.isAlive()):
-            raise RuntimeError('TFthread: Unable to stop thread ' + self.name)
+            raise RuntimeError('TFthread: Unable to stop thread ' )
 
 
 # if __name__ == '__main__':
@@ -84,25 +84,28 @@ def standard_rad(t):
 
 
 class RoomExplore( Thread ):
-    def __init__( self, room ):
+    def __init__( self, df, room, start_rad = 1.5 ):
         Thread.__init__( self )
         try:
             rospy.init_node( 'RoomExplore' )
         except:
             pass
         self.should_run = True
-        
-        self.height = 9.0 # room['height']
-        self.width = 7.0 # room['width']
+
+        self.frame = '/' + room
+
+        self.height = df[room]['height']
+        self.width = df[room]['width']
 
         self.listener = tf.TransformListener()
         self.listener.waitForTransform( '/base_link', '/map', rospy.Time(0), timeout = rospy.Duration(100))
 
-        self.setup_poses( radius = 1.5 ) # also initializes radius
+        self.setup_poses( radius = start_rad ) # also initializes radius
 
         self.pub = rospy.Publisher( 'visarr', Marker )
         self._as = actionlib.SimpleActionServer( '/explore', ExploreAction, execute_cb = self.action_request )
         self._as.start()
+        rospy.logout('Action should be started.')
         self.start()
 
     def action_request( self, goal ):
@@ -119,7 +122,7 @@ class RoomExplore( Thread ):
         rospy.logout( 'room_explore: action_request received result %d' % int(rv) )
 
         if rv == True:
-            self._as.set_succeeded( ServoResult( int(rv) ))
+            self._as.set_succeeded( ExploreResult() )
 
 
     def begin_explore( self, radius, preempt_func = retfalse ):
@@ -130,49 +133,64 @@ class RoomExplore( Thread ):
         rospy.logout( 'room_explore: setting radius' )
         all_goals = self.setup_poses( radius )
         for goal in all_goals:
-            print 'room_explore: sending goal ', goal
+            #print 'room_explore: sending goal ', goal
             goal.target_pose.header.stamp = rospy.Time.now()
 
             client.send_goal( goal )
-            rospy.sleep( 1.0 )
 
             time_last_moving = rospy.Time.now()
+            goal_time = rospy.Time.now()
+
             new_pose = self.current_robot_position()
             ref_pose = self.current_robot_position()
 
             r = rospy.Rate( 5 )
             while not rospy.is_shutdown():
+                state = client.get_state()
+                states = { 0: 'WAITING FOR GOAL ACK',
+                           1: 'PENDING',
+                           2: 'ACTIVE',
+                           3: 'WAITING FOR RESULT',
+                           4: 'WAITING FOR CANCEL ACK',
+                           5: 'RECALLING',
+                           6: 'PREEMPTING',
+                           7: 'DONE' }
+                #print 'State: ', state, ' ', states[state]
+                #print 'Result: ', client.get_result()
+                
                 #rospy.logout( 'room_explore: loop' )
-                if not client.get_state() == actionlib.SimpleGoalState.ACTIVE:
+                if state == 7 or state == 3:
                     rospy.logout( 'room_explore: client no longer active' )
-                    print 'State: ', client.get_state()
+                    print 'State: ', state, ' ', states[state]
+                    time_last_moving = rospy.Time.now()
                     break
 
                 if preempt_func():
                     rospy.logout( 'room_explore: preempted at a higher level.' )
+                    time_last_moving = rospy.Time.now()
                     break
 
-                #print 'Curr_pose: ', self.current_robot_position()
                 new_pose = self.current_robot_position()
-                #print 'New_pose: ', new_pose
-
-
                 dx = new_pose[0] - ref_pose[0]
                 dy = new_pose[1] - ref_pose[1]
-                #print 'new: ', new_pose
-                #print 'ref: ', ref_pose
-
                 da = new_pose[-1] - ref_pose[-1] # yaw
-                #print 'da: ', da
                 
                 if dx*dx + dy*dy > 0.02 or da*da > math.radians( 5 ):
                     time_last_moving = rospy.Time.now()
                     ref_pose = self.current_robot_position()
                     rospy.logout('WE ARE MOVING')
 
-                if rospy.Time.now() - time_last_moving > rospy.Duration( 5 ):
+                if rospy.Time.now() - time_last_moving > rospy.Duration( 8 ):
                     rospy.logout( 'We do not appear to have moved.  Aborting current goal.' )
                     client.cancel_all_goals() # Should force a break on GoalState
+                    time_last_moving = rospy.Time.now()
+                    break
+
+                if rospy.Time.now() - goal_time > rospy.Duration( 30 ):
+                    rospy.logout( 'Goal not achieved after 30 seconds.  Aborting.' )
+                    client.cancel_all_goals() # Should force a break on GoalState
+                    time_last_moving = rospy.Time.now()
+                    break
 
                 r.sleep()
                 
@@ -231,7 +249,7 @@ class RoomExplore( Thread ):
                 
             for x in xord:
                 goal = MoveBaseGoal()
-                goal.target_pose.header.frame_id = '/sim'
+                goal.target_pose.header.frame_id = self.frame
                 goal.target_pose.header.stamp = rospy.Time.now()
                 goal.target_pose.pose.position.x = x
                 goal.target_pose.pose.position.y = y
@@ -248,7 +266,7 @@ class RoomExplore( Thread ):
 
     
     def run( self ):
-        rospy.logout( 'RoomExplore: Starting ' + self.name )
+        rospy.logout( 'RoomExplore: Starting ' )
         r = rospy.Rate( 2 )
         while self.should_run and not rospy.is_shutdown():
             self.publish_markers()
@@ -256,14 +274,14 @@ class RoomExplore( Thread ):
                 r.sleep()
             except:
                 pass # ROS exception.
-        rospy.logout( 'RoomExplore: Starting ' + self.name )
+        rospy.logout( 'RoomExplore: Starting ' )
         
     def stop( self ):
         # Kill off the poller thread.
         self.should_run = False
         self.join(5)
         if (self.isAlive()):
-            raise RuntimeError('RoomExplore: Unable to stop thread ' + self.name)
+            raise RuntimeError('RoomExplore: Unable to stop thread ' )
         
 
     def publish_markers( self ):
@@ -273,10 +291,10 @@ class RoomExplore( Thread ):
             m.id = i
             m.action = m.ADD
             m.type = m.ARROW
-            m.header.frame_id = '/sim'
+            m.header.frame_id = self.frame
             m.header.stamp = rospy.Time.now()
             m.scale = Vector3( 0.15, 1.0, 1.0 )
-            m.color = ColorRGBA( 0.2, 0.2, 1.0, 0.5 )
+            m.color = ColorRGBA( 0.2, 1.0, 0.2, 0.7 )
             m.pose = g.target_pose.pose
 
             self.pub.publish( m )
@@ -295,11 +313,23 @@ if __name__ == '__main__':
     dat = yaml.load( f )
     f.close()
 
-    TFthread( dat )
+    TFthread( dat )    
     
-    re = RoomExplore( dat['sim'] )
-    re.begin_explore( 2.5 )
+    re = RoomExplore( dat, 'hrl', 0.8 )
+    #re.begin_explore( 0.8 )
+    # rosservice call /explore 0.8
     
+    # explore_act = actionlib.SimpleActionClient('explore', ExploreAction)
+    # rospy.logout( 'Waiting for explore.' )
+    # explore_act.wait_for_server()
+    # rospy.logout( 'Done waiting.' )
+
+    # goal = ExploreGoal( radius = 0.8 )
+    # explore_act.send_goal(goal)
+    # rospy.sleep( 0.5 )
+    # explore_act.wait_for_result()
+        
+
     rospy.spin()
     
         
