@@ -69,6 +69,7 @@ class HRLIKUtilities(IKUtilities):
 
     def __init__(self, whicharm, tf_listener = None, perception_running = 0):
         IKUtilities.__init__(self, whicharm, tf_listener, perception_running)
+        self.whicharm = whicharm # CHANGE
 
 
     #check a Cartesian path for consistent, non-colliding IK solutions
@@ -199,8 +200,12 @@ class HRLIKUtilities(IKUtilities):
     def bias_guess(self, q, joints_bias, bias_radius):
         if bias_radius == 0.0:
             return q
-        max_angs = np.array([.69, 1.33, 0.79, 0.0, 1000000.0, 0.0, 1000000.0])
-        min_angs = np.array([-2.27, -.54, -3.9, -2.34, -1000000.0, -2.15, -1000000.0])
+        if self.whicharm == 'r':
+            max_angs = np.array([.69, 1.33, 0.79, 0.0, 1000000.0, 0.0, 1000000.0])
+            min_angs = np.array([-2.27, -.54, -3.9, -2.34, -1000000.0, -2.15, -1000000.0])
+        else:
+            max_angs = np.array([2.27, 1.33, 3.9, 0.0, 1000000.0, 0.0, 1000000.0])
+            min_angs = np.array([-.69, -.54, -0.79, -2.34, -1000000.0, -2.15, -1000000.0])
         q_off = bias_radius * np.array(joints_bias) / np.linalg.norm(joints_bias)
         angs = np.array(q) + q_off
         for i in range(7):
@@ -441,7 +446,7 @@ class HRLControllerManager(ControllerManager):
                     pose_stamped.pose.position.z] 
 
         for i in range(10):
-            cur_pos = np.array(init_pos) + np.random.uniform(i * 0.0015, i * 0.0015, 3)
+            cur_pos = np.array(init_pos) + np.random.uniform(-i * 0.0015, i * 0.0015, 3)
             pose_stamped.pose.position.x = cur_pos[0]
             pose_stamped.pose.position.y = cur_pos[1]
             pose_stamped.pose.position.z = cur_pos[2]

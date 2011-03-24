@@ -5,6 +5,9 @@
   <author>various</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
+  <export>
+      <cpp cflags="-I${prefix}" lflags="-L${prefix} -Wl,-rpath,-L${prefix} -lsvm"/>
+  </export>
 </package>
 
 

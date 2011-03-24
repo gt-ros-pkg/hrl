@@ -190,19 +190,6 @@ clean-test-results/fast:
 .PHONY : clean-test-results/fast
 
 #=============================================================================
-# Target rules for targets named hrl_lib
-
-# Build rule for target.
-hrl_lib: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 hrl_lib
-.PHONY : hrl_lib
-
-# fast build rule for target.
-hrl_lib/fast:
-	$(MAKE) -f CMakeFiles/hrl_lib.dir/build.make CMakeFiles/hrl_lib.dir/build
-.PHONY : hrl_lib/fast
-
-#=============================================================================
 # Target rules for targets named rosbuild_precompile
 
 # Build rule for target.
@@ -358,21 +345,6 @@ tests/fast:
 	$(MAKE) -f CMakeFiles/tests.dir/build.make CMakeFiles/tests.dir/build
 .PHONY : tests/fast
 
-# target to build an object file
-src/kbhit.o:
-	$(MAKE) -f CMakeFiles/hrl_lib.dir/build.make CMakeFiles/hrl_lib.dir/src/kbhit.o
-.PHONY : src/kbhit.o
-
-# target to preprocess a source file
-src/kbhit.i:
-	$(MAKE) -f CMakeFiles/hrl_lib.dir/build.make CMakeFiles/hrl_lib.dir/src/kbhit.i
-.PHONY : src/kbhit.i
-
-# target to generate assembly for a file
-src/kbhit.s:
-	$(MAKE) -f CMakeFiles/hrl_lib.dir/build.make CMakeFiles/hrl_lib.dir/src/kbhit.s
-.PHONY : src/kbhit.s
-
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -387,7 +359,6 @@ help:
 	@echo "... ROSBUILD_gensrv_py"
 	@echo "... clean-test-results"
 	@echo "... edit_cache"
-	@echo "... hrl_lib"
 	@echo "... rebuild_cache"
 	@echo "... rosbuild_precompile"
 	@echo "... rosbuild_premsgsrvgen"
@@ -401,9 +372,6 @@ help:
 	@echo "... test-results"
 	@echo "... test-results-run"
 	@echo "... tests"
-	@echo "... src/kbhit.o"
-	@echo "... src/kbhit.i"
-	@echo "... src/kbhit.s"
 .PHONY : help
 
 

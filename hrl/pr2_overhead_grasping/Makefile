@@ -346,6 +346,19 @@ sensor_filter_visualizer/fast:
 .PHONY : sensor_filter_visualizer/fast
 
 #=============================================================================
+# Target rules for targets named svm_one_class
+
+# Build rule for target.
+svm_one_class: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 svm_one_class
+.PHONY : svm_one_class
+
+# fast build rule for target.
+svm_one_class/fast:
+	$(MAKE) -f CMakeFiles/svm_one_class.dir/build.make CMakeFiles/svm_one_class.dir/build
+.PHONY : svm_one_class/fast
+
+#=============================================================================
 # Target rules for targets named test
 
 # Build rule for target.
@@ -500,6 +513,21 @@ src/sensor_filter_visualizer.s:
 	$(MAKE) -f CMakeFiles/sensor_filter_visualizer.dir/build.make CMakeFiles/sensor_filter_visualizer.dir/src/sensor_filter_visualizer.s
 .PHONY : src/sensor_filter_visualizer.s
 
+# target to build an object file
+src/svm_one_class.o:
+	$(MAKE) -f CMakeFiles/svm_one_class.dir/build.make CMakeFiles/svm_one_class.dir/src/svm_one_class.o
+.PHONY : src/svm_one_class.o
+
+# target to preprocess a source file
+src/svm_one_class.i:
+	$(MAKE) -f CMakeFiles/svm_one_class.dir/build.make CMakeFiles/svm_one_class.dir/src/svm_one_class.i
+.PHONY : src/svm_one_class.i
+
+# target to generate assembly for a file
+src/svm_one_class.s:
+	$(MAKE) -f CMakeFiles/svm_one_class.dir/build.make CMakeFiles/svm_one_class.dir/src/svm_one_class.s
+.PHONY : src/svm_one_class.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -527,6 +555,7 @@ help:
 	@echo "... rospack_gensrv"
 	@echo "... rospack_gensrv_all"
 	@echo "... sensor_filter_visualizer"
+	@echo "... svm_one_class"
 	@echo "... test"
 	@echo "... test-future"
 	@echo "... test-results"
@@ -550,6 +579,9 @@ help:
 	@echo "... src/sensor_filter_visualizer.o"
 	@echo "... src/sensor_filter_visualizer.i"
 	@echo "... src/sensor_filter_visualizer.s"
+	@echo "... src/svm_one_class.o"
+	@echo "... src/svm_one_class.i"
+	@echo "... src/svm_one_class.s"
 .PHONY : help
 
 

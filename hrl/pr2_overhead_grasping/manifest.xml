@@ -45,6 +45,7 @@
   <depend package="face_detector"/>
   <depend package="pr2_playpen"/>
   <depend package="nodelet"/>
+  <depend package="libsvm3"/>
   <export>
       <nodelet plugin="${prefix}/nodelet_plugins.xml" />
   </export>
