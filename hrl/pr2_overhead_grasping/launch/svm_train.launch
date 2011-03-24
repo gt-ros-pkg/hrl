@@ -1,0 +1,69 @@
+<launch>
+
+  <node pkg="pr2_overhead_grasping" type="svm_one_class" name="$(anon svm_one_class)" output="screen">
+    <param name="bag_path" value="$(find pr2_overhead_grasping)/bags/"/>
+    <rosparam param="bag_names">
+       [coll_data_11120_f.bag,
+        coll_data_11220_f.bag,
+        coll_data_11320_f.bag,
+        coll_data_11420_f.bag,
+        coll_data_12120_f.bag,
+        coll_data_12220_f.bag,
+        coll_data_12320_f.bag,
+        coll_data_12420_f.bag,
+        coll_data_13120_f.bag,
+        coll_data_13220_f.bag,
+        coll_data_13320_f.bag,
+        coll_data_13420_f.bag,
+        coll_data_00000_1.bag]
+    </rosparam>
+    <rosparam param="bag_labels">
+       [1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0]
+    </rosparam>
+    <!--<rosparam param="bag_names">
+       [coll_data_11120_f.bag,
+        coll_data_11220_f.bag,
+        coll_data_11320_f.bag,
+        coll_data_11420_f.bag,
+        coll_data_12120_f.bag,
+        coll_data_12220_f.bag,
+        coll_data_12320_f.bag,
+        coll_data_12420_f.bag,
+        coll_data_13120_f.bag,
+        coll_data_13220_f.bag,
+        coll_data_13320_f.bag,
+        coll_data_13420_f.bag,
+        coll_data_00000.bag]
+    </rosparam>
+    <rosparam param="bag_labels">
+       [1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0]
+    </rosparam>-->
+    <param name="training_mode" value="true"/>
+    <param name="is_validation" value="false"/>
+    <param name="forest_bag_name" value="collision_forest_all2.bag"/>
+  </node>                 
+</launch>
