@@ -43,10 +43,11 @@ class ROS_M5e_Client():
     QUERY_MODE = 'query'
     TRACK_MODE = 'track'
 
-    def __init__(self, name = 'reader1'):
+    def __init__(self, name = 'reader1', callbacks=[]):
         self.name = name
         self._create_ros_objects()
-        
+    
+        self.callbacks = callbacks
         self.last_read = ['', '', -1] # antenna_name, tagID, rssi
 
         try:
@@ -54,10 +55,15 @@ class ROS_M5e_Client():
         except rospy.ROSException:
             pass
 
-        self.reader = rospy.Subscriber( '/rfid/' + self.name + '_reader', RFIDread, self.callback)        
+        self._sub = rospy.Subscriber( '/rfid/' + self.name + '_reader', RFIDread, self._sub_cb)
 
-    def callback(self, datum):
+    def _sub_cb(self, datum):
+        [ cb( datum ) for cb in self.callbacks ]
         self.last_read = [datum.antenna_name, datum.tagID, datum.rssi]
+
+    def unregister( self ):
+        # Stop processing new reads.
+        self._sub.unregister()
 
     # ROS Services
     def stop(self):
