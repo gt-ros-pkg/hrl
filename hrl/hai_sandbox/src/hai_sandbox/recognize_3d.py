@@ -40,6 +40,7 @@ import hrl_camera.ros_camera as rc
 import hai_sandbox.kinect_listener as kl
 import scipy, pylab
 import scipy.stats as sct
+import time
 import pdb
 
 UNLABELED = 2.0
@@ -996,7 +997,7 @@ class PCAIntensities:
         self.reconstruction_std_lim = reconstruction_std_lim
         self.reconstruction_err_toler = reconstruction_err_toler
 
-    def calculate_pca_vectors(self, data, variance_keep, incremental=True):
+    def calculate_pca_vectors(self, data, variance_keep, incremental=False):
         data_in = data[self.intensities_index:, :]
         #we already have pca vectors
         #pdb.set_trace()
@@ -1009,7 +1010,8 @@ class PCAIntensities:
                 print 'PCAIntensities: is_dataset_far_from_pca_subspace yes, dataset is far. recalculating pca.'
                 #pdb.set_trace()
                 nsamples = min(data_in.shape[1], 2000) #2000 is the max that we can handle
-                data_in  = np.column_stack((data_in, self.pca_data[self.intensities_index, :]))
+                loaded_data = ut.load_pickle(self.pca_data)
+                data_in  = np.column_stack((data_in, loaded_data[self.intensities_index:, :]))
                 ntotal   = data_in.shape[1]
                 data_in  = data_in[:, np.random.permutation(np.array(range(ntotal)))[0:nsamples]]
 
@@ -1030,7 +1032,10 @@ class PCAIntensities:
         self.recon_mean = np.mean(self.recon_err_raw)
         self.recon_std = np.std(self.recon_err_raw)
         self.reconstruction_error = self.calc_reconstruction_errors(projected, data_in_normed)
-        self.pca_data = data
+
+        pca_data_name = time.strftime('%A_%m_%d_%Y_%I:%M%p') + '_pca_data.pkl'
+        ut.save_pickle(data, pca_data_name)
+        self.pca_data = pca_data_name
 
     def calc_reconstruction_errors(self, projected_instances, original_instances):
         errors = ut.norm((self.projection_basis * projected_instances) - original_instances)
@@ -1420,22 +1425,22 @@ class Recognize3DParam:
         self.radius = .5
         self.robot_reach_radius = 2.5
         #self.svm_params = '-s 0 -t 2 -g .0625 -c 4'
-        self.svm_params = '-s 0 -t 2 -g .125 -c 4'
+        self.svm_params = '-s 0 -t 2 -g .0625 -c 4'
         #self.svm_params = '-s 0 -t 2 -g 3.0 -c 4'
 
         #sampling parameters
         #self.n_samples = 5000
         #self.n_samples = 5000
-        self.n_samples = 2000
+        self.n_samples = 2500
         self.uni_mix = .3
 
         self.uncertainty_x = 1
-        self.uncertainty_y = .05
-        self.uncertainty_z = .05
+        self.uncertainty_y = .1
+        self.uncertainty_z = .1
         #print "Uncertainty is:", self.uncertainty
 
         #variance
-        self.variance_keep = .95
+        self.variance_keep = .90
         self.reconstruction_std_lim = 1.
         self.reconstruction_err_toler = .05
 
@@ -1810,20 +1815,22 @@ def find_max_in_density(locs2d):
     min_x = np.min(x)
     min_y = np.min(y)
 
-    X, Y = scipy.mgrid[min_x:max_x:500j, min_y:max_y:500j]
+    X, Y      = scipy.mgrid[min_x:max_x:500j, min_y:max_y:500j]
     positions = scipy.c_[X.ravel(), Y.ravel()]
-    values = scipy.c_[locs2d[0,:].A1, locs2d[1,:].A1]
-    kernel = sct.kde.gaussian_kde(values.T)
-    Z = np.reshape(kernel(positions.T).T, X.T.shape)
-    loc_max = np.argmax(Z)
+    values    = scipy.c_[locs2d[0,:].A1, locs2d[1,:].A1]
+    kernel    = sct.kde.gaussian_kde(values.T)
+    Z         = np.reshape(kernel(positions.T).T, X.T.shape)
+    loc_max   = np.argmax(Z)
     loc2d_max = np.matrix([X.flatten()[loc_max], Y.flatten()[loc_max]]).T
-    return loc2d_max, Z
     
     #pylab.imshow(np.rot90(Z, 2), cmap=pylab.cm.gist_earth_r, extent=[0,img.cols, 0, img.rows])
     #pylab.imshow(img, cmap=pylab.cm.gist_earth_r, extent=[0,img.cols, 0, img.rows])
     #pylab.plot(locs2d[0,:].A1, locs2d[1,:].A1, 'k.', markersize=2)
     #pylab.plot([loc2d_max[0,0]], [loc2d_max[1,0]], 'gx')
     #cv.ShowImage("Positive Density", 255 * (np.rot90(Z)/np.max(Z)))
+    #pdb.set_trace()
+
+    return loc2d_max, Z
 
 class ScanLabeler:
 
@@ -2497,10 +2504,12 @@ class ScanLabeler:
             #weight_balance = ' -w0 1 -w1 5.0'
             weight_balance = ' -w0 1 -w1 %.2f' % (neg_to_pos_ratio)
             #weight_balance = ""
+
             self.learner = SVMPCA_ActiveLearner(use_pca, 
                     self.rec_params.reconstruction_std_lim, 
                     self.rec_params.reconstruction_err_toler,
                     self.learner)
+
             self.learner.train(self.dataset, 
                                inputs_for_scaling,
                                self.rec_params.svm_params + weight_balance,
@@ -2657,7 +2666,8 @@ class NarrowTextureFeatureExtractor:
         pointcloud_msg = self.narrow_texture.read()
         rospy.loginfo('grabbing prosilica frame')
         self.projector.set(False)
-        cvimage_mat = self.prosilica.get_frame()
+        for i in range(3):
+            cvimage_mat = self.prosilica.get_frame()
         self.projector.set(True)
         rospy.loginfo('processing')
         pointcloud_ns = ru.pointcloud_to_np(pointcloud_msg)
