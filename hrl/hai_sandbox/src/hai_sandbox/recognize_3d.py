@@ -1431,7 +1431,7 @@ class Recognize3DParam:
         #sampling parameters
         #self.n_samples = 5000
         #self.n_samples = 5000
-        self.n_samples = 2500
+        self.n_samples = 1500
         self.uni_mix = .3
 
         self.uncertainty_x = 1
