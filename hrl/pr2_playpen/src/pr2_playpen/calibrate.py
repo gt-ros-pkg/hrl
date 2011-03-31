@@ -79,7 +79,7 @@ if __name__ == '__main__':
     f.write('<launch>\n')
     ############################################ I really need to verify the order of sys.arg[4] and sys.arg[1], this could be wrong!!! best way to check 
     ############################################ is to transform something from argv[4] frame to argv[1] frame and check
-    f.write('<node pkg="tf" type="static_transform_publisher" name="kinect_playpen_to_pr2_lift_link" args=" '+trans_str[1:-1]+' '+rot_str[1:-1]+' '+sys.argv[4]+' '+sys.argv[1]+' 100" />\n')
+    f.write('<node pkg="tf" type="static_transform_publisher" name="kinect_playpen_to_pr2_lift_link" args=" '+trans_str[1:-1]+' '+rot_str[1:-1]+' '+sys.argv[1]+' '+sys.argv[4]+' 30" />\n')
     f.write('</launch>')
     f.close()
 

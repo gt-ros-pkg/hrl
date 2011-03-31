@@ -128,7 +128,7 @@ if __name__ == "__main__":
         sppe.playpen(0)
         sppe.conveyor(sppe.objects_dist[i])
 
-        while sppe.tries<2:
+        while sppe.tries<6:
             print "arm is ", arm
 #            print "target _point is ", target_point.x
             success = sppe.pick_up_object_near_point(target_point, arm)   #right arm

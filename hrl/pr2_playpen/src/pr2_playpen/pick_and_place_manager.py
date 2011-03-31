@@ -671,7 +671,7 @@ class PickAndPlaceManager():
         self.cms[whicharm].move_cartesian(wrist_pose, settling_time = rospy.Duration(10))
 
         #get out of there
-        self.move_arm_to_side(whicharm)
+        self.move_arm_out_of_way(whicharm)
         return 1
 
 
@@ -1242,7 +1242,7 @@ class PickAndPlaceManager():
         #object grasper failed
         elif grasp_result == "FAILED":
             self.open_gripper(arm_used)
-            self.move_arm_to_side(arm_used)
+            self.move_arm_out_of_way(arm_used)
             return ("attempt failed", None)
 
         #grasp succeeded, but lift failed, which we can do instead
@@ -1265,7 +1265,7 @@ class PickAndPlaceManager():
             else:
                 self.detach_object(arm_used)
                 self.open_gripper(arm_used)
-                self.move_arm_to_side(arm_used)
+                self.move_arm_out_of_way(arm_used)
                 rospy.loginfo("lift attempt failed, detaching object and returning to the side")
                 return ("attempt failed", None)
 
@@ -1277,7 +1277,7 @@ class PickAndPlaceManager():
         elif grasp_result == "MOVE_ARM_STUCK":
             rospy.loginfo("grasp object returned move arm stuck; taking a new collision map and moving to side")
             self.reset_collision_map()
-            self.move_arm_to_side(arm_used)
+            self.move_arm_out_of_way(arm_used)
             return ("attempt failed", None)
 
         #grasper returned "ERROR", better ask a human for help
@@ -1512,7 +1512,7 @@ class PickAndPlaceManager():
 
         #succeeded, move the arm out of the way with the object
         if success:
-            self.move_arm_to_side(arm_used, try_constrained = 1)
+            self.move_arm_out_of_way(arm_used, try_constrained = 1)
             return ("succeeded", arm_used)
         else:
             return ("grasp failed", None)
