@@ -57,9 +57,10 @@ class SimplePickAndPlaceExample():
     def pick_up_object_near_point(self, target_point, whicharm):
 
         rospy.loginfo("moving the arms to the side")
-        self.papm.move_arm_to_side(0)  #right arm
-        self.papm.move_arm_to_side(1)  #left arm
-
+#        self.papm.move_arm_to_side(0)  #right arm
+#        self.papm.move_arm_to_side(1)  #left arm
+        self.papm.move_arm_out_of_way(0)
+        self.papm.move_arm_out_of_way(1)
 
 #############once is it positioned, we don't want to move the head at all !!!#############
 #        rospy.loginfo("pointing the head at the target point")
@@ -78,7 +79,8 @@ class SimplePickAndPlaceExample():
 
         if success:
             rospy.loginfo("pick-up was successful!  Moving arm to side")
-            self.papm.move_arm_to_side(whicharm)
+            #self.papm.move_arm_to_side(whicharm)
+            self.papm.move_arm_out_of_way(whicharm)
         else:
             rospy.loginfo("pick-up failed.")
 
@@ -138,9 +140,15 @@ if __name__ == "__main__":
 
                 
                 #.5 m in front of robot, to the right
-                radius = np.random.uniform(0,0.20, 1)[0]
-                angle = np.random.uniform(0, 2*math.pi, 1)[0]
-                center_xyz = [.625+math.cos(angle)*radius, math.sin(angle)*radius, table_height+.2]
+                # radius = np.random.uniform(0,0.20, 1)[0]
+                # angle = np.random.uniform(0, 2*math.pi, 1)[0]
+                # center_xyz = [.625+math.cos(angle)*radius, math.sin(angle)*radius, table_height+.2]
+
+
+                x = np.random.uniform(-0.2, 0.20, 1)[0]
+                y = np.random.uniform(-0.2, 0.20, 1)[0]
+                center_xyz = [.625+x, y, table_height+.10]
+
 
                 #aligned with axes of frame_id
                 center_quat = [0,0,0,1]

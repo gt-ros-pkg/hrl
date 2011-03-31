@@ -194,6 +194,10 @@ class PickAndPlaceManager():
         #arm-away joint angles
         self.arm_above_and_to_side_angles = [[-0.968, 0.729, -0.554, -1.891, -1.786, -1.127, 0.501],
                                         [0.968, 0.729, 0.554, -1.891, 1.786, -1.127, 0.501]]
+
+        self.arm_above_and_out_of_way = [[-0.54, -0.3, -1.4, -1.05, -1.4, -1.85, 0.501],
+                                        [0.54, -0.3, 1.4, -1.05, 1.4, -1.85, 0.501]]
+
         self.arm_to_side_angles = [[-2.135, 0.803, -1.732, -1.905, -2.369, -1.680, 1.398],
                               [2.135, 0.803, 1.732, -1.905, 2.369, -1.680, 1.398]]
 
@@ -1546,6 +1550,14 @@ class PickAndPlaceManager():
         result = self.try_hard_to_move_joint(whicharm, [self.arm_above_and_to_side_angles[whicharm], \
                                                    self.arm_to_side_angles[whicharm]], use_open_loop = 1)
         return result
+
+
+    def move_arm_out_of_way(self, whicharm, try_constrained = 0):
+
+        #either constrained move didn't work or we didn't request a constrained move
+        result = self.try_hard_to_move_joint(whicharm, [self.arm_above_and_out_of_way[whicharm]], use_open_loop = 1)
+        return result
+
 
 
     ##move whicharm off to the side open-loop
