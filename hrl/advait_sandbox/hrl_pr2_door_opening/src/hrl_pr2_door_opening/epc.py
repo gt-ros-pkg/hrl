@@ -135,6 +135,7 @@ class EPC():
         cep[1,0] = cep_t[1,0]
         cep[2,0] = cep_t[2,0]
 
+#        print 'wrist_force:', wrist_force.A1
         v = cep - cep_start
         if (wrist_force.T * move_dir)[0,0] < -force_threshold:
             stop = 'got a hook'

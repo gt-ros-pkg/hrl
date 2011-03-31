@@ -325,8 +325,10 @@ class Door_EPC(epc.EPC):
         cep_start, _ = self.robot.get_cep_jtt(arm)
         cep = copy.copy(cep_start)
         arg_list = [arm, move_dir, hooking_force_threshold, cep, cep_start]
+        print 'Hi there.'
         s = self.epc_motion(self.cep_gen_surface_follow, 0.1, arm,
                 arg_list, control_function = self.robot.set_cep_jtt)
+        print 'result:', s
         return s
 
 
