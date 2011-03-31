@@ -8,7 +8,7 @@
     <remap from="/camera/rgb/camera_info" to="/kinect_head/rgb/camera_info" />
     <remap from="/camera/depth/points2" to="/kinect_head/depth/points2" />
     <remap from="ar_pose_markers" to="artag_calibration_pr2" />
-    <param name="marker_pattern_list" type="string" value="$(find pr2_playpen)/launch/objects_kinect"/>
+    <param name="marker_pattern_list" type="string" value="$(find pr2_playpen)/launch_pr2/objects_kinect"/>
     <param name="marker_data_directory" type="string" value="$(find ar_pose)"/>
     <param name="threshold" type="int" value="100"/>
   </node>
