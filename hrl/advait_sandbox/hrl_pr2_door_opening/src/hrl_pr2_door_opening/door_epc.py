@@ -49,9 +49,9 @@ class Door_EPC(epc.EPC):
         self.cep_list.append(cep.A1.tolist())
         ee, _ = self.robot.get_ee_jtt(arm)
         self.ee_list.append(ee.A1.tolist())
-
+        
         if self.started_pulling_on_handle == False:
-            if f[0,0] > 5.:
+            if f[0,0] > 10.:
                 self.started_pulling_on_handle_count += 1
             else:
                 self.started_pulling_on_handle_count = 0
@@ -166,13 +166,14 @@ class Door_EPC(epc.EPC):
         f_vec = -1*np.array([wrist_force[0,0], wrist_force[1,0],
                              wrist_force[2,0]])
         f_rad_mag = np.dot(f_vec, force_vec.A1)
-        err = f_rad_mag-2.
+        err = f_rad_mag-4.
         if err>0.:
             kp = -0.1
         else:
             kp = -0.2
         radial_motion_mag = kp * err # radial_motion_mag in cm (depends on eq_motion step size)
         radial_motion_vec =  force_vec * radial_motion_mag
+        print 'tangential_vec:', tangential_vec.A1
         eq_motion_vec = copy.copy(tangential_vec)
         eq_motion_vec += radial_motion_vec
         
@@ -288,7 +289,7 @@ class Door_EPC(epc.EPC):
         ut.save_pickle(d,'pr2_pull_'+ut.formatted_time()+'.pkl')
 
     def search_and_hook(self, arm, hook_loc, hooking_force_threshold = 5.,
-                        hit_threshold=2., hit_motions = 1,
+                        hit_threshold=15., hit_motions = 1,
                         hook_direction = 'left'):
         # this needs to be debugged. Hardcoded for now.
         #if arm == 'right_arm' or arm == 0:
