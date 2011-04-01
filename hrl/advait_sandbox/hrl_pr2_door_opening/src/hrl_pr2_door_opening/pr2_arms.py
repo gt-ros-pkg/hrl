@@ -112,13 +112,13 @@ class PR2Arms(object):
                                                         Pr2GripperCommandAction)
         l_gripper_client = actionlib.SimpleActionClient('l_gripper_controller/gripper_action',
                                                         Pr2GripperCommandAction)
-        self.gripper_action_client = [r_action_client, l_gripper_client]
+        self.gripper_action_client = [r_gripper_client, l_gripper_client]
         rospy.sleep(2.)
 
 #        self.joint_action_client[0].wait_for_server()
 #        self.joint_action_client[1].wait_for_server()
-#        self.gripper_action_client[0].wait_for_server()
-#        self.gripper_action_client[1].wait_for_server()
+        self.gripper_action_client[0].wait_for_server()
+        self.gripper_action_client[1].wait_for_server()
 
         log("Finished loading SimpleArmManger")
 

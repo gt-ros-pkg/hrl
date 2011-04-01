@@ -360,13 +360,13 @@ if __name__ == '__main__':
     pr2_arms.arms.set_tooltip(arm, tip)
 
     raw_input('Hit ENTER to close')
-    pr2_arms.close_gripper(arm, effort=100)
+    pr2_arms.close_gripper(arm, effort=80)
     raw_input('Hit ENTER to start Door Opening')
 
     # for cabinets.
     #p1 = np.matrix([0.8, -0.40, -0.04]).T # pos 3
     #p1 = np.matrix([0.8, -0.10, -0.04]).T # pos 2
-    p1 = np.matrix([0.8, -0.35, -0.04]).T # pos 1
+    p1 = np.matrix([0.8, -0.35, 0.1]).T # pos 1
     door_epc.search_and_hook(arm, p1, hook_direction='left')
     door_epc.pull(arm, force_threshold=40., cep_vel=0.05)
 
