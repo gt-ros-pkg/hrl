@@ -373,7 +373,7 @@ class PR2Arms(object):
         q = self.arm_angles[arm]
         tau = self.arm_efforts[arm]
         self.arm_state_lock[arm].release()
-        p = self.arms.FK_all(arm, q)
+        p, _ = self.arms.FK_all(arm, q)
         J = self.arms.Jacobian(arm, q, p)
         f = np.linalg.pinv(J.T) * np.matrix(tau).T
         f = f[0:3,:]

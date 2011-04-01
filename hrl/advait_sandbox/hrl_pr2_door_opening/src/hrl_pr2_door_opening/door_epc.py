@@ -180,7 +180,7 @@ class Door_EPC(epc.EPC):
         f_vec = -1*np.array([wrist_force[0,0], wrist_force[1,0],
                              wrist_force[2,0]])
         f_rad_mag = np.dot(f_vec, force_vec.A1)
-        err = f_rad_mag-6.
+        err = f_rad_mag-4.
         if err>0.:
             kp = -0.1
         else:
