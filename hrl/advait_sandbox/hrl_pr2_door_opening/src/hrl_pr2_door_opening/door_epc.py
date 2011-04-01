@@ -35,6 +35,7 @@ class Door_EPC(epc.EPC):
         self.f_list = []
         self.f_list_ati = []
         self.f_list_estimate = []
+        self.f_list_torques = []
         self.cep_list = []
         self.ee_list = []
         self.ft = ForceTrajectory()
@@ -47,8 +48,12 @@ class Door_EPC(epc.EPC):
         # only logging the right arm.
         f = self.robot.get_wrist_force_ati(arm, base_frame=True)
         self.f_list_ati.append(f.A1.tolist())
+
         f = self.robot.get_wrist_force_estimate(arm, base_frame=True)
         self.f_list_estimate.append(f.A1.tolist())
+
+        f = self.robot.get_force_from_torques(arm)
+        self.f_list_torques.append(f.A1.tolist())
 
         f = self.robot.get_wrist_force(arm, base_frame=True)
         self.f_list.append(f.A1.tolist())
@@ -295,7 +300,8 @@ class Door_EPC(epc.EPC):
                 'cep_list': self.cep_list, 'ftan_list': self.ft.tangential_force,
                 'config_list': self.ft.configuration, 'frad_list': self.ft.radial_force,
                 'f_list_ati': self.f_list_ati,
-                'f_list_estimate': self.f_list_estimate
+                'f_list_estimate': self.f_list_estimate,
+                'f_list_torques': self.f_list_torques
             }
         ut.save_pickle(d,'pr2_pull_'+ut.formatted_time()+'.pkl')
 

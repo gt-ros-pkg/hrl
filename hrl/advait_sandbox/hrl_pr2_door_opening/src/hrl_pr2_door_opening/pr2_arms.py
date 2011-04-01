@@ -363,6 +363,23 @@ class PR2Arms(object):
             f = rot * f
         return -f # the negative is intentional (Advait, Nov 24. 2010.)
 
+    ## Returns the list of 7 joint angles
+    # @param arm 0 for right, 1 for left
+    # @return list of 7 joint angles
+    def get_force_from_torques(self, arm):
+        if arm != 1:
+            arm = 0
+        self.arm_state_lock[arm].acquire()
+        q = self.arm_angles[arm]
+        tau = self.arm_efforts[arm]
+        self.arm_state_lock[arm].release()
+        p = self.arms.FK_all(arm, q)
+        J = self.arms.Jacobian(arm, q, p)
+        f = np.linalg.pinv(J.T) * np.matrix(tau).T
+        f = f[0:3,:]
+        return -f
+
+
     def bias_wrist_ft(self, arm):
         if arm != 0:
             rospy.logerr('Unsupported arm: %d'%arm)
@@ -505,16 +522,16 @@ class PR2Arms_kdl():
             ])
         return kdl_jac
         
-    ## compute Jacobian (at wrist).
-    # @param arm - 0 or 1
-    # @param q - list of 7 joint angles.
-    # @return 6x7 np matrix
-    def Jac(self, arm, q):
-        rospy.logerr('Jac only works for getting the Jacobian at the wrist. Use Jacobian to get the Jacobian at a general location.')
-        jntarr = self.pr2_to_kdl(q)
-        kdl_jac = self.Jac_kdl(arm, jntarr)
-        pr2_jac = kdl_jac
-        return pr2_jac
+#    ## compute Jacobian (at wrist).
+#    # @param arm - 0 or 1
+#    # @param q - list of 7 joint angles.
+#    # @return 6x7 np matrix
+#    def Jac(self, arm, q):
+#        rospy.logerr('Jac only works for getting the Jacobian at the wrist. Use Jacobian to get the Jacobian at a general location.')
+#        jntarr = self.pr2_to_kdl(q)
+#        kdl_jac = self.Jac_kdl(arm, jntarr)
+#        pr2_jac = kdl_jac
+#        return pr2_jac
 
     ## compute Jacobian at point pos.
     # p is in the torso_lift_link coord frame.
