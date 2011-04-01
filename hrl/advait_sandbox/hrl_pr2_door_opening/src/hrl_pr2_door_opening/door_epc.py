@@ -55,7 +55,8 @@ class Door_EPC(epc.EPC):
 
         cep, _ = self.robot.get_cep_jtt(arm, hook_tip=True)
         self.cep_list.append(cep.A1.tolist())
-        ee, _ = self.robot.get_ee_jtt(arm)
+#        ee, _ = self.robot.get_ee_jtt(arm)
+        ee, _ = self.robot.end_effector_pos(arm)
         self.ee_list.append(ee.A1.tolist())
         
         if self.started_pulling_on_handle == False:
@@ -351,14 +352,14 @@ if __name__ == '__main__':
     tip = [0.35, 0., 0.]
     #pr2_arms = pa.PR2Arms(primary_ft_sensor='estimate',
     #                      gripper_point=tip)
-    pr2_arms = pa.PR2Arms(primary_ft_sensor='ati', gripper_point=tip)
+    pr2_arms = pa.PR2Arms(primary_ft_sensor='ati')
     door_epc = Door_EPC(pr2_arms)
 
     r_arm, l_arm = 0, 1
     arm = r_arm
 
     raw_input('Hit ENTER to close')
-    pr2_arms.close_gripper(arm)
+    pr2_arms.close_gripper(arm, effort=100)
     raw_input('Hit ENTER to start Door Opening')
 
     # for cabinets.
