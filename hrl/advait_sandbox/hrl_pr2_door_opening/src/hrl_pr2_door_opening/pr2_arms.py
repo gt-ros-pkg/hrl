@@ -113,7 +113,12 @@ class PR2Arms(object):
         l_gripper_client = actionlib.SimpleActionClient('l_gripper_controller/gripper_action',
                                                         Pr2GripperCommandAction)
         self.gripper_action_client = [r_action_client, l_gripper_client]
-        rospy.sleep(1.)
+        rospy.sleep(2.)
+
+#        self.joint_action_client[0].wait_for_server()
+#        self.joint_action_client[1].wait_for_server()
+#        self.gripper_action_client[0].wait_for_server()
+#        self.gripper_action_client[1].wait_for_server()
 
         log("Finished loading SimpleArmManger")
 
@@ -370,6 +375,7 @@ class PR2Arms(object):
     def move_gripper(self, arm, amount=0.08, effort = 15):
         self.gripper_action_client[arm].send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=amount,
                                                                                     max_effort = effort)))
+
     ## Open the gripper
     # @param arm 0 for right, 1 for left
     def open_gripper(self, arm):

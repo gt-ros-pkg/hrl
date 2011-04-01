@@ -349,14 +349,14 @@ if __name__ == '__main__':
     rospy.init_node('epc_pr2', anonymous = True)
     rospy.logout('epc_pr2: ready')
 
-    tip = [0.35, 0., 0.]
-    #pr2_arms = pa.PR2Arms(primary_ft_sensor='estimate',
-    #                      gripper_point=tip)
     pr2_arms = pa.PR2Arms(primary_ft_sensor='ati')
     door_epc = Door_EPC(pr2_arms)
 
     r_arm, l_arm = 0, 1
     arm = r_arm
+
+    tip = np.matrix([0.35, 0., 0.]).T
+    pr2_arms.arms.set_tooltip(arm, tip)
 
     raw_input('Hit ENTER to close')
     pr2_arms.close_gripper(arm, effort=100)
