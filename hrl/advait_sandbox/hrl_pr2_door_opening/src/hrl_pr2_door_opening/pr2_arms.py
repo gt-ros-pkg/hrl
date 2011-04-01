@@ -90,11 +90,13 @@ class PR2Arms(object):
     ##
     # Initializes all of the servers, clients, and variables
     #
+    # @param primary_ft_sensor - 'ati' or 'estimate'
     # @param send_delay send trajectory points send_delay nanoseconds into the future
     # @param gripper_point given the frame of the wrist_roll_link, this point offsets
     #                      the location used in FK and IK, preferably to the tip of the
     #                      gripper
-    def __init__(self, send_delay=50000000, gripper_point=(0.23, 0.0, 0.0)):
+    def __init__(self, primary_ft_sensor, send_delay=50000000,
+                 gripper_point=(0.23, 0.0, 0.0)):
         log("Loading PR2Arms")
 
         self.send_delay = send_delay
@@ -134,7 +136,13 @@ class PR2Arms(object):
         rospy.Subscriber('/l_cart/state', JTTeleopControllerState, self.l_cart_state_cb)
 
         self.r_arm_ftc = ftc.FTClient('force_torque_ft2')
+        self.r_arm_ftc_estimate = ftc.FTClient('force_torque_ft2_estimate')
         self.tf_lstnr = tf.TransformListener()
+
+        if primary_ft_sensor == 'ati':
+            self.get_wrist_force = self.get_wrist_force_ati
+        if primary_ft_sensor == 'estimate':
+            self.get_wrist_force = self.get_wrist_force_estimate
 
         self.arm_angles = [None, None]
         self.arm_efforts = [None, None]
@@ -668,9 +676,25 @@ class PR2Arms(object):
         self.arm_state_lock[arm].release()
         return q
 
+    # force that is being applied on the wrist. (estimate as returned
+    # by the cartesian controller)
+    def get_wrist_force_estimate(self, arm, bias = True, base_frame = False):
+        if arm != 0:
+            rospy.logerr('Unsupported arm: %d'%arm)
+            raise RuntimeError('Unimplemented function')
+ 
+        f = self.r_arm_ftc_estimate.read(without_bias = not bias)
+        f = f[0:3, :]
+        if base_frame:
+            trans, quat = self.tf_lstnr.lookupTransform('/torso_lift_link',
+                                                '/ft2_estimate', rospy.Time(0))
+            rot = tr.quaternion_to_matrix(quat)
+            f = rot * f
+        f[0,0] -= 7.
+        return -f # the negative is intentional (Advait, Nov 24. 2010.)
 
     # force that is being applied on the wrist.
-    def get_wrist_force(self, arm, bias = True, base_frame = False):
+    def get_wrist_force_ati(self, arm, bias = True, base_frame = False):
         if arm != 0:
             rospy.logerr('Unsupported arm: %d'%arm)
             raise RuntimeError('Unimplemented function')
@@ -689,6 +713,7 @@ class PR2Arms(object):
            rospy.logerr('Unsupported arm: %d'%arm)
            raise RuntimeError('Unimplemented function')
        self.r_arm_ftc.bias()
+       self.r_arm_ftc_estimate.bias()
 
 
     def get_ee_jtt(self, arm):

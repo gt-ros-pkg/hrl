@@ -33,6 +33,8 @@ class Door_EPC(epc.EPC):
 
     def init_log(self):
         self.f_list = []
+        self.f_list_ati = []
+        self.f_list_estimate = []
         self.cep_list = []
         self.ee_list = []
         self.ft = ForceTrajectory()
@@ -43,15 +45,21 @@ class Door_EPC(epc.EPC):
 
     def log_state(self, arm):
         # only logging the right arm.
+        f = self.robot.get_wrist_force_ati(arm, base_frame=True)
+        self.f_list_ati.append(f.A1.tolist())
+        f = self.robot.get_wrist_force_estimate(arm, base_frame=True)
+        self.f_list_estimate.append(f.A1.tolist())
+
         f = self.robot.get_wrist_force(arm, base_frame=True)
         self.f_list.append(f.A1.tolist())
+
         cep, _ = self.robot.get_cep_jtt(arm, hook_tip=True)
         self.cep_list.append(cep.A1.tolist())
         ee, _ = self.robot.get_ee_jtt(arm)
         self.ee_list.append(ee.A1.tolist())
         
         if self.started_pulling_on_handle == False:
-            if f[0,0] > 10.:
+            if f[0,0] > 5.:
                 self.started_pulling_on_handle_count += 1
             else:
                 self.started_pulling_on_handle_count = 0
@@ -166,7 +174,7 @@ class Door_EPC(epc.EPC):
         f_vec = -1*np.array([wrist_force[0,0], wrist_force[1,0],
                              wrist_force[2,0]])
         f_rad_mag = np.dot(f_vec, force_vec.A1)
-        err = f_rad_mag-4.
+        err = f_rad_mag-3.
         if err>0.:
             kp = -0.1
         else:
@@ -284,12 +292,14 @@ class Door_EPC(epc.EPC):
         d = {
                 'f_list': self.f_list, 'ee_list': self.ee_list,
                 'cep_list': self.cep_list, 'ftan_list': self.ft.tangential_force,
-                'config_list': self.ft.configuration, 'frad_list': self.ft.radial_force
+                'config_list': self.ft.configuration, 'frad_list': self.ft.radial_force,
+                'f_list_ati': self.f_list_ati,
+                'f_list_estimate': self.f_list_estimate
             }
         ut.save_pickle(d,'pr2_pull_'+ut.formatted_time()+'.pkl')
 
     def search_and_hook(self, arm, hook_loc, hooking_force_threshold = 5.,
-                        hit_threshold=15., hit_motions = 1,
+                        hit_threshold=5., hit_motions = 1,
                         hook_direction = 'left'):
         # this needs to be debugged. Hardcoded for now.
         #if arm == 'right_arm' or arm == 0:
@@ -338,7 +348,10 @@ if __name__ == '__main__':
     rospy.init_node('epc_pr2', anonymous = True)
     rospy.logout('epc_pr2: ready')
 
-    pr2_arms = pa.PR2Arms()
+    tip = [0.35, 0., 0.]
+    #pr2_arms = pa.PR2Arms(primary_ft_sensor='estimate',
+    #                      gripper_point=tip)
+    pr2_arms = pa.PR2Arms(primary_ft_sensor='ati', gripper_point=tip)
     door_epc = Door_EPC(pr2_arms)
 
     r_arm, l_arm = 0, 1
@@ -351,7 +364,7 @@ if __name__ == '__main__':
     # for cabinets.
     #p1 = np.matrix([0.8, -0.40, -0.04]).T # pos 3
     #p1 = np.matrix([0.8, -0.10, -0.04]).T # pos 2
-    p1 = np.matrix([0.8, -0.25, -0.04]).T # pos 1
+    p1 = np.matrix([0.8, -0.35, -0.04]).T # pos 1
     door_epc.search_and_hook(arm, p1, hook_direction='left')
     door_epc.pull(arm, force_threshold=40., cep_vel=0.05)
 

@@ -24,7 +24,7 @@ if __name__ == '__main__':
     lock = RLock()
     ft_val = [0.] * 6
     pub = rospy.Subscriber('/r_cart/state/wrench', Twist, ft_cb)
-    pub = rospy.Publisher('/force_torque_ft2', FloatArray)
+    pub = rospy.Publisher('/force_torque_ft2_estimate', FloatArray)
     rospy.init_node('ati_ft_emulator')
     rospy.loginfo('Started the ATI FT emulator.')
     rt = rospy.Rate(100)
