@@ -346,7 +346,6 @@ class PR2Arms(object):
                                                 '/ft2_estimate', rospy.Time(0))
             rot = tr.quaternion_to_matrix(quat)
             f = rot * f
-        f[0,0] -= 7.
         return -f # the negative is intentional (Advait, Nov 24. 2010.)
 
     # force that is being applied on the wrist.

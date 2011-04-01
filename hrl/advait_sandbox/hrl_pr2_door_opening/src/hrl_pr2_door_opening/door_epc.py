@@ -60,7 +60,7 @@ class Door_EPC(epc.EPC):
         self.ee_list.append(ee.A1.tolist())
         
         if self.started_pulling_on_handle == False:
-            if f[0,0] > 5.:
+            if f[0,0] > 10.:
                 self.started_pulling_on_handle_count += 1
             else:
                 self.started_pulling_on_handle_count = 0
@@ -175,7 +175,7 @@ class Door_EPC(epc.EPC):
         f_vec = -1*np.array([wrist_force[0,0], wrist_force[1,0],
                              wrist_force[2,0]])
         f_rad_mag = np.dot(f_vec, force_vec.A1)
-        err = f_rad_mag-3.
+        err = f_rad_mag-6.
         if err>0.:
             kp = -0.1
         else:
@@ -300,7 +300,7 @@ class Door_EPC(epc.EPC):
         ut.save_pickle(d,'pr2_pull_'+ut.formatted_time()+'.pkl')
 
     def search_and_hook(self, arm, hook_loc, hooking_force_threshold = 5.,
-                        hit_threshold=5., hit_motions = 1,
+                        hit_threshold=15., hit_motions = 1,
                         hook_direction = 'left'):
         # this needs to be debugged. Hardcoded for now.
         #if arm == 'right_arm' or arm == 0:
@@ -349,7 +349,8 @@ if __name__ == '__main__':
     rospy.init_node('epc_pr2', anonymous = True)
     rospy.logout('epc_pr2: ready')
 
-    pr2_arms = pa.PR2Arms(primary_ft_sensor='ati')
+    #pr2_arms = pa.PR2Arms(primary_ft_sensor='ati')
+    pr2_arms = pa.PR2Arms(primary_ft_sensor='estimate')
     door_epc = Door_EPC(pr2_arms)
 
     r_arm, l_arm = 0, 1
