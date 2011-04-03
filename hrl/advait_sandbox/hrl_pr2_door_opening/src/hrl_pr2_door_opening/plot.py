@@ -8,9 +8,9 @@ roslib.load_manifest('equilibrium_point_control')
 import hrl_lib.util as ut
 import equilibrium_point_control.arm_trajectories_ram as atr
 
-#d = ut.load_pickle('pkls/ikea_cabinet_log.pkl')
+d = ut.load_pickle('pkls/ikea_cabinet_log.pkl')
 #d = ut.load_pickle('pkls/ikea_cabinet_2.pkl')
-d = ut.load_pickle('pkls/lab_cabinet_log.pkl')
+#d = ut.load_pickle('pkls/lab_cabinet_log.pkl')
 
 typ = 'rotary'
 pr2_log = True
