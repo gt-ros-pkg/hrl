@@ -42,23 +42,6 @@ node_name = "pr2_arms"
 def log(str):
     rospy.loginfo(node_name + ": " + str)
 
-##
-# Convert arrays, lists, matricies to column format.
-#
-# @param x the unknown format
-# @return a column matrix
-def make_column(x):
-    if (type(x) == type([]) 
-        or (type(x) == np.ndarray and x.ndim == 1)
-        or type(x) == type(())):
-        return np.matrix(x).T
-    if type(x) == np.ndarray:
-        x = np.matrix(x)
-    if x.shape[0] == 1:
-        return x.T
-    return x
-
-
 class PR2Arms(object):
     def __init__(self, primary_ft_sensor=None):
         log("Loading PR2Arms")

@@ -238,7 +238,7 @@ class Door_EPC(epc.EPC):
         else:
             self.ftan_threshold = max(self.ftan_threshold, ftan)
 
-        if self.hooked_location_moved and ang > math.radians(90.):
+        if self.hooked_location_moved and ang > math.radians(85.):
             print 'Angle:', math.degrees(ang)
             self.open_ang_exceed_count += 1
             if self.open_ang_exceed_count > 2:
@@ -354,8 +354,8 @@ if __name__ == '__main__':
     rospy.init_node('epc_pr2', anonymous = True)
     rospy.logout('epc_pr2: ready')
 
-    #pr2_arms = pa.PR2Arms(primary_ft_sensor='ati')
-    pr2_arms = pa.PR2Arms(primary_ft_sensor='estimate')
+    pr2_arms = pa.PR2Arms(primary_ft_sensor='ati')
+    #pr2_arms = pa.PR2Arms(primary_ft_sensor='estimate')
     door_epc = Door_EPC(pr2_arms)
 
     r_arm, l_arm = 0, 1
