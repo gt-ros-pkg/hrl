@@ -5,7 +5,7 @@ from threading import RLock, Timer
 import sys, copy
 
 
-import roslib; roslib.load_manifest('hrl_pr2_lib')
+import roslib; roslib.load_manifest('epc_core')
 roslib.load_manifest('force_torque') # hack by Advait
 import force_torque.FTClient as ftc
 
@@ -19,7 +19,6 @@ import PyKDL as kdl
 import actionlib
 from actionlib_msgs.msg import GoalStatus
 
-from kinematics_msgs.srv import GetPositionIK, GetPositionIKRequest, GetPositionIKResponse
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal, JointTrajectoryControllerState
 from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction, Pr2GripperCommand
 
@@ -61,7 +60,7 @@ def make_column(x):
 
 
 class PR2Arms(object):
-    def __init__(self, primary_ft_sensor):
+    def __init__(self, primary_ft_sensor=None):
         log("Loading PR2Arms")
 
         self.arms = PR2Arms_kdl() # KDL chain.
@@ -636,58 +635,6 @@ if __name__ == '__main__':
 
 
 
-
-
-
-#    ## Performs Inverse Kinematics on the given position and rotation
-#    # @param arm 0 for right, 1 for left
-#    # @param p cartesian position in torso_lift_link frame
-#    # @param rot quaternion rotation column or rotation matrix 
-#    #                                            of wrist in torso_lift_link frame
-#    # @param q_guess initial joint angles to use for finding IK
-#    def IK(self, arm, p, rot, q_guess):
-#        if arm != 1:
-#            arm = 0
-#
-#        p = make_column(p)
-#
-#        if rot.shape == (3, 3):
-#            quat = np.matrix(tr.matrix_to_quaternion(rot)).T
-#        elif rot.shape == (4, 1):
-#            quat = make_column(rot)
-#        else:
-#            rospy.logerr('Inverse kinematics failed (bad rotation)')
-#            return None
-#
-#        ik_req = GetPositionIKRequest()
-#        ik_req.timeout = rospy.Duration(5.)
-#        if arm == 0:
-#            ik_req.ik_request.ik_link_name = 'r_wrist_roll_link'
-#        else:
-#            ik_req.ik_request.ik_link_name = 'l_wrist_roll_link'
-#        ik_req.ik_request.pose_stamped.header.frame_id = 'torso_lift_link'
-#
-#        ik_req.ik_request.pose_stamped.pose.position.x = p[0,0] 
-#        ik_req.ik_request.pose_stamped.pose.position.y = p[1,0]
-#        ik_req.ik_request.pose_stamped.pose.position.z = p[2,0]
-#
-#        ik_req.ik_request.pose_stamped.pose.orientation.x = quat[0]
-#        ik_req.ik_request.pose_stamped.pose.orientation.y = quat[1]
-#        ik_req.ik_request.pose_stamped.pose.orientation.z = quat[2]
-#        ik_req.ik_request.pose_stamped.pose.orientation.w = quat[3]
-#
-#        ik_req.ik_request.ik_seed_state.joint_state.position = q_guess
-#        ik_req.ik_request.ik_seed_state.joint_state.name = self.joint_names_list[arm]
-#
-#        ik_resp = self.ik_srv[arm].call(ik_req)
-#        if ik_resp.error_code.val == ik_resp.error_code.SUCCESS:
-#            ret = list(ik_resp.solution.joint_state.position)
-#        else:
-#            rospy.logerr('Inverse kinematics failed')
-#            ret = None
-#
-#        return ret
-#
 
 
 

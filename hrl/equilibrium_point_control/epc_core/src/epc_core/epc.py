@@ -7,7 +7,7 @@
 import numpy as np, math
 import copy
 
-import roslib; roslib.load_manifest('hrl_pr2_lib')
+import roslib; roslib.load_manifest('epc_core')
 import rospy
 
 import hrl_lib.util as ut
@@ -182,7 +182,7 @@ class EPC():
 
 
 if __name__ == '__main__':
-    import pr2_arms as pa
+    import pr2_arms.pr2_arms as pa
     rospy.init_node('epc_pr2', anonymous = True)
     rospy.logout('epc_pr2: ready')
 
@@ -192,45 +192,13 @@ if __name__ == '__main__':
     r_arm, l_arm = 0, 1
     arm = r_arm
 
-    if False:
-    #    #----- testing move_till_hit ------
-    #    p1 = np.matrix([0.6, -0.22, -0.05]).T
-    #    epc.robot.go_cep_jtt(arm, p1)
-    #    epc.move_till_hit(arm)
-
-        raw_input('Hit ENTER to close')
-        pr2_arms.close_gripper(arm)
-        raw_input('Hit ENTER to search_and_hook')
-        p1 = np.matrix([0.8, -0.22, -0.05]).T
-        epc.search_and_hook(arm, p1)
-        epc.pull_back_cartesian_control(arm, 0.3)
-
-        d = {
-                'f_list': epc.f_list, 'ee_list': epc.ee_list,
-                'cep_list': epc.cep_list
-            }
-
-        ut.save_pickle(d, 'pr2_pull_'+ut.formatted_time()+'.pkl')
-    
     if True:
         q = epc.robot.get_joint_angles(arm)
         epc.robot.set_jep(arm, q)
         ea = [0, 0, 0, 0, 0, 0, 0]
         raw_input('Hit ENTER to go_jep')
-        epc.go_jep(arm, ea)
+        epc.go_jep(arm, ea, math.radians(30.))
 
-#    if False:
-#        p = np.matrix([0.9, -0.3, -0.15]).T
-#        rot = tr.Rx(0.)
-#        rot = tr.Rx(math.radians(90.))
-#
-#        rospy.logout('Going to starting position')
-#    #    epc.robot.open_gripper(arm)
-#        epc.robot.set_cartesian(arm, p, rot)
-#    #    raw_input('Hit ENTER to close the gripper')
-#    #    epc.robot.close_gripper(arm)
-#        raw_input('Hit ENTER to pull')
-#        epc.pull_back_cartesian_control(arm, p, rot, 0.4)
 
 
 

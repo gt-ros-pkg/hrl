@@ -6,6 +6,12 @@
 
   <depend package="rospy"/>
   <depend package="geometry_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="visualization_msgs"/>
+  <depend package="actionlib"/>
+  <depend package="pr2_controllers_msgs"/>
+  <depend package="trajectory_msgs"/>
+  <depend package="teleop_controllers"/>
 
   <depend package="hrl_lib"/>
 
