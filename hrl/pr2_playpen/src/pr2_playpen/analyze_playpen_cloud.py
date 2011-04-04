@@ -8,6 +8,8 @@ import numpy as np
 from matplotlib import pylab as pl
 import draw_scene as ds
 import math
+from pr2_playpen.srv import * #this is for Train and Check
+import threading
 
 class ResultsAnalyzer:
 
@@ -17,13 +19,99 @@ class ResultsAnalyzer:
         self.cloud = None
 #        rospy.Subscriber("playpen_segment_region", PointCloud2, self.callback)
         rospy.Subscriber("playpen_segment_object", PointCloud2, self.callback)
-        self.nom_mean = np.matrix(np.zeros((3,1)))
-        self.nom_cov = np.matrix(np.eye(3))
+        self.check = rospy.Service("playpen_check_success", Check, self.serv_success)
+        self.train = rospy.Service("playpen_train_success", Train, self.serv_train)
+        self.nom_mean = None
+        self.nom_cov = None
+        self.nom_dist = None
         self.start_time = rospy.get_time()
+        self.lock = threading.RLock()
+        self.new_cloud = False
+
+    def calc_mahal_dist(self, mean1, mean2, cov1, cov2):
+        
 
     def callback(self, data):
+        self.lock.acquire()
         self.cloud = list(pc2py.points(data, ['x', 'y', 'z']))
-        self.get_cloud_stats()
+        self.new_cloud = True
+        self.lock.release()
+#        self.get_cloud_stats()
+
+    def serv_success(req):
+        result = "none"
+        self.lock.acquire()
+        if self.nom_mean == None:
+            print "you haven't initialized yet!!"
+            return CheckResponse(result)
+        np_array_cloud = np.array(self.cloud)
+        f_ind = np.array(~np.isnan(np_array_cloud).any(1)).flatten()
+        f_np_array_cloud = np_array_cloud[f_ind, :]
+        if np.max(f_np_array_cloud.shape)>200:
+            mean_3d = np.mean(f_np_array_cloud, axis = 0)
+            cov_3d = np.cov(f_np_array_cloud.T)
+            v, d = np.linalg.eig(cov_3d)
+            max_var = d[:, v ==  np.max(v)]
+            mean_dist = (np.matrix(mean_3d).reshape(3,1)-self.nom_mean)
+            
+            mahal_dist = mean_dist.T*0.5*np.matrix(np.linalg.inv(cov_3d)+np.linalg.inv(self.nom_cov))*mean_dist
+            print "distance = ", mahal_dist
+            print "nominal distance = ", self.nom_dist
+        if req.exp_state == 'empty':
+            if np.max(f_np_array_cloud.shape)<200:
+                result = "success"
+            elif mahal_dist<5*self.nom_dist: 
+                result = "success"
+            else:
+                result = "fail"
+        elif req.exp_state == 'object':
+            if np.max(f_np_array_cloud.shape)<200:
+                result = "fail"
+            elif mahal_dist<5*self.nom_dist:
+                result = "success"
+            else:
+                result = "fail"
+        elif req.exp_state == 'objects':
+            print "multiple objects is not yet supported"
+
+        self.lock.release()
+        return CheckResponse(result)
+
+    def serv_train(req):
+        num_samples = 0
+        self.nom_mean = None
+        self.nom_cov = None
+        self.nom_dist = None
+        while num_samples < 5:
+            while self.new_cloud == False:
+                rospy.sleep(0.05)
+            self.lock.acquire()
+            np_array_cloud = np.array(self.cloud)
+            f_ind = np.array(~np.isnan(np_array_cloud).any(1)).flatten()
+            f_np_array_cloud = np_array_cloud[f_ind, :]
+            if np.max(f_np_array_cloud.shape)>200:
+                mean_3d = np.mean(f_np_array_cloud, axis = 0)
+                cov_3d = np.cov(f_np_array_cloud.T)
+                v, d = np.linalg.eig(cov_3d)
+                max_var = d[:, v ==  np.max(v)]
+                mean_dist = (np.matrix(mean_3d).reshape(3,1)-self.nom_mean)
+            
+                mahal_dist = mean_dist.T*0.5*np.matrix(np.linalg.inv(cov_3d)+np.linalg.inv(self.nom_cov))*mean_dist
+                num_samples = num_samples + 1
+                
+                if self.nom_mean == None:
+                    self.nom_mean = np.matrix(mean_3d).reshape(3,1)
+                    self.nom_cov = np.matrix(cov_3d)
+                    self.nom_dist = mahal_dist
+                else:
+                    self.nom_mean = (self.nom_mean + np.matrix(mean_3d).reshape(3,1))*0.5
+                    self.nom_cov = (np.matrix(cov_3d)+self.nom_cov)*0.5
+                    self.nom_dist = (self.nom_dist + mahal_dist)*0.5
+            self.new_cloud = False
+            print "still initializing"
+            self.lock.release()
+
+        return TrainResponse(num_samples)
 
     def run(self):
         print 'Ready to calculate results'
