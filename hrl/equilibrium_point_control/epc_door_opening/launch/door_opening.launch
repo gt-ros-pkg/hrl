@@ -1,5 +1,5 @@
 <launch>
-    <include file="$(find gt_pr2)/machine.launch"/>
+    <include file="$(find pr2_machine)/pr2.machine"/>
     <include file="$(find pr2_omni_teleop)/c_jt_advait.launch" />
     <!-- 
     <include file="$(find force_torque)/ft_instrumented.launch" />
@@ -9,4 +9,5 @@
         <env name="PYTHONPATH" value="$(env PYTHONPATH)" />
     </node>
 </launch>
+
 

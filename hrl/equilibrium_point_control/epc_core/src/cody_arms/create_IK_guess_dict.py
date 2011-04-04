@@ -1,4 +1,3 @@
-import m3.toolbox as m3t
 import arms as ar
 import hrl_lib.util as ut
 import math, numpy as np
@@ -39,6 +38,7 @@ def create_dict(fname):
 
 
 def record_good_configs(use_left_arm):
+    import m3.toolbox as m3t
     settings_arm = ar.MekaArmSettings(stiffness_list=[0.,0.,0.,0.,0.],control_mode='torque_gc')
 
     if use_left_arm:
