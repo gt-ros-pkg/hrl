@@ -2,7 +2,7 @@
 
 ## the list of groups for which motion planning can be performed
 group_list:
-  right_arm left_arm aloha
+  right_arm left_arm right_arm_planar
 
 ## the planner configurations; each config must have a type, which specifies
 ## the planner to be used; other parameters can be specified as well, depending 
@@ -105,18 +105,7 @@ groups:
     planner_configs:
       RRTkConfig2 SBLkConfig2 
 
-  - name: aloha
-    links:
-      r_shoulder_pan_link
-      r_shoulder_lift_link
-      r_upper_arm_roll_link
-      r_upper_arm_link
-      r_elbow_flex_link
-      r_forearm_roll_link
-      r_forearm_link
-      r_wrist_flex_link
-      r_wrist_roll_link
-
+  - name: right_arm_planar
     planner_configs:
       RRTkConfig2 SBLkConfig2 KPIECEkConfig1 KPIECEkConfig2r LBKPIECEkConfig2r armIKConfig1
       

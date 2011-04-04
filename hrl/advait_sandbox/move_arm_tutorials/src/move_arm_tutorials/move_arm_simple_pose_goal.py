@@ -90,7 +90,7 @@ if __name__ == '__main__':
     rospy.loginfo('Connected to server')
 
     goalA = MoveArmGoal()
-    goalA.motion_plan_request.group_name = 'aloha'
+    goalA.motion_plan_request.group_name = 'right_arm'
     goalA.motion_plan_request.num_planning_attempts = 1
     goalA.motion_plan_request.planner_id = ''
     goalA.planner_service_name = 'ompl_planning/plan_kinematic_path'
@@ -98,7 +98,7 @@ if __name__ == '__main__':
 
     desired_pose = SimplePoseConstraint()
     desired_pose.header.frame_id = 'torso_lift_link'
-    desired_pose.link_name = 'r_wrist_roll_link'
+    desired_pose.link_name = 'r_gripper_l_fingertip_link'
     desired_pose.pose.position.x = 0.75
     desired_pose.pose.position.y = -0.188
     desired_pose.pose.position.z = 0
