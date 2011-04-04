@@ -27,18 +27,18 @@ class ResultsAnalyzer:
         self.start_time = rospy.get_time()
         self.lock = threading.RLock()
         self.new_cloud = False
-
-    def calc_mahal_dist(self, mean1, mean2, cov1, cov2):
-        
+        self.start = 0
 
     def callback(self, data):
         self.lock.acquire()
         self.cloud = list(pc2py.points(data, ['x', 'y', 'z']))
         self.new_cloud = True
+        print rospy.get_time()-self.start, "time in between call backs"
+        self.start = rospy.get_time()
         self.lock.release()
 #        self.get_cloud_stats()
 
-    def serv_success(req):
+    def serv_success(self, req):
         result = "none"
         self.lock.acquire()
         if self.nom_mean == None:
@@ -77,14 +77,16 @@ class ResultsAnalyzer:
         self.lock.release()
         return CheckResponse(result)
 
-    def serv_train(req):
+    def serv_train(self, req):
         num_samples = 0
         self.nom_mean = None
         self.nom_cov = None
         self.nom_dist = None
-        while num_samples < 5:
+        while num_samples < 3:
+            start_time = rospy.get_time()
             while self.new_cloud == False:
                 rospy.sleep(0.05)
+            print "time passed getting new cloud is :", rospy.get_time()-start_time
             self.lock.acquire()
             np_array_cloud = np.array(self.cloud)
             f_ind = np.array(~np.isnan(np_array_cloud).any(1)).flatten()
@@ -94,19 +96,20 @@ class ResultsAnalyzer:
                 cov_3d = np.cov(f_np_array_cloud.T)
                 v, d = np.linalg.eig(cov_3d)
                 max_var = d[:, v ==  np.max(v)]
-                mean_dist = (np.matrix(mean_3d).reshape(3,1)-self.nom_mean)
-            
-                mahal_dist = mean_dist.T*0.5*np.matrix(np.linalg.inv(cov_3d)+np.linalg.inv(self.nom_cov))*mean_dist
-                num_samples = num_samples + 1
-                
                 if self.nom_mean == None:
                     self.nom_mean = np.matrix(mean_3d).reshape(3,1)
                     self.nom_cov = np.matrix(cov_3d)
-                    self.nom_dist = mahal_dist
+                    self.nom_dist = 1
+
                 else:
+                    mean_dist = (np.matrix(mean_3d).reshape(3,1)-self.nom_mean)
+                    mahal_dist = mean_dist.T*0.5*np.matrix(np.linalg.inv(cov_3d)+np.linalg.inv(self.nom_cov))*mean_dist
                     self.nom_mean = (self.nom_mean + np.matrix(mean_3d).reshape(3,1))*0.5
                     self.nom_cov = (np.matrix(cov_3d)+self.nom_cov)*0.5
                     self.nom_dist = (self.nom_dist + mahal_dist)*0.5
+
+                num_samples = num_samples + 1
+                
             self.new_cloud = False
             print "still initializing"
             self.lock.release()

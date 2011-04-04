@@ -1,7 +1,7 @@
 <launch>
 
 	<include file="$(find pr2_playpen)/launch/playpen_kinect.launch"/>
-        <!--<node name="reconfig_kinect_playpen" pkg="dynamic_reconfigure" type="dynparam" args="load kinect_playpen $(find pr2_playpen)/launch_pr2/run_kinect_params.yaml" />-->
+	<!--    <node name="reconfig_kinect_playpen" pkg="dynamic_reconfigure" type="dynparam" args="load kinect_playpen $(find pr2_playpen)/launch/run_kinect_params.yaml" />-->
 
 	<node pkg="UI_segment_object" name="playpen_segment_cloud" type="segment_object" respawn="true" output="screen">
 	      <remap from="/camera/rgb/image_color" to="/playpen_kinect/rgb/image_color" />
