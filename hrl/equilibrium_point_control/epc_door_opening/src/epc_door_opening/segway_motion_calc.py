@@ -6,7 +6,6 @@ roslib.load_manifest('epc_door_opening')
 import numpy as np, math
 import scipy.optimize as so
 import scipy.ndimage as ni
-import matplotlib_util.util as mpu
 import hrl_lib.util as ut
 import hrl_lib.transforms as tr
 #import hrl_hokuyo.hokuyo_processing as hp
@@ -227,6 +226,7 @@ def close_to_boundary(curr_pos,bndry,pts,dist_thresh):
     return min_dist <= dist_thresh
 
 def visualize_boundary():
+    import matplotlib_util.util as mpu
     d = ut.load_pickle('../../pkls/workspace_dict_2009Sep03_010426.pkl')
     z = -0.23
     k = d.keys()
@@ -343,7 +343,7 @@ def segway_motion_repulse(curr_pos_tl, eq_pt_tl,bndry, all_pts):
 
 
 if __name__ == '__main__':
-
+    import matplotlib_util.util as mpu
     #d = ut.load_pickle('workspace_dict_2009Sep03_221107.pkl')
     d = ut.load_pickle('../../pkls/workspace_dict_2009Sep05_200116.pkl')
     z = -0.23
