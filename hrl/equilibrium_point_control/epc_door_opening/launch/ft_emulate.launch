@@ -1,0 +1,10 @@
+<launch>
+    <node pkg="hrl_pr2_door_opening" name="ati_ft_emulate"
+        type="emulate_ati_ft.py" respawn="true"/>
+
+    <node name="static_tf_ft2_estimate_broadcaster" pkg="tf"
+        type="static_transform_publisher"
+        args="0 0 0 0 0 0 /torso_lift_link ft2_estimate 50"
+        respawn="false" output="screen"/>
+</launch>
+

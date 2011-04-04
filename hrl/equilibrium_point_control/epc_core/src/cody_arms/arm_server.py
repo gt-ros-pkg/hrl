@@ -1,0 +1,464 @@
+import m3.rt_proxy as m3p
+import m3.arm
+import m3.sea_wrist
+import m3.sea_joint
+import m3.gripper as m3h
+import m3.toolbox as m3t
+import m3.pwr as m3w
+import m3.loadx6
+
+import m3.component_factory as m3f
+
+import math
+import numpy as np
+import sys, time, os
+import copy
+from threading import RLock
+
+import arms as ar
+import roslib; roslib.load_manifest('cody_arms')
+import rospy
+
+import hrl_lib.transforms as tr
+from hrl_lib.msg import FloatArray
+from roslib.msg import Header
+from std_msgs.msg import Bool
+from std_msgs.msg import Empty
+
+roslib.load_manifest('force_torque')
+import force_torque.FTClient as ftc
+
+THETA_GC = 5
+TORQUE_GC = 4
+THETA = 3
+OFF = 0 # in OFF mode also, the behavior is strange. Not the same as hitting the estop (Advait, Jan 1 2010)
+
+
+## 1D kalman filter update.
+def kalman_update(xhat, P, Q, R, z):
+    #time update
+    xhatminus = xhat
+    Pminus = P + Q
+    #measurement update
+    K = Pminus / (Pminus + R)
+    xhat = xhatminus + K * (z-xhatminus)
+    P = (1-K) * Pminus
+    return xhat, P
+
+class MekaArmSettings():
+    def __init__(self, stiffness_scale=1.0,stiffness_list=[0.7,0.7,0.8,0.8,0.3],
+                 control_mode='theta_gc'):
+        ''' stiffness_list: list of 5 stiffness values for joints 0-4.
+            stiffness_scale: common scaling factor for all the joints
+            control_mode: 'theta_gc' or 'torque_gc'
+        '''
+        self.stiffness_scale = stiffness_scale
+        # for safety of wrist roll. Advait Jun 18, 2010.
+        # changed to 0.2 from 0.3 (Advait, Sept 19, 2010)
+        stiffness_list[4] = min(stiffness_list[4], 0.2)
+        self.stiffness_list = stiffness_list
+        self.control_mode = control_mode
+
+
+class MekaArmServer():
+    def __init__(self, right_arm_settings=None, left_arm_settings=None):
+        self.arm_settings = {}  # dict is set in set_arm_settings
+        self.initialize_joints(right_arm_settings, left_arm_settings)
+        #self.initialize_gripper()
+        self.left_arm_ft = {'force': np.matrix(np.zeros((3,1),dtype='float32')),
+                            'torque': np.matrix(np.zeros((3,1),dtype='float32'))}
+        self.right_arm_ft = {'force': np.matrix(np.zeros((3,1),dtype='float32')),
+                             'torque': np.matrix(np.zeros((3,1),dtype='float32'))}
+        self.fts_bias = {'left_arm': self.left_arm_ft, 'right_arm': self.right_arm_ft}
+
+        # kalman filtering force vector. (self.step and bias_wrist_ft)
+        self.Q_force, self.R_force = {}, {}
+        self.xhat_force, self.P_force = {}, {}
+
+        self.Q_force['right_arm'] = [1e-3, 1e-3, 1e-3]
+        self.R_force['right_arm'] = [0.2**2, 0.2**2, 0.2**2]
+        self.xhat_force['right_arm'] = [0., 0., 0.]
+        self.P_force['right_arm'] = [1.0, 1.0, 1.0]
+
+        self.Q_force['left_arm'] = [1e-3, 1e-3, 1e-3]
+        self.R_force['left_arm'] = [0.2**2, 0.2**2, 0.2**2]
+        self.xhat_force['left_arm'] = [0., 0., 0.]
+        self.P_force['left_arm'] = [1.0, 1.0, 1.0]
+
+        #----- ROS interface ---------
+        rospy.init_node('arm_server', anonymous=False)
+        self.q_r_pub = rospy.Publisher('/r_arm/q', FloatArray)
+        self.q_l_pub = rospy.Publisher('/l_arm/q', FloatArray)
+        self.force_raw_r_pub = rospy.Publisher('/r_arm/force_raw', FloatArray)
+        self.force_raw_l_pub = rospy.Publisher('/l_arm/force_raw', FloatArray)
+        self.force_r_pub = rospy.Publisher('/r_arm/force', FloatArray)
+        self.force_l_pub = rospy.Publisher('/l_arm/force', FloatArray)
+        self.jep_r_pub = rospy.Publisher('/r_arm/jep', FloatArray)
+        self.jep_l_pub = rospy.Publisher('/l_arm/jep', FloatArray)
+        self.pwr_state_pub = rospy.Publisher('/arms/pwr_state', Bool)
+        
+        #self.r_arm_ftc = ftc.FTClient('force_torque_ft2')
+        rospy.Subscriber('/r_arm/command/jep', FloatArray,
+                         self.r_jep_cb)
+        rospy.Subscriber('/l_arm/command/jep', FloatArray,
+                         self.l_jep_cb)
+        # publishing to this message will stop the arms but also crash
+        # the server (since meka server crashes.) Advait Nov 14, 2010
+        rospy.Subscriber('/arms/stop', Empty, self.stop)
+        rospy.Subscriber('/arms/command/motors_off', Empty,
+                         self.motors_off)
+
+        self.cb_lock = RLock()
+        self.r_jep = None # see set_jep
+        self.l_jep = None # see set_jep
+
+
+    def set_arm_settings(self,right_arm_settings,left_arm_settings):
+        self.arm_settings['right_arm'] = right_arm_settings
+        self.arm_settings['left_arm'] = left_arm_settings
+
+        for arm,arm_settings in zip(['right_arm','left_arm'],[right_arm_settings,left_arm_settings]):
+            joint_component_list = self.joint_list_dict[arm]
+
+# OFF mode doesn't seem to work. (Advait, Jan 1 2010)
+            if arm_settings == None:
+                for c in joint_component_list:
+                    c.set_control_mode(OFF)
+                continue
+
+            stiffness_list = arm_settings.stiffness_list
+            stiffness_scale = arm_settings.stiffness_scale
+
+            if arm_settings.control_mode == 'torque_gc':
+                print 'setting control mode to torque_gc'
+                for c in joint_component_list:
+                    c.set_control_mode(TORQUE_GC)
+                    c.set_torque_mNm(0.0)
+            elif arm_settings.control_mode == 'theta_gc':
+                print 'setting control mode to theta_gc'
+                joint_component_list[0].set_control_mode(THETA_GC)
+                joint_component_list[0].set_stiffness(stiffness_scale*stiffness_list[0])
+
+                joint_component_list[1].set_control_mode(THETA_GC)
+                joint_component_list[1].set_stiffness(stiffness_scale*stiffness_list[1])
+
+                joint_component_list[2].set_control_mode(THETA_GC)
+                joint_component_list[2].set_stiffness(stiffness_scale*stiffness_list[2])
+
+                joint_component_list[3].set_control_mode(THETA_GC)
+                joint_component_list[3].set_stiffness(stiffness_scale*stiffness_list[3])
+
+                joint_component_list[4].set_control_mode(THETA_GC)
+                joint_component_list[4].set_stiffness(stiffness_scale*stiffness_list[4])
+
+                joint_component_list[5].set_control_mode(THETA)
+                joint_component_list[6].set_control_mode(THETA)
+
+            elif arm_settings.control_mode == 'wrist_theta_gc':
+                print 'setting control mode to theta_gc include wrist joints'
+                joint_component_list[0].set_control_mode(THETA_GC)
+                joint_component_list[0].set_stiffness(stiffness_scale*stiffness_list[0])
+
+                joint_component_list[1].set_control_mode(THETA_GC)
+                joint_component_list[1].set_stiffness(stiffness_scale*stiffness_list[1])
+
+                joint_component_list[2].set_control_mode(THETA_GC)
+                joint_component_list[2].set_stiffness(stiffness_scale*stiffness_list[2])
+
+                joint_component_list[3].set_control_mode(THETA_GC)
+                joint_component_list[3].set_stiffness(stiffness_scale*stiffness_list[3])
+
+                joint_component_list[4].set_control_mode(THETA_GC)
+                joint_component_list[4].set_stiffness(stiffness_scale*stiffness_list[4])
+
+                joint_component_list[5].set_control_mode(THETA_GC)
+                joint_component_list[5].set_stiffness(stiffness_scale*stiffness_list[5])
+
+                joint_component_list[6].set_control_mode(THETA_GC)
+                joint_component_list[6].set_stiffness(stiffness_scale*stiffness_list[6])
+
+            else:
+                print 'hrl_robot.initialize_joints. unknown control mode for ', arm,':', arm_settings.control_mode
+
+    def initialize_joints(self, right_arm_settings, left_arm_settings):
+        self.proxy = m3p.M3RtProxy()
+        self.proxy.start()
+        for c in ['m3pwr_pwr003','m3loadx6_ma1','m3arm_ma1','m3loadx6_ma2','m3arm_ma2']:
+            if not self.proxy.is_component_available(c):
+                raise m3t.M3Exception('Component '+c+' is not available.')
+        
+        self.joint_list_dict = {}
+
+        right_l = []
+        for c in ['m3sea_joint_ma1_j0','m3sea_joint_ma1_j1','m3sea_joint_ma1_j2',
+                  'm3sea_joint_ma1_j3','m3sea_joint_ma1_j4','m3sea_wrist_ma1_j5',
+                  'm3sea_wrist_ma1_j6']:
+            if not self.proxy.is_component_available(c):
+                raise m3t.M3Exception('Component '+c+' is not available.')
+            right_l.append(m3f.create_component(c))
+        self.joint_list_dict['right_arm'] = right_l
+
+        left_l = []
+        for c in ['m3sea_joint_ma2_j0','m3sea_joint_ma2_j1','m3sea_joint_ma2_j2',
+                  'm3sea_joint_ma2_j3','m3sea_joint_ma2_j4','m3sea_wrist_ma2_j5',
+                  'm3sea_wrist_ma2_j6']:
+            if not self.proxy.is_component_available(c):
+                raise m3t.M3Exception('Component '+c+' is not available.')
+            left_l.append(m3f.create_component(c))
+        self.joint_list_dict['left_arm'] = left_l
+
+
+        for arm,arm_settings in zip(['right_arm','left_arm'],[right_arm_settings,left_arm_settings]):
+            if arm_settings == None:
+                continue
+
+            for comp in self.joint_list_dict[arm]:
+                self.proxy.subscribe_status(comp)
+                self.proxy.publish_command(comp)
+
+        self.set_arm_settings(right_arm_settings,left_arm_settings)
+
+        right_fts=m3.loadx6.M3LoadX6('m3loadx6_ma1')
+        self.proxy.subscribe_status(right_fts)
+        left_fts=m3.loadx6.M3LoadX6('m3loadx6_ma2')
+        self.proxy.subscribe_status(left_fts)
+
+        self.fts = {'right_arm':right_fts,'left_arm':left_fts}
+
+        self.pwr=m3w.M3Pwr('m3pwr_pwr003')
+        self.proxy.subscribe_status(self.pwr)
+        self.proxy.publish_command(self.pwr)
+
+        self.arms = {}
+        self.arms['right_arm']=m3.arm.M3Arm('m3arm_ma1')
+        self.proxy.subscribe_status(self.arms['right_arm'])
+
+        self.arms['left_arm']=m3.arm.M3Arm('m3arm_ma2')
+        self.proxy.subscribe_status(self.arms['left_arm'])
+
+        self.proxy.step()
+        self.proxy.step()
+
+    def initialize_gripper(self):
+        #self.right_gripper = m3h.M3Gripper('m3gripper_mg0')
+        self.right_gripper = m3h.M3Gripper('m3gripper_mg1')
+        self.proxy.publish_command(self.right_gripper)
+        self.proxy.subscribe_status(self.right_gripper)
+
+    def step(self):
+        self.proxy.step()
+        for arm in ['left_arm', 'right_arm']:
+            z = self.get_wrist_force(arm).A1 # Force vector
+            #if arm == 'right_arm':
+            #    z = self.get_wrist_force_nano().A1
+
+            for i in range(3):
+                xhat, p = kalman_update(self.xhat_force[arm][i],
+                                        self.P_force[arm][i],
+                                        self.Q_force[arm][i],
+                                        self.R_force[arm][i], z[i])
+                if abs(z[i] - self.xhat_force[arm][i]) > 3.:
+                    xhat = z[i] # not filtering step changes.
+                self.xhat_force[arm][i] = xhat
+                self.P_force[arm][i] = p
+
+    def step_ros(self):
+        r_arm = 'right_arm'
+        l_arm = 'left_arm'
+
+        self.cb_lock.acquire()
+        r_jep = copy.copy(self.r_jep)
+        l_jep = copy.copy(self.l_jep)
+        self.cb_lock.release()
+
+        self.set_jep(r_arm, r_jep)
+        self.set_jep(l_arm, l_jep)
+
+        self.step()
+
+        motor_pwr_state = self.is_motor_power_on()
+
+        q_r = self.get_joint_angles(r_arm)
+        q_l = self.get_joint_angles(l_arm)
+
+        f_raw_r = self.get_wrist_force(r_arm).A1.tolist()
+        f_raw_l = self.get_wrist_force(l_arm).A1.tolist()
+        f_r = self.xhat_force[r_arm]
+        f_l = self.xhat_force[l_arm]
+
+        # publish stuff over ROS.
+        time_stamp = rospy.Time.now()
+        h = Header()
+        h.stamp = time_stamp
+
+        self.q_r_pub.publish(FloatArray(h, q_r))
+        self.q_l_pub.publish(FloatArray(h, q_l))
+
+        self.jep_r_pub.publish(FloatArray(h, r_jep))
+        self.jep_l_pub.publish(FloatArray(h, l_jep))
+
+        h.frame_id = ar.link_tf_name(r_arm, 7)
+        self.force_raw_r_pub.publish(FloatArray(h, f_raw_r))
+        self.force_r_pub.publish(FloatArray(h, f_r))
+        
+        h.frame_id = ar.link_tf_name(l_arm, 7)
+        self.force_raw_l_pub.publish(FloatArray(h, f_raw_l))
+        self.force_l_pub.publish(FloatArray(h, f_l))
+
+        self.pwr_state_pub.publish(Bool(motor_pwr_state))
+
+    def is_motor_power_on(self):
+        return self.pwr.is_motor_power_on(None)
+
+    # Advait, Aug 8, 2009
+    # two steps in motors_on and off because with simply one step
+    # pwr.is_motor_on does not get the correct value. (I think this is
+    # because at the clock edge when motor on command is sent, the power
+    # is still off and thus the status is not affected.)
+    def motors_off(self, msg=None):
+        self.pwr.set_motor_power_off()
+
+    def motors_on(self):
+        self.maintain_configuration()
+        self.pwr.set_motor_power_on()
+        self.step()
+        self.step()
+
+    def maintain_configuration(self):
+        for arm in ['right_arm','left_arm']:
+            q = self.get_joint_angles(arm)
+            if self.arm_settings[arm] == None:
+                continue
+            if 'theta_gc' not in self.arm_settings[arm].control_mode:
+                raise RuntimeError('bad control mode: %s', self.arm_settings[arm].control_mode)
+            self.set_jep(arm, q)
+            self.cb_lock.acquire()
+            if arm == 'right_arm':
+                self.r_jep = q
+            else:
+                self.l_jep = q
+            self.cb_lock.release()
+
+    def power_on(self):
+        self.maintain_configuration()
+        self.proxy.make_operational_all()
+        if self.arm_settings['right_arm'] != None:
+            self.proxy.make_safe_operational('m3arm_ma1')
+        if self.arm_settings['left_arm'] != None:
+            self.proxy.make_safe_operational('m3arm_ma2')
+        self.pwr.set_motor_power_on()
+        self.step()
+        self.step()
+
+    def stop(self, msg=None):
+        self.pwr.set_motor_power_off()
+        self.step()
+        self.proxy.stop()
+
+    ##3X1 numpy matrix of forces measured by the wrist FT sensor.
+    #(This is the force that the environment is applying on the wrist)
+    # @param arm - 'left_arm' or 'right_arm'
+    # @return in SI units
+    #coord frame - tool tip coord frame (parallel to the base frame in the home position)
+    # 2010/2/5 Advait, Aaron King, Tiffany verified that coordinate frame 
+    # from Meka is the left-hand coordinate frame.
+    def get_wrist_force(self, arm):
+        m = []
+        lc = self.fts[arm]
+        m.append(lc.get_Fx_mN()/1000.)
+        m.append(lc.get_Fy_mN()/1000.)
+        m.append(-lc.get_Fz_mN()/1000.)        
+        m = tr.Rz(math.radians(-30.0))*np.matrix(m).T
+        m[1,0] = -m[1,0]
+        m[2,0] = -m[2,0]
+        return m
+
+    def get_wrist_force_nano(self):
+        f = self.r_arm_ftc.read()[0:3, :]
+        f = tr.Rz(math.radians(-60.)) * f
+        f[1,0] = f[1,0] * -1
+        return f
+
+
+    #-------------------- getting and setting joint angles ------------
+
+    ##
+    # @param arm - 'left_arm' or 'right_arm'
+    # @return list of 7 joint accelerations in RADIANS/s^2.
+    #         according to meka's coordinate frames.
+    def get_joint_accelerations(self, arm):
+        return self.arms[arm].get_thetadotdot_rad().tolist()
+
+    ##
+    # @param arm - 'left_arm' or 'right_arm'
+    # @return list of 7 joint velocities in RADIANS/s.
+    #         according to meka's coordinate frames.
+    def get_joint_velocities(self, arm):
+        return self.arms[arm].get_thetadot_rad().tolist()
+
+    def get_joint_angles(self, arm):
+        ''' returns list of 7 joint angles in RADIANS.
+            according to meka's coordinate frames.
+        '''
+        return self.arms[arm].get_theta_rad().tolist()
+
+    def l_jep_cb(self, msg):
+        self.cb_lock.acquire()
+        self.l_jep = msg.data
+        self.cb_lock.release()
+
+    def r_jep_cb(self, msg):
+        self.cb_lock.acquire()
+        self.r_jep = msg.data
+        self.cb_lock.release()
+
+    ##
+    # @param q - list of 7 joint angles in RADIANS. according to meka's coordinate frames.
+    def set_jep(self, arm, q):
+        if self.arm_settings[arm] == None:
+            return
+        if self.arm_settings[arm].control_mode != 'theta_gc' and \
+            self.arm_settings[arm].control_mode != 'wrist_theta_gc':
+            raise RuntimeError('Bad control mode: %s'%(self.arm_settings[arm].control_mode))
+
+        for i,qi in enumerate(q):
+            ## NOTE - meka's set_theta_deg takes angle in radians.
+            #self.joint_list_dict[arm][i].set_theta_deg(qi)
+            # Not anymore. (Advait Aug 27, 2009)
+            self.joint_list_dict[arm][i].set_theta_rad(qi)
+
+        if arm == 'right_arm':
+            self.r_jep = q
+        else:
+            self.l_jep = q
+
+
+if __name__ == '__main__':
+    try:
+        settings_r = MekaArmSettings(stiffness_list=[0.1939,0.6713,0.748,0.7272,0.75])
+        #settings_r = None
+        settings_l = MekaArmSettings(stiffness_list=[0.1939,0.6713,0.748,0.7272,0.75])
+        #settings_l = None
+        cody_arms = MekaArmServer(settings_r, settings_l)
+
+        print 'hit a key to power up the arms.'
+        k=m3t.get_keystroke()
+        cody_arms.power_on()
+
+        while not rospy.is_shutdown():
+            cody_arms.step_ros()
+            rospy.sleep(0.005)
+        cody_arms.stop()
+    except m3t.M3Exception:
+        print '############################################################'
+        print 'In all likelihood the Meka server is not running.'
+        print '############################################################'
+        raise
+    except:
+        cody_arms.stop()
+        raise
+
+
+
+
+

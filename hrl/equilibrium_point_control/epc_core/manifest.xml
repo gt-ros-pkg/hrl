@@ -1,0 +1,15 @@
+<package>
+  <description brief=".">
+  </description>
+  <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
+  <license>New BSD</license>
+
+  <depend package="rospy"/>
+  <depend package="geometry_msgs"/>
+
+  <depend package="hrl_lib"/>
+
+</package>
+
+
+
