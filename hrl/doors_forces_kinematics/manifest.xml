@@ -1,0 +1,15 @@
+<package>
+    <description brief="doors_forces_kinematics">
+        Python code related to estimating and using the kinematics and
+        forces required to open doors and drawers.
+    </description>
+    <author>Advait Jain. Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab)</author>
+    <license>New BSD</license>
+    <review status="unreviewed" notes=""/>
+    <url>http://ros.org/wiki/doors_forces_kinematics</url>
+    <depend package="rospy"/>
+    <depend package="hrl_lib"/>
+
+</package>
+
+
