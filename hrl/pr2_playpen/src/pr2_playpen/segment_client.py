@@ -44,7 +44,7 @@ opt, args = p.parse_args()
 rospy.init_node(opt.node)
 rospy.wait_for_service(opt.service)
 pub_filtered_cloud = rospy.ServiceProxy(opt.service, GetObject)
-r = rospy.Rate(5)
+r = rospy.Rate(2)
 
 while not rospy.is_shutdown():
     pub_filtered_cloud()

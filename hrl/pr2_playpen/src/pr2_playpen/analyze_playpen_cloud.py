@@ -17,8 +17,8 @@ class ResultsAnalyzer:
         rospy.init_node('playpen_results')
         self.draw = ds.SceneDraw()
         self.cloud = None
-#        rospy.Subscriber("playpen_segment_region", PointCloud2, self.callback)
-        rospy.Subscriber("playpen_segment_object", PointCloud2, self.callback)
+        rospy.Subscriber("playpen_segment_region", PointCloud2, self.callback)
+#        rospy.Subscriber("playpen_segment_object", PointCloud2, self.callback)
         self.check = rospy.Service("playpen_check_success", Check, self.serv_success)
         self.train = rospy.Service("playpen_train_success", Train, self.serv_train)
         self.nom_mean = None
@@ -28,6 +28,7 @@ class ResultsAnalyzer:
         self.lock = threading.RLock()
         self.new_cloud = False
         self.start = 0
+
 
     def callback(self, data):
         self.lock.acquire()
@@ -82,7 +83,7 @@ class ResultsAnalyzer:
         self.nom_mean = None
         self.nom_cov = None
         self.nom_dist = None
-        while num_samples < 3:
+        while num_samples < 10:
             start_time = rospy.get_time()
             while self.new_cloud == False:
                 rospy.sleep(0.05)

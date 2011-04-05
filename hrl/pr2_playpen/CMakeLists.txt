@@ -27,5 +27,5 @@ rosbuild_gensrv()
 #rosbuild_add_boost_directories()
 #rosbuild_link_boost(${PROJECT_NAME} thread)
 #rosbuild_add_executable(example examples/example.cpp)
-rosbuild_add_executable(willow_pick_and_place src/willow_pick_and_place.cpp)
+#rosbuild_add_executable(willow_pick_and_place src/willow_pick_and_place.cpp)  #this broke due to diamond back not being able to update on tiktok
 #target_link_libraries(example ${PROJECT_NAME})
