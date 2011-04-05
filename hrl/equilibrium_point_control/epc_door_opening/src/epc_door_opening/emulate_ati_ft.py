@@ -25,7 +25,10 @@ if __name__ == '__main__':
 
     rospy.init_node('ati_ft_emulator')
 
-    if len(sys.argv) != 2:
+    print sys.argv
+
+    # 4 for roslaunch
+    if len(sys.argv) != 2 and len(sys.argv) != 4:
         rospy.logerr('Need to pass the topic name on the command line.  Exiting...')
         sys.exit()
     
