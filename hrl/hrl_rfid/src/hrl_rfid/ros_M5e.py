@@ -109,7 +109,7 @@ class ROS_M5e( Thread ):
                 for aF in self.antFuncs:
                     antennaName = aF(self.reader)    # let current antFunc make appropriate changes
                     tagid = self.tag_to_track
-                    rssi = self.reader.TrackSingleTag(tagid, timeout=100)
+                    rssi = self.reader.TrackSingleTag(tagid, timeout=50)
                     t_now = rospy.Time.now()
                     rv = RFIDread( None, antennaName, tagid, rssi )
                     rv.header.stamp = t_now
