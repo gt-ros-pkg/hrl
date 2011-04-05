@@ -149,52 +149,55 @@ class PR2Arms(object):
         self.arm_state_lock[1].release()
 
     def r_cart_state_cb(self, msg):
-        trans, quat = self.tf_lstnr.lookupTransform('/torso_lift_link',
-                                 'r_gripper_tool_frame', rospy.Time(0))
-        rot = tr.quaternion_to_matrix(quat)
-        tip = np.matrix([0.12, 0., 0.]).T
-        self.r_ee_pos = rot*tip + np.matrix(trans).T
-        self.r_ee_rot = rot
+        try:
+            trans, quat = self.tf_lstnr.lookupTransform('/torso_lift_link',
+                                     'r_gripper_tool_frame', rospy.Time(0))
+            rot = tr.quaternion_to_matrix(quat)
+            tip = np.matrix([0.12, 0., 0.]).T
+            self.r_ee_pos = rot*tip + np.matrix(trans).T
+            self.r_ee_rot = rot
 
 
-        marker = Marker()
-        marker.header.frame_id = 'torso_lift_link'
-        time_stamp = rospy.Time.now()
-        marker.header.stamp = time_stamp
-        marker.ns = 'aloha land'
-        marker.type = Marker.SPHERE
-        marker.action = Marker.ADD
-        marker.pose.position.x = self.r_ee_pos[0,0]
-        marker.pose.position.y = self.r_ee_pos[1,0]
-        marker.pose.position.z = self.r_ee_pos[2,0]
-        size = 0.02
-        marker.scale.x = size
-        marker.scale.y = size
-        marker.scale.z = size
-        marker.lifetime = rospy.Duration()
+            marker = Marker()
+            marker.header.frame_id = 'torso_lift_link'
+            time_stamp = rospy.Time.now()
+            marker.header.stamp = time_stamp
+            marker.ns = 'aloha land'
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
+            marker.pose.position.x = self.r_ee_pos[0,0]
+            marker.pose.position.y = self.r_ee_pos[1,0]
+            marker.pose.position.z = self.r_ee_pos[2,0]
+            size = 0.02
+            marker.scale.x = size
+            marker.scale.y = size
+            marker.scale.z = size
+            marker.lifetime = rospy.Duration()
 
-        marker.id = 71
-        marker.pose.orientation.x = 0
-        marker.pose.orientation.y = 0
-        marker.pose.orientation.z = 0
-        marker.pose.orientation.w = 1
+            marker.id = 71
+            marker.pose.orientation.x = 0
+            marker.pose.orientation.y = 0
+            marker.pose.orientation.z = 0
+            marker.pose.orientation.w = 1
 
-        color = (0.5, 0., 0.0)
-        marker.color.r = color[0]
-        marker.color.g = color[1]
-        marker.color.b = color[2]
-        marker.color.a = 1.
-        self.marker_pub.publish(marker)
-        
-        ros_pt = msg.x_desi_filtered.pose.position
-        x, y, z = ros_pt.x, ros_pt.y, ros_pt.z
-        self.r_cep_pos = np.matrix([x, y, z]).T
-        pt = rot.T * (np.matrix([x,y,z]).T - np.matrix(trans).T)
-        pt = pt + tip
-        self.r_cep_pos_hooktip = rot*pt + np.matrix(trans).T
-        ros_quat = msg.x_desi_filtered.pose.orientation
-        quat = (ros_quat.x, ros_quat.y, ros_quat.z, ros_quat.w)
-        self.r_cep_rot = tr.quaternion_to_matrix(quat)
+            color = (0.5, 0., 0.0)
+            marker.color.r = color[0]
+            marker.color.g = color[1]
+            marker.color.b = color[2]
+            marker.color.a = 1.
+            self.marker_pub.publish(marker)
+            
+            ros_pt = msg.x_desi_filtered.pose.position
+            x, y, z = ros_pt.x, ros_pt.y, ros_pt.z
+            self.r_cep_pos = np.matrix([x, y, z]).T
+            pt = rot.T * (np.matrix([x,y,z]).T - np.matrix(trans).T)
+            pt = pt + tip
+            self.r_cep_pos_hooktip = rot*pt + np.matrix(trans).T
+            ros_quat = msg.x_desi_filtered.pose.orientation
+            quat = (ros_quat.x, ros_quat.y, ros_quat.z, ros_quat.w)
+            self.r_cep_rot = tr.quaternion_to_matrix(quat)
+        except:
+            return
 
     def l_cart_state_cb(self, msg):
         ros_pt = msg.x_desi_filtered.pose.position

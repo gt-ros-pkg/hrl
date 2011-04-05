@@ -179,7 +179,7 @@ class Door_EPC(epc.EPC):
         f_vec = -1*np.array([wrist_force[0,0], wrist_force[1,0],
                              wrist_force[2,0]])
         f_rad_mag = np.dot(f_vec, force_vec.A1)
-        err = f_rad_mag-6.
+        err = f_rad_mag-4.
         if err>0.:
             kp = -0.1
         else:
@@ -319,10 +319,12 @@ class Door_EPC(epc.EPC):
         #start_loc = hook_loc + rot_mat.T * hook_dir * offset
 
         if hook_direction == 'left':
-            offset = np.matrix([0., -0.03, 0.]).T
+            #offset = np.matrix([0., -0.03, 0.]).T
+            offset = np.matrix([0., -0.0, 0.]).T
             move_dir = np.matrix([0., 1., 0.]).T
         elif hook_direction == 'up':
-            offset = np.matrix([0., 0., -0.03]).T
+            #offset = np.matrix([0., 0., -0.03]).T
+            offset = np.matrix([0., 0., -0.0]).T
             move_dir = np.matrix([0., 0., 1.]).T
         start_loc = hook_loc + offset
 
@@ -332,7 +334,7 @@ class Door_EPC(epc.EPC):
         pt1 = start_loc - normal_tl * 0.1
         self.robot.go_cep_jtt(arm, pt1)
 
-        raw_input('Hit ENTER to go')
+#        raw_input('Hit ENTER to go')
 
         vec = normal_tl * 0.2
         rospy.sleep(1.)
@@ -364,14 +366,21 @@ if __name__ == '__main__':
     tip = np.matrix([0.32, 0., 0.]).T
     pr2_arms.arms.set_tooltip(arm, tip)
 
+    print 'Put the hook within the PR2 gripper'
     raw_input('Hit ENTER to close')
-    pr2_arms.close_gripper(arm, effort=80)
-    raw_input('Hit ENTER to start Door Opening')
+    pr2_arms.close_gripper(arm, effort=30)
+
+    raw_input('Turn off the motors and position the arm so that the hook is in an appropriate orientation')
 
     # for cabinets.
     #p1 = np.matrix([0.8, -0.40, -0.04]).T # pos 3
     #p1 = np.matrix([0.8, -0.10, -0.04]).T # pos 2
-    p1 = np.matrix([0.8, -0.35, 0.1]).T # pos 1
+    p1 = np.matrix([0.85, -0.4, 0.1]).T # pos 1
+
+    pr2_arms.go_cep_jtt(arm, p1)
+    print 'Move the base so that hook is close to the handle'
+    raw_input('Hit ENTER to start Door Opening')
+    pr2_arms.close_gripper(arm, effort=80)
     door_epc.search_and_hook(arm, p1, hook_direction='left')
     door_epc.pull(arm, force_threshold=40., cep_vel=0.05)
 
