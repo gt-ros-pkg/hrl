@@ -8,7 +8,6 @@ import copy
 
 from enthought.mayavi import mlab
 
-import matplotlib_util.util as mpu
 
 #import util as ut
 import roslib; roslib.load_manifest('doors_forces_kinematics')
@@ -111,7 +110,7 @@ def plot_forces_quiver(pos_traj,force_traj,color='k'):
 # @param zaxis - for a 3d plot. not implemented.
 def plot_cartesian(traj, xaxis=None, yaxis=None, zaxis=None, color='b',label='_nolegend_',
                    linewidth=2, scatter_size=10, plot_velocity=False):
-
+    import matplotlib_util.util as mpu
     import arm_trajectories as at
     #if traj.__class__ == at.JointTrajectory:
     if isinstance(traj,at.JointTrajectory):
@@ -404,6 +403,8 @@ def filter_trajectory_force(ct, ft):
 
 
 if __name__ == '__main__':
+    import matplotlib_util.util as mpu
+
     p = optparse.OptionParser()
     p.add_option('-f', action='store', type='string', dest='fname',
                  help='pkl file to use.', default='')
