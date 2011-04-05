@@ -21,11 +21,20 @@ def ft_cb(data):
     lock.release()
 
 if __name__ == '__main__':
+    import sys
+
+    rospy.init_node('ati_ft_emulator')
+
+    if len(sys.argv) != 2:
+        rospy.logerr('Need to pass the topic name on the command line.  Exiting...')
+        sys.exit()
+    
+    topic = sys.argv[1]
+
     lock = RLock()
     ft_val = [0.] * 6
     pub = rospy.Subscriber('/r_cart/state/wrench', Twist, ft_cb)
-    pub = rospy.Publisher('/force_torque_ft2_estimate', FloatArray)
-    rospy.init_node('ati_ft_emulator')
+    pub = rospy.Publisher(topic, FloatArray)
     rospy.loginfo('Started the ATI FT emulator.')
     rt = rospy.Rate(100)
     while not rospy.is_shutdown():
