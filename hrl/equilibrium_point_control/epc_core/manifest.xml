@@ -13,6 +13,7 @@
   <depend package="trajectory_msgs"/>
   <depend package="teleop_controllers"/>
 
+  <depend package="kdl"/>
   <depend package="hrl_lib"/>
 
 </package>

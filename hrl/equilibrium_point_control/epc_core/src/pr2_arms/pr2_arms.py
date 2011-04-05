@@ -504,16 +504,16 @@ class PR2Arms_kdl():
             ])
         return kdl_jac
         
-#    ## compute Jacobian (at wrist).
-#    # @param arm - 0 or 1
-#    # @param q - list of 7 joint angles.
-#    # @return 6x7 np matrix
-#    def Jac(self, arm, q):
-#        rospy.logerr('Jac only works for getting the Jacobian at the wrist. Use Jacobian to get the Jacobian at a general location.')
-#        jntarr = self.pr2_to_kdl(q)
-#        kdl_jac = self.Jac_kdl(arm, jntarr)
-#        pr2_jac = kdl_jac
-#        return pr2_jac
+    ## compute Jacobian (at wrist).
+    # @param arm - 0 or 1
+    # @param q - list of 7 joint angles.
+    # @return 6x7 np matrix
+    def Jac(self, arm, q):
+        rospy.logerr('Jac only works for getting the Jacobian at the wrist. Use Jacobian to get the Jacobian at a general location.')
+        jntarr = self.pr2_to_kdl(q)
+        kdl_jac = self.Jac_kdl(arm, jntarr)
+        pr2_jac = kdl_jac
+        return pr2_jac
 
     ## compute Jacobian at point pos.
     # p is in the torso_lift_link coord frame.
@@ -567,8 +567,7 @@ if __name__ == '__main__':
     r_arm, l_arm = 0, 1
     arm = r_arm
 
-
-    if True:
+    if False:
         np.set_printoptions(precision=2, suppress=True)
         while not rospy.is_shutdown():
             q = pr2_arms.get_joint_angles(arm)
