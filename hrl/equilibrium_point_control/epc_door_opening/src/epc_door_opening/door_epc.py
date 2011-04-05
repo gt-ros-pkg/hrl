@@ -361,7 +361,7 @@ if __name__ == '__main__':
     r_arm, l_arm = 0, 1
     arm = r_arm
 
-    tip = np.matrix([0.35, 0., 0.]).T
+    tip = np.matrix([0.32, 0., 0.]).T
     pr2_arms.arms.set_tooltip(arm, tip)
 
     raw_input('Hit ENTER to close')
