@@ -51,7 +51,7 @@
 #include "UI_segment_object/None_Bool.h"
 
 boost::mutex m;
-/***********************************************************************************/
+/*****************************************************************************/
 /*  Global variables and function declaration necessary for using mouse call back  */
 
 std::vector<std::vector<int> > poly_vec;
@@ -312,8 +312,8 @@ PointCloudPub::PointCloudPub(ros::NodeHandle &nh):
   seg.setOptimizeCoefficients (true);
   seg.setModelType (pcl::SACMODEL_PLANE);
   seg.setMethodType (pcl::SAC_RANSAC);
-  seg.setDistanceThreshold (0.02);
-  seg.setProbability(0.90);
+  seg.setDistanceThreshold (0.01);
+  seg.setProbability(0.95);
 
 
 }
@@ -336,29 +336,35 @@ void PointCloudPub::publish_object(const sensor_msgs::PointCloud2 &msg)
 
 bool PointCloudPub::get_cloud(UI_segment_object::GetObject::Request &reg, UI_segment_object::GetObject::Response &res)
 {
-  //  UI::UI ui(nh_);  
-  sensor_msgs::PointCloud2::ConstPtr msg = 
-    ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0));
-
-  ui.cloud_callback();
-  ////////////////////////this is a good spot to add head location designation by UI//////////////
+  sensor_msgs::PointCloud2::ConstPtr msg;
+  msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0));
+  if (done == 0)
+    {
+      ui.cloud_callback();
+    }
   //process the point cloud for object and return object
+  //  sensor_msgs::PointCloud2 msg2 = cloud_callback(ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0)));
+
   sensor_msgs::PointCloud2 msg2 = cloud_callback(msg);
-  res.object = msg2;
-  std::cerr << "you called me okay already :)" << std::endl;
-  //  res.object = cloud_plane_;
+  //  res.object = msg2;
+  
   return (true);
 }
 
 //////////////////////////////////////////////finish here for 3d  point returned
 bool PointCloudPub::get_pt(UI_segment_object::GetPt::Request &reg, UI_segment_object::GetPt::Response &res)
 {
-  sensor_msgs::PointCloud2::ConstPtr msg = 
-    ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0));
+  //  sensor_msgs::PointCloud2::Ptr msg (new sensor_msgs::PointCloud2());
+  sensor_msgs::PointCloud2::ConstPtr msg;
+  msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0));
 
-  ui.pt_callback();
+  if (done == 0)
+    {
+      ui.pt_callback();
+    }
   geometry_msgs::Point pt = pt_callback(msg);
   res.pt = pt;
+
   return (true);
 }
 
@@ -403,15 +409,18 @@ sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointC
   
   pcl::ExtractIndices<pcl::PointXYZ> extract;
 
-  pcl::PointIndices::Ptr ui_ind (new pcl::PointIndices());
+  //  pcl::PointIndices::Ptr ui_ind (new pcl::PointIndices());
+  pcl::PointIndices ui_ind;
   //////////////setup ui_ind here...../////////////
   for (int i = 0; i < counter_ind ; i++)
     {
-      ui_ind->indices.push_back(in_indices[i]);
+      //      ui_ind->indices.push_back(in_indices[i]);
+      ui_ind.indices.push_back(in_indices[i]);
     }
   
   extract.setInputCloud(cloud_xyz.makeShared());
-  extract.setIndices(ui_ind);
+  //  extract.setIndices(ui_ind);
+  extract.setIndices(boost::make_shared<pcl::PointIndices>(ui_ind));
   extract.setNegative(false);
   extract.filter(cloud_xyz2);
   pcl::toROSMsg(cloud_xyz2, region);
