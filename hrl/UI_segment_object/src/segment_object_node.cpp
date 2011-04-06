@@ -34,6 +34,7 @@
 #include <pcl_ros/point_cloud.h>
 #include "pcl/ModelCoefficients.h"
 #include "pcl/point_types.h"
+#include "pcl/io/pcd_io.h"
 #include "pcl/sample_consensus/method_types.h"
 #include "pcl/sample_consensus/model_types.h"
 #include "pcl/segmentation/sac_segmentation.h"
@@ -49,6 +50,7 @@
 #include "UI_segment_object/GetObject.h"
 #include "UI_segment_object/GetPt.h"
 #include "UI_segment_object/None_Bool.h"
+#include "UI_segment_object/Save.h"
 
 boost::mutex m;
 /*****************************************************************************/
@@ -287,6 +289,7 @@ public:
   sensor_msgs::PointCloud2 cloud_callback(const sensor_msgs::PointCloud2ConstPtr& msg);
   bool get_cloud(UI_segment_object::GetObject::Request &reg, UI_segment_object::GetObject::Response &res);
   bool get_pt(UI_segment_object::GetPt::Request &reg, UI_segment_object::GetPt::Response &res);
+  bool save_cloud(UI_segment_object::Save::Request &reg, UI_segment_object::Save::Response &res);
   geometry_msgs::Point pt_callback(const sensor_msgs::PointCloud2ConstPtr& msg);
   UI::UI ui;
 
@@ -296,6 +299,8 @@ protected:
   ros::Publisher pub_region_;
   ros::Publisher pub_object_;
   pcl::PointCloud<pcl::PointXYZ> cloud_plane_; //(new pcl::PointCloud<pcl::PointXYZ>());
+  pcl::PointCloud<pcl::PointXYZRGB> cloud_xyz_rgb;
+  sensor_msgs::PointCloud2::ConstPtr cloud_msg;
   pcl::ModelCoefficients coefficients;
   pcl::SACSegmentation<pcl::PointXYZ> seg;  
   pcl::PointIndices inliers;
@@ -336,8 +341,8 @@ void PointCloudPub::publish_object(const sensor_msgs::PointCloud2 &msg)
 
 bool PointCloudPub::get_cloud(UI_segment_object::GetObject::Request &reg, UI_segment_object::GetObject::Response &res)
 {
-  sensor_msgs::PointCloud2::ConstPtr msg;
-  msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0));
+  //  sensor_msgs::PointCloud2::ConstPtr msg;
+  cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0));
   if (done == 0)
     {
       ui.cloud_callback();
@@ -345,24 +350,33 @@ bool PointCloudPub::get_cloud(UI_segment_object::GetObject::Request &reg, UI_seg
   //process the point cloud for object and return object
   //  sensor_msgs::PointCloud2 msg2 = cloud_callback(ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0)));
 
-  sensor_msgs::PointCloud2 msg2 = cloud_callback(msg);
+  sensor_msgs::PointCloud2 msg2 = cloud_callback(cloud_msg);
   //  res.object = msg2;
   
   return (true);
+}
+
+
+bool PointCloudPub::save_cloud(UI_segment_object::Save::Request &reg, UI_segment_object::Save::Response &res)
+{
+  pcl::io::savePCDFileASCII (reg.file, cloud_xyz_rgb);
+  //  pcl::io::savePCDFileASCII (reg.file, cloud_msg);
+  res.state = true;
+  return(true);
 }
 
 //////////////////////////////////////////////finish here for 3d  point returned
 bool PointCloudPub::get_pt(UI_segment_object::GetPt::Request &reg, UI_segment_object::GetPt::Response &res)
 {
   //  sensor_msgs::PointCloud2::Ptr msg (new sensor_msgs::PointCloud2());
-  sensor_msgs::PointCloud2::ConstPtr msg;
-  msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0));
+
+  cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0));
 
   if (done == 0)
     {
       ui.pt_callback();
     }
-  geometry_msgs::Point pt = pt_callback(msg);
+  geometry_msgs::Point pt = pt_callback(cloud_msg);
   res.pt = pt;
 
   return (true);
@@ -393,7 +407,7 @@ sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointC
 
   pcl::PointCloud<pcl::PointXYZ> cloud_xyz;
   pcl::PointCloud<pcl::PointXYZ> cloud_xyz2;
-  pcl::PointCloud<pcl::PointXYZRGB> cloud_xyz_rgb;
+
   pcl::PointCloud<pcl::PointXYZ> cloud_plane;  //(new pcl::PointCloud<pcl::PointXYZ>());
   sensor_msgs::PointCloud2 object;
   sensor_msgs::PointCloud2 region;
@@ -462,6 +476,7 @@ int main (int argc, char** argv)
   PointCloudPub pcb(nh);
   ros::ServiceServer service = nh.advertiseService("get_object_on_plane", &PointCloudPub::get_cloud, &pcb);
   ros::ServiceServer service2 = nh.advertiseService("get_3D_pt", &PointCloudPub::get_pt, &pcb);
+  ros::ServiceServer service3 = nh.advertiseService("save_pt_cloud", &PointCloudPub::save_cloud, &pcb);
   ros::spin();
 
   return (0);
