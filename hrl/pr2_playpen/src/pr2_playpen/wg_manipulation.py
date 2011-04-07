@@ -39,6 +39,7 @@ from pr2_playpen.srv import Train
 from pr2_playpen.srv import Save
 import os
 import datetime
+import cPickle
 
 import math
 import numpy as np
@@ -113,14 +114,21 @@ class SimplePickAndPlaceExample():
 
 
 if __name__ == "__main__":
+    print os.getcwd()
+    
+
     rospy.init_node('simple_pick_and_place_example')
+
+#####################GET RID OF THIS AFTER VERIFYING PATH
+    rospy.sleep (100)
+###########################################################
+    
     sppe = SimplePickAndPlaceExample()
 
     #adjust for your table 
     table_height = 0.529
     date = datetime.datetime.now()
 
-#    f_name = str(date.year)+str(date.month).zfill(2)+str(date.day).zfill(2)+'_'+str(date.hour).zfill(2)+str(date.minute).zfill(2)+str(date.second).zfill(2)
     f_name = date.strftime("%Y-%m-%d_%H-%M-%S")
 
     save_dir = os.getcwd()+'../data/'+f_name
@@ -145,35 +153,46 @@ if __name__ == "__main__":
         print "Service call failed: %s"%e
     num_samples = train_success()
 
-    data = {}
 
     for i in xrange(len(sppe.objects_dist)):
+        file_handle = open(save_dir+'/object'+str(i).zfill(3)+'.pkl', 'wb')
+        data = {}
         sppe.playpen(0)
         sppe.conveyor(sppe.objects_dist[i])
-        data['object'+str(i).zfill(3)] = {}
-        data['object'+str(i).zfill(3)]['success'] = []
-        data['object'+str(i).zfill(3)]['frames'] = []
+        # data['object'+str(i).zfill(3)] = {}
+        # data['object'+str(i).zfill(3)]['success'] = []
+        # data['object'+str(i).zfill(3)]['frames'] = []
+
+        data['success'] = []
+        data['frames'] = []
+
         while sppe.tries<6:
             print "arm is ", arm
 #            print "target _point is ", target_point.x
-            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_before_pr2')
-            save_playpen_cloud(save_dir+'/object'+str(i).zfill(3)+'_before_playpen')
-            success = sppe.pick_up_object_near_point(target_point, arm)   #right arm
+            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.pcd')
+            save_playpen_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.pcd')
+            success = sppe.pick_up_object_near_point(target_point, arm)
 
             result = []
-            for i in xrange(5):
+            for i in xrange(7):
                 result.append(check_success(''))
                 rospy.sleep(4)
-            
-            if result[2] = 'table':
+            result.sort()
+            if result[4] = 'table':
                 success = True
             elif result[2] = 'object':
                 success = False
             else:
                 success = False
                 sppe.tries = sppe.tries-1 # this is to compensate for failures in perception hopefully
-            data['object'+str(i).zfill(3)]['success'].append(success)
+
+            print "SUCCESS IS :", success
+            data['success'].append(success)
                 
+            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'try'+str(sppe.tries).zfill(3)+'_after_pr2.pcd')
+            save_playpen_cloud(save_dir+'/object'+str(i).zfill(3)+'try'+str(sppe.tries).zfill(3)+'_after_playpen.pcd')
+
+
             if success:
                 sppe.successes=sppe.successes + 1
                 #square of size 30 cm by 30 cm
@@ -191,8 +210,6 @@ if __name__ == "__main__":
 
                 sppe.place_object(arm, place_rect_dims, place_rect_center)
 
-            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_after_pr2')
-            save_playpen_cloud(save_dir+'/object'+str(i).zfill(3)+'_after_playpen')
 
             arm = arm.__xor__(1)
             sppe.tries = sppe.tries+1
@@ -200,6 +217,7 @@ if __name__ == "__main__":
         sppe.playpen(1)
         sppe.successes = 0
         sppe.tries = 0
-
+        cPickle.dump(data, file_handle)
+        file_handle.close()
     
 #    sppe.playpen(0)
