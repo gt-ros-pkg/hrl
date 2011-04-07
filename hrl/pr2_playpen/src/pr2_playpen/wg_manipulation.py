@@ -36,7 +36,7 @@ from pr2_playpen.srv import Playpen
 from pr2_playpen.srv import Conveyor
 from pr2_playpen.srv import Check
 from pr2_playpen.srv import Train
-from pr2_playpen.srv import Save
+from UI_segment_object.srv import Save
 import os
 import datetime
 import cPickle
@@ -114,15 +114,8 @@ class SimplePickAndPlaceExample():
 
 
 if __name__ == "__main__":
-    print os.getcwd()
-    
-
     rospy.init_node('simple_pick_and_place_example')
 
-#####################GET RID OF THIS AFTER VERIFYING PATH
-    rospy.sleep (100)
-###########################################################
-    
     sppe = SimplePickAndPlaceExample()
 
     #adjust for your table 
@@ -131,10 +124,11 @@ if __name__ == "__main__":
 
     f_name = date.strftime("%Y-%m-%d_%H-%M-%S")
 
-    save_dir = os.getcwd()+'../data/'+f_name
+    save_dir = os.getcwd()+'/../../data/'+f_name
+    playpen_dir = '/home/mkillpack/svn/gt-ros-pkg/hrl/pr2_playpen/data/' #should add way to sync
     os.mkdir(save_dir)
 
-    print "CHECING FOR DIRECTORY :  ", os.getcwd()+'../data/'+f_name
+    print "CHECING FOR DIRECTORY :  ", os.getcwd()+'/../../data/'+f_name
     #.5 m in front of robot, centered
     target_point_xyz = [.625, 0, table_height]   #this is currently an approximation/hack should use ar tag
     target_point = create_point_stamped(target_point_xyz, 'base_link')
@@ -142,13 +136,15 @@ if __name__ == "__main__":
     rospy.wait_for_service('playpen_train_success')
     rospy.wait_for_service('playpen_check_success')
     rospy.wait_for_service('playpen_save_pt_cloud')
-    rospy.wait_for_service('pr2_save_pt_cloud')
+    rospy.wait_for_service('playpen_save_image')
+#    rospy.wait_for_service('pr2_save_pt_cloud')
 
     try:
         train_success = rospy.ServiceProxy('playpen_train_success', Train)
         check_success = rospy.ServiceProxy('playpen_check_success', Check)
-        save_pr2_cloud = rospy.ServiceProxy('pr2_save_pt_cloud', Save)
+#        save_pr2_cloud = rospy.ServiceProxy('pr2_save_pt_cloud', Save)
         save_playpen_cloud = rospy.ServiceProxy('playpen_save_pt_cloud', Save)
+        save_playpen_image = rospy.ServiceProxy('playpen_save_image', Save)
     except rospy.ServiceException, e:
         print "Service call failed: %s"%e
     num_samples = train_success()
@@ -166,31 +162,35 @@ if __name__ == "__main__":
         data['success'] = []
         data['frames'] = []
 
-        while sppe.tries<6:
+        while sppe.tries<2:
             print "arm is ", arm
 #            print "target _point is ", target_point.x
-            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.pcd')
-            save_playpen_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.pcd')
+#            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.pcd')
+            save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.pcd')
+            save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.png')
             success = sppe.pick_up_object_near_point(target_point, arm)
 
             result = []
-            for i in xrange(7):
-                result.append(check_success(''))
-                rospy.sleep(4)
+            rospy.sleep(5)
+            for j in xrange(5):
+                result.append(check_success('').result)
+                rospy.sleep(5)
             result.sort()
-            if result[4] = 'table':
+            if result[2] == 'table':
                 success = True
-            elif result[2] = 'object':
+            elif result[2] == 'object':
                 success = False
-            else:
-                success = False
-                sppe.tries = sppe.tries-1 # this is to compensate for failures in perception hopefully
+            # else:
+            #     success = False
+            #     sppe.tries = sppe.tries-1 # this is to compensate for failures in perception hopefully
 
-            print "SUCCESS IS :", success
+            print "SUCCESS IS :", success, '    ', result
             data['success'].append(success)
                 
-            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'try'+str(sppe.tries).zfill(3)+'_after_pr2.pcd')
-            save_playpen_cloud(save_dir+'/object'+str(i).zfill(3)+'try'+str(sppe.tries).zfill(3)+'_after_playpen.pcd')
+#            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'try'+str(sppe.tries).zfill(3)+'_after_pr2.pcd')
+            save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_playpen.pcd')
+            save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_playpen.png')
+#            save_playpen_cloud(save_dir+'/object'+str(i).zfill(3)+'try'+str(sppe.tries).zfill(3)+'_after_playpen.pcd')
 
 
             if success:

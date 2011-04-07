@@ -993,8 +993,8 @@ class PickAndPlaceManager():
             self.held_objects[(1-holding_arm)].grasp_pose = res.grasp_pose
 
         #move both arms back to the side
-        self.move_arm_to_side(holding_arm)
-        self.move_arm_to_side(1-holding_arm)
+        self.move_arm_out_of_way(holding_arm)
+        self.move_arm_out_of_way(1-holding_arm)
         
         #return the result regardless of whether the transfer occurred
         if result == "SUCCESS":
@@ -1155,7 +1155,7 @@ class PickAndPlaceManager():
                     rospy.loginfo("grasp object returned move arm stuck; taking a new collision map and moving to side before trying next place")
                     self.reset_collision_map()
                     self.take_static_map()
-                    self.move_arm_to_side(whicharm, try_constrained = 1)
+                    self.move_arm_out_of_way(whicharm, try_constrained = 1)
 
             #succeeded, stop
             if success:
@@ -1203,7 +1203,7 @@ class PickAndPlaceManager():
 
             #move the arm back out of the way
 	    if move_to_side == True:
-            	self.move_arm_to_side(whicharm)
+            	self.move_arm_out_of_way(whicharm)
             return 1
 
         else:
@@ -1236,7 +1236,7 @@ class PickAndPlaceManager():
             else:
                 self.detach_object(arm_used)
                 rospy.loginfo("grasp attempt failed and probably moved the object, detaching the object and returning")
-                self.move_arm_to_side(arm_used, try_constrained = 1)                
+                self.move_arm_out_of_way(arm_used, try_constrained = 1)                
                 return ("attempt failed", None)
 
         #object grasper failed
