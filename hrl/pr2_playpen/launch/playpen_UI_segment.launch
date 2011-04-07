@@ -9,6 +9,7 @@
 	      <remap from="get_object_on_plane" to="playpen_get_object" />
 	      <remap from="get_3D_pt" to="playpen_get_3D_pt" />
 	      <remap from="UI_reset" to="playpen_UI_reset" />
+	      <remap from="save_image" to="playpen_save_image" />
 	      <remap from="segment_plane" to="playpen_segment_region" />
 	      <remap from="segment_object" to="playpen_segment_object" />
 	      <remap from="save_pt_cloud" to="playpen_save_pt_cloud" />
