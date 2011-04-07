@@ -73,6 +73,7 @@ class UI {
 public:
   //  bool got_image;
   ros::ServiceServer reset_service;
+  ros::ServiceServer save_img;
   UI(ros::NodeHandle &nh) :
     nh_(nh), it_(nh_)
   {
@@ -84,6 +85,7 @@ public:
     //    cvNamedWindow("Select");                                                               
     //    cvSetMouseCallback("Select", mouse_callback);
     reset_service = nh_.advertiseService("UI_reset", &UI::reset_cb, this);
+    save_img = nh_.advertiseService("save_image", &UI::save_image, this);
   }
 
   ~UI()
@@ -265,6 +267,17 @@ public:
     return c;   //returns 1 for interior and 0 for exterior points
   }
 
+  bool save_image(UI_segment_object::Save::Request &reg, UI_segment_object::Save::Response &res)
+  {
+    //    sensor_msgs::ImageConstPtr image_in = 
+    cv_image = bridge_.imgMsgToCv(ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_), "bgr8");
+    cvSaveImage(reg.file.c_str(), cv_image);
+
+    res.state = true;
+    return(true);
+  }
+
+
 
 protected:
   ros::NodeHandle nh_;
@@ -360,6 +373,7 @@ bool PointCloudPub::get_cloud(UI_segment_object::GetObject::Request &reg, UI_seg
 bool PointCloudPub::save_cloud(UI_segment_object::Save::Request &reg, UI_segment_object::Save::Response &res)
 {
   pcl::io::savePCDFileASCII (reg.file, cloud_xyz_rgb);
+
   //  pcl::io::savePCDFileASCII (reg.file, cloud_msg);
   res.state = true;
   return(true);
