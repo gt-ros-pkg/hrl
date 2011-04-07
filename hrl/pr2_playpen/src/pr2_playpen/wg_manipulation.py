@@ -34,6 +34,12 @@ from pr2_playpen.pick_and_place_manager import *
 from object_manipulator.convert_functions import *
 from pr2_playpen.srv import Playpen
 from pr2_playpen.srv import Conveyor
+from pr2_playpen.srv import Check
+from pr2_playpen.srv import Train
+from pr2_playpen.srv import Save
+import os
+import datetime
+
 import math
 import numpy as np
 
@@ -57,8 +63,6 @@ class SimplePickAndPlaceExample():
     def pick_up_object_near_point(self, target_point, whicharm):
 
         rospy.loginfo("moving the arms to the side")
-#        self.papm.move_arm_to_side(0)  #right arm
-#        self.papm.move_arm_to_side(1)  #left arm
         self.papm.move_arm_out_of_way(0)
         self.papm.move_arm_out_of_way(1)
 
@@ -112,38 +116,68 @@ if __name__ == "__main__":
     rospy.init_node('simple_pick_and_place_example')
     sppe = SimplePickAndPlaceExample()
 
-
     #adjust for your table 
     table_height = 0.529
+    date = datetime.datetime.now()
 
-############here is where we put the loop and service calls to know if successful or not...., when done write success rate/statistics to pkl file
-############and call service to advance to next object, etc.
+#    f_name = str(date.year)+str(date.month).zfill(2)+str(date.day).zfill(2)+'_'+str(date.hour).zfill(2)+str(date.minute).zfill(2)+str(date.second).zfill(2)
+    f_name = date.strftime("%Y-%m-%d_%H-%M-%S")
 
+    save_dir = os.getcwd()+'../data/'+f_name
+    os.mkdir(save_dir)
+
+    print "CHECING FOR DIRECTORY :  ", os.getcwd()+'../data/'+f_name
     #.5 m in front of robot, centered
-    target_point_xyz = [.625, 0, table_height]   #this is currently an approximation/hack should us ar tag
+    target_point_xyz = [.625, 0, table_height]   #this is currently an approximation/hack should use ar tag
     target_point = create_point_stamped(target_point_xyz, 'base_link')
     arm = 0
+    rospy.wait_for_service('playpen_train_success')
+    rospy.wait_for_service('playpen_check_success')
+    rospy.wait_for_service('playpen_save_pt_cloud')
+    rospy.wait_for_service('pr2_save_pt_cloud')
+
+    try:
+        train_success = rospy.ServiceProxy('playpen_train_success', Train)
+        check_success = rospy.ServiceProxy('playpen_check_success', Check)
+        save_pr2_cloud = rospy.ServiceProxy('pr2_save_pt_cloud', Save)
+        save_playpen_cloud = rospy.ServiceProxy('playpen_save_pt_cloud', Save)
+    except rospy.ServiceException, e:
+        print "Service call failed: %s"%e
+    num_samples = train_success()
+
+    data = {}
 
     for i in xrange(len(sppe.objects_dist)):
         sppe.playpen(0)
         sppe.conveyor(sppe.objects_dist[i])
-
+        data['object'+str(i).zfill(3)] = {}
+        data['object'+str(i).zfill(3)]['success'] = []
+        data['object'+str(i).zfill(3)]['frames'] = []
         while sppe.tries<6:
             print "arm is ", arm
 #            print "target _point is ", target_point.x
+            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_before_pr2')
+            save_playpen_cloud(save_dir+'/object'+str(i).zfill(3)+'_before_playpen')
             success = sppe.pick_up_object_near_point(target_point, arm)   #right arm
 
+            result = []
+            for i in xrange(5):
+                result.append(check_success(''))
+                rospy.sleep(4)
+            
+            if result[2] = 'table':
+                success = True
+            elif result[2] = 'object':
+                success = False
+            else:
+                success = False
+                sppe.tries = sppe.tries-1 # this is to compensate for failures in perception hopefully
+            data['object'+str(i).zfill(3)]['success'].append(success)
+                
             if success:
                 sppe.successes=sppe.successes + 1
                 #square of size 30 cm by 30 cm
                 place_rect_dims = [.1, .1]
-
-                
-                #.5 m in front of robot, to the right
-                # radius = np.random.uniform(0,0.20, 1)[0]
-                # angle = np.random.uniform(0, 2*math.pi, 1)[0]
-                # center_xyz = [.625+math.cos(angle)*radius, math.sin(angle)*radius, table_height+.2]
-
 
                 x = np.random.uniform(-0.2, 0.20, 1)[0]
                 y = np.random.uniform(-0.2, 0.20, 1)[0]
@@ -157,6 +191,9 @@ if __name__ == "__main__":
 
                 sppe.place_object(arm, place_rect_dims, place_rect_center)
 
+            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_after_pr2')
+            save_playpen_cloud(save_dir+'/object'+str(i).zfill(3)+'_after_playpen')
+
             arm = arm.__xor__(1)
             sppe.tries = sppe.tries+1
 
@@ -164,4 +201,5 @@ if __name__ == "__main__":
         sppe.successes = 0
         sppe.tries = 0
 
+    
 #    sppe.playpen(0)
