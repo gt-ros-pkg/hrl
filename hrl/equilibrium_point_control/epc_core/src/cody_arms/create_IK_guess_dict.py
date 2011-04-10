@@ -1,8 +1,10 @@
 import arms as ar
-import hrl_lib.util as ut
 import math, numpy as np
 import sys, optparse
+
+import roslib; roslib.load_manifest('epc_core')
 import hrl_lib.transforms as tr
+import hrl_lib.util as ut
 
 def find_good_config(pt,dict):
     ''' finds a good configuration for the 3x1 pt.

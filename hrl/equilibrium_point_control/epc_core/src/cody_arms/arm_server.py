@@ -1,8 +1,5 @@
 import m3.rt_proxy as m3p
 import m3.arm
-import m3.sea_wrist
-import m3.sea_joint
-import m3.gripper as m3h
 import m3.toolbox as m3t
 import m3.pwr as m3w
 import m3.loadx6
@@ -16,7 +13,7 @@ import copy
 from threading import RLock
 
 import arms as ar
-import roslib; roslib.load_manifest('cody_arms')
+import roslib; roslib.load_manifest('epc_core')
 import rospy
 
 import hrl_lib.transforms as tr
@@ -64,7 +61,9 @@ class MekaArmServer():
     def __init__(self, right_arm_settings=None, left_arm_settings=None):
         self.arm_settings = {}  # dict is set in set_arm_settings
         self.initialize_joints(right_arm_settings, left_arm_settings)
+
         #self.initialize_gripper()
+
         self.left_arm_ft = {'force': np.matrix(np.zeros((3,1),dtype='float32')),
                             'torque': np.matrix(np.zeros((3,1),dtype='float32'))}
         self.right_arm_ft = {'force': np.matrix(np.zeros((3,1),dtype='float32')),
@@ -87,6 +86,7 @@ class MekaArmServer():
 
         #----- ROS interface ---------
         rospy.init_node('arm_server', anonymous=False)
+
         self.q_r_pub = rospy.Publisher('/r_arm/q', FloatArray)
         self.q_l_pub = rospy.Publisher('/l_arm/q', FloatArray)
         self.force_raw_r_pub = rospy.Publisher('/r_arm/force_raw', FloatArray)
@@ -111,7 +111,6 @@ class MekaArmServer():
         self.cb_lock = RLock()
         self.r_jep = None # see set_jep
         self.l_jep = None # see set_jep
-
 
     def set_arm_settings(self,right_arm_settings,left_arm_settings):
         self.arm_settings['right_arm'] = right_arm_settings
@@ -180,28 +179,41 @@ class MekaArmServer():
             else:
                 print 'hrl_robot.initialize_joints. unknown control mode for ', arm,':', arm_settings.control_mode
 
+    # put a few things into safeop so that individual joint
+    # components work.
+    def safeop_things(self):
+        robot_name = 'm3humanoid_bimanual_mr1'
+        chain_names = ['m3arm_ma1', 'm3arm_ma2']
+        dynamatics_nms = ['m3dynamatics_ma1', 'm3dynamatics_ma2']
+
+        self.proxy.make_safe_operational(robot_name)
+        for c in chain_names:
+            self.proxy.make_safe_operational(c)
+        for d in dynamatics_nms:
+            self.proxy.make_safe_operational(d)
+
     def initialize_joints(self, right_arm_settings, left_arm_settings):
         self.proxy = m3p.M3RtProxy()
         self.proxy.start()
-        for c in ['m3pwr_pwr003','m3loadx6_ma1','m3arm_ma1','m3loadx6_ma2','m3arm_ma2']:
+        for c in ['m3pwr_pwr003','m3loadx6_ma1_l0','m3arm_ma1','m3loadx6_ma2_l0','m3arm_ma2']:
             if not self.proxy.is_component_available(c):
                 raise m3t.M3Exception('Component '+c+' is not available.')
         
         self.joint_list_dict = {}
 
         right_l = []
-        for c in ['m3sea_joint_ma1_j0','m3sea_joint_ma1_j1','m3sea_joint_ma1_j2',
-                  'm3sea_joint_ma1_j3','m3sea_joint_ma1_j4','m3sea_wrist_ma1_j5',
-                  'm3sea_wrist_ma1_j6']:
+        for c in ['m3joint_ma1_j0','m3joint_ma1_j1','m3joint_ma1_j2',
+                  'm3joint_ma1_j3','m3joint_ma1_j4','m3joint_ma1_j5',
+                  'm3joint_ma1_j6']:
             if not self.proxy.is_component_available(c):
                 raise m3t.M3Exception('Component '+c+' is not available.')
             right_l.append(m3f.create_component(c))
         self.joint_list_dict['right_arm'] = right_l
 
         left_l = []
-        for c in ['m3sea_joint_ma2_j0','m3sea_joint_ma2_j1','m3sea_joint_ma2_j2',
-                  'm3sea_joint_ma2_j3','m3sea_joint_ma2_j4','m3sea_wrist_ma2_j5',
-                  'm3sea_wrist_ma2_j6']:
+        for c in ['m3joint_ma2_j0','m3joint_ma2_j1','m3joint_ma2_j2',
+                  'm3joint_ma2_j3','m3joint_ma2_j4','m3joint_ma2_j5',
+                  'm3joint_ma2_j6']:
             if not self.proxy.is_component_available(c):
                 raise m3t.M3Exception('Component '+c+' is not available.')
             left_l.append(m3f.create_component(c))
@@ -218,14 +230,15 @@ class MekaArmServer():
 
         self.set_arm_settings(right_arm_settings,left_arm_settings)
 
-        right_fts=m3.loadx6.M3LoadX6('m3loadx6_ma1')
+        right_fts=m3.loadx6.M3LoadX6('m3loadx6_ma1_l0')
         self.proxy.subscribe_status(right_fts)
-        left_fts=m3.loadx6.M3LoadX6('m3loadx6_ma2')
+        left_fts=m3.loadx6.M3LoadX6('m3loadx6_ma2_l0')
         self.proxy.subscribe_status(left_fts)
 
         self.fts = {'right_arm':right_fts,'left_arm':left_fts}
 
-        self.pwr=m3w.M3Pwr('m3pwr_pwr003')
+        #self.pwr=m3w.M3Pwr('m3pwr_pwr003')
+        self.pwr=m3f.create_component('m3pwr_pwr003')
         self.proxy.subscribe_status(self.pwr)
         self.proxy.publish_command(self.pwr)
 
@@ -342,10 +355,7 @@ class MekaArmServer():
     def power_on(self):
         self.maintain_configuration()
         self.proxy.make_operational_all()
-        if self.arm_settings['right_arm'] != None:
-            self.proxy.make_safe_operational('m3arm_ma1')
-        if self.arm_settings['left_arm'] != None:
-            self.proxy.make_safe_operational('m3arm_ma2')
+        self.safeop_things()
         self.pwr.set_motor_power_on()
         self.step()
         self.step()
@@ -449,13 +459,16 @@ if __name__ == '__main__':
             cody_arms.step_ros()
             rospy.sleep(0.005)
         cody_arms.stop()
+
     except m3t.M3Exception:
         print '############################################################'
         print 'In all likelihood the Meka server is not running.'
         print '############################################################'
         raise
     except:
-        cody_arms.stop()
+        # only use cody_arms if it was successfully created.
+        if 'cody_arms' in locals():
+            cody_arms.stop()
         raise
 
 
