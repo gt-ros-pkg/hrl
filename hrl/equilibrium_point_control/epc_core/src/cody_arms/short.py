@@ -36,16 +36,12 @@ proxy.publish_command(comp)
 proxy.make_operational_all()
 safeop_things(proxy)
 
-
 ma1 = m3.arm.M3Arm('m3arm_ma1')
 proxy.subscribe_status(ma1)
 
-
 comp.set_control_mode(THETA_GC)
 comp.set_stiffness(0.5)
-#comp.set_thetadot_deg(0.)
-
-
+comp.set_slew_rate_proportion(1.)
 
 proxy.step()
 proxy.step()
@@ -57,14 +53,13 @@ proxy.step()
 proxy.step()
 
 raw_input('Hit ENTER to move the joint')
-comp.set_theta_deg(20.)
+comp.set_theta_deg(50.)
+comp.set_thetadot_deg(0.)
 proxy.step()
 proxy.step()
 
 raw_input('Hit ENTER to stop')
 proxy.stop()
-
-
 
 
 
