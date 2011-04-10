@@ -34,7 +34,6 @@ from UI_segment_object.srv import GetPt
 from UI_segment_object.srv import None_Bool
 
 if __name__ == '__main__':
-    print 'hello world'
     rospy.init_node('point_and_click_client')
 
     reset_srv_name = 'UI_reset'
