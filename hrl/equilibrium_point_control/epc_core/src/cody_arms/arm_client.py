@@ -403,30 +403,35 @@ if __name__ == '__main__':
     arms = ar.M3HrlRobot()
     ac = MekaArmClient(arms)
 
-    ac.bias_wrist_ft(r_arm)
-    while not rospy.is_shutdown():
-        f = ac.get_wrist_force(r_arm)
-        print 'f:', f.A1
-        rospy.sleep(0.05)
+
+    # print FT sensor readings.
+    if False:
+        ac.bias_wrist_ft(r_arm)
+        while not rospy.is_shutdown():
+            f = ac.get_wrist_force(r_arm)
+            print 'f:', f.A1
+            rospy.sleep(0.05)
 
 
-#    print 'hit a key to move the arms.'
-#    k=m3t.get_keystroke()
-#
-#    rot_mat = tr.Ry(math.radians(-90)) #* tr.Rx(math.radians(45))
-#    p = np.matrix([0.3, -0.24, -0.3]).T
-##    q = arms.IK(l_arm, p, rot_mat)
-##    ac.go_jep(l_arm, q)
-##    ac.go_cep(l_arm, p, rot_mat)
-#    ac.go_cep(r_arm, p, rot_mat)
-#
-##    jep = ac.get_jep(r_arm)
-##    ac.go_jep(r_arm, jep)
-#
-#    rospy.sleep(0.5)
-#    #ac.move_till_hit(l_arm)
-#    #ac.motors_off()
-##    ac.stop()
+    # move the arms.
+    if True:
+        print 'hit a key to move the arms.'
+        k=m3t.get_keystroke()
+
+        rot_mat = tr.Ry(math.radians(-90)) #* tr.Rx(math.radians(45))
+        p = np.matrix([0.3, -0.24, -0.3]).T
+    #    q = arms.IK(l_arm, p, rot_mat)
+    #    ac.go_jep(l_arm, q)
+    #    ac.go_cep(l_arm, p, rot_mat)
+        ac.go_cep(r_arm, p, rot_mat)
+
+    #    jep = ac.get_jep(r_arm)
+    #    ac.go_jep(r_arm, jep)
+
+        rospy.sleep(0.5)
+        #ac.move_till_hit(l_arm)
+        #ac.motors_off()
+    #    ac.stop()
 
 
 

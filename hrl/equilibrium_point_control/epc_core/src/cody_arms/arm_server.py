@@ -135,46 +135,22 @@ class MekaArmServer():
                     c.set_torque_mNm(0.0)
             elif arm_settings.control_mode == 'theta_gc':
                 print 'setting control mode to theta_gc'
-                joint_component_list[0].set_control_mode(THETA_GC)
-                joint_component_list[0].set_stiffness(stiffness_scale*stiffness_list[0])
-
-                joint_component_list[1].set_control_mode(THETA_GC)
-                joint_component_list[1].set_stiffness(stiffness_scale*stiffness_list[1])
-
-                joint_component_list[2].set_control_mode(THETA_GC)
-                joint_component_list[2].set_stiffness(stiffness_scale*stiffness_list[2])
-
-                joint_component_list[3].set_control_mode(THETA_GC)
-                joint_component_list[3].set_stiffness(stiffness_scale*stiffness_list[3])
-
-                joint_component_list[4].set_control_mode(THETA_GC)
-                joint_component_list[4].set_stiffness(stiffness_scale*stiffness_list[4])
+                for i in range(5):
+                    joint_component_list[i].set_control_mode(THETA_GC)
+                    joint_component_list[i].set_stiffness(stiffness_scale*stiffness_list[0])
+                    joint_component_list[i].set_slew_rate_proportion(1.)
 
                 joint_component_list[5].set_control_mode(THETA)
+                joint_component_list[5].set_slew_rate_proportion(1.)
                 joint_component_list[6].set_control_mode(THETA)
+                joint_component_list[6].set_slew_rate_proportion(1.)
 
             elif arm_settings.control_mode == 'wrist_theta_gc':
                 print 'setting control mode to theta_gc include wrist joints'
-                joint_component_list[0].set_control_mode(THETA_GC)
-                joint_component_list[0].set_stiffness(stiffness_scale*stiffness_list[0])
-
-                joint_component_list[1].set_control_mode(THETA_GC)
-                joint_component_list[1].set_stiffness(stiffness_scale*stiffness_list[1])
-
-                joint_component_list[2].set_control_mode(THETA_GC)
-                joint_component_list[2].set_stiffness(stiffness_scale*stiffness_list[2])
-
-                joint_component_list[3].set_control_mode(THETA_GC)
-                joint_component_list[3].set_stiffness(stiffness_scale*stiffness_list[3])
-
-                joint_component_list[4].set_control_mode(THETA_GC)
-                joint_component_list[4].set_stiffness(stiffness_scale*stiffness_list[4])
-
-                joint_component_list[5].set_control_mode(THETA_GC)
-                joint_component_list[5].set_stiffness(stiffness_scale*stiffness_list[5])
-
-                joint_component_list[6].set_control_mode(THETA_GC)
-                joint_component_list[6].set_stiffness(stiffness_scale*stiffness_list[6])
+                for i in range(7):
+                    joint_component_list[i].set_control_mode(THETA_GC)
+                    joint_component_list[i].set_stiffness(stiffness_scale*stiffness_list[i])
+                    joint_component_list[i].set_slew_rate_proportion(1.)
 
             else:
                 print 'hrl_robot.initialize_joints. unknown control mode for ', arm,':', arm_settings.control_mode
@@ -284,6 +260,7 @@ class MekaArmServer():
         l_jep = copy.copy(self.l_jep)
         self.cb_lock.release()
 
+        #r_jep[3] += math.radians(0.5)
         self.set_jep(r_arm, r_jep)
         self.set_jep(l_arm, l_jep)
 
@@ -437,10 +414,12 @@ class MekaArmServer():
             # Not anymore. (Advait Aug 27, 2009)
             self.joint_list_dict[arm][i].set_theta_rad(qi)
 
+        self.cb_lock.acquire()
         if arm == 'right_arm':
             self.r_jep = q
         else:
             self.l_jep = q
+        self.cb_lock.release()
 
 
 if __name__ == '__main__':
