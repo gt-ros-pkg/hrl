@@ -3,7 +3,7 @@ import math, numpy as np
 
 import arm_client as ac
 import arms as ar
-import roslib; roslib.load_manifest('cody_arms')
+import roslib; roslib.load_manifest('epc_core')
 import rospy
 
 import tf.broadcaster as tfb

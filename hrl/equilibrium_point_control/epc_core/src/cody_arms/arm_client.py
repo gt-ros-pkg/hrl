@@ -11,7 +11,7 @@ import copy
 import sys, time, os
 from threading import RLock
 
-import roslib; roslib.load_manifest('cody_arms')
+import roslib; roslib.load_manifest('epc_core')
 import rospy
 from hrl_lib.msg import FloatArray
 from roslib.msg import Header
