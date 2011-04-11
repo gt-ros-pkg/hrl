@@ -33,13 +33,19 @@ int main(int argc, char **argv){
     {
         goalB.motion_plan_request.goal_constraints.joint_constraints[i].joint_name = names[i];
         goalB.motion_plan_request.goal_constraints.joint_constraints[i].position = 0.0;
-        goalB.motion_plan_request.goal_constraints.joint_constraints[i].tolerance_below = 0.1;
-        goalB.motion_plan_request.goal_constraints.joint_constraints[i].tolerance_above = 0.1;
+        goalB.motion_plan_request.goal_constraints.joint_constraints[i].tolerance_below = 0.05;
+        goalB.motion_plan_request.goal_constraints.joint_constraints[i].tolerance_above = 0.05;
     }
 
-    goalB.motion_plan_request.goal_constraints.joint_constraints[0].position = -2.0;
-    goalB.motion_plan_request.goal_constraints.joint_constraints[3].position = -0.2;
-    goalB.motion_plan_request.goal_constraints.joint_constraints[5].position = -0.15;
+    goalB.motion_plan_request.goal_constraints.joint_constraints[0].position = -0.082971740453390508;
+    goalB.motion_plan_request.goal_constraints.joint_constraints[1].position = -0.00024050597696160733;
+    goalB.motion_plan_request.goal_constraints.joint_constraints[2].position = -1.7613330259531139;
+    goalB.motion_plan_request.goal_constraints.joint_constraints[3].position = -1.1626271435626965;
+    goalB.motion_plan_request.goal_constraints.joint_constraints[4].position = -0.032142093106232839;
+    goalB.motion_plan_request.goal_constraints.joint_constraints[5].position = -0.19405610249061456;
+    goalB.motion_plan_request.goal_constraints.joint_constraints[6].position = 0.18618502991750852;
+
+
 
     if (nh.ok())
     {
