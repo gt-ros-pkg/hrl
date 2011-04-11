@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import m3.rt_proxy as m3p
 import m3.arm
 import m3.toolbox as m3t
