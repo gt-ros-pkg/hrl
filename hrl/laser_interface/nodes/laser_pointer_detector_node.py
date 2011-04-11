@@ -411,7 +411,7 @@ class LaserPointerDetectorNode:
                 t1 = time.time()
 
                 #rospy.logdebug('Running at ' + str(1./(t1 - t0)) + ' hz.')
-                if i % 10 == 0:
+                if i % 100 == 0:
                     rospy.loginfo('Running at ' + str(1./(t1 - t0)) + ' hz.')
 
         except StopIteration, e:
