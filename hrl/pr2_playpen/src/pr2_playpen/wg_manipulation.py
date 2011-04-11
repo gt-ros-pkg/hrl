@@ -109,7 +109,7 @@ class SimplePickAndPlaceExample():
             rospy.loginfo("place returned success")
         else:
             rospy.loginfo("place returned failure")
-
+            self.papm.open_gripper(whicharm)
         return success
 
 
@@ -162,7 +162,7 @@ if __name__ == "__main__":
         data['success'] = []
         data['frames'] = []
 
-        while sppe.tries<2:
+        while sppe.tries<6:
             print "arm is ", arm
 #            print "target _point is ", target_point.x
 #            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.pcd')
@@ -198,8 +198,8 @@ if __name__ == "__main__":
                 #square of size 30 cm by 30 cm
                 place_rect_dims = [.1, .1]
 
-                x = np.random.uniform(-0.2, 0.20, 1)[0]
-                y = np.random.uniform(-0.2, 0.20, 1)[0]
+                x = np.random.uniform(-0.18, 0.18, 1)[0]
+                y = np.random.uniform(-0.18, 0.18, 1)[0]
                 center_xyz = [.625+x, y, table_height+.10]
 
 
