@@ -7,6 +7,8 @@ import pr2_msgs.msg as pm
 class PressureListener:
     def __init__(self, topic='/pressure/l_gripper_motor', safe_pressure_threshold = 4000):
         rospy.Subscriber(topic, pm.PressureState, self.press_cb)
+        self.lmat  = None
+        self.rmat  = None
         self.lmat0 = None
         self.rmat0 = None
 
@@ -35,6 +37,9 @@ class PressureListener:
     def set_threshold(self, threshold):
         self.threshold = threshold
 
+    def get_pressure_readings(self):
+        return self.lmat, self.rmat
+
     def press_cb(self, pmsg):
         lmat = np.matrix((pmsg.l_finger_tip)).T
         rmat = np.matrix((pmsg.r_finger_tip)).T
@@ -54,5 +59,8 @@ class PressureListener:
             #print 'EXCEEDED threshold', self.threshold
             #print 'PressureListener: ', np.max(np.abs(lmat)), np.max(np.abs(rmat)), 'threshold', self.threshold
             self.exceeded_threshold = True
+
+        self.lmat = lmat
+        self.rmat = rmat
 
 
