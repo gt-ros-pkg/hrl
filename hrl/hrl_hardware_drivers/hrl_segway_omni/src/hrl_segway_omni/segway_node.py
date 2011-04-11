@@ -32,7 +32,7 @@ from hrl_lib.msg import PlanarBaseVel
 from geometry_msgs.msg import Twist
 import rospy
 import segway
-import hrl_lib.util as ut
+import numpy as np
 
 def callback(cmd):
     #print 'segway_node:', cmd.xvel, cmd.yvel, cmd.angular_velocity
@@ -41,7 +41,7 @@ def callback(cmd):
 def callback_ros(cmd):
     #print 'segway_node:', cmd.linear.x, cmd.linear.y, cmd.angular.z
     avel = cmd.angular.z * 0.5
-    avel = ut.bound(avel,-0.2,0.2)
+    avel = np.clip(avel,-0.2,0.2)
     mecanum.set_velocity(cmd.linear.x, cmd.linear.y, avel)
 
 rospy.init_node("segway_node", anonymous=False)

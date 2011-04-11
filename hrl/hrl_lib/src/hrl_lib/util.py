@@ -95,7 +95,8 @@ def pol_of_cart(p):
 # Bound the value of a number to be above lower, and lower than upper
 # @return a number
 def bound(value, lower, upper):
-    print 'hrl_lib.util.bound is DEPRECATED. Please use numpy.clip instead'
+    import rospy
+    rospy.loginfo('hrl_lib.util.bound is DEPRECATED. Please use numpy.clip instead')
     if lower >= upper:
         t = lower
         lower = upper
