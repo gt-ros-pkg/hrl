@@ -1,5 +1,5 @@
 <launch>
-  <include file="$(find gt_pr2)/machine.launch"/>
+  <include file="$(find pr2_machine)/pr2.machine"/>
   <node name="unspawn_arms"
         pkg="pr2_controller_manager" type="unspawner"
         args="r_arm_controller" machine="c1"/>
@@ -8,15 +8,15 @@
     type: JTTeleopController
     root_name: torso_lift_link
     tip_name: r_gripper_tool_frame
-    k_posture: 25.0
+    k_posture: 15.0
     jacobian_inverse_damping: 0.01
     pose_command_filter: 0.01
     cart_gains:
       trans:
-        p: 800.0
-        d: 15.0
+        p: 400.0
+        d: 14.0
       rot:
-        p: 80.0
+        p: 40.0
         d: 1.2
     joint_feedforward:
       r_shoulder_pan_joint: 3.33
