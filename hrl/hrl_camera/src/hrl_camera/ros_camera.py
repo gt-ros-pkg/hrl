@@ -31,13 +31,24 @@ class ROSImageClient:
         def message_extractor(ros_img):
             try:
                 cv_image = self.bridge.imgmsg_to_cv(ros_img, 'bgr8')
-                return cv_image
+                return cv_image, ros_img
             except CvBridgeError, e:
                 return None
         self.listener = ru.GenericListener('ROSImageClient', Image, topic_name, 
                                            .1, message_extractor)
-    def get_frame(self):
-        return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+    def get_frame(self, fresh=False):
+        if not fresh:
+            return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)[0]
+        else:
+            not_fresh = True
+            cur_time = rospy.Time.now().to_sec()
+            while not_fresh:
+                img, rosmsg = self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+                if not (rosmsg.header.stamp.to_sec() < cur_time):
+                    not_fresh = False
+                rospy.sleep(.1)
+            return img
+
 
     def next(self):
         return self.get_frame()
@@ -53,13 +64,30 @@ class Prosilica(ROSImageClient):
         topic_name = '/%s/image_rect_color' % camera_name
         ROSImageClient.__init__(self, topic_name)
 
-    def get_frame(self):
+    def get_frame(self, fresh=False):
         if self.mode == 'polled':
             #will get a rospy.service.ServiceException if mode is wrong
             rq = ps.GetPolledImageRequest()
             rq.response_namespace = '/%s' % self.camera_name
             resp = self.trigger_proxy(rq)
-        return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+        return ROSImageClient.get_frame(self, fresh)
+
+        #if not fresh:
+        #    return self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)[0]
+
+        #else:
+        #    not_fresh = True
+        #    cur_time = rospy.Time.now().to_sec()
+        #    while not_fresh:
+        #        img, rosmsg = self.listener.read(allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+        #        if not (rosmsg.header.stamp.to_sec() < cur_time):
+        #            not_fresh = False
+        #        rospy.sleep(.1)
+        #    return img
+
+
+
+
 
 ##
 # from camera.py in laser_interface.
@@ -68,6 +96,7 @@ class ROSCameraCalibration:
         if not offline:
             rospy.Subscriber(channel, CameraInfo, self.camera_info)
         self.has_msg = False
+        self.msg = None
 
     def wait_till_msg(self):
         r = rospy.Rate(10)
@@ -83,6 +112,7 @@ class ROSCameraCalibration:
         self.h = msg.height
         self.frame = msg.header.frame_id
         self.has_msg = True
+        self.msg = msg
 
     ##
     # project 3D point into this camera 
