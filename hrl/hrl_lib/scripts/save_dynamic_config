@@ -3,6 +3,7 @@ import roslib; roslib.load_manifest('hrl_lib')
 import rospy
 import dynamic_reconfigure.client
 import yaml
+import pdb
 
 
 if __name__ == '__main__':
