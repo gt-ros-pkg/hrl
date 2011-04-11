@@ -1,0 +1,19 @@
+<launch>
+  <include file="$(find pr2_machine)/$(env ROBOT).machine" />
+
+  <!-- Choose either amcl or gmapping to give /map => /odom_combined -->
+  <!-- <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find explore_rfid)/sim_map.yaml" /> -->
+  <include file="$(find gt_pr2)/hsi_conf_map.launch" />
+  <include file="$(find pr2_navigation_global)/amcl_node.xml" />
+  <!-- <include file="$(find explore_rfid)/slam_gmapping.xml" /> -->
+
+  <include file="$(find pr2_navigation_teleop)/teleop.xml" />
+  <include file="$(find pr2_navigation_perception)/lasers_and_filters.xml" />
+  <include file="$(find pr2_navigation_perception)/ground_plane.xml" />
+
+  <!-- <include file="$(find pr2_navigation_slam)/move_base.xml" /> -->
+  <!-- <include file="$(find gt_pr2)/navigation/move_base.xml" /> -->
+  <include file="$(find explore_rfid)/move_base_sbpl.xml" />
+
+  <!-- <rosparam file="$(find explore_rfid)/base_local_planner_params.yaml" command="load" /> -->
+</launch>
