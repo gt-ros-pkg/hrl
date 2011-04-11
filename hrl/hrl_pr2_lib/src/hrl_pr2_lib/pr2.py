@@ -286,6 +286,8 @@ class PR2Base:
         if block:
             rospy.loginfo('turn_to: waiting for turn..')
             self.go_angle_client.wait_for_result()
+            rospy.loginfo('turn_to: done.')
+            
 
     ##
     # Turns a relative amount given angle using pure odometry
@@ -296,6 +298,7 @@ class PR2Base:
             turn1 = np.sign(delta_ang) * math.radians(15.) + delta_ang
             turn2 = -np.sign(delta_ang) * math.radians(15.)
             rospy.loginfo('Requested really small turn angle.  Using overturn trick.')
+            #pdb.set_trace()
             self._turn_by(turn1, block=True)
             time.sleep(3) #TODO remove this restriction
             self._turn_by(turn2, block)
@@ -362,29 +365,45 @@ class PR2Torso(Joint):
 
 class PR2Gripper:
 
-    def __init__(self, gripper):
+    def __init__(self, gripper, joint_provider):
         self.gripper = gripper
+        self.joint_provider = joint_provider
 
         if gripper == 'l':
             self.client = actionlib.SimpleActionClient(
                 'l_gripper_controller/gripper_action', pm.Pr2GripperCommandAction)
             self.full_gripper_name = 'left_gripper'
+            self.joint_names = [rospy.get_param('/l_gripper_controller/joint')]
         else:
             self.client = actionlib.SimpleActionClient(
                 'r_gripper_controller/gripper_action', pm.Pr2GripperCommandAction)
             self.full_gripper_name = 'right_gripper'
+            self.joint_names = [rospy.get_param('/r_gripper_controller/joint')]
         self.client.wait_for_server()
+        self.names_index = None
 
-    def close(self, block):
+    def pose(self, joint_states=None):
+        if joint_states == None:
+            joint_states = self.joint_provider()
+
+        if self.names_index == None:
+            self.names_index = {}
+            for i, n in enumerate(joint_states.name):
+                self.names_index[n] = i
+            self.joint_idx = [self.names_index[n] for n in self.joint_names]
+
+        return (np.matrix(joint_states.position).T)[self.joint_idx, 0]
+
+    def close(self, block, position=0.0, effort=-1):
         self.client.send_goal(pm.Pr2GripperCommandGoal(
-                pm.Pr2GripperCommand(position = 0.0, max_effort = -1)))
+                pm.Pr2GripperCommand(position = position, max_effort = effort)))
         if block:
             self.client.wait_for_result()
         return self.client.get_state()
 
-    def open(self, block):
+    def open(self, block, position=0.1, effort = -1):
         self.client.send_goal(pm.Pr2GripperCommandGoal(
-                pm.Pr2GripperCommand(position = 0.1, max_effort = -1)))
+                pm.Pr2GripperCommand(position = position, max_effort = effort)))
         if block:
             self.client.wait_for_result()
         return self.client.get_state()
@@ -445,8 +464,8 @@ class PR2:
             self.right = PR2Arm(self.joint_provider, self.tf_listener, 'r')
 
         if grippers:
-            self.left_gripper = PR2Gripper('l')
-            self.right_gripper = PR2Gripper('r')
+            self.left_gripper = PR2Gripper('l', self.joint_provider)
+            self.right_gripper = PR2Gripper('r', self.joint_provider)
 
         self.head = PR2Head('head_traj_controller', self.joint_provider)
 
