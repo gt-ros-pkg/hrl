@@ -270,9 +270,10 @@ public:
   bool save_image(UI_segment_object::Save::Request &reg, UI_segment_object::Save::Response &res)
   {
     //    sensor_msgs::ImageConstPtr image_in = 
+    m.lock();
     cv_image = bridge_.imgMsgToCv(ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_), "bgr8");
     cvSaveImage(reg.file.c_str(), cv_image);
-
+    m.unlock();
     res.state = true;
     return(true);
   }
@@ -354,8 +355,10 @@ void PointCloudPub::publish_object(const sensor_msgs::PointCloud2 &msg)
 
 bool PointCloudPub::get_cloud(UI_segment_object::GetObject::Request &reg, UI_segment_object::GetObject::Response &res)
 {
+  m.lock();
   //  sensor_msgs::PointCloud2::ConstPtr msg;
-  cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0));
+  cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(30.0));
+
   if (done == 0)
     {
       ui.cloud_callback();
@@ -365,17 +368,17 @@ bool PointCloudPub::get_cloud(UI_segment_object::GetObject::Request &reg, UI_seg
 
   sensor_msgs::PointCloud2 msg2 = cloud_callback(cloud_msg);
   //  res.object = msg2;
-  
+  m.unlock();
   return (true);
 }
 
 
 bool PointCloudPub::save_cloud(UI_segment_object::Save::Request &reg, UI_segment_object::Save::Response &res)
 {
+  m.lock();
   pcl::io::savePCDFileASCII (reg.file, cloud_xyz_rgb);
-
-  //  pcl::io::savePCDFileASCII (reg.file, cloud_msg);
   res.state = true;
+  m.unlock();
   return(true);
 }
 
@@ -384,7 +387,7 @@ bool PointCloudPub::get_pt(UI_segment_object::GetPt::Request &reg, UI_segment_ob
 {
   //  sensor_msgs::PointCloud2::Ptr msg (new sensor_msgs::PointCloud2());
 
-  cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0));
+  cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(30.0));
 
   if (done == 0)
     {
@@ -417,7 +420,6 @@ geometry_msgs::Point PointCloudPub::pt_callback(const sensor_msgs::PointCloud2Co
 
 sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
-  m.lock();
 
   pcl::PointCloud<pcl::PointXYZ> cloud_xyz;
   pcl::PointCloud<pcl::PointXYZ> cloud_xyz2;
@@ -478,7 +480,6 @@ sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointC
   std::cerr << "Model coefficients: " << coefficients.values[0] << " " << coefficients.values[1] << " "
 	    << coefficients.values[2] << " " << coefficients.values[3] << std::endl;
 
-  m.unlock();
   return object;
 }
 
