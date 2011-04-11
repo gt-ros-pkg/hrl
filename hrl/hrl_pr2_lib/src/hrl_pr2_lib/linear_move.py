@@ -118,7 +118,6 @@ class LinearReactiveMovement:
             self.arm_obj = self.pr2.right
             ptopic = '/pressure/r_gripper_motor'
 
-        self.pr2 = pr2
         self.pressure_listener = pm.PressureListener(ptopic, 5000)
 
         self.cman = con.ControllerManager(arm, self.tf_listener, using_slip_controller=1)
