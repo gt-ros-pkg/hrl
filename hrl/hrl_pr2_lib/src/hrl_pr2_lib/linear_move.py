@@ -394,7 +394,7 @@ class LinearReactiveMovement:
 
     ##start up gripper event detector to detect when an object hits the table 
     #or when someone is trying to take an object from the robot
-    def _start_gripper_event_detector(self, event_type = 'all', accel = 5.25, slip=.008, blocking = 0, timeout = 15.):
+    def _start_gripper_event_detector(self, event_type = 'all', accel = 8.25, slip=.008, blocking = 0, timeout = 15.):
     
         goal = PR2GripperEventDetectorGoal()
         if event_type == 'accel':
