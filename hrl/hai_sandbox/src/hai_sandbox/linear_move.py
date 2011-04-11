@@ -325,10 +325,10 @@ class LocationManager:
                               'push_drawer':       {'coarse': .9, 'fine': .5, 'voi': .4}}
 
     def revert(self):
-        self.centers = self.centers[:, 0:4]
-        self.ids = self.ids[0:4]
-        self.data.pop('phil_light_rocker_down')
-        self.data.pop('phil_light_rocker_up')
+        self.centers = self.centers[:, 0:2]
+        self.ids = self.ids[0:2]
+        self.data.pop('white_push_drawer')
+        self.data.pop('white_pull_drawer')
 
     def _load_database(self):
         #                           tree         dict
@@ -386,6 +386,15 @@ class LocationManager:
         self.image_pubs[taskid] = r3d.ImagePublisher(taskid.replace(':', '_'))
         self.save_database()
         return taskid
+
+    def record_time(self, task_id, record_name, value):
+        if not self.data[task_id].has_key('times'):
+            self.data[task_id]['times'] = {}
+
+        if not self.data[task_id]['times'].has_key(record_name):
+            self.data[task_id]['times'][record_name] = []
+
+        self.data[task_id]['times'][record_name].append(value)
 
     def update_execution_record(self, taskid, value):
         self.data[taskid]['execution_record'].append(value)
@@ -480,7 +489,6 @@ class LocationManager:
     def train_all_classifiers(self):
         for k in self.data.keys():
             self.train(k)
-
 
     def train(self, task_id, dset_for_pca=None):
         dataset = self.data[task_id]['dataset']
@@ -580,7 +588,7 @@ class ApplicationBehaviors:
         #self.robot.projector.set_prosilica_inhibit(True)
         self.robot.projector.set(False)
         #self.practice_points_map = []
-        #pdb.set_trace()
+        pdb.set_trace()
 
 
     #def load_classifier(self, name, fname):
@@ -815,7 +823,10 @@ class ApplicationBehaviors:
 
         #move until contact
         rospy.loginfo("Touching surface")
-        linear_movement.move_relative_gripper(np.matrix([.5,0,0]).T, stop='pressure_accel', pressure=100)
+        try:
+            linear_movement.move_relative_gripper(np.matrix([.5,0,0]).T, stop='pressure_accel', pressure=100)
+        except lm.RobotSafetyError, e:
+            rospy.loginfo('robot safety error %s' % str(e))
         contact_loc_bl = linear_movement.arm_obj.pose_cartesian_tf()[0]
 
         #Push
@@ -849,7 +860,7 @@ class ApplicationBehaviors:
     def drawer(self, point):
         #Prepare
         GRIPPER_OPEN = .08
-        GRIPPER_CLOSE = .005
+        GRIPPER_CLOSE = .003
         linear_movement = self.behaviors.movement
         gripper = self.robot.left_gripper
 
@@ -880,8 +891,8 @@ class ApplicationBehaviors:
         except lm.RobotSafetyError, e:
             rospy.loginfo('robot safety error %s' % str(e))
         #lbf, rbf = linear_movement.pressure_listener.get_pressure_readings()
-        linear_movement.gripper_close()
         #pdb.set_trace()
+        linear_movement.gripper_close()
         #gripper.open(True, position=GRIPPER_CLOSE)
         #linear_movement.pressure_listener.rezero()
         #laf, raf = linear_movement.pressure_listener.get_pressure_readings()
@@ -908,7 +919,7 @@ class ApplicationBehaviors:
 
         #Pull
         linear_movement.pressure_listener.rezero()
-        linear_movement.move_relative_gripper(np.matrix([-.35,0,0]).T, stop='accel', pressure=2500)
+        linear_movement.move_relative_gripper(np.matrix([-.25,0,0]).T, stop='accel', pressure=2500)
         linear_movement.move_absolute(linear_movement.arm_obj.pose_cartesian_tf(), 
                                     stop='pressure_accel', pressure=300)
         linear_movement.gripper_close()
@@ -1296,12 +1307,16 @@ class ApplicationBehaviors:
             self.behaviors.movement.pressure_listener.rezero()
 
         elif task_type == 'light_rocker_up' or task_type == 'light_rocker_down':
+            if np.linalg.norm(self.start_location_light_switch[0] - self.robot.left.pose_cartesian_tf()[0]) < .3:
+                return
             self.robot.torso.set_pose(.2, True)
             self.untuck()
             self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure')
             self.behaviors.movement.pressure_listener.rezero()
 
         elif task_type == 'pull_drawer' or task_type == 'push_drawer':
+            if np.linalg.norm(self.start_location_drawer[0] - self.robot.left.pose_cartesian_tf()[0]) < .3:
+                return
             self.robot.torso.set_pose(0.01, True)
             self.untuck()
             self.behaviors.movement.move_absolute(self.start_location_drawer, stop='pressure')
@@ -1429,7 +1444,7 @@ class ApplicationBehaviors:
             undo_point_bl = ret_dict_action['undo_point']
 
             #Lights should be on at this stage!
-            pdb.set_trace()
+            #pdb.set_trace()
             #If we don't have enought data for reverse action
             if (self.locations_man.data[ctask_id]['dataset'] == None) or \
                     not has_pos_and_neg(self.locations_man.data[ctask_id]['dataset'].outputs.A1):
@@ -1598,16 +1613,34 @@ class ApplicationBehaviors:
 
             #Practice
             self.robot.sound.say('practicing')
-            points_added = self.practice(tid, self.locations_man.data[tid]['complementary_task_id'],  point_bl)
+            ctid = self.locations_man.data[tid]['complementary_task_id']
+
+            points_before_t = self.locations_man.data[tid]['dataset'].inputs.shape[1]
+            points_before_ct = self.locations_man.data[ctid]['dataset'].inputs.shape[1]
+            points_added = self.practice(tid, ctid,  point_bl)
             points_added_history.append(points_added)
+            points_after_t = self.locations_man.data[tid]['dataset'].inputs.shape[1]
+            points_after_ct = self.locations_man.data[ctid]['dataset'].inputs.shape[1]
+            self.locations_man.record_time(tid,  'num_points_added_' + tid, points_after_t - points_before_t)
+            self.locations_man.record_time(ctid, 'num_points_added_' + tid, points_after_ct - points_before_ct)
+
             if points_added == 0:
                 rospy.loginfo('===================================================')
                 rospy.loginfo('= Location converged!')
+                rospy.loginfo('using instances %d points added' % (points_after_t - points_before_t))
                 rospy.loginfo('history %s' % str(points_added_history))
                 rospy.loginfo('number of iterations it took %s' % str(np.sum(points_added_history)))
                 rospy.loginfo('number of datapoints %s' % str(self.locations_man.data[tid]['dataset'].outputs.shape))
                 rospy.loginfo('===================================================')
                 break
+            else:
+                rospy.loginfo('===================================================')
+                rospy.loginfo('= Scan converged!')
+                rospy.loginfo('using instances %d points added' % (points_after_t - points_before_t))
+                rospy.loginfo('history %s' % str(points_added_history))
+                rospy.loginfo('number of iterations so far %s' % str(np.sum(points_added_history)))
+                rospy.loginfo('number of datapoints %s' % str(self.locations_man.data[tid]['dataset'].outputs.shape))
+                rospy.loginfo('===================================================')
 
         self.driving_posture(task_type)
         #ulocs = self.unreliable_locs()
@@ -1903,7 +1936,7 @@ class ApplicationBehaviors:
 
         ut.save_pickle(data_pkl, pickle_fname)
         print 'Recorded to', pickle_fname
-        return pickle_fname
+        return pickle_fname, kimage_name
 
     #def gather_interest_point_dataset(self, point):
     #    gaussian = pr.Gaussian(np.matrix([0, 0, 0.]).T, \
@@ -1952,10 +1985,11 @@ class ApplicationBehaviors:
             param = r3d.Recognize3DParam()
             param.uncertainty_x = 1.
             #param.n_samples = 2000
-            param.uncertainty_z = .05
+            param.uncertainty_z = .04
             param.uni_mix = .1
+        pstart = time.time()
 
-        kdict, fname = self.read_features_save(task_id, point3d_bl, param)
+        kdict, image_name = self.read_features_save(task_id, point3d_bl, param)
         #learner = self.locations_man.learners[task_id]
         #pdb.set_trace()
         behavior = self.get_behavior_by_task(self.locations_man.data[task_id]['task'])
@@ -1970,6 +2004,8 @@ class ApplicationBehaviors:
         points2d_tried = []
         converged = False
         indices_added = []
+        reset_times = []
+
         #while not converged or (stop_fun != None and not stop_fun(np.matrix(labels))):
         while True:# and (stop_fun != None and not stop_fun(np.matrix(labels))):
             if stop_fun != None and stop_fun(np.matrix(labels)):
@@ -1980,7 +2016,7 @@ class ApplicationBehaviors:
             # Pick
             #==================================================
             #Find remaining instances
-            tstart = time.time()
+            iter_start = time.time()
             print 'input to inverse_indices'
             print '>>', indices_added, kdict['instances'].shape[1]
             remaining_pt_indices = r3d.inverse_indices(indices_added, kdict['instances'].shape[1])
@@ -2002,10 +2038,10 @@ class ApplicationBehaviors:
             img = cv.CloneMat(kdict['image'])
             #Draw the center
             r3d.draw_points(img, point2d_img, [255, 0, 0], 6, 2)
+
             #Draw possible points
             r3d.draw_points(img, kdict['points2d']+np.matrix([1,1.]).T, [255, 255, 255], 4, -1)
-            r3d.draw_points(img, kdict['points2d'], [255, 255, 255], 4, -1)
-            #Draw what we have so far
+
             if len(points2d_tried) > 0:
                 _, pos_exp, neg_exp = separate_by_labels(np.column_stack(points2d_tried), np.matrix(labels))
                 r3d.draw_points(img, pos_exp, [50, 255, 0], 8, 1)
@@ -2019,10 +2055,6 @@ class ApplicationBehaviors:
             #Draw what we're selecting
             r3d.draw_points(img, kdict['points2d'][:, selected_idx], [255, 51, 204], 8, -1)
             self.locations_man.publish_image(task_id, img)
-
-
-            #self.img_pub.publish(img)
-
 
             #==================================================
             # Excecute!!
@@ -2091,13 +2123,19 @@ class ApplicationBehaviors:
             #==================================================
             # Reset Environment
             #==================================================
+            reset_start = time.time()
             if success and ctask_id != None:
                 def any_pos_sf(labels_mat):
                     if np.any(r3d.POSITIVE == labels_mat):
                         return True
                     return False
                 #self.practice(ctask_id, None, point3d_bl, stop_fun=any_pos_sf)
-                self.practice(ctask_id, None, undo_point_bl, stop_fun=any_pos_sf)
+                undo_point_map = self.locations_man.data[ctask_id]['center']
+                undo_point_bl0 = tfu.transform_points(tfu.transform('base_link', 'map', self.tf_listener), undo_point_map)
+                #self.practice(ctask_id, None, undo_point_bl, stop_fun=any_pos_sf)
+                pdb.set_trace()
+                self.practice(ctask_id, None, undo_point_bl0, stop_fun=any_pos_sf)
+            reset_end = time.time()
 
             #Classify
             predictions = np.matrix(self.locations_man.learners[task_id].classify(kdict['instances']))
@@ -2106,26 +2144,46 @@ class ApplicationBehaviors:
             # DRAW
             #==================================================
             img = cv.CloneMat(kdict['image'])
-            _, pos_exp, neg_exp = separate_by_labels(np.column_stack(points2d_tried), np.matrix(labels))
+
+            #Draw the center
             r3d.draw_points(img, point2d_img, [255, 0, 0], 6, 2)
-            r3d.draw_points(img, kdict['points2d'], [255, 255, 255], 4, -1)
-            r3d.draw_points(img, pos_exp, [50, 255, 0], 8, 1)
-            r3d.draw_points(img, neg_exp, [50, 0, 255], 8, 1)
+
+            #Draw 'shadows' 
+            r3d.draw_points(img, kdict['points2d']+np.matrix([1,1.]).T, [255, 255, 255], 4, -1)
+
+            #Draw points tried
+            _, pos_exp, neg_exp = separate_by_labels(np.column_stack(points2d_tried), np.matrix(labels))
+            r3d.draw_points(img, pos_exp, [50, 255, 0], 9, 1)
+            r3d.draw_points(img, neg_exp, [50, 0, 255], 9, 1)
 
             _, pos_pred, neg_pred = separate_by_labels(kdict['points2d'], predictions)
             r3d.draw_points(img, pos_pred, [255, 204, 51], 3, -1)
             r3d.draw_points(img, neg_pred, [51, 204, 255], 3, -1)
 
+            #Draw what we're selecting
             r3d.draw_points(img, points2d_tried[-1], color, 8, -1)
-
-            #publish
             self.locations_man.publish_image(task_id, img)
+
+            pkname = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '.pkl')
+            #cv.SaveImage(ffull, img)
+            ut.save_pickle({'image': image_name,
+                            'pos': pos_exp,
+                            'neg': neg_exp,
+                            'pos_pred': pos_pred,
+                            'neg_pred': neg_pred,
+                            'tried': points2d_tried[-1],
+                            'center': point2d_img}, pkname)
+
             #ffull = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '.png')
             #cv.SaveImage(ffull, img)
             #self.img_pub.publish(img)
+            reset_time = reset_end - reset_start
+            loop_time = (time.time() - iter_start) - (reset_end - reset_start)
+            reset_times.append(reset_time)
             print '**********************************************************'
-            print 'Loop took %.3f seconds' % (time.time() - tstart)
+            print 'Loop took %.3f seconds' % loop_time
             print '**********************************************************'
+            self.locations_man.record_time(task_id, 'practice_loop_time', loop_time)
 
         if np.any(r3d.POSITIVE == np.matrix(labels)):
             self.locations_man.update_execution_record(task_id, 1)
@@ -2133,6 +2191,9 @@ class ApplicationBehaviors:
         print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
         print 'returning from', task_id
         print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+        pend = time.time()
+        practice_time = pend - pstart - np.sum(reset_times)
+        self.locations_man.record_time(task_id, 'practice_func_time', practice_time)
         return len(indices_added)
 
 
@@ -2301,7 +2362,7 @@ class ApplicationBehaviors:
         self.robot.projector.set(True)
         rospy.sleep(2.)
         f = self.feature_ex.read(point3d_bl, params=params)
-        file_name = self.record_perceptual_data(point3d_bl, self.OPTICAL_FRAME, rdict=f['rdict'], folder_name=task_id)
+        file_name, kimage_name = self.record_perceptual_data(point3d_bl, self.OPTICAL_FRAME, rdict=f['rdict'], folder_name=task_id)
         self.robot.projector.set(False)
 
         #image_T_bl = tfu.transform(self.OPTICAL_FRAME, 'base_link', self.tf_listener)
@@ -2314,7 +2375,7 @@ class ApplicationBehaviors:
         #        point2d_img)
         #self.img_pub.publish(img)
 
-        return f, file_name
+        return f, kimage_name
         #self.save_dataset(point, name, f['rdict'])
 
     ##
@@ -2327,7 +2388,7 @@ class ApplicationBehaviors:
         param.uni_mix = .1
         param.n_samples = 1000
 
-        kdict, save_fname = self.read_features_save(task_id, point3d_bl, param)
+        kdict, image_name = self.read_features_save(task_id, point3d_bl, param)
         kdict['image_T_bl'] = tfu.transform(self.OPTICAL_FRAME, 'base_link', self.tf_listener)
         point3d_img = tfu.transform_points(kdict['image_T_bl'], point3d_bl)
         point2d_img = self.feature_ex.cal.project(point3d_img)
