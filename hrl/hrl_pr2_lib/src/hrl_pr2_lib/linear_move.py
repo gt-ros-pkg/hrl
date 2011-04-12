@@ -202,7 +202,7 @@ class LinearReactiveMovement:
         diff = self.arm_obj.pose_cartesian_tf()[0] - (trans + movement)
         rospy.loginfo('move_relative_base: diff is ' + str(diff.T))
         rospy.loginfo('move_relative_base: dist %.3f' % np.linalg.norm(diff))
-        return r
+        return r, np.linalg.norm(diff)
 
     ##
     # Close gripper

@@ -241,11 +241,11 @@ class ManipulationBehaviors:
         #make contact first
         self.movement.set_movement_mode_cart()
         #pdb.set_trace()
-        r1 = self.movement.move_relative_gripper(direction, stop='pressure', pressure=contact_pressure)
+        r1, diff_1 = self.movement.move_relative_gripper(direction, stop='pressure', pressure=contact_pressure)
         #now perform press
         if r1 == 'pressure' or r1 == 'accel':
             self.movement.set_movement_mode_cart()
-            r2 = self.movement.move_relative_gripper(direction, stop='pressure_accel', pressure=press_pressure)
+            r2, diff_2 = self.movement.move_relative_gripper(direction, stop='pressure_accel', pressure=press_pressure)
             if r2 == 'pressure' or r2 == 'accel' or r2 == None:
                 return True, r2
             else:
@@ -754,7 +754,7 @@ class ApplicationBehaviors:
             #monitor self collision => collisions with the environment are not self collisions
             rospy.loginfo('moving back')
             #self.behaviors.movement.set_movement_mode_cart()
-            r1 = self.behaviors.movement.move_relative_gripper(np.matrix([-.03, 0., 0.]).T, \
+            r1, pos_error1 = self.behaviors.movement.move_relative_gripper(np.matrix([-.03, 0., 0.]).T, \
                     stop='none', pressure=press_contact_pressure)
             if r1 != None:
                 rospy.loginfo('moving back failed due to "%s"' % r1)
@@ -762,7 +762,7 @@ class ApplicationBehaviors:
 
             rospy.loginfo('reseting')
             self.behaviors.movement.pressure_listener.rezero()
-            r2, pos_error = self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure')
+            r2, pos_error2 = self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure')
             if r2 != None and r2 != 'no solution':
                 rospy.loginfo('moving back to start location failed due to "%s"' % r2)
                 return False, None, point+point_offset
@@ -774,7 +774,7 @@ class ApplicationBehaviors:
         except lm.RobotSafetyError, e:
             rospy.loginfo('>>>> ROBOT SAFETY ERROR! RESETTING. %s' % str(e))
             self.behaviors.movement.pressure_listener.rezero()
-            r2, pos_error = self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure')
+            r2, pos_error2 = self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure')
             return False, None, point+point_offset
 
 
