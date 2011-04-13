@@ -1566,6 +1566,8 @@ class ApplicationBehaviors:
                 t_current_map, r_current_map = self.robot.base.get_pose()
                 map_points.append([t_current_map, r_current_map])
             self.locations_man.data[tid]['practice_locations'] = map_points
+            self.locations_man.data[tid]['practice_locations_history'] = np.zeros((1, len(map_points)))
+
             self.locations_man.save_database()
 
         #Ask user for canonical pose if it does not exist
@@ -1578,7 +1580,16 @@ class ApplicationBehaviors:
         point_map = self.locations_man.data[tid]['center']
         task_type = self.locations_man.data[tid]['task']
         points_added_history = []
-        pidx = 3
+
+        unexplored_locs = np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1]
+        rospy.loginfo("Location history: %s" % str(self.locations_man.data[tid]['practice_locations_history']))
+        #If this is a fresh run, start with current location
+        if unexplored_locs.shape[0] == len(self.locations_man.data[tid]['practice_locations']):
+            pidx = 3
+        else:
+        #If this is not a fresh run we continue with a location we've never been to before
+            pidx = unexplored_locs[0]
+            rospy.loginfo("Resuming training from last unexplored location")
 
         #Commence practice!
         while True: #%not converged:
@@ -1589,7 +1600,6 @@ class ApplicationBehaviors:
             self.robot.sound.say('Driving to practice location')
             rvalue, dist = self.move_base_planner(*self.locations_man.data[tid]['practice_locations'][pidx])
             rospy.loginfo('move ret value %s dist %f' % (str(rvalue), dist))
-            pidx = (pidx + 1) % len(self.locations_man.data[tid]['practice_locations'])
 
             #Move to location where we were first initialized
             self.robot.sound.say('Driving to mechanism location')
@@ -1617,14 +1627,20 @@ class ApplicationBehaviors:
 
             points_before_t = self.locations_man.data[tid]['dataset'].inputs.shape[1]
             points_before_ct = self.locations_man.data[ctid]['dataset'].inputs.shape[1]
+
             points_added = self.practice(tid, ctid,  point_bl)
+
             points_added_history.append(points_added)
             points_after_t = self.locations_man.data[tid]['dataset'].inputs.shape[1]
             points_after_ct = self.locations_man.data[ctid]['dataset'].inputs.shape[1]
             self.locations_man.record_time(tid,  'num_points_added_' + tid, points_after_t - points_before_t)
             self.locations_man.record_time(ctid, 'num_points_added_' + tid, points_after_ct - points_before_ct)
 
-            if points_added == 0:
+            self.locations_man.data[tid]['practice_locations_history'][0, pidx] += 1
+            pidx = (pidx + 1) % len(self.locations_man.data[tid]['practice_locations'])
+
+            #If no points added and we have explored all locations
+            if points_added == 0 and np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1].shape[0] == 0:
                 rospy.loginfo('===================================================')
                 rospy.loginfo('= Location converged!')
                 rospy.loginfo('using instances %d points added' % (points_after_t - points_before_t))
@@ -2210,6 +2226,9 @@ class ApplicationBehaviors:
         dataset.inputs  = dataset.inputs[:, sindices]
 
 
+    ###
+    # TODO: GASP!! WE MIGHT NOT NEED THIS AFTER ALL, JUST INITIALIZE RANDOMLY!
+    ###
     def seed_dataset_explore(self, task_id, ctask_id, point_bl, stop_fun, 
             max_retries=30, closeness_tolerance=.01, positive_escape=.08, should_reset=False):
         #rospy.loginfo('seed_dataset_explore: %s' % task_id)
