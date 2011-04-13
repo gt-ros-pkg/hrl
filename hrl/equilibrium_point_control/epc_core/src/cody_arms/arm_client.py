@@ -429,6 +429,12 @@ if __name__ == '__main__':
     #    ac.go_jep(r_arm, jep)
 
         rospy.sleep(0.5)
+        raw_input('Hit ENTER to print ee position')
+        q = ac.get_joint_angles(r_arm)
+        ee = ac.arms.FK(r_arm, q)
+        print 'ee:', ee.A1
+        print 'desired ee:', p.A1
+
         #ac.move_till_hit(l_arm)
         #ac.motors_off()
     #    ac.stop()

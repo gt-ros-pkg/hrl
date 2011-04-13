@@ -64,55 +64,55 @@ class MekaArmServer():
         self.arm_settings = {}  # dict is set in set_arm_settings
         self.initialize_joints(right_arm_settings, left_arm_settings)
 
-#        #self.initialize_gripper()
-#
-#        self.left_arm_ft = {'force': np.matrix(np.zeros((3,1),dtype='float32')),
-#                            'torque': np.matrix(np.zeros((3,1),dtype='float32'))}
-#        self.right_arm_ft = {'force': np.matrix(np.zeros((3,1),dtype='float32')),
-#                             'torque': np.matrix(np.zeros((3,1),dtype='float32'))}
-#        self.fts_bias = {'left_arm': self.left_arm_ft, 'right_arm': self.right_arm_ft}
-#
-#        # kalman filtering force vector. (self.step and bias_wrist_ft)
-#        self.Q_force, self.R_force = {}, {}
-#        self.xhat_force, self.P_force = {}, {}
-#
-#        self.Q_force['right_arm'] = [1e-3, 1e-3, 1e-3]
-#        self.R_force['right_arm'] = [0.2**2, 0.2**2, 0.2**2]
-#        self.xhat_force['right_arm'] = [0., 0., 0.]
-#        self.P_force['right_arm'] = [1.0, 1.0, 1.0]
-#
-#        self.Q_force['left_arm'] = [1e-3, 1e-3, 1e-3]
-#        self.R_force['left_arm'] = [0.2**2, 0.2**2, 0.2**2]
-#        self.xhat_force['left_arm'] = [0., 0., 0.]
-#        self.P_force['left_arm'] = [1.0, 1.0, 1.0]
-#
-#        #----- ROS interface ---------
+        #self.initialize_gripper()
+
+        self.left_arm_ft = {'force': np.matrix(np.zeros((3,1),dtype='float32')),
+                            'torque': np.matrix(np.zeros((3,1),dtype='float32'))}
+        self.right_arm_ft = {'force': np.matrix(np.zeros((3,1),dtype='float32')),
+                             'torque': np.matrix(np.zeros((3,1),dtype='float32'))}
+        self.fts_bias = {'left_arm': self.left_arm_ft, 'right_arm': self.right_arm_ft}
+
+        # kalman filtering force vector. (self.step and bias_wrist_ft)
+        self.Q_force, self.R_force = {}, {}
+        self.xhat_force, self.P_force = {}, {}
+
+        self.Q_force['right_arm'] = [1e-3, 1e-3, 1e-3]
+        self.R_force['right_arm'] = [0.2**2, 0.2**2, 0.2**2]
+        self.xhat_force['right_arm'] = [0., 0., 0.]
+        self.P_force['right_arm'] = [1.0, 1.0, 1.0]
+
+        self.Q_force['left_arm'] = [1e-3, 1e-3, 1e-3]
+        self.R_force['left_arm'] = [0.2**2, 0.2**2, 0.2**2]
+        self.xhat_force['left_arm'] = [0., 0., 0.]
+        self.P_force['left_arm'] = [1.0, 1.0, 1.0]
+
+        #----- ROS interface ---------
         rospy.init_node('arm_server', anonymous=False)
-#
-#        self.q_r_pub = rospy.Publisher('/r_arm/q', FloatArray)
-#        self.q_l_pub = rospy.Publisher('/l_arm/q', FloatArray)
-#        self.force_raw_r_pub = rospy.Publisher('/r_arm/force_raw', FloatArray)
-#        self.force_raw_l_pub = rospy.Publisher('/l_arm/force_raw', FloatArray)
-#        self.force_r_pub = rospy.Publisher('/r_arm/force', FloatArray)
-#        self.force_l_pub = rospy.Publisher('/l_arm/force', FloatArray)
-#        self.jep_r_pub = rospy.Publisher('/r_arm/jep', FloatArray)
-#        self.jep_l_pub = rospy.Publisher('/l_arm/jep', FloatArray)
-#        self.pwr_state_pub = rospy.Publisher('/arms/pwr_state', Bool)
-#        
-#        #self.r_arm_ftc = ftc.FTClient('force_torque_ft2')
-#        rospy.Subscriber('/r_arm/command/jep', FloatArray,
-#                         self.r_jep_cb)
-#        rospy.Subscriber('/l_arm/command/jep', FloatArray,
-#                         self.l_jep_cb)
-#        # publishing to this message will stop the arms but also crash
-#        # the server (since meka server crashes.) Advait Nov 14, 2010
-#        rospy.Subscriber('/arms/stop', Empty, self.stop)
-#        rospy.Subscriber('/arms/command/motors_off', Empty,
-#                         self.motors_off)
-#
-#        self.cb_lock = RLock()
-#        self.r_jep = None # see set_jep
-#        self.l_jep = None # see set_jep
+
+        self.q_r_pub = rospy.Publisher('/r_arm/q', FloatArray)
+        self.q_l_pub = rospy.Publisher('/l_arm/q', FloatArray)
+        self.force_raw_r_pub = rospy.Publisher('/r_arm/force_raw', FloatArray)
+        self.force_raw_l_pub = rospy.Publisher('/l_arm/force_raw', FloatArray)
+        self.force_r_pub = rospy.Publisher('/r_arm/force', FloatArray)
+        self.force_l_pub = rospy.Publisher('/l_arm/force', FloatArray)
+        self.jep_r_pub = rospy.Publisher('/r_arm/jep', FloatArray)
+        self.jep_l_pub = rospy.Publisher('/l_arm/jep', FloatArray)
+        self.pwr_state_pub = rospy.Publisher('/arms/pwr_state', Bool)
+        
+        #self.r_arm_ftc = ftc.FTClient('force_torque_ft2')
+        rospy.Subscriber('/r_arm/command/jep', FloatArray,
+                         self.r_jep_cb)
+        rospy.Subscriber('/l_arm/command/jep', FloatArray,
+                         self.l_jep_cb)
+        # publishing to this message will stop the arms but also crash
+        # the server (since meka server crashes.) Advait Nov 14, 2010
+        rospy.Subscriber('/arms/stop', Empty, self.stop)
+        rospy.Subscriber('/arms/command/motors_off', Empty,
+                         self.motors_off)
+
+        self.cb_lock = RLock()
+        self.r_jep = None # see set_jep
+        self.l_jep = None # see set_jep
 
     def set_arm_settings(self,right_arm_settings,left_arm_settings):
         self.arm_settings['right_arm'] = right_arm_settings
@@ -139,7 +139,7 @@ class MekaArmServer():
                 print 'setting control mode to theta_gc'
                 for i in range(5):
                     joint_component_list[i].set_control_mode(THETA_GC)
-                    joint_component_list[i].set_stiffness(stiffness_scale*stiffness_list[0])
+                    joint_component_list[i].set_stiffness(stiffness_scale*stiffness_list[i])
                     joint_component_list[i].set_slew_rate_proportion(1.)
 
                 joint_component_list[5].set_control_mode(THETA)
@@ -173,67 +173,59 @@ class MekaArmServer():
     def initialize_joints(self, right_arm_settings, left_arm_settings):
         self.proxy = m3p.M3RtProxy()
         self.proxy.start()
-        
-        self.joint_list_dict = {}
-        right_l = []
-        stiff_list = [0.2, 0.67, 1., 0.7, 0.75, 0.5, 0.5]
-        for i, c in enumerate(['m3joint_ma1_j0', 'm3joint_ma1_j1',
-                               'm3joint_ma1_j2', 'm3joint_ma1_j3',
-                               'm3joint_ma1_j4', 'm3joint_ma1_j5',
-                               'm3joint_ma1_j6']):
+        for c in ['m3pwr_pwr003','m3loadx6_ma1_l0','m3arm_ma1','m3loadx6_ma2_l0','m3arm_ma2']:
             if not self.proxy.is_component_available(c):
                 raise m3t.M3Exception('Component '+c+' is not available.')
-            comp = m3f.create_component(c)
-            right_l.append(comp)
-            self.proxy.subscribe_status(comp)
-            self.proxy.publish_command(comp)
-            if i < 5:
-                comp.set_control_mode(THETA_GC)
-            else:
-                comp.set_control_mode(THETA)
-            comp.set_stiffness(stiff_list[i])
-            comp.set_slew_rate_proportion(1.)
+        
+        self.joint_list_dict = {}
 
+        right_l = []
+        for c in ['m3joint_ma1_j0','m3joint_ma1_j1','m3joint_ma1_j2',
+                  'm3joint_ma1_j3','m3joint_ma1_j4','m3joint_ma1_j5',
+                  'm3joint_ma1_j6']:
+            if not self.proxy.is_component_available(c):
+                raise m3t.M3Exception('Component '+c+' is not available.')
+            right_l.append(m3f.create_component(c))
         self.joint_list_dict['right_arm'] = right_l
 
         left_l = []
-#        for c in ['m3joint_ma2_j0','m3joint_ma2_j1','m3joint_ma2_j2',
-#                  'm3joint_ma2_j3','m3joint_ma2_j4','m3joint_ma2_j5',
-#                  'm3joint_ma2_j6']:
-#            if not self.proxy.is_component_available(c):
-#                raise m3t.M3Exception('Component '+c+' is not available.')
-#            left_l.append(m3f.create_component(c))
+        for c in ['m3joint_ma2_j0','m3joint_ma2_j1','m3joint_ma2_j2',
+                  'm3joint_ma2_j3','m3joint_ma2_j4','m3joint_ma2_j5',
+                  'm3joint_ma2_j6']:
+            if not self.proxy.is_component_available(c):
+                raise m3t.M3Exception('Component '+c+' is not available.')
+            left_l.append(m3f.create_component(c))
         self.joint_list_dict['left_arm'] = left_l
 
 
-#        for arm,arm_settings in zip(['right_arm','left_arm'],[right_arm_settings,left_arm_settings]):
-#            if arm_settings == None:
-#                continue
-#
-#            for comp in self.joint_list_dict[arm]:
-#                self.proxy.subscribe_status(comp)
-#                self.proxy.publish_command(comp)
-#
-#        self.set_arm_settings(right_arm_settings,left_arm_settings)
+        for arm,arm_settings in zip(['right_arm','left_arm'],[right_arm_settings,left_arm_settings]):
+            if arm_settings == None:
+                continue
 
-#        right_fts=m3.loadx6.M3LoadX6('m3loadx6_ma1_l0')
-#        self.proxy.subscribe_status(right_fts)
-#        left_fts=m3.loadx6.M3LoadX6('m3loadx6_ma2_l0')
-#        self.proxy.subscribe_status(left_fts)
-#
-#        self.fts = {'right_arm':right_fts,'left_arm':left_fts}
+            for comp in self.joint_list_dict[arm]:
+                self.proxy.subscribe_status(comp)
+                self.proxy.publish_command(comp)
+
+        self.set_arm_settings(right_arm_settings,left_arm_settings)
+
+        right_fts=m3.loadx6.M3LoadX6('m3loadx6_ma1_l0')
+        self.proxy.subscribe_status(right_fts)
+        left_fts=m3.loadx6.M3LoadX6('m3loadx6_ma2_l0')
+        self.proxy.subscribe_status(left_fts)
+
+        self.fts = {'right_arm':right_fts,'left_arm':left_fts}
 
         #self.pwr=m3w.M3Pwr('m3pwr_pwr003')
         self.pwr=m3f.create_component('m3pwr_pwr003')
         self.proxy.subscribe_status(self.pwr)
         self.proxy.publish_command(self.pwr)
 
-#        self.arms = {}
-#        self.arms['right_arm']=m3.arm.M3Arm('m3arm_ma1')
-#        self.proxy.subscribe_status(self.arms['right_arm'])
-#
-#        self.arms['left_arm']=m3.arm.M3Arm('m3arm_ma2')
-#        self.proxy.subscribe_status(self.arms['left_arm'])
+        self.arms = {}
+        self.arms['right_arm']=m3.arm.M3Arm('m3arm_ma1')
+        self.proxy.subscribe_status(self.arms['right_arm'])
+
+        self.arms['left_arm']=m3.arm.M3Arm('m3arm_ma2')
+        self.proxy.subscribe_status(self.arms['left_arm'])
 
         self.proxy.step()
         self.proxy.step()
@@ -340,13 +332,12 @@ class MekaArmServer():
             self.cb_lock.release()
 
     def power_on(self):
-        #        self.maintain_configuration()
+        self.maintain_configuration()
         self.proxy.make_operational_all()
         self.safeop_things()
-        self.proxy.step()
         self.pwr.set_motor_power_on()
-        self.proxy.step()
-        self.proxy.step()
+        self.step()
+        self.step()
 
     def stop(self, msg=None):
         self.pwr.set_motor_power_off()
@@ -435,19 +426,18 @@ class MekaArmServer():
 
 if __name__ == '__main__':
     try:
-        #settings_r = MekaArmSettings(stiffness_list=[0.1939,0.6713,0.748,0.7272,0.75])
-        # door opening stiffness settings.
-        settings_r = MekaArmSettings(stiffness_list=[0.1939,0.6713,0.997,0.7272,0.75])
+        settings_r = MekaArmSettings(stiffness_list=[0.1939,0.6713,0.748,0.7272,0.75])
         #settings_r = None
         settings_l = MekaArmSettings(stiffness_list=[0.1939,0.6713,0.748,0.7272,0.75])
-        settings_l = None
+        #settings_l = None
         cody_arms = MekaArmServer(settings_r, settings_l)
 
-        raw_input('hit ENTER to power up the arms.')
+        print 'hit a key to power up the arms.'
+        k=m3t.get_keystroke()
         cody_arms.power_on()
 
         while not rospy.is_shutdown():
-            #cody_arms.step_ros()
+            cody_arms.step_ros()
             rospy.sleep(0.005)
         cody_arms.stop()
 
