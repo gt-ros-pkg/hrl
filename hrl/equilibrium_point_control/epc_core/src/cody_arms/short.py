@@ -1,10 +1,12 @@
 
+import math, numpy as np
 import m3.rt_proxy as m3p
 import m3.component_factory as m3f
 import m3.toolbox as m3t
 import m3.arm
 
 THETA_GC = 5
+THETA = 3
 
 def safeop_things(proxy):
     robot_name = 'm3humanoid_bimanual_mr1'
@@ -21,27 +23,31 @@ def safeop_things(proxy):
 proxy = m3p.M3RtProxy()
 proxy.start()
 
-joint_names = ['m3joint_ma1_j0']
-
-c = joint_names[0]
-comp = m3f.create_component(c)
-
 pwr_nm = 'm3pwr_pwr003'
 pwr = m3f.create_component(pwr_nm)
-
 proxy.publish_command(pwr)
-proxy.publish_command(comp)
+
+joint_names = ['m3joint_ma1_j0', 'm3joint_ma1_j1', 'm3joint_ma1_j2', 'm3joint_ma1_j3', 'm3joint_ma1_j4', 'm3joint_ma1_j5', 'm3joint_ma1_j6']
+
+comp_list = []
+stiff_list = [0.2, 0.67, 1., 0.7, 0.75, 0.5, 0.5]
+for i, c in enumerate(joint_names):
+    comp = m3f.create_component(c)
+    comp_list.append(comp)
+    proxy.publish_command(comp)
+    if i < 5:
+        comp.set_control_mode(THETA_GC)
+    else:
+        comp.set_control_mode(THETA)
+    comp.set_stiffness(stiff_list[i])
+    comp.set_slew_rate_proportion(1.)
 
 # safeop_things must be after make_operational_all.
 proxy.make_operational_all()
 safeop_things(proxy)
 
-ma1 = m3.arm.M3Arm('m3arm_ma1')
-proxy.subscribe_status(ma1)
-
-comp.set_control_mode(THETA_GC)
-comp.set_stiffness(0.5)
-comp.set_slew_rate_proportion(1.)
+#ma1 = m3.arm.M3Arm('m3arm_ma1')
+#proxy.subscribe_status(ma1)
 
 proxy.step()
 proxy.step()
@@ -53,8 +59,12 @@ proxy.step()
 proxy.step()
 
 raw_input('Hit ENTER to move the joint')
-comp.set_theta_deg(50.)
-comp.set_thetadot_deg(0.)
+q = [0., 0., 0., 90., 0., 0., 0.]
+q = np.radians(q)
+
+for i, c in enumerate(comp_list):
+    c.set_theta_rad(q[i])
+
 proxy.step()
 proxy.step()
 
