@@ -7,7 +7,7 @@ import hrl_lib.util as ut
 import tf
 
 import geometry_msgs.msg as gm
-import trigger_msgs.msg as trm
+#import trigger_msgs.msg as trm
 import sys
 import math
 import numpy as np
