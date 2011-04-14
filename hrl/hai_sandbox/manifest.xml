@@ -16,7 +16,7 @@
   <depend package="opencv2"/>
   <depend package="geometry_msgs"/>
 
-  <depend package="trigger_msgs"/>
+  <!--<depend package="trigger_msgs"/>-->
   <depend package="sensor_msgs"/>
   <depend package="pr2_controllers_msgs"/>
   <depend package="move_base_msgs"/>
