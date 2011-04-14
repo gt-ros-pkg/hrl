@@ -1,0 +1,12 @@
+<launch>
+  <node name="id_solver_node"
+        ns="inverse_dynamics"
+        pkg="inverse_dynamics"
+        type="solver_node_wbc"
+        output="screen">
+    <remap from="dynamics_joint_states" to="joint_states"/>
+    <rosparam command="load" file="$(find inverse_dynamics)/config/pr2_l_arm.yaml" />
+    <param name="/sai_xml" value="$(find inverse_dynamics)/config/pr2_left_arm_wbc.sai.xml"/>
+  </node>
+</launch>
+

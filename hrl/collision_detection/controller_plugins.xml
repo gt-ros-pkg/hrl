@@ -1,0 +1,5 @@
+<library path="lib/libid_controller">
+
+  <class name="inverse_dynamics/IDController" type="controller::IDController" base_class_type="pr2_controller_interface::Controller" />
+
+</library>

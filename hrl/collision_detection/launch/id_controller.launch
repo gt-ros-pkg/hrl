@@ -1,0 +1,10 @@
+<launch>
+
+  <rosparam command="load" file="$(find inverse_dynamics)/config/id_controller.yaml" />
+
+  <param name="/id_controller/sai_xml" value="$(find inverse_dynamics)/config/pr2_left_arm_wbc.sai.xml"/>
+
+
+  <node pkg="pr2_controller_manager" type="spawner" args="id_controller" name="id_controller_spawner" />
+
+</launch>

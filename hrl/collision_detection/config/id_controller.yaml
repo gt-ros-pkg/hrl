@@ -1,0 +1,24 @@
+id_controller:
+    type: inverse_dynamics/IDController
+    joints: 
+      - l_shoulder_pan_joint
+      - l_shoulder_lift_joint
+      - l_upper_arm_roll_joint
+      - l_elbow_flex_joint
+      - l_forearm_roll_joint
+      - l_wrist_flex_joint
+      - l_wrist_roll_joint
+    eff_filter:
+        -
+          name: low_pass
+          type: filters/MultiChannelTransferFunctionFilterDouble
+          params:
+            b: [0.0001540, 0.0003080, 0.0001540]
+            a: [1.0000, -1.9504, 0.9510]
+    acc_filter:
+        -
+          name: low_pass
+          type: filters/MultiChannelTransferFunctionFilterDouble
+          params:
+            b: [0.0001540, 0.0003080, 0.0001540]
+            a: [1.0000, -1.9504, 0.9510]

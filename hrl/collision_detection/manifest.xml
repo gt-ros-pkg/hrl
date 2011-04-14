@@ -1,0 +1,33 @@
+<package>
+  <description brief="Inverse dynamics model for the PR2">
+
+      This package provides tools to create a nonparametric inverse dynamics model for the PR2 using Gaussion Process Regression. Interfaces to the KDL and Stanford WBC Newton-Euler ID models are included as are tools for motion generation.
+
+  </description>
+  <author>Daniel Hennes</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/inverse_dynamics</url>
+
+  <depend package="roscpp"/>
+  <depend package="rospy"/>
+  <depend package="sensor_msgs"/>
+  <depend package="wbc_core"/>
+  <depend package="pr2_controller_interface"/>
+  <depend package="pr2_mechanism_model"/>
+  <depend package="actionlib"/>
+  <depend package="control_toolbox"/>
+  <depend package="filters"/>
+  <depend package="realtime_tools"/>
+  <depend package="trajectory_msgs"/>
+  <depend package="pr2_controllers_msgs"/>
+  <depend package="pluginlib"/>
+
+  <export>
+    <pr2_controller_interface plugin="${prefix}/controller_plugins.xml"/>
+  </export>
+
+
+</package>
+
+
