@@ -18,6 +18,8 @@ from roslib.msg import Header
 from std_msgs.msg import Bool
 from std_msgs.msg import Empty
 
+from std_srvs.srv import Empty as Empty_srv
+
 class MekaArmClient():
     ##
     # @param arms: object of the ArmKinematics class.
@@ -58,6 +60,9 @@ class MekaArmClient():
         rospy.Subscriber('/l_arm/force_raw', FloatArray,
                          self.l_arm_raw_force_cb)
         rospy.Subscriber('/arms/pwr_state', Bool, self.pwr_state_cb)
+
+        rospy.wait_for_service('toggle_floating_arms')
+        self.toggle_floating_arms = rospy.ServiceProxy('toggle_floating_arms', Empty_srv)
 
         try:
             rospy.init_node('cody_arm_client', anonymous=True)
@@ -414,7 +419,7 @@ if __name__ == '__main__':
 
 
     # move the arms.
-    if True:
+    if False:
         print 'hit a key to move the arms.'
         k=m3t.get_keystroke()
 
@@ -434,6 +439,15 @@ if __name__ == '__main__':
         ee = ac.arms.FK(r_arm, q)
         print 'ee:', ee.A1
         print 'desired ee:', p.A1
+
+    if True:
+        print 'hit a key to float arms.'
+        k=m3t.get_keystroke()
+        ac.toggle_floating_arms()
+
+        print 'hit a key to UNfloat arms.'
+        k=m3t.get_keystroke()
+        ac.toggle_floating_arms()
 
         #ac.move_till_hit(l_arm)
         #ac.motors_off()
