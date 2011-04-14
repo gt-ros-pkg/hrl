@@ -87,16 +87,16 @@ servo_param = {
     26: {                        # Meka top Tilt
         'home_encoder': 400
         },
-    27: {                        # PR2 RFID Left Pan
+    27: {                        # PR2 RFID Right Pan
         'home_encoder': 512
         },
-    28: {                        # PR2 RFID Left Tilt
+    28: {                        # PR2 RFID Right Tilt
         'home_encoder': 506
         },
-    29: {                        # PR2 RFID Right Pan
+    29: {                        # PR2 RFID Left Pan
         'home_encoder': 544
         },
-    30: {                        # PR2 RFID Right Tilt
+    30: {                        # PR2 RFID Left Tilt
         'home_encoder': 500
         },
     31: {                        # Playpen open/close
