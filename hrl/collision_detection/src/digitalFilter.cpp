@@ -17,7 +17,7 @@
 //         Please refer to the matlab documentation page for implementation
 //         details: http://www.mathworks.com/access/helpdesk/help/techdoc/ref/filter.html
 
-#include "inverse_dynamics/digitalFilter.h"
+#include "collision_detection/digitalFilter.h"
 
 digitalFilter::digitalFilter(int filterOrder_userdef, bool isIIR)
 {

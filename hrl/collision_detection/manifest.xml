@@ -18,6 +18,7 @@
   <depend package="actionlib"/>
   <depend package="control_toolbox"/>
   <depend package="filters"/>
+  <depend package="std_srvs"/>
   <depend package="realtime_tools"/>
   <depend package="trajectory_msgs"/>
   <depend package="pr2_controllers_msgs"/>

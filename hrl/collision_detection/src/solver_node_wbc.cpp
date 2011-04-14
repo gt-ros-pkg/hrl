@@ -38,10 +38,10 @@
 
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
-#include <inverse_dynamics/JointState.h>
+#include <collision_detection/JointState.h>
 
-#include "inverse_dynamics/SolverNode.h"
-#include "inverse_dynamics/InverseDynamicsSolverWBC.h"
+#include "collision_detection/SolverNode.h"
+#include "collision_detection/InverseDynamicsSolverWBC.h"
 
 int main( int argc, char** argv )
 {

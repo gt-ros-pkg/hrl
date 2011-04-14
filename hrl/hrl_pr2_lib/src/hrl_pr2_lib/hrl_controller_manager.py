@@ -14,6 +14,7 @@ class HRLIKUtilities(IKUtilities):
     #initialize all service functions
     def __init__(self, whicharm, tf_listener = None, perception_running = 0): 
         #whicharm is 'right' or 'left'
+        self.whicharm = whicharm # CHANGE
         #set perception_running to 0 to disable collision-aware IK
         self.srvroot = '/pr2_'+whicharm+'_arm_kinematics/'
 
@@ -200,7 +201,7 @@ class HRLIKUtilities(IKUtilities):
     def bias_guess(self, q, joints_bias, bias_radius):
         if bias_radius == 0.0:
             return q
-        if self.whicharm == 'r':
+        if self.whicharm[0] == 'r':
             max_angs = np.array([.69, 1.33, 0.79, 0.0, 1000000.0, 0.0, 1000000.0])
             min_angs = np.array([-2.27, -.54, -3.9, -2.34, -1000000.0, -2.15, -1000000.0])
         else:

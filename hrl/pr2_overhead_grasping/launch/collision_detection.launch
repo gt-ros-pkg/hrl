@@ -1,6 +1,7 @@
 <launch>
   <include file="$(find pr2_overhead_grasping)/launch/init_params.launch"/>
   <include file="$(find pr2_overhead_grasping)/launch/simple_grasp_pipeline.launch"/>
+  <include file="$(find collision_detection)/launch/sigma_detection.launch"/>
   <node pkg="nodelet" type="nodelet" name="coll_manager"  args="manager" output="screen">
     <param name="num_worker_threads" type="int" value="5" />
   </node>
@@ -11,7 +12,21 @@
   <node pkg="nodelet" type="nodelet" name="collision_monitor_r" args="load collision_detection/collision_monitor coll_manager" output="screen">
     <param name="arm" type="str" value="r"/>
     <param name="collision_id" type="int" value="1"/>
-    <param name="collision_thresh" type="int" value="50"/>
+
+    <param name="rf_on" type="bool" value="true"/>
+    <param name="sigma_on" type="bool" value="false"/>
+    <param name="error_on" type="bool" value="true"/>
+
+    <param name="rf_thresh" type="int" value="200"/>
+    <param name="rf_buf_len" type="int" value="4"/>
+
+    <param name="sigma_buf_len" type="int" value="4"/>
+    <param name="sigma_thresh" type="double" value="1.5"/>
+    <param name="sigma_num" type="int" value="2"/>
+
+    <rosparam param="min_errors"> [-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1] </rosparam>
+    <rosparam param="max_errors"> [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1] </rosparam>
+
     <rosparam param="classifier_topics">
         [r_arm_collision_detect,
          r_arm_gripper_direct,
@@ -30,12 +45,13 @@
   </node>                 
   <node pkg="pr2_overhead_grasping" type="random_forest" name="$(anon random_forest_r)" output="screen">
     <param name="training_mode" type="bool" value="false"/>
+    <param name="is_abs" type="bool" value="true"/>
     <param name="classify_topic" type="str" value="r_arm_features"/>
     <param name="results_topic" type="str" value="r_arm_collision_detect"/>
     <param name="loaded_topic" type="str" value="r_arm_cd_loaded"/>
     <param name="classifier_name" type="str" value="Collision Detection"/>
     <param name="classifier_id" type="int" value="0"/>
-    <param name="forest_bag_name" type="str" value="collision_forest_all.bag"/>
+    <param name="forest_bag_name" type="str" value="collision_forest_all2.bag"/>
     <param name="bag_path" value="$(find pr2_overhead_grasping)/bags/"/>
   </node>                 
   <node pkg="pr2_overhead_grasping" type="random_forest" name="$(anon random_forest_r)" output="screen">

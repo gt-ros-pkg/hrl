@@ -2,8 +2,8 @@ overhead_grasping/hover_z : -0.10
 overhead_grasping/grasp_dist : 0.30 
 overhead_grasping/grasp_velocity : 0.28 # 0.15
 overhead_grasping/gripper_point : [0.23, 0.0, 0.0]
-#overhead_grasping/joints_bias : [0.0, -0.25, -1.0, 0.0, 0.0, 0.5, 0.0]
-overhead_grasping/joints_bias : [0.0, -0.25, 1.0, 0.0, 0.0, 0.5, 0.0]
+overhead_grasping/joints_bias : [0.0, -0.25, -1.0, 0.0, 0.0, 0.5, 0.0] #r
+#overhead_grasping/joints_bias : [0.0, -0.25, 1.0, 0.0, 0.0, 0.5, 0.0] #l
 overhead_grasping/bias_radius : 0.012
 
 

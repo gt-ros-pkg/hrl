@@ -30,5 +30,3 @@ rosbuild_genmsg()
 #target_link_libraries(example ${PROJECT_NAME})
 
 rosbuild_add_executable(solver_node_wbc src/InverseDynamicsSolverWBC.cpp src/digitalFilter.cpp src/SolverNode.cpp src/solver_node_wbc.cpp)
-rosbuild_add_executable(batch_wbc src/InverseDynamicsSolverWBC.cpp src/batch_wbc.cpp)
-rosbuild_add_library(id_controller src/InverseDynamicsSolverWBC.cpp src/id_controller.cpp)

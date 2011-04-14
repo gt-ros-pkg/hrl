@@ -36,7 +36,7 @@
   Author: Daniel Hennes
  */
 
-#include "inverse_dynamics/SolverNode.h"
+#include "collision_detection/SolverNode.h"
  
 void SolverNode::lookupJointIDs(const std::vector<std::string>& names) {
   uint j, i;
@@ -108,19 +108,12 @@ void SolverNode::js_callback(const sensor_msgs::JointState& msg)
   solver->updateState(pos, vel, acc);
   solver->getTorques(computed_effort);
 
-  // create message and publish
-  inverse_dynamics::JointState msg_out;
-  msg_out.header.stamp = msg.header.stamp;
-  msg_out.name = joint_names;
-  msg_out.position = pos;
-  msg_out.velocity = vel;
-  msg_out.acceleration = acc;
-  msg_out.effort = effort;
-  msg_out.computed_effort = computed_effort;
-  joint_state_pub.publish(msg_out);
+  std_msgs::Float64 sigma_msg;
+  sigma_msg.data = solver->sigma;
+  sigma_pub.publish(sigma_msg);
 }
 
-SolverNode::SolverNode(InverseDynamicsSolver& id_solver, 
+SolverNode::SolverNode(InverseDynamicsSolverWBC& id_solver, 
                              std::vector<std::string>& joints) {
   solver = &id_solver;
   joint_names = joints;
@@ -171,9 +164,11 @@ SolverNode::SolverNode(InverseDynamicsSolver& id_solver,
 
   ros::NodeHandle n;
   joint_state_pub = 
-    n.advertise<inverse_dynamics::JointState>("dynamics_joint_states", 1);
+    n.advertise<collision_detection::JointState>("dynamics_joint_states", 1);
 
   joint_state_sub = 
     n.subscribe("/joint_states", 20, &SolverNode::js_callback, this);  
 
+  sigma_pub = 
+    n.advertise<std_msgs::Float64>("collision_sigma", 1);
 }

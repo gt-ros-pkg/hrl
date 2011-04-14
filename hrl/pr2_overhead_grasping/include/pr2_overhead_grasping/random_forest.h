@@ -61,6 +61,8 @@ namespace collision_detection {
       int classifyInstance(SensorPoint::Ptr inst);
       void writeTree(string& bag_file, bool is_first);
 
+      bool is_abs;
+
     protected:
       
       RandomTreeMsg::Ptr rand_tree;
@@ -127,6 +129,7 @@ namespace collision_detection {
       ros::Publisher loaded_pub;
       boost::thread setup_thread;
       bool trees_loaded;
+      bool is_abs;
   };
 }
 

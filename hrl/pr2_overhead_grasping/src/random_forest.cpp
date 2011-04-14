@@ -346,6 +346,7 @@ namespace collision_detection {
 
   int RandomTree::classifyInstance(SensorPoint::Ptr inst) {
     int ind = 0, attr;
+
     //cout << rand_tree->attr_split.size() << ", " << rand_tree->r_node_inds.size() << ", " << rand_tree->val_split.size() << endl;
     //for(int i=0;i<rand_tree->attr_split.size();i++)
     //  cout << i << ", " << rand_tree->attr_split[i] << ", " << rand_tree->val_split[i] << ", " << rand_tree->r_node_inds[i] << ", " << rand_tree->r_node_inds[rand_tree->r_node_inds[i]]  << endl;
@@ -364,7 +365,10 @@ namespace collision_detection {
         //cout << "Class out" << endl;
         return attr;
       }
-      if(inst->features[attr] <= rand_tree->val_split[ind]) {
+      float feat = inst->features[attr];
+      if(is_abs)
+        feat = abs(feat);
+      if(feat <= rand_tree->val_split[ind]) {
         // go left
         ind++;
       } else {
@@ -397,6 +401,9 @@ namespace collision_detection {
       SensorPoint::Ptr sp = m.instantiate<SensorPoint>();
       if(sp != NULL) {
         sp->label = label;
+        if(is_abs)
+          for(uint32_t i=0;i<sp->features.size();i++)
+            sp->features[i] = abs(sp->features[i]);
         dataset->push_back(sp);
       }
     }
@@ -521,6 +528,7 @@ namespace collision_detection {
       RandomTreeMsg::Ptr tree = m.instantiate<RandomTreeMsg>();
       if(tree != NULL) {
         trees[ind++] = new RandomTree(tree);
+        trees[ind-1]->is_abs = is_abs;
         oobs.push_back(tree->out_of_bags);
       }
     }
@@ -1081,6 +1089,8 @@ namespace collision_detection {
     
     std::string results_topic, classify_topic, data_bag, forest_bag, loaded_topic;
     bool random_permute, training_mode, means, variable_import;
+
+    nh_priv->param<bool>("is_abs", is_abs, false);
 
     nh_priv->param<bool>("variable_import", variable_import, false);
     if(variable_import) {

@@ -36,7 +36,7 @@
   Author: Daniel Hennes
  */
 
-#include "inverse_dynamics/InverseDynamicsSolverWBC.h"
+#include "collision_detection/InverseDynamicsSolverWBC.h"
 
 InverseDynamicsSolverWBC::InverseDynamicsSolverWBC(std::string fname) {
   // load sai model
@@ -67,12 +67,20 @@ InverseDynamicsSolverWBC::InverseDynamicsSolverWBC(std::string fname) {
       break;
     r.sleep();
   }
-  pub = nh.advertise<inverse_dynamics::Residual>("residual", 2);
+  pub = nh.advertise<collision_detection::Residual>("residual", 2);
   last_grav = jspace::Vector::Zero(7);
   E0 = -10100.0;
   sig_int = 0;
+
+  zero_srv = nh.advertiseService("zero_sigma", &InverseDynamicsSolverWBC::srvZeroSigma, this);
+  ROS_INFO("[collision_monitor] Service advertised at r_start_detection");
   
   ROS_DEBUG("wbc inverse dynamics solver initalized (%zu DOF).", ndof);
+}
+
+bool InverseDynamicsSolverWBC::srvZeroSigma(std_srvs::Empty::Request&, std_srvs::Empty::Response&) {
+  sigma = 0;
+  return true;
 }
 
 void InverseDynamicsSolverWBC::jsCallback(sensor_msgs::JointState::ConstPtr message) {
@@ -115,8 +123,6 @@ bool InverseDynamicsSolverWBC::getTorques(std::vector<double>& torques) {
     ROS_ERROR("jspace::Model::getMassInertia() failed!");
     return false;
   }
-      
-  tau = M * q_dotdot;
 
   model.getGravity(grav);
   jspace::State s = model.getState();
@@ -127,7 +133,7 @@ bool InverseDynamicsSolverWBC::getTorques(std::vector<double>& torques) {
   jspace::Matrix M1, M2, DM;
   jspace::Vector alpha = jspace::Vector::Zero(7); //grav;
   jspace::Vector eff = grav;
-  inverse_dynamics::Residual res;
+  collision_detection::Residual res;
   for(int i=0;i<7;i++) {
     s.position_[i] += delta[i];
     if (!model.getMassInertia(M1)) {
@@ -179,8 +185,8 @@ bool InverseDynamicsSolverWBC::getTorques(std::vector<double>& torques) {
   res.data[7] = sigma;
   pub.publish(res);
   
-  if(std::abs(sigma) > 1.5)
-    std::cout << sigma << std::endl;
+  //if(std::abs(sigma) > 1.5)
+  //  std::cout << sigma << std::endl;
   //std::cout << E << E0 << std::endl;
   //std::cout << grav.transpose() << std::endl;
   //std::cout << alpha.transpose() << std::endl;
@@ -193,7 +199,7 @@ bool InverseDynamicsSolverWBC::getTorques(std::vector<double>& torques) {
   last_grav = grav;
 
   torques.resize(ndof);
-  jspace::convert(tau, torques);
+  //jspace::convert(tau, torques);
 
   return true;
 }
