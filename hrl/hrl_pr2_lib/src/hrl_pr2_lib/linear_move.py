@@ -173,6 +173,17 @@ class LinearReactiveMovement:
         rospy.loginfo('move_absolute: dist %.3f' % np.linalg.norm(diff))
         return r, np.linalg.norm(diff)
 
+    ##
+    # Moves relative to an arbitrary frame
+    #
+    # @param movement_target 3x1 matrix a displacement in the target frame
+    # @param target_frame string id of the frame in which the movement is defined
+    # @param stop 'pressure_accel', 'pressure'
+    # @param pressure pressure to use
+    def move_relative(self, movement_target, target_frame, stop='pressure_accel', pressure=150):
+        base_T_target = tfu.transform('base_link', target_frame, self.tf_listener)
+        movement_base = base_T_target[0:3, 0:3] * movement_target
+        return self.move_relative_base(movement_base, stop=stop, pressure=pressure)
 
     ##
     # Moves relative to tool frame
@@ -255,9 +266,6 @@ class LinearReactiveMovement:
         init_cart_pose = tfu.tf_as_matrix((position.A1.tolist(),
                                            orientation.A1.tolist()))
         base_cart_pose = frame_T_base*init_cart_pose
-
-        rospy.loginfo('init_cart_pose: ' + str(init_cart_pose))
-        rospy.loginfo('base_cart_pose: ' + str(base_cart_pose))
 
         # Get IK from tool frame to wrist frame for control input
         self.tf_listener.waitForTransform(self.ik_frame, self.tool_frame, rospy.Time(), rospy.Duration(10))
