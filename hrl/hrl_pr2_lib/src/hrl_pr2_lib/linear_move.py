@@ -522,19 +522,3 @@ if __name__ == '__main__':
                 pos, rot = tfu.matrix_as_tf(p)
                 movement.set_movement_mode_cart()
                 movement.move_absolute2((np.matrix(pos), np.matrix(rot)))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
