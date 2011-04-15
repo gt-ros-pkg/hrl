@@ -163,10 +163,11 @@ class LinearReactiveMovement:
         return r, np.linalg.norm(diff)
 
 
-    def move_absolute(self, loc, stop='pressure_accel', pressure=300):
+    def move_absolute(self, loc, stop='pressure_accel', pressure=300, frame='base_link'):
         self.set_pressure_threshold(pressure)
         stop_funcs = self._process_stop_option(stop)
-        r = self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout, settling_time=5.0)
+        r = self._move_cartesian(loc[0], loc[1], stop_funcs, timeout=self.timeout,
+                                 settling_time=5.0, frame=frame)
         diff = loc[0] - self.arm_obj.pose_cartesian_tf()[0]
         rospy.loginfo('move_absolute: diff is %s' % str(diff.T))
         rospy.loginfo('move_absolute: dist %.3f' % np.linalg.norm(diff))
@@ -237,23 +238,35 @@ class LinearReactiveMovement:
                     timeout, settling_time, frame, vel=.15)
         elif self.movement_mode == 'cart':
             return self._move_cartesian_cart(position, orientation, stop_funcs, \
-                    timeout, settling_time)
+                    timeout, settling_time, frame)
 
 
     ##
     # move the wrist to a desired Cartesian pose while watching the fingertip sensors
     # settling_time is how long to wait after the controllers think we're there
     def _move_cartesian_cart(self, position, orientation, \
-            stop_funcs=[], timeout = 3.0, settling_time = 0.5):
+            stop_funcs=[], timeout = 3.0, settling_time = 0.5, frame='base_link'):
 
+        # TODO: Test this function...
+        # Transform the pose from 'frame' to 'base_link'
+        self.tf_listener.waitForTransform('base_link', frame, rospy.Time(),
+                                          rospy.Duration(10))
+        frame_T_base = tfu.transform('base_link', frame, self.tf_listener)
+        init_cart_pose = tfu.tf_as_matrix((position.A1.tolist(),
+                                           orientation.A1.tolist()))
+        base_cart_pose = frame_T_base*init_cart_pose
+
+        rospy.loginfo('init_cart_pose: ' + str(init_cart_pose))
+        rospy.loginfo('base_cart_pose: ' + str(base_cart_pose))
+
+        # Get IK from tool frame to wrist frame for control input
         self.tf_listener.waitForTransform(self.ik_frame, self.tool_frame, rospy.Time(), rospy.Duration(10))
         toolframe_T_ikframe = tfu.transform(self.tool_frame, self.ik_frame, self.tf_listener)
-        cart_pose = tfu.tf_as_matrix((position.A1.tolist(), orientation.A1.tolist()))
-        cart_pose = cart_pose * toolframe_T_ikframe
-        position, orientation = tfu.matrix_as_tf(cart_pose)
+        #base_cart_pose = tfu.tf_as_matrix((base_position.A1.tolist(), base_orientation.A1.tolist()))
+        base_cart_pose = base_cart_pose * toolframe_T_ikframe
+        base_position, base_orientation = tfu.matrix_as_tf(base_cart_pose)
 
-        #pose_stamped = cf.create_pose_stamped(position.T.A1.tolist() + orientation.T.A1.tolist())
-        pose_stamped = cf.create_pose_stamped(position.tolist() + orientation.tolist())
+        pose_stamped = cf.create_pose_stamped(base_position.tolist() + base_orientation.tolist())
         rg = self.reactive_gr
         rg.check_preempt()
 
