@@ -20,6 +20,15 @@ from std_msgs.msg import Empty
 
 from std_srvs.srv import Empty as Empty_srv
 
+
+# used in client and server.
+def get_joint_name_dict():
+    joint_names_list = {}
+    joint_names_list['right_arm'] = ['m3joint_ma1_j%d'%i for i in range(7)]
+    joint_names_list['left_arm'] = ['m3joint_ma2_j%d'%i for i in range(7)]
+    return joint_names_list
+
+
 class MekaArmClient():
     ##
     # @param arms: object of the ArmKinematics class.
@@ -41,6 +50,8 @@ class MekaArmClient():
                             'torque': np.matrix(np.zeros((3,1),dtype='float32'))}
         self.fts_bias = {'left_arm': self.left_arm_ft, 'right_arm': self.right_arm_ft}
         self.arms = arms
+
+        self.joint_names_list = get_joint_name_dict()
 
         self.l_jep_cmd_pub = rospy.Publisher('/l_arm/command/jep', FloatArray)
         self.r_jep_cmd_pub = rospy.Publisher('/r_arm/command/jep', FloatArray)
@@ -117,6 +128,13 @@ class MekaArmClient():
 
     #--------- functions to use -----------------
 
+    ## Returns the current position, rotation of the arm.
+    # @param arm 0 for right, 1 for left
+    # @return position, rotation
+    def end_effector_pos(self, arm):
+        q = self.get_joint_angles(arm)
+        return self.arms.FK_all(arm, q)
+
     ##
     # @return list of 7 joint angles.
     def get_joint_angles(self, arm):
@@ -190,7 +208,8 @@ class MekaArmClient():
 
     ##
     # @param q - list of 7 joint angles in RADIANS. according to meka's coordinate frames.
-    def set_jep(self, arm, q):
+    # @param duration - for compatibility with the PR2 class.
+    def set_jep(self, arm, q, duration=None):
         if arm == 'right_arm': 
             pub = self.r_jep_cmd_pub
         elif arm == 'left_arm':
@@ -408,7 +427,6 @@ if __name__ == '__main__':
     arms = ar.M3HrlRobot()
     ac = MekaArmClient(arms)
 
-
     # print FT sensor readings.
     if False:
         ac.bias_wrist_ft(r_arm)
@@ -416,7 +434,6 @@ if __name__ == '__main__':
             f = ac.get_wrist_force(r_arm)
             print 'f:', f.A1
             rospy.sleep(0.05)
-
 
     # move the arms.
     if False:

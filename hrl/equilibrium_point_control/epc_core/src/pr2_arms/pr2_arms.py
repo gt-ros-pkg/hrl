@@ -209,7 +209,7 @@ class PR2Arms(object):
 
     ## Returns the current position, rotation of the arm.
     # @param arm 0 for right, 1 for left
-    # @return rotation, position
+    # @return position, rotation
     def end_effector_pos(self, arm):
         q = self.get_joint_angles(arm)
         return self.arms.FK_all(arm, q)
@@ -554,7 +554,7 @@ class PR2Arms_kdl():
 
         q_arr = np.array(q)
         d_arr = np.array(delta_list)
-        return np.all((q_arr <= max_arr+d_arr, q_arr >= min_arr+d_arr))
+        return np.all((q_arr <= max_arr+d_arr, q_arr >= min_arr-d_arr))
 
 
 
