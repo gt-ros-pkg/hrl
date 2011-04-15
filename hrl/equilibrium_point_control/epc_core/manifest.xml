@@ -6,6 +6,7 @@
 
   <depend package="rospy"/>
   <depend package="geometry_msgs"/>
+  <depend package="std_srvs"/>
   <depend package="sensor_msgs"/>
   <depend package="visualization_msgs"/>
   <depend package="actionlib"/>
