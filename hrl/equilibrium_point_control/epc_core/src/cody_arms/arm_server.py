@@ -8,6 +8,8 @@ import m3.loadx6
 
 import m3.component_factory as m3f
 
+import arm_client as ac
+
 import math
 import numpy as np
 import sys, time, os
@@ -25,6 +27,7 @@ from std_msgs.msg import Bool
 from std_msgs.msg import Empty
 from std_srvs.srv import Empty as Empty_srv
 from std_srvs.srv import EmptyResponse
+from sensor_msgs.msg import JointState
 
 roslib.load_manifest('force_torque')
 import force_torque.FTClient as ftc
@@ -101,6 +104,8 @@ class MekaArmServer():
         self.jep_r_pub = rospy.Publisher('/r_arm/jep', FloatArray)
         self.jep_l_pub = rospy.Publisher('/l_arm/jep', FloatArray)
         self.pwr_state_pub = rospy.Publisher('/arms/pwr_state', Bool)
+
+        self.joint_state_pub = rospy.Publisher('/joint_states', JointState)
         
         #self.r_arm_ftc = ftc.FTClient('force_torque_ft2')
         rospy.Subscriber('/r_arm/command/jep', FloatArray,
@@ -118,6 +123,8 @@ class MekaArmServer():
         self.l_jep = None # see set_jep
         self.qr_prev = None # see step_ros
         self.ql_prev = None # see step_ros
+
+        self.joint_names_list = ac.get_joint_name_dict()
 
         self.floating_arms = False
         self.floating_arms_counter = 0
@@ -287,7 +294,6 @@ class MekaArmServer():
         q_r = self.get_joint_angles(r_arm)
         q_l = self.get_joint_angles(l_arm)
 
-
         if self.floating_arms:
             if self.qr_prev == None or self.floating_arms_counter < 100:
                 self.qr_prev = q_r
@@ -320,7 +326,6 @@ class MekaArmServer():
                 self.qr_prev = prev_r_arr.tolist()
                 self.ql_prev = prev_l_arr.tolist()
 
-
         f_raw_r = self.get_wrist_force(r_arm).A1.tolist()
         f_raw_l = self.get_wrist_force(l_arm).A1.tolist()
         f_r = self.xhat_force[r_arm]
@@ -336,6 +341,12 @@ class MekaArmServer():
 
         self.jep_r_pub.publish(FloatArray(h, r_jep))
         self.jep_l_pub.publish(FloatArray(h, l_jep))
+
+        h.frame_id = '/torso_lift_link'
+        nms = self.joint_names_list['right_arm'] + self.joint_names_list['left_arm']
+        pos = q_r + q_l
+        self.joint_state_pub.publish(JointState(h, nms, pos,
+                                    [0.]*len(pos), [0.]*len(pos)))
 
         h.frame_id = ar.link_tf_name(r_arm, 7)
         self.force_raw_r_pub.publish(FloatArray(h, f_raw_r))
