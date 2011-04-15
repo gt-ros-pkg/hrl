@@ -56,7 +56,7 @@ class M3HrlRobot():
     def __init__(self, end_effector_length=0.11818):
         # create joint limit dicts
         self.joint_lim_dict = {}
-        self.joint_lim_dict['right_arm'] = {'max': np.radians([ 120.00, 122.15., 77.5, 144., 122.,  45.,  45.]),
+        self.joint_lim_dict['right_arm'] = {'max': np.radians([ 120.00, 122.15, 77.5, 144., 122.,  45.,  45.]),
                                             'min': np.radians([ -47.61,  -20., -77.5,   0., -80., -45., -45.])}
 
         self.joint_lim_dict['left_arm'] = {'max': np.radians([ 120.00,   20.,  77.5, 144.,   80.,  45.,  45.]),
@@ -135,7 +135,7 @@ class M3HrlRobot():
 
     def setup_kdl_mekabot(self, end_effector_length):
         #right arm
-        ch = create_right_chain(end_effector_length)
+        ch = self.create_right_chain(end_effector_length)
         fk, ik_v, ik_p, jac = self.create_solvers(ch)
 
         kdl_rightarm = {}
@@ -148,12 +148,12 @@ class M3HrlRobot():
 
         #left arm
         kdl_leftarm = {}
-        ch = create_left_chain(end_effector_length)
+        ch = self.create_left_chain(end_effector_length)
         fk, ik_v, ik_p, jac = self.create_solvers(ch)
 
         kdl_leftarm['chain'] = ch
         kdl_leftarm['nJnts'] = ch.getNrOfJoints()
-        kdl_leftarm['fk_p'] = fk_p
+        kdl_leftarm['fk_p'] = fk
         kdl_leftarm['ik_v'] = ik_v
         kdl_leftarm['ik_p'] = ik_p
         kdl_leftarm['jacobian_solver'] = jac
@@ -245,22 +245,20 @@ class M3HrlRobot():
     ## compute Jacobian at point pos.
     # p is in the torso_lift_link coord frame.
     def Jacobian(self, arm, q, pos):
-        if arm != 'right_arm':
-            rospy.logerr('Arm %d is not supported.'%(arm))
-            return None
-
+        chain = self.cody_kdl[arm]['chain']
         v_list = []
         w_list = []
         for i in range(7):
             p, rot = self.FK_all(arm, q, i)
             r = pos - p
-            z_idx = self.right_chain.getSegment(i).getJoint().getType() - 1
+            z_idx = chain.getSegment(i).getJoint().getType() - 1
             z = rot[:, z_idx]
             v_list.append(np.matrix(np.cross(z.A1, r.A1)).T)
             w_list.append(z)
 
         J = np.row_stack((np.column_stack(v_list), np.column_stack(w_list)))
-        J = -J # the kdl jacobian is the negative of meka jacobian (see kdl_angles_to_meka)
+        #J = -J # the kdl jacobian is the negative of meka jacobian (see kdl_angles_to_meka)
+        J = self.Jac(arm, q)
         return J
 
     ##
@@ -313,16 +311,13 @@ class M3HrlRobot():
         d_arr = np.array(delta_list)
         return np.clip(q_arr, min_arr-d_arr, max_arr+d_arr)
 
-    def within_physical_limits(self, arm, q, delta_list=[0.,0.,0.,0.,0.,0.,0.]):
+    def within_joint_limits(self, arm, q, delta_list=[0.,0.,0.,0.,0.,0.,0.]):
         d = self.joint_lim_dict[arm]
         max_arr = d['max']
         min_arr = d['min']
         q_arr = np.array(q)
         d_arr = np.array(delta_list)
         return np.all((q_arr <= max_arr+d_arr, q_arr >= min_arr-d_arr))
-
-
-
 
 
 
