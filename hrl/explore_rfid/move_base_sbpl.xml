@@ -9,7 +9,7 @@
   <node pkg="move_base" type="move_base" respawn="false" name="move_base_node" output="screen">
     <remap from="odom" to="base_odometry/odom" />
     <remap from="cmd_vel" to="navigation/cmd_vel" />
-    <param name="footprint_padding" value="0.03" />
+    <param name="footprint_padding" value="0.10" />
     <param name="controller_frequency" value="10.0" />
     <param name="controller_patience" value="100.0" />
     <param name="base_global_planner" value="SBPLLatticePlanner" />
@@ -20,8 +20,8 @@
     <rosparam file="$(find explore_rfid)/params/costmap_common_params.yaml" command="load" ns="local_costmap" />
     <rosparam file="$(find explore_rfid)/params/local_costmap_params_close.yaml" command="load" />
     <rosparam file="$(find explore_rfid)/params/global_costmap_params.yaml" command="load" />
-    <rosparam file="$(find sbpl_lattice_planner)/launch/move_base/sbpl_global_params.yaml" command="load" />
+    <rosparam file="$(find explore_rfid)/params/sbpl_global_params.yaml" command="load" />
     <!-- <rosparam file="$(find sbpl_lattice_planner)/launch/move_base/base_local_planner_params_close.yaml" command="load" /> -->
-    <rosparam file="$(find explore_rfid)/params/base_local_planner_params_close.yaml" command="load" />
+    <rosparam file="$(find explore_rfid)/params/base_local_planner_params_close.yaml" command="load"/>
   </node>
 </launch>

@@ -6,7 +6,8 @@ TrajectoryPlannerROS:
   dwa: true
   vx_samples: 20
   vtheta_samples: 20
-  max_vel_x: 0.65
+  max_vel_x: 0.250
+  #max_vel_x: 0.65
   min_vel_x: 0.1
   max_rotational_vel: 1.0
   min_in_place_rotational_vel: 0.4

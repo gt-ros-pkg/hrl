@@ -11,9 +11,10 @@ mark_threshold: 0
 transform_tolerance: 0.2
 obstacle_range: 6.0
 raytrace_range: 7.0
-inflation_radius: 0.7
-
-#inflation_radius: 0.55
+clearing_radius: 0.59
+# These settings moved into individual costmaps.
+#inflation_radius: 0.30  # Global to generate plans through doors
+#inflation_radius: 0.55  # Local to prevent collisions
 
 # BEGIN VOXEL STUFF
 observation_sources: base_scan_marking base_scan tilt_scan ground_object_cloud

@@ -1,6 +1,6 @@
 local_costmap:
   publish_voxel_map: true
-  global_frame: /map
+  global_frame: /odom_combined
   robot_base_frame: base_link
   update_frequency: 4.0
   publish_frequency: 2.0
@@ -11,3 +11,4 @@ local_costmap:
   resolution: 0.025
   origin_x: 0.0
   origin_y: 0.0
+  inflation_radius: 0.40
