@@ -291,6 +291,9 @@ class MekaArmServer():
 
         motor_pwr_state = self.is_motor_power_on()
 
+        if not motor_pwr_state:
+            self.maintain_configuration()
+
         q_r = self.get_joint_angles(r_arm)
         q_l = self.get_joint_angles(l_arm)
 
@@ -300,7 +303,7 @@ class MekaArmServer():
                 self.ql_prev = q_l
                 self.floating_arms_counter += 1
             else:
-                tol = np.radians([5., 2., 5., 2., 7., 0.03, 0.6])
+                tol = np.radians([5., 2., 10., 2., 10., 0.03, 0.6])
                 r_arr = np.array(q_r)
                 l_arr = np.array(q_l)
                 prev_r_arr = np.array(self.qr_prev)
@@ -491,8 +494,8 @@ if __name__ == '__main__':
         #settings_l = None
         cody_arms = MekaArmServer(settings_r, settings_l)
 
-        print 'hit a key to power up the arms.'
-        k=m3t.get_keystroke()
+#        print 'hit a key to power up the arms.'
+#        k=m3t.get_keystroke()
         cody_arms.power_on()
 
         while not rospy.is_shutdown():
