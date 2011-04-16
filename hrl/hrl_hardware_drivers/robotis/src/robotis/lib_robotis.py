@@ -395,6 +395,8 @@ if __name__ == '__main__':
                  help='angular velocity. (degrees/sec) [default = 50]', default=50)
     p.add_option('--id', action='store', type='int', dest='id',
                  help='id of servo to connect to, [default = 1]', default=1)
+    p.add_option('--baud', action='store', type='int', dest='baud',
+                 help='baudrate for USB2Dynamixel connection [default = 57600]', default=57600)
 
     opt, args = p.parse_args()
 
@@ -402,7 +404,7 @@ if __name__ == '__main__':
         p.print_help()
         sys.exit(0)
 
-    dyn = USB2Dynamixel_Device(opt.dev_name)
+    dyn = USB2Dynamixel_Device(opt.dev_name, opt.baud)
 
     if opt.scan:
         find_servos( dyn )
