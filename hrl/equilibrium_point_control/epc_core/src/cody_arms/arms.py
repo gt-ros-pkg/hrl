@@ -11,6 +11,7 @@ import roslib; roslib.load_manifest('epc_core')
 
 import hrl_lib.transforms as tr
 import hrl_lib.util as ut
+import hrl_lib.kdl_utils as ku
 
 #-------------- TF stuff ---------------
 def link_tf_name(arm, link_number):
@@ -27,30 +28,6 @@ def link_tf_name(arm, link_number):
         nm = nm + '_' + str(link_number)
     return nm
 
-
-#-------------------- conversion from KDL ---------------------
-def kdl_vec_to_np(kdl_vec):
-    ''' kdl rotation matrix -> 3x3 numpy matrix.
-    '''
-    v = np.matrix([kdl_vec[0],kdl_vec[1],kdl_vec[2]]).T
-    return v
-
-def kdl_rot_to_np(kdl_rotation):
-    ''' kdl rotation matrix -> 3x3 numpy matrix.
-    '''
-    m = kdl_rotation
-    rot = np.matrix([[m[0,0],m[1,0],m[2,0]],
-                     [m[0,1],m[1,1],m[2,1]],
-                     [m[0,2],m[1,2],m[2,2]]])
-    return rot
-
-## 3x1 np vector -> KDL Vector
-def np_vec_to_kdl(p):
-    return kdl.Vector(p[0,0],p[1,0],p[2,0])
-
-## 3x3 np rotation matrix -> KDL Rotation.
-def np_rot_to_kdl(rot):
-    return kdl.Rotation(rot[0,0],rot[1,0],rot[2,0],rot[0,1],rot[1,1],rot[2,1],rot[0,2],rot[1,2],rot[2,2])
 
 class M3HrlRobot():
     def __init__(self, end_effector_length=0.11818):
@@ -227,9 +204,9 @@ class M3HrlRobot():
         q = self.meka_angles_to_kdl(arm, q)
         frame = self.FK_kdl(arm, q, link_number)
         pos = frame.p
-        pos = kdl_vec_to_np(pos)
+        pos = ku.kdl_vec_to_np(pos)
         m = frame.M
-        rot = kdl_rot_to_np(m)
+        rot = ku.kdl_rot_to_np(m)
         return pos, rot
 
     def Jac(self,arm,q):
@@ -265,11 +242,12 @@ class M3HrlRobot():
     # Inverse Kinematics using KDL.
     # @param p - 3X1 numpy matrix.
     # @param rot - 3X3 numpy matrix. It transforms a  vector in the
-    # torso frame to the end effector frame.
+    # end effector frame to the torso frame. (or it is the orientation
+    # of the end effector wrt the torso)
     # @return list of 7 joint angles, or None if IK soln not found.
     def IK(self,arm,p,rot,q_guess=None):
-        p_kdl = np_vec_to_kdl(p)
-        rot_kdl = np_rot_to_kdl(rot)
+        p_kdl = ku.np_vec_to_kdl(p)
+        rot_kdl = ku.np_rot_to_kdl(rot)
         fr = kdl.Frame(rot_kdl,p_kdl)
 
         if q_guess == None:

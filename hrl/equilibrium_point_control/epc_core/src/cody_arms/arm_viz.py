@@ -30,7 +30,7 @@ def publish_cartesian_markers(arm, time_stamp, cep, rot, c1, c2, marker_id):
 
     marker.id = marker_id*100 + 0
     #rot1 = tr.Ry(math.radians(90.)) * rot.T
-    rot1 = rot.T * tr.rotY(math.pi/2)
+    rot1 = rot * tr.rotY(math.pi/2)
     quat = tr.matrix_to_quaternion(rot1)
     marker.pose.orientation.x = quat[0]
     marker.pose.orientation.y = quat[1]
@@ -46,10 +46,10 @@ def publish_cartesian_markers(arm, time_stamp, cep, rot, c1, c2, marker_id):
     marker.id = marker_id*100 + 1
     if arm == 'left_arm':
         #rot2 = tr.Rz(math.radians(90.)) * rot.T
-        rot2 = rot.T * tr.rotZ(-math.pi/2)
+        rot2 = rot * tr.rotZ(-math.pi/2)
     else:
         #rot2 = tr.Rz(math.radians(-90.)) * rot.T
-        rot2 = rot.T * tr.rotZ(math.pi/2)
+        rot2 = rot * tr.rotZ(math.pi/2)
 
     quat = tr.matrix_to_quaternion(rot2)
     marker.pose.orientation.x = quat[0]
@@ -128,7 +128,7 @@ if __name__ == '__main__':
             links = [2, 3, 7]
             for i in links:
                 p, rot = arms.FK_all(arm, q, i)
-                qaut = tr.matrix_to_quaternion(rot.T)
+                qaut = tr.matrix_to_quaternion(rot)
                 frameid = ar.link_tf_name(arm, i)
                 transform_bcast.sendTransform(p.A1.tolist(), qaut, time_stamp,
                                               frameid, torso_link_name)

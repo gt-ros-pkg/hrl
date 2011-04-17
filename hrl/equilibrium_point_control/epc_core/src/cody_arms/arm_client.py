@@ -174,7 +174,7 @@ class MekaArmClient():
         if base_frame:
             q = self.get_joint_angles(arm)
             rot = self.arms.FK_rot(arm, q)
-            f_mat = rot.T*f_mat
+            f_mat = rot*f_mat
         return f_mat
             
     def bias_wrist_ft(self, arm):
@@ -440,7 +440,7 @@ if __name__ == '__main__':
         print 'hit a key to move the arms.'
         k=m3t.get_keystroke()
 
-        rot_mat = tr.Ry(math.radians(-90)) #* tr.Rx(math.radians(45))
+        rot_mat = tr.rotY(math.radians(-90))
         p = np.matrix([0.3, -0.24, -0.3]).T
     #    q = arms.IK(l_arm, p, rot_mat)
     #    ac.go_jep(l_arm, q)

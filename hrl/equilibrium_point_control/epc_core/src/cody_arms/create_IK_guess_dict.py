@@ -19,7 +19,7 @@ def test_dict(fname):
     dict = ut.load_pickle(fname)
     firenze = ar.M3HrlRobot(connect=False)
 
-    rot = tr.Ry(math.radians(-90))
+    rot = tr.rotY(math.radians(-90))
     p = np.matrix([0.4,-0.42,-0.2]).T
 
     c = find_good_config(p,dict)
