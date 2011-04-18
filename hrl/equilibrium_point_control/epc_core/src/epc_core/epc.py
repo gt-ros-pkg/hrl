@@ -1,9 +1,4 @@
 
-#
-# Temoprarily in this package. Advait needs to move it to a better
-# location.
-#
-
 import numpy as np, math
 import copy
 
