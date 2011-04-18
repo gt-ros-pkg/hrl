@@ -33,9 +33,11 @@ import rospy
 from UI_segment_object.srv import GetPt
 from UI_segment_object.srv import None_Bool
 
-if __name__ == '__main__':
-    rospy.init_node('point_and_click_client')
+reset_ui = None
+get_3d_point = None
 
+def initialize_service():
+    global reset_ui, get_3d_point
     reset_srv_name = 'UI_reset'
     srv_name = 'get_3D_pt'
 
@@ -48,12 +50,20 @@ if __name__ == '__main__':
     reset_ui = rospy.ServiceProxy(reset_srv_name, None_Bool)
     get_3d_point = rospy.ServiceProxy(srv_name, GetPt)
 
-    print 'Reset result:', reset_ui()
-    # this will display an image from the Kinect. left click to
-    # select point, right click to close the image and get the 3D
-    # coordinate.
+
+def get_point():
+    global reset_ui, get_3d_point
+    reset_ui()
     resp = get_3d_point()
-    print 'resp:', resp.pt.x, resp.pt.y, resp.pt.z
+    return resp.pt.x, resp.pt.y, resp.pt.z
+
+
+if __name__ == '__main__':
+    rospy.init_node('point_and_click_client')
+
+    initialize_service()
+    x,y,z = get_point()
+    print '3D point:', x, y, z
 
 
 
