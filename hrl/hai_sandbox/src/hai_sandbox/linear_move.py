@@ -1,3 +1,4 @@
+#! /usr/bin/python
 import roslib; roslib.load_manifest('hai_sandbox')
 import rospy
 #import hrl_pr2_lib.pr2_kinematics as pk
@@ -41,6 +42,7 @@ import hrl_pr2_lib.linear_move as lm
 #import hrl_pr2_lib.collision_monitor as cmon
 import hai_sandbox.recognize_3d as r3d
 import hrl_lib.image3d as i3d
+import cProfile
 #from hai_sandbox.recognize_3d import InterestPointDataset
 #import psyco
 #psyco.full()
@@ -586,9 +588,9 @@ class ApplicationBehaviors:
         #self.img_pub = r3d.ImagePublisher('active_learn')
         self.locations_man = LocationManager('locations_narrow_v11.pkl', rec_params=self.rec_params)
         #self.robot.projector.set_prosilica_inhibit(True)
+        pdb.set_trace()
         self.robot.projector.set(False)
         #self.practice_points_map = []
-        pdb.set_trace()
 
 
     #def load_classifier(self, name, fname):
@@ -1543,6 +1545,7 @@ class ApplicationBehaviors:
         rospy.loginfo('= Practice Mode!                                  =')
         rospy.loginfo('===================================================')
         #pdb.set_trace()
+
         ulocs = self.unreliable_locs()
         rospy.loginfo('%d out of %d locs in database are unreliable' \
                 % (len(ulocs), len(self.locations_man.data.keys())))
@@ -1567,6 +1570,7 @@ class ApplicationBehaviors:
                 map_points.append([t_current_map, r_current_map])
             self.locations_man.data[tid]['practice_locations'] = map_points
             self.locations_man.data[tid]['practice_locations_history'] = np.zeros((1, len(map_points)))
+            self.locations_man.data[tid]['practice_locations_convergence'] = np.zeros((1, len(map_points)))
 
             self.locations_man.save_database()
 
@@ -1581,15 +1585,29 @@ class ApplicationBehaviors:
         task_type = self.locations_man.data[tid]['task']
         points_added_history = []
 
-        unexplored_locs = np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1]
+        unexplored_locs  = np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1]
+        unconverged_locs = np.where(self.locations_man.data[tid]['practice_locations_convergence'] == 0)[1]
         rospy.loginfo("Location history: %s" % str(self.locations_man.data[tid]['practice_locations_history']))
+        run_loop = True
+
         #If this is a fresh run, start with current location
         if unexplored_locs.shape[0] == len(self.locations_man.data[tid]['practice_locations']):
             pidx = 3
-        else:
+
         #If this is not a fresh run we continue with a location we've never been to before
+        elif unexplored_locs.shape[0] > 0:
             pidx = unexplored_locs[0]
             rospy.loginfo("Resuming training from last unexplored location")
+
+        #set the index to an unconverged location
+        elif unconverged_locs.shape[0] > 0:
+            pidx = unconverged_locs[0]
+            rospy.loginfo("Resuming training from unconverged location")
+
+        #if there are no unconverged locations, try to run anyway
+        else:
+            rospy.loginfo("WARNING: no unexplored or unconverged location")
+            pidx = 3
 
         #Commence practice!
         while True: #%not converged:
@@ -1637,18 +1655,20 @@ class ApplicationBehaviors:
             self.locations_man.record_time(ctid, 'num_points_added_' + tid, points_after_ct - points_before_ct)
 
             self.locations_man.data[tid]['practice_locations_history'][0, pidx] += 1
-            pidx = (pidx + 1) % len(self.locations_man.data[tid]['practice_locations'])
-
             #If no points added and we have explored all locations
-            if points_added == 0 and np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1].shape[0] == 0:
+            #if points_added == 0 and np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1].shape[0] == 0:
+            if points_added == 0:# and np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1].shape[0] == 0:
+                self.locations_man.data[tid]['practice_locations_convergence'][0, pidx] = 1
                 rospy.loginfo('===================================================')
-                rospy.loginfo('= Location converged!')
+                rospy.loginfo('= LOCATION CONVERGED ')
+                rospy.loginfo('Converged locs: %s' % str(self.locations_man.data[tid]['practice_locations_convergence']))
                 rospy.loginfo('using instances %d points added' % (points_after_t - points_before_t))
                 rospy.loginfo('history %s' % str(points_added_history))
                 rospy.loginfo('number of iterations it took %s' % str(np.sum(points_added_history)))
                 rospy.loginfo('number of datapoints %s' % str(self.locations_man.data[tid]['dataset'].outputs.shape))
                 rospy.loginfo('===================================================')
-                break
+                if np.where(self.locations_man.data[tid]['practice_locations_convergence'] == 0)[1].shape[1] <= 0:
+                    break
             else:
                 rospy.loginfo('===================================================')
                 rospy.loginfo('= Scan converged!')
@@ -1657,6 +1677,8 @@ class ApplicationBehaviors:
                 rospy.loginfo('number of iterations so far %s' % str(np.sum(points_added_history)))
                 rospy.loginfo('number of datapoints %s' % str(self.locations_man.data[tid]['dataset'].outputs.shape))
                 rospy.loginfo('===================================================')
+
+            pidx = (pidx + 1) % len(self.locations_man.data[tid]['practice_locations'])
 
         self.driving_posture(task_type)
         #ulocs = self.unreliable_locs()
@@ -2187,7 +2209,7 @@ class ApplicationBehaviors:
                             'neg': neg_exp,
                             'pos_pred': pos_pred,
                             'neg_pred': neg_pred,
-                            'tried': points2d_tried[-1],
+                            'tried': (points2d_tried[-1], label),
                             'center': point2d_img}, pkname)
 
             #ffull = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '.png')
@@ -2251,7 +2273,7 @@ class ApplicationBehaviors:
         params.uni_mix = 0.1
     
         #Scan
-        fea_dict, _ = self.read_features_save(task_id, point_bl, params)
+        fea_dict, image_name = self.read_features_save(task_id, point_bl, params)
         behavior = self.get_behavior_by_task(self.locations_man.data[task_id]['task'])
         image_T_bl = tfu.transform(self.OPTICAL_FRAME, 'base_link', self.tf_listener)
         fea_dict['image_T_bl'] = image_T_bl
@@ -2343,6 +2365,16 @@ class ApplicationBehaviors:
             r3d.draw_points(img, neg_points, [0, 0, 255], 4, -1)
             r3d.draw_points(img, points2d_tried[-1], [0, 184, 245], 6, -1)
             self.locations_man.publish_image(task_id, img)
+
+            pkname = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '_seed.pkl')
+            ut.save_pickle({'image': image_name,
+                            'pos': pos_points,
+                            'neg': neg_points,
+                            #'pos_pred': pos_pred,
+                            #'neg_pred': neg_pred,
+                            'tried': [points2d_tried[-1], label],
+                            'center': point2d_img}, pkname)
+
             #ffull = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '.png')
             #cv.SaveImage(ffull, img)
             #self.img_pub.publish(img)
@@ -2451,12 +2483,27 @@ class ApplicationBehaviors:
                 r3d.draw_points(img, locs2d,            [255, 204, 51], 3, -1)
                 r3d.draw_points(img, loc2d_max,         [255, 204, 51], 10, -1)
                 self.locations_man.publish_image(task_id, img)
+
                 #ffull = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '.png')
                 #cv.SaveImage(ffull, img)
 
                 #Execute
                 self.robot.head.set_pose(head_pose, 1)
                 success, _, point_undo_bl = behavior(selected_3d)
+
+                #Save pickle for viz
+                pkname = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '_execute.pkl')
+                _, pos_pred, neg_pred = separate_by_labels(kdict['points2d'], predictions)
+                if success:
+                    label = r3d.POSITIVE
+                else:
+                    label = r3d.NEGATIVE
+                ut.save_pickle({'image': image_name,
+                                'pos_pred': pos_pred,
+                                'neg_pred': neg_pred,
+                                'tried': [kdict['points2d'][:, selected_idx], label],
+                                'center': point2d_img}, pkname)
+
                 try_num = try_num + 1
                 if success:
                     self.locations_man.update_execution_record(task_id, 1.)
@@ -2558,8 +2605,7 @@ class ApplicationBehaviors:
     #            converged = True
 
 
-
-if __name__ == '__main__':
+def launch():
     import optparse
     p = optparse.OptionParser()
     p.add_option("-p", "--practice", action="store_true", default=False)
@@ -2578,6 +2624,10 @@ if __name__ == '__main__':
         mode = 'init'
 
     l.run(mode)
+
+if __name__ == '__main__':
+    cProfile.run('launch()', 'profile_linear_move.prof)
+
 
 
 
