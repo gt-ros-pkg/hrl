@@ -215,8 +215,9 @@ namespace hrl_object_fetching {
                 t = ((objcentx - a1*rho)*b1 - (objcenty - b1*rho)) / (b2 - a2*b1);
             else
                 t = ((objcenty - b1*rho)*a1 - (objcentx - a1*rho)) / (a2 - b2*a1);
-            double posex = objcentx + t*a2, posey = objcenty + t*b2;
-            printf("\naPose %d: (t: %f, %f, %f)\n", i, t, posex, posey);
+            t = ((objcenty-a1*rho)*b2-(objcentx-b1*rho)*a2)/(a1*b2-a2*b1);
+            double posex = rho + t*a1, posey = rho + t*b1;
+            printf("\naPose %d: (t: %f, %f, %f)[%f, %f]\n", i, t, posex, posey, t*a2, t*b2);
             if(posex == posex && posey == posey &&
                 posex >= 0 && posey >= 0 &&
                 posex < imgx && posey < imgy) {
