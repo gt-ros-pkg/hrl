@@ -13,7 +13,6 @@
   <depend package="rospy"/>
   <depend package="roslaunch"/>
   <depend package="rosnode"/>
-  <depend package="tabletop_object_detector"/>
   <depend package="spline_smoother"/>
   <depend package="tf"/>
   <depend package="pcl_ros"/>

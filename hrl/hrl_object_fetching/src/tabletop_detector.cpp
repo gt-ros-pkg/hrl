@@ -1,27 +1,36 @@
-#include "hrl_object_fetching/tabletop_approach.h"
-#include <tabletop_object_detector/TabletopSegmentation.h>
-using namespace tabletop_object_detector;
+#include "hrl_object_fetching/tabletop_detector.h"
 using namespace std;
 
 namespace hrl_object_fetching {
 
-    TabletopApproach::TabletopApproach() : img_trans(nh) {
+    TabletopDetector::TabletopDetector() : img_trans(nh) {
     }
 
     bool compind(int a, int b, vector<float> v) { return v[a] > v[b]; }
     
-    void TabletopApproach::onInit() {
-        //tab_seg_client = nh.serviceClient<TabletopSegmentation>("/tabletop_segmentation", false);
-        //tab_seg_client.waitForExistence();
+    void TabletopDetector::onInit() {
         pc_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB> >("/table_detection", 1);
         height_pub = img_trans.advertise("/height_image", 1);
         ros::Duration(1.0).sleep();
     }
 
-    bool TabletopApproach::srvCallback(
-        pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &TabletopApproach::pcCallback, this);
+    bool TabletopDetector::srvCallback(hrl_object_fetching::DetectTable::Request& req, 
+                                       hrl_object_fetching::DetectTable::Response& resp) {
+        pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &TabletopDetector::pcCallback, this);
+        grasp_points_found = false;
+        while(ros::ok()) {
+            ros::spinOnce();
+            if(grasp_points_found) {
+                resp.grasp_points = grasp_points;
+                pc_sub.shutdown();
+                return true;
+            }
+            ros::Duration(0.1).sleep();
+        }
+        return false;
+    }
 
-    void TabletopApproach::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
+    void TabletopDetector::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
 
         pcl::PointCloud<pcl::PointXYZRGB> pc_full, pc_full_frame;
         pcl::fromROSMsg(*pc_msg, pc_full);
@@ -306,6 +315,8 @@ namespace hrl_object_fetching {
         pc_pub.publish(pc_full_frame);
         //cout << height_hist << endl;
         //delete height_img;
+
+        //grasp_points_found = true;
     }
 
 };
@@ -315,8 +326,9 @@ using namespace hrl_object_fetching;
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "tabletop_approach");
-    TabletopApproach ta;
+    TabletopDetector ta;
     ta.onInit();
+    ta.pc_sub = ta.nh.subscribe("/kinect_head/rgb/points", 1, &TabletopDetector::pcCallback, &ta);
     ros::spin();
     return 0;
 }
