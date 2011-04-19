@@ -49,6 +49,12 @@ ActuatorArrayDriver::~ActuatorArrayDriver()
 
 void ActuatorArrayDriver::command_callback(const sensor_msgs::JointState::ConstPtr& command_msg)
 {
+  // sensor_msgs::JointState definition specifies that each vector can either be empty, or contain the
+  // same number of elements as "name". Check for empty vectors.
+  bool has_position = command_msg->position.size();
+  bool has_velocity = command_msg->velocity.size();
+  bool has_effort = command_msg->effort.size();
+
   // Create a mapping between the JointState command message joint indices and the class joint indices
   // The internal command information will be updated with information from any matching joints
   for(unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
@@ -57,9 +63,18 @@ void ActuatorArrayDriver::command_callback(const sensor_msgs::JointState::ConstP
     {
       if(command_msg->name[j] == this->command_msg_.name[i])
       {
-        this->command_msg_.position[i] = command_msg->position[j];
-        this->command_msg_.velocity[i] = command_msg->velocity[j];
-        this->command_msg_.effort[i] = command_msg->effort[j];
+        if(has_position)
+        {
+          this->command_msg_.position[i] = command_msg->position[j];
+        }
+        if(has_velocity)
+        {
+          this->command_msg_.velocity[i] = command_msg->velocity[j];
+        }
+        if(has_effort)
+        {
+          this->command_msg_.effort[i] = command_msg->effort[j];
+        }
         this->command_msg_.header = command_msg->header;
         break;
       }
