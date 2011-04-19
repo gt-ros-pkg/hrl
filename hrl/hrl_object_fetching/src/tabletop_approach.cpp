@@ -7,24 +7,22 @@ namespace hrl_object_fetching {
 
     TabletopApproach::TabletopApproach() : img_trans(nh) {
     }
-        
-    bool TabletopApproach::tabletopSegCallback(TabletopSegmentation::Request& req, TabletopSegmentation::Response& resp) {
-
-        return true;
-    }
 
     bool compind(int a, int b, vector<float> v) { return v[a] > v[b]; }
     
     void TabletopApproach::onInit() {
         //tab_seg_client = nh.serviceClient<TabletopSegmentation>("/tabletop_segmentation", false);
         //tab_seg_client.waitForExistence();
-        pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &TabletopApproach::pcCallback, this);
         pc_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB> >("/table_detection", 1);
         height_pub = img_trans.advertise("/height_image", 1);
-        ros::Duration(4.0).sleep();
+        ros::Duration(1.0).sleep();
     }
 
+    bool TabletopApproach::srvCallback(
+        pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &TabletopApproach::pcCallback, this);
+
     void TabletopApproach::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
+
         pcl::PointCloud<pcl::PointXYZRGB> pc_full, pc_full_frame;
         pcl::fromROSMsg(*pc_msg, pc_full);
         string torso_frame("/torso_lift_link");
