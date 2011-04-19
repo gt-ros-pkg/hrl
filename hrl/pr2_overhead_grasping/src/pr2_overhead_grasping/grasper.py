@@ -12,7 +12,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import yaml
 sys.path.append("/usr/lib/python2.6/site-packages")
 #import cv
-import arff
+#import arff
 
 import roslib; roslib.load_manifest('pr2_overhead_grasping')
 import rospy
@@ -46,6 +46,7 @@ from tabletop_object_detector.msg import TabletopDetectionResult
 from laser_interface.pkg import CURSOR_TOPIC, MOUSE_DOUBLE_CLICK_TOPIC
 
 from pr2_overhead_grasping.srv import StartFTDetect
+from pr2_overhead_grasping.msg import GraspStart
 from perception_monitor import ArmPerceptionMonitor
 from helpers import *
 
@@ -374,6 +375,8 @@ class OverheadGrasper():
         self.move_spine()
         self.cm.gripper_action_client.wait_for_result(rospy.Duration(4.0))
 
+        pub_start = rospy.Publisher('/grasper/grasp_executing', GraspStart)
+
         num_collected = 0
         while num_collected < num_grasps:
             params = behavior.random_generator()
@@ -405,6 +408,8 @@ class OverheadGrasper():
 
                 # move arm down
                 sttime = rospy.Time.now().to_sec()
+                gs = GraspStart(x=params[0],y=params[1],r=params[2])
+                pub_start.publish(gs)
                 result = behavior.execute_grasp(False)
 
                 # break if a key is hit or the trajectory is complete
@@ -422,6 +427,7 @@ class OverheadGrasper():
                 self.cm.joint_action_client.cancel_all_goals()
 
                 # end detection
+                pub_start.publish(gs)
                 if ft:
                     ft_stop_detection()
                 elif coll_detect:

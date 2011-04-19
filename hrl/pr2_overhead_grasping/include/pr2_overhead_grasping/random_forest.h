@@ -32,12 +32,12 @@
 #include <nodelet/nodelet.h>
 #include <algorithm>
 #include <vector>
-#include <Eigen3/Eigen>
-#include <Eigen3/Dense>
-#include <Eigen3/QR>
-#include <Eigen3/Cholesky>
+#include <Eigen/Eigen>
+#include <Eigen/Dense>
+#include <Eigen/QR>
+#include <Eigen/Cholesky>
 //USING_PART_OF_NAMESPACE_EIGEN
-using namespace Eigen3;
+using namespace Eigen;
 
 using namespace std;
 using namespace pr2_overhead_grasping;

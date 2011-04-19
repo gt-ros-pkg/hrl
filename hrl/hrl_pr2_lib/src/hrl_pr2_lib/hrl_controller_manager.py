@@ -11,28 +11,30 @@ from interpolated_ik_motion_planner.ik_utilities import *
 from pr2_gripper_reactive_approach.controller_manager import *
 
 class HRLIKUtilities(IKUtilities):
+
     #initialize all service functions
-    def __init__(self, whicharm, tf_listener = None, perception_running = 0): 
-        #whicharm is 'right' or 'left'
-        self.whicharm = whicharm # CHANGE
-        #set perception_running to 0 to disable collision-aware IK
-        self.srvroot = '/pr2_'+whicharm+'_arm_kinematics/'
+    #if wait_for_services = 0, you must call check_services_and_get_ik_info externally before running any of the IK/FK functions
+    def __init__(self, whicharm, tf_listener = None, wait_for_services = 1): #whicharm is 'right' or 'left'
+        self.whicharm = whicharm # TODO CHANGE
+        
+        #gets the robot_prefix from the parameter server. Default is pr2 
+        robot_prefix = rospy.get_param('~robot_prefix', 'pr2') 
+        self.srvroot = '/'+robot_prefix+'_'+whicharm+'_arm_kinematics/' 
 
-        self.perception_running = perception_running
+        #If collision_aware_ik is set to 0, then collision-aware IK is disabled 
+ 	self.perception_running = rospy.get_param('~collision_aware_ik', 1) 
 
-        rospy.loginfo("ik_utilities: waiting for IK services to be there")
-        rospy.wait_for_service(self.srvroot+'get_ik')
+        self._ik_service = rospy.ServiceProxy(self.srvroot+'get_ik', GetPositionIK)
         if self.perception_running:
-            rospy.wait_for_service(self.srvroot+'get_constraint_aware_ik')
-        rospy.wait_for_service(self.srvroot+'get_fk')
-        rospy.wait_for_service(self.srvroot+'get_ik_solver_info')
-        rospy.loginfo("ik_utilities: services found")
+            self._ik_service_with_collision = rospy.ServiceProxy(self.srvroot+'get_constraint_aware_ik', GetConstraintAwarePositionIK)
 
-        self.ik_service = rospy.ServiceProxy(self.srvroot+'get_ik', GetPositionIK)
-        if self.perception_running:
-            self.ik_service_with_collision = rospy.ServiceProxy(self.srvroot+'get_constraint_aware_ik', GetConstraintAwarePositionIK)
-        self.fk_service = rospy.ServiceProxy(self.srvroot+'get_fk', GetPositionFK)
-        self.query_service = rospy.ServiceProxy(self.srvroot+'get_ik_solver_info', GetKinematicSolverInfo)
+        self._fk_service = rospy.ServiceProxy(self.srvroot+'get_fk', GetPositionFK)
+        self._query_service = rospy.ServiceProxy(self.srvroot+'get_ik_solver_info', GetKinematicSolverInfo)
+        self._check_state_validity_service = rospy.ServiceProxy('/environment_server/get_state_validity', GetStateValidity)
+
+        #wait for IK/FK/query services and get the joint names and limits 
+        if wait_for_services:
+            self.check_services_and_get_ik_info()
         
         if tf_listener == None:
             rospy.loginfo("ik_utilities: starting up tf_listener")
@@ -42,36 +44,37 @@ class HRLIKUtilities(IKUtilities):
 
         self.marker_pub = rospy.Publisher('interpolation_markers', Marker)
 
-        #get and store the joint names and limits
-        #only one IK link available so far ('r_wrist_roll_link' or 'l_wrist_roll_link')
-        (self.joint_names, self.min_limits, self.max_limits, self.link_names) = \
-            self.run_query()
-        self.link_name = self.link_names[-1]
-
         #dictionary for the possible kinematics error codes
         self.error_code_dict = {}  #codes are things like SUCCESS, NO_IK_SOLUTION
         for element in dir(ArmNavigationErrorCodes):
             if element[0].isupper():
                 self.error_code_dict[eval('ArmNavigationErrorCodes.'+element)] = element
 
-        #good additional start angles to try for IK
-        self.start_angles_list = [[-0.697, 1.002, 0.021, -0.574, 0.286, -0.095, 1.699],
-                                  [-1.027, 0.996, 0.034, -0.333, -3.541, -0.892, 1.694],
-                                  [0.031, -0.124, -2.105, -1.145, -1.227, -1.191, 2.690],
-                                  [0.410, 0.319, -2.231, -0.839, -2.751, -1.763, 5.494],
-                                  [0.045, 0.859, 0.059, -0.781, -1.579, -0.891, 7.707],
-                                  [0.420, 0.759, 0.014, -1.099, -3.204, -1.907, 8.753],
-                                  [-0.504, 1.297, -1.857, -1.553, -4.453, -1.308, 9.572]]
+        #reads the start angles from the parameter server 
+        start_angles_list = rospy.get_param('~ik_start_angles', []) 
+ 		         
+        #good additional start angles to try for IK for the PR2, used  
+        #if no start angles were provided 
+        if start_angles_list == []: 
+            self.start_angles_list = [[-0.697, 1.002, 0.021, -0.574, 0.286, -0.095, 1.699], 
+                                      [-1.027, 0.996, 0.034, -0.333, -3.541, -0.892, 1.694], 
+                                      [0.031, -0.124, -2.105, -1.145, -1.227, -1.191, 2.690], 
+                                      [0.410, 0.319, -2.231, -0.839, -2.751, -1.763, 5.494], 
+                                      [0.045, 0.859, 0.059, -0.781, -1.579, -0.891, 7.707], 
+                                      [0.420, 0.759, 0.014, -1.099, -3.204, -1.907, 8.753], 
+                                      [-0.504, 1.297, -1.857, -1.553, -4.453, -1.308, 9.572]] 
+        else: 
+            self.start_angles_list = start_angles_list 
+
+        if whicharm == 'left':
+            for i in range(len(self.start_angles_list)):
+                for joint_ind in [0, 2, 4]:
+                    self.start_angles_list[i][joint_ind] *= -1.
 
         #changes the set of ids used to show the arrows every other call
         self.pose_id_set = 0
 
         rospy.loginfo("ik_utilities: done init")
-
-    def __init__(self, whicharm, tf_listener = None, perception_running = 0):
-        IKUtilities.__init__(self, whicharm, tf_listener, perception_running)
-        self.whicharm = whicharm # CHANGE
-
 
     #check a Cartesian path for consistent, non-colliding IK solutions
     #start_pose and end_pose are PoseStamped messages with the wrist poses
@@ -237,15 +240,17 @@ class HRLIKUtilities(IKUtilities):
 
 
 class HRLControllerManager(ControllerManager):
-
-    def __init__(self, whicharm, tf_listener = None, using_slip_controller = 0): #whicharm is 'r' or 'l'
+    #whicharm is 'r' or 'l'
+    def __init__(self, whicharm, tf_listener = None, using_slip_controller = 0, using_slip_detection = 0): 
         self.whicharm = whicharm
-
+  
         self.using_slip_controller = using_slip_controller
-
+        self.using_slip_detection = using_slip_detection
+  
         rospy.loginfo("initializing "+whicharm+" controller manager")
         rospy.loginfo("controller manager: using_slip_controller:"+str(using_slip_controller))
-
+        rospy.loginfo("controller manager: using_slip_detection:"+str(using_slip_detection))
+  
         #wait for the load/unload/switch/list controller services to be there and initialize their service proxies
         rospy.loginfo("controller manager waiting for pr2_controller_manager services to be there")
         load_controller_serv_name = 'pr2_controller_manager/load_controller'
@@ -257,116 +262,120 @@ class HRLControllerManager(ControllerManager):
         self.wait_for_service(switch_controller_serv_name)
         self.wait_for_service(list_controllers_serv_name)
         self.load_controller_service = \
-                rospy.ServiceProxy(load_controller_serv_name, LoadController)
+            rospy.ServiceProxy(load_controller_serv_name, LoadController)
         self.unload_controller_service = \
-                rospy.ServiceProxy(unload_controller_serv_name, UnloadController)
+            rospy.ServiceProxy(unload_controller_serv_name, UnloadController)
         self.switch_controller_service = \
-                rospy.ServiceProxy(switch_controller_serv_name, SwitchController)
+            rospy.ServiceProxy(switch_controller_serv_name, SwitchController)
         self.list_controllers_service = \
-                rospy.ServiceProxy(list_controllers_serv_name, ListControllers)
-
+            rospy.ServiceProxy(list_controllers_serv_name, ListControllers)
+  
         #initialize listener for JointStates messages (separate thread)
         self.joint_states_listener = joint_states_listener.LatestJointStates()
-
+  
         #joint trajectory action client
         joint_trajectory_action_name = whicharm+'_arm_controller/joint_trajectory_action'
         self.joint_action_client = \
-                actionlib.SimpleActionClient(joint_trajectory_action_name, JointTrajectoryAction)
-
-        #slip-sensing gripper action clients
+            actionlib.SimpleActionClient(joint_trajectory_action_name, JointTrajectoryAction)
+  
+        #slip-sensing gripper action client
         if self.using_slip_controller:
-            gripper_action_name = whicharm+'_gripper_sensor_controller/gripper_action'
-            gripper_find_contact_action_name = whicharm+'_gripper_sensor_controller/find_contact'
-            gripper_grab_action_name = whicharm+'_gripper_sensor_controller/grab'
-            gripper_event_detector_action_name = whicharm+'_gripper_sensor_controller/event_detector'
-            self.gripper_action_client = actionlib.SimpleActionClient(gripper_action_name, Pr2GripperCommandAction)
-            self.gripper_find_contact_action_client = actionlib.SimpleActionClient(gripper_find_contact_action_name, \
-                                                                                                                                                         PR2GripperFindContactAction)
-            self.gripper_grab_action_client = actionlib.SimpleActionClient(gripper_grab_action_name, \
-                                                                                                                                                         PR2GripperGrabAction)
-            self.gripper_event_detector_action_client = actionlib.SimpleActionClient(gripper_event_detector_action_name, \
-                                                                                                                                                         PR2GripperEventDetectorAction)
-
+          gripper_action_name = whicharm+'_gripper_sensor_controller/gripper_action'
+          self.gripper_action_client = actionlib.SimpleActionClient(gripper_action_name, Pr2GripperCommandAction)
+  
         #default gripper action client
         else:
-            gripper_action_name = whicharm+'_gripper_controller/gripper_action'
-            self.gripper_action_client = \
-                    actionlib.SimpleActionClient(gripper_action_name, Pr2GripperCommandAction)
-            
+          gripper_action_name = whicharm+'_gripper_controller/gripper_action'
+          self.gripper_action_client = \
+              actionlib.SimpleActionClient(gripper_action_name, Pr2GripperCommandAction)
+  
+        #other slip-sensing gripper actions
+        if self.using_slip_detection:
+          gripper_find_contact_action_name = whicharm+'_gripper_sensor_controller/find_contact'
+          gripper_grab_action_name = whicharm+'_gripper_sensor_controller/grab'
+          gripper_event_detector_action_name = whicharm+'_gripper_sensor_controller/event_detector'
+  
+          self.gripper_find_contact_action_client = actionlib.SimpleActionClient(gripper_find_contact_action_name, \
+                                                                                   PR2GripperFindContactAction)
+          self.gripper_grab_action_client = actionlib.SimpleActionClient(gripper_grab_action_name, \
+                                                                                 PR2GripperGrabAction)
+          self.gripper_event_detector_action_client = actionlib.SimpleActionClient(gripper_event_detector_action_name, \
+                                                                                 PR2GripperEventDetectorAction)
+  
         #move arm client is filled in the first time it's called
         self.move_arm_client = None
         
         #wait for the joint trajectory and gripper action servers to be there
         self.wait_for_action_server(self.joint_action_client, joint_trajectory_action_name)
         self.wait_for_action_server(self.gripper_action_client, gripper_action_name)
-        if self.using_slip_controller:
-            self.wait_for_action_server(self.gripper_find_contact_action_client, gripper_find_contact_action_name)
-            self.wait_for_action_server(self.gripper_grab_action_client, gripper_grab_action_name)
-            self.wait_for_action_server(self.gripper_event_detector_action_client, gripper_event_detector_action_name)
-
+        if self.using_slip_detection:
+          self.wait_for_action_server(self.gripper_find_contact_action_client, gripper_find_contact_action_name)
+          self.wait_for_action_server(self.gripper_grab_action_client, gripper_grab_action_name)
+          self.wait_for_action_server(self.gripper_event_detector_action_client, gripper_event_detector_action_name)
+  
         #initialize a tf listener
         if tf_listener == None:
-            self.tf_listener = tf.TransformListener()
+          self.tf_listener = tf.TransformListener()
         else:
-            self.tf_listener = tf_listener
-
+          self.tf_listener = tf_listener
+  
         #names of the controllers
         self.cartesian_controllers = ['_arm_cartesian_pose_controller', 
-                                                                        '_arm_cartesian_trajectory_controller']
+                                        '_arm_cartesian_trajectory_controller']
         self.cartesian_controllers = [self.whicharm+x for x in self.cartesian_controllers]
         self.joint_controller = self.whicharm+'_arm_controller'
         if self.using_slip_controller:
-            self.gripper_controller = self.whicharm+'_gripper_sensor_controller'
+          self.gripper_controller = self.whicharm+'_gripper_sensor_controller'
         else:
-            self.gripper_controller = self.whicharm+'_gripper_controller'
-
-        #parameters for the Cartesian controllers
+          self.gripper_controller = self.whicharm+'_gripper_controller'
+  
+        #parameters for the Cartesian controllers    
         self.cart_params = JTCartesianParams(self.whicharm)
-
+  
         #parameters for the joint controller
         self.joint_params = JointParams(self.whicharm)
-
+  
         #load the Cartesian controllers if not already loaded
         rospy.loginfo("loading any unloaded Cartesian controllers")
         self.load_cartesian_controllers()
         time.sleep(2)
         rospy.loginfo("done loading controllers")
-
+  
         #services for the J-transpose Cartesian controller 
         cartesian_check_moving_name = whicharm+'_arm_cartesian_trajectory_controller/check_moving'
         cartesian_move_to_name = whicharm+'_arm_cartesian_trajectory_controller/move_to'
         cartesian_preempt_name = whicharm+'_arm_cartesian_trajectory_controller/preempt'
-        self.wait_for_service(cartesian_check_moving_name)            
+        self.wait_for_service(cartesian_check_moving_name)      
         self.wait_for_service(cartesian_move_to_name)
-        self.wait_for_service(cartesian_preempt_name)            
+        self.wait_for_service(cartesian_preempt_name)      
         self.cartesian_moving_service = rospy.ServiceProxy(cartesian_check_moving_name, CheckMoving)
         self.cartesian_cmd_service = rospy.ServiceProxy(cartesian_move_to_name, MoveToPose)
         self.cartesian_preempt_service = rospy.ServiceProxy(cartesian_preempt_name, Empty)
-
+  
         #re-load the Cartesian controllers with the gentle params
         self.cart_params.set_params_to_gentle()
         self.reload_cartesian_controllers()
-
-        #create an HRLIKUtilities class object CHANGED
-        rospy.loginfo("creating HRLIKUtilities class objects")
+  
+        #create an IKUtilities class object
+        rospy.loginfo("creating IKUtilities class objects")
+        rospy.set_param("~collision_aware_ik", 0) # TODO CHANGE
         if whicharm == 'r':
-            self.ik_utilities = HRLIKUtilities('right', self.tf_listener)
+          self.ik_utilities = HRLIKUtilities('right', self.tf_listener) # TODO CHANGE
         else:
-            self.ik_utilities = HRLIKUtilities('left', self.tf_listener)
-        rospy.loginfo("done creating HRLIKUtilities class objects")
-
+          self.ik_utilities = HRLIKUtilities('left', self.tf_listener) # TODO CHANGE
+        rospy.loginfo("done creating IKUtilities class objects")
+  
         #joint names for the arm
         joint_names = ["_shoulder_pan_joint", 
-                                     "_shoulder_lift_joint", 
-                                     "_upper_arm_roll_joint", 
-                                     "_elbow_flex_joint", 
-                                     "_forearm_roll_joint", 
-                                     "_wrist_flex_joint", 
-                                     "_wrist_roll_joint"]
+                       "_shoulder_lift_joint", 
+                       "_upper_arm_roll_joint", 
+                       "_elbow_flex_joint", 
+                       "_forearm_roll_joint", 
+                       "_wrist_flex_joint", 
+                       "_wrist_roll_joint"]
         self.joint_names = [whicharm + x for x in joint_names]
-
+  
         rospy.loginfo("done with controller_manager init for the %s arm"%whicharm)
-
 
     def command_interpolated_ik(self, end_pose, start_pose = None, collision_aware = 1, step_size = .02, max_joint_vel = .05, joints_bias = None, bias_radius = 0.0):
         self.check_controllers_ok('joint')
@@ -440,7 +449,6 @@ class HRLControllerManager(ControllerManager):
             return "success"
         return "failed"
 
-  ##use move_arm to get to a desired pose in a collision-free way (really, run IK and then call move arm to move to the IK joint angles)
     def move_arm_pose_biased(self, pose_stamped, joints_bias = [0.]*7, max_joint_vel=0.2,
                                         blocking = 1, init_angs=[0.]*7):
         init_pos = [pose_stamped.pose.position.x, pose_stamped.pose.position.y, 
