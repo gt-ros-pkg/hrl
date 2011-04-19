@@ -47,6 +47,35 @@ UNLABELED = 2.0
 POSITIVE = 1.0
 NEGATIVE = 0.
 
+def confusion_matrix(true_labels, predicted):
+    posidx = np.where(true_labels == POSITIVE)[1].A1
+    negidx = np.where(true_labels == NEGATIVE)[1].A1
+    m00 = m01 = m10 = m11 = 0
+    nm00 = nm01 = nm10 = nm11 = 0
+
+    if len(negidx) > 0:
+        nm00 = float(np.sum(NEGATIVE == predicted[:, negidx]))
+        nm01 = float(np.sum(POSITIVE == predicted[:, negidx]))
+        m00 =  nm00 / len(negidx)
+        m01 =  nm01 / len(negidx)
+
+    if len(posidx) > 0:
+        nm10 = float(np.sum(NEGATIVE == predicted[:, posidx]))
+        nm11 = float(np.sum(POSITIVE == predicted[:, posidx]))
+        m10 =  nm10 / len(posidx)
+        m11 =  nm11 / len(posidx)
+
+    return np.matrix([[m00, m01], [m10, m11]], 'float')
+    #if verbose:
+    #    print 'Confusion matrix:'
+    #    print '-   %5.2f, %5.2f' % (100.* m00, 100.* m01)
+    #    print '+  %5.2f, %5.2f' % (100.* m10, 100.* m11)
+    #    print '   Total %5.2f' % (100.* (float(np.sum(true_labels == predicted)) / true_labels.shape[1]))
+    #return {'mat': np.matrix([[nm00, nm01], [nm10, nm11]], 'float'), 
+    #        'neg': len(negidx), 
+    #        'pos': len(posidx)}
+
+
 def instances_to_image(win_size, instances, min_val, max_val):
     img_arrs = []
     for i in range(instances.shape[1]):
@@ -171,7 +200,6 @@ def load_data_from_file2(fname, rec_param):
     return IntensityCloudData(data_pkl['points3d'], intensity_image,
             data_pkl['k_T_bl'], data_pkl['cal'], center_point_bl, center_point_bl, 
             distance_feature_points, rec_param), data_pkl
-
 
 
 def dataset_to_libsvm(dataset, filename):
@@ -1398,6 +1426,12 @@ class InterestPointDataset(ds.Dataset):
     def copy(self):
         ipd = InterestPointDataset(self.inputs.copy(), self.outputs.copy(), 
                 copy.copy(self.pt2d), copy.copy(self.pt3d), None)
+        ipd.metadata = copy.deepcopy(self.metadata)
+        return ipd
+
+    def subset(self, indices):
+        ipd = InterestPointDataset(self.inputs[:, indices].copy(), self.outputs[:, indices].copy(), 
+                copy.copy(self.pt2d[:, indices]), copy.copy(self.pt3d[:, indices]), None)
         ipd.metadata = copy.deepcopy(self.metadata)
         return ipd
 

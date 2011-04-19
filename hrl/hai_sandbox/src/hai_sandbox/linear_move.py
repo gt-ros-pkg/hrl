@@ -461,7 +461,7 @@ class LocationManager:
 
     def publish_image(self, task_id, image):
         self.image_pubs[task_id].publish(image)
-        ffull = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '.png')
+        ffull = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '.jpg')
         cv.SaveImage(ffull, image)
 
     def list_all(self):
@@ -1589,6 +1589,7 @@ class ApplicationBehaviors:
         unconverged_locs = np.where(self.locations_man.data[tid]['practice_locations_convergence'] == 0)[1]
         rospy.loginfo("Location history: %s" % str(self.locations_man.data[tid]['practice_locations_history']))
         run_loop = True
+        pdb.set_trace()
 
         #If this is a fresh run, start with current location
         if unexplored_locs.shape[0] == len(self.locations_man.data[tid]['practice_locations']):
@@ -1611,74 +1612,78 @@ class ApplicationBehaviors:
 
         #Commence practice!
         while True: #%not converged:
-            #Drive to location
-            self.driving_posture(task_type)
 
-            #Move to setup location
-            self.robot.sound.say('Driving to practice location')
-            rvalue, dist = self.move_base_planner(*self.locations_man.data[tid]['practice_locations'][pidx])
-            rospy.loginfo('move ret value %s dist %f' % (str(rvalue), dist))
+            if self.locations_man.data[tid]['practice_locations_convergence'][0, pidx] == 0:
+                #Drive to location
+                self.driving_posture(task_type)
 
-            #Move to location where we were first initialized
-            self.robot.sound.say('Driving to mechanism location')
-            rvalue, dist = self.move_base_planner(*self.locations_man.data[tid]['base_pose'])
+                #Move to setup location
+                self.robot.sound.say('Driving to practice location')
+                rvalue, dist = self.move_base_planner(*self.locations_man.data[tid]['practice_locations'][pidx])
+                rospy.loginfo('move ret value %s dist %f' % (str(rvalue), dist))
 
-            #Reorient base
-            bl_T_map = tfu.transform('base_link', 'map', self.tf_listener)
-            point_bl = tfu.transform_points(bl_T_map, point_map)
-            ret = self.location_approach_driving(task_type, point_bl)
-            self.robot.base.set_pose(self.robot.base.get_pose()[0], self.locations_man.data[tid]['base_pose'][1], 'map')
-            if not ret[0]:
-                rospy.loginfo('Driving failed!! Resetting.')
-                #pdb.set_trace()
-                #return False, ret[1]
-                continue
+                #Move to location where we were first initialized
+                self.robot.sound.say('Driving to mechanism location')
+                rvalue, dist = self.move_base_planner(*self.locations_man.data[tid]['base_pose'])
 
-            self.manipulation_posture(task_type)
-            bl_T_map = tfu.transform('base_link', 'map', self.tf_listener)
-            point_bl = tfu.transform_points(bl_T_map, point_map)
-            self.look_at(point_bl, False)
+                #Reorient base
+                bl_T_map = tfu.transform('base_link', 'map', self.tf_listener)
+                point_bl = tfu.transform_points(bl_T_map, point_map)
+                ret = self.location_approach_driving(task_type, point_bl)
+                self.robot.base.set_pose(self.robot.base.get_pose()[0], self.locations_man.data[tid]['base_pose'][1], 'map')
+                if not ret[0]:
+                    rospy.loginfo('Driving failed!! Resetting.')
+                    #pdb.set_trace()
+                    #return False, ret[1]
+                    continue
 
-            #Practice
-            self.robot.sound.say('practicing')
-            ctid = self.locations_man.data[tid]['complementary_task_id']
+                self.manipulation_posture(task_type)
+                bl_T_map = tfu.transform('base_link', 'map', self.tf_listener)
+                point_bl = tfu.transform_points(bl_T_map, point_map)
+                self.look_at(point_bl, False)
 
-            points_before_t = self.locations_man.data[tid]['dataset'].inputs.shape[1]
-            points_before_ct = self.locations_man.data[ctid]['dataset'].inputs.shape[1]
+                #Practice
+                self.robot.sound.say('practicing')
+                ctid = self.locations_man.data[tid]['complementary_task_id']
 
-            points_added = self.practice(tid, ctid,  point_bl)
+                points_before_t = self.locations_man.data[tid]['dataset'].inputs.shape[1]
+                points_before_ct = self.locations_man.data[ctid]['dataset'].inputs.shape[1]
 
-            points_added_history.append(points_added)
-            points_after_t = self.locations_man.data[tid]['dataset'].inputs.shape[1]
-            points_after_ct = self.locations_man.data[ctid]['dataset'].inputs.shape[1]
-            self.locations_man.record_time(tid,  'num_points_added_' + tid, points_after_t - points_before_t)
-            self.locations_man.record_time(ctid, 'num_points_added_' + tid, points_after_ct - points_before_ct)
+                points_added = self.practice(tid, ctid,  point_bl)
 
-            self.locations_man.data[tid]['practice_locations_history'][0, pidx] += 1
-            #If no points added and we have explored all locations
-            #if points_added == 0 and np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1].shape[0] == 0:
-            if points_added == 0:# and np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1].shape[0] == 0:
-                self.locations_man.data[tid]['practice_locations_convergence'][0, pidx] = 1
-                rospy.loginfo('===================================================')
-                rospy.loginfo('= LOCATION CONVERGED ')
-                rospy.loginfo('Converged locs: %s' % str(self.locations_man.data[tid]['practice_locations_convergence']))
-                rospy.loginfo('using instances %d points added' % (points_after_t - points_before_t))
-                rospy.loginfo('history %s' % str(points_added_history))
-                rospy.loginfo('number of iterations it took %s' % str(np.sum(points_added_history)))
-                rospy.loginfo('number of datapoints %s' % str(self.locations_man.data[tid]['dataset'].outputs.shape))
-                rospy.loginfo('===================================================')
-                if np.where(self.locations_man.data[tid]['practice_locations_convergence'] == 0)[1].shape[1] <= 0:
-                    break
-            else:
-                rospy.loginfo('===================================================')
-                rospy.loginfo('= Scan converged!')
-                rospy.loginfo('using instances %d points added' % (points_after_t - points_before_t))
-                rospy.loginfo('history %s' % str(points_added_history))
-                rospy.loginfo('number of iterations so far %s' % str(np.sum(points_added_history)))
-                rospy.loginfo('number of datapoints %s' % str(self.locations_man.data[tid]['dataset'].outputs.shape))
-                rospy.loginfo('===================================================')
+                points_added_history.append(points_added)
+                points_after_t = self.locations_man.data[tid]['dataset'].inputs.shape[1]
+                points_after_ct = self.locations_man.data[ctid]['dataset'].inputs.shape[1]
+                self.locations_man.record_time(tid,  'num_points_added_' + tid, points_after_t - points_before_t)
+                self.locations_man.record_time(ctid, 'num_points_added_' + tid, points_after_ct - points_before_ct)
+
+                self.locations_man.data[tid]['practice_locations_history'][0, pidx] += 1
+                #If no points added and we have explored all locations
+                #if points_added == 0 and np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1].shape[0] == 0:
+                if points_added == 0:# and np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1].shape[0] == 0:
+                    self.locations_man.data[tid]['practice_locations_convergence'][0, pidx] = 1
+                    rospy.loginfo('===================================================')
+                    rospy.loginfo('= LOCATION CONVERGED ')
+                    rospy.loginfo('Converged locs: %s' % str(self.locations_man.data[tid]['practice_locations_convergence']))
+                    rospy.loginfo('using instances %d points added' % (points_after_t - points_before_t))
+                    rospy.loginfo('history %s' % str(points_added_history))
+                    rospy.loginfo('number of iterations it took %s' % str(np.sum(points_added_history)))
+                    rospy.loginfo('number of datapoints %s' % str(self.locations_man.data[tid]['dataset'].outputs.shape))
+                    rospy.loginfo('===================================================')
+                    if np.where(self.locations_man.data[tid]['practice_locations_convergence'] == 0)[1].shape[0] <= 0:
+                        break
+                else:
+                    rospy.loginfo('===================================================')
+                    rospy.loginfo('= Scan converged!')
+                    rospy.loginfo('Converged locs: %s' % str(self.locations_man.data[tid]['practice_locations_convergence']))
+                    rospy.loginfo('using instances %d points added' % (points_after_t - points_before_t))
+                    rospy.loginfo('history %s' % str(points_added_history))
+                    rospy.loginfo('number of iterations so far %s' % str(np.sum(points_added_history)))
+                    rospy.loginfo('number of datapoints %s' % str(self.locations_man.data[tid]['dataset'].outputs.shape))
+                    rospy.loginfo('===================================================')
 
             pidx = (pidx + 1) % len(self.locations_man.data[tid]['practice_locations'])
+            self.locations_man.save_database()
 
         self.driving_posture(task_type)
         #ulocs = self.unreliable_locs()
@@ -2171,7 +2176,7 @@ class ApplicationBehaviors:
                 undo_point_map = self.locations_man.data[ctask_id]['center']
                 undo_point_bl0 = tfu.transform_points(tfu.transform('base_link', 'map', self.tf_listener), undo_point_map)
                 #self.practice(ctask_id, None, undo_point_bl, stop_fun=any_pos_sf)
-                pdb.set_trace()
+                #pdb.set_trace()
                 self.practice(ctask_id, None, undo_point_bl0, stop_fun=any_pos_sf)
             reset_end = time.time()
 
@@ -2247,6 +2252,17 @@ class ApplicationBehaviors:
         dataset.outputs = dataset.outputs[:, sindices]
         dataset.inputs  = dataset.inputs[:, sindices]
 
+    def profile_me(self, task_id, point_bl):
+        for i in range(2):
+            params = r3d.Recognize3DParam()
+            params.uncertainty_x = 1.
+            params.uncertainty_y = .04
+            params.uncertainty_z = .04
+            params.n_samples = 5000
+            params.uni_mix = 0.1
+            print 'PROFILE_ME ITERATION', i
+            fea_dict, image_name = self.read_features_save(task_id, point_bl, params)
+
 
     ###
     # TODO: GASP!! WE MIGHT NOT NEED THIS AFTER ALL, JUST INITIALIZE RANDOMLY!
@@ -2271,9 +2287,15 @@ class ApplicationBehaviors:
         params.uncertainty_z = .04
         params.n_samples = 800
         params.uni_mix = 0.1
+
+
+        #profile read_reatures_save
+        #cProfile.runctx('self.profile_me(task_id, point_bl)', globals(), locals(), filename='read_features_save.prof')
+        #pdb.set_trace()
     
         #Scan
         fea_dict, image_name = self.read_features_save(task_id, point_bl, params)
+
         behavior = self.get_behavior_by_task(self.locations_man.data[task_id]['task'])
         image_T_bl = tfu.transform(self.OPTICAL_FRAME, 'base_link', self.tf_listener)
         fea_dict['image_T_bl'] = image_T_bl
@@ -2428,6 +2450,8 @@ class ApplicationBehaviors:
 
         return f, kimage_name
         #self.save_dataset(point, name, f['rdict'])
+
+
 
     ##
     #TODO: test this
@@ -2605,28 +2629,196 @@ class ApplicationBehaviors:
     #            converged = True
 
 
+class TestLearner:
+
+    def __init__(self):
+        self.rec_params = r3d.Recognize3DParam()
+        self.locations_man = LocationManager('locations_narrow_v11.pkl', rec_params=self.rec_params)
+
+    def test_training_set(self):
+        #Pick
+        tasks = self.locations_man.data.keys()
+        for i, k in enumerate(tasks):
+            print i, k
+        task_id = tasks[int(raw_input())]
+
+        #Train
+        dataset = self.locations_man.data[task_id]['dataset']
+        pca = self.locations_man.data[task_id]['pca']
+
+        nneg = np.sum(dataset.outputs == r3d.NEGATIVE) 
+        npos = np.sum(dataset.outputs == r3d.POSITIVE)
+        print '================= Training ================='
+        print 'NEG examples', nneg
+        print 'POS examples', npos
+        print 'TOTAL', dataset.outputs.shape[1]
+        neg_to_pos_ratio = float(nneg)/float(npos)
+        #pdb.set_trace()
+
+        #np.random.permutation(range(da
+        #separate into positive and negative
+        #take 30%
+        #train/test
+        all_costs_scores = []
+        all_ratio_scores = []
+        all_bandwidth_scores = []
+        for i in range(10):
+            percent = .3
+            negidx = np.where(dataset.outputs==r3d.NEGATIVE)[1].A1
+            posidx = np.where(dataset.outputs==r3d.POSITIVE)[1].A1
+            nneg = np.ceil(len(negidx) * percent)
+            npos = np.ceil(len(posidx) * percent)
+            negperm = np.random.permutation(range(len(negidx)))
+            posperm = np.random.permutation(range(len(posidx)))
+
+            test_pos_idx = negperm[0:nneg]
+            test_neg_idx = posperm[0:npos]
+            test_idx = np.concatenate((test_pos_idx, test_neg_idx))
+
+            train_pos_idx = negperm[nneg:] 
+            train_neg_idx = posperm[npos:]
+            train_idx = np.concatenate((train_pos_idx, train_neg_idx))
+
+            test_set = dataset.subset(test_idx)
+            train_set = dataset.subset(train_idx)
+
+            #pdb.set_trace()
+            ratio_score = []
+            ratios = [neg_to_pos_ratio * (float(i+1)/10.) for i in range(10)]
+            for r in ratios:
+                print '######################################################'
+                print 'ratio is ', r
+                svm_params = '-s 0 -t 2 -g .4 -c 1 '
+                learner = self.train(train_set, pca, r, svm_params)
+                predictions = np.matrix(learner.classify(test_set.inputs))
+                conf_mat = r3d.confusion_matrix(test_set.outputs, predictions)
+                combined = conf_mat[0,0] + conf_mat[1,1]
+                print '!!!!!!!!!!!'
+                print conf_mat
+                print combined
+                print '!!!!!!!!!!!'
+                ratio_score.append(combined)
+
+            bandwidth_score = []
+            bandwidths = []
+            for i in range(40):
+                print '######################################################'
+                g = i * .1 #.00625
+                bandwidths.append(g)
+                print 'g is ', g
+                svm_params = '-s 0 -t 2 -g %.2f -c 1 ' % g
+                learner = self.train(train_set, pca, neg_to_pos_ratio, svm_params)
+                predictions = np.matrix(learner.classify(test_set.inputs))
+                conf_mat = r3d.confusion_matrix(test_set.outputs, predictions)
+                combined = conf_mat[0,0] + conf_mat[1,1]
+                print '!!!!!!!!!!!'
+                print conf_mat
+                print combined
+                print '!!!!!!!!!!!'
+                bandwidth_score.append(combined)
+
+            cost_score = []
+            costs = []
+            for i in range(40):
+                print '######################################################'
+                cost = i + 1
+                costs.append(cost)
+                print 'cost is ', cost
+                svm_params = '-s 0 -t 2 -g .4 -c %.2f ' % cost
+                learner = self.train(train_set, pca, neg_to_pos_ratio, svm_params)
+                predictions = np.matrix(learner.classify(test_set.inputs))
+                conf_mat = r3d.confusion_matrix(test_set.outputs, predictions)
+                combined = conf_mat[0,0] + conf_mat[1,1]
+                print '!!!!!!!!!!!'
+                print conf_mat
+                print combined
+                print '!!!!!!!!!!!'
+                cost_score.append(combined)
+
+            print 'Cost score'
+            print costs
+            print cost_score, "\n"
+
+            print 'Ratio score'
+            print ratios
+            print ratio_score, "\n"
+
+            print 'Bandwidth score'
+            print bandwidths 
+            print bandwidth_score, "\n"
+            all_costs_scores.append(cost_score)
+            all_ratio_scores.append(ratio_score)
+            all_bandwidth_scores.append(bandwidth_score)
+
+        
+        print 'Cost score'
+        print costs
+        costs_mean = np.sum(np.matrix(all_costs_scores), 0) / float(len(all_costs_scores))
+        print costs_mean
+        print np.max(costs_mean)
+
+        print 'Ratio score'
+        print ratios
+        ratios_mean = np.sum(np.matrix(all_ratio_scores), 0) / float(len(all_ratio_scores))
+        print ratios_mean
+        print np.max(ratios_mean)
+
+        print 'Bandwidth score'
+        print bandwidths 
+        bandwidths_mean = np.sum(np.matrix(all_bandwidth_scores), 0) / float(len(all_bandwidth_scores))
+        print bandwidths_mean
+        print np.max(bandwidths_mean)
+
+
+
+
+    def train(self, dataset, pca, neg_to_pos_ratio, svm_params):
+        weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
+        previous_learner = None
+        learner = r3d.SVMPCA_ActiveLearner(use_pca=True, 
+                        reconstruction_std_lim=self.rec_params.reconstruction_std_lim, 
+                        reconstruction_err_toler=self.rec_params.reconstruction_err_toler,
+                        old_learner=None, pca=pca)
+
+        rec_params = self.rec_params
+        inputs_for_pca = dataset.inputs
+        learner.train(dataset, 
+                      inputs_for_pca,
+                      svm_params + weight_balance,
+                      rec_params.variance_keep)
+        return learner
+
+
+
 def launch():
     import optparse
     p = optparse.OptionParser()
     p.add_option("-p", "--practice", action="store_true", default=False)
     p.add_option("-e", "--execute", action="store_true", default=False)
     p.add_option("-i", "--init", action="store_true", default=False)
+    p.add_option("-t", "--test", action="store_true", default=False)
 
     opt, args = p.parse_args()
 
-    l = ApplicationBehaviors()
-    mode = None
-    if opt.practice:
-        mode = 'practice'
-    if opt.execute:
-        mode = 'execute'
-    if opt.init:
-        mode = 'init'
+    if opt.practice or opt.execute or opt.init:
+        l = ApplicationBehaviors()
+        mode = None
+        if opt.practice:
+            mode = 'practice'
+        if opt.execute:
+            mode = 'execute'
+        if opt.init:
+            mode = 'init'
+        l.run(mode)
 
-    l.run(mode)
+    if opt.test:
+        tl = TestLearner()
+        tl.test_training_set()
+
 
 if __name__ == '__main__':
-    cProfile.run('launch()', 'profile_linear_move.prof)
+    launch()
+    #cProfile.run('launch()', 'profile_linear_move.prof')
 
 
 
