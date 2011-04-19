@@ -1,0 +1,27 @@
+<package>
+  <description brief="hrl_object_fetching">
+
+     hrl_object_fetching
+
+  </description>
+  <author>kelsey</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_object_fetching</url>
+  <depend package="pr2_overhead_grasping"/>
+  <depend package="hrl_rfid"/>
+  <depend package="rospy"/>
+  <depend package="roslaunch"/>
+  <depend package="rosnode"/>
+  <depend package="tabletop_object_detector"/>
+  <depend package="spline_smoother"/>
+  <depend package="tf"/>
+  <depend package="pcl_ros"/>
+  <depend package="pcl"/>
+  <depend package="opencv2" />
+  <depend package="cv_bridge" />
+  <depend package="image_transport" />
+
+</package>
+
+
