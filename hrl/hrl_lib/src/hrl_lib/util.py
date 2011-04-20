@@ -189,3 +189,13 @@ def matrixrank(A,tol=1e-8):
     s = np.linalg.svd(A,compute_uv=0)
     return sum( np.where( s>tol, 1, 0 ) )
 
+
+## get keystroks on Cody. raw_input + Cody + ROS results in some
+#strange behavior.
+def get_keystroke(msg):
+    import m3.toolbox as m3t
+    print msg
+    return m3t.get_keystroke()
+
+
+
