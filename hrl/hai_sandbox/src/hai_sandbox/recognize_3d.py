@@ -1459,7 +1459,8 @@ class Recognize3DParam:
         self.radius = .5
         self.robot_reach_radius = 2.5
         #self.svm_params = '-s 0 -t 2 -g .0625 -c 4'
-        self.svm_params = '-s 0 -t 2 -g .0625 -c 4'
+        #self.svm_params = '-s 0 -t 2 -g .0625 -c 4'
+        self.svm_params = '-s 0 -t 2 -g .4 -c 4'
         #self.svm_params = '-s 0 -t 2 -g 3.0 -c 4'
 
         #sampling parameters

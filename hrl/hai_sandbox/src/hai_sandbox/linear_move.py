@@ -2532,6 +2532,20 @@ class ApplicationBehaviors:
                 if success:
                     self.locations_man.update_execution_record(task_id, 1.)
                     self.robot.sound.say('action succeeded')
+                    label = r3d.POSITIVE
+
+                    dataset = self.locations_man.data[task_id]['dataset']
+                    nneg = np.sum(dataset.outputs == r3d.NEGATIVE) 
+                    npos = np.sum(dataset.outputs == r3d.POSITIVE)
+                    if nneg > npos:
+                        datapoint = {'instances': kdict['instances'][:, selected_idx],
+                                     'points2d':  kdict['points2d'][:, selected_idx],
+                                     'points3d':  kdict['points3d'][:, selected_idx],
+                                     'sizes':     kdict['sizes'],
+                                     'labels':    np.matrix([label])}
+                        self.locations_man.add_perceptual_data(task_id, datapoint)
+                        self.locations_man.save_database()
+                        self.locations_man.train(task_id, kdict)
                     break
                 else:
                     self.robot.sound.say('action failed')
@@ -2662,7 +2676,7 @@ class TestLearner:
         all_costs_scores = []
         all_ratio_scores = []
         all_bandwidth_scores = []
-        for i in range(10):
+        for i in range(40):
             percent = .3
             negidx = np.where(dataset.outputs==r3d.NEGATIVE)[1].A1
             posidx = np.where(dataset.outputs==r3d.POSITIVE)[1].A1
@@ -2735,17 +2749,17 @@ class TestLearner:
                 print '!!!!!!!!!!!'
                 cost_score.append(combined)
 
-            print 'Cost score'
-            print costs
-            print cost_score, "\n"
+            #print 'Cost score'
+            #print costs
+            #print cost_score, "\n"
 
-            print 'Ratio score'
-            print ratios
-            print ratio_score, "\n"
+            #print 'Ratio score'
+            #print ratios
+            #print ratio_score, "\n"
 
-            print 'Bandwidth score'
-            print bandwidths 
-            print bandwidth_score, "\n"
+            #print 'Bandwidth score'
+            #print bandwidths 
+            #print bandwidth_score, "\n"
             all_costs_scores.append(cost_score)
             all_ratio_scores.append(ratio_score)
             all_bandwidth_scores.append(bandwidth_score)
@@ -2756,18 +2770,21 @@ class TestLearner:
         costs_mean = np.sum(np.matrix(all_costs_scores), 0) / float(len(all_costs_scores))
         print costs_mean
         print np.max(costs_mean)
+        print costs[np.argmax(costs_mean)]
 
         print 'Ratio score'
         print ratios
         ratios_mean = np.sum(np.matrix(all_ratio_scores), 0) / float(len(all_ratio_scores))
         print ratios_mean
         print np.max(ratios_mean)
+        print ratios[np.argmax(ratios_mean)]
 
         print 'Bandwidth score'
         print bandwidths 
         bandwidths_mean = np.sum(np.matrix(all_bandwidth_scores), 0) / float(len(all_bandwidth_scores))
         print bandwidths_mean
         print np.max(bandwidths_mean)
+        print bandwidths[np.argmax(bandwidths_mean)]
 
 
 
