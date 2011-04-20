@@ -1,0 +1,9 @@
+<launch>
+    <!--<arg name="tabletop_segmentation_points_in" default="narrow_stereo_textured/points2" />-->
+    <arg name="tabletop_segmentation_points_in" default="kinect_head/rgb/points" />
+
+    <node pkg="hrl_object_fetching" name="tabletop_detector" type="tabletop_detector" respawn="true">
+        <param name="run_service" type="bool" value="true" />
+    </node>
+
+</launch>
