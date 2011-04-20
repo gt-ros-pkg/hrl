@@ -8,10 +8,10 @@ import threading
 import random
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-import yaml
+#import yaml
 sys.path.append("/usr/lib/python2.6/site-packages")
-import cv
-import arff
+#import cv
+#import arff
 
 import roslib; roslib.load_manifest('pr2_overhead_grasping')
 import rospy
@@ -24,7 +24,7 @@ from geometry_msgs.msg import  Point, Pose, Quaternion, PoseStamped, PointStampe
 
 import object_manipulator.convert_functions as cf
 from object_manipulator.cluster_bounding_box_finder import ClusterBoundingBoxFinder
-from tabletop_object_detector.srv import TabletopDetection
+from tabletop_object_detector.srv import TabletopSegmentation
 from tabletop_object_detector.msg import TabletopDetectionResult
 
 import hrl_lib.util
@@ -82,8 +82,8 @@ class OverheadGraspManager():
     def detect_tabletop_objects(self):
         DETECT_ERROR = 0.
         cbbf = ClusterBoundingBoxFinder(tf_listener=self.oger.cm.tf_listener)
-        object_detector = rospy.ServiceProxy("/object_detection", TabletopDetection)
-        detects = object_detector(True, False).detection
+        object_detector = rospy.ServiceProxy("/object_detection", TabletopSegmentation)
+        detects = object_detector()
         object_detector.close()
         if detects.result != 4:
             err("Detection failed (err %d)" % (detects.result))
@@ -135,7 +135,7 @@ class OverheadGraspManager():
 
         while not grasped and num_tries < 4:
             log("Detect in")
-            self.change_projector_mode(True)
+#self.change_projector_mode(True)
             rospy.sleep(0.6)
             detect_tries = 0
             objects = None
@@ -159,7 +159,7 @@ class OverheadGraspManager():
                     log("Detect2 out")
                     obj = min(objects, key=dist)
 
-                self.change_projector_mode(False)
+#self.change_projector_mode(False)
                 self.grasp_object(obj, use_z=use_z)
                 rospy.sleep(0.2)
                 grasped = self.is_obj_in_gripper()
@@ -190,7 +190,7 @@ class OverheadGraspManager():
 
         while not grasped and num_tries < 4:
             log("Detect in")
-            self.change_projector_mode(True)
+#self.change_projector_mode(True)
             rospy.sleep(0.6)
             detect_tries = 0
             objects = None
@@ -213,7 +213,7 @@ class OverheadGraspManager():
                 log("Detect2 out")
                 obj = min(objects, key=dist)
 
-                self.change_projector_mode(False)
+#self.change_projector_mode(False)
                 return obj
             else:
                 log("No objects near point")

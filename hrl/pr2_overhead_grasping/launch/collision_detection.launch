@@ -1,7 +1,7 @@
 <launch>
   <include file="$(find pr2_overhead_grasping)/launch/init_params.launch"/>
   <include file="$(find pr2_overhead_grasping)/launch/simple_grasp_pipeline.launch"/>
-  <include file="$(find collision_detection)/launch/sigma_detection.launch"/>
+  <!--<include file="$(find collision_detection)/launch/sigma_detection.launch"/>-->
   <node pkg="nodelet" type="nodelet" name="coll_manager"  args="manager" output="screen">
     <param name="num_worker_threads" type="int" value="5" />
   </node>
@@ -13,7 +13,7 @@
     <param name="arm" type="str" value="r"/>
     <param name="collision_id" type="int" value="1"/>
 
-    <param name="rf_on" type="bool" value="true"/>
+    <param name="rf_on" type="bool" value="false"/>
     <param name="sigma_on" type="bool" value="false"/>
     <param name="error_on" type="bool" value="true"/>
 
@@ -24,10 +24,10 @@
     <param name="sigma_thresh" type="double" value="1.5"/>
     <param name="sigma_num" type="int" value="2"/>
 
-    <rosparam param="min_errors"> [-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1] </rosparam>
-    <rosparam param="max_errors"> [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1] </rosparam>
+    <rosparam param="min_errors"> [-0.028, -0.04, -0.04, -0.06, -0.1, -0.02, -0.025] </rosparam>
+    <rosparam param="max_errors"> [0.03, 0.05, 0.06, 0.06, 0.08, 0.02, 0.025] </rosparam>
 
-    <rosparam param="classifier_topics">
+    <!--<rosparam param="classifier_topics">
         [r_arm_collision_detect,
          r_arm_gripper_direct,
          r_arm_forearm_direct,
@@ -35,7 +35,8 @@
          r_arm_link_detect,
          r_arm_collision_detect_late,
          r_arm_collision_table]
-    </rosparam>
+    </rosparam>-->
+    <rosparam param="classifier_topics"> [] </rosparam>
   </node>                 
   <node pkg="nodelet" type="nodelet" name="force_torque_monitor" args="load collision_detection/force_torque_monitor standalone_nodelet" output="screen">
     <param name="arm" type="str" value="r"/>

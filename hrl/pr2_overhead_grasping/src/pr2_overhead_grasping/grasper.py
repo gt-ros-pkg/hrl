@@ -147,8 +147,8 @@ class OverheadGrasper():
 
         self.load_parameters()
         self.fos = FileOperations()
-        if use_classifiers:
-            self.apm = ArmPerceptionMonitor(arm) #, load_classifiers=load_classifiers)
+        #if use_classifiers:
+        #    self.apm = ArmPerceptionMonitor(arm) #, load_classifiers=load_classifiers)
 
         if active:
             #if use_classifiers:
@@ -158,8 +158,21 @@ class OverheadGrasper():
                     SingleJointPositionAction)
             self.spine.wait_for_server()
             self.cm = ControllerManager(self.armc)
-            if use_classifiers:
-                self.apm.activate_sensing(self.cm.tf_listener)
+            log("Waiting for %s_start_detection" % self.armc)
+            rospy.wait_for_service(self.armc + '_start_detection')
+            self.start_detection = rospy.ServiceProxy(self.armc + '_start_detection', std_srvs.srv.Empty, persistent=True)
+            log("Waiting for %s_stop_detection" % self.armc)
+            rospy.wait_for_service(self.armc + '_stop_detection')
+            self.stop_detection = rospy.ServiceProxy(self.armc + '_stop_detection', std_srvs.srv.Empty, persistent=True)
+            class CollisionFT:
+                def __init__(self):
+                    self.collided = False
+                def callback(self, msg):
+                    self.collided = True
+            self.coll_class = CollisionFT()
+            rospy.Subscriber(self.armc + "_arm_collision_detected", Bool, self.coll_class.callback)
+            #if use_classifiers:
+            #    self.apm.activate_sensing(self.cm.tf_listener)
 
         if ki is None:
             ki = KeyboardInput()
@@ -498,15 +511,17 @@ class OverheadGrasper():
         # move arm down
         log("Moving arm down")
         startt = rospy.Time.now().to_sec()
-        if not self.apm.begin_collision_detection(dynamic_detection=True, 
-                                                  callback=self.kill_arm_movement):
-            return "ERROR"
+        #if not self.apm.begin_collision_detection(dynamic_detection=True, 
+        #                                          callback=self.kill_arm_movement):
+        #    return "ERROR"
         #result = self.downward_grasp(goal_pose, block = False)
-        result = self.behavior.execute_grasp(True)
+        self.start_detection()
+        result = self.behavior.execute_grasp(False)
 
         if result == "no solution":
             # break without completing the grasp
-            self.apm.end_collision_detection()
+            #self.apm.end_collision_detection()
+            self.stop_detection()
             return "no solution"
 
         # grasp should be successful and be moving now
@@ -519,6 +534,9 @@ class OverheadGrasper():
                 if rospy.is_shutdown():
                     self.kill_arm_movement()
                     return "shutdown"
+                if self.coll_class.collided:
+                    self.kill_arm_movement()
+                    break
                 rospy.sleep(0.005)
         else:
             # wait until we have either collided or have reached the desired height
@@ -530,19 +548,25 @@ class OverheadGrasper():
                     self.kill_arm_movement()
                     grasp_result = "Reached z"
                     break
-                rospy.sleep(0.005)
                 if rospy.is_shutdown():
                     self.kill_arm_movement()
                     return "shutdown"
-            if self.apm.collision_detected:
-                log("Collided before reaching z position")
+                if self.coll_class.collided:
+                    self.kill_arm_movement()
+                    break
+                rospy.sleep(0.005)
+            #if self.apm.collision_detected:
+            #    log("Collided before reaching z position")
 
-        self.apm.end_collision_detection()
+        #self.apm.end_collision_detection()
+        self.stop_detection()
+        self.coll_class.collided = False
         endt = rospy.Time.now().to_sec()
         log("Grasp duration:", endt - startt)
         log("Finished moving arm")
         if grasp_result == "collision":
-            grasp_result = self.apm.collision_type
+            #grasp_result = self.apm.collision_type
+            grasp_result = "Table collision"
         return grasp_result
 
     def jiggle_grasp_loc(self, x, y, r):

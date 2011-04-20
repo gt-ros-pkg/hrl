@@ -15,6 +15,7 @@
   <depend package="rosnode"/>
   <depend package="spline_smoother"/>
   <depend package="tf"/>
+  <depend package="bullet"/>
   <depend package="pcl_ros"/>
   <depend package="pcl"/>
   <depend package="opencv2" />

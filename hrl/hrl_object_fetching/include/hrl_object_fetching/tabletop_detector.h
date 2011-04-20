@@ -16,6 +16,8 @@
 #include <sensor_msgs/image_encodings.h>
 #include <geometry_msgs/PoseArray.h>
 #include <hrl_object_fetching/DetectTable.h>
+#include <LinearMath/btMatrix3x3.h>
+#include <LinearMath/btQuaternion.h>
 
 using namespace sensor_msgs;
 using namespace std;
@@ -26,10 +28,12 @@ namespace hrl_object_fetching {
     class TabletopDetector {
         public:
             TabletopDetector();
-            ros::ServiceClient tab_seg_client;
+            ros::ServiceServer table_detect_service;
             ros::Subscriber pc_sub;
             ros::NodeHandle nh;
+            ros::NodeHandle nh_priv;
             ros::Publisher pc_pub;
+            ros::Publisher pose_arr_pub;
             bool grasp_points_found;
             geometry_msgs::PoseArray grasp_points;
             image_transport::ImageTransport img_trans;
