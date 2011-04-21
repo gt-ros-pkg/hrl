@@ -57,11 +57,6 @@ class OverheadGraspManager():
                                     use_classifiers=use_classifiers)
 
     ##
-    # Checks to see if anything is in the gripper currently (gripper is not fully closed).
-    def is_obj_in_gripper(self):
-        return self.oger.cm.get_current_gripper_opening() > 0.01
-
-    ##
     # Close gripper. Will continue applying force.
     def close_gripper(self, blocking = False):
         self.oger.cm.command_gripper(0.0, 30.0, False)
@@ -633,10 +628,16 @@ class OverheadGraspManager():
         grasp_result = self.oger.perform_grasp(x, y, gripper_rot=rot, 
                                                is_place=not goal.is_grasp)
         result.grasp_result = grasp_result
-        if grasp_result == "Object grasped":
-            self.grasping_server.set_succeeded(grasp_result)
+        if goal.is_grasp:
+            if grasp_result == "Object grasped":
+                self.grasping_server.set_succeeded(result)
+            else:
+                self.grasping_server.set_aborted(result)
         else:
-            self.grasping_server.set_aborted(grasp_result)
+            if grasp_result == "Object placed":
+                self.grasping_server.set_succeeded(result)
+            else:
+                self.grasping_server.set_aborted(result)
 
 def testing(arm):
     return

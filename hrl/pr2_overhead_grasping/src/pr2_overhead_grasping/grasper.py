@@ -261,7 +261,7 @@ class OverheadGrasper():
         num_collected = 0
 
         log("Opening gripper")
-        self.cm.command_gripper(0.08, -1.0, False)
+        self.cm.command_gripper(1.00, -1.0, False)
         log("Moving spine")
         self.move_spine()
         self.cm.gripper_action_client.wait_for_result(rospy.Duration(4.0))
@@ -383,7 +383,7 @@ class OverheadGrasper():
                 self.collided = True
 
         log("Opening gripper")
-        self.cm.command_gripper(0.08, -1.0, False)
+        self.cm.command_gripper(1.00, -1.0, False)
         log("Moving spine")
         self.move_spine()
         self.cm.gripper_action_client.wait_for_result(rospy.Duration(4.0))
@@ -501,7 +501,7 @@ class OverheadGrasper():
         if open_gripper:
             # open gripper
             log("Opening gripper")
-            self.cm.command_gripper(0.08, -1.0, False)
+            self.cm.command_gripper(1.00, -1.0, False)
             self.cm.gripper_action_client.wait_for_result(rospy.Duration(2.0))
         self.cm.wait_joint_trajectory_done()
 
@@ -560,13 +560,14 @@ class OverheadGrasper():
 
         #self.apm.end_collision_detection()
         self.stop_detection()
+        if self.coll_class.collided:
+            grasp_result = "Collision"
+        else:
+            grasp_result = "No collision"
         self.coll_class.collided = False
         endt = rospy.Time.now().to_sec()
         log("Grasp duration:", endt - startt)
         log("Finished moving arm")
-        if grasp_result == "collision":
-            #grasp_result = self.apm.collision_type
-            grasp_result = "Table collision"
         return grasp_result
 
     def jiggle_grasp_loc(self, x, y, r):
@@ -587,7 +588,7 @@ class OverheadGrasper():
 
     def placing_action(self):
         log("Opening gripper")
-        self.cm.command_gripper(0.08, -1.0, False)
+        self.cm.command_gripper(1.00, -1.0, False)
         rospy.sleep(0.5)
         log("Gripper opened")
 
@@ -626,7 +627,7 @@ class OverheadGrasper():
         log("Performing grasp (%1.2f, %1.2f), rotation: %1.2f" % (x, y, gripper_rot))
         log("Beginning grasp")
         iters = 0
-        while True:
+        while not rospy.is_shutdown():
             # Move to grasp position
             self.stage_grasp(x, y, gripper_rot, not is_place)
             rospy.sleep(0.1)
@@ -649,23 +650,42 @@ class OverheadGrasper():
                 else:
                     continue
 
-        affector_pos = self.get_end_affector_pos()
-        if not disable_env:
-            if (grasp_result == "Environmental collision" or
-                grasp_result == "No collision" and 
-                (z is None or np.fabs(z - affector_pos[2]) < 0.03)):
-                # Stop here because there is not a successful grasp configuration
-                return grasp_result
+        #affector_pos = self.get_end_affector_pos()
+        #if not disable_env:
+        #    if (grasp_result == "Environmental collision" or
+        #        grasp_result == "No collision" and 
+        #        (z is None or np.fabs(z - affector_pos[2]) < 0.03)):
+        #        # Stop here because there is not a successful grasp configuration
+        #        return grasp_result
 
-        if not is_place:
-            self.grasping_action()
-        else:
-            self.placing_action()
+        if grasp_result == "Collision":
+            if not is_place:
+                self.grasping_action()
+            else:
+                self.placing_action()
 
         log("Moving back to grasp position")
         self.grasp_ascent_action(x, y, gripper_rot)
+        
+        if grasp_result == "Collision":
+            if not is_place:
+                if self.is_obj_in_gripper():
+                    grasp_result = "Object grasped"
+                else:
+                    grasp_result = "Object missed"
+            else:
+                if not self.is_obj_in_gripper():
+                    grasp_result = "Object placed"
+                else:
+                    grasp_result = "Object not placed"
+        log("Grasp result: %s" % grasp_result)
         log("Grasp complete!")
         return grasp_result
+
+    ##
+    # Checks to see if anything is in the gripper currently (gripper is not fully closed).
+    def is_obj_in_gripper(self):
+        return self.cm.get_current_gripper_opening() > 0.01
 
     ##
     # Uses matplotlib to display grasp data, models, tolerance ranges, and online data.
