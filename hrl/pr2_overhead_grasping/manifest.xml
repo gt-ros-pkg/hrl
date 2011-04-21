@@ -35,6 +35,8 @@
   <depend package="opencv2"/>
   <depend package="geometry_msgs"/>
   <depend package="ml_lib"/>
+  <depend package="smach"/>
+  <depend package="smach_ros"/>
 
   <depend package="visualization_msgs"/>
   <depend package="pr2_arm_kinematics"/>
