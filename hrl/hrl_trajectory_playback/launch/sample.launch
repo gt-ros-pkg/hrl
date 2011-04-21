@@ -1,0 +1,8 @@
+<launch>
+  <!-- Sample: sample.pkl generated using record.py -->
+  <node pkg="hrl_trajectory_playback" name="sample_traj_playback" type="playback.py" 
+	output="screen" respawn="false" 
+	args="--pkl $(find hrl_trajectory_playback)/launch/sample.pkl --name sample" />
+
+  <!-- call using: rosservice call /traj_playback/sample 0 -->
+</launch>

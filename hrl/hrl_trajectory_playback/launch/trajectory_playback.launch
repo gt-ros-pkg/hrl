@@ -1,0 +1,15 @@
+<launch>
+  <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch"/>
+  <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch"/>
+
+  <!-- Sample use example in sample.launch -->
+
+  <!-- OLD STUFF FROM KELSEY -->
+  <!-- send pr2 urdf to param server -->
+  <!-- <param name="robot_description" command="$(find xacro)/xacro.py '$(find pr2_description)/robots/pr2.urdf.xacro'" /> -->
+
+  <!-- <node pkg="trajectory_filter_server" name="trajectory_filter" type="trajectory_filter_server" output="screen"> -->
+  <!--  <rosparam command="load" file="$(find hrl_trajectory_playback)/launch/joint_limits.yaml"/> -->
+  <!--  <rosparam command="load" file="$(find hrl_trajectory_playback)/launch/filters.yaml"/> -->
+  <!-- </node> -->
+</launch>

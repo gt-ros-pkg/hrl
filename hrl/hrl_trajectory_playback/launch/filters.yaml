@@ -1,0 +1,26 @@
+service_type: FilterJointTrajectory
+filter_chain:
+  - 
+    name: numerical_differentiation
+    type: NumericalDifferentiationSplineSmootherFilterJointTrajectory
+  -
+    name: linear_spline_velocity_scaler
+    type: LinearSplineVelocityScalerFilterJointTrajectory
+#service_type: FilterJointTrajectoryWithConstraints
+#FilterJointTrajectoryWithConstraints:
+#    filter_chain:
+#      - 
+#        name: numerical_differentiation_spline_smoother
+#        type: NumericalDifferentiationSplineSmootherJointTrajectoryWithLimits
+#      -
+#        name: linear_spline_velocity_scaler
+#        type: LinearSplineVelocityScalerJointTrajectoryWithLimits
+#service_type: FilterJointTrajectoryWithConstraints
+#filter_chain:
+#  - 
+#    name: unnormalize_trajectory
+#    type: UnNormalizeFilterJointTrajectoryWithConstraints
+#  -
+#    name: cubic_spline_short_cutter_smoother
+#    type: CubicSplineShortCutterFilterJointTrajectoryWithConstraints
+#    params: {discretization: 0.01}

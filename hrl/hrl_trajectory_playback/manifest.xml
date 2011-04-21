@@ -1,0 +1,17 @@
+<package>
+  <description brief="hrl_trajectory_playback">
+
+     hrl_trajectory_playback
+
+  </description>
+  <author>Travis Deyle and Kelsey Hawkins</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_trajectory_playback</url>
+  <depend package="hrl_lib"/>
+  <depend package="hrl_pr2_lib"/>
+  <depend package="pr2_controllers_msgs"/>
+  <depend package="motion_planning_msgs"/>
+</package>
+
+
