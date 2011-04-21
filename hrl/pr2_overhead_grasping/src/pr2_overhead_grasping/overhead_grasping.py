@@ -71,7 +71,7 @@ class OverheadGraspManager():
     ##
     # Open gripper fully.
     def open_gripper(self, blocking = False):
-        self.oger.cm.command_gripper(0.08, -1.0, False)
+        self.oger.cm.command_gripper(1.0, -1.0, False)
         if blocking:
             self.oger.cm.gripper_action_client.wait_for_result(rospy.Duration(4.0))
 
@@ -512,7 +512,7 @@ class OverheadGraspManager():
             return False
 
     def setup_grasp(self, block = False):
-        self.open_gripper(blocking = False)
+        #self.open_gripper(blocking = False)
         self.point_head([0.5, 0.0, -0.2], block=False)
         self.move_to_setup(blocking = block)
 
@@ -633,7 +633,10 @@ class OverheadGraspManager():
         grasp_result = self.oger.perform_grasp(x, y, gripper_rot=rot, 
                                                is_place=not goal.is_grasp)
         result.grasp_result = grasp_result
-        self.grasping_server.set_succeeded(result)
+        if grasp_result == "Object grasped":
+            self.grasping_server.set_succeeded(grasp_result)
+        else:
+            self.grasping_server.set_aborted(grasp_result)
 
 def testing(arm):
     return
