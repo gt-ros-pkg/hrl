@@ -8,6 +8,11 @@ namespace hrl_object_fetching {
 
     
     void TabletopDetector::onInit() {
+        minx = 0.3; maxx = 3.0; miny = -1.5; maxy = 1.5; minz = 0.6; maxz = 1.0;
+        resolution = 200; 
+        imgx = (maxx-minx)*resolution;
+        imgy = (maxy-miny)*resolution;
+
         pc_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB> >("/table_detection_vis", 1);
         height_pub = img_trans.advertise("/height_image", 1);
         pose_arr_pub = nh.advertise<geometry_msgs::PoseArray>("/table_approach_poses", 1);
@@ -25,6 +30,8 @@ namespace hrl_object_fetching {
                                        hrl_object_fetching::DetectTable::Response& resp) {
         pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &TabletopDetector::pcCallback, this);
         grasp_points_found = false;
+        height_img_sum = cv::Mat::zeros(imgx, imgy, CV_32F);
+        height_img_count = cv::Mat::zeros(imgx, imgy, CV_32F);
         while(ros::ok()) {
             ros::spinOnce();
             if(grasp_points_found) {
@@ -43,25 +50,21 @@ namespace hrl_object_fetching {
 
         pcl::PointCloud<pcl::PointXYZRGB> pc_full, pc_full_frame;
         pcl::fromROSMsg(*pc_msg, pc_full);
-        string head_frame("/head_pan_link");
+        //string head_frame("/head_pan_link");
         string base_frame("/base_link");
         ros::Time now = ros::Time::now();
-        tf_listener.waitForTransform(pc_msg->header.frame_id, head_frame, now, ros::Duration(3.0));
-        pcl_ros::transformPointCloud(head_frame, pc_full, pc_full_frame, tf_listener);
+        tf_listener.waitForTransform(pc_msg->header.frame_id, base_frame, now, ros::Duration(3.0));
+        pcl_ros::transformPointCloud(base_frame, pc_full, pc_full_frame, tf_listener);
         // pc_full_frame is in torso lift frame
 
-        tf_listener.waitForTransform(base_frame, head_frame, now, ros::Duration(3.0));
-        tf::StampedTransform base_head_trans;
-        tf_listener.lookupTransform(base_frame, head_frame, now, base_head_trans);
-        float z_diff = base_head_trans.getOrigin().z();
+        //tf_listener.waitForTransform(base_frame, head_frame, now, ros::Duration(3.0));
+        //tf::StampedTransform base_head_trans;
+        //tf_listener.lookupTransform(base_frame, head_frame, now, base_head_trans);
+        //float z_diff = base_head_trans.getOrigin().z();
+        //float minz = 0.6 - z_diff, maxz = 1.0 - z_diff;
 
-        float minx = 0.3, maxx = 3.0, miny = -1.5, maxy = 1.5;
-        float minz = 0.6 - z_diff, maxz = 1.0 - z_diff;
-        float resolution = 200; 
-        uint32_t imgx = (maxx-minx)*resolution;
-        uint32_t imgy = (maxy-miny)*resolution;
-        cv::Mat height_img(imgx, imgy, CV_8U, cv::Scalar(0));
         cv_bridge::CvImage cvb_height_img;
+        cv::Mat cur_height_img = cv::Mat::zeros(imgx, imgy, CV_32F);
         
         BOOST_FOREACH(const pcl::PointXYZRGB& pt, pc_full_frame.points) {
             if(pt.x != pt.x || pt.y != pt.y || pt.z != pt.z)
@@ -73,17 +76,20 @@ namespace hrl_object_fetching {
             if(x < 0 || y < 0) continue; 
             if(x >= imgx || y >= imgy) continue;
             if(z < 0 || z >= 256) continue;
-            if(height_img.at<uint8_t>(x, y) == 0 || height_img.at<uint8_t>(x, y) < (uint8_t) z)
-                height_img.at<uint8_t>(x, y) = (uint8_t) z;
+            if(cur_height_img.at<float>(x, y) == 0 || cur_height_img.at<float>(x, y) < (float) z)
+                cur_height_img.at<float>(x, y) = z;
         }
+        height_img_sum += cur_height_img;
+        height_img_count += (cur_height_img > 0) / 255;
+        cv::Mat height_img_avg = height_img_sum / height_img_count;
 
         cv::Mat height_hist(256, 1, CV_32F, cv::Scalar(0));
         for(uint32_t x=0;x<imgx;x++)
             for(uint32_t y=0;y<imgy;y++) {
-                if(height_img.at<uint8_t>(x,y) == 255)
-                    height_img.at<uint8_t>(x,y) = 0;
-                if(height_img.at<uint8_t>(x,y) != 0) {
-                    height_hist.at<float>(height_img.at<uint8_t>(x,y), 0)++;
+                if(height_img_avg.at<float>(x,y) == 255)
+                    height_img_avg.at<float>(x,y) = 0;
+                if(height_img_avg.at<float>(x,y) != 0) {
+                    height_hist.at<float>(std::floor(height_img_avg.at<float>(x,y)), 0)++;
                 }
             }
         uint32_t gfiltlen = 25;
@@ -104,7 +110,7 @@ namespace hrl_object_fetching {
         }
         int32_t table_height = ((int32_t)maxidx);
         //printf("%d %d, ", maxval, maxidx);
-        cv::Mat height_img_thresh = height_img.clone();
+        cv::Mat height_img_thresh = height_img_avg.clone();
         for(uint32_t x=0;x<imgx;x++)
             for(uint32_t y=0;y<imgy;y++) {
                 if(std::fabs(table_height - ((int32_t)height_img_thresh.at<uint8_t>(x,y))) < stddev*2)
@@ -186,8 +192,8 @@ namespace hrl_object_fetching {
         for(uint32_t y=0;y<imgx;y++) 
             for(uint32_t x=0;x<imgx;x++) 
                 if(table_hull.at<uint8_t>(x,y) == 255 && height_morph.at<uint8_t>(x,y) == 0
-                        && height_img.at<uint8_t>(x,y) > table_height + stddev*2) {
-                    obj_img.at<uint8_t>(x,y) = height_img.at<uint8_t>(x,y);
+                        && height_img_avg.at<uint8_t>(x,y) > table_height + stddev*2) {
+                    obj_img.at<uint8_t>(x,y) = height_img_avg.at<uint8_t>(x,y);
                     sumobjx += x; sumobjy += y; sumobja ++;
                     //xfeats.push_back(x); yfeats.push_back(y); 
                     //zfeats.push_back(height_img.at<uint8_t>(x,y));
@@ -267,10 +273,10 @@ namespace hrl_object_fetching {
                 btMatrix3x3 quatmat; btQuaternion quat;
                 quatmat.setEulerZYX(-poses_theta[i] - CV_PI/2, 0 , 0);
                 quatmat.getRotation(quat);
-                btQuaternion head_quat(base_head_trans.getRotation().x(),
-                                       base_head_trans.getRotation().y(),
-                                       base_head_trans.getRotation().z(),
-                                       base_head_trans.getRotation().w());
+                //btQuaternion head_quat(base_head_trans.getRotation().x(),
+                //                       base_head_trans.getRotation().y(),
+                //                       base_head_trans.getRotation().z(),
+                //                       base_head_trans.getRotation().w());
                 //quat *= head_quat;
                 //quat = quat*head_quat;
                 //quat = head_quat;
@@ -280,7 +286,7 @@ namespace hrl_object_fetching {
             }
         }
         grasp_points.header.stamp = ros::Time::now();
-        grasp_points.header.frame_id = head_frame;
+        grasp_points.header.frame_id = base_frame;
         pose_arr_pub.publish(grasp_points);
         
 
@@ -339,17 +345,17 @@ namespace hrl_object_fetching {
             }
         }
 
-        //cvb_height_img.image = height_img;
+        cvb_height_img.image = height_img_avg;
         //cvb_height_img.image = height_morph;
         //cvb_height_img.image = obj_img;
-        cvb_height_img.image = lines_img;
+        //cvb_height_img.image = lines_img;
         //cvb_height_img.image = table_edge;
         cvb_height_img.header.stamp = ros::Time::now();
-        cvb_height_img.header.frame_id = head_frame;
+        cvb_height_img.header.frame_id = base_frame;
         cvb_height_img.encoding = enc::MONO8;
         height_pub.publish(cvb_height_img.toImageMsg());
         pc_full_frame.header.stamp = ros::Time::now();
-        pc_full_frame.header.frame_id = head_frame;
+        pc_full_frame.header.frame_id = base_frame;
         pc_pub.publish(pc_full_frame);
 
         if(grasp_points.poses.size() > 0)

@@ -28,12 +28,14 @@ namespace hrl_object_fetching {
     class TabletopDetector {
         public:
             TabletopDetector();
+            float minx, maxx, miny, maxy, minz, maxz, resolution, imgx, imgy;
             ros::ServiceServer table_detect_service;
             ros::Subscriber pc_sub;
             ros::NodeHandle nh;
             ros::NodeHandle nh_priv;
             ros::Publisher pc_pub;
             ros::Publisher pose_arr_pub;
+            cv::Mat height_img_sum, height_img_count;
             bool grasp_points_found;
             geometry_msgs::PoseArray grasp_points;
             image_transport::ImageTransport img_trans;
