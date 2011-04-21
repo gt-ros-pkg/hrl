@@ -1,5 +1,5 @@
 
-#include "ComponentLabeling.h"
+#include "hrl_cvblobslib/ComponentLabeling.h"
 
 //! Conversion from freeman code to coordinate increments (counterclockwise)
 static const CvPoint freemanCodeIncrement[8] =

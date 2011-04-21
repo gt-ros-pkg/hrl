@@ -14,7 +14,7 @@ MODIFICATIONS (Modification, Author, Date):
 **************************************************************************/
 
 
-#include "Blob.h"
+#include "hrl_cvblobslib/Blob.h"
 
 
 CBlob::CBlob()

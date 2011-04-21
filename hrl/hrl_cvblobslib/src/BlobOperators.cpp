@@ -1,5 +1,5 @@
 #include <limits.h>
-#include "BlobOperators.h"
+#include "hrl_cvblobslib/BlobOperators.h"
 
 /***************************************************************************
   Implementació de les classes per al càlcul de característiques sobre el blob

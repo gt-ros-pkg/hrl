@@ -1,4 +1,4 @@
-#include "BlobContour.h"
+#include "hrl_cvblobslib/BlobContour.h"
 #include "cxcore.h"
 
 CBlobContour::CBlobContour()

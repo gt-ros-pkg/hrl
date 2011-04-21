@@ -11,7 +11,7 @@ MODIFICACIONS (Modificació, Autor, Data):
 #include <stdio.h>
 #include <functional>
 #include <algorithm>
-#include "BlobResult.h"
+#include "hrl_cvblobslib/BlobResult.h"
 
 #ifdef _DEBUG
 	#include <afx.h>			//suport per a CStrings
