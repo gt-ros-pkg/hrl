@@ -8,6 +8,32 @@ namespace hrl_object_fetching {
 
     
     void TabletopDetector::onInit() {
+        ///////////////////// Parameters //////////////////////////////
+        nh_priv = ros::NodeHandle("~");
+        bool run_service;
+        nh_priv.param<bool>("run_service", run_service, false);
+        nh_priv.param<double>("scan_width", maxy, 1.5); miny = -maxy;
+        nh_priv.param<double>("min_scan_depth", minx, 0.3);
+        nh_priv.param<double>("max_scan_depth", maxx, 3.0);
+        nh_priv.param<double>("min_table_height", minz, 0.5);
+        nh_priv.param<double>("max_table_height", maxz, 1.0);
+        nh_priv.param<double>("height_image_res", resolution, 200);
+        nh_priv.param<double>("inlier_magnitude", inlier_magnitude, 200);
+        nh_priv.param<double>("num_edge_dilate", num_edge_dilate, 1);
+        nh_priv.param<double>("degree_bins", degree_bins, 0.3);
+        nh_priv.param<double>("hough_thresh", hough_thresh, 30);
+        nh_priv.param<double>("theta_gran", theta_gran, 1); theta_gran *= CV_PI/180;
+        nh_priv.param<double>("rho_gran", rho_gran, 0.1); rho_gran *= resolution;
+        nh_priv.param<double>("xgran", xgran, 0.1); xgran *= resolution;
+        nh_priv.param<double>("ygran", ygran, 0.1); ygran *= resolution;
+        imgx = (maxx-minx)*resolution;
+        imgy = (maxy-miny)*resolution;
+        ///////////////////////////////////////////////////////////////
+
+        grasp_points_found = false;
+        height_img_sum = cv::Mat::zeros(imgx, imgy, CV_32F);
+        height_img_count = cv::Mat::zeros(imgx, imgy, CV_32F);
+
         pc_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB> >("/table_detection_vis", 1);
         height_pub = img_trans.advertise("/height_image", 1);
         pose_arr_pub = nh.advertise<geometry_msgs::PoseArray>("/table_approach_poses", 1);
@@ -37,17 +63,19 @@ namespace hrl_object_fetching {
         return false;
     }
 
-    bool compind(int a, int b, vector<float> v) { return std::fabs(v[a]-CV_PI/2) < std::fabs(v[b]-CV_PI/2); }
+    bool compind(uint32_t a, uint32_t b, vector<float> v) { return v[a] < v[b]; }
 
     void TabletopDetector::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
+        if(!pc_lock.try_lock())
+            return;
 
         pcl::PointCloud<pcl::PointXYZRGB> pc_full, pc_full_frame;
         pcl::fromROSMsg(*pc_msg, pc_full);
-        string head_frame("/head_pan_link");
+        //string head_frame("/head_pan_link");
         string base_frame("/base_link");
         ros::Time now = ros::Time::now();
-        tf_listener.waitForTransform(pc_msg->header.frame_id, head_frame, now, ros::Duration(3.0));
-        pcl_ros::transformPointCloud(head_frame, pc_full, pc_full_frame, tf_listener);
+        tf_listener.waitForTransform(pc_msg->header.frame_id, base_frame, now, ros::Duration(3.0));
+        pcl_ros::transformPointCloud(base_frame, pc_full, pc_full_frame, tf_listener);
         // pc_full_frame is in torso lift frame
 
         tf_listener.waitForTransform(base_frame, head_frame, now, ros::Duration(3.0));
@@ -55,13 +83,7 @@ namespace hrl_object_fetching {
         tf_listener.lookupTransform(base_frame, head_frame, now, base_head_trans);
         float z_diff = base_head_trans.getOrigin().z();
 
-        float minx = 0.3, maxx = 3.0, miny = -1.5, maxy = 1.5;
-        float minz = 0.6 - z_diff, maxz = 1.0 - z_diff;
-        float resolution = 200; 
-        uint32_t imgx = (maxx-minx)*resolution;
-        uint32_t imgy = (maxy-miny)*resolution;
-        cv::Mat height_img(imgx, imgy, CV_8U, cv::Scalar(0));
-        cv_bridge::CvImage cvb_height_img;
+        cv::Mat cur_height_img = cv::Mat::zeros(imgx, imgy, CV_8U);
         
         BOOST_FOREACH(const pcl::PointXYZRGB& pt, pc_full_frame.points) {
             if(pt.x != pt.x || pt.y != pt.y || pt.z != pt.z)
@@ -73,9 +95,24 @@ namespace hrl_object_fetching {
             if(x < 0 || y < 0) continue; 
             if(x >= imgx || y >= imgy) continue;
             if(z < 0 || z >= 256) continue;
-            if(height_img.at<uint8_t>(x, y) == 0 || height_img.at<uint8_t>(x, y) < (uint8_t) z)
-                height_img.at<uint8_t>(x, y) = (uint8_t) z;
+            if(cur_height_img.at<uint8_t>(x, y) == 0 || cur_height_img.at<uint8_t>(x, y) < (uint8_t) z)
+                cur_height_img.at<uint8_t>(x, y) = (uint8_t) z;
         }
+        cv::Mat cur_height_img_flt;
+        cur_height_img.convertTo(cur_height_img_flt, CV_32F);
+        height_img_sum += cur_height_img_flt;
+        cv::Mat cur_count(imgx, imgy, CV_8U);
+        cur_count = (cur_height_img > 0) / 255;
+        cv::Mat cur_count_flt(imgx, imgy, CV_32F);
+        cur_count.convertTo(cur_count_flt, CV_32F);
+        height_img_count += cur_count_flt;
+        cv::Mat height_img_avg_flt = height_img_sum / height_img_count;
+        /*for(uint32_t x=0;x<imgx;x++)
+            for(uint32_t y=0;y<imgy;y++)
+                printf("%f,",cur_height_img.at<float>(x,y));*/
+        cv::Mat height_img_avg(imgx, imgy, CV_8U);
+        //cv::randu(height_img_avg, cv::Scalar(0), cv::Scalar(256));
+        height_img_avg_flt.convertTo(height_img_avg, CV_8U);
 
         cv::Mat height_hist(256, 1, CV_32F, cv::Scalar(0));
         for(uint32_t x=0;x<imgx;x++)
@@ -86,6 +123,7 @@ namespace hrl_object_fetching {
                     height_hist.at<float>(height_img.at<uint8_t>(x,y), 0)++;
                 }
             }
+        ////////////////////// Finding best table height /////////////////////////
         uint32_t gfiltlen = 25;
         float stddev = 6;
         cv::Mat gauss_filt(gfiltlen, 1, CV_32F, cv::Scalar(0));
@@ -112,6 +150,7 @@ namespace hrl_object_fetching {
                 else
                     height_img_thresh.at<uint8_t>(x,y) = 0;
             }
+        //////////////////////////////////////////////////////////////////
 
         cv::Mat height_morph(imgx, imgy, CV_8U, cv::Scalar(0));
         cv::Mat tmp_img(imgx, imgy, CV_8U, cv::Scalar(0));
@@ -202,20 +241,34 @@ namespace hrl_object_fetching {
         cvMorphologyEx(&table_edge_ipl, &table_edge_ipl, NULL, element, CV_MOP_DILATE, 1);
         lines = cvHoughLines2(&table_edge_ipl, storage, CV_HOUGH_STANDARD, 1, 3*CV_PI/180, 60, 0, 0);
         vector<float> theta_bins, rho_bins;
-        vector<uint32_t> ind_bins;
+        vector<uint32_t> count_bins;
         for(uint32_t i=0; i < lines->total; i++) {
             float* line = (float*)cvGetSeqElem(lines, i);
             float rho = line[0];
             float theta = line[1];
-            theta_bins.push_back(theta);
-            rho_bins.push_back(rho);
-            ind_bins.push_back(i);
+            bool found_same = false;
+            for(int32_t j=theta_bins.size()-1; j >= 0; j--) {
+                if(fabs(theta_bins[j]/count_bins[j] - theta) < theta_gran &&
+                   fabs(rho_bins[j]/count_bins[j] - rho) < rho_gran) {
+                    theta_bins[j] += theta;
+                    rho_bins[j] += rho;
+                    count_bins[j]++;
+                    found_same = true;
+                    break;
+                }
+            }
+            if(!found_same) {
+                theta_bins.push_back(theta);
+                rho_bins.push_back(rho);
+                count_bins.push_back(1);
+            }
 
             double a = cos(theta), b = sin(theta);
             double x0 = a*rho, y0 = b*rho;
             CvPoint pt1, pt2;
-            a = cos(theta+CV_PI/2); b = sin(theta+CV_PI/2);
-            x0 = objcenty; y0 = objcentx;
+            a = cos(theta); b = sin(theta);
+            //a = cos(theta+CV_PI/2); b = sin(theta+CV_PI/2);
+            //x0 = objcenty; y0 = objcentx;
             pt1.x = cvRound(x0 + 1000*(-b));
             pt1.y = cvRound(y0 + 1000*(a));
             pt2.x = cvRound(x0 - 1000*(-b));
@@ -223,13 +276,15 @@ namespace hrl_object_fetching {
             cvLine(&lines_img_ipl, pt1, pt2, cv::Scalar(100), 2, 8 );
         }
         //delete[] lines;
-      //boost::function<bool (int,int)> attr_comp = boost::bind(&RandomTree::attrCompare, *this, _1, _2, attrs[a]);
-        boost::function<bool(int, int)> sortind = boost::bind(&compind, _1, _2, theta_bins);
-        sort(ind_bins.begin(), ind_bins.end(), sortind);
-        vector<float> posesx, posesy, poses_theta;
-        for(uint32_t i=0;i<ind_bins.size();i++) {
-            double theta = theta_bins[ind_bins[i]];
-            double rho = rho_bins[ind_bins[i]];
+        for(uint32_t i=0;i<theta_bins.size();i++) {
+            theta_bins[i] /= count_bins[i];
+            rho_bins[i] /= count_bins[i];
+        }
+        vector<float> posesx, posesy, poses_theta, dists_obj;
+        vector<uint32_t> pose_inds;
+        for(uint32_t i=0;i<theta_bins.size();i++) {
+            double theta = theta_bins[i];
+            double rho = rho_bins[i];
             double a1 = cos(theta-CV_PI/2), b1 = sin(theta-CV_PI/2);
             double a2 = cos(theta-CV_PI), b2 = sin(theta-CV_PI);
             double vvcl = a2*b1-b2*a1, deltpx = cos(theta)*rho-objcenty, deltpy = sin(theta)*rho-objcentx;
@@ -241,28 +296,33 @@ namespace hrl_object_fetching {
                 posex >= 0 && posey >= 0 &&
                 posex < imgx && posey < imgy) {
                 posesx.push_back(posex); posesy.push_back(posey); poses_theta.push_back(theta);
+                pose_inds.push_back(posesx.size()-1);
+                float dist = (posex-objcentx)*(posex-objcentx)+(posey-objcenty)*(posey-objcenty);
+                dists_obj.push_back(dist);
             }
             //lines_img.at<uint8_t>(posex, posey)
         }
+        boost::function<bool(uint32_t, uint32_t)> sortind = boost::bind(&compind, _1, _2, dists_obj);
+        sort(pose_inds.begin(), pose_inds.end(), sortind);
+
         vector<float> retposesx, retposesy;
         float xgrand = 0.1 * resolution, ygrand = 0.1 * resolution;
         grasp_points.poses.clear();
-        for(uint32_t i=0;i<posesx.size();i++) {
+        for(uint32_t i=0;i<pose_inds.size();i++) {
+            float posex = posesx[pose_inds[i]], posey = posesy[pose_inds[i]];
             bool same_found = false;
             for(int32_t j=((int)retposesx.size())-1;j>=0;j--) {
-                if(fabs(posesx[i] - retposesx[j]) < xgrand && 
-                   fabs(posesy[i] - retposesy[j]) < ygrand) {
-                    //retposesx[j] = (retposesx[j] + posesx[i])/2;
-                    //retposesy[j] = (retposesy[j] + posesy[i])/2;
+                if(fabs(posex - retposesx[j]) < xgran && 
+                   fabs(posey - retposesy[j]) < ygran) {
                     same_found = true;
                 } 
             }
             if(!same_found) {
-                retposesx.push_back(posesx[i]);
-                retposesy.push_back(posesy[i]);
+                retposesx.push_back(posex);
+                retposesy.push_back(posey);
                 geometry_msgs::Pose cpose;
-                cpose.position.x = posesx[i]/imgx*(maxx-minx) + minx;
-                cpose.position.y = posesy[i]/imgy*(maxy-miny) + miny;
+                cpose.position.x = posex/imgx*(maxx-minx) + minx;
+                cpose.position.y = posey/imgy*(maxy-miny) + miny;
                 cpose.position.z = table_height/256.0*(maxz-minz) + minz;
                 btMatrix3x3 quatmat; btQuaternion quat;
                 quatmat.setEulerZYX(-poses_theta[i] - CV_PI/2, 0 , 0);
@@ -339,7 +399,8 @@ namespace hrl_object_fetching {
             }
         }
 
-        //cvb_height_img.image = height_img;
+        cv_bridge::CvImage cvb_height_img;
+        //cvb_height_img.image = height_img_avg;
         //cvb_height_img.image = height_morph;
         //cvb_height_img.image = obj_img;
         cvb_height_img.image = lines_img;
@@ -356,6 +417,7 @@ namespace hrl_object_fetching {
             grasp_points_found = true;
 
         //delete element;
+        pc_lock.unlock();
     }
 
 };

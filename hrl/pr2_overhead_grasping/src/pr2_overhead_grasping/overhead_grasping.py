@@ -416,7 +416,7 @@ class OverheadGraspManager():
     # the way when looking at the table.
     def move_to_setup(self, blocking = True):
         joints = [-0.62734204881265387, -0.34601608409943324, -1.4620635485239604, -1.2729772622637399, -7.5123303230158518, -1.5570651396529178, -5.5929916630672727] 
-        self.oger.cm.command_joint_trajectory([joints], max_joint_vel = 0.62, blocking = blocking)
+        self.oger.cm.command_joint_trajectory([joints], max_joint_vel = 0.30, blocking = blocking)
 
 
     ##
