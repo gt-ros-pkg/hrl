@@ -1,0 +1,18 @@
+<package>
+  <description brief="adls">
+
+     adls
+
+  </description>
+  <author>Tiffany</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/adls</url>
+  <depend package="hrl_lib"/>
+  <depend package="rospy"/>
+  <depend package="force_torque"/>
+  <depend package="visualization_msgs"/>
+
+</package>
+
+
