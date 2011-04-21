@@ -1,5 +1,5 @@
-import cv
 import roslib; roslib.load_manifest('hai_sandbox')
+import cv
 
 import rospy
 import sensor_msgs.msg as sm
@@ -1460,8 +1460,9 @@ class Recognize3DParam:
         self.robot_reach_radius = 2.5
         #self.svm_params = '-s 0 -t 2 -g .0625 -c 4'
         #self.svm_params = '-s 0 -t 2 -g .0625 -c 4'
-        self.svm_params = '-s 0 -t 2 -g .4 -c 4'
+        #self.svm_params = '-s 0 -t 2 -g .4 -c 4'
         #self.svm_params = '-s 0 -t 2 -g 3.0 -c 4'
+        self.svm_params = '-s 0 -t 2 -g 10. -c 4'
 
         #sampling parameters
         #self.n_samples = 5000
@@ -2152,6 +2153,23 @@ class ScanLabeler:
         #pdb.set_trace()
         return np.row_stack(selected_fea)
 
+    def automatic_label(self):
+        self.dataset = ut.load_pickle(self.training_sname)
+        self.train(self.select_features(self.current_scan['instances'], ['distance'], self.current_scan['sizes']))
+        #for name in ['4_20_2011/down/Monday_04_18_2011_11_20PM_interest_point_dataset_features_df2_dict.pkl']:
+        for idx, name in enumerate(self.scan_names):
+            self.scan_idx = idx
+            self.load_scan(name)
+            self.classify_current_scan()
+            self.draw()
+            #pdb.set_trace()
+            self.current_scan['labels'][0,:] = self.current_scan_pred.outputs[0,:]
+            self.draw()
+            self.save_current()
+
+        #for k in ['expected_loc', 'distance', 'fpfh', 'intensity']:
+
+
     def test_feature_perf(self, scans_to_train_on, features_to_use, exp_name, use_pca=None):
         #Make folder for results
         BASE_FILE_NAME = pt.splitext(insert_folder_name(self.scan_names[self.scan_idx], exp_name))[0] #pt.splitext(self.scan_names[self.scan_idx])[0]
@@ -2261,6 +2279,186 @@ class ScanLabeler:
 
         self.train(self.dataset.inputs, True)
 
+    #This time we train the same way that the robot runs
+    #train each scan until convergence
+    #run until we have seen 4 scans that don't need training
+    #evaluate using all unseen scans
+    def active_learn_test2(self):
+        #pdb.set_trace()
+        features_used = ['expected_loc', 'fpfh', 'intensity']
+        exp_name = 'light_switch_up_test_full_g10'
+        path = pt.split(insert_folder_name(self.scan_names[self.scan_idx], exp_name))[0]
+        #pdb.set_trace()
+        try:
+            os.mkdir(path)
+        except OSError, e:
+            pass
+
+        train_idx = range(16)
+        test_idx  = range(16,24)
+        #test_idx  = range(8,9)
+
+        print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+        print 'Training initial learning from seed dataset'
+        #Load seed dataset from the first scan, train initial SVM
+        print 'using', self.training_sname
+        seed_set = ut.load_pickle(self.training_sname)
+        #self.load_scan(self.scan_names[0])
+
+        #Train learner
+        pca_fname = 'pca_active_learn_test2.pkl'
+        if pt.isfile(pca_fname):
+            prev_pca = ut.load_pickle(pca_fname)
+        else:
+            prev_pca = None
+        learner = SVMPCA_ActiveLearner(use_pca=True, 
+                        reconstruction_std_lim = self.rec_params.reconstruction_std_lim, 
+                        reconstruction_err_toler = self.rec_params.reconstruction_err_toler,
+                        old_learner=self.learner, pca=prev_pca)
+        nneg = np.sum(seed_set.outputs == NEGATIVE) #
+        npos = np.sum(seed_set.outputs == POSITIVE)
+        neg_to_pos_ratio = float(nneg)/float(npos)
+        weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
+        inputs_for_pca = self.select_features(self.current_scan['instances'], features_used, self.current_scan['sizes'])
+        learner.train(seed_set, 
+                      inputs_for_pca,
+                      self.rec_params.svm_params + weight_balance,
+                      self.rec_params.variance_keep)
+        prev_pca = learner.pca
+        ut.save_pickle(prev_pca, pca_fname)
+
+        test_inputs = []
+        test_outputs = []
+        print 'Loading test sets'
+        for i in test_idx:
+            name = self.scan_names[i]
+            print 'loading', name
+            eval_data_set = ut.load_pickle(name)
+            test_inputs.append(self.select_features(eval_data_set['instances'], features_used, eval_data_set['sizes']))
+            test_outputs.append(eval_data_set['labels'])
+            #pdb.set_trace()
+        test_inputs  = np.column_stack(test_inputs)
+        test_outputs = np.column_stack(test_outputs)
+
+        #Active learning train phase
+        print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+        print 'Learning phase'
+        conf_mats = []
+        current_idx = 0
+        number_of_converged_scans = 0
+        iteration_number = 0
+        for i in train_idx:
+        #for i, name in enumerate(self.scan_names[1:]):
+            if iteration_number > 200:
+                break
+            name = self.scan_names[i]
+            current_idx = i
+
+            print '!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+            print 'loading scan %s' % name
+            self.scan_idx = current_idx
+            self.load_scan(name)
+            self.draw(exp_name)
+            cur_instances = self.select_features(self.current_scan['instances'], features_used, self.current_scan['sizes'])
+            converged = False
+
+            #labels = []
+            #points3d_tried = []
+            #points2d_tried = []
+            #converged = False
+            indices_added = []
+            #reset_times = []
+            while True:
+                iteration_number += 1
+                if iteration_number > 200:
+                    pdb.set_trace()
+                    break
+                #select next data point
+                #pdb.set_trace()
+                remaining_pt_indices = inverse_indices(indices_added, cur_instances.shape[1])
+                remaining_instances = cur_instances[:, remaining_pt_indices]
+                ridx, selected_dist, converged = learner.select_next_instances_no_terminate(remaining_instances)
+                if converged:
+                    print 'Converged on scan.'
+                    pdb.set_trace()
+                    break
+
+                #add to dataset 
+                selected_idx = remaining_pt_indices[ridx[0]]
+                indices_added.append(selected_idx)
+                seed_set = InterestPointDataset.add_to_dataset(seed_set, 
+                        cur_instances[:, selected_idx],
+                        self.current_scan['labels'][:, selected_idx],
+                        self.current_scan['points2d'][:, selected_idx],
+                        self.current_scan['points3d'][:, selected_idx],
+                        current_idx, selected_idx,
+                        sizes=self.current_scan['sizes'])
+
+                #retrain 
+                learner = SVMPCA_ActiveLearner(use_pca=True, 
+                                reconstruction_std_lim=self.rec_params.reconstruction_std_lim, 
+                                reconstruction_err_toler=self.rec_params.reconstruction_err_toler,
+                                old_learner=self.learner, pca=prev_pca)
+                nneg = np.sum(seed_set.outputs == NEGATIVE) #
+                npos = np.sum(seed_set.outputs == POSITIVE)
+                neg_to_pos_ratio = float(nneg)/float(npos)
+                weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
+                inputs_for_pca = self.select_features(self.current_scan['instances'], features_used, self.current_scan['sizes'])
+                learner.train(seed_set, 
+                              inputs_for_pca,
+                              self.rec_params.svm_params + weight_balance,
+                              self.rec_params.variance_keep)
+                prev_pca = learner.pca
+                ut.save_pickle(prev_pca, pca_fname)
+
+                #evaluate performance
+                predictions = np.matrix(learner.classify(test_inputs))
+                conf_mat = confusion_matrix(test_outputs, predictions)
+                conf_mats.append(conf_mat)
+                ut.save_pickle(conf_mats, exp_name + '_confusion_mats.pkl')
+                ut.save_pickle(seed_set, exp_name + '_seed_set.pkl')
+                print '---------------------------------'
+                print iteration_number
+                print 'scan idx', i
+                print 'results'
+                print conf_mat
+                print conf_mat[0,0] + conf_mat[1,1]
+
+                self.learner = learner
+                self.classify_current_scan()
+                self.draw(exp_name)
+
+            if len(indices_added) == 0:
+                pdb.set_trace()
+                print 'OUTER LOOP CONVERGED', number_of_converged_scans
+                number_of_converged_scans += 1
+
+            if number_of_converged_scans == 4:
+                pdb.set_trace()
+                print '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+                print '             DONE', number_of_converged_scans
+                print '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+                break
+
+        for i in test_idx:
+            self.learner = learner
+            name = self.scan_names[i]
+            self.load_scan(name)
+            self.classify_current_scan()
+            self.draw(exp_name)
+
+        #learner.classify(test_set.inputs)
+        #conf_mat = r3d.confusion_matrix(test_set.outputs, predictions)
+        #evaluate performance
+        predictions = np.matrix(learner.classify(test_inputs))
+        conf_mat = confusion_matrix(test_outputs, predictions)
+        conf_mats.append(conf_mat)
+        ut.save_pickle(conf_mats, exp_name + '_confusion_mats.pkl')
+        print '---------------------------------'
+        print 'results'
+        print conf_mat
+        print conf_mat[0,0] + conf_mat[1,1]
+        pdb.set_trace()
 
 
     def active_learn_test(self, features_to_use, exp_name, use_pca=None, run_till_end=False):
@@ -2497,6 +2695,7 @@ class ScanLabeler:
         if self.dataset == None:
             #pdb.set_trace()
             print 'WARNING: THIS BRANCH SHOULD BE REACHED DURING AUTONOMOUS RUN. add_to_training_set'
+            #pdb.set_trace()
             self.dataset = InterestPointDataset(self.select_features(pinfo[0], self.features_to_use, self.current_scan['sizes']),
                                                 pinfo[1], pinfo[2], pinfo[3], None, pinfo[4], pinfo[5], 
                                                 sizes=self.current_scan['sizes'])
@@ -2524,7 +2723,7 @@ class ScanLabeler:
         if pos_ex > 0 and neg_ex > 0:
             return True
 
-    def train(self, inputs_for_scaling, use_pca=True):
+    def train(self, inputs_for_scaling, use_pca=False):
         if self.dataset != None and self.has_enough_data():
             nneg = np.sum(self.dataset.outputs == NEGATIVE)
             npos = np.sum(self.dataset.outputs == POSITIVE)
@@ -2543,7 +2742,7 @@ class ScanLabeler:
             self.learner = SVMPCA_ActiveLearner(use_pca, 
                     self.rec_params.reconstruction_std_lim, 
                     self.rec_params.reconstruction_err_toler,
-                    self.learner)
+                    old_learner=self.learner)
 
             self.learner.train(self.dataset, 
                                inputs_for_scaling,
@@ -2555,14 +2754,15 @@ class ScanLabeler:
             #print 'Test set: %.2f' % (100.* (float(correct)/float(self.dataset.outputs.shape[1]))), '% correct'
             #self.evaluate_learner(self.dataset.inputs, self.dataset.outputs)
 
-            BASE_FILE_NAME = 'pca_fast'
-            i = 111
-            cv.SaveImage(BASE_FILE_NAME + ('_iter_%d_basis.png' % i),\
-                         instances_to_image(\
-                            self.rec_params.win_size,\
-                            self.learner.pca.projection_basis,\
-                            np.min(self.learner.pca.projection_basis),\
-                            np.max(self.learner.pca.projection_basis)))
+            if use_pca:
+                BASE_FILE_NAME = 'pca_fast'
+                i = 111
+                cv.SaveImage(BASE_FILE_NAME + ('_iter_%d_basis.png' % i),\
+                             instances_to_image(\
+                                self.rec_params.win_size,\
+                                self.learner.pca.projection_basis,\
+                                np.min(self.learner.pca.projection_basis),\
+                                np.max(self.learner.pca.projection_basis)))
 
 
             print '=================  DONE  =================' 
@@ -2632,10 +2832,10 @@ class FiducialPicker:
         self.points_valid_laser = tfu.transform_points(laser_T_image, self.points_valid_image[0:3,:])
         self.ptree = sp.KDTree(np.array(self.points2d_valid.T))
 
-
         cv.NamedWindow('image', cv.CV_WINDOW_AUTOSIZE)
         cv.ShowImage('image', self.img)
         cv.SetMouseCallback('image', self.mouse_cb, None)
+        self.exit = False
         
 
     def mouse_cb(self, event, x, y, flags, param):
@@ -2672,6 +2872,9 @@ class FiducialPicker:
             else:
                 print 'ignored save command, need more points. only has', self.clicked_points3d.shape[1]
 
+        if k == ord('x'):
+            self.exit = True
+
         ibuffer = cv.CloneMat(self.img)
         draw_points(ibuffer, self.points2d_valid, [0,255,0], 1)
         #if self.clicked_points.shape[1] > 0:
@@ -2682,6 +2885,8 @@ class FiducialPicker:
     def run(self):
         while not rospy.is_shutdown():
             self.step()
+            if self.exit:
+                return
 
 class NarrowTextureFeatureExtractor:
     def __init__(self, prosilica, narrow_texture, prosilica_cal, projector, tf_listener, rec_params=None):
@@ -2832,6 +3037,7 @@ if __name__ == '__main__':
     p.add_option("-s", "--seed", action="store", default=None, help='not strictly neccessary if you use pickles ending with _seed.pkl')
     p.add_option("-e", "--end", action="store_true", default=False)
     p.add_option("-l", "--locations", action="store", default=None)
+    p.add_option("-a", "--autolabel", action="store_true", default=None)
     #p.add_option("-k", "--kinect", action="store_true", default=True)
     opt, args = p.parse_args()
     mode = opt.mode
@@ -2839,6 +3045,7 @@ if __name__ == '__main__':
     print '======================================='
     print 'mode:', mode
     print '======================================='
+    print args
 
     if mode == 'fiducialpicker':
         fp = FiducialPicker(args[0])
@@ -2886,14 +3093,18 @@ if __name__ == '__main__':
     if mode == 'label':
         s = ScanLabeler(args[0], ext='_features_df2_dict.pkl', scan_to_train_on=opt.train, 
                 seed_dset=opt.seed, features_to_use=opt.feature)
+        #s.automatic_label()
         #pdb.set_trace()
-        if opt.test:
+        if opt.autolabel:
+            s.automatic_label()
+        elif opt.test:
             print 'Running automated tests'
             print 'Using features', opt.feature
-            if len(opt.feature) == 1 and opt.feature[0] == 'distance':
-                s.active_learn_test(['distance'], opt.expname, opt.pca, run_till_end=opt.end)
-            else:
-                s.active_learn_test(opt.feature, opt.expname, opt.pca, run_till_end=opt.end)
+            s.active_learn_test2()
+            #if len(opt.feature) == 1 and opt.feature[0] == 'distance':
+            #    s.active_learn_test(['distance'], opt.expname, opt.pca, run_till_end=opt.end)
+            #else:
+            #    s.active_learn_test(opt.feature, opt.expname, opt.pca, run_till_end=opt.end)
         else:
             print 'launching gui.'
             s.run_gui()
