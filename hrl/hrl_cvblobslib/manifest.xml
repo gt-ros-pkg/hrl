@@ -1,0 +1,15 @@
+<package>
+  <description brief="hrl_cvblobslib">
+
+     hrl_cvblobslib
+
+  </description>
+  <author>kelsey</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_cvblobslib</url>
+  <depend package="opencv2"/>
+
+</package>
+
+
