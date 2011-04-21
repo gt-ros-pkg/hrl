@@ -6,7 +6,7 @@ all: svm-train svm-predict svm-scale lib
 
 lib: svm.o
 	$(CXX) -shared -dynamiclib svm.o -o libsvm.so.$(SHVER)
-	ln -s libsvm.so.$(SHVER) ./libsvm.so
+	ln -s libsvm.so.$(SHVER) ./libsvm.so --force
 
 svm-predict: svm-predict.c svm.o
 	$(CXX) $(CFLAGS) svm-predict.c svm.o -o svm-predict -lm
