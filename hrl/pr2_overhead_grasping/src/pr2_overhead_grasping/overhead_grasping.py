@@ -174,14 +174,15 @@ class OverheadGraspManager():
     ##
     # Given an (x, y) location on a table, grasp the closest object detected.
     # If repeat is True, will keep trying if the grasp fails.
-    def detect_closest_object(self, x, y, repeat=True):
+    def detect_closest_object(self, x, y, repeat=True, disable_head=False):
         def dist(o):
             return (o[0][0] - x) ** 2 + (o[0][1] - y) ** 2
 
         grasped = False
         num_tries = 0
 
-        self.point_head([x,y,-0.2])
+        if not disable_head:
+            self.point_head([x,y,-0.2])
 
         while not grasped and num_tries < 4:
             log("Detect in")
@@ -201,7 +202,8 @@ class OverheadGraspManager():
                 obj = min(objects, key=dist)
 
                 # Get better look
-                self.point_head(obj[0])
+                if not disable_head:
+                    self.point_head(obj[0])
                 rospy.sleep(0.2)
                 log("Detect2 in")
                 objects = self.detect_tabletop_objects()
@@ -506,9 +508,10 @@ class OverheadGraspManager():
             err("Bad grasp result name %s" % grasp_result)
             return False
 
-    def setup_grasp(self, block = False):
+    def setup_grasp(self, block = False, disable_head=False):
         #self.open_gripper(blocking = False)
-        self.point_head([0.5, 0.0, -0.2], block=False)
+        if not disable_head:
+            self.point_head([0.5, 0.0, -0.2], block=False)
         self.move_to_setup(blocking = block)
 
     ##
@@ -599,7 +602,7 @@ class OverheadGraspManager():
 
     def execute_grasping_setup(self, goal):
         result = OverheadGraspSetupResult()
-        self.setup_grasp(block=True)
+        self.setup_grasp(block=True, disable_head=goal.disable_head)
         log("Finished setup")
         self.setup_server.set_succeeded(result)
 
@@ -610,7 +613,7 @@ class OverheadGraspManager():
             x, y, rot = goal.x, goal.y, goal.rot
 
         elif goal.grasp_type == goal.VISION_GRASP:
-            obj = self.detect_closest_object(goal.x, goal.y)
+            obj = self.detect_closest_object(goal.x, goal.y, disable_head=goal.disable_head)
             if obj is None:
                 log("No objects detected")
                 self.grasping_server.set_aborted(result)

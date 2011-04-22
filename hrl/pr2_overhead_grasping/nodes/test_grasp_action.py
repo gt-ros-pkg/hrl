@@ -26,13 +26,15 @@ if __name__ == '__main__':
         ki.kbhit()
         while not rospy.is_shutdown():
             goal = OverheadGraspSetupGoal()
+            #goal.disable_head = True
             grasp_setup_client.send_goal(goal)
-            #grasp_setup_client.wait_for_result()
-            rospy.sleep(1.0)
+            grasp_setup_client.wait_for_result()
+            #rospy.sleep(1.0)
 
             print "Grasp started"
             goal = OverheadGraspGoal()
-            goal.is_grasp = True
+            goal.disable_head = True
+            #goal.is_grasp = True
             goal.grasp_type=OverheadGraspGoal.VISION_GRASP
             goal.x = 0.5 + random.uniform(-0.1, 0.1)
             goal.y = 0.0 + random.uniform(-0.1, 0.1)
