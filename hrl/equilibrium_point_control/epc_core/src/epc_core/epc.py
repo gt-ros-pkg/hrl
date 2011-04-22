@@ -146,7 +146,8 @@ class EPC():
         return stop, (cep, None)
 
 
-    def go_jep(self, arm , goal_jep, speed=math.radians(20)):
+    def go_jep(self, arm , goal_jep, speed=math.radians(20),
+               rapid_call_func = None):
         start_jep = self.robot.get_jep(arm)
         diff_jep = np.array(goal_jep) - np.array(start_jep)
         time_step = 0.02
@@ -172,7 +173,8 @@ class EPC():
             return stop, (q, time_step*1.2)
         
         return self.epc_motion(eq_gen, time_step, arm, [[jep, step_num]],
-                        control_function=self.robot.set_jep)
+                               control_function=self.robot.set_jep,
+                               rapid_call_func = rapid_call_func)
 
 
 

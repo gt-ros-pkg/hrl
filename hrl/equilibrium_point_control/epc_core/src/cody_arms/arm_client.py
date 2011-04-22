@@ -457,7 +457,7 @@ if __name__ == '__main__':
         print 'ee:', ee.A1
         print 'desired ee:', p.A1
 
-    if True:
+    if False:
         print 'hit a key to float arms.'
         k=m3t.get_keystroke()
         ac.toggle_floating_arms()
@@ -469,6 +469,13 @@ if __name__ == '__main__':
         #ac.move_till_hit(l_arm)
         #ac.motors_off()
     #    ac.stop()
+
+    if True:
+        while not rospy.is_shutdown():
+            jep = ac.get_jep(r_arm)
+            print 'jep:', jep
+            rospy.sleep(0.05)
+
 
 
 
