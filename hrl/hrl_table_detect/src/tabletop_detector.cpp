@@ -42,6 +42,7 @@ namespace hrl_table_detect {
         if(run_service) {
             table_detect_start = nh.advertiseService("/table_detect_start", &TabletopDetector::startCallback, this);
             table_detect_stop = nh.advertiseService("/table_detect_stop", &TabletopDetector::stopCallback, this);
+            table_detect_inst = nh.advertiseService("/table_detect_inst", &TabletopDetector::instCallback, this);
         }
         else
             pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &TabletopDetector::pcCallback, this);
@@ -50,17 +51,36 @@ namespace hrl_table_detect {
 
     bool TabletopDetector::startCallback(hrl_table_detect::DetectTableStart::Request& req, 
                                        hrl_table_detect::DetectTableStart::Response& resp) {
-        pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &TabletopDetector::pcCallback, this);
         grasp_points_found = false;
         height_img_sum = cv::Mat::zeros(imgx, imgy, CV_32F);
         height_img_count = cv::Mat::zeros(imgx, imgy, CV_32F);
         height_img_max = cv::Mat::zeros(imgx, imgy, CV_8U);
+        pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &TabletopDetector::pcCallback, this);
         return true;
     }
 
     bool TabletopDetector::stopCallback(hrl_table_detect::DetectTableStop::Request& req, 
                                        hrl_table_detect::DetectTableStop::Response& resp) {
         pc_sub.shutdown();
+        resp.grasp_points = grasp_points;
+        return true;
+    }
+
+    bool TabletopDetector::instCallback(hrl_table_detect::DetectTableInst::Request& req, 
+                                       hrl_table_detect::DetectTableInst::Response& resp) {
+        grasp_points_found = false;
+        height_img_sum = cv::Mat::zeros(imgx, imgy, CV_32F);
+        height_img_count = cv::Mat::zeros(imgx, imgy, CV_32F);
+        height_img_max = cv::Mat::zeros(imgx, imgy, CV_8U);
+        pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &TabletopDetector::pcCallback, this);
+        double begin_time = ros::Time::now().toSec();
+        double now = begin_time;
+        ros::Rate r(100);
+        while(ros::ok() && now - begin_time < req.block_time) {
+            ros::spinOnce();
+            now = ros::Time::now().toSec();
+            r.sleep();
+        }
         resp.grasp_points = grasp_points;
         return true;
     }

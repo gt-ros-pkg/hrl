@@ -18,6 +18,7 @@
 #include <geometry_msgs/PoseArray.h>
 #include <hrl_table_detect/DetectTableStart.h>
 #include <hrl_table_detect/DetectTableStop.h>
+#include <hrl_table_detect/DetectTableInst.h>
 #include <LinearMath/btMatrix3x3.h>
 #include <LinearMath/btQuaternion.h>
 #include <hrl_cvblobslib/Blob.h>
@@ -41,6 +42,7 @@ namespace hrl_table_detect {
 
             ros::ServiceServer table_detect_start;
             ros::ServiceServer table_detect_stop;
+            ros::ServiceServer table_detect_inst;
             ros::Subscriber pc_sub;
             ros::NodeHandle nh;
             ros::NodeHandle nh_priv;
@@ -59,6 +61,8 @@ namespace hrl_table_detect {
                              hrl_table_detect::DetectTableStart::Response& resp);
             bool stopCallback(hrl_table_detect::DetectTableStop::Request& req, 
                              hrl_table_detect::DetectTableStop::Response& resp);
+            bool instCallback(hrl_table_detect::DetectTableInst::Request& req, 
+                             hrl_table_detect::DetectTableInst::Response& resp);
     };
 };
 #endif //HRL_OBJECT_FETCHING_TABLETOP_DETECTOR_H
