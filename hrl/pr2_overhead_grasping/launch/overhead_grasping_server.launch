@@ -24,8 +24,8 @@
 
     <!--<rosparam param="min_errors"> [-0.028, -0.04, -0.04, -0.06, -0.1, -0.02, -0.025] </rosparam>-->
     <!--<rosparam param="max_errors"> [0.03, 0.05, 0.06, 0.06, 0.08, 0.02, 0.025] </rosparam>-->
-    <rosparam param="min_errors"> [-0.060, -0.08, -0.08, -0.10, -0.1, -0.04, -0.050] </rosparam>
-    <rosparam param="max_errors"> [0.06, 0.10, 0.10, 0.10, 0.10, 0.04, 0.050] </rosparam>
+    <rosparam param="min_errors"> [-0.060, -0.06, -0.06, -0.08, -0.1, -0.04, -0.050] </rosparam>
+    <rosparam param="max_errors"> [0.06, 0.06, 0.08, 0.08, 0.10, 0.04, 0.050] </rosparam>
 
     <rosparam param="classifier_topics">
         [r_arm_collision_detect,
