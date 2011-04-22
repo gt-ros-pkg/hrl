@@ -7,7 +7,7 @@ import pr2_controllers_msgs.msg as pm
 from motion_planning_msgs.srv import FilterJointTrajectory
 import hrl_lib.util as hrl_util
 from hrl_pr2_lib.pr2 import PR2, Joint
-from hrl_trajectory_playback.srv import TrajPlaybackSrv
+from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
 
 import numpy as np, math
 
@@ -87,8 +87,17 @@ if __name__ == '__main__':
     p.add_option('--name', action='store', type='string', dest='name',
                  help='Service "name": /traj_playback/name [default=\'test\']',
                  default='test')
+    p.add_option('--play', action='store_true', dest='play',
+                 help='Just play it once instead of building service [default=False]',
+                 default=False)
     opt, args = p.parse_args()
-    
+
     tp = TrajPlayback( opt.name, opt.pkl )
-    rospy.spin()
+    
+    if opt.play:
+        req = TrajPlaybackSrvRequest()
+        req.play_backward = 0
+        tp.process_service( req )
+    else:
+        rospy.spin()
     

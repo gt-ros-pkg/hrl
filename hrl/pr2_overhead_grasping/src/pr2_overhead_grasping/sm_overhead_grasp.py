@@ -44,6 +44,22 @@ from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPosit
 #   run: hrl_pr2_gains/change_gains_grasp.py
 #   roslaunch pr2_overhead_grasping overhead_grasping_server.launch
 
+class NTries(smach.State):
+    def __init__(self, n):
+        smach.State.__init__(self, outcomes=['succeeded', 'aborted'])
+        self.counter = 0
+        self.n = 3
+
+    def execute(self, userdata):
+        self.counter += 1
+        rospy.logout( 'Executing NTries: On #%d of %d' % (self.counter, self.n))
+
+        if self.counter <= self.n:
+            return 'succeeded'
+        else:
+            return 'aborted'
+
+
 def sm_grasp():
     # Create a SMACH state machine
     sm = smach.StateMachine(outcomes=['succeeded','aborted','preempted'])
@@ -59,7 +75,15 @@ def sm_grasp():
             SimpleActionState( 'torso_controller/position_joint_action',
                                SingleJointPositionAction,
                                goal = tgoal),
-            transitions = { 'succeeded': 'GRASP_SETUP' })
+            transitions = { 'succeeded': 'THREE_TRIES' })
+
+        # We will run the grasper at most 3 times.
+        smach.StateMachine.add(
+            'THREE_TRIES',
+            NTries( 3 ),
+            transitions = {'succeeded':'GRASP_SETUP',
+                           'aborted':'aborted'})
+            
 
         # Setup arm pose (out of way for perception)
         smach.StateMachine.add(
@@ -80,7 +104,8 @@ def sm_grasp():
             SimpleActionState( 'overhead_grasp',
                                OverheadGraspAction,
                                goal = ggoal),
-            transitions = { 'succeeded': 'succeeded' })
+            transitions = { 'succeeded': 'succeeded',
+                            'aborted':'THREE_TRIES' })
             
     return sm
 
