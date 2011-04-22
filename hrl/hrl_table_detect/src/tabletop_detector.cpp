@@ -19,7 +19,8 @@ namespace hrl_table_detect {
         nh_priv.param<double>("max_table_height", maxz, 1.0);
         nh_priv.param<double>("height_image_res", resolution, 200);
         nh_priv.param<double>("inlier_magnitude", inlier_magnitude, 200);
-        nh_priv.param<double>("num_edge_dilate", num_edge_dilate, 1);
+        nh_priv.param<int32_t>("num_edge_dilate", num_edge_dilate, 1);
+        nh_priv.param<int32_t>("num_closes", num_closes, 1);
         nh_priv.param<double>("degree_bins", degree_bins, 0.3);
         nh_priv.param<double>("hough_thresh", hough_thresh, 30); hough_thresh *= resolution;
         nh_priv.param<double>("theta_gran", theta_gran, 1); theta_gran *= CV_PI/180;
@@ -81,6 +82,7 @@ namespace hrl_table_detect {
             now = ros::Time::now().toSec();
             r.sleep();
         }
+        pc_sub.shutdown();
         resp.grasp_points = grasp_points;
         return true;
     }
@@ -196,7 +198,7 @@ namespace hrl_table_detect {
         //////////////////////////////////////////////////////////////////
         IplImage height_img_thresh_ipl = height_img_thresh;
         IplConvKernel* element = cvCreateStructuringElementEx(3, 3, 1, 1, CV_SHAPE_RECT);
-        cvMorphologyEx(&height_img_thresh_ipl, &height_img_thresh_ipl, NULL, element, CV_MOP_CLOSE);
+        cvMorphologyEx(&height_img_thresh_ipl, &height_img_thresh_ipl, NULL, element, CV_MOP_CLOSE, num_closes);
         //cvMorphologyEx(&height_img_thresh, &height_img_thresh, NULL, element, CV_MOP_OPEN, 2);
 
         cv::Mat height_img_thresh_blob = height_img_thresh.clone();

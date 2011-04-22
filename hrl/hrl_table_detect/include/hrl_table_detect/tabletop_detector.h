@@ -35,7 +35,8 @@ namespace hrl_table_detect {
             TabletopDetector();
             // Parameters
             double minx, maxx, miny, maxy, minz, maxz, resolution, imgx, imgy;
-            double inlier_magnitude, num_edge_dilate;
+            double inlier_magnitude; 
+            int32_t num_edge_dilate, num_closes;
             double degree_bins, hough_thresh;
             double theta_gran, rho_gran;
             double xgran, ygran;
