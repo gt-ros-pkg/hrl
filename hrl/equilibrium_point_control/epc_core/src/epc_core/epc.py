@@ -22,13 +22,15 @@ class EPC():
     # @param rapid_call_func: called in the time between calls to the equi_pt_generator can be used for logging, safety etc.  returns string which is '' for epc motion to continue
     # @param time_step: time between successive calls to equi_pt_generator
     # @param arg_list - list of arguments to be passed to the equi_pt_generator
+    # @param timeout - time after which the epc motion will stop.
     # @return stop (the string which has the reason why the epc
     # motion stopped.), ea (last commanded equilibrium angles)
     def epc_motion(self, equi_pt_generator, time_step, arm, arg_list,
                    rapid_call_func=None, control_function=None,
-                   jep_clamp_func=None):
+                   jep_clamp_func=None, timeout=np.inf):
         stop, ea = equi_pt_generator(*arg_list)
         t_end = rospy.get_time()
+        timeout_at = rospy.get_time() + timeout
         while stop == '':
             if rospy.is_shutdown():
                 stop = 'rospy shutdown'
@@ -53,6 +55,8 @@ class EPC():
                 rospy.sleep(0.01)
                 t1 = rospy.get_time()
 
+            if timeout_at < t1:
+                stop = 'timed out'
             if stop == '':
                 stop, ea = equi_pt_generator(*arg_list)
             if stop == 'reset timing':
