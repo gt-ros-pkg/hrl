@@ -29,4 +29,4 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
 
-rosbuild_add_library(${PROJECT_NAME} src/BlobContour.cpp src/Blob.cpp src/BlobOperators.cpp src/BlobResult.cpp  src/ComponentLabeling.cpp)
+rosbuild_add_library(cvblobslib src/BlobContour.cpp src/Blob.cpp src/BlobOperators.cpp src/BlobResult.cpp  src/ComponentLabeling.cpp)

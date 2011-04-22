@@ -9,7 +9,7 @@
         <param name="max_scan_depth" value="3.0" />
         <param name="min_table_height" value="0.5" />
         <param name="max_table_height" value="1.0" />
-        <param name="height_image_res" value="200" />
+        <param name="height_image_res" value="600" />
         <param name="inlier_magnitude" value="200" />
         <param name="num_edge_dilate" value="0" />
         <param name="degree_bins" value="0.3" />
