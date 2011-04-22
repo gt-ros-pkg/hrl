@@ -1,0 +1,23 @@
+<launch>
+    <!--<arg name="tabletop_segmentation_points_in" default="narrow_stereo_textured/points2" />-->
+    <arg name="tabletop_segmentation_points_in" default="kinect_head/rgb/points" />
+
+    <node pkg="hrl_table_detect" name="tabletop_detector" type="tabletop_detector" respawn="true" output="screen">
+        <param name="run_service" type="bool" value="true" />
+        <param name="scan_width" value="1.5" />
+        <param name="min_scan_depth" value="0.3" />
+        <param name="max_scan_depth" value="3.0" />
+        <param name="min_table_height" value="0.5" />
+        <param name="max_table_height" value="1.0" />
+        <param name="height_image_res" value="600" />
+        <param name="inlier_magnitude" value="200" />
+        <param name="num_edge_dilate" value="1" />
+        <param name="degree_bins" value="0.3" />
+        <param name="hough_thresh" value="0.2" />
+        <param name="theta_gran" value="1.0" />
+        <param name="rho_gran" value="3.0" />
+        <param name="xgran" value="0.1" />
+        <param name="ygran" value="0.1" />
+    </node>
+
+</launch>
