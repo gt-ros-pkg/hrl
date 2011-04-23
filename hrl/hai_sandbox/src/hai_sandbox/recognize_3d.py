@@ -2446,7 +2446,7 @@ class ScanLabeler:
         #pdb.set_trace()
         #features_used = ['expected_loc', 'fpfh', 'intensity']
         features_used = ['intensity']
-        exp_name = 'autolearn_g05_c05_max5_7_pca50'
+        exp_name = 'autolearn_g05_c05_max5_8_pca50'
         path = pt.split(insert_folder_name(self.scan_names[self.scan_idx], exp_name))[0]
         #pdb.set_trace()
         try:
