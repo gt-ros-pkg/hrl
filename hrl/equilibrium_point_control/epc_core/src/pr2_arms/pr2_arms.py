@@ -70,8 +70,7 @@ class PR2Arms(object):
         rospy.Subscriber('/r_cart/state', JTTeleopControllerState, self.r_cart_state_cb)
         rospy.Subscriber('/l_cart/state', JTTeleopControllerState, self.l_cart_state_cb)
 
-        rospy.Subscriber('/joint_states', JointState,
-                         self.joint_states_cb, queue_size=2)
+        rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
         self.marker_pub = rospy.Publisher('/pr2_arms/viz_markers', Marker)
         self.cep_marker_id = 1
 
