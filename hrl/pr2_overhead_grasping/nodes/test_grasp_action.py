@@ -24,6 +24,7 @@ if __name__ == '__main__':
     if args[1] == 'reg_test':
         results_dict = {}
         ki.kbhit()
+        obj_in_hand = False
         while not rospy.is_shutdown():
             goal = OverheadGraspSetupGoal()
             #goal.disable_head = True
@@ -31,34 +32,37 @@ if __name__ == '__main__':
             grasp_setup_client.wait_for_result()
             #rospy.sleep(1.0)
 
-            print "Grasp started"
-            goal = OverheadGraspGoal()
-            goal.disable_head = True
-            #goal.is_grasp = True
-            goal.grasp_type=OverheadGraspGoal.VISION_GRASP
-            goal.x = 0.5 + random.uniform(-0.1, 0.1)
-            goal.y = 0.0 + random.uniform(-0.1, 0.1)
-            grasp_client.send_goal(goal)
-            grasp_client.wait_for_result()
-            result = grasp_client.get_result()
-            goal = OverheadGraspGoal()
-            if result.grasp_result == "Table collision" or True:
-                goal.is_grasp = False
-                goal.grasp_type=OverheadGraspGoal.MANUAL_GRASP
+            if not obj_in_hand:
+                print "Grasp started"
+                goal = OverheadGraspGoal()
+                goal.disable_head = False
+                goal.is_grasp = True
+                goal.grasp_type=OverheadGraspGoal.VISION_GRASP
                 goal.x = 0.5 + random.uniform(-0.1, 0.1)
                 goal.y = 0.0 + random.uniform(-0.1, 0.1)
                 grasp_client.send_goal(goal)
                 grasp_client.wait_for_result()
                 result = grasp_client.get_result()
-            if result.grasp_result not in results_dict:
-                results_dict[result.grasp_result] = 0
-            results_dict[result.grasp_result] += 1
-
-            print results_dict
-            try:
-                print float(results_dict["No collision"]) / results_dict["Regular collision"]
-            except:
-                pass
+                if result.grasp_result not in results_dict:
+                    results_dict[result.grasp_result] = 0
+                results_dict[result.grasp_result] += 1
+                print "Last result:", result.grasp_result, "Totals:", results_dict
+                obj_in_hand = result.grasp_result == "Object grasped"
+            if obj_in_hand:
+                goal = OverheadGraspGoal()
+                goal.disable_head = False
+                goal.is_grasp = False
+                goal.grasp_type=OverheadGraspGoal.MANUAL_GRASP
+                goal.x = 0.55 + random.uniform(-0.1, 0.1)
+                goal.y = 0.0 + random.uniform(-0.2, 0.2)
+                grasp_client.send_goal(goal)
+                grasp_client.wait_for_result()
+                result = grasp_client.get_result()
+                if result.grasp_result not in results_dict:
+                    results_dict[result.grasp_result] = 0
+                results_dict[result.grasp_result] += 1
+                obj_in_hand = result.grasp_result != "Object placed"
+                print "Last result:", result.grasp_result, "Totals:", results_dict
     
     elif args[1] == 'playpen_demo':
         rospy.wait_for_service('conveyor')

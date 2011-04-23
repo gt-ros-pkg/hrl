@@ -86,12 +86,14 @@ class OverheadGraspManager():
         table_z = detects.table.pose.pose.position.z
         objects = []
         for cluster in detects.clusters:
+            print "header", cluster.header
             (object_points, 
              object_bounding_box_dims, 
              object_bounding_box, 
              object_to_base_link_frame, 
              object_to_cluster_frame) = cbbf.find_object_frame_and_bounding_box(cluster)
             # log("bounding box:", object_bounding_box)
+            print "frames:", object_to_base_link_frame, object_to_cluster_frame
             (object_pos, object_quat) = cf.mat_to_pos_and_quat(object_to_cluster_frame)
             angs = euler_from_quaternion(object_quat)
             log("angs:", angs)
@@ -616,6 +618,7 @@ class OverheadGraspManager():
             obj = self.detect_closest_object(goal.x, goal.y, disable_head=goal.disable_head)
             if obj is None:
                 log("No objects detected")
+                result.grasp_result = "No objects detected"
                 self.grasping_server.set_aborted(result)
                 return
             x, y, rot, z = self.get_grasp_loc(obj)

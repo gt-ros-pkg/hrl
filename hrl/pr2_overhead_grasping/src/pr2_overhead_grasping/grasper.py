@@ -77,7 +77,7 @@ class OverheadGrasp(GraspBehavior):
         goal_pose.header.stamp = rospy.Time.now()
         return self.oger.cm.move_cartesian_ik(goal_pose, collision_aware = False, 
                           blocking = block,
-                          step_size = .005, pos_thres = .02, rot_thres = .1,
+                          step_size = .005, pos_thres = .005, rot_thres = .1,
                           settling_time = rospy.Duration(self.oger.GRASP_TIME),
                           joints_bias = self.oger.JOINTS_BIAS, bias_radius = self.oger.BIAS_RADIUS,
                           vel = self.oger.GRASP_VELOCITY)
@@ -210,6 +210,7 @@ class OverheadGrasper():
     def create_gripper_pose(self, x, y, z, quat):
         point = [x, y, z]
         point = self.transform_in_frame(point, np.array(quat), -self.GRIPPER_POINT).tolist()
+        point[0] -= 0.015 # TODO MYSTERY OFFSET!
         pose = point + quat
         goal_pose = cf.create_pose_stamped(pose, "torso_lift_link")
         goal_pose.header.stamp = rospy.Time.now()
@@ -238,6 +239,7 @@ class OverheadGrasper():
     def create_goal_pose(self, x, y, z, gripper_pose):
         point = [x, y, z]
         point = self.transform_in_frame(point, gripper_pose, -self.GRIPPER_POINT).tolist()
+        point[0] -= 0.015 # TODO MYSTERY OFFSET!
         pose = point + gripper_pose.tolist()
         goal_pose = cf.create_pose_stamped(pose, "torso_lift_link")
         goal_pose.header.stamp = rospy.Time.now()
@@ -476,6 +478,7 @@ class OverheadGrasper():
         o = wrist_pose.pose.orientation
         affector_pos = self.transform_in_frame([p.x, p.y, p.z],
                                           [o.x, o.y, o.z, o.w], self.GRIPPER_POINT)
+        point[0] -= 0.015 # TODO MYSTERY OFFSET!
         return affector_pos
 
     def kill_arm_movement(self):
@@ -674,10 +677,15 @@ class OverheadGrasper():
                 else:
                     grasp_result = "Object missed"
             else:
-                if not self.is_obj_in_gripper():
-                    grasp_result = "Object placed"
+                grasp_result = "Object placed"
+        else:
+            if not is_place: 
+                grasp_result = "No collision for grasp"
+            else:
+                if self.is_obj_in_gripper():
+                    grasp_result = "No collision for place"
                 else:
-                    grasp_result = "Object not placed"
+                    grasp_result = "Object dropped before place"
         log("Grasp result: %s" % grasp_result)
         log("Grasp complete!")
         return grasp_result
@@ -685,6 +693,16 @@ class OverheadGrasper():
     ##
     # Checks to see if anything is in the gripper currently (gripper is not fully closed).
     def is_obj_in_gripper(self):
+        last_opening = self.cm.get_current_gripper_opening()
+        print "is_obj_in_gripper"
+        print last_opening
+        while not rospy.is_shutdown():
+            rospy.sleep(0.2)
+            next_opening = self.cm.get_current_gripper_opening()
+            print next_opening
+            if abs(last_opening - next_opening) < 0.001:
+                break
+            last_opening = next_opening
         return self.cm.get_current_gripper_opening() > 0.01
 
     ##
