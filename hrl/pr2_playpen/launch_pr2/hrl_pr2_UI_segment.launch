@@ -1,0 +1,19 @@
+<launch>
+
+	<include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch"/>
+	<node name="reconfig_kinect_pr2" pkg="dynamic_reconfigure" type="dynparam" args="load kinect_head $(find pr2_playpen)/launch_pr2/run_kinect_params.yaml" />
+
+	<node pkg="UI_segment_object" name="pr2_segment_cloud" type="segment_object" respawn="true" output="screen">
+	      <remap from="/camera/rgb/image_color" to="/kinect_head/rgb/image_color" />
+	      <remap from="/camera/depth/points2" to="/kinect_head/rgb/points" />
+	      <remap from="get_object_on_plane" to="pr2_get_object" />
+	      <remap from="get_3D_pt" to="pr2_get_3D_pt" />
+	      <remap from="UI_reset" to="pr2_UI_reset" />
+	      <remap from="segment_plane" to="pr2_segment_region" />
+	      <remap from="segment_object" to="pr2_segment_object" />
+	      <remap from="save_pt_cloud" to="playpen_save_pt_cloud" />
+	</node>
+
+	<node pkg="pr2_playpen" name="pr2_segment_cloud_pub" type="segment_client.py" output="screen" args="--node pr2_segment_cloud_pub --serv pr2_get_object" />
+	
+</launch>

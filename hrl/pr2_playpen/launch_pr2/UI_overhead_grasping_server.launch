@@ -1,6 +1,6 @@
 <launch>
    <include file="$(find pr2_overhead_grasping)/launch/init_params.launch"/>
-   <include file="$(find pr2_playpen)/launch/UI_simple_grasp_pipeline.launch"/>
+   <include file="$(find pr2_playpen)/launch_pr2/UI_simple_grasp_pipeline.launch"/>
     <node pkg="pr2_overhead_grasping" name="overhead_grasping" type="overhead_grasping.py" args="-s" output="screen"/>
 
   <node pkg="nodelet" type="nodelet" name="coll_manager"  args="manager" output="screen">
