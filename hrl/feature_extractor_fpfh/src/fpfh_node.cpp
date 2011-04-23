@@ -29,6 +29,7 @@ FPFHNode::FPFHNode(ros::NodeHandle &n): n_(n)
 {
     hist_publisher = n_.advertise<feature_extractor_fpfh::FPFHHist>("fpfh_hist", 10); 
     fpfh_service = n_.advertiseService("fpfh", &FPFHNode::fpfh_srv_cb, this);
+    subsample_service = n_.advertiseService("subsample", &FPFHNode::subsample_srv_cb, this);
 }
 
 
@@ -47,6 +48,27 @@ bool FPFHNode::fpfh_srv_cb(feature_extractor_fpfh::FPFHCalc::Request &req,
     process_point_cloud(input_cloud, res.hist);
     ROS_INFO("done2\n");
     //delete cloud2;
+    return true;
+}
+
+
+bool FPFHNode::subsample_srv_cb(feature_extractor_fpfh::SubsampleCalc::Request &req, 
+                                feature_extractor_fpfh::SubsampleCalc::Response &res)
+{
+    float resolution = .005;
+
+    sensor_msgs::PointCloud2 *cloud2 = new sensor_msgs::PointCloud2();
+    sensor_msgs::convertPointCloudToPointCloud2(req.input, *cloud2);
+    ROS_INFO("cloud has %d points", cloud2->width * cloud2->height);
+    const sensor_msgs::PointCloud2::ConstPtr input_cloud((const sensor_msgs::PointCloud2 *) cloud2);
+
+    sensor_msgs::PointCloud2 pc2_filtered;
+    pcl::VoxelGrid<sensor_msgs::PointCloud2> sor;
+    sor.setInputCloud(input_cloud);
+    sor.setLeafSize (resolution, resolution, resolution);
+    sor.filter(pc2_filtered);
+    sensor_msgs::convertPointCloud2ToPointCloud(pc2_filtered, res.output);
+
     return true;
 }
 

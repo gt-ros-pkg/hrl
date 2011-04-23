@@ -1,0 +1,3 @@
+sensor_msgs/PointCloud input
+---
+sensor_msgs/PointCloud output
