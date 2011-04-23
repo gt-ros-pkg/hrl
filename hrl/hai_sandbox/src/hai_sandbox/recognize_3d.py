@@ -23,7 +23,7 @@ import os
 import ml_lib.dataset as ds
 import ml_lib.dimreduce as dr
 
-import hrl_opencv.blob as blob
+#import hrl_opencv.blob as blob
 import hrl_lib.image3d as i3d
 import hrl_lib.util as ut
 import hrl_lib.viz as viz
@@ -1053,6 +1053,7 @@ class PCAIntensities:
         data_in_shifted = data_in - self.intensities_mean
         data_in_normed = data_in_shifted / self.intensities_std
         print 'PCAIntensities.calculate_pca_vectors: Constructing PCA basis'
+        #self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)[:,:50]
         self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)[:,:50]
         #self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)
         print 'PCAIntensities.calculate_pca_vectors: PCA basis size -', self.projection_basis.shape
@@ -2321,7 +2322,7 @@ class ScanLabeler:
         #pdb.set_trace()
         #features_used = ['expected_loc', 'fpfh', 'intensity']
         features_used = ['intensity']
-        exp_name = 'fixed_intensity_bug_filtered'
+        exp_name = 'fixed_intensity_bug_filtered_pca50'
         path = pt.split(insert_folder_name(self.scan_names[self.scan_idx], exp_name))[0]
         g = .5
         c = .5
@@ -2446,7 +2447,7 @@ class ScanLabeler:
         #pdb.set_trace()
         #features_used = ['expected_loc', 'fpfh', 'intensity']
         features_used = ['intensity']
-        exp_name = 'autolearn_g05_c05_max5_8_pca50'
+        exp_name = 'autolearn_g05_c05_max5_13_pca50'
         path = pt.split(insert_folder_name(self.scan_names[self.scan_idx], exp_name))[0]
         #pdb.set_trace()
         try:
@@ -2456,8 +2457,8 @@ class ScanLabeler:
 
         #train_idx = range(16)
         train_idx = np.random.permutation(range(16)).tolist()
-        test_idx  = range(16,17)
-        #test_idx  = range(16,24)
+        #test_idx  = range(16,17)
+        test_idx  = range(16,24)
 
         print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
         print 'Training initial learning from seed dataset'
