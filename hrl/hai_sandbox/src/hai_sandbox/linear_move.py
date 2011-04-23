@@ -42,6 +42,7 @@ import hrl_pr2_lib.linear_move as lm
 #import hrl_pr2_lib.collision_monitor as cmon
 import hai_sandbox.recognize_3d as r3d
 import hrl_lib.image3d as i3d
+import hrl_lib.viz as viz
 import cProfile
 #from hai_sandbox.recognize_3d import InterestPointDataset
 #import psyco
@@ -285,6 +286,49 @@ def separate_by_labels(points, labels):
     nidx = np.where(labels == r3d.NEGATIVE)[1].A1.tolist()
     uidx = np.where(labels == r3d.UNLABELED)[1].A1.tolist()
     return points[:, uidx], points[:, pidx], points[:, nidx]
+
+
+class LocationDisplay(threading.Thread):
+
+    def __init__(self, loc_man): 
+        threading.Thread.__init__(self)
+        try:
+            rospy.init_node('location_display')
+        except Exception,e:
+            print e
+
+        self.location_label_pub  = rospy.Publisher('location_label', vm.Marker)
+        self.location_marker_pub = rospy.Publisher('location_marker', vm.Marker)
+        self.loc_man = loc_man
+
+    def run(self):
+        text_scale = .1
+        text_color = np.matrix([1,0,0,1.]).T
+
+        circle_radii = .9
+        circle_scale = .2
+        circle_z = .03
+        circle_color = np.matrix([1,0,0,1.]).T
+
+        circle_msgs = []
+        data = self.loc_man.data
+        for task_id in data.keys():
+            point_map = data[task_id]['center']
+            circle_msgs.append(viz.circle_marker(point_map, circle_radii, circle_scale, circle_color, 'map', circle_z))
+            
+        text_msgs = []
+        for task_id in data.keys():
+            point_map = data[task_id]['center']
+            text_msgs.append(viz.text_marker(task_id, point_map, text_color, text_scale, 'map')
+
+        r = rospy.Rate(2)
+        while not rospy.is_shutdown():
+            for c in circle_msgs:
+                self.location_marker_pub.publish(c)
+            for txt in text_msgs:
+                self.location_label_pub.publish(txt)
+            r.sleep()
+
 
 
 class LocationManager:
@@ -587,6 +631,8 @@ class ApplicationBehaviors:
         #self.load_classifier('light_switch', 'friday_730_light_switch2.pkl')
         #self.img_pub = r3d.ImagePublisher('active_learn')
         self.locations_man = LocationManager('locations_narrow_v11.pkl', rec_params=self.rec_params)
+        self.location_display = LocationDisplay(self.locations_man)
+        self.location_display.start()
         #self.robot.projector.set_prosilica_inhibit(True)
         pdb.set_trace()
         self.robot.projector.set(False)
@@ -2023,7 +2069,7 @@ class ApplicationBehaviors:
     ##
     # The behavior can make service calls to a GUI asking users to label
     def practice(self, task_id, ctask_id, point3d_bl, stop_fun=None, params=None, 
-            negative_cut_off=.2, resolution=.01):
+            negative_cut_off=.2, resolution=.01, max_samples=5):
         if params == None:
             param = r3d.Recognize3DParam()
             param.uncertainty_x = 1.
@@ -2055,6 +2101,10 @@ class ApplicationBehaviors:
                 rospy.loginfo('Stop satisfied told us to stop loop!')
                 break
 
+            if len(indices_added) > 4:
+                rospy.loginfo('practice: added enough points from this scan.')
+                break
+
             #==================================================
             # Pick
             #==================================================
@@ -2070,6 +2120,7 @@ class ApplicationBehaviors:
             if stop_fun == None and converged:
                 rospy.loginfo('practice: Converged! Exiting loop.')
                 break
+
 
             selected_idx = remaining_pt_indices[ridx[0]]
             #pdb.set_trace()

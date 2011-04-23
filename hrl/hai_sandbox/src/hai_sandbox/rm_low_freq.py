@@ -4,7 +4,8 @@ import sys
 import os.path as pt
 
 img_path = sys.argv[1]
-img = cv.LoadImageM()
+print 'loading', img_path
+img = cv.LoadImageM(img_path)
 dst = cv.CloneMat(img)
 dif = cv.CloneMat(img)
 cv.Smooth(img, dst, cv.CV_GAUSSIAN, 91)
