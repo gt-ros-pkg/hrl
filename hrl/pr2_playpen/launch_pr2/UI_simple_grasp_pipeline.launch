@@ -1,0 +1,40 @@
+<launch>
+   <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch"/>
+   <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch"/>
+   <!--<include file="$(find hrl_pr2_lib)/launch/openni_kinect.launch"/> -->
+
+    <node pkg="pr2_gripper_reactive_approach" name="reactive_grasp_server_r" type="reactive_grasp_server.py" args="r">
+        <param name="collision_aware_ik" value="0"/>
+    </node>
+    <!--<node pkg="pr2_gripper_reactive_approach" name="reactive_grasp_server_l" type="reactive_grasp_server.py" args="l" /> -->
+
+    <node pkg="tabletop_object_detector" name="tabletop_node" type="tabletop_segmentation" respawn="false" output="screen">
+
+    <!-- which debug markers will be published-->
+        <param name="publish_table_marker" value="true" />
+        <param name="publish_cluster_markers" value="true" />
+        <param name="publish_good_fit_markers" value="true" />
+        <param name="publish_bad_fit_markers" value="false" />
+
+    <!--topic remapping-->
+        <remap from="cloud_in" to="pr2_segment_region" />
+        <!--<remap from="cloud_in" to="kinect_head/rgb/points" />-->
+        <remap from="segmentation_srv" to="object_detection" />
+        <remap from="markers_out" to="tabletop_detector_markers" />
+
+    <param name="clustering_distance" value="0.03" />
+
+    <!-- processing and filtering frame -->
+    <!-- remove this entire block and processing and filtering will -->
+    <!-- be done with default settings, in the incoming cloud frame -->
+    <param name="processing_frame" value="torso_lift_link" />
+    <param name="up_direction" value="1.0" />
+    <param name="z_filter_min" value="-0.5" />
+    <param name="z_filter_max" value="0.0" />
+    <param name="table_z_filter_min" value="0.01" />
+    <param name="table_z_filter_max" value="0.45" />       
+    </node>
+
+   <node pkg="pr2_head_action" name="pr2_head_action" type="pr2_head_action" />
+
+</launch>
