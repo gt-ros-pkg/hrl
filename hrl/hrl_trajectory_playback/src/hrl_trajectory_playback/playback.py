@@ -90,13 +90,16 @@ if __name__ == '__main__':
     p.add_option('--play', action='store_true', dest='play',
                  help='Just play it once instead of building service [default=False]',
                  default=False)
+    p.add_option('--reverse', action='store_true', dest='rev',
+                 help='Just play it once in reverse [default=False]',
+                 default=False)
     opt, args = p.parse_args()
 
     tp = TrajPlayback( opt.name, opt.pkl )
     
     if opt.play:
         req = TrajPlaybackSrvRequest()
-        req.play_backward = 0
+        req.play_backward = opt.rev
         tp.process_service( req )
     else:
         rospy.spin()
