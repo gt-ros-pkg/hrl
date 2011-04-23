@@ -7,6 +7,7 @@ import hrl_lib.image3d as i3d
 import hrl_lib.rutils as ru
 import hrl_lib.prob as pr
 import hrl_lib.tf_utils as tfu
+import pdb
 
 
 ##
@@ -42,14 +43,14 @@ def test_sample_points():
     print np.matrix(count) / np.sum(count)
 
 
-def intensity_pyramid_feature(self, point2d_image, image, winsize, multipliers, flatten=True):
+def intensity_pyramid_feature(point2d_image, np_image_arr, win_size, multipliers, flatten=True):
     invalid_location = False
     local_intensity = []
     for multiplier in multipliers:
         if multiplier == 1:
-            features = i3d.local_window(point2d_image, image, win_size, flatten=flatten)
+            features = i3d.local_window(point2d_image, np_image_arr, win_size, flatten=flatten)
         else:
-            features = i3d.local_window(point2d_image, image, win_size*multiplier, 
+            features = i3d.local_window(point2d_image, np_image_arr, win_size*multiplier, 
                                         resize_to=win_size, flatten=flatten)
         if features == None:
             invalid_location = True
@@ -89,10 +90,14 @@ class IntensityCloudFeatureExtractor:
         self.camera_calibration = camera_calibration
         self.params = params
         self.subsampler_service = Subsampler()
+        self.sizes = None #Important but access should be limited to decouple code
+
+    def get_sizes(self):
+        return self.sizes
 
     def _subsample(self):
         rospy.loginfo('Subsampling using PCL')
-        self.pc_sub_samp_bl = self.subsampler_service.subsample(pointcloud_bl)
+        self.pc_sub_samp_bl = self.subsampler_service.subsample(self.pointcloud_bl)
 
     def _sample_points(self):
         rospy.loginfo('Sampling points')
@@ -103,7 +108,7 @@ class IntensityCloudFeatureExtractor:
                                           [0,      0, self.params.uncertainty_z**2]]))
 
         pdf = gaussian.pdf_mat()
-        probs = pdf(self.pc_sub_samp_bl)
+        probs = np.matrix(pdf(self.pc_sub_samp_bl))
 
         #sample unique points
         pt_indices = list(set(sample_points(probs.T, self.params.n_samples)))
@@ -111,14 +116,14 @@ class IntensityCloudFeatureExtractor:
         #only keep those that are in bound of points
         sampled_pts3d_bl = self.pc_sub_samp_bl[:, pt_indices]
         sampled_pts3d_image = tfu.transform_points(self.image_T_bl, sampled_pts3d_bl)
-        sampled_pts2d = self.calibration_obj.project(sampled_pts3d_image)
+        sampled_pts2d = self.camera_calibration.project(sampled_pts3d_image)
         sampled_pix2d = np.matrix(np.round(sampled_pts2d))
 
         #throw away points that are outside of bounds
         x = sampled_pix2d[0,:]
         y = sampled_pix2d[1,:]
-        good_pts = np.where((x >= 0) + (x < self.calibration_obj.w) \
-                          + (y >= 0) + (y < self.calibration_obj.h))[1].A1
+        good_pts = np.where((x >= 0) + (x < self.camera_calibration.w) \
+                          + (y >= 0) + (y < self.camera_calibration.h))[1].A1
 
         sampled_pts3d_bl = sampled_pts3d_bl[:, good_pts]
         sampled_pix2d = sampled_pix2d[:, good_pts]
@@ -128,17 +133,24 @@ class IntensityCloudFeatureExtractor:
         fea_calculated = []
 
         #Get synthetic distance points
+        distance_feas = None
         if self.distance_feature_points != None:
             distance_feas = np.power(np.sum(np.power(self.distance_feature_points - point3d_bl, 2), 0), .5).T
             fea_calculated.append(distance_feas)
 
         #Get intensity features 
-        intensity = intensity_pyramid_feature(point2d_image, self.cvimage_mat, 
+        intensity = intensity_pyramid_feature(point2d_image, np.asarray(self.cvimage_mat), 
                 self.params.win_size, self.params.win_multipliers, True)
         if intensity == None:
             return None
         else:
             fea_calculated.append(intensity)
+
+        if self.sizes == None:
+            self.sizes = {}
+            if distance_feas != None:
+                self.sizes['distance'] = distance_feas.shape[0]
+            self.sizes['intensity'] = intensity.shape[0]
 
         return fea_calculated
 
@@ -147,14 +159,19 @@ class IntensityCloudFeatureExtractor:
         sampled_pts3d_bl, sampled_pix2d = self._sample_points()
         features_l = []
         pts_with_features = []
-        for i in range(sampl3d_pts3d_bl.shape[1]):
+
+        rospy.loginfo('Extracting features')
+        for i in range(sampled_pts3d_bl.shape[1]):
             features = self.feature_vec_at(sampled_pts3d_bl[:,i], sampled_pix2d[:,i])
             if features != None:
                 features_l.append(features)
                 pts_with_features.append(i)
+            if i % 500 == 0:
+                rospy.loginfo(i)
 
         features_by_type = zip(*features_l)
         xs = np.row_stack([np.column_stack(f) for f in features_by_type])
+        rospy.loginfo('Finished feature extraction.')
         return xs, sampled_pix2d[:, pts_with_features], sampled_pts3d_bl[:, pts_with_features]
 
 

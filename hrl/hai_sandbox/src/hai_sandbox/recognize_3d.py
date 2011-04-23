@@ -4,7 +4,6 @@ import cv
 import rospy
 import sensor_msgs.msg as sm
 import visualization_msgs.msg as vm
-import feature_extractor_fpfh.srv as fsrv
 
 import numpy as np
 import scipy.spatial as sp
@@ -30,16 +29,11 @@ import hrl_lib.viz as viz
 import hrl_lib.rutils as ru
 import hrl_lib.tf_utils as tfu
 import hrl_lib.prob as pr
+import hai_sandbox.intensity_feature as infea
 
-from cv_bridge import CvBridge, CvBridgeError
-from sensor_msgs.msg import Image
 
-import message_filters
-import feature_extractor_fpfh.msg as fmsg
-import hrl_camera.ros_camera as rc
-import hai_sandbox.kinect_listener as kl
-import scipy, pylab
-import scipy.stats as sct
+#import message_filters
+#import feature_extractor_fpfh.msg as fmsg
 import time
 import pdb
 
@@ -105,83 +99,6 @@ def insert_folder_name(apath, folder_name):
     path, filename = pt.split(apath)
     return pt.join(pt.join(path, folder_name), filename)
 
-def load_data_from_dir(dirname, grid_resolution, win_size, win3d_size, voi_bounds_laser):
-    data_files = glob.glob(pt.join(dirname, '*.pkl'))
-    data = []
-    
-    print 'extracting features'
-    for data_file_name in data_files:
-        print 'processing', data_file_name
-        #data_pkl = ut.load_pickle(data_file_name)
-        ic_data = load_data_from_file(data_file_name, grid_resolution, win_size, win3d_size, voi_bounds_laser)
-        data.append(ic_data)
-    return data
-
-def load_data_from_file(fname, rec_param):
-    #load pickle
-    data_pkl = ut.load_pickle(fname)
-    print 'Original frame of pointcloud is ', data_pkl['points_laser'].header.frame_id
-
-    #use pickle to load image
-    image_fname = pt.join(pt.split(fname)[0], data_pkl['high_res'])
-    intensity_image = cv.LoadImageM(image_fname)
-
-    #center_point_bl = data_pkl['touch_point'][0]
-    center_point_bl = data_pkl['touch_point']
-    print 'Robot touched point cloud at point', center_point_bl.T
-    #pdb.set_trace()
-
-    #load syn locs
-    distance_feature_points = None
-    syn_locs_fname = pt.splitext(fname)[0] + '_synthetic_locs3d.pkl'
-    #pdb.set_trace()
-    if pt.isfile(syn_locs_fname):
-        print 'found synthetic locations file', syn_locs_fname
-        distance_feature_points = ut.load_pickle(syn_locs_fname)
-        #distance_feature_points = np.column_stack((distance_feature_points, syn_locs))
-        #distance_feature_points = syn_locs
-        data_pkl['synthetic_locs3d'] = distance_feature_points
-    else:
-        print 'synthetic loc file not found', syn_locs_fname
-
-    #make the data object 
-    return IntensityCloudData(data_pkl['points_laser'], intensity_image, 
-                              data_pkl['pro_T_bl'], data_pkl['prosilica_cal'], 
-                              center_point_bl, center_point_bl, distance_feature_points, rec_param), data_pkl
-
-
-def load_data_from_file_kinect(fname, rec_param):
-    #load pickle
-    #pdb.set_trace()
-    data_pkl = ut.load_pickle(fname)
-    #print 'Original frame of pointcloud is ', data_pkl['points_laser'].header.frame_id
-
-    #use pickle to load image
-    image_fname = pt.join(pt.split(fname)[0], data_pkl['image'])
-    intensity_image = cv.LoadImageM(image_fname)
-
-    #center_point_bl = data_pkl['touch_point'][0]
-    center_point_bl = data_pkl['touch_point']
-    print 'Robot touched point cloud at point', center_point_bl.T
-    distance_feature_points = None
-    syn_locs_fname = pt.splitext(fname)[0] + '_synthetic_locs3d.pkl'
-    if pt.isfile(syn_locs_fname):
-        print 'found synthetic locations file', syn_locs_fname
-        distance_feature_points = ut.load_pickle(syn_locs_fname)
-        data_pkl['synthetic_locs3d'] = distance_feature_points
-    else:
-        print 'synthetic loc file not found', syn_locs_fname
-
-    ex = FPFH()
-    fpfh_hist, fpfh_points, points3d = ex.get_features(data_pkl['points3d'])
-    # fpfh_tree = sp.KDTree(np.array(fpfh_points.T))
-    #return IntensityCloudDataKinect(data_pkl['points3d'], fpfh_points, fpfh_hist, 
-    #        intensity_image, center_point_bl, data_pkl['cal'], rec_param, 
-    #        data_pkl['k_T_bl'], distance_feature_points), data_pkl
-    return IntensityCloudDataKinect(points3d, fpfh_points, fpfh_hist, 
-                intensity_image, center_point_bl, data_pkl['cal'],
-                rec_param, data_pkl['k_T_bl'], None), data_pkl
-
 def load_data_from_file2(fname, rec_param):
     data_pkl = ut.load_pickle(fname)
     image_fname = pt.join(pt.split(fname)[0], data_pkl['image'])
@@ -198,10 +115,12 @@ def load_data_from_file2(fname, rec_param):
     else:
         print 'synthetic loc file not found', syn_locs_fname
 
-    return IntensityCloudData(data_pkl['points3d'], intensity_image,
-            data_pkl['k_T_bl'], data_pkl['cal'], center_point_bl, center_point_bl, 
-            distance_feature_points, rec_param), data_pkl
-
+    #return IntensityCloudData(data_pkl['points3d'], intensity_image,
+    #        data_pkl['k_T_bl'], data_pkl['cal'], center_point_bl, center_point_bl, 
+    #        distance_feature_points, rec_param), data_pkl
+    return infea.IntensityCloudFeatureExtractor(data_pkl['points3d'], intensity_image, center_point_bl,
+                                            distance_feature_points, data_pkl['k_T_bl'], 
+                                            data_pkl['cal'], rec_param), data_pkl
 
 def dataset_to_libsvm(dataset, filename):
     f = open(filename, 'w')
@@ -265,7 +184,7 @@ def preprocess_scan_extract_features(raw_data_fname, ext):
     print 'Image name is', image_fname
     img = cv.LoadImageM(image_fname)
     feature_cache_fname = pt.splitext(raw_data_fname)[0] + ext
-    instances, points2d, points3d = feature_extractor.extract_vectorized_features()
+    instances, points2d, points3d = feature_extractor.extract_features()
     labels = np.matrix([UNLABELED] * instances.shape[1])
 
     #pdb.set_trace()
@@ -275,10 +194,11 @@ def preprocess_scan_extract_features(raw_data_fname, ext):
                          'points3d': points3d,
                          'image': image_fname,
                          'labels': labels,
-                         'sizes': feature_extractor.sizes}
+                         'sizes': feature_extractor.get_sizes()}
     if data_pkl.has_key('synthetic_locs3d'):
         preprocessed_dict['synthetic_locs3d'] = data_pkl['synthetic_locs3d']
 
+    rospy.loginfo('saving results')
     ut.save_pickle(preprocessed_dict, feature_cache_fname)
     return feature_cache_fname
 
@@ -331,641 +251,8 @@ def make_point_exclusion_test_set(training_dataset, all_data_dir, ext):
                                 np.column_stack(dset['outputs']),\
                                 None, None, None, sizes = sizes)
 
-class FPFH:
-    def __init__(self):
-        self.proxy = rospy.ServiceProxy('fpfh', fsrv.FPFHCalc)
 
-    def get_features(self, points3d, frame='base_link'):
-        req = fsrv.FPFHCalcRequest()
-        req.input = ru.np_to_pointcloud(points3d, frame)
-        res = self.proxy(req)
-        
-        histogram = np.matrix(res.hist.histograms).reshape((res.hist.hist_npoints,33)).T
-        hpoints3d = np.matrix(res.hist.hpoints3d).reshape((res.hist.hist_npoints,3)).T
-        points3d = np.matrix(res.hist.origpoints).reshape((res.hist.original_npoints,3)).T
 
-        return histogram, hpoints3d, points3d
-
-
-class IntensityCloudDataKinect:
-
-    def __init__(self, points3d, fpfh_points, fpfh_hist, cvimage_mat, expected_loc_bl, 
-                 calibration_obj, rec_param, image_T_bl, distance_feature_points=None):
-
-        points3d = points3d[:, np.where(ut.norm(points3d) < rec_param.robot_reach_radius)[1].A1]
-        self.points3d = points3d
-        self.fpfh_points = fpfh_points
-        self.fpfh_hist = fpfh_hist
-        self.cvimage_mat = cvimage_mat
-        self.image_arr = np.asarray(cvimage_mat)
-        self.expected_loc_bl = expected_loc_bl
-        self.calibration_obj = calibration_obj
-        self.distance_feature_points = distance_feature_points
-        self.params = rec_param
-        self.sizes = None
-        self.image_T_bl = image_T_bl
-        #pdb.set_trace()
-
-        self.points2d = self.calibration_obj.project(points3d)
-        self.fpfh_tree_bl = sp.KDTree(np.array(self.fpfh_points.T))
-        self.voi_tree_2d = sp.KDTree(np.array(self.points2d.T))
-
-
-    ##
-    #
-    # @param point3d - point to calculate features for 3x1 matrix
-    # @param verbose
-    # @param viz
-    # @param k
-    def feature_vec_at(self, point3d_bl, verbose=False, viz=False, k=4):
-        #project into 2d & get intensity window
-        point2d_image = self.calibration_obj.project(\
-                    tfu.transform_points(self.image_T_bl, point3d_bl))
-        flatten = not viz
-
-        # Find closest neighbors in 3D to get normal
-        invalid_location = False
-        local_intensity = []
-        for multiplier in self.params.win_multipliers:
-            if multiplier == 1:
-                features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, 
-                                            flatten=flatten)
-            else:
-                features = i3d.local_window(point2d_image, self.image_arr, 
-                                            self.params.win_size*multiplier, 
-                                            resize_to=self.params.win_size, flatten=flatten)
-            if features == None:
-                invalid_location = True
-                break
-            else:
-                local_intensity.append(features)
-
-        #Get fpfh
-        indices_list = self.fpfh_tree_bl.query(np.array(point3d_bl.T), k=k)[1]
-        hists = self.fpfh_hist[:, indices_list[0]]
-        fpfh = np.mean(hists, 1)
-
-        #Get distance to expected location
-        expected_loc_fea = None
-        if self.expected_loc_bl != None:
-            #expected_loc_img = tfu.tranform_points(self.image_T_bl, self.expected_loc_bl)
-            expected_loc_fea = np.power(np.sum(np.power(self.expected_loc_bl - point3d_bl, 2), 0), .5).T
-
-        #Get synthetic distance poins
-        distance_feas = None
-        if self.distance_feature_points != None:
-            distance_feas = np.power(np.sum(np.power(self.distance_feature_points - point3d_bl, 2), 0), .5).T
-
-        if not invalid_location:
-            if not viz:
-                local_intensity = np.row_stack(local_intensity)
-
-            if self.sizes == None:
-                self.sizes = {}
-
-                if expected_loc_fea != None:
-                    self.sizes['expected_loc'] = expected_loc_fea.shape[0]
-
-                if distance_feas != None:
-                    self.sizes['distance'] = distance_feas.shape[0]
-
-                self.sizes['fpfh'] = fpfh.shape[0]
-
-                self.sizes['intensity'] = local_intensity.shape[0]
-
-            fea_calculated = []
-
-            if expected_loc_fea != None:
-                fea_calculated.append(expected_loc_fea)
-
-            if distance_feas != None:
-                fea_calculated.append(distance_feas)
-
-            fea_calculated.append(fpfh)
-            fea_calculated.append(local_intensity)
-
-            return fea_calculated, point2d_image
-        else:
-            if verbose:
-                print '>> local_window outside of image'
-
-            return None, None
-
-    def _random_sample_voi(self):
-        #to generate initial distribution of points
-        #   randomly, uniformly sample for n points in 2d, add in prior information if available (gaussians)
-        #        for each 2d point p, associate with the 3d point closest to the camera
-        #        throw away all points not in VOI
-        self.sampled_points = []
-        self.sampled_points2d = []
-
-        #pdb.set_trace()
-        print 'generating _random_sample_voi'
-        # laser_T_image = np.linalg.inv(self.image_T_laser)
-        bl_T_image = np.linalg.inv(self.image_T_bl)
-        gaussian = pr.Gaussian(np.matrix([ 0.,      0,                            0.]).T, \
-                               np.matrix([[self.params.uncertainty_x**2, 0,             0.], \
-                                          [0., self.params.uncertainty_y**2,      0.], \
-                                          [0.,      0, self.params.uncertainty_z**2]]))
-        gaussian_noise = np.matrix([0, 0, 0.0]).T #We want to try the given point first
-
-        distr = {'u': 0, 'g':0}
-        print 'looping'
-        pdb.set_trace()
-        while len(self.sampled_points) < self.params.n_samples:
-            #Generate 2d point
-            if np.random.rand() < self.params.uni_mix or self.expected_loc_bl == None:
-                d = 'u'
-                x = np.random.randint(0, self.calibration_obj.w)
-                y = np.random.randint(0, self.calibration_obj.h)
-            else:
-                d = 'g'
-                #The first point sampled should be the given point
-                sampled3d_pt_bl = self.expected_loc_bl + gaussian_noise
-                gaussian_noise = gaussian.sample()
-                gaussian_noise[0,0] = 0
-                sampled3d_pt_image = tfu.transform_points(self.image_T_bl, sampled3d_pt_bl)
-                sampled2d_pt = self.calibration_obj.project(sampled3d_pt_image)
-                pt = np.round(sampled2d_pt)
-                x = int(pt[0,0])
-                y = int(pt[1,0])
-                if x < 0 or x > (self.calibration_obj.w-.6) or y < 0 or (y > self.calibration_obj.h-.6):
-                    continue
-
-            #get projected 3d points within radius of N pixels
-            indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 10.)
-            #indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 20.)
-            if len(indices_list) < 1:
-                continue
-
-            #select 3d point closest to the camera (in image frame)
-            #points3d_image = tfu.transform_points(self.image_T_laser, 
-            #                    self.points3d_valid_laser[:, indices_list])
-
-            points3d_image = self.points3d[:, indices_list]
-            closest_z_idx = np.argmin(points3d_image[2,:])
-            #closest_p3d_laser = tfu.transform_points(laser_T_image, closest_p3d_image)
-            closest_p3d = tfu.transform_points(bl_T_image, points3d_image[:, closest_z_idx])
-            closest_p2d = self.points2d[:, closest_z_idx]
-            #closest_p3d_laser = tfu.transform_points(laser_T_image, closest_p3d_image)
-
-            #check if point is in VOI
-            #if self._in_limits(closest_p3d):
-            self.sampled_points.append(closest_p3d.T.A1.tolist())
-            self.sampled_points2d.append(closest_p2d.T.A1.tolist())
-            #self.sampled_points2d.append([x,y])
-            distr[d] = distr[d] + 1
-            if len(self.sampled_points) % 50 == 0:
-                print len(self.sampled_points)
-
-    def _caculate_features_at_sampled_points(self):
-        self.feature_list = []
-        feature_loc_list = []
-        feature_loc2d_list = []
-        non_empty = 0
-        empty_queries = 0
-        for i, sampled_point_laser in enumerate(self.sampled_points):
-            if i % 500 == 0:
-                print '_caculate_features_at_sampled_points:', i
-
-            sampled_point_laser = np.matrix(sampled_point_laser).T
-            feature, point2d = self.feature_vec_at(sampled_point_laser)
-            if feature != None:
-                self.feature_list.append(feature)
-                feature_loc_list.append(sampled_point_laser)
-                feature_loc2d_list.append(point2d)
-                non_empty = non_empty + 1
-            else:
-                #pdb.set_trace()
-                empty_queries = empty_queries + 1
-        #pdb.set_trace()
-        print 'empty queries', empty_queries, 'non empty', non_empty
-        if len(feature_loc_list) > 0:
-            self.feature_locs = np.column_stack(feature_loc_list)
-            self.feature_locs2d = np.column_stack(feature_loc2d_list)
-        else:
-            self.feature_locs = np.matrix([])
-            self.feature_locs2d = np.matrix([])
-
-    #def _in_limits(self, p3d_bl):
-    #    #TODO transform point to base link
-    #    l = self.limits_base_link
-    #    if (l[0][0] < p3d[0,0]) and (p3d[0,0] < l[0][1]) and \
-    #       (l[1][0] < p3d[1,0]) and (p3d[1,0] < l[1][1]) and \
-    #       (l[2][0] < p3d[2,0]) and (p3d[2,0] < l[2][1]):
-    #        return True
-    #    else:
-    #        return False
-
-    def extract_vectorized_features(self):
-        #pdb.set_trace()
-        self._random_sample_voi()
-        self._caculate_features_at_sampled_points()
-        features_by_type = zip(*self.feature_list)
-        xs = np.row_stack([np.column_stack(f) for f in features_by_type])
-        return xs, self.feature_locs2d, self.feature_locs
-
-class IntensityCloudData:
-
-    def __init__(self, pointcloud, cvimage_mat, 
-                 image_T_bl, calibration_obj, 
-                 voi_center_bl, expected_loc_bl, 
-                 distance_feature_points, 
-                 rec_param):
-
-        self.params = rec_param
-
-        if pointcloud.__class__ == np.matrix:
-            self.pointcloud = pointcloud
-        else:
-            assert(pointcloud.header.frame_id == 'base_link')
-            self.pointcloud = ru.pointcloud_to_np(pointcloud)
-
-        #Data
-        #self.pointcloud_msg = pointcloud_msg
-        self.image_T_bl = image_T_bl
-        self.image_arr = np.asarray(cvimage_mat)
-        self.image_cv = cvimage_mat
-
-        self.calibration_obj = calibration_obj
-        self.voi_center_bl = voi_center_bl
-        self.expected_loc_bl = expected_loc_bl
-        self.distance_feature_points = distance_feature_points
-
-        #Quantities that will be calculated
-        #from _associate_intensity
-        self.points_valid_image = None 
-        self.colors_valid = None
-
-        #from _limit_to_voi
-        self.limits_bl = None
-        self.voi_tree = None
-        self.points3d_valid_bl = None
-        self.points2d_valid = None
-
-        #from _grid_sample_voi
-        self.sampled_points = None
-        self.sampled_points2d = None
-
-        #from _calculate_features
-        self.feature_list = None
-        self.feature_locs = None
-
-        #feature sizes
-        self.sizes = None
-
-        self._fpfh()
-        self._associate_intensity()
-        self._limit_to_voi()
-        #self._grid_sample_voi()
-        #fill out sizes dict
-        self.feature_vec_at_2d(np.matrix([calibration_obj.w/2., 
-                                         calibration_obj.h/2.]).T)
-
-    def _fpfh(self):
-        rospy.loginfo('Calculating fpfh')
-        ex = FPFH()
-        self.fpfh_hist, self.fpfh_points, self.ds_cloud = ex.get_features(self.pointcloud)
-        self.fpfh_tree = sp.KDTree(np.array(self.fpfh_points.T))
-
-    def _associate_intensity(self):
-        bl_pc = self.ds_cloud #ru.pointcloud_to_np(self.pointcloud_msg)
-        print 'Original point cloud size', bl_pc.shape[1]
-        self.points_valid_image, self.colors_valid, self.points2d_valid = \
-                i3d.combine_scan_and_image_laser_frame(bl_pc, self.image_T_bl,\
-                                            self.image_arr, self.calibration_obj)
-        print 'Number of points visible in camera', self.points_valid_image.shape[1]
-        self.point_cloud3d_orig = bl_pc
-
-    def _limit_to_voi(self):
-        bl_T_image = np.linalg.inv(self.image_T_bl)
-        #combined matrix (3xn 3d points) + (mxn color points) = [(m+3) x n matrix]
-        all_columns = \
-                np.row_stack((tfu.transform_points(bl_T_image,\
-                                                   self.points_valid_image[0:3,:]),\
-                               self.colors_valid,
-                               self.points2d_valid)) 
-
-        #pdb.set_trace()
-        valid_columns, self.limits_bl = \
-                i3d.select_rect(self.voi_center_bl, 
-                                self.params.voi_bl[0], 
-                                self.params.voi_bl[1], 
-                                self.params.voi_bl[2], 
-                                all_columns)
-
-        ncolors = self.colors_valid.shape[0]
-        self.points3d_valid_bl = valid_columns[0:3,:]
-        self.colors_valid = valid_columns[3:3+ncolors,:]
-        self.points2d_valid = valid_columns[-2:, :]
-
-        self.voi_tree = sp.KDTree(np.array(self.points3d_valid_bl.T))
-        self.voi_tree_2d = sp.KDTree(np.array(self.points2d_valid.T))
-
-        if valid_columns == None:
-            msg = 'No 3D points in volume of interest!'
-            print msg
-            raise RuntimeError(msg)
-
-        print 'Number of points in voi', valid_columns.shape[1]
-
-
-    # sample uniformly in voi 
-    def _grid_sample_voi(self):
-        lim = self.limits_bl
-        res = self.params.grid_resolution
-        self.sampled_points = []
-        for x in (np.arange(lim[0][0], lim[0][1], res) + (res/2.)):
-            for y in (np.arange(lim[1][0], lim[1][1], res) + (res/2.)):
-                for z in (np.arange(lim[0][0], lim[2][1], res) + (res/2.)):
-                    self.sampled_points.append([x,y,z])
-
-    def _in_limits(self, p3d):
-        l = self.limits_bl
-        if (l[0][0] < p3d[0,0]) and (p3d[0,0] < l[0][1]) and \
-           (l[1][0] < p3d[1,0]) and (p3d[1,0] < l[1][1]) and \
-           (l[2][0] < p3d[2,0]) and (p3d[2,0] < l[2][1]):
-            return True
-        else:
-            return False
-
-    def _random_sample_voi(self):
-        #to generate initial distribution of points
-        #   randomly, uniformly sample for n points in 2d, add in prior information if available (gaussians)
-        #        for each 2d point p, associate with the 3d point closest to the camera
-        #        throw away all points not in VOI
-        self.sampled_points = []
-        self.sampled_points2d = []
-
-        print 'generating _random_sample_voi'
-        bl_T_image = np.linalg.inv(self.image_T_bl)
-        gaussian = pr.Gaussian(np.matrix([ 0,      0,                          0.]).T, \
-                               np.matrix([[self.params.uncertainty_x**2, 0,      0], \
-                                          [0, self.params.uncertainty_y**2,      0], \
-                                          [0,      0, self.params.uncertainty_z**2]]))
-        gaussian_noise = np.matrix([0, 0, 0.0]).T #We want to try the given point first
-
-
-        distr = {'u': 0, 'g':0}
-        while len(self.sampled_points) < self.params.n_samples:
-            if np.random.rand() < self.params.uni_mix:
-                d = 'u'
-                x = np.random.randint(0, self.calibration_obj.w)
-                y = np.random.randint(0, self.calibration_obj.h)
-            else:
-                d = 'g'
-                sampled3d_pt_bl = self.expected_loc_bl + gaussian_noise
-                gaussian_noise = gaussian.sample()
-                gaussian_noise[0,0] = 0
-                #sampled3d_pt_bl = self.voi_center_bl + gaussian_noise
-                sampled3d_pt_image = tfu.transform_points(self.image_T_bl, sampled3d_pt_bl)
-                sampled2d_pt = self.calibration_obj.project(sampled3d_pt_image)
-                pt = np.round(sampled2d_pt)
-                x = int(pt[0,0])
-                y = int(pt[1,0])
-                if x < 0 or x > (self.calibration_obj.w-.6) or y < 0 or (y > self.calibration_obj.h-.6):
-                    #print 'missed 1'
-                    continue
-
-            #get projected 3d points within radius of N pixels
-            #indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 20.)
-            indices_list = self.voi_tree_2d.query_ball_point(np.array([x,y]), 10.)
-            if len(indices_list) < 1:
-                #print 'MISSED 2'
-                continue
-
-            #select 3d point closest to the camera (in image frame)
-            points3d_image = tfu.transform_points(self.image_T_bl, self.points3d_valid_bl[:, indices_list])
-            closest_z_idx = np.argmin(points3d_image[2,:])
-            closest_p3d_image = points3d_image[:, closest_z_idx]
-            closest_p2d = self.points2d_valid[:, closest_z_idx]
-            closest_p3d_bl = tfu.transform_points(bl_T_image, closest_p3d_image)
-
-            #check if point is in VOI
-            if self._in_limits(closest_p3d_bl):
-                self.sampled_points.append(closest_p3d_bl.T.A1.tolist())
-                self.sampled_points2d.append(closest_p2d.T.A1.tolist())
-                #self.sampled_points2d.append([x,y])
-                distr[d] = distr[d] + 1
-                if len(self.sampled_points) % 500 == 0:
-                    print len(self.sampled_points)
-
-
-    def _caculate_features_at_sampled_points(self):
-        self.feature_list = []
-        feature_loc_list = []
-        feature_loc2d_list = []
-        non_empty = 0
-        empty_queries = 0
-        for i, sampled_point_bl in enumerate(self.sampled_points):
-            if i % 500 == 0:
-                print '_caculate_features_at_sampled_points:', i
-
-            sampled_point_bl = np.matrix(sampled_point_bl).T
-            feature, point2d = self.feature_vec_at(sampled_point_bl)
-            if feature != None:
-                self.feature_list.append(feature)
-                feature_loc_list.append(sampled_point_bl)
-                feature_loc2d_list.append(point2d)
-                non_empty = non_empty + 1
-            else:
-                #pdb.set_trace()
-                empty_queries = empty_queries + 1
-        print 'empty queries', empty_queries, 'non empty', non_empty
-        if len(feature_loc_list) > 0:
-            self.feature_locs = np.column_stack(feature_loc_list)
-            self.feature_locs2d = np.column_stack(feature_loc2d_list)
-        else:
-            self.feature_locs = np.matrix([])
-            self.feature_locs2d = np.matrix([])
-
-    def feature_vec_at_2d(self, loc2d, viz=False):
-        #pdb.set_trace()
-        indices = self.voi_tree_2d.query(np.array(loc2d.T), k=1)[1]
-        closest_pt2d = self.points2d_valid[:, indices[0]]
-        closest_pt3d = self.points3d_valid_bl[:, indices[0]]
-        return self.feature_vec_at(closest_pt3d, viz=viz)[0], closest_pt3d, closest_pt2d
-
-    def feature_vec_at_2d_mat(self, loc2d):
-        indices = self.voi_tree_2d.query(np.array(loc2d.T), k=1)[1]
-        closest_pt2d = self.points2d_valid[:, indices[0]]
-        closest_pt3d = self.points3d_valid_bl[:, indices[0]]
-        return self.feature_vec_at_mat(closest_pt3d), closest_pt3d, closest_pt2d
-
-    def feature_vec_at_mat(self, point3d_bl, verbose=False):
-        f = self.feature_vec_at(point3d_bl, verbose)[0]
-        if f != None:
-            return np.row_stack(f)
-
-    ###
-    ##
-    ## @param point3d_laser - point to calculate features for 3x1 matrix in laser frame
-    ## @param verbose
-    #def feature_vec_at_old(self, point3d_laser, verbose=False, viz=False):
-    #    indices_list = self.voi_tree.query_ball_point(np.array(point3d_laser.T), self.params.win3d_size)[0]
-    #    if len(indices_list) > 4:
-    #        points_in_ball_bl = np.matrix(self.voi_tree.data.T[:, indices_list])
-    #        intensity_in_ball_bl = self.colors_valid[:, indices_list]
-    #        
-    #        #calc normal
-    #        normal_bl = i3d.calc_normal(points_in_ball_bl[0:3,:])
-    #        
-    #        #calc average color
-    #        avg_color = np.mean(intensity_in_ball_bl, 1)
-    #        
-    #        #project mean into 2d
-    #        point2d_image = self.calibration_obj.project(tfu.transform_points(self.image_T_laser,\
-    #                point3d_laser))
-    #        
-    #        #get local features
-    #        if viz == True:
-    #            flatten=False
-    #        else:
-    #            flatten=True
-
-    #        invalid_location = False
-    #        local_intensity = []
-    #        #for multiplier in [1,2,4,8,16,32]:
-    #        for multiplier in self.params.win_multipliers:
-    #            if multiplier == 1:
-    #                #pdb.set_trace()
-    #                features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, flatten=flatten)
-    #            else:
-    #                #pdb.set_trace()
-    #                features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size*multiplier, 
-    #                                            resize_to=self.params.win_size, flatten=flatten)
-    #            if features == None:
-    #                invalid_location = True
-    #                break
-    #            else:
-    #                local_intensity.append(features)
-
-    #        if not invalid_location:
-    #            if not viz:
-    #                local_intensity = np.row_stack(local_intensity)
-    #            if self.sizes == None:
-    #                #pdb.set_trace()
-    #                self.sizes = {}
-    #                self.sizes['intensity'] = local_intensity.shape[0]
-    #                self.sizes['normal'] = normal_bl.shape[0]
-    #                self.sizes['color'] = avg_color.shape[0]
-
-    #            return [normal_bl, avg_color, local_intensity], point2d_image
-    #        else:
-    #            if verbose:
-    #                print '>> local_window outside of image'
-    #    else:
-    #        if verbose:
-    #            print '>> not enough neighbors!', len(indices_list)
-    #    return None, None
-
-    ##
-    #
-    # @param point3d_bl - point to calculate features for 3x1 matrix in bl frame
-    # @param verbose
-    def feature_vec_at(self, point3d_bl, verbose=False, viz=False, k=4):
-        #project into 2d & get intensity window
-        try:
-            point2d_image = self.calibration_obj.project(\
-                                tfu.transform_points(self.image_T_bl, point3d_bl))
-        except Exception, e:
-            print e
-            pdb.set_trace()
-
-        #Calc intensity features
-        flatten = not viz
-
-        # Find closest neighbors in 3D to get normal
-        invalid_location = False
-        local_intensity = []
-        #for multiplier in [1,2,4,8,16,32]:
-        #pdb.set_trace()
-        for multiplier in self.params.win_multipliers:
-            if multiplier == 1:
-                #pdb.set_trace()
-                features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size, flatten=flatten)
-            else:
-                #pdb.set_trace()
-                features = i3d.local_window(point2d_image, self.image_arr, self.params.win_size*multiplier, 
-                                            resize_to=self.params.win_size, flatten=flatten)
-            if features == None:
-                invalid_location = True
-                break
-            else:
-                local_intensity.append(features)
-
-        #Calc 3d normal
-        # indices_list = self.voi_tree.query(np.array(point3d_bl.T), k=k)[1]
-        # points_in_ball_bl = np.matrix(self.voi_tree.data.T[:, indices_list])
-        # normal_bl = i3d.calc_normal(points_in_ball_bl[0:3,:])
-
-        #Get fpfh
-        indices_list = self.fpfh_tree.query(np.array(point3d_bl.T), k=k)[1]
-        hists = self.fpfh_hist[:, indices_list[0]]
-        fpfh = np.mean(hists, 1)
-        #if np.any(np.abs(fpfh) > 99999.):
-        #    pdb.set_trace()
-
-        #Get distance to expected location
-        if self.expected_loc_bl != None:
-            expected_loc_fea = np.power(np.sum(np.power(self.expected_loc_bl - point3d_bl, 2), 0), .5).T
-
-        #Get synthetic distance poins
-        distance_feas = None
-        if self.distance_feature_points != None:
-            distance_feas = np.power(np.sum(np.power(self.distance_feature_points - point3d_bl, 2), 0), .5).T
-
-        if not invalid_location:
-            if not viz:
-                local_intensity = np.row_stack(local_intensity)
-                #if np.any(np.abs(local_intensity) > 99999.):
-                #    pdb.set_trace()
-            if self.sizes == None:
-                self.sizes = {}
-                self.sizes['expected_loc'] = expected_loc_fea.shape[0]
-                if distance_feas != None:
-                    self.sizes['distance'] = distance_feas.shape[0]
-                self.sizes['fpfh'] = fpfh.shape[0]
-                self.sizes['intensity'] = local_intensity.shape[0]
-            fea_calculated = []
-
-            if expected_loc_fea != None:
-                fea_calculated.append(expected_loc_fea)
-
-            if distance_feas != None:
-                fea_calculated.append(distance_feas)
-
-            fea_calculated.append(fpfh)
-            fea_calculated.append(local_intensity)
-            #pdb.set_trace()
-
-            #return [distance_feas, fpfh, local_intensity], point2d_image
-            return fea_calculated, point2d_image
-        else:
-            if verbose:
-                print '>> local_window outside of image'
-
-            return None, None
-
-    ##
-    #
-    # @return a matrix mxn where m is the number of features and n the number of examples
-    def extract_vectorized_features(self):
-        self._random_sample_voi()
-        self._caculate_features_at_sampled_points()
-        features_by_type = zip(*self.feature_list)
-        xs = np.row_stack([np.column_stack(f) for f in features_by_type])
-        #distances = np.column_stack(distances)
-        #fpfhs = np.column_stack(fpfhs) #each column is a different sample
-        #intensities = np.column_stack(intensities)
-        #xs = np.row_stack((distances, fpfhs, intensities)) #stack features
-        return xs, self.feature_locs2d, self.feature_locs
-
-    def get_location2d(self, instance_indices):
-        #pdb.set_trace()
-        sampled_points3d_bl = self.feature_locs[:,instance_indices]
-        return self.calibration_obj.project(tfu.transform_points(self.image_T_bl, \
-                sampled_points3d_bl))
 
 class SVM:
     ##
@@ -1250,76 +537,6 @@ class SVMPCA_ActiveLearner:
 
         return np.column_stack((posex, negex, rsubset))
 
-    #def _calculate_pca_vectors(self, data, variance_keep):
-    #    #if pt.isfile('pca3.pkl'):
-    #    #    d = ut.load_pickle('pca3.pkl')
-    #    #    self.intensities_index = d['idx']
-    #    #    self.intensities_std = d['std']
-    #    #    self.intensities_mean = d['mean']
-    #    #    self.projection_basis = d['basis']
-    #    #    return
-
-    #    data_in = data[self.intensities_index:, :]
-    #    #we already have pca vectors
-    #    if self.intensities_mean != None:
-    #        normed_data = (data_in - self.intensities_mean) / self.intensities_std
-    #        if not self.is_dataset_far_from_pca_subspace(self.projection_basis.T * normed_data, normed_data):
-    #            print 'SVMPCA_ActiveLearner: is_dataset_far_from_pca_subspace no, dataset is not far.'
-    #            return
-    #        else:
-    #            print 'SVMPCA_ActiveLearner: is_dataset_far_from_pca_subspace yes, dataset is far. recalculating pca.'
-    #            #pdb.set_trace()
-    #            nsamples = data_in.shape[1]
-    #            data_in  = np.column_stack((data_in, self.pca_data[self.intensities_index, :]))
-    #            ntotal   = data_in.shape[1]
-    #            data_in  = data_in[:, np.random.permutation(np.array(range(ntotal)))[0:nsamples]]
-
-    #    self.intensities_mean = np.mean(data_in, 1)
-    #    self.intensities_std = np.std(data_in, 1)
-
-    #    data_in_shifted = data_in - self.intensities_mean
-    #    data_in_normed = data_in_shifted / self.intensities_std
-    #    #pdb.set_trace()
-    #    print 'SVMPCA_ActiveLearner._calculate_pca_vectors: Constructing PCA basis'
-    #    self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)
-    #    print 'SVMPCA_ActiveLearner._calculate_pca_vectors: PCA basis size -', self.projection_basis.shape
-
-    #    reconstruction = self.projection_basis * (self.projection_basis.T * data_in_normed)
-    #    self.recon_err_raw = ut.norm(data_in_normed - reconstruction)
-    #    self.reconstruction_error = self.calc_reconstruction_errors(self.projection_basis.T*data_in_normed, data_in_normed)
-    #    self.pca_data = data
-
-        #pdb.set_trace()
-
-        #ut.save_pickle({'idx': self.intensities_index,
-        #                'mean': self.intensities_mean,
-        #                'std': self.intensities_std,
-        #                'basis': self.projection_basis}, 'pca3.pkl')
-
-    #def calc_reconstruction_errors(self, projected_instances, original_instances):
-    #    pdb.set_trace()
-    #    errors = ut.norm((self.projection_basis * projected_instances) - original_instances)
-    #    mal_dist_errors = (errors - np.mean(self.recon_err_raw)) / (np.std(self.recon_err_raw)**2)
-    #    nhigh_errors = np.sum(np.abs(mal_dist_errors).A1 > self.reconstruction_std_lim)
-    #    npoints = original_instances.shape[1]
-    #    percent_error = nhigh_errors / (float(npoints))
-    #    rospy.loginfo('calc_reconstruction_errors: %.2f (%d / %d) with high reconstruction errors' \
-    #            % (percent_error, nhigh_errors, npoints))
-    #    return percent_error
-
-    #def is_dataset_far_from_pca_subspace(self, projected_instances, original_instances):
-    #    percent_error = self.calc_reconstruction_errors(projected_instances, original_instances)
-    #    return percent_error > (self.reconstruction_error + self.reconstruction_err_toler)
-
-    #def partial_pca_project(self, instances):
-    #    if self.use_pca:
-    #        #pdb.set_trace()
-    #        instances_in = (instances[self.intensities_index:, :] - self.intensities_mean) / self.intensities_std
-    #        reduced_intensities = self.projection_basis.T * instances_in
-    #        return np.row_stack((instances[:self.intensities_index, :], reduced_intensities))
-    #    else:
-    #        return instances
-
 class InterestPointDataset(ds.Dataset):
 
     def __init__(self, inputs, outputs, pt2d, pt3d, feature_extractor, scan_ids=None, idx_in_scan=None, sizes=None):
@@ -1335,26 +552,13 @@ class InterestPointDataset(ds.Dataset):
         #Intensity has to be the last feature
         if feature_extractor != None or sizes != None:
             if feature_extractor != None:
-                sizes = feature_extractor.sizes
-            #for k in ['distance', 'fpfh', 'intensity']:
+                sizes = feature_extractor.get_sizes
             for k in ['expected_loc', 'distance', 'fpfh', 'intensity']:
-                #if k == 'distance': #TODO remove this
-                #    sizes[k] = 5
                 if sizes.has_key(k):
                     start_idx = offset 
                     end_idx = offset + sizes[k]
                     self.add_attribute_descriptor(ds.AttributeDescriptor(k, (start_idx, end_idx)))
                     offset = end_idx
-
-    #def distance_hack(self):
-    #    offset = 0
-    #    for m in self.metadata:
-    #        size_m = m.extent[1] - m.extent[0]
-    #        if m.name == 'distance':
-    #            m.extent = (0, 5)
-    #            offset = 5
-    #        else:
-    #            m.extent = [offset, offset+size_m]
 
     def select_features(self, features):
         fset = set(features)
@@ -1384,18 +588,6 @@ class InterestPointDataset(ds.Dataset):
         return np.row_stack(selected_fea)
 
 
-    #def add_multiple(features, labels, pt2d, pt3d, scan_id=None, idx_in_scan=None):
-    #    self.inputs = np.column_stack((self.inputs, features))
-    #    self.outputs = np.column_stack((self.outputs, labels))
-    #    self.pt2d += pt2d
-    #    self.pt3d += pt3d
-    #    if scan_idx != None:
-    #        self.scan_id += scan_id
-    #    if idx_in_scan != None:
-    #        self.idx_in_scan += idx_in_scan
-
-
-    #def add(self, pt2d, pt3d, features, label):
     def add(self, features, label, pt2d, pt3d, scan_id=None, idx_in_scan=None):
         print 'added point', pt2d[0,0], pt2d[1,0]
         if np.abs(pt2d[1,0]) > 10000:
@@ -1404,24 +596,13 @@ class InterestPointDataset(ds.Dataset):
             pdb.set_trace()
         self.inputs = np.column_stack((self.inputs, features))
         self.outputs = np.column_stack((self.outputs, label))
-        #if pt2d != None:
-        #    if self.pt2d == None:
-        #        self.pt2d = pt2d
-        #    else:
         self.pt2d = np.column_stack((self.pt2d, pt2d))
-        #self.pt2d.append(pt2d)#np.column_stack((self.pt2d, pt2d))
         self.pt3d = np.column_stack((self.pt3d, pt3d))
-        #self.pt3d.append(pt3d)# = np.column_stack((self.pt3d, pt3d))
         if scan_id != None:
             self.scan_ids = np.column_stack((self.scan_ids, scan_id))
-            #print 'scan id class', self.scan_ids.__class__
         if idx_in_scan != None:
             self.idx_in_scan = np.column_stack((self.idx_in_scan, idx_in_scan))
         
-        #print 'new pt2d shape', self.pt2d.shape
-        #self.scan_ids.append(scan)
-        #self.idx_in_scan.append(idx_in_scan)
-
     def remove(self, instance_idx):
         self.inputs = np.column_stack((self.inputs[:,0:instance_idx], self.inputs[:,instance_idx+1:]))
         self.outputs = np.column_stack((self.outputs[:,0:instance_idx], self.outputs[:,instance_idx+1:]))
@@ -1492,85 +673,13 @@ class Recognize3DParam:
         self.reconstruction_std_lim = 1.
         self.reconstruction_err_toler = .05
 
-class InterestPointAppBase:
-
-    def __init__(self, object_name, datafile):
-        self.object_name = object_name
-
-        self.learner = None
-        self.rec_params = Recognize3DParam()
-
-        #updating/modifying dataset
-        self.have_not_trained_learner = True
-        self.dataset = None
-        self.dataset_cpy = None
-
-        #manage labeling of scanned data
-        self.feature_extractor = None
-        self.instances = None
-        self.points2d = None
-        self.points3d = None
-        self.classified_dataset = None
-
-        #loading/saving dataset
-        self.labeled_data_fname = datafile
-        if datafile != None and pt.isfile(datafile):
-            self.load_labeled_data()
-        else:
-            self.labeled_data_fname = object_name + '_labeled.pkl'
-       
-    def load_labeled_data(self):
-        self.dataset = ut.load_pickle(self.labeled_data_fname)
-        print 'Loaded from', self.labeled_data_fname
-        self.dataset.pt2d = np.zeros((2, len(self.dataset.pt2d))) + np.nan
-        self.dataset.pt3d = np.zeros((3, len(self.dataset.pt2d))) + np.nan
-        #self.dataset.pt2d = [None] * len(self.dataset.pt2d)
-        #self.dataset.pt3d = [None] * len(self.dataset.pt3d)
-        #self.ipdetector = InterestPointDetector(self.dataset)
-        self.train()
-        self.have_not_trained_learner = False
-
-    def has_enough_data(self):
-        pos_ex = np.sum(self.dataset.outputs)
-        neg_ex = self.dataset.outputs.shape[1] - pos_ex
-        if pos_ex > 0 and neg_ex > 0:
-            return True
-        else:
-            return False
-
-    def add_to_dataset(self, feature, label, pt2d, pt3d):
-        if self.dataset == None:
-            self.dataset = InterestPointDataset(feature, label, pt2d, pt3d, self.feature_extractor)
-        else:
-            self.dataset_cpy = self.dataset.copy()
-            self.dataset.add(feature, label, pt2d, pt3d)
-            if self.have_not_trained_learner:
-                self.train()
-
-    def undo_last_add(self):
-        if self.dataset_cpy != None:
-            self.dataset = self.dataset_cpy
-            self.dataset_cpy = None
-
-    def train(self):
-        if self.dataset != None and self.has_enough_data():
-            self.learner = SVMPCA_ActiveLearner()
-            self.learner.train(self.dataset, self.dataset.metadata[2].extent[0],
-                               self.rec_params.variance_keep)
-            self.have_not_trained_learner = False
-            self.classify()
-    
-    def classify(self):
-        results = self.learner.classify(self.instances)
-        plist = [self.points2d[:, i] for i in range(self.points2d.shape[1])]
-        p3list = [self.points3d[:, i] for i in range(self.points3d.shape[1])]
-        #pdb.set_trace()
-        self.classified_dataset = InterestPointDataset(self.instances, np.matrix(results), 
-                                                           plist, p3list, self.feature_extractor)
 
 class ImagePublisher:
 
     def __init__(self, channel, cal=None):
+        from cv_bridge import CvBridge, CvBridgeError
+        from sensor_msgs.msg import Image
+
         self.bridge = CvBridge()
         self.image_pub = rospy.Publisher(channel + '/image', Image)
         if cal != None:
@@ -1584,277 +693,9 @@ class ImagePublisher:
         if self.image_cal_pub != None:
             self.image_cal_pub.publish(self.cal.msg)
 
-class RvizDisplayThread(threading.Thread):
-
-    def __init__(self, cal=None):
-        threading.Thread.__init__(self)
-        try:
-            rospy.init_node('display')
-        except Exception,e:
-            print e
-
-        self.color_cloud_pub = rospy.Publisher('color_cloud', sm.PointCloud)
-        self.cloud_pub = rospy.Publisher('orig_cloud', sm.PointCloud)
-        self.pc_publishers = {}
-
-        self.labels_pub = rospy.Publisher('point_label', vm.Marker)
-        self.publish_queue = qu.Queue()
-        self.image_pub = ImagePublisher('rviz_image', cal)
-        self.run_pub_list = []
-
-    def run(self):
-        r = rospy.Rate(10)
-        print 'DisplayThread: running!'
-        self.run_pub_list = []
-        while not rospy.is_shutdown():
-            self.step()
-            r.sleep()
-
-    def step(self):
-        while not self.publish_queue.empty():
-            self.run_pub_list.append(self.publish_queue.get())
-        for pub, msg in self.run_pub_list:
-            pub.publish(msg)
-
-    def display_pc(self, channel, points, frame='base_link'):
-        if not self.pc_publishers.has_key(channel):
-            self.pc_publishers[channel] = rospy.Publisher(channel, sm.PointCloud)
-        pc = ru.np_to_pointcloud(points, frame)
-        self.publish_queue.put([self.pc_publishers[channel], pc])
-
-    def display_scan(self, points_bl, valid_points_bl, intensity, image=None, cal=None):
-        #publish mapped cloud to verify
-        valid_points_pro_msg  = ru.np_to_rgb_pointcloud(valid_points_bl, intensity, 'base_link')
-        points_bl_msg = ru.np_to_pointcloud(points_bl, 'base_link')
-        self.publish_queue.put([self.cloud_pub, points_bl_msg])
-        self.publish_queue.put([self.color_cloud_pub, valid_points_pro_msg])
-        if image != None:
-            self.publish_queue.put([self.image_pub, image])
-
-    def display_classification(self, points, labels, frame):
-        colors = []
-        for i in range(labels.shape[1]):
-            if labels[0,i] == 0:
-                colors.append(np.matrix([1,0,0,1.]).T)
-            else:
-                colors.append(np.matrix([0,1,0,1.]).T)
-        labels_msg = viz.list_marker(points, np.column_stack(colors), scale=[.02, .02, .02], mtype='points', mframe=frame)
-        self.publish_queue.put([self.labels_pub, labels_msg])
-
-    def display_training_data_set(self, fname, grid_resolution, win_size, win3d_size):
-        data_pkl = ut.load_pickle(fname)
-        ic_data, _ = load_data_from_file(fname, grid_resolution, win_size, win3d_size, voi_bounds_laser=[.5, .5, .5])
-
-        self.display_scan(ic_data.pointcloud_msg, 
-                ic_data.points_valid_image[0:3,:], 
-                ic_data.points_valid_image[3:,:])
-
-class CVGUI4(InterestPointAppBase):
-
-    def __init__(self, raw_data_fname, object_name, labeled_data_fname=None):
-        InterestPointAppBase.__init__(self, object_name, labeled_data_fname)
-        self.raw_data_fname = raw_data_fname
-        self.feature_extractor = None
-        self.load_scan(self.raw_data_fname)
-
-        #Setup displays
-        img = self.feature_extractor.image_cv
-        self.curr_feature_list = None
-        self.scale = 3
-        self.frame_number = 0
-        self.small_img = cv.CreateMat(img.rows/self.scale, img.cols/self.scale, cv.CV_8UC3)
-        self.disp = RvizDisplayThread()
-        self.selected = None
-
-        cv.Resize(img, self.small_img)
-        cv.NamedWindow('image', cv.CV_WINDOW_AUTOSIZE)
-        self.win_names = ['level1', 'level2', 'level4', 'level8', 'level16', 'level32']
-        for w in self.win_names:
-            cv.NamedWindow(w, 0)
-        cv.SetMouseCallback('image', self.mouse_cb, None)
-        if not self.have_not_trained_learner:
-            self.feature_extractor.feature_vec_at_2d(np.matrix([img.rows/2, img.cols/2.0]).T)
-            self.classify()
-
-    def load_scan(self, raw_data_fname):
-        self.feature_extractor, _ = load_data_from_file(raw_data_fname, self.rec_params)
-        feature_cache_fname = pt.splitext(raw_data_fname)[0] + '_features.pkl'
-        if not pt.isfile(feature_cache_fname):
-            self.instances, self.points2d, self.points3d = self.feature_extractor.extract_vectorized_features()
-            ut.save_pickle([self.instances, self.points2d, self.points3d], feature_cache_fname)
-            print 'Saved cache to', feature_cache_fname
-        else:
-            self.instances, self.points2d, self.points3d = ut.load_pickle(feature_cache_fname)
-            print 'Loaded cache from', feature_cache_fname
-
-    def mouse_cb(self, event, x, y, flags, param):
-        if event == cv.CV_EVENT_LBUTTONDOWN:
-            label = POSITIVE
-        elif event == cv.CV_EVENT_RBUTTONDOWN:
-            label = NEGATIVE
-        else:
-            return
-
-        #Extract features
-        loc = np.matrix([x, y]).T * self.scale
-        feature_vec, closest_pt3d, closest_pt2d = self.feature_extractor.feature_vec_at_2d_mat(loc)
-        if feature_vec == None:
-            return
-        feature_list, _, _ = self.feature_extractor.feature_vec_at_2d(loc, viz=True)
-        self.curr_feature_list = feature_list[-1]
-
-        #Add data point
-        self.add_to_dataset(feature_vec, np.matrix([label]), closest_pt2d, closest_pt3d)
-        #if self.learner != None:
-        self.draw()
-
-    def run(self):
-        self.disp.display_scan(ru.pointcloud_to_np(self.feature_extractor.pointcloud_msg), 
-                               self.feature_extractor.points3d_valid_laser, 
-                               self.feature_extractor.colors_valid)
-        self.draw()
-
-        while not rospy.is_shutdown():
-            self.disp.step()
-            k = cv.WaitKey(33)
-            if k != -1:
-                if k == ord(' '):
-                    self.train()
-                    self.classify()
-                    self.draw()
-
-                if k == ord('l'):
-                    selected_idx, selected_dist = self.learner.select_next_instances(self.instances)
-                    if selected_idx != None:
-                        self.selected = {'idx': selected_idx, 
-                                         'd': selected_dist, 
-                                         'loc2d': self.points2d[:, selected_idx], 
-                                         'label': None}
-                        flist, _, _ = self.feature_extractor.feature_vec_at_2d(self.points2d[:,selected_idx], viz=True)
-                        if flist != None:
-                            self.curr_feature_list = flist[-1]
-                        self.draw()
-                    else:
-                        print '======================='
-                        print '>> LEARNER CONVERGED <<'
-                        print '======================='
-                    
-                if k == ord('p'):
-                    if self.selected != None:
-                        self.selected['label'] = POSITIVE
-                        self.draw()
-
-                if k == ord('n'):
-                    if self.selected != None:
-                        self.selected['label'] = NEGATIVE
-                        self.draw()
-
-                if k == ord('a'):
-                    if self.selected != None and self.selected['label'] != None:
-                        idx = self.selected['idx']
-                        self.add_to_dataset(self.instances[:,idx], np.matrix([self.selected['label']]),
-                                            self.points2d[:,idx], self.points3d[:,idx])
-                        self.train()
-                        self.classify()
-                        self.selected = None
-                        self.draw()
-
-                if k == ord('u'):
-                    self.undo_last_add()
-                    self.train()
-                    self.classify()
-                    self.draw()
-
-                if k == ord('s'):
-                    if self.dataset != None:
-                        print 'saved to', self.labeled_data_fname
-                        ut.save_pickle(self.dataset, self.labeled_data_fname)
-
-                if k == ord('o'):
-                    self.load_labeled_data()
-
-    def draw(self):
-        img = cv.CloneMat(self.small_img)
-        if self.dataset != None:
-            draw_dataset(self.dataset, img, self.scale)
-        self._draw_classified_dataset(img)
-        self._draw_selected(img)
-        cv.ShowImage('image', img)
-
-        self._draw_features()
-
-        cv.SaveImage('active_learn%d.png' % self.frame_number, img)
-        self.frame_number = self.frame_number + 1
-        return img
-
-    def _draw_selected(self, img):
-        if self.selected == None:
-            return
-        if self.selected['label'] == None:
-            color = [255, 255, 255]
-
-        elif self.selected['label'] == POSITIVE:
-            color = [0,255,0]
-
-        elif self.selected['label'] == NEGATIVE:
-            color = [0,0,255]
-
-        draw_points(img, self.selected['loc2d']/self.scale, color, 4)
-
-    def _draw_classified_dataset(self, img):
-        if self.classified_dataset == None:
-            return
-        #pdb.set_trace()
-        draw_labeled_points(img, self.classified_dataset, scale=self.scale)
-
-    def _draw_features(self):
-        if self.curr_feature_list == None:
-            return
-        for imgnp, win in zip(self.curr_feature_list, self.win_names):
-            cv.ShowImage(win, imgnp)
-
-
-#class Recognize3D:
-#
-#    def practice(self, labeler):
-#        call feature detector
-#
-#        if not converged:
-#            get svm choice
-#            get label from labeler
-#
-#    def execute(self):
-#        calls feature detector
-#        get svm classification
-#
-#
-#class ScanLabeler2:
-#
-#    def __init__(self):
-#        bring up windows and find files
-#
-#    def step(self):
-#        user input
-#        cases
-#            run one step of learning
-#                get svm choice
-#                get label from labeled dataset
-#            
-#            or 
-#
-#            classify
-#
-#            or 
-#        
-#            user click labels
-#
-#    def test_script1(self):
-#        pass
-#
-#    def test_script2(self):
-#        pass
-
 def find_max_in_density(locs2d):
+    import scipy.stats as sct
+    import scipy
     x = locs2d[0,:]
     y = locs2d[1,:]
 
@@ -2447,7 +1288,7 @@ class ScanLabeler:
         #pdb.set_trace()
         #features_used = ['expected_loc', 'fpfh', 'intensity']
         features_used = ['intensity']
-        exp_name = 'autolearn_g05_c05_max5_13_pca50'
+        exp_name = 'autolearn_g05_c05_max5_14_pca50'
         path = pt.split(insert_folder_name(self.scan_names[self.scan_idx], exp_name))[0]
         #pdb.set_trace()
         try:
@@ -3085,19 +1926,21 @@ class NarrowTextureFeatureExtractor:
             params = self.rec_params
 
         #laser_T_bl = tfu.transform('/laser_tilt_link', '/base_link', self.tf_listener)
-        extractor = IntensityCloudData(pointcloud_bl, cvimage_mat, image_T_bl, self.cal, 
-                             expected_loc_bl, expected_loc_bl, None, params)
-        xs, locs2d, locs3d = extractor.extract_vectorized_features()
+        #extractor = IntensityCloudData(pointcloud_bl, cvimage_mat, image_T_bl, self.cal, 
+        #                     expected_loc_bl, expected_loc_bl, None, params)
+        extractor = infea.IntensityCloudFeatureExtractor(pointcloud_bl, cvimage_mat, expected_loc_bl, 
+                                                    None, image_T_bl, self.cal, params)
+        xs, locs2d, locs3d = extractor.extract_features()
 
-        rdict = {'histogram': extractor.fpfh_hist,
-                 'hpoints3d': extractor.fpfh_points,
-                 'points3d': extractor.point_cloud3d_orig,
+        rdict = {#'histogram': extractor.fpfh_hist,
+                 #'hpoints3d': extractor.fpfh_points,
+                 'points3d': pointcloud_bl,
                  'image': cvimage_mat}
 
         return {'instances': xs, 
                 'points2d': locs2d, 
                 'points3d': locs3d, 
-                'image': rdict['image'], 
+                'image': cvimage_mat, #rdict['image'], 
                 'rdict': rdict,
                 'sizes': extractor.sizes}
 
@@ -3125,13 +1968,15 @@ class LaserScannerFeatureExtractor:
             params = self.rec_params
 
         #laser_T_bl = tfu.transform('/laser_tilt_link', '/base_link', self.tf_listener)
-        extractor = IntensityCloudData(pointcloud_msg, cvimage_mat, image_T_laser, calibration_obj, 
-                 voi_center_laser, expected_loc_laser, distance_feature_points, params)
-        xs, locs2d, locs3d = extractor.extract_vectorized_features()
+        #extractor = IntensityCloudData(pointcloud_msg, cvimage_mat, image_T_laser, calibration_obj, 
+        #         voi_center_laser, expected_loc_laser, distance_feature_points, params)
+        extractor = infea.IntensityCloudFeatureExtractor(pointcloud_msg, cvimage_mat, expected_loc_laser, 
+                distance_feature_points, image_T_laser, calibration_obj, params)
+        xs, locs2d, locs3d = extractor.extract_features()
 
-        rdict = {'histogram': extractor.fpfh_hist,
-                 'hpoints3d': fpfh_points,
-                 'points3d': extractor.point_cloud3d_orig,
+        rdict = {#'histogram': extractor.fpfh_hist,
+                 #'hpoints3d': fpfh_points,
+                 'points3d':pointcloud_msg, 
                  'image': cvimage_mat}
 
         return {'instances': xs, 
@@ -3144,12 +1989,14 @@ class LaserScannerFeatureExtractor:
 class KinectFeatureExtractor:
     def __init__(self, tf_listener, kinect_listener=None, rec_params=None):
         import tf
+        import hrl_camera.ros_camera as rc
         self.cal = rc.ROSCameraCalibration('camera/rgb/camera_info')
         if tf_listener == None:
             self.tf_listener = tf.TransformListener()
         else:
             self.tf_listener = tf_listener
         if kinect_listener == None:
+            import hai_sandbox.kinect_listener as kl
             self.kinect_listener = kl.KinectListener()
         else:
             self.kinect_listener = kinect_listener
@@ -3215,16 +2062,16 @@ if __name__ == '__main__':
         fp = FiducialPicker(args[0])
         fp.run()
 
-    if mode == 'standalone':
-        object_name = args[0]
-        raw_data_fname = args[1]
-        if len(sys.argv) > 3:
-            labeled_data_fname = args[2]
-        else:
-            labeled_data_fname = None
+    #if mode == 'standalone':
+    #    object_name = args[0]
+    #    raw_data_fname = args[1]
+    #    if len(sys.argv) > 3:
+    #        labeled_data_fname = args[2]
+    #    else:
+    #        labeled_data_fname = None
 
-        cvgui = CVGUI4(raw_data_fname, object_name, labeled_data_fname)
-        cvgui.run()
+    #    cvgui = CVGUI4(raw_data_fname, object_name, labeled_data_fname)
+    #    cvgui.run()
 
     if mode == 'preprocess':
         rospy.init_node('detect_fpfh', anonymous=True)
@@ -3345,41 +2192,4 @@ if __name__ == '__main__':
             ip.publish(img)
 
         rospy.spin()
-        #def callback(image, fpfh_hist): 
-        #    print "got messages!" 
-        #    print image.header.frame_id, fpfh_hist.header.frame_id 
-        #    histogram = np.matrix(fpfh_hist.histograms).reshape((fpfh_hist.npoints, 33)).T 
-        #    points3d = np.matrix(fpfh_hist.points3d).reshape((fpfh_hist.npoints, 3)).T 
-        #    cvimage_mat = 
-        #    IntensityCloudDataKinect(points3d, histogram, cvimage_mat, expected_loc_bl, 
-        #          calibration_obj, rec_param, image_T_bl, distance_feature_points=None)
-
-
-        #CvBridge()
-        #rospy.init_node('kinect_features')
-        #image_sub = message_filters.Subscriber('/camera/rgb/image_color', sm.Image)
-        #fpfh_hist_sub = message_filters.Subscriber('fpfh_hist', fmsg.FPFHHist)
-        #ts = message_filters.TimeSynchronizer([image_sub, fpfh_hist_sub], 10)
-        #ts.registerCallback(callback)
-        #print 'reading and spinning!'
-        #rospy.spin()
-
-
-
-
-
-
-
-        #self.limits_base_link = [[expected_loc_bl[0,0]-self.params.voi_bl[0], expected_loc_bl[0,0]+self.params.voi_bl[0]],
-        #                         [expected_loc_bl[1,0]-self.params.voi_bl[1], expected_loc_bl[1,0]+self.params.voi_bl[1]],
-        #                         [expected_loc_bl[2,0]-self.params.voi_bl[2], expected_loc_bl[2,0]+self.params.voi_bl[2]]]
-
-
-        #TODO: finish this
-        #valid_columns, self.limits_laser = \
-        #        i3d.select_rect(self.voi_center_laser, 
-        #                        self.params.voi_bl[0], 
-        #                        self.params.voi_bl[1], 
-        #                        self.params.voi_bl[2], 
-        #                        all_columns)
 
