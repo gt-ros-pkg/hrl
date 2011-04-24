@@ -13,12 +13,16 @@ from threading import RLock
 
 import roslib; roslib.load_manifest('epc_core')
 import rospy
+
+import hrl_lib.viz as hv
+
 from hrl_lib.msg import FloatArray
 from roslib.msg import Header
 from std_msgs.msg import Bool
 from std_msgs.msg import Empty
 
 from std_srvs.srv import Empty as Empty_srv
+from visualization_msgs.msg import Marker
 
 
 # used in client and server.
@@ -75,6 +79,9 @@ class MekaArmClient():
         rospy.wait_for_service('toggle_floating_arms')
         self.toggle_floating_arms = rospy.ServiceProxy('toggle_floating_arms', Empty_srv)
 
+        self.marker_pub = rospy.Publisher('/cody_arms/viz_markers', Marker)
+        self.cep_marker_id = 1
+
         try:
             rospy.init_node('cody_arm_client', anonymous=True)
         except rospy.ROSException:
@@ -90,6 +97,17 @@ class MekaArmClient():
         self.cb_lock.acquire()
         self.r_arm_jep = list(msg.data)
         self.cb_lock.release()
+
+        # publish the CEP marker.
+        cep, r = self.arms.FK_all(arm, self.r_arm_jep)
+        o = np.matrix([0.,0.,0.,1.]).T
+        cep_marker = hv.single_marker(cep, o, 'sphere',
+                        '/torso_lift_link', color=(0., 0., 1., 1.),
+                            scale = (0.02, 0.02, 0.02),
+                            m_id = self.cep_marker_id, duration=0.)
+
+        cep_marker.header.stamp = msg.header.stamp
+        self.marker_pub.publish(cep_marker)
 
     def l_arm_jep_cb(self, msg):
         self.cb_lock.acquire()
@@ -220,6 +238,7 @@ class MekaArmClient():
         h = Header()
         h.stamp = time_stamp
         pub.publish(FloatArray(h, q))
+
 
     ##
     #Function that commands the arm(s) to incrementally move to a jep
