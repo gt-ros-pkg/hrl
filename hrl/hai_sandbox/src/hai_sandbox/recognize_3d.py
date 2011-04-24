@@ -587,7 +587,6 @@ class InterestPointDataset(ds.Dataset):
                 selected_fea.append(self.inputs[meta.extent[0]:meta.extent[1], :])
         return np.row_stack(selected_fea)
 
-
     def add(self, features, label, pt2d, pt3d, scan_id=None, idx_in_scan=None):
         print 'added point', pt2d[0,0], pt2d[1,0]
         if np.abs(pt2d[1,0]) > 10000:
@@ -1290,7 +1289,7 @@ class ScanLabeler:
         #pdb.set_trace()
         #features_used = ['expected_loc', 'fpfh', 'intensity']
         features_used = ['intensity']
-        exp_name = 'autolearn_g05_c05_max5_pca50_fast_feature_1'
+        exp_name = 'autolearn_g05_c05_max5_pca50_fast_feature_patch15_0'
         path = pt.split(insert_folder_name(self.scan_names[self.scan_idx], exp_name))[0]
         #pdb.set_trace()
         try:
@@ -1301,7 +1300,7 @@ class ScanLabeler:
         #train_idx = range(16)
         train_idx = np.random.permutation(range(16)).tolist()
         #test_idx  = range(16,17)
-        test_idx  = range(16,24)
+        test_idx  = range(18,24)
 
         print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
         print 'Training initial learning from seed dataset'
@@ -2030,7 +2029,7 @@ if __name__ == '__main__':
         elif opt.test:
             print 'Running automated tests'
             print 'Using features', opt.feature
-            s.active_learn_test3()
+            s.active_learn_test2()
             #if len(opt.feature) == 1 and opt.feature[0] == 'distance':
             #    s.active_learn_test(['distance'], opt.expname, opt.pca, run_till_end=opt.end)
             #else:
