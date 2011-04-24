@@ -639,7 +639,7 @@ class Recognize3DParam:
     def __init__(self):
         #Data extraction parameters
         self.grid_resolution = .01
-        self.win_size = 10
+        self.win_size = 15
         #self.win_multipliers = [1,2,4,8,16,32] for prosilica
         #self.win_multipliers = [1,2,4,8,16,32]
         self.win_multipliers = [2,4,8,16]
@@ -656,12 +656,14 @@ class Recognize3DParam:
         #self.svm_params = '-s 0 -t 2 -g .01 -c 4'
         #self.svm_params = '-s 0 -t 2 -g .2 -c 4'
         self.svm_params = '-s 0 -t 2 -g .5 -c .5'
+        #self.svm_params = '-s 0 -t 2 -g 100 -c .5'
 
         #sampling parameters
         #self.n_samples = 5000
         #self.n_samples = 5000
         self.n_samples = 1500
         self.uni_mix = .3
+        self.max_points_per_site = 5
 
         self.uncertainty_x = .1
         self.uncertainty_y = .1
@@ -1182,7 +1184,7 @@ class ScanLabeler:
         #Load seed dataset from the first scan, train initial SVM
         print 'using', self.training_sname
         seed_set = ut.load_pickle(self.training_sname)
-        metaintensity =  seed_set.metadata[3]
+        metaintensity =  seed_set.metadata[1]
         sizes = {'intensity': metaintensity.extent[1] - metaintensity.extent[0]}
         seed_set.metadata = [metaintensity]
         metaintensity.extent = [0, sizes['intensity']]
@@ -1288,7 +1290,7 @@ class ScanLabeler:
         #pdb.set_trace()
         #features_used = ['expected_loc', 'fpfh', 'intensity']
         features_used = ['intensity']
-        exp_name = 'autolearn_g05_c05_max5_14_pca50'
+        exp_name = 'autolearn_g05_c05_max5_pca50_fast_feature_1'
         path = pt.split(insert_folder_name(self.scan_names[self.scan_idx], exp_name))[0]
         #pdb.set_trace()
         try:
@@ -1306,7 +1308,8 @@ class ScanLabeler:
         #Load seed dataset from the first scan, train initial SVM
         print 'using', self.training_sname
         seed_set = ut.load_pickle(self.training_sname)
-        metaintensity =  seed_set.metadata[3]
+        #pdb.set_trace()
+        metaintensity =  seed_set.metadata[1]
         sizes = {'intensity': metaintensity.extent[1] - metaintensity.extent[0]}
         seed_set.metadata = [metaintensity]
         metaintensity.extent = [0, sizes['intensity']]
@@ -1728,8 +1731,12 @@ class ScanLabeler:
         if pos_ex > 0 and neg_ex > 0:
             return True
 
-    def train(self, inputs_for_scaling, use_pca=True):
+    def train(self, inputs_for_scaling):
         if self.dataset != None and self.has_enough_data():
+            use_pca=False
+            for f in self.features_to_use:
+                if f == 'intensity':
+                    use_pca=True
             nneg = np.sum(self.dataset.outputs == NEGATIVE)
             npos = np.sum(self.dataset.outputs == POSITIVE)
             print '================= Training ================='
@@ -1943,94 +1950,6 @@ class NarrowTextureFeatureExtractor:
                 'image': cvimage_mat, #rdict['image'], 
                 'rdict': rdict,
                 'sizes': extractor.sizes}
-
-class LaserScannerFeatureExtractor:
-    def __init__(self, prosilica, laser_scan, prosilica_cal, tf_listener, rec_params=None):
-        self.cal = prosilica_cal
-        self.prosilica = prosilica
-        self.laser_scan = laser_scan
-        self.tf_listener = tf_listener
-
-        if rec_params == None:
-            rec_params = Recognize3DParam()
-        self.rec_params = rec_params
-
-    def read(self, expected_loc_bl, params=None):
-        cvimage_mat = self.prosilica.get_frame()
-        pointcloud_msg = self.laser_scan.scan(math.radians(180.), math.radians(-180.), 2.315)
-        image_T_laser = tfu.transform('/high_def_optical_frame', '/base_link', self.tf_listener)
-        calibration_obj = self.cal
-        voi_center_laser = expected_loc_bl
-        expected_loc_laser = expected_loc_bl
-        distance_feature_points = None
-
-        if params == None:
-            params = self.rec_params
-
-        #laser_T_bl = tfu.transform('/laser_tilt_link', '/base_link', self.tf_listener)
-        #extractor = IntensityCloudData(pointcloud_msg, cvimage_mat, image_T_laser, calibration_obj, 
-        #         voi_center_laser, expected_loc_laser, distance_feature_points, params)
-        extractor = infea.IntensityCloudFeatureExtractor(pointcloud_msg, cvimage_mat, expected_loc_laser, 
-                distance_feature_points, image_T_laser, calibration_obj, params)
-        xs, locs2d, locs3d = extractor.extract_features()
-
-        rdict = {#'histogram': extractor.fpfh_hist,
-                 #'hpoints3d': fpfh_points,
-                 'points3d':pointcloud_msg, 
-                 'image': cvimage_mat}
-
-        return {'instances': xs, 
-                'points2d': locs2d, 
-                'points3d': locs3d, 
-                'image': rdict['image'], 
-                'rdict': rdict,
-                'sizes': extractor.sizes}
-
-class KinectFeatureExtractor:
-    def __init__(self, tf_listener, kinect_listener=None, rec_params=None):
-        import tf
-        import hrl_camera.ros_camera as rc
-        self.cal = rc.ROSCameraCalibration('camera/rgb/camera_info')
-        if tf_listener == None:
-            self.tf_listener = tf.TransformListener()
-        else:
-            self.tf_listener = tf_listener
-        if kinect_listener == None:
-            import hai_sandbox.kinect_listener as kl
-            self.kinect_listener = kl.KinectListener()
-        else:
-            self.kinect_listener = kinect_listener
-
-        if rec_params == None:
-            rec_params = Recognize3DParam()
-        self.rec_params = rec_params
-        #self.rec_params.n_samples = 100
-
-    def read(self, expected_loc_bl=None, params=None): 
-        print ">> Waiting for mesg.." 
-        rdict = self.kinect_listener.read()
-        print ">> Got message" 
-        calibration_obj = self.cal
-        image_T_bl = tfu.transform('openni_rgb_optical_frame', 'base_link', 
-                                   self.tf_listener)
-
-        print 'number of points', rdict['points3d'].shape[1]
-
-        if params == None:
-            params = self.rec_params
-        extractor = IntensityCloudDataKinect(rdict['points3d'], rdict['hpoints3d'], 
-                        rdict['histogram'], rdict['image'], expected_loc_bl, 
-                        calibration_obj, params, image_T_bl, 
-                        distance_feature_points=None)
-        xs, locs2d, locs3d = extractor.extract_vectorized_features()
-        print '>> Extracted features!'
-        return {'instances': xs, 
-                'points2d': locs2d, 
-                'points3d': locs3d, 
-                'image': rdict['image'], 
-                'rdict': rdict,
-                'sizes': extractor.sizes}
-        #return xs, locs2d, locs3d, rdict['image'], rdict, extractor.sizes
 
 
 if __name__ == '__main__':

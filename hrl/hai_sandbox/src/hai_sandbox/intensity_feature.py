@@ -97,7 +97,9 @@ class IntensityCloudFeatureExtractor:
 
     def _subsample(self):
         rospy.loginfo('Subsampling using PCL')
+        rospy.loginfo('before %s' % str(self.pointcloud_bl.shape))
         self.pc_sub_samp_bl = self.subsampler_service.subsample(self.pointcloud_bl)
+        rospy.loginfo('after %s' % str(self.pc_sub_samp_bl.shape))
 
     def _sample_points(self):
         rospy.loginfo('Sampling points')
@@ -111,7 +113,8 @@ class IntensityCloudFeatureExtractor:
         probs = np.matrix(pdf(self.pc_sub_samp_bl))
 
         #sample unique points
-        pt_indices = list(set(sample_points(probs.T, self.params.n_samples)))
+        n_samples = min(self.params.n_samples, self.pc_sub_samp_bl.shape[1])
+        pt_indices = list(set(sample_points(probs.T, n_samples)))
 
         #only keep those that are in bound of points
         sampled_pts3d_bl = self.pc_sub_samp_bl[:, pt_indices]
@@ -127,6 +130,8 @@ class IntensityCloudFeatureExtractor:
 
         sampled_pts3d_bl = sampled_pts3d_bl[:, good_pts]
         sampled_pix2d = sampled_pix2d[:, good_pts]
+
+        rospy.loginfo('got %s good points' % str(sampled_pix2d.shape[1]))
         return sampled_pts3d_bl, sampled_pix2d
 
     def feature_vec_at(self, point3d_bl, point2d_image):
@@ -141,6 +146,7 @@ class IntensityCloudFeatureExtractor:
         #Get intensity features 
         intensity = intensity_pyramid_feature(point2d_image, np.asarray(self.cvimage_mat), 
                 self.params.win_size, self.params.win_multipliers, True)
+        #pdb.set_trace()
         if intensity == None:
             return None
         else:

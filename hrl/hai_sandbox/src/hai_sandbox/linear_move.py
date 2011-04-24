@@ -481,6 +481,13 @@ class LocationManager:
                         fea_dict['points3d'], None, None, 
                         sizes=fea_dict['sizes'])
 
+    def get_perceptual_data(self, task_id):
+        return self.data[task_id]['dataset']
+
+    def remove_perceptual_data(self, task_id, instance_idx):
+        self.data[task_id]['dataset'].remove(instance_idx)
+        self.data[task_id]['dataset_raw'].remove(instance_idx)
+
     def active_learn_add_data(self, task_id, fea_dict):
         #TODO: do something smarter here
         self.add_perceptual_data(task_id, fea_dict)
@@ -2101,8 +2108,8 @@ class ApplicationBehaviors:
                 rospy.loginfo('Stop satisfied told us to stop loop!')
                 break
 
-            if len(indices_added) > 4:
-                rospy.loginfo('practice: added enough points from this scan.')
+            if len(indices_added) > params.max_points_per_site:
+                rospy.loginfo('practice: added enough points from this scan. Limit is %d points.' % params.max_points_per_site)
                 break
 
             #==================================================
@@ -2228,7 +2235,19 @@ class ApplicationBehaviors:
                 undo_point_bl0 = tfu.transform_points(tfu.transform('base_link', 'map', self.tf_listener), undo_point_map)
                 #self.practice(ctask_id, None, undo_point_bl, stop_fun=any_pos_sf)
                 #pdb.set_trace()
-                self.practice(ctask_id, None, undo_point_bl0, stop_fun=any_pos_sf)
+                num_points_added = self.practice(ctask_id, None, undo_point_bl0, stop_fun=any_pos_sf)
+                if num_points_added > params.max_points_per_site:
+                    pdb.set_trace()
+                    dataset = self.locations_man.get_perceptual_data(ctask_id)
+                    npoints = dataset.inputs.shape[1]
+                    pts_added_idx = range(npoints - num_points_added, npoints)
+                    pts_remove_idx = pts_added_idx[:(num_points_added - params.max_points_per_site)]
+                    rospy.loginfo('Got too many data points for %s throwing out %d points' % (ctask_id, len(pts_remove_idx)))
+                    for idx in pts_remove_idx:
+                        self.locations_man.remove_perceptual_data(ctask_id, idx)
+
+                #self.locations_man.
+
             reset_end = time.time()
 
             #Classify
