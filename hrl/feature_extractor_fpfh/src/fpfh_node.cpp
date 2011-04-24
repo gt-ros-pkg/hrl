@@ -55,11 +55,12 @@ bool FPFHNode::fpfh_srv_cb(feature_extractor_fpfh::FPFHCalc::Request &req,
 bool FPFHNode::subsample_srv_cb(feature_extractor_fpfh::SubsampleCalc::Request &req, 
                                 feature_extractor_fpfh::SubsampleCalc::Response &res)
 {
+    //float resolution = .005;
     float resolution = .005;
 
     sensor_msgs::PointCloud2 *cloud2 = new sensor_msgs::PointCloud2();
     sensor_msgs::convertPointCloudToPointCloud2(req.input, *cloud2);
-    ROS_INFO("cloud has %d points", cloud2->width * cloud2->height);
+    ROS_INFO("before cloud has %d points", cloud2->width * cloud2->height);
     const sensor_msgs::PointCloud2::ConstPtr input_cloud((const sensor_msgs::PointCloud2 *) cloud2);
 
     sensor_msgs::PointCloud2 pc2_filtered;
@@ -68,6 +69,7 @@ bool FPFHNode::subsample_srv_cb(feature_extractor_fpfh::SubsampleCalc::Request &
     sor.setLeafSize (resolution, resolution, resolution);
     sor.filter(pc2_filtered);
     sensor_msgs::convertPointCloud2ToPointCloud(pc2_filtered, res.output);
+    ROS_INFO("after cloud has %d points", pc2_filtered.width * pc2_filtered.height);
 
     return true;
 }
