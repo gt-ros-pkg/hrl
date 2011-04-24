@@ -315,11 +315,11 @@ class PCAIntensities:
         self.reconstruction_std_lim = reconstruction_std_lim
         self.reconstruction_err_toler = reconstruction_err_toler
 
-    def calculate_pca_vectors(self, data, variance_keep, incremental=False):
+    def calculate_pca_vectors(self, data, variance_keep):
         data_in = data[self.intensities_index:, :]
         #we already have pca vectors
         print 'PCAIntensities: data.shape', data.shape
-        if not incremental and self.intensities_mean != None:
+        if self.intensities_mean != None:
             normed_data = (data_in - self.intensities_mean) / self.intensities_std
             if not self.is_dataset_far_from_pca_subspace(self.projection_basis.T * normed_data, normed_data):
                 print 'PCAIntensities: is_dataset_far_from_pca_subspace no, dataset is not far.'
@@ -341,6 +341,7 @@ class PCAIntensities:
         data_in_normed = data_in_shifted / self.intensities_std
         print 'PCAIntensities.calculate_pca_vectors: Constructing PCA basis'
         #self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)[:,:50]
+        #pdb.set_trace()
         self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)[:,:50]
         #self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)
         print 'PCAIntensities.calculate_pca_vectors: PCA basis size -', self.projection_basis.shape
@@ -353,6 +354,7 @@ class PCAIntensities:
         self.reconstruction_error = self.calc_reconstruction_errors(projected, data_in_normed)
 
         pca_data_name = time.strftime('%A_%m_%d_%Y_%I:%M%p') + '_pca_data.pkl'
+        pdb.set_trace()
         ut.save_pickle(data, pca_data_name)
         self.pca_data = pca_data_name
 
@@ -468,7 +470,7 @@ class SVMPCA_ActiveLearner:
             #self._calculate_pca_vectors(inputs_for_scaling, variance_keep)
             if self.pca == None:
                 self.pca = PCAIntensities(self.dataset.metadata[-1].extent[0], self.reconstruction_std_lim, self.reconstruction_err_toler)
-            self.pca.calculate_pca_vectors(inputs_for_scaling, variance_keep, incremental=False)
+            self.pca.calculate_pca_vectors(inputs_for_scaling, variance_keep)
             #self.pca.calculate_pca_vectors(rebalanced_set, variance_keep, incremental=True)
 
         trainingset = self.partial_pca_project(trainingset)
@@ -492,7 +494,7 @@ class SVMPCA_ActiveLearner:
 
         #dataset_to_libsvm(self.rescaled_dataset, 'interest_point_data.libsvm')
         self.classifiers['svm'] = SVM(self.rescaled_dataset, svm_params)
-        self.classifiers['knn'] = sp.KDTree(np.array(self.rescaled_dataset.inputs.T))
+        #self.classifiers['knn'] = sp.KDTree(np.array(self.rescaled_dataset.inputs.T))
 
         self.sv_instances = self.dataset.inputs[:, self.classifiers['svm'].sv_indices()]
         self.sv_idx, self.sv_dist = self.get_closest_instances(self.sv_instances, 1)

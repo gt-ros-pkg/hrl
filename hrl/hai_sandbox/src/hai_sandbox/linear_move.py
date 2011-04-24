@@ -12,6 +12,7 @@ import rospy
 from geometry_msgs.msg import PointStamped, Point 
 import tf.transformations as tr
 from std_msgs.msg import String
+import visualization_msgs.msg as vm
 #import sensor_msgs.msg as smsg
 #import message_filters
 import tf
@@ -44,6 +45,7 @@ import hai_sandbox.recognize_3d as r3d
 import hrl_lib.image3d as i3d
 import hrl_lib.viz as viz
 import cProfile
+import threading
 #from hai_sandbox.recognize_3d import InterestPointDataset
 #import psyco
 #psyco.full()
@@ -312,6 +314,7 @@ class LocationDisplay(threading.Thread):
 
         circle_msgs = []
         data = self.loc_man.data
+        pdb.set_trace()
         for task_id in data.keys():
             point_map = data[task_id]['center']
             circle_msgs.append(viz.circle_marker(point_map, circle_radii, circle_scale, circle_color, 'map', circle_z))
@@ -319,7 +322,7 @@ class LocationDisplay(threading.Thread):
         text_msgs = []
         for task_id in data.keys():
             point_map = data[task_id]['center']
-            text_msgs.append(viz.text_marker(task_id, point_map, text_color, text_scale, 'map')
+            text_msgs.append(viz.text_marker(task_id, point_map, text_color, text_scale, 'map'))
 
         r = rospy.Rate(2)
         while not rospy.is_shutdown():
@@ -543,7 +546,7 @@ class LocationManager:
         for k in self.data.keys():
             self.train(k)
 
-    def train(self, task_id, dset_for_pca=None):
+    def train(self, task_id, dset_for_pca=None, save_pca_images=True):
         dataset = self.data[task_id]['dataset']
         rec_params = self.rec_params
         #pdb.set_trace()
@@ -564,6 +567,7 @@ class LocationManager:
         previous_learner = None
         if self.learners.has_key(task_id):
             previous_learner = self.learners[task_id]
+        #pdb.set_trace()
         learner = r3d.SVMPCA_ActiveLearner(use_pca=True, 
                         reconstruction_std_lim=self.rec_params.reconstruction_std_lim, 
                         reconstruction_err_toler=self.rec_params.reconstruction_err_toler,
@@ -583,6 +587,11 @@ class LocationManager:
 
         self.data[task_id]['pca'] = learner.pca
         self.learners[task_id] = learner
+        if save_pca_images:
+            #pdb.set_trace()
+            basis = learner.pca.projection_basis
+            cv.SaveImage('%s_pca.png' % task_id, r3d.instances_to_image(self.rec_params.win_size, basis, np.min(basis), np.max(basis)))
+
         #self.learners[task_id] = {'learner': learner, 'dataset': dataset}
 
 
@@ -638,8 +647,8 @@ class ApplicationBehaviors:
         #self.load_classifier('light_switch', 'friday_730_light_switch2.pkl')
         #self.img_pub = r3d.ImagePublisher('active_learn')
         self.locations_man = LocationManager('locations_narrow_v11.pkl', rec_params=self.rec_params)
-        self.location_display = LocationDisplay(self.locations_man)
-        self.location_display.start()
+        #self.location_display = LocationDisplay(self.locations_man)
+        #self.location_display.start()
         #self.robot.projector.set_prosilica_inhibit(True)
         pdb.set_trace()
         self.robot.projector.set(False)
@@ -1501,17 +1510,23 @@ class ApplicationBehaviors:
             #Lights should be on at this stage!
             #pdb.set_trace()
             #If we don't have enought data for reverse action
+            rospy.loginfo('====================================================')
+            rospy.loginfo('Don\'t have enough data for reverse action')
             if (self.locations_man.data[ctask_id]['dataset'] == None) or \
                     not has_pos_and_neg(self.locations_man.data[ctask_id]['dataset'].outputs.A1):
                 #Turn off the lights 
                 point_bl = tfu.transform_points(tfu.transform('base_link', 'map', self.tf_listener), point_map)
                 self.look_at(point_bl, True)
+                rospy.loginfo('====================================================')
+                rospy.loginfo('Running seed_dataset_explore on set %s.' % task_id)
                 ret_dict_action = self.seed_dataset_explore(task_id, None, point_bl, stop_fun=any_pos_sf, should_reset=False)
                 undo_point_bl = ret_dict_action['undo_point']
 
                 #Practice until stats are met
                 self.look_at(point_bl, True)
                 #ret_dict_undo = self.seed_dataset_explore(ctask_id, task_id, point_bl, stop_fun=has_pos_and_neg)
+                rospy.loginfo('====================================================')
+                rospy.loginfo('Running seed_dataset_explore on set %s.' % ctask_id)
                 ret_dict_undo = self.seed_dataset_explore(ctask_id, task_id, undo_point_bl, stop_fun=has_pos_and_neg)
                 if dset_undo == None:
                     dset_undo = ret_dict_undo['features']
@@ -1546,8 +1561,8 @@ class ApplicationBehaviors:
 
             self.locations_man.save_database()
             self.driving_posture(task_type)
-            self.locations_man.train(task_id, dset_action)
-            self.locations_man.train(ctask_id, dset_undo)
+            self.locations_man.train(task_id, dset_action, save_pca_images=True)
+            self.locations_man.train(ctask_id, dset_undo, save_pca_images=True)
             rospy.loginfo('Done initializing new location!')
         else:
             task_id, task_type = close_by_locs[0]
@@ -2078,14 +2093,14 @@ class ApplicationBehaviors:
     def practice(self, task_id, ctask_id, point3d_bl, stop_fun=None, params=None, 
             negative_cut_off=.2, resolution=.01, max_samples=5):
         if params == None:
-            param = r3d.Recognize3DParam()
-            param.uncertainty_x = 1.
+            params = r3d.Recognize3DParam()
+            params.uncertainty_x = 1.
             #param.n_samples = 2000
-            param.uncertainty_z = .04
-            param.uni_mix = .1
+            params.uncertainty_z = .04
+            params.uni_mix = .1
         pstart = time.time()
 
-        kdict, image_name = self.read_features_save(task_id, point3d_bl, param)
+        kdict, image_name = self.read_features_save(task_id, point3d_bl, params)
         #learner = self.locations_man.learners[task_id]
         #pdb.set_trace()
         behavior = self.get_behavior_by_task(self.locations_man.data[task_id]['task'])
@@ -2108,7 +2123,7 @@ class ApplicationBehaviors:
                 rospy.loginfo('Stop satisfied told us to stop loop!')
                 break
 
-            if len(indices_added) > params.max_points_per_site:
+            if stop_fun == None and len(indices_added) > params.max_points_per_site:
                 rospy.loginfo('practice: added enough points from this scan. Limit is %d points.' % params.max_points_per_site)
                 break
 
@@ -2242,6 +2257,7 @@ class ApplicationBehaviors:
                     npoints = dataset.inputs.shape[1]
                     pts_added_idx = range(npoints - num_points_added, npoints)
                     pts_remove_idx = pts_added_idx[:(num_points_added - params.max_points_per_site)]
+                    pts_remove_idx.reverse()
                     rospy.loginfo('Got too many data points for %s throwing out %d points' % (ctask_id, len(pts_remove_idx)))
                     for idx in pts_remove_idx:
                         self.locations_man.remove_perceptual_data(ctask_id, idx)
@@ -2498,6 +2514,10 @@ class ApplicationBehaviors:
         fea_dict_undo = None
         if undo_ret != None:
             fea_dict_undo = undo_ret['features']
+
+        params = r3d.Recognize3DParam()
+        params.n_samples = 5000
+        fea_dict, image_name = self.read_features_save(task_id, point_bl, params)
         return {'end_state': behavior_end_state, 'features': fea_dict, 
                 'features_undo': fea_dict_undo, 'undo_point': undo_point_bl}
 
@@ -2527,13 +2547,13 @@ class ApplicationBehaviors:
     #TODO: test this
     def execute_behavior(self, task_id, point3d_bl, max_retries=15, closeness_tolerance=.01):
         #Extract features
-        param = r3d.Recognize3DParam()
-        param.uncertainty_x = 1.
-        param.uncertainty_z = .03
-        param.uni_mix = .1
-        param.n_samples = 1000
+        params = r3d.Recognize3DParam()
+        params.uncertainty_x = 1.
+        params.uncertainty_z = .03
+        params.uni_mix = .1
+        params.n_samples = 1000
 
-        kdict, image_name = self.read_features_save(task_id, point3d_bl, param)
+        kdict, image_name = self.read_features_save(task_id, point3d_bl, params)
         kdict['image_T_bl'] = tfu.transform(self.OPTICAL_FRAME, 'base_link', self.tf_listener)
         point3d_img = tfu.transform_points(kdict['image_T_bl'], point3d_bl)
         point2d_img = self.feature_ex.cal.project(point3d_img)
@@ -2875,17 +2895,29 @@ class TestLearner:
                       rec_params.variance_keep)
         return learner
 
+def test_display():
+    rec_params = r3d.Recognize3DParam()
+    locations_man = LocationManager('locations_narrow_v11.pkl', 
+            rec_params=rec_params)
+    location_display = LocationDisplay(locations_man)
+    location_display.run()
+    #location_display.start()
+    
 
 
 def launch():
     import optparse
     p = optparse.OptionParser()
+    p.add_option("-d", "--display", action="store_true", default=False)
     p.add_option("-p", "--practice", action="store_true", default=False)
     p.add_option("-e", "--execute", action="store_true", default=False)
     p.add_option("-i", "--init", action="store_true", default=False)
     p.add_option("-t", "--test", action="store_true", default=False)
 
     opt, args = p.parse_args()
+    if opt.display:
+        test_display()
+        return
 
     if opt.practice or opt.execute or opt.init:
         l = ApplicationBehaviors()
@@ -2959,7 +2991,7 @@ if __name__ == '__main__':
     #        fea_dict, _ = self.read_features_save(task_id, point_bl, params)
     #        image_T_bl = tfu.transform('openni_rgb_optical_frame', 'base_link', self.tf_listener)
     #        fea_dict['image_T_bl'] = image_T_bl
-    #    #fea_dict = self.feature_ex.read(expected_loc_bl=point_bl, params=param)
+    #    #fea_dict = self.feature_ex.read(expected_loc_bl=point_bl, params=params)
     #    
     #    dists = ut.norm(fea_dict['points3d'] - point_bl)
     #    ordering = np.argsort(dists).A1
@@ -3201,10 +3233,10 @@ if __name__ == '__main__':
 #class PickPointsUsingActiveLearning:
 #
 #    def __init__(self, locations_manager):
-#        self.param = r3d.Recognize3DParam()
-#        self.param.uncertainty_x = 1.
-#        self.param.n_samples = 2000
-#        self.param.uni_mix = .1
+#        self.params = r3d.Recognize3DParam()
+#        self.params.uncertainty_x = 1.
+#        self.params.n_samples = 2000
+#        self.params.uni_mix = .1
 #
 #        self.points3d_tried = []
 #        self.points2d_tried = []
@@ -3454,12 +3486,12 @@ if __name__ == '__main__':
 #
 #        # instances, locs2d_image, locs3d_bl, image, raw_dict = 
 #        #kf_dict = self.feature_ex.read(point3d_bl)
-#        param = r3d.Recognize3DParam()
-#        param.uncertainty_x = 1.
-#        param.n_samples = 2000
-#        param.uni_mix = .1
+#        params = r3d.Recognize3DParam()
+#        params.uncertainty_x = 1.
+#        params.n_samples = 2000
+#        params.uni_mix = .1
 #
-#        kdict, fname = self.read_features_save(task_id, point3d_bl, param)
+#        kdict, fname = self.read_features_save(task_id, point3d_bl, params)
 #        learner = self.locations_man.learners[task_id]
 #        behavior = self.get_behavior_by_task(self.locations_man.data[task_id]['task'])
 #        undo_behavior = self.get_undo_behavior_by_task(self.locations_man.data[task_id]['task'])
