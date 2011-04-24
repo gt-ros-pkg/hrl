@@ -79,7 +79,7 @@ class MekaArmClient():
         rospy.wait_for_service('toggle_floating_arms')
         self.toggle_floating_arms = rospy.ServiceProxy('toggle_floating_arms', Empty_srv)
 
-        self.marker_pub = rospy.Publisher('/cody_arms/viz_markers', Marker)
+        self.marker_pub = rospy.Publisher('/arms/viz_markers', Marker)
         self.cep_marker_id = 1
 
         try:
@@ -99,7 +99,7 @@ class MekaArmClient():
         self.cb_lock.release()
 
         # publish the CEP marker.
-        cep, r = self.arms.FK_all(arm, self.r_arm_jep)
+        cep, r = self.arms.FK_all('right_arm', self.r_arm_jep)
         o = np.matrix([0.,0.,0.,1.]).T
         cep_marker = hv.single_marker(cep, o, 'sphere',
                         '/torso_lift_link', color=(0., 0., 1., 1.),
