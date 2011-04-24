@@ -51,6 +51,44 @@ def list_marker(points, colors, scale, mtype, mframe, duration=10.0, m_id=0):
 
     return m
 
+
+def text_marker(text, center, color, scale, mframe, 
+        duration=10.0, m_id=0):
+
+    m = vm.Marker()
+    m.header.frame_id = mframe
+    m.id = m_id
+    m.type = create_mdict()['text_view_facing']
+    m.action = vm.Marker.ADD
+    m.text = text
+    m.scale.z = scale
+    m.pose.position.x = center[0,0]
+    m.pose.position.y = center[1,0]
+    m.pose.position.z = center[2,0]
+    m.lifetime = rospy.Duration(duration)
+
+    return m
+
+
+def circle_marker(center, radius, scale, color, mframe, z=.03, duration=10.0, m_id=0, resolution=1.):
+    angles = np.matrix(np.arange(0, 360., resolution)).T
+    xs = center[0,0] + np.cos(angles) * radius
+    ys = center[1,0] + np.sin(angles) * radius
+    z = .03
+
+    m = vm.Marker()
+    m.header.frame_id = mframe
+    m.id = m_id
+    m.type = create_mdict()['line_strip']
+    m.action = vm.Marker.ADD
+    m.points = [gm.Point(xs[i,0], ys[i,0], z) for i in range(angles.shape[0])]
+    m.colors = [sdm.ColorRGBA(color[0,0], color[1,0], color[2,0], color[3,0]) for i in range(angles.shape[0])]
+    m.scale.x = scale
+    m.lifetime = rospy.Duration(duration)
+    return m
+
+    
+
 ##
 # Create a visualization_msgs.Marker message given a point
 def single_marker(point, orientation, mtype, mframe, scale=[.2,.2,.2], color=[1.0, 0, 0,.5], duration=10.0, m_id=0):
