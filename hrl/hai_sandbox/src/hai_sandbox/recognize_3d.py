@@ -1165,7 +1165,7 @@ class ScanLabeler:
         #pdb.set_trace()
         #features_used = ['expected_loc', 'fpfh', 'intensity']
         features_used = ['intensity']
-        exp_name = 'fixed_intensity_bug_filtered_pca50'
+        exp_name = 'fixed_intensity_bug_filtered_pca50_window15'
         path = pt.split(insert_folder_name(self.scan_names[self.scan_idx], exp_name))[0]
         g = .5
         c = .5
@@ -1176,7 +1176,7 @@ class ScanLabeler:
             pass
 
         train_idx = range(16)
-        test_idx  = range(16,24)
+        test_idx  = range(20,24)
         #test_idx  = range(8,9)
 
         print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
@@ -2030,7 +2030,7 @@ if __name__ == '__main__':
         elif opt.test:
             print 'Running automated tests'
             print 'Using features', opt.feature
-            s.active_learn_test2()
+            s.active_learn_test3()
             #if len(opt.feature) == 1 and opt.feature[0] == 'distance':
             #    s.active_learn_test(['distance'], opt.expname, opt.pca, run_till_end=opt.end)
             #else:
