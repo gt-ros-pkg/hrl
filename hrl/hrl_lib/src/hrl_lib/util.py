@@ -73,10 +73,8 @@ def save_pickle(object, filename):
 def norm(mat):
     return np.power(np.sum(np.power(mat,2), axis=0), 0.5)
 
-
 def approx_equal(a, b, epsilon=.001):
     return (b < (a+epsilon)) and ((a-epsilon) < b)
-
 
 def unipolar_limit( x, upper ):
     """ limit the value of x such that

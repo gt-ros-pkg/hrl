@@ -4,6 +4,7 @@ import cv
 import numpy as np
 import hrl_lib.tf_utils as tfu
 import hrl_opencv.blob as blob
+import pdb
 
 ##
 # calculate normal to a group of points
@@ -59,6 +60,7 @@ def local_window(location, bw_image, winsize, resize_to=None, flatten=True):
            cv.Resize(subrect, rescaled, cv.CV_INTER_LINEAR)
            subrect = rescaled
         if flatten:
+            #pdb.set_trace()
             intensity = np.matrix(np.reshape(subrect, (subrect.shape[0]*subrect.shape[1]*subrect.shape[2], 1))) / 255.
         else:
             intensity = subrect
