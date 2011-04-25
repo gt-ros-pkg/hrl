@@ -1,0 +1,26 @@
+scan_filter_chain:
+- name: shadows
+  type: ScanShadowsFilter
+  params:
+    min_angle: 10
+    max_angle: 170
+    neighbors: 20
+    window: 1
+- name: dark_shadows
+  type: LaserScanIntensityFilter
+  params: 
+    lower_threshold: 100
+    upper_threshold: 10000
+    disp_histogram: 0
+- name: angular_bounds
+  type: LaserScanAngularBoundsFilter
+  params:
+    lower_angle: -1.22173048
+    upper_angle: 1.22173048
+- name: downscan_filter
+  type: laser_tilt_controller_filter/LaserTiltControllerFilter
+  params:
+    filter_sections: [1]
+    tilt_profile_times: [0.0, 3.14159, 30.]
+
+
