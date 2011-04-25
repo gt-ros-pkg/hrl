@@ -1,0 +1,5 @@
+<launch>
+    <include file="right_arm_collision_free_ik.launch"/>
+    <include file="left_arm_collision_free_ik.launch"/>
+    <include file="$(find pr2_gripper_sensor_action)/launch/pr2_gripper_sensor_actions.launch"/>
+</launch>

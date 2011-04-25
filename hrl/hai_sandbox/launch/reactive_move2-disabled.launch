@@ -1,0 +1,64 @@
+<launch>
+    <!-- Network -->
+    <include file="$(find gt_pr2)/machine.launch"/>
+
+    <!-- Navigation-->
+    <include file="$(find gt_pr2)/hsi_2dnav.launch"/>
+
+<!--
+    <node pkg="hrl_pr2_lib" type="move_base_server.py" name="move_base_server"/>
+
+    <include file="$(find pr2_arm_navigation_actions)/launch/environment_server_left_arm.launch"/>
+    <include file="$(find pr2_arm_navigation_actions)/launch/environment_server_right_arm.launch"/>
+
+    <include file="right_arm_collision_free_ik.launch"/>
+    <include file="left_arm_collision_free_ik.launch"/>
+-->
+
+    <!--
+    <include file="$(find pr2_arm_navigation_kinematics)/launch/right_arm_collision_free_ik.launch"/>
+    <include file="$(find pr2_arm_navigation_kinematics)/launch/left_arm_collision_free_ik.launch"/>
+    <node pkg="hrl_pr2_lib" type="collision_monitor.py" name="collision_monitor_left" args="l"/>
+    <node pkg="hrl_pr2_lib" type="collision_monitor.py" name="collision_monitor_right" args="r"/>
+    -->
+
+    <!-- For getting point clouds -->
+<!--
+    <include file="$(find pr2_gripper_sensor_action)/launch/pr2_gripper_sensor_actions.launch"/>
+-->
+    <!--
+    <include file="$(find pr2_arm_navigation_perception)/launch/laser-perception.launch"/>
+    -->
+<!--
+    <node ns="prosilica" pkg="image_proc" type="image_proc" respawn="true" name="prosilica_image_proc"/>
+-->
+
+        <!-- <remap from="cloud" to="tilt_scan_filtered"/> -->
+   <!--
+    <node pkg="laser_assembler" type="point_cloud_assembler" name="point_cloud_assembler_linear_move" respawn="true" output="screen" >
+        <remap from="cloud" to="tilt_scan_shadow_filtered"/>
+        <param name="fixed_frame" type="string" value="/base_link" />
+        <param name="max_clouds" type="int" value="1000"/>
+    </node>
+
+    <node pkg="pr2_arm_navigation_perception" type="point_cloud_srv" respawn="true" name="point_cloud_srv_linear_move" >
+        <remap from="laser_scan_assembler/build_cloud" to="assemble_scans"/>
+    </node>
+-->
+
+  <!-- assemble pointcloud into a full world view -->
+  <node machine="c2" pkg="laser_assembler" type="point_cloud_assembler" output="screen"  name="point_cloud_assembler">
+    <remap from="cloud" to="tilt_scan_filtered"/>
+    <param name="max_clouds" type="int" value="4000" />
+    <param name="ignore_laser_skew" type="bool" value="true" />
+    <param name="fixed_frame" type="string" value="base_link" />
+  </node>
+
+  <node machine="c2" pkg="pr2_arm_navigation_perception" type="pr2_laser_snapshotter" output="screen" name="snapshotter">
+    <remap from="laser_scanner_signal" to="laser_tilt_controller/laser_scanner_signal"/>
+    <remap from="build_cloud" to="point_cloud_assembler/build_cloud" />
+    <remap from="full_cloud" to="full_cloud_filtered" />
+  </node>
+
+
+</launch>
