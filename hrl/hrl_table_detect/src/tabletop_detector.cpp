@@ -409,7 +409,7 @@ namespace hrl_table_detect {
                 uint32_t red = 0xFFFF0000;
                 ((uint32_t*) &pt.rgb)[0] = red;
             }
-            if(table_edge.at<uint8_t>(x,y) == 255 && 
+            if(table_edge2.at<uint8_t>(x,y) == 255 && 
                     std::fabs(table_height - z) < stddev*4) {
                 uint32_t blue = 0xFF0000FF;
                 ((uint32_t*) &pt.rgb)[0] = blue;
