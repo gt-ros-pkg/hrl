@@ -27,6 +27,24 @@ def create_mdict():
     mdict['triangle_list']    = vm.Marker.TRIANGLE_LIST
     return mdict
 
+
+def text_marker(text, position, scale, color, frame, m_id=0):
+    m = vm.Marker()
+    m.header.frame_id = frame
+    m.id = m_id
+    m.type = create_mdict()['text_view_facing']
+
+    m.pose.position.x = position[0,0]
+    m.pose.position.y = position[1,0]              
+    m.pose.position.z = position[2,0]              
+    m.scale.z = scale
+    m.color.r = color[0,0]
+    m.color.g = color[1,0]
+    m.color.b = color[2,0]
+    m.color.a = color[3,0]
+
+    return m
+
 ##
 # Create a visualization_msgs.Marker message containing all the given points
 def list_marker(points, colors, scale, mtype, mframe, duration=10.0, m_id=0):
