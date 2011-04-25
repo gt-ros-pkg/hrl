@@ -255,7 +255,7 @@ namespace hrl_table_detect {
             quatmat.getRotation(quat);
             cpose.orientation.x = quat.x(); cpose.orientation.y = quat.y();
             cpose.orientation.z = quat.z(); cpose.orientation.w = quat.w();
-            CvPoint centerpt; centerpt.y = posex; centerpt.x = posex;
+            CvPoint centerpt; centerpt.y = posex; centerpt.x = posey;
             printf("[%d](%f, %f, area: %f)\n", i, posex, posey, obj_areas[obj_inds[i]]);
             IplImage height_img_max_ipl = height_img_max;
             cvCircle(&height_img_max_ipl, centerpt, 3, cv::Scalar(200), 2);
