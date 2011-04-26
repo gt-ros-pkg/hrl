@@ -56,6 +56,8 @@ class SimplePickAndPlaceExample():
         self.playpen = rospy.ServiceProxy('playpen', Playpen)
         self.conveyor = rospy.ServiceProxy('conveyor', Conveyor)
         self.objects_dist = [.135, .26-.135, .405-.26, .545-.405, 
+                             .70-.545, .865-.70, .995-.865, 1.24-.995,
+                             .135, .26-.135, .405-.26, .545-.405, 
                              .70-.545, .865-.70, .995-.865, 1.24-.995]
         self.tries = 0
         self.successes = 0
@@ -181,7 +183,7 @@ if __name__ == "__main__":
         data['success'] = []
         data['frames'] = []
 
-        while sppe.tries<2:
+        while sppe.tries<3:
             print "arm is ", arm
 #            print "target _point is ", target_point.x
 #            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.pcd')
