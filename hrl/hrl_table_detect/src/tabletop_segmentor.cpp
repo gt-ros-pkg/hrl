@@ -88,7 +88,7 @@ namespace hrl_table_detect {
         return true;
     }
 
-    bool compind(uint32_t a, uint32_t b, vector<float> v) { return v[a] > v[b]; }
+    bool compind(uint32_t a, uint32_t b, vector<float> v) { return v[a] < v[b]; }
 
     void convCvBox2DPoly(CvBox2D& box, CvPoint**& pts, int*& npts) {
         pts = new CvPoint*[1]; pts[0] = new CvPoint[4];
@@ -228,7 +228,7 @@ namespace hrl_table_detect {
         CBlobResult obj_blobs = CBlobResult(&above_table_img, NULL, 0);
         obj_blobs.Filter(obj_blobs, B_EXCLUDE, CBlobGetArea(), B_LESS, obj_min_area);
         CBlob cur_obj_blob;
-        vector<float> obj_cents_x, obj_cents_y, obj_cents_r, obj_areas;
+        vector<float> obj_cents_x, obj_cents_y, obj_cents_r, obj_areas, obj_dists;
         vector<uint32_t> obj_inds;
         for(int i=0;i<obj_blobs.GetNumBlobs();i++) {
             obj_blobs.GetNthBlob(CBlobGetArea(), i, cur_obj_blob);
@@ -237,9 +237,10 @@ namespace hrl_table_detect {
             obj_cents_y.push_back(obj_box.center.y);
             obj_cents_r.push_back(obj_box.angle * CV_PI/180);
             obj_areas.push_back(cur_obj_blob.Area());
+            obj_dists.push_back((obj_box.center.x-imgx/2)*(obj_box.center.x-imgx/2)+obj_box.center.y*obj_box.center.y);
             obj_inds.push_back(i);
         }
-        boost::function<bool(uint32_t, uint32_t)> sortind = boost::bind(&compind, _1, _2, obj_areas);
+        boost::function<bool(uint32_t, uint32_t)> sortind = boost::bind(&compind, _1, _2, obj_dists);
         sort(obj_inds.begin(), obj_inds.end(), sortind);
 
         obj_poses.poses.clear();

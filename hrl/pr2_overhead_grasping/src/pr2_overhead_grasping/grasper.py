@@ -210,7 +210,7 @@ class OverheadGrasper():
     def create_gripper_pose(self, x, y, z, quat):
         point = [x, y, z]
         point = self.transform_in_frame(point, np.array(quat), -self.GRIPPER_POINT).tolist()
-        point[0] -= 0.015 # TODO MYSTERY OFFSET!
+        point[0] -= 0.010 # TODO MYSTERY OFFSET!
         pose = point + quat
         goal_pose = cf.create_pose_stamped(pose, "torso_lift_link")
         goal_pose.header.stamp = rospy.Time.now()
@@ -239,7 +239,7 @@ class OverheadGrasper():
     def create_goal_pose(self, x, y, z, gripper_pose):
         point = [x, y, z]
         point = self.transform_in_frame(point, gripper_pose, -self.GRIPPER_POINT).tolist()
-        point[0] -= 0.015 # TODO MYSTERY OFFSET!
+        point[0] -= 0.010 # TODO MYSTERY OFFSET!
         pose = point + gripper_pose.tolist()
         goal_pose = cf.create_pose_stamped(pose, "torso_lift_link")
         goal_pose.header.stamp = rospy.Time.now()
@@ -478,7 +478,7 @@ class OverheadGrasper():
         o = wrist_pose.pose.orientation
         affector_pos = self.transform_in_frame([p.x, p.y, p.z],
                                           [o.x, o.y, o.z, o.w], self.GRIPPER_POINT)
-        point[0] -= 0.015 # TODO MYSTERY OFFSET!
+        point[0] -= 0.010 # TODO MYSTERY OFFSET!
         return affector_pos
 
     def kill_arm_movement(self):

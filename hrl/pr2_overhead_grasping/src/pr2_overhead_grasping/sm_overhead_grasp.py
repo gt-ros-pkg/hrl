@@ -30,12 +30,18 @@
 
 import roslib
 roslib.load_manifest('pr2_overhead_grasping')
+roslib.load_manifest('tf')
+roslib.load_manifest('hrl_table_detect')
+roslib.load_manifest('rfid_behaviors')
 import rospy
 
 import smach
 from smach_ros import SimpleActionState, ServiceState, IntrospectionServer
 import actionlib
+import tf.transformations as tft
 
+from rfid_behaviors.srv import HandoffSrv
+from hrl_table_detect.srv import DetectTableInst, DetectTableInstRequest
 from pr2_overhead_grasping.msg import OverheadGraspAction, OverheadGraspGoal
 from pr2_overhead_grasping.msg import OverheadGraspSetupAction, OverheadGraspSetupGoal
 from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPositionGoal
@@ -48,13 +54,13 @@ class NTries(smach.State):
     def __init__(self, n):
         smach.State.__init__(self, outcomes=['succeeded', 'aborted'])
         self.counter = 0
-        self.n = 3
+        self.n = n
 
     def execute(self, userdata):
         self.counter += 1
-        rospy.logout( 'Executing NTries: On #%d of %d' % (self.counter, self.n))
 
         if self.counter <= self.n:
+            rospy.logout( 'Executing NTries: On #%d of %d' % (self.counter, self.n))
             return 'succeeded'
         else:
             return 'aborted'
@@ -67,7 +73,7 @@ def sm_grasp():
     with sm:
         # Setup arm pose (out of way for perception)
         tgoal = SingleJointPositionGoal()
-        tgoal.position = 0.170  # all the way up is 0.200
+        tgoal.position = 0.190  # all the way up is 0.200
         tgoal.min_duration = rospy.Duration( 2.0 )
         tgoal.max_velocity = 1.0
         smach.StateMachine.add(
@@ -81,29 +87,59 @@ def sm_grasp():
         smach.StateMachine.add(
             'THREE_TRIES',
             NTries( 3 ),
-            transitions = {'succeeded':'GRASP_SETUP',
+            transitions = {'succeeded':'PERCEIVE_SETUP',
                            'aborted':'aborted'})
+
+        # get hand out of face
+        smach.StateMachine.add(
+            'PERCEIVE_SETUP',
+            ServiceState( '/rfid_handoff/grasp', HandoffSrv ),
+            transitions = { 'succeeded' : 'PERCEIVE_OBJECT' })
             
+
+        # Setment objects
+        smach.StateMachine.add(
+            'PERCEIVE_OBJECT',
+            ServiceState( '/obj_segment_inst',
+                          DetectTableInst,
+                          request = DetectTableInstRequest( 1.0 ),
+                          response_slots = ['grasp_points']), # PoseArray
+            transitions = {'succeeded':'GRASP_SETUP'},
+            remapping = {'grasp_points':'object_poses'}) #output
 
         # Setup arm pose (out of way for perception)
         smach.StateMachine.add(
             'GRASP_SETUP',
             SimpleActionState( 'overhead_grasp_setup',
                                OverheadGraspSetupAction,
-                               goal = OverheadGraspSetupGoal()),
+                               goal = OverheadGraspSetupGoal( True )), # disable new look
             transitions = { 'succeeded': 'GRASP' })
 
         # Actually perform grasp of some object in front of robot on table
-        ggoal = OverheadGraspGoal()
-        ggoal.is_grasp = True
-        ggoal.grasp_type = OverheadGraspGoal.VISION_GRASP
-        ggoal.x = 0.5
-        ggoal.y = 0.0
+        def grasp_goal_cb( userdata, goal ):
+            # grasp_poses is PoseArray in base_link
+            mgp = userdata.grasp_poses.poses[0]
+            
+            ggoal = OverheadGraspGoal()
+            ggoal.is_grasp = True
+            ggoal.grasp_type = OverheadGraspGoal.MANUAL_GRASP
+            
+            ggoal.x = mgp.position.x + 0.05 # Converts base_link -> torso_lift_link (only for x,y)
+            ggoal.y = mgp.position.y
+
+            o = mgp.orientation
+            r,p,y = tft.euler_from_quaternion(( o.x, o.y, o.z, o.w ))
+            ggoal.rot = y
+            
+            return ggoal
+
         smach.StateMachine.add(
             'GRASP',
             SimpleActionState( 'overhead_grasp',
                                OverheadGraspAction,
-                               goal = ggoal),
+                               goal_cb = grasp_goal_cb,
+                               input_keys = ['grasp_poses']),
+            remapping = {'grasp_poses':'object_poses'},
             transitions = { 'succeeded': 'succeeded',
                             'aborted':'THREE_TRIES' })
             
