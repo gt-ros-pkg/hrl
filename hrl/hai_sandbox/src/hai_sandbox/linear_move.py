@@ -376,8 +376,8 @@ class LocationManager:
     def revert(self):
         self.centers = self.centers[:, 0:2]
         self.ids = self.ids[0:2]
-        self.data.pop('white_push_drawer')
-        self.data.pop('white_pull_drawer')
+        self.data.pop('tiff_push_drawer')
+        self.data.pop('tiff_pull_drawer')
 
     def _load_database(self):
         #                           tree         dict
@@ -1558,12 +1558,11 @@ class ApplicationBehaviors:
             #param.n_samples = 2000
             #param.uni_mix = .1
             #kdict, fname = self.read_features_save(task_id, point3d_bl, param)
-
-            self.locations_man.save_database()
-            self.driving_posture(task_type)
             self.locations_man.train(task_id, dset_action, save_pca_images=True)
             self.locations_man.train(ctask_id, dset_undo, save_pca_images=True)
             rospy.loginfo('Done initializing new location!')
+            self.locations_man.save_database()
+            self.driving_posture(task_type)
         else:
             task_id, task_type = close_by_locs[0]
             ctask_id = self.locations_man.data[task_id]['complementary_task_id']
@@ -1619,14 +1618,19 @@ class ApplicationBehaviors:
                 % (len(ulocs), len(self.locations_man.data.keys())))
 
         #Ask user to select a location
-        for tidx, tid in enumerate(ulocs):
-            print tidx, tid
+        tasks = self.locations_man.data.keys()
+        for i, k in enumerate(tasks):
+            print i, k
+        #for tidx, tid in enumerate(ulocs):
+        #    print tidx, tid
         selected_idx = int(raw_input("Select a location to execute action\n"))
 
-        tid = ulocs[selected_idx]
+        #tid = ulocs[selected_idx]
+        tid = tasks[selected_idx]
         rospy.loginfo('selected %s' % tid)
 
         #Ask user for practice poses
+        pdb.set_trace()
         if not self.locations_man.data[tid].has_key('practice_locations'):
             #Get robot poses
             map_points = []
@@ -2251,16 +2255,16 @@ class ApplicationBehaviors:
                 #self.practice(ctask_id, None, undo_point_bl, stop_fun=any_pos_sf)
                 #pdb.set_trace()
                 num_points_added = self.practice(ctask_id, None, undo_point_bl0, stop_fun=any_pos_sf)
-                if num_points_added > params.max_points_per_site:
-                    pdb.set_trace()
-                    dataset = self.locations_man.get_perceptual_data(ctask_id)
-                    npoints = dataset.inputs.shape[1]
-                    pts_added_idx = range(npoints - num_points_added, npoints)
-                    pts_remove_idx = pts_added_idx[:(num_points_added - params.max_points_per_site)]
-                    pts_remove_idx.reverse()
-                    rospy.loginfo('Got too many data points for %s throwing out %d points' % (ctask_id, len(pts_remove_idx)))
-                    for idx in pts_remove_idx:
-                        self.locations_man.remove_perceptual_data(ctask_id, idx)
+                #if num_points_added > params.max_points_per_site:
+                #    #pdb.set_trace()
+                #    dataset = self.locations_man.get_perceptual_data(ctask_id)
+                #    npoints = dataset.inputs.shape[1]
+                #    pts_added_idx = range(npoints - num_points_added, npoints)
+                #    pts_remove_idx = pts_added_idx[:(num_points_added - params.max_points_per_site)]
+                #    pts_remove_idx.reverse()
+                #    rospy.loginfo('Got too many data points for %s throwing out %d points' % (ctask_id, len(pts_remove_idx)))
+                #    for idx in pts_remove_idx:
+                #        self.locations_man.remove_perceptual_data(ctask_id, idx)
 
                 #self.locations_man.
 
@@ -2580,9 +2584,10 @@ class ApplicationBehaviors:
 
                 #figure out max point
                 locs2d = kdict['points2d'][:, pos_indices]
-                if np.any(np.isnan(locs2d)):
+                if np.any(np.isnan(locs2d)) or np.any(np.isinf(locs2d)):
                     pdb.set_trace()
                 locs2d_indices = np.where(False == np.sum(np.isnan(locs2d), 0))[1].A1
+                print locs2d[:, locs2d_indices]
                 loc2d_max, density_image = r3d.find_max_in_density(locs2d[:, locs2d_indices])
                 cv.SaveImage("execute_behavior.png", 255 * (np.rot90(density_image)/np.max(density_image)))
                 dists = ut.norm(kdict['points2d'] - loc2d_max)
