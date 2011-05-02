@@ -354,6 +354,7 @@ class LocationManager:
         #pdb.set_trace()
         #pdb.set_trace()
         self.image_pubs = {}
+        #pdb.set_trace()
         for k in self.data.keys():
             self.train(k)
             self.image_pubs[k] = r3d.ImagePublisher(k.replace(':', '_'))
@@ -374,10 +375,11 @@ class LocationManager:
                               'push_drawer':       {'coarse': .9, 'fine': .5, 'voi': .4}}
 
     def revert(self):
-        self.centers = self.centers[:, 0:2]
-        self.ids = self.ids[0:2]
-        self.data.pop('tiff_push_drawer')
-        self.data.pop('tiff_pull_drawer')
+        self.centers = self.centers[:, 0:4]
+        self.ids = self.ids[0:4]
+        self.data.pop('wb_push_drawer')
+        self.data.pop('wb_pull_drawer')
+        #pdb.set_trace()
 
     def _load_database(self):
         #                           tree         dict
@@ -513,9 +515,9 @@ class LocationManager:
         self.centers[:, center_idx] = ldata['center']
         self.tree = sp.KDTree(np.array(self.centers).T)
 
-    def publish_image(self, task_id, image):
+    def publish_image(self, task_id, image, postfix=''):
         self.image_pubs[task_id].publish(image)
-        ffull = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '.jpg')
+        ffull = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + postfix + '.jpg')
         cv.SaveImage(ffull, image)
 
     def list_all(self):
@@ -925,6 +927,7 @@ class ApplicationBehaviors:
         #Prepare
         GRIPPER_OPEN = .08
         GRIPPER_CLOSE = .003
+        MAX_HANDLE_SIZE = .03
         linear_movement = self.behaviors.movement
         gripper = self.robot.left_gripper
 
@@ -944,7 +947,10 @@ class ApplicationBehaviors:
             error_msg = 'Reach failed due to "%s"' % reason
             rospy.loginfo(error_msg)
             rospy.loginfo('Failure recovery: moving back')
-            linear_movement.move_relative_gripper(np.matrix([-.25,0,0]).T, stop='pressure_accel', pressure=300)
+            try:
+                linear_movement.move_relative_gripper(np.matrix([-.25,0,0]).T, stop='pressure_accel', pressure=300)
+            except lm.RobotSafetyError, e:
+                rospy.loginfo('robot safety error %s' % str(e))
             self.behaviors.movement.move_absolute(self.start_location_drawer, stop='accel', pressure=300)
             return False, 'reach failed', point
 
@@ -970,7 +976,7 @@ class ApplicationBehaviors:
         #af = np.row_stack((laf, raf))
         #pdb.set_trace()
         #grasped_handle = np.any(np.abs(af-bf) > GRASP_THRES) or (gripper.pose()[0,0] > GRIPPER_CLOSE)
-        grasped_handle = gripper.pose()[0,0] > GRIPPER_CLOSE
+        grasped_handle = (gripper.pose()[0,0] > GRIPPER_CLOSE) and (gripper.pose()[0,0] < MAX_HANDLE_SIZE)
 
         if not grasped_handle:
             rospy.loginfo('Failed to grasp handle :(')
@@ -983,7 +989,7 @@ class ApplicationBehaviors:
 
         #Pull
         linear_movement.pressure_listener.rezero()
-        linear_movement.move_relative_gripper(np.matrix([-.25,0,0]).T, stop='accel', pressure=2500)
+        linear_movement.move_relative_gripper(np.matrix([-.1,0,0]).T, stop='accel', pressure=2500)
         linear_movement.move_absolute(linear_movement.arm_obj.pose_cartesian_tf(), 
                                     stop='pressure_accel', pressure=300)
         linear_movement.gripper_close()
@@ -993,6 +999,7 @@ class ApplicationBehaviors:
         #ap = np.row_stack((lap, rap))
         #still_has_handle = np.any(np.abs(ap-af) < GRASP_THRES) or (gripper.pose()[0,0] > GRIPPER_CLOSE)
         still_has_handle = gripper.pose()[0,0] > GRIPPER_CLOSE
+        linear_movement.move_relative_gripper(np.matrix([-.15,0,0]).T, stop='accel', pressure=2500)
 
         #Release & move back 
         #linear_movement.gripper_open()
@@ -1630,7 +1637,7 @@ class ApplicationBehaviors:
         rospy.loginfo('selected %s' % tid)
 
         #Ask user for practice poses
-        pdb.set_trace()
+        #pdb.set_trace()
         if not self.locations_man.data[tid].has_key('practice_locations'):
             #Get robot poses
             map_points = []
@@ -1661,7 +1668,7 @@ class ApplicationBehaviors:
         unconverged_locs = np.where(self.locations_man.data[tid]['practice_locations_convergence'] == 0)[1]
         rospy.loginfo("Location history: %s" % str(self.locations_man.data[tid]['practice_locations_history']))
         run_loop = True
-        pdb.set_trace()
+        #pdb.set_trace()
 
         #If this is a fresh run, start with current location
         if unexplored_locs.shape[0] == len(self.locations_man.data[tid]['practice_locations']):
@@ -1764,7 +1771,7 @@ class ApplicationBehaviors:
 
     ##
     # Execution phase
-    def scenario_user_select_location(self):
+    def scenario_user_select_location(self, save):
         rospy.loginfo('===================================================')
         rospy.loginfo('= User selection mode!                            =')
         rospy.loginfo('===================================================')
@@ -1800,7 +1807,7 @@ class ApplicationBehaviors:
         self.look_at(point_bl, False)
 
         self.robot.sound.say('Executing behavior')
-        self.execute_behavior(tid, point_bl)
+        self.execute_behavior(tid, point_bl, save)
         self.driving_posture(task_type)
 
     def unreliable_locs(self):
@@ -1939,7 +1946,7 @@ class ApplicationBehaviors:
         #    rospy.loginfo('Select location to execute action')
         #    selected = int(raw_input())
 
-    def run(self, mode):
+    def run(self, mode, save):
         #point = np.matrix([ 0.60956734, -0.00714498,  1.22718197]).T
         #print 'RECORDING'
         #self.record_perceptual_data(point)
@@ -1956,7 +1963,7 @@ class ApplicationBehaviors:
                 self.scenario_practice_run_mode()
 
             if mode == 'execute':
-                self.scenario_user_select_location()
+                self.scenario_user_select_location(save)
 
     #def record_perceptual_data_laser_scanner(self, point_touched_bl):
     #    #what position should the robot be in?
@@ -2174,7 +2181,7 @@ class ApplicationBehaviors:
 
             #Draw what we're selecting
             r3d.draw_points(img, kdict['points2d'][:, selected_idx], [255, 51, 204], 8, -1)
-            self.locations_man.publish_image(task_id, img)
+            self.locations_man.publish_image(task_id, img, postfix='_practice_pick')
 
             #==================================================
             # Excecute!!
@@ -2215,12 +2222,14 @@ class ApplicationBehaviors:
                 rospy.loginfo('=============================================')
                 rospy.loginfo('>> behavior successful')
                 rospy.loginfo('=============================================')
+                self.robot.sound.say('action succeeded')
             else:
                 label = r3d.NEGATIVE
                 color = [0,0,255]
                 rospy.loginfo('=============================================')
                 rospy.loginfo('>> behavior NOT successful')
                 rospy.loginfo('=============================================')
+                self.robot.sound.say('action failed')
 
             #==================================================
             # Book keeping
@@ -2295,7 +2304,7 @@ class ApplicationBehaviors:
 
             #Draw what we're selecting
             r3d.draw_points(img, points2d_tried[-1], color, 8, -1)
-            self.locations_man.publish_image(task_id, img)
+            self.locations_man.publish_image(task_id, img, postfix='_practice_result')
 
             pkname = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '.pkl')
             #cv.SaveImage(ffull, img)
@@ -2549,7 +2558,7 @@ class ApplicationBehaviors:
 
     ##
     #TODO: test this
-    def execute_behavior(self, task_id, point3d_bl, max_retries=15, closeness_tolerance=.01):
+    def execute_behavior(self, task_id, point3d_bl, save, max_retries=15, closeness_tolerance=.01):
         #Extract features
         params = r3d.Recognize3DParam()
         params.uncertainty_x = 1.
@@ -2601,7 +2610,7 @@ class ApplicationBehaviors:
                 r3d.draw_points(img, kdict['points2d'], [51, 204, 255], 3, -1)
                 r3d.draw_points(img, locs2d,            [255, 204, 51], 3, -1)
                 r3d.draw_points(img, loc2d_max,         [255, 204, 51], 10, -1)
-                self.locations_man.publish_image(task_id, img)
+                self.locations_man.publish_image(task_id, img, postfix='_execute_pick')
 
                 #ffull = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '.png')
                 #cv.SaveImage(ffull, img)
@@ -2625,14 +2634,15 @@ class ApplicationBehaviors:
 
                 try_num = try_num + 1
                 if success:
-                    self.locations_man.update_execution_record(task_id, 1.)
+                    if save:
+                        self.locations_man.update_execution_record(task_id, 1.)
                     self.robot.sound.say('action succeeded')
                     label = r3d.POSITIVE
 
                     dataset = self.locations_man.data[task_id]['dataset']
                     nneg = np.sum(dataset.outputs == r3d.NEGATIVE) 
                     npos = np.sum(dataset.outputs == r3d.POSITIVE)
-                    if nneg > npos:
+                    if nneg > npos and save:
                         datapoint = {'instances': kdict['instances'][:, selected_idx],
                                      'points2d':  kdict['points2d'][:, selected_idx],
                                      'points3d':  kdict['points3d'][:, selected_idx],
@@ -2646,16 +2656,17 @@ class ApplicationBehaviors:
                     self.robot.sound.say('action failed')
                     label = r3d.NEGATIVE
 
-                    #We were wrong so we add this to our dataset and retrain
-                    datapoint = {'instances': kdict['instances'][:, selected_idx],
-                                 'points2d':  kdict['points2d'][:, selected_idx],
-                                 'points3d':  kdict['points3d'][:, selected_idx],
-                                 'sizes':     kdict['sizes'],
-                                 'labels':    np.matrix([label])}
-                    self.locations_man.add_perceptual_data(task_id, datapoint)
-                    self.locations_man.save_database()
-                    self.locations_man.train(task_id, kdict)
-                    self.locations_man.update_execution_record(task_id, 0.)
+                    if save:
+                        #We were wrong so we add this to our dataset and retrain
+                        datapoint = {'instances': kdict['instances'][:, selected_idx],
+                                     'points2d':  kdict['points2d'][:, selected_idx],
+                                     'points3d':  kdict['points3d'][:, selected_idx],
+                                     'sizes':     kdict['sizes'],
+                                     'labels':    np.matrix([label])}
+                        self.locations_man.add_perceptual_data(task_id, datapoint)
+                        self.locations_man.save_database()
+                        self.locations_man.train(task_id, kdict)
+                        self.locations_man.update_execution_record(task_id, 0.)
 
                     if try_num > max_retries:
                         break
@@ -2671,7 +2682,8 @@ class ApplicationBehaviors:
         else:
             self.robot.sound.say("Perception failure.  Exploring around expected region.")
             #FAIL. Update the location's statistic with this failure. 
-            self.locations_man.update_execution_record(task_id, 0.)
+            if save:
+                self.locations_man.update_execution_record(task_id, 0.)
             def any_pos_sf(labels_mat):
                 if np.any(r3d.POSITIVE == labels_mat):
                     return True
@@ -2916,6 +2928,7 @@ def launch():
     p.add_option("-d", "--display", action="store_true", default=False)
     p.add_option("-p", "--practice", action="store_true", default=False)
     p.add_option("-e", "--execute", action="store_true", default=False)
+    p.add_option("-s", "--static", action="store_true", default=False)
     p.add_option("-i", "--init", action="store_true", default=False)
     p.add_option("-t", "--test", action="store_true", default=False)
 
@@ -2933,7 +2946,7 @@ def launch():
             mode = 'execute'
         if opt.init:
             mode = 'init'
-        l.run(mode)
+        l.run(mode, not opt.static)
 
     if opt.test:
         tl = TestLearner()

@@ -318,7 +318,7 @@ class PCAIntensities:
     def calculate_pca_vectors(self, data, variance_keep):
         data_in = data[self.intensities_index:, :]
         #we already have pca vectors
-        pdb.set_trace()
+        #pdb.set_trace()
         print 'PCAIntensities: data.shape', data.shape
         if self.intensities_mean != None:
             normed_data = (data_in - self.intensities_mean) / self.intensities_std
@@ -327,8 +327,8 @@ class PCAIntensities:
                 return
             else:
                 print 'PCAIntensities: is_dataset_far_from_pca_subspace yes, dataset is far. recalculating pca.'
-                pdb.set_trace()
-                nsamples = min(data_in.shape[1], 2000) #2000 is the max that we can handle
+                #pdb.set_trace()
+                nsamples = min(data_in.shape[1], 3000) #2000 is the max that we can handle
                 loaded_data = ut.load_pickle(self.pca_data)
                 data_in  = np.column_stack((data_in, loaded_data[self.intensities_index:, :]))
                 ntotal   = data_in.shape[1]
@@ -355,7 +355,7 @@ class PCAIntensities:
         self.reconstruction_error = self.calc_reconstruction_errors(projected, data_in_normed)
 
         pca_data_name = time.strftime('%A_%m_%d_%Y_%I:%M%p') + '_pca_data.pkl'
-        pdb.set_trace()
+        #pdb.set_trace()
         ut.save_pickle(data, pca_data_name)
         self.pca_data = pca_data_name
 
