@@ -62,9 +62,9 @@
 #include <opencv2/highgui/highgui.hpp>
 
 // Visual features
-#include <visual_features/sliding_window.h>
-#include <visual_features/features/hsv_color_histogram.h>
-#include <visual_features/features/attribute_learning_base_feature.h>
+#include <cpl_visual_features/sliding_window.h>
+#include <cpl_visual_features/features/hsv_color_histogram.h>
+#include <cpl_visual_features/features/attribute_learning_base_feature.h>
 
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
