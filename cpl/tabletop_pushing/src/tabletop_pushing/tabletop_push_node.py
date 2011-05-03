@@ -51,15 +51,14 @@ LEFT_ARM_READY_JOINTS = np.matrix([[1.23639478e-01, -1.30025955e-01,
                                     1.56307360e+00, -1.81768523e+00,
                                     2.16694211e+02, -1.45799866e+00,
                                     -8.64421842e+01]]).T
-# TODO: Get these to be correct
-RIGHT_ARM_INIT_JOINTS = np.matrix([[1.39060109e-01, 3.65531104e-01,
-                                    1.68462256e+00, -1.97664347e+00,
-                                    2.17482262e+02, -1.41818799e+00,
+RIGHT_ARM_INIT_JOINTS = np.matrix([[-1.39060109e-01, 3.65531104e-01,
+                                    -1.68462256e+00, -1.97664347e+00,
+                                    -2.17482262e+02, -1.41818799e+00,
                                     -8.64819949e+01]]).T
-RIGHT_ARM_READY_JOINTS = np.matrix([[1.23639478e-01, -1.30025955e-01,
-                                     1.56307360e+00, -1.81768523e+00,
-                                     2.16694211e+02, -1.45799866e+00,
-                                     -8.64421842e+01]]).T
+RIGHT_ARM_READY_JOINTS = np.matrix([[-1.23639478e-01, -1.30025955e-01,
+                                    -1.56307360e+00, -1.81768523e+00,
+                                    -2.16694211e+02, -1.45799866e+00,
+                                    -8.64421842e+01]]).T
 
 INIT_POSE_MOVE_THRESH = 0.2
 READY_POSE_MOVE_THRESH = 0.2
@@ -80,10 +79,11 @@ class TabletopPushNode:
             rospy.loginfo('Creating pr2 object')
             self.robot = pr2.PR2(self.tf_listener, arms=True, base=False)
             rospy.loginfo('Creating LinearReactiveMovement')
-            rospy.loginfo("Seting up left arm move")
+            # TODO: Torn off slip_controllers and slip_detection for use in simulator
+            rospy.loginfo("Setting up left arm move")
             self.left_arm_move = lm.LinearReactiveMovement('l', self.robot,
                                                            self.tf_listener)
-            rospy.loginfo("Seting up right arm move")
+            rospy.loginfo("Setting up right arm move")
             self.right_arm_move = lm.LinearReactiveMovement('r', self.robot,
                                                             self.tf_listener)
 
@@ -121,11 +121,11 @@ class TabletopPushNode:
                                                      init_joints))
         ready_diff = np.linalg.norm(pr2.diff_arm_pose(robot_arm.pose(),
                                                       ready_joints))
-        robot_arm_move.set_movement_mode_ik()
+        push_arm.set_movement_mode_ik()
 
         # Choose to move to ready first, if it is closer, then move to init
         # TODO: This could be smarter, i.e., don't move up, then down
-        if ready_diff < init_diff:
+        if force_ready or ready_diff < init_diff:
             if ready_diff > READY_POSE_MOVE_THRESH or force_ready:
                 rospy.loginfo('Moving arm to ready pose')
                 robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
@@ -284,7 +284,8 @@ class TabletopPushNode:
         Main control loop for the node
         """
         if not self.no_arms:
-            self.init_arm_pose()
+            self.init_arm_pose(which_arm='l')
+            #self.init_arm_pose(True, which_arm='r')
         rospy.spin()
 
 if __name__ == '__main__':
