@@ -874,7 +874,8 @@ class ApplicationBehaviors:
         #linear_movement.move_absolute((self.start_location_drawer[0], 
         #    np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))))
         linear_movement.move_absolute((self.start_location_drawer[0], 
-            np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))), 
+            #np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))), 
+            np.matrix(tr.quaternion_from_euler(np.radians(0.), 0, 0))), 
             stop='pressure_accel', pressure=1000)
 
         #calc front loc
@@ -885,7 +886,8 @@ class ApplicationBehaviors:
 
         #move to front
         rospy.loginfo("Moving to front location")
-        orientation = np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))
+        #orientation = np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))
+        orientation = np.matrix(tr.quaternion_from_euler(np.radians(0.), 0, 0))
         self.behaviors.movement.pressure_listener.rezero()
         r1, residual_error = self.behaviors.movement.move_absolute((front_loc, orientation), 
                                 stop='pressure', pressure=1500)
