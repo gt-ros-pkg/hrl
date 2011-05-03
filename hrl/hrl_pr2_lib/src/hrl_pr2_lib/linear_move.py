@@ -100,7 +100,7 @@ class LinearReactiveMovement:
     # @param arm 'l' or 'r'
     # @param pr2 Pr2 object (pr2.py)
     # @param tf_listener a tf.TransformListener()
-    def __init__(self, arm, pr2, tf_listener):
+    def __init__(self, arm, pr2, tf_listener, using_slip_controller=1, using_slip_detection=1):
         if tf_listener == None:
             self.tf_listener = tf.TransformListener()
         else:
@@ -120,7 +120,8 @@ class LinearReactiveMovement:
 
         self.pressure_listener = pm.PressureListener(ptopic, 5000)
 
-        self.cman = con.ControllerManager(arm, self.tf_listener, using_slip_controller=1, using_slip_detection=1)
+        self.cman = con.ControllerManager(arm, self.tf_listener, using_slip_controller,
+                                          using_slip_detection)
         self.reactive_gr = rgr.ReactiveGrasper(self.cman)
         self.collision_monitor = cmon.CollisionClient(arm)
 
