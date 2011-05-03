@@ -850,8 +850,12 @@ class ApplicationBehaviors:
         linear_movement.gripper_close()
         #pdb.set_trace()
         self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure_accel', pressure=3000)
+        def reach_with_back_up(point, thres, reach_direction):
+            self.behaviors.reach(point, thres, reach_direction)
+            r1, pos_error1 = self.behaviors.movement.move_relative_gripper(np.matrix([-.05, 0., 0.]).T, stop='none')
         change, press_ret = self.camera_change_detect(visual_change_thres, \
-                                    self.behaviors.reach, \
+                                    #self.behaviors.reach, \
+                                    reach_with_back_up, \
                                     #(point, pressure, np.matrix([0,0,0.]).T, np.matrix([.1,0,0]).T))
                                     (point, pressure, np.matrix([.1,0,0]).T))
         linear_movement.move_relative_gripper(np.matrix([-.1,0,0]).T, stop='accel')
@@ -999,7 +1003,12 @@ class ApplicationBehaviors:
         #ap = np.row_stack((lap, rap))
         #still_has_handle = np.any(np.abs(ap-af) < GRASP_THRES) or (gripper.pose()[0,0] > GRIPPER_CLOSE)
         still_has_handle = gripper.pose()[0,0] > GRIPPER_CLOSE
-        linear_movement.move_relative_gripper(np.matrix([-.15,0,0]).T, stop='accel', pressure=2500)
+        try:
+            linear_movement.move_relative_gripper(np.matrix([-.15,0,0]).T, stop='accel', pressure=2500)
+        except lm.RobotSafetyError, e:
+            linear_movement.gripper_open()
+            linear_movement.pressure_listener.rezero()
+            rospy.loginfo('robot safety error %s' % str(e))
 
         #Release & move back 
         #linear_movement.gripper_open()
@@ -1444,7 +1453,8 @@ class ApplicationBehaviors:
 
         #if False:
         #if True:
-        if len(close_by_locs) <= 0:
+        #if len(close_by_locs) <= 0:
+        if True:
             #Initialize new location
             rospy.loginfo('Select task type:')
             for i, ttype in enumerate(self.locations_man.task_types):
@@ -1570,27 +1580,27 @@ class ApplicationBehaviors:
             rospy.loginfo('Done initializing new location!')
             self.locations_man.save_database()
             self.driving_posture(task_type)
-        else:
-            task_id, task_type = close_by_locs[0]
-            ctask_id = self.locations_man.data[task_id]['complementary_task_id']
-            rospy.loginfo('Selected task %s' % task_type)
+        #else:
+        #    task_id, task_type = close_by_locs[0]
+        #    ctask_id = self.locations_man.data[task_id]['complementary_task_id']
+        #    rospy.loginfo('Selected task %s' % task_type)
 
-            self.driving_posture(task_type)
-            ret = self.location_approach_driving(task_type, point_bl)
-            if not ret[0]:
-                return False, ret[1]
-            #pdb.set_trace()
-            self.manipulation_posture(task_type)
-            point_bl = tfu.transform_points(tfu.transform('base_link', 'map', self.tf_listener), point_map)
-            self.look_at(point_bl, False)
-            #close_by_locs = self.locations_man.list_close_by(point_map)
+        #    self.driving_posture(task_type)
+        #    ret = self.location_approach_driving(task_type, point_bl)
+        #    if not ret[0]:
+        #        return False, ret[1]
+        #    #pdb.set_trace()
+        #    self.manipulation_posture(task_type)
+        #    point_bl = tfu.transform_points(tfu.transform('base_link', 'map', self.tf_listener), point_map)
+        #    self.look_at(point_bl, False)
+        #    #close_by_locs = self.locations_man.list_close_by(point_map)
 
-            if self.locations_man.is_reliable(task_id):
-                self.execute_behavior(task_id, point_bl)
-            else:
-                self.practice(task_id, ctask_id, point_bl)
+        #    if self.locations_man.is_reliable(task_id):
+        #        self.execute_behavior(task_id, point_bl)
+        #    else:
+        #        self.practice(task_id, ctask_id, point_bl)
 
-            self.driving_posture(task_type)
+        #    self.driving_posture(task_type)
 
     #def add_to_practice_points_map(self, point_bl):
     #    map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
