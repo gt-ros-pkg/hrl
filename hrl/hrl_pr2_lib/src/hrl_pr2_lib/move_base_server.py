@@ -98,7 +98,7 @@ class MoveBase:
     def go_angle(self, target_odom, tolerance=math.radians(5.), max_ang_vel=math.radians(20.), func=None):
         self.tl.waitForTransform('base_footprint', 'odom_combined', rospy.Time(), rospy.Duration(10))
         rate = rospy.Rate(100)
-        k = math.radians(50)
+        k = math.radians(80)
 
         #current_ang_odom = tr.euler_from_matrix(tfu.transform('base_footprint', 'odom_combined', self.tl)[0:3, 0:3], 'sxyz')[2]
         #target_odom = current_ang_odom + delta_ang
