@@ -26,6 +26,7 @@
 #include <LinearMath/btQuaternion.h>
 #include <hrl_cvblobslib/Blob.h>
 #include <hrl_cvblobslib/BlobResult.h>
+#include <image_geometry/pinhole_camera_model.h>
 
 using namespace sensor_msgs;
 using namespace std;
@@ -34,14 +35,16 @@ namespace hrl_table_detect {
 
 class TestNormals {
     public:
-        ros::Subscriber pc_sub;
+        ros::Subscriber pc_sub, cam_sub;
         ros::NodeHandle nh;
-        ros::Publisher pc_pub, pc_pub2;
+        ros::Publisher pc_pub, pc_pub2, pc_pub3;
         tf::TransformListener tf_listener;
+        image_geometry::PinholeCameraModel cam_model;
 
         TestNormals();
         void onInit();
         void pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg);
+        //void modelCallback(image_geometry::PinholeCameraModel::ConstPtr pin_msg);
 };
 
     TestNormals::TestNormals() {
@@ -50,7 +53,9 @@ class TestNormals {
     void TestNormals::onInit() {
         pc_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB> >("/normal_vis", 1);
         pc_pub2 = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB> >("/normal_vis2", 1);
+        pc_pub3 = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB> >("/normal_vis3", 1);
         pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &TestNormals::pcCallback, this);
+        //cam_sub = nh.subscribe("/kinect_head/rgb/camera_info", 1, &TestNormals::modelCallback, this);
         ros::Duration(1.0).sleep();
     }
 
@@ -118,7 +123,54 @@ class TestNormals {
         princip_curves_colors.header.frame_id = base_frame;
         pc_pub2.publish(princip_curves_colors);
 
+        // define a plane to project onto
+        geometry_msgs::PoseStamped plane_pose;
+        plane_pose.pose.position.x=0; plane_pose.pose.position.y=0; plane_pose.pose.position.z=0.542; 
+        plane_pose.pose.orientation.x=0; plane_pose.pose.orientation.y=0; 
+        plane_pose.pose.orientation.z=0; plane_pose.pose.orientation.w=1; 
+        plane_pose.header.stamp = now; plane_pose.header.frame_id = base_frame;
+        tf_listener.transformPose(pc_msg->header.frame_id, plane_pose, plane_pose);
+        btQuaternion plane_quat(plane_pose.pose.orientation.x,
+                                plane_pose.pose.orientation.y,
+                                plane_pose.pose.orientation.z,
+                                plane_pose.pose.orientation.w);
+        btMatrix3x3 plane_rot(plane_quat);
+        btVector3 plane_norm = plane_rot.getColumn(2);
+        btVector3 plane_pt(plane_pose.pose.position.x,plane_pose.pose.position.y,
+                           plane_pose.pose.position.z);
+        i=0;
+        pcl::PointCloud<pcl::PointXYZRGB> flat_pc;
+        BOOST_FOREACH(const pcl::PointXYZRGB& pt, pc_full.points) {
+            i++;
+            if(pt.x != pt.x || pt.y != pt.y || pt.z != pt.z)
+                continue;
+            btVector3 pc_pt(pt.x,pt.y,pt.z);
+            double t = plane_norm.dot(plane_pt)/plane_norm.dot(pc_pt);
+            btVector3 surf_pt = pc_pt*t;
+            pcl::PointXYZRGB n_pt;
+            n_pt.x = surf_pt.x(); n_pt.y = surf_pt.y(); n_pt.z = surf_pt.z(); 
+            n_pt.rgb = pt.rgb;
+            if(t > 1.01) {
+                uint32_t red = 0xFFFF0000;
+                ((uint32_t*) &n_pt.rgb)[0] = red;
+            } else if (t < 0.99) {
+                uint32_t blue = 0xFF0000FF;
+                ((uint32_t*) &n_pt.rgb)[0] = blue;
+            } else {
+                uint32_t green = 0xFF00FF00;
+                ((uint32_t*) &n_pt.rgb)[0] = green;
+            }
+            flat_pc.push_back(n_pt);
+        }
+        flat_pc.header.stamp = ros::Time::now();
+        flat_pc.header.frame_id = pc_full.header.frame_id;
+        pc_pub3.publish(flat_pc);
+
     }
+
+    //void TestNormals::modelCallback(image_geometry::PinholeCameraModel::ConstPtr pin_msg) {
+    //    cam_model.fromCameraInfo(pin_msg);
+    //}
 };
 
 using namespace hrl_table_detect;
