@@ -43,25 +43,45 @@ from tabletop_pushing.srv import *
 from math import sin, cos, pi
 import sys
 
-LEFT_ARM_INIT_JOINTS = np.matrix([[1.39060109e-01, 3.65531104e-01,
+OLD_LEFT_ARM_INIT_JOINTS = np.matrix([[1.39060109e-01, 3.65531104e-01,
+                                       1.68462256e+00, -1.97664347e+00,
+                                       2.17482262e+02, -1.41818799e+00,
+                                       -8.64819949e+01]]).T
+OLD_LEFT_ARM_READY_JOINTS = np.matrix([[1.23639478e-01, -1.30025955e-01,
+                                        1.56307360e+00, -1.81768523e+00,
+                                        2.16694211e+02, -1.45799866e+00,
+                                        -8.64421842e+01]]).T
+
+OLD_RIGHT_ARM_INIT_JOINTS = np.matrix([[-1.39060109e-01, 3.65531104e-01,
+                                         -1.68462256e+00, -1.97664347e+00,
+                                         -2.17482262e+02, -1.41818799e+00,
+                                         -8.64819949e+01]]).T
+OLD_RIGHT_ARM_READY_JOINTS = np.matrix([[-1.23639478e-01, -1.30025955e-01,
+                                          -1.56307360e+00, -1.81768523e+00,
+                                          -2.16694211e+02, -1.45799866e+00,
+                                          -8.64421842e+01]]).T
+
+LEFT_ARM_INIT_JOINTS = np.matrix([[7.0e-01, 3.65531104e-01,
                                    1.68462256e+00, -1.97664347e+00,
                                    2.17482262e+02, -1.41818799e+00,
                                    -8.64819949e+01]]).T
-LEFT_ARM_READY_JOINTS = np.matrix([[1.23639478e-01, -1.30025955e-01,
+LEFT_ARM_READY_JOINTS = np.matrix([[5.0e-01, -1.30025955e-01,
                                     1.56307360e+00, -1.81768523e+00,
                                     2.16694211e+02, -1.45799866e+00,
                                     -8.64421842e+01]]).T
-RIGHT_ARM_INIT_JOINTS = np.matrix([[-1.39060109e-01, 3.65531104e-01,
+
+RIGHT_ARM_INIT_JOINTS = np.matrix([[-7.0e-01, 3.65531104e-01,
                                     -1.68462256e+00, -1.97664347e+00,
                                     -2.17482262e+02, -1.41818799e+00,
                                     -8.64819949e+01]]).T
-RIGHT_ARM_READY_JOINTS = np.matrix([[-1.23639478e-01, -1.30025955e-01,
+RIGHT_ARM_READY_JOINTS = np.matrix([[-5.0e-01, -1.30025955e-01,
                                     -1.56307360e+00, -1.81768523e+00,
                                     -2.16694211e+02, -1.45799866e+00,
                                     -8.64421842e+01]]).T
 
-INIT_POSE_MOVE_THRESH = 0.2
-READY_POSE_MOVE_THRESH = 0.2
+
+INIT_POSE_MOVE_THRESH = 0.5
+READY_POSE_MOVE_THRESH = 0.5
 
 class TabletopPushNode:
 
@@ -79,13 +99,17 @@ class TabletopPushNode:
             rospy.loginfo('Creating pr2 object')
             self.robot = pr2.PR2(self.tf_listener, arms=True, base=False)
             rospy.loginfo('Creating LinearReactiveMovement')
-            # TODO: Torn off slip_controllers and slip_detection for use in simulator
+            # TODO: Turn off slip_controllers and slip_detection for use in simulator
+            use_slip=1
+            #use_slip=0
             rospy.loginfo("Setting up left arm move")
             self.left_arm_move = lm.LinearReactiveMovement('l', self.robot,
-                                                           self.tf_listener)
+                                                           self.tf_listener,
+                                                           use_slip, use_slip)
             rospy.loginfo("Setting up right arm move")
             self.right_arm_move = lm.LinearReactiveMovement('r', self.robot,
-                                                            self.tf_listener)
+                                                            self.tf_listener,
+                                                            use_slip, use_slip)
 
 
         self.push_pose_proxy = rospy.ServiceProxy("get_push_pose", PushPose)
@@ -136,6 +160,7 @@ class TabletopPushNode:
         # Test for closeness before moving
         if init_diff < INIT_POSE_MOVE_THRESH:
             rospy.loginfo('Arm in init pose')
+            rospy.loginfo('init_diff is: '+str(init_diff))
         else:
             rospy.loginfo('Moving arm to init pose')
             robot_arm.set_pose(init_joints, nsecs=2.0, block=True)
@@ -284,8 +309,8 @@ class TabletopPushNode:
         Main control loop for the node
         """
         if not self.no_arms:
-            self.init_arm_pose(which_arm='l')
-            #self.init_arm_pose(True, which_arm='r')
+            self.init_arm_pose(True, which_arm='l')
+            self.init_arm_pose(True, which_arm='r')
         rospy.spin()
 
 if __name__ == '__main__':
