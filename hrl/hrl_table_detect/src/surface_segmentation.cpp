@@ -65,6 +65,7 @@ namespace hrl_table_detect {
     void SurfaceSegmentation::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
         double min_z_val = 0.1, max_z_val = 1.5;
         double norm_ang_thresh = 0.5;
+        double surf_clust_dist = 0.01, surf_clust_min_size = 20;
 
         pcl::PointCloud<PRGB> pc_full, pc_full_frame;
         pcl::fromROSMsg(*pc_msg, pc_full);
@@ -89,8 +90,8 @@ namespace hrl_table_detect {
 
         // Compute normals
         pcl::PointCloud<PRGBN> cloud_normals;
-        //pcl::PointCloud<PRGB>::ConstPtr pc_filtered_ptr = 
-        //          boost::make_shared<const pcl::PointCloud<PRGB> >(cloud_normals_ptr);
+        pcl::PointCloud<PRGB>::ConstPtr cloud_normals_ptr = 
+                  boost::make_shared<const pcl::PointCloud<PRGB> >(cloud_normals);
         pcl::KdTree<PRGB>::Ptr normals_tree = boost::make_shared<pcl::KdTreeFLANN<PRGB> > ();
         pcl::NormalEstimation<PRGB, PRGBN> norm_est;
         norm_est.setKSearch(15);
@@ -98,27 +99,49 @@ namespace hrl_table_detect {
         norm_est.setInputCloud(pc_filtered_ptr);
         norm_est.compute(cloud_normals);
         
+        pcl::PointIndices flat_inds;
+        pcl::PointIndices::ConstPtr flat_inds_ptr = 
+                  boost::make_shared<const pcl::PointIndices >(flat_inds);
+        double ang;
+        int i = 0;
         BOOST_FOREACH(const PRGBN& pt, cloud_normals.points) {
-            double ang = fabs((acos(pt.normal[2]) - CV_PI/2)/CV_PI*2);
-
+            ang = fabs((acos(pt.normal[2]) - CV_PI/2)/CV_PI*2);
             if(ang > norm_ang_thresh)
-                ((uint32_t*) &cur_pt.rgb)[0] = ((uint32_t) ((ang-thresh)/(CV_PI/2)*256))<<16 | 0xFF000000;
-            else
-                ((uint32_t*) &cur_pt.rgb)[0] = ((uint32_t) ((thresh-ang)/thresh*256)) | 0xFF000000;
-            
-            cloud_normals_filtered.push_back(cur_pt);
-
-            PRGB p_cur_pt = pc_full_frame.at(i-1, 0);
-            pcl::PrincipalCurvatures pcurves = princip_curves.at(i-1, 0);
-            //cout << pcurves << " ";
-            if(pcurves.pc1 < 0.8)
-                ((uint32_t*) &p_cur_pt.rgb)[0] = 0xFF0000FF;
-            else if(pcurves.pc2 > 0.0001)
-                ((uint32_t*) &p_cur_pt.rgb)[0] = ((uint32_t) (min(fabs((double)pcurves.pc1/pcurves.pc2), 30.0)/30.0*256))<<16 | 0xFF000000;
-            else
-                ((uint32_t*) &p_cur_pt.rgb)[0] = (256)<<16 | 0xFF00FF00;
-            princip_curves_colors.push_back(p_cur_pt);
+                flat_inds.indices.push_back(i);
+            i++;
         }
+
+        // Cluster into distinct surfaces
+        pcl::EuclideanClusterExtraction<PRGBN> surf_clust;
+        surf_clust.setClusterTolerance(surf_clust_dist);
+        surf_clust.setMinClusterSize(surf_clust_min_size);
+        surf_clust.setIndices(flat_inds_ptr);
+        surf_clust.setInputCloud(cloud_normals_ptr);
+        std::vector<pcl::PointIndices> surf_clust_list;
+        surf_clust.extract(surf_clust_list);
+
+        // Fit planes to all of the surfaces
+        std::vector<pcl::ModelCoefficients> surf_models;
+        pcl::SACSegmentationFromNormals<PRGBN, PRGBN> sac_seg;
+        sac_seg.setModelType(pcl::SACMODEL_PLANE);
+        sac_seg.setModelType(pcl::SAC_MSAC);
+        sac_seg.setDistanceThreshold(0.03);
+        sac_seg.setMaxIterations(10000);
+        sac_seg.setNormalDistanceWeight(0.1);
+        sac_seg.setOptimizeCoefficients(true);
+        sac_seg.setProbability(0.99);
+        for(uint32_t i =0;i<surf_clust_list.size();i++) {
+            sac_seg.setInputNormals(cloud_normals_ptr);
+            sac_seg.setInputCloud(cloud_normals_ptr);
+            pcl::PointIndices::ConstPtr surf_clust_list_ptr =
+                      boost::make_shared<const pcl::PointIndices >(surf_clust_list[i]);
+            sac_seg.setIndices(surf_clust_list_ptr);
+            pcl::PointIndices surf_inliers;
+            pcl::ModelCoefficients surf_coeffs;
+            sac_seg.segment(surf_inliers, surf_coeffs);
+            surf_models.push_back(surf_coeffs);
+        }
+
         cloud_normals_colors.header.stamp = ros::Time::now();
         cloud_normals_colors.header.frame_id = base_frame;
         pc_pub.publish(cloud_normals_colors);
