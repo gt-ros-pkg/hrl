@@ -1,0 +1,9 @@
+<launch>
+   <!-- <include file="$(find hrl_pr2_lib)/launch/openni_kinect.launch"/> -->
+  <node name="kinect_pushing_perception" pkg="tabletop_pushing" type="tabletop_pushing_perception_node" respawn="false" output="screen">
+    <remap from="table_image_in" to="/kinect_head/rgb/image_color"/>
+    <remap from="table_point_cloud_in" to="/kinect_head/depth/points2"/>
+    <param name="height_map_patch_diameter" type="int" value="9"/>
+    <param name="max_z_bound" type="double" value="0.7"/>
+  </node>
+</launch>

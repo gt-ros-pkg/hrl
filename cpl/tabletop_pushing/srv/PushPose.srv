@@ -1,0 +1,4 @@
+bool use_laser
+---
+geometry_msgs/PoseStamped push_pose
+bool invalid_push_pose
