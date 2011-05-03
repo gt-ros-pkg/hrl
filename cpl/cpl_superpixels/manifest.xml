@@ -7,7 +7,7 @@
   <author>Tucker Hermans</author>
   <license>GPLv2</license>
   <review status="unreviewed" notes=""/>
-  <url>http://ros.org/wiki/superpixel_clutter_smoother</url>
+  <url>http://ros.org/wiki/cpl_superpixels</url>
   <depend package="roscpp"/>
   <depend package="opencv2"/>
   <depend package="cv_bridge"/>

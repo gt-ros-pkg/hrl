@@ -7,7 +7,7 @@
   <author>Tucker Hermans</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
-  <url>http://ros.org/wiki/visual_features</url>
+  <url>http://ros.org/wiki/cpl_visual_features</url>
   <depend package="opencv2"/>
   <depend package="roscpp"/>
   <depend package="roslib"/>
