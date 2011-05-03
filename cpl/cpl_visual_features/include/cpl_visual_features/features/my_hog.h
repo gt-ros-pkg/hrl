@@ -32,69 +32,48 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#ifndef lab_color_histogram_h_DEFINED
-#define lab_color_histogram_h_DEFINED
+#ifndef my_hog_h_DEFINED
+#define my_hog_h_DEFINED
 
 #include <opencv2/core/core.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/objdetect/objdetect.hpp>
 #include "abstract_feature.h"
+#include <vector>
 #include <iostream>
 
-namespace visual_features
+namespace cpl_visual_features
 {
-template<int l_bins, int a_bins, int b_bins> class LabColorHistogram :
-      public AbstractFeature<std::vector<float> >
+template <int win_width, int win_height, int block_width, int block_height,
+          int x_stride, int y_stride, int cell_width, int cell_height,
+          int nbins> class MyHOG
+    : public AbstractFeature<std::vector<float> >
 {
  public:
-  LabColorHistogram()
+  MyHOG() : hog_(cv::Size(win_width, win_height),
+                 cv::Size(block_width, block_height),
+                 cv::Size(x_stride, y_stride),
+                 cv::Size(cell_width, cell_height),
+                 nbins)
   {
   }
 
-  virtual void operator()(cv::Mat& patch, cv::Rect& window)
+  virtual void operator()(cv::Mat& img, cv::Rect& window)
   {
-    // First convert to be a 32 bit image
-    cv::Mat cvt_patch(patch.rows, patch.cols, CV_32FC3);
-    patch.convertTo(cvt_patch, CV_32F, 1.0/255.0);
-
-    // Now convert to be in the Lab color space
-    cv::Mat lab_patch(patch.rows, patch.cols, CV_32FC3);
-    cv::cvtColor(cvt_patch, lab_patch, CV_BGR2Lab);
-
-    int bins[] = {l_bins, a_bins, b_bins};
-    int channels[] = {0,1,2};
-    float l_ranges[] = {0,100};
-    float a_ranges[] = {-128,128};
-    float b_ranges[] = {-128,128};
-    const float* ranges[] = {l_ranges, a_ranges, b_ranges};
-
-    cv::MatND patch_desc;
-
-    cv::calcHist(&lab_patch, 1, channels, cv::Mat(), patch_desc, 3,
-                 bins, ranges, true, false);
-
-    std::vector<float> desc;
-    float color_sum = 0;
-
-    for (int i = 0; i < l_bins; ++i)
+    std::vector<float> descriptors;
+    if (cv::Rect() == window)
     {
-      for (int j = 0; j < a_bins; ++j)
-      {
-        for (int k = 0; k < b_bins; ++k)
-        {
-          desc.push_back(patch_desc.at<float>(i,j,k));
-          color_sum += patch_desc.at<float>(i,j,k);
-        }
-      }
+        hog_.compute(img, descriptors);
+        std::cout << "Computing HOG on entire image" << std::endl;
+    }
+    else
+    {
+      cv::Size win_stride(window.width, window.height);
+      cv::Point location(window.x, window.y);
+      std::vector<cv::Point> locations(1,location);
+      hog_.compute(img, descriptors, win_stride, cv::Size(), locations);
     }
 
-#ifdef NORMALIZE_RESULTS
-    for (unsigned int i = 0; i < desc.size(); ++i)
-    {
-      desc[i] = desc[i] / color_sum;
-    }
-#endif // NORMALIZE_RESULTS
-
-    descriptor_ = desc;
+    descriptor_ = descriptors;
   }
 
   virtual std::vector<float> getDescriptor() const
@@ -102,8 +81,11 @@ template<int l_bins, int a_bins, int b_bins> class LabColorHistogram :
     return descriptor_;
   }
 
+ public:
+  cv::HOGDescriptor hog_;
+
  protected:
   std::vector<float> descriptor_;
 };
 }
-#endif // lab_color_histogram_h_DEFINED
+#endif // my_hog_h_DEFINED

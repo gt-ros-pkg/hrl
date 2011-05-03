@@ -43,7 +43,7 @@
 #include <iostream>
 #include <string>
 
-namespace visual_features
+namespace cpl_visual_features
 {
   // Define the texton feature structure
   typedef std::vector<float> TextonFeature;

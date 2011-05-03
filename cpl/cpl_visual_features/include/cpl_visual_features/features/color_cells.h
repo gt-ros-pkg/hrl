@@ -32,48 +32,74 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#ifndef my_hog_h_DEFINED
-#define my_hog_h_DEFINED
+#ifndef color_cell_h_DEFINED
+#define color_cell_h_DEFINED
 
 #include <opencv2/core/core.hpp>
-#include <opencv2/objdetect/objdetect.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #include "abstract_feature.h"
 #include <vector>
-#include <iostream>
 
-namespace visual_features
+namespace cpl_visual_features
 {
-template <int win_width, int win_height, int block_width, int block_height,
-          int x_stride, int y_stride, int cell_width, int cell_height,
-          int nbins> class MyHOG
-    : public AbstractFeature<std::vector<float> >
+class ColorCell : public AbstractFeature<std::vector<float> >
 {
  public:
-  MyHOG() : hog_(cv::Size(win_width, win_height),
-                 cv::Size(block_width, block_height),
-                 cv::Size(x_stride, y_stride),
-                 cv::Size(cell_width, cell_height),
-                 nbins)
+  ColorCell(int num_scales=4) : num_scales_(num_scales)
   {
   }
 
-  virtual void operator()(cv::Mat& img, cv::Rect& window)
+  virtual void operator()(cv::Mat& patch, cv::Rect& window)
   {
-    std::vector<float> descriptors;
-    if (cv::Rect() == window)
+    std::vector<cv::Mat> channels;
+    cv::split(patch, channels);
+    std::vector<float> descriptor;
+
+    for (int scale = 1; scale <= num_scales_; ++scale)
     {
-        hog_.compute(img, descriptors);
-        std::cout << "Computing HOG on entire image" << std::endl;
-    }
-    else
-    {
-      cv::Size win_stride(window.width, window.height);
-      cv::Point location(window.x, window.y);
-      std::vector<cv::Point> locations(1,location);
-      hog_.compute(img, descriptors, win_stride, cv::Size(), locations);
+      // Examine cells at each scale
+      int cell_height = patch.rows / float(scale);
+      int cell_width = patch.cols / float(scale);
+
+      for (int cell_r = 0, vert_count = 0;
+           cell_r < patch.rows && vert_count < scale;
+           cell_r += cell_height, vert_count++)
+      {
+        for (int cell_c = 0, horz_count = 0;
+             cell_c < patch.cols && horz_count < scale;
+             cell_c += cell_width, horz_count++)
+        {
+          float r_avg = 0;
+          float g_avg = 0;
+          float b_avg = 0;
+
+          // Compute the average value for each color channel in the cell
+          for (int r = cell_r; r < cell_r + cell_height; r++)
+          {
+            for (int c = cell_c; c < cell_c + cell_height; c++)
+            {
+              b_avg += channels[0].at<uchar>(r,c);
+              g_avg += channels[1].at<uchar>(r,c);
+              r_avg += channels[2].at<uchar>(r,c);
+            }
+          }
+          r_avg /= float(cell_width*cell_height);
+          g_avg /= float(cell_width*cell_height);
+          b_avg /= float(cell_width*cell_height);
+
+          // Add the 6 color descriptors for this cell
+          descriptor.push_back(r_avg);
+          descriptor.push_back(g_avg);
+          descriptor.push_back(b_avg);
+          descriptor.push_back((r_avg - g_avg)/float(r_avg + g_avg + b_avg));
+          descriptor.push_back((b_avg - (r_avg + g_avg)/2.0)/
+                               float(r_avg + g_avg + b_avg));
+          descriptor.push_back(float(r_avg + g_avg + b_avg)/(255*3));
+        }
+      }
     }
 
-    descriptor_ = descriptors;
+    descriptor_ = descriptor;
   }
 
   virtual std::vector<float> getDescriptor() const
@@ -81,11 +107,9 @@ template <int win_width, int win_height, int block_width, int block_height,
     return descriptor_;
   }
 
- public:
-  cv::HOGDescriptor hog_;
-
  protected:
   std::vector<float> descriptor_;
+  int num_scales_;
 };
 }
-#endif // my_hog_h_DEFINED
+#endif // color_cell_h_DEFINED

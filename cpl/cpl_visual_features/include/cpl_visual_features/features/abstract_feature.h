@@ -32,33 +32,40 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#ifndef homogeneity_h_DEFINED
-#define homogeneity_h_DEFINED
+#ifndef abstract_feature_h_DEFINED
+#define abstract_feature_h_DEFINED
 
+#include <ros/common.h> // include ROS_ASSERT
 #include <opencv2/core/core.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
-#include "abstract_feature.h"
-#include <vector>
+#include <opencv2/objdetect/objdetect.hpp>
 
-namespace visual_features
+namespace cpl_visual_features
 {
-class Homogeneity : public AbstractFeature<std::vector<float> >
+template<class descriptor> class AbstractFeature
 {
  public:
-  Homogeneity()
+
+  virtual void operator()(cv::Mat& img, cv::Rect& window) = 0;
+
+  virtual descriptor getDescriptor() const = 0;
+
+  virtual descriptor extractDescriptor(cv::Mat& img, cv::Rect& window)
   {
+    (*this)(img, window);
+    return this->getDescriptor();
+  }
+  typedef descriptor Descriptor;
+
+  template <class T> float sum(std::vector<T>& vect)
+  {
+    float val_sum = 0;
+    for (unsigned int i = 0; i < vect.size(); ++i)
+    {
+      val_sum += vect[i];
+    }
+    return val_sum;
   }
 
-  virtual void operator()(cv::Mat& patch, cv::Rect& window)
-  {
-  }
-
-  virtual std::vector<float> getDescriptor() const
-  {
-  }
-
- protected:
-  std::vector<float> descriptor_;
 };
 }
-#endif // homogeneity_h_DEFINED
+#endif // abstract_feature_h_DEFINED

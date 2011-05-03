@@ -32,8 +32,8 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#ifndef edge_density_h_DEFINED
-#define edge_density_h_DEFINED
+#ifndef canny_edges_h_DEFINED
+#define canny_edges_h_DEFINED
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -42,47 +42,98 @@
 #include <vector>
 #include <iostream>
 
-namespace visual_features
+// #define CANNY_EDGES_SHOW_IMAGES
+
+namespace cpl_visual_features
 {
-class EdgeDensity : public AbstractFeature<float>
+class CannyEdges : public AbstractFeature<std::vector<int> >
 {
  public:
-  CannyEdges() : thresh1_(2100.0), thresh2_(2300.0)
+  CannyEdges(int num_orientations = 8) : num_orientations_(num_orientations),
+                                         thresh1_(2100.0), thresh2_(2300.0)
   {
   }
 
   virtual void operator()(cv::Mat& patch, cv::Rect& window)
   {
-    // TODO: Should actually shrink, based on the window, don't use the whole
-    // thing...
-    cv::Mat edges(patch.size(), CV_8UC1);
     cv::Mat patch_bw(patch.size(), CV_8UC1);
+    cv::Mat edges(patch.size(), CV_8UC1);
+    cv::Mat edges_dx(patch.size(), CV_64FC1);
+    cv::Mat edges_dy(patch.size(), CV_64FC1);
+    cv::Mat orientations(patch.size(), CV_64FC1, 0.0);
 
-    cv::cvtColor(patch, patch_bw, CV_BGR2GRAY);
+    if (patch.channels() == 3)
+    {
+      cv::cvtColor(patch, patch_bw, CV_BGR2GRAY);
+    }
+    else
+    {
+      patch_bw = patch;
+    }
+
     cv::Canny(patch_bw, edges, thresh1_, thresh2_, 5);
 
-    float sum = 0;
-    for (int r = 0; r < patch.rows; ++r)
+    // Run a Sobel filter on the canny image to get the orientations
+    cv::Sobel(edges, edges_dx, edges_dx.depth(), 1, 0, 3);
+    cv::Sobel(edges, edges_dy, edges_dy.depth(), 0, 1, 3);
+
+    // Find the orientation at each pixel
+    for(int r = 0; r < orientations.rows; ++r)
     {
-      for (int c = 0; c < patch.cols; ++c)
+      for(int c = 0; c < orientations.cols; ++c)
       {
-        if (edge.at<uchar>(r,c) > 0)
-          sum += 1;
+        orientations.at<double>(r,c) = atan2(edges_dy.at<double>(r,c),
+                                             edges_dx.at<double>(r,c));
       }
     }
-    float perimeter = window.width*2 + window.height*2;
-    descriptor_ = sum / perimeter;
+
+    // Quantize the edges orientations into num_orientations_ unsigned bins
+    std::vector<int> descriptor(num_orientations_, 0);
+
+    for(int r = 0; r < orientations.rows; ++r)
+    {
+      for(int c = 0; c < orientations.cols; ++c)
+      {
+        // If it is an edge pixel
+        if (edges.at<uchar>(r,c) != 0)
+        {
+          // Increment the correct histogram bin
+          for (int i = 0; i < num_orientations_; i++)
+          {
+            if ( (M_PI/num_orientations_*(i+1)) >=
+                 std::abs(orientations.at<double>(r,c)) )
+            {
+              descriptor[i]++;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Set the class to descriptor to the last extracted one
+    descriptor_ = descriptor;
+
+#ifdef CANNY_EDGES_SHOW_IMAGES
+    //cv::imshow("patch", patch);
+    cv::imshow("edges", edges);
+    cv::imshow("edges_dx", edges_dx);
+    cv::imshow("edges_dy", edges_dy);
+    cv::imshow("orientations", orientations);
+    cv::waitKey();
+#endif // CANNY_EDGES_SHOW_IMAGES
   }
 
-  virtual float getDescriptor() const
+  virtual std::vector<int> getDescriptor() const
   {
     return descriptor_;
   }
 
  protected:
-  float descriptor_;
+  std::vector<int> descriptor_;
+  int num_orientations_;
   double thresh1_;
   double thresh2_;
 };
 }
-#endif // edge_density_h_DEFINED
+#endif // canny_edges_h_DEFINED

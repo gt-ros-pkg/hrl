@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include <visual_features/features/lm_filter_bank.h>
+#include <cpl_visual_features/features/lm_filter_bank.h>
 #include <opencv2/ml/ml.hpp>
 #include <sstream>
 #include <fstream>
@@ -41,7 +41,7 @@
 using cv::Mat;
 using std::vector;
 
-namespace visual_features
+namespace cpl_visual_features
 {
 
 //

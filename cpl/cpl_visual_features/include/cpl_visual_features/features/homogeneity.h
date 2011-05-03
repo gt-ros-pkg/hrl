@@ -32,65 +32,33 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#ifndef normalized_sum_h_DEFINED
-#define normalized_sum_h_DEFINED
+#ifndef homogeneity_h_DEFINED
+#define homogeneity_h_DEFINED
 
 #include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #include "abstract_feature.h"
-namespace visual_features
+#include <vector>
+
+namespace cpl_visual_features
 {
-class NormalizedSum : public AbstractFeature<float>
+class Homogeneity : public AbstractFeature<std::vector<float> >
 {
  public:
-  NormalizedSum() :
-      max_sum_(-1.0), max_loc_(0, 0, 0, 0), descriptor_(0.0f)
+  Homogeneity()
   {
   }
 
-  virtual void operator()(cv::Mat& img, cv::Rect& window)
+  virtual void operator()(cv::Mat& patch, cv::Rect& window)
   {
-    float area_sum = 0.0;
-    for (int i = 0; i < img.rows; ++i)
-    {
-      for (int j = 0; j < img.cols; ++j)
-      {
-        area_sum += img.at<uchar>(i,j);
-      }
-    }
-
-    area_sum /= (img.cols*img.rows);
-
-    if (area_sum > max_sum_)
-    {
-      max_sum_ = area_sum;
-      max_loc_.x = window.x;
-      max_loc_.y = window.y;
-      max_loc_.height = window.height;
-      max_loc_.width = window.width;
-    }
-
-    descriptor_ = area_sum;
   }
 
-  float getMax() const { return max_sum_; }
-  cv::Rect getMaxLoc() const { return max_loc_; }
-  void resetMax()
+  virtual std::vector<float> getDescriptor() const
   {
-    max_sum_ = -1.0;
-    max_loc_.x = 0.0;
-    max_loc_.y = 0.0;
-    max_loc_.height = 0.0;
-    max_loc_.width = 0.0;
   }
 
-  virtual float getDescriptor() const
-  {
-    return descriptor_;
-  }
  protected:
-  float max_sum_;
-  cv::Rect max_loc_;
-  float descriptor_;
+  std::vector<float> descriptor_;
 };
 }
-#endif // normalized_sum_h_DEFINED
+#endif // homogeneity_h_DEFINED

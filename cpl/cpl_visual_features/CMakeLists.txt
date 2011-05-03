@@ -17,11 +17,11 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 # Build the libraries
-rosbuild_add_library(visual_features_base
+rosbuild_add_library(cpl_visual_features_base
   src/features/gabor_filter_bank.cpp
   src/features/lm_filter_bank.cpp)
 
-rosbuild_add_library(visual_features_saliency
+rosbuild_add_library(cpl_visual_features_saliency
   src/saliency/center_surround.cpp)
 
 # Build the executables
@@ -34,8 +34,8 @@ rosbuild_add_executable(train_textons src/train_textons.cpp)
 rosbuild_add_executable(run_saliency src/run_saliency.cpp)
 rosbuild_add_executable(train_sift_codebook src/sift_des_codebook_generation.cpp)
 
-target_link_libraries(sliding_window visual_features_base visual_features_saliency)
-target_link_libraries(texture_test visual_features_base visual_features_saliency)
-target_link_libraries(train_textons visual_features_base visual_features_saliency)
-target_link_libraries(run_saliency visual_features_base visual_features_saliency)
-target_link_libraries(train_sift_codebook visual_features_base)
+target_link_libraries(sliding_window cpl_visual_features_base cpl_visual_features_saliency)
+target_link_libraries(texture_test cpl_visual_features_base cpl_visual_features_saliency)
+target_link_libraries(train_textons cpl_visual_features_base cpl_visual_features_saliency)
+target_link_libraries(run_saliency cpl_visual_features_base cpl_visual_features_saliency)
+target_link_libraries(train_sift_codebook cpl_visual_features_base)

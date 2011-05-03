@@ -53,7 +53,7 @@
 #define USE_SIFT_DESC 1
 //#define NORMALIZE_VALUES 1
 
-namespace visual_features
+namespace cpl_visual_features
 {
 class AttributeLearningBaseFeature : public AbstractFeature<std::vector<float> >
 {

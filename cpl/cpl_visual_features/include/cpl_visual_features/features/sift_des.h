@@ -45,7 +45,7 @@
 #include <sstream>
 #include <fstream>
 
-namespace visual_features
+namespace cpl_visual_features
 {
 
 typedef std::vector<float> SIFTFeature;

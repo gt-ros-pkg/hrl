@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include <visual_features/saliency/center_surround.h>
+#include <cpl_visual_features/saliency/center_surround.h>
 #include <opencv2/highgui/highgui.hpp>
 
 #include <iostream>
@@ -47,7 +47,7 @@
 
 using cv::Mat;
 using std::vector;
-namespace visual_features
+namespace cpl_visual_features
 {
 CenterSurroundMapper::CenterSurroundMapper(int min_c, int max_c, int min_delta,
                                            int max_delta) :

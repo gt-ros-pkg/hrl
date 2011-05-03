@@ -32,20 +32,20 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include <visual_features/sliding_window.h>
+#include <cpl_visual_features/sliding_window.h>
 #include <opencv2/highgui/highgui.hpp>
 #include <ros/package.h>
 #include <sstream>
 
-#include <visual_features/saliency/center_surround.h>
-#include <visual_features/features/normalized_sum.h>
-#include <visual_features/features/color_histogram.h>
-#include <visual_features/features/lab_color_histogram.h>
-#include <visual_features/features/color_cells.h>
-#include <visual_features/features/canny_edges.h>
-#include <visual_features/features/my_hog.h>
-#include <visual_features/features/attribute_learning_base_feature.h>
-#include <visual_features/features/sift_des.h>
+#include <cpl_visual_features/saliency/center_surround.h>
+#include <cpl_visual_features/features/normalized_sum.h>
+#include <cpl_visual_features/features/color_histogram.h>
+#include <cpl_visual_features/features/lab_color_histogram.h>
+#include <cpl_visual_features/features/color_cells.h>
+#include <cpl_visual_features/features/canny_edges.h>
+#include <cpl_visual_features/features/my_hog.h>
+#include <cpl_visual_features/features/attribute_learning_base_feature.h>
+#include <cpl_visual_features/features/sift_des.h>
 
 // #define RUN_SALIENCY 1
 // #define USE_ATT_WINDOW 1
@@ -56,7 +56,7 @@ using cv::Rect;
 using cv::Size;
 using std::pair;
 using std::vector;
-using namespace visual_features;
+using namespace cpl_visual_features;
 
 typedef ColorHistogram<16> ColorHist16;
 typedef MyHOG<64, 64, 8, 8, 8, 8, 4, 4, 9> SWDHog;
@@ -150,7 +150,7 @@ int main(int argc, char** argv)
   SlidingWindowDetector<AttributeLearningBaseFeature,
       AttributeLearningBaseFeature::Descriptor> attribute_wd;
   std::stringstream texton_path;
-  std::string package_path = ros::package::getPath( "visual_features");
+  std::string package_path = ros::package::getPath( "cpl_visual_features");
   texton_path << package_path << "/cfg/textons-500.txt";
   attribute_wd.feature_.setTextonFile(texton_path.str());
 #endif // USE_ATT_WINDOW

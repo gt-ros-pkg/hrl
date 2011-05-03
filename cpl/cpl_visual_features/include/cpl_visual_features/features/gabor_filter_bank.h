@@ -41,7 +41,7 @@
 #include <vector>
 #include <iostream>
 
-namespace visual_features
+namespace cpl_visual_features
 {
 class GaborFilterBank
 {

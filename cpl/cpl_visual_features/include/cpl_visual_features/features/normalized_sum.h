@@ -32,40 +32,65 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#ifndef abstract_feature_h_DEFINED
-#define abstract_feature_h_DEFINED
+#ifndef normalized_sum_h_DEFINED
+#define normalized_sum_h_DEFINED
 
-#include <ros/common.h> // include ROS_ASSERT
 #include <opencv2/core/core.hpp>
-#include <opencv2/objdetect/objdetect.hpp>
-
-namespace visual_features
+#include "abstract_feature.h"
+namespace cpl_visual_features
 {
-template<class descriptor> class AbstractFeature
+class NormalizedSum : public AbstractFeature<float>
 {
  public:
-
-  virtual void operator()(cv::Mat& img, cv::Rect& window) = 0;
-
-  virtual descriptor getDescriptor() const = 0;
-
-  virtual descriptor extractDescriptor(cv::Mat& img, cv::Rect& window)
+  NormalizedSum() :
+      max_sum_(-1.0), max_loc_(0, 0, 0, 0), descriptor_(0.0f)
   {
-    (*this)(img, window);
-    return this->getDescriptor();
   }
-  typedef descriptor Descriptor;
 
-  template <class T> float sum(std::vector<T>& vect)
+  virtual void operator()(cv::Mat& img, cv::Rect& window)
   {
-    float val_sum = 0;
-    for (unsigned int i = 0; i < vect.size(); ++i)
+    float area_sum = 0.0;
+    for (int i = 0; i < img.rows; ++i)
     {
-      val_sum += vect[i];
+      for (int j = 0; j < img.cols; ++j)
+      {
+        area_sum += img.at<uchar>(i,j);
+      }
     }
-    return val_sum;
+
+    area_sum /= (img.cols*img.rows);
+
+    if (area_sum > max_sum_)
+    {
+      max_sum_ = area_sum;
+      max_loc_.x = window.x;
+      max_loc_.y = window.y;
+      max_loc_.height = window.height;
+      max_loc_.width = window.width;
+    }
+
+    descriptor_ = area_sum;
   }
 
+  float getMax() const { return max_sum_; }
+  cv::Rect getMaxLoc() const { return max_loc_; }
+  void resetMax()
+  {
+    max_sum_ = -1.0;
+    max_loc_.x = 0.0;
+    max_loc_.y = 0.0;
+    max_loc_.height = 0.0;
+    max_loc_.width = 0.0;
+  }
+
+  virtual float getDescriptor() const
+  {
+    return descriptor_;
+  }
+ protected:
+  float max_sum_;
+  cv::Rect max_loc_;
+  float descriptor_;
 };
 }
-#endif // abstract_feature_h_DEFINED
+#endif // normalized_sum_h_DEFINED

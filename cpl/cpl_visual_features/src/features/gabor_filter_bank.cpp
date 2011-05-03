@@ -32,13 +32,13 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include <visual_features/features/gabor_filter_bank.h>
+#include <cpl_visual_features/features/gabor_filter_bank.h>
 #include <sstream>
 
 using cv::Mat;
 using std::vector;
 
-namespace visual_features
+namespace cpl_visual_features
 {
 
 //

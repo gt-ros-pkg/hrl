@@ -35,11 +35,11 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <sstream>
 
-#include <visual_features/features/lm_filter_bank.h>
+#include <cpl_visual_features/features/lm_filter_bank.h>
 
 using cv::Mat;
 using std::vector;
-using namespace visual_features;
+using namespace cpl_visual_features;
 
 void usage(std::string exec_name)
 {

@@ -38,7 +38,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include "abstract_feature.h"
-namespace visual_features
+namespace cpl_visual_features
 {
 template<int n_bins> class ColorHistogram : public AbstractFeature<cv::MatND>
 {

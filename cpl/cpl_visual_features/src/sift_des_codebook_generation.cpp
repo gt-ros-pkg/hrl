@@ -32,13 +32,13 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include <visual_features/features/sift_des.h>
+#include <cpl_visual_features/features/sift_des.h>
 #include <opencv2/highgui/highgui.hpp>
 #include <sstream>
 #include <ros/ros.h>
 #include <opencv2/ml/ml.hpp>
 
-using namespace visual_features;
+using namespace cpl_visual_features;
 typedef SIFTDes<8,8,4, false> SIFTDescriptor;
 
 void usage(std::string exec_name)

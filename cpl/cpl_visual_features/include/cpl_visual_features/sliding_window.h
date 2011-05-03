@@ -40,7 +40,7 @@
 #include <vector>
 #include <utility>
 
-namespace visual_features
+namespace cpl_visual_features
 {
 template<class FeatureType, class DescriptorType> class SlidingWindowDetector
 {

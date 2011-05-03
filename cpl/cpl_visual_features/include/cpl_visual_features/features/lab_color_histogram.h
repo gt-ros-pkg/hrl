@@ -32,74 +32,69 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#ifndef color_cell_h_DEFINED
-#define color_cell_h_DEFINED
+#ifndef lab_color_histogram_h_DEFINED
+#define lab_color_histogram_h_DEFINED
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include "abstract_feature.h"
-#include <vector>
+#include <iostream>
 
-namespace visual_features
+namespace cpl_visual_features
 {
-class ColorCell : public AbstractFeature<std::vector<float> >
+template<int l_bins, int a_bins, int b_bins> class LabColorHistogram :
+      public AbstractFeature<std::vector<float> >
 {
  public:
-  ColorCell(int num_scales=4) : num_scales_(num_scales)
+  LabColorHistogram()
   {
   }
 
   virtual void operator()(cv::Mat& patch, cv::Rect& window)
   {
-    std::vector<cv::Mat> channels;
-    cv::split(patch, channels);
-    std::vector<float> descriptor;
+    // First convert to be a 32 bit image
+    cv::Mat cvt_patch(patch.rows, patch.cols, CV_32FC3);
+    patch.convertTo(cvt_patch, CV_32F, 1.0/255.0);
 
-    for (int scale = 1; scale <= num_scales_; ++scale)
+    // Now convert to be in the Lab color space
+    cv::Mat lab_patch(patch.rows, patch.cols, CV_32FC3);
+    cv::cvtColor(cvt_patch, lab_patch, CV_BGR2Lab);
+
+    int bins[] = {l_bins, a_bins, b_bins};
+    int channels[] = {0,1,2};
+    float l_ranges[] = {0,100};
+    float a_ranges[] = {-128,128};
+    float b_ranges[] = {-128,128};
+    const float* ranges[] = {l_ranges, a_ranges, b_ranges};
+
+    cv::MatND patch_desc;
+
+    cv::calcHist(&lab_patch, 1, channels, cv::Mat(), patch_desc, 3,
+                 bins, ranges, true, false);
+
+    std::vector<float> desc;
+    float color_sum = 0;
+
+    for (int i = 0; i < l_bins; ++i)
     {
-      // Examine cells at each scale
-      int cell_height = patch.rows / float(scale);
-      int cell_width = patch.cols / float(scale);
-
-      for (int cell_r = 0, vert_count = 0;
-           cell_r < patch.rows && vert_count < scale;
-           cell_r += cell_height, vert_count++)
+      for (int j = 0; j < a_bins; ++j)
       {
-        for (int cell_c = 0, horz_count = 0;
-             cell_c < patch.cols && horz_count < scale;
-             cell_c += cell_width, horz_count++)
+        for (int k = 0; k < b_bins; ++k)
         {
-          float r_avg = 0;
-          float g_avg = 0;
-          float b_avg = 0;
-
-          // Compute the average value for each color channel in the cell
-          for (int r = cell_r; r < cell_r + cell_height; r++)
-          {
-            for (int c = cell_c; c < cell_c + cell_height; c++)
-            {
-              b_avg += channels[0].at<uchar>(r,c);
-              g_avg += channels[1].at<uchar>(r,c);
-              r_avg += channels[2].at<uchar>(r,c);
-            }
-          }
-          r_avg /= float(cell_width*cell_height);
-          g_avg /= float(cell_width*cell_height);
-          b_avg /= float(cell_width*cell_height);
-
-          // Add the 6 color descriptors for this cell
-          descriptor.push_back(r_avg);
-          descriptor.push_back(g_avg);
-          descriptor.push_back(b_avg);
-          descriptor.push_back((r_avg - g_avg)/float(r_avg + g_avg + b_avg));
-          descriptor.push_back((b_avg - (r_avg + g_avg)/2.0)/
-                               float(r_avg + g_avg + b_avg));
-          descriptor.push_back(float(r_avg + g_avg + b_avg)/(255*3));
+          desc.push_back(patch_desc.at<float>(i,j,k));
+          color_sum += patch_desc.at<float>(i,j,k);
         }
       }
     }
 
-    descriptor_ = descriptor;
+#ifdef NORMALIZE_RESULTS
+    for (unsigned int i = 0; i < desc.size(); ++i)
+    {
+      desc[i] = desc[i] / color_sum;
+    }
+#endif // NORMALIZE_RESULTS
+
+    descriptor_ = desc;
   }
 
   virtual std::vector<float> getDescriptor() const
@@ -109,7 +104,6 @@ class ColorCell : public AbstractFeature<std::vector<float> >
 
  protected:
   std::vector<float> descriptor_;
-  int num_scales_;
 };
 }
-#endif // color_cell_h_DEFINED
+#endif // lab_color_histogram_h_DEFINED

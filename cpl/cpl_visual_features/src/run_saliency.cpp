@@ -35,8 +35,8 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <sstream>
 
-#include <visual_features/saliency/center_surround.h>
-#include <visual_features/features/gabor_filter_bank.h>
+#include <cpl_visual_features/saliency/center_surround.h>
+#include <cpl_visual_features/features/gabor_filter_bank.h>
 #include <time.h> // for srand(time(NULL))
 #include <cstdlib> // for MAX_RAND
 
@@ -45,7 +45,7 @@ using cv::Rect;
 using cv::Size;
 using std::pair;
 using std::vector;
-using namespace visual_features;
+using namespace cpl_visual_features;
 
 
 int main(int argc, char** argv)
