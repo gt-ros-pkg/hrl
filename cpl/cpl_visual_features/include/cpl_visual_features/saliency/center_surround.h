@@ -39,7 +39,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <vector>
 
-namespace visual_features
+namespace cpl_visual_features
 {
 class CenterSurroundMapper
 {
