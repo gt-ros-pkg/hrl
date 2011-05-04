@@ -848,19 +848,31 @@ class ApplicationBehaviors:
         rospy.loginfo('Reaching')
         linear_movement = self.behaviors.movement
         linear_movement.gripper_close()
+        self.behaviors.movement.pressure_listener.rezero()
         #pdb.set_trace()
+        #try:
         self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure_accel', pressure=3000)
+        #except lm.RobotSafetyError, e:
+        #    rospy.loginfo('robot safety error %s' % str(e))
+
         def reach_with_back_up(point, thres, reach_direction):
             self.behaviors.reach(point, thres, reach_direction)
-            r1, pos_error1 = self.behaviors.movement.move_relative_gripper(np.matrix([-.05, 0., 0.]).T, stop='none')
+            try:
+                r1, pos_error1 = self.behaviors.movement.move_relative_gripper(np.matrix([-.05, 0., 0.]).T, stop='none')
+            except lm.RobotSafetyError, e:
+                rospy.loginfo('robot safety error %s' % str(e))
         change, press_ret = self.camera_change_detect(visual_change_thres, \
                                     #self.behaviors.reach, \
                                     reach_with_back_up, \
                                     #(point, pressure, np.matrix([0,0,0.]).T, np.matrix([.1,0,0]).T))
                                     (point, pressure, np.matrix([.1,0,0]).T))
-        linear_movement.move_relative_gripper(np.matrix([-.1,0,0]).T, stop='accel')
+        try:
+            linear_movement.move_relative_gripper(np.matrix([-.1,0,0]).T, stop='accel')
+            self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure_accel', pressure=3000)
+        except lm.RobotSafetyError, e:
+            rospy.loginfo('robot safety error %s' % str(e))
+
         rospy.loginfo('Reseting')
-        self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure_accel', pressure=3000)
         return change, '', point+offset
 
 
@@ -1794,8 +1806,14 @@ class ApplicationBehaviors:
         tid = tasks[int(raw_input())]
         task_type = self.locations_man.data[tid]['task']
         rospy.loginfo('User selected %s' % tid)
-        point_map = self.locations_man.data[tid]['center']
 
+        #record current robot position
+        if not self.locations_man.data[tid].has_key('execute_locations'):
+            self.locations_man.data[tid]['execute_locations'] = []
+        t_current_map, r_current_map = self.robot.base.get_pose()
+        self.locations_man.data[tid]['execute_locations'].append([t_current_map, r_current_map])
+
+        point_map = self.locations_man.data[tid]['center']
         #pdb.set_trace()
         self.robot.sound.say('Driving')
         self.driving_posture(task_type)
@@ -2923,6 +2941,7 @@ class TestLearner:
                       svm_params + weight_balance,
                       rec_params.variance_keep)
         return learner
+
 
 def test_display():
     rec_params = r3d.Recognize3DParam()
