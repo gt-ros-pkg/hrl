@@ -393,6 +393,7 @@ class LocationManager:
         self.tree = sp.KDTree(np.array(self.centers).T)
 
     def save_database(self):
+        print 'Saving pickle. DONOT INTERRUPPT!!!'
         ut.save_pickle({'centers': self.centers,
                         'ids': self.ids,
                         'data': self.data}, self.saved_locations_fname)
@@ -868,6 +869,11 @@ class ApplicationBehaviors:
                                     (point, pressure, np.matrix([.1,0,0]).T))
         try:
             linear_movement.move_relative_gripper(np.matrix([-.1,0,0]).T, stop='accel')
+            self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure_accel', pressure=3000)
+        except lm.RobotSafetyError, e:
+            rospy.loginfo('robot safety error %s' % str(e))
+
+        try:
             self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure_accel', pressure=3000)
         except lm.RobotSafetyError, e:
             rospy.loginfo('robot safety error %s' % str(e))
@@ -1812,6 +1818,7 @@ class ApplicationBehaviors:
             self.locations_man.data[tid]['execute_locations'] = []
         t_current_map, r_current_map = self.robot.base.get_pose()
         self.locations_man.data[tid]['execute_locations'].append([t_current_map, r_current_map])
+        self.locations_man.save_database()
 
         point_map = self.locations_man.data[tid]['center']
         #pdb.set_trace()
@@ -1839,6 +1846,7 @@ class ApplicationBehaviors:
         self.robot.sound.say('Executing behavior')
         self.execute_behavior(tid, point_bl, save)
         self.driving_posture(task_type)
+        exit()
 
     def unreliable_locs(self):
         tasks = self.locations_man.data.keys()
@@ -2608,6 +2616,7 @@ class ApplicationBehaviors:
         pos_indices = np.where(r3d.POSITIVE == predictions)[1].A1
         loc2d_max = None
         try_num = 0
+        updated_execution_record = False
 
         #If find some positives:
         if len(pos_indices) > 0:
@@ -2664,8 +2673,10 @@ class ApplicationBehaviors:
 
                 try_num = try_num + 1
                 if success:
-                    if save:
+                    #if save:
+                    if not updated_execution_record:
                         self.locations_man.update_execution_record(task_id, 1.)
+                        update_execution_record = True
                     self.robot.sound.say('action succeeded')
                     label = r3d.POSITIVE
 
@@ -2679,12 +2690,15 @@ class ApplicationBehaviors:
                                      'sizes':     kdict['sizes'],
                                      'labels':    np.matrix([label])}
                         self.locations_man.add_perceptual_data(task_id, datapoint)
-                        self.locations_man.save_database()
+                        #self.locations_man.save_database()
                         self.locations_man.train(task_id, kdict)
                     break
                 else:
                     self.robot.sound.say('action failed')
                     label = r3d.NEGATIVE
+                    if not updated_execution_record:
+                        self.locations_man.update_execution_record(task_id, 0.)
+                        update_execution_record = True
 
                     if save:
                         #We were wrong so we add this to our dataset and retrain
@@ -2694,9 +2708,8 @@ class ApplicationBehaviors:
                                      'sizes':     kdict['sizes'],
                                      'labels':    np.matrix([label])}
                         self.locations_man.add_perceptual_data(task_id, datapoint)
-                        self.locations_man.save_database()
+                        #self.locations_man.save_database()
                         self.locations_man.train(task_id, kdict)
-                        self.locations_man.update_execution_record(task_id, 0.)
 
                     if try_num > max_retries:
                         break
@@ -2710,6 +2723,10 @@ class ApplicationBehaviors:
 
         #If no positives found:
         else:
+            if not updated_execution_record:
+                self.locations_man.update_execution_record(task_id, 0.)
+                update_execution_record = True
+
             self.robot.sound.say("Perception failure.  Exploring around expected region.")
             #FAIL. Update the location's statistic with this failure. 
             if save:
