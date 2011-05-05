@@ -35,8 +35,7 @@ import roslib; roslib.load_manifest('hrl_rfid')
 import rospy
 from hrl_rfid.msg import RFIDread
 from hrl_rfid.msg import RFIDreadArr
-from hrl_rfid.srv import StringArray_None
-from hrl_rfid.srv import StringArray_NoneResponse
+from hrl_rfid.srv import RfidSrv
 import hrl_rfid.lib_M5e as M5e
 
 import time
@@ -77,7 +76,7 @@ class ROS_M5e( Thread ):
         self.channel       = rospy.Publisher('/rfid/'+name+'_reader', RFIDread)
         self.pub_arr = rospy.Publisher('/rfid/'+name+'_reader_arr', RFIDreadArr)
         self._mode_service_obj = rospy.Service('/rfid/'+name+'_mode',
-                                                StringArray_None, self._mode_service)
+                                                RfidSrv, self._mode_service)
 
         rospy.logout( 'ROS_M5e: '+self.name+' Inialized and awaiting instructions' )
 
@@ -158,7 +157,7 @@ class ROS_M5e( Thread ):
                 rospy.logout( 'ROS_M5e: Mode Service called with invalid argument: ' + str(val) )
         else:
             rospy.logout( 'ROS_M5e: Mode Service called with invalid argument: ' + str(val) )
-        return StringArray_NoneResponse()
+        return True
 
 
 
@@ -237,6 +236,21 @@ if __name__ == '__main__':
                             portStr = '/dev/robot/inHandReader',
                             antFuncs = [Hand_Right_1, Hand_Right_2,
                                         Hand_Left_1, Hand_Left_2 ],
+                            callbacks = [] )
+        rospy.spin()
+        ros_rfid.stop()
+
+    if opt.device == 'head':
+        print 'Starting PR2 Head RFID Services'
+
+        def PR2_Head(M5e):
+            M5e.ChangeAntennaPorts(1,1)
+            time.sleep(0.010)
+            return 'PR2_Head'
+
+        ros_rfid = ROS_M5e( name = 'head', readPwr = opt.power,
+                            portStr = '/dev/robot/RFIDreader',
+                            antFuncs = [PR2_Head],
                             callbacks = [] )
         rospy.spin()
         ros_rfid.stop()

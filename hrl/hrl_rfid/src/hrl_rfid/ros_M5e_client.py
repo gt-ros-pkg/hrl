@@ -33,7 +33,7 @@
 import roslib; roslib.load_manifest('hrl_rfid')
 import rospy
 from hrl_rfid.msg import RFIDread
-from hrl_rfid.srv import StringArray_None
+from hrl_rfid.srv import RfidSrv
 import hrl_rfid.lib_M5e as M5e
 
 import time
@@ -80,7 +80,7 @@ class ROS_M5e_Client():
         reader_service_name = '/rfid/'+self.name+'_mode'
         rospy.wait_for_service(reader_service_name)
         self._mode_service_obj = rospy.ServiceProxy(reader_service_name,
-                                                    StringArray_None)
+                                                    RfidSrv)
 
     def read(self, antenna = ''):
         if antenna == '':

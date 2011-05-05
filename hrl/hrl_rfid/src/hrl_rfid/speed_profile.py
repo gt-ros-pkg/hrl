@@ -34,8 +34,7 @@
 import roslib; roslib.load_manifest('hrl_rfid')
 import rospy
 from hrl_rfid.msg import RFIDread
-from hrl_rfid.srv import StringArray_None
-from hrl_rfid.srv import StringArray_NoneResponse
+from hrl_rfid.srv import RfidSrv
 import hrl_rfid.lib_M5e as M5e
 
 import time
@@ -73,7 +72,7 @@ class ROS_M5e( ):
         rospy.logout( 'ROS_M5e: publishing RFID reader with type RFIDread to channel /rfid/'+name+'_reader' )
         self.channel       = rospy.Publisher('/rfid/'+name+'_reader', RFIDread)
         self._mode_service_obj = rospy.Service('/rfid/'+name+'_mode',
-                                                StringArray_None, self._mode_service)
+                                                RfidSrv, self._mode_service)
 
         rospy.logout( 'ROS_M5e: '+self.name+' Inialized and awaiting instructions' )
 
@@ -129,7 +128,7 @@ class ROS_M5e( ):
                 rospy.logout( 'ROS_M5e: Mode Service called with invalid argument: ' + str(val) )
         else:
             rospy.logout( 'ROS_M5e: Mode Service called with invalid argument: ' + str(val) )
-        return StringArray_NoneResponse()
+        return True
 
 
 
