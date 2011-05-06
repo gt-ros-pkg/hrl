@@ -37,8 +37,7 @@ from hrl_lib.msg import FloatArray
 
 import AMTIForce2 as af
 
-#from threading import RLock
-#import threading
+import threading
 import time
 
 #import rutils as ru
@@ -77,7 +76,7 @@ if __name__ == '__main__':
                  dest='path', help='path to force torque device in (linux)')
     opt, args = p.parse_args()
 
-    server = ft.AMTIForceServer(opt.path, 0)
+    server = AMTIForceServer(opt.path, 0)
     server.broadcast()
 
 
