@@ -60,39 +60,38 @@ class TestNormals {
     }
 
     void TestNormals::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
-        pcl::PointCloud<pcl::PointXYZRGB> pc_full, pc_full_frame;
-        pcl::fromROSMsg(*pc_msg, pc_full);
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc_full_ptr (new pcl::PointCloud<pcl::PointXYZRGB>());
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc_full_frame_ptr (new pcl::PointCloud<pcl::PointXYZRGB>());
+        pcl::fromROSMsg(*pc_msg, *pc_full_ptr);
         string base_frame("/base_link");
         ros::Time now = ros::Time::now();
         
         tf_listener.waitForTransform(pc_msg->header.frame_id, base_frame, now, ros::Duration(3.0));
-        pcl_ros::transformPointCloud(base_frame, pc_full, pc_full_frame, tf_listener);
-        pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc_full_frame_ptr = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB> >(pc_full_frame);
+        pcl_ros::transformPointCloud(base_frame, *pc_full_ptr, *pc_full_frame_ptr, tf_listener);
         // pc_full_frame is in torso lift frame
 
-        pcl::KdTree<pcl::PointXYZRGB>::Ptr normals_tree = boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZRGB> > ();
+        pcl::KdTree<pcl::PointXYZRGB>::Ptr normals_tree (new pcl::KdTreeFLANN<pcl::PointXYZRGB>());
         pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> n3d;
         n3d.setKSearch(15);
         n3d.setSearchMethod(normals_tree);
         n3d.setInputCloud(pc_full_frame_ptr);
-        pcl::PointCloud<pcl::Normal> cloud_normals;
-        n3d.compute(cloud_normals);
+        pcl::PointCloud<pcl::Normal>::Ptr cloud_normals_ptr (new pcl::PointCloud<pcl::Normal>());
+        n3d.compute(*cloud_normals_ptr);
         pcl::PrincipalCurvaturesEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::PrincipalCurvatures> pce;
         pce.setKSearch(15);
         pce.setSearchMethod(normals_tree);
         pce.setInputCloud(pc_full_frame_ptr);
         pcl::PointCloud<pcl::PrincipalCurvatures> princip_curves;
-        pcl::PointCloud<pcl::Normal>::ConstPtr cloud_normals_ptr = boost::make_shared<pcl::PointCloud<pcl::Normal> >(cloud_normals);
         pce.setInputNormals(cloud_normals_ptr);
         pce.compute(princip_curves);
         pcl::PointCloud<pcl::PointXYZRGB> cloud_normals_colors, princip_curves_colors;
 
         int i=0;
-        BOOST_FOREACH(const pcl::Normal& pt, cloud_normals.points) {
+        BOOST_FOREACH(const pcl::Normal& pt, cloud_normals_ptr->points) {
             i++;
             if(pt.normal[0] != pt.normal[0] || pt.normal[1] != pt.normal[1] || pt.normal[2] != pt.normal[2])
                 continue;
-            pcl::PointXYZRGB cur_pt = pc_full_frame.at(i-1, 0);
+            pcl::PointXYZRGB cur_pt = pc_full_frame_ptr->at(i-1, 0);
             double ang = fabs((acos(pt.normal[2]) - CV_PI/2)/CV_PI*2);
             //cout << ang << " ";
             double thresh = 0.5;
@@ -104,7 +103,7 @@ class TestNormals {
             
             cloud_normals_colors.push_back(cur_pt);
 
-            pcl::PointXYZRGB p_cur_pt = pc_full_frame.at(i-1, 0);
+            pcl::PointXYZRGB p_cur_pt = pc_full_frame_ptr->at(i-1, 0);
             pcl::PrincipalCurvatures pcurves = princip_curves.at(i-1, 0);
             //cout << pcurves << " ";
             if(pcurves.pc1 < 0.8)
@@ -113,6 +112,8 @@ class TestNormals {
                 ((uint32_t*) &p_cur_pt.rgb)[0] = ((uint32_t) (min(fabs((double)pcurves.pc1/pcurves.pc2), 30.0)/30.0*256))<<16 | 0xFF000000;
             else
                 ((uint32_t*) &p_cur_pt.rgb)[0] = (256)<<16 | 0xFF00FF00;
+
+            ((uint32_t*) &p_cur_pt.rgb)[0] = ((uint32_t) min((double)fabs(pcurves.pc1*300),255.0))<<16 | 0xFF00FF00;
             princip_curves_colors.push_back(p_cur_pt);
         }
         cloud_normals_colors.header.stamp = ros::Time::now();
@@ -140,7 +141,7 @@ class TestNormals {
                            plane_pose.pose.position.z);
         i=0;
         pcl::PointCloud<pcl::PointXYZRGB> flat_pc;
-        BOOST_FOREACH(const pcl::PointXYZRGB& pt, pc_full.points) {
+        BOOST_FOREACH(const pcl::PointXYZRGB& pt, pc_full_ptr->points) {
             i++;
             if(pt.x != pt.x || pt.y != pt.y || pt.z != pt.z)
                 continue;
@@ -163,7 +164,7 @@ class TestNormals {
             flat_pc.push_back(n_pt);
         }
         flat_pc.header.stamp = ros::Time::now();
-        flat_pc.header.frame_id = pc_full.header.frame_id;
+        flat_pc.header.frame_id = pc_full_ptr->header.frame_id;
         pc_pub3.publish(flat_pc);
 
     }
