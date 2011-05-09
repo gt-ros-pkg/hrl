@@ -67,7 +67,7 @@ namespace hrl_table_detect {
     }
 
     void SurfaceSegmentation::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
-        double min_z_val = 0.1, max_z_val = 1.5;
+        double min_z_val = -0.1, max_z_val = 1.5;
         double norm_ang_thresh = 0.7;
         double surf_clust_dist = 0.02, surf_clust_min_size = 50;
 
@@ -162,6 +162,7 @@ namespace hrl_table_detect {
             uint32_t cur_color = 0xFF000000 | (rand() % 0x01000000);
             for(uint32_t j=0;j<surf_inliers.indices.size();j++)
                 ((uint32_t*) &pc_filtered_ptr->points[surf_inliers.indices[j]].rgb)[0] = cur_color;
+            cout << surf_clust_list[i].indices.size() << endl;
 
             for(uint32_t j=0;j<surf_coeffs.values.size();j++)
                 cout << i << " " << j << " " << surf_coeffs.values[j] << endl;
@@ -170,47 +171,30 @@ namespace hrl_table_detect {
         pc_filtered_ptr->header.frame_id = base_frame;
         pc_pub2.publish(pc_filtered_ptr);
 
-        // define a plane to project onto
-        geometry_msgs::PoseStamped plane_pose;
-        plane_pose.pose.position.x=0; plane_pose.pose.position.y=0; plane_pose.pose.position.z=0.542; 
-        plane_pose.pose.orientation.x=0; plane_pose.pose.orientation.y=0; 
-        plane_pose.pose.orientation.z=0; plane_pose.pose.orientation.w=1; 
-        plane_pose.header.stamp = now; plane_pose.header.frame_id = base_frame;
-        tf_listener.transformPose(pc_msg->header.frame_id, plane_pose, plane_pose);
-        btQuaternion plane_quat(plane_pose.pose.orientation.x,
-                                plane_pose.pose.orientation.y,
-                                plane_pose.pose.orientation.z,
-                                plane_pose.pose.orientation.w);
-        btMatrix3x3 plane_rot(plane_quat);
-        btVector3 plane_norm = plane_rot.getColumn(2);
-        btVector3 plane_pt(plane_pose.pose.position.x,plane_pose.pose.position.y,
-                           plane_pose.pose.position.z);
-        i=0;
         pcl::PointCloud<PRGB> flat_pc;
-        BOOST_FOREACH(const PRGB& pt, pc_full_ptr->points) {
-            i++;
+        BOOST_FOREACH(const PRGB& pt, pc_full_frame_ptr->points) {
             if(pt.x != pt.x || pt.y != pt.y || pt.z != pt.z)
                 continue;
-            btVector3 pc_pt(pt.x,pt.y,pt.z);
-            double t = plane_norm.dot(plane_pt)/plane_norm.dot(pc_pt);
-            btVector3 surf_pt = pc_pt*t;
             PRGB n_pt;
-            n_pt.x = surf_pt.x(); n_pt.y = surf_pt.y(); n_pt.z = surf_pt.z(); 
-            n_pt.rgb = pt.rgb;
-            if(t > 1.01) {
-                uint32_t red = 0xFFFF0000;
-                ((uint32_t*) &n_pt.rgb)[0] = red;
-            } else if (t < 0.99) {
+            n_pt.x = pt.x; n_pt.y = pt.y; n_pt.z = pt.z; 
+            double a = surf_models[0].values[0], b = surf_models[0].values[1];
+            double c = surf_models[0].values[2], d = surf_models[0].values[3];
+            double dist = (a*pt.x + b*pt.y + c*pt.z + d) / sqrt(a*a+b*b+c*c);
+            
+            if(fabs(dist) < 0.02) {
+                uint32_t green = 0xFF00FF00;
+                ((uint32_t*) &n_pt.rgb)[0] = green;
+            } else if (dist > 0) {
                 uint32_t blue = 0xFF0000FF;
                 ((uint32_t*) &n_pt.rgb)[0] = blue;
             } else {
-                uint32_t green = 0xFF00FF00;
-                ((uint32_t*) &n_pt.rgb)[0] = green;
+                uint32_t red = 0xFFFF0000;
+                ((uint32_t*) &n_pt.rgb)[0] = red;
             }
             flat_pc.push_back(n_pt);
         }
         flat_pc.header.stamp = ros::Time::now();
-        flat_pc.header.frame_id = pc_full_ptr->header.frame_id;
+        flat_pc.header.frame_id = pc_full_frame_ptr->header.frame_id;
         pc_pub3.publish(flat_pc);
 
 
