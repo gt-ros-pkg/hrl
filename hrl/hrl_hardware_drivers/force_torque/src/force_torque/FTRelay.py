@@ -84,22 +84,14 @@ if __name__ == '__main__':
     channel2 = rospy.Publisher(ft_channel_name + '_raw', FloatArray, tcp_nodelay=True)
     chan_vec3 = rospy.Publisher(ft_channel_name + '_Vec3', Vector3Stamped, tcp_nodelay=True)    
     print node_name + ': publishing on channel', ft_channel_name
-    #times = []
-    biasft = None
     P_force = [1., 1., 1.]
     xhat_force = [0., 0., 0., 0., 0., 0.]
     while not rospy.is_shutdown():
-    #while len(times) < 201:
         msg = ftserver.get_msg()
         if msg is not None:
             data, tme = msg
             ftvalue = ftc.binary_to_ft(data)
-            if biasft == None:
-                biasft = np.array(ftvalue)
-                print biasft
-            #print biasft.__class__, biasft
-
-            ftvalue = np.array(ftvalue) - biasft
+            ftvalue = np.array(ftvalue)
             for i in range(3):
                 xhat, p = kalman_update(xhat_force[i], P_force[i],
                         1e-3, 0.04, ftvalue[i])
