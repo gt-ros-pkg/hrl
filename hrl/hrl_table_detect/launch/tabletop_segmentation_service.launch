@@ -1,7 +1,4 @@
 <launch>
-    <!--<arg name="tabletop_segmentation_points_in" default="narrow_stereo_textured/points2" />-->
-    <arg name="tabletop_segmentation_points_in" default="kinect_head/rgb/points" />
-
     <node pkg="hrl_table_detect" name="tabletop_segmentor" type="tabletop_segmentor" respawn="true" output="screen">
         <param name="run_service" type="bool" value="true" />
         <param name="scan_width" value="1.5" />

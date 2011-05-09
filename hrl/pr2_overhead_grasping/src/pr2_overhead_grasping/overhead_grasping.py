@@ -184,7 +184,7 @@ class OverheadGraspManager():
         num_tries = 0
 
         if not disable_head:
-            self.point_head([x,y,-0.2])
+            self.point_head([x,y,-0.3])
 
         while not grasped and num_tries < 4:
             log("Detect in")
@@ -205,7 +205,9 @@ class OverheadGraspManager():
 
                 # Get better look
                 if not disable_head:
-                    self.point_head(obj[0])
+                    obj_pt = obj[0]
+                    obj_pt[2] = -0.4
+                    self.point_head(obj_pt)
                 rospy.sleep(0.2)
                 log("Detect2 in")
                 objects = self.detect_tabletop_objects()
@@ -351,7 +353,7 @@ class OverheadGraspManager():
         head_action_client.wait_for_server()
         goal = PointHeadGoal()
         goal.target = cf.create_point_stamped(point, frame)
-        goal.pointing_frame = "/narrow_stereo_optical_frame"
+        goal.pointing_frame = "/openni_rgb_optical_frame"
         goal.max_velocity = velocity
 
         head_action_client.send_goal(goal)
@@ -359,7 +361,7 @@ class OverheadGraspManager():
         if not block:
             return 0
 
-        finished_within_time = head_action_client.wait_for_result(rospy.Duration(20))
+        finished_within_time = head_action_client.wait_for_result(rospy.Duration(10))
         if not finished_within_time:
             head_action_client.cancel_goal()
             rospy.logerr("timed out when asking the head to point to a new goal")
@@ -513,7 +515,7 @@ class OverheadGraspManager():
     def setup_grasp(self, block = False, disable_head=False):
         #self.open_gripper(blocking = False)
         if not disable_head:
-            self.point_head([0.5, 0.0, -0.2], block=False)
+            self.point_head([0.3, 0.0, -0.3], block=False)
         self.move_to_setup(blocking = block)
 
     ##

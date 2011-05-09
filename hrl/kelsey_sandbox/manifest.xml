@@ -18,6 +18,7 @@
   <depend package="hrl_pr2_lib"/>
   <depend package="laser_interface"/>
   <depend package="hrl_tilting_hokuyo"/>
+  <depend package="pcl"/>
 
 </package>
 

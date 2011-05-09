@@ -21,7 +21,7 @@
         <remap from="segmentation_srv" to="object_detection" />
         <remap from="markers_out" to="tabletop_detector_markers" />
 
-    <param name="clustering_distance" value="0.03" />
+    <param name="cluster_distance" value="0.01" />
 
     <!-- processing and filtering frame -->
     <!-- remove this entire block and processing and filtering will -->

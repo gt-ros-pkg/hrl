@@ -29,8 +29,8 @@ if __name__ == '__main__':
             goal = OverheadGraspSetupGoal()
             #goal.disable_head = True
             grasp_setup_client.send_goal(goal)
-            grasp_setup_client.wait_for_result()
-            #rospy.sleep(1.0)
+            #grasp_setup_client.wait_for_result()
+            rospy.sleep(1.0)
 
             if not obj_in_hand:
                 print "Grasp started"

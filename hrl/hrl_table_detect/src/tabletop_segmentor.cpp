@@ -268,13 +268,13 @@ namespace hrl_table_detect {
 
         cv_bridge::CvImage cvb_height_img;
         //cvb_height_img.image = height_img_avg;
-        cvb_height_img.image = height_img_max;
+        //cvb_height_img.image = height_img_max;
         //cvb_height_img.image = height_morph;
         //cvb_height_img.image = obj_img;
         //cvb_height_img.image = height_img_thresh_blob;
         //cvb_height_img.image = table_blob;
         //cvb_height_img.image = height_img_thresh;
-        //cvb_height_img.image = above_table;
+        cvb_height_img.image = above_table;
         //cvb_height_img.image = table_edge;
         cvb_height_img.header.stamp = ros::Time::now();
         cvb_height_img.header.frame_id = base_frame;

@@ -1,6 +1,6 @@
 
 overhead_grasping/grasp_time : 2.0
-overhead_grasping/setup_velocity : 0.40 # 0.40 #0.4 # 0.15
+overhead_grasping/setup_velocity : 0.8 #0.65 #0.40 # 0.40 #0.4 # 0.15
 
 overhead_grasping/static_deriv_thresh : { "accelerometer" : [0.6, 0.6, 0.6],
                     "joint_velocities" : [0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45],

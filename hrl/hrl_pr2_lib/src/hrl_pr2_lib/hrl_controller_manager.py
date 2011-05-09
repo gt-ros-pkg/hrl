@@ -400,9 +400,9 @@ class HRLControllerManager(ControllerManager):
                                          steps_before_abort=-1)
 
         #if some point is not possible, quit
-        # if any(error_codes):
-        #     rospy.loginfo("can't execute an interpolated IK trajectory to that pose")
-        #     return 0
+        if any(error_codes):
+            rospy.loginfo("can't execute an interpolated IK trajectory to that pose")
+            return 0
         trajectory = np.array(trajectory)[np.where(np.array(error_codes) == 0)].tolist()
 
 #         print "found trajectory:"
