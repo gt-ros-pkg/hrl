@@ -56,7 +56,14 @@ def load_pickle(filename):
     except IOError:
         print "hrl_lib.util: Pickle file cannot be opened."
         return None
-    picklelicious = pk.load(p)
+    try:
+        picklelicious = pk.load(p)
+    except ValueError:
+        print 'util.load_pickle failed once, trying again'
+        p.close()
+        p = open(filename, 'r')
+        picklelicious = pk.load(p)
+
     p.close()
     return picklelicious
 
