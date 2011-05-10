@@ -20,6 +20,10 @@ if __name__ == '__main__':
     pan_right = rs.Robotis_Servo( dyn_right, 27 )
     tilt_right = rs.Robotis_Servo( dyn_right, 28 )
 
+    # Hack to prevent the right servo from shaking.
+    pan_right.write_address( 27, [3] ) # change the right pan compliance region
+    pan_right.write_address( 26, [3] ) # change the right pan compliance region
+
     rospy.logout( 'pr2_ears_stow_startup: Commanding stow positions' )
     pan_left.move_angle( 1.370, math.radians( 10 ), False )
     tilt_left.move_angle( 0.0, math.radians( 10 ), False )
