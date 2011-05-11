@@ -15,6 +15,9 @@
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/surface/mls.h>
+#include <pcl/surface/convex_hull.h>
+#include <pcl/filters/project_inliers.h>
+#include <pcl/filters/voxel_grid.h>
 
 #include <tf/transform_listener.h>
 #include "pcl_ros/transforms.h"
@@ -27,11 +30,15 @@
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
 #include <geometry_msgs/PoseArray.h>
+#include <geometry_msgs/PolygonStamped.h>
+#include <geometry_msgs/Point.h>
+#include <visualization_msgs/Marker.h>
 #include <hrl_table_detect/DetectTableStart.h>
 #include <hrl_table_detect/DetectTableStop.h>
 #include <hrl_table_detect/DetectTableInst.h>
 #include <LinearMath/btMatrix3x3.h>
 #include <LinearMath/btQuaternion.h>
+#include <std_srvs/Empty.h>
 
 using namespace sensor_msgs;
 using namespace std;
@@ -45,13 +52,19 @@ namespace hrl_table_detect {
         public:
             ros::Subscriber pc_sub, cam_sub;
             ros::NodeHandle nh;
-            ros::Publisher pc_pub, pc_pub2, pc_pub3;
+            ros::Publisher pc_pub, pc_pub2, pc_pub3, poly_pub;
+            ros::ServiceServer get_pc_srv, get_table_srv;
             tf::TransformListener tf_listener;
+            pcl::PointCloud<PRGB> accum_pc;
+            geometry_msgs::PoseArray grasp_points;
+            bool pc_captured, do_capture;
 
             SurfaceSegmentation();
             void onInit();
             void pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg);
-            //void modelCallback(image_geometry::PinholeCameraModel::ConstPtr pin_msg);
+            bool captureCallback(std_srvs::EmptyRequest& req, std_srvs::EmptyResponse& resp);
+            bool surfSegCallback(hrl_table_detect::DetectTableInst::Request& req, 
+                                 hrl_table_detect::DetectTableInst::Response& resp);
     };
 
     SurfaceSegmentation::SurfaceSegmentation() {
@@ -61,36 +74,73 @@ namespace hrl_table_detect {
         pc_pub = nh.advertise<pcl::PointCloud<PRGB> >("/normal_vis", 1);
         pc_pub2 = nh.advertise<pcl::PointCloud<PRGB> >("/normal_vis2", 1);
         pc_pub3 = nh.advertise<pcl::PointCloud<PRGB> >("/normal_vis3", 1);
+        poly_pub = nh.advertise<visualization_msgs::Marker>("/table_hull", 1);
         pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &SurfaceSegmentation::pcCallback, this);
-        //cam_sub = nh.subscribe("/kinect_head/rgb/camera_info", 1, &SurfaceSegmentation::modelCallback, this);
+        get_pc_srv = nh.advertiseService("/surf_seg_capture_pc", &SurfaceSegmentation::captureCallback, this);
+        get_table_srv = nh.advertiseService("/surf_seg_approaches", &SurfaceSegmentation::surfSegCallback, this);
+        pc_captured = false; do_capture = false;
         ros::Duration(1.0).sleep();
     }
 
-    void SurfaceSegmentation::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
-        double min_z_val = -0.1, max_z_val = 1.5;
-        double norm_ang_thresh = 0.7;
-        double surf_clust_dist = 0.02, surf_clust_min_size = 50;
+    bool SurfaceSegmentation::captureCallback(std_srvs::EmptyRequest& req, std_srvs::EmptyResponse& resp) {
+        pc_captured = false; do_capture = true;
+        ros::Rate r(100);
+        while(ros::ok() && !pc_captured) {
+            ros::spinOnce();
+            r.sleep();
+        }
+        do_capture = false;
+        return true;
+    }
 
+    void SurfaceSegmentation::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
+        if(!(do_capture && !pc_captured))
+            return;
         pcl::PointCloud<PRGB>::Ptr pc_full_ptr(new pcl::PointCloud<PRGB>());
-        pcl::PointCloud<PRGB>::Ptr pc_full_frame_ptr(new pcl::PointCloud<PRGB>());
         pcl::fromROSMsg(*pc_msg, *pc_full_ptr);
+        if(accum_pc.points.size() == 0)
+            accum_pc = *pc_full_ptr;
+        else
+            accum_pc += *pc_full_ptr;
+        pc_captured = true;
+    }
+
+    bool SurfaceSegmentation::surfSegCallback(
+                     hrl_table_detect::DetectTableInst::Request& req, 
+                     hrl_table_detect::DetectTableInst::Response& resp) {
+        double min_z_val = 0.1, max_z_val = 1.5;
+        double norm_ang_thresh = 0.7;
+        double surf_clust_dist = 0.03, surf_clust_min_size = 50;
+
+        pcl::PointCloud<PRGB>::Ptr pc_full_frame_ptr(new pcl::PointCloud<PRGB>());
         string base_frame("/base_link");
         ros::Time now = ros::Time::now();
 
         // Transform PC to base frame
-        tf_listener.waitForTransform(pc_msg->header.frame_id, base_frame, now, ros::Duration(3.0));
-        pcl_ros::transformPointCloud(base_frame, *pc_full_ptr, *pc_full_frame_ptr, tf_listener);
+        tf_listener.waitForTransform(accum_pc.header.frame_id, base_frame, now, ros::Duration(3.0));
+        pcl_ros::transformPointCloud(base_frame, accum_pc, *pc_full_frame_ptr, tf_listener);
+
+        pcl::PointCloud<PRGB>::Ptr pc_downsampled_ptr(new pcl::PointCloud<PRGB>());
+        pcl::VoxelGrid<PRGB> vox_grid;
+        vox_grid.setLeafSize(0.0001, 0.0001, 0.0001);
+        vox_grid.setInputCloud(pc_full_frame_ptr);
+        cout << "HI HI" << endl;
+        vox_grid.setDownsampleAllData(false);
+        vox_grid.filter(*pc_downsampled_ptr);
+        cout << "yo " << pc_full_frame_ptr->points.size() << " " << pc_downsampled_ptr->points.size() << endl;
+        pc_pub.publish(*pc_downsampled_ptr);
 
         // Filter floor and ceiling
         pcl::PointCloud<PRGB>::Ptr pc_filtered_ptr(new pcl::PointCloud<PRGB>());
         pcl::PassThrough<PRGB> z_filt;
         z_filt.setFilterFieldName("z");
         z_filt.setFilterLimits(min_z_val, max_z_val);
-        z_filt.setInputCloud(pc_full_frame_ptr);
+        //z_filt.setInputCloud(pc_full_frame_ptr);
+        z_filt.setInputCloud(pc_downsampled_ptr);
         z_filt.filter(*pc_filtered_ptr);
 
         if(pc_filtered_ptr->size() < 20)
-            return;
+            return false;
 
         // Compute normals
         pcl::PointCloud<pcl::Normal>::Ptr cloud_normals_ptr(new pcl::PointCloud<pcl::Normal>());
@@ -123,7 +173,7 @@ namespace hrl_table_detect {
         }
 
         if(flat_inds_ptr->indices.size() < 20)
-            return;
+            return false;
 
         // Cluster into distinct surfaces
         pcl::EuclideanClusterExtraction<PRGB> surf_clust;
@@ -171,6 +221,9 @@ namespace hrl_table_detect {
         pc_filtered_ptr->header.frame_id = base_frame;
         pc_pub2.publish(pc_filtered_ptr);
 
+        if(surf_models.size() == 0)
+            return false;
+
         pcl::PointCloud<PRGB> flat_pc;
         BOOST_FOREACH(const PRGB& pt, pc_full_frame_ptr->points) {
             if(pt.x != pt.x || pt.y != pt.y || pt.z != pt.z)
@@ -197,19 +250,50 @@ namespace hrl_table_detect {
         flat_pc.header.frame_id = pc_full_frame_ptr->header.frame_id;
         pc_pub3.publish(flat_pc);
 
+        // project table inliers onto plane model found
+        pcl::PointCloud<PRGB>::Ptr table_proj (new pcl::PointCloud<pcl::PointXYZRGB>);
+        pcl::ProjectInliers<PRGB> proj_ins;
+        proj_ins.setInputCloud(pc_filtered_ptr);
+        proj_ins.setIndices(boost::make_shared<pcl::PointIndices>(surf_clust_list[0]));
+        proj_ins.setModelType(pcl::SACMODEL_PLANE);
+        proj_ins.setModelCoefficients(boost::make_shared<pcl::ModelCoefficients>(surf_models[0]));
+        proj_ins.filter(*table_proj);
 
+        // convex hull of largest surface
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_hull (new pcl::PointCloud<pcl::PointXYZRGB>);
+        pcl::ConvexHull<pcl::PointXYZRGB> convex_hull;
+        convex_hull.setInputCloud(table_proj);
+        //convex_hull.setIndices(boost::make_shared<pcl::PointIndices>(surf_clust_list[0]));
+        convex_hull.reconstruct(*cloud_hull);
+
+        visualization_msgs::Marker hull_poly;
+        hull_poly.type = visualization_msgs::Marker::LINE_STRIP;
+        hull_poly.action = visualization_msgs::Marker::ADD;
+        hull_poly.ns = "table_hull";
+        hull_poly.header.frame_id = pc_filtered_ptr->header.frame_id;
+        hull_poly.header.stamp = now;
+        hull_poly.pose.orientation.w = 1;
+        hull_poly.scale.x = 0.01; hull_poly.scale.y = 0.01; hull_poly.scale.z = 0.01; 
+        hull_poly.color.g = 1; hull_poly.color.a = 1;
+        for(uint32_t j=0;j<cloud_hull->points.size();j++) {
+            geometry_msgs::Point n_pt;
+            n_pt.x = cloud_hull->points[j].x; 
+            n_pt.y = cloud_hull->points[j].y; 
+            n_pt.z = cloud_hull->points[j].z; 
+            hull_poly.points.push_back(n_pt);
+        }
+        poly_pub.publish(hull_poly);
+        accum_pc.points.clear();
+        return true;
     }
 
-    //void SurfaceSegmentation::modelCallback(image_geometry::PinholeCameraModel::ConstPtr pin_msg) {
-    //    cam_model.fromCameraInfo(pin_msg);
-    //}
 };
 
 using namespace hrl_table_detect;
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "test_normals");
+    ros::init(argc, argv, "surface_segmentation");
     SurfaceSegmentation ta;
     ta.onInit();
     ros::spin();
