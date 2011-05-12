@@ -28,6 +28,7 @@ import scipy.spatial as sp
 import pdb
 import os
 import os.path as pt
+import shutil
 #import math
 
 import hrl_camera.ros_camera as rc
@@ -46,6 +47,7 @@ import hrl_lib.image3d as i3d
 import hrl_lib.viz as viz
 import cProfile
 import threading
+import dynamic_reconifigure.client as dr
 #from hai_sandbox.recognize_3d import InterestPointDataset
 #import psyco
 #psyco.full()
@@ -180,6 +182,7 @@ class ManipulationBehaviors:
         #REACH_TOLERANCE = .1
 
         #self.movement.set_movement_mode_cart()
+        #pdb.set_trace()
         self.movement.set_pressure_threshold(pressure_thres)
         loc_bl = self.movement.arm_obj.pose_cartesian_tf()[0]
         front_loc = point.copy()
@@ -194,10 +197,10 @@ class ManipulationBehaviors:
         #for i in range(2):
         r1, residual_error = self.movement.move_absolute((front_loc, orientation), stop='pressure', pressure=pressure_thres)
 
-        if residual_error > MOVEMENT_TOLERANCE or r1 != None: #if this step fails, we move back then return
-            #self.move_absolute(start_loc, stop='accel')
-            #pdb.set_trace()
-            return False, r1, None
+        #if residual_error > MOVEMENT_TOLERANCE or r1 != None: #if this step fails, we move back then return
+        #    #self.move_absolute(start_loc, stop='accel')
+        #    pdb.set_trace()
+        #    return False, r1, None
 
         #We expect impact here
         pos_error = None
@@ -354,7 +357,11 @@ class LocationManager:
         #pdb.set_trace()
         #pdb.set_trace()
         self.image_pubs = {}
+        #self.revert()
         #pdb.set_trace()
+
+        #self.save_database()
+        #exit()
         for k in self.data.keys():
             self.train(k)
             self.image_pubs[k] = r3d.ImagePublisher(k.replace(':', '_'))
@@ -375,10 +382,10 @@ class LocationManager:
                               'push_drawer':       {'coarse': .9, 'fine': .5, 'voi': .4}}
 
     def revert(self):
-        self.centers = self.centers[:, 0:4]
-        self.ids = self.ids[0:4]
-        self.data.pop('wb_push_drawer')
-        self.data.pop('wb_pull_drawer')
+        self.centers = self.centers[:, 0:2]
+        self.ids = self.ids[0:2]
+        self.data.pop('ikea_push_drawer')
+        self.data.pop('ikea_pull_drawer')
         #pdb.set_trace()
 
     def _load_database(self):
@@ -394,10 +401,18 @@ class LocationManager:
 
     def save_database(self):
         print 'Saving pickle. DONOT INTERRUPPT!!!'
-        ut.save_pickle({'centers': self.centers,
-                        'ids': self.ids,
-                        'data': self.data}, self.saved_locations_fname)
-        rospy.loginfo('LocationManager: save_database saved db!')
+        d = {'centers': self.centers,
+            'ids': self.ids,
+            'data': self.data}
+        try:
+            shutil.copyfile(self.saved_locations_fname, 
+                    time.strftime('%m_%d_%Y_%I_%M%p') + '_locations.pkl')
+        except Exception, e:
+            print e
+
+        ut.save_pickle(d, self.saved_locations_fname)
+        print 'SAFE!!!'
+        #rospy.loginfo('LocationManager: save_database saved db!')
 
     def get_complementary_task(self, tasktype):
         for ta, tb in self.task_pairs:
@@ -617,6 +632,7 @@ class ApplicationBehaviors:
         #self.right_cal = rc.ROSCameraCalibration('/wide_stereo/right/camera_info')
 
         self.wide_angle_camera_left = rc.ROSCamera('/wide_stereo/left/image_rect_color')
+        self.wide_angle_configure = dr.Client('wide_stereo_both')
         #self.wide_angle_camera_right = rc.ROSCamera('/wide_stereo/right/image_rect_color')
 
         self.laser_listener = LaserPointerClient(tf_listener=self.tf_listener, robot=self.robot)
@@ -641,7 +657,7 @@ class ApplicationBehaviors:
         #TODO: define start location in frame attached to torso instead of base_link
 
         self.start_location_light_switch = (np.matrix([0.35, 0.30, 1.1]).T, np.matrix([0., 0., 0., 0.1]))
-        self.start_location_drawer       = (np.matrix([0.40, 0.40, .6]).T,  
+        self.start_location_drawer       = (np.matrix([0.20, 0.40, .8]).T,  
                                             np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0)))
         self.folded_pose = np.matrix([ 0.10134791, -0.29295995,  0.41193769]).T
         self.create_arm_poses()
@@ -653,7 +669,8 @@ class ApplicationBehaviors:
         #self.location_display = LocationDisplay(self.locations_man)
         #self.location_display.start()
         #self.robot.projector.set_prosilica_inhibit(True)
-        pdb.set_trace()
+        #pdb.set_trace()
+        self.driving_posture('light_switch_down')
         self.robot.projector.set(False)
         #self.practice_points_map = []
 
@@ -738,16 +755,23 @@ class ApplicationBehaviors:
     #    #return self.behaviors.movement.move_absolute(self.start_location, stop='pressure')
 
     def camera_change_detect(self, threshold, f, args):
+        config = self.wide_angle_configure.get_configuration()
+        config['auto_gain'] = False
+        config['auto_exposure'] = False
+        self.wide_angle_configure.update_configuration(config)
+
         #take before sensor snapshot
         start_pose = self.robot.head.pose()
-        self.robot.head.set_pose(np.radians(np.matrix([1.04, -20]).T), 1)
+        #pdb.set_trace()
+        #self.robot.head.set_pose(np.radians(np.matrix([1.04, -20]).T), 1)
+        self.robot.head.set_pose(np.radians(np.matrix([30., -20]).T), 1)
         time.sleep(4)
-        for i in range(4):
+        for i in range(7):
             before_frame = self.wide_angle_camera_left.get_frame()
         cv.SaveImage('before.png', before_frame)
         f_return = f(*args)
         time.sleep(2)
-        for i in range(3):
+        for i in range(7):
             after_frame = self.wide_angle_camera_left.get_frame()
 
         cv.SaveImage('after.png', after_frame)
@@ -757,6 +781,10 @@ class ApplicationBehaviors:
         time.sleep(3)        
         #take after snapshot
         #threshold = .03
+        config['auto_gain'] = True
+        config['auto_exposure'] = True
+        self.wide_angle_configure.update_configuration(config)
+
         rospy.loginfo('camera difference %.4f (thres %.3f)' % (sdiff, threshold))
         if sdiff > threshold:
             rospy.loginfo('difference detected!')
@@ -764,6 +792,16 @@ class ApplicationBehaviors:
         else:
             rospy.loginfo('NO differences detected!')
             return False, f_return
+
+    def close_gripper(self):
+        GRIPPER_CLOSE = .003
+        #self.robot.left_gripper.open(True, position=GRIPPER_CLOSE)
+        self.behaviors.movement.gripper_close()
+
+    def open_gripper(self):
+        GRIPPER_OPEN = .08
+        #self.robot.left_gripper.open(True, position=GRIPPER_OPEN)
+        self.behaviors.movement.gripper_open()
 
     def light_switch1(self, point, 
             point_offset, press_contact_pressure, 
@@ -775,7 +813,8 @@ class ApplicationBehaviors:
             #point = point + point_offset 
             rospy.loginfo('reaching to ' + str(point.T))
             #pdb.set_trace()
-            self.behaviors.movement.gripper_close()
+            #self.behaviors.movement.gripper_close()
+            self.close_gripper()
             #self.robot.left_gripper.open(True, position=.005)
             time.sleep(1)
             self.behaviors.movement.pressure_listener.rezero()
@@ -787,6 +826,8 @@ class ApplicationBehaviors:
             success, reason, touchloc_bl = self.behaviors.reach(point, \
                     press_contact_pressure, \
                     reach_direction=np.matrix([0.1,0,0]).T)
+            #r1, pos_error1 = self.behaviors.movement.move_relative_gripper(np.matrix([-.01, 0., 0.]).T, \
+            #        stop='none', pressure=press_contact_pressure)
 
             if touchloc_bl != None:
                 dist = np.linalg.norm(point - touchloc_bl[0])
@@ -848,7 +889,8 @@ class ApplicationBehaviors:
     def light_rocker_push(self, point, pressure, visual_change_thres, offset):
         rospy.loginfo('Reaching')
         linear_movement = self.behaviors.movement
-        linear_movement.gripper_close()
+        #linear_movement.gripper_close()
+        self.close_gripper()
         self.behaviors.movement.pressure_listener.rezero()
         #pdb.set_trace()
         #try:
@@ -886,7 +928,10 @@ class ApplicationBehaviors:
         PUSH_TOLERANCE = .1
         #pdb.set_trace()
         linear_movement = self.behaviors.movement
-        linear_movement.gripper_open()
+        #linear_movement.gripper_open()
+        #pdb.set_trace()
+        self.open_gripper()
+        self.behaviors.movement.pressure_listener.rezero()
         #self.robot.left_gripper.open(True, position=.08)
         rospy.loginfo("Moving to start location")
         #linear_movement.move_absolute((self.start_location_drawer[0], 
@@ -902,6 +947,7 @@ class ApplicationBehaviors:
         front_loc = point_bl.copy()
         front_loc[0,0] = loc_bl[0,0]
 
+        #pdb.set_trace()
         #move to front
         rospy.loginfo("Moving to front location")
         #orientation = np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))
@@ -913,6 +959,7 @@ class ApplicationBehaviors:
 
         #move until contact
         rospy.loginfo("Touching surface")
+        #pdb.set_trace()
         try:
             linear_movement.move_relative_gripper(np.matrix([.5,0,0]).T, stop='pressure_accel', pressure=100)
         except lm.RobotSafetyError, e:
@@ -922,25 +969,32 @@ class ApplicationBehaviors:
         #Push
         rospy.loginfo("PUSH!!!")
         try:
-            linear_movement.move_relative_gripper(np.matrix([.5,0,0]).T, stop='pressure_accel', pressure=3900)
-            linear_movement.move_relative_gripper(np.matrix([.5,0,0]).T, stop='pressure_accel', pressure=3900)
+            linear_movement.move_relative_gripper(np.matrix([.2,0,0]).T, stop='pressure_accel', pressure=6000)
         except lm.RobotSafetyError, e:
             rospy.loginfo('robot safety error %s' % str(e))
+
         pushed_loc_bl = linear_movement.arm_obj.pose_cartesian_tf()[0]
 
+        rospy.loginfo("Moving away")
         try:
-            rospy.loginfo("Moving away")
-            linear_movement.move_relative_gripper(np.matrix([-.25,0,0]).T, stop='accel')
+            linear_movement.move_relative_gripper(np.matrix([-.05,0,0]).T, stop='accel')
         except lm.RobotSafetyError, e:
+            rospy.loginfo('robot safety error %s' % str(e))
+        try:
+            linear_movement.move_relative_gripper(np.matrix([-.10,0,0]).T, stop='accel')
+        except lm.RobotSafetyError, e:
+            rospy.loginfo('robot safety error %s' % str(e))
+        try:
             linear_movement.move_relative_gripper(np.matrix([-.1,0,0]).T, stop='accel')
+        except lm.RobotSafetyError, e:
             rospy.loginfo('robot safety error %s' % str(e))
 
         linear_movement.pressure_listener.rezero()
         #linear_movement.move_relative_base(np.matrix([-.2, .3, 0.1]).T, stop='pressure_accel', pressure=300)
         linear_movement.move_absolute((self.start_location_drawer[0], 
-                    np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))), 
+                    #np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))), 
+                    np.matrix(tr.quaternion_from_euler(np.radians(0.), 0, 0))), 
                     stop='pressure_accel', pressure=1000)
-
 
         move_dist = np.linalg.norm(contact_loc_bl - pushed_loc_bl)
         success = move_dist > PUSH_TOLERANCE
@@ -956,8 +1010,10 @@ class ApplicationBehaviors:
         gripper = self.robot.left_gripper
 
         #gripper.open(True, position=GRIPPER_OPEN)
-        linear_movement.gripper_open()
+        #linear_movement.gripper_open()
+        self.open_gripper()
         linear_movement.move_absolute((self.start_location_drawer[0], 
+            #np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))), 
             np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0))), 
             stop='pressure_accel', pressure=1000)
 
@@ -986,7 +1042,8 @@ class ApplicationBehaviors:
             rospy.loginfo('robot safety error %s' % str(e))
         #lbf, rbf = linear_movement.pressure_listener.get_pressure_readings()
         #pdb.set_trace()
-        linear_movement.gripper_close()
+        self.close_gripper()
+        #linear_movement.gripper_close()
         #gripper.open(True, position=GRIPPER_CLOSE)
         #linear_movement.pressure_listener.rezero()
         #laf, raf = linear_movement.pressure_listener.get_pressure_readings()
@@ -1004,7 +1061,8 @@ class ApplicationBehaviors:
 
         if not grasped_handle:
             rospy.loginfo('Failed to grasp handle :(')
-            linear_movement.gripper_open()
+            #linear_movement.gripper_open()
+            self.open_gripper()
             #gripper.open(True, position=GRIPPER_OPEN)
             linear_movement.pressure_listener.rezero()
             linear_movement.move_relative_gripper(np.matrix([-.25,0,0]).T, stop='pressure_accel', pressure=300)
@@ -1016,17 +1074,21 @@ class ApplicationBehaviors:
         linear_movement.move_relative_gripper(np.matrix([-.1,0,0]).T, stop='accel', pressure=2500)
         linear_movement.move_absolute(linear_movement.arm_obj.pose_cartesian_tf(), 
                                     stop='pressure_accel', pressure=300)
-        linear_movement.gripper_close()
-        linear_movement.gripper_close()
+        #linear_movement.gripper_close()
+        #linear_movement.gripper_close()
+        self.close_gripper()
         rospy.sleep(1)
+        linear_movement.pressure_listener.rezero()
         #lap, rap = linear_movement.pressure_listener.get_pressure_readings()
         #ap = np.row_stack((lap, rap))
         #still_has_handle = np.any(np.abs(ap-af) < GRASP_THRES) or (gripper.pose()[0,0] > GRIPPER_CLOSE)
         still_has_handle = gripper.pose()[0,0] > GRIPPER_CLOSE
+        #pdb.set_trace()
         try:
-            linear_movement.move_relative_gripper(np.matrix([-.15,0,0]).T, stop='accel', pressure=2500)
+            linear_movement.move_relative_base(np.matrix([-.15,0,0]).T, stop='accel', pressure=2500)
         except lm.RobotSafetyError, e:
-            linear_movement.gripper_open()
+            #linear_movement.gripper_open()
+            self.open_gripper()
             linear_movement.pressure_listener.rezero()
             rospy.loginfo('robot safety error %s' % str(e))
 
@@ -1034,12 +1096,14 @@ class ApplicationBehaviors:
         #linear_movement.gripper_open()
         location_handle_bl = linear_movement.arm_obj.pose_cartesian_tf()[0]
         #gripper.open(True, position=.08)
-        linear_movement.gripper_open()
+        #linear_movement.gripper_open()
+        self.open_gripper()
         rospy.sleep(2)
         linear_movement.pressure_listener.rezero()
 
         #linear_movement.move_relative_gripper(np.matrix([-.15, 0, 0]).T, stop='pressure_accel', pressure=300)
-        linear_movement.move_relative_base(np.matrix([-.2, .2, 0.1]).T, stop='pressure_accel', pressure=1000)
+        linear_movement.move_relative_base(np.matrix([-.2, 0, 0.]).T, stop='pressure_accel', pressure=1000)
+        linear_movement.move_relative_base(np.matrix([-.1, .2, 0.1]).T, stop='pressure_accel', pressure=1000)
         self.behaviors.movement.move_absolute(self.start_location_drawer, stop='pressure_accel', pressure=1000)
 
         return still_has_handle, 'pulled', location_handle_bl
@@ -1352,8 +1416,8 @@ class ApplicationBehaviors:
                         point_offset=np.matrix([0,0, -.08]).T,
                         press_contact_pressure=300,
                         #move_back_distance=np.matrix([-.0075,0,0]).T,
-                        press_pressure=3500,
-                        press_distance=np.matrix([0,0,-.15]).T,
+                        press_pressure=6000,
+                        press_distance=np.matrix([0.01,0,-.15]).T,
                         visual_change_thres=.03)
 
         elif task_type == 'light_switch_up':
@@ -1362,8 +1426,8 @@ class ApplicationBehaviors:
                         point_offset=np.matrix([0,0,.08]).T,
                         press_contact_pressure=300,
                         #move_back_distance=np.matrix([-.0075,0,0]).T,
-                        press_pressure=3500,
-                        press_distance=np.matrix([0,0,.15]).T,
+                        press_pressure=6000,
+                        press_distance=np.matrix([0.01,0,.15]).T,
                         visual_change_thres=.03)
 
         elif task_type == 'light_rocker_up':
@@ -1427,6 +1491,7 @@ class ApplicationBehaviors:
 
     def driving_posture(self, task_type):
         self.robot.projector.set(False)
+        self.close_gripper()
 
         if np.linalg.norm(self.folded_pose - self.robot.left.pose_cartesian_tf()[0]) < .1:
             return
@@ -1669,6 +1734,7 @@ class ApplicationBehaviors:
         #Ask user for practice poses
         #pdb.set_trace()
         if not self.locations_man.data[tid].has_key('practice_locations'):
+        #if True:
             #Get robot poses
             map_points = []
             for i in range(4):
@@ -1718,6 +1784,7 @@ class ApplicationBehaviors:
         else:
             rospy.loginfo("WARNING: no unexplored or unconverged location")
             pidx = 3
+            self.locations_man.data[tid]['practice_locations_convergence'][0, pidx] = 0
 
         #Commence practice!
         while True: #%not converged:
@@ -1846,7 +1913,7 @@ class ApplicationBehaviors:
         self.robot.sound.say('Executing behavior')
         self.execute_behavior(tid, point_bl, save)
         self.driving_posture(task_type)
-        exit()
+        #exit()
 
     def unreliable_locs(self):
         tasks = self.locations_man.data.keys()
@@ -2001,7 +2068,11 @@ class ApplicationBehaviors:
                 self.scenario_practice_run_mode()
 
             if mode == 'execute':
+                t = time.time()
                 self.scenario_user_select_location(save)
+                t2 = time.time()
+                print '>> That took', t2 - t, 'seconds'
+                exit()
 
     #def record_perceptual_data_laser_scanner(self, point_touched_bl):
     #    #what position should the robot be in?
@@ -2188,9 +2259,9 @@ class ApplicationBehaviors:
 
             #Ask learner to pick an instance
             ridx, selected_dist, converged = self.locations_man.learners[task_id].select_next_instances_no_terminate(remaining_instances)
-            if stop_fun == None and converged:
-                rospy.loginfo('practice: Converged! Exiting loop.')
-                break
+            #if stop_fun == None and converged:
+            #    rospy.loginfo('practice: Converged! Exiting loop.')
+            #    break
 
 
             selected_idx = remaining_pt_indices[ridx[0]]
@@ -2433,6 +2504,10 @@ class ApplicationBehaviors:
         #Scan
         fea_dict, image_name = self.read_features_save(task_id, point_bl, params)
 
+        params2 = r3d.Recognize3DParam()
+        params2.n_samples = 5000
+        fea_dict2, image_name2 = self.read_features_save(task_id, point_bl, params2)
+
         behavior = self.get_behavior_by_task(self.locations_man.data[task_id]['task'])
         image_T_bl = tfu.transform(self.OPTICAL_FRAME, 'base_link', self.tf_listener)
         fea_dict['image_T_bl'] = image_T_bl
@@ -2566,10 +2641,7 @@ class ApplicationBehaviors:
         if undo_ret != None:
             fea_dict_undo = undo_ret['features']
 
-        params = r3d.Recognize3DParam()
-        params.n_samples = 5000
-        fea_dict, image_name = self.read_features_save(task_id, point_bl, params)
-        return {'end_state': behavior_end_state, 'features': fea_dict, 
+        return {'end_state': behavior_end_state, 'features': fea_dict2, 
                 'features_undo': fea_dict_undo, 'undo_point': undo_point_bl}
 
     def read_features_save(self, task_id, point3d_bl, params=None):
@@ -2598,11 +2670,12 @@ class ApplicationBehaviors:
     #TODO: test this
     def execute_behavior(self, task_id, point3d_bl, save, max_retries=15, closeness_tolerance=.01):
         #Extract features
+
         params = r3d.Recognize3DParam()
         params.uncertainty_x = 1.
         params.uncertainty_z = .03
         params.uni_mix = .1
-        params.n_samples = 1000
+        params.n_samples = 1500
 
         kdict, image_name = self.read_features_save(task_id, point3d_bl, params)
         kdict['image_T_bl'] = tfu.transform(self.OPTICAL_FRAME, 'base_link', self.tf_listener)
@@ -2630,17 +2703,23 @@ class ApplicationBehaviors:
                 #select from the positive predictions the prediction with the most spatial support
                 #pdb.set_trace()
 
+
                 #figure out max point
-                locs2d = kdict['points2d'][:, pos_indices]
-                if np.any(np.isnan(locs2d)) or np.any(np.isinf(locs2d)):
-                    pdb.set_trace()
-                locs2d_indices = np.where(False == np.sum(np.isnan(locs2d), 0))[1].A1
-                print locs2d[:, locs2d_indices]
-                loc2d_max, density_image = r3d.find_max_in_density(locs2d[:, locs2d_indices])
-                cv.SaveImage("execute_behavior.png", 255 * (np.rot90(density_image)/np.max(density_image)))
-                dists = ut.norm(kdict['points2d'] - loc2d_max)
-                selected_idx = np.argmin(dists)
-                indices_added.append(selected_idx)
+                if len(pos_indices) > 1:
+                    locs2d = kdict['points2d'][:, pos_indices]
+                    if np.any(np.isnan(locs2d)) or np.any(np.isinf(locs2d)):
+                        pdb.set_trace()
+                    locs2d_indices = np.where(False == np.sum(np.isnan(locs2d), 0))[1].A1
+                    print locs2d[:, locs2d_indices]
+                    loc2d_max, density_image = r3d.find_max_in_density(locs2d[:, locs2d_indices])
+                    cv.SaveImage("execute_behavior.png", 255 * (np.rot90(density_image)/np.max(density_image)))
+                    dists = ut.norm(kdict['points2d'] - loc2d_max)
+                    selected_idx = np.argmin(dists)
+                    indices_added.append(selected_idx)
+                else:
+                    selected_idx = pos_indices[0]
+                    loc2d_max = kdict['points2d'][: selected_idx]
+
                 selected_3d = kdict['points3d'][:, selected_idx]
 
                 #Draw
@@ -2656,6 +2735,11 @@ class ApplicationBehaviors:
 
                 #Execute
                 self.robot.head.set_pose(head_pose, 1)
+                print '============================================================'
+                print '============================================================'
+                print 'Try number', try_num
+                print '============================================================'
+                print '============================================================'
                 success, _, point_undo_bl = behavior(selected_3d)
 
                 #Save pickle for viz
@@ -2723,6 +2807,11 @@ class ApplicationBehaviors:
 
         #If no positives found:
         else:
+            img = cv.CloneMat(kdict['image'])
+            r3d.draw_points(img, point2d_img,       [255, 0, 0],    10, -1)
+            r3d.draw_points(img, kdict['points2d'], [51, 204, 255], 3, -1)
+            self.locations_man.publish_image(task_id, img, postfix='_execute_fail')
+
             if not updated_execution_record:
                 self.locations_man.update_execution_record(task_id, 0.)
                 update_execution_record = True
@@ -2739,7 +2828,6 @@ class ApplicationBehaviors:
             self.seed_dataset_explore(task_id, ctask_id,
                     point3d_bl, max_retries=max_retries, stop_fun=any_pos_sf, 
                     closeness_tolerance=closeness_tolerance, should_reset=False)
-
 
     
     #def autonomous_learn(self, point3d_bl, behavior, object_name): 
