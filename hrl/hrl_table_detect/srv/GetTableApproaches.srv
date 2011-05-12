@@ -1,0 +1,3 @@
+#visualization_msgs/Marker table_hull
+---
+geometry_msgs/PoseArray grasp_points
