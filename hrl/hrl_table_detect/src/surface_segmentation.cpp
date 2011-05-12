@@ -120,15 +120,18 @@ namespace hrl_table_detect {
         tf_listener.waitForTransform(accum_pc.header.frame_id, base_frame, now, ros::Duration(3.0));
         pcl_ros::transformPointCloud(base_frame, accum_pc, *pc_full_frame_ptr, tf_listener);
 
+        sensor_msgs::PointCloud2::Ptr pc2_full_frame_ptr(new sensor_msgs::PointCloud2());
+        sensor_msgs::PointCloud2::Ptr pc2_downsampled_ptr(new sensor_msgs::PointCloud2());
+        pcl::toROSMsg(*pc_full_frame_ptr, *pc2_full_frame_ptr);
         pcl::PointCloud<PRGB>::Ptr pc_downsampled_ptr(new pcl::PointCloud<PRGB>());
-        pcl::VoxelGrid<PRGB> vox_grid;
-        vox_grid.setLeafSize(0.0001, 0.0001, 0.0001);
-        vox_grid.setInputCloud(pc_full_frame_ptr);
+        pcl::VoxelGrid<sensor_msgs::PointCloud2> vox_grid;
+        vox_grid.setInputCloud(pc2_full_frame_ptr);
+        vox_grid.setLeafSize(0.01, 0.01, 0.01);
         cout << "HI HI" << endl;
-        vox_grid.setDownsampleAllData(false);
-        vox_grid.filter(*pc_downsampled_ptr);
+        vox_grid.filter(*pc2_downsampled_ptr);
+        pcl::fromROSMsg(*pc2_downsampled_ptr, *pc_downsampled_ptr);
         cout << "yo " << pc_full_frame_ptr->points.size() << " " << pc_downsampled_ptr->points.size() << endl;
-        pc_pub.publish(*pc_downsampled_ptr);
+        pc_pub.publish(*pc2_downsampled_ptr);
 
         // Filter floor and ceiling
         pcl::PointCloud<PRGB>::Ptr pc_filtered_ptr(new pcl::PointCloud<PRGB>());

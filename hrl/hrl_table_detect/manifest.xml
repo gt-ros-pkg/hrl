@@ -23,9 +23,6 @@
   <depend package="image_transport" />
   <depend package="hrl_cvblobslib" />
   <depend package="nodelet"/>
-  <export>
-      <nodelet plugin="${prefix}/nodelet_plugins.xml" />
-  </export>
 
 </package>
 
