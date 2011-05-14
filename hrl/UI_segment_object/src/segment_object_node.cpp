@@ -62,167 +62,188 @@ int counter(0);
 int counter_ind(0);
 //bool mouse_active(false);
 int done (0);
-bool new_plane_coeff (true);
 
 /***********************************************************************************/
-
 
 
 class UI {
 
 public:
   //  bool got_image;
+  UI(ros::NodeHandle &nh);
+  ~UI();
+  bool reset_cb(UI_segment_object::None_Bool::Request &reg, UI_segment_object::None_Bool::Response &res);
+  static void mouse_callback(int event, int x, int y, int flags, void* param);
+  void color_segment_callback();
+  void pt_callback();
+  void callback(const sensor_msgs::ImageConstPtr& msg_ptr);
+  void cloud_callback();
+  int pnpoly(int npol, std::vector<std::vector<int > > poly_vec, int x, int y);
+  bool save_image(UI_segment_object::Save::Request &reg, UI_segment_object::Save::Response &res);
   ros::ServiceServer reset_service;
   ros::ServiceServer save_img;
-  UI(ros::NodeHandle &nh) :
-    nh_(nh), it_(nh_)
-  {
-    //    got_image = false;
-    //    image_sub_ = it_.subscribe("/camera/rgb/image_color", 1, &UI::callback, this);
-    cv_image = NULL;
-    counter = 0;
-    counter_ind = 0;
-    //    cvNamedWindow("Select");                                                               
-    //    cvSetMouseCallback("Select", mouse_callback);
-    reset_service = nh_.advertiseService("UI_reset", &UI::reset_cb, this);
-    save_img = nh_.advertiseService("save_image", &UI::save_image, this);
-  }
-
-  ~UI()
-  {
-    cvDestroyWindow("Select");                                                             
-  }
-
-  bool reset_cb(UI_segment_object::None_Bool::Request &reg, UI_segment_object::None_Bool::Response &res)
-  {
-    printf("resetting vectors..");
-    poly_vec.clear();
-    in_indices.clear();
-    counter = 0;
-    counter_ind = 0;
-    done = 0;
-    new_plane_coeff = true;
-    res.state = true;
-    return (true);
-  }
+  
+protected:
+  ros::NodeHandle nh_;
+  image_transport::ImageTransport it_;
+  sensor_msgs::CvBridge bridge_;
+  image_transport::Subscriber image_sub_;
+  IplImage* cv_image;
+  int height;
+  int width;
+};
 
 
-  void static mouse_callback(int event, int x, int y, int flags, void* param)
-  {
-    // if (event == CV_EVENT_LBUTTONDOWN)
-    //   {
-    //     mouse_active = true;
-    //   }
-    // if (event == CV_EVENT_LBUTTONUP)
-    //   {
-    //     mouse_active = false;
-    //   }
-    // if (event == CV_EVENT_MOUSEMOVE && mouse_active == true)
-    //   {
-    //     poly_vec.push_back(std::vector<int>());
-    //     poly_vec[counter].push_back(x);
-    //     poly_vec[counter].push_back(y);
-    //     counter++;
-    //   }
+  
+UI::UI(ros::NodeHandle &nh) :
+  nh_(nh), it_(nh_)
+{
+  //    got_image = false;
+  //    image_sub_ = it_.subscribe("/camera/rgb/image_color", 1, &UI::callback, this);
+  cv_image = NULL;
+  counter = 0;
+  counter_ind = 0;
+  //    cvNamedWindow("Select");                                                               
+  //    cvSetMouseCallback("Select", mouse_callback);
+  reset_service = nh_.advertiseService("UI_reset", &UI::reset_cb, this);
+  save_img = nh_.advertiseService("save_image", &UI::save_image, this);
+}
 
-    if (event == CV_EVENT_LBUTTONDOWN)
-      {
-	poly_vec.push_back(std::vector<int>());
-	poly_vec[counter].push_back(x);
-	poly_vec[counter].push_back(y);
-	counter++;
-      }
+UI::~UI()
+{
+  cvDestroyWindow("Select");                                                             
+}
 
-    if (event == CV_EVENT_RBUTTONDOWN)
-      {
-	std::cerr << "you did click the right mouse button" << std::endl;
-	done = 1;
-      }
-  }
+bool UI::reset_cb(UI_segment_object::None_Bool::Request &reg, UI_segment_object::None_Bool::Response &res)
+{
+  printf("resetting vectors..");
+  poly_vec.clear();
+  in_indices.clear();
+  counter = 0;
+  counter_ind = 0;
+  done = 0;
+  res.state = true;
+  return (true);
+}
 
-  void color_segment_callback()
-  {
-    cvNamedWindow("Select");
-    cvSetMouseCallback("Select", mouse_callback);
-    sensor_msgs::ImageConstPtr image_in = ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_);
-    cv_image = bridge_.imgMsgToCv(image_in, "bgr8"); 
-    while (done == 0)
+
+void UI::mouse_callback(int event, int x, int y, int flags, void* param)
+{
+  // if (event == CV_EVENT_LBUTTONDOWN)
+  //   {
+  //     mouse_active = true;
+  //   }
+  // if (event == CV_EVENT_LBUTTONUP)
+  //   {
+  //     mouse_active = false;
+  //   }
+  // if (event == CV_EVENT_MOUSEMOVE && mouse_active == true)
+  //   {
+  //     poly_vec.push_back(std::vector<int>());
+  //     poly_vec[counter].push_back(x);
+  //     poly_vec[counter].push_back(y);
+  //     counter++;
+  //   }
+
+  if (event == CV_EVENT_LBUTTONDOWN)
     {
-      for (int i = 0; i < counter; i++)
-      {
-	cvCircle(cv_image, cvPoint(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
-      }
-      cvShowImage("Select", cv_image);
-      cvWaitKey(33);
+      poly_vec.push_back(std::vector<int>());
+      poly_vec[counter].push_back(x);
+      poly_vec[counter].push_back(y);
+      counter++;
     }
 
-    //decrease the search in the image by finding the bounding box
-    height = cv_image->height;
-    width = cv_image->width;
-    
-    //do some color segmentation selection for indices after selecting a point of certain color or maybe multiple, would
-    //allow auto segmentation of a certain region automatically
+  if (event == CV_EVENT_RBUTTONDOWN)
+    {
+      std::cerr << "you did click the right mouse button" << std::endl;
+      done = 1;
+    }
+}
 
-  }
-
-  void pt_callback(){
-    cvNamedWindow("Select");                                                               
-    cvSetMouseCallback("Select", mouse_callback);
-
-    //    sensor_msgs::ImageConstPtr image_in;
-    sensor_msgs::ImageConstPtr image_in = ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_);
-    cv_image = bridge_.imgMsgToCv(image_in, "bgr8");
-    //    cv_image = bridge_.imgMsgToCv(msg_ptr, "bgr8");
-    while (done == 0)
+void UI::color_segment_callback()
+{
+  cvNamedWindow("Select");
+  cvSetMouseCallback("Select", mouse_callback);
+  sensor_msgs::ImageConstPtr image_in = ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_);
+  cv_image = bridge_.imgMsgToCv(image_in, "bgr8"); 
+  while (done == 0)
     {
       for (int i = 0; i < counter; i++)
-      {
-	cvCircle(cv_image, cvPoint(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
-      }
-      cvShowImage("Select", cv_image);
-      cvWaitKey(33);
-    }
-
-    //decrease the search in the image by finding the bounding box
-    height = cv_image->height;
-    width = cv_image->width;
-    int index;
-    index = poly_vec[0][1]*width+poly_vec[0][0];
-    in_indices.push_back(index);
-    cvDestroyWindow("Select");
-  }
-
-  void callback(const sensor_msgs::ImageConstPtr& msg_ptr)
-  {
-    cv_image = bridge_.imgMsgToCv(msg_ptr, "bgr8");
-  }
-
-  void cloud_callback(){
-    cvNamedWindow("Select");                                                               
-    cvSetMouseCallback("Select", mouse_callback);
-
-    //    sensor_msgs::ImageConstPtr image_in;
-    sensor_msgs::ImageConstPtr image_in = ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_);
-    cv_image = bridge_.imgMsgToCv(image_in, "bgr8");
-    //    cv_image = bridge_.imgMsgToCv(msg_ptr, "bgr8");
-    while (done == 0)
-      {
-	for (int i = 0; i < counter; i++)
 	{
 	  cvCircle(cv_image, cvPoint(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
 	}
-	cvShowImage("Select", cv_image);
-	cvWaitKey(33);
-      }
+      cvShowImage("Select", cv_image);
+      cvWaitKey(33);
+    }
 
-    //decrease the search in the image by finding the bounding box
-    height = cv_image->height;
-    width = cv_image->width;
-    int max_x(0);
-    int min_x(width);
-    int max_y(0);
-    int min_y(height);
-    for (int i=0; i<counter; i++)
+  //decrease the search in the image by finding the bounding box
+  height = cv_image->height;
+  width = cv_image->width;
+    
+  //do some color segmentation selection for indices after selecting a point of certain color or maybe multiple, would
+  //allow auto segmentation of a certain region automatically
+
+}
+
+void UI::pt_callback()
+{
+  cvNamedWindow("Select");                                                               
+  cvSetMouseCallback("Select", mouse_callback);
+
+  //    sensor_msgs::ImageConstPtr image_in;
+  sensor_msgs::ImageConstPtr image_in = ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_);
+  cv_image = bridge_.imgMsgToCv(image_in, "bgr8");
+  //    cv_image = bridge_.imgMsgToCv(msg_ptr, "bgr8");
+  while (done == 0)
+    {
+      for (int i = 0; i < counter; i++)
+	{
+	  cvCircle(cv_image, cvPoint(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
+	}
+      cvShowImage("Select", cv_image);
+      cvWaitKey(33);
+    }
+
+  //decrease the search in the image by finding the bounding box
+  height = cv_image->height;
+  width = cv_image->width;
+  int index;
+  index = poly_vec[0][1]*width+poly_vec[0][0];
+  in_indices.push_back(index);
+  cvDestroyWindow("Select");
+}
+
+void UI::callback(const sensor_msgs::ImageConstPtr& msg_ptr)
+{
+  cv_image = bridge_.imgMsgToCv(msg_ptr, "bgr8");
+}
+
+void UI::cloud_callback(){
+  cvNamedWindow("Select");                                                               
+  cvSetMouseCallback("Select", mouse_callback);
+
+  //    sensor_msgs::ImageConstPtr image_in;
+  sensor_msgs::ImageConstPtr image_in = ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_);
+  cv_image = bridge_.imgMsgToCv(image_in, "bgr8");
+  //    cv_image = bridge_.imgMsgToCv(msg_ptr, "bgr8");
+  while (done == 0)
+    {
+      for (int i = 0; i < counter; i++)
+	{
+	  cvCircle(cv_image, cvPoint(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
+	}
+      cvShowImage("Select", cv_image);
+      cvWaitKey(33);
+    }
+
+  //decrease the search in the image by finding the bounding box
+  height = cv_image->height;
+  width = cv_image->width;
+  int max_x(0);
+  int min_x(width);
+  int max_y(0);
+  int min_y(height);
+  for (int i=0; i<counter; i++)
     {
       if (poly_vec[i][0]>max_x)
         max_x = poly_vec[i][0];
@@ -234,62 +255,51 @@ public:
     	min_y = poly_vec[i][1];
     }
 
-    //check for image position of 3D points within
-    //user defined polygon
-    for (int i=min_y; i<max_y; i++)
+  //check for image position of 3D points within
+  //user defined polygon
+  for (int i=min_y; i<max_y; i++)
     {
       for (int j=min_x; j<max_x; j++)
-      {
-	int in;
-	in = pnpoly(counter, poly_vec, j, i);
-	if (in == 1)
 	{
-	  in_indices.push_back((i)*width+j);
-	  counter_ind ++;
+	  int in;
+	  in = pnpoly(counter, poly_vec, j, i);
+	  if (in == 1)
+	    {
+	      in_indices.push_back((i)*width+j);
+	      counter_ind ++;
+	    }
 	}
-      }
     }
-    //    got_image = true;
-    cvDestroyWindow("Select");
-  }
+  //    got_image = true;
+  cvDestroyWindow("Select");
+}
 
 
-  int pnpoly(int npol, std::vector<std::vector<int > > poly_vec, int x, int y)
-  {
-    int i, j, c = 0;
-    for (i = 0, j = npol-1; i < npol; j = i++) 
+int UI::pnpoly(int npol, std::vector<std::vector<int > > poly_vec, int x, int y)
+{
+  int i, j, c = 0;
+  for (i = 0, j = npol-1; i < npol; j = i++) 
     {
       if ((((poly_vec[i][1] <= y) && (y < poly_vec[j][1])) ||
 	   ((poly_vec[j][1] <= y) && (y < poly_vec[i][1]))) &&
 	  (x < (poly_vec[j][0] - poly_vec[i][0]) * (y - poly_vec[i][1]) / (poly_vec[j][1] - poly_vec[i][1]) + poly_vec[i][0]))
 	c = !c;
     }
-    return c;   //returns 1 for interior and 0 for exterior points
-  }
+  return c;   //returns 1 for interior and 0 for exterior points
+}
 
-  bool save_image(UI_segment_object::Save::Request &reg, UI_segment_object::Save::Response &res)
-  {
-    //    sensor_msgs::ImageConstPtr image_in = 
-    m.lock();
-    cv_image = bridge_.imgMsgToCv(ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_), "bgr8");
-    cvSaveImage(reg.file.c_str(), cv_image);
-    m.unlock();
-    res.state = true;
-    return(true);
-  }
+bool UI::save_image(UI_segment_object::Save::Request &reg, UI_segment_object::Save::Response &res)
+{
+  //    sensor_msgs::ImageConstPtr image_in = 
+  m.lock();
+  cv_image = bridge_.imgMsgToCv(ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_), "bgr8");
+  cvSaveImage(reg.file.c_str(), cv_image);
+  m.unlock();
+  res.state = true;
+  return(true);
+}
 
 
-
-protected:
-  ros::NodeHandle nh_;
-  image_transport::ImageTransport it_;
-  sensor_msgs::CvBridge bridge_;
-  image_transport::Subscriber image_sub_;
-  IplImage* cv_image;
-  int height;
-  int width;
-
-};
 
 
 class PointCloudPub {
@@ -303,6 +313,7 @@ public:
   sensor_msgs::PointCloud2 cloud_callback(const sensor_msgs::PointCloud2ConstPtr& msg);
   bool get_cloud(UI_segment_object::GetObject::Request &reg, UI_segment_object::GetObject::Response &res);
   bool get_pt(UI_segment_object::GetPt::Request &reg, UI_segment_object::GetPt::Response &res);
+  bool reset_plane_coeff(UI_segment_object::None_Bool::Request &reg, UI_segment_object::None_Bool::Response &res);
   bool save_cloud(UI_segment_object::Save::Request &reg, UI_segment_object::Save::Response &res);
   geometry_msgs::Point pt_callback(const sensor_msgs::PointCloud2ConstPtr& msg);
   UI::UI ui;
@@ -315,9 +326,12 @@ protected:
   pcl::PointCloud<pcl::PointXYZ> cloud_plane_; //(new pcl::PointCloud<pcl::PointXYZ>());
   pcl::PointCloud<pcl::PointXYZRGB> cloud_xyz_rgb;
   sensor_msgs::PointCloud2::ConstPtr cloud_msg;
+  sensor_msgs::PointCloud2::ConstPtr ptcloud2_xyz_rgb;
   pcl::ModelCoefficients coefficients;
   pcl::SACSegmentation<pcl::PointXYZ> seg;  
   pcl::PointIndices inliers;
+  bool new_plane_coeff;
+
 };
 
 PointCloudPub::PointCloudPub(ros::NodeHandle &nh):
@@ -327,12 +341,12 @@ PointCloudPub::PointCloudPub(ros::NodeHandle &nh):
   pub_region_ = nh_.advertise<sensor_msgs::PointCloud2>("segment_plane", 1);
   pub_object_ = nh_.advertise<sensor_msgs::PointCloud2>("segment_object", 1);
   // Create the segmentation object
-
+  new_plane_coeff = true;
   seg.setOptimizeCoefficients (true);
   seg.setModelType (pcl::SACMODEL_PLANE);
   seg.setMethodType (pcl::SAC_RANSAC);
   seg.setDistanceThreshold (0.01);
-  seg.setProbability(0.95);
+  seg.setProbability(0.99);
 
 
 }
@@ -357,7 +371,7 @@ bool PointCloudPub::get_cloud(UI_segment_object::GetObject::Request &reg, UI_seg
 {
   m.lock();
   //  sensor_msgs::PointCloud2::ConstPtr msg;
-  cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(30.0));
+  cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/rgb/points", nh_, ros::Duration(30.0));
 
   if (done == 0)
     {
@@ -382,12 +396,21 @@ bool PointCloudPub::save_cloud(UI_segment_object::Save::Request &reg, UI_segment
   return(true);
 }
 
+
+bool PointCloudPub::reset_plane_coeff(UI_segment_object::None_Bool::Request &reg, UI_segment_object::None_Bool::Response &res)
+{
+  new_plane_coeff = true;
+  res.state = true;
+  return (true);
+}
+
+
 //////////////////////////////////////////////finish here for 3d  point returned
 bool PointCloudPub::get_pt(UI_segment_object::GetPt::Request &reg, UI_segment_object::GetPt::Response &res)
 {
   //  sensor_msgs::PointCloud2::Ptr msg (new sensor_msgs::PointCloud2());
 
-  cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(30.0));
+  cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/rgb/points", nh_, ros::Duration(30.0));
 
   if (done == 0)
     {
@@ -459,6 +482,8 @@ sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointC
   if (new_plane_coeff==true)
     {
       new_plane_coeff = false;
+      //      seg.setInputCloud (cloud_xyz2.makeShared());
+      //      seg.segment (inliers, coefficients);
     }
 
   seg.setInputCloud (cloud_xyz2.makeShared());
@@ -492,6 +517,7 @@ int main (int argc, char** argv)
   ros::ServiceServer service = nh.advertiseService("get_object_on_plane", &PointCloudPub::get_cloud, &pcb);
   ros::ServiceServer service2 = nh.advertiseService("get_3D_pt", &PointCloudPub::get_pt, &pcb);
   ros::ServiceServer service3 = nh.advertiseService("save_pt_cloud", &PointCloudPub::save_cloud, &pcb);
+  //  ros::ServiceServer service4 = nh.advertiseService("reset_plane_coeff", &PointCloudPub::reset_plane_coeff, &pcb);
   ros::spin();
 
   return (0);
