@@ -1,0 +1,24 @@
+<package>
+  <description brief="hrl_clickable_world">
+
+     hrl_clickable_world
+
+  </description>
+  <author>kelsey</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_clickable_world</url>
+  <depend package="rospy"/>
+  <depend package="roscpp"/>
+  <depend package="hrl_table_detect"/>
+  <depend package="face_detector"/>
+  <depend package="pr2_overhead_grasping"/>
+  <depend package="laser_interface"/>
+  <depend package="actionlib"/>
+  <depend package="smach"/>
+  <depend package="move_base"/>
+  <depend package="roslib"/>
+
+</package>
+
+
