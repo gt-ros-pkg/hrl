@@ -68,13 +68,18 @@ class ResultsAnalyzer:
         #comparison is made from the user selected region with a base model
         #of mean covariance of the empty tabletop
         
+########START here to clean up the boundary line, should NOT be 4*nominal,
+#######might need to find a base model when object isn't dropped yet and then
+#######find base model before each attempt to grasp is made..... or at least
+#######the first time the object is dropped onto surface
+    ###########################################################################
         if np.max(f_np_array_cloud.shape)<200:
             result = "no_cloud"
         elif mahal_dist<4*self.nom_dist:
             result = "table"
         else:
             result = "object"
-
+############################################################################PP
 
 
         # if req.exp_state == 'empty':
