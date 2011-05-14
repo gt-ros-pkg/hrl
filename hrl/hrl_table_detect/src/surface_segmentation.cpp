@@ -115,6 +115,7 @@ namespace hrl_table_detect {
         pcl::PointCloud<PRGB>::Ptr pc_full_frame_ptr(new pcl::PointCloud<PRGB>());
         string base_frame("/base_link");
         ros::Time now = ros::Time::now();
+        accum_pc.header.stamp = now;
 
         // Transform PC to base frame
         tf_listener.waitForTransform(accum_pc.header.frame_id, base_frame, now, ros::Duration(3.0));
@@ -269,6 +270,7 @@ namespace hrl_table_detect {
         //convex_hull.setIndices(boost::make_shared<pcl::PointIndices>(surf_clust_list[0]));
         convex_hull.reconstruct(*cloud_hull);
 
+        // publish table hull polygon
         visualization_msgs::Marker hull_poly;
         hull_poly.type = visualization_msgs::Marker::LINE_STRIP;
         hull_poly.action = visualization_msgs::Marker::ADD;
@@ -285,6 +287,7 @@ namespace hrl_table_detect {
             n_pt.z = cloud_hull->points[j].z; 
             hull_poly.points.push_back(n_pt);
         }
+        hull_poly.points.push_back(hull_poly.points[0]);
         poly_pub.publish(hull_poly);
         accum_pc.points.clear();
         return true;
