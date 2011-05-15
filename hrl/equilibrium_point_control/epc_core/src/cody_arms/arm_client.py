@@ -62,6 +62,9 @@ class MekaArmClient():
         self.stop_pub = rospy.Publisher('/arms/stop', Empty)
         self.motors_off_pub = rospy.Publisher('/arms/command/motors_off', Empty)
 
+        self.cep_marker_id = 1
+        self.marker_pub = rospy.Publisher('/arms/viz_markers', Marker)
+
         rospy.Subscriber('/r_arm/jep', FloatArray, self.r_arm_jep_cb)
         rospy.Subscriber('/l_arm/jep', FloatArray, self.l_arm_jep_cb)
         rospy.Subscriber('/r_arm/q', FloatArray, self.r_arm_q_cb)
@@ -79,8 +82,6 @@ class MekaArmClient():
         rospy.wait_for_service('toggle_floating_arms')
         self.toggle_floating_arms = rospy.ServiceProxy('toggle_floating_arms', Empty_srv)
 
-        self.marker_pub = rospy.Publisher('/arms/viz_markers', Marker)
-        self.cep_marker_id = 1
 
         try:
             rospy.init_node('cody_arm_client', anonymous=True)
