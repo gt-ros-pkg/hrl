@@ -14,12 +14,14 @@ class CursesMenu():
         curses.cbreak()
         self.stdscr.keypad(1)
         self.menu_dict = {}
+        self.key_list = [] # to esnure that menu is displayed in the same order as it is created.
 
     def begin_menu(self, title):
         self.menu_title = title
 
     def add_item(self, key, text, function=None):
         self.menu_dict[key] = (text, function)
+        self.key_list.append(key)
 
     def finish_menu(self, text):
         self.menu_finish = text
@@ -28,7 +30,7 @@ class CursesMenu():
         self.row, self.col = 0, 0
         self.stdscr.addstr(self.row, self.col, self.menu_title)
 
-        for k in self.menu_dict:
+        for k in self.key_list:
             self.row += 1
             self.col = 2
             self.stdscr.addstr(self.row, self.col, str(k)+': '+self.menu_dict[k][0])
