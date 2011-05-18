@@ -4,8 +4,10 @@ import copy
 
 import roslib; roslib.load_manifest('epc_core')
 import rospy
-
 import hrl_lib.util as ut
+
+from std_msgs.msg import Bool, Empty
+
 
 ## Class defining the core EPC function and a few simple examples.
 # More complex behaviors that use EPC should have their own ROS
@@ -16,6 +18,17 @@ class EPC():
         self.f_list = []
         self.ee_list = []
         self.cep_list = []
+
+        self.stop_epc = False
+        self.pause_epc = False
+        rospy.Subscriber('/epc/stop', Bool, self.stop_cb)
+        rospy.Subscriber('/epc/pause', Bool, self.pause_cb)
+
+    def stop_cb(self, msg):
+        self.stop_epc = msg.data
+
+    def pause_cb(self, msg):
+        self.pause_epc = msg.data
 
     ##
     # @param equi_pt_generator: function that returns stop, ea  where ea: equilibrium angles and  stop: string which is '' for epc motion to continue
@@ -35,6 +48,16 @@ class EPC():
             if rospy.is_shutdown():
                 stop = 'rospy shutdown'
                 continue
+
+            if self.stop_epc:
+                stop = 'stop_command_over_ROS'
+                continue
+            
+            if self.pause_epc:
+                rospy.sleep(0.1)
+                timeout_at += 0.101 # approximate.
+                continue
+
             t_end += time_step
 
             if jep_clamp_func != None:
