@@ -1891,7 +1891,8 @@ class ApplicationBehaviors:
             self.locations_man.data[tid]['execute_locations'] = []
         t_current_map, r_current_map = self.robot.base.get_pose()
         self.locations_man.data[tid]['execute_locations'].append([t_current_map, r_current_map])
-        self.locations_man.save_database()
+        if not user_study:
+            self.locations_man.save_database()
 
         point_map = self.locations_man.data[tid]['center']
         #pdb.set_trace()
@@ -2708,9 +2709,9 @@ class ApplicationBehaviors:
         try_num = 0
         updated_execution_record = False
         if user_study:
-            first_time = False
-        else:
             first_time = True
+        else:
+            first_time = False
 
         #If find some positives:
         if len(pos_indices) > 0:
@@ -2735,7 +2736,8 @@ class ApplicationBehaviors:
                     cv.SaveImage("execute_behavior.png", 255 * (np.rot90(density_image)/np.max(density_image)))
                     dists = ut.norm(kdict['points2d'] - loc2d_max)
                     selected_idx = np.argmin(dists)
-                    indices_added.append(selected_idx)
+                    if not first_time:
+                        indices_added.append(selected_idx)
                 else:
                     selected_idx = pos_indices[0]
                     loc2d_max = kdict['points2d'][: selected_idx]
@@ -2759,7 +2761,9 @@ class ApplicationBehaviors:
                 print '============================================================'
                 print '============================================================'
                 if first_time:
-                    selected_3d = selected_3d + np.matrix([0,.1,0]).T
+                    print 'original point selected is', selected_3d.T
+                    selected_3d = selected_3d + np.matrix([0, 0, 0.2]).T
+                print 'point selected is', selected_3d.T
                 success, _, point_undo_bl = behavior(selected_3d)
 
                 #Save pickle for viz
