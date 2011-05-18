@@ -12,3 +12,7 @@ class CmdProcess:
 
     def kill(self):
         os.system('kill -2 %d' % self.process.pid)
+
+    def is_finished( self ):
+        return self.process.poll() != None
+
