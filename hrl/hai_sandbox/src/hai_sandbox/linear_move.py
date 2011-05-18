@@ -47,7 +47,7 @@ import hrl_lib.image3d as i3d
 import hrl_lib.viz as viz
 import cProfile
 import threading
-import dynamic_reconifigure.client as dr
+import dynamic_reconfigure.client as dr
 #from hai_sandbox.recognize_3d import InterestPointDataset
 #import psyco
 #psyco.full()
@@ -186,7 +186,8 @@ class ManipulationBehaviors:
         self.movement.set_pressure_threshold(pressure_thres)
         loc_bl = self.movement.arm_obj.pose_cartesian_tf()[0]
         front_loc = point.copy()
-        front_loc[0,0] = loc_bl[0,0]
+        front_loc[0,0] = max(loc_bl[0,0], .4)
+        #front_loc[0,0] = loc_bl[0,0]
         #pdb.set_trace()
 
         if orientation == None:
@@ -382,10 +383,10 @@ class LocationManager:
                               'push_drawer':       {'coarse': .9, 'fine': .5, 'voi': .4}}
 
     def revert(self):
-        self.centers = self.centers[:, 0:2]
-        self.ids = self.ids[0:2]
-        self.data.pop('ikea_push_drawer')
-        self.data.pop('ikea_pull_drawer')
+        self.centers = self.centers[:, 0:4]
+        self.ids = self.ids[0:4]
+        self.data.pop('office_push_drawer')
+        self.data.pop('office_pull_drawer')
         #pdb.set_trace()
 
     def _load_database(self):
@@ -421,6 +422,10 @@ class LocationManager:
             if tb == tasktype:
                 return ta
         return None
+
+    def update_base_pose(self, taskid, base_pose):
+        print 'updating base pose for task', taskid
+        self.data[taskid]['base_pose'] = base_pose
 
     def create_new_location(self, task_type, point_map, base_pose, gather_data=True, name=None):
         if name == None:
@@ -621,28 +626,20 @@ class ApplicationBehaviors:
         rospy.init_node('linear_move', anonymous=True)
         self.tf_listener = tf.TransformListener()
         self.robot = pr2.PR2(self.tf_listener, base=True)
-        #self.robot = pr2.PR2(self.tf_listener, base=False)
         self.behaviors = ManipulationBehaviors('l', self.robot, tf_listener=self.tf_listener)
         self.laser_scan = hd.LaserScanner('point_cloud_srv')
 
         self.prosilica = rc.Prosilica('prosilica', 'polled')
         self.prosilica_cal = rc.ROSCameraCalibration('/prosilica/camera_info')
 
-        #self.left_cal = rc.ROSCameraCalibration('/wide_stereo/left/camera_info')
-        #self.right_cal = rc.ROSCameraCalibration('/wide_stereo/right/camera_info')
-
         self.wide_angle_camera_left = rc.ROSCamera('/wide_stereo/left/image_rect_color')
         self.wide_angle_configure = dr.Client('wide_stereo_both')
-        #self.wide_angle_camera_right = rc.ROSCamera('/wide_stereo/right/image_rect_color')
 
         self.laser_listener = LaserPointerClient(tf_listener=self.tf_listener, robot=self.robot)
         self.laser_listener.add_double_click_cb(self.click_cb)
-
         self.rec_params = r3d.Recognize3DParam()
         
-        #self.OPTICAL_FRAME = 'high_def_optical_frame'
         self.OPTICAL_FRAME = 'high_def_optical_frame'
-        #self.POINTCLOUD_FRAME = 'narrow_stereo_optical_frame'
         self.feature_ex = r3d.NarrowTextureFeatureExtractor(self.prosilica, 
                 hd.PointCloudReceiver('narrow_stereo_textured/points'),
                 self.prosilica_cal, 
@@ -653,9 +650,7 @@ class ApplicationBehaviors:
         #self.feature_ex = r3d.KinectFeatureExtractor(self.tf_listener, rec_params=self.rec_params)
 
         self.critical_error = False
-        #self.behaviors.set_pressure_threshold(300)
         #TODO: define start location in frame attached to torso instead of base_link
-
         self.start_location_light_switch = (np.matrix([0.35, 0.30, 1.1]).T, np.matrix([0., 0., 0., 0.1]))
         self.start_location_drawer       = (np.matrix([0.20, 0.40, .8]).T,  
                                             np.matrix(tr.quaternion_from_euler(np.radians(90.), 0, 0)))
@@ -665,21 +660,13 @@ class ApplicationBehaviors:
 
         #self.load_classifier('light_switch', 'friday_730_light_switch2.pkl')
         #self.img_pub = r3d.ImagePublisher('active_learn')
-        self.locations_man = LocationManager('locations_narrow_v11.pkl', rec_params=self.rec_params)
         #self.location_display = LocationDisplay(self.locations_man)
         #self.location_display.start()
         #self.robot.projector.set_prosilica_inhibit(True)
         #pdb.set_trace()
         self.driving_posture('light_switch_down')
         self.robot.projector.set(False)
-        #self.practice_points_map = []
-
-
-    #def load_classifier(self, name, fname):
-    #    print 'loading classifier'
-    #    dataset = ut.load_pickle(fname)
-    #    self.train(dataset, name)
-
+        self.locations_man = LocationManager('locations_narrow_v11.pkl', rec_params=self.rec_params)
 
     def draw_dots_nstuff(self, img, points2d, labels, picked_loc):
         pidx = np.where(labels == r3d.POSITIVE)[1].A1.tolist()
@@ -770,7 +757,7 @@ class ApplicationBehaviors:
             before_frame = self.wide_angle_camera_left.get_frame()
         cv.SaveImage('before.png', before_frame)
         f_return = f(*args)
-        time.sleep(2)
+        time.sleep(5)
         for i in range(7):
             after_frame = self.wide_angle_camera_left.get_frame()
 
@@ -866,14 +853,14 @@ class ApplicationBehaviors:
                     stop='none', pressure=press_contact_pressure)
             if r1 != None:
                 rospy.loginfo('moving back failed due to "%s"' % r1)
-                return False, None, point+point_offset
+                return change, None, point+point_offset
 
             rospy.loginfo('reseting')
             self.behaviors.movement.pressure_listener.rezero()
             r2, pos_error2 = self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure')
             if r2 != None and r2 != 'no solution':
                 rospy.loginfo('moving back to start location failed due to "%s"' % r2)
-                return False, None, point+point_offset
+                return change, None, point+point_offset
             self.behaviors.movement.pressure_listener.rezero()
 
             rospy.loginfo('DONE.')
@@ -883,7 +870,7 @@ class ApplicationBehaviors:
             rospy.loginfo('>>>> ROBOT SAFETY ERROR! RESETTING. %s' % str(e))
             self.behaviors.movement.pressure_listener.rezero()
             r2, pos_error2 = self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure')
-            return False, None, point+point_offset
+            return change, None, point+point_offset
 
 
     def light_rocker_push(self, point, pressure, visual_change_thres, offset):
@@ -945,7 +932,7 @@ class ApplicationBehaviors:
         self.behaviors.movement.set_pressure_threshold(1000)
         loc_bl = self.behaviors.movement.arm_obj.pose_cartesian_tf()[0]
         front_loc = point_bl.copy()
-        front_loc[0,0] = loc_bl[0,0]
+        front_loc[0,0] = max(loc_bl[0,0], .4)
 
         #pdb.set_trace()
         #move to front
@@ -959,7 +946,6 @@ class ApplicationBehaviors:
 
         #move until contact
         rospy.loginfo("Touching surface")
-        #pdb.set_trace()
         try:
             linear_movement.move_relative_gripper(np.matrix([.5,0,0]).T, stop='pressure_accel', pressure=100)
         except lm.RobotSafetyError, e:
@@ -968,8 +954,13 @@ class ApplicationBehaviors:
 
         #Push
         rospy.loginfo("PUSH!!!")
+        current_position = self.robot.left.pose_cartesian_tf()
+        target_position = current_position[0] + np.matrix([.4,0,0.]).T
         try:
-            linear_movement.move_relative_gripper(np.matrix([.2,0,0]).T, stop='pressure_accel', pressure=6000)
+            #linear_movement.move_relative_gripper(np.matrix([.2,0,0]).T, stop='pressure_accel', pressure=6000)
+            linear_movement.move_absolute((target_position, current_position[1]), stop='pressure_accel', pressure=6000)
+            linear_movement.move_absolute((target_position, current_position[1]), stop='pressure_accel', pressure=6000)
+            linear_movement.move_absolute((target_position, current_position[1]), stop='pressure_accel', pressure=6000)
         except lm.RobotSafetyError, e:
             rospy.loginfo('robot safety error %s' % str(e))
 
@@ -997,6 +988,7 @@ class ApplicationBehaviors:
                     stop='pressure_accel', pressure=1000)
 
         move_dist = np.linalg.norm(contact_loc_bl - pushed_loc_bl)
+        rospy.loginfo('pushed for distance %.3f' % move_dist)
         success = move_dist > PUSH_TOLERANCE
         return success, 'pushed', pushed_loc_bl
 
@@ -1037,7 +1029,7 @@ class ApplicationBehaviors:
         #Grasp
         GRASP_THRES = 100
         try:
-            linear_movement.move_relative_gripper(np.matrix([-.02,0,0]).T, stop='none')
+            linear_movement.move_relative_gripper(np.matrix([-.01,0,0]).T, stop='none')
         except lm.RobotSafetyError, e:
             rospy.loginfo('robot safety error %s' % str(e))
         #lbf, rbf = linear_movement.pressure_listener.get_pressure_readings()
@@ -1418,7 +1410,7 @@ class ApplicationBehaviors:
                         #move_back_distance=np.matrix([-.0075,0,0]).T,
                         press_pressure=6000,
                         press_distance=np.matrix([0.01,0,-.15]).T,
-                        visual_change_thres=.03)
+                        visual_change_thres=.025)
 
         elif task_type == 'light_switch_up':
             return ft.partial(self.light_switch1, 
@@ -1428,17 +1420,17 @@ class ApplicationBehaviors:
                         #move_back_distance=np.matrix([-.0075,0,0]).T,
                         press_pressure=6000,
                         press_distance=np.matrix([0.01,0,.15]).T,
-                        visual_change_thres=.03)
+                        visual_change_thres=.025)
 
         elif task_type == 'light_rocker_up':
             return ft.partial(self.light_rocker_push,
                         pressure=500,
-                        visual_change_thres=.03, offset=np.matrix([0,0,-.05]).T)
+                        visual_change_thres=.025, offset=np.matrix([0,0,-.05]).T)
 
         elif task_type == 'light_rocker_down':
             return ft.partial(self.light_rocker_push,
                         pressure=500,
-                        visual_change_thres=.03, offset=np.matrix([0,0,.05]).T)
+                        visual_change_thres=.025, offset=np.matrix([0,0,.05]).T)
 
         elif task_type == 'pull_drawer':
             return self.drawer
@@ -1459,7 +1451,7 @@ class ApplicationBehaviors:
         #rospy.sleep(1)
 
         self.robot.left_gripper.open(False, .005)
-        self.robot.right_gripper.open(True, .005)
+        #self.robot.right_gripper.open(True, .005)
         self.behaviors.movement.pressure_listener.rezero()
 
         if task_type == 'light_switch_down' or task_type == 'light_switch_up':
@@ -1498,7 +1490,7 @@ class ApplicationBehaviors:
         #TODO: specialize this
         self.robot.torso.set_pose(0.03, True)
         self.robot.left_gripper.open(False, .005)
-        self.robot.right_gripper.open(True, .005)
+        #self.robot.right_gripper.open(True, .005)
         self.behaviors.movement.pressure_listener.rezero()
 
         if task_type == 'light_switch_down' or task_type == 'light_switch_up':
@@ -1662,8 +1654,8 @@ class ApplicationBehaviors:
             #kdict, fname = self.read_features_save(task_id, point3d_bl, param)
             self.locations_man.train(task_id, dset_action, save_pca_images=True)
             self.locations_man.train(ctask_id, dset_undo, save_pca_images=True)
-            rospy.loginfo('Done initializing new location!')
             self.locations_man.save_database()
+            rospy.loginfo('Done initializing new location!')
             self.driving_posture(task_type)
         #else:
         #    task_id, task_type = close_by_locs[0]
@@ -1705,6 +1697,17 @@ class ApplicationBehaviors:
         self.robot.base.move_to(p_bl[0:2,0], True)
         t_end, r_end = self.robot.base.get_pose()
         return rvalue==3, np.linalg.norm(t_end[0:2] - np.array(trans)[0:2])
+
+    def update_base(self):
+        tasks = self.locations_man.data.keys()
+        for i, k in enumerate(tasks):
+            print i, k
+        selected_idx = int(raw_input("Select an action to update base location\n"))
+
+        t_current_map, r_current_map = self.robot.base.get_pose()
+        task_id = tasks[selected_idx]
+        self.locations_man.update_base_pose(task_id, [t_current_map, r_current_map])
+        self.locations_man.save_database()
 
 
     ##
@@ -1868,7 +1871,7 @@ class ApplicationBehaviors:
 
     ##
     # Execution phase
-    def scenario_user_select_location(self, save):
+    def scenario_user_select_location(self, save, user_study):
         rospy.loginfo('===================================================')
         rospy.loginfo('= User selection mode!                            =')
         rospy.loginfo('===================================================')
@@ -1879,6 +1882,9 @@ class ApplicationBehaviors:
         tid = tasks[int(raw_input())]
         task_type = self.locations_man.data[tid]['task']
         rospy.loginfo('User selected %s' % tid)
+        #self.driving_posture(task_type)
+        #self.manipulation_posture(task_type)
+        #return
 
         #record current robot position
         if not self.locations_man.data[tid].has_key('execute_locations'):
@@ -1911,7 +1917,7 @@ class ApplicationBehaviors:
         self.look_at(point_bl, False)
 
         self.robot.sound.say('Executing behavior')
-        self.execute_behavior(tid, point_bl, save)
+        self.execute_behavior(tid, point_bl, save, user_study=user_study)
         self.driving_posture(task_type)
         #exit()
 
@@ -2051,7 +2057,7 @@ class ApplicationBehaviors:
         #    rospy.loginfo('Select location to execute action')
         #    selected = int(raw_input())
 
-    def run(self, mode, save):
+    def run(self, mode, save, user_study):
         #point = np.matrix([ 0.60956734, -0.00714498,  1.22718197]).T
         #print 'RECORDING'
         #self.record_perceptual_data(point)
@@ -2069,10 +2075,14 @@ class ApplicationBehaviors:
 
             if mode == 'execute':
                 t = time.time()
-                self.scenario_user_select_location(save)
+                self.scenario_user_select_location(save, user_study)
                 t2 = time.time()
                 print '>> That took', t2 - t, 'seconds'
                 exit()
+
+            if mode == 'update_base':
+                self.update_base()
+
 
     #def record_perceptual_data_laser_scanner(self, point_touched_bl):
     #    #what position should the robot be in?
@@ -2151,6 +2161,10 @@ class ApplicationBehaviors:
         kimage_name = '%s_highres.png' % tstring
         pickle_fname = '%s_interest_point_dataset.pkl' % tstring   
         if folder_name != None:
+            try:
+                os.mkdir(folder_name)
+            except OSError, e:
+                print e
             kimage_name = pt.join(folder_name, kimage_name)
             pickle_fname = pt.join(folder_name, pickle_fname)
 
@@ -2211,7 +2225,7 @@ class ApplicationBehaviors:
     ##
     # The behavior can make service calls to a GUI asking users to label
     def practice(self, task_id, ctask_id, point3d_bl, stop_fun=None, params=None, 
-            negative_cut_off=.2, resolution=.01, max_samples=5):
+            negative_cut_off=.5, resolution=.01, max_samples=5):
         if params == None:
             params = r3d.Recognize3DParam()
             params.uncertainty_x = 1.
@@ -2668,9 +2682,12 @@ class ApplicationBehaviors:
 
     ##
     #TODO: test this
-    def execute_behavior(self, task_id, point3d_bl, save, max_retries=15, closeness_tolerance=.01):
+    def execute_behavior(self, task_id, point3d_bl, save, max_retries=15, closeness_tolerance=.01, user_study=False):
+        if user_study:
+            rospy.loginfo('=====================================================')
+            rospy.loginfo('user_study is True.  Trying to fail on first attempt!')
+            rospy.loginfo('=====================================================')
         #Extract features
-
         params = r3d.Recognize3DParam()
         params.uncertainty_x = 1.
         params.uncertainty_z = .03
@@ -2690,10 +2707,13 @@ class ApplicationBehaviors:
         loc2d_max = None
         try_num = 0
         updated_execution_record = False
+        if user_study:
+            first_time = False
+        else:
+            first_time = True
 
         #If find some positives:
         if len(pos_indices) > 0:
-
             indices_added = []
             remaining_pt_indices = r3d.inverse_indices(indices_added, kdict['instances'].shape[1])
             remaining_instances = kdict['instances'][:, remaining_pt_indices]
@@ -2701,10 +2721,10 @@ class ApplicationBehaviors:
 
             while len(pos_indices) > 0:
                 #select from the positive predictions the prediction with the most spatial support
-                #pdb.set_trace()
-
+                print 'Num positive points found:', len(pos_indices)
 
                 #figure out max point
+                locs2d = None
                 if len(pos_indices) > 1:
                     locs2d = kdict['points2d'][:, pos_indices]
                     if np.any(np.isnan(locs2d)) or np.any(np.isinf(locs2d)):
@@ -2726,12 +2746,10 @@ class ApplicationBehaviors:
                 img = cv.CloneMat(kdict['image'])
                 r3d.draw_points(img, point2d_img,       [255, 0, 0],    10, -1)
                 r3d.draw_points(img, kdict['points2d'], [51, 204, 255], 3, -1)
-                r3d.draw_points(img, locs2d,            [255, 204, 51], 3, -1)
+                if locs2d != None:
+                    r3d.draw_points(img, locs2d,        [255, 204, 51], 3, -1)
                 r3d.draw_points(img, loc2d_max,         [255, 204, 51], 10, -1)
                 self.locations_man.publish_image(task_id, img, postfix='_execute_pick')
-
-                #ffull = pt.join(task_id, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + '.png')
-                #cv.SaveImage(ffull, img)
 
                 #Execute
                 self.robot.head.set_pose(head_pose, 1)
@@ -2740,6 +2758,8 @@ class ApplicationBehaviors:
                 print 'Try number', try_num
                 print '============================================================'
                 print '============================================================'
+                if first_time:
+                    selected_3d = selected_3d + np.matrix([0,.1,0]).T
                 success, _, point_undo_bl = behavior(selected_3d)
 
                 #Save pickle for viz
@@ -2756,35 +2776,36 @@ class ApplicationBehaviors:
                                 'center': point2d_img}, pkname)
 
                 try_num = try_num + 1
-                if success:
-                    #if save:
-                    if not updated_execution_record:
-                        self.locations_man.update_execution_record(task_id, 1.)
-                        update_execution_record = True
-                    self.robot.sound.say('action succeeded')
-                    label = r3d.POSITIVE
+                if not first_time:
+                    if success:
+                        #if save:
+                        if not updated_execution_record:
+                            self.locations_man.update_execution_record(task_id, 1.)
+                            update_execution_record = True
+                        self.robot.sound.say('action succeeded')
+                        label = r3d.POSITIVE
 
-                    dataset = self.locations_man.data[task_id]['dataset']
-                    nneg = np.sum(dataset.outputs == r3d.NEGATIVE) 
-                    npos = np.sum(dataset.outputs == r3d.POSITIVE)
-                    if nneg > npos and save:
-                        datapoint = {'instances': kdict['instances'][:, selected_idx],
-                                     'points2d':  kdict['points2d'][:, selected_idx],
-                                     'points3d':  kdict['points3d'][:, selected_idx],
-                                     'sizes':     kdict['sizes'],
-                                     'labels':    np.matrix([label])}
-                        self.locations_man.add_perceptual_data(task_id, datapoint)
-                        #self.locations_man.save_database()
-                        self.locations_man.train(task_id, kdict)
-                    break
-                else:
-                    self.robot.sound.say('action failed')
-                    label = r3d.NEGATIVE
-                    if not updated_execution_record:
-                        self.locations_man.update_execution_record(task_id, 0.)
-                        update_execution_record = True
+                        dataset = self.locations_man.data[task_id]['dataset']
+                        nneg = np.sum(dataset.outputs == r3d.NEGATIVE) 
+                        npos = np.sum(dataset.outputs == r3d.POSITIVE)
+                        if nneg > npos and save:
+                            datapoint = {'instances': kdict['instances'][:, selected_idx],
+                                         'points2d':  kdict['points2d'][:, selected_idx],
+                                         'points3d':  kdict['points3d'][:, selected_idx],
+                                         'sizes':     kdict['sizes'],
+                                         'labels':    np.matrix([label])}
+                            self.locations_man.add_perceptual_data(task_id, datapoint)
+                            if save:
+                                self.locations_man.save_database()
+                            self.locations_man.train(task_id, kdict)
+                        break
+                    else:
+                        self.robot.sound.say('action failed')
+                        label = r3d.NEGATIVE
+                        if not updated_execution_record:
+                            self.locations_man.update_execution_record(task_id, 0.)
+                            update_execution_record = True
 
-                    if save:
                         #We were wrong so we add this to our dataset and retrain
                         datapoint = {'instances': kdict['instances'][:, selected_idx],
                                      'points2d':  kdict['points2d'][:, selected_idx],
@@ -2792,18 +2813,20 @@ class ApplicationBehaviors:
                                      'sizes':     kdict['sizes'],
                                      'labels':    np.matrix([label])}
                         self.locations_man.add_perceptual_data(task_id, datapoint)
-                        #self.locations_man.save_database()
+                        if save:
+                            self.locations_man.save_database()
                         self.locations_man.train(task_id, kdict)
 
-                    if try_num > max_retries:
-                        break
+                        if try_num > max_retries:
+                            break
 
-                    #Remove point and predict again!
-                    remaining_pt_indices = r3d.inverse_indices(indices_added, kdict['instances'].shape[1])
-                    remaining_instances = kdict['instances'][:, remaining_pt_indices]
-                    predictions = np.matrix(self.locations_man.learners[task_id].classify(remaining_instances))
-                    remaining_pos_indices = np.where(r3d.POSITIVE == predictions)[1].A1
-                    pos_indices = remaining_pt_indices[remaining_pos_indices]
+                        #Remove point and predict again!
+                        remaining_pt_indices = r3d.inverse_indices(indices_added, kdict['instances'].shape[1])
+                        remaining_instances = kdict['instances'][:, remaining_pt_indices]
+                        predictions = np.matrix(self.locations_man.learners[task_id].classify(remaining_instances))
+                        remaining_pos_indices = np.where(r3d.POSITIVE == predictions)[1].A1
+                        pos_indices = remaining_pt_indices[remaining_pos_indices]
+                first_time = False
 
         #If no positives found:
         else:
@@ -3064,16 +3087,18 @@ def launch():
     p.add_option("-d", "--display", action="store_true", default=False)
     p.add_option("-p", "--practice", action="store_true", default=False)
     p.add_option("-e", "--execute", action="store_true", default=False)
+    p.add_option("-b", "--base", action="store_true", default=False)
     p.add_option("-s", "--static", action="store_true", default=False)
     p.add_option("-i", "--init", action="store_true", default=False)
     p.add_option("-t", "--test", action="store_true", default=False)
+    p.add_option("-u", "--user_study", action="store_true", default=False)
 
     opt, args = p.parse_args()
     if opt.display:
         test_display()
         return
 
-    if opt.practice or opt.execute or opt.init:
+    if opt.practice or opt.execute or opt.init or opt.base:
         l = ApplicationBehaviors()
         mode = None
         if opt.practice:
@@ -3082,7 +3107,10 @@ def launch():
             mode = 'execute'
         if opt.init:
             mode = 'init'
-        l.run(mode, not opt.static)
+        if opt.base:
+            mode = 'update_base'
+        rospy.loginfo('Using mode %s' % mode)
+        l.run(mode, not opt.static, opt.user_study)
 
     if opt.test:
         tl = TestLearner()

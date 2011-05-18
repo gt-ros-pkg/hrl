@@ -1,6 +1,6 @@
 <launch>
     <include file="$(find pr2_machine)/$(env ROBOT).machine" />
-    <include file="$(find gt_pr2)/hsi_2dnav.launch"/>
+    <include file="$(find gt_pr2)/aware_2dnav.launch"/>
 
     <!-- IK and FK -->
     <!-- env server, not really needed for now.
