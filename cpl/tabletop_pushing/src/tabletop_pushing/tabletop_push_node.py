@@ -94,18 +94,20 @@ class TabletopPushNode:
         self.tf_listener = tf.TransformListener()
 
         self.no_arms = no_arms
+        use_slip=1
 
         if not no_arms:
             rospy.loginfo('Creating pr2 object')
             self.robot = pr2.PR2(self.tf_listener, arms=True, base=False)
-            rospy.loginfo('Creating LinearReactiveMovement')
-            # TODO: Turn off slip_controllers and slip_detection for use in simulator
-            use_slip=1
-            #use_slip=0
             rospy.loginfo("Setting up left arm move")
             self.left_arm_move = lm.LinearReactiveMovement('l', self.robot,
                                                            self.tf_listener,
                                                            use_slip, use_slip)
+            # TODO: Change gains on wrist roll to move faster than others...
+            rospy.loginfo("Changing wrist roll gains")
+            self.left_arm_move.reactive_gr.joint_params.default_p[-1] = 600
+            self.left_arm_move.reactive_gr.joint_params.default_d[-1] = 10
+            self.left_arm_move.reactive_gr.reload_joint_controllers()
             rospy.loginfo("Setting up right arm move")
             self.right_arm_move = lm.LinearReactiveMovement('r', self.robot,
                                                             self.tf_listener,
@@ -310,7 +312,7 @@ class TabletopPushNode:
         """
         if not self.no_arms:
             self.init_arm_pose(True, which_arm='l')
-            self.init_arm_pose(True, which_arm='r')
+            # self.init_arm_pose(True, which_arm='r')
         rospy.spin()
 
 if __name__ == '__main__':
