@@ -47,6 +47,8 @@
 #include <nav_core/base_local_planner.h>
 #include <nav_core/base_global_planner.h>
 
+#define DIST(x1,y1,x2,y2) (std::sqrt((x1-x2)*(x1-x2)+(y1-x2)*(y1-y2)))
+
 using namespace sensor_msgs;
 using namespace std;
 namespace hrl_table_detect {
@@ -91,9 +93,18 @@ namespace hrl_table_detect {
         ros::Duration(1.0).sleep();
     }
 
+    bool pose_dist_comp(geometry_msgs::Pose& p1, geometry_msgs::Pose& p2, geometry_msgs::Point& app_pt) {
+        return DIST(p1.position.x, p1.position.y, app_pt.x, app_pt.y) < DIST(p2.position.x, p2.position.y, app_pt.x, app_pt.y);
+    }
+
+    bool pose_dist_thresh(geometry_msgs::Pose pose, geometry_msgs::Point pt, double thresh) {
+        return DIST(pose.position.x, pose.position.y, pt.x, pt.y) < thresh;
+    }
+
     bool TableApproaches::tableApprCallback(hrl_table_detect::GetTableApproaches::Request& req,
                                    hrl_table_detect::GetTableApproaches::Response& resp) {
         double pose_step = 0.01, start_dist = 0.05, max_dist = 1.0, min_cost = 100;
+        double close_thresh = 0.20;
         //std::vector<geometry_msgs::Point> table_poly = req.table_hull.points;
         std::vector<geometry_msgs::Point> table_poly;
 
@@ -107,6 +118,10 @@ namespace hrl_table_detect {
         table_poly.push_back(pt);
         pt.x = xoff-xsize/2; pt.y = yoff+ysize/2;
         table_poly.push_back(pt);
+        geometry_msgs::PointStamped approach_pt;
+        approach_pt.header.frame_id = "/base_link";
+        approach_pt.header.stamp = ros::Time::now();
+        approach_pt.point.x = 2.2; approach_pt.point.y = 0.3; 
 
         costmap_ros->getCostmapCopy(costmap);
         world_model = new base_local_planner::CostmapModel(costmap);
@@ -149,9 +164,9 @@ namespace hrl_table_detect {
         //invalid_pub.publish(invalid_locs);
         close_pub.publish(close_locs);
 
-        geometry_msgs::PoseArray table_poses;
-        table_poses.header.frame_id = "/base_link";
-        table_poses.header.stamp = ros::Time::now();
+        geometry_msgs::PoseArray dense_table_poses;
+        dense_table_poses.header.frame_id = "/base_link";
+        dense_table_poses.header.stamp = ros::Time::now();
         uint32_t i2;
         for(uint32_t i=0;i<table_poly.size();i++) {
             i2 = i+1;
@@ -195,10 +210,32 @@ namespace hrl_table_detect {
                         break;
                 }
                 if(found_pose)
-                    table_poses.poses.push_back(test_pose.pose);
+                    dense_table_poses.poses.push_back(test_pose.pose);
             }
         }
-        invalid_pub.publish(table_poses);
+
+        // downsample and sort dense pose possibilties by distance to
+        // approach point and thresholded distance to each other
+        geometry_msgs::PoseArray downsampled_table_poses;
+        downsampled_table_poses.header.frame_id = "/base_link";
+        downsampled_table_poses.header.stamp = ros::Time::now();
+        boost::function<bool(geometry_msgs::Pose&, geometry_msgs::Pose&)> dist_comp
+                          = boost::bind(&pose_dist_comp, _1, _2, approach_pt.point);
+        while(ros::ok() && !dense_table_poses.poses.empty()) {
+            // add the closest valid pose to the approach location on the table
+            geometry_msgs::Pose new_pose = *std::min_element(
+                        dense_table_poses.poses.begin(), dense_table_poses.poses.end(), 
+                        dist_comp);
+            downsampled_table_poses.poses.push_back(new_pose);
+            // remove all poses in the dense sampling which are close to
+            // the newest added pose
+            boost::function<bool(geometry_msgs::Pose)> rem_thresh
+                          = boost::bind(&pose_dist_thresh, _1, new_pose.position, 
+                                        close_thresh);
+            std::remove_if(dense_table_poses.poses.begin(), dense_table_poses.poses.end(),
+                           rem_thresh);
+        }
+        invalid_pub.publish(downsampled_table_poses);
 
 
         delete world_model;
