@@ -1,0 +1,103 @@
+
+#
+# log from when we were developing in the internal repository.
+# mostly for Advait's benefit.
+#
+
+
+------------------------------------------------------------------------
+r7209 | advaitjain | 2011-05-14 15:41:09 -0400 (Sat, 14 May 2011) | 8 lines
+
+M    ros_vrpn_client/manifest.xml
+M    ros_vrpn_client/src/ros_vrpn_client.cpp
+looks like I can actually get fresh data from the VRPN server at
+100Hz.
+changed the client so that if object is not being tracked then it does
+not publish anything. rostopic hz /trackable should give us an
+indication of the rate at which the VRPN server is publishing data.
+
+------------------------------------------------------------------------
+r7202 | advaitjain | 2011-05-13 18:26:00 -0400 (Fri, 13 May 2011) | 3 lines
+
+A    ros_vrpn_client/viz
+A    ros_vrpn_client/viz/tf_and_grid.viz.vcg
+
+------------------------------------------------------------------------
+r7133 | advaitjain | 2011-05-02 19:35:12 -0400 (Mon, 02 May 2011) | 9 lines
+
+M    ros_vrpn_client/src/ros_vrpn_client.cpp
+fixed the bugs. honest.
+
+D    ros_vrpn_client/launch/optitrak_static.launch
+don't need this anymore.
+
+M    ros_vrpn_client/README
+updated docs to give some sense for the coord frame funniness
+
+------------------------------------------------------------------------
+r7132 | advaitjain | 2011-05-02 18:41:01 -0400 (Mon, 02 May 2011) | 4 lines
+
+M    ros_vrpn_client/src/ros_vrpn_client.cpp
+Advait and Aaron.
+fixed bug in transformation. should now be ok.
+
+------------------------------------------------------------------------
+r7125 | advaitjain | 2011-04-29 19:22:47 -0400 (Fri, 29 Apr 2011) | 4 lines
+
+M    ros_vrpn_client/install_vrpn.sh
+M    ros_vrpn_client/README
+update install script to use cmake.
+
+------------------------------------------------------------------------
+r7124 | advaitjain | 2011-04-29 19:15:52 -0400 (Fri, 29 Apr 2011) | 8 lines
+
+M    ros_vrpn_client/install_vrpn.sh
+D    ros_vrpn_client/vrpn_07_28.zip
+A    ros_vrpn_client/launch
+A    ros_vrpn_client/launch/optitrak_static.launch
+A    ros_vrpn_client/README
+some cleanup, changing the install script to not require us to add
+VRPN source to our repository.
+
+------------------------------------------------------------------------
+r7123 | advaitjain | 2011-04-29 18:59:14 -0400 (Fri, 29 Apr 2011) | 5 lines
+
+M    ros_vrpn_client/manifest.xml
+M    ros_vrpn_client/src/ros_vrpn_client.cpp
+looks like the coord frames are ok now.
+/optitrak_funky, /optitrak and /trackable.
+
+------------------------------------------------------------------------
+r7122 | advaitjain | 2011-04-29 15:58:59 -0400 (Fri, 29 Apr 2011) | 4 lines
+
+M    ros_vrpn_client/src/ros_vrpn_client.cpp
+removed a print statement.
+commit before fixing the coord frames.
+
+------------------------------------------------------------------------
+r7119 | advaitjain | 2011-04-28 16:23:14 -0400 (Thu, 28 Apr 2011) | 5 lines
+
+M    ros_vrpn_client/manifest.xml
+M    ros_vrpn_client/src/ros_vrpn_client.cpp
+Advait and Aaron King:
+much cleaner code. have tried with two objects in rviz.
+
+------------------------------------------------------------------------
+r7118 | advaitjain | 2011-04-28 13:16:22 -0400 (Thu, 28 Apr 2011) | 3 lines
+
+MM   ros_vrpn_client/install_vrpn.sh
+fixed script and made executable.
+
+------------------------------------------------------------------------
+r7114 | aaking | 2011-04-26 18:04:53 -0400 (Tue, 26 Apr 2011) | 1 line
+
+change Makefile to Linux
+------------------------------------------------------------------------
+r7113 | aaking | 2011-04-26 17:11:00 -0400 (Tue, 26 Apr 2011) | 1 line
+
+
+------------------------------------------------------------------------
+r7112 | aaking | 2011-04-26 16:34:54 -0400 (Tue, 26 Apr 2011) | 1 line
+
+
+------------------------------------------------------------------------
