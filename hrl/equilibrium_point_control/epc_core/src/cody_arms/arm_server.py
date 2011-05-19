@@ -29,9 +29,6 @@ from std_srvs.srv import Empty as Empty_srv
 from std_srvs.srv import EmptyResponse
 from sensor_msgs.msg import JointState
 
-roslib.load_manifest('force_torque')
-import force_torque.FTClient as ftc
-
 THETA_GC = 5
 TORQUE_GC = 4
 THETA = 3
@@ -50,18 +47,19 @@ def kalman_update(xhat, P, Q, R, z):
     return xhat, P
 
 class MekaArmSettings():
-    def __init__(self, stiffness_scale=1.0,stiffness_list=[0.7,0.7,0.8,0.8,0.3],
+    def __init__(self, stiffness_list=[0.7,0.7,0.8,0.8,0.3],
                  control_mode='theta_gc'):
         ''' stiffness_list: list of 5 stiffness values for joints 0-4.
-            stiffness_scale: common scaling factor for all the joints
             control_mode: 'theta_gc' or 'torque_gc'
         '''
-        self.stiffness_scale = stiffness_scale
+        self.set_stiffness_scale(stiffness_list)
+        self.control_mode = control_mode
+
+    def set_stiffness_scale(l):
         # for safety of wrist roll. Advait Jun 18, 2010.
         # changed to 0.2 from 0.3 (Advait, Sept 19, 2010)
-        stiffness_list[4] = min(stiffness_list[4], 0.2)
-        self.stiffness_list = stiffness_list
-        self.control_mode = control_mode
+        l[4] = min(l[4], 0.2)
+        self.stiffness_list = l
 
 
 class MekaArmServer():
@@ -97,21 +95,25 @@ class MekaArmServer():
         rospy.Service('toggle_floating_arms', Empty_srv, self.floating_arms_cb)
         self.q_r_pub = rospy.Publisher('/r_arm/q', FloatArray)
         self.q_l_pub = rospy.Publisher('/l_arm/q', FloatArray)
+
         self.force_raw_r_pub = rospy.Publisher('/r_arm/force_raw', FloatArray)
         self.force_raw_l_pub = rospy.Publisher('/l_arm/force_raw', FloatArray)
         self.force_r_pub = rospy.Publisher('/r_arm/force', FloatArray)
         self.force_l_pub = rospy.Publisher('/l_arm/force', FloatArray)
+
         self.jep_r_pub = rospy.Publisher('/r_arm/jep', FloatArray)
         self.jep_l_pub = rospy.Publisher('/l_arm/jep', FloatArray)
-        self.pwr_state_pub = rospy.Publisher('/arms/pwr_state', Bool)
+        self.alph_r_pub = rospy.Publisher('/r_arm/joint_impedance_scale', FloatArray)
+        self.alph_l_pub = rospy.Publisher('/l_arm/joint_impedance_scale', FloatArray)
 
+        self.pwr_state_pub = rospy.Publisher('/arms/pwr_state', Bool)
         self.joint_state_pub = rospy.Publisher('/joint_states', JointState)
         
-        #self.r_arm_ftc = ftc.FTClient('force_torque_ft2')
-        rospy.Subscriber('/r_arm/command/jep', FloatArray,
-                         self.r_jep_cb)
-        rospy.Subscriber('/l_arm/command/jep', FloatArray,
-                         self.l_jep_cb)
+        rospy.Subscriber('/r_arm/command/jep', FloatArray, self.r_jep_cb)
+        rospy.Subscriber('/l_arm/command/jep', FloatArray, self.l_jep_cb)
+        rospy.Subscriber('/r_arm/command/joint_impedance_scale', FloatArray, self.r_alpha_cb)
+        rospy.Subscriber('/l_arm/command/joint_impedance_scale', FloatArray, self.l_alpha_cb)
+
         # publishing to this message will stop the arms but also crash
         # the server (since meka server crashes.) Advait Nov 14, 2010
         rospy.Subscriber('/arms/stop', Empty, self.stop)
@@ -150,7 +152,6 @@ class MekaArmServer():
                 continue
 
             stiffness_list = arm_settings.stiffness_list
-            stiffness_scale = arm_settings.stiffness_scale
 
             if arm_settings.control_mode == 'torque_gc':
                 print 'setting control mode to torque_gc'
@@ -161,7 +162,7 @@ class MekaArmServer():
                 print 'setting control mode to theta_gc'
                 for i in range(5):
                     joint_component_list[i].set_control_mode(THETA_GC)
-                    joint_component_list[i].set_stiffness(stiffness_scale*stiffness_list[i])
+                    joint_component_list[i].set_stiffness(stiffness_list[i])
                     joint_component_list[i].set_slew_rate_proportion(1.)
 
                 joint_component_list[5].set_control_mode(THETA)
@@ -173,7 +174,7 @@ class MekaArmServer():
                 print 'setting control mode to theta_gc include wrist joints'
                 for i in range(7):
                     joint_component_list[i].set_control_mode(THETA_GC)
-                    joint_component_list[i].set_stiffness(stiffness_scale*stiffness_list[i])
+                    joint_component_list[i].set_stiffness(stiffness_list[i])
                     joint_component_list[i].set_slew_rate_proportion(1.)
 
             else:
@@ -282,10 +283,14 @@ class MekaArmServer():
         self.cb_lock.acquire()
         r_jep = copy.copy(self.r_jep)
         l_jep = copy.copy(self.l_jep)
+        r_alpha = copy.copy(self.arm_settings['right_arm'].stiffness_list)
+        l_alpha = copy.copy(self.arm_settings['left_arm'].stiffness_list)
         self.cb_lock.release()
 
         self.set_jep(r_arm, r_jep)
         self.set_jep(l_arm, l_jep)
+        self.set_alpha(r_arm, r_alpha)
+        self.set_alpha(l_arm, l_alpha)
 
         self.step()
 
@@ -344,6 +349,9 @@ class MekaArmServer():
 
         self.jep_r_pub.publish(FloatArray(h, r_jep))
         self.jep_l_pub.publish(FloatArray(h, l_jep))
+
+        self.alph_r_pub.publish(FloatArray(h, r_alpha))
+        self.alph_l_pub.publish(FloatArray(h, l_alpha))
 
         h.frame_id = '/torso_lift_link'
         nms = self.joint_names_list['right_arm'] + self.joint_names_list['left_arm']
@@ -484,6 +492,22 @@ class MekaArmServer():
         else:
             self.l_jep = q
         self.cb_lock.release()
+
+    def r_alpha_cb(self, msg):
+        self.cb_lock.acquire()
+        self.arm_settings['right_arm'].set_stiffness_scale(msg.data)
+        self.cb_lock.release()
+
+    def l_alpha_cb(self, msg):
+        self.cb_lock.acquire()
+        self.arm_settings['left_arm'].set_stiffness_scale(msg.data)
+        self.cb_lock.release()
+
+    def set_alpha(self, arm, alpha):
+        jcl = self.joint_list_dict[arm]
+        for i,a in enumerate(alpha):
+            jcl[i].set_stiffness(a)
+
 
 
 if __name__ == '__main__':
