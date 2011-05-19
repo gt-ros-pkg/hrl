@@ -40,6 +40,8 @@ class MekaArmClient():
         self.cb_lock = RLock()
         self.r_arm_jep = None
         self.l_arm_jep = None
+        self.r_arm_alpha = None
+        self.l_arm_alpha = None
         self.r_arm_q = None
         self.l_arm_q = None
         self.r_arm_force = None
@@ -57,8 +59,10 @@ class MekaArmClient():
 
         self.joint_names_list = get_joint_name_dict()
 
-        self.l_jep_cmd_pub = rospy.Publisher('/l_arm/command/jep', FloatArray)
         self.r_jep_cmd_pub = rospy.Publisher('/r_arm/command/jep', FloatArray)
+        self.l_jep_cmd_pub = rospy.Publisher('/l_arm/command/jep', FloatArray)
+        self.r_alph_cmd_pub = rospy.Publisher('/r_arm/command/joint_impedance_scale', FloatArray)
+        self.l_alph_cmd_pub = rospy.Publisher('/l_arm/command/joint_impedance_scale', FloatArray)
         self.stop_pub = rospy.Publisher('/arms/stop', Empty)
         self.motors_off_pub = rospy.Publisher('/arms/command/motors_off', Empty)
 
@@ -67,16 +71,17 @@ class MekaArmClient():
 
         rospy.Subscriber('/r_arm/jep', FloatArray, self.r_arm_jep_cb)
         rospy.Subscriber('/l_arm/jep', FloatArray, self.l_arm_jep_cb)
+        rospy.Subscriber('/r_arm/joint_impedance_scale', FloatArray, self.r_arm_alpha_cb)
+        rospy.Subscriber('/l_arm/joint_impedance_scale', FloatArray, self.l_arm_alpha_cb)
+
         rospy.Subscriber('/r_arm/q', FloatArray, self.r_arm_q_cb)
         rospy.Subscriber('/l_arm/q', FloatArray, self.l_arm_q_cb)
-        rospy.Subscriber('/r_arm/force', FloatArray,
-                         self.r_arm_force_cb)
-        rospy.Subscriber('/l_arm/force', FloatArray,
-                         self.l_arm_force_cb)
-        rospy.Subscriber('/r_arm/force_raw', FloatArray,
-                         self.r_arm_raw_force_cb)
-        rospy.Subscriber('/l_arm/force_raw', FloatArray,
-                         self.l_arm_raw_force_cb)
+
+        rospy.Subscriber('/r_arm/force', FloatArray, self.r_arm_force_cb)
+        rospy.Subscriber('/l_arm/force', FloatArray, self.l_arm_force_cb)
+        rospy.Subscriber('/r_arm/force_raw', FloatArray, self.r_arm_raw_force_cb)
+        rospy.Subscriber('/l_arm/force_raw', FloatArray, self.l_arm_raw_force_cb)
+
         rospy.Subscriber('/arms/pwr_state', Bool, self.pwr_state_cb)
 
         rospy.wait_for_service('toggle_floating_arms')
@@ -113,6 +118,16 @@ class MekaArmClient():
     def l_arm_jep_cb(self, msg):
         self.cb_lock.acquire()
         self.l_arm_jep = list(msg.data)
+        self.cb_lock.release()
+
+    def r_arm_alpha_cb(self, msg):
+        self.cb_lock.acquire()
+        self.r_arm_alpha = list(msg.data)
+        self.cb_lock.release()
+
+    def l_arm_alpha_cb(self, msg):
+        self.cb_lock.acquire()
+        self.l_arm_alpha = list(msg.data)
         self.cb_lock.release()
 
     def r_arm_q_cb(self, msg):
@@ -212,6 +227,34 @@ class MekaArmClient():
         print 'self.fts_bias[arm][\'force\']', self.fts_bias[arm]['force']
         print 'arm:', arm
         print '...done'
+
+    ##
+    # @return list of floats b/w 0 and 1.
+    def get_impedance_scale(self, arm):
+        self.cb_lock.acquire()
+        if arm == 'right_arm':
+            sc = copy.copy(self.r_arm_alpha)
+        elif arm == 'left_arm':
+            sc = copy.copy(self.l_arm_alpha)
+        else:
+            self.cb_lock.release()
+            raise RuntimeError('Undefined arm: %s'%(arm))
+        self.cb_lock.release()
+        return sc
+
+    ##
+    # @param s - list of floats b/w 0 and 1.
+    def set_impedance_scale(self, arm, s):
+        if arm == 'right_arm': 
+            pub = self.r_alph_cmd_pub
+        elif arm == 'left_arm':
+            pub = self.l_alph_cmd_pub
+        else:
+            raise RuntimeError('Undefined arm: %s'%(arm))
+        time_stamp = rospy.Time.now()
+        h = Header()
+        h.stamp = time_stamp
+        pub.publish(FloatArray(h, s))
 
     def get_jep(self, arm):
         self.cb_lock.acquire()
@@ -490,11 +533,21 @@ if __name__ == '__main__':
         #ac.motors_off()
     #    ac.stop()
 
-    if True:
+    if False:
         while not rospy.is_shutdown():
             jep = ac.get_jep(r_arm)
             print 'jep:', jep
             rospy.sleep(0.05)
+
+    if True:
+        rospy.sleep(1.)
+        isc =  ac.get_impedance_scale(r_arm)
+        print isc
+        isc[1] = 0.3
+        ac.set_impedance_scale(r_arm, isc)
+        rospy.sleep(1.)
+        isc =  ac.get_impedance_scale(r_arm)
+        print isc
 
 
 
