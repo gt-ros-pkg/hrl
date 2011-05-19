@@ -105,13 +105,13 @@ class TabletopPushNode:
                                                            use_slip, use_slip)
             # TODO: Change gains on wrist roll to move faster than others...
             rospy.loginfo("Changing wrist roll gains")
-            self.left_arm_move.reactive_gr.joint_params.default_p[-1] = 600
-            self.left_arm_move.reactive_gr.joint_params.default_d[-1] = 10
-            self.left_arm_move.reactive_gr.reload_joint_controllers()
-            rospy.loginfo("Setting up right arm move")
-            self.right_arm_move = lm.LinearReactiveMovement('r', self.robot,
-                                                            self.tf_listener,
-                                                            use_slip, use_slip)
+            self.left_arm_move.cman.joint_params.default_p[-1] = 600
+            self.left_arm_move.cman.joint_params.default_d[-1] = 10
+            self.left_arm_move.cman.reload_joint_controllers()
+            # rospy.loginfo("Setting up right arm move")
+            # self.right_arm_move = lm.LinearReactiveMovement('r', self.robot,
+            #                                                 self.tf_listener,
+            #                                                 use_slip, use_slip)
 
 
         self.push_pose_proxy = rospy.ServiceProxy("get_push_pose", PushPose)
