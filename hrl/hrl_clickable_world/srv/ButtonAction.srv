@@ -1,0 +1,4 @@
+geometry_msgs/PointStamped click_loc
+int32 button_id
+string button_type
+---
