@@ -55,7 +55,7 @@ class MekaArmSettings():
         self.set_stiffness_scale(stiffness_list)
         self.control_mode = control_mode
 
-    def set_stiffness_scale(l):
+    def set_stiffness_scale(self, l):
         # for safety of wrist roll. Advait Jun 18, 2010.
         # changed to 0.2 from 0.3 (Advait, Sept 19, 2010)
         l[4] = min(l[4], 0.2)
@@ -495,12 +495,12 @@ class MekaArmServer():
 
     def r_alpha_cb(self, msg):
         self.cb_lock.acquire()
-        self.arm_settings['right_arm'].set_stiffness_scale(msg.data)
+        self.arm_settings['right_arm'].set_stiffness_scale(list(msg.data))
         self.cb_lock.release()
 
     def l_alpha_cb(self, msg):
         self.cb_lock.acquire()
-        self.arm_settings['left_arm'].set_stiffness_scale(msg.data)
+        self.arm_settings['left_arm'].set_stiffness_scale(list(msg.data))
         self.cb_lock.release()
 
     def set_alpha(self, arm, alpha):
