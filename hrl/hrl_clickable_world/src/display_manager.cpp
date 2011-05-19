@@ -130,8 +130,8 @@ namespace hrl_clickable_world {
     bool DisplayManager::imageClickCB(ClickImage::Request& req, ClickImage::Response& resp) {
         if(buttons_on) {
             //figure out which button was clicked on
-            float button_id = button_rastor.at<float>(req.image_click.point.x, 
-                                                      req.image_click.point.y);
+            float button_id = button_rastor.at<float>(req.image_click.point.y, 
+                                                      req.image_click.point.x);
             ButtonAction::Request ba_req;
             ba_req.click_loc = req.image_click;
             ba_req.button_id = button_id;
