@@ -138,7 +138,10 @@ namespace hrl_clickable_world {
             ba_req.button_type = ""; // TODO fill this in
             ButtonAction::Response ba_resp;
             button_action_srv.call(ba_req, ba_resp);
-            ROS_INFO("ID: %f", button_id);
+            ROS_INFO("PtX: %f, PtY: %f, ID: %f", req.image_click.point.x, req.image_click.point.y, button_id);
+            ROS_INFO("frame_id: %s, stamp: %f, seq: %d", 
+                     req.image_click.header.frame_id.c_str(),
+                     req.image_click.header.stamp.toSec(), req.image_click.header.seq);
             buttons_on = false;
         }
         return true;
