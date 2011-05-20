@@ -43,24 +43,6 @@ from tabletop_pushing.srv import *
 from math import sin, cos, pi
 import sys
 
-OLD_LEFT_ARM_INIT_JOINTS = np.matrix([[1.39060109e-01, 3.65531104e-01,
-                                       1.68462256e+00, -1.97664347e+00,
-                                       2.17482262e+02, -1.41818799e+00,
-                                       -8.64819949e+01]]).T
-OLD_LEFT_ARM_READY_JOINTS = np.matrix([[1.23639478e-01, -1.30025955e-01,
-                                        1.56307360e+00, -1.81768523e+00,
-                                        2.16694211e+02, -1.45799866e+00,
-                                        -8.64421842e+01]]).T
-
-OLD_RIGHT_ARM_INIT_JOINTS = np.matrix([[-1.39060109e-01, 3.65531104e-01,
-                                         -1.68462256e+00, -1.97664347e+00,
-                                         -2.17482262e+02, -1.41818799e+00,
-                                         -8.64819949e+01]]).T
-OLD_RIGHT_ARM_READY_JOINTS = np.matrix([[-1.23639478e-01, -1.30025955e-01,
-                                          -1.56307360e+00, -1.81768523e+00,
-                                          -2.16694211e+02, -1.45799866e+00,
-                                          -8.64421842e+01]]).T
-
 LEFT_ARM_INIT_JOINTS = np.matrix([[7.0e-01, 3.65531104e-01,
                                    1.68462256e+00, -1.97664347e+00,
                                    2.17482262e+02, -1.41818799e+00,
@@ -69,6 +51,10 @@ LEFT_ARM_READY_JOINTS = np.matrix([[5.0e-01, -1.30025955e-01,
                                     1.56307360e+00, -1.81768523e+00,
                                     2.16694211e+02, -1.45799866e+00,
                                     -8.64421842e+01]]).T
+LEFT_ARM_READY_JOINTS = np.matrix([[5.0e-01, -1.30025955e-01,
+                                    1.56307360e+00, -1.81768523e+00,
+                                    2.16694211e+02, -1.45799866e+00,
+                                    0.5*pi]]).T
 
 RIGHT_ARM_INIT_JOINTS = np.matrix([[-7.0e-01, 3.65531104e-01,
                                     -1.68462256e+00, -1.97664347e+00,
@@ -257,7 +243,7 @@ class TabletopPushNode:
         push_arm.set_movement_mode_ik()
         robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
 
-        orientation = tf.transformations.quaternion_from_euler(0.25*pi, 0.0,
+        orientation = tf.transformations.quaternion_from_euler(0.5*pi, 0.0,
                                                                wrist_yaw)
         pose = np.matrix([start_point.x, start_point.y, start_point.z])
         rot = np.matrix([orientation])

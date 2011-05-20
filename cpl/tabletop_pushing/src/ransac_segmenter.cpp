@@ -218,10 +218,10 @@ class Segmenter
       Eigen::Vector4f xyz_centroid;
       pcl::compute3DCentroid(obj_cloud, xyz_centroid);
 
-      if (xyz_centroid[0] < min_x)
+      if (xyz_centroid[0]+abs(xyz_centroid[1]) < min_x)
       {
         close = xyz_centroid;
-        min_x = close[0];
+        min_x = close[0]+abs(close[1]);
       }
     }
     geometry_msgs::PoseStamped p;
