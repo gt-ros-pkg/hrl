@@ -59,15 +59,15 @@ LEFT_ARM_READY_JOINTS = np.matrix([[5.0e-01, -1.30025955e-01,
 RIGHT_ARM_INIT_JOINTS = np.matrix([[-7.0e-01, 3.65531104e-01,
                                     -1.68462256e+00, -2.2,
                                     -2.17482262e+02, -1.41818799e+00,
-                                    -8.64819949e+01]]).T
+                                    8.64421842e+01]]).T
 RIGHT_ARM_MIDDLE_JOINTS = np.matrix([[-7.0e-01, -1.30025955e-01,
                                     -1.56307360e+00, -2.2,
                                     -2.16694211e+02, -1.45799866e+00,
-                                    -8.64421842e+01]]).T
+                                    8.64421842e+01]]).T
 RIGHT_ARM_READY_JOINTS = np.matrix([[-5.0e-01, -1.30025955e-01,
                                     -1.56307360e+00, -1.81768523e+00,
                                     -2.16694211e+02, -1.45799866e+00,
-                                    -8.64421842e+01]]).T
+                                    8.64421842e+01]]).T
 
 
 INIT_POSE_MOVE_THRESH = 0.5
@@ -139,6 +139,52 @@ class TabletopPushNode:
 
         # Choose to move to ready first, if it is closer, then move to init
         # TODO: This could be smarter, i.e., don't move up, then down
+        rospy.loginfo('Moving %s_arm to middle pose' % which_arm)
+        robot_arm.set_pose(middle_joints, nsecs=2.0, block=True)
+        rospy.loginfo('Moved %s_arm to middle pose' % which_arm)
+
+        rospy.loginfo('Moving %s_arm to init pose' % which_arm)
+        robot_arm.set_pose(init_joints, nsecs=2.0, block=True)
+        rospy.loginfo('Moved %s_arm to init pose' % which_arm)
+
+        # TODO: Check to see if the gripper needs to be closed
+        # rospy.loginfo('Opening gripper')
+        # res = robot_gripper.open(block=True)
+        # rospy.loginfo('Gripper status is: ' + str(res))
+
+        rospy.loginfo('Closing %s_gripper' % which_arm)
+        res = robot_gripper.close(block=True)
+        rospy.loginfo('Closed %s_gripper' % which_arm)
+        # rospy.loginfo('Gripper status is: ' + str(res))
+
+    def reset_arm_pose(self, force_ready=False, which_arm='l'):
+        '''
+        Move the arm to the initial pose to be out of the way for viewing the
+        tabletop
+        '''
+        if which_arm == 'l':
+            push_arm = self.left_arm_move
+            robot_arm = self.robot.left
+            robot_gripper = self.robot.left_gripper
+            init_joints = LEFT_ARM_INIT_JOINTS
+            middle_joints = LEFT_ARM_MIDDLE_JOINTS
+            ready_joints = LEFT_ARM_READY_JOINTS
+        else:
+            push_arm = self.right_arm_move
+            robot_arm = self.robot.right
+            robot_gripper = self.robot.right_gripper
+            init_joints = RIGHT_ARM_INIT_JOINTS
+            middle_joints = RIGHT_ARM_MIDDLE_JOINTS
+            ready_joints = RIGHT_ARM_READY_JOINTS
+
+        init_diff = np.linalg.norm(pr2.diff_arm_pose(robot_arm.pose(),
+                                                     init_joints))
+        ready_diff = np.linalg.norm(pr2.diff_arm_pose(robot_arm.pose(),
+                                                      ready_joints))
+        push_arm.set_movement_mode_ik()
+
+        # Choose to move to ready first, if it is closer, then move to init
+        # TODO: This could be smarter, i.e., don't move up, then down
         moved_ready = False
         if force_ready or ready_diff < init_diff:
             if ready_diff > READY_POSE_MOVE_THRESH or force_ready:
@@ -167,9 +213,10 @@ class TabletopPushNode:
         # res = robot_gripper.open(block=True)
         # rospy.loginfo('Gripper status is: ' + str(res))
 
-        rospy.loginfo('Closing gripper')
+        rospy.loginfo('Closing %s_gripper' % which_arm)
         res = robot_gripper.close(block=True)
-        rospy.loginfo('Gripper status is: ' + str(res))
+        rospy.loginfo('Closed %s_gripper' % which_arm)
+        #rospy.loginfo('Gripper status is: ' + str(res))
 
     def gripper_push_action(self, request):
         response = GripperPushResponse()
@@ -227,7 +274,7 @@ class TabletopPushNode:
             stop='pressure', pressure=5000)
         rospy.loginfo('Done moving backwards')
 
-        self.init_arm_pose(force_ready=True)
+        self.reset_arm_pose(True, which_arm)
         response.dist_pushed = push_dist - pos_error
         return response
 
@@ -297,7 +344,7 @@ class TabletopPushNode:
             stop='pressure', pressure=5000)
         rospy.loginfo('Done sweeping outward')
 
-        self.init_arm_pose(force_ready=True)
+        self.reset_arm_pose(True, which_arm)
         response.dist_pushed = push_dist - pos_error
         return response
 

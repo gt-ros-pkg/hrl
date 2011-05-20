@@ -107,7 +107,7 @@ class TabletopExecutive:
 
         # TODO: Correctly pick which arm to use
         push_req.left_arm = True
-        push_req.right_arm = False
+        push_req.right_arm = not push_req.left_arm
 
         # Call push service
         push_res = self.gripper_push_proxy(push_req)
@@ -138,16 +138,22 @@ class TabletopExecutive:
         sweep_req.desired_push_dist = push_dist
 
         # TODO: Correctly pick which arm to use
-        sweep_req.left_arm = True
-        sweep_req.right_arm = False
+        # TODO: Add the push direction here?
+        sweep_req.left_arm = False #True
+        sweep_req.right_arm = not sweep_req.left_arm
+
+        if sweep_req.left_arm:
+            y_offset_dir = +1
+        else:
+            y_offset_dir = -1
 
         # TODO: Flip the sign depending on which arm is chosen
         # TODO: Remove these offsets and incorporate them directly into the perceptual inference
         # Offset pose to not hit the object immediately
         sweep_req.start_point.point.x += (self.sweep_x_offset*cos(wrist_yaw) +
                                           self.sweep_y_offset*sin(wrist_yaw))
-        sweep_req.start_point.point.y += (self.sweep_x_offset*sin(wrist_yaw) +
-                                          self.sweep_y_offset*cos(wrist_yaw))
+        sweep_req.start_point.point.y += y_offset_dir*(
+            self.sweep_x_offset*sin(wrist_yaw) + self.sweep_y_offset*cos(wrist_yaw))
         sweep_req.start_point.point.z += self.sweep_z_offset
 
         # rospy.loginfo('Sweep start point:' + str(sweep_req.start_point.point))
@@ -157,4 +163,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive()
-    node.run(1,1)
+    node.run(0,3)
