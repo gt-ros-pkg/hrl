@@ -104,10 +104,11 @@ class TabletopPushNode:
                                                            self.tf_listener,
                                                            use_slip, use_slip)
             # TODO: Change gains on wrist roll to move faster than others...
-            rospy.loginfo("Changing wrist roll gains")
-            self.left_arm_move.cman.joint_params.default_p[-1] = 600
-            self.left_arm_move.cman.joint_params.default_d[-1] = 10
-            self.left_arm_move.cman.reload_joint_controllers()
+            #rospy.loginfo("Changing wrist roll gains")
+            #self.left_arm_move.cman.joint_params.default_p[-1] = 400
+            #self.left_arm_move.cman.joint_params.default_d[-1] = 10
+            #self.left_arm_move.cman.reload_joint_controllers()
+
             # rospy.loginfo("Setting up right arm move")
             # self.right_arm_move = lm.LinearReactiveMovement('r', self.robot,
             #                                                 self.tf_listener,
@@ -151,16 +152,18 @@ class TabletopPushNode:
 
         # Choose to move to ready first, if it is closer, then move to init
         # TODO: This could be smarter, i.e., don't move up, then down
+        moved_ready = False
         if force_ready or ready_diff < init_diff:
             if ready_diff > READY_POSE_MOVE_THRESH or force_ready:
                 rospy.loginfo('Moving arm to ready pose')
                 robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
                 rospy.loginfo('Moved arm to ready pose')
+                moved_ready = True
             else:
                 rospy.loginfo('Arm in ready pose')
 
         # Test for closeness before moving
-        if init_diff < INIT_POSE_MOVE_THRESH:
+        if not moved_ready and init_diff < INIT_POSE_MOVE_THRESH:
             rospy.loginfo('Arm in init pose')
             rospy.loginfo('init_diff is: '+str(init_diff))
         else:
@@ -169,9 +172,13 @@ class TabletopPushNode:
             rospy.loginfo('Moved arm to init pose')
 
         # TODO: Check to see if the gripper needs to be closed
+        # rospy.loginfo('Opening gripper')
+        # res = robot_gripper.open(block=True)
+        # rospy.loginfo('Gripper status is: ' + str(res))
+
         rospy.loginfo('Closing gripper')
         res = robot_gripper.close(block=True)
-        rospy.logdebug('Gripper status is: ' + str(res))
+        rospy.loginfo('Gripper status is: ' + str(res))
 
     def gripper_push_action(self, request):
         response = GripperPushResponse()
@@ -250,7 +257,7 @@ class TabletopPushNode:
         push_arm.set_movement_mode_ik()
         robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
 
-        orientation = tf.transformations.quaternion_from_euler(0.5*pi, 0.0,
+        orientation = tf.transformations.quaternion_from_euler(0.25*pi, 0.0,
                                                                wrist_yaw)
         pose = np.matrix([start_point.x, start_point.y, start_point.z])
         rot = np.matrix([orientation])
