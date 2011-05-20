@@ -53,9 +53,16 @@ class TabletopExecutive:
         self.gripper_sweep_dist = rospy.get_param('~gripper_sweep_dist',
                                                  0.15)
         self.gripper_x_offset = rospy.get_param('~gripper_push_start_x_offset',
-                                                0.03)
+                                                -0.03)
         self.gripper_z_offset = rospy.get_param('~gripper_push_start_z_offset',
                                                 0.00)
+
+        self.sweep_x_offset = rospy.get_param('~gripper_sweep_start_x_offset',
+                                              0.10)
+        self.sweep_y_offset = rospy.get_param('~gripper_sweep_start_y_offset',
+                                              0.05)
+        self.sweep_z_offset = rospy.get_param('~gripper_sweep_start_z_offset',
+                                              0.04)
 
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',GripperPush)
@@ -94,9 +101,9 @@ class TabletopExecutive:
 
         # TODO: Remove these offsets and incorporate them directly into the perceptual inference
         # Offset pose to not hit the object immediately
-        push_req.start_point.point.x -= self.gripper_x_offset*cos(wrist_yaw)
-        push_req.start_point.point.y -= self.gripper_x_offset*sin(wrist_yaw)
-        push_req.start_point.point.z -= self.gripper_z_offset
+        push_req.start_point.point.x += self.gripper_x_offset*cos(wrist_yaw)
+        push_req.start_point.point.y += self.gripper_x_offset*sin(wrist_yaw)
+        push_req.start_point.point.z += self.gripper_z_offset
 
         # TODO: Correctly pick which arm to use
         push_req.left_arm = True
@@ -123,26 +130,31 @@ class TabletopExecutive:
         sweep_req = GripperPushRequest()
         sweep_req.start_point.header = pose_res.push_pose.header
         sweep_req.start_point.point = pose_res.push_pose.pose.position
-
+        # rospy.loginfo('Push pose point:' + str(sweep_req.start_point.point))
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
         wrist_yaw = 0 # 0.25*pi # 0.5*pi
         sweep_req.wrist_yaw = wrist_yaw
         sweep_req.desired_push_dist = push_dist
 
-        # TODO: Remove these offsets and incorporate them directly into the perceptual inference
-        # Offset pose to not hit the object immediately
-        sweep_req.start_point.point.x -= self.gripper_x_offset*sin(wrist_yaw)
-        sweep_req.start_point.point.y -= self.gripper_x_offset*cos(wrist_yaw)
-        sweep_req.start_point.point.z -= self.gripper_z_offset
-
         # TODO: Correctly pick which arm to use
         sweep_req.left_arm = True
         sweep_req.right_arm = False
+
+        # TODO: Flip the sign depending on which arm is chosen
+        # TODO: Remove these offsets and incorporate them directly into the perceptual inference
+        # Offset pose to not hit the object immediately
+        sweep_req.start_point.point.x += (self.sweep_x_offset*cos(wrist_yaw) +
+                                          self.sweep_y_offset*sin(wrist_yaw))
+        sweep_req.start_point.point.y += (self.sweep_x_offset*sin(wrist_yaw) +
+                                          self.sweep_y_offset*cos(wrist_yaw))
+        sweep_req.start_point.point.z += self.sweep_z_offset
+
+        # rospy.loginfo('Sweep start point:' + str(sweep_req.start_point.point))
 
         # Call push service
         sweep_res = self.gripper_sweep_proxy(sweep_req)
 
 if __name__ == '__main__':
     node = TabletopExecutive()
-    node.run(0,2)
+    node.run(3,2)
