@@ -36,6 +36,7 @@
 #include <hrl_table_detect/DetectTableStart.h>
 #include <hrl_table_detect/DetectTableStop.h>
 #include <hrl_table_detect/DetectTableInst.h>
+#include <hrl_table_detect/SegmentSurfaces.h>
 #include <LinearMath/btMatrix3x3.h>
 #include <LinearMath/btQuaternion.h>
 #include <std_srvs/Empty.h>
@@ -63,21 +64,21 @@ namespace hrl_table_detect {
             void onInit();
             void pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg);
             bool captureCallback(std_srvs::EmptyRequest& req, std_srvs::EmptyResponse& resp);
-            bool surfSegCallback(hrl_table_detect::DetectTableInst::Request& req, 
-                                 hrl_table_detect::DetectTableInst::Response& resp);
+            bool surfSegCallback(hrl_table_detect::SegmentSurfaces::Request& req, 
+                                 hrl_table_detect::SegmentSurfaces::Response& resp);
     };
 
     SurfaceSegmentation::SurfaceSegmentation() {
     }
 
     void SurfaceSegmentation::onInit() {
-        pc_pub = nh.advertise<pcl::PointCloud<PRGB> >("/normal_vis", 1);
-        pc_pub2 = nh.advertise<pcl::PointCloud<PRGB> >("/normal_vis2", 1);
-        pc_pub3 = nh.advertise<pcl::PointCloud<PRGB> >("/normal_vis3", 1);
-        poly_pub = nh.advertise<visualization_msgs::Marker>("/table_hull", 1);
+        pc_pub = nh.advertise<pcl::PointCloud<PRGB> >("normal_vis", 1);
+        pc_pub2 = nh.advertise<pcl::PointCloud<PRGB> >("normal_vis2", 1);
+        pc_pub3 = nh.advertise<pcl::PointCloud<PRGB> >("normal_vis3", 1);
+        poly_pub = nh.advertise<visualization_msgs::Marker>("table_hull", 1);
         pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &SurfaceSegmentation::pcCallback, this);
-        get_pc_srv = nh.advertiseService("/surf_seg_capture_pc", &SurfaceSegmentation::captureCallback, this);
-        get_table_srv = nh.advertiseService("/surf_seg_approaches", &SurfaceSegmentation::surfSegCallback, this);
+        get_pc_srv = nh.advertiseService("surf_seg_capture_pc", &SurfaceSegmentation::captureCallback, this);
+        get_table_srv = nh.advertiseService("segment_surfaces", &SurfaceSegmentation::surfSegCallback, this);
         pc_captured = false; do_capture = false;
         ros::Duration(1.0).sleep();
     }
@@ -106,8 +107,8 @@ namespace hrl_table_detect {
     }
 
     bool SurfaceSegmentation::surfSegCallback(
-                     hrl_table_detect::DetectTableInst::Request& req, 
-                     hrl_table_detect::DetectTableInst::Response& resp) {
+                     hrl_table_detect::SegmentSurfaces::Request& req, 
+                     hrl_table_detect::SegmentSurfaces::Response& resp) {
         double min_z_val = 0.1, max_z_val = 1.5;
         double norm_ang_thresh = 0.7;
         double surf_clust_dist = 0.03, surf_clust_min_size = 50;
@@ -290,6 +291,7 @@ namespace hrl_table_detect {
         hull_poly.points.push_back(hull_poly.points[0]);
         poly_pub.publish(hull_poly);
         accum_pc.points.clear();
+        resp.surfaces.push_back(hull_poly);
         return true;
     }
 

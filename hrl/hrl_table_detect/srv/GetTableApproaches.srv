@@ -1,3 +1,4 @@
-#visualization_msgs/Marker table_hull
+visualization_msgs/Marker table
+geometry_msgs/PointStamped approach_pt
 ---
-geometry_msgs/PoseArray grasp_points
+geometry_msgs/PoseArray approach_poses

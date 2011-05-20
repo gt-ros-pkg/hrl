@@ -105,9 +105,11 @@ namespace hrl_table_detect {
                                    hrl_table_detect::GetTableApproaches::Response& resp) {
         double pose_step = 0.01, start_dist = 0.05, max_dist = 1.0, min_cost = 100;
         double close_thresh = 0.20;
-        //std::vector<geometry_msgs::Point> table_poly = req.table_hull.points;
-        std::vector<geometry_msgs::Point> table_poly;
 
+        // TODO should this be transformed?
+        std::vector<geometry_msgs::Point> table_poly = req.table.points;
+        geometry_msgs::PointStamped approach_pt = req.approach_pt;
+        /*
         double xsize = 1.0, ysize = 1.0, xoff = 2.5, yoff = 0.0;
         geometry_msgs::Point pt; 
         pt.x = xoff-xsize/2; pt.y = yoff-ysize/2;
@@ -122,6 +124,7 @@ namespace hrl_table_detect {
         approach_pt.header.frame_id = "/base_link";
         approach_pt.header.stamp = ros::Time::now();
         approach_pt.point.x = 2.2; approach_pt.point.y = 0.3; 
+        */
 
         costmap_ros->getCostmapCopy(costmap);
         world_model = new base_local_planner::CostmapModel(costmap);
@@ -236,7 +239,7 @@ namespace hrl_table_detect {
                            rem_thresh);
         }
         invalid_pub.publish(downsampled_table_poses);
-
+        resp.approach_poses = downsampled_table_poses;
 
         delete world_model;
         return true;
