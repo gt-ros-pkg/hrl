@@ -107,9 +107,12 @@ class TabletopPushNode:
         self.gripper_sweep_service = rospy.Service('gripper_sweep',
                                                    GripperPush,
                                                    self.gripper_sweep_action)
+        self.overhead_push_service = rospy.Service('overhead_push',
+                                                   GripperPush,
+                                                   self.overhead_push_action)
 
     #
-    # Behavior functions
+    # Arm pose initialization functions
     #
     def init_arm_pose(self, force_ready=False, which_arm='l'):
         '''
@@ -140,7 +143,7 @@ class TabletopPushNode:
         # Choose to move to ready first, if it is closer, then move to init
         # TODO: This could be smarter, i.e., don't move up, then down
         rospy.loginfo('Moving %s_arm to middle pose' % which_arm)
-        robot_arm.set_pose(middle_joints, nsecs=2.0, block=True)
+        robot_arm.set_pose(middle_joints, nsecs=5.0, block=True)
         rospy.loginfo('Moved %s_arm to middle pose' % which_arm)
 
         rospy.loginfo('Moving %s_arm to init pose' % which_arm)
@@ -218,6 +221,9 @@ class TabletopPushNode:
         rospy.loginfo('Closed %s_gripper' % which_arm)
         #rospy.loginfo('Gripper status is: ' + str(res))
 
+    #
+    # Behavior functions
+    #
     def gripper_push_action(self, request):
         response = GripperPushResponse()
         push_frame = request.start_point.header.frame_id
@@ -343,6 +349,66 @@ class TabletopPushNode:
             #'l_wrist_roll_link',
             stop='pressure', pressure=5000)
         rospy.loginfo('Done sweeping outward')
+
+        self.reset_arm_pose(True, which_arm)
+        response.dist_pushed = push_dist - pos_error
+        return response
+
+    def overhead_push_action(self, request):
+        response = GripperPushResponse()
+        push_frame = request.start_point.header.frame_id
+        start_point = request.start_point.point
+        wrist_yaw = request.wrist_yaw
+        push_dist = request.desired_push_dist
+
+        if request.left_arm:
+            push_arm = self.left_arm_move
+            robot_arm = self.robot.left
+            ready_joints = LEFT_ARM_READY_JOINTS
+            middle_joints = LEFT_ARM_MIDDLE_JOINTS
+            which_arm = 'l'
+        else:
+            push_arm = self.right_arm_move
+            robot_arm = self.robot.right
+            ready_joints = RIGHT_ARM_READY_JOINTS
+            middle_joints = RIGHT_ARM_MIDDLE_JOINTS
+            which_arm = 'r'
+
+        # Offset to higher position to miss the table, but were lower to avoid
+        # seeing the arm for now.
+        rospy.loginfo("Moving %s_arm to middle pose" % which_arm)
+        push_arm.set_movement_mode_ik()
+        robot_arm.set_pose(middle_joints, nsecs=2.0, block=True)
+
+        rospy.loginfo("Moving %s_arm to ready pose" % which_arm)
+        push_arm.set_movement_mode_ik()
+        robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
+
+        orientation = tf.transformations.quaternion_from_euler(0.0, 0.5*pi,
+                                                               wrist_yaw)
+        pose = np.matrix([start_point.x, start_point.y, start_point.z])
+        rot = np.matrix([orientation])
+
+        # Move to offset pose
+        loc = [pose, rot]
+        push_arm.set_movement_mode_cart()
+        push_arm.move_absolute(loc, stop='pressure', frame=push_frame)
+        rospy.loginfo('Done moving to start point')
+
+        # Push inward
+        rospy.loginfo('Pushing forward')
+        r, pos_error = push_arm.move_relative_base(
+            np.matrix([push_dist, 0.0, 0.0]).T,
+            #'l_wrist_roll_link',
+            stop='pressure', pressure=5000)
+        rospy.loginfo('Done pushing forward')
+
+        rospy.loginfo('Pushing reverse')
+        push_arm.move_relative_base(
+            np.matrix([(-push_dist + pos_error), 0.0, 0.0]).T,
+            #'l_wrist_roll_link',
+            stop='pressure', pressure=5000)
+        rospy.loginfo('Done pushing reverse')
 
         self.reset_arm_pose(True, which_arm)
         response.dist_pushed = push_dist - pos_error
