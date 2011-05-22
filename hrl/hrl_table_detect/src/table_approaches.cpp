@@ -47,7 +47,7 @@
 #include <nav_core/base_local_planner.h>
 #include <nav_core/base_global_planner.h>
 
-#define DIST(x1,y1,x2,y2) (std::sqrt((x1-x2)*(x1-x2)+(y1-x2)*(y1-y2)))
+#define DIST(x1,y1,x2,y2) (std::sqrt((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)))
 
 using namespace sensor_msgs;
 using namespace std;
@@ -81,13 +81,13 @@ namespace hrl_table_detect {
     }
 
     void TableApproaches::onInit() {
-        table_appr_srv = nh.advertiseService("/detect_table_approaches", &TableApproaches::tableApprCallback, this);
+        table_appr_srv = nh.advertiseService("/table_detection/detect_table_approaches", &TableApproaches::tableApprCallback, this);
         costmap_ros = new costmap_2d::Costmap2DROS("table_costmap", tf_listener);
         traj_planner.initialize("table_traj_planner", &tf_listener, costmap_ros);
         footprint_model = costmap_ros->getRobotFootprint();
-        valid_pub = nh.advertise<geometry_msgs::PoseArray>("/valid_poses", 1);
-        invalid_pub = nh.advertise<geometry_msgs::PoseArray>("/invalid_poses", 1);
-        close_pub = nh.advertise<geometry_msgs::PoseArray>("/close_poses", 1);
+        valid_pub = nh.advertise<geometry_msgs::PoseArray>("valid_poses", 1);
+        invalid_pub = nh.advertise<geometry_msgs::PoseArray>("invalid_poses", 1);
+        close_pub = nh.advertise<geometry_msgs::PoseArray>("close_poses", 1);
         
         //costmap_ros->start();
         ros::Duration(1.0).sleep();
@@ -98,13 +98,15 @@ namespace hrl_table_detect {
     }
 
     bool pose_dist_thresh(geometry_msgs::Pose pose, geometry_msgs::Point pt, double thresh) {
+        ROS_INFO("dist: %f, thresh: %f, val %d", DIST(pose.position.x, pose.position.y, pt.x, pt.y), thresh, DIST(pose.position.x, pose.position.y, pt.x, pt.y) < thresh);
         return DIST(pose.position.x, pose.position.y, pt.x, pt.y) < thresh;
     }
 
     bool TableApproaches::tableApprCallback(hrl_table_detect::GetTableApproaches::Request& req,
                                    hrl_table_detect::GetTableApproaches::Response& resp) {
-        double pose_step = 0.01, start_dist = 0.05, max_dist = 1.0, min_cost = 100;
-        double close_thresh = 0.20;
+        double pose_step = 0.01, start_dist = 0.25, max_dist = 1.2, min_cost = 250;
+        double close_thresh = 0.10;
+
 
         // TODO should this be transformed?
         std::vector<geometry_msgs::Point> table_poly = req.table.points;
@@ -190,7 +192,7 @@ namespace hrl_table_detect {
                     test_pose.header.stamp = ros::Time(0);
                     test_pose.pose.position.x = polyx + incx*k;
                     test_pose.pose.position.y = polyy + incy*k;
-                    test_pose.pose.orientation = tf::createQuaternionMsgFromYaw(ang);
+                    test_pose.pose.orientation = tf::createQuaternionMsgFromYaw(ang+3.14);
                     tf_listener.transformPose("/odom_combined", test_pose, odom_test_pose);
                     Eigen::Vector3f pos(odom_test_pose.pose.position.x, 
                                         odom_test_pose.pose.position.y, 
@@ -216,12 +218,11 @@ namespace hrl_table_detect {
                     dense_table_poses.poses.push_back(test_pose.pose);
             }
         }
+        ROS_INFO("POLY: %d, denseposes: %d", table_poly.size(), dense_table_poses.poses.size());
 
         // downsample and sort dense pose possibilties by distance to
         // approach point and thresholded distance to each other
         geometry_msgs::PoseArray downsampled_table_poses;
-        downsampled_table_poses.header.frame_id = "/base_link";
-        downsampled_table_poses.header.stamp = ros::Time::now();
         boost::function<bool(geometry_msgs::Pose&, geometry_msgs::Pose&)> dist_comp
                           = boost::bind(&pose_dist_comp, _1, _2, approach_pt.point);
         while(ros::ok() && !dense_table_poses.poses.empty()) {
@@ -235,11 +236,18 @@ namespace hrl_table_detect {
             boost::function<bool(geometry_msgs::Pose)> rem_thresh
                           = boost::bind(&pose_dist_thresh, _1, new_pose.position, 
                                         close_thresh);
-            std::remove_if(dense_table_poses.poses.begin(), dense_table_poses.poses.end(),
-                           rem_thresh);
+            dense_table_poses.poses.erase(std::remove_if(
+                                          dense_table_poses.poses.begin(), 
+                                          dense_table_poses.poses.end(),
+                                          rem_thresh),
+                                          dense_table_poses.poses.end());
+            ROS_INFO("denseposes: %d", dense_table_poses.poses.size());
         }
+        downsampled_table_poses.header.frame_id = "/base_link";
+        downsampled_table_poses.header.stamp = ros::Time::now();
         invalid_pub.publish(downsampled_table_poses);
         resp.approach_poses = downsampled_table_poses;
+        ROS_INFO("POLY: %d, poses: %d", table_poly.size(), downsampled_table_poses.poses.size());
 
         delete world_model;
         return true;
