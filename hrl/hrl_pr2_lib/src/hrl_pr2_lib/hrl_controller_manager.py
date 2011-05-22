@@ -204,7 +204,7 @@ class HRLIKUtilities(IKUtilities):
     def bias_guess(self, q, joints_bias, bias_radius):
         if bias_radius == 0.0:
             return q
-        if self.whicharm[0] == 'r':
+        if self.whicharm == 'right':
             max_angs = np.array([.69, 1.33, 0.79, 0.0, 1000000.0, 0.0, 1000000.0])
             min_angs = np.array([-2.27, -.54, -3.9, -2.34, -1000000.0, -2.15, -1000000.0])
         else:

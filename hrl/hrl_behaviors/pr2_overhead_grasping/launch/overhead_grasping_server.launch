@@ -1,41 +1,20 @@
 <launch>
-   <include file="$(find pr2_overhead_grasping)/launch/init_params.launch"/>
    <include file="$(find pr2_overhead_grasping)/launch/simple_grasp_pipeline.launch"/>
-    <node pkg="pr2_overhead_grasping" name="overhead_grasping" type="overhead_grasping.py" args="-s" output="screen"/>
+    <!--<node pkg="pr2_overhead_grasping" name="overhead_grasping" type="overhead_grasping.py" args="-s" output="screen"/>-->
 
-  <node pkg="nodelet" type="nodelet" name="coll_manager"  args="manager" output="screen">
-    <param name="num_worker_threads" type="int" value="5" />
-  </node>
+  <node pkg="pr2_overhead_grasping" type="collision_monitor" name="l_collision_monitor" output="screen" >
+    <param name="arm" type="str" value="l"/>
 
-  <node pkg="nodelet" type="nodelet" name="collision_monitor_r" args="load collision_detection/collision_monitor coll_manager" output="screen">
-    <param name="arm" type="str" value="r"/>
-    <param name="collision_id" type="int" value="1"/>
-
-    <param name="rf_on" type="bool" value="false"/>
-    <param name="sigma_on" type="bool" value="false"/>
-    <param name="error_on" type="bool" value="true"/>
-
-    <param name="rf_thresh" type="int" value="200"/>
-    <param name="rf_buf_len" type="int" value="4"/>
-
-    <param name="sigma_buf_len" type="int" value="4"/>
-    <param name="sigma_thresh" type="double" value="1.5"/>
-    <param name="sigma_num" type="int" value="2"/>
-
+    <!-- RIGHT -->
     <!--<rosparam param="min_errors"> [-0.028, -0.04, -0.04, -0.06, -0.1, -0.02, -0.025] </rosparam>-->
     <!--<rosparam param="max_errors"> [0.03, 0.05, 0.06, 0.06, 0.08, 0.02, 0.025] </rosparam>-->
-    <rosparam param="min_errors"> [-0.060, -0.06, -0.06, -0.08, -0.1, -0.04, -0.050] </rosparam>
-    <rosparam param="max_errors"> [0.06, 0.06, 0.08, 0.08, 0.10, 0.04, 0.050] </rosparam>
+    <!--<rosparam param="min_errors"> [-0.060, -0.06, -0.06, -0.08, -0.1, -0.04, -0.050] </rosparam>-->
+    <!--<rosparam param="max_errors"> [0.06, 0.06, 0.08, 0.08, 0.10, 0.04, 0.050] </rosparam>-->
 
-    <rosparam param="classifier_topics">
-        [r_arm_collision_detect,
-         r_arm_gripper_direct,
-         r_arm_forearm_direct,
-         r_arm_uprarm_direct,
-         r_arm_link_detect,
-         r_arm_collision_detect_late,
-         r_arm_collision_table]
-    </rosparam>
+    <!-- LEFT -->
+    <rosparam param="min_errors"> [-0.06, -0.06, -0.08, -0.08, -0.10, -0.04, -0.05] </rosparam>
+    <rosparam param="max_errors"> [0.06, 0.06, 0.06, 0.08, 0.10, 0.04, 0.05] </rosparam>
+
   </node>                 
 
 </launch>
