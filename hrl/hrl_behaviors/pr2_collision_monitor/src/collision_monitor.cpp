@@ -10,15 +10,15 @@
 #include <std_msgs/Float64.h>
 #include <ros/package.h>
 #include <std_srvs/Empty.h>
-#include "rosbag/bag.h"
-#include "rosbag/view.h"
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
 
-#include <pr2_overhead_grasping/JointErrorData.h>
-#include <pr2_overhead_grasping/CollisionDetectionStart.h>
+#include <pr2_collision_monitor/JointErrorData.h>
+#include <pr2_collision_monitor/CollisionDetectionStart.h>
 
 using namespace std;
 
-namespace pr2_overhead_grasping {
+namespace pr2_collision_monitor {
 
     class CollisionMonitor {
         public:
@@ -313,12 +313,6 @@ namespace pr2_overhead_grasping {
                 }
             }
             behavior_name_list[beh_ind] = err_data_ptr->behavior;
-            /*
-            for(int i=0;i<7;i++) {
-                std::sort(total_min_data[beh_ind][i].begin(), total_min_data[beh_ind][i].end());
-                std::sort(total_max_data[beh_ind][i].begin(), total_max_data[beh_ind][i].end());
-            }
-            */
             beh_ind++;
         }
     }
@@ -331,7 +325,7 @@ namespace pr2_overhead_grasping {
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "collision_monitor", ros::init_options::AnonymousName);
-    pr2_overhead_grasping::CollisionMonitor cm;
+    pr2_collision_monitor::CollisionMonitor cm;
     ros::spin();
     if(cm.isTraining()) 
         cm.writeErrorData();
