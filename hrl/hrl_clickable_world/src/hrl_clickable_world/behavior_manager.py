@@ -78,7 +78,7 @@ class BehaviorManager:
             # update robot state
             if "postconditions" in do_behav:
                 for condition in do_behav["postconditions"]:
-                    self.robot_state[condition] = self.behaviors[name]["postconditions"][condition]
+                    self.robot_state[condition] = do_behav["postconditions"][condition]
 
 def main():
     rospy.init_node('behavior_manager')
