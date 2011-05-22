@@ -1,0 +1,14 @@
+<launch>
+    <rosparam command="load" file="$(find hrl_clickable_behaviors)/params/behavior_types_simple.yaml" ns="clickable_world"/>
+    <node pkg="hrl_clickable_world" type="behavior_manager.py" name="behavior_manager" output="screen">
+    </node>
+    <!--<node pkg="hrl_clickable_world" type="test_button.py" name="test_button" output="screen"/>-->
+    <node pkg="hrl_clickable_world" type="display_manager" name="display_manager" output="screen"/>
+    <node pkg="hrl_clickable_behaviors" type="table_clickable.py" name="table_clickable" output="screen"/>
+    <node pkg="hrl_table_detect" type="surface_segmentation" name="surface_segmentation" output="screen" ns="table_detection"/>
+  <node pkg="hrl_table_detect" name="table_approaches" type="table_approaches" respawn="false" output="screen">
+    <rosparam file="$(find gt_pr2)/navigation/move_base_params.yaml" command="load" />
+    <rosparam file="$(find gt_pr2)/navigation/costmap_common_params.yaml" command="load" ns="table_costmap" />
+    <rosparam file="$(find pr2_navigation_global)/config/local_costmap_params.yaml" command="load" ns="table_costmap"/>
+  </node>
+</launch>

@@ -1,0 +1,21 @@
+<package>
+  <description brief="hrl_clickable_behaviors">
+
+     hrl_clickable_behaviors
+
+  </description>
+  <author>kelsey</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_clickable_behaviors</url>
+  <depend package="rospy"/>
+  <depend package="roscpp"/>
+  <depend package="roslib"/>
+  <depend package="hrl_table_detect"/>
+  <depend package="pr2_overhead_grasping"/>
+  <depend package="hrl_clickable_world"/>
+  <depent package="std_srvs"/>
+
+</package>
+
+
