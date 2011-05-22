@@ -35,7 +35,6 @@ import serial
 import time
 import thread
 import sys, optparse
-import servo_config as sc
 import math
 
 class USB2Dynamixel_Device():
