@@ -104,14 +104,6 @@ servo_param = {
         },
     32: {                        # Conveyor for playpen
         'home_encoder': 1
-        },
-    33: {                        # Travis testing new MX-28's
-        'home_encoder': 0x7FF,
-        'max_encoder': 0xFFF,
-        'rad_per_enc': math.radians(360.0) / 0xFFF, 
-        'max_ang': math.radians(180),
-        'min_ang': math.radians(-180),
-        'max_speed': math.radians(100)
         }
 }
 

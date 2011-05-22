@@ -94,23 +94,39 @@ class USB2Dynamixel_Device():
 class Robotis_Servo():
     ''' Class to use a robotis RX-28 or RX-64 servo.
     '''
-    def __init__(self, USB2Dynamixel, servo_id ):
+    def __init__(self, USB2Dynamixel, servo_id, series = None ):
         ''' USB2Dynamixel - USB2Dynamixel_Device object to handle serial port.
                             Handles threadsafe operation for multiple servos
             servo_id - servo ids connected to USB2Dynamixel 1,2,3,4 ... (1 to 253)
                        [0 is broadcast if memory serves]
+            series - Just a convenience for defining "good" defaults on MX series.
+                     When set to "MX" it uses these values, otherwise it uses values
+                     better for AX / RX series.  Any of the defaults can be overloaded
+                     on a servo-by-servo bases in servo_config.py
         '''
 
         # To change the defaults, load some or all changes into servo_config.py
-        defaults = {
-            'home_encoder': 0x200,
-            'max_encoder': 0x3FF,  # Assumes 0 is min.
-            'rad_per_enc': math.radians(300.0) / 1024.0, 
-            'max_ang': math.radians(148),
-            'min_ang': math.radians(-148),
-            'flipped': False,
-            'max_speed': math.radians(100)
-            }
+        if series == 'MX':
+            defaults = {
+                'home_encoder': 0x7FF,
+                'max_encoder': 0xFFF,
+                'rad_per_enc': math.radians(360.0) / 0xFFF, 
+                'max_ang': math.radians(180),
+                'min_ang': math.radians(-180),
+                'flipped': False,
+                'max_speed': math.radians(100)
+                }
+        else: # Common settings for RX-series.  Can overload in servo_config.py
+            defaults = {
+                'home_encoder': 0x200,
+                'max_encoder': 0x3FF,  # Assumes 0 is min.
+                'rad_per_enc': math.radians(300.0) / 1024.0, 
+                'max_ang': math.radians(148),
+                'min_ang': math.radians(-148),
+                'flipped': False,
+                'max_speed': math.radians(100)
+                }
+                
 
         # Error Checking
         if USB2Dynamixel == None:
@@ -137,9 +153,9 @@ class Robotis_Servo():
             if sc.servo_param.has_key( self.servo_id ):
                 self.settings = sc.servo_param[ self.servo_id ]
             else:
-                raise RuntimeError('')
+                print 'Warning: servo_id ', self.servo_id, ' not found in servo_config.py.  Using defaults.'
         except:
-            print 'servo_config.py not found or servo_id not present.  Applying defaults.'
+            print 'Warning: servo_config.py not found.  Using defaults.'
 
         # Set to default any parameter not specified in servo_config
         for key in defaults.keys():
