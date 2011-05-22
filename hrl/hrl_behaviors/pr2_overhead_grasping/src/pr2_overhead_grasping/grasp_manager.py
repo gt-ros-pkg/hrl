@@ -1,51 +1,14 @@
-import numpy as np, math
-import sys
-import os
-from threading import RLock
-import threading
-import multiprocessing as mp
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-import yaml
-sys.path.append("/usr/lib/python2.6/site-packages")
-#import cv
-#import arff
+import numpy as np
 
 import roslib; roslib.load_manifest('pr2_overhead_grasping')
 import rospy
-
-import actionlib
-import tf
-
 from std_msgs.msg import String, Bool
-from geometry_msgs.msg import  Point, Pose, Quaternion, PoseStamped, PointStamped
 import std_srvs.srv
-
-import hrl_lib.util
-from hrl_lib.rutils import GenericListener
-import hrl_lib.viz as viz
-from hrl_lib import tf_utils
-from hrl_lib.keyboard_input import KeyboardInput
-from hrl_lib.transforms import rotX, rotY, rotZ
 from tf.transformations import *
-from visualization_msgs.msg import MarkerArray, Marker
-import dynamic_reconfigure.client
-from laser_interface.pkg import CURSOR_TOPIC, MOUSE_DOUBLE_CLICK_TOPIC, CURSOR_TOPIC, MOUSE_R_CLICK_TOPIC, MOUSE_R_DOUBLE_CLICK_TOPIC
-import face_detector.msg
-from hrl_pr2_lib.hrl_controller_manager import HRLControllerManager as ControllerManager
-from pr2_controllers_msgs.msg import PointHeadAction, PointHeadGoal, SingleJointPositionAction, SingleJointPositionGoal
-
 import object_manipulator.convert_functions as cf
-from object_manipulator.cluster_bounding_box_finder import ClusterBoundingBoxFinder
-from tabletop_object_detector.srv import TabletopDetection
-from tabletop_object_detector.msg import TabletopDetectionResult
 
-from laser_interface.pkg import CURSOR_TOPIC, MOUSE_DOUBLE_CLICK_TOPIC
-
-from srv import CollisionDetectionStart
-
-#from srv import StartFTDetect
-#from msg import GraspStart
+from hrl_pr2_lib.hrl_controller_manager import HRLControllerManager as ControllerManager
+from pr2_collision_monitor.srv import CollisionDetectionStart
 
 ##
 # Contains functionality for overhead grasping motions, training, and setup.
@@ -72,6 +35,7 @@ class GraspBehavior(object):
             rospy.loginfo("Waiting for %s_stop_detection" % self.arm)
             rospy.wait_for_service(self.arm + '_collision_monitor/stop_detection')
             self.stop_detection = rospy.ServiceProxy(self.arm + '_collision_monitor/stop_detection', std_srvs.srv.Empty, persistent=True)
+            self.stop_detection()
             rospy.Subscriber(self.arm + "_collision_monitor/arm_collision_detected", Bool, self.coll_state.callback)
         rospy.loginfo("[grasp_manager] GraspBehavior loaded.")
 
@@ -197,7 +161,7 @@ class GraspBehavior(object):
 
         if coll_detect:
             self.stop_detection()
-        if self.coll_state.collided and not coll_detect:
+        if self.coll_state.collided and coll_detect:
             grasp_result = "Collision"
         else:
             grasp_result = "No collision"
