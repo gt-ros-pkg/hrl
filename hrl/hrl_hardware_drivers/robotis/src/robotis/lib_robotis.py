@@ -104,6 +104,7 @@ class Robotis_Servo():
         # To change the defaults, load some or all changes into servo_config.py
         defaults = {
             'home_encoder': 0x200,
+            'max_encoder': 0x3FF,  # Assumes 0 is min.
             'rad_per_enc': math.radians(300.0) / 1024.0, 
             'max_ang': math.radians(148),
             'min_ang': math.radians(-148),
@@ -234,6 +235,9 @@ class Robotis_Servo():
     def move_to_encoder(self, n):
         ''' move to encoder position n
         '''
+        # In some border cases, we can end up above/below the encoder limits.
+        #   eg. int(round(math.radians( 180 ) / ( math.radians(360) / 0xFFF ))) + 0x7FF => -1
+        n = min( max( n, 0 ), self.settings['max_encoder'] ) 
         hi,lo = n / 256, n % 256
         return self.write_address( 0x1e, [lo,hi] )
 
