@@ -105,10 +105,10 @@ def main():
         while not rospy.is_shutdown():
             params = og.random_generator()
             print "Grasp Result:", og.perform_grasp(params, is_place=False, collide=True, 
-                                                    behavior_name="overhead_grasp", sig_level=0.999)
+                                                    behavior_name="overhead_grasp", sig_level=0.99)
             params = og.random_generator()
             print "Place Result:", og.perform_grasp(params, is_place=True, collide=True, 
-                                                    behavior_name="overhead_grasp", sig_level=0.999)
+                                                    behavior_name="overhead_grasp", sig_level=0.99)
         return
 
     if sys.argv[2] == "data":
@@ -124,7 +124,7 @@ def main():
     if sys.argv[2] == "server":
         og = OverheadGrasp(sys.argv[1], use_coll_detection=True)
         gbs = GraspBehaviorServer(sys.argv[1], og)
-        gbs.start_grasping_server("overhead_grasp", "overhead_grasp_setup")
+        gbs.start_grasping_server(sys.argv[1] + "_overhead_grasp", sys.argv[1] + "_overhead_grasp_setup")
         rospy.spin()
         return
         

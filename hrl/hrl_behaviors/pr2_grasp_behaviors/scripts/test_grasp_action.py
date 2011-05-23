@@ -10,15 +10,18 @@ from pr2_grasp_behaviors.msg import *
 #from pr2_playpen.srv import *
             
 
-if __name__ == '__main__':
+def main()
     args = sys.argv
     rospy.init_node('test_grasping')
-    grasp_client = actionlib.SimpleActionClient('overhead_grasp', OverheadGraspAction)
+    if args[1] not in ['r', 'l']:
+        print "First arg should be 'r' or 'l'"
+        return
+    grasp_client = actionlib.SimpleActionClient(args[1] + '_overhead_grasp', OverheadGraspAction)
     grasp_client.wait_for_server()
-    grasp_setup_client = actionlib.SimpleActionClient('overhead_grasp_setup', OverheadGraspSetupAction)
+    grasp_setup_client = actionlib.SimpleActionClient(args[1] + '_overhead_grasp_setup', OverheadGraspSetupAction)
     grasp_setup_client.wait_for_server()
     print "grasp_client ready"
-    if args[1] == 'reg_test':
+    if args[2] == 'reg_test':
         results_dict = {}
         obj_in_hand = False
         while not rospy.is_shutdown():
@@ -77,45 +80,8 @@ if __name__ == '__main__':
                 results_dict[result.grasp_result] += 1
                 obj_in_hand = result.grasp_result != "Object placed"
                 print "Last result:", result.grasp_result, "Totals:", results_dict
-    
-    elif args[1] == 'playpen_demo':
-        rospy.wait_for_service('conveyor')
-        conveyor = rospy.ServiceProxy('conveyor', Conveyor)
-        print "conveyor ready"
-        rospy.wait_for_service('playpen')
-        playpen = rospy.ServiceProxy('playpen', Playpen)
-        print "playpen ready"
-        print "waiting for setup"
-        rospy.sleep(20.0)
-        while not rospy.is_shutdown():
-            conveyor(0.10 * 2.)
+        return
+    print "Format: python test_grasp_action.py [r|l] [reg_test]"
 
-            print "Grasp started"
-            goal = OverheadGraspGoal()
-            goal.is_grasp = True
-            goal.grasp_type=OverheadGraspGoal.VISION_GRASP
-            goal.x = 0.5
-            goal.y = 0.0
-            grasp_client.send_goal(goal)
-            grasp_client.wait_for_result()
-            result = grasp_client.get_result()
-            goal = OverheadGraspGoal()
-            goal.is_grasp = False
-            goal.grasp_type=OverheadGraspGoal.MANUAL_GRASP
-            goal.x = 0.5 + random.uniform(-0.1, 0.1)
-            goal.y = 0.0 + random.uniform(-0.1, 0.1)
-            grasp_client.send_goal(goal)
-            grasp_client.wait_for_result()
-            result = grasp_client.get_result()
-
-            # do playpen stuff
-
-            rospy.loginfo("Opening trap door")
-            playpen(1)
-            rospy.sleep(0.2)
-            rospy.loginfo("Closing trap door")
-            playpen(0)
-            rospy.sleep(0.2)
-
-
-
+if __name__ == '__main__':
+    main()

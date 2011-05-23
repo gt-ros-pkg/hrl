@@ -8,12 +8,9 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_table_detection</url>
-  <depend package="pr2_overhead_grasping"/>
-  <depend package="hrl_rfid"/>
   <depend package="rospy"/>
   <depend package="roslaunch"/>
   <depend package="rosnode"/>
-  <depend package="spline_smoother"/>
   <depend package="tf"/>
   <depend package="bullet"/>
   <depend package="pcl_ros"/>
@@ -24,6 +21,7 @@
   <depend package="hrl_cvblobslib" />
   <depend package="nav_core"/>
   <depend package="move_base"/>
+  <depend package="image_geometry" />
 
 
 </package>

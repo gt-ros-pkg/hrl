@@ -30,7 +30,7 @@
 
 import roslib
 roslib.load_manifest('pr2_playpen')
-roslib.load_manifest('pr2_overhead_grasping')
+roslib.load_manifest('pr2_grasping_behaviors')
 import rospy
 import actionlib
 from object_manipulator.convert_functions import *
@@ -62,11 +62,16 @@ class SimplePickAndPlaceExample():
         self.tries = 0
         self.successes = 0
 
-        self.grasp_client = actionlib.SimpleActionClient('overhead_grasp', OverheadGraspAction)
-        self.grasp_client.wait_for_server()
-        self.grasp_setup_client = actionlib.SimpleActionClient('overhead_grasp_setup', OverheadGraspSetupAction)
-        self.grasp_setup_client.wait_for_server()
-
+        self.grasp_client = [None, None]
+        self.grasp_setup_client = [None, None]
+        self.grasp_client[0] = actionlib.SimpleActionClient('r_overhead_grasp', OverheadGraspAction)
+        self.grasp_client[0].wait_for_server()
+        self.grasp_setup_client[0] = actionlib.SimpleActionClient('r_overhead_grasp_setup', OverheadGraspSetupAction)
+        self.grasp_setup_client[0].wait_for_server()
+        self.grasp_client[1] = actionlib.SimpleActionClient('l_overhead_grasp', OverheadGraspAction)
+        self.grasp_client[1].wait_for_server()
+        self.grasp_setup_client[1] = actionlib.SimpleActionClient('l_overhead_grasp_setup', OverheadGraspSetupAction)
+        self.grasp_setup_client[1].wait_for_server()
 
     #pick up the nearest object to PointStamped target_point with whicharm 
     #(0=right, 1=left)
@@ -75,8 +80,8 @@ class SimplePickAndPlaceExample():
         rospy.loginfo("moving the arms to the side")
         setup_goal = OverheadGraspSetupGoal()
         setup_goal.disable_head = True
-        self.grasp_setup_client.send_goal(setup_goal)
-        self.grasp_setup_client.wait_for_result()
+        self.grasp_setup_client[whicharm].send_goal(setup_goal)
+        self.grasp_setup_client[whicharm].wait_for_result()
 
 #############once is it positioned, we don't want to move the head at all !!!#############
 #        rospy.loginfo("pointing the head at the target point")
@@ -99,17 +104,17 @@ class SimplePickAndPlaceExample():
         grasp_goal.sig_level = 0.99
         ############################################################
 
-        self.grasp_client.send_goal(grasp_goal)
-        self.grasp_client.wait_for_result()
-        result = self.grasp_client.get_result()
+        self.grasp_client[whicharm].send_goal(grasp_goal)
+        self.grasp_client[whicharm].wait_for_result()
+        result = self.grasp_client[whicharm].get_result()
         success = (result.grasp_result == "Object grasped")
 
         if success:
             rospy.loginfo("pick-up was successful!  Moving arm to side")
             resetup_goal = OverheadGraspSetupGoal()
             resetup_goal.disable_head = True
-            self.grasp_setup_client.send_goal(resetup_goal)
-            self.grasp_setup_client.wait_for_result()
+            self.grasp_setup_client[whicharm].send_goal(resetup_goal)
+            self.grasp_setup_client[whicharm].wait_for_result()
         else:
             rospy.loginfo("pick-up failed.")
 
@@ -137,9 +142,9 @@ class SimplePickAndPlaceExample():
         grasp_goal.sig_level = 0.99
         ############################################################
 
-        self.grasp_client.send_goal(grasp_goal)
-        self.grasp_client.wait_for_result()
-        result = self.grasp_client.get_result()
+        self.grasp_client[whicharm].send_goal(grasp_goal)
+        self.grasp_client[whicharm].wait_for_result()
+        result = self.grasp_client[whicharm].get_result()
         success = (result.grasp_result == "Object placed")
 
         if success:

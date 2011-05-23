@@ -3,47 +3,21 @@
 #include <ros/ros.h>
 #include <algorithm>
 
-#include "sensor_msgs/PointCloud2.h"
-#include <pcl/features/normal_3d.h>
-#include <pcl/kdtree/kdtree_flann.h>
-#include <pcl/point_types.h>
-#include <pcl_ros/point_cloud.h>
-#include <pcl/point_cloud.h>
-#include <pcl/features/principal_curvatures.h>
-#include <pcl/segmentation/extract_clusters.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl/sample_consensus/method_types.h>
-#include <pcl/sample_consensus/model_types.h>
-#include <pcl/segmentation/sac_segmentation.h>
-#include <pcl/surface/mls.h>
-#include <pcl/surface/convex_hull.h>
-#include <pcl/filters/project_inliers.h>
-#include <pcl/filters/voxel_grid.h>
-
 #include <tf/transform_listener.h>
-#include "pcl_ros/transforms.h"
-#include <boost/make_shared.hpp>
-#include <boost/thread/mutex.hpp>
 #include <cv_bridge/cv_bridge.h>
-#include <opencv/cv.h>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
 #include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/PolygonStamped.h>
 #include <geometry_msgs/Point.h>
 #include <visualization_msgs/Marker.h>
-#include <LinearMath/btMatrix3x3.h>
-#include <LinearMath/btQuaternion.h>
 #include <std_srvs/Empty.h>
-
 #include <std_msgs/Int32.h>
-#include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv/cv.h>
 #include <sensor_msgs/image_encodings.h>
 #include <image_geometry/pinhole_camera_model.h>
+
 #include <hrl_clickable_world/ClickImage.h>
 #include <hrl_clickable_world/DisplayButtons.h>
 #include <hrl_clickable_world/ButtonAction.h>
@@ -156,6 +130,7 @@ namespace hrl_clickable_world {
         */
 
         cv::Size resolution = cam_model.fullResolution();
+        ROS_INFO("W: %d, H: %d", resolution.width, resolution.height);
         button_rastor = cv::Mat::zeros(resolution.width, resolution.height, CV_32F);
         for(uint32_t i=0;i<button_polys.size();i++) 
             delete button_polys[i];

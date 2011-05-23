@@ -72,7 +72,7 @@ class BehaviorManager:
             return
         do_behav = self.behaviors[self.button_types[req.button_id-1]]
         self.action_srvs[do_behav["action_srv"]](req)
-        action_success = True
+        action_success = False
         # TODO use result from action srv
         if action_success:
             # update robot state

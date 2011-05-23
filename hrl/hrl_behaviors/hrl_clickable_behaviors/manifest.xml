@@ -12,7 +12,7 @@
   <depend package="roscpp"/>
   <depend package="roslib"/>
   <depend package="hrl_table_detect"/>
-  <depend package="pr2_overhead_grasping"/>
+  <depend package="pr2_grasp_behaviors"/>
   <depend package="hrl_clickable_world"/>
   <depent package="std_srvs"/>
 

@@ -57,7 +57,7 @@ namespace hrl_table_detect {
         public:
             ros::NodeHandle nh;
             ros::ServiceServer table_appr_srv;
-            ros::Publisher valid_pub, close_pub, invalid_pub;
+            ros::Publisher valid_pub, close_pub, invalid_pub, approach_pub;
             tf::TransformListener tf_listener;
             costmap_2d::Costmap2DROS* costmap_ros;
             base_local_planner::TrajectoryPlannerROS traj_planner;
@@ -82,11 +82,12 @@ namespace hrl_table_detect {
 
     void TableApproaches::onInit() {
         table_appr_srv = nh.advertiseService("/table_detection/detect_table_approaches", &TableApproaches::tableApprCallback, this);
-        costmap_ros = new costmap_2d::Costmap2DROS("table_costmap", tf_listener);
+        costmap_ros = new costmap_2d::Costmap2DROS("local_costmap", tf_listener);
         traj_planner.initialize("table_traj_planner", &tf_listener, costmap_ros);
         footprint_model = costmap_ros->getRobotFootprint();
         valid_pub = nh.advertise<geometry_msgs::PoseArray>("valid_poses", 1);
         invalid_pub = nh.advertise<geometry_msgs::PoseArray>("invalid_poses", 1);
+        approach_pub = nh.advertise<geometry_msgs::PoseArray>("approach_poses", 1);
         close_pub = nh.advertise<geometry_msgs::PoseArray>("close_poses", 1);
         
         //costmap_ros->start();
@@ -166,7 +167,7 @@ namespace hrl_table_detect {
         }
         cout << costmap_ros->getRobotFootprint().size() << endl;
         valid_pub.publish(valid_locs);
-        //invalid_pub.publish(invalid_locs);
+        invalid_pub.publish(invalid_locs);
         close_pub.publish(close_locs);
 
         geometry_msgs::PoseArray dense_table_poses;
@@ -245,7 +246,7 @@ namespace hrl_table_detect {
         }
         downsampled_table_poses.header.frame_id = "/base_link";
         downsampled_table_poses.header.stamp = ros::Time::now();
-        invalid_pub.publish(downsampled_table_poses);
+        approach_pub.publish(downsampled_table_poses);
         resp.approach_poses = downsampled_table_poses;
         ROS_INFO("POLY: %d, poses: %d", table_poly.size(), downsampled_table_poses.poses.size());
 

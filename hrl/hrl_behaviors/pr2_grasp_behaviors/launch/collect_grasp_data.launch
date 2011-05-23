@@ -1,14 +1,19 @@
 <launch>
-   <include file="$(find pr2_grasp_behaviors)/launch/simple_grasp_pipeline.launch"/>
-    <!--<node pkg="pr2_grasp_behaviors" name="overhead_grasping" type="overhead_grasping.py" args="-s" output="screen"/>-->
 
-  <node pkg="pr2_collision_monitor" type="collision_monitor" name="l_collision_monitor" output="screen" >
-    <param name="arm" type="str" value="l"/>
+   <arg name="arm" default="r"/>
+   <include file="$(find pr2_grasp_behaviors)/launch/simple_grasp_pipeline.launch"/>
+
+  <node pkg="pr2_collision_monitor" type="collision_monitor" name="$(arg arm)_collision_monitor" output="screen" >
+    <param name="arm" type="str" value="$(arg arm)"/>
     <param name="training_mode" type="bool" value="true"/>
     <param name="significance_mode" type="bool" value="false"/>
     <param name="behavior_name" type="str" value="overhead_grasp"/>
-    <param name="data_filename" type="str" value="$(find pr2_grasp_behaviors)/data/overhead_grasping_l_data.bag" />
-
+    <param name="data_filename" type="str" value="$(find pr2_grasp_behaviors)/data/overhead_grasping_$(arg arm)_data.bag" />
   </node>                 
+
+  <node pkg="pr2_collision_monitor" name="$(arg arm)_arm_moving_server" type="arm_moving_server" output="screen">
+    <param name="arm" type="str" value="$(arg arm)"/>
+  </node>
+
 
 </launch>
