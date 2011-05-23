@@ -2,11 +2,11 @@
 import random
 import sys
 
-import roslib; roslib.load_manifest("pr2_overhead_grasping")
+import roslib; roslib.load_manifest("pr2_grasp_behaviors")
 import rospy
 import actionlib
 
-from pr2_overhead_grasping.msg import *
+from pr2_grasp_behaviors.msg import *
 #from pr2_playpen.srv import *
             
 

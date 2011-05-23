@@ -4,7 +4,7 @@ import sys
 import numpy as np, math
 import random
 
-import roslib; roslib.load_manifest('pr2_overhead_grasping')
+import roslib; roslib.load_manifest('pr2_grasp_behaviors')
 import rospy
 from tf.transformations import quaternion_about_axis, quaternion_multiply
 

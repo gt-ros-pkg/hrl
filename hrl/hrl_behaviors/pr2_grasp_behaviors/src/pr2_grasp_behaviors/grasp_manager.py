@@ -1,6 +1,6 @@
 import numpy as np
 
-import roslib; roslib.load_manifest('pr2_overhead_grasping')
+import roslib; roslib.load_manifest('pr2_grasp_behaviors')
 import rospy
 from std_msgs.msg import String, Bool
 import std_srvs.srv

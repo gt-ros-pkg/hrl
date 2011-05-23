@@ -3,7 +3,7 @@
 import numpy as np, math
 import sys
 
-import roslib; roslib.load_manifest('pr2_overhead_grasping')
+import roslib; roslib.load_manifest('pr2_grasp_behaviors')
 import rospy
 
 import actionlib
@@ -15,8 +15,8 @@ from object_manipulator.cluster_bounding_box_finder import ClusterBoundingBoxFin
 from tabletop_object_detector.srv import TabletopSegmentation
 from pr2_controllers_msgs.msg import PointHeadAction, PointHeadGoal
 
-from pr2_overhead_grasping.msg import *
-from pr2_overhead_grasping.srv import *
+from pr2_grasp_behaviors.msg import *
+from pr2_grasp_behaviors.srv import *
 
 #from laser_interface.pkg import CURSOR_TOPIC, MOUSE_DOUBLE_CLICK_TOPIC, CURSOR_TOPIC, MOUSE_R_CLICK_TOPIC, MOUSE_R_DOUBLE_CLICK_TOPIC
 
