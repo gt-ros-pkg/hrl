@@ -10,7 +10,7 @@ from pr2_grasp_behaviors.msg import *
 #from pr2_playpen.srv import *
             
 
-def main()
+def main():
     args = sys.argv
     rospy.init_node('test_grasping')
     if args[1] not in ['r', 'l']:
@@ -69,7 +69,7 @@ def main()
                 goal.grasp_params[0] = 0.55 + random.uniform(-0.1, 0.1)
                 goal.grasp_params[1] = 0.0 + random.uniform(-0.2, 0.2)
                 goal.behavior_name = "overhead_grasp"
-                goal.sig_level = 0.99
+                goal.sig_level = 0.995
                 ############################################################
 
                 grasp_client.send_goal(goal)

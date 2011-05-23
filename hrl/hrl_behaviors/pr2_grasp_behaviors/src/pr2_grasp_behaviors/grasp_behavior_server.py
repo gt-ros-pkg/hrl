@@ -273,7 +273,9 @@ class GraspBehaviorServer(object):
         #self.open_gripper(blocking=False)
         if not disable_head:
             self.point_head([0.3, 0.0, -0.3], block=False)
-        self.gman.grasp_preparation_move(blocking=block)
+        self.gman.grasp_preparation_move()
+        if block:
+            self.gman.arm_moving_wait(True, 5.0)
 
     ##
     # Launch actionlib srv calls.

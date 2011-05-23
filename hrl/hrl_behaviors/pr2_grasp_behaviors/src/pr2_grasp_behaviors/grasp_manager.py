@@ -48,7 +48,7 @@ class GraspBehavior(object):
 
     ##
     # Move arm to preparatory pose
-    def grasp_preparation_move(self, blocking):
+    def grasp_preparation_move(self):
         rospy.logerr("UNIMPLEMENTED!")
     ##
     # Move arm to grasp setup, just before approach
