@@ -345,7 +345,8 @@ class LinearReactiveMovement:
 
         #if stop_trigger == 'pressure_safety' or stop_trigger == 'self_collision':
         if stop_trigger == 'pressure_safety':
-            raise RobotSafetyError(stop_trigger)
+            print 'ROBOT SAFETY ERROR'
+            #raise RobotSafetyError(stop_trigger)
         #name = ut.formatted_time() + '_stop_detector.pkl'
         #print 'saved', name
         #ut.save_pickle(stop_detector, name)
@@ -401,7 +402,8 @@ class LinearReactiveMovement:
                 break
 
         if stop_trigger == 'pressure_safety':
-            raise RobotSafetyError(stop_trigger)
+            print 'ROBOT SAFETY ERROR'
+            #raise RobotSafetyError(stop_trigger)
         return stop_trigger
 
     def _check_gripper_event(self):
@@ -455,7 +457,7 @@ class LinearReactiveMovement:
         self.pressure_listener.check_safety_threshold()
         self.collision_monitor.check_self_contacts()
 
-        stop_funcs.append([self.pressure_listener.check_safety_threshold, 'pressure_safety'])
+        #stop_funcs.append([self.pressure_listener.check_safety_threshold, 'pressure_safety'])
         #stop_funcs.append([self.collision_monitor.check_self_contacts, 'self_collision'])
 
         if stop == 'pressure':
