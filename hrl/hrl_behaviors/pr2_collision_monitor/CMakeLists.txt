@@ -25,3 +25,4 @@ rosbuild_genmsg()
 rosbuild_gensrv()
 
 rosbuild_add_executable(collision_monitor src/collision_monitor.cpp)
+rosbuild_add_executable(arm_moving_server src/arm_moving_server.cpp)
