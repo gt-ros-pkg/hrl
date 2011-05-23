@@ -43,7 +43,7 @@ import time
 #import rutils as ru
 
 class AMTIForceServer(threading.Thread):
-    def __init__(self, device_path, id):
+    def __init__(self, device_path, str_id):
         threading.Thread.__init__(self)
         try:
             rospy.init_node('AMTIForceServer')
@@ -53,7 +53,7 @@ class AMTIForceServer(threading.Thread):
         print 'AMTIForceServer: connecting to', device_path
         self.force_plate = af.AMTI_force(device_path)
 
-        name = 'force_torque_' + str(id)
+        name = 'force_torque_' + str_id
         print 'AMTIForceServer: publishing', name, 'with type FloatArray'
         self.channel = rospy.Publisher(name, FloatArray, tcp_nodelay=True)
 
@@ -74,9 +74,11 @@ if __name__ == '__main__':
     p = optparse.OptionParser()
     p.add_option('--path', action='store', default='/dev/robot/force_plate0', type = 'string',
                  dest='path', help='path to force torque device in (linux)')
+    p.add_option('--name', action='store', default='ft1', type='string', 
+                 dest='name', help='name given to FTSensor')
     opt, args = p.parse_args()
 
-    server = AMTIForceServer(opt.path, 0)
+    server = AMTIForceServer(opt.path, opt.name)
     server.broadcast()
 
 

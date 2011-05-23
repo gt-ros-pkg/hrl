@@ -138,8 +138,9 @@ if __name__ == '__main__':
     while not rospy.is_shutdown():
         el = client.read()
         if el != None:
-            print np.linalg.norm(el.T)
-            #print el.A1
+            #print np.linalg.norm(el.T)
+            f = el.A1
+            print ' %.2f %.2f %.2f'%(f[0], f[1], f[2])
         time.sleep(1/100.0)
 
 
