@@ -69,7 +69,7 @@ def main():
                 goal.grasp_params[0] = 0.55 + random.uniform(-0.1, 0.1)
                 goal.grasp_params[1] = 0.0 + random.uniform(-0.2, 0.2)
                 goal.behavior_name = "overhead_grasp"
-                goal.sig_level = 0.995
+                goal.sig_level = 0.9975
                 ############################################################
 
                 grasp_client.send_goal(goal)
