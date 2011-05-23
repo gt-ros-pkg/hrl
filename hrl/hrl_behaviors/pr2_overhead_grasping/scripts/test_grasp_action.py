@@ -8,14 +8,11 @@ import actionlib
 
 from pr2_overhead_grasping.msg import *
 #from pr2_playpen.srv import *
-from hrl_lib.keyboard_input import KeyboardInput
-from pr2_overhead_grasping.helpers import log
             
 
 if __name__ == '__main__':
     args = sys.argv
-    rospy.init_node('do_dishes_client')
-    ki = KeyboardInput()
+    rospy.init_node('test_grasping')
     grasp_client = actionlib.SimpleActionClient('overhead_grasp', OverheadGraspAction)
     grasp_client.wait_for_server()
     grasp_setup_client = actionlib.SimpleActionClient('overhead_grasp_setup', OverheadGraspSetupAction)
@@ -23,7 +20,6 @@ if __name__ == '__main__':
     print "grasp_client ready"
     if args[1] == 'reg_test':
         results_dict = {}
-        ki.kbhit()
         obj_in_hand = False
         while not rospy.is_shutdown():
             goal = OverheadGraspSetupGoal()
@@ -35,11 +31,15 @@ if __name__ == '__main__':
             if not obj_in_hand:
                 print "Grasp started"
                 goal = OverheadGraspGoal()
-                goal.disable_head = False
                 goal.is_grasp = True
+                goal.disable_head = False
+                goal.disable_coll = False
                 goal.grasp_type=OverheadGraspGoal.VISION_GRASP
-                goal.x = 0.5 + random.uniform(-0.1, 0.1)
-                goal.y = 0.0 + random.uniform(-0.1, 0.1)
+                goal.grasp_params = [0] * 3
+                goal.grasp_params[0] = 0.5 + random.uniform(-0.1, 0.1)
+                goal.grasp_params[1] = 0.0 + random.uniform(-0.1, 0.1)
+                goal.behavior_name = "overhead_grasp"
+                goal.sig_level = 0.99
                 grasp_client.send_goal(goal)
                 grasp_client.wait_for_result()
                 result = grasp_client.get_result()
@@ -50,11 +50,15 @@ if __name__ == '__main__':
                 obj_in_hand = result.grasp_result == "Object grasped"
             if obj_in_hand:
                 goal = OverheadGraspGoal()
-                goal.disable_head = False
                 goal.is_grasp = False
+                goal.disable_head = False
+                goal.disable_coll = False
                 goal.grasp_type=OverheadGraspGoal.MANUAL_GRASP
-                goal.x = 0.55 + random.uniform(-0.1, 0.1)
-                goal.y = 0.0 + random.uniform(-0.2, 0.2)
+                goal.grasp_params = [0] * 3
+                goal.grasp_params[0] = 0.55 + random.uniform(-0.1, 0.1)
+                goal.grasp_params[1] = 0.0 + random.uniform(-0.2, 0.2)
+                goal.behavior_name = "overhead_grasp"
+                goal.sig_level = 0.999
                 grasp_client.send_goal(goal)
                 grasp_client.wait_for_result()
                 result = grasp_client.get_result()
@@ -96,10 +100,10 @@ if __name__ == '__main__':
 
             # do playpen stuff
 
-            log("Opening trap door")
+            rospy.loginfo("Opening trap door")
             playpen(1)
             rospy.sleep(0.2)
-            log("Closing trap door")
+            rospy.loginfo("Closing trap door")
             playpen(0)
             rospy.sleep(0.2)
 

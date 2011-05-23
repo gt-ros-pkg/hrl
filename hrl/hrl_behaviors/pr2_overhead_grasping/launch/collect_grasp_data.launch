@@ -5,8 +5,9 @@
   <node pkg="pr2_collision_monitor" type="collision_monitor" name="l_collision_monitor" output="screen" >
     <param name="arm" type="str" value="l"/>
     <param name="training_mode" type="bool" value="true"/>
+    <param name="significance_mode" type="bool" value="false"/>
     <param name="behavior_name" type="str" value="overhead_grasp"/>
-    <param name="data_filename" type="str" value="$(find pr2_overhead_grasping)/data/overhead_grasping_data.bag" />
+    <param name="data_filename" type="str" value="$(find pr2_overhead_grasping)/data/overhead_grasping_l_data.bag" />
 
   </node>                 
 

@@ -15,6 +15,7 @@
   <depend package="std_msgs"/>
   <depend package="std_srvs"/>
   <depend package="pr2_controllers_msgs"/>
+  <depend package="sensor_msgs"/>
 </package>
 
 

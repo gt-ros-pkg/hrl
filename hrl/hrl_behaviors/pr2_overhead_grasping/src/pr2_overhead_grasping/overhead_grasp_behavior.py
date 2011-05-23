@@ -9,6 +9,7 @@ import rospy
 from tf.transformations import quaternion_about_axis, quaternion_multiply
 
 from grasp_manager import GraspBehavior
+from grasp_behavior_server import GraspBehaviorServer
 
 class OverheadGrasp(GraspBehavior):
     def __init__(self, arm, use_coll_detection=False):
@@ -26,7 +27,14 @@ class OverheadGrasp(GraspBehavior):
             for i in [0, 2, 4]:
                 self.JOINTS_BIAS[i] *= -1
 
-    def setup_move(self, params):
+    def grasp_preparation_move(self, blocking):
+        joints = [-0.62734204881265387, -0.34601608409943324, -1.4620635485239604, -1.2729772622637399, -7.5123303230158518, -1.5570651396529178, -5.5929916630672727] 
+        if self.arm == 'l':
+            for i in [0, 2, 4]:
+                joints[i] *= -1
+        self.cm.command_joint_trajectory([joints], max_joint_vel=0.30, blocking=blocking)
+
+    def grasp_setup_move(self, params):
         self.xyr = params
         rospy.loginfo("Moving to grasp position (%1.2f, %1.2f, %1.2f)" % (self.xyr[0], self.xyr[1], self.xyr[2]))
         grasp_pose = self.create_goal_pose(self.xyr[0], self.xyr[1], self.HOVER_Z,
@@ -88,13 +96,12 @@ class OverheadGrasp(GraspBehavior):
 ##
 # Simple functionality and tests
 def main():
-    rospy.init_node("overhead_grasp_test")
-    if len(sys.argv) == 1 or len(sys.argv) > 3:
-        print "Usage: python overhead_grasp_behavior.py [r|l] [test|data]"
+    rospy.init_node("overhead_grasp")
     if sys.argv[1] not in ['r', 'l']:
         print "Must specify arm [r, l]"
+        return
     if sys.argv[2] == "test":
-        og = OverheadGrasp('l', use_coll_detection=True)
+        og = OverheadGrasp(sys.argv[1], use_coll_detection=True)
         while not rospy.is_shutdown():
             params = og.random_generator()
             print "Grasp Result:", og.perform_grasp(params, is_place=False, collide=True, 
@@ -102,11 +109,28 @@ def main():
             params = og.random_generator()
             print "Place Result:", og.perform_grasp(params, is_place=True, collide=True, 
                                                     behavior_name="overhead_grasp", sig_level=0.999)
+        return
+
     if sys.argv[2] == "data":
-        og = OverheadGrasp('l', use_coll_detection=True)
+        og = OverheadGrasp(sys.argv[1], use_coll_detection=True)
+        num_times = 0
         while not rospy.is_shutdown():
             params = og.random_generator()
             og.perform_grasp(params, is_place=False, collide=True, data_collecting=True)
+            rospy.loginfo("Number of grasps performed: %d", num_times)
+            num_times += 1
+        return
+
+    if sys.argv[2] == "server":
+        og = OverheadGrasp(sys.argv[1], use_coll_detection=True)
+        gbs = GraspBehaviorServer(sys.argv[1], og)
+        gbs.start_grasping_server("overhead_grasp", "overhead_grasp_setup")
+        rospy.spin()
+        return
+        
+    print "Usage: python overhead_grasp_behavior.py [r|l] [test|data|server]"
+    print "args:", sys.argv
+    return
 
 if __name__ == "__main__":
     main()

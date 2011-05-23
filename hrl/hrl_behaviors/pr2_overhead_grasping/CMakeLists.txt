@@ -23,5 +23,3 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 rosbuild_genmsg()
 #uncomment if you have defined services
 rosbuild_gensrv()
-
-rosbuild_add_executable(collision_monitor src/collision_monitor.cpp)

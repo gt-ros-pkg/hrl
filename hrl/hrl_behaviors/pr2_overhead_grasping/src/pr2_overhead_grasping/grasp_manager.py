@@ -8,13 +8,12 @@ from tf.transformations import *
 import object_manipulator.convert_functions as cf
 
 from hrl_pr2_lib.hrl_controller_manager import HRLControllerManager as ControllerManager
-from pr2_collision_monitor.srv import CollisionDetectionStart
+from pr2_collision_monitor.srv import CollisionDetectionStart, ArmMovingWait
 
 ##
-# Contains functionality for overhead grasping motions, training, and setup.
-# The primary functionality is contained in collect_grasp_data, which runs
-# empty grasps to train the grasp models, and in perform_grasp, which performs
-# the grasping motion
+# Abstract class for a grasping behavior.  Implements much of the framework for
+# a generic behavior-based grasp and provides virtual template functions for specific
+# behaviors to override.
 class GraspBehavior(object):
     def __init__(self, arm, use_coll_detection=False):
         self.arm = arm
@@ -29,22 +28,31 @@ class GraspBehavior(object):
                 self.collided = True
         self.coll_state = CollisionState()
         if self.use_coll_detection:
-            rospy.loginfo("Waiting for %s_start_detection" % self.arm)
+            rospy.loginfo("Waiting for start_detection")
             rospy.wait_for_service(self.arm + '_collision_monitor/start_detection')
             self.start_detection = rospy.ServiceProxy(self.arm + '_collision_monitor/start_detection', CollisionDetectionStart, persistent=True)
-            rospy.loginfo("Waiting for %s_stop_detection" % self.arm)
+            rospy.loginfo("Waiting for stop_detection")
             rospy.wait_for_service(self.arm + '_collision_monitor/stop_detection')
             self.stop_detection = rospy.ServiceProxy(self.arm + '_collision_monitor/stop_detection', std_srvs.srv.Empty, persistent=True)
             self.stop_detection()
             rospy.Subscriber(self.arm + "_collision_monitor/arm_collision_detected", Bool, self.coll_state.callback)
+
+        rospy.loginfo("Waiting for arm_moving_wait")
+        rospy.wait_for_service(self.arm + '_arm_moving_server/arm_moving_wait')
+        self.arm_moving_wait = rospy.ServiceProxy(self.arm + '_arm_moving_server/arm_moving_wait', ArmMovingWait, persistent=True)
+
         rospy.loginfo("[grasp_manager] GraspBehavior loaded.")
 
     ################################################################################
     # virtual functions to be implemented by specific grasp
 
     ##
-    # Move arm to pre-grasp pose
-    def setup_move(self, params):
+    # Move arm to preparatory pose
+    def grasp_preparation_move(self, blocking):
+        rospy.logerr("UNIMPLEMENTED!")
+    ##
+    # Move arm to grasp setup, just before approach
+    def grasp_setup_move(self, params):
         rospy.logerr("UNIMPLEMENTED!")
     ##
     # Execute the grasping arm motion
@@ -60,6 +68,7 @@ class GraspBehavior(object):
     # which will hopefully find an IK solution.
     def jiggle_grasp_params(self, grasp_params):
         return grasp_params
+
     ################################################################################
 
     ##
@@ -121,7 +130,7 @@ class GraspBehavior(object):
     # Readys arm for grasp motion.
     def stage_grasp(self, grasp_params, open_gripper=True):
         rospy.loginfo("Staging grasp motion")
-        self.setup_move(grasp_params)
+        self.grasp_setup_move(grasp_params)
         if open_gripper:
             # open gripper
             rospy.loginfo("Opening gripper")
@@ -205,7 +214,7 @@ class GraspBehavior(object):
         while not rospy.is_shutdown():
             # Move to grasp position
             self.stage_grasp(grasp_params, not is_place)
-            rospy.sleep(0.1)
+            self.arm_moving_wait(True, 3.0) # Wait for the arm to stop moving
             approach_result = self.grasp_approach_motion(self.use_coll_detection and self.collide,
                                                          behavior_name=behavior_name, 
                                                          sig_level=sig_level)
@@ -241,10 +250,10 @@ class GraspBehavior(object):
         else:
             rospy.loginfo("Pulling arm away")
         self.execute_retreat()
-        rospy.sleep(0.5)
         
         ################################################################################
         # determine return result
+        self.arm_moving_wait(True, 3.0) # Wait for the arm to stop moving
         if approach_result == "Collision":
             if not is_place:
                 if self.is_obj_in_gripper():
