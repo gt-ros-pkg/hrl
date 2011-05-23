@@ -30,6 +30,9 @@ if __name__ == '__main__':
 
             if not obj_in_hand:
                 print "Grasp started"
+
+                ############################################################
+                # Creating grasp goal
                 goal = OverheadGraspGoal()
                 goal.is_grasp = True
                 goal.disable_head = False
@@ -40,6 +43,8 @@ if __name__ == '__main__':
                 goal.grasp_params[1] = 0.0 + random.uniform(-0.1, 0.1)
                 goal.behavior_name = "overhead_grasp"
                 goal.sig_level = 0.99
+                ############################################################
+
                 grasp_client.send_goal(goal)
                 grasp_client.wait_for_result()
                 result = grasp_client.get_result()
@@ -49,6 +54,9 @@ if __name__ == '__main__':
                 print "Last result:", result.grasp_result, "Totals:", results_dict
                 obj_in_hand = result.grasp_result == "Object grasped"
             if obj_in_hand:
+
+                ############################################################
+                # Creating place goal
                 goal = OverheadGraspGoal()
                 goal.is_grasp = False
                 goal.disable_head = False
@@ -59,6 +67,8 @@ if __name__ == '__main__':
                 goal.grasp_params[1] = 0.0 + random.uniform(-0.2, 0.2)
                 goal.behavior_name = "overhead_grasp"
                 goal.sig_level = 0.99
+                ############################################################
+
                 grasp_client.send_goal(goal)
                 grasp_client.wait_for_result()
                 result = grasp_client.get_result()

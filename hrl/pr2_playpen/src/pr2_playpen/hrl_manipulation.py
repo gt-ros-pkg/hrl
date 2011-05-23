@@ -85,12 +85,20 @@ class SimplePickAndPlaceExample():
 #########################################################################################        
 
         rospy.loginfo("picking up the nearest object to the target point")
+        ############################################################
+        # Creating grasp grasp_goal
         grasp_goal = OverheadGraspGoal()
-        grasp_goal.disable_head = True
         grasp_goal.is_grasp = True
-        grasp_goal.grasp_type = OverheadGraspGoal.VISION_GRASP
-        grasp_goal.x = target_point.point.x
-        grasp_goal.y = target_point.point.y
+        grasp_goal.disable_head = True
+        grasp_goal.disable_coll = False
+        grasp_goal.grasp_type=OverheadGraspGoal.VISION_GRASP
+        grasp_goal.grasp_params = [0] * 3
+        grasp_goal.grasp_params[0] = target_point.point.x
+        grasp_goal.grasp_params[1] = target_point.point.y
+        grasp_goal.behavior_name = "overhead_grasp"
+        grasp_goal.sig_level = 0.99
+        ############################################################
+
         self.grasp_client.send_goal(grasp_goal)
         self.grasp_client.wait_for_result()
         result = self.grasp_client.get_result()
@@ -115,13 +123,20 @@ class SimplePickAndPlaceExample():
 
         rospy.loginfo("putting down the object in the r gripper")
 
+        ############################################################
+        # Creating place goal
         grasp_goal = OverheadGraspGoal()
-        grasp_goal.disable_head = True
         grasp_goal.is_grasp = False
-        grasp_goal.grasp_type = OverheadGraspGoal.MANUAL_GRASP
-        grasp_goal.x = place_rect_center.pose.position.x
-        grasp_goal.y = place_rect_center.pose.position.y
-        grasp_goal.rot = 0 
+        grasp_goal.disable_head = True
+        grasp_goal.disable_coll = False
+        grasp_goal.grasp_type=OverheadGraspGoal.MANUAL_GRASP
+        grasp_goal.grasp_params = [0] * 3
+        grasp_goal.grasp_params[0] = place_rect_center.pose.position.x
+        grasp_goal.grasp_params[1] = place_rect_center.pose.position.y
+        grasp_goal.behavior_name = "overhead_grasp"
+        grasp_goal.sig_level = 0.99
+        ############################################################
+
         self.grasp_client.send_goal(grasp_goal)
         self.grasp_client.wait_for_result()
         result = self.grasp_client.get_result()
