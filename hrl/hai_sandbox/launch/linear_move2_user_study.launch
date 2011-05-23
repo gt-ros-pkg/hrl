@@ -1,0 +1,5 @@
+<launch>
+    <node name="learn_from_experience" pkg="hai_sandbox" output="screen" type="linear_move.py" args="--execute --static --user_study">
+        <param name="collision_aware_ik" type="int" value="0"/>
+    </node>
+</launch>
