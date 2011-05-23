@@ -58,7 +58,7 @@ if __name__ == '__main__':
                 goal.grasp_params[0] = 0.55 + random.uniform(-0.1, 0.1)
                 goal.grasp_params[1] = 0.0 + random.uniform(-0.2, 0.2)
                 goal.behavior_name = "overhead_grasp"
-                goal.sig_level = 0.999
+                goal.sig_level = 0.99
                 grasp_client.send_goal(goal)
                 grasp_client.wait_for_result()
                 result = grasp_client.get_result()
