@@ -1,6 +1,8 @@
 <package>
   <description brief="">
-	force_torque
+  Drivers for:
+      1) ATI sensors with the Controller FT system.
+      2) HE 6x6 Force plate from AMTI.
   </description>
   <author>Advait Jain, Cressel Anderson, Hai Nguyen, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>new BSD</license>

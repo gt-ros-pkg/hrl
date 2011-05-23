@@ -127,3 +127,4 @@ def stream_to_values(data):
             ord(data[19])/16 != 9 or ord(data[21])/16 != 10 or ord(data[23])/16 != 11
 
     return COEFF_MAT * val, error
+
