@@ -5,7 +5,7 @@
 
 	<node pkg="UI_segment_object" name="playpen_segment_cloud" type="segment_object" respawn="true" output="screen">
 	      <remap from="/camera/rgb/image_color" to="/playpen_kinect/rgb/image_color" />
-	      <remap from="/camera/depth/points2" to="/playpen_kinect/rgb/points" />
+	      <remap from="/camera/rgb/points" to="/playpen_kinect/rgb/points" />
 	      <remap from="get_object_on_plane" to="playpen_get_object" />
 	      <remap from="get_3D_pt" to="playpen_get_3D_pt" />
 	      <remap from="UI_reset" to="playpen_UI_reset" />
