@@ -21,13 +21,13 @@
   <depend package="pr2_controllers_msgs"/>
   <depend package="move_base_msgs"/>
   <depend package="trajectory_msgs"/>
-  <depend package="actionlib"/>
+  <depend package="actionlib_msgs"/>
   <depend package="pr2_mechanism_msgs"/>
   <depend package="visualization_msgs"/>
   <depend package="kinematics_msgs"/>
   <depend package="hrl_pr2_lib"/>
   <depend package="ml_lib"/>
-  <depend package="actionlib_msgs"/>
+  <depend package="actionlib"/>
   <depend package="planning_environment_msgs"/>
   <depend package="laser_interface"/>
   <depend package="interpolated_ik_motion_planner"/>
