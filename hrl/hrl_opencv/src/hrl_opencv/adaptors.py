@@ -74,3 +74,4 @@ def array2cvmat(a):
     #set data
     cv.SetData(cvmat, a.tostring(), a.dtype.itemsize * a.shape[1])
     return cvmat
+
