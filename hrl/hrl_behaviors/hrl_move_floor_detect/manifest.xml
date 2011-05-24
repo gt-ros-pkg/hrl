@@ -1,0 +1,28 @@
+<package>
+  <description brief="hrl_move_floor_detect">
+
+     hrl_move_floor_detect
+
+  </description>
+  <author>kelsey</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_move_floor_detect</url>
+  <depend package="rospy"/>
+  <depend package="roslaunch"/>
+  <depend package="rosnode"/>
+  <depend package="tf"/>
+  <depend package="bullet"/>
+  <depend package="pcl_ros"/>
+  <depend package="pcl"/>
+  <depend package="opencv2" />
+  <depend package="cv_bridge" />
+  <depend package="image_transport" />
+  <depend package="hrl_cvblobslib" />
+  <depend package="nav_core"/>
+  <depend package="move_base"/>
+  <depend package="image_geometry" />
+
+</package>
+
+
