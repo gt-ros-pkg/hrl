@@ -1,6 +1,6 @@
 <package>
   <description brief="ros_vrpn_client">
-     ROS Node which is a client for Virtual Reality Peripheral
+     ROS node which is a client for Virtual Reality Peripheral
      Networks and publishes a TF frame and TransformStamped for
      tracked bodies.
 
