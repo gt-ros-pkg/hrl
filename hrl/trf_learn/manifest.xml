@@ -11,17 +11,16 @@
 
   <depend package="rospy"/>
   <depend package="laser_interface"/>
-  <depend package="opencv"/>
   <depend package="hrl_lib"/>
   <depend package="feature_extractor_fpfh"/>
-  <depend package="libsvm"/>
+  <depend package="libsvm3"/>
   <depend package="ml_lib"/>
 
   <depend package="geometry_msgs"/>
   <depend package="tf"/>
   <depend package="std_msgs"/>
   <depend package="visualization_msgs"/>
-  <depend package="opencv"/>
+  <depend package="opencv2"/>
   <depend package="hrl_camera"/>
   <depend package="hrl_pr2_lib"/>
   <depend package="dynamic_reconfigure"/>

@@ -1,5 +1,5 @@
 #! /usr/bin/python
-import roslib; roslib.load_manifest('hai_sandbox')
+import roslib; roslib.load_manifest('trf_learn')
 import rospy
 #import hrl_pr2_lib.pr2_kinematics as pk
 
