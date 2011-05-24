@@ -1,0 +1,14 @@
+<launch>
+  <!-- Checks a vx,vy,vtheta and returns the planner/costmap score -->
+  <node pkg="costmap_services" name="costmap_services" type="costmap_services" 
+	ns="approach_table" respawn="false" output="screen">
+    <rosparam file="$(find approach_table)/launch/costmap.yaml" command="load" />
+  </node>
+
+  <!-- Performs approach -->
+  <node pkg="pr2_approach_table" name="approach_services" type="approach_services.py" 
+	args="--ns /approach_table" respawn="false" output="screen">
+    <remap from="approach_cmd_vel" to="/navigation/cmd_vel" />
+  </node>
+
+</launch>

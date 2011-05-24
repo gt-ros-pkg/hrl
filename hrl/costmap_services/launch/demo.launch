@@ -1,0 +1,8 @@
+<launch>
+  <node pkg="costmap_services" name="costmap_services" type="costmap_services" respawn="false" output="screen">
+    <rosparam file="$(find costmap_services)/launch/laser_baseonly.yaml" command="load" />
+  </node>
+
+  <!-- For whatever reason, this node is inaccessible from roslaunch... Run it from cmd to see what it does -->
+  <!-- <node pkg="costmap_services" name="costmap_services_client" type="python_client.py" respawn="false" output="screen" /> -->
+</launch>

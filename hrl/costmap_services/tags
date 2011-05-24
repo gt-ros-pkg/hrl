@@ -1,0 +1,80 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+COSTMAP_SERVICES_COSTMAP_SERVICES_H_	include/costmap_services/costmap_services.h	2;"	d
+CostmapServices	include/costmap_services/costmap_services.h	/^      CostmapServices( std::string name );$/;"	p	class:costmap_services::CostmapServices	access:public	signature:( std::string name )
+CostmapServices	include/costmap_services/costmap_services.h	/^  class CostmapServices {$/;"	c	namespace:costmap_services
+CostmapServices	src/costmap_services.cpp	/^  CostmapServices::CostmapServices( std::string name ) : costmap_ros_("costmap", tf_) {$/;"	f	class:costmap_services::CostmapServices	signature:( std::string name )
+CostmapServices	src/costmap_services/python_client.py	/^class CostmapServices():$/;"	c	inherits:
+GetCost	src/costmap_services/python_client.py	/^from costmap_services.srv import GetCost$/;"	i
+ScoreTraj	src/costmap_services/python_client.py	/^from costmap_services.srv import ScoreTraj$/;"	i
+__init__	src/costmap_services/python_client.py	/^    def __init__( self, accum = 1, ns='' ):$/;"	m	class:CostmapServices	access:public
+cmd_vel_	include/costmap_services/costmap_services.h	/^      geometry_msgs::Twist cmd_vel_;$/;"	m	class:costmap_services::CostmapServices	access:private
+controller_frequency_	include/costmap_services/costmap_services.h	/^      double controller_frequency_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_ros_	include/costmap_services/costmap_services.h	/^      costmap_2d::Costmap2DROS costmap_ros_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services	include/costmap_services/costmap_services.h	/^namespace costmap_services {$/;"	n
+costmap_services	src/costmap_services.cpp	/^namespace costmap_services {$/;"	n	file:
+costmap_services::CostmapServices	include/costmap_services/costmap_services.h	/^  class CostmapServices {$/;"	c	namespace:costmap_services
+costmap_services::CostmapServices::CostmapServices	include/costmap_services/costmap_services.h	/^      CostmapServices( std::string name );$/;"	p	class:costmap_services::CostmapServices	access:public	signature:( std::string name )
+costmap_services::CostmapServices::CostmapServices	src/costmap_services.cpp	/^  CostmapServices::CostmapServices( std::string name ) : costmap_ros_("costmap", tf_) {$/;"	f	class:costmap_services::CostmapServices	signature:( std::string name )
+costmap_services::CostmapServices::cmd_vel_	include/costmap_services/costmap_services.h	/^      geometry_msgs::Twist cmd_vel_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::controller_frequency_	include/costmap_services/costmap_services.h	/^      double controller_frequency_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::costmap_ros_	include/costmap_services/costmap_services.h	/^      costmap_2d::Costmap2DROS costmap_ros_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::costmap_srv_	include/costmap_services/costmap_services.h	/^      ros::ServiceServer costmap_srv_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::getCost	include/costmap_services/costmap_services.h	/^      bool getCost( costmap_services::GetCost::Request  &req,$/;"	p	class:costmap_services::CostmapServices	access:public	signature:( costmap_services::GetCost::Request &req, costmap_services::GetCost::Response &res )
+costmap_services::CostmapServices::getCost	src/costmap_services.cpp	/^  bool CostmapServices::getCost( costmap_services::GetCost::Request  &req,$/;"	f	class:costmap_services::CostmapServices	signature:( costmap_services::GetCost::Request &req, costmap_services::GetCost::Response &res )
+costmap_services::CostmapServices::mutex_	include/costmap_services/costmap_services.h	/^      boost::mutex mutex_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::num_th_samples_	include/costmap_services/costmap_services.h	/^      int num_th_samples_, num_x_samples_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::num_x_samples_	include/costmap_services/costmap_services.h	/^      int num_th_samples_, num_x_samples_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::planner_	include/costmap_services/costmap_services.h	/^      base_local_planner::TrajectoryPlannerROS planner_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::pub_	include/costmap_services/costmap_services.h	/^      ros::Publisher pub_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::pub_score_	include/costmap_services/costmap_services.h	/^      ros::Publisher pub_score_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::scoreTraj	include/costmap_services/costmap_services.h	/^      bool scoreTraj( costmap_services::ScoreTraj::Request  &req,$/;"	p	class:costmap_services::CostmapServices	access:public	signature:( costmap_services::ScoreTraj::Request &req, costmap_services::ScoreTraj::Response &res )
+costmap_services::CostmapServices::scoreTraj	src/costmap_services.cpp	/^  bool CostmapServices::scoreTraj( costmap_services::ScoreTraj::Request  &req,$/;"	f	class:costmap_services::CostmapServices	signature:( costmap_services::ScoreTraj::Request &req, costmap_services::ScoreTraj::Response &res )
+costmap_services::CostmapServices::scoreTraj_srv_	include/costmap_services/costmap_services.h	/^      ros::ServiceServer scoreTraj_srv_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::sub_	include/costmap_services/costmap_services.h	/^      ros::Subscriber sub_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::tf_	include/costmap_services/costmap_services.h	/^      tf::TransformListener tf_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::theta_range_	include/costmap_services/costmap_services.h	/^      double theta_range_;$/;"	m	class:costmap_services::CostmapServices	access:private
+costmap_services::CostmapServices::~CostmapServices	include/costmap_services/costmap_services.h	/^      ~CostmapServices();$/;"	p	class:costmap_services::CostmapServices	access:public	signature:()
+costmap_services::CostmapServices::~CostmapServices	src/costmap_services.cpp	/^  CostmapServices::~CostmapServices(){$/;"	f	class:costmap_services::CostmapServices	signature:()
+costmap_srv_	include/costmap_services/costmap_services.h	/^      ros::ServiceServer costmap_srv_;$/;"	m	class:costmap_services::CostmapServices	access:private
+cs	src/costmap_services/python_client.py	/^    cs = CostmapServices( ns = opt.ns)$/;"	v	class:CostmapServices
+deque	src/costmap_services/python_client.py	/^from collections import deque$/;"	i
+getCost	include/costmap_services/costmap_services.h	/^      bool getCost( costmap_services::GetCost::Request  &req,$/;"	p	class:costmap_services::CostmapServices	access:public	signature:( costmap_services::GetCost::Request &req, costmap_services::GetCost::Response &res )
+getCost	src/costmap_services.cpp	/^  bool CostmapServices::getCost( costmap_services::GetCost::Request  &req,$/;"	f	class:costmap_services::CostmapServices	signature:( costmap_services::GetCost::Request &req, costmap_services::GetCost::Response &res )
+getMapCost	src/costmap_services/python_client.py	/^    def getMapCost( self, x, y ):$/;"	m	class:CostmapServices	access:public
+main	src/costmap_services.cpp	/^int main(int argc, char** argv){$/;"	f	signature:(int argc, char** argv)
+math	src/costmap_services/python_client.py	/^import numpy as np, math$/;"	i
+mutex_	include/costmap_services/costmap_services.h	/^      boost::mutex mutex_;$/;"	m	class:costmap_services::CostmapServices	access:private
+np	src/costmap_services/python_client.py	/^import numpy as np, math$/;"	i
+num_th_samples_	include/costmap_services/costmap_services.h	/^      int num_th_samples_, num_x_samples_;$/;"	m	class:costmap_services::CostmapServices	access:private
+num_x_samples_	include/costmap_services/costmap_services.h	/^      int num_th_samples_, num_x_samples_;$/;"	m	class:costmap_services::CostmapServices	access:private
+optparse	src/costmap_services/python_client.py	/^    import optparse$/;"	i
+p	src/costmap_services/python_client.py	/^    p = optparse.OptionParser()$/;"	v	class:CostmapServices
+planner_	include/costmap_services/costmap_services.h	/^      base_local_planner::TrajectoryPlannerROS planner_;$/;"	m	class:costmap_services::CostmapServices	access:private
+pub_	include/costmap_services/costmap_services.h	/^      ros::Publisher pub_;$/;"	m	class:costmap_services::CostmapServices	access:private
+pub_score_	include/costmap_services/costmap_services.h	/^      ros::Publisher pub_score_;$/;"	m	class:costmap_services::CostmapServices	access:private
+r	src/costmap_services/python_client.py	/^    r = rospy.Rate( 10 )$/;"	v	class:CostmapServices
+res	src/costmap_services/python_client.py	/^    res = [ cs.getMapCost( 0.0, 0.0 ) for i in xrange(trials) ]$/;"	v	class:CostmapServices
+roslib	src/costmap_services/python_client.py	/^import roslib; $/;"	i
+rospy	src/costmap_services/python_client.py	/^import rospy$/;"	i
+rtime	src/costmap_services/python_client.py	/^    rtime = []$/;"	v	class:CostmapServices
+scoreTraj	include/costmap_services/costmap_services.h	/^      bool scoreTraj( costmap_services::ScoreTraj::Request  &req,$/;"	p	class:costmap_services::CostmapServices	access:public	signature:( costmap_services::ScoreTraj::Request &req, costmap_services::ScoreTraj::Response &res )
+scoreTraj	src/costmap_services.cpp	/^  bool CostmapServices::scoreTraj( costmap_services::ScoreTraj::Request  &req,$/;"	f	class:costmap_services::CostmapServices	signature:( costmap_services::ScoreTraj::Request &req, costmap_services::ScoreTraj::Response &res )
+scoreTraj_NegHyst	src/costmap_services/python_client.py	/^    def scoreTraj_NegHyst( self, vx, vy, vtheta ):$/;"	m	class:CostmapServices	access:public
+scoreTraj_PosHyst	src/costmap_services/python_client.py	/^    def scoreTraj_PosHyst( self, vx, vy, vtheta ):$/;"	m	class:CostmapServices	access:public
+scoreTraj_srv_	include/costmap_services/costmap_services.h	/^      ros::ServiceServer scoreTraj_srv_;$/;"	m	class:costmap_services::CostmapServices	access:private
+scoreTrajectory	src/costmap_services/python_client.py	/^    def scoreTrajectory( self, vx, vy, vtheta ):$/;"	m	class:CostmapServices	access:public
+sub_	include/costmap_services/costmap_services.h	/^      ros::Subscriber sub_;$/;"	m	class:costmap_services::CostmapServices	access:private
+t0	src/costmap_services/python_client.py	/^    t0 = time.time()$/;"	v	class:CostmapServices
+t1	src/costmap_services/python_client.py	/^    t1 = time.time()$/;"	v	class:CostmapServices
+tf_	include/costmap_services/costmap_services.h	/^      tf::TransformListener tf_;$/;"	m	class:costmap_services::CostmapServices	access:private
+theta_range_	include/costmap_services/costmap_services.h	/^      double theta_range_;$/;"	m	class:costmap_services::CostmapServices	access:private
+thread	src/costmap_services/python_client.py	/^import thread$/;"	i
+time	src/costmap_services/python_client.py	/^import time$/;"	i
+trials	src/costmap_services/python_client.py	/^    trials = 100$/;"	v	class:CostmapServices
+~CostmapServices	include/costmap_services/costmap_services.h	/^      ~CostmapServices();$/;"	p	class:costmap_services::CostmapServices	access:public	signature:()
+~CostmapServices	src/costmap_services.cpp	/^  CostmapServices::~CostmapServices(){$/;"	f	class:costmap_services::CostmapServices	signature:()
