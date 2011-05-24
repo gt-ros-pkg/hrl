@@ -80,16 +80,24 @@ class TabletopExecutive:
         self.gripper_sweep_proxy = rospy.ServiceProxy('gripper_sweep',GripperPush)
         self.overhead_push_proxy = rospy.ServiceProxy('overhead_push',GripperPush)
 
-    def run(self, num_gripper_pushes, num_sweeps, num_overhead_pushes):
-        for i in xrange(num_gripper_pushes):
-            self.gripper_push_object(self.gripper_push_dist)
-        for i in xrange(num_sweeps):
-            self.sweep_object(2.0*self.gripper_push_dist)
-        for i in xrange(num_overhead_pushes):
-            self.overhead_push_object(self.gripper_push_dist)
+    def run(self,
+            num_l_gripper_pushes, num_l_sweeps, num_l_overhead_pushes,
+            num_r_gripper_pushes, num_r_sweeps, num_r_overhead_pushes):
+        for i in xrange(num_l_gripper_pushes):
+            self.gripper_push_object(self.gripper_push_dist, 'l')
+        for i in xrange(num_r_gripper_pushes):
+            self.gripper_push_object(self.gripper_push_dist, 'r')
+        for i in xrange(num_l_sweeps):
+            self.sweep_object(2.0*self.gripper_push_dist, 'l')
+        for i in xrange(num_r_sweeps):
+            self.sweep_object(2.0*self.gripper_push_dist, 'r')
+        for i in xrange(num_l_overhead_pushes):
+            self.overhead_push_object(self.gripper_push_dist, 'l')
+        for i in xrange(num_r_overhead_pushes):
+            self.overhead_push_object(self.gripper_push_dist, 'r')
 
 
-    def gripper_push_object(self, push_dist):
+    def gripper_push_object(self, push_dist, which_arm):
         # Make push_pose service request
         pose_req = PushPoseRequest()
         pose_req.use_laser = False
@@ -120,13 +128,14 @@ class TabletopExecutive:
         push_req.start_point.point.z += self.gripper_z_offset
 
         # TODO: Correctly pick which arm to use
-        push_req.left_arm = True
+        push_req.left_arm = (which_arm == 'l')
         push_req.right_arm = not push_req.left_arm
 
         # Call push service
+        rospy.loginfo("Calling gripper push service")
         push_res = self.gripper_push_proxy(push_req)
 
-    def sweep_object(self, push_dist):
+    def sweep_object(self, push_dist, which_arm):
         # Make push_pose service request
         pose_req = PushPoseRequest()
         pose_req.use_laser = False
@@ -152,7 +161,7 @@ class TabletopExecutive:
 
         # TODO: Correctly pick which arm to use
         # TODO: Add the push direction here?
-        sweep_req.left_arm = False #True
+        sweep_req.left_arm = (which_arm == 'l')
         sweep_req.right_arm = not sweep_req.left_arm
 
         if sweep_req.left_arm:
@@ -172,9 +181,10 @@ class TabletopExecutive:
         # rospy.loginfo('Sweep start point:' + str(sweep_req.start_point.point))
 
         # Call push service
+        rospy.loginfo("Calling gripper sweep service")
         sweep_res = self.gripper_sweep_proxy(sweep_req)
 
-    def overhead_push_object(self, push_dist):
+    def overhead_push_object(self, push_dist, which_arm):
         # Make push_pose service request
         pose_req = PushPoseRequest()
         pose_req.use_laser = False
@@ -200,7 +210,7 @@ class TabletopExecutive:
 
         # TODO: Correctly pick which arm to use
         # TODO: Add the push direction here?
-        push_req.left_arm = True
+        push_req.left_arm = (which_arm == 'l')
         push_req.right_arm = not push_req.left_arm
 
         if push_req.left_arm:
@@ -221,8 +231,9 @@ class TabletopExecutive:
         # rospy.loginfo('Push start point:' + str(push_req.start_point.point))
 
         # Call push service
+        rospy.loginfo("Calling overhead push service")
         push_res = self.overhead_push_proxy(push_req)
 
 if __name__ == '__main__':
     node = TabletopExecutive()
-    node.run(0,0,1)
+    node.run(1,1,1,1,1,1)
