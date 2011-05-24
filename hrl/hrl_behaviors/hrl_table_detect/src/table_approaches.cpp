@@ -82,7 +82,7 @@ namespace hrl_table_detect {
 
     void TableApproaches::onInit() {
         table_appr_srv = nh.advertiseService("/table_detection/detect_table_approaches", &TableApproaches::tableApprCallback, this);
-        costmap_ros = new costmap_2d::Costmap2DROS("local_costmap", tf_listener);
+        costmap_ros = new costmap_2d::Costmap2DROS("table_costmap", tf_listener);
         traj_planner.initialize("table_traj_planner", &tf_listener, costmap_ros);
         footprint_model = costmap_ros->getRobotFootprint();
         valid_pub = nh.advertise<geometry_msgs::PoseArray>("valid_poses", 1);

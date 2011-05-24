@@ -14,7 +14,10 @@
   <depend package="hrl_table_detect"/>
   <depend package="pr2_grasp_behaviors"/>
   <depend package="hrl_clickable_world"/>
-  <depent package="std_srvs"/>
+  <depend package="std_srvs"/>
+  <depend package="actionlib"/>
+  <depend package="move_base_msgs"/>
+  <depend package="pr2_approach_table"/>
 
 </package>
 
