@@ -1,5 +1,5 @@
 <launch>
-    <node name="learn_from_experience" pkg="trf_learn" output="screen" type="trf_learn.py" args="--practice">
+    <node name="learn_from_experience" pkg="trf_learn" output="screen" type="trf_behavior.py" args="--practice">
         <param name="collision_aware_ik" type="int" value="0"/>
     </node>
 </launch>
