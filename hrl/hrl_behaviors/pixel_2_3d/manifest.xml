@@ -1,0 +1,21 @@
+<package>
+  <description brief="pixel_2_3d">
+
+     pixel_2_3d
+
+  </description>
+  <author>kelsey</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/pixel_2_3d</url>
+  <depend package="roscpp" />
+  <depend package="pcl" />
+  <depend package="image_transport" />
+  <depend package="image_geometry" />
+  <depend package="tf" />
+  <depend package="geometry_msgs" />
+  <depend package="pcl_ros" />
+
+</package>
+
+
