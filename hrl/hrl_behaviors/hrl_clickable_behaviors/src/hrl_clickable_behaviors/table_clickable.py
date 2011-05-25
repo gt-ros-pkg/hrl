@@ -7,8 +7,8 @@ import rospy
 import std_srvs.srv
 import actionlib
 
-from hrl_clickable_world.srv import PerceiveClickables, ButtonAction, DisplayButtons
-from hrl_clickable_world.srv import PerceiveClickablesResponse, ButtonActionResponse
+from hrl_clickable_world.srv import PerceiveButtons, ButtonAction, DisplayButtons
+from hrl_clickable_world.srv import PerceiveButtonsResponse, ButtonActionResponse
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 
@@ -20,7 +20,7 @@ from pr2_approach_table.srv import ApproachSrv
 class TableClickable:
     def __init__(self):
         self.perception_srv = rospy.Service("/clickable_world/table_perception",
-                                            PerceiveClickables,
+                                            PerceiveButtons,
                                             self.do_perception)
         self.percept_pub = rospy.Publisher("/clickable_world/table_button_vis",
                                            Marker)
@@ -49,7 +49,7 @@ class TableClickable:
         self.surfaces = self.table_seg_srv().surfaces
         self.percept_pub.publish(self.surfaces[0])
 
-        resp = PerceiveClickablesResponse()
+        resp = PerceiveButtonsResponse()
         resp.buttons = self.surfaces
         return resp
 
@@ -57,6 +57,7 @@ class TableClickable:
         rospy.loginfo("Table clicked!")
         approach_req = GetTableApproachesRequest()
         approach_req.table = self.surfaces[0]
+        # TODO FIX THIS: TRANSFORM CLICK POINT?
         approach_req.approach_pt = req.click_loc
         approach_poses = self.table_approach_detect_srv(approach_req).approach_poses
 #return ButtonActionResponse()

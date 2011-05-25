@@ -6,15 +6,15 @@ import roslib; roslib.load_manifest('hrl_clickable_world')
 import rospy
 import std_srvs
 
-from hrl_clickable_world.srv import PerceiveClickables, ButtonAction, DisplayButtons
-from hrl_clickable_world.srv import PerceiveClickablesResponse, ButtonActionResponse
+from hrl_clickable_world.srv import PerceiveButtons, ButtonAction, DisplayButtons
+from hrl_clickable_world.srv import PerceiveButtonsResponse, ButtonActionResponse
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 
 class TestButton:
     def __init__(self):
         self.perception_srv = rospy.Service("/clickable_world/test_button_perception",
-                                            PerceiveClickables,
+                                            PerceiveButtons,
                                             self.do_perception)
         self.percept_pub = rospy.Publisher("/clickable_world/test_button_vis",
                                            Marker)
@@ -38,7 +38,7 @@ class TestButton:
             button.points.append(point)
         self.percept_pub.publish(button)
 
-        resp = PerceiveClickablesResponse()
+        resp = PerceiveButtonsResponse()
         resp.buttons.append(button)
         return resp
 

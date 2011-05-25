@@ -1,5 +1,5 @@
 behavior_namespace: "/clickable_world"
-behavior_names: ["table_approach"]
+behavior_names: ["table_approach", "move_floor"]
 #behavior_names: ["test_button"]
 #behavior_names: ["move_floor"]
 init_conditions: {"at_table" : False, "obj_in_hand" : False}
@@ -13,7 +13,7 @@ test_button:
 move_floor:
     preconditions: {"at_table" : False}
     postconditions: {}
-    perception_srv: "/get_empty_floor"
+    perception_srv: "/detect_empty_floor"
     action_srv: "/move_empty_floor"
 
 table_approach:

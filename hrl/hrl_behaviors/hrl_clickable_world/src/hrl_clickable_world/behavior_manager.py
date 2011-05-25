@@ -6,8 +6,8 @@ import roslib; roslib.load_manifest('hrl_clickable_world')
 import rospy
 import std_srvs.srv
 
-from hrl_clickable_world.srv import PerceiveClickables, ButtonAction, DisplayButtons
-from hrl_clickable_world.srv import PerceiveClickablesResponse, ButtonActionResponse
+from hrl_clickable_world.srv import PerceiveButtons, ButtonAction, DisplayButtons
+from hrl_clickable_world.srv import PerceiveButtonsResponse, ButtonActionResponse
 
 NS_PREFIX = "/clickable_world/"
 
@@ -33,7 +33,7 @@ class BehaviorManager:
             if behavior["perception_srv"] not in self.perception_srvs:
                 self.perception_srvs[behavior["perception_srv"]] = rospy.ServiceProxy(
                                     self.srv_prefix + behavior["perception_srv"], 
-                                    PerceiveClickables)
+                                    PerceiveButtons)
             if behavior["action_srv"] not in self.action_srvs:
                 self.action_srvs[behavior["action_srv"]] = rospy.ServiceProxy(
                                     self.srv_prefix + behavior["action_srv"], 

@@ -18,7 +18,6 @@
   <depend package="opencv2" />
   <depend package="cv_bridge" />
   <depend package="image_transport" />
-  <depend package="hrl_cvblobslib" />
   <depend package="nav_core"/>
   <depend package="move_base"/>
   <depend package="image_geometry" />
