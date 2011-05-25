@@ -1,12 +1,13 @@
 import roslib; roslib.load_manifest('trf_learn')
 import rospy
+import functools as ft
 import numpy as np
 import math
-import pdb
-import functools as ft
-
+import time
 import cv
 import tf
+import pdb
+
 import tf.transformations as tr
 import hrl_camera.ros_camera as rc
 import hrl_lib.rutils as ru
@@ -15,7 +16,9 @@ import hrl_lib.util as ut
 import hrl_lib.image3d as i3d
 import hrl_pr2_lib.pr2 as pr2
 import hrl_pr2_lib.linear_move as lm
+import hrl_pr2_lib.linear_move as lm
 import dynamic_reconfigure.client as dr
+import hrl_pr2_lib.devices as hd
 
 def image_diff_val2(before_frame, after_frame):
     br = np.asarray(before_frame)
