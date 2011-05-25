@@ -60,7 +60,6 @@ namespace pixel_2_3d {
 
     void Pixel23dServer::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
         pcl::fromROSMsg(*pc_msg, *cur_pc);
-        pcl_ros::transformPointCloud(cam_model.tfFrame(), *cur_pc, *cur_pc, tf_listener);
     }
 
     double pixDist(cv::Point2d& a, cv::Point2d& b) {
@@ -71,6 +70,7 @@ namespace pixel_2_3d {
     }
     
     bool Pixel23dServer::pixCallback(Pixel23d::Request& req, Pixel23d::Response& resp) {
+        pcl_ros::transformPointCloud(cam_model.tfFrame(), *cur_pc, *cur_pc, tf_listener);
         cv::Point2d img_pix(req.pixel.point.x, req.pixel.point.y);
         std::vector<double> dists;
         for(uint32_t i=0;i<cur_pc->points.size();i++) {
