@@ -11,7 +11,7 @@ test_button:
     action_srv: "/test_button_action"
 
 move_floor:
-    preconditions: {"at_table" : False}
+    preconditions: {} #"at_table" : False}
     postconditions: {}
     perception_srv: "/detect_empty_floor"
     action_srv: "/move_empty_floor"

@@ -18,6 +18,7 @@
   <depend package="actionlib"/>
   <depend package="move_base_msgs"/>
   <depend package="pr2_approach_table"/>
+  <depend package="hrl_move_floor_detect"/>
 
 </package>
 

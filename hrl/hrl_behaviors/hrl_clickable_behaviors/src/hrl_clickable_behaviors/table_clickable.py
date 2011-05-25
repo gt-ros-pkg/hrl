@@ -77,8 +77,6 @@ class TableClickable:
                     print "Table approach failed"
             except rospy.ROSInterruptException:
                 print "Table move failed"
-            return ButtonActionResponse()
-        
         return ButtonActionResponse()
 
 def main():

@@ -28,6 +28,7 @@ namespace hrl_clickable_world {
             ros::ServiceClient display_buttons_srv;
             ros::Publisher pt_pub;
             std::string img_frame;
+            double last_time;
 
             ClickableDisplay();
             ~ClickableDisplay();
@@ -38,7 +39,8 @@ namespace hrl_clickable_world {
 
     };
 
-    ClickableDisplay::ClickableDisplay() : nh_priv("clickable_world"), img_trans(nh) {
+    ClickableDisplay::ClickableDisplay() : nh_priv("clickable_world"), img_trans(nh),
+                                           last_time(0) {
     }
 
     void ClickableDisplay::onInit() {
@@ -86,7 +88,8 @@ namespace hrl_clickable_world {
             click_pt.point.x = x; click_pt.point.y = y;
             this_->pt_pub.publish(click_pt);
         }
-        if(event == CV_EVENT_RBUTTONDOWN) {
+        if(event == CV_EVENT_RBUTTONDOWN && ros::Time::now().toSec() - this_->last_time > 1) {
+            this_->last_time = ros::Time::now().toSec();
             std_srvs::EmptyRequest req; std_srvs::EmptyResponse resp;
             this_->display_buttons_srv.call(req, resp);
         }

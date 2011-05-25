@@ -109,6 +109,7 @@ namespace hrl_table_detect {
     bool SurfaceSegmentation::surfSegCallback(
                      hrl_table_detect::SegmentSurfaces::Request& req, 
                      hrl_table_detect::SegmentSurfaces::Response& resp) {
+        ROS_INFO("AAAAAA");
         double min_z_val = 0.1, max_z_val = 1.5;
         double norm_ang_thresh = 0.7;
         double surf_clust_dist = 0.03, surf_clust_min_size = 50;
@@ -225,7 +226,8 @@ namespace hrl_table_detect {
         pc_filtered_ptr->header.stamp = ros::Time::now();
         pc_filtered_ptr->header.frame_id = base_frame;
         pc_pub2.publish(pc_filtered_ptr);
-
+int yo = 0;
+ROS_INFO("HERE %d", yo++);
         if(surf_models.size() == 0)
             return false;
 
@@ -251,10 +253,12 @@ namespace hrl_table_detect {
             }
             flat_pc.push_back(n_pt);
         }
+ROS_INFO("HERE %d", yo++);
         flat_pc.header.stamp = ros::Time::now();
         flat_pc.header.frame_id = pc_full_frame_ptr->header.frame_id;
         pc_pub3.publish(flat_pc);
 
+ROS_INFO("HERE %d", yo++);
         // project table inliers onto plane model found
         pcl::PointCloud<PRGB>::Ptr table_proj (new pcl::PointCloud<pcl::PointXYZRGB>);
         pcl::ProjectInliers<PRGB> proj_ins;
@@ -263,6 +267,7 @@ namespace hrl_table_detect {
         proj_ins.setModelType(pcl::SACMODEL_PLANE);
         proj_ins.setModelCoefficients(boost::make_shared<pcl::ModelCoefficients>(surf_models[0]));
         proj_ins.filter(*table_proj);
+ROS_INFO("HERE %d", yo++);
 
         // convex hull of largest surface
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_hull (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -271,6 +276,7 @@ namespace hrl_table_detect {
         //convex_hull.setIndices(boost::make_shared<pcl::PointIndices>(surf_clust_list[0]));
         convex_hull.reconstruct(*cloud_hull);
 
+ROS_INFO("HERE %d", yo++);
         // publish table hull polygon
         visualization_msgs::Marker hull_poly;
         hull_poly.type = visualization_msgs::Marker::LINE_STRIP;
@@ -288,10 +294,12 @@ namespace hrl_table_detect {
             n_pt.z = cloud_hull->points[j].z; 
             hull_poly.points.push_back(n_pt);
         }
+ROS_INFO("HERE %d", yo++);
         hull_poly.points.push_back(hull_poly.points[0]);
         poly_pub.publish(hull_poly);
         accum_pc.points.clear();
         resp.surfaces.push_back(hull_poly);
+ROS_INFO("HERE %d", yo++);
         return true;
     }
 

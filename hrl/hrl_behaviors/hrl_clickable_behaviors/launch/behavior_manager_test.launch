@@ -5,9 +5,7 @@
     <rosparam command="load" file="$(find hrl_clickable_behaviors)/params/behavior_types_simple.yaml" ns="clickable_world"/>
     <node pkg="hrl_clickable_world" type="behavior_manager.py" name="behavior_manager" output="screen">
     </node>
-    <!--<node pkg="hrl_clickable_world" type="test_button.py" name="test_button" output="screen"/>-->
     <node pkg="hrl_clickable_world" type="display_manager" name="display_manager" output="screen"/>
-    <node pkg="hrl_clickable_behaviors" type="table_clickable.py" name="table_clickable" output="screen"/>
     <node pkg="hrl_table_detect" type="surface_segmentation" name="surface_segmentation" output="screen" ns="table_detection"/>
   <node pkg="hrl_table_detect" name="table_approaches" type="table_approaches" respawn="true" output="screen">
     <remap from="odom" to="base_odometry/odom" />
@@ -15,4 +13,8 @@
 
     <rosparam file="$(find hrl_table_detect)/params/costmap_parameters.yaml" command="load" />
   </node>
+  <node pkg="hrl_move_floor_detect" type="move_floor_detect" name="move_floor_detect" output="screen" />
+
+    <node pkg="hrl_clickable_behaviors" type="table_clickable.py" name="table_clickable" output="screen"/>
+    <node pkg="hrl_clickable_behaviors" type="move_floor_button.py" name="move_floor_button" output="screen"/>
 </launch>

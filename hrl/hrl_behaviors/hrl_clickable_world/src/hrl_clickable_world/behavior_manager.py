@@ -41,6 +41,7 @@ class BehaviorManager:
             self.behaviors[name] = behavior
 
     def perceive_buttons(self, req):
+        rospy.loginfo("Perceiving buttons")
         self.button_types = []
         cur_button_id = 1
         displayed_buttons = []
@@ -55,6 +56,7 @@ class BehaviorManager:
 
             if preconds_satisfied:
                 # get the buttons for this perception
+                rospy.loginfo("Perceiving buttons for %s" % self.behaviors[name]["perception_srv"])
                 resp = self.perception_srvs[self.behaviors[name]["perception_srv"]]()
                 cur_buttons = resp.buttons
                 for i, button in enumerate(cur_buttons):

@@ -23,6 +23,7 @@
 #include <base_local_planner/world_model.h>
 #include <base_local_planner/costmap_model.h>
 #include <image_geometry/pinhole_camera_model.h>
+#include <sensor_msgs/image_encodings.h>
 
 #include <hrl_move_floor_detect/SegmentFloor.h>
 
