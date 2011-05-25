@@ -41,6 +41,12 @@ UNLABELED = 2.0
 POSITIVE = 1.0
 NEGATIVE = 0.
 
+def separate_by_labels(points, labels):
+    pidx = np.where(labels == POSITIVE)[1].A1.tolist()
+    nidx = np.where(labels == NEGATIVE)[1].A1.tolist()
+    uidx = np.where(labels == UNLABELED)[1].A1.tolist()
+    return points[:, uidx], points[:, pidx], points[:, nidx]
+
 def confusion_matrix(true_labels, predicted):
     posidx = np.where(true_labels == POSITIVE)[1].A1
     negidx = np.where(true_labels == NEGATIVE)[1].A1
