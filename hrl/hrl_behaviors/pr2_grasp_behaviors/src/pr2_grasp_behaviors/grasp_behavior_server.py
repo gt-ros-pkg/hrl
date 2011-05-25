@@ -16,7 +16,6 @@ from tabletop_object_detector.srv import TabletopSegmentation
 from pr2_controllers_msgs.msg import PointHeadAction, PointHeadGoal
 
 from pr2_grasp_behaviors.msg import *
-from pr2_grasp_behaviors.srv import *
 
 #from laser_interface.pkg import CURSOR_TOPIC, MOUSE_DOUBLE_CLICK_TOPIC, CURSOR_TOPIC, MOUSE_R_CLICK_TOPIC, MOUSE_R_DOUBLE_CLICK_TOPIC
 
