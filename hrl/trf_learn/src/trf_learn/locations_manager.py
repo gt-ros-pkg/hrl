@@ -3,6 +3,7 @@ import rospy
 
 import scipy.spatial as sp
 import threading
+import hrl_lib.util as ut
 import shutil
 import visualization_msgs.msg as vm
 import os.path as pt
@@ -11,6 +12,7 @@ import time
 import pdb
 import os
 import trf_learn.recognize_3d as r3d
+import cv
 
 
 class LocationDisplay(threading.Thread):

@@ -328,7 +328,8 @@ class PCAIntensities:
         print 'PCAIntensities: data.shape', data.shape
         if self.intensities_mean != None:
             normed_data = (data_in - self.intensities_mean) / self.intensities_std
-            if not self.is_dataset_far_from_pca_subspace(self.projection_basis.T * normed_data, normed_data):
+            #if not self.is_dataset_far_from_pca_subspace(self.projection_basis.T * normed_data, normed_data):
+            if True:
                 print 'PCAIntensities: is_dataset_far_from_pca_subspace no, dataset is not far.'
                 return
             else:

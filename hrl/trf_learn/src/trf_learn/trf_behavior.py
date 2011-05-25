@@ -9,6 +9,7 @@ import time
 import pdb
 import os
 
+import cv
 import tf
 import tf.transformations as tr
 import laser_interface.laser_client as lc
