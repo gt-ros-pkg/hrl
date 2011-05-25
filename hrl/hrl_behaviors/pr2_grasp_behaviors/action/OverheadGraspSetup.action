@@ -2,6 +2,7 @@
 
 # Goal:
 bool disable_head # don't move head during grasp setup
+bool open_gripper # if True open gripper
 ---
 # Result:
 ---

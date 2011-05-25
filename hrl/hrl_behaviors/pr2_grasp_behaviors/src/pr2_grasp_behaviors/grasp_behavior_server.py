@@ -40,8 +40,12 @@ class GraspBehaviorServer(object):
         DETECT_ERROR = 0.
         cbbf = ClusterBoundingBoxFinder(tf_listener=self.gman.cm.tf_listener)
         object_detector = rospy.ServiceProxy("/object_detection", TabletopSegmentation)
-        detects = object_detector()
-        object_detector.close()
+        try:
+            detects = object_detector()
+            object_detector.close()
+        except ServiceException as se:
+            rospy.logerr("Tabletop segmentation crashed")
+            return []
         if detects.result != 4:
             rospy.logerr("Detection failed (err %d)" % (detects.result))
             return []
@@ -269,8 +273,9 @@ class GraspBehaviorServer(object):
 
     ##
     # Move the arm to a suitable setup position for moving to a grasp position
-    def setup_grasp(self, block = False, disable_head=False):
-        #self.open_gripper(blocking=False)
+    def setup_grasp(self, block = False, disable_head=False, open_gripper=False):
+        if open_gripper:
+            self.open_gripper(blocking=False)
         if not disable_head:
             self.point_head([0.3, 0.0, -0.3], block=False)
         self.gman.grasp_preparation_move()
@@ -293,7 +298,7 @@ class GraspBehaviorServer(object):
     # Wraps setup_grasp
     def execute_grasping_setup(self, goal):
         result = OverheadGraspSetupResult()
-        self.setup_grasp(block=True, disable_head=goal.disable_head)
+        self.setup_grasp(block=True, disable_head=goal.disable_head, open_gripper=goal.open_gripper)
         rospy.loginfo("Finished setup")
         self.setup_server.set_succeeded(result)
 

@@ -27,6 +27,7 @@ def main():
         while not rospy.is_shutdown():
             goal = OverheadGraspSetupGoal()
             #goal.disable_head = True
+            goal.open_gripper = True
             grasp_setup_client.send_goal(goal)
             #grasp_setup_client.wait_for_result()
             rospy.sleep(1.0)
