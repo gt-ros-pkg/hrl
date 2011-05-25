@@ -18,15 +18,14 @@ namespace hrl_clickable_world {
         public:
             ros::NodeHandle nh;
             image_transport::ImageTransport img_trans;
-            image_transport::CameraSubscriber camera_sub;
+            image_transport::Subscriber camera_sub;
             ros::Publisher pt_pub;
             std::string img_frame;
 
             ClickableDisplay();
             ~ClickableDisplay();
             void onInit();
-            void cameraCallback(const sensor_msgs::ImageConstPtr& img_msg,
-                                const sensor_msgs::CameraInfoConstPtr& info_msg);
+            void imgCallback(const sensor_msgs::ImageConstPtr& img_msg);
             static void mouseClickCallback(int event, int x, int y, int flags, void* t);
 
     };
@@ -43,18 +42,17 @@ namespace hrl_clickable_world {
         cv::namedWindow("Clickable World", 0);
         cv::setMouseCallback("Clickable World", &ClickableDisplay::mouseClickCallback, this);
 
-        camera_sub = img_trans.subscribeCamera<ClickableDisplay>
+        camera_sub = img_trans.subscribe<ClickableDisplay>
                                               ("image", 1, 
-                                               &ClickableDisplay::cameraCallback, this);
+                                               &ClickableDisplay::imgCallback, this);
         pt_pub = nh.advertise<geometry_msgs::PointStamped>("mouse_click", 1);
         ROS_INFO("[clickable_display] ClickableDisplay loaded.");
         ros::Duration(1).sleep();
     }
 
-    void ClickableDisplay::cameraCallback(const sensor_msgs::ImageConstPtr& img_msg,
-                                         const sensor_msgs::CameraInfoConstPtr& info_msg) {
+    void ClickableDisplay::imgCallback(const sensor_msgs::ImageConstPtr& img_msg) {
         ROS_INFO("HERE 3");
-        img_frame = info_msg->header.frame_id;
+        img_frame = img_msg->header.frame_id;
         cv_bridge::CvImagePtr cv_ptr;
         try {
             cv_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
