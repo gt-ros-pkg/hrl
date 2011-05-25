@@ -21,7 +21,7 @@
 #include <hrl_clickable_world/ClickImage.h>
 #include <hrl_clickable_world/DisplayButtons.h>
 #include <hrl_clickable_world/ButtonAction.h>
-
+#include <pixel_2_3d/Pixel23d.h>
 
 using namespace std;
 
@@ -31,7 +31,7 @@ namespace hrl_clickable_world {
         public:
             ros::Publisher button_pushed_pub;
             ros::ServiceServer display_buttons_srv, clear_buttons_srv, image_click_srv;
-            ros::ServiceClient button_action_srv;
+            ros::ServiceClient button_action_srv, pixel23d_srv;
             ros::Subscriber image_click_sub;
             ros::NodeHandle nhdl;
             image_transport::ImageTransport img_trans;
@@ -42,10 +42,8 @@ namespace hrl_clickable_world {
 
             bool buttons_on;
             vector<visualization_msgs::Marker> buttons;
-            vector<cv::Point*> button_polys;
-            vector<uint32_t> button_vert_counts;
             vector<uint32_t> button_inds;
-            cv::Mat button_rastor;
+            cv::Mat button_raster;
 
             DisplayManager();
             ~DisplayManager();
@@ -80,28 +78,47 @@ namespace hrl_clickable_world {
         display_buttons_srv = nhdl.advertiseService("display_buttons", 
                                                 &DisplayManager::displayButtonsCB, this);
         button_action_srv = nhdl.serviceClient<ButtonAction>("button_action");
+        pixel23d_srv = nhdl.serviceClient<pixel_2_3d::Pixel23d>("/pixel_2_3d");
         ROS_INFO("[display_manager] DisplayManager loaded.");
     }
 
     void DisplayManager::doOverlay(const sensor_msgs::ImageConstPtr& img_msg,
                                    const sensor_msgs::CameraInfoConstPtr& info_msg) {
-        std::vector<cv::Scalar> button_colors;
-        button_colors.push_back(CV_RGB(0, 255, 255)); 
-        button_colors.push_back(CV_RGB(255, 0, 0)); 
-        button_colors.push_back(CV_RGB(0, 255, 0)); 
-        button_colors.push_back(CV_RGB(0, 0, 255)); 
 
+        // convert camera image into opencv
         cam_model.fromCameraInfo(info_msg);
         cv_bridge::CvImagePtr cv_img = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::RGB8);
-        if(buttons_on) {
-            for(uint32_t i=0;i<button_polys.size();i++) {
-                cv::Point** pts_list = new cv::Point*[1];
-                pts_list[0] = button_polys[i];
-                int* npts = new int[1]; npts[0] = button_vert_counts[i];
-                cv::polylines(cv_img->image, (const cv::Point**) pts_list, npts, 
-                              1, 1, button_colors[button_inds[i]], 2);
-                delete[] pts_list;
+        if(!buttons_on) {
+            // buttons turned off so we don't do anything to the image
+            overlay_pub.publish(cv_img->toImageMsg());
+            return;
+        }
+
+        cv::Size resolution = cam_model.fullResolution();
+        button_raster = cv::Mat::zeros(resolution.width, resolution.height, CV_32F);
+        for(uint32_t i=0;i<buttons.size();i++) {
+            visualization_msgs::Marker button = buttons[i];
+            cv::Scalar color = CV_RGB(button.color.r, button.color.g, button.color.b);
+
+            // project polygon onto image
+            cv::Point* cv_poly = new cv::Point[button.points.size()];
+            for(uint32_t j=0;j<button.points.size();j++) {
+                geometry_msgs::PointStamped cur_pt, proj_pt;
+                cur_pt.header = button.header; cur_pt.point = button.points[j];
+                cur_pt.header.stamp = ros::Time(0);
+                tf_listener.transformPoint(cam_model.tfFrame(), cur_pt, proj_pt);
+                cv::Point3d proj_pt_cv(proj_pt.point.x, proj_pt.point.y, proj_pt.point.z);
+                cv_poly[j] = cam_model.project3dToPixel(proj_pt_cv);
             }
+
+            // fill a raster image with this button
+            const cv::Point** cv_poly_list = new const cv::Point*[1]; 
+            cv_poly_list[0] = cv_poly;
+            int* npts = new int[1]; npts[0] = button.points.size();
+            cv::fillPoly(button_raster, cv_poly_list, npts, 1, cv::Scalar(i+1));
+            // etch polygon on image
+            cv::polylines(cv_img->image, cv_poly_list, npts, 1, 1, color, 2);
+            delete[] npts; delete[] cv_poly; delete[] cv_poly_list;
         }
         overlay_pub.publish(cv_img->toImageMsg());
     }
@@ -113,66 +130,38 @@ namespace hrl_clickable_world {
     
     void DisplayManager::imageClickCB(const geometry_msgs::PointStamped& image_click) {
         if(buttons_on) {
+            buttons_on = false;
             //figure out which button was clicked on
-            float button_id = button_rastor.at<float>(image_click.point.y, 
+            float button_id = button_raster.at<float>(image_click.point.y, 
                                                       image_click.point.x);
-            ButtonAction::Request ba_req;
-            ba_req.click_loc = image_click;
-            ba_req.button_id = button_id;
-            ba_req.button_type = ""; // TODO fill this in
-            ButtonAction::Response ba_resp;
-            button_action_srv.call(ba_req, ba_resp);
-            ROS_INFO("[display_manager] PtX: %f, PtY: %f, ID: %f", 
+            ROS_INFO("[display_manager] Image click recieved: (Pix_X: %f, Pix_Y: %f, ID: %f)", 
                                                  image_click.point.x, image_click.point.y, 
                                                  button_id);
-            ROS_INFO("[display_manager] frame_id: %s, stamp: %f, seq: %d", 
-                     image_click.header.frame_id.c_str(),
-                     image_click.header.stamp.toSec(), image_click.header.seq);
-            buttons_on = false;
+            // Make button action given known information about button press.
+            ButtonAction::Request ba_req;
+            ba_req.pixel_x = image_click.point.x; ba_req.pixel_y = image_click.point.y;
+            ba_req.camera_frame = cam_model.tfFrame();
+            ba_req.button_id = buttons[button_id].id;
+            ba_req.button_type = buttons[button_id].id; 
+            pixel_2_3d::Pixel23d::Request p3d_req; pixel_2_3d::Pixel23d::Response p3d_resp;
+            pixel23d_srv.call(p3d_req, p3d_resp);
+            ba_req.pixel3d.header.frame_id = p3d_resp.pixel3d.header.frame_id;
+            ba_req.pixel3d.header.stamp = p3d_resp.pixel3d.header.stamp;
+            ba_req.pixel3d.point.x = p3d_resp.pixel3d.point.x;
+            ba_req.pixel3d.point.y = p3d_resp.pixel3d.point.y;
+            ba_req.pixel3d.point.z = p3d_resp.pixel3d.point.z;
+            ButtonAction::Response ba_resp;
+            button_action_srv.call(ba_req, ba_resp);
         }
     }
 
+    /**
+     * Displays bu
+     *
+     */
     bool DisplayManager::displayButtonsCB(DisplayButtons::Request& req, 
                                           DisplayButtons::Response& resp) {
-        /*
-        std::vector<std::string> button_types;
-        button_types.push_back("face"); button_types.push_back("object"); 
-        button_types.push_back("table"); button_types.push_back("floor"); 
-        */
-
-        cv::Size resolution = cam_model.fullResolution();
-        button_rastor = cv::Mat::zeros(resolution.width, resolution.height, CV_32F);
-        for(uint32_t i=0;i<button_polys.size();i++) 
-            delete button_polys[i];
-        button_polys.clear();
-        button_vert_counts.clear();
-        for(uint32_t i=0;i<req.buttons.size();i++) {
-            visualization_msgs::Marker button = req.buttons[i];
-            /*
-            uint32_t type_ind = std::find(button_types.begin(), button_types.end(), 
-                                          button.ns) - button_types.begin();
-            if(type_ind == button_types.size()) {
-                ROS_ERROR("Button type %s unknown", button.ns);
-                return false;
-            }
-            */
-            uint32_t type_ind = 0;
-
-            cv::Point* cv_poly = new cv::Point[button.points.size()];
-            for(uint32_t j=0;j<button.points.size();j++) {
-                geometry_msgs::PointStamped cur_pt, proj_pt;
-                cur_pt.header = button.header; cur_pt.point = button.points[j];
-                cur_pt.header.stamp = ros::Time(0);
-                tf_listener.transformPoint(cam_model.tfFrame(), cur_pt, proj_pt);
-                cv::Point3d proj_pt_cv(proj_pt.point.x, proj_pt.point.y, proj_pt.point.z);
-                cv_poly[j] = cam_model.project3dToPixel(proj_pt_cv);
-            }
-            button_polys.push_back(cv_poly);
-            button_vert_counts.push_back(button.points.size());
-            button_inds.push_back(type_ind);
-            cv::fillConvexPoly(button_rastor, cv_poly, button.points.size(), 
-                               cv::Scalar(button.id));
-        }
+        buttons = req.buttons;
         buttons_on = true;
         return true;
     }

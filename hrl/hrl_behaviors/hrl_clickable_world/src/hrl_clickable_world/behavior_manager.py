@@ -8,6 +8,7 @@ import std_srvs.srv
 
 from hrl_clickable_world.srv import PerceiveButtons, ButtonAction, DisplayButtons
 from hrl_clickable_world.srv import PerceiveButtonsResponse, ButtonActionResponse
+from pixel_2_3d.srv import Pixel23d
 
 NS_PREFIX = "/clickable_world/"
 
@@ -24,6 +25,8 @@ class BehaviorManager:
         self.button_action_srv = rospy.Service(NS_PREFIX + "button_action",
                                                ButtonAction,
                                                self.on_button_press)
+        self.pixel_2_3d_srv = rospy.ServiceProxy("/pixel_2_3d",
+                                                      Pixel23d)
         self.behaviors = {}
         self.perception_srvs = {}
         self.action_srvs = {}

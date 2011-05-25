@@ -21,6 +21,7 @@
   <depend package="image_transport"/>
   <depend package="tf"/>
   <depend package="opencv2"/>
+  <depend package="pixel_2_3d"/>
 
 </package>
 

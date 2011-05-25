@@ -9,7 +9,7 @@
        <param name="collision_aware_ik" value="0"/>
    </node>
 
-    <node pkg="tabletop_object_detector" name="tabletop_node" type="tabletop_segmentation" respawn="false" output="screen">
+    <node pkg="tabletop_object_detector" name="tabletop_node" type="tabletop_segmentation" respawn="true" output="screen">
 
     <!-- which debug markers will be published-->
         <param name="publish_table_marker" value="true" />
@@ -23,6 +23,7 @@
         <remap from="markers_out" to="tabletop_detector_markers" />
 
     <param name="cluster_distance" value="0.01" />
+    <param name="min_cluster_size" value="250" />
 
     <!-- processing and filtering frame -->
     <!-- remove this entire block and processing and filtering will -->
