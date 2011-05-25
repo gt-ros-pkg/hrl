@@ -12,6 +12,11 @@
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
 
+#ifdef HAVE_GTK
+#include <gtk/gtk.h>
+static void destroyNode(GtkWidget *widget, gpointer data) { exit(0); }
+#endif
+
 namespace hrl_clickable_world {
 
     class ClickableDisplay {
@@ -39,8 +44,13 @@ namespace hrl_clickable_world {
     }
 
     void ClickableDisplay::onInit() {
-        cv::namedWindow("Clickable World", 0);
+        cv::namedWindow("Clickable World", 1);
         cv::setMouseCallback("Clickable World", &ClickableDisplay::mouseClickCallback, this);
+
+#ifdef HAVE_GTK
+        GtkWidge *widget = GTK_WIDGET(cvGetWindowHandle("Clickable World"));
+        g_signal_connect(widget, "destroy", G_CALLBACK(destroyNode), NULL);
+#endif
 
         camera_sub = img_trans.subscribe<ClickableDisplay>
                                               ("image", 1, 
@@ -51,13 +61,12 @@ namespace hrl_clickable_world {
     }
 
     void ClickableDisplay::imgCallback(const sensor_msgs::ImageConstPtr& img_msg) {
-        ROS_INFO("HERE 3");
         img_frame = img_msg->header.frame_id;
         cv_bridge::CvImagePtr cv_ptr;
         try {
             cv_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
             cv::imshow("Clickable World", cv_ptr->image);
-            ROS_INFO("HERE 5");
+            cv::waitKey(3);
         }
         catch(cv_bridge::Exception& e) {
             ROS_ERROR("[clickable_display] cv_bridge exception: %s", e.what());
@@ -67,7 +76,6 @@ namespace hrl_clickable_world {
 
     void ClickableDisplay::mouseClickCallback(int event, int x, int y, int flags, void* param) {
         ClickableDisplay* this_ = reinterpret_cast<ClickableDisplay*>(param);
-        printf("HERE 444");
         if(event == CV_EVENT_LBUTTONDOWN) {
             geometry_msgs::PointStamped click_pt;
             click_pt.header.frame_id = this_->img_frame;
