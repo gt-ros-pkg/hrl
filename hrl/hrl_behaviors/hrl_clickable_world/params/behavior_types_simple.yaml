@@ -1,6 +1,5 @@
 behavior_namespace: "/clickable_world"
 behavior_names: ["test_button"]
-#behavior_names: ["move_floor"]
 init_conditions: {"at_table" : False, "obj_in_hand" : False}
 
 test_button:

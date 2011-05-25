@@ -32,6 +32,7 @@ namespace hrl_clickable_world {
             ros::Publisher button_pushed_pub;
             ros::ServiceServer display_buttons_srv, clear_buttons_srv, image_click_srv;
             ros::ServiceClient button_action_srv;
+            ros::Subscriber image_click_sub;
             ros::NodeHandle nhdl;
             image_transport::ImageTransport img_trans;
             image_transport::CameraSubscriber camera_sub;
@@ -51,7 +52,8 @@ namespace hrl_clickable_world {
             void onInit();
             void doOverlay(const sensor_msgs::ImageConstPtr& img_msg,
                            const sensor_msgs::CameraInfoConstPtr& info_msg);
-            bool imageClickCB(ClickImage::Request& req, ClickImage::Response& resp);
+            bool imageClickSrvCB(ClickImage::Request& req, ClickImage::Response& resp);
+            void imageClickCB(const geometry_msgs::PointStamped& msg);
             bool displayButtonsCB(DisplayButtons::Request& req, DisplayButtons::Response& resp);
             bool clearButtonsCB(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
         
@@ -72,10 +74,13 @@ namespace hrl_clickable_world {
         overlay_pub = img_trans.advertise("image_buttons", 1);
         button_pushed_pub = nhdl.advertise<std_msgs::Int32>("button_pushed", 1);
         image_click_srv = nhdl.advertiseService("click_image", 
-                                                &DisplayManager::imageClickCB, this);
+                                                &DisplayManager::imageClickSrvCB, this);
+        image_click_sub = nhdl.subscribe("mouse_click", 1, 
+                                         &DisplayManager::imageClickCB, this);
         display_buttons_srv = nhdl.advertiseService("display_buttons", 
                                                 &DisplayManager::displayButtonsCB, this);
         button_action_srv = nhdl.serviceClient<ButtonAction>("button_action");
+        ROS_INFO("[display_manager] DisplayManager loaded.");
     }
 
     void DisplayManager::doOverlay(const sensor_msgs::ImageConstPtr& img_msg,
@@ -100,25 +105,31 @@ namespace hrl_clickable_world {
         }
         overlay_pub.publish(cv_img->toImageMsg());
     }
+
+    bool DisplayManager::imageClickSrvCB(ClickImage::Request& req, ClickImage::Response& resp) {
+        imageClickCB(req.image_click);
+        return true;
+    }
     
-    bool DisplayManager::imageClickCB(ClickImage::Request& req, ClickImage::Response& resp) {
+    void DisplayManager::imageClickCB(const geometry_msgs::PointStamped& image_click) {
         if(buttons_on) {
             //figure out which button was clicked on
-            float button_id = button_rastor.at<float>(req.image_click.point.y, 
-                                                      req.image_click.point.x);
+            float button_id = button_rastor.at<float>(image_click.point.y, 
+                                                      image_click.point.x);
             ButtonAction::Request ba_req;
-            ba_req.click_loc = req.image_click;
+            ba_req.click_loc = image_click;
             ba_req.button_id = button_id;
             ba_req.button_type = ""; // TODO fill this in
             ButtonAction::Response ba_resp;
             button_action_srv.call(ba_req, ba_resp);
-            ROS_INFO("PtX: %f, PtY: %f, ID: %f", req.image_click.point.x, req.image_click.point.y, button_id);
-            ROS_INFO("frame_id: %s, stamp: %f, seq: %d", 
-                     req.image_click.header.frame_id.c_str(),
-                     req.image_click.header.stamp.toSec(), req.image_click.header.seq);
+            ROS_INFO("[display_manager] PtX: %f, PtY: %f, ID: %f", 
+                                                 image_click.point.x, image_click.point.y, 
+                                                 button_id);
+            ROS_INFO("[display_manager] frame_id: %s, stamp: %f, seq: %d", 
+                     image_click.header.frame_id.c_str(),
+                     image_click.header.stamp.toSec(), image_click.header.seq);
             buttons_on = false;
         }
-        return true;
     }
 
     bool DisplayManager::displayButtonsCB(DisplayButtons::Request& req, 
@@ -130,7 +141,6 @@ namespace hrl_clickable_world {
         */
 
         cv::Size resolution = cam_model.fullResolution();
-        ROS_INFO("W: %d, H: %d", resolution.width, resolution.height);
         button_rastor = cv::Mat::zeros(resolution.width, resolution.height, CV_32F);
         for(uint32_t i=0;i<button_polys.size();i++) 
             delete button_polys[i];
