@@ -1,10 +1,15 @@
 <launch>
     <arg name="aware_home" default="false"/>
+    <arg name="wg" default="true"/>
 
     <include file="$(find pr2_machine)/$(env ROBOT).machine" />
     <include file="$(find gt_pr2)/navigation/pr2_2dnav.launch"/>
     <group if="$(arg aware_home)">
     	<include file="$(find gt_pr2)/aware_map.launch"/>
+    </group>
+    <group if="$(arg wg)">
+      <node name="map_server" pkg="map_server" type="map_server"
+            args="$(find willow_maps)/willow-sans-whitelab-2010-02-18-0.025.pgm 0.025" machine="c2" />
     </group>
 
     <!-- IK and FK -->
