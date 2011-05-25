@@ -1,10 +1,10 @@
 <package>
   <description brief="trf_learn">
-
-     trf_learn
-
+      A package for learning task relevant features.  Contain behaviors for
+      operating flip style light switches, rocker style light switches, and
+      drawers.
   </description>
-  <author>Hai Nguyen (hai@gatech.edu)</author>
+  <author>Hai Nguyen (hai@gatech.edu) Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab at Georgia Tech</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/trf_learn</url>
