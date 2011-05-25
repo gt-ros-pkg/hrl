@@ -1,7 +1,14 @@
 <package>
   <description brief=".">
+      Core functionality to get equilibrium point control (EPC)
+      running on a robot. In addition to robot-agnostic code for EPC,
+      this package also implements Python classes for two different
+      robots (the PR2 and Cody).
+
+      Controlling a robot using EPC requires you to write a class that
+      implements the same functions.
   </description>
-  <author>Advait Jain (Healthcare Robotics Lab, Georgia Tech)</author>
+  <author>Advait Jain, Advisor: Prof. Charlie Kemp. (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>New BSD</license>
 
   <depend package="rospy"/>
