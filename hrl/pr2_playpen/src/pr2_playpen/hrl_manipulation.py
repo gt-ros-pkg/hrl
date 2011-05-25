@@ -30,7 +30,7 @@
 
 import roslib
 roslib.load_manifest('pr2_playpen')
-roslib.load_manifest('pr2_grasping_behaviors')
+roslib.load_manifest('pr2_grasp_behaviors')
 import rospy
 import actionlib
 from object_manipulator.convert_functions import *
@@ -39,7 +39,8 @@ from pr2_playpen.srv import Conveyor
 from pr2_playpen.srv import Check
 from pr2_playpen.srv import Train
 from UI_segment_object.srv import Save
-from pr2_overhead_grasping.msg import *
+#from pr2_overhead_grasping.msg import *
+from pr2_grasp_behaviors.msg import *
 import os
 import datetime
 import cPickle
@@ -51,8 +52,10 @@ class SimplePickAndPlaceExample():
 
     def __init__(self):
 
+        print "waiting for conveyor"
         rospy.wait_for_service('playpen')
         rospy.wait_for_service('conveyor')
+        print "started conveyor and playpen"
         self.playpen = rospy.ServiceProxy('playpen', Playpen)
         self.conveyor = rospy.ServiceProxy('conveyor', Conveyor)
         self.objects_dist = [.135, .26-.135, .405-.26, .545-.405, 
@@ -64,8 +67,11 @@ class SimplePickAndPlaceExample():
 
         self.grasp_client = [None, None]
         self.grasp_setup_client = [None, None]
+
         self.grasp_client[0] = actionlib.SimpleActionClient('r_overhead_grasp', OverheadGraspAction)
+        print "died before r_overhead_grasp"
         self.grasp_client[0].wait_for_server()
+        
         self.grasp_setup_client[0] = actionlib.SimpleActionClient('r_overhead_grasp_setup', OverheadGraspSetupAction)
         self.grasp_setup_client[0].wait_for_server()
         self.grasp_client[1] = actionlib.SimpleActionClient('l_overhead_grasp', OverheadGraspAction)
@@ -73,16 +79,17 @@ class SimplePickAndPlaceExample():
         self.grasp_setup_client[1] = actionlib.SimpleActionClient('l_overhead_grasp_setup', OverheadGraspSetupAction)
         self.grasp_setup_client[1].wait_for_server()
 
-    #pick up the nearest object to PointStamped target_point with whicharm 
-    #(0=right, 1=left)
-    def pick_up_object_near_point(self, target_point, whicharm):
-
+    def move_to_side(self, whicharm):
         rospy.loginfo("moving the arms to the side")
         setup_goal = OverheadGraspSetupGoal()
         setup_goal.disable_head = True
         self.grasp_setup_client[whicharm].send_goal(setup_goal)
         self.grasp_setup_client[whicharm].wait_for_result()
 
+    #pick up the nearest object to PointStamped target_point with whicharm 
+    #(0=right, 1=left)
+    def pick_up_object_near_point(self, target_point, whicharm):
+        self.move_to_side(whicharm)
 #############once is it positioned, we don't want to move the head at all !!!#############
 #        rospy.loginfo("pointing the head at the target point")
 #        self.papm.point_head(get_xyz(target_point.point),
@@ -156,7 +163,6 @@ class SimplePickAndPlaceExample():
 
 if __name__ == "__main__":
     rospy.init_node('simple_pick_and_place_example')
-
     sppe = SimplePickAndPlaceExample()
 
     #adjust for your table 
@@ -191,7 +197,8 @@ if __name__ == "__main__":
     except rospy.ServiceException, e:
         print "Service call failed: %s"%e
 
-
+    sppe.move_to_side(0)
+    sppe.move_to_side(1)
 
     for i in xrange(len(sppe.objects_dist)):
 #        file_handle = open(save_dir+'/object'+str(i).zfill(3)+'.pkl', 'wb')
@@ -208,6 +215,8 @@ if __name__ == "__main__":
 
         while sppe.tries<3:
             print "arm is ", arm
+            sppe.move_to_side(arm)
+            rospy.sleep(2)
             # save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.pcd')
             # save_pr2_image(save_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.png')
             # save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.pcd')
@@ -253,7 +262,7 @@ if __name__ == "__main__":
 
                 sppe.place_object(arm, place_rect_dims, place_rect_center)
 
-
+            sppe.move_to_side(arm)
             arm = arm.__xor__(1)
             sppe.tries = sppe.tries+1
 
