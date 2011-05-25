@@ -95,18 +95,21 @@ class GraspBehaviorServer(object):
                     return None
             rospy.loginfo("Detect out")
             if len(objects) > 0:
-                obj = min(objects, key=dist)
+                try:
+                    obj = min(objects, key=dist)
 
-                # Get better look
-                if not disable_head:
-                    obj_pt = obj[0]
-                    obj_pt[2] = -0.4
-                    self.point_head(obj_pt)
-                rospy.sleep(0.2)
-                rospy.loginfo("Detect2 in")
-                objects = self.detect_tabletop_objects()
-                rospy.loginfo("Detect2 out")
-                obj = min(objects, key=dist)
+                    # Get better look
+                    if not disable_head:
+                        obj_pt = obj[0]
+                        obj_pt[2] = -0.4
+                        self.point_head(obj_pt)
+                    rospy.sleep(0.2)
+                    rospy.loginfo("Detect2 in")
+                    objects = self.detect_tabletop_objects()
+                    rospy.loginfo("Detect2 out")
+                    obj = min(objects, key=dist)
+                except:
+                    pass
 
 #self.change_projector_mode(False)
                 return obj
