@@ -174,27 +174,30 @@ if __name__ == "__main__":
     target_point_xyz = [.625, 0, table_height]   #this is currently an approximation/hack should use ar tag
     target_point = create_point_stamped(target_point_xyz, 'base_link')
     arm = 0
-#rospy.wait_for_service('playpen_train_success')
-#rospy.wait_for_service('playpen_check_success')
-#rospy.wait_for_service('playpen_save_pt_cloud')
-#rospy.wait_for_service('playpen_save_image')
-#    rospy.wait_for_service('pr2_save_pt_cloud')
+    rospy.wait_for_service('playpen_train')
+    rospy.wait_for_service('playpen_check_success')
+    # rospy.wait_for_service('playpen_save_pt_cloud')
+    # rospy.wait_for_service('playpen_save_image')
+    # rospy.wait_for_service('pr2_save_pt_cloud')
+    # rospy.wait_for_service('pr2_save_image')
 
-#    try:
-#        train_success = rospy.ServiceProxy('playpen_train_success', Train)
-#        check_success = rospy.ServiceProxy('playpen_check_success', Check)
-##        save_pr2_cloud = rospy.ServiceProxy('pr2_save_pt_cloud', Save)
-#        save_playpen_cloud = rospy.ServiceProxy('playpen_save_pt_cloud', Save)
-#        save_playpen_image = rospy.ServiceProxy('playpen_save_image', Save)
-#    except rospy.ServiceException, e:
-#        print "Service call failed: %s"%e
-#    num_samples = train_success()
+    try:
+        train = rospy.ServiceProxy('playpen_train', Train)
+        check_success = rospy.ServiceProxy('playpen_check_success', Check)
+        # save_pr2_cloud = rospy.ServiceProxy('pr2_save_pt_cloud', Save)
+        # save_pr2_image = rospy.ServiceProxy('pr2_save_image', Save)
+        # save_playpen_cloud = rospy.ServiceProxy('playpen_save_pt_cloud', Save)
+        # save_playpen_image = rospy.ServiceProxy('playpen_save_image', Save)
+    except rospy.ServiceException, e:
+        print "Service call failed: %s"%e
+
 
 
     for i in xrange(len(sppe.objects_dist)):
 #        file_handle = open(save_dir+'/object'+str(i).zfill(3)+'.pkl', 'wb')
         data = {}
         sppe.playpen(0)
+        num_samples = train('table')
         sppe.conveyor(sppe.objects_dist[i])
         # data['object'+str(i).zfill(3)] = {}
         # data['object'+str(i).zfill(3)]['success'] = []
@@ -205,22 +208,22 @@ if __name__ == "__main__":
 
         while sppe.tries<3:
             print "arm is ", arm
-#            print "target _point is ", target_point.x
-#            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.pcd')
-#save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.pcd')
-#save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.png')
+            # save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.pcd')
+            # save_pr2_image(save_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.png')
+            # save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.pcd')
+            # save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.png')
+            num_samples = train('object')
             success = sppe.pick_up_object_near_point(target_point, arm)
 
-#            result = []
-#            rospy.sleep(5)
-#            for j in xrange(5):
-#                result.append(check_success('').result)
-#                rospy.sleep(5)
-#            result.sort()
-#            if result[2] == 'table':
-#                success = True
-#            elif result[2] == 'object':
-#                success = False
+            result = []
+            rospy.sleep(2)
+            for j in xrange(5):
+                result.append(check_success('').result)
+            result.sort()
+            if result[2] == 'table':
+                success = True
+            elif result[2] == 'object':
+                success = False
             # else:
             #     success = False
             #     sppe.tries = sppe.tries-1 # this is to compensate for failures in perception hopefully
@@ -228,11 +231,10 @@ if __name__ == "__main__":
             print "SUCCESS IS :", success
             data['success'].append(success)
                 
-#            save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'try'+str(sppe.tries).zfill(3)+'_after_pr2.pcd')
-#save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_playpen.pcd')
-#save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_playpen.png')
-#            save_playpen_cloud(save_dir+'/object'+str(i).zfill(3)+'try'+str(sppe.tries).zfill(3)+'_after_playpen.pcd')
-
+            # save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'try'+str(sppe.tries).zfill(3)+'_after_pr2.pcd')
+            # save_pr2_image(save_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_pr2.png')
+            # save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_playpen.pcd')
+            # save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_playpen.png')
 
             if success:
                 sppe.successes=sppe.successes + 1
@@ -258,7 +260,7 @@ if __name__ == "__main__":
         sppe.playpen(1)
         sppe.successes = 0
         sppe.tries = 0
-#cPickle.dump(data, file_handle)
-#        file_handle.close()
+        # cPickle.dump(data, file_handle)
+        # file_handle.close()
+	sppe.playpen(0)
     
-#    sppe.playpen(0)
