@@ -32,6 +32,8 @@ class OverheadGrasp(GraspBehavior):
         if self.arm == 'l':
             for i in [0, 2, 4]:
                 joints[i] *= -1
+        else:
+            joints[6] -= 3.14/2
         self.cm.command_joint_trajectory([joints], max_joint_vel=0.30, blocking=False)
 
     def grasp_setup_move(self, params):
