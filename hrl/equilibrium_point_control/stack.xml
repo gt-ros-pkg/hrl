@@ -1,6 +1,8 @@
 <stack>
-  <description brief="equilibrium_point_control">equilibrium_point_control</description>
-  <author>Maintained by Advait Jain</author>
+  <description brief="equilibrium_point_control">Code to control
+      robots with low mechanical impedance using equilibrium point control. </description>
+  <author>Maintained by Advait Jain. Advisor: Prof. Charlie Kemp
+      Lab: Healthcare Robotics Lab, Georgia Tech</author>
   <license>New BSD</license>  
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/equilibrium_point_control</url>
