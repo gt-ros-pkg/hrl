@@ -2,7 +2,8 @@
   <description brief="hrl_hardware_drivers"> Python code to use
       different hardware components like Robotis servos, Phantom
       Omnis, Segway Omni, Hokuyos etc.</description>
-  <author>Maintained by Advait Jain</author>
+  <author>Maintained by Advait Jain. Advisor: Prof. Charlie Kemp, Lab:
+  Healthcare Robotics Lab, Georgia Tech.</author>
   <license>New BSD</license>  
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_hardware_drivers</url>
