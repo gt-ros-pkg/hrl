@@ -2,7 +2,7 @@
     <!--<include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" />-->
     <include file="$(find pr2_approach_table)/launch/demo.launch" />
 
-    <rosparam command="load" file="$(find hrl_clickable_behaviors)/params/behavior_types_simple.yaml" ns="clickable_world"/>
+    <rosparam command="load" file="$(find hrl_clickable_behaviors)/params/clickable_behaviors.yaml" ns="clickable_world"/>
     <node pkg="hrl_clickable_world" type="behavior_manager.py" name="behavior_manager" output="screen">
     </node>
     <node pkg="hrl_clickable_world" type="display_manager" name="display_manager" output="screen"/>
