@@ -43,7 +43,7 @@ class TestButton:
         return resp
 
     def do_action(self, req):
-        rospy.loginfo("Button clicked!")
+        rospy.loginfo("TestButton clicked!")
         return ButtonActionResponse()
 
 def main():

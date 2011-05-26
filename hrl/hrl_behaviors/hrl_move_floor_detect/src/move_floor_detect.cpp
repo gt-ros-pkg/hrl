@@ -161,7 +161,7 @@ namespace hrl_move_floor_detect {
             visualization_msgs::Marker hull_poly;
             hull_poly.type = visualization_msgs::Marker::LINE_STRIP; 
             hull_poly.action = visualization_msgs::Marker::ADD;
-            hull_poly.ns = "table_hull";
+            hull_poly.ns = "floor_hull";
             hull_poly.header.frame_id = "/odom_combined";
             hull_poly.header.stamp = ros::Time::now();
             hull_poly.id = i;

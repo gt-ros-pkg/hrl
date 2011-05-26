@@ -109,7 +109,6 @@ namespace hrl_table_detect {
     bool SurfaceSegmentation::surfSegCallback(
                      hrl_table_detect::SegmentSurfaces::Request& req, 
                      hrl_table_detect::SegmentSurfaces::Response& resp) {
-        ROS_INFO("AAAAAA");
         double min_z_val = 0.1, max_z_val = 1.5;
         double norm_ang_thresh = 0.7;
         double surf_clust_dist = 0.03, surf_clust_min_size = 50;

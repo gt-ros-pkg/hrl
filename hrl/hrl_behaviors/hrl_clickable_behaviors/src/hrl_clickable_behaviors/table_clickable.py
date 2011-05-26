@@ -57,10 +57,9 @@ class TableClickable:
         rospy.loginfo("Table clicked!")
         approach_req = GetTableApproachesRequest()
         approach_req.table = self.surfaces[0]
-        # TODO FIX THIS: TRANSFORM CLICK POINT?
-        approach_req.approach_pt = req.click_loc
+        approach_req.approach_pt = req.pixel3d
         approach_poses = self.table_approach_detect_srv(approach_req).approach_poses
-#return ButtonActionResponse()
+        #return ButtonActionResponse()
 
         table_move_goal = MoveBaseGoal()
         for approach_pose in approach_poses.poses:
