@@ -1,0 +1,7 @@
+<launch>
+  <node pkg="hrl_table_detect" name="table_approaches" type="table_approaches" respawn="false" output="screen">
+    <rosparam file="$(find gt_pr2)/navigation/move_base_params.yaml" command="load" ns="table_costmap" />
+    <rosparam file="$(find gt_pr2)/navigation/costmap_common_params.yaml" command="load" ns="table_costmap" />
+    <rosparam file="$(find pr2_navigation_global)/config/local_costmap_params.yaml" command="load" ns="table_costmap"/>
+  </node>
+</launch>
