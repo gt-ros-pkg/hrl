@@ -50,6 +50,7 @@ namespace pixel_2_3d {
         pc_sub = nh.subscribe("point_cloud", 1, &Pixel23dServer::pcCallback, this);
         pix_srv = nh.advertiseService("pixel_2_3d", &Pixel23dServer::pixCallback, this);
         pt3d_pub = nh.advertise<geometry_msgs::PoseStamped>("pixel3d", 1);
+        ROS_INFO("[pixel_2_3d] Pixel23dServer loaded");
         ros::Duration(1).sleep();
     }
 
@@ -79,20 +80,27 @@ namespace pixel_2_3d {
             dists.push_back(pixDist(pt_pix, img_pix));
         }
         uint32_t min_ind = std::min_element(dists.begin(), dists.end()) - dists.begin();
-        resp.pixel3d.header.frame_id = cur_pc->header.frame_id;
-        resp.pixel3d.header.stamp = cur_pc->header.stamp;
-        resp.pixel3d.point.x = cur_pc->points[min_ind].x;
-        resp.pixel3d.point.y = cur_pc->points[min_ind].y;
-        resp.pixel3d.point.z = cur_pc->points[min_ind].z;
-        geometry_msgs::PoseStamped pt3d;
-        tf_listener.transformPoint("/base_footprint", resp.pixel3d, resp.pixel3d);
-        pt3d.header.frame_id = resp.pixel3d.header.frame_id;
-        pt3d.header.stamp = ros::Time::now();
-        pt3d.pose.position.x = resp.pixel3d.point.x;
-        pt3d.pose.position.y = resp.pixel3d.point.y;
-        pt3d.pose.position.z = resp.pixel3d.point.z;
-        pt3d.pose.orientation.w = 1;
-        pt3d_pub.publish(pt3d);
+        geometry_msgs::PointStamped pt3d, pt3d_trans;
+        pt3d_trans.header.frame_id = cur_pc->header.frame_id;
+        pt3d_trans.header.stamp = ros::Time::now();
+        pt3d_trans.point.x = cur_pc->points[min_ind].x;
+        pt3d_trans.point.y = cur_pc->points[min_ind].y;
+        pt3d_trans.point.z = cur_pc->points[min_ind].z;
+
+        //tf_listener.transformPoint("/base_footprint", pt3d, pt3d_trans);
+        resp.pixel3d.header.frame_id = pt3d_trans.header.frame_id;
+        resp.pixel3d.header.stamp = pt3d_trans.header.stamp;
+        resp.pixel3d.point.x = pt3d_trans.point.x;
+        resp.pixel3d.point.y = pt3d_trans.point.y;
+        resp.pixel3d.point.z = pt3d_trans.point.z;
+        geometry_msgs::PoseStamped pt3d_pose;
+        pt3d_pose.header.frame_id = pt3d_trans.header.frame_id;
+        pt3d_pose.header.stamp = pt3d_trans.header.stamp;
+        pt3d_pose.pose.position.x = pt3d_trans.point.x;
+        pt3d_pose.pose.position.y = pt3d_trans.point.y;
+        pt3d_pose.pose.position.z = pt3d_trans.point.z;
+        pt3d_pose.pose.orientation.w = 1;
+        pt3d_pub.publish(pt3d_pose);
         return true;
     }
 
