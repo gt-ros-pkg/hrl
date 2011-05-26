@@ -72,12 +72,12 @@ class TableClickable:
             table_move_goal.target_pose.header.frame_id = approach_poses.header.frame_id
             table_move_goal.target_pose.header.stamp = rospy.Time.now()
             try:
-                #self.table_move_client.send_goal(table_move_goal)
-                #self.table_move_client.wait_for_result()
-                #cur_pose = self.table_move_client.get_result()
+                self.table_move_client.send_goal(table_move_goal)
+                self.table_move_client.wait_for_result()
+                cur_pose = self.table_move_client.get_result()
                 try:
-                    pass
-                    #self.approach_table_srv()
+                    self.approach_table_srv()
+                    return ButtonActionResponse()
                 except rospy.ROSInterruptException:
                     print "Table approach failed"
             except rospy.ROSInterruptException:

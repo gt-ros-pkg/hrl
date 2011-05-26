@@ -1,9 +1,13 @@
 behavior_namespace: "/clickable_world"
-behavior_names: ["table_approach", "move_floor"]
+behavior_names: ["table_approach", "move_floor", "grasp_object", "place_object"]
+#behavior_names: ["grasp_object"]
+#behavior_names: ["table_approach", "move_floor"]
 #behavior_names: ["table_approach", "move_floor", "grasp_object"]
 #behavior_names: ["test_button"]
 #behavior_names: ["move_floor"]
 init_conditions: {"at_table" : False, "obj_in_hand" : False}
+#init_conditions: {"at_table" : True, "obj_in_hand" : False}
+#init_conditions: {"at_table" : True, "obj_in_hand" : True}
 
 test_button:
     preconditions: {}
@@ -12,7 +16,7 @@ test_button:
     action_srv: "/test_button_action"
 
 move_floor:
-    preconditions: {} #"at_table" : False}
+    preconditions: {"at_table" : False}
     postconditions: {}
     perception_srv: "/detect_empty_floor"
     action_srv: "/move_empty_floor"
@@ -38,8 +42,8 @@ grasp_object:
 place_object:
     preconditions: {"at_table" : True, "obj_in_hand" : True}
     postconditions: {"obj_in_hand" : False}
-    perception_srv: "/get_tables"
-    action_srv: "/place_obj_on_table"
+    perception_srv: "/place_table_perceive"
+    action_srv: "/place_object"
 
 handoff_object:
     preconditions: {"at_table" : False, "obj_in_hand" : True}

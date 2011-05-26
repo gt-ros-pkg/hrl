@@ -89,13 +89,13 @@ namespace pixel_2_3d {
 
         //tf_listener.transformPoint("/base_footprint", pt3d, pt3d_trans);
         resp.pixel3d.header.frame_id = pt3d_trans.header.frame_id;
-        resp.pixel3d.header.stamp = pt3d_trans.header.stamp;
+        resp.pixel3d.header.stamp = ros::Time::now();
         resp.pixel3d.point.x = pt3d_trans.point.x;
         resp.pixel3d.point.y = pt3d_trans.point.y;
         resp.pixel3d.point.z = pt3d_trans.point.z;
         geometry_msgs::PoseStamped pt3d_pose;
         pt3d_pose.header.frame_id = pt3d_trans.header.frame_id;
-        pt3d_pose.header.stamp = pt3d_trans.header.stamp;
+        pt3d_pose.header.stamp = ros::Time::now();
         pt3d_pose.pose.position.x = pt3d_trans.point.x;
         pt3d_pose.pose.position.y = pt3d_trans.point.y;
         pt3d_pose.pose.position.z = pt3d_trans.point.z;

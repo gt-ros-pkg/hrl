@@ -61,7 +61,10 @@ class BehaviorManager:
             if preconds_satisfied:
                 # get the buttons for this perception
                 rospy.loginfo("Perceiving buttons for %s" % self.behaviors[name]["perception_srv"])
-                resp = self.perception_srvs[self.behaviors[name]["perception_srv"]]()
+                try:
+                    resp = self.perception_srvs[self.behaviors[name]["perception_srv"]]()
+                except:
+                    continue
                 cur_buttons = resp.buttons
                 for i, button in enumerate(cur_buttons):
                     self.button_types.append(name)
@@ -78,13 +81,14 @@ class BehaviorManager:
             return
         do_behav = self.behaviors[self.button_types[req.button_id-1]]
         self.action_srvs[do_behav["action_srv"]](req)
-        action_success = False
+        action_success = True
         # TODO use result from action srv
         if action_success:
             # update robot state
             if "postconditions" in do_behav:
                 for condition in do_behav["postconditions"]:
                     self.robot_state[condition] = do_behav["postconditions"][condition]
+        rospy.loginfo("Current State: " + str(self.robot_state))
 
 def main():
     rospy.init_node('behavior_manager')

@@ -120,7 +120,7 @@ namespace hrl_move_floor_detect {
             Eigen::Vector3f floor_pos(floor_pos_x,
                                       floor_pos_y,
                                       std::atan2(floor_pos_y, floor_pos_x));
-            double foot_cost = footprintCost(floor_pos, 1);
+            double foot_cost = footprintCost(floor_pos, 0.5);
             // throw out unmoveable positions
             if(foot_cost < 0 || foot_cost > min_cost)
                 continue;
@@ -131,6 +131,8 @@ namespace hrl_move_floor_detect {
             pc_pt.intensity = (256 - foot_cost)/256;
             move_floor_pc->points.push_back(pc_pt);
         }
+        if(move_floor_pc->points.empty())
+            return false;
         move_floor_pc->header.frame_id = "/odom_combined";
         move_floor_pc->header.stamp = ros::Time::now();
         pc_pub.publish(move_floor_pc);
@@ -153,7 +155,7 @@ namespace hrl_move_floor_detect {
             pcl::ConcaveHull<pcl::PointXYZI> concave_hull;
             concave_hull.setInputCloud(move_floor_pc);
             concave_hull.setIndices(boost::make_shared<pcl::PointIndices>(surf_clust_list[i]));
-            concave_hull.setAlpha(0.5);
+            concave_hull.setAlpha(0.1);
             concave_hull.setVoronoiCenters(voronoi_centers);
             concave_hull.reconstruct(*cloud_hull, hull_verts);
 
@@ -175,9 +177,11 @@ namespace hrl_move_floor_detect {
                 n_pt.z = cloud_hull->points[j].z; 
                 hull_poly.points.push_back(n_pt);
             }
-            hull_poly.points.push_back(hull_poly.points[0]);
-            resp.surfaces.push_back(hull_poly);
-            hull_pub.publish(hull_poly);
+            if(!hull_poly.points.empty()) {
+                hull_poly.points.push_back(hull_poly.points[0]);
+                resp.surfaces.push_back(hull_poly);
+                hull_pub.publish(hull_poly);
+            }
         }
         ROS_INFO("[move_floor_detect] Number of floor surfaces: %d", (int) resp.surfaces.size());
 

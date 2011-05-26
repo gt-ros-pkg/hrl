@@ -13,12 +13,57 @@
 
     <rosparam file="$(find hrl_table_detect)/params/costmap_parameters.yaml" command="load" />
   </node>
-  <node pkg="hrl_move_floor_detect" type="move_floor_detect" name="move_floor_detect" output="screen" />
+  <node pkg="hrl_move_floor_detect" type="move_floor_detect" name="move_floor_detect" output="screen">
+    <rosparam file="$(find hrl_table_detect)/params/costmap_parameters.yaml" command="load" />
+  </node>
 
     <node pkg="hrl_clickable_behaviors" type="table_clickable.py" name="table_clickable" output="screen"/>
     <node pkg="hrl_clickable_behaviors" type="move_floor_button.py" name="move_floor_button" output="screen"/>
-    <node pkg="pixel_2_3d" type="pixel_2_3d" name="pixel_2_3d" output="screen" respawn="true">
+    <!--<node pkg="pixel_2_3d" type="pixel_2_3d" name="pixel_2_3d" output="screen" respawn="true">
         <remap from="image" to="/kinect_head/rgb/image_color"/>
         <remap from="point_cloud" to="/kinect_head/rgb/points"/>
+    </node>-->
+
+    <node pkg="tabletop_object_detector" name="$(anon tabletop_node)" type="tabletop_segmentation" respawn="true" output="screen">
+
+        <!-- which debug markers will be published-->
+        <param name="publish_table_marker" value="true" />
+        <param name="publish_cluster_markers" value="true" />
+        <param name="publish_good_fit_markers" value="true" />
+        <param name="publish_bad_fit_markers" value="false" />
+
+        <!--topic remapping-->
+        <remap from="cloud_in" to="kinect_head/rgb/points" />
+        <remap from="segmentation_srv" to="table_segmentation" />
+        <remap from="markers_out" to="tabletop_detector_markers" />
+
+        <param name="cluster_distance" value="0.03" />
+        <param name="min_cluster_size" value="250" />
+
+        <!-- processing and filtering frame -->
+        <!-- remove this entire block and processing and filtering will -->
+        <!-- be done with default settings, in the incoming cloud frame -->
+        <param name="processing_frame" value="torso_lift_link" />
+        <param name="up_direction" value="1.0" />
+        <param name="z_filter_min" value="-0.5" />
+        <param name="z_filter_max" value="0.0" />
+        <param name="table_z_filter_min" value="0.01" />
+        <param name="table_z_filter_max" value="0.45" />       
     </node>
+    
+    <node pkg="hrl_table_detect" type="object_button_detector" name="object_button_detector" output="screen" respawn="true" >
+        <param name="camera_frame" type="str" value="/openni_rgb_optical_frame" />
+    </node>
+
+    <include file="$(find pr2_grasp_behaviors)/launch/overhead_grasping_server_trained.launch" />
+
+    <node pkg="hrl_clickable_behaviors" type="grasp_obj_button.py" name="grasp_obj_button" output="screen">
+        <param name="arm" type="str" value="r" />
+    </node>
+
+    <node pkg="hrl_clickable_behaviors" type="place_obj.py" name="place_obj" output="screen">
+        <param name="arm" type="str" value="r" />
+    </node>
+        
+
 </launch>

@@ -86,7 +86,8 @@ namespace hrl_table_detect {
     bool SurfaceSegmentation::captureCallback(std_srvs::EmptyRequest& req, std_srvs::EmptyResponse& resp) {
         pc_captured = false; do_capture = true;
         ros::Rate r(100);
-        while(ros::ok() && !pc_captured) {
+        double start_time = ros::Time::now().toSec();
+        while(ros::ok() && !pc_captured && ros::Time::now().toSec() - start_time < 1) {
             ros::spinOnce();
             r.sleep();
         }
@@ -109,10 +110,10 @@ namespace hrl_table_detect {
     bool SurfaceSegmentation::surfSegCallback(
                      hrl_table_detect::SegmentSurfaces::Request& req, 
                      hrl_table_detect::SegmentSurfaces::Response& resp) {
-        double min_z_val = 0.1, max_z_val = 1.5;
+        double min_z_val = 0.5, max_z_val = 1.5;
         double norm_ang_thresh = 0.7;
         //double surf_clust_dist = 0.03, surf_clust_min_size = 50;
-        double surf_clust_dist = 0.05, surf_clust_min_size = 50;
+        double surf_clust_dist = 0.05, surf_clust_min_size = 600;
 
         pcl::PointCloud<PRGB>::Ptr pc_full_frame_ptr(new pcl::PointCloud<PRGB>());
         string base_frame("/base_link");
