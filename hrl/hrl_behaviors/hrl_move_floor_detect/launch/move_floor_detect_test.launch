@@ -1,0 +1,8 @@
+<launch>
+  <node pkg="hrl_move_floor_detect" name="move_floor_detect" type="move_floor_detect" respawn="true" output="screen">
+    <remap from="odom" to="base_odometry/odom" />
+    <remap from="cmd_vel" to="navigation/cmd_vel" />
+
+    <rosparam file="$(find hrl_table_detect)/params/costmap_parameters.yaml" command="load" />
+  </node>
+</launch>
