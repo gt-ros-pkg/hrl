@@ -158,3 +158,5 @@ class Gaussian(object):
        print >>p, "(mean = ", self.mean.T, ", \n     cov = \n", self.cov, ")", 
        s = p.getvalue()
        return s
+
+
