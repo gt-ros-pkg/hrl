@@ -14,6 +14,7 @@
 #include <image_geometry/pinhole_camera_model.h>
 #include <pcl_ros/transforms.h>
 #include <tabletop_object_detector/TabletopSegmentation.h>
+#include <hrl_table_detect/ObjectButtonDetect.h>
 
 namespace hrl_table_detect {
 
@@ -21,10 +22,9 @@ namespace hrl_table_detect {
         public:
             ros::NodeHandle nh;
             tf::TransformListener tf_listener;
-            ros::Subscriber pc_sub;
-            ros::Publisher pt3d_pub;
             ros::ServiceServer table_obj_srv;
             ros::ServiceClient table_seg_srv;
+            ros::Publisher hull_pub;
             std::string camera_frame;
 
             ObjectButtonDetector();
@@ -33,7 +33,7 @@ namespace hrl_table_detect {
 
     };
 
-    ObjectButtonDetector::ObjectButtonDetector() : img_trans(nh) {
+    ObjectButtonDetector::ObjectButtonDetector() {
     }
 
     void ObjectButtonDetector::onInit() {
@@ -42,7 +42,7 @@ namespace hrl_table_detect {
         table_obj_srv = nh.advertiseService("object_button_detect", 
                                             &ObjectButtonDetector::detectCallback, this);
         table_seg_srv = nh.serviceClient<tabletop_object_detector::TabletopSegmentation>(
-                               "/object_detection", false);
+                               "table_segmentation", false);
         hull_pub = nh.advertise<visualization_msgs::Marker>("object_hull", 1);
         ROS_INFO("[object_button_detector] ObjectButtonDetector loaded.");
         ros::Duration(1).sleep();
@@ -55,25 +55,44 @@ namespace hrl_table_detect {
         tabletop_object_detector::TabletopSegmentation::Response table_seg_resp;
         table_seg_srv.call(table_seg_req, table_seg_resp);
 
+
         // get table height in image frame
-        geometry_msgs::PoseStamped table_img_frame;
-        tf_listener.transformPose(camera_frame, table_seg_resp.table, table_img_frame);
-        float table_height = table_img_frame.pose.position.z;
+        geometry_msgs::PointStamped table_pt, table_base_frame, cam_pt, cam_base_frame;
+        table_pt.header.frame_id = "/torso_lift_link";
+        table_pt.header.stamp = table_seg_resp.table.pose.header.stamp;
+        table_pt.point.x = table_seg_resp.table.pose.pose.position.x;
+        table_pt.point.y = table_seg_resp.table.pose.pose.position.y;
+        table_pt.point.z = table_seg_resp.table.pose.pose.position.z;
+        cam_pt.header.frame_id = camera_frame;
+        cam_pt.header.stamp = ros::Time(0);
+        cam_pt.point.x = 0; cam_pt.point.y = 0; cam_pt.point.z = 0; 
+
+        tf_listener.transformPoint("/base_footprint", table_pt, table_base_frame);
+        tf_listener.transformPoint("/base_footprint", cam_pt, cam_base_frame);
+        float table_height = table_base_frame.point.z;
         for(uint32_t i=0;i<table_seg_resp.clusters.size();i++) {
             // transform object into image frame
             sensor_msgs::PointCloud obj_img_frame;
-            tf_listener.transformPointCloud(camera_frame, table_seg_resp.clusters[i], 
+            table_seg_resp.clusters[i].header.frame_id = "/torso_lift_link";
+            tf_listener.transformPointCloud("/base_footprint", table_seg_resp.clusters[i], 
                                                                  obj_img_frame);
             // project object silhouette onto table
             pcl::PointCloud<pcl::PointXYZ>::Ptr table_proj_obj 
                                                       (new pcl::PointCloud<pcl::PointXYZ>);
-            table_proj_obj->header.frame_id = camera_frame;
-            BOOST_FOREACH(const geometry_msgs::Point32& pt, table_seg_resp.clusters[i].points) {
+            BOOST_FOREACH(const geometry_msgs::Point32& pt, obj_img_frame.points) {
                 if(pt.x != pt.x || pt.y != pt.y || pt.z != pt.z)
                     continue;
-                float t = pt.z / table_height;
-                geometry_msgs::Point32 proj_pt;
-                proj_pt.x = pt.x * t; proj_pt.y = pt.y * t; proj_pt.z = table_height; 
+                geometry_msgs::Vector3Stamped ray, ray_trans;
+                ray.header.frame_id = camera_frame;
+                ray.vector.x = pt.x - cam_base_frame.point.x; 
+                ray.vector.y = pt.y - cam_base_frame.point.y; 
+                ray.vector.z = pt.z - cam_base_frame.point.z; 
+                tf_listener.transformVector("/base_footprint", ray, ray_trans);
+                float t = (table_height - cam_base_frame.point.z) / ray.vector.z;
+                pcl::PointXYZ proj_pt;
+                proj_pt.x = cam_base_frame.point.x + ray.vector.x * t; 
+                proj_pt.y = cam_base_frame.point.y + ray.vector.y * t; 
+                proj_pt.z = table_height; 
                 table_proj_obj->points.push_back(proj_pt);
             }
 
@@ -94,7 +113,7 @@ namespace hrl_table_detect {
             hull_poly.type = visualization_msgs::Marker::LINE_STRIP; 
             hull_poly.action = visualization_msgs::Marker::ADD;
             hull_poly.ns = "object_hull";
-            hull_poly.header.frame_id = table_proj_obj.header.frame_id;
+            hull_poly.header.frame_id = "/base_footprint";
             hull_poly.header.stamp = ros::Time::now();
             hull_poly.id = i;
             hull_poly.pose.orientation.w = 1;

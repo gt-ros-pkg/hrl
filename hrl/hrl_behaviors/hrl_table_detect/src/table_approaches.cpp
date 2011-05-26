@@ -198,7 +198,7 @@ namespace hrl_table_detect {
                     Eigen::Vector3f pos(odom_test_pose.pose.position.x, 
                                         odom_test_pose.pose.position.y, 
                                         tf::getYaw(odom_test_pose.pose.orientation));
-                    double foot_cost = footprintCost(pos, 1);
+                    double foot_cost = footprintCost(pos, 1.0);
                     // found a valid pose
                     if(foot_cost >= 0 && foot_cost <= min_cost) {
                         found_pose = true;

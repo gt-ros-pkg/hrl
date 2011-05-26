@@ -1,5 +1,5 @@
 <launch>
-    <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" />
+    <!--<include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" />-->
     <include file="$(find pr2_approach_table)/launch/demo.launch" />
 
     <rosparam command="load" file="$(find hrl_clickable_behaviors)/params/behavior_types_simple.yaml" ns="clickable_world"/>
@@ -17,4 +17,8 @@
 
     <node pkg="hrl_clickable_behaviors" type="table_clickable.py" name="table_clickable" output="screen"/>
     <node pkg="hrl_clickable_behaviors" type="move_floor_button.py" name="move_floor_button" output="screen"/>
+    <node pkg="pixel_2_3d" type="pixel_2_3d" name="pixel_2_3d" output="screen" respawn="true">
+        <remap from="image" to="/kinect_head/rgb/image_color"/>
+        <remap from="point_cloud" to="/kinect_head/rgb/points"/>
+    </node>
 </launch>

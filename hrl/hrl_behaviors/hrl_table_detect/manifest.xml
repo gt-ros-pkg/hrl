@@ -22,6 +22,7 @@
   <depend package="nav_core"/>
   <depend package="move_base"/>
   <depend package="image_geometry" />
+  <depend package="tabletop_object_detector" />
 
 
 </package>

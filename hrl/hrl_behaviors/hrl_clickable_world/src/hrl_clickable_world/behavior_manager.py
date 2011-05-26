@@ -7,6 +7,7 @@ import rospy
 import std_srvs.srv
 
 from hrl_clickable_world.srv import PerceiveButtons, ButtonAction, DisplayButtons
+from hrl_clickable_world.srv import ButtonActionRequest
 from hrl_clickable_world.srv import PerceiveButtonsResponse, ButtonActionResponse
 from pixel_2_3d.srv import Pixel23d
 

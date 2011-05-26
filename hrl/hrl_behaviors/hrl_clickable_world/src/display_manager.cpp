@@ -43,7 +43,7 @@ namespace hrl_clickable_world {
             bool buttons_on;
             vector<visualization_msgs::Marker> buttons;
             vector<uint32_t> button_inds;
-            cv::Mat button_raster;
+            vector<cv::Mat> button_rasters;
 
             DisplayManager();
             ~DisplayManager();
@@ -95,7 +95,7 @@ namespace hrl_clickable_world {
         }
 
         cv::Size resolution = cam_model.fullResolution();
-        button_raster = cv::Mat::zeros(resolution.width, resolution.height, CV_32F);
+        cv::Mat button_raster_back = cv::Mat::zeros(resolution.width, resolution.height, CV_8UC1);
         for(uint32_t i=0;i<buttons.size();i++) {
             visualization_msgs::Marker button = buttons[i];
             cv::Scalar color = CV_RGB(button.color.r, button.color.g, button.color.b);
@@ -109,16 +109,23 @@ namespace hrl_clickable_world {
                 tf_listener.transformPoint(cam_model.tfFrame(), cur_pt, proj_pt);
                 cv::Point3d proj_pt_cv(proj_pt.point.x, proj_pt.point.y, proj_pt.point.z);
                 cv_poly[j] = cam_model.project3dToPixel(proj_pt_cv);
+                if(cv_poly[j].x < 0) cv_poly[j].x = 0;
+                if(cv_poly[j].y < 0) cv_poly[j].y = 0;
+                if(cv_poly[j].x >= resolution.width-1) cv_poly[j].x = resolution.width-2;
+                if(cv_poly[j].y >= resolution.height-1) cv_poly[j].y = resolution.height-2;
             }
 
             // fill a raster image with this button
             const cv::Point** cv_poly_list = new const cv::Point*[1]; 
             cv_poly_list[0] = cv_poly;
-            int* npts = new int[1]; npts[0] = button.points.size();
-            cv::fillPoly(button_raster, cv_poly_list, npts, 1, cv::Scalar(i+1));
+            int* npts = new int[1]; npts[0] = button.points.size()-1;
+            //cv::Mat button_raster_cur = cv::Mat::zeros(resolution.width, resolution.height, CV_8UC3);
+            cv::fillPoly(button_raster_back, cv_poly_list, npts, 1, cv::Scalar(i+1));
+            //cv::max(button_raster_back, button_raster_cur, button_raster_back);
             // etch polygon on image
             cv::polylines(cv_img->image, cv_poly_list, npts, 1, 1, color, 2);
             delete[] npts; delete[] cv_poly; delete[] cv_poly_list;
+            button_rasters[i] = button_raster_back;
         }
         overlay_pub.publish(cv_img->toImageMsg());
     }
@@ -132,18 +139,28 @@ namespace hrl_clickable_world {
         if(buttons_on) {
             buttons_on = false;
             //figure out which button was clicked on
-            float button_id = button_raster.at<float>(image_click.point.y, 
-                                                      image_click.point.x);
-            ROS_INFO("[display_manager] Image click recieved: (Pix_X: %f, Pix_Y: %f, ID: %f)", 
+            uint8_t button_id = 0;
+            for(uint32_t i=0;i<button_rasters.size();i++) {
+                button_id = button_rasters[i].at<uint8_t>(image_click.point.y, 
+                                                          image_click.point.x);
+                if(button_id != 0)
+                    break;
+            }
+            ROS_INFO("[display_manager] Image click recieved: (Pix_X: %f, Pix_Y: %f, ID: %d)", 
                                                  image_click.point.x, image_click.point.y, 
                                                  button_id);
+            // don't process a click not on a button
+            if(button_id == 0)
+                return;
+            ROS_INFO("Num buttons: %d", buttons.size());
             // Make button action given known information about button press.
             ButtonAction::Request ba_req;
             ba_req.pixel_x = image_click.point.x; ba_req.pixel_y = image_click.point.y;
             ba_req.camera_frame = cam_model.tfFrame();
-            ba_req.button_id = buttons[button_id].id;
-            ba_req.button_type = buttons[button_id].id; 
+            ba_req.button_id = buttons[button_id-1].id;
+            ba_req.button_type = buttons[button_id-1].id; 
             pixel_2_3d::Pixel23d::Request p3d_req; pixel_2_3d::Pixel23d::Response p3d_resp;
+            p3d_req.pixel.point.x = image_click.point.x; p3d_req.pixel.point.y = image_click.point.y; 
             pixel23d_srv.call(p3d_req, p3d_resp);
             ba_req.pixel3d.header.frame_id = p3d_resp.pixel3d.header.frame_id;
             ba_req.pixel3d.header.stamp = p3d_resp.pixel3d.header.stamp;
@@ -155,14 +172,14 @@ namespace hrl_clickable_world {
         }
     }
 
-    /**
-     * Displays bu
-     *
-     */
     bool DisplayManager::displayButtonsCB(DisplayButtons::Request& req, 
                                           DisplayButtons::Response& resp) {
         buttons = req.buttons;
         buttons_on = true;
+        button_rasters.resize(buttons.size());
+        cv::Size resolution = cam_model.fullResolution();
+        for(uint32_t i=0;i<buttons.size();i++)
+            button_rasters[i] = cv::Mat::zeros(resolution.width, resolution.height, CV_8UC1);
         return true;
     }
 

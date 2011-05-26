@@ -111,7 +111,8 @@ namespace hrl_table_detect {
                      hrl_table_detect::SegmentSurfaces::Response& resp) {
         double min_z_val = 0.1, max_z_val = 1.5;
         double norm_ang_thresh = 0.7;
-        double surf_clust_dist = 0.03, surf_clust_min_size = 50;
+        //double surf_clust_dist = 0.03, surf_clust_min_size = 50;
+        double surf_clust_dist = 0.05, surf_clust_min_size = 50;
 
         pcl::PointCloud<PRGB>::Ptr pc_full_frame_ptr(new pcl::PointCloud<PRGB>());
         string base_frame("/base_link");
@@ -129,10 +130,8 @@ namespace hrl_table_detect {
         pcl::VoxelGrid<sensor_msgs::PointCloud2> vox_grid;
         vox_grid.setInputCloud(pc2_full_frame_ptr);
         vox_grid.setLeafSize(0.01, 0.01, 0.01);
-        cout << "HI HI" << endl;
         vox_grid.filter(*pc2_downsampled_ptr);
         pcl::fromROSMsg(*pc2_downsampled_ptr, *pc_downsampled_ptr);
-        cout << "yo " << pc_full_frame_ptr->points.size() << " " << pc_downsampled_ptr->points.size() << endl;
         pc_pub.publish(*pc2_downsampled_ptr);
 
         // Filter floor and ceiling
@@ -157,7 +156,7 @@ namespace hrl_table_detect {
         mls.setInputCloud(pc_filtered_ptr);
         mls.setPolynomialFit(true);
         mls.setSearchMethod(normals_tree);
-        mls.setSearchRadius(0.02);
+        mls.setSearchRadius(0.05);
         mls.reconstruct(mls_points);
         
         /*pcl::NormalEstimation<PRGB, pcl::Normal> norm_est;
@@ -225,8 +224,7 @@ namespace hrl_table_detect {
         pc_filtered_ptr->header.stamp = ros::Time::now();
         pc_filtered_ptr->header.frame_id = base_frame;
         pc_pub2.publish(pc_filtered_ptr);
-int yo = 0;
-ROS_INFO("HERE %d", yo++);
+
         if(surf_models.size() == 0)
             return false;
 
@@ -252,12 +250,10 @@ ROS_INFO("HERE %d", yo++);
             }
             flat_pc.push_back(n_pt);
         }
-ROS_INFO("HERE %d", yo++);
         flat_pc.header.stamp = ros::Time::now();
         flat_pc.header.frame_id = pc_full_frame_ptr->header.frame_id;
         pc_pub3.publish(flat_pc);
 
-ROS_INFO("HERE %d", yo++);
         // project table inliers onto plane model found
         pcl::PointCloud<PRGB>::Ptr table_proj (new pcl::PointCloud<pcl::PointXYZRGB>);
         pcl::ProjectInliers<PRGB> proj_ins;
@@ -266,7 +262,6 @@ ROS_INFO("HERE %d", yo++);
         proj_ins.setModelType(pcl::SACMODEL_PLANE);
         proj_ins.setModelCoefficients(boost::make_shared<pcl::ModelCoefficients>(surf_models[0]));
         proj_ins.filter(*table_proj);
-ROS_INFO("HERE %d", yo++);
 
         // convex hull of largest surface
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_hull (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -275,7 +270,6 @@ ROS_INFO("HERE %d", yo++);
         //convex_hull.setIndices(boost::make_shared<pcl::PointIndices>(surf_clust_list[0]));
         convex_hull.reconstruct(*cloud_hull);
 
-ROS_INFO("HERE %d", yo++);
         // publish table hull polygon
         visualization_msgs::Marker hull_poly;
         hull_poly.type = visualization_msgs::Marker::LINE_STRIP;
@@ -293,12 +287,10 @@ ROS_INFO("HERE %d", yo++);
             n_pt.z = cloud_hull->points[j].z; 
             hull_poly.points.push_back(n_pt);
         }
-ROS_INFO("HERE %d", yo++);
         hull_poly.points.push_back(hull_poly.points[0]);
         poly_pub.publish(hull_poly);
         accum_pc.points.clear();
         resp.surfaces.push_back(hull_poly);
-ROS_INFO("HERE %d", yo++);
         return true;
     }
 

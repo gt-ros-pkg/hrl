@@ -47,6 +47,11 @@ class TableClickable:
             
         # segment surfaces
         self.surfaces = self.table_seg_srv().surfaces
+        for i in range(len(self.surfaces)):
+            self.surfaces[i].color.r = 0
+            self.surfaces[i].color.g = 256
+            self.surfaces[i].color.b = 0
+            self.surfaces[i].color.a = 256
         self.percept_pub.publish(self.surfaces[0])
 
         resp = PerceiveButtonsResponse()
@@ -67,11 +72,12 @@ class TableClickable:
             table_move_goal.target_pose.header.frame_id = approach_poses.header.frame_id
             table_move_goal.target_pose.header.stamp = rospy.Time.now()
             try:
-                self.table_move_client.send_goal(table_move_goal)
-                self.table_move_client.wait_for_result()
-                cur_pose = self.table_move_client.get_result()
+                #self.table_move_client.send_goal(table_move_goal)
+                #self.table_move_client.wait_for_result()
+                #cur_pose = self.table_move_client.get_result()
                 try:
-                    self.approach_table_srv()
+                    pass
+                    #self.approach_table_srv()
                 except rospy.ROSInterruptException:
                     print "Table approach failed"
             except rospy.ROSInterruptException:
