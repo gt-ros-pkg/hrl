@@ -48,7 +48,9 @@ class CircularBuffer():
     def to_list(self):
         start_idx = (self.idx - self.n_vals + 1) % self.size
         end_idx = self.idx
-        if end_idx > start_idx:
+        if self.n_vals == 0:
+            return []
+        if end_idx >= start_idx:
             l = self.buf[start_idx:end_idx+1].tolist()
         else:
             l = self.buf[start_idx:].tolist()
@@ -71,12 +73,15 @@ class CircularBuffer():
         self.n_vals = 0
         self.idx = -1
 
-# will implement later. need to maintin start and end idx, or
-# something.
-#    def __getitem__(self, i):
-#        print 'i:', i
-#        if abs(i) >= self.idx:
-#            raise IndexError('index out of bounds')
-#        i = i % self.idx
-#        return self.buf[i]
+    def __getitem__(self, i):
+        if i >= self.n_vals or -i > self.n_vals:
+            raise IndexError('index out of bounds')
+
+        start_idx = (self.idx + 1 - self.n_vals)
+        i = (start_idx + i) % self.n_vals
+        return self.buf[i]
+
+    def __repr__(self):
+        return str(self.to_list())
+
 
