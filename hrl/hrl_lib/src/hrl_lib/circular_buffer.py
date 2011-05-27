@@ -28,35 +28,47 @@
 #  \author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
 
 
-import numpy as np, math
+import numpy as np
 
-import roslib
-roslib.load_manifest('hrl_lib')
+class CircularBuffer():
+    # element_shape = () if you want a buffer of scalars.
+    def __init__(self, max_size, element_shape):
+        shp = [max_size] + list(element_shape)
+        self.buf = np.zeros(shp)
+        self.size = max_size
+        self.n_vals = 0
+        self.idx = -1 # index with the up to date data.
 
-import rospy
-import PyKDL as kdl
+    def append(self, val):
+        self.idx = (self.idx + 1) % self.size
+        self.n_vals = min(self.n_vals + 1, self.size)
+        self.buf[self.idx, :] = val
 
+    # convert the data into a list
+    def to_list(self):
+        start_idx = (self.idx - self.n_vals + 1) % self.hist_size
+        end_idx = self.idx
+        if end_idx > start_idx:
+            l = self.buf[start_idx:end_idx+1].tolist()
+        else:
+            l = self.buf[start_idx:].tolist()
+            l += self.buf[:end_idx+1].tolist()
+        return l
 
-## kdl vector -> 3x1 np matrix.
-def kdl_vec_to_np(kdl_vec):
-    v = np.matrix([kdl_vec[0],kdl_vec[1],kdl_vec[2]]).T
-    return v
+    # get the last n elements.
+    def get_last(self, n):
+        end_idx = self.idx
+        start_idx = end_idx - n
+        if start_idx < 0:
+            a1 = self.buf[start_idx:]
+            a2 = self.buf[:end_idx+1]
+            a = np.row_stack((a1,a2))
+        else:
+            a = self.buf[start_idx:end_idx+1]
+        return a
 
-## kdl rotation matrix -> 3x3 numpy matrix.
-def kdl_rot_to_np(kdl_rotation):
-    m = kdl_rotation
-    rot = np.matrix([[m[0,0],m[0,1],m[0,2]],
-                     [m[1,0],m[1,1],m[1,2]],
-                     [m[2,0],m[2,1],m[2,2]]])
-    return rot
-
-## 3x1 np vector -> KDL Vector
-def np_vec_to_kdl(p):
-    return kdl.Vector(p[0,0],p[1,0],p[2,0])
-
-## 3x3 np rotation matrix -> KDL Rotation.
-def np_rot_to_kdl(rot):
-    return kdl.Rotation(rot[0,0],rot[0,1],rot[0,2],rot[1,0],rot[1,1],rot[1,2],rot[2,0],rot[2,1],rot[2,2])
-
+    def clear(self):
+        self.n_vals = 0
+        self.idx = -1
 
 
