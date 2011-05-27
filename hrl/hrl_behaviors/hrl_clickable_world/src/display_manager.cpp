@@ -87,7 +87,7 @@ namespace hrl_clickable_world {
         display_buttons_srv = nhdl.advertiseService("display_buttons", 
                                                 &DisplayManager::displayButtonsCB, this);
         button_action_srv = nhdl.serviceClient<ButtonAction>("button_action");
-        perceive_srv = nhdl.serviceClient<ButtonAction>("perceive_buttons");
+        perceive_srv = nhdl.serviceClient<std_srvs::Empty>("perceive_buttons");
         pixel23d_srv = nhdl.serviceClient<pixel_2_3d::Pixel23d>("/pixel_2_3d");
         ROS_INFO("[display_manager] DisplayManager loaded.");
     }
@@ -156,7 +156,7 @@ namespace hrl_clickable_world {
     }
 
     void DisplayManager::rImageClickCB(const geometry_msgs::PointStamped& msg) {
-        std_srvs::EmptyRequest req; std_srvs::EmptyResponse resp;
+        std_srvs::Empty::Request req; std_srvs::Empty::Response resp;
         perceive_srv.call(req, resp);
     }
     
