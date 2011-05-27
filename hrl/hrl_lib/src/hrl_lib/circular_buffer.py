@@ -42,11 +42,11 @@ class CircularBuffer():
     def append(self, val):
         self.idx = (self.idx + 1) % self.size
         self.n_vals = min(self.n_vals + 1, self.size)
-        self.buf[self.idx, :] = val
+        self.buf[self.idx] = val
 
     # convert the data into a list
     def to_list(self):
-        start_idx = (self.idx - self.n_vals + 1) % self.hist_size
+        start_idx = (self.idx - self.n_vals + 1) % self.size
         end_idx = self.idx
         if end_idx > start_idx:
             l = self.buf[start_idx:end_idx+1].tolist()
@@ -62,7 +62,7 @@ class CircularBuffer():
         if start_idx < 0:
             a1 = self.buf[start_idx:]
             a2 = self.buf[:end_idx+1]
-            a = np.row_stack((a1,a2))
+            a = np.concatenate((a1,a2))
         else:
             a = self.buf[start_idx:end_idx+1]
         return a
@@ -71,4 +71,12 @@ class CircularBuffer():
         self.n_vals = 0
         self.idx = -1
 
+# will implement later. need to maintin start and end idx, or
+# something.
+#    def __getitem__(self, i):
+#        print 'i:', i
+#        if abs(i) >= self.idx:
+#            raise IndexError('index out of bounds')
+#        i = i % self.idx
+#        return self.buf[i]
 
