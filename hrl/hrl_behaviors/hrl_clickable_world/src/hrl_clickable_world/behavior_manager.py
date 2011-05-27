@@ -4,7 +4,7 @@ import numpy as np
 
 import roslib; roslib.load_manifest('hrl_clickable_world')
 import rospy
-import std_srvs.srv
+import std_msgs.msg
 
 from hrl_clickable_world.srv import PerceiveButtons, ButtonAction, DisplayButtons
 from hrl_clickable_world.srv import ButtonActionRequest
@@ -18,8 +18,8 @@ class BehaviorManager:
         self.behavior_names = rospy.get_param(NS_PREFIX + "behavior_names")
         self.robot_state = rospy.get_param(NS_PREFIX + "init_conditions")
         self.srv_prefix = rospy.get_param(NS_PREFIX + "behavior_namespace")
-        self.percieve_buttons_srv = rospy.Service(NS_PREFIX + "perceive_buttons",
-                                                  std_srvs.srv.Empty,
+        self.percieve_buttons_sub = rospy.Subscriber(NS_PREFIX + "perceive_buttons",
+                                                  std_msgs.msg.Bool,
                                                   self.perceive_buttons)
         self.display_buttons_srv = rospy.ServiceProxy(NS_PREFIX + "display_buttons",
                                                       DisplayButtons)
@@ -44,7 +44,7 @@ class BehaviorManager:
                                     ButtonAction)
             self.behaviors[name] = behavior
 
-    def perceive_buttons(self, req):
+    def perceive_buttons(self, msg):
         rospy.loginfo("Perceiving buttons")
         self.button_types = []
         cur_button_id = 1
@@ -74,7 +74,6 @@ class BehaviorManager:
                 displayed_buttons.extend(cur_buttons)
         # tell display to show buttons
         self.display_buttons_srv(displayed_buttons)
-        return std_srvs.srv.EmptyResponse()
 
     def on_button_press(self, req):
         if req.button_id == 0:

@@ -12,6 +12,7 @@
 #include <geometry_msgs/Point.h>
 #include <visualization_msgs/Marker.h>
 #include <std_srvs/Empty.h>
+#include <std_msgs/Bool.h>
 #include <std_msgs/Int32.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv/cv.h>
@@ -29,9 +30,9 @@ namespace hrl_clickable_world {
 
     class DisplayManager {
         public:
-            ros::Publisher button_pushed_pub;
+            ros::Publisher button_pushed_pub, perceive_pub;
             ros::ServiceServer display_buttons_srv, clear_buttons_srv, image_click_srv;
-            ros::ServiceClient button_action_srv, pixel23d_srv, perceive_srv;
+            ros::ServiceClient button_action_srv, pixel23d_srv;
             ros::Subscriber l_image_click_sub, r_image_click_sub;
             ros::NodeHandle nhdl;
             image_transport::ImageTransport img_trans;
@@ -77,6 +78,7 @@ namespace hrl_clickable_world {
         overlay_pub = img_trans.advertise("image_buttons", 1);
         button_pub = img_trans.advertise("image_buttons_mask", 1);
         button_pushed_pub = nhdl.advertise<std_msgs::Int32>("button_pushed", 1);
+        perceive_pub = nhdl.advertise<std_msgs::Bool>("perceive_buttons", 1);
         image_click_srv = nhdl.advertiseService("click_image", 
                                                 &DisplayManager::imageClickSrvCB, this);
         l_image_click_sub = nhdl.subscribe("l_mouse_click", 1, 
@@ -87,7 +89,6 @@ namespace hrl_clickable_world {
         display_buttons_srv = nhdl.advertiseService("display_buttons", 
                                                 &DisplayManager::displayButtonsCB, this);
         button_action_srv = nhdl.serviceClient<ButtonAction>("button_action");
-        perceive_srv = nhdl.serviceClient<std_srvs::Empty>("perceive_buttons");
         pixel23d_srv = nhdl.serviceClient<pixel_2_3d::Pixel23d>("/pixel_2_3d");
         ROS_INFO("[display_manager] DisplayManager loaded.");
     }
@@ -101,7 +102,6 @@ namespace hrl_clickable_world {
         if(!buttons_on) {
             // buttons turned off so we don't do anything to the image
             overlay_pub.publish(cv_img->toImageMsg());
-            button_pub.publish(cv_img->toImageMsg());
             return;
         }
 
@@ -156,8 +156,11 @@ namespace hrl_clickable_world {
     }
 
     void DisplayManager::rImageClickCB(const geometry_msgs::PointStamped& msg) {
-        std_srvs::Empty::Request req; std_srvs::Empty::Response resp;
-        perceive_srv.call(req, resp);
+        if(img_click_lock.try_lock()) {
+            std_msgs::Bool bool_msg;
+            perceive_pub.publish(bool_msg);
+            img_click_lock.unlock();
+        }
     }
     
     void DisplayManager::doLImageClickCB(const geometry_msgs::PointStamped& image_click) {
@@ -175,25 +178,25 @@ namespace hrl_clickable_world {
                                                  image_click.point.x, image_click.point.y, 
                                                  (int) button_id);
             // don't process a click not on a button
-            if(button_id == 0)
-                return;
-            ROS_INFO("Num buttons: %d", (int) buttons.size());
-            // Make button action given known information about button press.
-            ButtonAction::Request ba_req;
-            ba_req.pixel_x = image_click.point.x; ba_req.pixel_y = image_click.point.y;
-            ba_req.camera_frame = cam_model.tfFrame();
-            ba_req.button_id = buttons[button_id-1].id;
-            ba_req.button_type = buttons[button_id-1].id; 
-            pixel_2_3d::Pixel23d::Request p3d_req; pixel_2_3d::Pixel23d::Response p3d_resp;
-            p3d_req.pixel.point.x = image_click.point.x; p3d_req.pixel.point.y = image_click.point.y; 
-            pixel23d_srv.call(p3d_req, p3d_resp);
-            ba_req.pixel3d.header.frame_id = p3d_resp.pixel3d.header.frame_id;
-            ba_req.pixel3d.header.stamp = p3d_resp.pixel3d.header.stamp;
-            ba_req.pixel3d.point.x = p3d_resp.pixel3d.point.x;
-            ba_req.pixel3d.point.y = p3d_resp.pixel3d.point.y;
-            ba_req.pixel3d.point.z = p3d_resp.pixel3d.point.z;
-            ButtonAction::Response ba_resp;
-            button_action_srv.call(ba_req, ba_resp);
+            if(button_id != 0) {
+                ROS_INFO("Num buttons: %d", (int) buttons.size());
+                // Make button action given known information about button press.
+                ButtonAction::Request ba_req;
+                ba_req.pixel_x = image_click.point.x; ba_req.pixel_y = image_click.point.y;
+                ba_req.camera_frame = cam_model.tfFrame();
+                ba_req.button_id = buttons[button_id-1].id;
+                ba_req.button_type = buttons[button_id-1].id; 
+                pixel_2_3d::Pixel23d::Request p3d_req; pixel_2_3d::Pixel23d::Response p3d_resp;
+                p3d_req.pixel.point.x = image_click.point.x; p3d_req.pixel.point.y = image_click.point.y; 
+                pixel23d_srv.call(p3d_req, p3d_resp);
+                ba_req.pixel3d.header.frame_id = p3d_resp.pixel3d.header.frame_id;
+                ba_req.pixel3d.header.stamp = p3d_resp.pixel3d.header.stamp;
+                ba_req.pixel3d.point.x = p3d_resp.pixel3d.point.x;
+                ba_req.pixel3d.point.y = p3d_resp.pixel3d.point.y;
+                ba_req.pixel3d.point.z = p3d_resp.pixel3d.point.z;
+                ButtonAction::Response ba_resp;
+                button_action_srv.call(ba_req, ba_resp);
+            }
         }
         img_click_lock.unlock();
     }
