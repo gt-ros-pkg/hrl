@@ -44,7 +44,7 @@ namespace hrl_clickable_world {
     }
 
     void ClickableDisplay::onInit() {
-        cv::namedWindow("Clickable World", CV_WINDOW_NORMAL);
+        cv::namedWindow("Clickable World", 1);
         // Can't use: requires QT support
         //cv::createButton("Perceive Buttons", &ClickableDisplay::perceiveButtonCallback, 
         //                 this, CV_PUSH_BUTTON, 0);
