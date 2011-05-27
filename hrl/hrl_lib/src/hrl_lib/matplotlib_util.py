@@ -86,6 +86,14 @@ def set_figure_size(fig_width, fig_height):
               'figure.figsize': fig_size}
     pl.rcParams.update(params)
 
+## typical usage: ax = pp.gca(); mpu.flip_x_axis(ax)
+def flip_x_axis(ax):
+    ax.set_xlim(ax.get_xlim()[::-1])
+
+## typical usage: ax = pp.gca(); mpu.flip_y_axis(ax)
+def flip_y_axis(ax):
+    ax.set_ylim(ax.get_ylim()[::-1])
+
 
 ## plot an ellipse
 # @param mn - center of ellipe. (2x1 np matrix)
