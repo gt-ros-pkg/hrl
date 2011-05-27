@@ -44,6 +44,8 @@ class TestButton:
 
     def do_action(self, req):
         rospy.loginfo("TestButton clicked!")
+        rospy.sleep(10)
+        rospy.loginfo("TestButton done!")
         return ButtonActionResponse()
 
 def main():

@@ -31,14 +31,16 @@ namespace hrl_clickable_world {
         public:
             ros::Publisher button_pushed_pub;
             ros::ServiceServer display_buttons_srv, clear_buttons_srv, image_click_srv;
-            ros::ServiceClient button_action_srv, pixel23d_srv;
-            ros::Subscriber image_click_sub;
+            ros::ServiceClient button_action_srv, pixel23d_srv, perceive_srv;
+            ros::Subscriber l_image_click_sub, r_image_click_sub;
             ros::NodeHandle nhdl;
             image_transport::ImageTransport img_trans;
             image_transport::CameraSubscriber camera_sub;
-            image_transport::Publisher overlay_pub;
+            image_transport::Publisher overlay_pub, button_pub;
             image_geometry::PinholeCameraModel cam_model;
             tf::TransformListener tf_listener;
+            boost::shared_ptr<boost::thread> img_click_thread;
+            boost::mutex img_click_lock;
 
             bool buttons_on;
             vector<visualization_msgs::Marker> buttons;
@@ -51,8 +53,11 @@ namespace hrl_clickable_world {
             void doOverlay(const sensor_msgs::ImageConstPtr& img_msg,
                            const sensor_msgs::CameraInfoConstPtr& info_msg);
             bool imageClickSrvCB(ClickImage::Request& req, ClickImage::Response& resp);
-            void imageClickCB(const geometry_msgs::PointStamped& msg);
+            void lImageClickCB(const geometry_msgs::PointStamped& msg);
+            void rImageClickCB(const geometry_msgs::PointStamped& msg);
+            void doLImageClickCB(const geometry_msgs::PointStamped& msg);
             bool displayButtonsCB(DisplayButtons::Request& req, DisplayButtons::Response& resp);
+            void displayButtonsCB(std::vector<visualization_msgs::Marker>& buttons_msg);
             bool clearButtonsCB(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
         
     };
@@ -67,17 +72,22 @@ namespace hrl_clickable_world {
     void DisplayManager::onInit() {
         buttons_on = false;
         camera_sub = img_trans.subscribeCamera<DisplayManager>
-                                              ("/kinect_head/rgb/image_color", 1, 
+                                              ("/image", 1, 
                                                &DisplayManager::doOverlay, this);
         overlay_pub = img_trans.advertise("image_buttons", 1);
+        button_pub = img_trans.advertise("image_buttons_mask", 1);
         button_pushed_pub = nhdl.advertise<std_msgs::Int32>("button_pushed", 1);
         image_click_srv = nhdl.advertiseService("click_image", 
                                                 &DisplayManager::imageClickSrvCB, this);
-        image_click_sub = nhdl.subscribe("mouse_click", 1, 
-                                         &DisplayManager::imageClickCB, this);
+        l_image_click_sub = nhdl.subscribe("l_mouse_click", 1, 
+                                           &DisplayManager::lImageClickCB, this);
+        r_image_click_sub = nhdl.subscribe("r_mouse_click", 1, 
+                                           &DisplayManager::rImageClickCB, this);
+
         display_buttons_srv = nhdl.advertiseService("display_buttons", 
                                                 &DisplayManager::displayButtonsCB, this);
         button_action_srv = nhdl.serviceClient<ButtonAction>("button_action");
+        perceive_srv = nhdl.serviceClient<ButtonAction>("perceive_buttons");
         pixel23d_srv = nhdl.serviceClient<pixel_2_3d::Pixel23d>("/pixel_2_3d");
         ROS_INFO("[display_manager] DisplayManager loaded.");
     }
@@ -91,6 +101,7 @@ namespace hrl_clickable_world {
         if(!buttons_on) {
             // buttons turned off so we don't do anything to the image
             overlay_pub.publish(cv_img->toImageMsg());
+            button_pub.publish(cv_img->toImageMsg());
             return;
         }
 
@@ -128,14 +139,28 @@ namespace hrl_clickable_world {
             button_rasters[i] = button_raster_back;
         }
         overlay_pub.publish(cv_img->toImageMsg());
+        //button_pub.publish(cv_img->toImageMsg());
     }
 
     bool DisplayManager::imageClickSrvCB(ClickImage::Request& req, ClickImage::Response& resp) {
-        imageClickCB(req.image_click);
+        lImageClickCB(req.image_click);
         return true;
     }
     
-    void DisplayManager::imageClickCB(const geometry_msgs::PointStamped& image_click) {
+    void DisplayManager::lImageClickCB(const geometry_msgs::PointStamped& image_click) {
+        if(img_click_lock.try_lock())
+            img_click_thread = boost::shared_ptr<boost::thread>(
+                                      new boost::thread(
+                                          boost::bind(&DisplayManager::doLImageClickCB,
+                                                      this, image_click)));
+    }
+
+    void DisplayManager::rImageClickCB(const geometry_msgs::PointStamped& msg) {
+        std_srvs::EmptyRequest req; std_srvs::EmptyResponse resp;
+        perceive_srv.call(req, resp);
+    }
+    
+    void DisplayManager::doLImageClickCB(const geometry_msgs::PointStamped& image_click) {
         if(buttons_on) {
             buttons_on = false;
             //figure out which button was clicked on
@@ -148,11 +173,11 @@ namespace hrl_clickable_world {
             }
             ROS_INFO("[display_manager] Image click recieved: (Pix_X: %f, Pix_Y: %f, ID: %d)", 
                                                  image_click.point.x, image_click.point.y, 
-                                                 button_id);
+                                                 (int) button_id);
             // don't process a click not on a button
             if(button_id == 0)
                 return;
-            ROS_INFO("Num buttons: %d", buttons.size());
+            ROS_INFO("Num buttons: %d", (int) buttons.size());
             // Make button action given known information about button press.
             ButtonAction::Request ba_req;
             ba_req.pixel_x = image_click.point.x; ba_req.pixel_y = image_click.point.y;
@@ -170,17 +195,22 @@ namespace hrl_clickable_world {
             ButtonAction::Response ba_resp;
             button_action_srv.call(ba_req, ba_resp);
         }
+        img_click_lock.unlock();
     }
 
     bool DisplayManager::displayButtonsCB(DisplayButtons::Request& req, 
                                           DisplayButtons::Response& resp) {
-        buttons = req.buttons;
+        displayButtonsCB(req.buttons);
+        return true;
+    }
+
+    void DisplayManager::displayButtonsCB(std::vector<visualization_msgs::Marker>& buttons_msg) {
+        buttons = buttons_msg;
         buttons_on = true;
         button_rasters.resize(buttons.size());
         cv::Size resolution = cam_model.fullResolution();
         for(uint32_t i=0;i<buttons.size();i++)
             button_rasters[i] = cv::Mat::zeros(resolution.width, resolution.height, CV_8UC1);
-        return true;
     }
 
     bool DisplayManager::clearButtonsCB(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp) {

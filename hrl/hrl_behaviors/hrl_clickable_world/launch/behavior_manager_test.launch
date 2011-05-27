@@ -3,5 +3,7 @@
     <node pkg="hrl_clickable_world" type="behavior_manager.py" name="behavior_manager" output="screen">
     </node>
     <node pkg="hrl_clickable_world" type="test_button.py" name="test_button" output="screen"/>
-    <node pkg="hrl_clickable_world" type="display_manager" name="display_manager" output="screen"/>
+    <node pkg="hrl_clickable_world" type="display_manager" name="display_manager" output="screen">
+        <remap from="/image" to="/wide_stereo/right/image_rect_color"/>
+    </node>
 </launch>
