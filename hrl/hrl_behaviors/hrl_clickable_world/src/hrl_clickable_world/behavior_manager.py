@@ -26,7 +26,7 @@ class BehaviorManager:
         self.button_action_srv = rospy.Service(NS_PREFIX + "button_action",
                                                ButtonAction,
                                                self.on_button_press)
-        self.pixel_2_3d_srv = rospy.ServiceProxy("/pixel_2_3d",
+        self.pixel_2_3d_srv = rospy.ServiceProxy("/pixel_2_3d/pixel_2_3d",
                                                       Pixel23d)
         self.behaviors = {}
         self.perception_srvs = {}
