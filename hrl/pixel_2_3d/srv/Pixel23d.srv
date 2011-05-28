@@ -1,3 +1,4 @@
-geometry_msgs/PointStamped pixel
+int32 pixel_u
+int32 pixel_v
 ---
-geometry_msgs/PointStamped pixel3d
+geometry_msgs/PoseStamped pixel3d
