@@ -1,6 +1,0 @@
-<launch>
-    <node pkg="pixel_2_3d" type="pixel_2_3d" name="pixel_2_3d" output="screen" respawn="true">
-        <remap from="image" to="/kinect_head/rgb/image_color"/>
-        <remap from="point_cloud" to="/kinect_head/rgb/points"/>
-    </node>
-</launch>

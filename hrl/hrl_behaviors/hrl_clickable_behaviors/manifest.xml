@@ -1,12 +1,12 @@
 <package>
   <description brief="hrl_clickable_behaviors">
 
-     hrl_clickable_behaviors
+     Contains a working demo of the [[hrl_clickable_world]] interface.
 
   </description>
-  <author>kelsey</author>
+  <author>Author: Kelsey Hawkins, Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab at Georgia Tech)</author>
   <license>BSD</license>
-  <review status="unreviewed" notes=""/>
+  <review status="experimental" notes=""/>
   <url>http://ros.org/wiki/hrl_clickable_behaviors</url>
   <depend package="rospy"/>
   <depend package="roscpp"/>

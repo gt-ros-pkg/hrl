@@ -30,13 +30,11 @@ namespace pixel_2_3d {
             tf::TransformListener tf_listener;
             ros::Subscriber pc_sub, l_click_sub;
             ros::Publisher pt3d_pub;
-            ros::Publisher pc_pub;
             ros::ServiceServer pix_srv;
             image_transport::ImageTransport img_trans;
             image_transport::CameraSubscriber camera_sub;
             image_geometry::PinholeCameraModel cam_model;
             pcl::PointCloud<pcl::PointXYZRGB>::Ptr cur_pc;
-            bool monitor_mode;
             double normal_search_radius;
 
             Pixel23dServer();
@@ -55,7 +53,6 @@ namespace pixel_2_3d {
     }
 
     void Pixel23dServer::onInit() {
-        nh.param<bool>("monitor_mode", monitor_mode, false);
         nh.param<double>("normal_radius", normal_search_radius, 0.03);
         camera_sub = img_trans.subscribeCamera<Pixel23dServer>
                                               ("/image", 1, 
@@ -63,10 +60,7 @@ namespace pixel_2_3d {
         pc_sub = nh.subscribe("/point_cloud", 1, &Pixel23dServer::pcCallback, this);
         pix_srv = nh.advertiseService("/pixel_2_3d", &Pixel23dServer::pixCallback, this);
         pt3d_pub = nh.advertise<geometry_msgs::PoseStamped>("/pixel3d", 1);
-        pc_pub = nh.advertise<pcl::PointCloud<PRGB> >("/pcnear", 1);
-        if(monitor_mode) {
-            l_click_sub = nh.subscribe("/l_mouse_click", 1, &Pixel23dServer::lClickCallback, this);
-        }
+        l_click_sub = nh.subscribe("/l_mouse_click", 1, &Pixel23dServer::lClickCallback, this);
         ROS_INFO("[pixel_2_3d] Pixel23dServer loaded");
         ros::Duration(1).sleep();
     }
@@ -128,7 +122,6 @@ namespace pixel_2_3d {
         near_extract.filter(*near_pts);
         std::vector<int> inds;
         pcl::removeNaNFromPointCloud<PRGB>(*near_pts, *near_pts, inds);
-        pc_pub.publish(*near_pts);
 
         // Compute normals
         pcl::PointCloud<pcl::Normal>::Ptr normals_ptr(new pcl::PointCloud<pcl::Normal>());

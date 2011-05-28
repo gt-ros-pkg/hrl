@@ -1,0 +1,8 @@
+<launch>
+    <node pkg="pixel_2_3d" type="pixel_2_3d" name="pixel_2_3d" output="screen" respawn="true">
+        <remap from="image" to="/wide_stereo/right/image_rect_color"/>
+        <remap from="point_cloud" to="/wide_stereo/points2"/>
+        <remap from="l_mouse_click" to="/clickable_display/l_mouse_click"/>
+        <param name="normal_radius" type="double" value="0.025" />
+    </node>
+</launch>

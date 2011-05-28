@@ -1,10 +1,10 @@
 <package>
   <description brief="pixel_2_3d">
 
-     pixel_2_3d
+     Simple utility used to convert pixels on an image to 3d points using point cloud data.
 
   </description>
-  <author>kelsey</author>
+  <author>Author: Kelsey Hawkins, Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab at Georgia Tech)</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/pixel_2_3d</url>
