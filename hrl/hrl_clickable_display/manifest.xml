@@ -1,10 +1,10 @@
 <package>
   <description brief="hrl_clickable_display">
 
-     hrl_clickable_display
+     Provides a simple opencv display which publishes left and right mouse clicks along with the pixel location of the click.
 
   </description>
-  <author>kelsey</author>
+  <author>Author: Kelsey Hawkins, Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab at Georgia Tech)</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_clickable_display</url>
