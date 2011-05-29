@@ -127,11 +127,14 @@ namespace pr2_collision_monitor {
 
         detect_pub = nh_priv.advertise<std_msgs::Bool>("arm_collision_detected", 1);
         ROS_INFO("[collision_monitor] Publishing on arm_collision_detected");
-        start_srv = nh_priv.advertiseService("start_detection", &CollisionMonitor::srvStartDetection, this);
+        start_srv = nh_priv.advertiseService("start_detection", 
+                                             &CollisionMonitor::srvStartDetection, this);
         ROS_INFO("[collision_monitor] Service advertised at start_detection");
-        stop_srv = nh_priv.advertiseService("stop_detection", &CollisionMonitor::srvStopDetection, this);
+        stop_srv = nh_priv.advertiseService("stop_detection", 
+                                            &CollisionMonitor::srvStopDetection, this);
         ROS_INFO("[collision_monitor] Service advertised at stop_detection");
-        trig_srv = nh_priv.advertiseService("trigger_collision", &CollisionMonitor::srvTriggerCollision, this);
+        trig_srv = nh_priv.advertiseService("trigger_collision", 
+                                            &CollisionMonitor::srvTriggerCollision, this);
         ROS_INFO("[collision_monitor] Service advertised at trigger_collision");
 
         error_sub = nh.subscribe(arm + "_arm_controller/state", 2, 

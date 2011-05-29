@@ -14,11 +14,16 @@
   <depend package="sensor_msgs"/>
   <depend package="pr2_msgs"/>
   <depend package="hrl_lib"/>
-  <depend package="pr2_overhead_grasping"/>
   <depend package="hrl_pr2_lib"/>
   <depend package="laser_interface"/>
   <depend package="hrl_tilting_hokuyo"/>
   <depend package="pcl"/>
+  <depend package="geometry_msgs"/>
+  <depend package="cv_bridge"/>
+  <depend package="image_geometry"/>
+  <depend package="image_transport"/>
+  <depend package="tf"/>
+  <depend package="opencv2"/>
 
 </package>
 
