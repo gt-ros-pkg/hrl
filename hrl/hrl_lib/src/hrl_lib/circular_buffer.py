@@ -84,4 +84,6 @@ class CircularBuffer():
     def __repr__(self):
         return str(self.to_list())
 
+    def __len__(self):
+        return self.n_vals
 
