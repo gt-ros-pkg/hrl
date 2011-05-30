@@ -1,0 +1,33 @@
+<launch>
+    <include file="$(find pr2_collision_monitor)/launch/fingertip_monitor.launch" />
+
+    <!-- Right -->
+    <node pkg="pr2_collision_monitor" type="collision_monitor" name="r_collision_monitor" output="screen" >
+        <param name="arm" type="str" value="r" />
+    </node>
+    <node pkg="pr2_collision_monitor" type="joint_coll_detect" name="r_joint_coll_detect" output="screen" >
+        <param name="arm" type="str" value="r"/>
+        <param name="training_mode" type="bool" value="false"/>
+        <param name="significance_mode" type="bool" value="true"/>
+        <param name="filename_prefix" type="str" value="$(find pr2_grasp_behaviors)/data/"/>
+        <rosparam param="filename_list">
+            [overhead_grasping_r_data.bag]
+        </rosparam>
+
+    </node>                 
+
+    <!-- Left -->
+    <node pkg="pr2_collision_monitor" type="collision_monitor" name="l_collision_monitor" output="screen" >
+        <param name="arm" type="str" value="l" />
+    </node>
+    <node pkg="pr2_collision_monitor" type="joint_coll_detect" name="l_joint_coll_detect" output="screen" >
+        <param name="arm" type="str" value="l"/>
+        <param name="training_mode" type="bool" value="false"/>
+        <param name="significance_mode" type="bool" value="true"/>
+        <param name="filename_prefix" type="str" value="$(find pr2_grasp_behaviors)/data/"/>
+        <rosparam param="filename_list">
+            [overhead_grasping_l_data.bag]
+        </rosparam>
+
+    </node>                 
+</launch>

@@ -21,7 +21,7 @@ def main():
     grasp_setup_client = actionlib.SimpleActionClient(args[1] + '_overhead_grasp_setup', OverheadGraspSetupAction)
     grasp_setup_client.wait_for_server()
     print "grasp_client ready"
-    if args[2] == 'reg_test':
+    if args[2] == 'visual' or args[2] == 'manual':
         results_dict = {}
         obj_in_hand = False
         while not rospy.is_shutdown():
@@ -41,7 +41,10 @@ def main():
                 goal.is_grasp = True
                 goal.disable_head = False
                 goal.disable_coll = False
-                goal.grasp_type=OverheadGraspGoal.VISION_GRASP
+                if args[2] == 'visual':
+                    goal.grasp_type = OverheadGraspGoal.VISION_GRASP
+                else:
+                    goal.grasp_type = OverheadGraspGoal.MANUAL_GRASP
                 goal.grasp_params = [0] * 3
                 goal.grasp_params[0] = 0.5 + random.uniform(-0.1, 0.1)
                 goal.grasp_params[1] = 0.0 + random.uniform(-0.1, 0.1)
@@ -65,7 +68,7 @@ def main():
                 goal.is_grasp = False
                 goal.disable_head = False
                 goal.disable_coll = False
-                goal.grasp_type=OverheadGraspGoal.MANUAL_GRASP
+                goal.grasp_type = OverheadGraspGoal.MANUAL_GRASP
                 goal.grasp_params = [0] * 3
                 goal.grasp_params[0] = 0.55 + random.uniform(-0.1, 0.1)
                 goal.grasp_params[1] = 0.0 + random.uniform(-0.2, 0.2)
@@ -82,7 +85,7 @@ def main():
                 obj_in_hand = result.grasp_result != "Object placed"
                 print "Last result:", result.grasp_result, "Totals:", results_dict
         return
-    print "Format: python test_grasp_action.py [r|l] [reg_test]"
+    print "Format: python test_grasp_action.py [r|l] [manual|visual]"
 
 if __name__ == '__main__':
     main()

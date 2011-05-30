@@ -8,7 +8,7 @@ from tf.transformations import *
 import object_manipulator.convert_functions as cf
 
 from hrl_pr2_lib.hrl_controller_manager import HRLControllerManager as ControllerManager
-from pr2_collision_monitor.srv import CollisionDetectionStart, ArmMovingWait
+from pr2_collision_monitor.srv import JointDetectionStart, ArmMovingWait
 
 ##
 # Abstract class for a grasping behavior.  Implements much of the framework for
@@ -25,17 +25,18 @@ class GraspBehavior(object):
             def __init__(self):
                 self.collided = False
             def callback(self, msg):
-                self.collided = True
+                if msg.data:
+                    self.collided = True
         self.coll_state = CollisionState()
         if self.use_coll_detection:
             rospy.loginfo("Waiting for start_detection")
-            rospy.wait_for_service(self.arm + '_collision_monitor/start_detection')
-            self.start_detection = rospy.ServiceProxy(self.arm + '_collision_monitor/start_detection', CollisionDetectionStart, persistent=True)
+            rospy.wait_for_service(self.arm + '_joint_coll_detect/start_detection')
+            self.start_detection = rospy.ServiceProxy(self.arm + '_joint_coll_detect/start_detection', JointDetectionStart, persistent=True)
             rospy.loginfo("Waiting for stop_detection")
-            rospy.wait_for_service(self.arm + '_collision_monitor/stop_detection')
-            self.stop_detection = rospy.ServiceProxy(self.arm + '_collision_monitor/stop_detection', std_srvs.srv.Empty, persistent=True)
+            rospy.wait_for_service(self.arm + '_joint_coll_detect/stop_detection')
+            self.stop_detection = rospy.ServiceProxy(self.arm + '_joint_coll_detect/stop_detection', std_srvs.srv.Empty, persistent=True)
             self.stop_detection()
-            rospy.Subscriber(self.arm + "_collision_monitor/arm_collision_detected", Bool, self.coll_state.callback)
+            rospy.Subscriber(self.arm + "_joint_coll_detect/arm_collision_detected", Bool, self.coll_state.callback)
 
         rospy.loginfo("Waiting for arm_moving_wait")
         rospy.wait_for_service(self.arm + '_arm_moving_server/arm_moving_wait')

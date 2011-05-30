@@ -14,7 +14,7 @@
 #include <rosbag/view.h>
 
 #include <pr2_collision_monitor/JointErrorData.h>
-#include <pr2_collision_monitor/CollisionDetectionStart.h>
+#include <pr2_collision_monitor/JointDetectionStart.h>
 
 using namespace std;
 
@@ -33,7 +33,7 @@ namespace pr2_collision_monitor {
             ros::NodeHandle nh_priv;
             std::string arm, behavior_name, data_filename;
 
-            bool monitoring_collisions, training_mode, significance_mode;
+            bool monitoring_collisions, training_mode, significance_mode, collision_detected;
             double start_time, end_time;
             vector<double> min_errors, max_errors;
             vector<float> cur_min_data, cur_max_data;
@@ -45,8 +45,8 @@ namespace pr2_collision_monitor {
             void stopDetection();
             bool triggerCollision();
             void errorCallback(pr2_controllers_msgs::JointTrajectoryControllerState::ConstPtr message);
-            bool srvStartDetection(CollisionDetectionStart::Request&, 
-                                   CollisionDetectionStart::Response&);
+            bool srvStartDetection(JointDetectionStart::Request&, 
+                                   JointDetectionStart::Response&);
             bool srvStopDetection(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
             bool srvTriggerCollision(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
             void loadErrorBag(const std::string& load_filename, 
@@ -139,6 +139,7 @@ namespace pr2_collision_monitor {
 
         error_sub = nh.subscribe(arm + "_arm_controller/state", 2, 
                 &JointCollDetect::errorCallback, this);
+        ROS_INFO("[joint_coll_detect] JointCollDetect loaded.");
     }
 
     float minus_squared(float a, float b, float c) { return a + (b-c)*(b-c); }
@@ -148,6 +149,7 @@ namespace pr2_collision_monitor {
             // Default values for fail cases
             std::fill(min_errors.begin(), min_errors.end(), 0);
             std::fill(max_errors.begin(), max_errors.end(), 0);
+            collision_detected = false;
 
             if(significance_mode) {
                 uint32_t behavior_ind = std::find(behavior_name_list.begin(), 
@@ -229,8 +231,8 @@ namespace pr2_collision_monitor {
         }
     }
 
-    bool JointCollDetect::srvStartDetection(CollisionDetectionStart::Request& req, 
-                                             CollisionDetectionStart::Response& resp) {
+    bool JointCollDetect::srvStartDetection(JointDetectionStart::Request& req, 
+                                             JointDetectionStart::Response& resp) {
         return startDetection(req.behavior, req.sig_level);
     }
 
@@ -240,11 +242,13 @@ namespace pr2_collision_monitor {
     }
 
     bool JointCollDetect::triggerCollision() {
-        if(monitoring_collisions && !training_mode) {
-            stopDetection();
+        if(!training_mode) {
+            if(monitoring_collisions)
+                stopDetection();
             std_msgs::Bool bool_true;
             bool_true.data = true;
             detect_pub.publish(bool_true);
+            collision_detected = true;
             return true;
         }
         return false;
@@ -272,6 +276,11 @@ namespace pr2_collision_monitor {
                 if(message->error.positions[i] > cur_max_data[i])
                     cur_max_data[i] = message->error.positions[i];
             }
+        }
+        if(!collision_detected) {
+            std_msgs::Bool bool_false;
+            bool_false.data = false;
+            detect_pub.publish(bool_false);
         }
     }
 

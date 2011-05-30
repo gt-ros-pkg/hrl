@@ -64,8 +64,8 @@ namespace pr2_collision_monitor {
 
         pressure_sub = nh.subscribe("/pressure/" + arm + "_gripper_motor", 2, 
                                     &FingertipMonitor::pressureCallback, this);
-        coll_state_pub = nh.advertise<FingerState>(arm + "_collision_state", 1);
-        coll_state_srv = nh.advertiseService(arm + "_state_request",
+        coll_state_pub = nh.advertise<FingerState>("collision_state", 1);
+        coll_state_srv = nh.advertiseService("state_request",
                                              &FingertipMonitor::srvCallback, this);
     }
 
