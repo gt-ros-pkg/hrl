@@ -20,13 +20,13 @@ using namespace std;
 
 namespace pr2_collision_monitor {
 
-    class CollisionMonitor {
+    class JointCollDetect {
         public:
-            CollisionMonitor();
+            JointCollDetect();
             void onInit();
             void writeErrorData();
             bool isTraining() { return training_mode; }
-            ~CollisionMonitor(); 
+            ~JointCollDetect(); 
 
         protected:
             ros::NodeHandle nh;
@@ -58,7 +58,7 @@ namespace pr2_collision_monitor {
             ros::ServiceServer start_srv, stop_srv, trig_srv;
     };
 
-    CollisionMonitor::CollisionMonitor() : nh_priv("~"),
+    JointCollDetect::JointCollDetect() : nh_priv("~"),
                                            min_errors(7),
                                            max_errors(7),
                                            cur_min_data(7),
@@ -66,7 +66,7 @@ namespace pr2_collision_monitor {
         onInit();
     }
 
-    void CollisionMonitor::onInit() {
+    void JointCollDetect::onInit() {
         nh_priv.param<std::string>("arm", arm, std::string("r"));
         nh_priv.param<bool>("training_mode", training_mode, false);
         nh_priv.param<bool>("significance_mode", significance_mode, false);
@@ -94,7 +94,7 @@ namespace pr2_collision_monitor {
                                                 static_cast<std::string>(xml_filenames[i]));
                     }
                 } else {
-                    ROS_ERROR("[collision_monitor] MUST PROVIDE FILENAMES IN significance_mode (filename_list)");
+                    ROS_ERROR("[joint_coll_detect] MUST PROVIDE FILENAMES IN significance_mode (filename_list)");
                     ros::shutdown();
                     return;
                 }
@@ -107,7 +107,7 @@ namespace pr2_collision_monitor {
                     for(int i=0;i<xml_min_errors.size();i++)
                         min_errors.push_back(static_cast<double>(xml_min_errors[i]));
                 } else {
-                    ROS_ERROR("[collision_monitor] MUST PROVIDE THRESHOLDS (min_errors)");
+                    ROS_ERROR("[joint_coll_detect] MUST PROVIDE THRESHOLDS (min_errors)");
                     ros::shutdown();
                     return;
                 }
@@ -116,7 +116,7 @@ namespace pr2_collision_monitor {
                     for(int i=0;i<xml_max_errors.size();i++)
                         max_errors.push_back(static_cast<double>(xml_max_errors[i]));
                 } else {
-                    ROS_ERROR("[collision_monitor] MUST PROVIDE THRESHOLDS (max_errors)");
+                    ROS_ERROR("[joint_coll_detect] MUST PROVIDE THRESHOLDS (max_errors)");
                     ros::shutdown();
                     return;
                 }
@@ -126,24 +126,24 @@ namespace pr2_collision_monitor {
         monitoring_collisions = false;
 
         detect_pub = nh_priv.advertise<std_msgs::Bool>("arm_collision_detected", 1);
-        ROS_INFO("[collision_monitor] Publishing on arm_collision_detected");
+        ROS_INFO("[joint_coll_detect] Publishing on arm_collision_detected");
         start_srv = nh_priv.advertiseService("start_detection", 
-                                             &CollisionMonitor::srvStartDetection, this);
-        ROS_INFO("[collision_monitor] Service advertised at start_detection");
+                                             &JointCollDetect::srvStartDetection, this);
+        ROS_INFO("[joint_coll_detect] Service advertised at start_detection");
         stop_srv = nh_priv.advertiseService("stop_detection", 
-                                            &CollisionMonitor::srvStopDetection, this);
-        ROS_INFO("[collision_monitor] Service advertised at stop_detection");
+                                            &JointCollDetect::srvStopDetection, this);
+        ROS_INFO("[joint_coll_detect] Service advertised at stop_detection");
         trig_srv = nh_priv.advertiseService("trigger_collision", 
-                                            &CollisionMonitor::srvTriggerCollision, this);
-        ROS_INFO("[collision_monitor] Service advertised at trigger_collision");
+                                            &JointCollDetect::srvTriggerCollision, this);
+        ROS_INFO("[joint_coll_detect] Service advertised at trigger_collision");
 
         error_sub = nh.subscribe(arm + "_arm_controller/state", 2, 
-                &CollisionMonitor::errorCallback, this);
+                &JointCollDetect::errorCallback, this);
     }
 
     float minus_squared(float a, float b, float c) { return a + (b-c)*(b-c); }
 
-    bool CollisionMonitor::startDetection(std::string& behavior, float sig_level) {
+    bool JointCollDetect::startDetection(std::string& behavior, float sig_level) {
         if(!monitoring_collisions) {
             // Default values for fail cases
             std::fill(min_errors.begin(), min_errors.end(), 0);
@@ -155,7 +155,7 @@ namespace pr2_collision_monitor {
                                                   behavior) - behavior_name_list.begin();
                 if(behavior_ind == behavior_name_list.size() || 
                                              sig_level > 1 || sig_level < 0) {
-                    ROS_WARN("[collision_monitor] Behavior %s not loaded (bad parameters)!", 
+                    ROS_WARN("[joint_coll_detect] Behavior %s not loaded (bad parameters)!", 
                                                            behavior.c_str());
                     return false;
                 }
@@ -198,7 +198,7 @@ namespace pr2_collision_monitor {
             }
             start_time = ros::Time::now().toSec();
             monitoring_collisions = true;
-            ROS_INFO("[collision_monitor] Monitoring for collisions.");
+            ROS_INFO("[joint_coll_detect] Monitoring for collisions.");
             if(training_mode) {
                 std::fill(cur_min_data.begin(), cur_min_data.end(), 10000);
                 std::fill(cur_max_data.begin(), cur_max_data.end(), -10000);
@@ -208,11 +208,11 @@ namespace pr2_collision_monitor {
         return false;
     }
 
-    void CollisionMonitor::stopDetection() {
+    void JointCollDetect::stopDetection() {
         if(monitoring_collisions) {
             end_time = ros::Time::now().toSec();
             monitoring_collisions = false;
-            ROS_INFO("[collision_monitor] Stopping monitoring (time passed: %2.1f).", end_time-start_time);
+            ROS_INFO("[joint_coll_detect] Stopping monitoring (time passed: %2.1f).", end_time-start_time);
             if(training_mode) {
                 error_data.min_errors.insert(error_data.min_errors.end(), 
                                              cur_min_data.begin(), cur_min_data.end());
@@ -229,17 +229,17 @@ namespace pr2_collision_monitor {
         }
     }
 
-    bool CollisionMonitor::srvStartDetection(CollisionDetectionStart::Request& req, 
+    bool JointCollDetect::srvStartDetection(CollisionDetectionStart::Request& req, 
                                              CollisionDetectionStart::Response& resp) {
         return startDetection(req.behavior, req.sig_level);
     }
 
-    bool CollisionMonitor::srvStopDetection(std_srvs::Empty::Request&, std_srvs::Empty::Response&) {
+    bool JointCollDetect::srvStopDetection(std_srvs::Empty::Request&, std_srvs::Empty::Response&) {
         stopDetection();
         return true;
     }
 
-    bool CollisionMonitor::triggerCollision() {
+    bool JointCollDetect::triggerCollision() {
         if(monitoring_collisions && !training_mode) {
             stopDetection();
             std_msgs::Bool bool_true;
@@ -250,12 +250,12 @@ namespace pr2_collision_monitor {
         return false;
     }
 
-    bool CollisionMonitor::srvTriggerCollision(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res) {
+    bool JointCollDetect::srvTriggerCollision(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res) {
         triggerCollision();
         return true;
     }
 
-    void CollisionMonitor::errorCallback(pr2_controllers_msgs::JointTrajectoryControllerState::ConstPtr message) {
+    void JointCollDetect::errorCallback(pr2_controllers_msgs::JointTrajectoryControllerState::ConstPtr message) {
         if(!monitoring_collisions || message->error.positions.size() < 7)
             return;
 
@@ -264,7 +264,7 @@ namespace pr2_collision_monitor {
                 if(message->error.positions[i] < min_errors[i] ||
                    message->error.positions[i] > max_errors[i]) {
                     if(triggerCollision())
-                        ROS_INFO("[collision_monitor] Collision detected on joint %d. Min: %1.3f, Max: %1.3f, Cur: %1.3f", i, min_errors[i], max_errors[i], message->error.positions[i]);
+                        ROS_INFO("[joint_coll_detect] Collision detected on joint %d. Min: %1.3f, Max: %1.3f, Cur: %1.3f", i, min_errors[i], max_errors[i], message->error.positions[i]);
                 }
             } else {
                 if(message->error.positions[i] < cur_min_data[i])
@@ -275,22 +275,22 @@ namespace pr2_collision_monitor {
         }
     }
 
-    void CollisionMonitor::writeErrorData() {
-        ROS_INFO("[collision_monitor] Writing error data to file.");
+    void JointCollDetect::writeErrorData() {
+        ROS_INFO("[joint_coll_detect] Writing error data to file.");
         rosbag::Bag data_bag;
         data_bag.open(data_filename, rosbag::bagmode::Write);
         data_bag.write("/error_data", ros::Time::now(), error_data);
         data_bag.close();
-        ROS_INFO("[collision_monitor] Bag file written.");
+        ROS_INFO("[joint_coll_detect] Bag file written.");
     }
 
-    void CollisionMonitor::loadErrorBag(const std::string& load_filename, 
+    void JointCollDetect::loadErrorBag(const std::string& load_filename, 
                                          JointErrorData::Ptr& err_data_ptr) {
         rosbag::Bag data_bag;
         data_bag.open(load_filename, rosbag::bagmode::Read);
         rosbag::View view(data_bag, rosbag::TopicQuery("/error_data"));
         if(view.size() == 0 || view.size() > 1) {
-            ROS_ERROR("[collision_monitor] Badly formed error_data file (%s)", load_filename.c_str());
+            ROS_ERROR("[joint_coll_detect] Badly formed error_data file (%s)", load_filename.c_str());
             ros::shutdown();
             return;
         }
@@ -299,7 +299,7 @@ namespace pr2_collision_monitor {
         }
     }
 
-    void CollisionMonitor::loadAllErrorData(vector<std::string>& filename_list) {
+    void JointCollDetect::loadAllErrorData(vector<std::string>& filename_list) {
         total_min_data.resize(filename_list.size()); total_max_data.resize(filename_list.size());
         behavior_name_list.resize(filename_list.size());
         int beh_ind = 0;
@@ -320,15 +320,15 @@ namespace pr2_collision_monitor {
         }
     }
 
-    CollisionMonitor::~CollisionMonitor() {
+    JointCollDetect::~JointCollDetect() {
     }
 
 };
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "collision_monitor", ros::init_options::AnonymousName);
-    pr2_collision_monitor::CollisionMonitor cm;
+    ros::init(argc, argv, "joint_coll_detect", ros::init_options::AnonymousName);
+    pr2_collision_monitor::JointCollDetect cm;
     ros::spin();
     if(cm.isTraining()) 
         cm.writeErrorData();

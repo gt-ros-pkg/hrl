@@ -1,7 +1,7 @@
 <package>
   <description brief="hrl_clickable_behaviors">
 
-     Contains a working demo of the [[hrl_clickable_world]] interface.
+     Contains a working demo of the hrl_clickable_world interface.
 
   </description>
   <author>Author: Kelsey Hawkins, Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab at Georgia Tech)</author>

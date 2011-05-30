@@ -1,7 +1,7 @@
 <package>
   <description brief="hrl_clickable_world">
 
-    Contains a visual "clickable-world" interface for semi-autonomous control.  A visual GUI is provided to the user which displays an image feed but overlays it with various colored polygons detailing locations for controlling the robot.  This work continues the research and philosophy first implemented on Georgia Tech's El-E mobile manipulator [[http://www.hsi.gatech.edu/hrl/pdf/iros08_clickable.pdf|which used a laser pointer to allow users to designate points in the world in a similar fashion]].  This package contains the interface and behavior management system which is designed so developers can easily integrate their own behaviors into the interface.
+    Contains a visual "clickable-world" interface for semi-autonomous control. 
 
   </description>
   <author>Author: Kelsey Hawkins, Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab at Georgia Tech)</author>
