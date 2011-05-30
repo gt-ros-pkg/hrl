@@ -1,6 +1,12 @@
 <stack>
-  <description brief="hrl_behaviors">hrl_behaviors</description>
-  <author>Maintained by kelsey</author>
+  <description brief="hrl_behaviors"> 
+        Collection of encapsulated behaviors and perceptual services along with 
+        architectures and interfaces which employ them.  Most behaviors are designed
+        for exclusive use with the PR2 but some of the perception packages do not require
+        the actual robot.
+  </description>
+  <author>Kelsey Hawkins, Travis Deyle, Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab
+    at Georgia Tech)</author>
   <license>BSD</license>  
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_behaviors</url>
