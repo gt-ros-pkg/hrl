@@ -160,7 +160,7 @@ template <int x_stride, int y_stride, int n_scales, bool extract_keypoints> clas
                                     cv::TermCriteria(CV_TERMCRIT_EPS +
                                                      CV_TERMCRIT_ITER,
                                                      kmeans_max_iter, epsilon),
-                                    attempts, cv::KMEANS_PP_CENTERS, &centers);
+                                    attempts, cv::KMEANS_PP_CENTERS, centers);
 
     SIFTFeatures sift_centers;
     for (int r = 0; r < centers.rows; ++r)
