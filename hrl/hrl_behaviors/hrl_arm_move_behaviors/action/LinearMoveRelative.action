@@ -1,0 +1,10 @@
+# Constants:
+
+# Goal:
+float32 distance
+geometry_msgs/PoseStamped goal_pose
+---
+# Result:
+bool collided
+---
+# Feedback message:
