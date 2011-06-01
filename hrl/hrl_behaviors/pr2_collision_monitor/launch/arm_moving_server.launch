@@ -1,4 +1,7 @@
 <launch>
+    <node pkg="pr2_collision_monitor" name="r_arm_moving_server" type="arm_moving_server" output="screen">
+        <param name="arm" type="str" value="r"/>
+    </node>
     <node pkg="pr2_collision_monitor" name="l_arm_moving_server" type="arm_moving_server" output="screen">
         <param name="arm" type="str" value="l"/>
     </node>

@@ -3,6 +3,7 @@
 
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
+#include <std_msgs/Bool.h>
 
 #include <pr2_collision_monitor/ArmMovingWait.h>
 
@@ -19,10 +20,11 @@ namespace pr2_collision_monitor {
         protected:
             ros::NodeHandle nh;
             ros::NodeHandle nh_priv;
+            ros::Publisher moving_pub;
             std::string arm;
             bool arm_is_moving;
-            list<vector<float> > joint_pos_past;
-            int counter;
+            vector<vector<float> > joint_pos_past;
+            int step;
             bool srvCheckArmMoving(ArmMovingWait::Request&, ArmMovingWait::Response&);
             void stateCallback(sensor_msgs::JointState::ConstPtr);
             ros::Subscriber state_sub;
@@ -31,8 +33,10 @@ namespace pr2_collision_monitor {
 
     ArmMovingWaitServer::ArmMovingWaitServer() : nh_priv("~"),
                                                  arm_is_moving(true),
-                                                 joint_pos_past(10),
-                                                 counter(0) {
+                                                 joint_pos_past(7),
+                                                 step(0) {
+        for(int i=0;i<7;i++)
+            joint_pos_past[i].resize(10);
         onInit();
     }
 
@@ -43,6 +47,7 @@ namespace pr2_collision_monitor {
         ROS_INFO("[arm_moving_server] Service advertised at arm_moving_wait");
         state_sub = nh.subscribe("/joint_states", 2, 
                 &ArmMovingWaitServer::stateCallback, this);
+        moving_pub = nh_priv.advertise<std_msgs::Bool>("arm_moving", 1);
     }
 
     bool ArmMovingWaitServer::srvCheckArmMoving(ArmMovingWait::Request& req, ArmMovingWait::Response& resp) {
@@ -67,9 +72,6 @@ namespace pr2_collision_monitor {
     void ArmMovingWaitServer::stateCallback(
             sensor_msgs::JointState::ConstPtr msg) {
 
-        joint_pos_past.pop_front();
-        joint_pos_past.resize(10);
-
         bool arm_still_moving = false;
         for(int i=0;i<7;i++) {
             int msg_ind;
@@ -77,22 +79,19 @@ namespace pr2_collision_monitor {
                 msg_ind = JOINTSTATE_INDS_R[i];
             else
                 msg_ind = JOINTSTATE_INDS_L[i];
-            joint_pos_past.back().push_back(msg->position[msg_ind]);
-            if(joint_pos_past.front().empty())
+            joint_pos_past[i][step%10] = msg->position[msg_ind];
+            if(step < 10)
                 continue;
-            if(std::fabs(msg->position[msg_ind] - joint_pos_past.front()[i]) > 0.005) {
-                arm_still_moving = true;
+            for(int j=0;j<10;j++) 
+                if(std::fabs(msg->position[msg_ind] - joint_pos_past[i][j]) > 0.001) {
+                    arm_still_moving = true;
             }
         }
         arm_is_moving = arm_still_moving;
-        /*
-        if(arm_is_moving)
-            printf("*\n");
-        else
-            printf("\n");
-        if(counter++ % 100 == 0)
-            printf("----------");
-        */
+        std_msgs::Bool moving_msg;
+        moving_msg.data = arm_is_moving;
+        moving_pub.publish(moving_msg);
+        step++;
     }
 
     ArmMovingWaitServer::~ArmMovingWaitServer() {

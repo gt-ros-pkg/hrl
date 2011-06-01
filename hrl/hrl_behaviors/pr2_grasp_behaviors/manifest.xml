@@ -13,7 +13,6 @@
   <depend package="rosbag"/>
   <depend package="tf"/>
 
-  <depend package="actionlib_msgs"/>
   <depend package="hrl_lib"/>
   <depend package="hrl_pr2_lib"/>
   <depend package="actionlib"/>

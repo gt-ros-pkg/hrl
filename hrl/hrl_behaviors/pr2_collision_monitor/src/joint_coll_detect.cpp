@@ -105,7 +105,7 @@ namespace pr2_collision_monitor {
                 if(nh_priv.hasParam("min_errors")) {
                     nh_priv.getParam("min_errors", xml_min_errors);
                     for(int i=0;i<xml_min_errors.size();i++)
-                        min_errors.push_back(static_cast<double>(xml_min_errors[i]));
+                        min_errors[i] = static_cast<double>(xml_min_errors[i]);
                 } else {
                     ROS_ERROR("[joint_coll_detect] MUST PROVIDE THRESHOLDS (min_errors)");
                     ros::shutdown();
@@ -114,7 +114,7 @@ namespace pr2_collision_monitor {
                 if(nh_priv.hasParam("max_errors")) {
                     nh_priv.getParam("max_errors", xml_max_errors);
                     for(int i=0;i<xml_max_errors.size();i++)
-                        max_errors.push_back(static_cast<double>(xml_max_errors[i]));
+                        max_errors[i] = static_cast<double>(xml_max_errors[i]);
                 } else {
                     ROS_ERROR("[joint_coll_detect] MUST PROVIDE THRESHOLDS (max_errors)");
                     ros::shutdown();
@@ -147,8 +147,8 @@ namespace pr2_collision_monitor {
     bool JointCollDetect::startDetection(std::string& behavior, float sig_level) {
         if(!monitoring_collisions) {
             // Default values for fail cases
-            std::fill(min_errors.begin(), min_errors.end(), 0);
-            std::fill(max_errors.begin(), max_errors.end(), 0);
+            //std::fill(min_errors.begin(), min_errors.end(), 0);
+            //std::fill(max_errors.begin(), max_errors.end(), 0);
             collision_detected = false;
 
             if(significance_mode) {
@@ -190,14 +190,14 @@ namespace pr2_collision_monitor {
                     //ROS_INFO("Sm_min: %f, Sm_max: %f, Sn: %d", Sm_min, Sm_max, Sn);
                     //ROS_INFO("Sd_min: %f, Sd_max: %f, Sn: %d", Sd_min, Sd_max, Sn);
                 }
-                printf("Min thresh: [");
-                for(int i=0;i<7;i++)
-                    printf("%1.3f, ", min_errors[i]);
-                printf("]\nMax thresh: [");
-                for(int i=0;i<7;i++)
-                    printf("%1.3f, ", max_errors[i]);
-                printf("]\n");
             }
+            printf("Min thresh: [");
+            for(int i=0;i<7;i++)
+                printf("%1.3f, ", min_errors[i]);
+            printf("]\nMax thresh: [");
+            for(int i=0;i<7;i++)
+                printf("%1.3f, ", max_errors[i]);
+            printf("]\n");
             start_time = ros::Time::now().toSec();
             monitoring_collisions = true;
             ROS_INFO("[joint_coll_detect] Monitoring for collisions.");

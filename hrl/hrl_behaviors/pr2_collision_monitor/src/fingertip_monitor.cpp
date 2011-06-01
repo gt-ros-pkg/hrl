@@ -20,14 +20,14 @@ namespace pr2_collision_monitor {
             std::vector<double> history;
             int step;
             double coll_sig;
-            FIRDiffFilter() : history(100), step(0), coll_sig(0.0) {
+            FIRDiffFilter() : history(15), step(0), coll_sig(0.0) {
             }
             bool updateState(double z_obs) {
-                double avg = std::accumulate(history.begin(), history.end(), 0.0) / 100.0;
+                double avg = std::accumulate(history.begin(), history.end(), 0.0) / 15.0;
                 coll_sig = 0.01 * (coll_sig + z_obs - avg);
-                history[step%100] = z_obs;
+                history[step%15] = z_obs;
                 step++;
-                return std::fabs(coll_sig) > 0.4;
+                return std::fabs(coll_sig) > 0.8;
             }
     };
 

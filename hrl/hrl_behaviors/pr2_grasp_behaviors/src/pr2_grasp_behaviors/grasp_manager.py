@@ -76,10 +76,10 @@ class GraspBehavior(object):
     # Transforms the given position by the offset position in the given quaternion
     # rotation frame
     def transform_in_frame(self, pos, quat, off_point):
-        invquatmat = np.mat(quaternion_matrix(quat))
-        invquatmat[0:3,3] = np.mat(pos).T
+        quatmat = np.mat(quaternion_matrix(quat))
+        quatmat[0:3,3] = np.mat(pos).T
         trans = np.matrix([off_point[0],off_point[1],off_point[2],1.]).T
-        transpos = invquatmat * trans
+        transpos = quatmat * trans
         return transpos.T.A[0,0:3]
 
     ##
