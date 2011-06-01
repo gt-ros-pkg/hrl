@@ -6,13 +6,13 @@
 #include <string>
 #include <vector>
 
-#include "segment/segment-image.h"
+#include <segment/segment-image.h>
 #include <segment/image.h>
 #include <segment/converter.h>
-#include "superpixel_clutter_smoother/SmoothClutter.h"
+#include <cpl_superpixels/SmoothClutter.h>
 
 //#define DISPLAY_SUPERPIXELS
-using superpixel_clutter_smoother::SmoothClutter;
+using cpl_superpixels::SmoothClutter;
 
 class SuperpixelSmootherNode
 {
@@ -58,9 +58,9 @@ class SuperpixelSmootherNode
 
     // Get segment IDs from disp_im
     IplImage* disp_ipl;
-    for(unsigned int y = 0; y < input_img.rows; ++y)
+    for(int y = 0; y < input_img.rows; ++y)
     {
-      for (unsigned int x = 0; x <input_img.cols; ++x)
+      for (int x = 0; x <input_img.cols; ++x)
       {
         // Make the indecies zero based
         int idx = disp_im->data[y*disp_im->width() + x].idx - 1;
@@ -80,7 +80,7 @@ class SuperpixelSmootherNode
     cv::imshow("superpixels", disp_img);
     cv::imshow("labels", label_img);
     cv::waitKey(3);
-#endif DISPLAY_SUPERPIXELS
+#endif // DISPLAY_SUPERPIXELS
 
     cvReleaseImage(&disp_ipl);
     return label_img;
@@ -100,9 +100,9 @@ class SuperpixelSmootherNode
     ROS_INFO_STREAM("Num indexes: " << raw_region_labels.size());
 
     // Accumulate the pixel labels for each superpixel
-    for (unsigned int r = 0; r < sp_img.rows; ++r)
+    for (int r = 0; r < sp_img.rows; ++r)
     {
-      for (unsigned int c = 0; c < sp_img.cols; ++c)
+      for (int c = 0; c < sp_img.cols; ++c)
       {
         int idx = static_cast<int>(sp_img.at<float>(r,c));
         raw_region_labels[idx].push_back(label_img.at<uchar>(r,c));
@@ -157,9 +157,9 @@ class SuperpixelSmootherNode
     // Propogate superpixel majority vote values to all members of the region
     ROS_INFO("Propogatting results.");
     cv::Mat smooth_labels(label_img.size(), label_img.type());
-    for (unsigned int r = 0; r < sp_img.rows; ++r)
+    for (int r = 0; r < sp_img.rows; ++r)
     {
-      for (unsigned int c = 0; c < sp_img.cols; ++c)
+      for (int c = 0; c < sp_img.cols; ++c)
       {
         int idx = static_cast<int>(sp_img.at<float>(r,c));
         smooth_labels.at<uchar>(r,c) = maj_region_labels[idx];

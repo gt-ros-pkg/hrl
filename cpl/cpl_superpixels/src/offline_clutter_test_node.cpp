@@ -8,8 +8,8 @@
 #include "pcl/point_types.h"
 #include "sensor_msgs/PointCloud2.h"
 #include "sensor_msgs/PointCloud.h"
-#include "superpixel_clutter_smoother/SmoothClutter.h"
-using superpixel_clutter_smoother::SmoothClutter;
+#include <cpl_superpixels/SmoothClutter.h>
+using cpl_superpixels::SmoothClutter;
 
 struct PointXYZIL;
 
