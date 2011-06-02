@@ -59,7 +59,7 @@ def link_tf_name(arm, link_number):
 
 
 class M3HrlRobot():
-    def __init__(self, end_effector_length=0.11818):
+    def __init__(self, end_effector_length):
         # create joint limit dicts
         self.joint_lim_dict = {}
         self.joint_lim_dict['right_arm'] = {'max': np.radians([ 120.00, 122.15, 77.5, 144., 122.,  45.,  45.]),
@@ -68,6 +68,7 @@ class M3HrlRobot():
         self.joint_lim_dict['left_arm'] = {'max': np.radians([ 120.00,   20.,  77.5, 144.,   80.,  45.,  45.]),
                                            'min': np.radians([ -47.61, -122.15, -77.5,   0., -122., -45., -45.])}
 
+        end_effector_length += 0.0135 + 0.04318 # add wrist linkange and FT sensor lengths
         self.setup_kdl_mekabot(end_effector_length)
         q_guess_pkl_l = os.environ['HOME']+'/svn/gt-ros-pkg/hrl/equilibrium_point_control/epc_core/src/cody_arms/q_guess_left_dict.pkl'
         q_guess_pkl_r = os.environ['HOME']+'/svn/gt-ros-pkg/hrl/equilibrium_point_control/epc_core/src/cody_arms/q_guess_right_dict.pkl'
