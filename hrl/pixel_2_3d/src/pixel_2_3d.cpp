@@ -163,12 +163,13 @@ namespace pixel_2_3d {
         pt3d_pose.pose.orientation.y = quat.getY();
         pt3d_pose.pose.orientation.z = quat.getZ();
         pt3d_pose.pose.orientation.w = quat.getW();
+        
         tf_listener.transformPose("/base_footprint", pt3d_pose, pt3d_pose);
         resp.pixel3d.header.frame_id = "/base_footprint";
         resp.pixel3d.header.stamp = ros::Time::now();
-        resp.pixel3d.pose.position.x = pt3d_pose.point.x;
-        resp.pixel3d.pose.position.y = pt3d_pose.point.y;
-        resp.pixel3d.pose.position.z = pt3d_pose.point.z;
+        resp.pixel3d.pose.position.x = pt3d_pose.pose.position.x;
+        resp.pixel3d.pose.position.y = pt3d_pose.pose.position.y;
+        resp.pixel3d.pose.position.z = pt3d_pose.pose.position.z;
         resp.pixel3d.pose.orientation.x = pt3d_pose.pose.orientation.x;
         resp.pixel3d.pose.orientation.y = pt3d_pose.pose.orientation.y;
         resp.pixel3d.pose.orientation.z = pt3d_pose.pose.orientation.z;
@@ -176,7 +177,7 @@ namespace pixel_2_3d {
         pt3d_pub.publish(pt3d_pose);
         ROS_INFO("[pixel_2_3d] Pixel (%d, %d) converted to point at (%f, %f, %f) in /base_footprint.",
                  req.pixel_u, req.pixel_v, 
-                 pt3d_pose.point.x, pt3d_pose.point.y, pt3d_pose.point.z);
+                 pt3d_pose.pose.position.x, pt3d_pose.pose.position.y, pt3d_pose.pose.position.z);
         return true;
     }
 
