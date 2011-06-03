@@ -32,22 +32,28 @@ class EPC():
 
     ##
     # @param equi_pt_generator: function that returns stop, ea  where ea: equilibrium angles and  stop: string which is '' for epc motion to continue
-    # @param rapid_call_func: called in the time between calls to the equi_pt_generator can be used for logging, safety etc.  returns string which is '' for epc motion to continue
     # @param time_step: time between successive calls to equi_pt_generator
     # @param arg_list - list of arguments to be passed to the equi_pt_generator
     # @param timeout - time after which the epc motion will stop.
     # @return stop (the string which has the reason why the epc
     # motion stopped.), ea (last commanded equilibrium angles)
     def epc_motion(self, equi_pt_generator, time_step, arm, arg_list,
-                   rapid_call_func=None, control_function=None,
-                   jep_clamp_func=None, timeout=np.inf):
-        stop, ea = equi_pt_generator(*arg_list)
-        t_end = rospy.get_time()
+                   control_function=None, jep_clamp_func=None, timeout=np.inf):
+        rt = rospy.Rate(1/time_step)
         timeout_at = rospy.get_time() + timeout
+        stop = ''
         while stop == '':
             if rospy.is_shutdown():
                 stop = 'rospy shutdown'
                 continue
+
+            if timeout_at < rospy.get_time():
+                stop = 'timed out'
+            if stop == '':
+                stop, ea = equi_pt_generator(*arg_list)
+            if stop == 'reset timing':
+                stop = ''
+                t_end = rospy.get_time()
 
             if self.stop_epc:
                 stop = 'stop_command_over_ROS'
@@ -58,33 +64,16 @@ class EPC():
                 timeout_at += 0.101 # approximate.
                 continue
 
-            t_end += time_step
-
-            if jep_clamp_func != None:
-                jep = ea[0]
-                ea = list(ea)
-                ea[0] = jep_clamp_func(arm, jep)
-                ea = tuple(ea)
-
-            control_function(arm, *ea)
-
-            t1 = rospy.get_time()
-            while t1<t_end:
-                if rapid_call_func != None:
-                    stop = rapid_call_func(arm)
-                    if stop != '':
-                        break
-
-                rospy.sleep(0.01)
-                t1 = rospy.get_time()
-
-            if timeout_at < t1:
-                stop = 'timed out'
             if stop == '':
-                stop, ea = equi_pt_generator(*arg_list)
-            if stop == 'reset timing':
-                stop = ''
-                t_end = rospy.get_time()
+                if jep_clamp_func != None:
+                    jep = ea[0]
+                    ea = list(ea)
+                    ea[0] = jep_clamp_func(arm, jep)
+                    ea = tuple(ea)
+
+                control_function(arm, *ea)
+
+            rt.sleep()
 
         return stop, ea
 
