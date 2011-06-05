@@ -1,0 +1,14 @@
+<package>
+  <description brief="hrl_pr2_experiments">
+
+     hrl_pr2_experiments
+
+  </description>
+  <author>kelsey</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_pr2_experiments</url>
+
+</package>
+
+
