@@ -147,8 +147,9 @@ class GraspBehaviorServer(object):
         if not disable_head:
             self.point_head([0.3, 0.0, -0.3], block=False)
         self.gman.grasp_preparation_move()
+        rospy.sleep(1.)
         if block:
-            self.gman.arm_moving_wait(True, 5.0)
+            self.gman.arm_moving_wait(True, 8.0)
 
     ##
     # Launch actionlib srv calls.

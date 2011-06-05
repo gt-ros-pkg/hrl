@@ -28,10 +28,10 @@
 
 #  \author Travis Deyle and Kelsey Hawkins (Healthcare Robotics Lab, Georgia Tech.)
 
-GRASP_LOCATION  =  [ 0.50, -0.20,   0.0]
-PLACE_LOCATIONS = [[ 0.65,  0.10,  0.00],
-                   [ 0.50,  0.20,  3.14],
-                   [ 0.40,  0.30,  1.50]]
+GRASP_LOCATION  =  [ 0.50,  0.20,   0.0]
+PLACE_LOCATIONS = [[ 0.65, -0.10,  0.00],
+                   [ 0.50, -0.20,  3.14],
+                   [ 0.40, -0.10,  1.50]]
 
 import sys
 
@@ -47,11 +47,10 @@ from smach_ros import SimpleActionState, ServiceState, IntrospectionServer
 import actionlib
 import tf.transformations as tft
 
-from rfid_behaviors.srv import HandoffSrv
-from hrl_table_detect.srv import DetectTableInst, DetectTableInstRequest
 from pr2_grasp_behaviors.msg import OverheadGraspAction, OverheadGraspSetupAction
 from pr2_grasp_behaviors.msg import OverheadGraspGoal, OverheadGraspSetupGoal
 from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPositionGoal
+from hrl_trajectory_playback.srv import TrajPlaybackSrv
 
 # Overhead grasping requres:
 #   run: hrl_pr2_gains/change_gains_grasp.sh
@@ -94,6 +93,11 @@ def sm_grasp():
             SimpleActionState( 'torso_controller/position_joint_action',
                                SingleJointPositionAction,
                                goal = tgoal),
+            transitions = { 'succeeded': 'ARM_UNTUCK' })
+
+        smach.StateMachine.add(
+            'ARM_UNTUCK',
+            ServiceState('trajectory_playback/' + arm + '_arm_untuck', TrajPlaybackSrv),
             transitions = { 'succeeded': 'GRASP_BEGIN_SETUP' })
 
         # Setup arm pose (out of way for perception)
@@ -206,7 +210,7 @@ if __name__ == '__main__':
 
     sm = sm_grasp()
 
-    sis = IntrospectionServer('Grasping', sm, '/SM_GRASPING')
+    sis = IntrospectionServer('Grasp Cleanup', sm, '/SM_GRASP_CLEANUP')
     sis.start()
 
     outcome = sm.execute()

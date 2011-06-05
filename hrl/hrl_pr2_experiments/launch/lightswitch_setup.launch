@@ -1,0 +1,5 @@
+<launch>
+
+    <include file="$(find hai_sandbox)/launch/reactive_move2.launch" />
+
+</launch>

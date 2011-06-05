@@ -1,0 +1,5 @@
+<launch>
+    
+    <include file="$(find hai_sandbox)/launch/linear_move2_execute.launch" />
+
+</launch>
