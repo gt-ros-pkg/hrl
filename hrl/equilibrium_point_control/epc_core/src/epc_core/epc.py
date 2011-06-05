@@ -5,6 +5,8 @@ import copy
 import roslib; roslib.load_manifest('epc_core')
 import rospy
 import hrl_lib.util as ut
+import hrl_lib.transforms as tr
+import tf.transformations as tf_trans
 
 from std_msgs.msg import Bool, Empty
 
@@ -162,6 +164,96 @@ class EPC():
         return stop, (cep, None)
 
 
+    def go_pose(self, arm, goal_pos, goal_rot):
+        time_step = 0.02
+        def eq_gen():
+            jep = self.robot.get_jep(arm)
+            cep, rot_cep = self.robot.arms.FK_all(arm, jep)
+            q = self.robot.get_joint_angles(arm)
+            ee, ee_rot = self.robot.arms.FK_all(arm, q)
+            err = goal_pos - ee
+            err_mag = np.linalg.norm(err)
+            step_size = min(0.001, err_mag)
+            cep_new = cep + err/err_mag * step_size
+            jep_new = self.robot.IK(arm, cep_new, rot_cep, jep)
+
+            stop = ''
+            if len(jep_new) != 7 or jep_new is None:
+                stop = "IK failure"
+                return stop, None
+            if err_mag < 0.01:
+                stop = 'Reached'
+                return stop, None
+
+            return stop, (jep_new, time_step*1.2)
+        
+        return self.epc_motion(eq_gen, time_step, arm, [],
+                               control_function=self.robot.set_jep)
+
+    def rot_mat_interpolate(self, start_rot, end_rot, num):
+        start_quat = tr.matrix_to_quaternion(start_rot)
+        end_quat = tr.matrix_to_quaternion(end_rot)
+        mat_list = []
+        for fraction in np.linspace(0, 1, num):
+            cur_quat = tf_trans.quaternion_slerp(start_quat, end_quat, fraction)
+            mat_list.append(tr.quaternion_to_matrix(cur_quat))
+        return mat_list
+
+# mag = np.sqrt(np.dot(quat_a, quat_a) * np.dot(quat_b, quat_b))
+# assert mag != 0
+# return np.arccos(np.dot(quat_a, quat_b) / mag)
+        
+
+    def interpolated_linear_trajectory(self, arm, start_pos, start_rot, end_pos, end_rot, 
+                                                  offset_pos, offset_rot):
+        time_step = 0.02
+        velocity = 0.01
+        dist = np.linalg.norm(np.array(end_pos) - np.array(start_pos))
+        time_req = dist / velocity
+        steps_req = time_req / time_step
+        self.pos_waypoints = np.dstack([np.linspace(start_pos[0], end_pos[0], steps_req), 
+                                        np.linspace(start_pos[1], end_pos[1], steps_req), 
+                                        np.linspace(start_pos[2], end_pos[2], steps_req)])[0]
+        self.rot_waypoints = self.rot_mat_interpolate(start_rot, end_rot, steps_req)
+        self.prev_err_mag = 0
+        self.eq_gen_step = 0
+
+        def eq_gen():
+            jep = self.robot.get_jep(arm)
+            cep, rot_cep = self.robot.arms.FK_all(arm, jep)
+            q = self.robot.get_joint_angles(arm)
+            ee_pos, ee_rot = self.robot.arms.FK_all(arm, q)
+            cur_goal_pos = self.pos_waypoints[self.eq_gen_step]
+            cur_goal_rot = self.rot_waypoints[self.eq_gen_step]
+
+            # calculate position error
+            err_pos = cur_goal_pos - ee_pos
+            
+            # calculate rotation error
+            err_rot =  ee_rot.T * cur_goal_rot
+            angle, direc, point = tf_trans.rotation_from_matrix(err_rot)
+            cep_rot_new = tf_trans.rotation_matrix(x * angle, direc, point)
+            ang_step_size = min(0.01, err_angle)
+
+            cep_new = cep + err/err_pos_mag * pos_step_size
+            jep_new = self.robot.IK(arm, cep_new, rot_cep, jep)
+
+            self.eq_gen_step += 1
+
+            stop = ''
+            if len(jep_new) != 7 or jep_new is None:
+                stop = "IK failure"
+                return stop, None
+            if err_mag < 0.01:
+                stop = 'Reached'
+                return stop, None
+
+            return stop, (jep_new, time_step*1.2)
+        
+        return self.epc_motion(eq_gen, time_step, arm, [],
+                               control_function=self.robot.set_jep)
+
+
     def go_jep(self, arm , goal_jep, speed=math.radians(20),
                rapid_call_func = None):
         start_jep = self.robot.get_jep(arm)
@@ -205,12 +297,38 @@ if __name__ == '__main__':
     r_arm, l_arm = 0, 1
     arm = r_arm
 
-    if True:
+    if False:
         q = epc.robot.get_joint_angles(arm)
         epc.robot.set_jep(arm, q)
         ea = [0, 0, 0, 0, 0, 0, 0]
         raw_input('Hit ENTER to go_jep')
         epc.go_jep(arm, ea, math.radians(30.))
+
+    if False:
+        raw_input('Hit ENTER to go_jep')
+        q = epc.robot.get_joint_angles(arm)
+        epc.robot.set_jep(arm, pr2_arms.wrap_angles(q))
+        p, r = epc.robot.arms.FK_all(arm, q)
+        q = epc.robot.IK(arm, p, r)
+        epc.go_jep(arm, q, math.radians(30.))
+        
+        raw_input('Hit ENTER to go_pose')
+        goal_rot = r
+        goal_pos = p + np.matrix([0.2, 0., 0.]).T
+#goal_pos = np.mat([0.889, -0.1348, -0.0868]).T
+        res = epc.go_pose(arm, goal_pos, goal_rot)
+        print 'go_pose result:', res[0]
+        print 'goal_pos:', goal_pos.A1
+
+        q = epc.robot.get_joint_angles(arm)
+        p, r = epc.robot.arms.FK_all(arm, q)
+        print 'current position:', p.A1
+
+    if True:
+        start_pos = [0, 0, 0]
+        end_pos = [0.05, 0.02, -0.03]
+        start_rot, end_rot = tr.rotX(1), tr.rotY(1)
+        epc.interpolated_linear_trajectory(arm, start_pos, start_rot, end_pos, end_rot)
 
 
 

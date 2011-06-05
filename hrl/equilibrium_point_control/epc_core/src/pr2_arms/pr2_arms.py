@@ -51,9 +51,11 @@ from actionlib_msgs.msg import GoalStatus
 
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal, JointTrajectoryControllerState
 from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction, Pr2GripperCommand
+from kinematics_msgs.srv import GetPositionIK, GetPositionIKRequest, GetPositionIKResponse
+from kinematics_msgs.srv import GetPositionFK, GetPositionFKRequest, GetPositionFKResponse
 
 from trajectory_msgs.msg import JointTrajectoryPoint
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 
 from teleop_controllers.msg import JTTeleopControllerState
 
@@ -124,6 +126,14 @@ class PR2Arms(object):
         l_gripper_client = actionlib.SimpleActionClient('l_gripper_controller/gripper_action',
                                                         Pr2GripperCommandAction)
         self.gripper_action_client = [r_gripper_client, l_gripper_client]
+
+        r_ik_srv = rospy.ServiceProxy('pr2_right_arm_kinematics/get_ik', GetPositionIK)
+        l_ik_srv = rospy.ServiceProxy('pr2_left_arm_kinematics/get_ik', GetPositionIK)
+        self.ik_srv = [r_ik_srv, l_ik_srv]
+        r_fk_srv = rospy.ServiceProxy('pr2_right_arm_kinematics/get_fk', GetPositionFK)
+        l_fk_srv = rospy.ServiceProxy('pr2_left_arm_kinematics/get_fk', GetPositionFK)
+        self.fk_srv = [r_fk_srv, l_fk_srv]
+
         rospy.sleep(2.)
 
 #        self.joint_action_client[0].wait_for_server()
@@ -235,6 +245,50 @@ class PR2Arms(object):
         quat = (ros_quat.x, ros_quat.y, ros_quat.z, ros_quat.w)
         self.l_cep_rot = tr.quaternion_to_matrix(quat)
 
+    def IK(self, arm, pos, rot, q_guess=[0]*7):
+        ik_req = GetPositionIKRequest()
+        ik_req.timeout = rospy.Duration(5.)
+        if arm == 0:
+            ik_req.ik_request.ik_link_name = 'r_wrist_roll_link'
+        else:
+            ik_req.ik_request.ik_link_name = 'l_wrist_roll_link'
+        ik_req.ik_request.pose_stamped.header.frame_id = 'torso_lift_link'
+        quat = tr.matrix_to_quaternion(rot)
+        ik_req.ik_request.pose_stamped.pose = Pose(Point(*pos), Quaternion(*quat))
+        ik_req.ik_request.ik_seed_state.joint_state.position = q_guess
+        ik_req.ik_request.ik_seed_state.joint_state.name = self.joint_names_list[arm]
+
+        ik_resp = self.ik_srv[arm].call(ik_req)
+        return ik_resp.solution.joint_state.position
+
+    def FK(self, arm, q):
+        fk_req = GetPositionFKRequest()
+        fk_req.header.frame_id = 'torso_lift_link'
+        if arm == 0:
+            fk_req.fk_link_names.append('r_wrist_roll_link') 
+        else:
+            fk_req.fk_link_names.append('l_wrist_roll_link')
+        fk_req.robot_state.joint_state.name = self.joint_names_list[arm]
+        fk_req.robot_state.joint_state.position = q
+
+        fk_resp = self.fk_srv[arm].call(fk_req)
+        if fk_resp.error_code.val == fk_resp.error_code.SUCCESS:
+            x = fk_resp.pose_stamped[0].pose.position.x
+            y = fk_resp.pose_stamped[0].pose.position.y
+            z = fk_resp.pose_stamped[0].pose.position.z
+            pos = [x, y, z]
+            q1 = fk_resp.pose_stamped[0].pose.orientation.x
+            q2 = fk_resp.pose_stamped[0].pose.orientation.y
+            q3 = fk_resp.pose_stamped[0].pose.orientation.z
+            q4 = fk_resp.pose_stamped[0].pose.orientation.w
+            quat = [q1,q2,q3,q4]
+            rot = tr.quaternion_to_matrix(quat)
+        else:
+            rospy.logerr('Forward kinematics failed')
+            return None, None
+
+        return pos, rot
+
 
     ## Returns the current position, rotation of the arm.
     # @param arm 0 for right, 1 for left
@@ -250,11 +304,13 @@ class PR2Arms(object):
         if arm != 1:
             arm = 0
         self.arm_state_lock[arm].acquire()
-        q = self.arm_angles[arm]
+        q = self.wrap_angles(self.arm_angles[arm])
         self.arm_state_lock[arm].release()
         return q
 
     def set_jep(self, arm, q, duration=0.15):
+        if q is None or len(q) != 7:
+            raise RuntimeError("set_jep value is " + str(q))
         self.arm_state_lock[arm].acquire()
 
         jtg = JointTrajectoryGoal()
@@ -415,6 +471,14 @@ class PR2Arms(object):
     # @param arm 0 for right, 1 for left
     def close_gripper(self, arm, effort = 15):
         self.move_gripper(arm, 0.0, effort)
+
+    def wrap_angles(self, q):
+        for ind in [4, 6]:
+            while q[ind] < -np.pi:
+                q[ind] += 2*np.pi
+            while q[ind] > np.pi:
+                q[ind] -= 2*np.pi
+        return q
 
 
 ##
@@ -586,8 +650,6 @@ class PR2Arms_kdl():
         return np.all((q_arr <= max_arr+d_arr, q_arr >= min_arr-d_arr))
 
 
-
-
 if __name__ == '__main__':
     from visualization_msgs.msg import Marker
     import hrl_lib.viz as hv
@@ -642,6 +704,23 @@ if __name__ == '__main__':
             raw_input('Move arm into some configuration and hit enter to get the Jacobian.')
 
 
+    if True:
+        while not rospy.is_shutdown():
+            q = pr2_arms.wrap_angles(pr2_arms.get_joint_angles(arm))
+            print "actual", q
+            p_ros, rot_ros = pr2_arms.FK(arm, q)
+            p_kdl, rot_kdl = pr2_kdl.FK_all(arm, q)
+            ik_ros = pr2_arms.IK(r_arm, p_ros, rot_ros, q)
+            ik_kdl = pr2_arms.IK(r_arm, p_kdl, rot_kdl, q)
+            diff = np.array(ik_ros) - np.array(ik_kdl)
+            print "IK ros", ik_ros
+            print "IK kdl", ik_kdl
+            if len(ik_ros) == 7:
+                err_ros = np.array(q) - np.array(ik_ros)
+                err_kdl = np.array(q) - np.array(ik_kdl)
+                print "err ros", sum(err_ros**2), "err kdl", sum(err_kdl**2), "diff", sum(diff**2)
+
+            
 
 
 
