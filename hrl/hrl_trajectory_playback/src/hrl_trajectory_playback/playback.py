@@ -12,7 +12,8 @@ from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
 import numpy as np, math
 
 class TrajPlayback():
-    def __init__( self, name, fname ):
+    def __init__( self, name, fname, arm = 'right' ):
+        self.arm = arm
         self.name = name
 
         rospy.logout( 'TrajPlayback: Initializing (%s)' % self.name )
@@ -64,7 +65,11 @@ class TrajPlayback():
             tvel = self.vel.copy()
             tt = self.t.copy()
 
-        joint_traj = self.pr2.right._create_trajectory( tq, tt, tvel )
+        if self.arm == 'right':
+            joint_traj = self.pr2.right._create_trajectory( tq, tt, tvel )
+        else:
+            joint_traj = self.pr2.left._create_trajectory( tq, tt, tvel )
+            
         dur = rospy.Duration.from_sec( tt[-1] + 5 )
 
         # result = self.filter_traj( trajectory = joint_traj,
@@ -74,9 +79,14 @@ class TrajPlayback():
 
         g = pm.JointTrajectoryGoal()
         g.trajectory = joint_traj  # why not ft...?
-        self.pr2.right.client.send_goal( g )
-        self.pr2.right.client.wait_for_result()
 
+        if self.arm == 'right':
+            self.pr2.right.client.send_goal( g )
+            self.pr2.right.client.wait_for_result()
+        else:
+            self.pr2.left.client.send_goal( g )
+            self.pr2.left.client.wait_for_result()
+            
         return True
         
 if __name__ == '__main__':
@@ -93,9 +103,14 @@ if __name__ == '__main__':
     p.add_option('--reverse', action='store_true', dest='rev',
                  help='Just play it once in reverse [default=False]',
                  default=False)
+    p.add_option('--left', action='store_true', dest='left_arm',
+                 help='Use the left arm? [Right is default]')
     opt, args = p.parse_args()
 
-    tp = TrajPlayback( opt.name, opt.pkl )
+    if opt.left_arm:
+        tp = TrajPlayback( opt.name, opt.pkl, arm = 'left' )
+    else:
+        tp = TrajPlayback( opt.name, opt.pkl, arm = 'right' )
     
     if opt.play:
         req = TrajPlaybackSrvRequest()

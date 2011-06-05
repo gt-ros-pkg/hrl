@@ -14,9 +14,10 @@ r_jt_idx_lis = [17, 18, 16, 20, 19, 21, 22]
 l_jt_idx_lis = [29, 30, 28, 32, 31, 33, 34]
 
 class Listener:
-    def __init__(self):
+    def __init__(self, arm = 'right'):
         self.q = deque() # np.zeros(( n_samples, 7))
         self.t = deque() # np.zeros((n_samples, 1))
+        self.arm = arm
         # self.tind = 0
         # self.ind = 0
         self.initialized = False
@@ -34,7 +35,10 @@ class Listener:
             self.lasttime = currtime
             print 'Still Capturing (%d sec)' % (currtime - self.starttime)
 
-        q_ja = [ msg.position[idx] for idx in r_jt_idx_lis ]
+        if self.arm == 'right':
+            q_ja = [ msg.position[idx] for idx in r_jt_idx_lis ]
+        else:
+            q_ja = [ msg.position[idx] for idx in l_jt_idx_lis ]
         self.q.append( q_ja )
         
         # for i,idx in enumerate( r_jt_idx_lis ):  # only dealing with right arm!
@@ -51,11 +55,16 @@ if __name__ == '__main__':
     p = optparse.OptionParser()
     p.add_option('--pkl', action='store', type='string', dest='pkl',
                  help='Output file [default=\'out.pkl\']', default='out.pkl')
+    p.add_option('--left', action='store_true', dest='left_arm',
+                 help='Use the left arm? [Right is default]')
     opt, args = p.parse_args()
     
     rospy.init_node('quick_data')
-    
-    lis = Listener()
+
+    if opt.left_arm:
+        lis = Listener( arm = 'left' )
+    else:
+        lis = Listener( arm = 'right' )
     sub = rospy.Subscriber( '/joint_states', JointState, lis.callback )
 
     print 'Recording...  <Ctrl-C> to stop.'
