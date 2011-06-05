@@ -4,7 +4,7 @@
     Contains a visual "clickable-world" interface for semi-autonomous control. 
 
   </description>
-  <author>Author: Kelsey Hawkins, Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab at Georgia Tech)</author>
+  <author>Kelsey Hawkins, Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab at Georgia Tech)</author>
   <license>BSD</license>
   <review status="experimental" notes=""/>
   <url>http://ros.org/wiki/hrl_clickable_world</url>
