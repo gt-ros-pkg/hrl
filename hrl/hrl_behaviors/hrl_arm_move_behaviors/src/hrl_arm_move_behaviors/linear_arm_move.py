@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import numpy as np
+import copy
 
 import roslib; roslib.load_manifest('hrl_arm_move_behaviors')
 import rospy
@@ -33,14 +34,34 @@ def extract_pose_stamped(ps):
     oz = ps.pose.orientation.z; ow = ps.pose.orientation.w
     return [seq, stamp, frame_id], [px, py, pz], [ox, oy, oz, ow]
 
+def pose_msg_to_mat(ps):
+    header, pos, quat = extract_pose_stamped(ps)
+    return pose_pq_to_mat(pos, quat)
+
+def pose_pq_to_mat(pos, quat):
+    B = np.mat(tf_trans.quaternion_matrix(quat))
+    B[0:3,3] = np.mat([pos]).T
+    return B
+
+def pose_mat_to_msg(B):
+    pos = B[0:3,3].T.tolist()
+    quat = tf_trans.quaternion_from_matrix(B)
+    return Pose(Point(*pos[0]), Quaternion(*quat))
+
+
 class LinearMoveRelative(object):
     def __init__(self):
         self.MOVE_VELOCITY = 0.05
         self.SETUP_VELOCITY = 0.15
-        self.JOINTS_BIAS = [0.0, -0.25, -1.0, 0.0, 0.0, 0.5, 0.0]
-        self.BIAS_RADIUS = 0 #0.012
+        self.JOINTS_BIAS = [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.BIAS_RADIUS = 0.012
+        self.INIT_ANGS = [-0.417, -0.280, -1.565, -2.078, -2.785, -1.195, -0.369]
+        #self.INIT_ANGS = [0.31224765812286392, 0.67376890754823038, -0.033887965389851837, -2.0722385314846998, -3.1341338126914398, -1.3392539168745463, -0.04655005168062587]
 
         self.arm = rospy.get_param("~arm", default="r")
+        self.tool_frame = rospy.get_param("~tool_frame", default="r_gripper_tool_frame")
+        self.tool_approach_frame = rospy.get_param("~tool_approach_frame", default="")
+
         self.cm = ControllerManager(self.arm)
 
         rospy.loginfo("Waiting for start_monitoring")
@@ -82,20 +103,33 @@ class LinearMoveRelative(object):
         self.pix3_pub = rospy.Publisher("/lin_pose3", PoseStamped)
         rospy.loginfo("[linear_move_relative] LinearMoveRelative loaded.")
 
+    #############################################################################
+    # Transform goal's desired location to a pose in the wrist frame such that
+    # the offset frame will be located at the goal
+    def transform_pose_for_wrist(self, goal, offset_frame):
+        # get goal in torso frame D_torso
+        self.cm.tf_listener.waitForTransform("torso_lift_link", goal.goal_pose.header.frame_id,
+                                             rospy.Time(0), rospy.Duration(5))
+        goal.goal_pose.header.stamp = rospy.Time()
+        t_goal_f = self.cm.tf_listener.transformPose("torso_lift_link", goal.goal_pose)
+        # get toolframe_B_wristframe
+        f_pos_w, f_quat_w = self.cm.tf_listener.lookupTransform(offset_frame, 
+                                                   self.arm + "_wrist_roll_link", rospy.Time())
+        # find the wrist goal transformed from the tool frame goal
+        t_goal_w_mat = (pose_msg_to_mat(t_goal_f) * pose_pq_to_mat(f_pos_w, f_quat_w))
+        t_goal_w = PoseStamped()
+        t_goal_w.header.frame_id = "torso_lift_link"
+        t_goal_w.header.stamp = rospy.Time.now() + rospy.Duration(0.3)
+        t_goal_w.pose = pose_mat_to_msg(t_goal_w_mat)
+        return t_goal_w
+
     def execute_move(self, goal):
         rospy.loginfo("[linear_move_relative] Execute relative arm movement.")
         result = LinearMoveRelativeResult()
-        self.cm.tf_listener.waitForTransform("torso_lift_link", goal.goal_pose.header.frame_id,
-                                             rospy.Time(0), rospy.Duration(5))
-        goal.goal_pose.header.stamp = rospy.Time(0)
-        goal_pose_trans = self.cm.tf_listener.transformPose("torso_lift_link", goal.goal_pose)
+
+        move_goal = self.transform_pose_for_wrist(goal, self.tool_frame)
+
         wrist_pose = self.cm.get_current_wrist_pose_stamped("torso_lift_link")
-        header, pos, ori = extract_pose_stamped(goal_pose_trans)
-        new_pos = transform_in_frame(pos, ori, [goal.distance, 0.0, 0.0])
-        move_goal = PoseStamped()
-        move_goal.header.frame_id = "torso_lift_link"
-        move_goal.header.stamp = rospy.Time.now() + rospy.Duration(0.3)
-        move_goal.pose = Pose(Point(*new_pos), Quaternion(*ori))
 
         rospy.loginfo("[linear_move_relative] Waiting for arm to stop moving.")
         while not rospy.is_shutdown():
@@ -106,7 +140,8 @@ class LinearMoveRelative(object):
         rospy.loginfo("[linear_move_relative] The arm is not moving.")
         self.pix3_pub.publish(move_goal)
 
-        move_result = self.cm.move_cartesian_ik(move_goal, collision_aware=False, 
+        move_result = self.cm.move_cartesian_ik(move_goal, start_pose=wrist_pose,
+                                                collision_aware=False, 
                                                 blocking=False,
                                                 step_size=.005, pos_thres = .005, rot_thres = .05,
                                                 settling_time=rospy.Duration(2),
@@ -140,18 +175,9 @@ class LinearMoveRelative(object):
     def execute_setup(self, goal):
         rospy.loginfo("[linear_move_relative] Execute relative arm movement setup.")
         result = LinearMoveRelativeSetupResult()
-        self.cm.tf_listener.waitForTransform("torso_lift_link", goal.goal_pose.header.frame_id,
-                                             rospy.Time(0), rospy.Duration(5))
-        goal_pose_trans = self.cm.tf_listener.transformPose("torso_lift_link", goal.goal_pose)
-        print goal_pose_trans
-        header, pos, ori = extract_pose_stamped(goal_pose_trans)
-        new_pos = transform_in_frame(pos, ori, [-goal.approach_dist, 0.0, 0.0])
-        move_goal = PoseStamped()
-        move_goal.header.frame_id = "torso_lift_link"
-        move_goal.header.stamp = rospy.Time.now() + rospy.Duration(0.3)
-        move_goal.pose = Pose(Point(*new_pos), Quaternion(*ori))
-        print move_goal
-#return
+
+        move_goal = self.transform_pose_for_wrist(goal, self.tool_approach_frame)
+        self.pix3_pub.publish(move_goal)
 
         rospy.loginfo("[linear_move_relative] Waiting for arm to stop moving.")
         while not rospy.is_shutdown():
@@ -161,10 +187,11 @@ class LinearMoveRelative(object):
         rospy.loginfo("[linear_move_relative] The arm is not moving.")
 
         move_result = self.cm.move_arm_pose_biased(move_goal, self.JOINTS_BIAS, 
-                                                   self.SETUP_VELOCITY, blocking = False)
+                                                   self.SETUP_VELOCITY, blocking = False,
+                                                   init_angs=self.INIT_ANGS)
         print "setup_result", move_result
 
-        if move_result == "no solution":
+        if move_result == "no solution" or move_result is None:
             self.move_arm_setup_act.set_aborted(result)
             return
 
@@ -186,6 +213,16 @@ class LinearMoveRelative(object):
         self.move_arm_setup_act.set_succeeded(result)
         self.coll_state.collided = False
 
+    def test(self):
+        wrist_pose = self.cm.get_current_wrist_pose_stamped("torso_lift_link")
+        start_pose = copy.deepcopy(wrist_pose)
+        end_pose = copy.deepcopy(wrist_pose)
+        end_pose.pose.position.x += 0.1
+        (trajectory, error_codes) = self.cm.ik_utilities.check_cartesian_path(start_pose,
+                                              end_pose, current_angles, step_size, .1, math.pi/4, 
+                                              collision_aware=0, joints_bias=self.JOINTS_BIAS, 
+                                              bias_radius=self.BIAS_RADIUS, steps_before_abort=-1)
+        
 
 def main():
     rospy.init_node("linear_arm_move", anonymous=True)

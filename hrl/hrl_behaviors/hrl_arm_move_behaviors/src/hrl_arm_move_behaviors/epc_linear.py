@@ -249,60 +249,63 @@ class LinearMove(object):
            @param end_pose PoseStamped containing end position
            @param tool_frame string indicating tool's frame
         """
-        k_p_pos, k_p_ang = 0.7, 10.1
-        k_d_pos, k_d_ang = 0.10, 0.1
-        k_i_pos, k_i_ang = 0.500, 0.0
-        integral_pos_max, integral_ang_max = 0.3, 1.0
+        # magic numbers
+        k_p_pos, k_p_ang = 0.3, 10.1
+        k_d_pos, k_d_ang = 0.02, 0.1
+        k_i_pos, k_i_ang = 1.500, 0.0
+        integral_pos_max, integral_ang_max = 0.1, 1.0
         max_angles = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
-        err_pos_mag_last, err_ang_last = 0, 0
-        steady_count = 0
-        integral_pos, integral_ang = 0, 0
+
+        # advertise informative topics
         cmd_pub = rospy.Publisher("/commanded_pose", PoseStamped)
         cur_pub = rospy.Publisher("/current_pose", PoseStamped)
         goal_pub = rospy.Publisher("/goal_pose", PoseStamped)
         u_pub = rospy.Publisher("/u_signal", Float64)
+        p_pub = rospy.Publisher("/p_signal", Float64)
+        i_pub = rospy.Publisher("/i_signal", Float64)
+        d_pub = rospy.Publisher("/d_signal", Float64)
+
+        # initialze variables
+        err_pos_mag_last, err_ang_last = 0, 0
+        steady_count, num_ik_not_found = 0, 0
+        integral_pos, integral_ang = 0, 0
+
         while not rospy.is_shutdown():
             # find current tool location
             t_B_c = self.get_transform("torso_lift_link", tool_frame)
-            print "t_B_c, end", t_B_c, end_pose
+
             # find error in position
             err_pos = end_pose[:3,3] - t_B_c[:3,3]
             err_pos_mag = np.linalg.norm(err_pos)
+
             # find error in angle
             err_ang = quaternion_dist(end_pose, t_B_c)
+
+            # compute integrals
             integral_pos += err_pos_mag / rate
             integral_ang += err_ang / rate
             integral_pos = np.clip(integral_pos, -integral_pos_max, integral_pos_max)
             integral_ang = np.clip(integral_ang, -integral_ang_max, integral_ang_max)
+
+            print "t_B_c, end", t_B_c, end_pose
             print "err", err_pos, err_ang, err_pos_mag
             print "deriv", (err_pos_mag - err_pos_mag_last) * rate, 
             print "integral", integral_pos
+            
+            # check to see if we have settled
             if err_pos_mag < 0.02 and err_ang < 0.08:
                 steady_count += 1
                 if steady_count > 4:
-                    return
+                    return True
             else:
                 steady_count = 0
+
             # find control input
-            #u_pos = k_p_pos * err_pos + k_d_pos * (err_pos - err_pos_last) * rate 
             u_pos_mag = (k_p_pos * err_pos_mag + 
                          k_d_pos * (err_pos_mag - err_pos_mag_last) * rate +
                          k_i_pos * integral_pos)
-            u_msg = Float64()
-            u_msg.data = u_pos_mag
-            u_pub.publish(u_msg)
-            print "u_pos_mag", u_pos_mag, k_p_pos * err_pos_mag, \
-                         k_d_pos * (err_pos_mag - err_pos_mag_last) * rate, \
-                         k_i_pos * integral_pos
             slerp_t = k_p_ang * err_ang + k_d_ang * (err_ang - err_ang_last) * rate 
             slerp_t = np.clip(slerp_t, 0, 1)
-            print ""
-            print ""
-            print "slerp_t", slerp_t
-            print ""
-            print ""
-            #print "u", u_pos, slerp_t
-            #slerp_t = 0
 
             # find commanded frame of tool
 
@@ -310,49 +313,62 @@ class LinearMove(object):
             ei_q_slerp = tf_trans.quaternion_slerp(tf_trans.quaternion_from_matrix(t_B_c),
                                                    tf_trans.quaternion_from_matrix(end_pose.copy()),
                                                    slerp_t)
-            #print "slerp", np.mat(tf_trans.quaternion_matrix(ei_q_slerp))
-            # TODO FIX TODO slerp bad?
             t_B_new = np.mat(tf_trans.quaternion_matrix(ei_q_slerp))
-            #t_B_new = end_pose.copy()
 
             # position
             u_pos_clamped = np.clip(u_pos_mag, -0.20, 0.20)
-            print "u_pos_mag_clamped", u_pos_clamped
             t_B_new[:3,3] = t_B_c[:3,3] + u_pos_clamped * err_pos / err_pos_mag
+
+            print "u_pos_mag", u_pos_mag, k_p_pos * err_pos_mag, \
+                         k_d_pos * (err_pos_mag - err_pos_mag_last) * rate, \
+                         k_i_pos * integral_pos
+            print "slerp_t", slerp_t
+            print "u_pos_mag_clamped", u_pos_clamped
             print "add",  u_pos_clamped * err_pos / err_pos_mag
             print "new", t_B_new
 
             # transform commanded frame into wrist
             l_B_w = self.get_transform(tool_frame, self.arm + '_wrist_roll_link')
-            #print "l_B_W", l_B_w
             t_B_new_wrist = t_B_new * l_B_w
+
             # find IK solution
             q_guess = self.get_angles(wrapped=True)
             q_cmd = self.IK(t_B_new_wrist, q_guess)
+
+            # publish informative topics
             cmd_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", t_B_new))
             cur_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", t_B_c))
             goal_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", end_pose))
+            u_pub.publish(Float64(u_pos_mag))
+            p_pub.publish(Float64(k_p_pos * err_pos_mag))
+            i_pub.publish(Float64(k_i_pos * integral_pos))
+            d_pub.publish(Float64(k_d_pos * (err_pos_mag - err_pos_mag_last) * rate))
+
+            # ignore if no IK solution found
             if q_cmd is None:
                 rospy.logerr("No IK solution found")
+                num_ik_not_found += 1
+                if num_ik_not_found > 4:
+                    rospy.logerr("Controller has hit a rut, no IK solutions in area")
+                    return False
                 rospy.sleep(1.0/rate)
                 continue
+            else:
+                num_ik_not_found = 0
+
+            # safety checking
+            cur_angles = self.get_angles(wrapped=True)
+            angle_diff = self.angle_diff(q_cmd, cur_angles)
+            q_cmd_clamped = np.clip(q_cmd, cur_angles - max_angles, cur_angles + max_angles)
+
+            print "Goal dist:", np.linalg.norm(err_pos)
+            print "q_cmd" , q_cmd
+            print "q_cmd_clamped", q_cmd_clamped
             #print "t_B_c", t_B_c
             #print "end_pose", end_pose
             #print "t_B_new_wrist", t_B_new_wrist
             #print "FK", self.FK(self.get_angles())
 
-            # safety checking
-            cur_angles = self.get_angles(wrapped=True)
-            #print "cur_angles", cur_angles
-            #print "q_cmd", q_cmd
-            angle_diff = self.angle_diff(q_cmd, cur_angles)
-            #print "angle_diff", angle_diff
-            print "Goal dist:", np.linalg.norm(err_pos)
-            q_cmd_clamped = np.clip(q_cmd, cur_angles - max_angles, cur_angles + max_angles)
-            print "q_cmd" , q_cmd
-            print "q_cmd_clamped", q_cmd_clamped
-
-            #return
             # command joints
             self.command_angles(q_cmd_clamped, 1.2/rate)
     
@@ -360,6 +376,427 @@ class LinearMove(object):
             err_pos_mag_last = err_pos_mag
             err_ang_last = err_ang
             rospy.sleep(1.0/rate)
+
+    def move_to_pose2(self, end_pose, tool_frame, velocity=0.03, rate=5):
+        """Commands arm to follow a linear trajectory, controlling the tool's frame
+           and using PD equilibrium point control to keep the tool fixed on this
+           trajectory
+           @param start_pose PoseStamped containing start position
+           @param end_pose PoseStamped containing end position
+           @param tool_frame string indicating tool's frame
+        """
+        # magic numbers
+        k_p_pos, k_p_ang = 0.5, 10.1
+        k_d_pos, k_d_ang = 0.09, 0.1
+        k_i_pos, k_i_ang = 0.300, 0.0
+        integral_pos_max, integral_ang_max = 0.4, 1.0
+        max_angles = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+
+        # advertise informative topics
+        cmd_pub = rospy.Publisher("/commanded_pose", PoseStamped)
+        cur_pub = rospy.Publisher("/current_pose", PoseStamped)
+        goal_pub = rospy.Publisher("/goal_pose", PoseStamped)
+        u_pub = rospy.Publisher("/u_signal", Float64)
+        p_pub = rospy.Publisher("/p_signal", Float64)
+        i_pub = rospy.Publisher("/i_signal", Float64)
+        d_pub = rospy.Publisher("/d_signal", Float64)
+
+        # initialze variables
+        err_pos_last, err_ang_last = np.mat([0]*3).T, 0
+        steady_count, num_ik_not_found = 0, 0
+        integral_pos, integral_ang = np.mat([0]*3).T, 0
+
+        while not rospy.is_shutdown():
+
+            # find current tool location
+            t_B_c = self.get_transform("torso_lift_link", tool_frame)
+
+            # find error in position
+            err_pos = end_pose[:3,3] - t_B_c[:3,3]
+            err_pos_mag = np.linalg.norm(err_pos)
+
+            # find error in angle
+            err_ang = quaternion_dist(end_pose, t_B_c)
+
+            # compute integrals
+            #integral_pos += err_pos_mag / rate
+            integral_pos += err_pos / rate
+            integral_ang += err_ang / rate
+            integral_pos = np.clip(integral_pos, -integral_pos_max, integral_pos_max)
+            integral_ang = np.clip(integral_ang, -integral_ang_max, integral_ang_max)
+
+            print "t_B_c, end", t_B_c, end_pose
+            print "err", err_pos, err_ang, err_pos_mag
+            print "deriv", (err_pos - err_pos_last) * rate, 
+            print "integral", integral_pos
+            
+            # check to see if we have settled
+            if err_pos_mag < 0.02 and err_ang < 0.15:
+                steady_count += 1
+                if steady_count > 4:
+                    return True
+            else:
+                steady_count = 0
+
+            # find control input
+            #u_pos_mag = (k_p_pos * err_pos_mag + 
+            #             k_d_pos * (err_pos_mag - err_pos_mag_last) * rate +
+            #             k_i_pos * integral_pos)
+            u_pos_mag = (k_p_pos * err_pos + 
+                         k_d_pos * (err_pos - err_pos_last) * rate +
+                         k_i_pos * integral_pos)
+            slerp_t = k_p_ang * err_ang + k_d_ang * (err_ang - err_ang_last) * rate 
+            slerp_t = np.clip(slerp_t, 0, 1)
+
+            # find commanded frame of tool
+
+            # rotation
+            ei_q_slerp = tf_trans.quaternion_slerp(tf_trans.quaternion_from_matrix(t_B_c),
+                                                   tf_trans.quaternion_from_matrix(end_pose.copy()),
+                                                   slerp_t)
+            t_B_new = np.mat(tf_trans.quaternion_matrix(ei_q_slerp))
+
+            # position
+            u_pos_clamped = np.clip(u_pos_mag, -0.20, 0.20)
+            t_B_new[:3,3] = t_B_c[:3,3] + u_pos_clamped 
+
+            print "u_pos_mag", u_pos_mag, k_p_pos * err_pos_mag, \
+                         k_d_pos * (err_pos - err_pos_last) * rate, \
+                         k_i_pos * integral_pos
+            print "slerp_t", slerp_t
+            print "u_pos_mag_clamped", u_pos_clamped
+            print "add",  u_pos_clamped
+            print "new", t_B_new
+
+            # transform commanded frame into wrist
+            l_B_w = self.get_transform(tool_frame, self.arm + '_wrist_roll_link')
+            t_B_new_wrist = t_B_new * l_B_w
+
+            # find IK solution
+            q_guess = self.get_angles(wrapped=True)
+            q_cmd = self.IK(t_B_new_wrist, q_guess)
+
+            # publish informative topics
+            cmd_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", t_B_new))
+            cur_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", t_B_c))
+            goal_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", end_pose))
+            u_pub.publish(Float64(np.linalg.norm(u_pos_mag)))
+            p_pub.publish(Float64(k_p_pos * np.linalg.norm(err_pos)))
+            i_pub.publish(Float64(k_i_pos * np.linalg.norm(integral_pos)))
+            d_pub.publish(Float64(k_d_pos * np.linalg.norm(err_pos - err_pos_last) * rate))
+
+            # ignore if no IK solution found
+            if q_cmd is None:
+                rospy.logerr("No IK solution found")
+                num_ik_not_found += 1
+                if num_ik_not_found > 4:
+                    rospy.logerr("Controller has hit a rut, no IK solutions in area")
+                    return False
+                rospy.sleep(1.0/rate)
+                continue
+            else:
+                num_ik_not_found = 0
+
+            # safety checking
+            cur_angles = self.get_angles(wrapped=True)
+            angle_diff = self.angle_diff(q_cmd, cur_angles)
+            max_angles = np.array([100]*7)
+            q_cmd_clamped = np.clip(q_cmd, cur_angles - max_angles, cur_angles + max_angles)
+
+            print "Goal dist:", np.linalg.norm(err_pos)
+            print "q_cmd" , q_cmd
+            print "q_cmd_clamped", q_cmd_clamped
+            #print "t_B_c", t_B_c
+            #print "end_pose", end_pose
+            #print "t_B_new_wrist", t_B_new_wrist
+            #print "FK", self.FK(self.get_angles())
+
+            # command joints
+            self.command_angles(q_cmd_clamped, 1.2/rate)
+    
+            # cleanup
+            err_pos_last = err_pos
+            err_ang_last = err_ang
+            rospy.sleep(1.0/rate)
+
+            self.err_pos = err_pos
+            self.integral_pos = integral_pos
+
+    def linear_trajectory3(self, start_pose, end_pose, tool_frame, velocity=0.03, rate=5):
+        """Commands arm to follow a linear trajectory, controlling the tool's frame
+           and using PD equilibrium point control to keep the tool fixed on this
+           trajectory
+           @param start_pose PoseStamped containing start position
+           @param end_pose PoseStamped containing end position
+           @param tool_frame string indicating tool's frame
+        """
+        # magic numbers
+        k_p_pos, k_p_ang = 0.5, 10.1
+        k_d_pos, k_d_ang = 0.09, 0.1
+        k_i_pos, k_i_ang = 0.300, 0.0
+        integral_pos_max, integral_ang_max = 0.4, 1.0
+        max_angles = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+
+        # create trajectory
+        dist = np.linalg.norm(start_pose[:3,3] - end_pose[:3,3])
+        traj_time = dist / velocity
+        num_steps = traj_time * rate
+        trajectory = interpolate_cartesian(start_pose, end_pose, num_steps)
+
+        # TODO FIX HACK
+        trajectory_setup = interpolate_cartesian(start_pose, start_pose, 5)
+        trajectory = trajectory_setup + trajectory
+
+        # advertise informative topics
+        cmd_pub = rospy.Publisher("/commanded_pose", PoseStamped)
+        cur_pub = rospy.Publisher("/current_pose", PoseStamped)
+        goal_pub = rospy.Publisher("/goal_pose", PoseStamped)
+        u_pub = rospy.Publisher("/u_signal", Float64)
+        p_pub = rospy.Publisher("/p_signal", Float64)
+        i_pub = rospy.Publisher("/i_signal", Float64)
+        d_pub = rospy.Publisher("/d_signal", Float64)
+
+        # initialze variables
+        err_pos_last, err_ang_last = np.mat([0]*3).T, 0
+        steady_count, num_ik_not_found = 0, 0
+        integral_pos, integral_ang = np.mat([0]*3).T, 0
+
+        err_pos_last = self.err_pos
+        integral_pos = self.integral_pos
+        for target_pose in trajectory:
+
+            # find current tool location
+            t_B_c = self.get_transform("torso_lift_link", tool_frame)
+
+            # find error in position
+            err_pos = target_pose[:3,3] - t_B_c[:3,3]
+            err_pos_mag = np.linalg.norm(err_pos)
+
+            # find error in angle
+            err_ang = quaternion_dist(target_pose, t_B_c)
+
+            # compute integrals
+            #integral_pos += err_pos_mag / rate
+            integral_pos += err_pos / rate
+            integral_ang += err_ang / rate
+            integral_pos = np.clip(integral_pos, -integral_pos_max, integral_pos_max)
+            integral_ang = np.clip(integral_ang, -integral_ang_max, integral_ang_max)
+
+            print "t_B_c, end", t_B_c, target_pose
+            print "err", err_pos, err_ang, err_pos_mag
+            print "deriv", (err_pos - err_pos_last) * rate, 
+            print "integral", integral_pos
+
+            # find control input
+            #u_pos_mag = (k_p_pos * err_pos_mag + 
+            #             k_d_pos * (err_pos_mag - err_pos_mag_last) * rate +
+            #             k_i_pos * integral_pos)
+            u_pos_mag = (k_p_pos * err_pos + 
+                         k_d_pos * (err_pos - err_pos_last) * rate +
+                         k_i_pos * integral_pos)
+            slerp_t = k_p_ang * err_ang + k_d_ang * (err_ang - err_ang_last) * rate 
+            slerp_t = np.clip(slerp_t, 0, 1)
+
+            # find commanded frame of tool
+
+            # rotation
+            ei_q_slerp = tf_trans.quaternion_slerp(tf_trans.quaternion_from_matrix(t_B_c),
+                                                   tf_trans.quaternion_from_matrix(target_pose.copy()),
+                                                   slerp_t)
+            t_B_new = np.mat(tf_trans.quaternion_matrix(ei_q_slerp))
+
+            # position
+            u_pos_clamped = np.clip(u_pos_mag, -0.20, 0.20)
+            t_B_new[:3,3] = t_B_c[:3,3] + u_pos_clamped 
+
+            print "u_pos_mag", u_pos_mag, k_p_pos * err_pos_mag, \
+                         k_d_pos * (err_pos - err_pos_last) * rate, \
+                         k_i_pos * integral_pos
+            print "slerp_t", slerp_t
+            print "u_pos_mag_clamped", u_pos_clamped
+            print "add",  u_pos_clamped
+            print "new", t_B_new
+
+            # transform commanded frame into wrist
+            l_B_w = self.get_transform(tool_frame, self.arm + '_wrist_roll_link')
+            t_B_new_wrist = t_B_new * l_B_w
+
+            # find IK solution
+            q_guess = self.get_angles(wrapped=True)
+            q_cmd = self.IK(t_B_new_wrist, q_guess)
+
+            # publish informative topics
+            cmd_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", t_B_new))
+            cur_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", t_B_c))
+            goal_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", target_pose))
+            u_pub.publish(Float64(np.linalg.norm(u_pos_mag)))
+            p_pub.publish(Float64(k_p_pos * np.linalg.norm(err_pos)))
+            i_pub.publish(Float64(k_i_pos * np.linalg.norm(integral_pos)))
+            d_pub.publish(Float64(k_d_pos * np.linalg.norm(err_pos - err_pos_last) * rate))
+
+            # ignore if no IK solution found
+            if q_cmd is None:
+                rospy.logerr("No IK solution found")
+                num_ik_not_found += 1
+                if num_ik_not_found > 4:
+                    rospy.logerr("Controller has hit a rut, no IK solutions in area")
+                    return False
+                rospy.sleep(1.0/rate)
+                continue
+            else:
+                num_ik_not_found = 0
+
+            # safety checking
+            cur_angles = self.get_angles(wrapped=True)
+            angle_diff = self.angle_diff(q_cmd, cur_angles)
+            max_angles = np.array([100]*7)
+            q_cmd_clamped = np.clip(q_cmd, cur_angles - max_angles, cur_angles + max_angles)
+
+            print "Goal dist:", np.linalg.norm(err_pos)
+            print "q_cmd" , q_cmd
+            print "q_cmd_clamped", q_cmd_clamped
+            #print "t_B_c", t_B_c
+            #print "target_pose", target_pose
+            #print "t_B_new_wrist", t_B_new_wrist
+            #print "FK", self.FK(self.get_angles())
+
+            # command joints
+            self.command_angles(q_cmd_clamped, 1.2/rate)
+    
+            # cleanup
+            err_pos_last = err_pos
+            err_ang_last = err_ang
+            rospy.sleep(1.0/rate)
+
+    def linear_trajectory2(self, start_pose, end_pose, tool_frame, velocity=0.03, rate=5):
+        """Commands arm to follow a linear trajectory, controlling the tool's frame
+           and using PD equilibrium point control to keep the tool fixed on this
+           trajectory
+           @param start_pose PoseStamped containing start position
+           @param end_pose PoseStamped containing end position
+           @param tool_frame string indicating tool's frame
+        """
+        # magic numbers
+        k_p_pos, k_p_ang = 0.7, 10.1
+        k_d_pos, k_d_ang = 0.10, 0.1
+        k_i_pos, k_i_ang = 0.500, 0.0
+        integral_pos_max, integral_ang_max = 0.3, 1.0
+        max_angles = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+
+        # create trajectory
+        dist = np.linalg.norm(start_pose[:3,3] - end_pose[:3,3])
+        traj_time = dist / velocity
+        num_steps = traj_time * rate
+        trajectory = interpolate_cartesian(start_pose, end_pose, num_steps)
+
+        # advertise informative topics
+        cmd_pub = rospy.Publisher("/commanded_pose", PoseStamped)
+        cur_pub = rospy.Publisher("/current_pose", PoseStamped)
+        goal_pub = rospy.Publisher("/goal_pose", PoseStamped)
+        u_pub = rospy.Publisher("/u_signal", Float64)
+
+        # initialze variables
+        err_pos_mag_last, err_ang_last = 0, 0
+        steady_count, num_ik_not_found = 0, 0
+        integral_pos, integral_ang = 0, 0
+
+        for target_pose in trajectory:
+
+            # find current tool location
+            t_B_c = self.get_transform("torso_lift_link", tool_frame)
+
+            # find error in position
+            err_pos = target_pose[:3,3] - t_B_c[:3,3]
+            err_pos_mag = np.linalg.norm(err_pos)
+
+            # find error in angle
+            err_ang = quaternion_dist(target_pose, t_B_c)
+
+            # compute integrals
+            integral_pos += err_pos_mag / rate
+            integral_ang += err_ang / rate
+            integral_pos = np.clip(integral_pos, -integral_pos_max, integral_pos_max)
+            integral_ang = np.clip(integral_ang, -integral_ang_max, integral_ang_max)
+
+            print "t_B_c, end", t_B_c, target_pose
+            print "err", err_pos, err_ang, err_pos_mag
+            print "deriv", (err_pos_mag - err_pos_mag_last) * rate, 
+            print "integral", integral_pos
+
+            # find control input
+            u_pos_mag = (k_p_pos * err_pos_mag + 
+                         k_d_pos * (err_pos_mag - err_pos_mag_last) * rate +
+                         k_i_pos * integral_pos)
+            slerp_t = k_p_ang * err_ang + k_d_ang * (err_ang - err_ang_last) * rate 
+            slerp_t = np.clip(slerp_t, 0, 1)
+
+            # find commanded frame of tool
+
+            # rotation
+            ei_q_slerp = tf_trans.quaternion_slerp(tf_trans.quaternion_from_matrix(t_B_c),
+                                                   tf_trans.quaternion_from_matrix(target_pose.copy()),
+                                                   slerp_t)
+            t_B_new = np.mat(tf_trans.quaternion_matrix(ei_q_slerp))
+
+            # position
+            u_pos_clamped = np.clip(u_pos_mag, -0.20, 0.20)
+            t_B_new[:3,3] = t_B_c[:3,3] + u_pos_clamped * err_pos / err_pos_mag
+
+            print "u_pos_mag", u_pos_mag, k_p_pos * err_pos_mag, \
+                         k_d_pos * (err_pos_mag - err_pos_mag_last) * rate, \
+                         k_i_pos * integral_pos
+            print "slerp_t", slerp_t
+            print "u_pos_mag_clamped", u_pos_clamped
+            print "add",  u_pos_clamped * err_pos / err_pos_mag
+            print "new", t_B_new
+
+            # transform commanded frame into wrist
+            l_B_w = self.get_transform(tool_frame, self.arm + '_wrist_roll_link')
+            t_B_new_wrist = t_B_new * l_B_w
+
+            # find IK solution
+            q_guess = self.get_angles(wrapped=True)
+            q_cmd = self.IK(t_B_new_wrist, q_guess)
+
+            # publish informative topics
+            cmd_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", t_B_new))
+            cur_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", t_B_c))
+            goal_pub.publish(pose_mat_to_stamped_msg("torso_lift_link", target_pose))
+            u_pub.publish(Float64(u_pos_mag))
+
+            # ignore if no IK solution found
+            if q_cmd is None:
+                rospy.logerr("No IK solution found")
+                num_ik_not_found += 1
+                if num_ik_not_found > 4:
+                    rospy.logerr("Controller has hit a rut, no IK solutions in area")
+                    return False
+                rospy.sleep(1.0/rate)
+                continue
+            else:
+                num_ik_not_found = 0
+
+            # safety checking
+            cur_angles = self.get_angles(wrapped=True)
+            angle_diff = self.angle_diff(q_cmd, cur_angles)
+            q_cmd_clamped = np.clip(q_cmd, cur_angles - max_angles, cur_angles + max_angles)
+
+            print "Goal dist:", np.linalg.norm(err_pos)
+            print "q_cmd" , q_cmd
+            print "q_cmd_clamped", q_cmd_clamped
+            #print "t_B_c", t_B_c
+            #print "target_pose", target_pose
+            #print "t_B_new_wrist", t_B_new_wrist
+            #print "FK", self.FK(self.get_angles())
+
+            # command joints
+            self.command_angles(q_cmd_clamped, 1.2/rate)
+    
+            # cleanup
+            err_pos_mag_last = err_pos_mag
+            err_ang_last = err_ang
+            rospy.sleep(1.0/rate)
+
 
     def linear_trajectory(self, start_pose, end_pose, tool_frame, velocity=0.01, rate=1):
         """Commands arm to follow a linear trajectory, controlling the tool's frame
@@ -544,40 +981,27 @@ class LinearMoveRelative(object):
             rospy.loginfo("[linear_move_relative] Arm has started moving.")
 
     def execute_move(self, goal):
-        return
         rospy.loginfo("[linear_move_relative] Execute relative arm movement.")
         result = LinearMoveRelativeResult()
 
-        #start_goal = self.transform_pose_for_wrist(goal, self.tool_approach_frame)
-        #move_goal = self.transform_pose_for_wrist(goal, self.tool_frame)
-        #start_pose = 
         torso_B_frame = self.lin_move.get_transform("torso_lift_link", 
                                                     goal.goal_pose.header.frame_id)
         frame_B_goal = pose_msg_to_mat(goal.goal_pose)
-        appr_B_tool = self.lin_move.get_transform(self.tool_frame, self.tool_approach_frame) 
-        torso_B_goal = torso_B_frame * frame_B_goal
-        torso_B_tool = torso_B_goal * appr_B_tool
+        appr_B_tool = self.lin_move.get_transform(self.tool_approach_frame, self.tool_frame) 
+        torso_B_tool_appr = torso_B_frame * frame_B_goal * appr_B_tool
+        torso_B_tool_goal = torso_B_frame * frame_B_goal
 
         self.wait_arm_moving(stop_wait=True)
-        #self.pix3_pub.publish(move_goal)
 
-        self.lin_move.linear_trajectory(torso_B_tool, torso_B_goal, 
-                                        self.tool_frame, velocity=0.03, rate=5)
+        move_success = self.lin_move.linear_trajectory3(torso_B_tool_appr, torso_B_tool_goal, 
+                                                        self.tool_frame, velocity=0.005, rate=5)
+        self.move_arm_act.set_succeeded(result)
+        return
         
-
-        #move_result = self.cm.move_cartesian_ik(move_goal, start_pose=wrist_pose,
-        #                                        collision_aware=False, 
-        #                                        blocking=False,
-        #                                        step_size=.005, pos_thres = .005, rot_thres = .05,
-        #                                        settling_time=rospy.Duration(2),
-        #                                        joints_bias=self.JOINTS_BIAS, 
-        #                                        bias_radius=self.BIAS_RADIUS,
-        #                                        vel=self.MOVE_VELOCITY)
-        #print "move_result", move_result
-
-        #if move_result == "no solution":
-        #    self.move_arm_setup_act.set_aborted(result)
-        #    return
+        if not move_success:
+            rospy.loginfo("[linear_move_relative] Relative arm movement failed.")
+            self.move_arm_act.set_aborted(move_success)
+            return
 
         self.wait_arm_moving(stop_wait=False)
 
@@ -596,75 +1020,36 @@ class LinearMoveRelative(object):
         rospy.loginfo("[linear_move_relative] Execute relative arm movement setup.")
         result = LinearMoveRelativeSetupResult()
 
-        #move_goal = self.transform_pose_for_wrist(goal, self.tool_approach_frame)
-        #self.pix3_pub.publish(move_goal)
         torso_B_frame = self.lin_move.get_transform("torso_lift_link", 
                                                     goal.goal_pose.header.frame_id)
         frame_B_goal = pose_msg_to_mat(goal.goal_pose)
-        #appr_B_tool = self.lin_move.get_transform(self.tool_frame, self.tool_approach_frame) 
         appr_B_tool = self.lin_move.get_transform(self.tool_approach_frame, self.tool_frame) 
-        torso_B_tool = torso_B_frame * frame_B_goal * appr_B_tool
-
-        # TODO CHANGE
+        torso_B_tool_appr = torso_B_frame * frame_B_goal * appr_B_tool
         appr_B_wrist = self.lin_move.get_transform(self.tool_approach_frame, 
                                                   self.arm + "_wrist_roll_link") 
         torso_B_wrist = torso_B_frame * frame_B_goal * appr_B_wrist
-        
-        #torso_B_tool[:3,1] = np.mat([0, 1, 0]).T
-        #torso_B_tool[:3,2] = np.mat([-torso_B_tool[2,2], 0, torso_B_tool[0,2]]).T
 
         move_goal = PoseStamped()
         move_goal.header.frame_id = "torso_lift_link"
         move_goal.header.stamp = rospy.Time.now()
-        move_goal.pose = pose_mat_to_msg(torso_B_tool)
+        move_goal.pose = pose_mat_to_msg(torso_B_tool_appr)
         self.pix3_pub.publish(move_goal)
 
         self.wait_arm_moving(stop_wait=True)
 
         angles = self.lin_move.biased_IK(torso_B_wrist, self.INIT_ANGS, 
                                          self.JOINTS_BIAS, num_iters=6)
-        print torso_B_tool
-        print angles
         self.lin_move.command_angles(angles, 3.0)
-        rospy.sleep(5)
+        rospy.sleep(2)
+        self.wait_arm_moving(stop_wait=True)
 
-        self.lin_move.move_to_pose(torso_B_tool, self.tool_frame, velocity=0.03, rate=5)
+        move_success = self.lin_move.move_to_pose2(torso_B_tool_appr, self.tool_frame, 
+                                                  velocity=0.03, rate=5)
 
-        #torso_B_tool = self.lin_move.get_transform("torso_lift_link", self.tool_frame)
-        #d_tool = np.mat([0.2, 0, 0, 1]).T
-        #start_pose = torso_B_tool
-        #end_pose = torso_B_tool.copy()
-        #end_pose[:4,3] = torso_B_tool * d_tool
-        #self.lin_move.linear_trajectory(start_pose, end_pose, self.tool_frame,
-        #                                velocity=0.03, rate=5)
         self.move_arm_setup_act.set_succeeded(result)
         return
-        #q = self.epc.robot.get_joint_angles(self.arm_num)
-        #self.epc.robot.set_jep(self.arm_num, q)
-        #pos, rot = self.epc.robot.arms.FK_all(self.arm_num, q)
-        #pos += rot * np.mat([0.15, 0, 0]).T
-        #new_q = self.epc.robot.IK(self.arm_num, pos, rot)
-        ##self.epc.go_jep(self.arm_num, new_q, np.radians(30.))
 
-        #f_pos_w, f_quat_w = self.tf_listener.lookupTransform(offset_frame, 
-        #                                           self.arm + "_wrist_roll_link", rospy.Time())
-        #f_rot_w = epc_core.tr.quaternion_to_matrix(f_quat_w)
-
-        ## find the wrist goal transformed from the tool frame goal
-        #t_goal_w_mat = (pose_msg_to_mat(t_goal_f) * pose_pq_to_mat(f_pos_w, f_quat_w))
-
-        
-
-        #move_result = self.cm.move_arm_pose_biased(move_goal, self.JOINTS_BIAS, 
-        #                                           self.SETUP_VELOCITY, blocking = False,
-        #                                           init_angs=self.INIT_ANGS)
-        #print "setup_result", move_result
-
-        #if move_result == "no solution" or move_result is None:
-        #    self.move_arm_setup_act.set_aborted(result)
-        #    return
-
-        # Wait for the arm to start moving 
+        # TODO THIS STUFF ADDED BACK
         self.wait_arm_moving(stop_wait=False)
 
         self.start_detection("overhead_grasp", 0.99999)

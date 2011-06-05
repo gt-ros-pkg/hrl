@@ -16,6 +16,7 @@
   <depend package="pr2_collision_monitor"/>
   <depend package="tf"/>
   <depend package="hrl_pr2_lib"/>
+  <depend package="epc_core"/>
 
 </package>
 
