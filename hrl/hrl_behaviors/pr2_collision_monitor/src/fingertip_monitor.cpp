@@ -27,7 +27,7 @@ namespace pr2_collision_monitor {
                 coll_sig = 0.01 * (coll_sig + z_obs - avg);
                 history[step%15] = z_obs;
                 step++;
-                return std::fabs(coll_sig) > 0.8;
+                return std::fabs(coll_sig) > 2.0;
             }
     };
 
