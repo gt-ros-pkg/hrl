@@ -1,0 +1,33 @@
+Notes for running HFA PR2 study.
+
+rosrun pr2_dashboard pr2_dashboard
+# motors reset (if red and runstops both green
+# watch battery (hover over for time)
+
+rosrun rviz rviz
+# visualizer
+# 2D pose estimate
+# add topics
+
+robot claim
+# takes possesion of robot
+robot start
+# starts robot
+robot stop
+# stops robot but doesn't shut it down
+# computers active, motors and systems not
+
+# don't shutdown the robot unless the problems are too
+# strange to diagnose (contact HRL students first)
+sudo pr2-shutdown
+# shuts down robot
+# wait for 4 chimes
+# after chimes, turn back switch off, then unplug
+# plug back in and turn switch back on
+# always turn the robot back on
+# 4 chimes means it's up
+
+roslaunch hrl_pr2_experiments medication_setup.launch
+rosrun rviz rviz # local machine
+# localize robot using 2D Pose Estimate
+roslaunch hrl_pr2_experiments medication_demo.launch
