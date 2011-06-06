@@ -8,6 +8,14 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_pr2_experiments</url>
+  <depend package="rospy"/>
+  <depend package="rfid_demos"/>
+  <depend package="smach"/>
+  <depend package="smach_ros"/>
+  <depend package="hrl_trajectory_playback"/>
+  <depend package="pr2_grasp_behaviors"/>
+  <depend package="hai_sandbox"/>
+
 
 </package>
 

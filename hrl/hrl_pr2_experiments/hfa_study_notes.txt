@@ -27,7 +27,35 @@ sudo pr2-shutdown
 # always turn the robot back on
 # 4 chimes means it's up
 
+rosrun pr2_tuckarm tuck_arms.py r t l t
+# tucks arms
+
+roslaunch pr2_teleop teleop_joystick.launch
+# teleop with PS3 controller
+
+######################################################
+# MEDICATION DELIVERY DEMO
 roslaunch hrl_pr2_experiments medication_setup.launch
 rosrun rviz rviz # local machine
 # localize robot using 2D Pose Estimate
 roslaunch hrl_pr2_experiments medication_demo.launch
+######################################################
+
+######################################################
+# CLEANUP DEMO
+robot stop
+robot start
+roslaunch pr2_teleop teleop_joystick.launch
+roscd hrl_pr2_experiments
+./change_gains_grasp.sh
+# hit enter when prompted
+rosrun pr2_tuckarm tuck_arms.py r t l t
+# navigate robot to table
+# plug in
+roslaunch hrl_pr2_experiments cleanup_setup.launch
+roslaunch hrl_pr2_experiments cleanup_demo.launch
+# MAKE SURE THE ARMS ARE TUCKED BEFORE RUNNING THIS!
+# hit enter when prompted
+######################################################
+
+

@@ -28,18 +28,15 @@
 
 #  \author Travis Deyle and Kelsey Hawkins (Healthcare Robotics Lab, Georgia Tech.)
 
-GRASP_LOCATION  =  [ 0.50,  0.20,   0.0]
-PLACE_LOCATIONS = [[ 0.65, -0.10,  0.00],
-                   [ 0.50, -0.20,  3.14],
-                   [ 0.40, -0.10,  1.50]]
+GRASP_LOCATION  =  [ 0.50,  0.30,  0.00]
+PLACE_LOCATIONS = [[ 0.58, -0.13,  0.00],
+                   [ 0.58, -0.21,  0.00],
+                   [ 0.58, -0.29,  0.00]]
 
 import sys
 
 import roslib
-roslib.load_manifest('pr2_grasp_behaviors')
-roslib.load_manifest('tf')
-roslib.load_manifest('hrl_table_detect')
-roslib.load_manifest('rfid_behaviors')
+roslib.load_manifest('hrl_pr2_experiments')
 import rospy
 
 import smach
@@ -50,7 +47,7 @@ import tf.transformations as tft
 from pr2_grasp_behaviors.msg import OverheadGraspAction, OverheadGraspSetupAction
 from pr2_grasp_behaviors.msg import OverheadGraspGoal, OverheadGraspSetupGoal
 from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPositionGoal
-from hrl_trajectory_playback.srv import TrajPlaybackSrv
+from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
 
 # Overhead grasping requres:
 #   run: hrl_pr2_gains/change_gains_grasp.sh
@@ -85,7 +82,8 @@ def sm_grasp():
     with sm:
         # Setup arm pose (out of way for perception)
         tgoal = SingleJointPositionGoal()
-        tgoal.position = 0.190  # all the way up is 0.200
+        #tgoal.position = 0.190  # all the way up is 0.200
+        tgoal.position = 0.210  # all the way up is 0.200
         tgoal.min_duration = rospy.Duration( 2.0 )
         tgoal.max_velocity = 1.0
         smach.StateMachine.add(
@@ -97,7 +95,7 @@ def sm_grasp():
 
         smach.StateMachine.add(
             'ARM_UNTUCK',
-            ServiceState('trajectory_playback/' + arm + '_arm_untuck', TrajPlaybackSrv),
+            ServiceState('traj_playback/' + arm + '_arm_untuck', TrajPlaybackSrv),
             transitions = { 'succeeded': 'GRASP_BEGIN_SETUP' })
 
         # Setup arm pose (out of way for perception)
@@ -122,7 +120,7 @@ def sm_grasp():
             'THREE_OBJECTS',
             NTries( 3 ),
             transitions = {'succeeded':'THREE_TRIES',
-                           'aborted':'DEMO_END'},
+                           'aborted':'RESET_ARMS'},
             remapping={'ntries_counter':'object_number'})
 
         # We will run the grasper at most 3 times.
@@ -195,10 +193,16 @@ def sm_grasp():
 
         # Setup arm pose (out of way for perception)
         smach.StateMachine.add(
-            'DEMO_END',
+            'RESET_ARMS',
             SimpleActionState( arm + '_overhead_grasp_setup',
                                OverheadGraspSetupAction,
                                goal = OverheadGraspSetupGoal()), 
+            transitions = { 'succeeded': 'ARM_TUCK' })
+
+        smach.StateMachine.add(
+            'ARM_TUCK',
+            ServiceState('traj_playback/' + arm + '_arm_untuck', TrajPlaybackSrv,
+                         request=TrajPlaybackSrvRequest(True)),
             transitions = { 'succeeded': 'succeeded' })
             
     return sm
