@@ -49,14 +49,6 @@ class EPC():
                 stop = 'rospy shutdown'
                 continue
 
-            if timeout_at < rospy.get_time():
-                stop = 'timed out'
-            if stop == '':
-                stop, ea = equi_pt_generator(*arg_list)
-            if stop == 'reset timing':
-                stop = ''
-                t_end = rospy.get_time()
-
             if self.stop_epc:
                 stop = 'stop_command_over_ROS'
                 continue
@@ -65,6 +57,14 @@ class EPC():
                 rospy.sleep(0.1)
                 timeout_at += 0.101 # approximate.
                 continue
+
+            if timeout_at < rospy.get_time():
+                stop = 'timed out'
+            if stop == '':
+                stop, ea = equi_pt_generator(*arg_list)
+            if stop == 'reset timing':
+                stop = ''
+                t_end = rospy.get_time()
 
             if stop == '':
                 if jep_clamp_func != None:
