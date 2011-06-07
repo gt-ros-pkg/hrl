@@ -4,9 +4,10 @@
 
 #include <ros/ros.h>
 #include <pr2_msgs/PressureState.h>
-#include <std_msgs/Float32.h>
+#include <std_msgs/Bool.h>
 #include <pr2_collision_monitor/FingerState.h>
-#include <pr2_collision_monitor/FingerStateSrv.h>
+#include <pr2_collision_monitor/GetFingerState.h>
+#include <pr2_collision_monitor/fir_diff_filter.h>
 
 #define bl boost::lambda
 
@@ -15,22 +16,6 @@ using namespace boost;
 
 namespace pr2_collision_monitor {
 
-    class FIRDiffFilter {
-        public:
-            std::vector<double> history;
-            int step;
-            double coll_sig;
-            FIRDiffFilter() : history(15), step(0), coll_sig(0.0) {
-            }
-            bool updateState(double z_obs) {
-                double avg = std::accumulate(history.begin(), history.end(), 0.0) / 15.0;
-                coll_sig = 0.01 * (coll_sig + z_obs - avg);
-                history[step%15] = z_obs;
-                step++;
-                return std::fabs(coll_sig) > 2.0;
-            }
-    };
-
     class FingertipMonitor {
         public:
             ros::NodeHandle nh;
@@ -38,17 +23,18 @@ namespace pr2_collision_monitor {
             std::vector<boost::shared_ptr<FIRDiffFilter> > l_finger_filters;
             std::string arm;
             ros::Subscriber pressure_sub;
-            ros::Publisher coll_state_pub;
+            ros::Publisher coll_state_pub, coll_bool_pub;
             ros::ServiceServer coll_state_srv;
             std::vector<std::vector<double> > r_fing_vals, l_fing_vals;
             FingerState::Ptr cur_state;
             bool training_mode;
+            double threshold;
             
             FingertipMonitor();
             void onInit();
             void pressureCallback(const pr2_msgs::PressureState& msg); 
             void computeStats();
-            bool srvCallback(FingerStateSrv::Request& req, FingerStateSrv::Response& resp);
+            bool srvCallback(GetFingerState::Request& req, GetFingerState::Response& resp);
     };
 
     FingertipMonitor::FingertipMonitor() : nh("~"), r_fing_vals(21), l_fing_vals(21) {
@@ -56,29 +42,43 @@ namespace pr2_collision_monitor {
 
     void FingertipMonitor::onInit() {
         nh.param<std::string>("arm", arm, std::string("r"));
+        nh.param<double>("sensor_threshold", threshold, 2.0);
 
+        // initialize the filters
         for(uint32_t i=0;i<21;i++) {
-            r_finger_filters.push_back(shared_ptr<FIRDiffFilter>(new FIRDiffFilter()));
-            l_finger_filters.push_back(shared_ptr<FIRDiffFilter>(new FIRDiffFilter()));
+            r_finger_filters.push_back(shared_ptr<FIRDiffFilter>(new FIRDiffFilter(15, 0.01)));
+            l_finger_filters.push_back(shared_ptr<FIRDiffFilter>(new FIRDiffFilter(15, 0.01)));
         }
 
+        // subscriber to the pressure topic
         pressure_sub = nh.subscribe("/pressure/" + arm + "_gripper_motor", 2, 
                                     &FingertipMonitor::pressureCallback, this);
-        coll_state_pub = nh.advertise<FingerState>("collision_state", 1);
+        // publish a FingerState message which details the collision state of all sensors
+        // in that arm
+        coll_state_pub = nh.advertise<FingerState>("collision_state", 2);
+        // publish a simple bool summarizing whether any sensor has collided
+        coll_bool_pub = nh.advertise<std_msgs::Bool>("collision_detected", 2);
+        // accessor for the current collision state of the sensor
         coll_state_srv = nh.advertiseService("state_request",
                                              &FingertipMonitor::srvCallback, this);
     }
 
+    /**
+     * Update the filters and set the state of the collision detection
+     */
     void FingertipMonitor::pressureCallback(const pr2_msgs::PressureState& msg) {
+        // update the filters and set the state of the collision detection
         FingerState::Ptr state(new FingerState()); 
         state->r_finger_tip.resize(21); state->l_finger_tip.resize(21);
         for(uint32_t i=0;i<21;i++) {
-            bool r_in_collision = r_finger_filters[i]->updateState(msg.r_finger_tip[i]);
+            bool r_in_collision = r_finger_filters[i]->updateState(msg.r_finger_tip[i]) >
+                                                                  threshold;
             if(r_in_collision) {
                 state->r_finger_tip[i] = true;
                 state->any_collision = true;
             }
-            bool l_in_collision = l_finger_filters[i]->updateState(msg.l_finger_tip[i]);
+            bool l_in_collision = l_finger_filters[i]->updateState(msg.l_finger_tip[i]) >
+                                                                  threshold;
             if(l_in_collision) {
                 state->l_finger_tip[i] = true;
                 state->any_collision = true;
@@ -86,10 +86,15 @@ namespace pr2_collision_monitor {
         }
         coll_state_pub.publish(state);
         cur_state = state;
+
+        // publish a simple bool for any_collision
+        std_msgs::Bool coll_bool_msg;
+        coll_bool_msg.data = state->any_collision;
+        coll_bool_pub.publish(coll_bool_msg);
     }
 
-    bool FingertipMonitor::srvCallback(FingerStateSrv::Request& req, 
-                                     FingerStateSrv::Response& resp) {
+    bool FingertipMonitor::srvCallback(GetFingerState::Request& req, 
+                                       GetFingerState::Response& resp) {
         resp.state = *cur_state;
         return true;
     }

@@ -7,7 +7,8 @@ struct FIRDiffFilter {
     double coll_sig, time_const;
 
     FIRDiffFilter(int history_size=15, double time_constant=0.01) : 
-                                      history(hist_size), step(0), coll_sig(0.0) {
+                                      history(history_size), step(0), coll_sig(0.0),
+                                      time_const(time_constant) {
     }
     double updateState(double z_obs) {
         // find the average value over the past few steps

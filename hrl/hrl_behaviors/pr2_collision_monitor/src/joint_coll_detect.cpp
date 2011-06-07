@@ -68,7 +68,14 @@ namespace pr2_collision_monitor {
 
     void JointCollDetect::onInit() {
         nh_priv.param<std::string>("arm", arm, std::string("r"));
+
+        // training_mode does not detect collisions but instead monitors
+        // normal operation and collects statistics on joint errors for each behavior
+        // execution
         nh_priv.param<bool>("training_mode", training_mode, false);
+        // significance_mode employs the statistics used in training
+        // if this mode is false, manual threshold must be provided through
+        // the parameter server
         nh_priv.param<bool>("significance_mode", significance_mode, false);
         if(training_mode) {
             // training to find suitable thresholds
@@ -146,12 +153,10 @@ namespace pr2_collision_monitor {
 
     bool JointCollDetect::startDetection(std::string& behavior, float sig_level) {
         if(!monitoring_collisions) {
-            // Default values for fail cases
-            //std::fill(min_errors.begin(), min_errors.end(), 0);
-            //std::fill(max_errors.begin(), max_errors.end(), 0);
             collision_detected = false;
 
             if(significance_mode) {
+                // load the behavior requested
                 uint32_t behavior_ind = std::find(behavior_name_list.begin(), 
                                                   behavior_name_list.end(),
                                                   behavior) - behavior_name_list.begin();
@@ -162,6 +167,8 @@ namespace pr2_collision_monitor {
                     return false;
                 }
 
+                // set the thresholds using the statistical properties of the 
+                // training data
                 for(int i=0;i<7;i++) {
                     // Perform a prediction interval on the training data
                     // using a Student's t-test

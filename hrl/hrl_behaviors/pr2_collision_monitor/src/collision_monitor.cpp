@@ -8,6 +8,7 @@
 
 #include <pr2_collision_monitor/FingerState.h>
 #include <pr2_collision_monitor/FingerStateSrv.h>
+#include <pr2_collision_monitor/StartMonitor.h>
 #include <pr2_collision_monitor/JointDetectionStart.h>
 #include <sensor_msgs/JointState.h>
 
@@ -32,20 +33,20 @@ namespace pr2_collision_monitor {
             ros::ServiceServer start_srv, stop_srv;
             ros::ServiceClient joint_start_cli, joint_stop_cli;
             ros::Subscriber finger_coll_sub, joint_coll_sub, force_coll_sub, state_sub;
-            ros::Publisher arm_stop_pub, collision_pub;
+            ros::Publisher arm_stop_pub, collision_pub, heartbeat_pub;
             std::string arm;
-            bool detection_on;
+            bool detection_on, joint_on, finger_on, force_on;
             double finger_last_time, joint_last_time, force_last_time;
             vector<double> cur_joint_pos;
 
             CollisionMonitor();
             void onInit();
-            void fingerCollCallback(const FingerState& msg);
+            void fingerCollCallback(const std_msgs::Bool& msg);
             void jointCollCallback(const std_msgs::Bool& msg);
             void forceCollCallback(const std_msgs::Bool& msg);
             void stateCallback(sensor_msgs::JointState::ConstPtr);
-            bool srvStartDetection(JointDetectionStart::Request&, 
-                                   JointDetectionStart::Response&);
+            bool srvStartDetection(StartMonitor::Request&, 
+                                   StartMonitor::Response&);
             bool srvStopDetection(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
             void collisionProcess();
             void spinMonitor();
@@ -68,35 +69,29 @@ namespace pr2_collision_monitor {
         joint_stop_cli = nh.serviceClient<std_srvs::Empty>(
                              "/" + arm + "_joint_coll_detect/stop_detection", false);
 
-        finger_coll_sub = nh.subscribe("/" + arm + "_fingertip_monitor/collision_state", 1, 
+        finger_coll_sub = nh.subscribe("/" + arm + "_fingertip_monitor/collision_detected", 1, 
                                        &CollisionMonitor::fingerCollCallback, this);
         joint_coll_sub = nh.subscribe(
                             "/" + arm + "_joint_coll_detect/arm_collision_detected", 1, 
                             &CollisionMonitor::jointCollCallback, this);
-        force_coll_sub = nh.subscribe("/force_torque_monitor/collision_state", 1, 
+        force_coll_sub = nh.subscribe("/force_torque_monitor/collision_detected", 1, 
                                       &CollisionMonitor::forceCollCallback, this);
         state_sub = nh.subscribe("/joint_states", 2, 
                                  &CollisionMonitor::stateCallback, this);
         arm_stop_pub = nh.advertise<trajectory_msgs::JointTrajectory>(
                                                  "/" + arm + "_arm_controller/command", 1);
+        // silent topic until a collision is detected
         collision_pub = nh.advertise<std_msgs::Bool>("collision_detected", 1);
+        // publishes a boolean at 100hz which is false while detection is running and
+        // true otherwise
+        heartbeat_pub = nh.advertise<std_msgs::Bool>("collision_heartbeat", 1);
 
         ros::Duration(0.3).sleep();
         ROS_INFO("[collision_monitor] CollisionMonitor loaded.");
     }
 
-    void CollisionMonitor::fingerCollCallback(const FingerState& msg) {
-        if(detection_on) {
-            if(msg.any_collision) {
-                ROS_INFO("[collision_monitor] Finger collision detected, stopping arm...");
-                collisionProcess();
-            }
-            finger_last_time = ros::Time::now().toSec();
-        }
-    }
-
     void CollisionMonitor::jointCollCallback(const std_msgs::Bool& msg) {
-        if(detection_on) {
+        if(detection_on && joint_on) {
             if(msg.data) {
                 ROS_INFO("[collision_monitor] Joint collision detected, stopping arm...");
                 collisionProcess();
@@ -105,8 +100,18 @@ namespace pr2_collision_monitor {
         }
     }
 
+    void CollisionMonitor::fingerCollCallback(const std_msgs::Bool& msg) {
+        if(detection_on && finger_on) {
+            if(msg.data) {
+                ROS_INFO("[collision_monitor] Finger collision detected, stopping arm...");
+                collisionProcess();
+            }
+            finger_last_time = ros::Time::now().toSec();
+        }
+    }
+
     void CollisionMonitor::forceCollCallback(const std_msgs::Bool& msg) {
-        if(detection_on) {
+        if(detection_on && force_on) {
             if(msg.data) {
                 ROS_INFO("[collision_monitor] Force collision detected, stopping arm...");
                 collisionProcess();
@@ -127,12 +132,17 @@ namespace pr2_collision_monitor {
         }
     }
 
-    bool CollisionMonitor::srvStartDetection(JointDetectionStart::Request& req,
-                                             JointDetectionStart::Response& resp) {
-        finger_last_time = ros::Time::now().toSec();
+    bool CollisionMonitor::srvStartDetection(StartMonitor::Request& req,
+                                             StartMonitor::Response& resp) {
+        joint_on = req.joint_detect;
+        finger_on = req.finger_detect;
+        force_on = req.force_detect;
+
         joint_last_time = ros::Time::now().toSec();
+        finger_last_time = ros::Time::now().toSec();
         force_last_time = ros::Time::now().toSec();
-        joint_start_cli.call(req, resp);
+        JointDetectionStart::Request jds_req; JointDetectionStart::Response jds_resp;
+        joint_start_cli.call(jds_req, jds_resp);
         detection_on = true;
         return true;
     }
@@ -147,6 +157,7 @@ namespace pr2_collision_monitor {
 
     void CollisionMonitor::collisionProcess() {
         if(detection_on) {
+            detection_on = false;
             // publish collision message
             std_msgs::Bool coll_msg; coll_msg.data = true; collision_pub.publish(coll_msg);
 
@@ -155,6 +166,7 @@ namespace pr2_collision_monitor {
             joint_stop_cli.call(req, resp);
 
             // stop arm at current joint angles
+            /* TODO LEAVE OR KEEP? TODO
             trajectory_msgs::JointTrajectory stop_arm_msg;
             stop_arm_msg.header.stamp = ros::Time::now() + ros::Duration(0.03);
             stop_arm_msg.points.resize(1);
@@ -167,7 +179,7 @@ namespace pr2_collision_monitor {
             stop_arm_msg.points[0].velocities.resize(7);
             stop_arm_msg.points[0].accelerations.resize(7);
             arm_stop_pub.publish(stop_arm_msg);
-            detection_on = false;
+            */
         }
     }
 
@@ -180,19 +192,23 @@ namespace pr2_collision_monitor {
         while(ros::ok()) {
             ros::spinOnce();
             if(detection_on) {
-                if(ros::Time::now().toSec() - joint_last_time > 0.15) {
+                if(joint_on && ros::Time::now().toSec() - joint_last_time > 0.15) {
                     ROS_INFO("[collision_monitor] Joint detection timeout, stopping...");
                     collisionProcess();
                 }
-                if(ros::Time::now().toSec() - finger_last_time > 0.15) {
+                if(finger_on && ros::Time::now().toSec() - finger_last_time > 0.15) {
                     ROS_INFO("[collision_monitor] Finger detection timeout, stopping...");
                     collisionProcess();
                 }
-                if(ros::Time::now().toSec() - force_last_time > 0.15) {
+                if(force_on && ros::Time::now().toSec() - force_last_time > 0.15) {
                     ROS_INFO("[collision_monitor] Force detection timeout, stopping...");
                     collisionProcess();
                 }
             }
+            // publish a simple boolean at 100hz which is only false when detection is
+            // running and no collision is detected
+            std_msgs::Bool heartbeat_msg; heartbeat_msg.data = !detection_on;
+            heartbeat_pub.publish(heartbeat_msg);
             r.sleep();
         }
     }
