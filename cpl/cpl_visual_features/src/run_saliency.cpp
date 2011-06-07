@@ -76,7 +76,7 @@ int main(int argc, char** argv)
     }
     else
     {
-      filepath << "/home/thermans/data/robot.jpg";
+      filepath << "/home/thermans/data/test_images/robot.jpg";
     }
 
     std::cout << "Image " << i << std::endl;
@@ -85,6 +85,8 @@ int main(int argc, char** argv)
     try
     {
       Mat saliency_map = csm(frame, false);
+      // cv::imshow("saliency", &csm);
+      // cv::waitKey();
     }
     catch(cv::Exception e)
     {

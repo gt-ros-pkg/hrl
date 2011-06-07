@@ -409,7 +409,7 @@ Mat CenterSurroundMapper::operator()(Mat& frame, bool use_gradient)
     cv::imshow("Top Down map", gradient_map);
   cv::imshow("Saliency", saliency_int);
   cv::imshow("Scaled", scaled);
-  cv::waitKey(2);
+  cv::waitKey();
 #endif // DISPLAY_SALIENCY_MAPS
 
   return scaled;

@@ -33,6 +33,7 @@ rosbuild_add_executable(texture_test  src/texture_test.cpp)
 rosbuild_add_executable(train_textons src/train_textons.cpp)
 rosbuild_add_executable(run_saliency src/run_saliency.cpp)
 rosbuild_add_executable(train_sift_codebook src/sift_des_codebook_generation.cpp)
+rosbuild_add_executable(dense_sift_visualization src/dense_sift_visualization.cpp)
 
 target_link_libraries(sliding_window cpl_visual_features_base cpl_visual_features_saliency)
 target_link_libraries(texture_test cpl_visual_features_base cpl_visual_features_saliency)
