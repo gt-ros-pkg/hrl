@@ -1,0 +1,6 @@
+bool joint_detect
+bool finger_detect
+bool force_detect
+string joint_behavior
+float32 joint_sig_level
+---
