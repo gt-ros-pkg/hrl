@@ -41,6 +41,7 @@ class ForceCollisionMonitor(smach.State):
         self.thresh = thresh
         self.collided = False
 #rospy.Subscriber('', Vector3, self.force_cb)
+# TODO FIX THIS
 
     def force_cb(self, msg):
         f = [msg.x, msg.y, msg.z]
@@ -55,9 +56,10 @@ class ForceCollisionMonitor(smach.State):
         return 'shutdown'
         
 class ClickMonitor(smach.State):
-    def __init__(self):
+    def __init__(self, appr_B_tool=np.eye(4)):
         smach.State.__init__(self, outcomes=['click', 'shutdown'],
                                    output_keys=['click_pose'])
+        self.appr_B_tool = appr_B_tool
         self.cur_msg = None
         rospy.Subscriber('/pixel3d', PoseStamped, self.click_cb)
 
@@ -68,24 +70,24 @@ class ClickMonitor(smach.State):
         self.cur_msg = None
         while not rospy.is_shutdown():
             if self.cur_msg is not None:
-                userdata.click_pose = self.cur_msg
+                userdata.click_pose = self.cur_msg.pose
                 return 'click'
             rospy.sleep(0.01)
         return 'shutdown'
         
+        
 class MoveCoarsePose(smach.State):
     def __init__(self, arm, duration=5.0, q=None):
         smach.State.__init__(self, outcomes=['succeeded', 'shutdown'],
-                                   input_keys=['touch_pose'])
+                                   input_keys=['wrist_mat'])
         self.JOINTS_BIAS = [0.0, 0.012, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.INIT_ANGS = [-0.417, -0.280, -1.565, -2.078, -2.785, -1.195, -0.369]
         self.q = q
         self.pr2_arm = PR2ArmBase(arm)
 
-    def execute(self, userdata):
+    def execute(self, ud):
         if self.q is None:
-            # TODO FILL pose
-            q = self.pr2_arm.biased_IK(pose, self.INIT_ANGS, self.JOINTS_BIAS)
+            q = self.pr2_arm.biased_IK(ud.wrist_mat, self.INIT_ANGS, self.JOINTS_BIAS)
         else:
             q = self.q
         self.pr2_arm.command_joint_angles(q, duration=self.DURATION, delay=1.0)
@@ -98,7 +100,21 @@ class MoveCoarsePose(smach.State):
 
 class SMTouchFace(object):
     def __init__(self, arm):
-        self.arm = arm
+        self.arm = rospy.get_param("~arm", default="r")
+        self.tool_frame = rospy.get_param("~tool_frame", default="r_gripper_tool_frame")
+        self.tool_approach_frame = rospy.get_param("~tool_approach_frame", default="")
+
+        self.tf_listener = tf.TransformListener()
+
+    def get_transform(self, from_frame, to_frame, time=None):
+        if time is None:
+            time = ropsy.Time.now()
+        try:
+            self.tf_listener.waitForTransform(from_frame, to_frame, time)
+            pos, quat = self.tf_listener.lookupTransform(from_frame, to_frame)
+            return pose_pq_to_mat(pos, quat)
+        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
+            return None
 
     def get_fine_pos_setup(self):
         def child_term_cb(outcome_map):
@@ -116,13 +132,16 @@ class SMTouchFace(object):
             outcome_cb=out_cb)
 
         with sm_fine_pos_setup:
-            dm_goal = EPCDirectMoveGoal()
-            # TODO FILL THIS OUT
+            def fine_goal_cb(ud):
+                dm_goal = EPCDirectMoveGoal()
+                dm_goal.target_pose = ud.target_pose
+                dm_gool.tool_frame = self.tool_frame
+                return dm_goal
             smach.Concurrence.add(
                 'FINE_POSITION_MOVE',
                 SimpleActionState('_epc_move/direct_move',
                                   EPCDirectMoveAction,
-                                  goal = dm_goal))
+                                  goal_cb=fine_goal_cb))
             smach.Concurrence.add(
                 'FORCE_COLL_MONITOR',
                 ForceCollisionMonitor(4.0))
@@ -136,7 +155,7 @@ class SMTouchFace(object):
         def out_cb(outcome_map):
             if outcome_map['FORCE_COLL_MONITOR'] == 'collision':
                 return 'force_collision'
-            return outcome_map['FINE_POSITION_MOVE']
+            return outcome_map['FINE_APPROACH_MOVE']
 
         sm_fine_approach = smach.Concurrence(
             outcomes=['success', 'error_high', 'ik_failure', 'shutdown', 'force_collision'],
@@ -145,13 +164,17 @@ class SMTouchFace(object):
             outcome_cb=out_cb)
 
         with sm_fine_approach:
-            lm_goal = EPCLinearMoveGoal()
-            # TODO FILL THIS OUT
+            def fine_appr_cb(ud):
+                lm_goal = EPCLinearMoveGoal()
+                lm_goal.start_pose = ud.start_pose
+                lm_goal.end_pose = ud.end_pose
+                lm_gool.tool_frame = self.tool_frame
+                return lm_goal
             smach.Concurrence.add(
-                'FINE_POSITION_MOVE',
+                'FINE_APPROACH_MOVE',
                 SimpleActionState('_epc_move/linear_move',
                                   EPCLinearMoveAction,
-                                  goal = lm_goal))
+                                  goal_cb=fine_appr_cb))
             smach.Concurrence.add(
                 'FORCE_COLL_MONITOR',
                 ForceCollisionMonitor(4.0))
@@ -174,13 +197,17 @@ class SMTouchFace(object):
             outcome_cb=out_cb)
 
         with sm_fine_retreat:
-            lm_goal = EPCLinearMoveGoal()
-            # TODO FILL THIS OUT
+            def retreat_cb(ud):
+                lm_goal = EPCLinearMoveGoal()
+                lm_goal.start_pose = ud.start_pose
+                lm_goal.end_pose = ud.end_pose
+                lm_gool.tool_frame = self.tool_frame
+                return lm_goal
             smach.Concurrence.add(
                 'FINE_POSITION_MOVE',
                 SimpleActionState('_epc_move/linear_move',
                                   EPCLinearMoveAction,
-                                  goal = lm_goal))
+                                  goal_cb=retreat_cb))
             smach.Concurrence.add(
                 'FORCE_COLL_MONITOR',
                 ForceCollisionMonitor(4.0))
@@ -194,7 +221,7 @@ class SMTouchFace(object):
 
         with sm:
             # move to general pose where manipulation begins
-            # TODO FILL q_setup
+            q_setup = [-1.324,  0.083, -1.689, -2.102,  3.127, -0.861, -1.584]
             smach.StateMachine.add(
                 'MOVE_PREP_POSE',
                 MoveCoarsePose(self.arm, duration=5.0, q=q_setup),
@@ -204,9 +231,66 @@ class SMTouchFace(object):
             smach.StateMachine.add(
                 'WAIT_TOUCH_CLICK',
                 ClickMonitor(),
-                transitions={'click' : 'MOVE_COARSE_IK',
+                transitions={'click' : 'PROCESS_CLICK',
                              'shutdown' : 'shutdown'},
-                remapping={'click_pose' : 'touch_pose'})
+                remapping={'click_pose' : 'touch_click_pose'})
+
+            @smach.cb_interface(input_keys=['touch_click_pose'],
+                                output_keys=['appr_wrist_mat', 'appr_tool_ps', 'touch_tool_ps'],
+                                outcomes=['succeeded', 'tf_failure'])
+            def process_touch_pose(ud):
+                ######################################################################### 
+                # tranformation logic for manipulation
+                # put touch pose in torso frame
+                frame_B_touch = util.pose_msg_to_mat(ud.touch_click_pose)
+                torso_B_frame = self.get_transform("torso_lift_link", 
+                                                   ud.touch_click_pose.header.frame_id)
+                if torso_B_frame is None:
+                    return 'tf_failure'
+                torso_B_touch_bad = torso_B_frame * frame_B_touch
+
+                # rotate pixel23d the right way
+                t_pos, t_quat = util.pose_mat_to_pq(torso_B_touch_bad)
+                # rotate so x axis pointing out
+                quat_flip_rot = tf_trans.quaternion_from_euler(0.0, np.pi/2.0, 0.0)
+                quat_flipped = tf_trans.quaternion_multiply(t_quat, quat_flip_rot)
+                # rotate around x axis so the y axis is flat
+                mat_flipped = tf_trans.quaternion_matrix(quat_flipped)
+                rot_angle = np.arctan(-mat_flipped[2,1] / mat_flipped[2,2])
+                quat_ortho_rot = tf_trans.quaternion_from_euler(rot_angle + np.pi, 0.0, 0.0)
+                quat_flipped_ortho = tf_trans.quaternion_multiply(quat_flipped, quat_ortho_rot)
+
+                torso_B_touch = util.pose_pq_to_mat(t_pos, quat_flipped_ortho)
+
+                # offset the touch location by the approach tranform
+                appr_B_tool = self.get_transform(self.tool_approach_frame, self.tool_frame) 
+                if appr_B_tool is None:
+                    return 'tf_failure'
+                torso_B_touch_appr = torso_B_touch * appr_B_tool
+
+                # project the approach back into the wrist
+                appr_B_wrist = self.get_transform(self.tool_approach_frame, 
+                                                  self.arm + "_wrist_roll_link") 
+                if appr_B_wrist is None:
+                    return 'tf_failure'
+
+                torso_B_wrist = torso_B_tool_appr * appr_B_wrist
+                ######################################################################### 
+                ud.appr_wrist_mat = torso_B_wrist
+                ud.appr_tool_ps = util.pose_mat_to_stamped_msg('torso_lift_link', 
+                                                               torso_B_touch_appr)
+                ud.touch_tool_ps = util.pose_mat_to_stamped_msg('torso_lift_link', 
+                                                                torso_B_touch)
+                return 'succeeded'
+
+            smach.StateMachine.add(
+                'PROCESS_CLICK',
+                smach.CBState(process_touch_pose),
+                transitions = {'succeeded': 'MOVE_COARSE_IK'},
+                remapping={'touch_click_pose' : 'touch_click_pose',
+                           'appr_wrist_mat' : 'appr_wrist_mat',
+                           'appr_tool_ps' : 'appr_tool_ps',
+                           'touch_tool_ps' : 'touch_tool_ps'})
 
             smach.StateMachine.add(
                 'MOVE_COARSE_IK',
@@ -215,7 +299,8 @@ class SMTouchFace(object):
                              'error_high' : 'shutdown',
                              'ik_failure' : 'WAIT_TOUCH_CLICK',
                              'shutdown' : 'shutdown',
-                             'force_collision' : 'shutdown'})
+                             'force_collision' : 'shutdown'},
+                remapping={'appr_wrist_mat' : 'wrist_mat'})
 
             smach.StateMachine.add(
                 'FINE_POSITION_SETUP',
@@ -225,7 +310,7 @@ class SMTouchFace(object):
                              'ik_failure' : 'shutdown',
                              'shutdown' : 'shutdown',
                              'force_collision' : 'shutdown'},
-                remapping={'touch_pose' : 'touch_pose'})
+                remapping={'target_pose' : 'appr_tool_ps'})
 
             smach.StateMachine.add(
                 'FINE_APPROACH',
@@ -235,7 +320,8 @@ class SMTouchFace(object):
                              'ik_failure' : 'shutdown',
                              'shutdown' : 'shutdown',
                              'force_collision' : 'WAIT_RETREAT_CLICK'},
-                remapping={'touch_pose' : 'touch_pose'})
+                remapping={'start_pose' : 'appr_tool_ps',
+                           'end_pose' : 'touch_tool_ps'})
 
             smach.StateMachine.add(
                 'WAIT_RETREAT_CLICK',
@@ -251,19 +337,16 @@ class SMTouchFace(object):
                              'ik_failure' : 'shutdown',
                              'shutdown' : 'shutdown',
                              'force_collision' : 'shutdown'},
-                remapping={'touch_pose' : 'touch_pose'})
+                remapping={'end_pose' : 'appr_tool_ps',
+                           'start_pose' : 'touch_tool_ps'})
                 
         return sm
 
 
 def main():
     rospy.init_node('smach_sm_touch_face')
-    if len(sys.argv) < 2 or sys.argv[1] not in ['r', 'l']:
-        print "First arg should be 'r' or 'l'"
-        return
-    arm = sys.argv[1]
 
-    smtf = SMTouchFace(arm)
+    smtf = SMTouchFace()
     sm = smtf.get_sm()
 
     sis = IntrospectionServer('Touch Face', sm, '/SM_TOUCH_FACE')

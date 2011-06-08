@@ -1,0 +1,14 @@
+# Goal:
+geometry_msgs/PoseStamped target_pose
+string tool_frame
+bool reset_controllers=True
+float32 err_pos_goal=0.02
+float32 err_ang_goal=0.35
+float32 err_pos_max=0.1
+float32 err_ang_max=1.0
+uint32 steady_steps=5
+---
+# Result:
+string result
+---
+# Feedback message:

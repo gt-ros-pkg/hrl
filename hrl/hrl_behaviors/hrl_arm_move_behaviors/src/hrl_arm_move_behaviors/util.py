@@ -21,6 +21,9 @@ def pose_pq_to_mat(pos, quat):
     B[0:3,3] = np.mat([pos]).T
     return B
 
+def pose_mat_to_pq(mat):
+    return mat[:3,3].T.tolist()[0], tf_trans.quaternion_from_euler(mat)
+
 def pose_mat_to_msg(B):
     pos = B[0:3,3].T.tolist()
     quat = tf_trans.quaternion_from_matrix(B)

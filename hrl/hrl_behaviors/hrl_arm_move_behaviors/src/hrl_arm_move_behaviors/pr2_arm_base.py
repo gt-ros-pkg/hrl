@@ -16,6 +16,8 @@ JOINT_NAMES_LIST = ['_shoulder_pan_joint',
                     '_shoulder_lift_joint', '_upper_arm_roll_joint',
                     '_elbow_flex_joint', '_forearm_roll_joint',
                     '_wrist_flex_joint', '_wrist_roll_joint']
+JOINT_STATE_INDS_R = [17, 18, 16, 20, 19, 21, 22]
+JOINT_STATE_INDS_L = [29, 30, 28, 32, 31, 33, 34]
 
 ##
 # Very basic base class for a PR2 arm. Contains functionality for IK, FK, simple
@@ -38,16 +40,21 @@ class PR2ArmBase(object):
         self.joint_action_client = actionlib.SimpleActionClient(
                                        arm + '_arm_controller/joint_trajectory_action',
                                        JointTrajectoryAction)
-        rospy.Subscriber(arm + '_arm_controller/state', JointTrajectoryControllerState, 
-                         self.joint_controller_cb)
+        rospy.Subscriber('joint_states', JointState, 
+                         self.joint_state_cb)
         self.joint_names_list = []
         for s in JOINT_NAMES_LIST:
             self.joint_names_list.append(arm + s)
+        if arm == 'r':
+            self.JOINT_STATE_INDS = JOINT_STATE_INDS_R
+        else:
+            self.JOINT_STATE_INDS = JOINT_STATE_INDS_L
+        self.joint_angles = None
 
     ##
     # Joint angles listener callback
-    def joint_controller_cb(self, msg):
-        self.joint_angles = msg.actual.positions
+    def joint_state_cb(self, msg):
+        self.joint_angles = [msg.position[i] for i in self.JOINT_STATE_INDS]
 
     ##
     # Inverse kinematics
@@ -152,7 +159,7 @@ class PR2ArmBase(object):
         jtg.trajectory.header.stamp = rospy.Time.now() + rospy.Duration(delay)
         jtg.trajectory.joint_names = self.joint_names_list
         jtp = JointTrajectoryPoint()
-        jtp.positions = q
+        jtp.positions = list(q)
         jtp.time_from_start = rospy.Duration(duration)
         jtg.trajectory.points.append(jtp)
         self.joint_action_client.send_goal(jtg)
@@ -169,10 +176,13 @@ class PR2ArmBase(object):
     # @param wrapped If False returns the raw encoded positions, if True returns
     #                the angles with the forearm and wrist roll in the range -pi to pi
     def get_joint_angles(self, wrapped=False):
+        if self.joint_angles is None:
+            rospy.logerr("[pr2_arm_base] Joint angles haven't been filled yet")
+            return None
         if wrapped:
             return self.wrap_angles(self.joint_angles)
         else:
-            return self.joint_angles
+            return np.array(self.joint_angles)
 
     ##
     # Returns the same angles with the forearm and wrist roll wrapped to the 
@@ -186,7 +196,7 @@ class PR2ArmBase(object):
                 q[ind] += 2*np.pi
             while q[ind] > np.pi:
                 q[ind] -= 2*np.pi
-        return q
+        return np.array(q)
 
     ##
     # Returns the difference between the two joint positions, taking into account
