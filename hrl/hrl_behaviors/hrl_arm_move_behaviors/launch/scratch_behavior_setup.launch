@@ -1,0 +1,18 @@
+<launch>
+
+    <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch"/>
+    <include file="$(find hrl_arm_move_behaviors)/launch/collision_monitor.launch"/>
+    <include file="$(find pr2_collision_monitor)/launch/arm_moving_server.launch"/>
+
+    <node pkg="hrl_arm_move_behaviors" name="r_linear_arm_move" type="epc_linear_move_srv.py" output="screen">
+        <param name="arm" type="str" value="r" />
+        <param name="tool_frame" type="str" value="r_scratcher_tip" />
+        <param name="tool_approach_frame" type="str" value="r_scratcher_approach" />
+    </node>
+
+    <node pkg="tf" type="static_transform_publisher" name="l_scratcher_tip_frame" args="0.113 0 0 0 0 0 /l_gripper_tool_frame /l_scratcher_tip 100" />
+    <node pkg="tf" type="static_transform_publisher" name="l_scratcher_approach_frame" args="0.08 0 0 0 0 0 /l_scratcher_tip /l_scratcher_approach 100" />
+
+    <node pkg="tf" type="static_transform_publisher" name="r_scratcher_tip_frame" args="0.113 0 0 0 0 0 /r_gripper_tool_frame /r_scratcher_tip 100" />
+    <node pkg="tf" type="static_transform_publisher" name="r_scratcher_approach_frame" args="0.08 0 0 0 0 0 /r_scratcher_tip /r_scratcher_approach 100" />
+</launch>

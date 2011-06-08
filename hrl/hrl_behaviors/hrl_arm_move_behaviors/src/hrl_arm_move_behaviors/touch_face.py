@@ -15,24 +15,23 @@ from hrl_arm_move_behaviors.msg import LinearMoveRelativeGoal, LinearMoveRelativ
 from hrl_arm_move_behaviors.msg import LinearMoveRelativeResult, LinearMoveRelativeSetupGoal
 from hrl_arm_move_behaviors.msg import LinearMoveRelativeSetupAction, LinearMoveRelativeSetupResult
 
-class TestLinearMove(object):
-    def __init__(self):
-        args = sys.argv
+class TouchFace(object):
+    def __init__(self, arm):
         self.move_setup_client = actionlib.SimpleActionClient(
-                                              args[1] + '_linear_arm_move/move_relative_setup', 
+                                              arm + '_linear_arm_move/move_relative_setup', 
                                               LinearMoveRelativeSetupAction)
         self.move_setup_client.wait_for_server()
         self.move_client = actionlib.SimpleActionClient(
-                                              args[1] + '_linear_arm_move/move_relative', 
+                                              arm + '_linear_arm_move/move_relative', 
                                               LinearMoveRelativeAction)
         self.tf_listener = tf.TransformListener()
         self.move_client.wait_for_server()
         rospy.Subscriber("/pixel3d", 
-                         PoseStamped, self.pixel23d_callback)
+                         PoseStamped, self.pixel_2_3d_callback)
         self.pix1_pub = rospy.Publisher("/lin_pose1", PoseStamped)
         self.pix2_pub = rospy.Publisher("/lin_pose2", PoseStamped)
 
-    def pixel23d_callback(self, msg):
+    def pixel_2_3d_callback(self, msg):
         msg.header.stamp = rospy.Time.now()
         self.tf_listener.waitForTransform("torso_lift_link", msg.header.frame_id, msg.header.stamp, rospy.Duration(4))
         msg = self.tf_listener.transformPose("torso_lift_link", msg)
@@ -46,11 +45,12 @@ class TestLinearMove(object):
         rot_angle = np.arctan(-mat_flipped[2,1] / mat_flipped[2,2])
         quat_ortho_rot = tf_trans.quaternion_from_euler(rot_angle + np.pi, 0.0, 0.0)
         quat_flipped_ortho = tf_trans.quaternion_multiply(quat_flipped, quat_ortho_rot)
-        (msg.pose.orientation.x, msg.pose.orientation.y, 
-         msg.pose.orientation.z, msg.pose.orientation.w) = quat_flipped_ortho
+        msg.pose.orientation = Quaternion(*quat_flipped_ortho)
+        touch_face_at_pose(msg)
 
+    def touch_face_at_pose(self, pose_stamped):
         setup_goal = LinearMoveRelativeSetupGoal()
-        setup_goal.goal_pose = msg
+        setup_goal.goal_pose = pose_stamped
         setup_goal.approach_dist = 0.3
         self.pix2_pub.publish(setup_goal.goal_pose)
         self.move_setup_client.send_goal(setup_goal)
@@ -63,11 +63,8 @@ class TestLinearMove(object):
 
         move_goal = LinearMoveRelativeGoal()
         move_goal.distance = 0.02
-        move_goal.goal_pose = PoseStamped()
-        move_goal.goal_pose.header.frame_id = msg.header.frame_id
+        move_goal.goal_pose = pose_stamped
         move_goal.goal_pose.header.stamp = rospy.Time.now()
-        move_goal.goal_pose.pose.position = Point(x, y, z)
-        move_goal.goal_pose.pose.orientation = Quaternion(*quat_flipped_ortho)
         self.move_client.send_goal(move_goal)
         self.move_client.wait_for_result()
         move_result = self.move_client.get_result()
@@ -76,8 +73,8 @@ class TestLinearMove(object):
             return
 
 def main():
-    rospy.init_node('test_linear_move')
-    tlm = TestLinearMove()
+    rospy.init_node('touch_face')
+    touch_face = TouchFace(sys.argv[1])
     rospy.spin()
 
 if __name__ == '__main__':

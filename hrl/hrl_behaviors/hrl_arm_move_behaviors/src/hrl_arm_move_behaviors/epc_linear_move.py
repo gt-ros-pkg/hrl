@@ -1,0 +1,238 @@
+import numpy as np
+import copy
+
+import roslib; roslib.load_manifest('hrl_arm_move_behaviors')
+import rospy
+import actionlib
+from std_msgs.msg import Bool, Float64
+from geometry_msgs.msg import PoseStamped
+import tf.transformations as tf_trans
+import tf
+
+from hrl_arm_move_behaviors.pr2_arm_base import PR2ArmBase
+import hrl_arm_move_behaviors.util as util
+
+##
+# Classic PID controller with maximum integral thresholding to
+# prevent windup.
+class PIDController(object):
+    def __init__(self, k_p, k_i, k_d, i_max, rate, name=None):
+        self.k_p = k_p
+        self.k_i = k_i
+        self.k_d = k_d
+        self.i_max = i_max
+        self.rate = rate
+        self.err_last = 0
+        self.integral = 0
+        if name is not None:
+            self.err_pub = rospy.Publisher("/pid_controller/" + name + "_error", Float64)
+            self.out_pub = rospy.Publisher("/pid_controller/" + name + "_output", Float64)
+
+    ##
+    # Updates the controller state and returns the current output.
+    def update_state(self, err):
+        self.integral += err / self.rate
+        self.integral = np.clip(self.integral, -self.i_max, self.i_max)
+        y = (self.k_p * err + 
+             self.k_d * (err - self.err_last) * self.rate +
+             self.k_i * self.integral)
+        self.err_last = err
+        self.err_pub.publish(err)
+        self.out_pub.publish(y)
+        return y
+
+    def reset_controller(self):
+        self.err_last = 0
+        self.integral = 0
+
+class EPCLinearMove(PR2ArmBase):
+    ##
+    # Initializes subscribers
+    # @param arm 'r' for right, 'l' for left
+    # @param tf_listener tf.TransformListener object if one already exists in the node
+    def __init__(self, arm, tool_frame="", tf_listener=None, rate=5):
+        super(EPCLinearMove, self).__init__(arm)
+        self.tool_frame = tool_frame
+        if tf_listener is None:
+            self.tf_listener = tf.TransformListener()
+        else:
+            self.tf_listener = tf_listener
+        self.rate = rate
+
+        # magic numbers
+        self.max_angles = np.array([0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.1])
+        self.x_pid = PIDController(0.5, 0.3, 0.09, 0.4, rate, "x")
+        self.y_pid = PIDController(0.5, 0.3, 0.09, 0.4, rate, "y")
+        self.z_pid = PIDController(0.5, 0.3, 0.09, 0.4, rate, "z")
+        self.a_pid = PIDController(5.0, 0.1, 0.5, 6.0, rate, "angle")
+#       self.qx_pid = PIDController(0.01, 0.0, 0.00, 0.4, rate, "qx")
+#       self.qy_pid = PIDController(0.01, 0.0, 0.00, 0.4, rate, "qx")
+#       self.qz_pid = PIDController(0.01, 0.0, 0.00, 0.4, rate, "qx")
+#       self.qw_pid = PIDController(0.01, 0.0, 0.00, 0.4, rate, "qx")
+
+        # advertise informative topics
+        self.cmd_pub = rospy.Publisher("/commanded_pose", PoseStamped)
+        self.cur_pub = rospy.Publisher("/current_pose", PoseStamped)
+        self.goal_pub = rospy.Publisher("/goal_pose", PoseStamped)
+        #u_pub = rospy.Publisher("/u_signal", Float64)
+        #p_pub = rospy.Publisher("/p_signal", Float64)
+        #i_pub = rospy.Publisher("/i_signal", Float64)
+        #d_pub = rospy.Publisher("/d_signal", Float64)
+
+    def reset_controllers(self):
+        self.x_pid.reset_controller()
+        self.y_pid.reset_controller()
+        self.z_pid.reset_controller()
+        self.a_pid.reset_controller()
+#       self.qx_pid.reset_controller()
+#       self.qy_pid.reset_controller()
+#       self.qz_pid.reset_controller()
+#       self.qw_pid.reset_controller()
+
+    ##
+    # Returns the homogeneous matrix from_B_to
+    def get_transform(self, from_frame, to_frame, time=rospy.Time()):
+        pos, quat = self.tf_listener.lookupTransform(from_frame, to_frame, time)
+        return util.pose_pq_to_mat(pos, quat)
+
+    ##
+    # Updates the controllers and returns a pose to command the tool next
+    # @param Homogeneous matrix specifying the current goal
+    # @return Next commanded pose, the position error column matrix, the angle error float
+    def find_controlled_tool_pose(self, target_pose):
+        # find current tool location
+        t_B_c = self.get_transform("torso_lift_link", self.tool_frame)
+        # find error in position
+        err_pos = target_pose[:3,3] - t_B_c[:3,3]
+        # find error in angle
+        err_ang = util.quaternion_dist(target_pose, t_B_c)
+
+        # find control values
+        u_x = self.x_pid.update_state(err_pos[0,0])
+        u_y = self.y_pid.update_state(err_pos[1,0])
+        u_z = self.z_pid.update_state(err_pos[2,0])
+        u_pos = np.mat([u_x, u_y, u_z]).T
+        u_a = self.a_pid.update_state(err_ang)
+#       quat_diff = (np.array(tf_trans.quaternion_from_matrix(target_pose)) -
+#                    np.array(tf_trans.quaternion_from_matrix(t_B_c)))
+#       u_qx = self.qx_pid.update_state(quat_diff[0])
+#       u_qy = self.qy_pid.update_state(quat_diff[1])
+#       u_qz = self.qz_pid.update_state(quat_diff[2])
+#       u_qw = self.qw_pid.update_state(quat_diff[3])
+#       u_quat = np.array([u_qx, u_qy, u_qz, u_qw])
+#       u_quat = u_quat / np.linalg.norm(u_quat)
+
+        # find commanded frame of tool
+        # rotation
+        u_a = np.clip(u_a, 0, 2)
+        ei_q_slerp = tf_trans.quaternion_slerp(tf_trans.quaternion_from_matrix(t_B_c),
+                                               tf_trans.quaternion_from_matrix(target_pose),
+                                               u_a)
+        new_quat = ei_q_slerp
+#       new_quat = tf_trans.quaternion_multiply(tf_trans.quaternion_from_matrix(t_B_c),
+#                                               u_quat)
+        t_B_new = np.mat(tf_trans.quaternion_matrix(new_quat))
+
+        # position
+        u_pos_clipped = np.clip(u_pos, -0.30, 0.30)
+        t_B_new[:3,3] = t_B_c[:3,3] + u_pos_clipped 
+
+        # publish informative topics
+        self.goal_pub.publish(util.pose_mat_to_stamped_msg("torso_lift_link", target_pose))
+        self.cur_pub.publish(util.pose_mat_to_stamped_msg("torso_lift_link", t_B_c))
+        self.cmd_pub.publish(util.pose_mat_to_stamped_msg("torso_lift_link", t_B_new))
+        
+        return t_B_new, err_pos, err_ang
+
+    def ik_tool_pose(self, t_B_tool):
+        # transform commanded frame into wrist
+        l_B_w = self.get_transform(self.tool_frame, self.arm + '_wrist_roll_link')
+        t_B_wrist = t_B_tool * l_B_w
+
+        # find IK solution
+        q_guess = self.get_joint_angles(wrapped=True)
+        # TODO add bias option?
+        q_sol = self.IK(t_B_wrist, q_guess)
+
+        # ignore if no IK solution found
+        if q_sol is None:
+            # TODO better solution?
+            rospy.logerr("No IK solution found")
+            self.num_ik_not_found += 1
+            return None
+        else:
+            self.num_ik_not_found = 0
+        return q_sol
+
+    def command_joints_safely(self, q_cmd):
+        # Clamp angles so the won't exceed max_angles in this command
+        cur_angles = self.get_joint_angles(wrapped=True)
+        q_cmd_clamped = np.clip(q_cmd, cur_angles - self.max_angles, 
+                                       cur_angles + self.max_angles)
+
+        # command joints
+        self.command_joint_angles(q_cmd_clamped, 1.2/self.rate)
+
+    def move_to_pose(self, end_pose, err_pos_goal=0.02, err_ang_thresh=0.35, err_pos_max=0.10, err_ang_max=1.0, steady_steps=5):
+        self.num_ik_not_found = 0
+        steady_count = 0
+        while not rospy.is_shutdown():
+            # find where the next commanded tool position should be
+            t_B_new, err_pos, err_ang = self.find_controlled_tool_pose(end_pose)
+
+            # check to see if we have strayed to far from the goal
+            if err_pos_mag > err_pos_max or err_ang > err_ang_max:
+                self.freeze_arm()
+                return False
+
+            # check to see if we have settled
+            err_pos_mag = np.linalg.norm(err_pos)
+            if err_pos_mag < err_pos_goal and err_ang < err_ang_goal:
+                # we are close to the target, wait a few steps to make sure we're steady
+                steady_count += 1
+                if steady_count >= steady_steps:
+                    return True
+            else:
+                steady_count = 0
+
+            # get the ik for the wrist
+            q_cmd = self.ik_tool_pose(t_B_new)
+            if q_cmd is None:
+                if self.num_ik_not_found > 4:
+                    rospy.logerr("Controller has hit a rut, no IK solutions in area")
+                    return False
+                continue
+
+            # command the joints to their positions (with safety checking)
+            self.command_joints_safely(q_cmd)
+            rospy.sleep(1.0/self.rate)
+
+            print "Current error: Pos:", err_pos_mag, "Angle:", err_ang
+
+    def linear_trajectory(self, start_pose, end_pose, velocity=0.03, setup_steps=3):
+
+        # create trajectory
+        dist = np.linalg.norm(start_pose[:3,3] - end_pose[:3,3])
+        traj_time = dist / velocity
+        num_steps = traj_time * self.rate
+        trajectory = util.interpolate_cartesian(start_pose, end_pose, num_steps)
+        # add several steps of setup to the start position before continuing
+        trajectory_setup = util.interpolate_cartesian(start_pose, start_pose, setup_steps)
+        trajectory = trajectory_setup + trajectory
+
+        self.num_ik_not_found = 0
+        for target_pose in trajectory:
+            # find where the next commanded tool position should be
+            t_B_new, err_pos, err_ang = self.find_controlled_tool_pose(target_pose)
+
+            # get the ik for the wrist
+            q_cmd = self.ik_tool_pose(t_B_new)
+            if q_cmd is None:
+                if self.num_ik_not_found > 4:
+                    rospy.logerr("Controller has hit a rut, no IK solutions in area")
+                    return False
+                continue
+
+            # command the joints to their positions (with safety checking)
+            self.command_joints_safely(q_cmd)
+            rospy.sleep(1.0/self.rate)
