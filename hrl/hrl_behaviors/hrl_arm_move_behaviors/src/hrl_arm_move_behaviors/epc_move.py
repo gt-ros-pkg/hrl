@@ -45,14 +45,13 @@ class PIDController(object):
         self.err_last = 0
         self.integral = 0
 
-class EPCLinearMove(PR2ArmBase):
+class EPCMove(PR2ArmBase):
     ##
     # Initializes subscribers
     # @param arm 'r' for right, 'l' for left
     # @param tf_listener tf.TransformListener object if one already exists in the node
-    def __init__(self, arm, tool_frame="", tf_listener=None, rate=5):
-        super(EPCLinearMove, self).__init__(arm)
-        self.tool_frame = tool_frame
+    def __init__(self, arm, tf_listener=None, rate=5):
+        super(EPCMove, self).__init__(arm)
         if tf_listener is None:
             self.tf_listener = tf.TransformListener()
         else:
@@ -173,25 +172,42 @@ class EPCLinearMove(PR2ArmBase):
         # command joints
         self.command_joint_angles(q_cmd_clamped, 1.2/self.rate)
 
-    def move_to_pose(self, end_pose, err_pos_goal=0.02, err_ang_thresh=0.35, err_pos_max=0.10, err_ang_max=1.0, steady_steps=5):
+    def direct_move(self, target_pose, tool_frame=None, 
+                    err_pos_goal=0.02, err_ang_goal=0.35, 
+                    err_pos_max=0.10, err_ang_max=1.0, steady_steps=5,
+                    coll_detect_cb=None):
+        if tool_frame is None or tool_frame == "":
+            self.tool_frame = self.arm + "_gripper_tool_frame"
+        else:
+            self.tool_frame = tool_frame
         self.num_ik_not_found = 0
         steady_count = 0
         while not rospy.is_shutdown():
             # find where the next commanded tool position should be
-            t_B_new, err_pos, err_ang = self.find_controlled_tool_pose(end_pose)
+            t_B_new, err_pos, err_ang = self.find_controlled_tool_pose(target_pose)
 
-            # check to see if we have strayed to far from the goal
+            # run the collision detection callback to see if we should stop
+            if coll_detect_cb is not None:
+                result = coll_detect_cb(err_pos, err_ang)
+                if result is not None:
+                    rospy.loginfo("[epc_linear_move] Callback function reported collision: '%'"
+                                                                                        % result)
+                    self.freeze_arm()
+                    return result
+
+            # check to see if we have strayed too far from the goal
+            err_pos_mag = np.linalg.norm(err_pos)
             if err_pos_mag > err_pos_max or err_ang > err_ang_max:
                 self.freeze_arm()
-                return False
+                rospy.loginfo("[epc_linear_move] Controller error exceeded thresholds (pos: %f ang %f)" % (err_pos_mag, err_ang))
+                return "error_high"
 
             # check to see if we have settled
-            err_pos_mag = np.linalg.norm(err_pos)
             if err_pos_mag < err_pos_goal and err_ang < err_ang_goal:
                 # we are close to the target, wait a few steps to make sure we're steady
                 steady_count += 1
                 if steady_count >= steady_steps:
-                    return True
+                    return "success"
             else:
                 steady_count = 0
 
@@ -199,17 +215,25 @@ class EPCLinearMove(PR2ArmBase):
             q_cmd = self.ik_tool_pose(t_B_new)
             if q_cmd is None:
                 if self.num_ik_not_found > 4:
-                    rospy.logerr("Controller has hit a rut, no IK solutions in area")
-                    return False
+                    rospy.logwarn("[epc_linear_move] Controller has hit a rut, no IK solutions in area")
+                    return "ik_failure"
                 continue
 
             # command the joints to their positions (with safety checking)
             self.command_joints_safely(q_cmd)
-            rospy.sleep(1.0/self.rate)
 
             print "Current error: Pos:", err_pos_mag, "Angle:", err_ang
+            rospy.sleep(1.0/self.rate)
 
-    def linear_trajectory(self, start_pose, end_pose, velocity=0.03, setup_steps=3):
+        return "shutdown"
+
+    def linear_move(self, start_pose, end_pose, tool_frame=None, 
+                    velocity=0.03, err_pos_max=0.10, err_ang_max=1.0, setup_steps=3, 
+                    coll_detect_cb=None):
+        if tool_frame is None or tool_frame == "":
+            self.tool_frame = self.arm + "_gripper_tool_frame"
+        else:
+            self.tool_frame = tool_frame
 
         # create trajectory
         dist = np.linalg.norm(start_pose[:3,3] - end_pose[:3,3])
@@ -222,17 +246,40 @@ class EPCLinearMove(PR2ArmBase):
 
         self.num_ik_not_found = 0
         for target_pose in trajectory:
+            if rospy.is_shutdown():
+                return "shutdown"
+
             # find where the next commanded tool position should be
             t_B_new, err_pos, err_ang = self.find_controlled_tool_pose(target_pose)
+
+            # run the collision detection callback to see if we should stop
+            if coll_detect_cb is not None:
+                result = coll_detect_cb(err_pos, err_ang)
+                if result is not None:
+                    rospy.loginfo("[epc_linear_move] Callback function reported collision: '%'"
+                                                                                        % result)
+                    self.freeze_arm()
+                    return result
+
+            # check to see if we have strayed too far from the trajectory
+            err_pos_mag = np.linalg.norm(err_pos)
+            if err_pos_mag > err_pos_max or err_ang > err_ang_max:
+                rospy.loginfo("[epc_linear_move] Controller error exceeded thresholds (pos: %f ang %f)" % (err_pos_mag, err_ang))
+                self.freeze_arm()
+                return "error_high"
 
             # get the ik for the wrist
             q_cmd = self.ik_tool_pose(t_B_new)
             if q_cmd is None:
                 if self.num_ik_not_found > 4:
-                    rospy.logerr("Controller has hit a rut, no IK solutions in area")
-                    return False
+                    rospy.logwarn("[epc_linear_move] Controller has hit a rut, no IK solutions in area")
+                    return "ik_failure"
                 continue
 
             # command the joints to their positions (with safety checking)
             self.command_joints_safely(q_cmd)
+
+            print "Current error: Pos:", err_pos_mag, "Angle:", err_ang
             rospy.sleep(1.0/self.rate)
+
+        return "success"

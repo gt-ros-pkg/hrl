@@ -158,6 +158,9 @@ class PR2ArmBase(object):
         self.joint_action_client.send_goal(jtg)
         return True
 
+    ##
+    # Commands the arm to move to it's current joint angles, effectively stopping
+    # the arm in place.
     def freeze_arm(self):
         self.command_joint_angles(self.get_joint_angles(wrapped=False))
 
