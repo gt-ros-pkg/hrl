@@ -91,8 +91,7 @@ class MekaArmClient():
         self.stop_pub = rospy.Publisher('/arms/stop', Empty)
         self.motors_off_pub = rospy.Publisher('/arms/command/motors_off', Empty)
 
-        self.cep_marker_id = 1
-        self.marker_pub = rospy.Publisher('/arms/viz_markers', Marker)
+        self.cep_marker_pub = rospy.Publisher('/arms/viz/cep', Marker)
 
         rospy.Subscriber('/r_arm/jep', FloatArray, self.r_arm_jep_cb)
         rospy.Subscriber('/l_arm/jep', FloatArray, self.l_arm_jep_cb)
@@ -134,11 +133,10 @@ class MekaArmClient():
         o = np.matrix([0.,0.,0.,1.]).T
         cep_marker = hv.single_marker(cep, o, 'sphere',
                         '/torso_lift_link', color=(0., 0., 1., 1.),
-                            scale = (0.02, 0.02, 0.02),
-                            m_id = self.cep_marker_id, duration=0.)
+                        scale = (0.02, 0.02, 0.02), duration=0.)
 
         cep_marker.header.stamp = msg.header.stamp
-        self.marker_pub.publish(cep_marker)
+        self.cep_marker_pub.publish(cep_marker)
 
     def l_arm_jep_cb(self, msg):
         self.cb_lock.acquire()
