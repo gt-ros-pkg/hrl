@@ -11,13 +11,38 @@
 
     <!-- ############################ Force torque parameters ############################ -->
     <node pkg="pr2_collision_monitor" type="force_torque_monitor" name="force_torque_monitor" output="screen" respawn="true">
-        <param name="force_threshold" type="double" value="0.0005" />
+        <param name="force_threshold" type="double" value="0.0005" /> <!-- not used -->
         <param name="time_constant" type="double" value="0.001" />
         <param name="history" type="int" value="500" />
         <remap from="/force_topic" to="/force_torque_ft3_Vec3"/>
     </node>
     <!-- ################################################################################# -->
 
+    <!-- ##################### Joint collision detection parameters ###################### -->
+    <node pkg="pr2_collision_monitor" type="joint_coll_detect" name="r_joint_coll_detect" output="screen" >
+        <param name="arm" type="str" value="r"/>
+        <param name="training_mode" type="bool" value="false"/>
+        <param name="significance_mode" type="bool" value="false"/>
+        <rosparam param="min_errors"> [-0.360, -0.36, -0.36, -0.38, -0.3, -0.34, -0.150] </rosparam>
+        <rosparam param="max_errors"> [0.36, 0.36, 0.38, 0.38, 0.30, 0.34, 0.150] </rosparam>
+        <param name="filename_prefix" type="str" value="$(find hrl_arm_move_behaviors)/data/"/>
+        <rosparam param="filename_list">
+            [move_coarse_ik_r_data.bag,
+             move_prep_pose_r_data.bag]
+        </rosparam>
+
+    </node>                 
+    <!-- ################################################################################# -->
+
+    <!-- #################### Finger collision detection parameters ###################### -->
+    <node pkg="pr2_collision_monitor" type="fingertip_monitor" name="r_fingertip_monitor" output="screen" respawn="true">
+        <param name="arm" type="str" value="r" />
+        <param name="sensor_threshold" type="double" value="3.0" />
+        <param name="time_constant" type="double" value="0.001" />
+        <param name="history" type="int" value="100" />
+    </node>
+    <!-- ################################################################################# -->
+    
     <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch"/>
     <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch"/>
     <include file="$(find hrl_arm_move_behaviors)/launch/epc_move_actionlib.launch"/>
