@@ -40,7 +40,7 @@ class EPCMoveActionlib(object):
         rospy.loginfo("[epc_move_actionlib] Execute direct move.")
         result = EPCDirectMoveResult()
 
-        transformed_pose_stamped = tf_listener.transformPose("torso_lift_link", goal.target_pose)
+        transformed_pose_stamped = self.tf_listener.transformPose("torso_lift_link", goal.target_pose)
         transformed_pose = util.pose_msg_to_mat(transformed_pose_stamped)
 
         if goal.reset_controllers:
@@ -56,11 +56,13 @@ class EPCMoveActionlib(object):
                                                   goal.err_pos_max, goal.err_ang_max, 
                                                   goal.steady_steps, preempt_callback)
 
-        rospy.loginfo("[epc_move_actionlib] Direct move completed with result '%'." %
+        rospy.loginfo("[epc_move_actionlib] Direct move completed with result '%s'." %
                       result.result)
 
-        if result.result == "success":
+        if result.result == "succeeded":
             self.direct_move_act.set_succeeded(result)
+        elif result.result == "preempted":
+            self.direct_move_act.set_preempted(result)
         else:
             self.direct_move_act.set_aborted(result)
 
@@ -68,9 +70,9 @@ class EPCMoveActionlib(object):
         rospy.loginfo("[epc_move_actionlib] Execute linear move.")
         result = EPCLinearMoveResult()
 
-        start_pose_stamped = tf_listener.transformPose("torso_lift_link", goal.start_pose)
+        start_pose_stamped = self.tf_listener.transformPose("torso_lift_link", goal.start_pose)
         start_pose = util.pose_msg_to_mat(start_pose_stamped)
-        end_pose_stamped = tf_listener.transformPose("torso_lift_link", goal.end_pose)
+        end_pose_stamped = self.tf_listener.transformPose("torso_lift_link", goal.end_pose)
         end_pose = util.pose_msg_to_mat(end_pose_stamped)
 
         if goal.reset_controllers:
@@ -86,11 +88,13 @@ class EPCMoveActionlib(object):
                                                   goal.err_pos_max, goal.err_ang_max, 
                                                   goal.setup_steps, preempt_callback)
 
-        rospy.loginfo("[epc_move_actionlib] Linear move completed with result '%'." %
+        rospy.loginfo("[epc_move_actionlib] Linear move completed with result '%s'." %
                       result.result)
 
-        if result.result == "success":
+        if result.result == "succeeded":
             self.linear_move_act.set_succeeded(result)
+        elif result.result == "preempted":
+            self.linear_move_act.set_preempted(result)
         else:
             self.linear_move_act.set_aborted(result)
 

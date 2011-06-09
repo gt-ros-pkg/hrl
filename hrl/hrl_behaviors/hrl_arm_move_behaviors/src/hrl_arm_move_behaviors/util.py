@@ -22,7 +22,7 @@ def pose_pq_to_mat(pos, quat):
     return B
 
 def pose_mat_to_pq(mat):
-    return mat[:3,3].T.tolist()[0], tf_trans.quaternion_from_euler(mat)
+    return mat[:3,3].T.tolist()[0], tf_trans.quaternion_from_matrix(mat)
 
 def pose_mat_to_msg(B):
     pos = B[0:3,3].T.tolist()

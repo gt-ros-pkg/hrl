@@ -133,7 +133,7 @@ class EPCMove(PR2ArmBase):
         t_B_new = np.mat(tf_trans.quaternion_matrix(new_quat))
 
         # position
-        u_pos_clipped = np.clip(u_pos, -0.30, 0.30)
+        u_pos_clipped = np.clip(u_pos, -0.20, 0.20)
         t_B_new[:3,3] = t_B_c[:3,3] + u_pos_clipped 
 
         # publish informative topics
@@ -190,7 +190,7 @@ class EPCMove(PR2ArmBase):
             if coll_detect_cb is not None:
                 result = coll_detect_cb(err_pos, err_ang)
                 if result is not None:
-                    rospy.loginfo("[epc_linear_move] Callback function reported collision: '%'"
+                    rospy.loginfo("[epc_move] Callback function reported collision: '%s'"
                                                                                         % result)
                     self.freeze_arm()
                     return result
@@ -199,7 +199,7 @@ class EPCMove(PR2ArmBase):
             err_pos_mag = np.linalg.norm(err_pos)
             if err_pos_mag > err_pos_max or err_ang > err_ang_max:
                 self.freeze_arm()
-                rospy.loginfo("[epc_linear_move] Controller error exceeded thresholds (pos: %f ang %f)" % (err_pos_mag, err_ang))
+                rospy.loginfo("[epc_move] Controller error exceeded thresholds (pos: %f ang %f)" % (err_pos_mag, err_ang))
                 return "error_high"
 
             # check to see if we have settled
@@ -207,7 +207,7 @@ class EPCMove(PR2ArmBase):
                 # we are close to the target, wait a few steps to make sure we're steady
                 steady_count += 1
                 if steady_count >= steady_steps:
-                    return "success"
+                    return "succeeded"
             else:
                 steady_count = 0
 
@@ -215,7 +215,7 @@ class EPCMove(PR2ArmBase):
             q_cmd = self.ik_tool_pose(t_B_new)
             if q_cmd is None:
                 if self.num_ik_not_found > 4:
-                    rospy.logwarn("[epc_linear_move] Controller has hit a rut, no IK solutions in area")
+                    rospy.logwarn("[epc_move] Controller has hit a rut, no IK solutions in area")
                     return "ik_failure"
                 continue
 
@@ -256,7 +256,7 @@ class EPCMove(PR2ArmBase):
             if coll_detect_cb is not None:
                 result = coll_detect_cb(err_pos, err_ang)
                 if result is not None:
-                    rospy.loginfo("[epc_linear_move] Callback function reported collision: '%'"
+                    rospy.loginfo("[epc_move] Callback function reported collision: '%s'"
                                                                                         % result)
                     self.freeze_arm()
                     return result
@@ -264,7 +264,7 @@ class EPCMove(PR2ArmBase):
             # check to see if we have strayed too far from the trajectory
             err_pos_mag = np.linalg.norm(err_pos)
             if err_pos_mag > err_pos_max or err_ang > err_ang_max:
-                rospy.loginfo("[epc_linear_move] Controller error exceeded thresholds (pos: %f ang %f)" % (err_pos_mag, err_ang))
+                rospy.loginfo("[epc_move] Controller error exceeded thresholds (pos: %f ang %f)" % (err_pos_mag, err_ang))
                 self.freeze_arm()
                 return "error_high"
 
@@ -272,7 +272,7 @@ class EPCMove(PR2ArmBase):
             q_cmd = self.ik_tool_pose(t_B_new)
             if q_cmd is None:
                 if self.num_ik_not_found > 4:
-                    rospy.logwarn("[epc_linear_move] Controller has hit a rut, no IK solutions in area")
+                    rospy.logwarn("[epc_move] Controller has hit a rut, no IK solutions in area")
                     return "ik_failure"
                 continue
 
@@ -282,4 +282,4 @@ class EPCMove(PR2ArmBase):
             print "Current error: Pos:", err_pos_mag, "Angle:", err_ang
             rospy.sleep(1.0/self.rate)
 
-        return "success"
+        return "succeeded"

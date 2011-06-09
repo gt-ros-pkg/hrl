@@ -11,8 +11,11 @@
   <depend package="rospy"/>
   <depend package="actionlib_msgs"/>
   <depend package="actionlib"/>
+  <depend package="smach"/>
+  <depend package="smach_ros"/>
   <depend package="std_msgs"/>
   <depend package="geometry_msgs"/>
+  <depend package="hrl_trajectory_playback"/>
   <depend package="pr2_collision_monitor"/>
   <depend package="tf"/>
   <depend package="hrl_pr2_lib"/>

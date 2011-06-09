@@ -1,0 +1,11 @@
+<launch>
+
+    <node pkg="hrl_arm_move_behaviors" name="r_epc_move" type="epc_move_actionlib.py" output="screen" respawn="True">
+        <param name="arm" type="str" value="r"/>
+    </node>
+
+    <node pkg="hrl_arm_move_behaviors" name="l_epc_move" type="epc_move_actionlib.py" output="screen" respawn="True">
+        <param name="arm" type="str" value="l"/>
+    </node>
+
+</launch>

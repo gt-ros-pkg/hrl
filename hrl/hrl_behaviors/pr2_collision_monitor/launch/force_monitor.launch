@@ -1,5 +1,8 @@
 <launch>
     <node pkg="pr2_collision_monitor" type="force_torque_monitor" name="force_torque_monitor" output="screen" respawn="true">
-        <param name="force_threshold" type="double" value="4.0" />
+        <param name="force_threshold" type="double" value="0.0005" />
+        <param name="time_constant" type="double" value="0.001" />
+        <param name="history" type="int" value="500" />
+        <remap from="/force_topic" to="/force_torque_ft3_Vec3"/>
     </node>
 </launch>

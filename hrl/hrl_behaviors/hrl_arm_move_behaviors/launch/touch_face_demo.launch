@@ -1,0 +1,9 @@
+<launch>
+
+    <node pkg="hrl_arm_move_behaviors" name="sm_touch_face" type="sm_touch_face.py" output="screen">
+        <param name="arm" type="str" value="r"/>
+        <param name="tool_frame" type="str" value="r_scratcher_touch"/>
+        <param name="tool_approach_frame" type="str" value="r_scratcher_approach"/>
+    </node>
+
+</launch>
