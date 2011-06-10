@@ -193,13 +193,11 @@ class EPCMove(PR2ArmBase):
                 if result is not None:
                     rospy.loginfo("[epc_move] Callback function reported collision: '%s'"
                                                                                         % result)
-                    self.freeze_arm()
                     return result
 
             # check to see if we have strayed too far from the goal
             err_pos_mag = np.linalg.norm(err_pos)
             if err_pos_mag > err_pos_max or err_ang > err_ang_max:
-                self.freeze_arm()
                 rospy.loginfo("[epc_move] Controller error exceeded thresholds (pos: %f ang %f)" % (err_pos_mag, err_ang))
                 return "error_high"
 
@@ -259,14 +257,12 @@ class EPCMove(PR2ArmBase):
                 if result is not None:
                     rospy.loginfo("[epc_move] Callback function reported collision: '%s'"
                                                                                         % result)
-                    self.freeze_arm()
                     return result
 
             # check to see if we have strayed too far from the trajectory
             err_pos_mag = np.linalg.norm(err_pos)
             if err_pos_mag > err_pos_max or err_ang > err_ang_max:
                 rospy.loginfo("[epc_move] Controller error exceeded thresholds (pos: %f ang %f)" % (err_pos_mag, err_ang))
-                self.freeze_arm()
                 return "error_high"
 
             # get the ik for the wrist
