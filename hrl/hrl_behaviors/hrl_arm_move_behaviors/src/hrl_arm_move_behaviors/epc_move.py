@@ -151,7 +151,8 @@ class EPCMove(PR2ArmBase):
         # find IK solution
         q_guess = self.get_joint_angles(wrapped=True)
         # TODO add bias option?
-        q_sol = self.IK(t_B_wrist, q_guess)
+#q_sol = self.IK(t_B_wrist, q_guess)
+        q_sol = self.search_IK(t_B_wrist, q_guess, sigma=0.3, sample_size=10)
 
         # ignore if no IK solution found
         if q_sol is None:

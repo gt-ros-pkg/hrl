@@ -16,15 +16,89 @@ from std_msgs.msg import Bool, Float32
 from std_srvs.srv import Empty
 from geometry_msgs.msg import PoseStamped, Vector3
 from actionlib_msgs.msg import GoalStatus
-
+from move_base_msgs.msg import MoveBaseAction
 from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPositionGoal
 
 from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
 from pr2_collision_monitor.srv import JointDetectionStart
+from pr2_approach_table.srv import ApproachSrv
+from pr2_approach_table.msg import ApproachAction, ApproachResult, ApproachGoal
+from rfid_behaviors.srv import FloatFloat_Int32 as RotateBackupSrv
 from hrl_arm_move_behaviors.msg import EPCDirectMoveAction, EPCLinearMoveAction
 from hrl_arm_move_behaviors.msg import EPCDirectMoveGoal, EPCLinearMoveGoal
 from hrl_arm_move_behaviors.pr2_arm_base import PR2ArmBase
 import hrl_arm_move_behaviors.util as util
+
+class DetectForwardDistance(smach.State):
+    def __init__(self, get_transform, distance):
+        smach.State.__init__(self, output_keys=['nav_dist'],
+                             outcomes=['reached', 'preempted', 'shutdown'])
+        self.get_transform = get_transform
+        self.distance = distance
+
+    def execute(self, userdata):
+        start_x = self.get_transform("base_link", "map")[0,3]
+        nav_dist = 0
+        while not rospy.is_shutdown():
+            nav_dist = start_x - self.get_transform("base_link", "map")[0,3]
+            print "nav_dist", nav_dist
+            if nav_dist >= self.distance:
+                userdata.nav_dist = nav_dist
+                return 'reached'
+            if self.preempt_requested():
+                self.service_preempt()
+                userdata.nav_dist = nav_dist
+                return 'preempted'
+            rospy.sleep(0.01)
+        userdata.nav_dist = nav_dist
+        return 'shutdown'
+
+class CheckHeading(smach.State):
+    def __init__(self, listener):
+        smach.State.__init__(self,
+                             outcomes=['succeeded', 'preempted'],
+                             input_keys = ['target_pose'],  # PoseStamped
+                             output_keys = ['angular_error']) # float
+        self.listener = listener
+        self.initialized = False
+
+    def execute(self, userdata):
+        ps_desired = userdata.target_pose
+        self.GLOBAL_FRAME = ps_desired.header.frame_id
+        
+        if not self.initialized:
+            self.initialized = True
+            # self.listener = tf.TransformListener() # this is now passed in.
+            rospy.logout( 'CheckHeading (smach): Waiting on transforms from (%s -> %s)'
+                          % ( self.GLOBAL_FRAME, '/base_link' ))
+            self.listener.waitForTransform( '/base_link',
+                                            self.GLOBAL_FRAME,
+                                            rospy.Time(0), timeout = rospy.Duration(30) )
+            rospy.logout( 'CheckHeading (smach): Ready.' )
+
+        try:
+            ps = PoseStamped()
+            ps.header.stamp = rospy.Time(0)
+            ps.header.frame_id = '/base_link'
+            ps.pose.orientation.w = 1.0
+
+            ps_global = self.listener.transformPose( self.GLOBAL_FRAME, ps )
+            efq = tft.euler_from_quaternion
+            r,p,yaw_curr = efq(( ps_global.pose.orientation.x,
+                                 ps_global.pose.orientation.y,
+                                 ps_global.pose.orientation.z,
+                                 ps_global.pose.orientation.w ))
+            r,p,yaw_des = efq(( ps_desired.pose.orientation.x,
+                                ps_desired.pose.orientation.y,
+                                ps_desired.pose.orientation.z,
+                                ps_desired.pose.orientation.w ))
+
+            rospy.logout( 'CheckHeading (smach): Error was %3.2f (deg)' % math.degrees(yaw_des - yaw_curr))
+            userdata.angular_error = yaw_des - yaw_curr
+        except:
+            rospy.logout( 'CheckHeading (smach): TF failed.  Returning ang error of 0.0' )
+            userdata.angular_error = 0.0
+        return 'succeeded'
 
 
 ##
@@ -183,14 +257,18 @@ class MoveCoarsePose(smach.State):
 class SMTouchFace(object):
     def __init__(self):
         self.arm = rospy.get_param("~arm", default="r")
+        self.base_offset_frame = rospy.get_param("~base_offset_frame")
         self.tool_frame = rospy.get_param("~tool_frame", default="r_gripper_tool_frame")
         self.tool_approach_frame = rospy.get_param("~tool_approach_frame", default="")
 
         self.tf_listener = tf.TransformListener()
 
+        self.nav_approach_dist = rospy.get_param("~nav_approach_dist", default=1.0)
+
         self.wrist_pub = rospy.Publisher("~wrist_setup", PoseStamped)
         self.appr_pub = rospy.Publisher("~approach_location", PoseStamped)
         self.touch_pub = rospy.Publisher("~touch_location", PoseStamped)
+        self.nav_pub = rospy.Publisher("~nav_location", PoseStamped)
 
     def get_transform(self, from_frame, to_frame, time=None):
         if time is None:
@@ -202,6 +280,142 @@ class SMTouchFace(object):
         except (tf.Exception, tf.LookupException, tf.ConnectivityException):
             return None
 
+    def get_nav_approach_pose(self):
+        @smach.cb_interface(input_keys=['head_click_pose'],
+                            output_keys=['nav_pose_ps'],
+                            outcomes=['succeeded', 'tf_failure'])
+        def make_approach_pose(ud):
+            frame_B_head = util.pose_msg_to_mat(ud.head_click_pose)
+            base_B_frame = self.get_transform("base_link", ud.head_click_pose.header.frame_id)
+            if base_B_frame is None:
+                return 'tf_failure'
+            base_B_head = base_B_frame * frame_B_head
+            norm_z = np.array([base_B_head[0,2], base_B_head[1,2], 0])
+            norm_z /= np.linalg.norm(norm_z)
+            base_B_head[:3,:3] = np.mat([[-norm_z[0], norm_z[1], 0],
+                                          [-norm_z[1],-norm_z[0], 0],
+                                          [         0,         0, 1]])
+            # offset in the x-direction by the given parameter
+            base_B_head[:4,3] = base_B_head * np.mat([[-self.nav_approach_dist, 0, 0, 1]]).T
+            offset_B_base = self.get_transform(self.base_offset_frame, "base_link")
+            if offset_B_base is None:
+                return 'tf_failure'
+            nav_pose = offset_B_base * base_B_head
+            now = rospy.Time.now()
+            nav_pose_ps = util.pose_mat_to_stamped_msg('base_link', nav_pose, now) 
+            self.tf_listener.waitForTransform("/map", "base_link",
+                                              now, timeout=rospy.Duration(20)) 
+            nav_pose_map_ps = self.tf_listener.transformPose("/map", nav_pose_ps)
+
+            self.nav_pub.publish(nav_pose_map_ps)
+            ud.nav_pose_ps = nav_pose_map_ps
+            return 'succeeded'
+
+        return smach.CBState(make_approach_pose)
+
+    def get_nav_approach(self):
+        def child_term_cb(outcome_map):
+            return True
+
+        def out_cb(outcome_map):
+            if outcome_map['DETECT_FORWARD_DISTANCE'] == 'reached':
+                return 'succeeded'
+            return 'shutdown'
+
+        sm_nav_approach_state = smach.Concurrence(
+            outcomes=['succeeded', 'shutdown'],
+            default_outcome='shutdown',
+            child_termination_cb=child_term_cb,
+            outcome_cb=out_cb,
+            output_keys=['nav_dist'])
+
+        with sm_nav_approach_state:
+            approach_goal = ApproachGoal()
+            approach_goal.forward_vel = 0.05
+            approach_goal.forward_mult = 0.50
+            smach.Concurrence.add(
+                'MOVE_FORWARD',
+                SimpleActionState( '/approach_table/move_forward_act',
+                                   ApproachAction,
+                                   goal = approach_goal ))
+            smach.Concurrence.add(
+                'DETECT_FORWARD_DISTANCE',
+                DetectForwardDistance(self.get_transform, self.nav_approach_dist))
+
+        return sm_nav_approach_state
+
+    def get_nav_prep_sm(self):
+        nav_prep_sm = smach.StateMachine(outcomes=['succeeded','preempted','shutdown', 'aborted'])
+        with nav_prep_sm:
+
+            # make sure the robot is clear of obstacles
+            # make sure the arms are tucked with
+            # rosrun pr2_tuckarm tuck_arms.py r t l t
+            # wait for the user to click on the head so the robot can approach
+            smach.StateMachine.add(
+                'WAIT_FOR_HEAD_CLICK',
+                ClickMonitor(),
+                transitions={'click' : 'PROCESS_NAV_POSE',
+                             'shutdown' : 'shutdown'},
+                remapping={'click_pose' : 'head_click_pose_global'}) # output (PoseStamped)
+
+            # prepare the navigation pose for move_base
+            # gets a point aligned with the normal and a distance away (nav_approach_dist)
+            smach.StateMachine.add(
+                'PROCESS_NAV_POSE',
+                self.get_nav_approach_pose(),
+                transitions={'succeeded' : 'MOVE_BASE', 
+                             'tf_failure' : 'WAIT_FOR_HEAD_CLICK'},
+                remapping={'head_click_pose' : 'head_click_pose_global', # input (PoseStamped)
+                           'nav_pose_ps' : 'nav_pose_ps_global'}) # output (PoseStamped)
+
+            # moves the base using nav stack to the appropirate location for moving forward
+            smach.StateMachine.add(
+                'MOVE_BASE',
+                SimpleActionState('/move_base',
+                                  MoveBaseAction,
+                                  goal_slots=['target_pose'], # PoseStamped
+                                  outcomes=['succeeded','aborted','preempted']),
+                transitions = { 'succeeded' : 'CHECK_HEADING',
+                                'aborted' : 'WAIT_FOR_HEAD_CLICK' },
+                remapping = {'target_pose':'nav_pose_ps_global'}) # input (PoseStamped)
+
+            # checks the current angle and returns the error
+            smach.StateMachine.add(
+                'CHECK_HEADING',
+                CheckHeading( listener = self.tf_listener ),
+                transitions = { 'succeeded':'ADJUST_HEADING' },
+                remapping = { 'target_pose':'nav_pose_ps_global', # input (PoseStamped)
+                              'angular_error':'angular_error' }) # output (float)
+
+            # corrects for the error in angle
+            smach.StateMachine.add(
+                'ADJUST_HEADING',
+                ServiceState( '/rotate_backup',
+                              RotateBackupSrv,
+                              request_slots = ['rotate']), # float (displace = 0.0)
+                transitions = { 'succeeded':'MOVE_FORWARD_DIST' },
+                remapping = {'rotate':'angular_error'})
+            
+            # approaches the touching position by moving forward nav_approach_dist meters
+            # checks for collisions and will return shutdown if it detects a collsion
+            smach.StateMachine.add(
+                'MOVE_FORWARD_DIST',
+                self.get_nav_approach(),
+                transitions = {'succeeded' : 'UNFOLD',
+                               'shutdown' : 'shutdown'},
+                remapping={'nav_dist' : 'nav_dist_global'})
+
+            # Unfolds the arms
+            smach.StateMachine.add(
+                'UNFOLD',
+                ServiceState( 'traj_playback/unfold',
+                              TrajPlaybackSrv,
+                              request = TrajPlaybackSrvRequest( True )), # if True, reverse trajectory
+                transitions = { 'succeeded':'succeeded' })
+
+        return nav_prep_sm
+        
 
     ##
     # returns a SMACH state which processes the output of the WAIT_TOUCH_CLICK state
@@ -396,7 +610,7 @@ class SMTouchFace(object):
                     'FINE_RETREAT_MOVE', find_retreat_move, action_outcomes,
                     0.0006, 3.0, '', 0.995)
 
-    def get_sm(self):
+    def get_touch_sm(self):
 
         # Create a SMACH state machine
         sm = smach.StateMachine(outcomes=['succeeded','preempted','shutdown'])
@@ -508,17 +722,55 @@ class SMTouchFace(object):
 
 def main():
     rospy.init_node('smach_sm_touch_face')
+    if sys.argv[1] == 'nav_only':
 
-    smtf = SMTouchFace()
-    sm = smtf.get_sm()
-    rospy.sleep(1)
+        smtf = SMTouchFace()
+        sm = smtf.get_nav_prep_sm()
+        rospy.sleep(1)
 
-    sis = IntrospectionServer('touch_face', sm, '/SM_TOUCH_FACE')
-    sis.start()
+        sis = IntrospectionServer('nav_prep', sm, '/SM_NAV_PREP')
+        sis.start()
 
-    outcome = sm.execute()
-    
-    sis.stop()
+        outcome = sm.execute()
+        
+        sis.stop()
+
+    elif sys.argv[1] == 'full_demo':
+
+        smtf = SMTouchFace()
+        sm_nav = smtf.get_nav_prep_sm()
+        sm_touch = smtf.get_touch_sm()
+        sm_full = smach.StateMachine(outcomes=['succeeded','preempted','shutdown', 'aborted'])
+        with sm_full:
+            smach.StateMachine.add(
+                'SM_NAV_PREP',
+                sm_nav,
+                transitions={'succeeded' : 'SM_TOUCH_FACE'})
+            smach.StateMachine.add(
+                'SM_TOUCH_FACE',
+                sm_touch)
+        rospy.sleep(1)
+
+
+        sis = IntrospectionServer('nav_prep', sm_full, '/SM_TOUCH_FACE_FULL')
+        sis.start()
+
+        outcome = sm.execute()
+        
+        sis.stop()
+
+    elif sys.argv[1] == 'touch_only':
+
+        smtf = SMTouchFace()
+        sm = smtf.get_touch_sm()
+        rospy.sleep(1)
+
+        sis = IntrospectionServer('touch_face', sm, '/SM_TOUCH_FACE')
+        sis.start()
+
+        outcome = sm.execute()
+        
+        sis.stop()
 
 
 if __name__ == '__main__':

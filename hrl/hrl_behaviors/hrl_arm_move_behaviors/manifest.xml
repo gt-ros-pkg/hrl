@@ -20,6 +20,8 @@
   <depend package="tf"/>
   <depend package="hrl_pr2_lib"/>
   <depend package="epc_core"/>
+  <depend package="pr2_approach_table"/>
+  <depend package="rfid_behaviors"/>
 
 </package>
 
