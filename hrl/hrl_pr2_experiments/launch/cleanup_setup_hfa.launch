@@ -1,0 +1,6 @@
+<launch>
+    <include file="$(find pr2_grasp_behaviors)/launch/overhead_grasping_server_trained.launch" />
+    <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" />
+    <include file="$(find hrl_pr2_experiments)/launch/trajectory_playback_service.launch" />
+    <include file="$(find pr2_teleop)/teleop_joystick.launch" />
+</launch>
