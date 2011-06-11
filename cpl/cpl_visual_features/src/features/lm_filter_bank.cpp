@@ -331,16 +331,16 @@ vector<TextonFeature> LMFilterBank::clusterTextons(
 
   ROS_INFO_STREAM("Performing kmeans clustering");
 
-  // double compactness = cv::kmeans(row_samples, k, labels,
-  //                                 cv::TermCriteria(CV_TERMCRIT_EPS +
-  //                                                  CV_TERMCRIT_ITER,
-  //                                                  kmeans_max_iter, epsilon),
-  //                                 attempts, cv::KMEANS_PP_CENTERS, &centers);
   double compactness = cv::kmeans(row_samples, k, labels,
                                   cv::TermCriteria(CV_TERMCRIT_EPS +
                                                    CV_TERMCRIT_ITER,
                                                    kmeans_max_iter, epsilon),
-                                  attempts, cv::KMEANS_PP_CENTERS, centers);
+                                  attempts, cv::KMEANS_PP_CENTERS, &centers);
+  // double compactness = cv::kmeans(row_samples, k, labels,
+  //                                 cv::TermCriteria(CV_TERMCRIT_EPS +
+  //                                                  CV_TERMCRIT_ITER,
+  //                                                  kmeans_max_iter, epsilon),
+  //                                 attempts, cv::KMEANS_PP_CENTERS, centers);
 
   ROS_INFO_STREAM("Compactness is: " << compactness);
   ROS_INFO_STREAM("Converting center data type");
