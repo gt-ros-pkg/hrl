@@ -43,6 +43,15 @@ from tabletop_pushing.srv import *
 from math import sin, cos, pi
 import sys
 
+# Kelsey's setup joints, steal this and add it into mine.
+# joints = [-1.32734204881265387, -0.34601608409943324, -1.4620635485239604, -1.2729772622637399, -7.5123303230158518, -1.5570651396529178, -5.5929916630672727] 
+# if self.arm == 'l':
+#     for i in [0, 2, 4]:
+#         joints[i] *= -1
+# else:
+#     joints[6] -= 3.14/2
+
+
 LEFT_ARM_INIT_JOINTS = np.matrix([[7.0e-01, 3.65531104e-01,
                                    1.68462256e+00, -2.2,
                                    2.17482262e+02, -1.41818799e+00,
