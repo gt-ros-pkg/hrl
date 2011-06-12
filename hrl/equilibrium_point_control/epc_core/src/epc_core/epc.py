@@ -28,6 +28,7 @@ class EPC():
 
     def stop_cb(self, msg):
         self.stop_epc = msg.data
+        self.pause_epc = False # stop/start overrides pause.
 
     def pause_cb(self, msg):
         self.pause_epc = msg.data
