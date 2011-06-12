@@ -45,6 +45,7 @@ class EPC():
         rt = rospy.Rate(1/time_step)
         timeout_at = rospy.get_time() + timeout
         stop = ''
+        ea = None
         while stop == '':
             if rospy.is_shutdown():
                 stop = 'rospy shutdown'
