@@ -307,7 +307,7 @@ class TabletopPushNode:
             middle_joints = LEFT_ARM_MIDDLE_JOINTS
             push_dir = -1
             which_arm = 'l'
-            wrist_radians = -pi
+            wrist_roll = -pi
         else:
             push_arm = self.right_arm_move
             robot_arm = self.robot.right
@@ -315,7 +315,7 @@ class TabletopPushNode:
             middle_joints = RIGHT_ARM_MIDDLE_JOINTS
             push_dir = +1
             which_arm = 'r'
-            wrist_radians = 0.0
+            wrist_roll = 0.0
 
         # Offset to higher position to miss the table, but were lower to avoid
         # seeing the arm for now.
@@ -332,23 +332,19 @@ class TabletopPushNode:
         pose = np.matrix([start_point.x, start_point.y, start_point.z])
         rot = np.matrix([orientation])
 
-        # TODO: Rotate wrist before moving to position
+        # Rotate wrist before moving to position
         rospy.loginfo('Rotating wrist for sweep')
         arm_pose = robot_arm.pose()
-        rospy.loginfo('Current arm_pose: ' + str(arm_pose))
         # l_arm -28.25147617 ~= -9*pi
         # r_arm 43.98995395 ~= 14*pi
-        arm_pose[-1] =  wrist_radians # Works for left, need to check for right
-        rospy.loginfo('Desired arm_pose: ' + str(arm_pose))
-        # push_arm.set_movement_mode_ik()
+        arm_pose[-1] =  wrist_roll # Works for left, need to check for right
         robot_arm.set_pose(arm_pose, nsecs=2.0, block=True)
-        # rospy.sleep(3.0)
+
         # Move to offset pose
         loc = [pose, rot]
         push_arm.set_movement_mode_cart()
         push_arm.move_absolute(loc, stop='pressure', frame=push_frame)
         rospy.loginfo('Done moving to start point')
-        # self.print_pose()
 
         # Sweep inward
         # TODO: Change this to split the push_dist in x and y depending on yaw
@@ -384,12 +380,16 @@ class TabletopPushNode:
             ready_joints = LEFT_ARM_READY_JOINTS
             middle_joints = LEFT_ARM_MIDDLE_JOINTS
             which_arm = 'l'
+            # TODO: Correctly set this value
+            wrist_pitch = 0.5*pi
         else:
             push_arm = self.right_arm_move
             robot_arm = self.robot.right
             ready_joints = RIGHT_ARM_READY_JOINTS
             middle_joints = RIGHT_ARM_MIDDLE_JOINTS
             which_arm = 'r'
+            # TODO: Correctly set this value
+            wrist_pitch = 0.5*pi
 
         # Offset to higher position to miss the table, but were lower to avoid
         # seeing the arm for now.
@@ -406,11 +406,22 @@ class TabletopPushNode:
         pose = np.matrix([start_point.x, start_point.y, start_point.z])
         rot = np.matrix([orientation])
 
+        # Rotate wrist before moving to position
+        rospy.loginfo('Rotating wrist for sweep')
+        arm_pose = robot_arm.pose()
+        # l_arm -28.25147617 ~= -9*pi
+        # r_arm 43.98995395 ~= 14*pi
+        arm_pose[-2] =  wrist_pitch # Works for left, need to check for right
+        robot_arm.set_pose(arm_pose, nsecs=2.0, block=True)
+
         # Move to offset pose
         loc = [pose, rot]
         push_arm.set_movement_mode_cart()
         push_arm.move_absolute(loc, stop='pressure', frame=push_frame)
         rospy.loginfo('Done moving to start point')
+
+        self.print_pose()
+        rospy.sleep(3.0)
 
         # Push inward
         rospy.loginfo('Pushing forward')
