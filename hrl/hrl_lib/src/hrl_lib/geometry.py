@@ -49,11 +49,12 @@ def project_point_on_line(q, p1, p2):
 # @param pts - Nx2 np array
 # @return Mx2 np array
 def convex_hull(pts):
-    if pts.shape[0] < 3:
-        return pts
     mp = sg.MultiPoint(pts)
     ch = mp.convex_hull
-    hull_pts = np.array(ch.exterior.coords)
+    if ch.__class__ == sg.polygon.Polygon:
+        hull_pts = np.array(ch.exterior.coords)
+    else:
+        hull_pts = np.array(ch.coords)
     return hull_pts
 
 def test_convex_hull():
@@ -67,7 +68,7 @@ def test_convex_hull():
     x_ch, y_ch = h_pts[:,0], h_pts[:,1]
 
     pp.plot(all_x, all_y, '.b', ms=5)
-    pp.plot(x_ch, y_ch, '-g')
+    pp.plot(x_ch, y_ch, '.-g', ms=5)
 
     pp.show()
 
