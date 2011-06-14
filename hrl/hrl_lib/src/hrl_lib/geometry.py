@@ -27,6 +27,9 @@
 
 #  \author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
 
+# convex_hull requires Shapely
+import shapely.geometry as sg
+
 import math
 import numpy as np
 
@@ -43,13 +46,36 @@ def project_point_on_line(q, p1, p2):
     p = p1 + np.dot(v2.A1, v1.A1) * v1
     return p
 
+# @param pts - Nx2 np array
+# @return Mx2 np array
+def convex_hull(pts):
+    mp = sg.MultiPoint(pts)
+    ch = mp.convex_hull
+    hull_pts = np.array(ch.exterior.coords)
+    return hull_pts
+
+def test_convex_hull():
+    pp.axis('equal')
+    pts = np.random.uniform(size=(100,2))
+    h_pts = convex_hull(pts)
+
+    all_x = pts[:,0]
+    all_y = pts[:,1]
+    x_ch, y_ch = h_pts[:,0], h_pts[:,1]
+
+    pp.plot(all_x, all_y, '.b', ms=5)
+    pp.plot(x_ch, y_ch, '-g')
+
+    pp.show()
+
 
 
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pp
 
-    test_project_point_on_line = True
+    test_project_point_on_line = False
+    test_convex_hull_flag = True
 
     if test_project_point_on_line:
         p1 = np.matrix([2,3.]).T
@@ -70,6 +96,9 @@ if __name__ == '__main__':
         pp.legend()
         pp.show()
 
+
+    if test_convex_hull_flag:
+        test_convex_hull()
 
 
 
