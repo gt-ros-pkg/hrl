@@ -18,6 +18,8 @@ from geometry_msgs.msg import PoseStamped, Vector3
 from actionlib_msgs.msg import GoalStatus
 from move_base_msgs.msg import MoveBaseAction
 from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPositionGoal
+from pr2_controllers_msgs.msg import JointTrajectoryControllerState
+
 
 from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
 from pr2_collision_monitor.srv import JointDetectionStart
@@ -104,6 +106,7 @@ class CheckHeading(smach.State):
 ##
 # SMACH state which listens to the force_signal topic and only returns 'collided'
 # if the signal exceeds the threshold
+
 class ForceCollisionMonitor(smach.State):
     def __init__(self, thresh=0.0005):
         smach.State.__init__(self, outcomes=['collision', 'preempted', 'shutdown'])
@@ -127,6 +130,7 @@ class ForceCollisionMonitor(smach.State):
 ##
 # SMACH state which listens to the finger_signal topic and only returns 'collided'
 # if the signal exceeds the threshold
+
 class FingerCollisionMonitor(smach.State):
     def __init__(self, arm, thresh=1):
         smach.State.__init__(self, outcomes=['collision', 'preempted', 'shutdown'])
@@ -150,6 +154,7 @@ class FingerCollisionMonitor(smach.State):
 ##
 # SMACH state which listens to the joint collision detector and returns 'collision'
 # if the detector signals a collision
+
 class JointCollisionMonitor(smach.State):
     ##
     # behavior_name needs to be the name stored when training the detector or empty
@@ -188,6 +193,32 @@ class JointCollisionMonitor(smach.State):
             rospy.sleep(0.01)
         self.stop_detection()
         return 'shutdown'
+
+class JointCollisionMonitor2(smach.State):
+    def __init__(self, arm, min_errors, max_errors):
+        smach.State.__init__(self, outcomes=['collision', 'preempted', 'shutdown'])
+        rospy.Subscriber('/r_arm_controller/state', JointTrajectoryControllerState,
+                         self.error_cb)
+
+    def error_cb(self, msg):
+        error = np.array(msg.error.positions)
+        if np.any(error < min_errors) or np.any(error > max_errors):
+            self.collided = True
+
+    def execute(self, ud):
+        self.collided = False
+        while not rospy.is_shutdown():
+            if self.collided:
+                self.stop_detection()
+                return 'collision'
+            if self.preempt_requested():
+                self.service_preempt()
+                self.stop_detection()
+                return 'preempted'
+            rospy.sleep(0.01)
+        self.stop_detection()
+        return 'shutdown'
+
         
 ##
 # SMACH state which listens to /pixel3d until a message is received.
@@ -219,8 +250,8 @@ class ClickMonitor(smach.State):
 # if it is defined, it will go directly to that position when called
 # If not, it will perform biased_IK on the 'wrist_mat' homogeneous
 # matrix defining the desired pose of the wrist in the torso frame
-class MoveCoarsePose(smach.State):
-    def __init__(self, arm, duration=5.0, q=None):
+class MovePoseIK(smach.State):
+    def __init__(self, pr2_arm, duration=5.0, q=None):
         smach.State.__init__(self, outcomes=['succeeded', 'ik_failure', 'shutdown', 'preempted'],
                                    input_keys=['wrist_mat'])
         self.JOINTS_BIAS = [0.0, 0.012, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -228,7 +259,7 @@ class MoveCoarsePose(smach.State):
         self.ANGS_SETTLED = np.array([0.15]*7)
         self.duration = duration
         self.q = q
-        self.pr2_arm = PR2ArmBase(arm)
+        self.pr2_arm = pr2_arm
 
     def execute(self, ud):
         if self.q is None:
@@ -254,6 +285,102 @@ class MoveCoarsePose(smach.State):
             rospy.sleep(0.01)
         return 'shutdown'
 
+class MoveAnglesBase(smach.State):
+    def __init__(self, pr2_arm):
+        self.ANGS_SETTLED = np.array([0.15]*7)
+        self.pr2_arm = pr2_arm
+
+    def move_angles(self, q, duration):
+        self.pr2_arm.command_joint_angles(q, duration=duration, delay=1.0)
+        rospy.sleep(0.1)
+        start_time = rospy.Time.now().to_sec()
+        while not rospy.is_shutdown():
+            ang_diff = self.pr2_arm.angle_difference(q, self.pr2_arm.get_joint_angles())
+            if np.all(np.fabs(ang_diff) < self.ANGS_SETTLED):
+                return 'succeeded'
+            if rospy.Time.now().to_sec() - start_time > 15:
+                rospy.logerr('[sm_touch_face] Timeout commanding joint angles.')
+                return 'shutdown'
+            if self.preempt_requested():
+                self.pr2_arm.freeze_arm()
+                self.service_preempt()
+                return 'preempted'
+            rospy.sleep(0.01)
+        return 'shutdown'
+
+class MoveCoarsePose(MoveAnglesBase):
+    def __init__(self, pr2_arm):
+        super(MoveCoarsePose, self).__init__(pr2_arm)
+        smach.State.__init__(self, outcomes=['succeeded', 'ik_failure', 'shutdown', 'preempted'],
+                                   input_keys=['wrist_mat'])
+        self.JOINTS_BIAS = [0.0, 0.012, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.INIT_ANGS = [-0.417, -0.280, -1.565, -2.078, -2.785, -1.195, -0.369]
+
+    def execute(self, ud):
+        q_end = self.pr2_arm.biased_IK(np.mat(ud.wrist_mat), self.INIT_ANGS, self.JOINTS_BIAS)
+        if q_end is None:
+            return 'ik_failure'
+        q_end = np.array(q_end)
+
+        # move wrist to correct position but tucked
+        q_tuck = q_end.copy()
+        q_tuck[[0,1,2,3]] = [-1.324, -0.35, -0.689, -2.2]
+        result = self.move_angles(q_tuck, 5)
+        if result != 'succeeded':
+            return result
+
+        # move the elbow to its correct position but keep the wrist in
+        q_move_elbow = q_tuck.copy()
+        q_move_elbow[[0,1]] = q_end[[0,1]]
+        result = self.move_angles(q_move_elbow, 5)
+        if result != 'succeeded':
+            return result
+
+        # bring the upper arm back down
+        q_move_upr_arm = q_move_elbow.copy()
+        q_move_upr_arm[4] = q_end[4]
+        result = self.move_angles(q_move_upr_arm, 5)
+        if result != 'succeeded':
+            return result
+
+        # flex the elbow out and go to the final position
+        result = self.move_angles(q_end, 5)
+        return result
+
+class MoveReturnSetup(MoveAnglesBase):
+    def __init__(self, pr2_arm):
+        super(MoveReturnSetup, self).__init__(pr2_arm)
+        smach.State.__init__(self, outcomes=['succeeded', 'ik_failure', 'shutdown', 'preempted'])
+        self.q_setup = np.array([-1.324,  -0.35, -0.689, -2.2,  3.127, -0.861, -1.584])
+
+    def execute(self, ud):
+        q_cur = self.pr2_arm.get_joint_angles(wrapped=True)
+        # flex the elbow back in
+        q_flex_elbow = q_cur.copy()
+        q_flex_elbow[3] = self.q_setup[3]
+        result = self.move_angles(q_flex_elbow, 5)
+        if result != 'succeeded':
+            return result
+
+        # pull the gripper up
+        q_move_upr_arm = q_flex_elbow.copy()
+        q_move_upr_arm[4] = self.q_setup[4]
+        result = self.move_angles(q_move_upr_arm, 5)
+        if result != 'succeeded':
+            return result
+
+        # move the elbow up and to the side
+        q_move_elbow = q_flex_elbow.copy()
+        q_move_elbow[[0,1]] = self.q_setup[[0,1]]
+        result = self.move_angles(q_move_elbow, 5)
+        if result != 'succeeded':
+            return result
+
+        # fully return to setup
+        result = self.move_angles(self.q_setup, 5)
+        return result
+        
+
 class SMTouchFace(object):
     def __init__(self):
         self.arm = rospy.get_param("~arm", default="r")
@@ -262,6 +389,7 @@ class SMTouchFace(object):
         self.tool_approach_frame = rospy.get_param("~tool_approach_frame", default="")
 
         self.tf_listener = tf.TransformListener()
+        self.pr2_arm = PR2ArmBase(self.arm)
 
         self.nav_approach_dist = rospy.get_param("~nav_approach_dist", default=1.0)
 
@@ -462,7 +590,7 @@ class SMTouchFace(object):
             torso_B_touch_appr = torso_B_touch * appr_B_tool
 
             # project the approach back into the wrist
-            appr_B_wrist = self.get_transform(self.tool_approach_frame, 
+            appr_B_wrist = self.get_transform(self.tool_frame, 
                                               self.arm + "_wrist_roll_link") 
             if appr_B_wrist is None:
                 return 'tf_failure'
@@ -534,7 +662,6 @@ class SMTouchFace(object):
 
         return sm_coll_detect_state
 
-
     def get_fine_pos_setup(self):
 
         action_outcomes = ['succeeded', 'error_high', 'ik_failure', 'shutdown',
@@ -556,7 +683,6 @@ class SMTouchFace(object):
                     ['target_pose'],
                     'FINE_POSITION_MOVE', fine_pos_move, action_outcomes,
                     0.0006, 3.0, '', 0.995)
-                            
 
     def get_fine_approach(self):
 
@@ -617,8 +743,8 @@ class SMTouchFace(object):
 
         with sm:
             # move to general pose where manipulation begins
-            q_setup = [-1.324,  0.083, -0.689, -2.102,  3.127, -0.861, -1.584]
-            prep_pose_move  = MoveCoarsePose(self.arm, duration=10.0, q=q_setup)
+            q_setup = [-1.324,  -0.35, -0.689, -2.2,  3.127, -0.861, -1.584]
+            prep_pose_move  = MovePoseIK(self.pr2_arm, duration=10.0, q=q_setup)
             prep_pose_outcomes = ['succeeded', 'ik_failure', 'shutdown', 'preempted']
             smach.StateMachine.add(
                 'PREP_POSE',
@@ -646,7 +772,7 @@ class SMTouchFace(object):
             smach.StateMachine.add(
                 'PROCESS_CLICK',
                 self.get_process_click(),
-                transitions = {'succeeded' : 'MOVE_COARSE_IK',
+                transitions = {'succeeded' : 'COARSE_POSE',
                                'tf_failure' : 'WAIT_TOUCH_CLICK'},
                 remapping={'touch_click_pose' : 'touch_click_pose',
                            'appr_wrist_mat' : 'appr_wrist_mat',
@@ -654,11 +780,20 @@ class SMTouchFace(object):
                            'touch_tool_ps' : 'touch_tool_ps'})
             
             # move to the expected wrist position without EPC
+            coarse_pose_move  = MoveCoarsePose(self.pr2_arm)
+            coarse_pose_outcomes = ['succeeded', 'ik_failure', 'shutdown', 'preempted']
             smach.StateMachine.add(
-                'MOVE_COARSE_IK',
-                MoveCoarsePose(self.arm, duration=10.0),
+                'COARSE_POSE',
+                self.get_coll_detect_action_state(
+                    ['wrist_mat'],
+                    'COARSE_POSE_MOVE', coarse_pose_move, coarse_pose_outcomes,
+                    0.0006, 3.0, '', 0.995),
                 transitions={'succeeded' : 'FINE_POSITION_SETUP',
-                             'ik_failure' : 'WAIT_TOUCH_CLICK',
+                             'ik_failure' : 'PREP_POSE',
+                             'force_collision' : 'shutdown',
+                             'finger_collision' : 'shutdown',
+                             'joint_collision' : 'shutdown',
+                             'preempted' : 'shutdown',
                              'shutdown' : 'shutdown'},
                 remapping={'wrist_mat' : 'appr_wrist_mat'})
 
@@ -702,13 +837,44 @@ class SMTouchFace(object):
                              'shutdown' : 'shutdown'})
 
             # move to the expected wrist position without EPC
+            coarse_retreat = MovePoseIK(self.pr2_arm, duration=10.0)
+            coarse_retreat_outcomes = ['succeeded', 'ik_failure', 'shutdown', 'preempted']
             smach.StateMachine.add(
                 'COARSE_RETREAT',
-                MoveCoarsePose(self.arm, duration=10.0),
-                transitions={'succeeded' : 'PREP_POSE',
+                self.get_coll_detect_action_state(
+                    ['wrist_mat'],
+                    'COARSE_RETREAT_MOVE', coarse_retreat, coarse_retreat_outcomes,
+                    0.0006, 3.0, '', 0.995),
+                transitions={'succeeded' : 'MOVE_RETURN_SETUP',
                              'ik_failure' : 'shutdown',
+                             'force_collision' : 'WAIT_RETREAT_CLICK',
+                             'finger_collision' : 'WAIT_RETREAT_CLICK',
+                             'joint_collision' : 'shutdown',
                              'shutdown' : 'shutdown'},
                 remapping={'wrist_mat' : 'appr_wrist_mat'})
+
+            move_return_setup = MoveReturnSetup(self.pr2_arm)
+            move_return_setup_outcomes = ['succeeded', 'ik_failure', 'shutdown', 'preempted']
+            smach.StateMachine.add(
+                'MOVE_RETURN_SETUP',
+                self.get_coll_detect_action_state(
+                    [],
+                    'MOVE_RETURN_SETUP_MOVE', move_return_setup, move_return_setup_outcomes,
+                    0.0006, 3.0, '', 0.995),
+                transitions={'succeeded' : 'PREP_POSE',
+                             'ik_failure' : 'shutdown',
+                             'force_collision' : 'WAIT_RETURN_SETUP_CLICK',
+                             'finger_collision' : 'WAIT_RETURN_SETUP_CLICK',
+                             'joint_collision' : 'shutdown',
+                             'shutdown' : 'shutdown'},
+                remapping={'wrist_mat' : 'appr_wrist_mat'})
+
+            # wait for the user to click anywhere on the screen, signifying a desire to continue
+            smach.StateMachine.add(
+                'WAIT_RETURN_SETUP_CLICK',
+                ClickMonitor(),
+                transitions={'click' : 'MOVE_RETURN_SETUP',
+                             'shutdown' : 'shutdown'})
 
             # retreat away from the current location, back to the original approach pose
             # smach.StateMachine.add(

@@ -59,9 +59,9 @@ class EPCMove(PR2ArmBase):
         self.rate = rate
 
         # magic numbers
-        self.max_angles = np.array([0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.1])
+        self.max_angles = np.array([0.06, 0.08, 0.1, 0.1, 0.5, 0.5, 0.1])
         self.u_pos_max = 0.3
-        pos_p, pos_i, pos_d, pos_i_max = 0.4, 0.15, 0.09, 2.0
+        pos_p, pos_i, pos_d, pos_i_max = 0.25, 0.20, 0.06, 2.0
         ang_p, ang_i, ang_d, ang_i_max = 5.0, 0.1, 0.50, 6.0
         self.x_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "x")
         self.y_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "y")
@@ -142,7 +142,7 @@ class EPCMove(PR2ArmBase):
         
         return t_B_new, err_pos, err_ang
 
-    def ik_tool_pose(self, t_B_tool):
+    def ik_tool_pose(self, t_B_tool, use_search=False):
         # transform commanded frame into wrist
         l_B_w = self.get_transform(self.tool_frame, self.arm + '_wrist_roll_link')
         t_B_wrist = t_B_tool * l_B_w
@@ -150,8 +150,11 @@ class EPCMove(PR2ArmBase):
         # find IK solution
         q_guess = self.get_joint_angles(wrapped=True)
         # TODO add bias option?
-#q_sol = self.IK(t_B_wrist, q_guess)
-        q_sol = self.search_IK(t_B_wrist, q_guess, sigma=0.3, sample_size=10)
+        cur_time = rospy.Time.now().to_sec()
+        if use_search:
+            q_sol = self.search_IK(t_B_wrist, q_guess, sigma=0.02, sample_size=10)
+        else:
+            q_sol = self.IK(t_B_wrist, q_guess)
 
         # ignore if no IK solution found
         if q_sol is None:
@@ -166,11 +169,18 @@ class EPCMove(PR2ArmBase):
     def command_joints_safely(self, q_cmd):
         # Clamp angles so the won't exceed max_angles in this command
         cur_angles = self.get_joint_angles(wrapped=True)
-        q_cmd_clamped = np.clip(q_cmd, cur_angles - self.max_angles, 
-                                       cur_angles + self.max_angles)
+        if True:
+            if np.any(np.fabs(cur_angles - q_cmd) > self.max_angles):
+                return
+            else:
+                self.command_joint_angles(q_cmd, 1.2/self.rate)
 
-        # command joints
-        self.command_joint_angles(q_cmd_clamped, 1.2/self.rate)
+        else:
+            q_cmd_clamped = np.clip(q_cmd, cur_angles - self.max_angles, 
+                                           cur_angles + self.max_angles)
+
+            # command joints
+            self.command_joint_angles(q_cmd_clamped, 1.2/self.rate)
 
     def direct_move(self, target_pose, tool_frame=None, 
                     err_pos_goal=0.02, err_ang_goal=0.35, 
@@ -210,7 +220,7 @@ class EPCMove(PR2ArmBase):
                 steady_count = 0
 
             # get the ik for the wrist
-            q_cmd = self.ik_tool_pose(t_B_new)
+            q_cmd = self.ik_tool_pose(t_B_new, use_search=True)
             if q_cmd is None:
                 if self.num_ik_not_found > 4:
                     rospy.logwarn("[epc_move] Controller has hit a rut, no IK solutions in area")
@@ -265,7 +275,7 @@ class EPCMove(PR2ArmBase):
                 return "error_high"
 
             # get the ik for the wrist
-            q_cmd = self.ik_tool_pose(t_B_new)
+            q_cmd = self.ik_tool_pose(t_B_new, use_search=False)
             if q_cmd is None:
                 if self.num_ik_not_found > 4:
                     rospy.logwarn("[epc_move] Controller has hit a rut, no IK solutions in area")

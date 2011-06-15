@@ -148,20 +148,26 @@ class PR2ArmBase(object):
         else:
             return None
 
-    def search_IK(self, pose, q_guess, sigma=0.6, sample_size=10):
+    def search_IK(self, pose, q_guess, sigma=0.6, sample_size=10,
+                  search_penalties=[10, 10, 8, 5, 2, 2, 1]):
         q_samples = []
         q_diffs = []
         for i in range(sample_size):
-            rot_vals = np.random.normal(0, sigma, 3)
+            if i != 0:
+                rot_vals = np.random.normal(0, sigma, 3)
+            else:
+                rot_vals = [0]*3
             rot_vals = np.clip(rot_vals, -np.pi, np.pi)
             rand_rot = tf_trans.euler_matrix(*rot_vals)
             new_pose = pose.copy()
-            new_pose[:3,:3] = rand_rot * new_pose[:3,:3]
+            new_pose[:3,:3] = rand_rot[:3,:3] * new_pose[:3,:3]
+            cur_time = rospy.Time.now().to_sec()
             q_sample = self.IK(new_pose, q_guess)
             if q_sample is None:
                 continue
             q_samples.append(q_sample)
-            q_diffs.append(max(self.angle_difference(q_guess, q_sample)))
+            q_diffs.append(np.sum(np.array(search_penalties) * 
+                                  self.angle_difference(q_guess, q_sample)))
         if len(q_samples) == 0:
             return None
         return q_samples[np.argmin(q_diffs)]
