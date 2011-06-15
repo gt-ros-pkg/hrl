@@ -698,24 +698,33 @@ class SMTouchFace(object):
             smach.StateMachine.add(
                 'WAIT_RETREAT_CLICK',
                 ClickMonitor(),
-                transitions={'click' : 'FINE_RETREAT',
+                transitions={'click' : 'COARSE_RETREAT',
                              'shutdown' : 'shutdown'})
 
-            # retreat away from the current location, back to the original approach pose
+            # move to the expected wrist position without EPC
             smach.StateMachine.add(
-                'FINE_RETREAT',
-                self.get_fine_retreat(),
+                'COARSE_RETREAT',
+                MoveCoarsePose(self.arm, duration=10.0),
                 transitions={'succeeded' : 'PREP_POSE',
-                             'error_high' : 'shutdown',
                              'ik_failure' : 'shutdown',
-                             'shutdown' : 'shutdown',
-                             'force_collision' : 'WAIT_RETREAT_CLICK',
-                             'finger_collision' : 'WAIT_RETREAT_CLICK',
-                             'joint_collision' : 'shutdown',
-                             'aborted' : 'shutdown',
-                             'preempted' : 'shutdown'},
-                remapping={'end_pose' : 'appr_tool_ps',
-                           'start_pose' : 'touch_tool_ps'})
+                             'shutdown' : 'shutdown'},
+                remapping={'wrist_mat' : 'appr_wrist_mat'})
+
+            # retreat away from the current location, back to the original approach pose
+            # smach.StateMachine.add(
+            #     'FINE_RETREAT',
+            #     self.get_fine_retreat(),
+            #     transitions={'succeeded' : 'PREP_POSE',
+            #                  'error_high' : 'shutdown',
+            #                  'ik_failure' : 'shutdown',
+            #                  'shutdown' : 'shutdown',
+            #                  'force_collision' : 'WAIT_RETREAT_CLICK',
+            #                  'finger_collision' : 'WAIT_RETREAT_CLICK',
+            #                  'joint_collision' : 'shutdown',
+            #                  'aborted' : 'shutdown',
+            #                  'preempted' : 'shutdown'},
+            #     remapping={'end_pose' : 'appr_tool_ps',
+            #                'start_pose' : 'touch_tool_ps'})
                 
         return sm
 
