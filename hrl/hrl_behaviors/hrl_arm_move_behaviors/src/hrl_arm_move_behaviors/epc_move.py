@@ -59,7 +59,7 @@ class EPCMove(PR2ArmBase):
         self.rate = rate
 
         # magic numbers
-        self.max_angles = np.array([0.06, 0.08, 0.1, 0.1, 0.5, 0.5, 0.1])
+        self.max_angles = 2*np.array([0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.1])
         self.u_pos_max = 0.2
         pos_p, pos_i, pos_d, pos_i_max = 0.25, 0.15, 0.06, 2.0
         ang_p, ang_i, ang_d, ang_i_max = 5.0, 0.1, 0.50, 6.0
@@ -76,6 +76,8 @@ class EPCMove(PR2ArmBase):
         #p_pub = rospy.Publisher("/p_signal", Float64)
         #i_pub = rospy.Publisher("/i_signal", Float64)
         #d_pub = rospy.Publisher("/d_signal", Float64)
+
+        self.cur_angles = None
 
     def reset_controllers(self):
         self.x_pid.reset_controller()
@@ -168,19 +170,28 @@ class EPCMove(PR2ArmBase):
 
     def command_joints_safely(self, q_cmd):
         # Clamp angles so the won't exceed max_angles in this command
-        cur_angles = self.get_joint_angles(wrapped=True)
-        if True:
-            if np.any(np.fabs(cur_angles - q_cmd) > self.max_angles):
-                return
-            else:
-                self.command_joint_angles(q_cmd, 1.2/self.rate)
+        if self.cur_angles is None:
+            self.cur_angles = self.get_joint_angles(wrapped=True)
+        #if True:
+        #    if np.any(np.fabs(cur_angles - q_cmd) > self.max_angles):
+        #        return
+        #    else:
+        #        self.command_joint_angles(q_cmd, 1.2/self.rate)
 
-        else:
-            q_cmd_clamped = np.clip(q_cmd, cur_angles - self.max_angles, 
-                                           cur_angles + self.max_angles)
+        #else:
+        #    q_cmd_clamped = np.clip(q_cmd, cur_angles - self.max_angles, 
+        #                                   cur_angles + self.max_angles)
 
-            # command joints
-            self.command_joint_angles(q_cmd_clamped, 1.2/self.rate)
+        diff = self.angle_difference(q_cmd, self.cur_angles)
+        max_diff_arg = np.argmax(np.fabs(diff) - np.array(self.max_angles))
+        diff_scaled = diff / diff[max_diff_arg] * self.max_angles[max_diff_arg]
+        print "CA", self.cur_angles
+        print "QC", q_cmd
+        print "D", diff
+        print "DS", diff_scaled
+        q_cmd_clamped = self.cur_angles + diff_scaled
+        # command joints
+        self.command_joint_angles(q_cmd_clamped, 1.2/self.rate)
 
     def direct_move(self, target_pose, tool_frame=None, 
                     err_pos_goal=0.02, err_ang_goal=0.35, 
@@ -192,6 +203,7 @@ class EPCMove(PR2ArmBase):
             self.tool_frame = tool_frame
         self.num_ik_not_found = 0
         steady_count = 0
+        self.cur_angles = None
         while not rospy.is_shutdown():
             # find where the next commanded tool position should be
             t_B_new, err_pos, err_ang = self.find_controlled_tool_pose(target_pose)
@@ -253,6 +265,7 @@ class EPCMove(PR2ArmBase):
         trajectory = trajectory_setup + trajectory
 
         self.num_ik_not_found = 0
+        self.cur_angles = None
         for target_pose in trajectory:
             if rospy.is_shutdown():
                 return "shutdown"
