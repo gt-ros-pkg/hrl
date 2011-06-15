@@ -35,6 +35,7 @@ namespace hrl_clickable_display {
             image_geometry::PinholeCameraModel cam_model;
             tf::TransformListener tf_listener;
             double ARROW_POINTS[7][3];
+            bool auto_clear;
 
             std::vector<geometry_msgs::PoseStamped> arrows;
 
@@ -60,6 +61,7 @@ namespace hrl_clickable_display {
         nh.param<double>("head_width", B, 0.03);
         nh.param<double>("head_length", C, 0.03);
         nh.param<bool>("debug_mode", debug, false);
+        nh.param<bool>("auto_clear", auto_clear, false);
         ARROW_POINTS[0][0] = 0;    ARROW_POINTS[0][1] = 0;    ARROW_POINTS[0][2] = 0;
         ARROW_POINTS[1][0] = 0;    ARROW_POINTS[1][1] = 0;    ARROW_POINTS[1][2] = A;
         ARROW_POINTS[2][0] = -B/2; ARROW_POINTS[2][1] = -B/2; ARROW_POINTS[2][2] = A;
@@ -144,6 +146,8 @@ namespace hrl_clickable_display {
     }
 
     void ArrowOverlay::pixelCallback(const geometry_msgs::PoseStamped& msg) {
+        if(auto_clear)
+            arrows.clear();
         geometry_msgs::PoseStamped new_arrow;
         tf_listener.transformPose(cam_model.tfFrame(), ros::Time(0), msg, msg.header.frame_id, new_arrow);
         arrows.push_back(new_arrow);
