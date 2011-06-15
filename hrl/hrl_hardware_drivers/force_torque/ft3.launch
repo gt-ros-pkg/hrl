@@ -1,0 +1,4 @@
+<launch>
+	<node pkg="force_torque" name="ft3" type="force_torque_relay" args="--name=ft3" respawn="true"/>
+    <node pkg="force_torque" name="ft_poller_2" type="force_torque_poller" args="--name=ft3 --path=/dev/robot/FT3" respawn="true"/>
+</launch>
