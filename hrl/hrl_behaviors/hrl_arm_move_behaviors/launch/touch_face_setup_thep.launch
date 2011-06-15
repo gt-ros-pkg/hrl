@@ -31,8 +31,8 @@
         <param name="arm" type="str" value="r"/>
         <param name="training_mode" type="bool" value="false"/>
         <param name="significance_mode" type="bool" value="false"/>
-        <rosparam param="min_errors"> [-0.360, -0.36, -0.36, -0.38, -0.3, -0.34, -0.150] </rosparam>
-        <rosparam param="max_errors"> [0.36, 0.36, 0.38, 0.38, 0.30, 0.34, 0.150] </rosparam>
+        <rosparam param="min_errors"> [-0.05, -0.1, -0.20, -0.16, -0.22, -0.10, -0.06] </rosparam>
+        <rosparam param="max_errors"> [0.05, 0.1, 0.20, 0.16, 0.22, 0.10, 0.06] </rosparam>
         <param name="filename_prefix" type="str" value="$(find hrl_arm_move_behaviors)/data/"/>
         <rosparam param="filename_list">
             [move_coarse_ik_r_data.bag,

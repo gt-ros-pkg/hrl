@@ -60,8 +60,8 @@ class EPCMove(PR2ArmBase):
 
         # magic numbers
         self.max_angles = np.array([0.06, 0.08, 0.1, 0.1, 0.5, 0.5, 0.1])
-        self.u_pos_max = 0.3
-        pos_p, pos_i, pos_d, pos_i_max = 0.25, 0.20, 0.06, 2.0
+        self.u_pos_max = 0.2
+        pos_p, pos_i, pos_d, pos_i_max = 0.25, 0.15, 0.06, 2.0
         ang_p, ang_i, ang_d, ang_i_max = 5.0, 0.1, 0.50, 6.0
         self.x_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "x")
         self.y_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "y")

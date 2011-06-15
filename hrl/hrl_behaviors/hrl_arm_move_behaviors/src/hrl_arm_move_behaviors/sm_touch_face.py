@@ -324,7 +324,7 @@ class MoveCoarsePose(MoveAnglesBase):
 
         # move wrist to correct position but tucked
         q_tuck = q_end.copy()
-        q_tuck[[0,1,2,3]] = [-1.324, -0.35, -0.689, -2.2]
+        q_tuck[[0,1,3,4]] = [-1.324, -0.35, -2.2, 3.127]
         result = self.move_angles(q_tuck, 5)
         if result != 'succeeded':
             return result
@@ -370,7 +370,7 @@ class MoveReturnSetup(MoveAnglesBase):
             return result
 
         # move the elbow up and to the side
-        q_move_elbow = q_flex_elbow.copy()
+        q_move_elbow = q_move_upr_arm.copy()
         q_move_elbow[[0,1]] = self.q_setup[[0,1]]
         result = self.move_angles(q_move_elbow, 5)
         if result != 'succeeded':
@@ -668,7 +668,7 @@ class SMTouchFace(object):
                            'aborted', 'preempted']
         def fine_goal_cb(ud, goal):
             dm_goal = EPCDirectMoveGoal(ud.target_pose, self.tool_frame, True, 
-                                        0.02, 0.35, 0.2, 1.0, 5)
+                                        0.02, 0.35, 0.1, 1.0, 5)
             return dm_goal
         @smach.cb_interface(outcomes=action_outcomes)
         def res_cb(us, status, result):
@@ -743,21 +743,44 @@ class SMTouchFace(object):
 
         with sm:
             # move to general pose where manipulation begins
-            q_setup = [-1.324,  -0.35, -0.689, -2.2,  3.127, -0.861, -1.584]
-            prep_pose_move  = MovePoseIK(self.pr2_arm, duration=10.0, q=q_setup)
-            prep_pose_outcomes = ['succeeded', 'ik_failure', 'shutdown', 'preempted']
+            #q_setup = [-1.324,  -0.35, -0.689, -2.2,  3.127, -0.861, -1.584]
+            #prep_pose_move  = MovePoseIK(self.pr2_arm, duration=10.0, q=q_setup)
+            #prep_pose_outcomes = ['succeeded', 'ik_failure', 'shutdown', 'preempted']
+            #smach.StateMachine.add(
+            #    'PREP_POSE',
+            #    self.get_coll_detect_action_state(
+            #        [],
+            #        'PREP_POSE_MOVE', prep_pose_move, prep_pose_outcomes,
+            #        0.0006, 3.0, '', 0.995),
+            #    transitions={'succeeded' : 'WAIT_TOUCH_CLICK',
+            #                 'ik_failure' : 'shutdown',
+            #                 'force_collision' : 'shutdown',
+            #                 'finger_collision' : 'shutdown',
+            #                 'joint_collision' : 'shutdown',
+            #                 'preempted' : 'shutdown',
+            #                 'shutdown' : 'shutdown'})
+
+            move_return_setup = MoveReturnSetup(self.pr2_arm)
+            move_return_setup_outcomes = ['succeeded', 'ik_failure', 'shutdown', 'preempted']
             smach.StateMachine.add(
-                'PREP_POSE',
+                'MOVE_RETURN_SETUP',
                 self.get_coll_detect_action_state(
                     [],
-                    'PREP_POSE_MOVE', prep_pose_move, prep_pose_outcomes,
+                    'MOVE_RETURN_SETUP_MOVE', move_return_setup, move_return_setup_outcomes,
                     0.0006, 3.0, '', 0.995),
                 transitions={'succeeded' : 'WAIT_TOUCH_CLICK',
                              'ik_failure' : 'shutdown',
-                             'force_collision' : 'shutdown',
-                             'finger_collision' : 'shutdown',
-                             'joint_collision' : 'shutdown',
-                             'preempted' : 'shutdown',
+                             'force_collision' : 'WAIT_RETURN_SETUP_CLICK',
+                             'finger_collision' : 'WAIT_RETURN_SETUP_CLICK',
+                             'joint_collision' : 'WAIT_RETURN_SETUP_CLICK',
+                             'shutdown' : 'shutdown'},
+                remapping={'wrist_mat' : 'appr_wrist_mat'})
+
+            # wait for the user to click anywhere on the screen, signifying a desire to continue
+            smach.StateMachine.add(
+                'WAIT_RETURN_SETUP_CLICK',
+                ClickMonitor(),
+                transitions={'click' : 'MOVE_RETURN_SETUP',
                              'shutdown' : 'shutdown'})
 
             # wait for the user to select a position to scratch
@@ -789,7 +812,7 @@ class SMTouchFace(object):
                     'COARSE_POSE_MOVE', coarse_pose_move, coarse_pose_outcomes,
                     0.0006, 3.0, '', 0.995),
                 transitions={'succeeded' : 'FINE_POSITION_SETUP',
-                             'ik_failure' : 'PREP_POSE',
+                             'ik_failure' : 'MOVE_RETURN_SETUP',
                              'force_collision' : 'shutdown',
                              'finger_collision' : 'shutdown',
                              'joint_collision' : 'shutdown',
@@ -849,48 +872,9 @@ class SMTouchFace(object):
                              'ik_failure' : 'shutdown',
                              'force_collision' : 'WAIT_RETREAT_CLICK',
                              'finger_collision' : 'WAIT_RETREAT_CLICK',
-                             'joint_collision' : 'shutdown',
+                             'joint_collision' : 'WAIT_RETREAT_CLICK',
                              'shutdown' : 'shutdown'},
                 remapping={'wrist_mat' : 'appr_wrist_mat'})
-
-            move_return_setup = MoveReturnSetup(self.pr2_arm)
-            move_return_setup_outcomes = ['succeeded', 'ik_failure', 'shutdown', 'preempted']
-            smach.StateMachine.add(
-                'MOVE_RETURN_SETUP',
-                self.get_coll_detect_action_state(
-                    [],
-                    'MOVE_RETURN_SETUP_MOVE', move_return_setup, move_return_setup_outcomes,
-                    0.0006, 3.0, '', 0.995),
-                transitions={'succeeded' : 'PREP_POSE',
-                             'ik_failure' : 'shutdown',
-                             'force_collision' : 'WAIT_RETURN_SETUP_CLICK',
-                             'finger_collision' : 'WAIT_RETURN_SETUP_CLICK',
-                             'joint_collision' : 'shutdown',
-                             'shutdown' : 'shutdown'},
-                remapping={'wrist_mat' : 'appr_wrist_mat'})
-
-            # wait for the user to click anywhere on the screen, signifying a desire to continue
-            smach.StateMachine.add(
-                'WAIT_RETURN_SETUP_CLICK',
-                ClickMonitor(),
-                transitions={'click' : 'MOVE_RETURN_SETUP',
-                             'shutdown' : 'shutdown'})
-
-            # retreat away from the current location, back to the original approach pose
-            # smach.StateMachine.add(
-            #     'FINE_RETREAT',
-            #     self.get_fine_retreat(),
-            #     transitions={'succeeded' : 'PREP_POSE',
-            #                  'error_high' : 'shutdown',
-            #                  'ik_failure' : 'shutdown',
-            #                  'shutdown' : 'shutdown',
-            #                  'force_collision' : 'WAIT_RETREAT_CLICK',
-            #                  'finger_collision' : 'WAIT_RETREAT_CLICK',
-            #                  'joint_collision' : 'shutdown',
-            #                  'aborted' : 'shutdown',
-            #                  'preempted' : 'shutdown'},
-            #     remapping={'end_pose' : 'appr_tool_ps',
-            #                'start_pose' : 'touch_tool_ps'})
                 
         return sm
 
