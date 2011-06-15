@@ -287,7 +287,7 @@ class MovePoseIK(smach.State):
 
 class MoveAnglesBase(smach.State):
     def __init__(self, pr2_arm):
-        self.ANGS_SETTLED = np.array([0.15]*7)
+        self.ANGS_SETTLED = np.array([0.20]*7)
         self.pr2_arm = pr2_arm
 
     def move_angles(self, q, duration):
@@ -298,7 +298,7 @@ class MoveAnglesBase(smach.State):
             ang_diff = self.pr2_arm.angle_difference(q, self.pr2_arm.get_joint_angles())
             if np.all(np.fabs(ang_diff) < self.ANGS_SETTLED):
                 return 'succeeded'
-            if rospy.Time.now().to_sec() - start_time > 15:
+            if rospy.Time.now().to_sec() - start_time > 25:
                 rospy.logerr('[sm_touch_face] Timeout commanding joint angles.')
                 return 'shutdown'
             if self.preempt_requested():
@@ -530,16 +530,28 @@ class SMTouchFace(object):
             smach.StateMachine.add(
                 'MOVE_FORWARD_DIST',
                 self.get_nav_approach(),
-                transitions = {'succeeded' : 'UNFOLD',
+                transitions = {'succeeded' : 'TORSO_SETUP',
                                'shutdown' : 'shutdown'},
                 remapping={'nav_dist' : 'nav_dist_global'})
+
+            # move torso up
+            tgoal = SingleJointPositionGoal()
+            tgoal.position = 0.300  # all the way up is 0.300
+            tgoal.min_duration = rospy.Duration( 2.0 )
+            tgoal.max_velocity = 1.0
+            smach.StateMachine.add(
+                'TORSO_SETUP',
+                SimpleActionState( 'torso_controller/position_joint_action',
+                                   SingleJointPositionAction,
+                                   goal = tgoal),
+                transitions = { 'succeeded': 'UNFOLD' })
 
             # Unfolds the arms
             smach.StateMachine.add(
                 'UNFOLD',
                 ServiceState( 'traj_playback/unfold',
                               TrajPlaybackSrv,
-                              request = TrajPlaybackSrvRequest( True )), # if True, reverse trajectory
+                              request = TrajPlaybackSrvRequest( False )), # if True, reverse trajectory
                 transitions = { 'succeeded':'succeeded' })
 
         return nav_prep_sm
@@ -914,7 +926,7 @@ def main():
         sis = IntrospectionServer('nav_prep', sm_full, '/SM_TOUCH_FACE_FULL')
         sis.start()
 
-        outcome = sm.execute()
+        outcome = sm_full.execute()
         
         sis.stop()
 

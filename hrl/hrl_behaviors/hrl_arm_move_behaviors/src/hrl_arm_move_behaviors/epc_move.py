@@ -59,7 +59,7 @@ class EPCMove(PR2ArmBase):
         self.rate = rate
 
         # magic numbers
-        self.max_angles = 2*np.array([0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.1])
+        self.max_angles = np.array([0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.1])
         self.u_pos_max = 0.2
         pos_p, pos_i, pos_d, pos_i_max = 0.25, 0.15, 0.06, 2.0
         ang_p, ang_i, ang_d, ang_i_max = 5.0, 0.1, 0.50, 6.0
@@ -170,28 +170,29 @@ class EPCMove(PR2ArmBase):
 
     def command_joints_safely(self, q_cmd):
         # Clamp angles so the won't exceed max_angles in this command
-        if self.cur_angles is None:
-            self.cur_angles = self.get_joint_angles(wrapped=True)
-        #if True:
-        #    if np.any(np.fabs(cur_angles - q_cmd) > self.max_angles):
-        #        return
-        #    else:
-        #        self.command_joint_angles(q_cmd, 1.2/self.rate)
+#if self.cur_angles is None:
+#    self.cur_angles = self.get_joint_angles(wrapped=True)
+        cur_angles = self.get_joint_angles(wrapped=True)
+        if True:
+            if np.any(np.fabs(cur_angles - q_cmd) > self.max_angles):
+                return
+            else:
+                self.command_joint_angles(q_cmd, 1.2/self.rate)
 
-        #else:
-        #    q_cmd_clamped = np.clip(q_cmd, cur_angles - self.max_angles, 
-        #                                   cur_angles + self.max_angles)
+        else:
+            q_cmd_clamped = np.clip(q_cmd, cur_angles - self.max_angles, 
+                                           cur_angles + self.max_angles)
 
-        diff = self.angle_difference(q_cmd, self.cur_angles)
-        max_diff_arg = np.argmax(np.fabs(diff) - np.array(self.max_angles))
-        diff_scaled = diff / diff[max_diff_arg] * self.max_angles[max_diff_arg]
-        print "CA", self.cur_angles
-        print "QC", q_cmd
-        print "D", diff
-        print "DS", diff_scaled
-        q_cmd_clamped = self.cur_angles + diff_scaled
+        #diff = self.angle_difference(q_cmd, self.cur_angles)
+        #max_diff_arg = np.argmax(np.fabs(diff) - np.array(self.max_angles))
+        #diff_scaled = diff / diff[max_diff_arg] * self.max_angles[max_diff_arg]
+        #print "CA", self.cur_angles
+        #print "QC", q_cmd
+        #print "D", diff
+        #print "DS", diff_scaled
+        #q_cmd_clamped = self.cur_angles + diff_scaled
         # command joints
-        self.command_joint_angles(q_cmd_clamped, 1.2/self.rate)
+#self.command_joint_angles(q_cmd_clamped, 1.2/self.rate)
 
     def direct_move(self, target_pose, tool_frame=None, 
                     err_pos_goal=0.02, err_ang_goal=0.35, 
