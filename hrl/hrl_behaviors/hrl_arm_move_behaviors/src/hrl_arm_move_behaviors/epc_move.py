@@ -60,14 +60,13 @@ class EPCMove(PR2ArmBase):
 
         # magic numbers
         self.max_angles = np.array([0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.1])
-        self.x_pid = PIDController(0.5, 0.3, 0.09, 0.4, rate, "x")
-        self.y_pid = PIDController(0.5, 0.3, 0.09, 0.4, rate, "y")
-        self.z_pid = PIDController(0.5, 0.3, 0.09, 0.4, rate, "z")
-        self.a_pid = PIDController(5.0, 0.1, 0.5, 6.0, rate, "angle")
-#       self.qx_pid = PIDController(0.01, 0.0, 0.00, 0.4, rate, "qx")
-#       self.qy_pid = PIDController(0.01, 0.0, 0.00, 0.4, rate, "qx")
-#       self.qz_pid = PIDController(0.01, 0.0, 0.00, 0.4, rate, "qx")
-#       self.qw_pid = PIDController(0.01, 0.0, 0.00, 0.4, rate, "qx")
+        self.u_pos_max = 0.3
+        pos_p, pos_i, pos_d, pos_i_max = 0.4, 0.15, 0.09, 2.0
+        ang_p, ang_i, ang_d, ang_i_max = 5.0, 0.1, 0.50, 6.0
+        self.x_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "x")
+        self.y_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "y")
+        self.z_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "z")
+        self.a_pid = PIDController(ang_p, ang_i, ang_d, ang_i_max, rate, "angle")
 
         # advertise informative topics
         self.cmd_pub = rospy.Publisher("/commanded_pose", PoseStamped)
@@ -133,7 +132,7 @@ class EPCMove(PR2ArmBase):
         t_B_new = np.mat(tf_trans.quaternion_matrix(new_quat))
 
         # position
-        u_pos_clipped = np.clip(u_pos, -0.20, 0.20)
+        u_pos_clipped = np.clip(u_pos, -self.u_pos_max, self.u_pos_max)
         t_B_new[:3,3] = t_B_c[:3,3] + u_pos_clipped 
 
         # publish informative topics
