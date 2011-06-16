@@ -43,7 +43,7 @@ from tabletop_pushing.srv import *
 from math import sin, cos, pi
 import sys
 
-# Kelsey's setup joints, steal this and add it into mine.
+# Setup joints stolen from Kelsey's code.
 LEFT_ARM_SETUP_JOINTS = np.matrix([[1.32734204881265387, -0.34601608409943324,
                                     1.4620635485239604, -1.2729772622637399,
                                     7.5123303230158518, -1.5570651396529178,
@@ -51,37 +51,11 @@ LEFT_ARM_SETUP_JOINTS = np.matrix([[1.32734204881265387, -0.34601608409943324,
 RIGHT_ARM_SETUP_JOINTS = np.matrix([[-1.32734204881265387, -0.34601608409943324,
                            -1.4620635485239604, -1.2729772622637399,
                            -7.5123303230158518, -1.5570651396529178,
-                           -5.5929916630672727 - pi*0.5]]).T
-
-LEFT_ARM_INIT_JOINTS = np.matrix([[7.0e-01, 3.65531104e-01,
-                                   1.68462256e+00, -2.2,
-                                   2.17482262e+02, -1.41818799e+00,
-                                   -8.64819949e+01]]).T
-LEFT_ARM_MIDDLE_JOINTS = np.matrix([[7.0e-01, -1.30025955e-01,
-                                    1.56307360e+00, -2.2,
-                                    2.16694211e+02, -1.45799866e+00,
-                                    -8.64421842e+01]]).T
-# LEFT_ARM_READY_JOINTS = np.matrix([[5.0e-01, -1.30025955e-01,
-#                                     1.56307360e+00, -1.81768523e+00,
-#                                     2.16694211e+02, -1.45799866e+00,
-#                                     -8.64421842e+01]]).T
+                           -7.163787989862169]]).T
 LEFT_ARM_READY_JOINTS = np.matrix([[0.42427649, 0.0656137,
                                     1.43411927, -2.11931035,
                                     -15.78839978, -1.64163257,
                                     -17.2947453]]).T
-
-RIGHT_ARM_INIT_JOINTS = np.matrix([[-7.0e-01, 3.65531104e-01,
-                                    -1.68462256e+00, -2.2,
-                                    -2.17482262e+02, -1.41818799e+00,
-                                    8.64421842e+01]]).T
-RIGHT_ARM_MIDDLE_JOINTS = np.matrix([[-7.0e-01, -1.30025955e-01,
-                                    -1.56307360e+00, -2.2,
-                                    -2.16694211e+02, -1.45799866e+00,
-                                    8.64421842e+01]]).T
-# RIGHT_ARM_READY_JOINTS = np.matrix([[-5.0e-01, -1.30025955e-01,
-#                                     -1.56307360e+00, -1.81768523e+00,
-#                                     -2.16694211e+02, -1.45799866e+00,
-#                                     8.64421842e+01]]).T
 RIGHT_ARM_READY_JOINTS = np.matrix([[-0.42427649, 0.0656137,
                                      -1.43411927, -2.11931035,
                                      15.78839978, -1.64163257,
@@ -186,7 +160,6 @@ class TabletopPushNode:
         push_arm.set_movement_mode_ik()
 
         # Choose to move to ready first, if it is closer, then move to init
-        # TODO: This could be smarter, i.e., don't move up, then down
         moved_ready = False
         if force_ready or ready_diff > READY_POSE_MOVE_THRESH or force_ready:
             rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
@@ -200,14 +173,6 @@ class TabletopPushNode:
         rospy.loginfo('Moving %s_arm to setup pose' % which_arm)
         robot_arm.set_pose(setup_joints, nsecs=2.0, block=True)
         rospy.loginfo('Moved %s_arm to setup pose' % which_arm)
-
-        # TODO: Check to see if the gripper needs to be closed
-        # rospy.loginfo('Opening gripper')
-        # res = robot_gripper.open(block=True)
-
-        # rospy.loginfo('Closing %s_gripper' % which_arm)
-        # res = robot_gripper.close(block=True)
-        # rospy.loginfo('Closed %s_gripper' % which_arm)
 
     #
     # Behavior functions

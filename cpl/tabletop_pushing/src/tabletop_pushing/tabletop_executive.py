@@ -64,7 +64,7 @@ class TabletopExecutive:
         self.sweep_y_offset = rospy.get_param('~gripper_sweep_start_y_offset',
                                               0.05)
         self.sweep_z_offset = rospy.get_param('~gripper_sweep_start_z_offset',
-                                              0.04)
+                                              0.02)
 
         self.overhead_push_dist = rospy.get_param('~overhead_push_dist',
                                                  0.15)
@@ -236,4 +236,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive()
-    node.run(0, 5, 0, 0, 0, 0)
+    node.run(1, 1, 1, 1, 1, 1)
