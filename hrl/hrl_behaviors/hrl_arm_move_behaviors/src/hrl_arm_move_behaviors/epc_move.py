@@ -61,6 +61,7 @@ class EPCMove(PR2ArmBase):
         # magic numbers
         self.max_angles = 5*np.array([0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.1])
         self.u_pos_max = 0.2
+        self.grav_comp = 0.03
         pos_p, pos_i, pos_d, pos_i_max = 0.5, 0.30, 0.09, 0.4
         ang_p, ang_i, ang_d, ang_i_max = 5.0, 0.1, 0.50, 6.0
         self.x_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "x")
@@ -110,7 +111,7 @@ class EPCMove(PR2ArmBase):
         # find control values
         u_x = self.x_pid.update_state(err_pos[0,0])
         u_y = self.y_pid.update_state(err_pos[1,0])
-        u_z = self.z_pid.update_state(err_pos[2,0])
+        u_z = self.z_pid.update_state(err_pos[2,0]) + self.grav_comp
         u_pos = np.mat([u_x, u_y, u_z]).T
         u_a = self.a_pid.update_state(err_ang)
 #       quat_diff = (np.array(tf_trans.quaternion_from_matrix(target_pose)) -
