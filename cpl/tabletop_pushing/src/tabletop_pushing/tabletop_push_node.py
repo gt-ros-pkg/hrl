@@ -167,7 +167,7 @@ class TabletopPushNode:
         rospy.loginfo('Closing %s_gripper' % which_arm)
         res = robot_gripper.close(block=True)
         rospy.loginfo('Closed %s_gripper' % which_arm)
-        # rospy.loginfo('Gripper status is: ' + str(res))
+        push_arm.pressure_listener.rezero()
 
     def reset_arm_pose(self, force_ready=False, which_arm='l'):
         '''
@@ -188,6 +188,7 @@ class TabletopPushNode:
             init_joints = RIGHT_ARM_INIT_JOINTS
             middle_joints = RIGHT_ARM_MIDDLE_JOINTS
             ready_joints = RIGHT_ARM_READY_JOINTS
+        push_arm.pressure_listener.rezero()
 
         init_diff = np.linalg.norm(pr2.diff_arm_pose(robot_arm.pose(),
                                                      init_joints))
@@ -252,7 +253,7 @@ class TabletopPushNode:
             ready_joints = RIGHT_ARM_READY_JOINTS
             middle_joints = RIGHT_ARM_MIDDLE_JOINTS
             which_arm = 'r'
-
+        push_arm.pressure_listener.rezero()
         # Offset to higher position to miss the table, but were lower to avoid
         # seeing the arm for now.
         rospy.loginfo('Moving %s_arm to middle pose' % which_arm)
@@ -316,7 +317,7 @@ class TabletopPushNode:
             push_dir = +1
             which_arm = 'r'
             wrist_roll = 0.0
-
+        push_arm.pressure_listener.rezero()
         # Offset to higher position to miss the table, but were lower to avoid
         # seeing the arm for now.
         rospy.loginfo('Moving %s_arm to middle pose' % which_arm)
@@ -380,7 +381,6 @@ class TabletopPushNode:
             ready_joints = LEFT_ARM_READY_JOINTS
             middle_joints = LEFT_ARM_MIDDLE_JOINTS
             which_arm = 'l'
-            # TODO: Correctly set this value
             wrist_pitch = 0.5*pi
         else:
             push_arm = self.right_arm_move
@@ -389,8 +389,9 @@ class TabletopPushNode:
             middle_joints = RIGHT_ARM_MIDDLE_JOINTS
             which_arm = 'r'
             # TODO: Correctly set this value
-            wrist_pitch = 0.5*pi
+            wrist_pitch = -0.5*pi
 
+        push_arm.pressure_listener.rezero()
         # Offset to higher position to miss the table, but were lower to avoid
         # seeing the arm for now.
         rospy.loginfo('Moving %s_arm to middle pose' % which_arm)
@@ -407,11 +408,11 @@ class TabletopPushNode:
         rot = np.matrix([orientation])
 
         # Rotate wrist before moving to position
-        rospy.loginfo('Rotating wrist for sweep')
+        rospy.loginfo('Rotating elbow for overhead push')
         arm_pose = robot_arm.pose()
         # l_arm -28.25147617 ~= -9*pi
         # r_arm 43.98995395 ~= 14*pi
-        arm_pose[-2] =  wrist_pitch # Works for left, need to check for right
+        arm_pose[-3] =  wrist_pitch # Works for left, need to check for right
         robot_arm.set_pose(arm_pose, nsecs=2.0, block=True)
 
         # Move to offset pose
@@ -421,7 +422,6 @@ class TabletopPushNode:
         rospy.loginfo('Done moving to start point')
 
         self.print_pose()
-        rospy.sleep(3.0)
 
         # Push inward
         rospy.loginfo('Pushing forward')
