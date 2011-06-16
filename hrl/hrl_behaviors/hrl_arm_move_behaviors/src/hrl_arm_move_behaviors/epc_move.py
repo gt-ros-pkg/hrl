@@ -59,9 +59,9 @@ class EPCMove(PR2ArmBase):
         self.rate = rate
 
         # magic numbers
-        self.max_angles = np.array([0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.1])
+        self.max_angles = 5*np.array([0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.1])
         self.u_pos_max = 0.2
-        pos_p, pos_i, pos_d, pos_i_max = 0.25, 0.15, 0.06, 2.0
+        pos_p, pos_i, pos_d, pos_i_max = 0.5, 0.30, 0.09, 0.4
         ang_p, ang_i, ang_d, ang_i_max = 5.0, 0.1, 0.50, 6.0
         self.x_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "x")
         self.y_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "y")
@@ -175,9 +175,10 @@ class EPCMove(PR2ArmBase):
         cur_angles = self.get_joint_angles(wrapped=True)
         if True:
             if np.any(np.fabs(cur_angles - q_cmd) > self.max_angles):
-                return
+                return False
             else:
                 self.command_joint_angles(q_cmd, 1.2/self.rate)
+                return True
 
         else:
             q_cmd_clamped = np.clip(q_cmd, cur_angles - self.max_angles, 
@@ -241,7 +242,10 @@ class EPCMove(PR2ArmBase):
                 continue
 
             # command the joints to their positions (with safety checking)
-            self.command_joints_safely(q_cmd)
+            command_successful = self.command_joints_safely(q_cmd)
+            if not command_successful:
+                rospy.loginfo("[epc move] Max angles exceeded")
+                continue
 
             print "Current error: Pos:", err_pos_mag, "Angle:", err_ang
             rospy.sleep(1.0/self.rate)
@@ -297,7 +301,10 @@ class EPCMove(PR2ArmBase):
                 continue
 
             # command the joints to their positions (with safety checking)
-            self.command_joints_safely(q_cmd)
+            command_successful = self.command_joints_safely(q_cmd)
+            if not command_successful:
+                rospy.loginfo("[epc move] Max angles exceeded")
+                continue
 
             print "Current error: Pos:", err_pos_mag, "Angle:", err_ang
             rospy.sleep(1.0/self.rate)
