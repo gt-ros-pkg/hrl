@@ -57,6 +57,14 @@ def convex_hull(pts):
         hull_pts = np.array(ch.coords)
     return hull_pts
 
+# distance of a point from a curve defined by a series of points.
+# pt - 2x1 or 3x1 np matrix
+# pts_list - list of 2x1 or 3x1 np matrices
+def distance_from_curve(pt, pts_list):
+    spt = sg.Point(pt.A1)
+    s_pts_list = sg.LineString([m.A1 for m in pts_list])
+    return s_pts_list.distance(spt)
+
 def test_convex_hull():
     pp.axis('equal')
     pts = np.random.uniform(size=(40,2))
@@ -72,14 +80,23 @@ def test_convex_hull():
 
     pp.show()
 
-
+def test_distance_from_curve():
+    pt = np.matrix([1.0, 1.5, 0.3]).T
+    pts_list = [[0, 0.], [1,0.], [1.,1.]]
+    pts_l = [np.matrix(p).T for p in pts_list]
+    print 'distance_from_curve:', distance_from_curve(pt, pts_l)
+    pp.axis('equal')
+    pp.plot([pt[0,0]], [pt[1,0]], 'go', ms=7)
+    pp.plot(*zip(*pts_list))
+    pp.show()
 
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pp
 
     test_project_point_on_line = False
-    test_convex_hull_flag = True
+    test_convex_hull_flag = False
+    test_distance_from_curve_flag = True
 
     if test_project_point_on_line:
         p1 = np.matrix([2,3.]).T
@@ -100,9 +117,11 @@ if __name__ == '__main__':
         pp.legend()
         pp.show()
 
-
     if test_convex_hull_flag:
         test_convex_hull()
+
+    if test_distance_from_curve_flag:
+        test_distance_from_curve()
 
 
 
