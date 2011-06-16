@@ -421,8 +421,6 @@ class TabletopPushNode:
         push_arm.move_absolute(loc, stop='pressure', frame=push_frame)
         rospy.loginfo('Done moving to start point')
 
-        self.print_pose()
-
         # Push inward
         rospy.loginfo('Pushing forward')
         r, pos_error = push_arm.move_relative_base(
