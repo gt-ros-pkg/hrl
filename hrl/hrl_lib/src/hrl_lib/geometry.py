@@ -59,18 +59,18 @@ def convex_hull(pts):
 
 # distance of a point from a curve defined by a series of points.
 # pt - 2x1 or 3x1 np matrix
-# pts_list - list of 2x1 or 3x1 np matrices
+# pts_list - list of array-like of len 2 or 3
 def distance_from_curve(pt, pts_list):
     spt = sg.Point(pt.A1)
-    s_pts_list = sg.LineString([m.A1 for m in pts_list])
+    s_pts_list = sg.LineString(pts_list)
     return s_pts_list.distance(spt)
 
 # distance of a point from a curve defined by a series of points.
 # pt - 2x1 or 3x1 np matrix
-# pts_list - list of 2x1 or 3x1 np matrices
+# pts_list - list of array-like of len 2 or 3
 def distance_along_curve(pt, pts_list):
     spt = sg.Point(pt.A1)
-    s_pts_list = sg.LineString([m.A1 for m in pts_list])
+    s_pts_list = sg.LineString(pts_list)
     return s_pts_list.project(spt)
 
 def test_convex_hull():
@@ -90,13 +90,12 @@ def test_convex_hull():
 
 def test_distance_from_curve():
     pt = np.matrix([0.8, 0.5, 0.3]).T
-    pts_list = [[0, 0.], [1,0.], [1.,1.]]
-    pts_l = [np.matrix(p).T for p in pts_list]
+    pts_l = [[0, 0.], [1,0.], [1.,1.]]
     print 'distance_from_curve:', distance_from_curve(pt, pts_l)
     print 'distance_along_curve:', distance_along_curve(pt, pts_l)
     pp.axis('equal')
     pp.plot([pt[0,0]], [pt[1,0]], 'go', ms=7)
-    pp.plot(*zip(*pts_list))
+    pp.plot(*zip(*pts_l))
     pp.show()
 
 
