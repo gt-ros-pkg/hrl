@@ -32,13 +32,18 @@ class TouchFaceDiagnostics(object):
         rospy.Subscriber("/touch_face/smach/container_status", self.status_cb)
         self.html_status_pub = rospy.Publisher("/wt_log_out", String)
         self.talk_pub = rospy.Publisher("/text_to_say", String)
-        self.cur_states = []
+        self.cur_state = ""
 
     def status_cb(self, msg):
         for state in msg.active_states:
-            if state not in cur_states:
+            if state == self.cur_state:
+                continue
+            if state in STATUS_DICT:
                 self.html_status_pub.publish(STATUS_DICT[state])
+                sel.cur_state = state
+            if state in TALK_DICT:
                 self.talk_pub.publish(TALK_DICT[state])
+                sel.cur_state = state
 
 def main():
     rospy.init_node("touch_face_diags")
