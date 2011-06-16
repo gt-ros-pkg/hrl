@@ -48,7 +48,7 @@ import cPickle
 import math
 import numpy as np
 
-SAVE = True
+SAVE = False
 
 class SimplePickAndPlaceExample():
 
@@ -178,9 +178,11 @@ if __name__ == "__main__":
     f_name = date.strftime("%Y-%m-%d_%H-%M-%S")
 
     #save_dir = os.getcwd()+'/../../data/'+f_name
-    save_dir = '/removable/mkillpack/'+f_name
+    
+    save_dir = '/u/mkillpack/'+f_name
     #playpen_dir = '/home/mkillpack/svn/gt-ros-pkg/hrl/pr2_playpen/data/' #should add way to sync
-    os.mkdir(save_dir)
+    if SAVE == True:
+        os.mkdir(save_dir)
 
 #print "CHECING FOR DIRECTORY :  ", os.getcwd()+'/../../data/'+f_name
     #.5 m in front of robot, centered
@@ -209,13 +211,14 @@ if __name__ == "__main__":
     sppe.move_to_side(0, False)
     sppe.move_to_side(1, False)
 
+    rospy.sleep(25)
+    num_samples = train('table')
     for i in xrange(len(sppe.objects_dist)):
         try:
             file_handle = open(save_dir+'/object'+str(i).zfill(3)+'.pkl', 'w')
             data = {}
             sppe.playpen(0)
             rospy.sleep(10)
-            num_samples = train('table')
             sppe.conveyor(sppe.objects_dist[i])
             # data['object'+str(i).zfill(3)] = {}
             # data['object'+str(i).zfill(3)]['success'] = []
@@ -226,7 +229,7 @@ if __name__ == "__main__":
 
             start_time = rospy.get_time()
             # while sppe.tries<3:
-            while rospy.get_time()-start_time < 2880.0:
+            while rospy.get_time()-start_time < 500.0:
                 print "arm is ", arm
                 sppe.move_to_side(arm, True)
                 rospy.sleep(2)
@@ -237,25 +240,26 @@ if __name__ == "__main__":
                 # save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.png')
                 num_samples = train('object')
                 success = sppe.pick_up_object_near_point(target_point, arm)
+                print "starting to move arm at :", rospy.get_time()
                 sppe.move_to_side(arm, False)
-
-                result = []
-                rospy.sleep(7)
-                for j in xrange(5):
-                   result.append(check_success('').result)
-                result.sort()
-                if result[2] == 'table':
+                print "moved past arm command at :", rospy.get_time()
+                results = []
+                rospy.sleep(10)
+                num_samples = 7
+                for j in xrange(num_samples):
+                   results.append(check_success('').result)
+                results.sort()
+                if results[int(floor(num_samples/2))] == 'table':
                    success = True
                    data['success'].append(success)
-                elif result[2] == 'object':
+                elif results[int(floor(num_samples/2))] == 'object':
                    success = False
                    data['success'].append(success)
-                #else:
-                   #success = False
+                else:
+                   success = False
                    #sppe.tries = sppe.tries-1 # this is to compensate for failures in perception hopefully
 
                 print "SUCCESS IS :", success
-                data['success'].append(success)
 
                 if SAVE == True:
                     save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_pr2.pcd')
