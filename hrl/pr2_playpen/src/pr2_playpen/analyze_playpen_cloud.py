@@ -17,7 +17,7 @@ class ResultsAnalyzer:
         rospy.init_node('playpen_results')
         self.draw = ds.SceneDraw()
         self.cloud = None
-        rospy.Subscriber("playpen_segment_region", PointCloud2, self.callback)
+        rospy.Subscriber("pr2_segment_region", PointCloud2, self.callback)
 #        rospy.Subscriber("playpen_segment_object", PointCloud2, self.callback)
         self.check = rospy.Service("playpen_check_success", Check, self.serv_success)
         self.train_empty = rospy.Service("playpen_train", Train, self.serv_train)
@@ -47,10 +47,14 @@ class ResultsAnalyzer:
 
     def serv_success(self, req):
         result = "none"
+        while self.new_cloud == False:
+            rospy.sleep(0.01)
+        self.new_cloud = False
         self.lock.acquire()
         if self.table_mean == None or self.object_mean == None:
             print "you haven't initialized yet!!"
             return CheckResponse(result)
+
         np_array_cloud = np.array(self.cloud)
         f_ind = np.array(~np.isnan(np_array_cloud).any(1)).flatten()
         f_np_array_cloud = np_array_cloud[f_ind, :]
@@ -112,10 +116,10 @@ class ResultsAnalyzer:
         self.mean_ls = []
         self.cov_ls = []
 
-        while num_samples < 10:
+        while num_samples < 11:
             start_time = rospy.get_time()
             while self.new_cloud == False:
-                rospy.sleep(0.05)
+                rospy.sleep(0.01)
             self.lock.acquire()
             np_array_cloud = np.array(self.cloud)
             f_ind = np.array(~np.isnan(np_array_cloud).any(1)).flatten()
@@ -136,16 +140,32 @@ class ResultsAnalyzer:
         buf_mean = np.matrix(np.zeros((3,1)))
         buf_cov = np.matrix(np.zeros((3,3)))
 
-        for i in xrange(10):
-            buf_mean = buf_mean + self.mean_ls[i]
-            buf_cov = buf_cov + self.cov_ls[i]  #this is not exactly correct if populations
+        print "here is the mean list :", self.mean_ls
+        mean_arr = np.array(self.mean_ls)
+        mean_arr.sort(axis=0)
+        print "here is th sorted mean array  :", mean_arr
+
+        print "here is the mean cov :\n", self.cov_ls
+        cov_arr = np.array(self.cov_ls)
+        cov_arr.sort(axis=0)
+        print "here is the sorted cov :\n", cov_arr
+
+        # for i in xrange(10):
+        #     buf_mean = buf_mean + self.mean_ls[i]
+        #     buf_cov = buf_cov + self.cov_ls[i]  #this is not exactly correct if populations
                                                     #have different # of points, but it should be approximately right
         if req.expected == 'table':
-            self.table_mean = buf_mean*1/10.0
-            self.table_cov = buf_cov*1/10.0
+            self.table_mean = mean_arr[5]
+            self.table_cov = cov_arr[5]
+            # self.table_mean = buf_mean*1/10.0
+            # self.table_cov = buf_cov*1/10.0
         elif req.expected == 'object':
-            self.object_mean = buf_mean*1/10.0
-            self.object_cov = buf_cov*1/10.0
+            self.object_mean = mean_arr[5]
+            self.object_cov = cov_arr[5]
+            # self.object_mean = buf_mean*1/10.0
+            # self.object_cov = buf_cov*1/10.0
+
+
 
         return TrainResponse(num_samples)
 
