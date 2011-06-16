@@ -424,11 +424,11 @@ class SMTouchFace(object):
                                           [-norm_z[1],-norm_z[0], 0],
                                           [         0,         0, 1]])
             # offset in the x-direction by the given parameter
-            base_B_head[:4,3] = base_B_head * np.mat([[-self.nav_approach_dist, 0, 0, 1]]).T
             offset_B_base = self.get_transform(self.base_offset_frame, "base_link")
             if offset_B_base is None:
                 return 'tf_failure'
             nav_pose = offset_B_base * base_B_head
+            nav_pose[:4,3] = nav_pose * np.mat([[-self.nav_approach_dist, 0, 0, 1]]).T
             now = rospy.Time.now()
             nav_pose_ps = util.pose_mat_to_stamped_msg('base_link', nav_pose, now) 
             self.tf_listener.waitForTransform("/map", "base_link",
