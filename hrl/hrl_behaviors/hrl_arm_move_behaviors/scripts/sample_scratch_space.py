@@ -11,14 +11,22 @@ import tf.transformations as tf_trans
 from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion, PoseArray
 
-from hrl_arm_move_behaviors.touch_face import TouchFace
+from hrl_arm_move_behaviors.msg import EPCDirectMoveAction, EPCDirectMoveGoal
+from hrl_arm_move_behaviors.msg import EPCLinearMoveAction, EPCLinearMoveGoal
 import hrl_arm_move_behaviors.util as util
 
 def main():
     rospy.init_node('test_linear_move')
     touch_pub = rospy.Publisher('touch_pose', PoseStamped)
     touch_arr_pub = rospy.Publisher('touch_poses', PoseArray)
-    touch_face = TouchFace('r')
+    args = sys.argv
+    tf_listener = tf.TransformListener()
+    dm_client = actionlib.SimpleActionClient(args[1] + '_epc_move/direct_move', 
+                                             EPCDirectMoveAction)
+    dm_client.wait_for_server()
+    lm_client = actionlib.SimpleActionClient(args[1] + '_epc_move/linear_move', 
+                                             EPCLinearMoveAction)
+    lm_client.wait_for_server()
     rospy.sleep(5)
     param_bounds = [(0.76, 1.03),
                     (-0.05, -0.41),
@@ -43,7 +51,9 @@ def main():
         touch_arr_pub.publish(touch_arr)
         print touch_pose
 
-        touch_face.touch_face_at_pose(touch_pose)
+        tool_frame = args[1] + '_scratcher_tip'
+        dm_goal = EPCDirectMoveGoal(touch_pose, tool_frame, True, 0.02, 0.35, 0.2, 1.0, 5)
+        dm_client.send_goal(dm_goal)
         rospy.sleep(1)
 
 if __name__ == '__main__':

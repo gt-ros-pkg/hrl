@@ -124,7 +124,7 @@ class EPCMove(PR2ArmBase):
 
         # find commanded frame of tool
         # rotation
-        u_a = np.clip(u_a, 0, 2)
+        u_a = np.clip(u_a, 0, 1)
         ei_q_slerp = tf_trans.quaternion_slerp(tf_trans.quaternion_from_matrix(t_B_c),
                                                tf_trans.quaternion_from_matrix(target_pose),
                                                u_a)
