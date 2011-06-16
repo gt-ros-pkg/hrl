@@ -44,13 +44,14 @@ from math import sin, cos, pi
 import sys
 
 # Kelsey's setup joints, steal this and add it into mine.
-# joints = [-1.32734204881265387, -0.34601608409943324, -1.4620635485239604, -1.2729772622637399, -7.5123303230158518, -1.5570651396529178, -5.5929916630672727] 
-# if self.arm == 'l':
-#     for i in [0, 2, 4]:
-#         joints[i] *= -1
-# else:
-#     joints[6] -= 3.14/2
-
+LEFT_ARM_SETUP_JOINTS = np.matrix([[1.32734204881265387, -0.34601608409943324,
+                                    1.4620635485239604, -1.2729772622637399,
+                                    7.5123303230158518, -1.5570651396529178,
+                                    -5.5929916630672727]]).T
+RIGHT_ARM_SETUP_JOINTS = np.matrix([[-1.32734204881265387, -0.34601608409943324,
+                           -1.4620635485239604, -1.2729772622637399,
+                           -7.5123303230158518, -1.5570651396529178,
+                           -5.5929916630672727 - pi*0.5]]).T
 
 LEFT_ARM_INIT_JOINTS = np.matrix([[7.0e-01, 3.65531104e-01,
                                    1.68462256e+00, -2.2,
@@ -60,10 +61,14 @@ LEFT_ARM_MIDDLE_JOINTS = np.matrix([[7.0e-01, -1.30025955e-01,
                                     1.56307360e+00, -2.2,
                                     2.16694211e+02, -1.45799866e+00,
                                     -8.64421842e+01]]).T
-LEFT_ARM_READY_JOINTS = np.matrix([[5.0e-01, -1.30025955e-01,
-                                    1.56307360e+00, -1.81768523e+00,
-                                    2.16694211e+02, -1.45799866e+00,
-                                    -8.64421842e+01]]).T
+# LEFT_ARM_READY_JOINTS = np.matrix([[5.0e-01, -1.30025955e-01,
+#                                     1.56307360e+00, -1.81768523e+00,
+#                                     2.16694211e+02, -1.45799866e+00,
+#                                     -8.64421842e+01]]).T
+LEFT_ARM_READY_JOINTS = np.matrix([[0.42427649, 0.0656137,
+                                    1.43411927, -2.11931035,
+                                    -15.78839978, -1.64163257,
+                                    -17.2947453]]).T
 
 RIGHT_ARM_INIT_JOINTS = np.matrix([[-7.0e-01, 3.65531104e-01,
                                     -1.68462256e+00, -2.2,
@@ -73,13 +78,16 @@ RIGHT_ARM_MIDDLE_JOINTS = np.matrix([[-7.0e-01, -1.30025955e-01,
                                     -1.56307360e+00, -2.2,
                                     -2.16694211e+02, -1.45799866e+00,
                                     8.64421842e+01]]).T
-RIGHT_ARM_READY_JOINTS = np.matrix([[-5.0e-01, -1.30025955e-01,
-                                    -1.56307360e+00, -1.81768523e+00,
-                                    -2.16694211e+02, -1.45799866e+00,
-                                    8.64421842e+01]]).T
+# RIGHT_ARM_READY_JOINTS = np.matrix([[-5.0e-01, -1.30025955e-01,
+#                                     -1.56307360e+00, -1.81768523e+00,
+#                                     -2.16694211e+02, -1.45799866e+00,
+#                                     8.64421842e+01]]).T
+RIGHT_ARM_READY_JOINTS = np.matrix([[-0.42427649, 0.0656137,
+                                     -1.43411927, -2.11931035,
+                                     15.78839978, -1.64163257,
+                                     8.64421842e+01]]).T
 
 
-INIT_POSE_MOVE_THRESH = 0.5
 READY_POSE_MOVE_THRESH = 0.5
 
 class TabletopPushNode:
@@ -132,37 +140,22 @@ class TabletopPushNode:
             push_arm = self.left_arm_move
             robot_arm = self.robot.left
             robot_gripper = self.robot.left_gripper
-            init_joints = LEFT_ARM_INIT_JOINTS
-            middle_joints = LEFT_ARM_MIDDLE_JOINTS
             ready_joints = LEFT_ARM_READY_JOINTS
+            setup_joints = LEFT_ARM_SETUP_JOINTS
         else:
             push_arm = self.right_arm_move
             robot_arm = self.robot.right
             robot_gripper = self.robot.right_gripper
-            init_joints = RIGHT_ARM_INIT_JOINTS
-            middle_joints = RIGHT_ARM_MIDDLE_JOINTS
             ready_joints = RIGHT_ARM_READY_JOINTS
+            setup_joints = RIGHT_ARM_SETUP_JOINTS
 
-        init_diff = np.linalg.norm(pr2.diff_arm_pose(robot_arm.pose(),
-                                                     init_joints))
         ready_diff = np.linalg.norm(pr2.diff_arm_pose(robot_arm.pose(),
                                                       ready_joints))
         push_arm.set_movement_mode_ik()
 
-        # Choose to move to ready first, if it is closer, then move to init
-        # TODO: This could be smarter, i.e., don't move up, then down
-        rospy.loginfo('Moving %s_arm to middle pose' % which_arm)
-        robot_arm.set_pose(middle_joints, nsecs=5.0, block=True)
-        rospy.loginfo('Moved %s_arm to middle pose' % which_arm)
-
-        rospy.loginfo('Moving %s_arm to init pose' % which_arm)
-        robot_arm.set_pose(init_joints, nsecs=2.0, block=True)
-        rospy.loginfo('Moved %s_arm to init pose' % which_arm)
-
-        # TODO: Check to see if the gripper needs to be closed
-        # rospy.loginfo('Opening gripper')
-        # res = robot_gripper.open(block=True)
-        # rospy.loginfo('Gripper status is: ' + str(res))
+        rospy.loginfo('Moving %s_arm to setup pose' % which_arm)
+        robot_arm.set_pose(setup_joints, nsecs=2.0, block=True)
+        rospy.loginfo('Moved %s_arm to setup pose' % which_arm)
 
         rospy.loginfo('Closing %s_gripper' % which_arm)
         res = robot_gripper.close(block=True)
@@ -178,20 +171,16 @@ class TabletopPushNode:
             push_arm = self.left_arm_move
             robot_arm = self.robot.left
             robot_gripper = self.robot.left_gripper
-            init_joints = LEFT_ARM_INIT_JOINTS
-            middle_joints = LEFT_ARM_MIDDLE_JOINTS
             ready_joints = LEFT_ARM_READY_JOINTS
+            setup_joints = LEFT_ARM_SETUP_JOINTS
         else:
             push_arm = self.right_arm_move
             robot_arm = self.robot.right
             robot_gripper = self.robot.right_gripper
-            init_joints = RIGHT_ARM_INIT_JOINTS
-            middle_joints = RIGHT_ARM_MIDDLE_JOINTS
             ready_joints = RIGHT_ARM_READY_JOINTS
+            setup_joints = RIGHT_ARM_SETUP_JOINTS
         push_arm.pressure_listener.rezero()
 
-        init_diff = np.linalg.norm(pr2.diff_arm_pose(robot_arm.pose(),
-                                                     init_joints))
         ready_diff = np.linalg.norm(pr2.diff_arm_pose(robot_arm.pose(),
                                                       ready_joints))
         push_arm.set_movement_mode_ik()
@@ -199,37 +188,26 @@ class TabletopPushNode:
         # Choose to move to ready first, if it is closer, then move to init
         # TODO: This could be smarter, i.e., don't move up, then down
         moved_ready = False
-        if force_ready or ready_diff < init_diff:
-            if ready_diff > READY_POSE_MOVE_THRESH or force_ready:
-                rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
-                robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
-                rospy.loginfo('Moved %s_arm to ready pose' % which_arm)
-                moved_ready = True
-            else:
-                rospy.loginfo('Arm in ready pose')
-
-        # Test for closeness before moving
-        if not moved_ready and init_diff < INIT_POSE_MOVE_THRESH:
-            rospy.loginfo('Arm in init pose')
-            rospy.loginfo('init_diff is: '+str(init_diff))
+        if force_ready or ready_diff > READY_POSE_MOVE_THRESH or force_ready:
+            rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
+            robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
+            rospy.loginfo('Moved %s_arm to ready pose' % which_arm)
+            moved_ready = True
         else:
-            rospy.loginfo('Moving %s_arm to middle pose' % which_arm)
-            robot_arm.set_pose(middle_joints, nsecs=2.0, block=True)
-            rospy.loginfo('Moved %s_arm to middle pose' % which_arm)
+            rospy.loginfo('Arm in ready pose')
 
-            rospy.loginfo('Moving %s_arm to init pose' % which_arm)
-            robot_arm.set_pose(init_joints, nsecs=2.0, block=True)
-            rospy.loginfo('Moved %s_arm to init pose' % which_arm)
+
+        rospy.loginfo('Moving %s_arm to setup pose' % which_arm)
+        robot_arm.set_pose(setup_joints, nsecs=2.0, block=True)
+        rospy.loginfo('Moved %s_arm to setup pose' % which_arm)
 
         # TODO: Check to see if the gripper needs to be closed
         # rospy.loginfo('Opening gripper')
         # res = robot_gripper.open(block=True)
-        # rospy.loginfo('Gripper status is: ' + str(res))
 
-        rospy.loginfo('Closing %s_gripper' % which_arm)
-        res = robot_gripper.close(block=True)
-        rospy.loginfo('Closed %s_gripper' % which_arm)
-        #rospy.loginfo('Gripper status is: ' + str(res))
+        # rospy.loginfo('Closing %s_gripper' % which_arm)
+        # res = robot_gripper.close(block=True)
+        # rospy.loginfo('Closed %s_gripper' % which_arm)
 
     #
     # Behavior functions
@@ -245,20 +223,13 @@ class TabletopPushNode:
             push_arm = self.left_arm_move
             robot_arm = self.robot.left
             ready_joints = LEFT_ARM_READY_JOINTS
-            middle_joints = LEFT_ARM_MIDDLE_JOINTS
             which_arm = 'l'
         else:
             push_arm = self.right_arm_move
             robot_arm = self.robot.right
             ready_joints = RIGHT_ARM_READY_JOINTS
-            middle_joints = RIGHT_ARM_MIDDLE_JOINTS
             which_arm = 'r'
         push_arm.pressure_listener.rezero()
-        # Offset to higher position to miss the table, but were lower to avoid
-        # seeing the arm for now.
-        rospy.loginfo('Moving %s_arm to middle pose' % which_arm)
-        push_arm.set_movement_mode_ik()
-        robot_arm.set_pose(middle_joints, nsecs=2.0, block=True)
 
         rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
         push_arm.set_movement_mode_ik()
@@ -305,7 +276,6 @@ class TabletopPushNode:
             push_arm = self.left_arm_move
             robot_arm = self.robot.left
             ready_joints = LEFT_ARM_READY_JOINTS
-            middle_joints = LEFT_ARM_MIDDLE_JOINTS
             push_dir = -1
             which_arm = 'l'
             wrist_roll = -pi
@@ -313,16 +283,10 @@ class TabletopPushNode:
             push_arm = self.right_arm_move
             robot_arm = self.robot.right
             ready_joints = RIGHT_ARM_READY_JOINTS
-            middle_joints = RIGHT_ARM_MIDDLE_JOINTS
             push_dir = +1
             which_arm = 'r'
             wrist_roll = 0.0
         push_arm.pressure_listener.rezero()
-        # Offset to higher position to miss the table, but were lower to avoid
-        # seeing the arm for now.
-        rospy.loginfo('Moving %s_arm to middle pose' % which_arm)
-        push_arm.set_movement_mode_ik()
-        robot_arm.set_pose(middle_joints, nsecs=2.0, block=True)
 
         rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
         push_arm.set_movement_mode_ik()
@@ -336,8 +300,6 @@ class TabletopPushNode:
         # Rotate wrist before moving to position
         rospy.loginfo('Rotating wrist for sweep')
         arm_pose = robot_arm.pose()
-        # l_arm -28.25147617 ~= -9*pi
-        # r_arm 43.98995395 ~= 14*pi
         arm_pose[-1] =  wrist_roll # Works for left, need to check for right
         robot_arm.set_pose(arm_pose, nsecs=2.0, block=True)
 
@@ -379,25 +341,16 @@ class TabletopPushNode:
             push_arm = self.left_arm_move
             robot_arm = self.robot.left
             ready_joints = LEFT_ARM_READY_JOINTS
-            middle_joints = LEFT_ARM_MIDDLE_JOINTS
             which_arm = 'l'
             wrist_pitch = 0.5*pi
         else:
             push_arm = self.right_arm_move
             robot_arm = self.robot.right
             ready_joints = RIGHT_ARM_READY_JOINTS
-            middle_joints = RIGHT_ARM_MIDDLE_JOINTS
             which_arm = 'r'
-            # TODO: Correctly set this value
             wrist_pitch = -0.5*pi
 
         push_arm.pressure_listener.rezero()
-        # Offset to higher position to miss the table, but were lower to avoid
-        # seeing the arm for now.
-        rospy.loginfo('Moving %s_arm to middle pose' % which_arm)
-        push_arm.set_movement_mode_ik()
-        robot_arm.set_pose(middle_joints, nsecs=2.0, block=True)
-
         rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
         push_arm.set_movement_mode_ik()
         robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
@@ -462,6 +415,7 @@ class TabletopPushNode:
         '''
         Main control loop for the node
         '''
+        # self.print_pose()
         if not self.no_arms:
             self.init_arm_pose(True, which_arm='r')
             self.init_arm_pose(True, which_arm='l')
