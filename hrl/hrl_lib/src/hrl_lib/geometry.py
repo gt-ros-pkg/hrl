@@ -73,6 +73,16 @@ def distance_along_curve(pt, pts_list):
     s_pts_list = sg.LineString(pts_list)
     return s_pts_list.project(spt)
 
+## return a point on the curve that is closest to the given point.
+# pt - 2x1 or 3x1 np matrix
+# pts_list - list of array-like of len 2 or 3
+def project_point_on_curve(pt, pts_list):
+    spt = sg.Point(pt.A1)
+    s_pts_list = sg.LineString(pts_list)
+    d = s_pts_list.project(spt)
+    spt_new = s_pts_list.interpolate(d)
+    return np.matrix(spt_new.coords[0]).T
+
 def test_convex_hull():
     pp.axis('equal')
     pts = np.random.uniform(size=(40,2))
@@ -93,8 +103,12 @@ def test_distance_from_curve():
     pts_l = [[0, 0.], [1,0.], [1.,1.]]
     print 'distance_from_curve:', distance_from_curve(pt, pts_l)
     print 'distance_along_curve:', distance_along_curve(pt, pts_l)
+    
+    pt_proj = project_point_on_curve(pt, pts_l)
+
     pp.axis('equal')
     pp.plot([pt[0,0]], [pt[1,0]], 'go', ms=7)
+    pp.plot([pt_proj[0,0]], [pt_proj[1,0]], 'yo', ms=7)
     pp.plot(*zip(*pts_l))
     pp.show()
 
