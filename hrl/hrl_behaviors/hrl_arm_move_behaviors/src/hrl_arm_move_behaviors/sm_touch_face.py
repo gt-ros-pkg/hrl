@@ -256,7 +256,7 @@ class MovePoseIK(smach.State):
                                    input_keys=['wrist_mat'])
         self.JOINTS_BIAS = [0.0, 0.012, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.INIT_ANGS = [-0.417, -0.280, -1.565, -2.078, -2.785, -1.195, -0.369]
-        self.ANGS_SETTLED = np.array([0.15]*7)
+        self.ANGS_SETTLED = np.array([0.15, 0.15, 0.15, 0.18, 0.20, 0.15, 0.15])
         self.duration = duration
         self.q = q
         self.pr2_arm = pr2_arm
@@ -287,17 +287,21 @@ class MovePoseIK(smach.State):
 
 class MoveAnglesBase(smach.State):
     def __init__(self, pr2_arm):
-        self.ANGS_SETTLED = np.array([0.20]*7)
+        self.ANGS_SETTLED = np.array([0.15]*7)
         self.pr2_arm = pr2_arm
 
     def move_angles(self, q, duration):
         self.pr2_arm.command_joint_angles(q, duration=duration, delay=1.0)
         rospy.sleep(0.1)
         start_time = rospy.Time.now().to_sec()
+	settled_count = 0
         while not rospy.is_shutdown():
             ang_diff = self.pr2_arm.angle_difference(q, self.pr2_arm.get_joint_angles())
+            print "ang_diff", ang_diff
             if np.all(np.fabs(ang_diff) < self.ANGS_SETTLED):
-                return 'succeeded'
+                settled_count += 1
+                if settled_count > 5:
+                    return 'succeeded'
             if rospy.Time.now().to_sec() - start_time > 25:
                 rospy.logerr('[sm_touch_face] Timeout commanding joint angles.')
                 return 'shutdown'
@@ -427,14 +431,18 @@ class SMTouchFace(object):
             offset_B_base = self.get_transform(self.base_offset_frame, "base_link")
             if offset_B_base is None:
                 return 'tf_failure'
-            nav_pose = offset_B_base * base_B_head
+            nav_pose = base_B_head * offset_B_base  
+            print nav_pose
             nav_pose[:4,3] = nav_pose * np.mat([[-self.nav_approach_dist, 0, 0, 1]]).T
+            print nav_pose
             now = rospy.Time.now()
             nav_pose_ps = util.pose_mat_to_stamped_msg('base_link', nav_pose, now) 
             self.tf_listener.waitForTransform("/map", "base_link",
                                               now, timeout=rospy.Duration(20)) 
             nav_pose_map_ps = self.tf_listener.transformPose("/map", nav_pose_ps)
 
+            #self.nav_pub.publish(util.pose_mat_to_stamped_msg('base_link', base_B_head, rospy.Time.now()))
+            print base_B_head, base_B_head.T * base_B_head
             self.nav_pub.publish(nav_pose_map_ps)
             ud.nav_pose_ps = nav_pose_map_ps
             return 'succeeded'
@@ -680,7 +688,7 @@ class SMTouchFace(object):
                            'aborted', 'preempted']
         def fine_goal_cb(ud, goal):
             dm_goal = EPCDirectMoveGoal(ud.target_pose, self.tool_frame, True, 
-                                        0.02, 0.35, 0.1, 1.0, 5)
+                                        0.02, 0.35, 0.16, 1.0, 5)
             return dm_goal
         @smach.cb_interface(outcomes=action_outcomes)
         def res_cb(us, status, result):
@@ -779,7 +787,7 @@ class SMTouchFace(object):
                 self.get_coll_detect_action_state(
                     [],
                     'MOVE_RETURN_SETUP_MOVE', move_return_setup, move_return_setup_outcomes,
-                    0.0006, 3.0, '', 0.995),
+                    0.0010, 3.0, '', 0.995),
                 transitions={'succeeded' : 'WAIT_TOUCH_CLICK',
                              'ik_failure' : 'shutdown',
                              'force_collision' : 'WAIT_RETURN_SETUP_CLICK',
@@ -822,7 +830,7 @@ class SMTouchFace(object):
                 self.get_coll_detect_action_state(
                     ['wrist_mat'],
                     'COARSE_POSE_MOVE', coarse_pose_move, coarse_pose_outcomes,
-                    0.0006, 3.0, '', 0.995),
+                    0.0008, 3.0, '', 0.995),
                 transitions={'succeeded' : 'FINE_POSITION_SETUP',
                              'ik_failure' : 'MOVE_RETURN_SETUP',
                              'force_collision' : 'shutdown',

@@ -61,8 +61,8 @@ class EPCMove(PR2ArmBase):
         # magic numbers
         self.max_angles = 5*np.array([0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.1])
         self.u_pos_max = 0.2
-        self.grav_comp = 0.03
-        pos_p, pos_i, pos_d, pos_i_max = 0.5, 0.30, 0.09, 0.4
+        self.grav_comp = 0.02
+        pos_p, pos_i, pos_d, pos_i_max = 0.24, 0.18, 0.07, 0.6
         ang_p, ang_i, ang_d, ang_i_max = 5.0, 0.1, 0.50, 6.0
         self.x_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "x")
         self.y_pid = PIDController(pos_p, pos_i, pos_d, pos_i_max, rate, "y")
@@ -175,7 +175,7 @@ class EPCMove(PR2ArmBase):
 #    self.cur_angles = self.get_joint_angles(wrapped=True)
         cur_angles = self.get_joint_angles(wrapped=True)
         if True:
-            if np.any(np.fabs(cur_angles - q_cmd) > self.max_angles):
+            if np.any(np.fabs(self.angle_difference(cur_angles, q_cmd)) > self.max_angles):
                 return False
             else:
                 self.command_joint_angles(q_cmd, 1.2/self.rate)

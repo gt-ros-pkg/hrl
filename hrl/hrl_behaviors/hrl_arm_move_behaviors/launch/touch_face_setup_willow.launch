@@ -1,0 +1,12 @@
+<launch>
+
+    <!-- ################################### Kinematics ################################## -->
+    <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch"/>
+    <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch"/>
+    <!-- ################################################################################# -->
+
+    <!-- ################################### Everything ################################## -->
+    <include file="$(find hrl_arm_move_behaviors)/launch/touch_face_setup_thep_willow.launch"/>
+    <!-- ################################################################################# -->
+
+</launch>
