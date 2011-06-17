@@ -74,7 +74,7 @@ node_name = "pr2_arms"
 def log(str):
     rospy.loginfo(node_name + ": " + str)
 
-class PR2Arms(object):
+class PR2Arms():
     def __init__(self, primary_ft_sensor=None):
         log("Loading PR2Arms")
 
