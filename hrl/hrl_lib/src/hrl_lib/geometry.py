@@ -83,6 +83,16 @@ def project_point_on_curve(pt, pts_list):
     spt_new = s_pts_list.interpolate(d)
     return np.matrix(spt_new.coords[0]).T
 
+## return point dist away from the start of the curve, measured along
+# the curve.
+# pts_list - list of array-like of len 2 or 3
+# dist - float.
+# normalized - see Shapely.interpolate documentation.
+def get_point_along_curve(pts_list, dist, normalized=False):
+    s_pts_list = sg.LineString(pts_list)
+    spt_new = s_pts_list.interpolate(dist, normalized)
+    return np.matrix(spt_new.coords[0]).T
+
 def test_convex_hull():
     pp.axis('equal')
     pts = np.random.uniform(size=(40,2))

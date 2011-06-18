@@ -143,8 +143,8 @@ def plot_circle(cx, cy, rad, start_angle, end_angle, step=math.radians(2),
     x.append(cx-rad*math.sin(end_angle))
     y.append(cy+rad*math.cos(end_angle))
 
-    pl.plot(x,y,c=color,label=label,linewidth=2, alpha=alpha)
     pl.axis('equal')
+    return pl.plot(x,y,c=color,label=label,linewidth=2, alpha=alpha)
 
 ## plot radii at regular angular intervals.
 # @param cx - x coord of center of circle.
