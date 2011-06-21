@@ -73,10 +73,10 @@ class PR2Arm_JointTrajectory(PR2Arm):
         jtp.time_from_start = rospy.Duration(duration)
         jtg.trajectory.points.append(jtp)
         self.joint_action_client.send_goal(jtg)
-        self.ep = copy.copy(jep)
+        self.ep = jep
 
     def get_ep(self):
-        return self.ep
+        return copy.copy(self.ep)
 
     ##
     # Commands the arm to move to it's current joint angles, effectively stopping
