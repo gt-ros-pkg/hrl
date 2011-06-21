@@ -36,18 +36,37 @@ class HRLArm():
 
 
 class HRLArmKinematics():
-    def __init__(self):
+    def __init__(self, n_jts):
         self.tooltip_pos = np.matrix([0.,0.,0.]).T
         self.tooltip_rot = np.matrix(np.eye(3))
+        self.n_jts = n_jts
+
+    # FK without the tooltip
+    def FK_vanilla(self, q, link_number=None):
+        raise RuntimeError('Unimplemented Function')
 
     # @param q - array-like (RADIANs)
-    # @param link_number - perform FK up to this link. (1-7)
+    # @param link_number - perform FK up to this link. (0-n_jts)
     # @return pos (3X1) np matrix, rot (3X3) np matrix
     def FK(self, q, link_number=None):
+        if link_number == None:
+            link_number = self.n_jts
+        link_number = min(link_number, self.n_jts)
+        pos, rot = self.FK_vanilla(q, link_number)
+
+        if link_number == self.n_jts:
+            tooltip_baseframe = rot * self.tooltip_pos
+            pos += tooltip_baseframe
+            rot = rot * self.tooltip_rot
+        return pos, rot
+
+    # IK without the  tooltip.
+    def IK_vanilla(self, p, rot, q_guess=None):
         raise RuntimeError('Unimplemented Function')
 
     def IK(self, p, rot, q_guess=None):
-        raise RuntimeError('Unimplemented Function')
+        # this code should be common to everyone.
+        pass
 
     ## compute Jacobian at point pos.
     def Jacobian(self, q, pos=None):
