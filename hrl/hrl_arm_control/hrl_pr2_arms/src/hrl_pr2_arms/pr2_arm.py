@@ -73,7 +73,7 @@ class PR2Arm_JointTrajectory(PR2Arm):
         jtp.time_from_start = rospy.Duration(duration)
         jtg.trajectory.points.append(jtp)
         self.joint_action_client.send_goal(jtg)
-        self.ep = jep
+        self.ep = copy.copy(jep)
 
     def get_ep(self):
         return copy.copy(self.ep)
