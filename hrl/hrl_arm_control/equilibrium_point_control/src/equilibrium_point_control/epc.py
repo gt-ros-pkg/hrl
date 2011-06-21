@@ -5,6 +5,15 @@ import rospy
 from std_msgs.msg import Bool
 
 
+class EP_Generator():
+    # @param ep_gen_func: function that returns stop, ea  where ea is the param to the control_function and  stop: string which is '' for epc motion to continue
+    def __init__(self, ep_gen_func, control_function,
+                 ep_clamp_func=None):
+        self.ep_gen_func = ep_gen_func
+        self.control_function = control_function
+        self.ep_clamp_func = ep_clamp_func
+
+
 ## Class defining the core EPC function and a few simple examples.
 # More complex behaviors that use EPC should have their own ROS
 # packages.
@@ -23,14 +32,16 @@ class EPC():
         self.pause_epc = msg.data
 
     ##
-    # @param equi_pt_generator: function that returns stop, ea  where ea: equilibrium angles and  stop: string which is '' for epc motion to continue
+    # @param ep_gen - object of EP_Generator. can include any state that you want.
     # @param time_step: time between successive calls to equi_pt_generator
     # @param timeout - time after which the epc motion will stop.
     # @return stop (the string which has the reason why the epc
     # motion stopped.), ea (last commanded equilibrium angles)
-    def epc_motion(self, ep_gen_func, ep_gen_state, time_step,
-                   control_function=None, ep_clamp_func=None,
-                   timeout=np.inf):
+    def epc_motion(self, ep_gen, time_step, timeout=np.inf):
+        ep_gen_func = ep_gen.ep_gen_func
+        control_function = ep_gen.control_function
+        ep_clamp_func = ep_gen.ep_clamp_func
+
         rt = rospy.Rate(1/time_step)
         timeout_at = rospy.get_time() + timeout
         stop = ''
@@ -52,13 +63,13 @@ class EPC():
             if timeout_at < rospy.get_time():
                 stop = 'timed out'
             if stop == '':
-                stop, ea = equi_pt_generator(ep_gen_state)
+                stop, ea = ep_gen_func(ep_gen)
             if stop == 'reset timing':
                 stop = ''
                 t_end = rospy.get_time()
 
             if stop == '':
-                if clamp_func != None:
+                if ep_clamp_func != None:
                     ep = ea[0]
                     ea = list(ea)
                     ea[0] = ep_clamp_func(ep)

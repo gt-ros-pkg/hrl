@@ -5,7 +5,7 @@
 #
 
 import numpy as np, math
-
+import copy
 
 class HRLArm():
     def __init__(self, kinematics):
@@ -19,7 +19,6 @@ class HRLArm():
 
     def set_ep(self, *args):
         raise RuntimeError('Unimplemented Function')
-
 
     def viz_ep(self, ep):
         raise RuntimeError('Unimplemented Function')
