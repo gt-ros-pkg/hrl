@@ -75,9 +75,6 @@ class PR2Arm_JointTrajectory(PR2Arm):
         self.joint_action_client.send_goal(jtg)
         self.ep = copy.copy(jep)
 
-    def get_ep(self):
-        return copy.copy(self.ep)
-
     ##
     # Commands the arm to move to it's current joint angles, effectively stopping
     # the arm in place.

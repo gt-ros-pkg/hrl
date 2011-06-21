@@ -20,14 +20,16 @@ class HRLArm():
     def set_ep(self, *args):
         raise RuntimeError('Unimplemented Function')
 
-    def get_ep(self):
-        raise RuntimeError('Unimplemented Function')
 
     def viz_ep(self, ep):
         raise RuntimeError('Unimplemented Function')
+
+    def get_ep(self):
+        return copy.copy(self.ep)
     
+    # do we really need this function?
     def freeze(self):
-        self.set_ep(self.get_ep())
+        self.set_ep(self.ep)
 
     def get_end_effector_pose(self):
         return self.kinematics.FK(self.get_joint_angles())
