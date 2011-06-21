@@ -52,7 +52,7 @@ class EPC():
             if timeout_at < rospy.get_time():
                 stop = 'timed out'
             if stop == '':
-                stop, ea = equi_pt_generator(*arg_list)
+                stop, ea = equi_pt_generator(ep_gen_state)
             if stop == 'reset timing':
                 stop = ''
                 t_end = rospy.get_time()
@@ -64,7 +64,7 @@ class EPC():
                     ea[0] = ep_clamp_func(ep)
                     ea = tuple(ea)
 
-                control_function(arm, *ea)
+                control_function(*ea)
 
             rt.sleep()
 
