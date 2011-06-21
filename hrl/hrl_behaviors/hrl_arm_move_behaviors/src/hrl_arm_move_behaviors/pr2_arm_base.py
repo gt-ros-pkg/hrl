@@ -233,3 +233,6 @@ class PR2ArmBase(object):
             if abs(diff[ind] - 2*np.pi) < abs(diff[ind]):
                 diff[ind] -= 2*np.pi
         return diff
+
+
+

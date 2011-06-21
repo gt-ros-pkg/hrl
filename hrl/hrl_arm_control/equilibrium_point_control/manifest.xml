@@ -1,0 +1,16 @@
+<package>
+  <description brief="equilibrium_point_control">
+
+     Core functionality for using Equilibrium Point Control with
+     different robots.
+
+  </description>
+  <author>Advait Jain, Kelsey Hawkins. Advisor: Prof. Charlie Kemp (Healthcare Robotics Lab)</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/equilibrium_point_control</url>
+  <depend package="rospy"/>
+
+</package>
+
+

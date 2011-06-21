@@ -1,0 +1,16 @@
+<package>
+  <description brief="hrl_pr2_arms">
+
+     Python class to control the PR2. Can also use this arm with
+     Equilibrium Point Control.
+  </description>
+  <author>Kelsey Hawkins, Advait Jain, Advisor: Prof. Charlie Kemp,
+      Lab: Healthcare Robotics Lab </author>
+  <license>New BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_pr2_arms</url>
+  <depend package="rospy"/>
+
+</package>
+
+
