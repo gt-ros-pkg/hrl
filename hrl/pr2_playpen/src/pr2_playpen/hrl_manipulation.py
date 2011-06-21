@@ -48,8 +48,6 @@ import cPickle
 import math
 import numpy as np
 
-SAVE = False
-
 class SimplePickAndPlaceExample():
 
     def __init__(self):
@@ -83,6 +81,7 @@ class SimplePickAndPlaceExample():
         self.grasp_client[1].wait_for_server()
         self.grasp_setup_client[1] = actionlib.SimpleActionClient('l_overhead_grasp_setup', OverheadGraspSetupAction)
         self.grasp_setup_client[1].wait_for_server()
+        print  "got to end of init"
 
     def move_to_side(self, whicharm, open_gripper=False):
         rospy.loginfo("moving the arms to the side")
@@ -101,7 +100,6 @@ class SimplePickAndPlaceExample():
 #        self.papm.point_head(get_xyz(target_point.point),
 #                             target_point.header.frame_id)
 #########################################################################################        
-
         rospy.loginfo("picking up the nearest object to the target point")
         ############################################################
         # Creating grasp grasp_goal
@@ -168,6 +166,14 @@ class SimplePickAndPlaceExample():
 
 
 if __name__ == "__main__":
+    import optparse
+    p = optparse.OptionParser()
+
+    p.add_option('--path', action='store', dest='path_save',type='string',
+                 default=None, help='this is path to directory for saving files')
+
+    opt, args = p.parse_args()
+
     rospy.init_node('simple_pick_and_place_example')
     sppe = SimplePickAndPlaceExample()
 
@@ -177,10 +183,15 @@ if __name__ == "__main__":
 
     f_name = date.strftime("%Y-%m-%d_%H-%M-%S")
 
-    #save_dir = os.getcwd()+'/../../data/'+f_name
+    if opt.path_save == None:
+        print "Not logging or saving data from playpen"
+        SAVE = False
+    else:
+        save_dir = opt.path_save+f_name
+        print "Logging and saving playpen data in :", save_dir
+        SAVE = True
     
-    save_dir = '/u/mkillpack/'+f_name
-    #playpen_dir = '/home/mkillpack/svn/gt-ros-pkg/hrl/pr2_playpen/data/' #should add way to sync
+
     if SAVE == True:
         os.mkdir(save_dir)
 
@@ -208,51 +219,57 @@ if __name__ == "__main__":
     except rospy.ServiceException, e:
         print "Service call failed: %s"%e
 
+    print "moving arms to side"
     sppe.move_to_side(0, False)
     sppe.move_to_side(1, False)
+    print "done moving arms, sleeping ..."
+    
+    rospy.sleep(15)
+    print "done sleeping, now training for table top"
 
-    rospy.sleep(25)
     num_samples = train('table')
     for i in xrange(len(sppe.objects_dist)):
         try:
-            file_handle = open(save_dir+'/object'+str(i).zfill(3)+'.pkl', 'w')
+            if SAVE==True:
+                file_handle = open(save_dir+'/object'+str(i).zfill(3)+'.pkl', 'w')
             data = {}
             sppe.playpen(0)
-            rospy.sleep(10)
             sppe.conveyor(sppe.objects_dist[i])
-            # data['object'+str(i).zfill(3)] = {}
-            # data['object'+str(i).zfill(3)]['success'] = []
-            # data['object'+str(i).zfill(3)]['frames'] = []
 
             data['success'] = []
             data['frames'] = []
 
             start_time = rospy.get_time()
             # while sppe.tries<3:
-            while rospy.get_time()-start_time < 500.0:
+            while rospy.get_time()-start_time < 100.0:
                 print "arm is ", arm
                 sppe.move_to_side(arm, True)
-                rospy.sleep(2)
+                rospy.sleep(7)
                 if SAVE == True:
                     save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.pcd')
                     save_pr2_image(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.png')
                 # save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.pcd')
                 # save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.png')
                 num_samples = train('object')
+                print "attempting to pick up the object"
                 success = sppe.pick_up_object_near_point(target_point, arm)
-                print "starting to move arm at :", rospy.get_time()
+                print "starting to move arm to side at :", rospy.get_time()
                 sppe.move_to_side(arm, False)
-                print "moved past arm command at :", rospy.get_time()
+                print "moved past move to side arm command at :", rospy.get_time()
                 results = []
+                
+                print "sleeping for 10 seconds, is this necessary ..."
                 rospy.sleep(10)
                 num_samples = 7
                 for j in xrange(num_samples):
                    results.append(check_success('').result)
                 results.sort()
-                if results[int(floor(num_samples/2))] == 'table':
+                print "results are :", results
+                print "index into result is :", int(num_samples/2)
+                if results[int(num_samples/2)] == 'table':
                    success = True
                    data['success'].append(success)
-                elif results[int(floor(num_samples/2))] == 'object':
+                elif results[int(num_samples/2)] == 'object':
                    success = False
                    data['success'].append(success)
                 else:
@@ -271,9 +288,14 @@ if __name__ == "__main__":
                     sppe.successes=sppe.successes + 1
                     #square of size 30 cm by 30 cm
                     place_rect_dims = [.1, .1]
-
-                    x = np.random.uniform(-0.18, 0.18, 1)[0]
-                    y = np.random.uniform(-0.18, 0.18, 1)[0]
+                    
+                    inside = False
+                    while inside == False:
+                        x = np.random.uniform(-0.18, 0.18, 1)[0]
+                        y = np.random.uniform(-0.18, 0.18, 1)[0]
+                        if math.sqrt(x*x+y*y) <= 0.18:
+                            inside = True
+                
                     center_xyz = [.625+x, y, table_height+.10]
 
 
