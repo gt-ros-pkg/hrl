@@ -1,14 +1,21 @@
 <package>
-  <description brief="hrl_cody_arms">
+    <description brief="hrl_cody_arms">
 
-     hrl_cody_arms
+        hrl_cody_arms
 
-  </description>
-  <author>Advait Jain, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab</author>
-  <license>New BSD</license>
-  <review status="unreviewed" notes=""/>
-  <url>http://ros.org/wiki/hrl_cody_arms</url>
-  <depend package="rospy"/>
+    </description>
+    <author>Advait Jain, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab</author>
+    <license>New BSD</license>
+    <review status="unreviewed" notes=""/>
+    <url>http://ros.org/wiki/hrl_cody_arms</url>
+
+    <depend package="rospy"/>
+    <depend package="visualization_msgs"/>
+    <depend package="std_srvs"/>
+    <depend package="std_msgs"/>
+
+    <depend package="kdl"/>
+    <depend package="hrl_lib"/>
 
 </package>
 

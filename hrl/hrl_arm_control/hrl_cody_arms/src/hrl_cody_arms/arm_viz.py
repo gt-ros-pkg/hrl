@@ -32,14 +32,14 @@ import math, numpy as np
 
 import arm_client as ac
 import arms as ar
-import roslib; roslib.load_manifest('epc_core')
+import roslib; roslib.load_manifest('hrl_cody_arms')
 import rospy
 
 import tf.broadcaster as tfb
 import hrl_lib.transforms as tr
 
 from hrl_lib.msg import FloatArray
-from roslib.msg import Header
+from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
 
 def publish_cartesian_markers(arm, time_stamp, cep, rot, c1, c2, marker_id):

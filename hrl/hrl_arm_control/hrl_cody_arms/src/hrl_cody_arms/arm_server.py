@@ -46,14 +46,13 @@ import copy
 from threading import RLock
 
 import arms as ar
-import roslib; roslib.load_manifest('epc_core')
+import roslib; roslib.load_manifest('hrl_cody_arms')
 import rospy
 
 import hrl_lib.transforms as tr
 from hrl_lib.msg import FloatArray
-from roslib.msg import Header
-from std_msgs.msg import Bool
-from std_msgs.msg import Empty
+from std_msgs.msg import Header, Bool, Empty
+
 from std_srvs.srv import Empty as Empty_srv
 from std_srvs.srv import EmptyResponse
 from sensor_msgs.msg import JointState

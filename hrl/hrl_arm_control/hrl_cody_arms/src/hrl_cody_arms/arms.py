@@ -36,7 +36,7 @@ import sys, time, os
 import PyKDL as kdl
 import create_IK_guess_dict as cgd
 
-import roslib; roslib.load_manifest('epc_core')
+import roslib; roslib.load_manifest('hrl_cody_arms')
 
 import hrl_lib.transforms as tr
 import hrl_lib.util as ut
@@ -70,8 +70,8 @@ class M3HrlRobot():
 
         end_effector_length += 0.0135 + 0.04318 # add wrist linkange and FT sensor lengths
         self.setup_kdl_mekabot(end_effector_length)
-        q_guess_pkl_l = os.environ['HOME']+'/svn/gt-ros-pkg/hrl/equilibrium_point_control/epc_core/src/cody_arms/q_guess_left_dict.pkl'
-        q_guess_pkl_r = os.environ['HOME']+'/svn/gt-ros-pkg/hrl/equilibrium_point_control/epc_core/src/cody_arms/q_guess_right_dict.pkl'
+        q_guess_pkl_l = os.environ['HOME']+'/svn/gt-ros-pkg/hrl/hrl_arm_control/hrl_cody_arms/src/hrl_cody_arms/q_guess_left_dict.pkl'
+        q_guess_pkl_r = os.environ['HOME']+'/svn/gt-ros-pkg/hrl/hrl_arm_control/hrl_cody_arms/src/hrl_cody_arms/q_guess_right_dict.pkl'
 
         self.q_guess_dict_left = ut.load_pickle(q_guess_pkl_l)
         self.q_guess_dict_right = ut.load_pickle(q_guess_pkl_r)

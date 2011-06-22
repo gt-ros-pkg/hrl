@@ -31,7 +31,7 @@ import arms as ar
 import math, numpy as np
 import sys, optparse
 
-import roslib; roslib.load_manifest('epc_core')
+import roslib; roslib.load_manifest('hrl_cody_arms')
 import hrl_lib.transforms as tr
 import hrl_lib.util as ut
 
