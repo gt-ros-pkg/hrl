@@ -37,15 +37,13 @@ import m3.loadx6
 
 import m3.component_factory as m3f
 
-import arm_client as ac
+import cody_arm_client as ac
 
-import math
-import numpy as np
+import numpy as np, math
 import sys, time, os
 import copy
 from threading import RLock
 
-import arms as ar
 import roslib; roslib.load_manifest('hrl_cody_arms')
 import rospy
 
@@ -346,11 +344,11 @@ class MekaArmServer():
         self.joint_state_pub.publish(JointState(h, nms, pos,
                                     [0.]*len(pos), [0.]*len(pos)))
 
-        h.frame_id = ar.link_tf_name(r_arm, 7)
+        h.frame_id = 'should_not_be_using_this'
         self.force_raw_r_pub.publish(FloatArray(h, f_raw_r))
         self.force_r_pub.publish(FloatArray(h, f_r))
         
-        h.frame_id = ar.link_tf_name(l_arm, 7)
+        h.frame_id = 'should_not_be_using_this'
         self.force_raw_l_pub.publish(FloatArray(h, f_raw_l))
         self.force_l_pub.publish(FloatArray(h, f_l))
 

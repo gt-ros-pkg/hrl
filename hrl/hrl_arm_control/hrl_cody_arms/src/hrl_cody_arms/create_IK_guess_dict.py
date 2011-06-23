@@ -27,7 +27,8 @@
 
 # Author: Advait Jain
 
-import arms as ar
+import cody_arm_kinematics as cak
+import cody_arm_client as cac
 import math, numpy as np
 import sys, optparse
 
@@ -46,56 +47,47 @@ def find_good_config(pt,dic):
 
 def test_dict(fname):
     dic = ut.load_pickle(fname)
-    firenze = ar.M3HrlRobot(connect=False)
+    firenze = cak.CodyArmKinematics('r')
 
     rot = tr.rotY(math.radians(-90))
     p = np.matrix([0.4,-0.42,-0.2]).T
 
-    c = find_good_config(p,dic)
-    res = firenze.IK(p,rot,q_guess=c)
+    c = find_good_config(p, dic)
+    res = firenze.IK(p, rot, q_guess=c)
     print 'IK soln: ', [math.degrees(qi) for qi in res]
 
 def create_dict(fname):
-    firenze = ar.M3HrlRobot(connect=False)
+    firenze = cak.CodyArmKinematics('r')
     good_configs_list = ut.load_pickle(fname)
     cartesian_points_list = []
     for gc in good_configs_list:
-        cartesian_points_list.append(firenze.FK('right_arm',gc).A1.tolist())
+        cartesian_points_list.append(firenze.FK(gc).A1.tolist())
 
     m = np.matrix(cartesian_points_list).T
     print 'm.shape:', m.shape
     dic = {'cart_pts_mat':m, 'good_configs_list':good_configs_list}
     ut.save_pickle(dic,ut.formatted_time()+'_goodconf_dict.pkl')
 
-
 def record_good_configs(use_left_arm):
     import m3.toolbox as m3t
-    settings_arm = ar.MekaArmSettings(stiffness_list=[0.,0.,0.,0.,0.],control_mode='torque_gc')
-
     if use_left_arm:
-        firenze = ar.M3HrlRobot(connect=True,left_arm_settings=settings_arm)
-        arm = 'left_arm'
+        arm = 'l'
     else:
-        firenze = ar.M3HrlRobot(connect=True,right_arm_settings=settings_arm)
-        arm = 'right_arm'
+        arm = 'r'
 
+    firenze = cac.CodyArmClient(arm)
     print 'hit ENTER to start the recording process'
     k=m3t.get_keystroke()
-    firenze.power_on()
 
     good_configs_list = []
 
     while k == '\r':
         print 'hit ENTER to record configuration, something else to exit'
         k=m3t.get_keystroke()
-        firenze.proxy.step()
         q = firenze.get_joint_angles(arm)
         good_configs_list.append(np.matrix(q).A1.tolist())
 
-    firenze.stop()
     ut.save_pickle(good_configs_list,ut.formatted_time()+'_good_configs_list.pkl')
-
-
 
 if __name__=='__main__':
     p = optparse.OptionParser()

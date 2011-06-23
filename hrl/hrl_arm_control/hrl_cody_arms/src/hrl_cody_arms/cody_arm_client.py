@@ -38,7 +38,7 @@ from threading import RLock
 import roslib; roslib.load_manifest('hrl_cody_arms')
 import rospy
 
-from hrl_cody_arms.cody_arm_kinematics import CodyArmKinematics
+from cody_arm_kinematics import CodyArmKinematics
 from equilibrium_point_control.hrl_arm import HRLArm
 import hrl_lib.viz as hv
 

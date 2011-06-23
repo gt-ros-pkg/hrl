@@ -34,7 +34,7 @@ import roslib; roslib.load_manifest('hrl_cody_arms')
 import PyKDL as kdl
 
 from equilibrium_point_control.hrl_arm import HRLArmKinematics
-import hrl_cody_arms.create_IK_guess_dict as cgd
+import create_IK_guess_dict as cgd
 
 import hrl_lib.transforms as tr
 import hrl_lib.util as ut
