@@ -508,7 +508,7 @@ if __name__ == '__main__':
     r_arm = 'right_arm'
     l_arm = 'left_arm'
 
-    arms = ar.M3HrlRobot()
+    arms = ar.M3HrlRobot(0.16)
     ac = MekaArmClient(arms)
 
     # print FT sensor readings.
