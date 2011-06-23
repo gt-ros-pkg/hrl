@@ -1,5 +1,5 @@
 # /bin/bash
-wget ftp://ftp.cs.unc.edu/pub/packages/GRIP/vrpn/vrpn_07_28.zip
+wget ftp://ftp.cs.unc.edu/pub/packages/GRIP/vrpn/old_versions/vrpn_07_28.zip
 unzip vrpn_07_28.zip
 cd vrpn
 mkdir build
