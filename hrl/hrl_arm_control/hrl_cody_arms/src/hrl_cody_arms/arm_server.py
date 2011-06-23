@@ -53,8 +53,6 @@ import hrl_lib.transforms as tr
 from hrl_lib.msg import FloatArray
 from std_msgs.msg import Header, Bool, Empty
 
-from std_srvs.srv import Empty as Empty_srv
-from std_srvs.srv import EmptyResponse
 from sensor_msgs.msg import JointState
 
 THETA_GC = 5
@@ -120,7 +118,6 @@ class MekaArmServer():
         #----- ROS interface ---------
         rospy.init_node('arm_server', anonymous=False)
 
-        rospy.Service('toggle_floating_arms', Empty_srv, self.floating_arms_cb)
         self.q_r_pub = rospy.Publisher('/r_arm/q', FloatArray)
         self.q_l_pub = rospy.Publisher('/l_arm/q', FloatArray)
 
@@ -154,16 +151,10 @@ class MekaArmServer():
         self.qr_prev = None # see step_ros
         self.ql_prev = None # see step_ros
 
-        self.joint_names_list = ac.get_joint_name_dict()
-
-        self.floating_arms = False
-        self.floating_arms_counter = 0
-
-    def floating_arms_cb(self, req):
-        self.floating_arms_counter = 0
-        self.floating_arms = not self.floating_arms
-        #rospy.logout('floating_arms_cb called')
-        return EmptyResponse()
+        d = {}
+        d['right_arm'] = ac.get_joint_name_list('r')
+        d['left_arm'] = ac.get_joint_name_list('l')
+        self.joint_names_list = d
 
 
     def set_arm_settings(self,right_arm_settings,left_arm_settings):
@@ -329,38 +320,6 @@ class MekaArmServer():
 
         q_r = self.get_joint_angles(r_arm)
         q_l = self.get_joint_angles(l_arm)
-
-        if self.floating_arms:
-            if self.qr_prev == None or self.floating_arms_counter < 100:
-                self.qr_prev = q_r
-                self.ql_prev = q_l
-                self.floating_arms_counter += 1
-            else:
-                tol = np.radians([5., 2., 10., 2., 10., 0.03, 0.6])
-                r_arr = np.array(q_r)
-                l_arr = np.array(q_l)
-                prev_r_arr = np.array(self.qr_prev)
-                prev_l_arr = np.array(self.ql_prev)
-
-                dqr = np.array(q_r) - np.array(prev_r_arr)
-                dql = np.array(q_l) - np.array(prev_l_arr)
-                dqr = dqr * (np.abs(dqr) > tol)
-                dql = dql * (np.abs(dql) > tol)
-                
-                r_jep = (np.array(r_jep) + dqr).tolist()
-                l_jep = (np.array(l_jep) + dql).tolist()
-
-                self.cb_lock.acquire()
-                self.r_jep = copy.copy(r_jep)
-                self.l_jep = copy.copy(l_jep)
-                self.cb_lock.release()
-
-                change_idxs = np.where(dqr != 0)
-                prev_r_arr[change_idxs] = r_arr[change_idxs]
-                change_idxs = np.where(dql != 0)
-                prev_l_arr[change_idxs] = l_arr[change_idxs]
-                self.qr_prev = prev_r_arr.tolist()
-                self.ql_prev = prev_l_arr.tolist()
 
         f_raw_r = self.get_wrist_force(r_arm).A1.tolist()
         f_raw_l = self.get_wrist_force(l_arm).A1.tolist()
