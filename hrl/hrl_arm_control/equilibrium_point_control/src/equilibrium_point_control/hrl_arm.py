@@ -25,7 +25,8 @@ class HRLArm():
     def set_ep(self, *args):
         raise RuntimeError('Unimplemented Function')
 
-    def viz_ep(self, ep):
+    # publish different viz markers.
+    def publish_rviz_markers(self):
         raise RuntimeError('Unimplemented Function')
 
     def get_ep(self):

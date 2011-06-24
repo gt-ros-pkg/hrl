@@ -76,7 +76,7 @@ class CodyArmClient(HRLArm):
         self.stop_pub = rospy.Publisher('/arms/stop', Empty)
         self.motors_off_pub = rospy.Publisher('/arms/command/motors_off', Empty)
 
-        self.cep_marker_pub = rospy.Publisher('/'+arm+'_arm/viz/cep', Marker)
+        self.marker_pub = rospy.Publisher('/'+arm+'_arm/viz/markers', Marker)
 
         rospy.Subscriber('/'+arm+'_arm/jep', FloatArray, self.ep_cb)
         rospy.Subscriber('/'+arm+'_arm/joint_impedance_scale', FloatArray, self.alpha_cb)
@@ -120,16 +120,27 @@ class CodyArmClient(HRLArm):
 
     #--------- functions to use -----------------
 
-    def viz_ep(self, jep):
+    def publish_rviz_markers(self):
         # publish the CEP marker.
-        cep, r = self.kinematics.FK(jep)
         o = np.matrix([0.,0.,0.,1.]).T
+        jep = self.get_ep()
+        cep, r = self.kinematics.FK(jep)
         cep_marker = hv.single_marker(cep, o, 'sphere',
                         '/torso_lift_link', color=(0., 0., 1., 1.),
-                        scale = (0.02, 0.02, 0.02), duration=0.)
-
+                        scale = (0.02, 0.02, 0.02), duration=0.,
+                        m_id=1)
         cep_marker.header.stamp = rospy.Time.now()
-        self.cep_marker_pub.publish(cep_marker)
+        self.marker_pub.publish(cep_marker)
+
+        q = self.get_joint_angles()
+        ee, r = self.kinematics.FK(q)
+        ee_marker = hv.single_marker(ee, o, 'sphere',
+                        '/torso_lift_link', color=(0., 1., 0., 1.),
+                        scale = (0.02, 0.02, 0.02), duration=0.,
+                        m_id=2)
+        ee_marker.header.stamp = rospy.Time.now()
+        self.marker_pub.publish(ee_marker)
+
 
     def get_wrist_force(self, bias=True, base_frame=True,
                         filtered = True):
@@ -184,7 +195,7 @@ class CodyArmClient(HRLArm):
         h = Header()
         h.stamp = time_stamp
         self.jep_cmd_pub.publish(FloatArray(h, jep))
-        self.viz_ep(jep)
+        self.publish_rviz_markers()
 
     def is_motor_power_on(self):
         return self.pwr_state
