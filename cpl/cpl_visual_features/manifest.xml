@@ -9,6 +9,9 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/cpl_visual_features</url>
   <depend package="opencv2"/>
+  <depend package="cv_bridge"/>
+  <depend package="sensor_msgs"/>
+  <depend package="message_filters"/>
   <depend package="roscpp"/>
   <depend package="roslib"/>
   <export>

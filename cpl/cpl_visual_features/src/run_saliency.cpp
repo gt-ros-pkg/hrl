@@ -65,6 +65,7 @@ int main(int argc, char** argv)
   for (int i = 0; i < count; i++)
   {
     std::stringstream filepath;
+    std::stringstream depth_filepath;
     if (count == 1 && path != "")
     {
       filepath << path;
@@ -76,17 +77,24 @@ int main(int argc, char** argv)
     }
     else
     {
-      filepath << "/home/thermans/data/test_images/robot.jpg";
+      //filepath << "/home/thermans/data/test_images/robot.jpg";
+      filepath << "/home/thermans/data/test_images/saliency_test_frame.png";
+      depth_filepath << "/home/thermans/data/test_images/saliency_test_depth_frame.png";
     }
 
     std::cout << "Image " << i << std::endl;
     Mat frame;
     frame = cv::imread(filepath.str());
+    Mat depth_frame;
+    depth_frame = cv::imread(depth_filepath.str());
+    cv::imshow("frame", frame);
+    cv::imshow("depth", depth_frame);
     try
     {
-      Mat saliency_map = csm(frame, false);
-      // cv::imshow("saliency", &csm);
-      // cv::waitKey();
+      //Mat saliency_map = csm(frame, false);
+      Mat saliency_map = csm(frame, depth_frame);
+      cv::imshow("saliency", saliency_map);
+      cv::waitKey();
     }
     catch(cv::Exception e)
     {

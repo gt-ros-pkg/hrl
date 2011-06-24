@@ -38,7 +38,7 @@
 #include <iostream>
 #include <sstream>
 
-#define DISPLAY_SALIENCY_MAPS
+// #define DISPLAY_SALIENCY_MAPS
 // #define DISPLAY_COLOR_MAPS
 // #define DISPLAY_GABOR_FILTERS
 
@@ -181,7 +181,7 @@ Mat CenterSurroundMapper::operator()(Mat& frame, Mat& depth_map)
   cv::imshow("Depth i", depth_i);
   cv::imshow("Depth o", depth_o);
   cv::imshow("Combined Saliency", scaled);
-  cv::waitKey();
+  // cv::waitKey();
 #endif // DISPLAY_SALIENCY_MAPS
 
   return scaled;
