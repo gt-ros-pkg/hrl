@@ -18,7 +18,7 @@ class HRLArm():
         self.lock = RLock()
 
     #------- abstract functions ---------
-    def get_joint_angles():
+    def get_joint_angles(self):
         with self.lock:
             return copy.copy(self.q)
 
@@ -80,7 +80,7 @@ class HRLArmKinematics():
         raise RuntimeError('Unimplemented Function')
 
     ## define tooltip as a 3x1 np matrix in the wrist coord frame.
-    def set_tooltip(self, arm, p, rot=np.matrix(np.eye(3))):
+    def set_tooltip(self, p, rot=np.matrix(np.eye(3))):
         self.tooltip_pos = p
         self.tooltip_rot = rot
 
