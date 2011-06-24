@@ -71,6 +71,7 @@ class Door_EPC(epc.EPC):
         stop = ''
         # right arm only.
         wrist_force = self.robot.get_wrist_force(0, base_frame=True)
+        print 'wrist_force:', wrist_force
         mag = np.linalg.norm(wrist_force)
         if mag > self.eq_force_threshold:
             stop = 'force exceed'
@@ -233,9 +234,11 @@ class Door_EPC(epc.EPC):
             self.open_ang_exceed_count = 0
 
         cep_t = cep + eq_motion_vec * step_size
-        cep[0,0] = cep_t[0,0]
-        cep[1,0] = cep_t[1,0]
-        cep[2,0] = cep_t[2,0]
+        cep_t = cep + np.matrix([-1., 0., 0.]).T * step_size
+        if cep_t[0,0] > 0.1:
+            cep[0,0] = cep_t[0,0]
+            cep[1,0] = cep_t[1,0]
+            cep[2,0] = cep_t[2,0]
         
         print 'CEP:', cep.A1
 
@@ -348,7 +351,7 @@ if __name__ == '__main__':
     # for cabinets.
     #p1 = np.matrix([0.8, -0.40, -0.04]).T # pos 3
     #p1 = np.matrix([0.8, -0.10, -0.04]).T # pos 2
-    p1 = np.matrix([0.8, -0.25, -0.04]).T # pos 1
+    p1 = np.matrix([0.8, -0.1, -0.04]).T # pos 1
     door_epc.search_and_hook(arm, p1, hook_direction='left')
     door_epc.pull(arm, force_threshold=40., cep_vel=0.05)
 

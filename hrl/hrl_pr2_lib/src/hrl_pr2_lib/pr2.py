@@ -260,7 +260,9 @@ class PR2Head(Joint):
         min_time = .1
         self.set_poses(np.column_stack([cpos, pos]), np.array([min_time, min_time+nsecs]))
 
-
+###
+# DANGER.  DON"T RUN STOP AND WALK AWAY.
+##
 class PR2Base:
     def __init__(self, tflistener):
         self.tflistener = tflistener

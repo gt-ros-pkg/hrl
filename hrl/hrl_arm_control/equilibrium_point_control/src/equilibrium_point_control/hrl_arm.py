@@ -6,16 +6,21 @@
 
 import numpy as np, math
 import copy
+from threading import RLock
 
 class HRLArm():
     def __init__(self, kinematics):
         # object of class derived from HRLArmKinematics
         self.kinematics = kinematics
         self.ep = None # equilibrium point
+        self.q = None # angles
+        self.qdot = None # angular velocity
+        self.lock = RLock()
 
     #------- abstract functions ---------
     def get_joint_angles():
-        raise RuntimeError('Unimplemented Function')
+        with self.lock:
+            return copy.copy(self.q)
 
     def set_ep(self, *args):
         raise RuntimeError('Unimplemented Function')
@@ -24,7 +29,8 @@ class HRLArm():
         raise RuntimeError('Unimplemented Function')
 
     def get_ep(self):
-        return copy.copy(self.ep)
+        with self.lock:
+            return copy.copy(self.ep)
     
     # do we really need this function?
     def freeze(self):
@@ -63,6 +69,8 @@ class HRLArmKinematics():
     def IK_vanilla(self, p, rot, q_guess=None):
         raise RuntimeError('Unimplemented Function')
 
+    # @param p - 3x1 np matrix
+    # @param rot - orientation of end effector frame wrt base of the arm.
     def IK(self, p, rot, q_guess=None):
         # this code should be common to everyone.
         pass
