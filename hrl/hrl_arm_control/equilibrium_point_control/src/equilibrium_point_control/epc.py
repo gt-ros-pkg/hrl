@@ -1,5 +1,6 @@
 
 import numpy as np, math
+import copy
 import roslib; roslib.load_manifest('epc_core')
 import rospy
 from std_msgs.msg import Bool
@@ -18,7 +19,8 @@ class EP_Generator():
 # More complex behaviors that use EPC should have their own ROS
 # packages.
 class EPC():
-    def __init__(self, epc_name = 'epc'):
+    def __init__(self, robot, epc_name = 'epc'):
+        self.robot = robot
         self.stop_epc = False
         self.pause_epc = False
         rospy.Subscriber('/'+epc_name+'/stop', Bool, self.stop_cb)
@@ -81,7 +83,35 @@ class EPC():
 
         return stop, ea
 
+    ##
+    # this function only makes sense for arms where we have Joint
+    # space Equilibrium Point Control.
+    def go_jep(self, goal_jep, speed=math.radians(20)):
+        start_jep = self.robot.get_ep()
+        diff_jep = np.array(goal_jep) - np.array(start_jep)
+        time_step = 0.02
+        max_ch = np.max(np.abs(diff_jep))
+        total_time = max_ch / speed
+        n_steps = max(np.round(total_time / time_step + 0.5), 1)
+        jep_step = diff_jep / n_steps
 
-
+        def eq_gen_func(ep_gen):
+            jep = ep_gen.jep
+            step_num = ep_gen.step_num
+            if step_num < n_steps:
+                q = list(np.array(jep) + jep_step)
+                stop = ''
+            else:
+                q = None
+                stop = 'Reached'
+            step_num += 1
+            ep_gen.jep = q
+            ep_gen.step_num = step_num
+            return stop, (q, time_step*1.2)
+        
+        ep_gen = EP_Generator(eq_gen_func, self.robot.set_ep)
+        ep_gen.step_num = 0
+        ep_gen.jep = copy.copy(start_jep)
+        return self.epc_motion(ep_gen, time_step)
 
 

@@ -255,7 +255,7 @@ class M3HrlRobot():
         chain = self.cody_kdl[arm]['chain']
         v_list = []
         w_list = []
-        for i in range(7):
+        for i in range(self.n_joints):
             p, rot = self.FK_all(arm, q, i)
             r = pos - p
             z_idx = chain.getSegment(i).getJoint().getType() - 1

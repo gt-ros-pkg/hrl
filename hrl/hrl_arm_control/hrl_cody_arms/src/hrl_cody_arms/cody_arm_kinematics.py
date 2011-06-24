@@ -194,7 +194,6 @@ class CodyArmKinematics(HRLArmKinematics):
             pos = self.FK(q)[0]
 
         ch = self.kdl_chains['chain']
-        tooltip_pos = self.tooltip_pos
         v_list = []
         w_list = []
 
@@ -203,6 +202,16 @@ class CodyArmKinematics(HRLArmKinematics):
             r = pos - p
             z_idx = ch.getSegment(i).getJoint().getType() - 1
             z = rot[:, z_idx]
+
+            # this is a nasty trick. The rotation matrix returned by
+            # FK_vanilla describes the orientation of a frame of the
+            # KDL chain in the base frame. It just so happens that the
+            # way Advait defined the KDL chain, the axis of rotation
+            # in KDL is the -ve of the axis of rotation on the real
+            # robot.
+            # Advait apologizes for this.
+            z = -z
+
             v_list.append(np.matrix(np.cross(z.A1, r.A1)).T)
             w_list.append(z)
 

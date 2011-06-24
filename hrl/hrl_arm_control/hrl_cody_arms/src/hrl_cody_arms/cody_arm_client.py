@@ -68,7 +68,7 @@ class CodyArmClient(HRLArm):
         self.fts_bias = {'force': np.matrix(np.zeros(3)).T,
                          'torque': np.matrix(np.zeros(3)).T}
 
-        self.joint_names_list = get_joint_name_dict(arm)
+        self.joint_names_list = get_joint_name_list(arm)
 
         self.jep_cmd_pub = rospy.Publisher('/'+arm+'_arm/command/jep', FloatArray)
         self.alph_cmd_pub = rospy.Publisher('/'+arm+'_arm/command/joint_impedance_scale',
@@ -78,13 +78,13 @@ class CodyArmClient(HRLArm):
 
         self.cep_marker_pub = rospy.Publisher('/'+arm+'_arm/viz/cep', Marker)
 
-        rospy.Subscriber('/'+arm+'_arm/jep', FloatArray, self.r_arm_jep_cb)
-        rospy.Subscriber('/'+arm+'_arm/joint_impedance_scale', FloatArray, self.r_arm_alpha_cb)
+        rospy.Subscriber('/'+arm+'_arm/jep', FloatArray, self.ep_cb)
+        rospy.Subscriber('/'+arm+'_arm/joint_impedance_scale', FloatArray, self.alpha_cb)
 
-        rospy.Subscriber('/'+arm+'_arm/q', FloatArray, self.r_arm_q_cb)
+        rospy.Subscriber('/'+arm+'_arm/q', FloatArray, self.q_cb)
 
-        rospy.Subscriber('/'+arm+'_arm/force', FloatArray, self.r_arm_force_cb)
-        rospy.Subscriber('/'+arm+'_arm/force_raw', FloatArray, self.r_arm_raw_force_cb)
+        rospy.Subscriber('/'+arm+'_arm/force', FloatArray, self.force_cb)
+        rospy.Subscriber('/'+arm+'_arm/force_raw', FloatArray, self.raw_force_cb)
 
         rospy.Subscriber('/arms/pwr_state', Bool, self.pwr_state_cb)
 
@@ -111,11 +111,11 @@ class CodyArmClient(HRLArm):
             self.q = copy.copy(msg.data)
 
     def force_cb(self, msg):
-        with lock:
+        with self.lock:
             self.ft_val = copy.copy(msg.data)
 
     def raw_force_cb(self, msg):
-        with lock:
+        with self.lock:
             self.raw_force = copy.copy(msg.data)
 
     #--------- functions to use -----------------
@@ -167,7 +167,7 @@ class CodyArmClient(HRLArm):
 
     # @return array-like of floats b/w 0 and 1.
     def get_impedance_scale(self):
-        with lock:
+        with self.lock:
             sc = copy.copy(self.alpha)
         return sc
 

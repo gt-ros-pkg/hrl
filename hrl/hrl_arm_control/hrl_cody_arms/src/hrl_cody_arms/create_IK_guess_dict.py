@@ -28,7 +28,6 @@
 # Author: Advait Jain
 
 import cody_arm_kinematics as cak
-import cody_arm_client as cac
 import math, numpy as np
 import sys, optparse
 
@@ -70,6 +69,7 @@ def create_dict(fname):
 
 def record_good_configs(use_left_arm):
     import m3.toolbox as m3t
+    import cody_arm_client as cac
     if use_left_arm:
         arm = 'l'
     else:
