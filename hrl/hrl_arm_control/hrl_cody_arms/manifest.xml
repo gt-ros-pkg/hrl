@@ -1,7 +1,7 @@
 <package>
     <description brief="hrl_cody_arms">
 
-        hrl_cody_arms
+        Control Meka Arms that HRL has on its robot Cody.
 
     </description>
     <author>Advait Jain, Advisor: Prof. Charlie Kemp, Lab: Healthcare Robotics Lab</author>
