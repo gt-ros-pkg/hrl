@@ -57,6 +57,7 @@ class CenterSurroundMapper
   cv::Mat mapSum(std::vector<cv::Mat>& maps);
   cv::Mat normalize(cv::Mat& map, float max_val);
   cv::Mat scaleMap(cv::Mat map);
+  cv::Mat upSampleResponse(cv::Mat& m_s, int s, cv::Size size0);
   void generateGaborFilters();
 
  protected:
