@@ -48,9 +48,15 @@ class CenterSurroundMapper
                        int max_delta = 4);
 
   cv::Mat operator()(cv::Mat& frame, bool use_gradient=false);
+  cv::Mat operator()(cv::Mat& frame, cv::Mat& depth_map);
+  cv::Mat getSaliencyMap(cv::Mat& frame);
+  cv::Mat getIntensityMap(cv::Mat& frame);
+  cv::Mat getColorMap(cv::Mat& frame);
+  cv::Mat getOrientationMap(cv::Mat& frame);
   cv::Mat mapDifference(cv::Mat& m_c, cv::Mat& m_s, int c, int s);
   cv::Mat mapSum(std::vector<cv::Mat>& maps);
   cv::Mat normalize(cv::Mat& map, float max_val);
+  cv::Mat scaleMap(cv::Mat map);
   void generateGaborFilters();
 
  protected:
