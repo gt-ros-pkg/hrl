@@ -38,7 +38,7 @@
 #include <iostream>
 #include <sstream>
 
-// #define DISPLAY_SALIENCY_MAPS
+#define DISPLAY_SALIENCY_MAPS
 // #define DISPLAY_COLOR_MAPS
 // #define DISPLAY_GABOR_FILTERS
 
@@ -177,10 +177,14 @@ Mat CenterSurroundMapper::operator()(Mat& frame, Mat& depth_map)
   scaled = scaleMap(saliency_map);
 
 #ifdef DISPLAY_SALIENCY_MAPS
-  cv::imshow("Frame Saliency", frame_saliency);
-  cv::imshow("Depth i", depth_i);
-  cv::imshow("Depth o", depth_o);
-  cv::imshow("Combined Saliency", scaled);
+  Mat display_fs = upSampleResponse(frame_saliency, min_delta_, frame.size());
+  Mat display_i = upSampleResponse(depth_i, min_delta_, frame.size());
+  Mat display_o = upSampleResponse(depth_o, min_delta_, frame.size());
+  Mat display_scaled = upSampleResponse(scaled, min_delta_, frame.size());
+  cv::imshow("Frame Saliency", display_fs);
+  cv::imshow("Depth i", display_i);
+  cv::imshow("Depth o", display_o);
+  cv::imshow("Combined Saliency", display_scaled);
   // cv::waitKey();
 #endif // DISPLAY_SALIENCY_MAPS
 
@@ -494,7 +498,7 @@ Mat CenterSurroundMapper::getIntensityMap(Mat& frame)
   }
   else
   {
-    frame.copyTo(I);
+    frame.convertTo(I, CV_32FC1);
   }
 
   float max_i = 0;
@@ -572,7 +576,7 @@ Mat CenterSurroundMapper::getOrientationMap(Mat& frame)
   }
   else
   {
-    frame.copyTo(I);
+    frame.convertTo(I, CV_32FC1);
   }
 
   float max_i = 0;
@@ -1016,4 +1020,35 @@ Mat CenterSurroundMapper::scaleMap(Mat saliency_map)
   cv::equalizeHist(saliency_int, scaled);
   return scaled;
 }
+
+cv::Mat CenterSurroundMapper::upSampleResponse(cv::Mat& m_s, int s, cv::Size size0)
+{
+  // Upsample from scale s to scale 0
+  cv::Mat m_s_prime;
+  cv::Mat temp;
+  m_s.copyTo(m_s_prime);
+  m_s.copyTo(temp);
+
+  // Calculate the correct sizes to up sample to
+  std::vector<cv::Size> sizes;
+  cv::Size current_size = size0;
+  for (int i = 0; i < s; i++)
+  {
+    sizes.push_back(current_size);
+    current_size.width /= 2;
+    current_size.height /= 2;
+  }
+
+  for (int i = 0; i < s; i++)
+  {
+    cv::Size up_size;
+    up_size = sizes.back();
+    sizes.pop_back();
+    cv::pyrUp(temp, m_s_prime, up_size);
+    temp = m_s_prime;
+  }
+
+  return m_s_prime;
+}
+
 }

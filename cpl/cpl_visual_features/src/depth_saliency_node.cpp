@@ -81,11 +81,15 @@ class DepthSaliencyNode
     cv::cvtColor(input_frame, input_frame, CV_RGB2BGR);
     cv::imshow("input_frame", input_frame);
     cv::imshow("depth_frame", depth_frame);
-    cv::Mat saliency_map = csm(input_frame, depth_frame);
-    cv::Mat display_saliency = upSampleResponse(saliency_map, 3,
-                                                input_frame.size());
-    cv::imshow("saliency_map", display_saliency);
-    cv::waitKey(3);
+
+
+    cv::Mat scaled_depth_frame = csm.scaleMap(depth_frame);
+    cv::imshow("scaled_frame", scaled_depth_frame);
+    cv::Mat scaled_depth_float(depth_frame.rows, depth_frame.cols, CV_32FC1);
+    scaled_depth_frame.convertTo(scaled_depth_float, CV_32FC1);
+    cv::Mat saliency_map = csm(input_frame, scaled_depth_float);
+    // cv::Mat saliency_map = csm(input_frame, depth_frame);
+    cv::waitKey();
   }
 
   cv::Mat upSampleResponse(cv::Mat& m_s, int s, cv::Size size0)
