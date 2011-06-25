@@ -15,7 +15,7 @@
   <depend package="roscpp"/>
   <depend package="roslib"/>
   <export>
-    <cpp cflags="-I${prefix}/include -I${prefix}/src" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lcpl_visual_features_base -lcpl_visual_features_saliency" /> -->
+    <cpp cflags="-I${prefix}/include -I${prefix}/src" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lcpl_visual_features_base -lcpl_visual_features_saliency" />
   </export>
 
 </package>
