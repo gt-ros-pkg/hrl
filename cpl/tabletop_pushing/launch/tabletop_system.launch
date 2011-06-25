@@ -2,7 +2,7 @@
     <include file="$(find tabletop_pushing)/launch/reactive_move.launch"/>
     <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch"/>
     <include file="$(find tabletop_pushing)/launch/kinect_segmenter.launch"/>
-    <!-- <node pkg="tabletop_pushing" type="tabletop_push_node.py" name="tabletop_push_node" output="screen"> -->
-    <!--   <param name="collision_aware_ik" type="int" value="0"/> -->
-    <!-- </node> -->
+    <node pkg="tabletop_pushing" type="tabletop_push_node.py" name="tabletop_push_node" output="screen">
+      <param name="collision_aware_ik" type="int" value="0"/>
+    </node>
 </launch>
