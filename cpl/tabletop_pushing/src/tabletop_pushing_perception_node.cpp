@@ -70,7 +70,6 @@
 
 // Superpixels
 #include <cpl_superpixels/segment/segment.h>
-//#include <segment/segment.h>
 
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
@@ -83,12 +82,13 @@
 #include <fstream>
 #include <utility>
 
-// #define CALL_PUSH_POSE_ON_CALLBCK
+//  #define CALL_PUSH_POSE_ON_CALLBCK
 
 using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
-typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,sensor_msgs::Image> MySyncPolicy;
+typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
+                                                        sensor_msgs::Image> MySyncPolicy;
 
 class PushPoint
 {
@@ -114,6 +114,7 @@ class TabletopPushingPerceptionNode
       n_(n),
       image_sub_(n,"color_image_topic", 1),
       depth_sub_(n,"depth_image_topic", 1),
+      // point_sub_(n,"point_cloud_topic", 1),
       sync_(MySyncPolicy(1), image_sub_, depth_sub_),
       tf_(), have_depth_data_(false)
   {
@@ -167,18 +168,35 @@ class TabletopPushingPerceptionNode
     // TODO: This is quick and dirty, should use a joint segmentation of visual
     // and depth data
     int num_vis_regions = 0;
+    int vis_k = 500;
+    int vis_sigma = 0.7;
+    int vis_min_size = 30;
     int num_depth_regions = 0;
-    cv::Mat visual_regions = getSuperpixelImage(visual_frame, num_vis_regions);
-    cv::Mat depth_regions = getSuperpixelImage(depth_frame, num_depth_regions);
+    int depth_k = 500;
+    int depth_sigma = 0.3;
+    int depth_min_size = 30;
 
+    cv::Mat depth_scaled(depth_frame.rows, depth_frame.cols, CV_32FC1);
+    cv::Mat depth_int(depth_frame.rows, depth_frame.cols, CV_8UC1);
+    depth_frame.copyTo(depth_scaled);
+    depth_scaled *= 255;
+    depth_scaled.convertTo(depth_int, depth_int.type());
+    cv::Mat visual_regions = getSuperpixelImage(visual_frame, num_vis_regions,
+                                                vis_sigma, vis_k, vis_min_size);
+    cv::Mat depth_regions = getSuperpixelImage(depth_int,
+                                               num_depth_regions,
+                                               depth_sigma, depth_k,
+                                               depth_min_size);
     cv::imshow("visual_frame", visual_frame);
     cv::imshow("depth_frame", depth_frame);
     cv::imshow("visual_regions", visual_regions);
     cv::imshow("depth_regions", depth_regions);
     cv::waitKey();
 
-    // TODO: Extract push pose from the images and transform to be in the
-    // torso_lift_link
+    // TODO: Choose a patch based on some simple criterian
+    // TODO: Estimate the surface of the patch from the depth image
+    // TODO: Extract the push pose as point in the center of that surface
+    // TODO: Transform to be in the torso_lift_link
     PushPose::Response res;
     geometry_msgs::PoseStamped p;
     res.push_pose = p;
@@ -200,6 +218,7 @@ class TabletopPushingPerceptionNode
   ros::NodeHandle n_;
   message_filters::Subscriber<sensor_msgs::Image> image_sub_;
   message_filters::Subscriber<sensor_msgs::Image> depth_sub_;
+  // message_filters::Subscriber<sensor_msgs::PointCloud2> point_sub_;
   message_filters::Synchronizer<MySyncPolicy> sync_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
