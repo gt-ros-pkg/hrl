@@ -96,7 +96,6 @@ class TabletopExecutive:
         for i in xrange(num_r_overhead_pushes):
             self.overhead_push_object(self.gripper_push_dist, 'r')
 
-
     def gripper_push_object(self, push_dist, which_arm):
         # Make push_pose service request
         pose_req = PushPoseRequest()
@@ -121,7 +120,8 @@ class TabletopExecutive:
         push_req.wrist_yaw = wrist_yaw
         push_req.desired_push_dist = push_dist
 
-        # TODO: Remove these offsets and incorporate them directly into the perceptual inference
+        # TODO: Remove these offsets and incorporate them directly into the
+        # perceptual inference
         # Offset pose to not hit the object immediately
         push_req.start_point.point.x += self.gripper_x_offset*cos(wrist_yaw)
         push_req.start_point.point.y += self.gripper_x_offset*sin(wrist_yaw)

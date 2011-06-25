@@ -68,6 +68,10 @@
 #include <cpl_visual_features/features/hsv_color_histogram.h>
 #include <cpl_visual_features/features/attribute_learning_base_feature.h>
 
+// Superpixels
+#include <cpl_superpixels/segment/segment.h>
+//#include <segment/segment.h>
+
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
 
@@ -79,6 +83,9 @@
 #include <fstream>
 #include <utility>
 
+// #define CALL_PUSH_POSE_ON_CALLBCK
+
+using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,sensor_msgs::Image> MySyncPolicy;
@@ -122,19 +129,22 @@ class TabletopPushingPerceptionNode
                       const sensor_msgs::ImageConstPtr& depth_msg)
   {
     // Convert images to OpenCV format
-    cv::Mat input_frame(bridge_.imgMsgToCv(img_msg));
+    cv::Mat visual_frame(bridge_.imgMsgToCv(img_msg));
     cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
     // Save internally for use in the service callback
-    cur_frame_ = input_frame;
+    cur_visual_frame_ = visual_frame;
     cur_depth_frame_ = depth_frame;
     have_depth_data_ = true;
+#ifdef CALL_PUSH_POSE_ON_CALLBCK
+    PushPose::Response p = findPushPose(cur_visual_frame_, cur_depth_frame_);
+#endif // CALL_PUSH_POSE_ON_CALLBCK
   }
 
   bool getPushPose(PushPose::Request& req, PushPose::Response& res)
   {
     if ( have_depth_data_ )
     {
-      res = findPushPose(cur_frame_, cur_depth_frame_);
+      res = findPushPose(cur_visual_frame_, cur_depth_frame_);
     }
     else
     {
@@ -144,9 +154,31 @@ class TabletopPushingPerceptionNode
     return true;
   }
 
-  PushPose::Response findPushPose(cv::Mat& input_frame,
+  PushPose::Response findPushPose(cv::Mat& visual_frame,
                                   cv::Mat& depth_frame)
   {
+    return superpixelFindPushPose(visual_frame, depth_frame);
+  }
+
+  PushPose::Response superpixelFindPushPose(cv::Mat& visual_frame,
+                                            cv::Mat& depth_frame)
+  {
+    cv::cvtColor(visual_frame, visual_frame, CV_RGB2BGR);
+    // TODO: This is quick and dirty, should use a joint segmentation of visual
+    // and depth data
+    int num_vis_regions = 0;
+    int num_depth_regions = 0;
+    cv::Mat visual_regions = getSuperpixelImage(visual_frame, num_vis_regions);
+    cv::Mat depth_regions = getSuperpixelImage(depth_frame, num_depth_regions);
+
+    cv::imshow("visual_frame", visual_frame);
+    cv::imshow("depth_frame", depth_frame);
+    cv::imshow("visual_regions", visual_regions);
+    cv::imshow("depth_regions", depth_regions);
+    cv::waitKey();
+
+    // TODO: Extract push pose from the images and transform to be in the
+    // torso_lift_link
     PushPose::Response res;
     geometry_msgs::PoseStamped p;
     res.push_pose = p;
@@ -172,7 +204,7 @@ class TabletopPushingPerceptionNode
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
   ros::ServiceServer push_point_server_;
-  cv::Mat cur_frame_;
+  cv::Mat cur_visual_frame_;
   cv::Mat cur_depth_frame_;
   bool have_depth_data_;
 };
