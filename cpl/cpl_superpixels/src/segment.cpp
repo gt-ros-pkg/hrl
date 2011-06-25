@@ -9,7 +9,7 @@
 #include <segment/converter.h>
 #include <cpl_superpixels/SmoothClutter.h>
 
-//#define DISPLAY_SUPERPIXELS
+// #define DISPLAY_SUPERPIXELS
 
 namespace cpl_superpixels
 {

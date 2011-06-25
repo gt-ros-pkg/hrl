@@ -6,13 +6,11 @@
 #include <string>
 #include <vector>
 
-#include <segment/segment-image.h>
-#include <segment/image.h>
-#include <segment/converter.h>
+#include <segment/segment.h>
 #include <cpl_superpixels/SmoothClutter.h>
 
-//#define DISPLAY_SUPERPIXELS
 using cpl_superpixels::SmoothClutter;
+using cpl_superpixels::getSuperpixelImage;
 
 class SuperpixelSmootherNode
 {
@@ -34,56 +32,6 @@ class SuperpixelSmootherNode
     smoother_srv_ = n_.advertiseService(
         "smooth_clutter", &SuperpixelSmootherNode::smoothClutterService, this);
 
-  }
-
-  /**
-   * This is the core class method used for computing the superpixels of a given
-   * image.
-   *
-   * @param input_img The image of which to compute the superpixels
-   *
-   * @return An image with each pixel corresponding to the patch label
-   */
-  cv::Mat getSuperpixelImage(cv::Mat input_img, int& num_ccs)
-  {
-    IplImage ipl_img = input_img;
-
-    // Superpixels, Felzenszwalb
-    image<rgb>* im = IPLtoFELZS(&ipl_img);
-
-    image<rgb> *disp_im = segment_image(im, sigma_, k_, min_size_, &num_ccs);
-    delete im;
-
-    cv::Mat label_img(input_img.size(), CV_32FC1);
-
-    // Get segment IDs from disp_im
-    IplImage* disp_ipl;
-    for(int y = 0; y < input_img.rows; ++y)
-    {
-      for (int x = 0; x <input_img.cols; ++x)
-      {
-        // Make the indecies zero based
-        int idx = disp_im->data[y*disp_im->width() + x].idx - 1;
-        label_img.at<float>(y,x) = idx;
-      }
-    }
-    disp_ipl = FELZStoIPL(disp_im);
-    delete disp_im;
-    cv::Mat disp_img(disp_ipl);
-    cv::Mat sp_save_img(disp_img.size(), CV_8UC3);
-    disp_img.convertTo(sp_save_img, CV_8UC3);
-    cv::imwrite("/home/thermans/Desktop/sp.png", sp_save_img);
-
-#ifdef DISPLAY_SUPERPIXELS
-    // Save segmented image for return when queried? or, constantly publish
-    ROS_INFO_STREAM("Have: " << num_ccs << " components.");
-    cv::imshow("superpixels", disp_img);
-    cv::imshow("labels", label_img);
-    cv::waitKey(3);
-#endif // DISPLAY_SUPERPIXELS
-
-    cvReleaseImage(&disp_ipl);
-    return label_img;
   }
 
   cv::Mat smoothClutter(cv::Mat& sp_img, cv::Mat& label_img, int num_regions)
@@ -184,7 +132,8 @@ class SuperpixelSmootherNode
     cv::Mat raw_img = bridge_.imgMsgToCv(raw_img_msg);
     cv::Mat label_img = bridge_.imgMsgToCv(label_img_msg);
     int num_regions = 0;
-    cv::Mat sp_img = getSuperpixelImage(raw_img, num_regions);
+    cv::Mat sp_img = getSuperpixelImage(raw_img, num_regions, sigma_, k_,
+                                        min_size_);
 
     ROS_INFO("Performing majority vote.");
     cv::Mat smooth_labels = smoothClutter(sp_img, label_img, num_regions);
@@ -208,7 +157,8 @@ class SuperpixelSmootherNode
     input_img = bridge_.imgMsgToCv(msg_ptr);
 
     int num_regions = 0;
-    cv::Mat label_img = getSuperpixelImage(input_img, num_regions);
+    cv::Mat label_img = getSuperpixelImage(input_img, num_regions, sigma_, k_,
+                                           min_size_);
 
     // Publish the label data
     sensor_msgs::ImageConstPtr label_msg;
