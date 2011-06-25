@@ -1,12 +1,11 @@
 #include <ros/ros.h>
-//#include <opencv2/core/core.hpp>
-#include <segment/segment.h>
+#include <cpl_superpixels/segment/segment.h>
 #include <opencv2/highgui/highgui.hpp>
 #include <string>
 
-#include <segment/segment-image.h>
-#include <segment/image.h>
-#include <segment/converter.h>
+#include <cpl_superpixels/segment/segment-image.h>
+#include <cpl_superpixels/segment/image.h>
+#include <cpl_superpixels/segment/converter.h>
 #include <cpl_superpixels/SmoothClutter.h>
 
 // #define DISPLAY_SUPERPIXELS

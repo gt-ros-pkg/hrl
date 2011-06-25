@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include <segment/segment.h>
+#include <cpl_superpixels/segment/segment.h>
 #include <cpl_superpixels/SmoothClutter.h>
 
 using cpl_superpixels::SmoothClutter;
