@@ -1,4 +1,3 @@
-
 #
 # Any robot that wants to use EPC should implement the functions
 # sketched out in the HRLArm and HRLArmKinematics
