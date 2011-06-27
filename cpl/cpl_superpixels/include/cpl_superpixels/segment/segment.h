@@ -2,5 +2,7 @@
 namespace cpl_superpixels
 {
 cv::Mat getSuperpixelImage(cv::Mat input_img, int& num_ccs, double sigma=0.3,
-                           int k=500, int min_size=10);
+                           double k=500.0, int min_size=10);
+cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
+                           double sigma=0.3, double k=500.0, int min_size=10);
 };

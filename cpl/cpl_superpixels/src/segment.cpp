@@ -14,7 +14,7 @@ namespace cpl_superpixels
 {
 
 cv::Mat getSuperpixelImage(cv::Mat input_img, int& num_ccs, double sigma,
-                           int k, int min_size)
+                           double k, int min_size)
 {
   IplImage ipl_img = input_img;
   // Superpixels, Felzenszwalb
@@ -31,4 +31,28 @@ cv::Mat getSuperpixelImage(cv::Mat input_img, int& num_ccs, double sigma,
   cvReleaseImage(&disp_ipl);
   return disp_img;
 }
+
+cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
+                           double sigma, double k, int min_size)
+{
+  IplImage color_ipl_img = color_img;
+  IplImage depth_ipl_img = depth_img;
+  // Superpixels, Felzenszwalb
+  image<rgb>* color_im = IPLtoFELZS(&color_ipl_img);
+  image<float>* depth_im = DEPTHtoFELZS(&depth_ipl_img);
+  image<rgb> *disp_im = segment_image(color_im, depth_im, sigma, k, min_size,
+                                      &num_ccs);
+  delete color_im;
+  delete depth_im;
+  // Convert to cv::Mat
+  IplImage* disp_ipl;
+  disp_ipl = FELZStoIPL(disp_im);
+  delete disp_im;
+  cv::Mat tmp_img(disp_ipl);
+  cv::Mat disp_img(tmp_img.size(), tmp_img.type());
+  tmp_img.copyTo(disp_img);
+  cvReleaseImage(&disp_ipl);
+  return disp_img;
+}
+
 };

@@ -10,7 +10,7 @@
 #include <cpl_superpixels/SmoothClutter.h>
 
 using cpl_superpixels::SmoothClutter;
-using cpl_superpixels::getSuperpixelImage;
+// using cpl_superpixels::getSuperpixelImage;
 
 class SuperpixelSmootherNode
 {
@@ -21,7 +21,7 @@ class SuperpixelSmootherNode
   {
     ros::NodeHandle n_private("~");
     n_private.param("superpixel_sigma", sigma_, 0.3);
-    n_private.param("superpixel_k", k_, 500);
+    n_private.param("superpixel_k", k_, 500.0);
     n_private.param("min_patch_size", min_size_, 10);
 
     image_sub_ = it_.subscribe("image_topic", 1,
@@ -132,9 +132,8 @@ class SuperpixelSmootherNode
     cv::Mat raw_img = bridge_.imgMsgToCv(raw_img_msg);
     cv::Mat label_img = bridge_.imgMsgToCv(label_img_msg);
     int num_regions = 0;
-    cv::Mat sp_img = getSuperpixelImage(raw_img, num_regions, sigma_, k_,
-                                        min_size_);
-
+    cv::Mat sp_img = cpl_superpixels::getSuperpixelImage(raw_img, num_regions,
+                                                         sigma_, k_, min_size_);
     ROS_INFO("Performing majority vote.");
     cv::Mat smooth_labels = smoothClutter(sp_img, label_img, num_regions);
 
@@ -157,8 +156,9 @@ class SuperpixelSmootherNode
     input_img = bridge_.imgMsgToCv(msg_ptr);
 
     int num_regions = 0;
-    cv::Mat label_img = getSuperpixelImage(input_img, num_regions, sigma_, k_,
-                                           min_size_);
+    cv::Mat label_img = cpl_superpixels::getSuperpixelImage(input_img,
+                                                            num_regions, sigma_,
+                                                            k_, min_size_);
 
     // Publish the label data
     sensor_msgs::ImageConstPtr label_msg;
@@ -186,7 +186,7 @@ class SuperpixelSmootherNode
   image_transport::Publisher label_pub_;
   sensor_msgs::CvBridge bridge_;
   double sigma_;
-  int k_;
+  double k_;
   int min_size_;
 };
 

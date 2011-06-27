@@ -42,6 +42,23 @@ image<rgb>* IPLtoFELZS(IplImage* input)
     return output;
 }
 
+image<float>* DEPTHtoFELZS(IplImage* input)
+{
+    image<float> *output;
+    output = new image<float>(input->width, input->height, true);
+    unsigned char* p;
+
+    for(int y = 0; y < input->height; ++y) {
+        for(int x = 0; x < input->width; ++x) {
+            p = (unsigned char*) &input->imageData[input->widthStep * y+
+                                                  input->nChannels * x];
+            output->data[y * output->width() + x] = *p;
+        }
+    }
+
+    return output;
+}
+
 IplImage* FELZStoIPL(image<rgb>* input)
 {
     IplImage *output = cvCreateImage(cvSize(input->width(), input->height()),
