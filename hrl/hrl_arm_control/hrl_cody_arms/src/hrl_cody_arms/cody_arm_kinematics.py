@@ -190,6 +190,11 @@ class CodyArmKinematics(HRLArmKinematics):
     ## compute Jacobian at point pos. 
     # p is in the ground coord frame.
     def Jacobian(self, q, pos=None):
+        print '-------------------------'
+        print 'pos:', pos.A1
+        print 'ee:', self.FK(q)[0].A1
+        print '-------------------------'
+        #pos = None
         if pos == None:
             pos = self.FK(q)[0]
 
