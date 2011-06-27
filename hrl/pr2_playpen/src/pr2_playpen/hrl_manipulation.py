@@ -33,6 +33,7 @@ roslib.load_manifest('pr2_playpen')
 roslib.load_manifest('pr2_grasp_behaviors')
 import rospy
 import actionlib
+import hrl_pr2_lib.pressure_listener as pl
 from object_manipulator.convert_functions import *
 from pr2_playpen.srv import Playpen
 from pr2_playpen.srv import Conveyor
@@ -48,31 +49,28 @@ import cPickle
 import math
 import numpy as np
 
-class SimplePickAndPlaceExample():
+class HRLControllerPlaypen():
 
     def __init__(self):
-
         print "waiting for conveyor"
         rospy.wait_for_service('playpen')
         rospy.wait_for_service('conveyor')
         print "started conveyor and playpen"
         self.playpen = rospy.ServiceProxy('playpen', Playpen)
         self.conveyor = rospy.ServiceProxy('conveyor', Conveyor)
-        # self.objects_dist = [.135, .26-.135, .405-.26, .545-.405, 
-        #                      .70-.545, .865-.70, .995-.865, 1.24-.995,
-        #                      .135, .26-.135, .405-.26, .545-.405, 
-        #                      .70-.545, .865-.70, .995-.865, 1.24-.995]
-        self.objects_dist = [0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.12,
-                             0.12, 0.12, 0.12]
+        self.objects_dist = [0.13, 0.13, 0.13, 0.13, 0.13, 0.13, 0.13,
+                             0.13, 0.13, 0.13]
 
         self.tries = 0
         self.successes = 0
+
+        self.r_grip_press = pl.PressureListener(topic='/pressure/r_gripper_motor')
+        self.l_grip_press = pl.PressureListener(topic='/pressure/l_gripper_motor')
 
         self.grasp_client = [None, None]
         self.grasp_setup_client = [None, None]
 
         self.grasp_client[0] = actionlib.SimpleActionClient('r_overhead_grasp', OverheadGraspAction)
-        print "died before r_overhead_grasp"
         self.grasp_client[0].wait_for_server()
         
         self.grasp_setup_client[0] = actionlib.SimpleActionClient('r_overhead_grasp_setup', OverheadGraspSetupAction)
@@ -81,7 +79,6 @@ class SimplePickAndPlaceExample():
         self.grasp_client[1].wait_for_server()
         self.grasp_setup_client[1] = actionlib.SimpleActionClient('l_overhead_grasp_setup', OverheadGraspSetupAction)
         self.grasp_setup_client[1].wait_for_server()
-        print  "got to end of init"
 
     def move_to_side(self, whicharm, open_gripper=False):
         rospy.loginfo("moving the arms to the side")
@@ -175,7 +172,7 @@ if __name__ == "__main__":
     opt, args = p.parse_args()
 
     rospy.init_node('simple_pick_and_place_example')
-    sppe = SimplePickAndPlaceExample()
+    hcp = HRLControllerPlaypen()
 
     #adjust for your table 
     table_height = 0.529
@@ -220,41 +217,44 @@ if __name__ == "__main__":
         print "Service call failed: %s"%e
 
     print "moving arms to side"
-    sppe.move_to_side(0, False)
-    sppe.move_to_side(1, False)
+    hcp.move_to_side(0, False)
+    hcp.move_to_side(1, False)
     print "done moving arms, sleeping ..."
     
     rospy.sleep(15)
     print "done sleeping, now training for table top"
 
     num_samples = train('table')
-    for i in xrange(len(sppe.objects_dist)):
+    for i in xrange(len(hcp.objects_dist)):
         try:
             if SAVE==True:
                 file_handle = open(save_dir+'/object'+str(i).zfill(3)+'.pkl', 'w')
             data = {}
-            sppe.playpen(0)
-            sppe.conveyor(sppe.objects_dist[i])
+            hcp.playpen(0)
+            hcp.conveyor(hcp.objects_dist[i])
 
             data['success'] = []
             data['frames'] = []
+            data['pressure'] = {}
+            data['pressure']['which_arm'] = []
+            data['pressure']['data'] = []
 
             start_time = rospy.get_time()
-            # while sppe.tries<3:
+            # while hcp.tries<3:
             while rospy.get_time()-start_time < 100.0:
                 print "arm is ", arm
-                sppe.move_to_side(arm, True)
+                hcp.move_to_side(arm, True)
                 rospy.sleep(7)
                 if SAVE == True:
-                    save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.pcd')
-                    save_pr2_image(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_pr2.png')
-                # save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.pcd')
-                # save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_before_playpen.png')
+                    save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(hcp.tries).zfill(3)+'_before_pr2.pcd')
+                    save_pr2_image(save_dir+'/object'+str(i).zfill(3)+'_try'+str(hcp.tries).zfill(3)+'_before_pr2.png')
+                # save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(hcp.tries).zfill(3)+'_before_playpen.pcd')
+                # save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(hcp.tries).zfill(3)+'_before_playpen.png')
                 num_samples = train('object')
                 print "attempting to pick up the object"
-                success = sppe.pick_up_object_near_point(target_point, arm)
+                success = hcp.pick_up_object_near_point(target_point, arm)
                 print "starting to move arm to side at :", rospy.get_time()
-                sppe.move_to_side(arm, False)
+                hcp.move_to_side(arm, False)
                 print "moved past move to side arm command at :", rospy.get_time()
                 results = []
                 
@@ -274,18 +274,18 @@ if __name__ == "__main__":
                    data['success'].append(success)
                 else:
                    success = False
-                   #sppe.tries = sppe.tries-1 # this is to compensate for failures in perception hopefully
+                   #hcp.tries = hcp.tries-1 # this is to compensate for failures in perception hopefully
 
                 print "SUCCESS IS :", success
 
                 if SAVE == True:
-                    save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_pr2.pcd')
-                    save_pr2_image(save_dir+'/object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_pr2.png')
-                # save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_playpen.pcd')
-                # save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(sppe.tries).zfill(3)+'_after_playpen.png')
+                    save_pr2_cloud(save_dir+'/object'+str(i).zfill(3)+'_try'+str(hcp.tries).zfill(3)+'_after_pr2.pcd')
+                    save_pr2_image(save_dir+'/object'+str(i).zfill(3)+'_try'+str(hcp.tries).zfill(3)+'_after_pr2.png')
+                # save_playpen_cloud(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(hcp.tries).zfill(3)+'_after_playpen.pcd')
+                # save_playpen_image(playpen_dir+'object'+str(i).zfill(3)+'_try'+str(hcp.tries).zfill(3)+'_after_playpen.png')
 
                 if success:
-                    sppe.successes=sppe.successes + 1
+                    hcp.successes=hcp.successes + 1
                     #square of size 30 cm by 30 cm
                     place_rect_dims = [.1, .1]
                     
@@ -304,18 +304,18 @@ if __name__ == "__main__":
                     place_rect_center = create_pose_stamped(center_xyz+center_quat,
                                                             'base_link')
 
-                    sppe.place_object(arm, place_rect_dims, place_rect_center)
+                    hcp.place_object(arm, place_rect_dims, place_rect_center)
 
-                sppe.move_to_side(arm, True)
+                hcp.move_to_side(arm, True)
                 arm = arm.__xor__(1)
-                sppe.tries = sppe.tries+1
+                hcp.tries = hcp.tries+1
 
-            sppe.playpen(1)
-            sppe.successes = 0
-            sppe.tries = 0
+            hcp.playpen(1)
+            hcp.successes = 0
+            hcp.tries = 0
             cPickle.dump(data, file_handle)
             file_handle.close()
-            sppe.playpen(0)
+            hcp.playpen(0)
 
         except:
             print "failed for object"
