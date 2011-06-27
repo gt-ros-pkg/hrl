@@ -6,5 +6,7 @@
     <param name="segment_k" value="300.0" type="double"/>
     <param name="segment_sigma" value="0.7" type="double"/>
     <param name="segment_min_size" value="30" type="int"/>
+    <param name="segment_color_weight" value="0.2" type="double"/>
+    <param name="segment_depth_weight" value="0.5" type="double"/>
   </node>
 </launch>

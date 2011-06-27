@@ -111,6 +111,8 @@ class TabletopPushingPerceptionNode
     n_private.param("segment_k", k_, 500.0);
     n_private.param("segment_sigma", sigma_, 0.9);
     n_private.param("segment_min_size", min_size_, 30);
+    n_private.param("segment_color_weight", wc_, 0.1);
+    n_private.param("segment_depth_weight", wd_, 0.7);
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
                            this);
     push_pose_server_ = n_.advertiseService(
@@ -170,10 +172,12 @@ class TabletopPushingPerceptionNode
     // pcl::PointCloud<pcl::Normal> normals;
     // ne.compute(points, normals, 0.02f, 10.0f);//, pcl::AVERAGE_DEPTH_CHANGE);
 
+    // TODO: Fill in gaps inside the depth data.
+    // TODO: Select inner ROI of images to remove border issues?
     int num_regions = 0;
     int num_vis_regions = 0;
     cv::Mat regions = getSuperpixelImage(visual_frame, depth_frame, num_regions,
-                                         sigma_, k_, min_size_);
+                                         sigma_, k_, min_size_, wc_, wd_);
     cv::Mat visual_regions = getSuperpixelImage(visual_frame, num_vis_regions,
                                                 sigma_, k_, min_size_);
     cv::imshow("visual_frame", visual_frame);
@@ -222,7 +226,8 @@ class TabletopPushingPerceptionNode
   double k_;
   double sigma_;
   int min_size_;
-
+  double wc_;
+  double wd_;
 };
 
 int main(int argc, char ** argv)
