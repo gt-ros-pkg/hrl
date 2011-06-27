@@ -83,8 +83,11 @@
 #include <sstream>
 #include <fstream>
 #include <utility>
+#include <math.h>
 
 #define CALL_PUSH_POSE_ON_CALLBCK
+#define DISPLAY_SUPERPIXELS
+// #define USE_DEPTH_ROI
 
 using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
@@ -161,11 +164,11 @@ class TabletopPushingPerceptionNode
     return superpixelFindPushPose(visual_frame, depth_frame, points);
   }
 
-  PushPose::Response superpixelFindPushPose(cv::Mat& visual_frame,
+  PushPose::Response superpixelFindPushPose(cv::Mat& color_frame,
                                             cv::Mat& depth_frame,
                                             XYZPointCloud& points)
   {
-    cv::cvtColor(visual_frame, visual_frame, CV_RGB2BGR);
+    cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
 
     // TODO: Fix normal estimation
     // pcl::IntegralImageNormalEstimation ne;
@@ -175,19 +178,52 @@ class TabletopPushingPerceptionNode
     // TODO: Fill in gaps inside the depth data.
     // TODO: Select inner ROI of images to remove border issues?
     int num_regions = 0;
-    int num_vis_regions = 0;
-    cv::Mat regions = getSuperpixelImage(visual_frame, depth_frame, num_regions,
-                                         sigma_, k_, min_size_, wc_, wd_);
-    cv::Mat visual_regions = getSuperpixelImage(visual_frame, num_vis_regions,
-                                                sigma_, k_, min_size_);
-    cv::imshow("visual_frame", visual_frame);
-    cv::imshow("depth_frame", depth_frame);
-    cv::imshow("vis_regions", visual_regions);
-    cv::imshow("vis_depth_regions", regions);
+    for (int x = 0; x < depth_frame.cols; ++x)
+    {
+      for (int y = 0; y < depth_frame.rows; ++y)
+      {
+        if (isnan(depth_frame.at<float>(x,y)))
+          depth_frame.at<float>(x,y) = 0.0;
+      }
+    }
 
+#ifdef USE_DEPTH_ROI
+    cv::Rect roi(22, 31, 580, 423);
+    cv::Mat depth_region = depth_frame(roi);
+    cv::Mat color_region = color_frame(roi);
+    cv::Mat regions = getSuperpixelImage(color_region, depth_region, num_regions,
+                                         sigma_, k_, min_size_, wc_, wd_);
+#else // USE_DEPTH_ROI
+    cv::Mat regions = getSuperpixelImage(color_frame, depth_frame, num_regions,
+                                         sigma_, k_, min_size_, wc_, wd_);
+
+#endif // USE_DEPTH_ROI
+    // int num_vis_regions = 0;
+    // cv::Mat visual_regions = getSuperpixelImage(color_frame, num_vis_regions,
+    //                                             sigma_, k_, min_size_);
+    // ROS_INFO_STREAM("Computed " << num_vis_regions << " visual regions");
     ROS_INFO_STREAM("Computed " << num_regions << " regions");
-    ROS_INFO_STREAM("Computed " << num_vis_regions << " visual regions");
+
+#ifdef DISPLAY_SUPERPIXELS
+    cv::Mat depth_display = depth_frame.clone();
+    double max_val = 1.0;
+    cv::minMaxLoc(depth_display, NULL, &max_val);
+    if (max_val > 0.0)
+    {
+      depth_display /= max_val;
+    }
+    cv::imshow("color_frame", color_frame);
+    // cv::imshow("depth_frame", depth_frame);
+    cv::imshow("depth_scaled_frame", depth_display);
+#ifdef USE_DEPTH_ROI
+    cv::imshow("depth_region", depth_region);
+#endif // USE_DEPTH_ROI
+    // cv::imshow("vis_regions", visual_regions);
+    cv::imshow("regions", regions);
     cv::waitKey();
+#endif // DISPLAY_SUPERPIXELS
+    ROS_INFO_STREAM("Computed " << num_regions << " regions");
+    // ROS_INFO_STREAM("Computed " << num_vis_regions << " visual regions");
 
     // TODO: Choose a patch based on some simple criterian
     // TODO: Estimate the surface of the patch from the depth image
