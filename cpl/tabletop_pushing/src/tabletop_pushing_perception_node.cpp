@@ -54,7 +54,9 @@
 
 // PCL
 #include <pcl/ros/conversions.h>
+#include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/features/integral_image_normal.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl_ros/transforms.h>
 
@@ -82,40 +84,26 @@
 #include <fstream>
 #include <utility>
 
-//  #define CALL_PUSH_POSE_ON_CALLBCK
+#define CALL_PUSH_POSE_ON_CALLBCK
 
 using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
+// typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
+//                                                         sensor_msgs::Image> MySyncPolicy;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
-                                                        sensor_msgs::Image> MySyncPolicy;
-
-class PushPoint
-{
- public:
-  PushPoint(cv::Point p2, pcl::PointXYZ p3) : point2d(p2), point3d(p3) {}
-  cv::Point point2d;
-  pcl::PointXYZ point3d;
-
-  bool operator<(const PushPoint& other) const
-  {
-    return ((other.point3d.x*other.point3d.x +
-             other.point3d.y*other.point3d.y) <
-            (point3d.x*point3d.x + point3d.y*point3d.y));
-  }
-};
-
-typedef std::priority_queue<PushPoint> PushPointList;
+                                                        sensor_msgs::Image,
+                                                        sensor_msgs::PointCloud2> MySyncPolicy;
 
 class TabletopPushingPerceptionNode
 {
  public:
   TabletopPushingPerceptionNode(ros::NodeHandle &n) :
       n_(n),
-      image_sub_(n,"color_image_topic", 1),
-      depth_sub_(n,"depth_image_topic", 1),
-      // point_sub_(n,"point_cloud_topic", 1),
-      sync_(MySyncPolicy(1), image_sub_, depth_sub_),
+      image_sub_(n, "color_image_topic", 1),
+      depth_sub_(n, "depth_image_topic", 1),
+      point_sub_(n, "point_cloud_topic", 1),
+      sync_(MySyncPolicy(1), image_sub_, depth_sub_, point_sub_),
       tf_(), have_depth_data_(false)
   {
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
@@ -126,8 +114,12 @@ class TabletopPushingPerceptionNode
 
   // TODO: Should we change this to actively poll the camera when the service
   // is called?
+  // void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
+  //                     const sensor_msgs::ImageConstPtr& depth_msg)
   void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
-                      const sensor_msgs::ImageConstPtr& depth_msg)
+                      const sensor_msgs::ImageConstPtr& depth_msg,
+                      const sensor_msgs::PointCloud2ConstPtr& point_msg)
+
   {
     // Convert images to OpenCV format
     cv::Mat visual_frame(bridge_.imgMsgToCv(img_msg));
@@ -218,7 +210,7 @@ class TabletopPushingPerceptionNode
   ros::NodeHandle n_;
   message_filters::Subscriber<sensor_msgs::Image> image_sub_;
   message_filters::Subscriber<sensor_msgs::Image> depth_sub_;
-  // message_filters::Subscriber<sensor_msgs::PointCloud2> point_sub_;
+  message_filters::Subscriber<sensor_msgs::PointCloud2> point_sub_;
   message_filters::Synchronizer<MySyncPolicy> sync_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;

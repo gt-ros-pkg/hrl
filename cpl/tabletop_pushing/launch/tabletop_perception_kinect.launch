@@ -2,5 +2,6 @@
   <node name="tabletop_pushing_perception" pkg="tabletop_pushing" type="tabletop_pushing_perception_node" respawn="false" output="screen">
     <remap from="color_image_topic" to="/kinect_head/rgb/image_color"/>
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
+    <remap from="point_cloud_topic" to="/kinect_head/rgb/points"/>
   </node>
 </launch>
