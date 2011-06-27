@@ -11,6 +11,8 @@ class PressureListener:
         self.rmat  = None
         self.lmat0 = None
         self.rmat0 = None
+        self.lmat_raw = None
+        self.rmat_raw = None
 
         self.safe_pressure_threshold = safe_pressure_threshold
         self.exceeded_safe_threshold = False
@@ -48,6 +50,9 @@ class PressureListener:
             self.rmat0 = rmat
             return
     
+        self.lmat_raw = lmat
+        self.rmat_raw = rmat
+
         lmat = lmat - self.lmat0
         rmat = rmat - self.rmat0
        
