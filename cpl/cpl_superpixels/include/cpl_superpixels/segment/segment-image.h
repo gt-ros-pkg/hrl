@@ -26,11 +26,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #include "segment-graph.h"
 #include <iostream>
 
-// WC is weight for a color channel
-#define WC 0.1
-// WD is weight for the depth channel
-#define WD 0.7
-
 // random color
 rgb random_rgb(){
   rgb c;
@@ -51,13 +46,30 @@ static inline float diff(image<float> *r, image<float> *g, image<float> *b,
 	      square(imRef(b, x1, y1)-imRef(b, x2, y2)));
 }
 
+/**
+ * Method to compare the dissimilairy between to RGB-D pixels
+ *
+ * @param r R image
+ * @param g G image
+ * @param b B image
+ * @param d D image
+ * @param x1 first x coord
+ * @param y1 first y coord
+ * @param x2 second x coord
+ * @param y2 second y coord
+ * @param wc Weight for color channels
+ * @param wd Weight for depth channels
+ *
+ * @return The dissimilarity
+ */
 static inline float depth_diff(image<float> *r, image<float> *g,
                                image<float> *b, image<float> *d,
-                               int x1, int y1, int x2, int y2) {
-  return sqrt(WC*square(imRef(r, x1, y1)-imRef(r, x2, y2)) +
-	      WC*square(imRef(g, x1, y1)-imRef(g, x2, y2)) +
-	      WC*square(imRef(b, x1, y1)-imRef(b, x2, y2)) +
-              WD*square(imRef(d, x1, y1)-imRef(d, x2, y2)));
+                               int x1, int y1, int x2, int y2,
+                               float wc, float wd) {
+  return sqrt(wc*square(imRef(r, x1, y1)-imRef(r, x2, y2)) +
+	      wc*square(imRef(g, x1, y1)-imRef(g, x2, y2)) +
+	      wc*square(imRef(b, x1, y1)-imRef(b, x2, y2)) +
+              wd*square(imRef(d, x1, y1)-imRef(d, x2, y2)));
 }
 
 /*
@@ -194,9 +206,12 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
  * c: constant for treshold function.
  * min_size: minimum component size (enforced by post-processing stage).
  * num_ccs: number of connected components in the segmentation.
+ * wc: weight on each color channel
+ * wd: weight on the depth channel
  */
 image<rgb> *segment_image(image<rgb> *color_im, image<float> *depth_im,
-                          float sigma, float c, int min_size, int *num_ccs) {
+                          float sigma, float c, int min_size, int *num_ccs,
+                          float wc, float wd) {
   int width = color_im->width();
   int height = color_im->height();
 
@@ -232,7 +247,7 @@ image<rgb> *segment_image(image<rgb> *color_im, image<float> *depth_im,
 	edges[num].a = y * width + x;
 	edges[num].b = y * width + (x+1);
 	edges[num].w = depth_diff(smooth_r, smooth_g, smooth_b, smooth_d, x, y,
-                                  x+1, y);
+                                  x+1, y, wc, wd);
 	num++;
       }
 
@@ -240,7 +255,7 @@ image<rgb> *segment_image(image<rgb> *color_im, image<float> *depth_im,
 	edges[num].a = y * width + x;
 	edges[num].b = (y+1) * width + x;
 	edges[num].w = depth_diff(smooth_r, smooth_g, smooth_b, smooth_d, x, y,
-                                  x, y+1);
+                                  x, y+1, wc, wd);
 	num++;
       }
 
@@ -248,7 +263,7 @@ image<rgb> *segment_image(image<rgb> *color_im, image<float> *depth_im,
 	edges[num].a = y * width + x;
 	edges[num].b = (y+1) * width + (x+1);
 	edges[num].w = depth_diff(smooth_r, smooth_g, smooth_b, smooth_d, x, y,
-                                  x+1, y+1);
+                                  x+1, y+1, wc, wd);
 	num++;
       }
 
@@ -256,7 +271,7 @@ image<rgb> *segment_image(image<rgb> *color_im, image<float> *depth_im,
 	edges[num].a = y * width + x;
 	edges[num].b = (y-1) * width + (x+1);
 	edges[num].w = depth_diff(smooth_r, smooth_g, smooth_b, smooth_d, x, y,
-                                  x+1, y-1);
+                                  x+1, y-1, wc, wd);
 	num++;
       }
     }

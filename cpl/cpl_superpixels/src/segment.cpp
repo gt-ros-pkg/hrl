@@ -33,7 +33,8 @@ cv::Mat getSuperpixelImage(cv::Mat input_img, int& num_ccs, double sigma,
 }
 
 cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
-                           double sigma, double k, int min_size)
+                           double sigma, double k, int min_size,
+                           double wc, double wd)
 {
   IplImage color_ipl_img = color_img;
   IplImage depth_ipl_img = depth_img;
@@ -41,7 +42,7 @@ cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
   image<rgb>* color_im = IPLtoFELZS(&color_ipl_img);
   image<float>* depth_im = DEPTHtoFELZS(&depth_ipl_img);
   image<rgb> *disp_im = segment_image(color_im, depth_im, sigma, k, min_size,
-                                      &num_ccs);
+                                      &num_ccs, wc, wd);
   delete color_im;
   delete depth_im;
   // Convert to cv::Mat
