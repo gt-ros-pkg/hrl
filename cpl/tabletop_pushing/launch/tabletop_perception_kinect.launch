@@ -3,5 +3,8 @@
     <remap from="color_image_topic" to="/kinect_head/rgb/image_color"/>
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
     <remap from="point_cloud_topic" to="/kinect_head/rgb/points"/>
+    <param name="segment_k" value="300.0" type="double"/>
+    <param name="segment_sigma" value="0.7" type="double"/>
+    <param name="segment_min_size" value="30" type="int"/>
   </node>
 </launch>

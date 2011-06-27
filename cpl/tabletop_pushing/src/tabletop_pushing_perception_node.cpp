@@ -89,11 +89,11 @@
 using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
-// typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
-//                                                         sensor_msgs::Image> MySyncPolicy;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
-                                                        sensor_msgs::Image,
-                                                        sensor_msgs::PointCloud2> MySyncPolicy;
+                                                        sensor_msgs::Image> MySyncPolicy;
+// typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
+//                                                         sensor_msgs::Image,
+//                                                         sensor_msgs::PointCloud2> MySyncPolicy;
 
 class TabletopPushingPerceptionNode
 {
@@ -102,34 +102,39 @@ class TabletopPushingPerceptionNode
       n_(n),
       image_sub_(n, "color_image_topic", 1),
       depth_sub_(n, "depth_image_topic", 1),
-      point_sub_(n, "point_cloud_topic", 1),
-      sync_(MySyncPolicy(1), image_sub_, depth_sub_, point_sub_),
+      // point_sub_(n, "point_cloud_topic", 1),
+      // sync_(MySyncPolicy(1), image_sub_, depth_sub_, point_sub_),
+      sync_(MySyncPolicy(1), image_sub_, depth_sub_),
       tf_(), have_depth_data_(false)
   {
+    ros::NodeHandle n_private("~");
+    n_private.param("segment_k", k_, 500.0);
+    n_private.param("segment_sigma", sigma_, 0.9);
+    n_private.param("segment_min_size", min_size_, 30);
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
                            this);
-    push_point_server_ = n_.advertiseService(
+    push_pose_server_ = n_.advertiseService(
         "get_push_pose", &TabletopPushingPerceptionNode::getPushPose, this);
   }
 
   // TODO: Should we change this to actively poll the camera when the service
   // is called?
-  // void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
-  //                     const sensor_msgs::ImageConstPtr& depth_msg)
   void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
-                      const sensor_msgs::ImageConstPtr& depth_msg,
-                      const sensor_msgs::PointCloud2ConstPtr& point_msg)
-
+                      const sensor_msgs::ImageConstPtr& depth_msg)
   {
     // Convert images to OpenCV format
     cv::Mat visual_frame(bridge_.imgMsgToCv(img_msg));
     cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
+    // XYZPointCloud cloud;
+    // pcl::fromROSMsg(*cloud_msg, cloud);
     // Save internally for use in the service callback
     cur_visual_frame_ = visual_frame;
     cur_depth_frame_ = depth_frame;
+    // cur_point_cloud_ = cloud;
     have_depth_data_ = true;
 #ifdef CALL_PUSH_POSE_ON_CALLBCK
-    PushPose::Response p = findPushPose(cur_visual_frame_, cur_depth_frame_);
+    PushPose::Response p = findPushPose(cur_visual_frame_, cur_depth_frame_,
+                                        cur_point_cloud_);
 #endif // CALL_PUSH_POSE_ON_CALLBCK
   }
 
@@ -137,7 +142,7 @@ class TabletopPushingPerceptionNode
   {
     if ( have_depth_data_ )
     {
-      res = findPushPose(cur_visual_frame_, cur_depth_frame_);
+      res = findPushPose(cur_visual_frame_, cur_depth_frame_, cur_point_cloud_);
     }
     else
     {
@@ -148,41 +153,36 @@ class TabletopPushingPerceptionNode
   }
 
   PushPose::Response findPushPose(cv::Mat& visual_frame,
-                                  cv::Mat& depth_frame)
+                                  cv::Mat& depth_frame,
+                                  XYZPointCloud& points)
   {
-    return superpixelFindPushPose(visual_frame, depth_frame);
+    return superpixelFindPushPose(visual_frame, depth_frame, points);
   }
 
   PushPose::Response superpixelFindPushPose(cv::Mat& visual_frame,
-                                            cv::Mat& depth_frame)
+                                            cv::Mat& depth_frame,
+                                            XYZPointCloud& points)
   {
     cv::cvtColor(visual_frame, visual_frame, CV_RGB2BGR);
-    // TODO: This is quick and dirty, should use a joint segmentation of visual
-    // and depth data
-    int num_vis_regions = 0;
-    int vis_k = 500;
-    int vis_sigma = 0.7;
-    int vis_min_size = 30;
-    int num_depth_regions = 0;
-    int depth_k = 500;
-    int depth_sigma = 0.3;
-    int depth_min_size = 30;
 
-    cv::Mat depth_scaled(depth_frame.rows, depth_frame.cols, CV_32FC1);
-    cv::Mat depth_int(depth_frame.rows, depth_frame.cols, CV_8UC1);
-    depth_frame.copyTo(depth_scaled);
-    depth_scaled *= 255;
-    depth_scaled.convertTo(depth_int, depth_int.type());
+    // TODO: Fix normal estimation
+    // pcl::IntegralImageNormalEstimation ne;
+    // pcl::PointCloud<pcl::Normal> normals;
+    // ne.compute(points, normals, 0.02f, 10.0f);//, pcl::AVERAGE_DEPTH_CHANGE);
+
+    int num_regions = 0;
+    int num_vis_regions = 0;
+    cv::Mat regions = getSuperpixelImage(visual_frame, depth_frame, num_regions,
+                                         sigma_, k_, min_size_);
     cv::Mat visual_regions = getSuperpixelImage(visual_frame, num_vis_regions,
-                                                vis_sigma, vis_k, vis_min_size);
-    cv::Mat depth_regions = getSuperpixelImage(depth_int,
-                                               num_depth_regions,
-                                               depth_sigma, depth_k,
-                                               depth_min_size);
+                                                sigma_, k_, min_size_);
     cv::imshow("visual_frame", visual_frame);
     cv::imshow("depth_frame", depth_frame);
-    cv::imshow("visual_regions", visual_regions);
-    cv::imshow("depth_regions", depth_regions);
+    cv::imshow("vis_regions", visual_regions);
+    cv::imshow("vis_depth_regions", regions);
+
+    ROS_INFO_STREAM("Computed " << num_regions << " regions");
+    ROS_INFO_STREAM("Computed " << num_vis_regions << " visual regions");
     cv::waitKey();
 
     // TODO: Choose a patch based on some simple criterian
@@ -210,14 +210,19 @@ class TabletopPushingPerceptionNode
   ros::NodeHandle n_;
   message_filters::Subscriber<sensor_msgs::Image> image_sub_;
   message_filters::Subscriber<sensor_msgs::Image> depth_sub_;
-  message_filters::Subscriber<sensor_msgs::PointCloud2> point_sub_;
+  // message_filters::Subscriber<sensor_msgs::PointCloud2> point_sub_;
   message_filters::Synchronizer<MySyncPolicy> sync_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
-  ros::ServiceServer push_point_server_;
+  ros::ServiceServer push_pose_server_;
   cv::Mat cur_visual_frame_;
   cv::Mat cur_depth_frame_;
+  XYZPointCloud cur_point_cloud_;
   bool have_depth_data_;
+  double k_;
+  double sigma_;
+  int min_size_;
+
 };
 
 int main(int argc, char ** argv)
