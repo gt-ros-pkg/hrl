@@ -8,6 +8,14 @@ import numpy as np, math
 import copy
 from threading import RLock
 
+import roslib; roslib.load_manifest('equilibrium_point_control')
+
+#try:
+#    import hrl_lib.geometry as hg
+#except ImportError, e:
+#    print '<hrl_arm.py> WARNING:', e
+
+
 class HRLArm():
     def __init__(self, kinematics):
         # object of class derived from HRLArmKinematics
@@ -113,6 +121,7 @@ class HRLArmKinematics():
     def set_tooltip(self, p, rot=np.matrix(np.eye(3))):
         self.tooltip_pos = p
         self.tooltip_rot = rot
+
 
 
 

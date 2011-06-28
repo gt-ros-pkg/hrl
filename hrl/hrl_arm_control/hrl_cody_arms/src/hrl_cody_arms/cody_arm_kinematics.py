@@ -30,6 +30,8 @@
 
 import numpy as np, math
 
+np.set_printoptions(precision=4, linewidth=80)
+
 import roslib; roslib.load_manifest('hrl_cody_arms')
 import PyKDL as kdl
 
@@ -186,15 +188,9 @@ class CodyArmKinematics(HRLArmKinematics):
         rot = ku.kdl_rot_to_np(m)
         return pos, rot
 
-
     ## compute Jacobian at point pos. 
     # p is in the ground coord frame.
     def Jacobian(self, q, pos=None):
-        print '-------------------------'
-        print 'pos:', pos.A1
-        print 'ee:', self.FK(q)[0].A1
-        print '-------------------------'
-        #pos = None
         if pos == None:
             pos = self.FK(q)[0]
 
@@ -213,7 +209,7 @@ class CodyArmKinematics(HRLArmKinematics):
             # KDL chain in the base frame. It just so happens that the
             # way Advait defined the KDL chain, the axis of rotation
             # in KDL is the -ve of the axis of rotation on the real
-            # robot.
+            # robot for every joint.
             # Advait apologizes for this.
             z = -z
 

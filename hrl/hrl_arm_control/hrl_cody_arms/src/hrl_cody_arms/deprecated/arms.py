@@ -330,3 +330,19 @@ class M3HrlRobot():
 
 
 
+if __name__ == '__main__':
+    import roslib; roslib.load_manifest('hrl_cody_arms')
+    import hrl_cody_arms.cody_arm_kinematics as cak
+
+    h = M3HrlRobot(0.16)
+    k = cak.CodyArmKinematics('r')
+    p = np.matrix([0., 0., -0.16]).T
+    k.set_tooltip(p)
+
+    J_old = h.Jacobian
+
+
+
+
+
+

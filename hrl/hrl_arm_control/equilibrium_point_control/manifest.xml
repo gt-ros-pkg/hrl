@@ -10,6 +10,7 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/equilibrium_point_control</url>
   <depend package="rospy"/>
+  <depend package="hrl_lib"/>
 
 </package>
 
