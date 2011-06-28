@@ -7,7 +7,7 @@ from std_msgs.msg import Bool
 
 
 class EP_Generator():
-    # @param ep_gen_func: function that returns stop, ea  where ea is the param to the control_function and  stop: string which is EPC.StopConditions.CONTINUE for epc motion to continue
+    # @param ep_gen_func: function that returns stop, ea  where ea is the param to the control_function and  stop: string which is StopConditions.CONTINUE for epc motion to continue
     def __init__(self, ep_gen_func, control_function,
                  ep_clamp_func=None):
         self.ep_gen_func = ep_gen_func
@@ -19,34 +19,24 @@ class EP_Generator():
 # More complex behaviors that use EPC should have their own ROS
 # packages.
 class EPC():
-
-    ##
-    # Initializes variables and subscribers
-    def __init__(self, epc_name = 'epc'):
+    def __init__(self, robot, epc_name = 'epc'):
+        self.robot = robot
         self.stop_epc = False
         self.pause_epc = False
-        rospy.Subscriber('/'+epc_name+'/stop', Bool, self._stop_cb)
-        rospy.Subscriber('/'+epc_name+'/pause', Bool, self._pause_cb)
+        rospy.Subscriber('/'+epc_name+'/stop', Bool, self.stop_cb)
+        rospy.Subscriber('/'+epc_name+'/pause', Bool, self.pause_cb)
+        class StopConditions:
+            CONTINUE = ''
+            ROSPY_SHUTDOWN = 'rospy shutdown'
+            ROS_SHUTDOWN = 'stop_command_over_ROS'
+            TIMEOUT = 'timed out'
+            RESET_TIMING = 'reset timing'
 
-    ##
-    # Enumerated constants for EPC termination conditions
-    class StopConditions:
-        CONTINUE = ''
-        ROSPY_SHUTDOWN = 'rospy shutdown'
-        ROS_SHUTDOWN = 'stop_command_over_ROS'
-        TIMEOUT = 'timed out'
-        RESET_TIMING = 'reset timing'
-        COMPLETED = 'epc motion completed'
-
-    ##
-    # Subscriber callback for stopping the arm's motion
-    def _stop_cb(self, msg):
+    def stop_cb(self, msg):
         self.stop_epc = msg.data
         self.pause_epc = False # stop/start overrides pause.
 
-    ##
-    # Subscriber callback for pausing the arm's motion
-    def _pause_cb(self, msg):
+    def pause_cb(self, msg):
         self.pause_epc = msg.data
 
     ##
@@ -62,49 +52,72 @@ class EPC():
 
         rt = rospy.Rate(1/time_step)
         timeout_at = rospy.get_time() + timeout
-        stop = EPC.StopConditions.CONTINUE
+        stop = StopConditions.CONTINUE
         ea = None
-        while True:
-            # basic rospy shutdown termination
+        while stop == StopConditions.CONTINUE:
             if rospy.is_shutdown():
-                stop = EPC.StopConditions.ROSPY_SHUTDOWN
-                break
+                stop = StopConditions.ROSPY_SHUTDOWN
+                continue
 
-            # check to see if we should stop (stop_epc changed from another thread)
             if self.stop_epc:
-                stop = EPC.StopConditions.ROS_SHUTDOWN
-                break
+                stop = StopConditions.ROS_SHUTDOWN
+                continue
             
-            # check to see if we're paused
             if self.pause_epc:
                 rospy.sleep(0.1)
                 timeout_at += 0.101 # approximate.
                 continue
 
-            # timeout check
             if timeout_at < rospy.get_time():
-                stop = EPC.StopConditions.TIMEOUT
-                break
+                stop = StopConditions.TIMEOUT
+            if stop == StopConditions.CONTINUE:
+                stop, ea = ep_gen_func(ep_gen)
+            if stop == StopConditions.RESET_TIMING:
+                stop = StopConditions.CONTINUE
+                t_end = rospy.get_time()
 
-            # create a new ep
-            stop, ea = ep_gen_func(ep_gen) 
+            if stop == StopConditions.CONTINUE:
+                if ep_clamp_func != None:
+                    ep = ea[0]
+                    ea = list(ea)
+                    ea[0] = ep_clamp_func(ep)
+                    ea = tuple(ea)
 
-            # check to see if the generator function wants to stop
-            if stop != EPC.StopConditions.CONTINUE:
-                break
-
-            # if a post-processing function exits, use it to process the ep
-            if ep_clamp_func != None:
-                ep = ea[0]
-                ea = list(ea)
-                ea[0] = ep_clamp_func(ep)
-                ea = tuple(ea)
-
-            # command the arm to move to the ep
-            control_function(*ea)
+                control_function(*ea)
 
             rt.sleep()
 
         return stop, ea
+
+    ##
+    # this function only makes sense for arms where we have Joint
+    # space Equilibrium Point Control.
+    def go_jep(self, goal_jep, speed=math.radians(20)):
+        start_jep = self.robot.get_ep()
+        diff_jep = np.array(goal_jep) - np.array(start_jep)
+        time_step = 0.02
+        max_ch = np.max(np.abs(diff_jep))
+        total_time = max_ch / speed
+        n_steps = max(np.round(total_time / time_step + 0.5), 1)
+        jep_step = diff_jep / n_steps
+
+        def eq_gen_func(ep_gen):
+            jep = ep_gen.jep
+            step_num = ep_gen.step_num
+            if step_num < n_steps:
+                q = list(np.array(jep) + jep_step)
+                stop = StopConditions.CONTINUE
+            else:
+                q = None
+                stop = 'Reached'
+            step_num += 1
+            ep_gen.jep = q
+            ep_gen.step_num = step_num
+            return stop, (q, time_step*1.2)
+        
+        ep_gen = EP_Generator(eq_gen_func, self.robot.set_ep)
+        ep_gen.step_num = 0
+        ep_gen.jep = copy.copy(start_jep)
+        return self.epc_motion(ep_gen, time_step)
 
 
