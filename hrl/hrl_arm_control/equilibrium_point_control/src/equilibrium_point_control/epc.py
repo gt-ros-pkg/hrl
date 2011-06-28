@@ -1,7 +1,7 @@
 
 import numpy as np, math
 import copy
-import roslib; roslib.load_manifest('equilibrium_point_control')
+import roslib; roslib.load_manifest('epc_core')
 import rospy
 from std_msgs.msg import Bool
 
@@ -88,6 +88,7 @@ class EPC():
     # motion stopped.), ea (last commanded equilibrium angles)
     def epc_motion(self, ep_gen, time_step, timeout=np.inf):
         rospy.loginfo("[epc] epc_motion started")
+        rt = rospy.Rate(1./time_step)
         timeout_at = rospy.get_time() + timeout
         stop = EPC.StopConditions.CONTINUE
         ea = None
@@ -129,9 +130,9 @@ class EPC():
             # command the arm to move to the ep
             ep_gen.control_ep(ep)
 
-            rospy.sleep(time_step)
+            rt.sleep()
 
-        rospy.loginfo("[epc] epc_motion stopped with termination condition: %s" % stop)
+        rospy.loginfo("[epc] epc_motion stopped with termination condition %s" % stop)
         return stop, ea
 
 
