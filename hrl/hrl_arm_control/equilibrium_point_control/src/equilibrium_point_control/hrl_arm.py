@@ -20,7 +20,7 @@ from threading import RLock
 # reach the arm commanded goal due to contact, gravity, low gains in the controller, etc.
 # Thus we employ another layer of control which relocates the equilibrium point
 # based on the task at hand.
-class HRLArm(object):
+class HRLArm():
     def __init__(self, kinematics):
         # object of class derived from HRLArmKinematics
         self.kinematics = kinematics
@@ -71,7 +71,7 @@ class HRLArm(object):
 
 ##
 # Abstract class containing kinematics interfaces for an arm
-class HRLArmKinematics(object):
+class HRLArmKinematics():
     ##
     # @param n_jts Number of joints of the arm
     # @param tool_pos Postion offset of the tool from the last link in the kinematic chain
@@ -121,15 +121,12 @@ class HRLArmKinematics(object):
     #                    n_jts + 1 (and None) returns the tooltip's frame
     # @return pos (3x1) np matrix, rot (3x3) np matrix
     def FK(self, q, link_number=None):
-        if link_number == None or link_number > self.n_jts:
-            use_end_affector = True
-            link_number = self.n_jts
-        else:
-            use_end_affector = False
-            
+        if link_number == None:
+            link_number = self.n_jts + 1
+        link_number = min(link_number, self.n_jts + 1)
         pos, rot = self.FK_vanilla(q, link_number)
 
-        if use_end_affector:
+        if link_number == self.n_jts + 1:
             tooltip_baseframe = rot * self.tooltip_pos
             pos += tooltip_baseframe
             rot = rot * self.tooltip_rot
