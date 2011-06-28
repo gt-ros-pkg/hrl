@@ -34,6 +34,7 @@
 // ROS
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
+#include <math.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
@@ -62,10 +63,10 @@ class DepthSaliencyNode
  public:
   DepthSaliencyNode(ros::NodeHandle &n) :
       n_(n),
-      image_sub_(n,"/camera/rgb/image_color", 1),
-      depth_sub_(n,"/camera/depth/image", 1),
+      image_sub_(n,"/kinect_head/rgb/image_color", 1),
+      depth_sub_(n,"/kinect_head/depth/image", 1),
       sync_(MySyncPolicy(1), image_sub_, depth_sub_),
-      csm(2,3,3,4)
+      csm(2,3,3,4), img_count_(0)
   {
     // Combine the subscribed topics with a message filter
     sync_.registerCallback(&DepthSaliencyNode::callback, this);
@@ -79,16 +80,52 @@ class DepthSaliencyNode
     cv::Mat input_frame(bridge_.imgMsgToCv(img_msg));
     cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
     cv::cvtColor(input_frame, input_frame, CV_RGB2BGR);
+    ROS_INFO_STREAM("input_frame.type()" << input_frame.type());
     cv::imshow("input_frame", input_frame);
     cv::imshow("depth_frame", depth_frame);
 
+    // Save frames to disk
+    cv::Mat depth_to_save(input_frame.size(), CV_16UC1);
+    std::vector<int> params;
+    params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+    params.push_back(0);
 
+    for (int x = 0; x < depth_frame.cols; ++x)
+    {
+      for (int y = 0; y < depth_frame.rows; ++y)
+      {
+        if (isnan(depth_frame.at<float>(x,y)))
+          depth_frame.at<float>(x,y) = 0.0;
+      }
+    }
+    ROS_INFO_STREAM("Removed NaNs");
+
+#ifdef SAVE_IMAGES
+    std::stringstream intensity_name;
+    intensity_name << "/home/thermans/Desktop/intensity" << img_count_
+                   << ".png";
+    std::stringstream depth_name;
+    depth_name << "/home/thermans/Desktop/depth" << img_count_++ << ".png";
+    depth_frame.convertTo(depth_to_save, depth_to_save.type(), 512.0);
+    cv::imwrite(intensity_name.str(), input_frame, params);
+    cv::imwrite(depth_name.str(), depth_to_save, params);
+    ROS_INFO_STREAM("Saved images");
+#endif // SAVE_IMAGES
+
+    ROS_INFO_STREAM("Scaling image");
+    cv::Mat scaled_depth = depth_frame.clone();
     cv::Mat scaled_depth_frame = csm.scaleMap(depth_frame);
     cv::imshow("scaled_frame", scaled_depth_frame);
-    cv::Mat scaled_depth_float(depth_frame.rows, depth_frame.cols, CV_32FC1);
-    scaled_depth_frame.convertTo(scaled_depth_float, CV_32FC1);
-    cv::Mat saliency_map = csm(input_frame, scaled_depth_float);
+    scaled_depth_frame.convertTo(scaled_depth, CV_32FC1);
+    ROS_INFO_STREAM("Running saliency");
+    cv::Mat saliency_map = csm(input_frame, scaled_depth);
     // cv::Mat saliency_map = csm(input_frame, depth_frame);
+    double min_val = 0;
+    double max_val = 0;
+    cv::minMaxLoc(saliency_map, &min_val, &max_val);
+    ROS_INFO_STREAM("Minimum saliency unscaled: " << min_val << "\tmax: "
+                    << max_val);
+    cv::imshow("unsaceled saliency", saliency_map);
     cv::waitKey();
   }
 
@@ -143,6 +180,7 @@ class DepthSaliencyNode
   message_filters::Synchronizer<MySyncPolicy> sync_;
   cpl_visual_features::CenterSurroundMapper csm;
   sensor_msgs::CvBridge bridge_;
+  int img_count_;
 };
 
 int main(int argc, char ** argv)

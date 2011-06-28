@@ -472,9 +472,12 @@ Mat CenterSurroundMapper::getSaliencyMap(Mat& frame)
                   normalize(O_bar, bar_max)*(1/3.0));
 
 #ifdef DISPLAY_SALIENCY_MAPS
-  cv::imshow("I bar", I_bar);
-  cv::imshow("C bar", C_bar);
-  cv::imshow("O bar", O_bar);
+  Mat display_I_bar = upSampleResponse(I_bar, min_delta_, frame.size());
+  Mat display_C_bar = upSampleResponse(C_bar, min_delta_, frame.size());
+  Mat display_O_bar = upSampleResponse(O_bar, min_delta_, frame.size());
+  cv::imshow("I bar", display_I_bar);
+  cv::imshow("C bar", display_C_bar);
+  cv::imshow("O bar", display_O_bar);
 #endif // DISPLAY_SALIENCY_MAPS
 
   return saliency_map;
@@ -1024,10 +1027,8 @@ Mat CenterSurroundMapper::scaleMap(Mat saliency_map)
 cv::Mat CenterSurroundMapper::upSampleResponse(cv::Mat& m_s, int s, cv::Size size0)
 {
   // Upsample from scale s to scale 0
-  cv::Mat m_s_prime;
-  cv::Mat temp;
-  m_s.copyTo(m_s_prime);
-  m_s.copyTo(temp);
+  cv::Mat m_s_prime = m_s.clone();
+  cv::Mat temp = m_s.clone();
 
   // Calculate the correct sizes to up sample to
   std::vector<cv::Size> sizes;
