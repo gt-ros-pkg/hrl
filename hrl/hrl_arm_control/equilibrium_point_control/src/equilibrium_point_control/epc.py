@@ -5,46 +5,19 @@ import roslib; roslib.load_manifest('epc_core')
 import rospy
 from std_msgs.msg import Bool
 
-##
-# Abstract class to be implemented when using equilibrium point control.
-# If generate_ep produces equilibrium points which are used by control_ep
-# to move the arm, this object can be passed into EPC.epc_motion to control
-# the arm.  Equilibrium points can be of any type so long as generate_ep,
-# control_ep, and clamp_ep are all written with this type in mind.
-class EPGenerator():
-    #----------------- abstract functions ---------------------
-    ##
-    # Generates a new equilibrium point.
-    # @return (stop, ep)
-    #         stop: EPC.StopConditions.CONTINUE or non-empty string to terminate
-    #         ep: equilibrium point to be sent to control_function
-    def generate_ep(self):
-        raise RuntimeError('Unimplemented Function')
 
-    ##
-    # Commands the arm to move towards the specified equilibrium point.
-    # @param ep equilibrium point to command the arm towards
-    def control_ep(self, ep):
-        raise RuntimeError('Unimplemented Function')
+class EP_Generator():
+    # @param ep_gen_func: function that returns stop, ea  where ea is the param to the control_function and  stop: string which is EPC.StopConditions.CONTINUE for epc motion to continue
+    def __init__(self, ep_gen_func, control_function,
+                 ep_clamp_func=None):
+        self.ep_gen_func = ep_gen_func
+        self.control_function = control_function
+        self.ep_clamp_func = ep_clamp_func
 
-    ##
-    # Takes an equilibrium point and clamps it to reasonable control values.
-    # To be overwritten if needed by the child class.
-    # @param ep equilibrium point to clamp
-    # @return clamped equilibrium point
-    def clamp_ep(self, ep):
-        return ep
 
-    ##
-    # Termination check for collision or goal reaching.
-    # To be overwritten if needed by the child class.
-    # @return EPC.StopConditions.CONTINUE or non-empty string to terminate
-    def terminate_check(self):
-        return EPC.StopConditions.CONTINUE
-    #----------------------------------------------------------
-
-##
-# Simple class containing the core EPC function: a control loop paradigm.
+## Class defining the core EPC function and a few simple examples.
+# More complex behaviors that use EPC should have their own ROS
+# packages.
 class EPC():
 
     ##
@@ -60,7 +33,7 @@ class EPC():
     class StopConditions:
         CONTINUE = ''
         ROSPY_SHUTDOWN = 'rospy shutdown'
-        ROS_STOP = 'stop_command_over_ROS'
+        ROS_SHUTDOWN = 'stop_command_over_ROS'
         TIMEOUT = 'timed out'
         RESET_TIMING = 'reset timing'
         COMPLETED = 'epc motion completed'
@@ -77,18 +50,17 @@ class EPC():
         self.pause_epc = msg.data
 
     ##
-    # Control loop for equilibrium point control.  For each time step, ep_gen
-    # provides 4 functions, a termination check, an ep generation step, 
-    # a clamping step, and an ep control step.  These functions are called in this
-    # order along with helper functionality for stopping and pausing control.
-    # @param ep_gen - Object of type EPGenerator.
-    # @param time_step: Time between successive calls to equi_pt_generator
+    # @param ep_gen - object of EP_Generator. can include any state that you want.
+    # @param time_step: time between successive calls to equi_pt_generator
     # @param timeout - time after which the epc motion will stop.
     # @return stop (the string which has the reason why the epc
     # motion stopped.), ea (last commanded equilibrium angles)
     def epc_motion(self, ep_gen, time_step, timeout=np.inf):
-        rospy.loginfo("[epc] epc_motion started")
-        rt = rospy.Rate(1./time_step)
+        ep_gen_func = ep_gen.ep_gen_func
+        control_function = ep_gen.control_function
+        ep_clamp_func = ep_gen.ep_clamp_func
+
+        rt = rospy.Rate(1/time_step)
         timeout_at = rospy.get_time() + timeout
         stop = EPC.StopConditions.CONTINUE
         ea = None
@@ -100,12 +72,7 @@ class EPC():
 
             # check to see if we should stop (stop_epc changed from another thread)
             if self.stop_epc:
-                stop = EPC.StopConditions.ROS_STOP
-                break
-
-            # check to see if the generator thinks we should stop
-            stop = ep_gen.terminate_check()
-            if stop != EPC.StopConditions.CONTINUE:
+                stop = EPC.StopConditions.ROS_SHUTDOWN
                 break
             
             # check to see if we're paused
@@ -120,19 +87,24 @@ class EPC():
                 break
 
             # create a new ep
-            stop, ep = ep_gen.generate_ep() 
+            stop, ea = ep_gen_func(ep_gen) 
+
+            # check to see if the generator function wants to stop
             if stop != EPC.StopConditions.CONTINUE:
                 break
 
             # if a post-processing function exits, use it to process the ep
-            ep = ep_gen.clamp_ep(ep)
+            if ep_clamp_func != None:
+                ep = ea[0]
+                ea = list(ea)
+                ea[0] = ep_clamp_func(ep)
+                ea = tuple(ea)
 
             # command the arm to move to the ep
-            ep_gen.control_ep(ep)
+            control_function(*ea)
 
             rt.sleep()
 
-        rospy.loginfo("[epc] epc_motion stopped with termination condition %s" % stop)
         return stop, ea
 
 
