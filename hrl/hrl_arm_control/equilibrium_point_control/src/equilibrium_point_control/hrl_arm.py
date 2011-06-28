@@ -164,6 +164,3 @@ class HRLArmKinematics(object):
     def set_tooltip(self, tool_pos, tool_rot=np.matrix(np.eye(3))):
         self.tooltip_pos = tool_pos
         self.tooltip_rot = tool_rot
-
-
-
