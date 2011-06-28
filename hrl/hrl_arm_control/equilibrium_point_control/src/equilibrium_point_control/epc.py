@@ -7,7 +7,7 @@ from std_msgs.msg import Bool
 
 
 class EP_Generator():
-    # @param ep_gen_func: function that returns stop, ea  where ea is the param to the control_function and  stop: string which is StopConditions.CONTINUE for epc motion to continue
+    # @param ep_gen_func: function that returns stop, ea  where ea is the param to the control_function and  stop: string which is '' for epc motion to continue
     def __init__(self, ep_gen_func, control_function,
                  ep_clamp_func=None):
         self.ep_gen_func = ep_gen_func
@@ -25,12 +25,6 @@ class EPC():
         self.pause_epc = False
         rospy.Subscriber('/'+epc_name+'/stop', Bool, self.stop_cb)
         rospy.Subscriber('/'+epc_name+'/pause', Bool, self.pause_cb)
-        class StopConditions:
-            CONTINUE = ''
-            ROSPY_SHUTDOWN = 'rospy shutdown'
-            ROS_SHUTDOWN = 'stop_command_over_ROS'
-            TIMEOUT = 'timed out'
-            RESET_TIMING = 'reset timing'
 
     def stop_cb(self, msg):
         self.stop_epc = msg.data
@@ -52,15 +46,15 @@ class EPC():
 
         rt = rospy.Rate(1/time_step)
         timeout_at = rospy.get_time() + timeout
-        stop = StopConditions.CONTINUE
+        stop = ''
         ea = None
-        while stop == StopConditions.CONTINUE:
+        while stop == '':
             if rospy.is_shutdown():
-                stop = StopConditions.ROSPY_SHUTDOWN
+                stop = 'rospy shutdown'
                 continue
 
             if self.stop_epc:
-                stop = StopConditions.ROS_SHUTDOWN
+                stop = 'stop_command_over_ROS'
                 continue
             
             if self.pause_epc:
@@ -69,14 +63,14 @@ class EPC():
                 continue
 
             if timeout_at < rospy.get_time():
-                stop = StopConditions.TIMEOUT
-            if stop == StopConditions.CONTINUE:
+                stop = 'timed out'
+            if stop == '':
                 stop, ea = ep_gen_func(ep_gen)
-            if stop == StopConditions.RESET_TIMING:
-                stop = StopConditions.CONTINUE
+            if stop == 'reset timing':
+                stop = ''
                 t_end = rospy.get_time()
 
-            if stop == StopConditions.CONTINUE:
+            if stop == '':
                 if ep_clamp_func != None:
                     ep = ea[0]
                     ea = list(ea)
@@ -106,7 +100,7 @@ class EPC():
             step_num = ep_gen.step_num
             if step_num < n_steps:
                 q = list(np.array(jep) + jep_step)
-                stop = StopConditions.CONTINUE
+                stop = ''
             else:
                 q = None
                 stop = 'Reached'
