@@ -31,3 +31,7 @@ string grasp_result
 ---
 # Feedback message:
 string state
+float32 x
+float32 y
+float32 roll
+float32 pitch

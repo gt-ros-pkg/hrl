@@ -176,6 +176,11 @@ class GraspBehaviorServer(object):
     # on type of grasp requested.
     def execute_grasping_goal(self, goal):
         result = OverheadGraspResult()
+        feedback = OverheadGraspFeedback()
+        def publish_state(state):
+            feedback.state = state
+            self.grasping_server.publish_feedback(feedback)
+        publish_state(GraspStates.ACTIONLIB_CALLED)
         
         # User specifies parameters
         if goal.grasp_type == goal.MANUAL_GRASP:
@@ -192,7 +197,7 @@ class GraspBehaviorServer(object):
                 self.grasping_server.set_aborted(result)
                 return
             x, y, rot, z = self.get_grasp_loc(obj)
-            grasp_params = (x, y, goal.roll, goal.pitch)
+            grasp_params = (x, y, rot, goal.pitch)
 
         # execute a random grasp
         elif goal.grasp_type == goal.RANDOM_GRASP:
@@ -203,6 +208,8 @@ class GraspBehaviorServer(object):
             self.grasping_server.set_aborted(result)
             return
 
+        feedback.x, feedback.y = grasp_params[0], grasp_params[1]
+        feedback.roll, feedback.pitch = grasp_params[2], grasp_params[3]
         grasp_result = self.gman.perform_grasp(grasp_params, collide=not goal.disable_coll,
                                                behavior_name=goal.behavior_name,
                                                sig_level=goal.sig_level,
