@@ -15,7 +15,13 @@ bool is_grasp # True if this is a grasp, False if this is a place
 bool disable_head # do not move the head
 bool disable_coll # True to turn off collision detection
 uint8 grasp_type # defined above
-float32[] grasp_params # Parameters for grasp
+
+# grasp parameters
+float32 x
+float32 y
+float32 roll
+float32 pitch
+
 string behavior_name # Name of behavior trained for collision detection
 float32 sig_level # Significance level used for collision detection
                   # Use values [0.95, 1.0); preferably 0.99
@@ -24,3 +30,4 @@ float32 sig_level # Significance level used for collision detection
 string grasp_result
 ---
 # Feedback message:
+string state

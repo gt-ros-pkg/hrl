@@ -6,7 +6,7 @@ import random
 
 import roslib; roslib.load_manifest('pr2_grasp_behaviors')
 import rospy
-from tf.transformations import quaternion_about_axis, quaternion_multiply
+from tf.transformations import quaternion_about_axis, quaternion_multiply, quaternion_matrix
 
 from grasp_manager import GraspBehavior
 from grasp_behavior_server import GraspBehaviorServer
@@ -37,18 +37,21 @@ class OverheadGrasp(GraspBehavior):
         self.cm.command_joint_trajectory([joints], max_joint_vel=0.30, blocking=False)
 
     def grasp_setup_move(self, params):
-        self.xyr = params
-        rospy.loginfo("Moving to grasp position (%1.2f, %1.2f, %1.2f)" % (self.xyr[0], self.xyr[1], self.xyr[2]))
-        grasp_pose = self.create_goal_pose(self.xyr[0], self.xyr[1], self.HOVER_Z,
-                                           self.overhead_gripper_pose(self.xyr[2]))
+        self.xryp = params
+        rospy.loginfo("Moving to grasp position (%1.2f, %1.2f, %1.2f, %1.2f)" % 
+                               (self.xryp[0], self.xryp[1], self.xryp[2], self.xryp[3]))
+        self.quat = self.overhead_gripper_quat(self.xryp[2], self.xyrp[3])
+         = np.mat(quaternion_matrix(self.quat))
+        grasp_pose = self.create_goal_pose(self.xryp[0], self.xryp[1], self.HOVER_Z,
+                                           )
         return self.cm.move_arm_pose_biased(grasp_pose, self.JOINTS_BIAS, 
                                              self.SETUP_VELOCITY, blocking = True)
 
     def execute_approach(self, block):
         rospy.loginfo("Moving arm down")
-        goal_pose = self.create_goal_pose(self.xyr[0], self.xyr[1], 
+        goal_pose = self.create_goal_pose(self.xryp[0], self.xryp[1], 
                                           self.HOVER_Z - self.GRASP_DIST, 
-                                          self.overhead_gripper_pose(self.xyr[2]))
+                                          self.quat)
         goal_pose.header.stamp = rospy.Time.now()
         return self.cm.move_cartesian_ik(goal_pose, collision_aware = False, 
                           blocking = block,
@@ -58,9 +61,9 @@ class OverheadGrasp(GraspBehavior):
                           vel = self.GRASP_VELOCITY)
 
     def execute_retreat(self):
-        retreat_pose = self.create_goal_pose(self.xyr[0], self.xyr[1], 
+        retreat_pose = self.create_goal_pose(self.xryp[0], self.xryp[1], 
                                              self.HOVER_Z, 
-                                             self.overhead_gripper_pose(self.xyr[2]))
+                                             self.quat)
         self.cm.move_arm_pose_biased(retreat_pose, self.JOINTS_BIAS, 
                                      self.SETUP_VELOCITY, blocking = True)
 
@@ -70,6 +73,7 @@ class OverheadGrasp(GraspBehavior):
         x = random.uniform(0.40, 0.75)
         y = random.uniform(-0.35, 0.35)
         r = random.uniform(0., np.pi)
+        p = random.uniform(-np.pi/6, np.pi/3)
         return x, y, r
 
     ##
@@ -88,10 +92,10 @@ class OverheadGrasp(GraspBehavior):
 
     ##
     # Returns a quaternion for the gripper pose given a gripper rotation
-    def overhead_gripper_pose(self, gripper_rot):
-        gripper_rot = self.normalize_rot(gripper_rot)
-        quat1 = quaternion_about_axis(np.pi/2., (0, 1, 0))
-        quat2 = quaternion_about_axis(gripper_rot, (0, 0, 1))
+    def overhead_gripper_quat(self, gripper_roll, gripper_pitch=0.):
+        gripper_roll = self.normalize_rot(gripper_roll)
+        quat1 = quaternion_about_axis(np.pi/2. + gripper_pitch, (0, 1, 0))
+        quat2 = quaternion_about_axis(gripper_roll, (0, 0, 1))
         quat = quaternion_multiply(quat2, quat1)
         return quat
 

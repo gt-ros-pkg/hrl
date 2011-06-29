@@ -179,12 +179,12 @@ class GraspBehaviorServer(object):
         
         # User specifies parameters
         if goal.grasp_type == goal.MANUAL_GRASP:
-            grasp_params = goal.grasp_params
+            grasp_params = (goal.x, goal.y, goal.roll, goal.pitch)
 
         # Robot finds parameters
         elif goal.grasp_type == goal.VISION_GRASP:
-            obj = self.detect_closest_object(goal.grasp_params[0], 
-                                             goal.grasp_params[1], 
+            obj = self.detect_closest_object(goal.x, 
+                                             goal.y, 
                                              disable_head=goal.disable_head)
             if obj is None:
                 rospy.loginfo("No objects detected")
@@ -192,7 +192,7 @@ class GraspBehaviorServer(object):
                 self.grasping_server.set_aborted(result)
                 return
             x, y, rot, z = self.get_grasp_loc(obj)
-            grasp_params = (x, y, rot)
+            grasp_params = (x, y, goal.roll, goal.pitch)
 
         # execute a random grasp
         elif goal.grasp_type == goal.RANDOM_GRASP:
