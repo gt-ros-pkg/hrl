@@ -77,9 +77,8 @@ class PlaceObject:
         grasp_goal.disable_head = False
         grasp_goal.disable_coll = False
         grasp_goal.grasp_type=OverheadGraspGoal.MANUAL_GRASP
-        grasp_goal.grasp_params = [0] * 3
-        grasp_goal.grasp_params[0] = place_pt.point.x
-        grasp_goal.grasp_params[1] = place_pt.point.y
+        grasp_goal.x = place_pt.point.x
+        grasp_goal.y = place_pt.point.y
         grasp_goal.behavior_name = "overhead_grasp"
         grasp_goal.sig_level = 0.999
         ############################################################

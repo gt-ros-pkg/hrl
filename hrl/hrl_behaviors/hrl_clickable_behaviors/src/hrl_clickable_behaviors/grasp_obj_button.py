@@ -70,9 +70,8 @@ class GraspObjButton:
         grasp_goal.disable_head = False
         grasp_goal.disable_coll = False
         grasp_goal.grasp_type=OverheadGraspGoal.VISION_GRASP
-        grasp_goal.grasp_params = [0] * 3
-        grasp_goal.grasp_params[0] = grasp_pt.point.x
-        grasp_goal.grasp_params[1] = grasp_pt.point.y
+        grasp_goal.x = grasp_pt.point.x
+        grasp_goal.y = grasp_pt.point.y
         grasp_goal.behavior_name = "overhead_grasp"
         grasp_goal.sig_level = 0.999
         ############################################################
