@@ -147,9 +147,8 @@ def sm_grasp():
             grasp_goal.disable_head = False
             grasp_goal.disable_coll = False
             grasp_goal.grasp_type = OverheadGraspGoal.VISION_GRASP
-            grasp_goal.grasp_params = [0] * 3
-            grasp_goal.grasp_params[0] = GRASP_LOCATION[0]
-            grasp_goal.grasp_params[1] = GRASP_LOCATION[1]
+            grasp_goal.x = GRASP_LOCATION[0]
+            grasp_goal.y = GRASP_LOCATION[1]
             grasp_goal.behavior_name = "overhead_grasp"
             grasp_goal.sig_level = 0.995
             ############################################################
@@ -172,7 +171,9 @@ def sm_grasp():
             place_goal.disable_head = False
             place_goal.disable_coll = False
             place_goal.grasp_type = OverheadGraspGoal.MANUAL_GRASP
-            place_goal.grasp_params = PLACE_LOCATIONS[userdata.object_number-1]
+            place_goal.x = PLACE_LOCATIONS[userdata.object_number-1][0]
+            place_goal.y = PLACE_LOCATIONS[userdata.object_number-1][1]
+            place_goal.roll = PLACE_LOCATIONS[userdata.object_number-1][2]
             place_goal.behavior_name = "overhead_grasp"
             place_goal.sig_level = 0.9975
             ############################################################
