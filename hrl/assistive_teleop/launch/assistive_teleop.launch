@@ -1,0 +1,76 @@
+<launch>
+
+  <machine name="c1" address="c1" ros-root="$(env ROS_ROOT)" ros-package-path="$(env ROS_PACKAGE_PATH)" />
+  <machine name="c2" address="c2" ros-root="$(env ROS_ROOT)" ros-package-path="$(env ROS_PACKAGE_PATH)" />
+
+<!-- Launch Kinect with GT launch files (gt-ros-pkg) -->
+  <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" /> 
+
+<!-- load ik -->
+  <include file="$(find pr2_arm_navigation_kinematics)/launch/right_arm_collision_free_ik.launch"/>
+  <include file="$(find pr2_arm_navigation_kinematics)/launch/left_arm_collision_free_ik.launch"/>
+  <param name="pr2_right_arm_kinematics/object_padd" value="0.04"/>
+  <param name="pr2_left_arm_kinematics/object_padd" value="0.04"/>
+
+<!-- Launch move_arm for both arms, based on Willow Garage's pr2_interactive_manipulation startup -->
+    <include file="$(find assistive_teleop)/launch/pr2_manipulation_prerequisites.launch" />
+
+<!-- Bring up intermediary for handling arm movements, one for each arm -->
+    <node name="move_right_arm_intermediary" pkg="assistive_teleop" type="move_right_arm_intermediary.py" output="screen"/>
+    <node name="move_left_arm_intermediary" pkg="assistive_teleop" type="move_left_arm_intermediary.py" output="screen"/>
+
+<!-- Bring up normal approach (with advance/retreat functions) -->
+    <node name="normal_approach_right" pkg="assistive_teleop" type="normal_approach_right.py" />
+    <node name="normal_approach_left" pkg="assistive_teleop" type="normal_approach_left.py" />
+
+<!-- Launch Image Rotation Nodes for forearm cameras to keep frames upright -->
+    <node name="image_rotater_right" pkg="image_rotate" type="image_rotate">
+       <remap from="image" to="/r_forearm_cam/image_color" />
+       <remap from="rotated/image" to="/r_forearm_cam/image_color_rotated" />
+    </node>
+    <node name="image_rotater_left" pkg="image_rotate" type="image_rotate">
+       <remap from="image" to="/l_forearm_cam/image_color" />
+       <remap from="rotated/image" to="/l_forearm_cam/image_color_rotated" />
+    </node>
+
+<!-- Launch mjpeg server, used for sending image streams.  MUST GET MJPEG_SERVER from BOSCH-ROS-PACKGE -->
+    <node pkg="mjpeg_server" type="mjpeg_server"  name="mjpeg_server" machine="c1" output="screen">
+                <param name="port" type="int" value="8080" />
+    </node>
+
+<!-- Speech node.  Replaces normal soundplay_node, provides festival -tts text to speech using a good voice -->
+    <node pkg ="assistive_teleop" type="speech_node.py" name="sound_play" />
+
+<!--3d point from Pixel Node-->
+    <node pkg="pixel_2_3d" type="pixel_2_3d" name="pixel_2_3d" machine="c1" >
+        <remap from="image" to="/kinect_head/rgb/image_color" />
+        <remap from="point_cloud" to="/kinect_head/rgb/points" />
+        <param name="normal_radius" type="double" value="0.025" />
+    </node>
+
+<!-- Arrow overlay -->
+    <node pkg="hrl_clickable_display" type="arrow_overlay" name="arrow_overlay" respawn="true" output="screen">
+        <remap from="/image_in" to="/kinect_head/rgb/image_color" />
+        <remap from="/image_out" to="/arrow_overlaid" />
+        <param name="shaft_size" type="double" value="0.1" />
+        <param name="head_width" type="double" value="0.03" />
+        <param name="head_length" type="double" value="0.03" />
+        <param name="debug_mode" type="bool" value="true" />
+        <param name="auto_clear" type="bool" value="true" />
+    </node>
+
+<!-- Throttling nodes for the topics used by the interface -->	
+    <node name="throttle_torso_position_controller_state" pkg="topic_tools" type="throttle" args="messages /torso_controller/state 2 /torso_state_throttle" />
+    <node name="throttle_head_traj_controller_state" pkg="topic_tools" type="throttle" args="messages /head_traj_controller/state 8 /head_traj_controller_state_throttle" />
+    <node name="throttle_r_gripper_controller_state" pkg="topic_tools" type="throttle" args="messages /r_gripper_controller/state 1 /r_gripper_controller_state_throttle" />
+    <node name="throttle_l_gripper_controller_state" pkg="topic_tools" type="throttle" args="messages /l_gripper_controller/state 1 /l_gripper_controller_state_throttle" />
+    <node name="throttle_r_arm_joints_state" pkg="topic_tools" type="throttle" args=" messages /r_arm_controller/state 8 /r_arm_controller_state_throttle" />
+    <node name="throttle_l_arm_joints_state" pkg="topic_tools" type="throttle" args=" messages /l_arm_controller/state 8 /l_arm_controller_state_throttle" />
+    <node name="throttle_r_hand_pose" pkg="topic_tools" type="throttle" args=" messages /r_hand_pose 8 /r_hand_pose_throttle" />
+    <node name="throttle_l_hand_pose" pkg="topic_tools" type="throttle" args=" messages /l_hand_pose 8 /l_hand_pose_throttle" />
+
+<!-- Set port to 9091, start rosjs -->
+                <param name="/brown/rosjs/port" type="int" value="9091" />
+    <node name="rosbridge" pkg="rosbridge" type="rosbridge.py" machine="c1" output="screen"/>
+
+</launch>

@@ -1,0 +1,31 @@
+<package>
+  <description brief="assistive_teleop">
+
+     assistive_teleop is a package developed to provide an easily accessible interface for control of a PR2 by persons with severe motor disabilities using an assistive HCI device to provide control of mouse movement and a single (left) click.  This is a direct product of the Robots for Humanity effort, a collaboration between Willow Garage and the Healthcare Robotics Lab at Georgia Tech (www.healthcare-robotics.com).
+
+  </description>
+  <author>Phillip M. Grice</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/assistive_teleop</url>
+<!--Common Packages -->  
+  <depend package="rospy"/>
+  <depend package="tf"/>
+  <depend package="std_msgs"/>
+  <depend package="geometry_msgs"/>
+  <depend package="actionlib"/>
+  <depend package="move_arm_msgs"/>
+  <depend package="kinematics_msgs"/>
+  <depend package="pr2_controllers_msgs"/>
+<!-- From gt-ros-pkg/hrl -->
+  <depend package="pixel_2_3d"/>
+  <depend package="hrl_clickable_display"/>
+  <depend package="hrl_pr2_lib"/>
+<!-- From brown-ros-pkg -->
+  <depend package="rosbridge"/>
+<!-- From bosch-ros-pkg -->
+  <depend package="mjpeg_server"/>
+ 
+</package>
+
+
