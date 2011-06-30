@@ -45,9 +45,8 @@ def main():
                     goal.grasp_type = OverheadGraspGoal.VISION_GRASP
                 else:
                     goal.grasp_type = OverheadGraspGoal.MANUAL_GRASP
-                goal.grasp_params = [0] * 3
-                goal.grasp_params[0] = 0.5 + random.uniform(-0.1, 0.1)
-                goal.grasp_params[1] = 0.0 + random.uniform(-0.1, 0.1)
+                goal.x = 0.5 + random.uniform(-0.1, 0.1)
+                goal.y = 0.0 + random.uniform(-0.1, 0.1)
                 goal.behavior_name = "overhead_grasp"
                 goal.sig_level = 0.99
                 ############################################################
@@ -69,9 +68,8 @@ def main():
                 goal.disable_head = False
                 goal.disable_coll = False
                 goal.grasp_type = OverheadGraspGoal.MANUAL_GRASP
-                goal.grasp_params = [0] * 3
-                goal.grasp_params[0] = 0.55 + random.uniform(-0.1, 0.1)
-                goal.grasp_params[1] = 0.0 + random.uniform(-0.2, 0.2)
+                goal.x = 0.55 + random.uniform(-0.1, 0.1)
+                goal.y = 0.0 + random.uniform(-0.2, 0.2)
                 goal.behavior_name = "overhead_grasp"
                 goal.sig_level = 0.9975
                 ############################################################

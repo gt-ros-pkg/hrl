@@ -37,21 +37,20 @@ class OverheadGrasp(GraspBehavior):
         self.cm.command_joint_trajectory([joints], max_joint_vel=0.30, blocking=False)
 
     def grasp_setup_move(self, params):
-        self.xryp = params
+        self.xyrp = params
         rospy.loginfo("Moving to grasp position (%1.2f, %1.2f, %1.2f, %1.2f)" % 
-                               (self.xryp[0], self.xryp[1], self.xryp[2], self.xryp[3]))
-        self.quat = self.overhead_gripper_quat(self.xryp[2], self.xyrp[3])
-         = np.mat(quaternion_matrix(self.quat))
-        grasp_pose = self.create_goal_pose(self.xryp[0], self.xryp[1], self.HOVER_Z,
-                                           )
+                               (self.xyrp[0], self.xyrp[1], self.xyrp[2], self.xyrp[3]))
+        self.tool_rot_quat = self.overhead_gripper_quat(self.xyrp[2], self.xyrp[3])
+        grasp_pose = self.create_goal_pose(self.xyrp[0], self.xyrp[1], self.HOVER_Z,
+                                           self.tool_rot_quat)
         return self.cm.move_arm_pose_biased(grasp_pose, self.JOINTS_BIAS, 
                                              self.SETUP_VELOCITY, blocking = True)
 
     def execute_approach(self, block):
         rospy.loginfo("Moving arm down")
-        goal_pose = self.create_goal_pose(self.xryp[0], self.xryp[1], 
+        goal_pose = self.create_goal_pose(self.xyrp[0], self.xyrp[1], 
                                           self.HOVER_Z - self.GRASP_DIST, 
-                                          self.quat)
+                                          self.tool_rot_quat)
         goal_pose.header.stamp = rospy.Time.now()
         return self.cm.move_cartesian_ik(goal_pose, collision_aware = False, 
                           blocking = block,
@@ -61,9 +60,9 @@ class OverheadGrasp(GraspBehavior):
                           vel = self.GRASP_VELOCITY)
 
     def execute_retreat(self):
-        retreat_pose = self.create_goal_pose(self.xryp[0], self.xryp[1], 
+        retreat_pose = self.create_goal_pose(self.xyrp[0], self.xyrp[1], 
                                              self.HOVER_Z, 
-                                             self.quat)
+                                             self.tool_rot_quat)
         self.cm.move_arm_pose_biased(retreat_pose, self.JOINTS_BIAS, 
                                      self.SETUP_VELOCITY, blocking = True)
 
@@ -73,22 +72,24 @@ class OverheadGrasp(GraspBehavior):
         x = random.uniform(0.40, 0.75)
         y = random.uniform(-0.35, 0.35)
         r = random.uniform(0., np.pi)
-        p = random.uniform(-np.pi/6, np.pi/3)
-        return x, y, r
+        p = random.uniform(-np.pi/3, np.pi/6)
+        return x, y, r, p
 
     ##
     # Attempt to slightly adjust grasp parameters to get a close configuration
     # which will hopefully find an IK solution.
     def jiggle_grasp_params(self, grasp_params):
-        x, y, r = grasp_params
+        x, y, r, p = grasp_params
         dir_ang = random.uniform(0., 2. * np.pi)
         dx, dy = self.JIGGLE_RESOLUTION * np.cos(dir_ang), self.JIGGLE_RESOLUTION * np.sin(dir_ang)
         dr = random.uniform(-np.pi/12., np.pi/12.) # +/- 15 degrees
+        dp = random.uniform(-np.pi/12., np.pi/12.) # +/- 15 degrees
         x += dx
         y += dy
         r += dr
+        p += dp
         r = self.normalize_rot(r)
-        return (x, y, r)
+        return (x, y, r, p)
 
     ##
     # Returns a quaternion for the gripper pose given a gripper rotation

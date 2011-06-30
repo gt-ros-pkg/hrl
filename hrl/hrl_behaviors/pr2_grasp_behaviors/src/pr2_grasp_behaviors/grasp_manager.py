@@ -9,6 +9,7 @@ import object_manipulator.convert_functions as cf
 
 from hrl_pr2_lib.hrl_controller_manager import HRLControllerManager as ControllerManager
 from pr2_collision_monitor.srv import JointDetectionStart, ArmMovingWait
+from pr2_grasp_behaviors.grasp_behavior_server import GraspStates
 
 ##
 # Abstract class for a grasping behavior.  Implements much of the framework for
@@ -52,7 +53,7 @@ class GraspBehavior(object):
     def grasp_preparation_move(self):
         rospy.logerr("UNIMPLEMENTED!")
     ##
-    # Move arm to grasp setup, just before approach
+    # Move arm to grasp setup, just before approach.
     def grasp_setup_move(self, params):
         rospy.logerr("UNIMPLEMENTED!")
     ##
@@ -204,18 +205,22 @@ class GraspBehavior(object):
     # @param collide Whether or not we should detect for collisions.
     # @param data_collecting If True, only perform the approach motion and return after that.
     # @param num_jiggle How many times the parameters should be jiggled before giving up
+    # @param publish_state Callback function which takes a string and publishes the current state
     # @return grasp_result Result of grasp.
     def perform_grasp(self, grasp_params, is_place=False, collide=True, 
                                           behavior_name="", sig_level=0.99, 
-                                          data_collecting=False, num_jiggle=2):
+                                          data_collecting=False, num_jiggle=2,
+                                          publish_state=lambda x: x):
         self.collide = collide
 
         rospy.loginfo("Performing grasp with parameters: " + str(grasp_params))
         iters = 0
         while not rospy.is_shutdown():
             # Move to grasp position
+            publish_state(GraspStates.GRASP_SETUP_MOVE)
             self.stage_grasp(grasp_params, not is_place)
             self.arm_moving_wait(True, 3.0) # Wait for the arm to stop moving
+            publish_state(GraspStates.EXECUTE_APPROACH)
             approach_result = self.grasp_approach_motion(self.use_coll_detection and self.collide,
                                                          behavior_name=behavior_name, 
                                                          sig_level=sig_level)
@@ -242,6 +247,7 @@ class GraspBehavior(object):
 
         if approach_result == "Collision":
             if not is_place:
+                publish_state(GraspStates.GRASP_OBJECT)
                 self.grasping_action()
             else:
                 self.placing_action()
@@ -250,6 +256,7 @@ class GraspBehavior(object):
             rospy.loginfo("Picking object up")
         else:
             rospy.loginfo("Pulling arm away")
+        publish_state(GraspStates.EXECUTE_RETREAT)
         self.execute_retreat()
         
         ################################################################################

@@ -15,9 +15,20 @@ from object_manipulator.cluster_bounding_box_finder import ClusterBoundingBoxFin
 from tabletop_object_detector.srv import TabletopSegmentation
 from pr2_controllers_msgs.msg import PointHeadAction, PointHeadGoal
 
-from pr2_grasp_behaviors.msg import *
+from pr2_grasp_behaviors.msg import OverheadGraspAction, OverheadGraspResult
+from pr2_grasp_behaviors.msg import OverheadGraspSetupAction, OverheadGraspSetupResult
+from pr2_grasp_behaviors.msg import OverheadGraspFeedback 
 
 #from laser_interface.pkg import CURSOR_TOPIC, MOUSE_DOUBLE_CLICK_TOPIC, CURSOR_TOPIC, MOUSE_R_CLICK_TOPIC, MOUSE_R_DOUBLE_CLICK_TOPIC
+
+class GraspStates:
+    ACTIONLIB_CALLED = 'Actionlib grasping goal called'
+    PERCEIVING_OBJECTS = 'Perceiving table objects'
+    GRASP_SETUP_MOVE = 'Moving to grasp setup'
+    EXECUTE_APPROACH = 'Executing grasp motion'
+    GRASP_OBJECT = 'Closing gripper on object'
+    EXECUTE_RETREAT = 'Retreating grasp motion'
+    ACTIONLIB_COMPLETE = 'Actionlib grasping goal completed'
 
 class GraspBehaviorServer(object):
     def __init__(self, arm, grasp_manager):
@@ -171,13 +182,14 @@ class GraspBehaviorServer(object):
         rospy.loginfo("Finished setup")
         self.setup_server.set_succeeded(result)
 
+
     ##
     # Executes grasping goal requested on actionlib srvs. Actions differ based
     # on type of grasp requested.
     def execute_grasping_goal(self, goal):
         result = OverheadGraspResult()
-        feedback = OverheadGraspFeedback()
         def publish_state(state):
+            feedback = OverheadGraspFeedback()
             feedback.state = state
             self.grasping_server.publish_feedback(feedback)
         publish_state(GraspStates.ACTIONLIB_CALLED)
@@ -191,6 +203,7 @@ class GraspBehaviorServer(object):
             obj = self.detect_closest_object(goal.x, 
                                              goal.y, 
                                              disable_head=goal.disable_head)
+            publish_state(GraspStates.PERCEIVING_OBJECTS)
             if obj is None:
                 rospy.loginfo("No objects detected")
                 result.grasp_result = "No objects detected"
@@ -213,7 +226,8 @@ class GraspBehaviorServer(object):
         grasp_result = self.gman.perform_grasp(grasp_params, collide=not goal.disable_coll,
                                                behavior_name=goal.behavior_name,
                                                sig_level=goal.sig_level,
-                                               is_place=not goal.is_grasp)
+                                               is_place=not goal.is_grasp,
+                                               publish_state=publish_state)
         result.grasp_result = grasp_result
         if goal.is_grasp:
             if grasp_result == "Object grasped":
@@ -225,3 +239,4 @@ class GraspBehaviorServer(object):
                 self.grasping_server.set_succeeded(result)
             else:
                 self.grasping_server.set_aborted(result)
+        publish_state(GraspStates.ACTIONLIB_COMPLETE)
