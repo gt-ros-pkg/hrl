@@ -34,42 +34,32 @@ import rospy
 import hrl_lib.rutils as ru
 import hrl_lib.util as ut
 from hrl_lib.msg import FloatArray
+from geometry_msgs.msg import Wrench
 import numpy as np
 
 ##
 # Corresponding client class
 class FTClient(ru.GenericListener):
-    def __init__(self, topic_name, should_log=False, size_limit=100*60*60):
-        def msg_converter(msg):
-            m = np.matrix(msg.data, 'f').T
-            msg_time = msg.header.stamp.to_time()
-            if self.should_log:
-                self.log.append(m)
-                self.log_time.append(msg_time)
-                if len(self.log) > self.size_limit:
-                    self.log = self.log[-size_limit:]
-                    self.log_time = self.log_time[-size_limit:]
-            return m, msg_time
+    def __init__(self, topic_name, netft=False):
+        if netft:
+            def msg_converter(msg):
+                fx, fy, fz = msg.force.x, msg.force.y, msg.force.z
+                tx, ty, tz = msg.torque.x, msg.torque.y, msg.torque.z
+                msg_time = rospy.get_time()
+                return np.matrix([fx, fy, fz, tx, ty, tz]).T, msg_time
+            msg_type=Wrench
+        else:
+            def msg_converter(msg):
+                m = np.matrix(msg.data, 'f').T
+                msg_time = msg.header.stamp.to_time()
+                return m, msg_time
+            msg_type = FloatArray
 
-        self.should_log = should_log
-        self.size_limit = size_limit
-        self.clear_log()
-        ru.GenericListener.__init__(self, 'FTClient', FloatArray,
-                                    topic_name, 15.0,
+        ru.GenericListener.__init__(self, 'FTClient', msg_type,
+                                    topic_name, 50.0,
                                     message_extractor = msg_converter,
-                                    queue_size = 2)
-        self.bias_val = np.matrix([0,0,0, 0,0,0.0]).T
-
-    def set_logging(self, should_log):
-        self.should_log = should_log
-        self.clear_log()
-
-    def get_log(self):
-        return list(self.log), list(self.log_time)
-
-    def clear_log(self):
-        self.log = []
-        self.log_time = []
+                                    queue_size = None)
+        self.bias_val = np.matrix([0, 0, 0, 0, 0, 0.]).T
 
     ##
     # Read a force torque value
@@ -81,7 +71,7 @@ class FTClient(ru.GenericListener):
     def read(self, avg=1, without_bias=False, fresh=False, with_time_stamp=False):
         assert(avg > 0)
         if avg > 1:
-            freash = True
+            fresh = True
             if with_time_stamp:
                 raise RuntimeError('Can\'t request averaging and timestamping at the same time')
 
@@ -131,9 +121,11 @@ if __name__ == '__main__':
     p = optparse.OptionParser()
     p.add_option('-t', action='store', default='force_torque_ft1', type='string', 
                  dest='topic', help='which topic to listen to (default force_torque_ft1)')
+    p.add_option('--netft', action='store_true', dest='netft',
+                 help='is this a NetFT sensor')
     opt, args = p.parse_args()
 
-    client = FTClient(opt.topic)
+    client = FTClient(opt.topic, opt.netft)
     client.bias()
     while not rospy.is_shutdown():
         el = client.read()
