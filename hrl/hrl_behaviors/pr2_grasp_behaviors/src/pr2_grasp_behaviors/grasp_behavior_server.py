@@ -188,8 +188,8 @@ class GraspBehaviorServer(object):
     # on type of grasp requested.
     def execute_grasping_goal(self, goal):
         result = OverheadGraspResult()
+        feedback = OverheadGraspFeedback()
         def publish_state(state):
-            feedback = OverheadGraspFeedback()
             feedback.state = state
             self.grasping_server.publish_feedback(feedback)
         publish_state(GraspStates.ACTIONLIB_CALLED)
