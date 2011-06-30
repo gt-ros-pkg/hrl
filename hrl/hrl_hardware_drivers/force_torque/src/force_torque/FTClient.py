@@ -46,7 +46,7 @@ class FTClient(ru.GenericListener):
                 fx, fy, fz = msg.force.x, msg.force.y, msg.force.z
                 tx, ty, tz = msg.torque.x, msg.torque.y, msg.torque.z
                 msg_time = rospy.get_time()
-                return np.matrix([fx, fy, fz, tx, ty, tz]).T, msg_time
+                return -np.matrix([fx, fy, fz, tx, ty, tz]).T, msg_time
             msg_type=Wrench
         else:
             def msg_converter(msg):
