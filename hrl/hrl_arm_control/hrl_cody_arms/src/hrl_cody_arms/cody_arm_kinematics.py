@@ -29,8 +29,9 @@
 
 
 import numpy as np, math
-
 np.set_printoptions(precision=4, linewidth=80)
+
+import matplotlib.pyplot as pp
 
 import roslib; roslib.load_manifest('hrl_cody_arms')
 import PyKDL as kdl
@@ -250,6 +251,35 @@ class CodyArmKinematics(HRLArmKinematics):
         q_arr = np.array(q)
         d_arr = np.array(delta_list)
         return np.all((q_arr <= max_arr+d_arr, q_arr >= min_arr-d_arr))
+
+
+    #------------ 2D functions ------------
+
+    # plot the arm using matplotlib.
+    def plot_arm(self, q, color='b', alpha=1.):
+        pts = [[0.,0.,0.]]
+        for i in range(len(q)):
+            p = self.FK(q, i+1)[0]
+            pts.append(p.A1.tolist())
+
+        pts_2d = np.array(pts)[:,0:2]
+        direc_list = (pts_2d[1:] - pts_2d[:-1]).tolist()
+
+        for i, d in enumerate(direc_list):
+            d_vec = np.matrix(d).T
+            d_vec = d_vec / np.linalg.norm(d_vec)
+            w = np.cross(d_vec.A1, np.array([0., 0., 1.])) * 0.03/2
+            x1 = pts_2d[i,0]
+            y1 = pts_2d[i,1]
+            x2 = pts_2d[i+1,0]
+            y2 = pts_2d[i+1,1]
+
+            x_data = [x1+w[0], x1-w[0], x2-w[0], x2+w[0], x1+w[0]]
+            y_data = [y1+w[1], y1-w[1], y2-w[1], y2+w[1], y1+w[1]]
+
+            l, = pp.plot(x_data, y_data, color+'-', alpha=alpha)
+
+
 
 
 
