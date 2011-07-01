@@ -1,8 +1,17 @@
 #! /usr/bin/python
 
+import copy
 import numpy as np
 import roslib; roslib.load_manifest('hrl_pr2_arms')
 import rospy
+import actionlib
+
+from sensor_msgs.msg import JointState
+from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal
+from trajectory_msgs.msg import JointTrajectoryPoint
+
+from equilibrium_point_control.hrl_arm_template import HRLArm
+
 
 JOINT_NAMES_LIST = ['_shoulder_pan_joint',
                     '_shoulder_lift_joint', '_upper_arm_roll_joint',
@@ -16,9 +25,8 @@ class PR2Arm(HRLArm):
     # Initializes subscribers
     # @param arm 'r' for right, 'l' for left
     def __init__(self, arm, kinematics):
+        super(PR2Arm, self).__init__(kinematics)
         self.arm = arm
-        self.kinematics = kinematics
-        self.ep = None
 
         rospy.Subscriber('joint_states', JointState, self.joint_state_cb)
 
@@ -53,18 +61,19 @@ class PR2Arm(HRLArm):
 
 
 class PR2ArmJointTrajectory(PR2Arm):
-    def __init__(self, arm):
-        PR2Arm.__init__(self, arm)
+    def __init__(self, arm, kinematics):
+        super(PR2ArmJointTrajectory, self).__init__(arm, kinematics)
         self.joint_action_client = actionlib.SimpleActionClient(
                                        arm + '_arm_controller/joint_trajectory_action',
                                        JointTrajectoryAction)
+        rospy.sleep(1)
 
     ##
     # Commands joint angles to a single position
     # @param q Joint angles
     # @param time 
     def set_ep(self, jep, duration, delay=0.0):
-        if jep is None or len(ep) != 7:
+        if jep is None or len(jep) != 7:
             raise RuntimeError("set_ep value is " + str(jep))
         jtg = JointTrajectoryGoal()
         jtg.trajectory.header.stamp = rospy.Time.now() + rospy.Duration(delay)
@@ -73,6 +82,7 @@ class PR2ArmJointTrajectory(PR2Arm):
         jtp.positions = list(jep)
         jtp.time_from_start = rospy.Duration(duration)
         jtg.trajectory.points.append(jtp)
+        print jtg
         self.joint_action_client.send_goal(jtg)
         self.ep = copy.copy(jep)
 
