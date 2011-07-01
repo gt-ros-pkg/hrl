@@ -1,5 +1,8 @@
+#! /usr/bin/python
 
-from threading import RLock
+import numpy as np
+import roslib; roslib.load_manifest('hrl_pr2_arms')
+import rospy
 
 JOINT_NAMES_LIST = ['_shoulder_pan_joint',
                     '_shoulder_lift_joint', '_upper_arm_roll_joint',
@@ -8,15 +11,13 @@ JOINT_NAMES_LIST = ['_shoulder_pan_joint',
 JOINT_STATE_INDS_R = [17, 18, 16, 20, 19, 21, 22]
 JOINT_STATE_INDS_L = [29, 30, 28, 32, 31, 33, 34]
 
-
-
 class PR2Arm(HRLArm):
     ##
     # Initializes subscribers
     # @param arm 'r' for right, 'l' for left
-    def __init__(self, arm='r'):
-        self.kinematics = PR2ArmKinematics(arm)
-        self.lock = RLock()
+    def __init__(self, arm, kinematics):
+        self.arm = arm
+        self.kinematics = kinematics
         self.ep = None
 
         rospy.Subscriber('joint_states', JointState, self.joint_state_cb)
@@ -89,12 +90,5 @@ class PR2ArmJTranspose(PR2Arm):
 class PR2ArmJInverse(PR2Arm):
     def __init__(self):
         pass
-
-def main():
-    pr2_jt_arm = PR2ArmJointTrajectory('r')
-    pr2_jt_arm.set_ep([0.]*7, 15)
-
-if __name__ == "__main__":
-    main()
 
 
