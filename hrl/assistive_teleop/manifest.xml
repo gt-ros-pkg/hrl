@@ -2,7 +2,7 @@
   <description brief="assistive_teleop">
 
      Assistive_teleop provides an accessible interface for control of a PR2 by persons with severe motor disabilities. It is designed for use with an assistive HCI device providing control of mouse movement and a single (left) click. The interface is presented in a web browser, requiring no installation by users, and allows low-level control of all degrees of freedom in the PR2, provides visual feedback, and provides semi-autonomous functions for general manipulation and performance of Activities of Daily Living (ADLs), with the intention of allowing users greater control over their environment as well as their own bodies, and providing increased independence. 
-     This package is a direct product of the Robots for Humanity effort, a collaboration between Willow Garage and the Healthcare Robotics Lab at Georgia Tech (www.healthcare-robotics.com).
+     This package is a direct product of the Robots for Humanity effort, a collaboration between Willow Garage and the Healthcare Robotics Lab at Georgia Tech (<a href="http://www.healthcare-robotics.com"> www.healthcare-robotics.com </a>).
 
   </description>
   <author>Phillip M. Grice</author>
