@@ -37,17 +37,30 @@ class CircularBuffer():
         self.buf = np.zeros(shp)
         self.size = max_size
         self.n_vals = 0
-        self.idx = -1 # index with the up to date data.
+        self.end_idx = -1 # index with the up to date data.
+        self.start_idx = 0 # index with the up to date data.
 
     def append(self, val):
-        self.idx = (self.idx + 1) % self.size
+        self.end_idx = (self.end_idx + 1) % self.size
+        if self.n_vals != 0 and self.end_idx == self.start_idx:
+            self.start_idx = (self.start_idx + 1) % self.size
+
         self.n_vals = min(self.n_vals + 1, self.size)
-        self.buf[self.idx] = val
+        self.buf[self.end_idx] = val
+
+    # remove item from the right
+    def pop(self):
+        if self.n_vals == 0:
+            raise IndexError('pop from empty buffer')
+        v = self.buf[self.end_idx]
+        self.end_idx = (self.end_idx - 1) % self.size
+        self.n_vals = self.n_vals - 1
+        return v
 
     # convert the data into a list
     def to_list(self):
-        start_idx = (self.idx - self.n_vals + 1) % self.size
-        end_idx = self.idx
+        start_idx = self.start_idx
+        end_idx = self.end_idx
         if self.n_vals == 0:
             return []
         if end_idx >= start_idx:
@@ -61,7 +74,7 @@ class CircularBuffer():
     def get_last(self, n):
         if n > self.n_vals:
             raise IndexError('asking for too many elements')
-        end_idx = self.idx
+        end_idx = self.end_idx
         start_idx = end_idx - (n-1)
         if start_idx < 0:
             a1 = self.buf[start_idx:]
@@ -73,14 +86,14 @@ class CircularBuffer():
 
     def clear(self):
         self.n_vals = 0
-        self.idx = -1
+        self.end_idx = -1
+        self.start_idx = 0
 
     def __getitem__(self, i):
         if i >= self.n_vals or -i > self.n_vals:
             raise IndexError('index out of bounds')
 
-        start_idx = (self.idx + 1 - self.n_vals)
-        i = (start_idx + i) % self.n_vals
+        i = (self.start_idx + i) % self.n_vals
         return self.buf[i]
 
     def __repr__(self):
