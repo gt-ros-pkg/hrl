@@ -51,7 +51,7 @@ class PR2Arm(HRLArm):
                 return np.array(self.joint_angles)
 
 
-class PR2Arm_JointTrajectory(PR2Arm):
+class PR2ArmJointTrajectory(PR2Arm):
     def __init__(self, arm):
         PR2Arm.__init__(self, arm)
         self.joint_action_client = actionlib.SimpleActionClient(
@@ -75,15 +75,8 @@ class PR2Arm_JointTrajectory(PR2Arm):
         self.joint_action_client.send_goal(jtg)
         self.ep = copy.copy(jep)
 
-    ##
-    # Commands the arm to move to it's current joint angles, effectively stopping
-    # the arm in place.
-    def freeze_arm(self):
-        self.command_joint_angles(self.get_joint_angles(wrapped=False))
 
-
-
-class PR2Arm_JTranspose(PR2Arm):
+class PR2ArmJTranspose(PR2Arm):
     def __init__(self):
         pass
 
@@ -93,10 +86,15 @@ class PR2Arm_JTranspose(PR2Arm):
     def set_ep(self, p, rot):
         pass
 
-class PR2Arm_JInverse(PR2Arm):
+class PR2ArmJInverse(PR2Arm):
     def __init__(self):
         pass
 
+def main():
+    pr2_jt_arm = PR2ArmJointTrajectory('r')
+    pr2_jt_arm.set_ep([0.]*7, 15)
 
+if __name__ == "__main__":
+    main()
 
 
