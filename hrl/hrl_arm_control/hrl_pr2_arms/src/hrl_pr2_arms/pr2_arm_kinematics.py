@@ -1,3 +1,4 @@
+#! /usr/bin/python
 #
 # subscribe to thw joint angles and raw forces topics,  and provide FK
 # etc.
@@ -33,28 +34,27 @@
 import numpy as np, math
 from threading import RLock, Timer
 import sys, copy
-
+import time
 
 import roslib; roslib.load_manifest('hrl_pr2_arms')
-
-import tf
-import hrl_lib.transforms as tr
-import hrl_lib.viz as hv
-
 import rospy
+from visualization_msgs.msg import Marker
+
 import PyKDL as kdl
 
 import hrl_lib.transforms as tr
+import hrl_lib.viz as hv
+import hrl_lib.transforms as tr
 import hrl_lib.kdl_utils as ku
-import time
 
-from visualization_msgs.msg import Marker
+from equilibrium_point_control.hrl_arm_template import HRLArmKinematics
 
 
 ##
 # using KDL for pr2 arm kinematics.
-class PR2ArmKinematics(HRLArmKinematics):
-    def __init__(self):
+class KDLArmKinematics(HRLArmKinematics):
+    def __init__(self, tool_pos=np.matrix([0.]*3).T, tool_rot=np.matrix(np.eye(3))):
+        super(PR2ArmKinematics, self).__init__(7, tool_pos, tool_rot)
         self.right_chain = self.create_right_chain()
         fk, ik_v, ik_p, jac = self.create_solvers(self.right_chain)
         self.right_fk = fk
@@ -63,8 +63,22 @@ class PR2ArmKinematics(HRLArmKinematics):
         self.right_jac = jac
         self.right_tooltip = np.matrix([0.,0.,0.]).T
 
-    def create_right_chain(self):
+    def create_chain(self, n_jts, offset_mat, rotation_axes):
+        assert len(offset_mat) == len(rotation_axes)
+        joint_types = [kdl.Joint.RotX, kdl.Joint.RotY, kdl.Joint.RotZ]
         ch = kdl.Chain()
+        for i, row in enumerate(offset_mat.A):
+            ch.addSegment(kdl.Segment(kdl.Joint(joint_types[i]),kdl.Frame(kdl.Vector(*row))))
+        return ch
+
+        pr2_offsets = np.mat([[0.1, 0., 0.],
+                              [0., 0., 0.],
+                              [0.4, 0., 0.],
+                              [0., 0., 0.],
+                              [0.321, 0., 0.],
+                              [0., 0., 0.],
+                              [0., 0., 0.]])
+            
         self.right_arm_base_offset_from_torso_lift_link = np.matrix([0., -0.188, 0.]).T
         # shoulder pan
         ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotZ),kdl.Frame(kdl.Vector(0.1,0.,0.))))
@@ -89,28 +103,22 @@ class PR2ArmKinematics(HRLArmKinematics):
          jac = kdl.ChainJntToJacSolver(ch)
          return fk, ik_v, ik_p, jac
 
-    ## define tooltip as a 3x1 np matrix in the wrist coord frame.
-    def set_tooltip(self, arm, p):
-        if arm == 0:
-            self.right_tooltip = p
+    def FK_vanilla(self, q, link_number):
+        fk = self.right_fk
+        endeffec_frame = kdl.Frame()
+        kinematics_status = fk.JntToCart(self.pr2_to_kdl(q), endeffec_frame,
+                                         link_number)
+        if kinematics_status >= 0:
+            p = endeffec_frame.p
+            pos = np.mat([p.x(), p.y(), p.z()]).T
+            M = endeffec_frame.M
+            rot = np.mat([[M[0,0], M[0,1], M[0,2]], 
+                          [M[1,0], M[1,1], M[1,2]], 
+                          [M[2,0], M[2,1], M[2,2]]])
+            return pos, rot
         else:
-            rospy.logerr('Arm %d is not supported.'%(arm))
-
-    def FK_kdl(self, arm, q, link_number):
-        if arm == 0:
-            fk = self.right_fk
-            endeffec_frame = kdl.Frame()
-            kinematics_status = fk.JntToCart(q, endeffec_frame,
-                                             link_number)
-            if kinematics_status >= 0:
-                return endeffec_frame
-            else:
-                rospy.loginfo('Could not compute forward kinematics.')
-                return None
-        else:
-            msg = '%s arm not supported.'%(arm)
-            rospy.logerr(msg)
-            raise RuntimeError(msg)
+            rospy.loginfo('Could not compute forward kinematics.')
+            return None, None
 
     ## returns point in torso lift link.
     def FK_all(self, arm, q, link_number = 7):
@@ -132,24 +140,14 @@ class PR2ArmKinematics(HRLArmKinematics):
     def kdl_to_pr2(self, q):
         if q == None:
             return None
-
-        q_pr2 = [0] * 7
-        q_pr2[0] = q[0]
-        q_pr2[1] = q[1]
-        q_pr2[2] = q[2]
-        q_pr2[3] = q[3]
-        q_pr2[4] = q[4]
-        q_pr2[5] = q[5]
-        q_pr2[6] = q[6]
-        return q_pr2
+        return [q_i for q_i in q]
 
     def pr2_to_kdl(self, q):
         if q == None:
             return None
-        n = len(q)
-        q_kdl = kdl.JntArray(n)
-        for i in range(n):
-            q_kdl[i] = q[i]
+        q_kdl = kdl.JntArray(len(q))
+        for i, q_i in enumerate(q):
+            q_kdl[i] = q_i
         return q_kdl
 
     def Jac_kdl(self, arm, q):
@@ -216,12 +214,18 @@ class PR2ArmKinematics(HRLArmKinematics):
         d_arr = np.array(delta_list)
         return np.all((q_arr <= max_arr+d_arr, q_arr >= min_arr-d_arr))
 
+class PR2ArmKinematics(KDLArmKinematics):
 
-if __name__ == '__main__':
+def main():
     from visualization_msgs.msg import Marker
     import hrl_lib.viz as hv
 
-    rospy.init_node('pr2_arms_test')
+    rospy.init_node('pr2_arm_kinematics_test')
+
+    kinematics = PR2ArmKinematics()
+    print kinematics.FK([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+    return
+
 
     pr2_arms = PR2Arms()
     pr2_kdl = PR2Arms_kdl()
@@ -286,16 +290,7 @@ if __name__ == '__main__':
                 err_ros = np.array(q) - np.array(ik_ros)
                 err_kdl = np.array(q) - np.array(ik_kdl)
                 print "err ros", sum(err_ros**2), "err kdl", sum(err_kdl**2), "diff", sum(diff**2)
-
             
-
-
-
-
-
-
-
-
-
-
+if __name__ == '__main__':
+    main()
 
