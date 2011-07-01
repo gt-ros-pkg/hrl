@@ -12,7 +12,7 @@
   <depend package="rospy"/>
   <depend package="hrl_lib"/>
   <depend package="visualization_msgs"/>
-  <depend package="python_orocos_kdl"/>
+  <depend package="kdl"/>
   <depend package="equilibrium_point_control"/>
 
 </package>

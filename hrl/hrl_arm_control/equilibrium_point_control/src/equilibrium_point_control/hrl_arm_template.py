@@ -149,8 +149,10 @@ class HRLArmKinematics(object):
     # @param rot Desired link rotation (3x3 np matrix)
     # @param q_guess Estimate of the desired joint angles which seeds the IK solver
     def IK(self, pos, rot, q_guess=None):
-        last_link_pos = pos - rot * self.tooltip_rot.T * self.tooltip_pos
-        last_link_rot = rot * self.tooltip_rot.T
+        base_pos = self.arm_base_rot.T * pos - self.arm_base_rot.T * self.arm_base_pos
+        base_rot = self.arm_base_rot.T * rot
+        last_link_pos = base_pos - base_rot * self.tooltip_rot.T * self.tooltip_pos
+        last_link_rot = base_rot * self.tooltip_rot.T
         return self.IK_vanilla(last_link_pos, last_link_rot, q_guess)
 
     ##
@@ -162,7 +164,7 @@ class HRLArmKinematics(object):
     def jacobian(self, q, pos=None):
         if pos is None:
             pos = self.FK(q)
-        return jacobian_vanilla(q, pos)
+        return self.jacobian_vanilla(q, pos)
 
     ##
     # Sets the offset of the first link in the kinematic chain
