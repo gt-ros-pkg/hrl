@@ -59,8 +59,10 @@ class CircularBuffer():
 
     # get the last n elements.
     def get_last(self, n):
+        if n > self.n_vals:
+            raise IndexError('asking for too many elements')
         end_idx = self.idx
-        start_idx = end_idx - n
+        start_idx = end_idx - (n-1)
         if start_idx < 0:
             a1 = self.buf[start_idx:]
             a2 = self.buf[:end_idx+1]
