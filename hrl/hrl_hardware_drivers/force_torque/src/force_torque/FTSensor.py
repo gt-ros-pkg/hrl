@@ -54,11 +54,11 @@ class FTSensor:
         self.reset_time = None
         self.reset()
         while not self._start_query():
-            print 'FTSensor: resetting'
+            rospy.logwarn('FTSensor: resetting')
             count = count + 1
             self.reset()
             if count == 10:
-                print 'FTSensor.__init__: Exiting, too many resets.  Try manually restarting FT sensors.'
+                rospy.logfatal('FTSensor.__init__: Too many resets.  Try manually restarting FT sensors.')
 
         #self.last_access = time.time()
         self.last_value = []
