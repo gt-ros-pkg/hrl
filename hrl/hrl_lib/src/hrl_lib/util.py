@@ -1,4 +1,4 @@
-import os
+import os, sys, tty
 import numpy as np
 import cPickle as pk
 import time
@@ -195,12 +195,17 @@ def matrixrank(A,tol=1e-8):
     return sum( np.where( s>tol, 1, 0 ) )
 
 
-## get keystroks on Cody. raw_input + Cody + ROS results in some
-#strange behavior.
+## raw_input + matplotlib + ROS == strangeness.
+# use this function instead.
 def get_keystroke(msg):
-    import m3.toolbox as m3t
     print msg
-    return m3t.get_keystroke()
+    # clear out anythin in the buffer.
+    tty.setraw(sys.stdin, tty.TCSAFLUSH)
+    # next 4 lines copied from m3.toolbox from Meka Robotics.
+    os.system('stty raw')
+    r = sys.stdin.read(1)
+    os.system('stty sane')
+    return r
 
 
 
