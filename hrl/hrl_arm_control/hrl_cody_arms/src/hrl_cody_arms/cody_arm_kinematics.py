@@ -29,7 +29,7 @@
 
 
 import numpy as np, math
-np.set_printoptions(precision=4, linewidth=80)
+#np.set_printoptions(precision=4, linewidth=80)
 
 import matplotlib.pyplot as pp
 
