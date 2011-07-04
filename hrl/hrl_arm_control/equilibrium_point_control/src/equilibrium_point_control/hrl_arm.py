@@ -10,10 +10,10 @@ from threading import RLock
 
 import roslib; roslib.load_manifest('equilibrium_point_control')
 
-#try:
-#    import hrl_lib.geometry as hg
-#except ImportError, e:
-#    print '<hrl_arm.py> WARNING:', e
+try:
+    import hrl_lib.geometry as hg
+except ImportError, e:
+    print '<hrl_arm.py> WARNING:', e
 
 
 class HRLArm():
@@ -121,6 +121,32 @@ class HRLArmKinematics():
     def set_tooltip(self, p, rot=np.matrix(np.eye(3))):
         self.tooltip_pos = p
         self.tooltip_rot = rot
+
+
+    #----- 2D functions ----------
+
+    def arm_config_to_points_list(self, q):
+        return [self.FK(q, i)[0].A1[0:2] for i in range(len(q)+1)]
+
+    # project point onto the arm skeleton in 2D and compute distance
+    # along it to the end effector.
+    def distance_from_ee_along_arm(self, q, pt):
+        p_l = self.arm_config_to_points_list(q)
+        ee = self.FK(q)[0]
+        d_ee = hg.distance_along_curve(ee, p_l)
+        d_pt = hg.distance_along_curve(pt, p_l)
+        assert(d_ee >= d_pt)
+        return d_ee - d_pt
+    
+    # distance of a point from the arm
+    def distance_from_arm(self, q, pt):
+        p_l = self.arm_config_to_points_list(q)
+        return hg.distance_from_curve(pt, p_l)
+
+
+
+
+
 
 
 
