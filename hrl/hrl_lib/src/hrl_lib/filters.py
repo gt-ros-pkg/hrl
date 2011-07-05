@@ -36,9 +36,16 @@ class Kalman1D():
     # R - measurement variance
     # P - variance in my estimate
     def __init__(self, P, Q, R):
-        self.P = float(P)
-        self.Q = float(Q)
-        self.R = float(R)
+        self.P_orig = float(P)
+        self.Q_orig = float(Q)
+        self.R_orig = float(R)
+        self.reset
+
+    # rest the filter.
+    def reset(self):
+        self.P = self.P_orig
+        self.Q = self.Q_orig
+        self.R = self.R_orig
         self.xhat = None
 
     def predict(self, z):
