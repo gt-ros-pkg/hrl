@@ -29,6 +29,7 @@
 
 
 import numpy as np
+import circular_buffer as cb
 
 # Code copied and modified from: http://www.scipy.org/Cookbook/KalmanFiltering
 class Kalman1D():
@@ -61,13 +62,37 @@ class Kalman1D():
         return self.xhat
         
 
+class Mean():
+    # shape - () for scalar, (m,n) for mxn array
+    def __init__(self, size, shape):
+        self.buf = cb.CircularBuffer(size, shape)
+
+    def reset(self):
+        self.buf.clear()
+
+    def predict(self, z):
+        self.buf.append(z)
+        return np.mean(self.buf.to_list(), 0)
+
+class Median():
+    # shape - () for scalar, (m,n) for mxn array
+    def __init__(self, size, shape):
+        self.buf = cb.CircularBuffer(size, shape)
+
+    def reset(self):
+        self.buf.clear()
+
+    def predict(self, z):
+        self.buf.append(z)
+        return np.median(self.buf.to_list(), 0)
+
+
 
 # x - 1D np array
-def filter_array(x, P, Q, R):
-    kf = Kalman1D(P, Q, R)
+def filter_array(x, filt):
     x_filt = []
     for z in x:
-        x_filt.append(kf.predict(z))
+        x_filt.append(filt.predict(z))
 #    print 'final value of P:', kf.P
     return np.array(x_filt)
 
