@@ -39,7 +39,7 @@ class Kalman1D():
         self.P_orig = float(P)
         self.Q_orig = float(Q)
         self.R_orig = float(R)
-        self.reset
+        self.reset()
 
     # rest the filter.
     def reset(self):
