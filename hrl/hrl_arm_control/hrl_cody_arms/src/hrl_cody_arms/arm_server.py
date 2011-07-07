@@ -149,8 +149,8 @@ class MekaArmServer():
         self.cb_lock = RLock()
         self.r_jep = None # see set_jep
         self.l_jep = None # see set_jep
-        self.qr_prev = None # see step_ros
-        self.ql_prev = None # see step_ros
+        self.q_r = None # using this to compute qdot
+        self.q_l = None # using this to compute qdot
 
         d = {}
         d['right_arm'] = ac.get_joint_name_list('r')
@@ -321,9 +321,14 @@ class MekaArmServer():
 
         q_r = self.get_joint_angles(r_arm)
         q_l = self.get_joint_angles(l_arm)
-
-        qdot_r = self.get_joint_velocities(r_arm)
-        qdot_l = self.get_joint_velocities(l_arm)
+        if self.q_r != None and self.q_l != None:
+            qdot_r = np.array(q_r) - np.array(self.q_r)
+            qdot_l = np.array(q_l) - np.array(self.q_l)
+        else:
+            qdot_r = np.zeros(7)
+            qdot_l = np.zeros(7)
+        self.q_r = q_r
+        self.q_l = q_l
 
         f_raw_r = self.get_wrist_force(r_arm).A1.tolist()
         f_raw_l = self.get_wrist_force(l_arm).A1.tolist()
@@ -447,7 +452,9 @@ class MekaArmServer():
     # @return list of 7 joint velocities in RADIANS/s.
     #         according to meka's coordinate frames.
     def get_joint_velocities(self, arm):
-        return self.arms[arm].get_thetadot_rad().tolist()
+        #return self.arms[arm].get_thetadot_rad().tolist()
+        raise RuntimeError('The meka joint velocities seem incorrect. (Advait, July 6, 2011). Computing my own joint velocities.')
+
 
     def get_joint_angles(self, arm):
         ''' returns list of 7 joint angles in RADIANS.
