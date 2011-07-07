@@ -119,6 +119,9 @@ class MekaArmServer():
         self.q_r_pub = rospy.Publisher('/r_arm/q', FloatArray)
         self.q_l_pub = rospy.Publisher('/l_arm/q', FloatArray)
 
+        self.qdot_r_pub = rospy.Publisher('/r_arm/qdot', FloatArray)
+        self.qdot_l_pub = rospy.Publisher('/l_arm/qdot', FloatArray)
+
         self.force_raw_r_pub = rospy.Publisher('/r_arm/force_raw', FloatArray)
         self.force_raw_l_pub = rospy.Publisher('/l_arm/force_raw', FloatArray)
         self.force_r_pub = rospy.Publisher('/r_arm/force', FloatArray)
@@ -319,6 +322,9 @@ class MekaArmServer():
         q_r = self.get_joint_angles(r_arm)
         q_l = self.get_joint_angles(l_arm)
 
+        qdot_r = self.get_joint_velocities(r_arm)
+        qdot_l = self.get_joint_velocities(l_arm)
+
         f_raw_r = self.get_wrist_force(r_arm).A1.tolist()
         f_raw_l = self.get_wrist_force(l_arm).A1.tolist()
         f_r = self.xhat_force[r_arm]
@@ -331,6 +337,9 @@ class MekaArmServer():
 
         self.q_r_pub.publish(FloatArray(h, q_r))
         self.q_l_pub.publish(FloatArray(h, q_l))
+
+        self.qdot_r_pub.publish(FloatArray(h, qdot_r))
+        self.qdot_l_pub.publish(FloatArray(h, qdot_l))
 
         self.jep_r_pub.publish(FloatArray(h, r_jep))
         self.jep_l_pub.publish(FloatArray(h, l_jep))
