@@ -25,7 +25,10 @@ class HRLArm():
         self.qdot = None # angular velocity
         self.lock = RLock()
 
-    #------- abstract functions ---------
+    def get_joint_velocities(self):
+        with self.lock:
+            return copy.copy(self.qdot)
+
     def get_joint_angles(self):
         with self.lock:
             return copy.copy(self.q)

@@ -82,6 +82,7 @@ class CodyArmClient(HRLArm):
         rospy.Subscriber('/'+arm+'_arm/joint_impedance_scale', FloatArray, self.alpha_cb)
 
         rospy.Subscriber('/'+arm+'_arm/q', FloatArray, self.q_cb)
+        rospy.Subscriber('/'+arm+'_arm/qdot', FloatArray, self.qdot_cb)
 
         rospy.Subscriber('/'+arm+'_arm/force', FloatArray, self.force_cb)
         rospy.Subscriber('/'+arm+'_arm/force_raw', FloatArray, self.raw_force_cb)
@@ -109,6 +110,10 @@ class CodyArmClient(HRLArm):
     def q_cb(self, msg):
         with self.lock:
             self.q = copy.copy(msg.data)
+
+    def qdot_cb(self, msg):
+        with self.lock:
+            self.qdot = copy.copy(msg.data)
 
     def force_cb(self, msg):
         with self.lock:
@@ -207,10 +212,6 @@ class CodyArmClient(HRLArm):
     #-------- unimplemented functions -----------------
 
     # leaving this unimplemented for now. Advait Nov 14, 2010.
-    def get_joint_velocities(self, arm):
-        pass
-
-    # leaving this unimplemented for now. Advait Nov 14, 2010.
     def get_joint_accelerations(self, arm):
         pass
 
@@ -237,32 +238,6 @@ if __name__ == '__main__':
             print 'f:', f.A1
             rospy.sleep(0.05)
 
-#    # move the arms.
-#    if False:
-#        print 'hit a key to move the arms.'
-#        k=m3t.get_keystroke()
-#
-#        rot_mat = tr.rotY(math.radians(-90))
-#        p = np.matrix([0.3, -0.24, -0.3]).T
-#    #    q = arms.IK(l_arm, p, rot_mat)
-#    #    ac.go_jep(l_arm, q)
-#    #    ac.go_cep(l_arm, p, rot_mat)
-#        ac.go_cep(r_arm, p, rot_mat)
-#
-#    #    jep = ac.get_jep(r_arm)
-#    #    ac.go_jep(r_arm, jep)
-#
-#        rospy.sleep(0.5)
-#        raw_input('Hit ENTER to print ee position')
-#        q = ac.get_joint_angles(r_arm)
-#        ee = ac.arms.FK(r_arm, q)
-#        print 'ee:', ee.A1
-#        print 'desired ee:', p.A1
-#
-#        #ac.move_till_hit(l_arm)
-#        #ac.motors_off()
-#    #    ac.stop()
-
     if False:
         while not rospy.is_shutdown():
             jep = ac.get_ep()
@@ -270,6 +245,12 @@ if __name__ == '__main__':
             rospy.sleep(0.05)
 
     if True:
+        while not rospy.is_shutdown():
+            qdot = ac.get_joint_velocities()
+            print 'qdot:', np.degrees(qdot)
+            rospy.sleep(0.05)
+
+    if False:
         rospy.sleep(1.)
         isc =  ac.get_impedance_scale()
         print isc
