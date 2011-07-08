@@ -9,6 +9,7 @@ import actionlib
 from sensor_msgs.msg import JointState
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal
 from trajectory_msgs.msg import JointTrajectoryPoint
+import tf.transformations as tf_trans
 
 from equilibrium_point_control.hrl_arm_template import HRLArm
 
@@ -59,6 +60,35 @@ class PR2Arm(HRLArm):
             else:
                 return np.array(self.joint_angles)
 
+    ##
+    # Returns the same angles with the forearm and wrist roll wrapped to the 
+    # range -pi to pi
+    # @param q Joint angles
+    # @return Wrapped joint angles
+    def wrap_angles(self, q):
+        q = list(q)
+        for ind in [4, 6]:
+            while q[ind] < -np.pi:
+                q[ind] += 2*np.pi
+            while q[ind] > np.pi:
+                q[ind] -= 2*np.pi
+        return np.array(q)
+
+##
+# Returns pairs of positions and rotations linearly interpolated between
+# the start and end position/orientations.  Rotations are found using slerp
+# @return List of (pos, rot) waypoints between start and end.
+def interpolate_linear(start_pos, start_rot, end_pos, end_rot, num_steps):
+    pos_waypoints = np.dstack([np.linspace(start_pos[0], end_pos[0], num_steps), 
+                               np.linspace(start_pos[1], end_pos[1], num_steps), 
+                               np.linspace(start_pos[2], end_pos[2], num_steps)])[0]
+    start_quat = tf_trans.matrix_to_quaternion(start_rot)
+    end_quat = tf_trans.matrix_to_quaternion(end_rot)
+    rot_waypoints = []
+    for fraction in np.linspace(0, 1, num_steps):
+        cur_quat = tf_trans.quaternion_slerp(start_quat, end_quat, fraction)
+        rot_waypoints.append(tf_trans.quaternion_to_matrix(cur_quat))
+    return zip(pos_waypoints, rot_waypoints)
 
 class PR2ArmJointTrajectory(PR2Arm):
     def __init__(self, arm, kinematics):
@@ -70,8 +100,9 @@ class PR2ArmJointTrajectory(PR2Arm):
 
     ##
     # Commands joint angles to a single position
-    # @param q Joint angles
-    # @param time 
+    # @param jep List of 7 joint params to command the the arm to reach
+    # @param duration Length of time command should take
+    # @param delay Time to wait before starting joint command
     def set_ep(self, jep, duration, delay=0.0):
         if jep is None or len(jep) != 7:
             raise RuntimeError("set_ep value is " + str(jep))
@@ -82,9 +113,13 @@ class PR2ArmJointTrajectory(PR2Arm):
         jtp.positions = list(jep)
         jtp.time_from_start = rospy.Duration(duration)
         jtg.trajectory.points.append(jtp)
-        print jtg
         self.joint_action_client.send_goal(jtg)
         self.ep = copy.copy(jep)
+
+    def interpolate_ep(self, ep_a, ep_b, num_steps):
+        linspace_list = [np.linspace(ep_a[i], ep_b[i], num_steps) for i in range(self.n_jts)]
+        return np.dstack(linspace_list)[0]
+
 
 
 class PR2ArmJTranspose(PR2Arm):

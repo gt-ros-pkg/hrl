@@ -7,7 +7,7 @@ import pygame as pg
 import roslib; roslib.load_manifest('equilibrium_point_control')
 import rospy
 
-from equilibrium_point_control.epc import EPGenerator, EPC
+from equilibrium_point_control.epc import EPGenerator, EPC, EPStopConditions
 from equilibrium_point_control.timer import Timer
 
 class TestEPGenerator(EPGenerator):
@@ -19,7 +19,7 @@ class TestEPGenerator(EPGenerator):
 
     def generate_ep(self):
         ep = self.pts[self.ind]
-        stop = EPC.StopConditions.CONTINUE
+        stop = EPStopConditions.CONTINUE
         self.ind += 1
         return stop, ep
 
@@ -31,9 +31,9 @@ class TestEPGenerator(EPGenerator):
 
     def terminate_check(self):
         if self.ind == len(self.pts):
-            return EPC.StopConditions.COMPLETED
+            return EPStopConditions.SUCCESSFUL
         else:
-            return EPC.StopConditions.CONTINUE
+            return EPStopConditions.CONTINUE
 
 def main():
     rospy.init_node('test_epc')

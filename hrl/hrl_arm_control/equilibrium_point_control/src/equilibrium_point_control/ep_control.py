@@ -16,7 +16,7 @@ class EPGenerator():
     ##
     # Generates a new equilibrium point.
     # @return (stop, ep)
-    #         stop: EPC.StopConditions.CONTINUE or non-empty string to terminate
+    #         stop: EPStopConditions.CONTINUE or non-empty string to terminate
     #         ep: equilibrium point to be sent to control_function
     def generate_ep(self):
         raise RuntimeError('Unimplemented Function')
@@ -38,10 +38,20 @@ class EPGenerator():
     ##
     # Termination check for collision or goal reaching.
     # To be overwritten if needed by the child class.
-    # @return EPC.StopConditions.CONTINUE or non-empty string to terminate
+    # @return EPStopConditions.CONTINUE or non-empty string to terminate
     def terminate_check(self):
-        return EPC.StopConditions.CONTINUE
+        return EPStopConditions.CONTINUE
     #----------------------------------------------------------
+
+##
+# Enumerated constants for EPC termination conditions
+class EPStopConditions:
+    CONTINUE = ''
+    ROSPY_SHUTDOWN = 'rospy shutdown'
+    ROS_STOP = 'stop_command_over_ROS'
+    TIMEOUT = 'timed out'
+    RESET_TIMING = 'reset timing'
+    SUCCESSFUL = 'epc motion successful'
 
 ##
 # Simple class containing the core EPC function: a control loop paradigm.
@@ -54,16 +64,6 @@ class EPC():
         self.pause_epc = False
         rospy.Subscriber('/'+epc_name+'/stop', Bool, self._stop_cb)
         rospy.Subscriber('/'+epc_name+'/pause', Bool, self._pause_cb)
-
-    ##
-    # Enumerated constants for EPC termination conditions
-    class StopConditions:
-        CONTINUE = ''
-        ROSPY_SHUTDOWN = 'rospy shutdown'
-        ROS_STOP = 'stop_command_over_ROS'
-        TIMEOUT = 'timed out'
-        RESET_TIMING = 'reset timing'
-        COMPLETED = 'epc motion completed'
 
     ##
     # Subscriber callback for stopping the arm's motion
@@ -89,22 +89,22 @@ class EPC():
     def epc_motion(self, ep_gen, time_step, timeout=np.inf):
         rospy.loginfo("[epc] epc_motion started")
         timeout_at = rospy.get_time() + timeout
-        stop = EPC.StopConditions.CONTINUE
+        stop = EPStopConditions.CONTINUE
         ea = None
         while True:
             # basic rospy shutdown termination
             if rospy.is_shutdown():
-                stop = EPC.StopConditions.ROSPY_SHUTDOWN
+                stop = EPStopConditions.ROSPY_SHUTDOWN
                 break
 
             # check to see if we should stop (stop_epc changed from another thread)
             if self.stop_epc:
-                stop = EPC.StopConditions.ROS_STOP
+                stop = EPStopConditions.ROS_STOP
                 break
 
             # check to see if the generator thinks we should stop
             stop = ep_gen.terminate_check()
-            if stop != EPC.StopConditions.CONTINUE:
+            if stop != EPStopConditions.CONTINUE:
                 break
             
             # check to see if we're paused
@@ -115,12 +115,12 @@ class EPC():
 
             # timeout check
             if timeout_at < rospy.get_time():
-                stop = EPC.StopConditions.TIMEOUT
+                stop = EPStopConditions.TIMEOUT
                 break
 
             # create a new ep
             stop, ep = ep_gen.generate_ep() 
-            if stop != EPC.StopConditions.CONTINUE:
+            if stop != EPStopConditions.CONTINUE:
                 break
 
             # if a post-processing function exits, use it to process the ep

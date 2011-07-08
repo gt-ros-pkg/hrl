@@ -53,6 +53,7 @@ class PR2ArmKinematics(KDLArmKinematics):
         tool_pos = np.mat([0.18, 0., 0.]).T
 
     class PR2LeftArmParameters(KDLArmParameters):
+        # TODO test these values
         joint_offsets = [[0.1, 0., 0.],
                          [0., 0., 0.],
                          [0.4, 0., 0.],
@@ -70,6 +71,7 @@ class PR2ArmKinematics(KDLArmKinematics):
             arm_params = PR2ArmKinematics.PR2RightArmParameters()
         else:
             arm_params = PR2ArmKinematics.PR2LeftArmParameters()
+            # TODO remove this assert
             assert False, "left not implemented yet"
         super(PR2ArmKinematics, self).__init__(arm_params)
 
@@ -81,6 +83,7 @@ def main():
     print r_kinematics.IK(np.mat([0.1, 0.1, 0.1]).T, np.eye(3))
     print r_kinematics.jacobian([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
     l_kinematics = PR2ArmKinematics('l')
+    # TODO more formal test of functionality
     return
             
 if __name__ == '__main__':
