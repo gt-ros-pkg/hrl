@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2009, Georgia Tech Research Corporation
+# Copyright (c) 2009, 2011 Georgia Tech Research Corporation
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -97,8 +97,7 @@ class CircularBuffer():
             raise IndexError('index (i = %d) out of bounds, since n_vals = %d' % (i, self.n_vals))
 
     def __getitem__(self, i):
-        print 
-        print 'input argument for __getitem__ =', i
+        #print 'input argument for __getitem__ =', i
         if type(i) is type(slice(1)):
             start = i.start
             stop = i.stop
@@ -125,16 +124,16 @@ class CircularBuffer():
             
             # return the requested range
             if equal_indices or (step >= self.n_vals):
-                print "self.buf[start:start] = self.buf[%d:%d]" % (start,start)
+                #print "self.buf[start:start] = self.buf[%d:%d]" % (start,start)
                 return self.buf[start:start]
              
             if start < stop:
-                print "self.buf[start:stop:step] = self.buf[%d:%d:%d]" % (start,stop,step)
+                #print "self.buf[start:stop:step] = self.buf[%d:%d:%d]" % (start,stop,step)
                 return self.buf[start:stop:step]
             else:
                 wrap_start = ((self.n_vals - start) + step) % step
-                print "np.concatenate([self.buf[start::step], self.buf[wrap_start:stop:step]]) ="
-                print "np.concatenate([self.buf[%d::%d], self.buf[%d:%d:%d]])" % (start,step,wrap_start,stop,step)
+                #print "np.concatenate([self.buf[start::step], self.buf[wrap_start:stop:step]]) ="
+                #print "np.concatenate([self.buf[%d::%d], self.buf[%d:%d:%d]])" % (start,step,wrap_start,stop,step)
                 return np.concatenate([self.buf[start::step], self.buf[wrap_start:stop:step]])
         else:
             self.check_index(i)
