@@ -25,7 +25,7 @@
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-#  \author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
+#  \author Advait Jain and Charlie Kemp (Healthcare Robotics Lab, Georgia Tech.)
 
 
 import numpy as np
@@ -89,12 +89,57 @@ class CircularBuffer():
         self.end_idx = -1
         self.start_idx = 0
 
-    def __getitem__(self, i):
-        if i >= self.n_vals or -i > self.n_vals:
-            raise IndexError('index out of bounds')
+    def convert_index(self, i):
+        return (self.start_idx + i) % self.n_vals
 
-        i = (self.start_idx + i) % self.n_vals
-        return self.buf[i]
+    def check_index(self, i):
+        if i >= self.n_vals or -i > self.n_vals:
+            raise IndexError('index (i = %d) out of bounds, since n_vals = %d' % (i, self.n_vals))
+
+    def __getitem__(self, i):
+        print 
+        print 'input argument for __getitem__ =', i
+        if type(i) is type(slice(1)):
+            start = i.start
+            stop = i.stop
+            step = i.step
+            
+            # clip the values of the slice to be within range
+            if start is None:
+                start = 0
+            if stop is None:
+                stop = self.n_vals
+            if step is None:
+                step = 1
+            if start < 0:
+                start = 0
+            if stop > self.n_vals:
+                stop = self.n_vals
+            if start > stop:
+                start = stop
+
+            # convert the values to be indices to the circular buffer
+            equal_indices = start==stop
+            start = self.convert_index(start)
+            stop = self.convert_index(stop - 1) + 1
+            
+            # return the requested range
+            if equal_indices or (step >= self.n_vals):
+                print "self.buf[start:start] = self.buf[%d:%d]" % (start,start)
+                return self.buf[start:start]
+             
+            if start < stop:
+                print "self.buf[start:stop:step] = self.buf[%d:%d:%d]" % (start,stop,step)
+                return self.buf[start:stop:step]
+            else:
+                wrap_start = ((self.n_vals - start) + step) % step
+                print "np.concatenate([self.buf[start::step], self.buf[wrap_start:stop:step]]) ="
+                print "np.concatenate([self.buf[%d::%d], self.buf[%d:%d:%d]])" % (start,step,wrap_start,stop,step)
+                return np.concatenate([self.buf[start::step], self.buf[wrap_start:stop:step]])
+        else:
+            self.check_index(i)
+            i = self.convert_index(i)
+            return self.buf[i]
 
     def __repr__(self):
         return str(self.to_list())
