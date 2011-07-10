@@ -66,13 +66,13 @@ class PR2Arm(HRLArm):
     # @param q Joint angles
     # @return Wrapped joint angles
     def wrap_angles(self, q):
-        q = list(q)
+        ret_q = list(q)
         for ind in [4, 6]:
-            while q[ind] < -np.pi:
-                q[ind] += 2*np.pi
-            while q[ind] > np.pi:
-                q[ind] -= 2*np.pi
-        return np.array(q)
+            while ret_q[ind] < -np.pi:
+                ret_q[ind] += 2*np.pi
+            while ret_q[ind] > np.pi:
+                ret_q[ind] -= 2*np.pi
+        return np.array(ret_q)
 
 ##
 # Returns pairs of positions and rotations linearly interpolated between
@@ -117,9 +117,11 @@ class PR2ArmJointTrajectory(PR2Arm):
         self.ep = copy.copy(jep)
 
     def interpolate_ep(self, ep_a, ep_b, num_steps):
-        linspace_list = [np.linspace(ep_a[i], ep_b[i], num_steps) for i in range(self.n_jts)]
+        linspace_list = [np.linspace(ep_a[i], ep_b[i], num_steps) for i in range(len(ep_a))]
         return np.dstack(linspace_list)[0]
 
+    def reset_ep(self):
+        self.ep = self.get_joint_angles(True)
 
 
 class PR2ArmJTranspose(PR2Arm):
