@@ -52,6 +52,7 @@ class EPStopConditions:
     TIMEOUT = 'timed out'
     RESET_TIMING = 'reset timing'
     SUCCESSFUL = 'epc motion successful'
+    COLLISION = 'collision detected'
 
 ##
 # Simple class containing the core EPC function: a control loop paradigm.
