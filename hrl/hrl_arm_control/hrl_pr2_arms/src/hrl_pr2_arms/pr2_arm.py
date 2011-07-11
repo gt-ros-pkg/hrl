@@ -144,6 +144,9 @@ class PR2ArmCartesianBase(PR2Arm):
             rot_waypoints.append(np.mat(tf_trans.quaternion_matrix(cur_quat))[:3,:3])
         return zip(pos_waypoints, rot_waypoints)
 
+    def reset_ep(self):
+        self.ep = self.kinematics.FK(self.get_joint_angles(True))
+
 class PR2ArmJTranspose(PR2ArmCartesianBase):
     pass
 
