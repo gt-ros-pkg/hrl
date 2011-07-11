@@ -156,6 +156,26 @@ class CircularBuffer():
 
 
 
+if __name__ == '__main__':
+
+    cb1 = CircularBuffer(5, ())
+    cb1.append(1)
+    cb1.append(2)
+    cb1.append(3)
+    cb1.append(4)
+    cb1.append(5)
+    cb1.append(6)
+    cb1.append(7)
+    cb1.append(8)
+
+    print 'cb1:', cb1
+    print 'cb1.buf:', cb1.buf
+    print 'cb1[0::3]', cb1[0::3]
+    print 'cb1.get_array()[0::3]', cb1.get_array()[0::3]
+
+
+
+
 
 
 
