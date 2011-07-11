@@ -6,9 +6,6 @@
 #include <cpl_superpixels/segment/segment-image.h>
 #include <cpl_superpixels/segment/image.h>
 #include <cpl_superpixels/segment/converter.h>
-#include <cpl_superpixels/SmoothClutter.h>
-
-// #define DISPLAY_SUPERPIXELS
 
 namespace cpl_superpixels
 {
