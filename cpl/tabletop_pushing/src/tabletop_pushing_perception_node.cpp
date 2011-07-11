@@ -59,11 +59,13 @@
 #include <pcl/features/integral_image_normal.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl_ros/transforms.h>
+#include <pcl/features/normal_3d.h>
 
 // OpenCV
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/features2d/features2d.hpp>
 
 // Visual features
 #include <cpl_visual_features/sliding_window.h>
@@ -87,16 +89,227 @@
 
 #define CALL_PUSH_POSE_ON_CALLBCK
 #define DISPLAY_SUPERPIXELS
-// #define USE_DEPTH_ROI
+#define DISPLAY_TRACKER_OUTPUT
+#define USE_DEPTH_ROI
 
 using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image> MySyncPolicy;
-// typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
-//                                                         sensor_msgs::Image,
-//                                                         sensor_msgs::PointCloud2> MySyncPolicy;
+
+typedef std::vector<float> Descriptor;
+
+class FeatureTracker
+{
+ public:
+  FeatureTracker(double hessian_thresh=800, int num_octaves=4, int num_layers=2,
+                 bool extended=true) :
+      surf_(hessian_thresh, num_octaves, num_layers, extended),
+      initialized_(false), ratio_threshold_(0.3)
+  {
+    prev_keypoints_.clear();
+    cur_keypoints_.clear();
+    prev_descriptors_.clear();
+    cur_descriptors_.clear();
+  }
+
+  //
+  // Main tracking logic functions
+  //
+
+  void initTracks(cv::Mat& frame)
+  {
+    updateCurrentDescriptors(frame);
+    prev_keypoints_ = cur_keypoints_;
+    prev_descriptors_ = cur_descriptors_;
+    initialized_ = true;
+  }
+
+  void updateTracks(cv::Mat& frame)
+  {
+    cur_keypoints_.clear();
+    cur_descriptors_.clear();
+    updateCurrentDescriptors(frame);
+
+    std::vector<int> matches_cur;
+    std::vector<int> matches_prev;
+    std::vector<cv::Point> displacements;
+    matches_cur.clear();
+    matches_prev.clear();
+
+    // Find nearest neighbors with previous descriptors
+    findMatches(cur_descriptors_, prev_descriptors_, matches_cur, matches_prev);
+    ROS_INFO_STREAM("Num feature matches: " << matches_cur.size());
+
+    for (unsigned int i = 0; i < matches_cur.size(); i++)
+    {
+      int dx = prev_keypoints_[matches_prev[i]].pt.x -
+          cur_keypoints_[matches_cur[i]].pt.x;
+      int dy = prev_keypoints_[matches_prev[i]].pt.y -
+          cur_keypoints_[matches_cur[i]].pt.y;
+      cv::Point disp(dx,dy);
+      displacements.push_back(disp);
+    }
+
+#ifdef DISPLAY_TRACKER_OUTPUT
+    for (unsigned int i = 0; i < matches_cur.size(); i++)
+    {
+      cv::line(frame,
+               prev_keypoints_[matches_prev[i]].pt,
+               cur_keypoints_[matches_cur[i]].pt,
+               cv::Scalar(0,0,255), 1);
+    }
+
+    cv::imshow("obj_reg", frame);
+    char c = cv::waitKey(3);
+#endif // DISPLAY_TRACKER_OUTPUT
+
+    prev_keypoints_ = cur_keypoints_;
+    prev_descriptors_ = cur_descriptors_;
+  }
+
+  //
+  // Feature Matching Functions
+  //
+
+  /*
+   * SSD
+   *
+   * @short Computes the squareroot of squared differences
+   * @param a First descriptor
+   * @param b second descriptor
+   * @return value of squareroot of squared differences
+   */
+  double SSD(Descriptor& a, Descriptor& b)
+  {
+    double diff = 0;
+
+    for (unsigned int i = 0; i < a.size(); ++i) {
+      float delta = a[i] - b[i];
+      diff += delta*delta;
+    }
+
+    return diff;
+  }
+
+  /*
+   * ratioTest
+   *
+   * @short Computes the  ratio test described in Lowe 2004
+   * @param a Descriptor from the first image to compare
+   * @param bList List of descriptors from the second image
+   * @param threshold Threshold value for ratioTest comparison
+   *
+   * @return index of the best match, -1 if no match ratio is less than threshold
+   */
+  int ratioTest(Descriptor& a, std::vector<Descriptor>& bList, double threshold)
+  {
+    double bestScore = 1000000;
+    double secondBest = 1000000;
+    int bestIndex = -1;
+
+    for (unsigned int b = 0; b < bList.size(); ++b) {
+      double score = 0;
+      score = SSD(a, bList[b]);
+
+      if (score < bestScore) {
+        secondBest = bestScore;
+        bestScore = score;
+        bestIndex = b;
+      } else if (score < secondBest) {
+        secondBest = score;
+      }
+      if ( bestScore / secondBest > threshold) {
+        bestIndex = -1;
+      }
+
+    }
+
+    return bestIndex;
+  }
+
+  /**
+   * findMatches
+   *
+   * @param descriptors1 List of descriptors from image 1
+   * @param descriptors2 List of descriptors from image 2
+   * @param matches1 Indexes of matching points in image 1 (Returned)
+   * @param matches2 Indexes of matching points in image 2 (Returned)
+   */
+  void findMatches(std::vector<Descriptor>& descriptors1,
+                   std::vector<Descriptor>& descriptors2,
+                   std::vector<int>& matches1, std::vector<int>& matches2)
+  {
+    // Determine matches using the Ratio Test method from Lowe 2004
+    for (unsigned int a = 0; a < descriptors1.size(); ++a) {
+      const int bestIndex = ratioTest(descriptors1[a], descriptors2,
+                                      ratio_threshold_);
+      if (bestIndex != -1) {
+        matches1.push_back(a);
+        matches2.push_back(bestIndex);
+      }
+    }
+
+    // Check that the matches are unique going the other direction
+    for (unsigned int x = 0; x < matches2.size();) {
+      const int bestIndex = ratioTest(descriptors2[matches2[x]],
+                                      descriptors1, ratio_threshold_);
+      if (bestIndex != matches1[x]) {
+        matches1.erase(matches1.begin()+x);
+        matches2.erase(matches2.begin()+x);
+      } else {
+        x++;
+      }
+    }
+
+  }
+
+ protected:
+
+  //
+  // Helper Functions
+  //
+
+  void updateCurrentDescriptors(cv::Mat& frame)
+  {
+    std::vector<float> raw_descriptors;
+    try
+    {
+      surf_(frame, cv::Mat(), cur_keypoints_, raw_descriptors);
+      for (unsigned int i = 0; i < raw_descriptors.size(); i += 128)
+      {
+        Descriptor d(raw_descriptors.begin() + i,
+                     raw_descriptors.begin() + i + 128);
+        cur_descriptors_.push_back(d);
+      }
+    }
+    catch(cv::Exception e)
+    {
+      cerr << e.err << endl;
+    }
+  }
+
+ public:
+
+  //
+  // Getters & Setters
+  //
+
+  bool isInitialized() const
+  {
+    return initialized_;
+  }
+
+ protected:
+  std::vector<cv::KeyPoint> prev_keypoints_;
+  std::vector<cv::KeyPoint> cur_keypoints_;
+  std::vector<Descriptor> prev_descriptors_;
+  std::vector<Descriptor> cur_descriptors_;
+  cv::SURF surf_;
+  bool initialized_;
+  double ratio_threshold_;
+};
 
 class TabletopPushingPerceptionNode
 {
@@ -105,10 +318,8 @@ class TabletopPushingPerceptionNode
       n_(n),
       image_sub_(n, "color_image_topic", 1),
       depth_sub_(n, "depth_image_topic", 1),
-      // point_sub_(n, "point_cloud_topic", 1),
-      // sync_(MySyncPolicy(1), image_sub_, depth_sub_, point_sub_),
       sync_(MySyncPolicy(1), image_sub_, depth_sub_),
-      tf_(), have_depth_data_(false)
+      tf_(), tracker_(), have_depth_data_(false)
   {
     ros::NodeHandle n_private("~");
     n_private.param("segment_k", k_, 500.0);
@@ -130,16 +341,13 @@ class TabletopPushingPerceptionNode
     // Convert images to OpenCV format
     cv::Mat visual_frame(bridge_.imgMsgToCv(img_msg));
     cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
-    // XYZPointCloud cloud;
-    // pcl::fromROSMsg(*cloud_msg, cloud);
+
     // Save internally for use in the service callback
     cur_visual_frame_ = visual_frame;
     cur_depth_frame_ = depth_frame;
-    // cur_point_cloud_ = cloud;
     have_depth_data_ = true;
 #ifdef CALL_PUSH_POSE_ON_CALLBCK
-    PushPose::Response p = findPushPose(cur_visual_frame_, cur_depth_frame_,
-                                        cur_point_cloud_);
+    PushPose::Response p = findPushPose(cur_visual_frame_, cur_depth_frame_);
 #endif // CALL_PUSH_POSE_ON_CALLBCK
   }
 
@@ -147,7 +355,7 @@ class TabletopPushingPerceptionNode
   {
     if ( have_depth_data_ )
     {
-      res = findPushPose(cur_visual_frame_, cur_depth_frame_, cur_point_cloud_);
+      res = findPushPose(cur_visual_frame_, cur_depth_frame_);
     }
     else
     {
@@ -158,35 +366,24 @@ class TabletopPushingPerceptionNode
   }
 
   PushPose::Response findPushPose(cv::Mat& visual_frame,
-                                  cv::Mat& depth_frame,
-                                  XYZPointCloud& points)
+                                  cv::Mat& depth_frame)
   {
-    return superpixelFindPushPose(visual_frame, depth_frame, points);
+    return superpixelFindPushPose(visual_frame, depth_frame);
   }
 
+  // TODO: Pull out the superpixel stuff to be separate for use in findPose and
+  // in online prediction
   PushPose::Response superpixelFindPushPose(cv::Mat& color_frame,
-                                            cv::Mat& depth_frame,
-                                            XYZPointCloud& points)
+                                            cv::Mat& depth_frame)
   {
+    // Swap kinect color channel order
     cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
-
-    // TODO: Fix normal estimation
-    // pcl::IntegralImageNormalEstimation ne;
-    // pcl::PointCloud<pcl::Normal> normals;
-    // ne.compute(points, normals, 0.02f, 10.0f);//, pcl::AVERAGE_DEPTH_CHANGE);
-
+    // TODO: Use normal estimation for segmentation
     // TODO: Fill in gaps inside the depth data.
-    // TODO: Select inner ROI of images to remove border issues?
-    int num_regions = 0;
-    for (int x = 0; x < depth_frame.cols; ++x)
-    {
-      for (int y = 0; y < depth_frame.rows; ++y)
-      {
-        if (isnan(depth_frame.at<float>(x,y)))
-          depth_frame.at<float>(x,y) = 0.0;
-      }
-    }
 
+    int num_regions = 0;
+
+    // Select inner ROI of images to remove border issues?
 #ifdef USE_DEPTH_ROI
     cv::Rect roi(22, 31, 580, 423);
     cv::Mat depth_region = depth_frame(roi);
@@ -198,10 +395,6 @@ class TabletopPushingPerceptionNode
                                          sigma_, k_, min_size_, wc_, wd_);
 
 #endif // USE_DEPTH_ROI
-    // int num_vis_regions = 0;
-    // cv::Mat visual_regions = getSuperpixelImage(color_frame, num_vis_regions,
-    //                                             sigma_, k_, min_size_);
-    // ROS_INFO_STREAM("Computed " << num_vis_regions << " visual regions");
     ROS_INFO_STREAM("Computed " << num_regions << " regions");
 
 #ifdef DISPLAY_SUPERPIXELS
@@ -218,12 +411,18 @@ class TabletopPushingPerceptionNode
 #ifdef USE_DEPTH_ROI
     cv::imshow("depth_region", depth_region);
 #endif // USE_DEPTH_ROI
-    // cv::imshow("vis_regions", visual_regions);
     cv::imshow("regions", regions);
-    cv::waitKey();
+    // cv::waitKey();
 #endif // DISPLAY_SUPERPIXELS
-    ROS_INFO_STREAM("Computed " << num_regions << " regions");
-    // ROS_INFO_STREAM("Computed " << num_vis_regions << " visual regions");
+
+    if (!tracker_.isInitialized())
+    {
+      initRegionTracks(color_frame, depth_frame);
+    }
+    else
+    {
+      updateRegionTracks(color_frame, depth_frame);
+    }
 
     // TODO: Choose a patch based on some simple criterian
     // TODO: Estimate the surface of the patch from the depth image
@@ -236,6 +435,30 @@ class TabletopPushingPerceptionNode
     return res;
   }
 
+  void initRegionTracks(cv::Mat& color_frame, cv::Mat& depth_frame)
+  {
+    cv::Mat bw_frame(color_frame.rows, color_frame.cols, CV_8UC1);
+    cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
+    tracker_.initTracks(bw_frame);
+  }
+
+  void updateRegionTracks(cv::Mat& color_frame, cv::Mat& depth_frame)
+  {
+    cv::Mat bw_frame(color_frame.rows, color_frame.cols, CV_8UC1);
+    cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
+    tracker_.updateTracks(bw_frame);
+    // TODO: Get the current track locations and displacements
+  }
+
+  void computEllipsoid2D(cv::Mat& regions, std::vector<int>& active)
+  {
+  }
+
+  void computEllipsoid3D(cv::Mat& regions, cv::Mat& depth_frame,
+                         std::vector<int>& active)
+  {
+  }
+
   /**
    * Executive control function for launching the node.
    */
@@ -246,18 +469,18 @@ class TabletopPushingPerceptionNode
       ros::spinOnce();
     }
   }
-   protected:
+
+ protected:
   ros::NodeHandle n_;
   message_filters::Subscriber<sensor_msgs::Image> image_sub_;
   message_filters::Subscriber<sensor_msgs::Image> depth_sub_;
-  // message_filters::Subscriber<sensor_msgs::PointCloud2> point_sub_;
   message_filters::Synchronizer<MySyncPolicy> sync_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
   ros::ServiceServer push_pose_server_;
   cv::Mat cur_visual_frame_;
   cv::Mat cur_depth_frame_;
-  XYZPointCloud cur_point_cloud_;
+  FeatureTracker tracker_;
   bool have_depth_data_;
   double k_;
   double sigma_;
