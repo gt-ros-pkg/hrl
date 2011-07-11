@@ -29,6 +29,8 @@
 
 
 import numpy as np
+import copy
+
 
 class CircularBuffer():
     # element_shape = () if you want a buffer of scalars.
@@ -59,16 +61,22 @@ class CircularBuffer():
 
     # convert the data into a list
     def to_list(self):
+        return self.get_array().tolist()
+    
+    # convert circular buffer to an array.
+    # returns np array of len self.n_vals
+    def get_array(self):
         start_idx = self.start_idx
         end_idx = self.end_idx
         if self.n_vals == 0:
             return []
         if end_idx >= start_idx:
-            l = self.buf[start_idx:end_idx+1].tolist()
+            arr = copy.copy(self.buf[start_idx:end_idx+1])
         else:
-            l = self.buf[start_idx:].tolist()
-            l += self.buf[:end_idx+1].tolist()
-        return l
+            arr1 = self.buf[start_idx:]
+            arr2 = self.buf[:end_idx+1]
+            arr = np.concatenate((arr1, arr2))
+        return arr
 
     # get the last n elements.
     def get_last(self, n):
@@ -145,4 +153,10 @@ class CircularBuffer():
 
     def __len__(self):
         return self.n_vals
+
+
+
+
+
+
 
