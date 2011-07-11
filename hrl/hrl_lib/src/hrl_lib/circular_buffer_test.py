@@ -29,7 +29,7 @@
 
 
 import numpy as np
-import hrl_lib.circular_buffer as cb
+import circular_buffer as cb
 
 t = cb.CircularBuffer(5,())
 
@@ -128,3 +128,6 @@ compare_lists(m, t, ":-10")
 compare_lists(m, t, ":-100")
 compare_lists(m, t, "10:")
 compare_lists(m, t, "100:")
+
+
+

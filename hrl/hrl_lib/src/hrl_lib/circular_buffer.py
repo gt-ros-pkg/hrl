@@ -69,7 +69,7 @@ class CircularBuffer():
         start_idx = self.start_idx
         end_idx = self.end_idx
         if self.n_vals == 0:
-            return []
+            return np.array([])
         if end_idx >= start_idx:
             arr = copy.copy(self.buf[start_idx:end_idx+1])
         else:
