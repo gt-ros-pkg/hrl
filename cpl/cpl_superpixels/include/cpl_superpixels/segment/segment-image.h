@@ -1,19 +1,19 @@
 /*
-Copyright (C) 2006 Pedro Felzenszwalb
+  Copyright (C) 2006 Pedro Felzenszwalb
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 */
 
 #ifndef SEGMENT_IMAGE
@@ -177,16 +177,16 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
     for (int x = 0; x < width; x++) {
       int comp = u->find(y * width + x);
       imRef(output, x, y) = colors[comp];
-	  // Added by MWF, 9/22/08
-	  // If we encounter a new comp / segment, record
-	  // its segmentid and increment the segmentid counter
-	  if (segmentids[comp] == 0)
-	  {
-		  segmentids[comp] = segmentcounter;
-		  segmentcounter++;
-	  }
-	  imRef(output, x, y).idx = segmentids[comp];
-	  // end MWF addition
+      // Added by MWF, 9/22/08
+      // If we encounter a new comp / segment, record
+      // its segmentid and increment the segmentid counter
+      if (segmentids[comp] == 0)
+      {
+        segmentids[comp] = segmentcounter;
+        segmentcounter++;
+      }
+      imRef(output, x, y).idx = segmentids[comp];
+      // end MWF addition
     }
   }
 
@@ -313,16 +313,16 @@ image<rgb> *segment_image(image<rgb> *color_im, image<float> *depth_im,
     for (int x = 0; x < width; x++) {
       int comp = u->find(y * width + x);
       imRef(output, x, y) = colors[comp];
-	  // Added by MWF, 9/22/08
-	  // If we encounter a new comp / segment, record
-	  // its segmentid and increment the segmentid counter
-	  if (segmentids[comp] == 0)
-	  {
-		  segmentids[comp] = segmentcounter;
-		  segmentcounter++;
-	  }
-	  imRef(output, x, y).idx = segmentids[comp];
-	  // end MWF addition
+      // Added by MWF, 9/22/08
+      // If we encounter a new comp / segment, record
+      // its segmentid and increment the segmentid counter
+      if (segmentids[comp] == 0)
+      {
+        segmentids[comp] = segmentcounter;
+        segmentcounter++;
+      }
+      imRef(output, x, y).idx = segmentids[comp];
+      // end MWF addition
     }
   }
 

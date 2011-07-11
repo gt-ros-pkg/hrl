@@ -20,12 +20,18 @@ cv::Mat getSuperpixelImage(cv::Mat input_img, int& num_ccs, double sigma,
   delete im;
   // Convert to cv::Mat
   IplImage* disp_ipl;
+  IplImage* idx_ipl;
   disp_ipl = FELZStoIPL(disp_im);
+  idx_ipl = FELZSIDXtoIPL(disp_im);
   delete disp_im;
   cv::Mat tmp_img(disp_ipl);
   cv::Mat disp_img(tmp_img.size(), tmp_img.type());
   tmp_img.copyTo(disp_img);
   cvReleaseImage(&disp_ipl);
+  cv::Mat tmp_img2(idx_ipl);
+  cv::Mat idx_img(tmp_img2.size(), tmp_img2.type());
+  tmp_img2.copyTo(idx_img);
+  cvReleaseImage(&idx_ipl);
   return disp_img;
 }
 
@@ -44,12 +50,18 @@ cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
   delete depth_im;
   // Convert to cv::Mat
   IplImage* disp_ipl;
+  IplImage* idx_ipl;
   disp_ipl = FELZStoIPL(disp_im);
+  idx_ipl = FELZSIDXtoIPL(disp_im);
   delete disp_im;
   cv::Mat tmp_img(disp_ipl);
   cv::Mat disp_img(tmp_img.size(), tmp_img.type());
   tmp_img.copyTo(disp_img);
   cvReleaseImage(&disp_ipl);
+  cv::Mat tmp_img2(idx_ipl);
+  cv::Mat idx_img(tmp_img2.size(), tmp_img2.type());
+  tmp_img2.copyTo(idx_img);
+  cvReleaseImage(&idx_ipl);
   return disp_img;
 }
 

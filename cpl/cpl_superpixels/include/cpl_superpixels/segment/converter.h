@@ -78,3 +78,18 @@ IplImage* FELZStoIPL(image<rgb>* input)
 
     return output;
 }
+
+IplImage* FELZSIDXtoIPL(image<rgb>* input)
+{
+    IplImage *output = cvCreateImage(cvSize(input->width(), input->height()),
+                                     IPL_DEPTH_8U, 1);
+
+    for(int i = 0; i < output->height; ++i) {
+        for(int j = 0; j < output->width; ++j) {
+            output->imageData[i * output->widthStep +
+                             j * output->nChannels] = imRef(input, j, i).idx;
+        }
+    }
+
+    return output;
+}
