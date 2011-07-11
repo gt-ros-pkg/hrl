@@ -151,6 +151,7 @@ class MekaArmServer():
         self.l_jep = None # see set_jep
         self.q_r = None # using this to compute qdot
         self.q_l = None # using this to compute qdot
+        self.time_stamp = None # using this to compute qdot
 
         d = {}
         d['right_arm'] = ac.get_joint_name_list('r')
@@ -321,14 +322,18 @@ class MekaArmServer():
 
         q_r = self.get_joint_angles(r_arm)
         q_l = self.get_joint_angles(l_arm)
-        if self.q_r != None and self.q_l != None:
-            qdot_r = np.array(q_r) - np.array(self.q_r)
-            qdot_l = np.array(q_l) - np.array(self.q_l)
+        t_now = rospy.get_time()
+        if self.q_r != None and self.q_l != None and self.time_stamp != None:
+            dt = t_now - self.time_stamp
+            qdot_r = (np.array(q_r) - np.array(self.q_r)) / dt
+            qdot_l = (np.array(q_l) - np.array(self.q_l)) / dt
         else:
             qdot_r = np.zeros(7)
             qdot_l = np.zeros(7)
+
         self.q_r = q_r
         self.q_l = q_l
+        self.time_stamp = t_now
 
         f_raw_r = self.get_wrist_force(r_arm).A1.tolist()
         f_raw_l = self.get_wrist_force(l_arm).A1.tolist()
