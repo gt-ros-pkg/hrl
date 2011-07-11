@@ -6,8 +6,10 @@ import roslib; roslib.load_manifest('hrl_pr2_arms')
 import rospy
 import actionlib
 
+from std_msgs.msg import Header
 from sensor_msgs.msg import JointState
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from trajectory_msgs.msg import JointTrajectoryPoint
 import tf.transformations as tf_trans
 
@@ -125,14 +127,20 @@ class PR2ArmJointTrajectory(PR2Arm):
 
 
 class PR2ArmJTranspose(PR2Arm):
-    def __init__(self):
-        pass
+    def __init__(self, arm, kinematics):
+        super(PR2ArmJTranspose, self).__init__(arm, kinematics)
+        self.command_pose_pub = rospy.Publisher('/' + arm + '_cart/command_pose', PoseStamped)
+        rospy.sleep(1)
 
-    def r_cart_state_cb(self, msg):
-        pass
-
-    def set_ep(self, p, rot):
-        pass
+    def set_ep(self, cep, duration, delay=0.0):
+        pos, rot = cep
+        rot_homo = np.bmat([[rot, np.mat(np.zeros(3)).T], [np.mat(np.zeros(3)), np.mat([[1]])]])
+        rot_quat = tf_trans.quaternion_from_matrix(rot_homo)
+        cep_pose_stmp = PoseStamped(Header(0, rospy.Time.now(), 'torso_lift_link'),
+                                    Pose(Point(*pos.T.A[0]), Quaternion(*rot_quat)))
+        print cep_pose_stmp
+        self.command_pose_pub.publish(cep_pose_stmp)
+        self.ep = copy.deepcopy(cep)
 
 class PR2ArmJInverse(PR2Arm):
     def __init__(self):
