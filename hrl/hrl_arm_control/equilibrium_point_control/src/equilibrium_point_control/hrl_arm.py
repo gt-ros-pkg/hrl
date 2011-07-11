@@ -89,23 +89,13 @@ class HRLArmKinematics():
         return self.IK_vanilla(last_link_pos, last_link_rot, q_guess)
 
     ##
-    # Computes Jacobian in the arm's frame given joint angles at the specified position.
-    # @param q Joint angles for Jacobian
-    # @param pos Position at which the Jacobian is centered. If None, the tooltip
-    #            location from FK is used.
-    # @return Jacobian 6xN np matrix
-    def jacobian(self, q, pos=None):
-        if pos is None:
-            pos = self.FK(q)
-        return jacobian_vanilla(q, pos)
-
-    ##
     # Sets the offset of the tool from the last link in the kinematic chain
     # @param tool_pos Postion offset of the tool from the last link in the kinematic chain
     # @param tool_rot Rotation offset of the tool from the last link in the kinematic chain
     def set_tooltip(self, tool_pos, tool_rot=np.matrix(np.eye(3))):
         self.tooltip_pos = tool_pos
         self.tooltip_rot = tool_rot
+
     # IK without the  tooltip.
     def IK_vanilla(self, p, rot, q_guess=None):
         raise RuntimeError('Unimplemented Function')
@@ -120,11 +110,14 @@ class HRLArmKinematics():
     def Jacobian(self, q, pos=None):
         raise RuntimeError('Unimplemented Function')
 
+    ## return min_array, max_array
+    def get_joint_limits(self):
+        raise RuntimeError('Unimplemented Function')
+
     ## define tooltip as a 3x1 np matrix in the wrist coord frame.
     def set_tooltip(self, p, rot=np.matrix(np.eye(3))):
-        self.tooltip_pos = p
-        self.tooltip_rot = rot
-
+        self.tooltip_pos = copy.copy(p)
+        self.tooltip_rot = copy.copy(rot)
 
     #----- 2D functions ----------
 

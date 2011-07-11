@@ -239,18 +239,19 @@ class CodyArmKinematics(HRLArmKinematics):
     # @param q - list of 7 joint angles.
     # The joint limits for IK are larger that the physical limits.
     def clamp_to_joint_limits(self, q, delta_list=[0.,0.,0.,0.,0.,0.,0.]):
-        max_arr = self.joint_lim_dict['max']
-        min_arr = self.joint_lim_dict['min']
+        min_arr, max_arr = self.get_joint_limits()
         q_arr = np.array(q)
         d_arr = np.array(delta_list)
         return np.clip(q_arr, min_arr-d_arr, max_arr+d_arr)
 
     def within_joint_limits(self, q, delta_list=[0.,0.,0.,0.,0.,0.,0.]):
-        max_arr = self.joint_lim_dict['max']
-        min_arr = self.joint_lim_dict['min']
+        min_arr, max_arr = self.get_joint_limits()
         q_arr = np.array(q)
         d_arr = np.array(delta_list)
         return np.all((q_arr <= max_arr+d_arr, q_arr >= min_arr-d_arr))
+
+    def get_joint_limits(self):
+        return self.joint_lim_dict['min'], self.joint_lim_dict['max']
 
 
     #------------ 2D functions ------------
