@@ -3,10 +3,11 @@
     <remap from="color_image_topic" to="/kinect_head/rgb/image_color"/>
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
     <remap from="point_cloud_topic" to="/kinect_head/rgb/points"/>
-    <param name="segment_k" value="500.0" type="double"/>
+    <param name="segment_k" value="300.0" type="double"/>
     <param name="segment_sigma" value="1.1" type="double"/>
-    <param name="segment_min_size" value="80" type="int"/>
+    <param name="segment_min_size" value="40" type="int"/>
     <param name="segment_color_weight" value="0.5" type="double"/>
     <param name="segment_depth_weight" value="0.3" type="double"/>
+    <param name="min_flow_thresh" value="0" type="int"/>
   </node>
 </launch>

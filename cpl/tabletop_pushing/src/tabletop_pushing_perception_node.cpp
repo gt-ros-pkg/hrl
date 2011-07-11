@@ -100,6 +100,14 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
 
 typedef std::vector<float> Descriptor;
 
+struct Flow
+{
+  Flow(int _x, int _y, int _dx, int _dy) : x(_x), y(_y), dx(_dx), dy(_dy)
+  {
+  }
+  int x, y, dx, dy;
+};
+
 class FeatureTracker
 {
  public:
@@ -126,7 +134,7 @@ class FeatureTracker
     initialized_ = true;
   }
 
-  void updateTracks(cv::Mat& frame)
+  std::vector<Flow> updateTracks(cv::Mat& frame)
   {
     cur_keypoints_.clear();
     cur_descriptors_.clear();
@@ -134,7 +142,7 @@ class FeatureTracker
 
     std::vector<int> matches_cur;
     std::vector<int> matches_prev;
-    std::vector<cv::Point> displacements;
+    std::vector<Flow> sparse_flow;
     matches_cur.clear();
     matches_prev.clear();
 
@@ -148,8 +156,9 @@ class FeatureTracker
           cur_keypoints_[matches_cur[i]].pt.x;
       int dy = prev_keypoints_[matches_prev[i]].pt.y -
           cur_keypoints_[matches_cur[i]].pt.y;
-      cv::Point disp(dx,dy);
-      displacements.push_back(disp);
+      sparse_flow.push_back(Flow(cur_keypoints_[matches_cur[i]].pt.x,
+                                 cur_keypoints_[matches_cur[i]].pt.y,
+                                 dx, dy));
     }
 
 #ifdef DISPLAY_TRACKER_OUTPUT
@@ -167,6 +176,7 @@ class FeatureTracker
 
     prev_keypoints_ = cur_keypoints_;
     prev_descriptors_ = cur_descriptors_;
+    return sparse_flow;
   }
 
   //
@@ -319,7 +329,7 @@ class TabletopPushingPerceptionNode
       image_sub_(n, "color_image_topic", 1),
       depth_sub_(n, "depth_image_topic", 1),
       sync_(MySyncPolicy(1), image_sub_, depth_sub_),
-      tf_(), tracker_(), have_depth_data_(false)
+      tf_(), tracker_(), have_depth_data_(false), min_flow_thresh_(0)
   {
     ros::NodeHandle n_private("~");
     n_private.param("segment_k", k_, 500.0);
@@ -327,6 +337,7 @@ class TabletopPushingPerceptionNode
     n_private.param("segment_min_size", min_size_, 30);
     n_private.param("segment_color_weight", wc_, 0.1);
     n_private.param("segment_depth_weight", wd_, 0.7);
+    n_private.param("min_flow_thresh", min_flow_thresh_, 0);
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
                            this);
     push_pose_server_ = n_.advertiseService(
@@ -388,8 +399,11 @@ class TabletopPushingPerceptionNode
     cv::Rect roi(22, 31, 580, 423);
     cv::Mat depth_region = depth_frame(roi);
     cv::Mat color_region = color_frame(roi);
-    cv::Mat regions = getSuperpixelImage(color_region, depth_region, num_regions,
-                                         sigma_, k_, min_size_, wc_, wd_);
+    // cv::Mat display_regions;
+    // TODO: Need to get the region idxes to propogate back to here
+    cv::Mat regions = getSuperpixelImage(color_region, depth_region,
+                                         num_regions, sigma_, k_, min_size_,
+                                         wc_, wd_);
 #else // USE_DEPTH_ROI
     cv::Mat regions = getSuperpixelImage(color_frame, depth_frame, num_regions,
                                          sigma_, k_, min_size_, wc_, wd_);
@@ -398,6 +412,17 @@ class TabletopPushingPerceptionNode
     ROS_INFO_STREAM("Computed " << num_regions << " regions");
 
 #ifdef DISPLAY_SUPERPIXELS
+#ifdef USE_DEPTH_ROI
+    cv::Mat depth_display = depth_region.clone();
+    double max_val = 1.0;
+    cv::minMaxLoc(depth_display, NULL, &max_val);
+    if (max_val > 0.0)
+    {
+      depth_display /= max_val;
+    }
+    cv::imshow("color_frame", color_region);
+    cv::imshow("depth_region", depth_region);
+#else // USE_DEPTH_ROI
     cv::Mat depth_display = depth_frame.clone();
     double max_val = 1.0;
     cv::minMaxLoc(depth_display, NULL, &max_val);
@@ -406,23 +431,31 @@ class TabletopPushingPerceptionNode
       depth_display /= max_val;
     }
     cv::imshow("color_frame", color_frame);
-    // cv::imshow("depth_frame", depth_frame);
     cv::imshow("depth_scaled_frame", depth_display);
-#ifdef USE_DEPTH_ROI
-    cv::imshow("depth_region", depth_region);
 #endif // USE_DEPTH_ROI
     cv::imshow("regions", regions);
     // cv::waitKey();
 #endif // DISPLAY_SUPERPIXELS
 
+#ifdef USE_DEPTH_ROI
+    if (!tracker_.isInitialized())
+    {
+      initRegionTracks(color_region, depth_region);
+    }
+    else
+    {
+      updateRegionTracks(color_region, depth_region, regions);
+    }
+#else // USE_DEPTH_ROI
     if (!tracker_.isInitialized())
     {
       initRegionTracks(color_frame, depth_frame);
     }
     else
     {
-      updateRegionTracks(color_frame, depth_frame);
+      updateRegionTracks(color_frame, depth_frame, regions);
     }
+#endif // USE_DEPTH_ROI
 
     // TODO: Choose a patch based on some simple criterian
     // TODO: Estimate the surface of the patch from the depth image
@@ -442,12 +475,24 @@ class TabletopPushingPerceptionNode
     tracker_.initTracks(bw_frame);
   }
 
-  void updateRegionTracks(cv::Mat& color_frame, cv::Mat& depth_frame)
+  void updateRegionTracks(cv::Mat& color_frame, cv::Mat& depth_frame,
+                          cv::Mat& regions)
   {
     cv::Mat bw_frame(color_frame.rows, color_frame.cols, CV_8UC1);
     cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
-    tracker_.updateTracks(bw_frame);
-    // TODO: Get the current track locations and displacements
+    std::vector<Flow> sparse_flow = tracker_.updateTracks(bw_frame);
+
+    // TODO: Make this a hash table
+    std::vector<int> moving_regions;
+
+    for (unsigned int i = 0; i < sparse_flow.size(); ++i)
+    {
+      // Filter out small flow
+      if (sparse_flow[i].dx + sparse_flow[i].dy < min_flow_thresh_) continue;
+      // Determine which region has moved
+      int moving = regions.at<unsigned int>(sparse_flow[i].x,
+                                            sparse_flow[i].y);
+    }
   }
 
   void computEllipsoid2D(cv::Mat& regions, std::vector<int>& active)
@@ -487,6 +532,7 @@ class TabletopPushingPerceptionNode
   int min_size_;
   double wc_;
   double wd_;
+  int min_flow_thresh_;
 };
 
 int main(int argc, char ** argv)
