@@ -35,6 +35,7 @@ cv::Mat getSuperpixelImage(cv::Mat input_img, int& num_ccs, double sigma,
   return disp_img;
 }
 
+// TODO: Return the regions, return the colored image optionally by reference
 cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
                            double sigma, double k, int min_size,
                            double wc, double wd)
