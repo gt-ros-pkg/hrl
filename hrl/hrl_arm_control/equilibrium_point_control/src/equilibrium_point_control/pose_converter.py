@@ -7,7 +7,15 @@ import tf.transformations as tf_trans
 
 class PoseConverter:
     @staticmethod
-    def _make_generic(*args):
+    def _make_generic(args):
+        if type(args[0]) == str:
+            frame_id = args[0]
+            header, homo_mat, rot_quat = PoseConverter._make_generic(args[1:])
+            if header is None:
+                header = [0, rospy.Time.now(), '']
+            header[2] = frame_id
+            return header, homo_mat, rot_quat
+
         if len(args) == 1:
             if type(args[0]) == Pose:
                 homo_mat, rot_quat = PoseConverter._extract_pose_msg(args[0])
@@ -45,7 +53,7 @@ class PoseConverter:
     def _make_generic_pos_rot(pos, rot):
         if (type(pos) == np.core.matrix and type(rot) == np.core.matrix and
             np.shape(pos) == (3, 1) and np.shape(rot) == (3, 3)):
-            homo_mat = np.eye(4)
+            homo_mat = np.mat(np.eye(4))
             homo_mat[:3,3] = pos
             homo_mat[:3,:3] = rot
             return None, homo_mat, tf_trans.quaternion_from_matrix(homo_mat)
@@ -64,14 +72,14 @@ class PoseConverter:
     # @return geometry_msgs.Pose
     @staticmethod
     def to_pose_msg(*args):
-        header, homo_mat, quat_rot = PoseConverter.make_generic(args)
+        header, homo_mat, quat_rot = PoseConverter._make_generic(args)
         return Pose(Point(*homo_mat[:3,3].T.A[0]), Quaternion(*quat_rot))
 
     ##
     # @return geometry_msgs.PoseStamped
     @staticmethod
     def to_pose_stamped_msg(*args):
-        header, homo_mat, quat_rot = PoseConverter.make_generic(args)
+        header, homo_mat, quat_rot = PoseConverter._make_generic(args)
         ps = PoseStamped()
         if header is None:
             ps.header.stamp = rospy.Time.now()
@@ -86,19 +94,19 @@ class PoseConverter:
     # @return (3x1 numpy mat, 3x3 numpy mat)
     @staticmethod
     def to_pos_rot(*args):
-        header, homo_mat, quat_rot = PoseConverter.make_generic(args)
+        header, homo_mat, quat_rot = PoseConverter._make_generic(args)
         return homo_mat[:3,3], homo_mat[:3,:3]
 
     ##
     # @return 4x4 numpy mat
     @staticmethod
     def to_homo_mat(*args):
-        header, homo_mat, quat_rot = PoseConverter.make_generic(args)
+        header, homo_mat, quat_rot = PoseConverter._make_generic(args)
         return homo_mat
 
     ##
     # @return (3 list, 4 list)
     @staticmethod
     def to_pos_quat(*args):
-        header, homo_mat, quat_rot = PoseConverter.make_generic(args)
+        header, homo_mat, quat_rot = PoseConverter._make_generic(args)
         return list(homo_mat.T.A[0]), quat_rot

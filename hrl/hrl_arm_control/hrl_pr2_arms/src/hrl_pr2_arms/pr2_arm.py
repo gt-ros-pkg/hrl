@@ -9,11 +9,13 @@ import actionlib
 from std_msgs.msg import Header
 from sensor_msgs.msg import JointState
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal
+from teleop_controllers.msg import CartesianGains
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from trajectory_msgs.msg import JointTrajectoryPoint
 import tf.transformations as tf_trans
 
 from equilibrium_point_control.hrl_arm_template import HRLArm
+from equilibrium_point_control.pose_converter import PoseConverter
 
 
 JOINT_NAMES_LIST = ['_shoulder_pan_joint',
@@ -80,17 +82,6 @@ class PR2Arm(HRLArm):
 # Returns pairs of positions and rotations linearly interpolated between
 # the start and end position/orientations.  Rotations are found using slerp
 # @return List of (pos, rot) waypoints between start and end.
-def interpolate_linear(start_pos, start_rot, end_pos, end_rot, num_steps):
-    pos_waypoints = np.dstack([np.linspace(start_pos[0], end_pos[0], num_steps), 
-                               np.linspace(start_pos[1], end_pos[1], num_steps), 
-                               np.linspace(start_pos[2], end_pos[2], num_steps)])[0]
-    start_quat = tf_trans.matrix_to_quaternion(start_rot)
-    end_quat = tf_trans.matrix_to_quaternion(end_rot)
-    rot_waypoints = []
-    for fraction in np.linspace(0, 1, num_steps):
-        cur_quat = tf_trans.quaternion_slerp(start_quat, end_quat, fraction)
-        rot_waypoints.append(tf_trans.quaternion_to_matrix(cur_quat))
-    return zip(pos_waypoints, rot_waypoints)
 
 class PR2ArmJointTrajectory(PR2Arm):
     def __init__(self, arm, kinematics):
@@ -125,25 +116,49 @@ class PR2ArmJointTrajectory(PR2Arm):
     def reset_ep(self):
         self.ep = self.get_joint_angles(True)
 
-
-class PR2ArmJTranspose(PR2Arm):
+class PR2ArmCartesianBase(PR2Arm):
     def __init__(self, arm, kinematics):
-        super(PR2ArmJTranspose, self).__init__(arm, kinematics)
+        super(PR2ArmCartesianBase, self).__init__(arm, kinematics)
         self.command_pose_pub = rospy.Publisher('/' + arm + '_cart/command_pose', PoseStamped)
         rospy.sleep(1)
 
     def set_ep(self, cep, duration, delay=0.0):
-        pos, rot = cep
-        rot_homo = np.bmat([[rot, np.mat(np.zeros(3)).T], [np.mat(np.zeros(3)), np.mat([[1]])]])
-        rot_quat = tf_trans.quaternion_from_matrix(rot_homo)
-        cep_pose_stmp = PoseStamped(Header(0, rospy.Time.now(), 'torso_lift_link'),
-                                    Pose(Point(*pos.T.A[0]), Quaternion(*rot_quat)))
-        print cep_pose_stmp
+        cep_pose_stmp = PoseConverter.to_pose_stamped_msg('torso_lift_link', cep)
         self.command_pose_pub.publish(cep_pose_stmp)
         self.ep = copy.deepcopy(cep)
 
-class PR2ArmJInverse(PR2Arm):
-    def __init__(self):
-        pass
+    def interpolate_ep(self, ep_a, ep_b, num_steps):
+        pos_a, rot_a = ep_a
+        pos_b, rot_b = ep_b
+        pos_waypoints = np.dstack([np.linspace(pos_a.A[0][0], pos_b.A[0][0], num_steps), 
+                                   np.linspace(pos_a.A[1][0], pos_b.A[1][0], num_steps), 
+                                   np.linspace(pos_a.A[2][0], pos_b.A[2][0], num_steps)])[0]
+        rot_homo_a, rot_homo_b = np.eye(4), np.eye(4)
+        rot_homo_a[:3,:3] = rot_a
+        rot_homo_b[:3,:3] = rot_b
+        quat_a = tf_trans.quaternion_from_matrix(rot_homo_a)
+        quat_b = tf_trans.quaternion_from_matrix(rot_homo_b)
+        rot_waypoints = []
+        for fraction in np.linspace(0, 1, num_steps):
+            cur_quat = tf_trans.quaternion_slerp(quat_a, quat_b, fraction)
+            rot_waypoints.append(np.mat(tf_trans.quaternion_matrix(cur_quat))[:3,:3])
+        return zip(pos_waypoints, rot_waypoints)
 
+class PR2ArmJTranspose(PR2ArmCartesianBase):
+    pass
+
+class PR2ArmJInverse(PR2ArmCartesianBase):
+    pass
+
+class PR2ArmJTransposeTask(PR2ArmCartesianBase):
+    def __init__(self, arm, kinematics):
+        super(PR2ArmJTransposeTask, self).__init__(arm, kinematics)
+        self.command_gains_pub = rospy.Publisher('/' + arm + '_cart/gains', CartesianGains)
+        rospy.sleep(1)
+
+    def set_gains(self, p_gains, d_gains, frame='torso_lift_link'):
+        all_gains = list(p_gains) + list(d_gains)
+        gains_msg = CartesianGains(Header(0, rospy.Time.now(), frame),
+                                   all_gains, [])
+        self.command_gains_pub.publish(gains_msg)
 
