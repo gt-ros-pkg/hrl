@@ -80,6 +80,8 @@
 
 // STL
 #include <vector>
+// #include <set>
+#include <map>
 #include <queue>
 #include <string>
 #include <sstream>
@@ -107,6 +109,8 @@ struct Flow
   }
   int x, y, dx, dy;
 };
+
+typedef std::pair<int, Flow> RegionMember;
 
 class FeatureTracker
 {
@@ -344,8 +348,6 @@ class TabletopPushingPerceptionNode
         "get_push_pose", &TabletopPushingPerceptionNode::getPushPose, this);
   }
 
-  // TODO: Should we change this to actively poll the camera when the service
-  // is called?
   void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
                       const sensor_msgs::ImageConstPtr& depth_msg)
   {
@@ -400,7 +402,6 @@ class TabletopPushingPerceptionNode
     cv::Mat depth_region = depth_frame(roi);
     cv::Mat color_region = color_frame(roi);
     cv::Mat display_regions;
-    // TODO: Need to get the region idxes to propogate back to here
     cv::Mat regions = getSuperpixelImage(color_region, depth_region,
                                          num_regions, display_regions,
                                          sigma_, k_, min_size_, wc_, wd_);
@@ -483,25 +484,31 @@ class TabletopPushingPerceptionNode
     cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
     std::vector<Flow> sparse_flow = tracker_.updateTracks(bw_frame);
 
-    // TODO: Make this a hash table
-    std::vector<int> moving_regions;
-
+    // Determine which regions are moving
+    std::multimap<unsigned int, Flow> moving_regions;
     for (unsigned int i = 0; i < sparse_flow.size(); ++i)
     {
       // Filter out small flow
       if (sparse_flow[i].dx + sparse_flow[i].dy < min_flow_thresh_) continue;
-      // Determine which region has moved
-      int moving = regions.at<unsigned int>(sparse_flow[i].x,
-                                            sparse_flow[i].y);
+      // Add regions associated with moving points to the set
+      // Store the flow associated with each region
+      moving_regions.insert(RegionMember
+                            (regions.at<unsigned int>(sparse_flow[i].x,
+                                                      sparse_flow[i].y),
+                             sparse_flow[i]));
     }
+
+    // TODO: Create an image with only moving regions drawn
+    // TODO: Determine if there is a single moving region or multiple regions
+    // Compute secondary features from these
   }
 
-  void computEllipsoid2D(cv::Mat& regions, std::vector<int>& active)
+  void computeEllipsoid2D(cv::Mat& regions, std::vector<int>& active)
   {
   }
 
-  void computEllipsoid3D(cv::Mat& regions, cv::Mat& depth_frame,
-                         std::vector<int>& active)
+  void computeEllipsoid3D(cv::Mat& regions, cv::Mat& depth_frame,
+                          std::vector<int>& active)
   {
   }
 
