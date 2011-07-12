@@ -10,8 +10,8 @@
 namespace cpl_superpixels
 {
 
-cv::Mat getSuperpixelImage(cv::Mat input_img, int& num_ccs, double sigma,
-                           double k, int min_size)
+cv::Mat getSuperpixelImage(cv::Mat input_img, int& num_ccs, cv::Mat& disp_img,
+                           double sigma, double k, int min_size)
 {
   IplImage ipl_img = input_img;
   // Superpixels, Felzenszwalb
@@ -25,20 +25,19 @@ cv::Mat getSuperpixelImage(cv::Mat input_img, int& num_ccs, double sigma,
   idx_ipl = FELZSIDXtoIPL(disp_im);
   delete disp_im;
   cv::Mat tmp_img(disp_ipl);
-  cv::Mat disp_img(tmp_img.size(), tmp_img.type());
   tmp_img.copyTo(disp_img);
   cvReleaseImage(&disp_ipl);
   cv::Mat tmp_img2(idx_ipl);
   cv::Mat idx_img(tmp_img2.size(), tmp_img2.type());
   tmp_img2.copyTo(idx_img);
   cvReleaseImage(&idx_ipl);
-  return disp_img;
+  return idx_img;
 }
 
 // TODO: Return the regions, return the colored image optionally by reference
 cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
-                           double sigma, double k, int min_size,
-                           double wc, double wd)
+                           cv::Mat& disp_img, double sigma, double k,
+                           int min_size, double wc, double wd)
 {
   IplImage color_ipl_img = color_img;
   IplImage depth_ipl_img = depth_img;
@@ -56,14 +55,13 @@ cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
   idx_ipl = FELZSIDXtoIPL(disp_im);
   delete disp_im;
   cv::Mat tmp_img(disp_ipl);
-  cv::Mat disp_img(tmp_img.size(), tmp_img.type());
   tmp_img.copyTo(disp_img);
   cvReleaseImage(&disp_ipl);
   cv::Mat tmp_img2(idx_ipl);
   cv::Mat idx_img(tmp_img2.size(), tmp_img2.type());
   tmp_img2.copyTo(idx_img);
   cvReleaseImage(&idx_ipl);
-  return disp_img;
+  return idx_img;
 }
 
 };
