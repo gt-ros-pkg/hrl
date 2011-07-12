@@ -399,14 +399,15 @@ class TabletopPushingPerceptionNode
     cv::Rect roi(22, 31, 580, 423);
     cv::Mat depth_region = depth_frame(roi);
     cv::Mat color_region = color_frame(roi);
-    // cv::Mat display_regions;
+    cv::Mat display_regions;
     // TODO: Need to get the region idxes to propogate back to here
     cv::Mat regions = getSuperpixelImage(color_region, depth_region,
-                                         num_regions, sigma_, k_, min_size_,
-                                         wc_, wd_);
+                                         num_regions, display_regions,
+                                         sigma_, k_, min_size_, wc_, wd_);
 #else // USE_DEPTH_ROI
     cv::Mat regions = getSuperpixelImage(color_frame, depth_frame, num_regions,
-                                         sigma_, k_, min_size_, wc_, wd_);
+                                         display_regions, sigma_, k_, min_size_,
+                                         wc_, wd_);
 
 #endif // USE_DEPTH_ROI
     ROS_INFO_STREAM("Computed " << num_regions << " regions");
@@ -433,7 +434,7 @@ class TabletopPushingPerceptionNode
     cv::imshow("color_frame", color_frame);
     cv::imshow("depth_scaled_frame", depth_display);
 #endif // USE_DEPTH_ROI
-    cv::imshow("regions", regions);
+    cv::imshow("regions", display_regions);
     // cv::waitKey();
 #endif // DISPLAY_SUPERPIXELS
 
