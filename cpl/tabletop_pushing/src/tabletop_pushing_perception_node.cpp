@@ -91,7 +91,7 @@
 
 #define CALL_PUSH_POSE_ON_CALLBCK
 #define DISPLAY_SUPERPIXELS
-// #define DISPLAY_TRACKER_OUTPUT
+#define DISPLAY_TRACKER_OUTPUT
 #define USE_DEPTH_ROI
 
 #define R_INDEX 2
@@ -105,7 +105,7 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image> MySyncPolicy;
 
 typedef std::vector<float> Descriptor;
-typedef unsigned short uint8;
+
 struct Flow
 {
   Flow(int _x, int _y, int _dx, int _dy) : x(_x), y(_y), dx(_dx), dy(_dy)
@@ -114,7 +114,7 @@ struct Flow
   int x, y, dx, dy;
 };
 
-typedef std::pair<int, Flow> RegionMember;
+typedef std::pair<uchar, Flow> RegionMember;
 
 class FeatureTracker
 {
@@ -172,7 +172,7 @@ class FeatureTracker
       if (sparse_flow[i].dx + sparse_flow[i].dy > min_flow_thresh_)
         moving_points++;
     }
-    ROS_DEBUG_STREAM(window_name_ << ": num moving points: " << moving_points);
+    ROS_INFO_STREAM(window_name_ << ": num moving points: " << moving_points);
 
 #ifdef DISPLAY_TRACKER_OUTPUT
     cv::Mat display_frame(frame.rows, frame.cols, CV_8UC3);;
@@ -181,6 +181,8 @@ class FeatureTracker
     {
       if (sparse_flow[i].dx + sparse_flow[i].dy > min_flow_thresh_)
       {
+        ROS_INFO_STREAM("Point is moving (" << sparse_flow[i].dx << ", "
+                        << sparse_flow[i].dy << ")");
         cv::line(display_frame,
                  prev_keypoints_[matches_prev[i]].pt,
                  cur_keypoints_[matches_cur[i]].pt,
@@ -356,7 +358,7 @@ class TabletopPushingPerceptionNode
       sync_(MySyncPolicy(1), image_sub_, depth_sub_),
       tf_(),
       r_tracker_("r_tracker"), g_tracker_("g_tracker"), b_tracker_("b_tracker"),
-      have_depth_data_(false), min_flow_thresh_(0)
+      have_depth_data_(false), min_flow_thresh_(0), num_region_points_thresh_(1)
   {
     // Get parameters from the server
     ros::NodeHandle n_private("~");
@@ -366,6 +368,8 @@ class TabletopPushingPerceptionNode
     n_private.param("segment_color_weight", wc_, 0.1);
     n_private.param("segment_depth_weight", wd_, 0.7);
     n_private.param("min_flow_thresh", min_flow_thresh_, 0);
+    n_private.param("num_moving_points_per_region_thresh",
+                    num_region_points_thresh_, 1);
 
     // Setup internal class stuff
     r_tracker_.setMinFlowThresh(min_flow_thresh_);
@@ -588,8 +592,8 @@ class TabletopPushingPerceptionNode
       for (int c = 0; c < regions.cols; ++c)
       {
         // Test if the region value at r,c is moving
-        if (moving_regions.find(regions.at<uchar>(r,c)) !=
-            moving_regions.end())
+        if (moving_regions.count(regions.at<uchar>(r,c)) >=
+            num_region_points_thresh_)
         {
           try
           {
@@ -654,6 +658,7 @@ class TabletopPushingPerceptionNode
   double wc_;
   double wd_;
   int min_flow_thresh_;
+  int num_region_points_thresh_;
 };
 
 int main(int argc, char ** argv)
