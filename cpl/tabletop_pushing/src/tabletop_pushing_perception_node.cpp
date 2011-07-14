@@ -91,7 +91,7 @@
 
 #define CALL_PUSH_POSE_ON_CALLBCK
 #define DISPLAY_SUPERPIXELS
-#define DISPLAY_TRACKER_OUTPUT
+// #define DISPLAY_TRACKER_OUTPUT
 #define USE_DEPTH_ROI
 
 #define R_INDEX 2
@@ -105,7 +105,7 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image> MySyncPolicy;
 
 typedef std::vector<float> Descriptor;
-
+typedef unsigned short uint8;
 struct Flow
 {
   Flow(int _x, int _y, int _dx, int _dy) : x(_x), y(_y), dx(_dx), dy(_dy)
@@ -157,7 +157,8 @@ class FeatureTracker
 
     // Find nearest neighbors with previous descriptors
     findMatches(cur_descriptors_, prev_descriptors_, matches_cur, matches_prev);
-    ROS_INFO_STREAM("Num feature matches: " << matches_cur.size());
+    ROS_DEBUG_STREAM(window_name_ << ": num feature matches: "
+                    << matches_cur.size());
     int moving_points = 0;
     for (unsigned int i = 0; i < matches_cur.size(); i++)
     {
@@ -171,7 +172,7 @@ class FeatureTracker
       if (sparse_flow[i].dx + sparse_flow[i].dy > min_flow_thresh_)
         moving_points++;
     }
-    ROS_INFO_STREAM("Num moving points: " << moving_points);
+    ROS_DEBUG_STREAM(window_name_ << ": num moving points: " << moving_points);
 
 #ifdef DISPLAY_TRACKER_OUTPUT
     cv::Mat display_frame(frame.rows, frame.cols, CV_8UC3);;
@@ -473,8 +474,7 @@ class TabletopPushingPerceptionNode
     cv::imshow("depth_scaled_frame", depth_display);
 #endif // USE_DEPTH_ROI
     cv::imshow("regions", display_regions);
-    cv::imshow("real_regions", regions);
-    // cv::waitKey();
+    // cv::imshow("real_regions", regions);
 #endif // DISPLAY_SUPERPIXELS
 
 #ifdef USE_DEPTH_ROI
@@ -535,18 +535,20 @@ class TabletopPushingPerceptionNode
     std::vector<Flow> b_sparse_flow = b_tracker_.updateTracks(channels[B_INDEX]);
 
     // Determine which regions are moving
-    std::multimap<unsigned int, Flow> moving_regions;
+    std::multimap<uchar, Flow> moving_regions;
+
     ROS_INFO_STREAM("Finding moving points");
     int points_added = 0;
     for (unsigned int i = 0; i < r_sparse_flow.size(); ++i)
     {
       // Filter out small flow
-      if (r_sparse_flow[i].dx + r_sparse_flow[i].dy <= min_flow_thresh_) continue;
+      if (r_sparse_flow[i].dx + r_sparse_flow[i].dy <= min_flow_thresh_)
+        continue;
       // Add regions associated with moving points to the set
       // Store the flow associated with each region
       moving_regions.insert(RegionMember
-                            (regions.at<unsigned int>(r_sparse_flow[i].y,
-                                                      r_sparse_flow[i].x),
+                            (regions.at<uchar>(r_sparse_flow[i].y,
+                                               r_sparse_flow[i].x),
                              r_sparse_flow[i]));
       points_added++;
     }
@@ -557,8 +559,8 @@ class TabletopPushingPerceptionNode
         continue;
 
       moving_regions.insert(RegionMember
-                            (regions.at<unsigned int>(g_sparse_flow[i].y,
-                                                      g_sparse_flow[i].x),
+                            (regions.at<uchar>(g_sparse_flow[i].y,
+                                               g_sparse_flow[i].x),
                              g_sparse_flow[i]));
       points_added++;
     }
@@ -570,15 +572,14 @@ class TabletopPushingPerceptionNode
         continue;
 
       moving_regions.insert(RegionMember
-                            (regions.at<unsigned int>(b_sparse_flow[i].y,
-                                                      b_sparse_flow[i].x),
+                            (regions.at<uchar>(b_sparse_flow[i].y,
+                                               b_sparse_flow[i].x),
                              b_sparse_flow[i]));
       points_added++;
     }
 
     // Create an image with only moving regions drawn
     // TODO: Change this to be a color image of the moving one?
-    ROS_INFO_STREAM("Building moving image");
     cv::Mat moving_regions_img(regions.rows, regions.cols, CV_8UC1,
                                cv::Scalar(0));
     int painted = 0;
@@ -587,12 +588,12 @@ class TabletopPushingPerceptionNode
       for (int c = 0; c < regions.cols; ++c)
       {
         // Test if the region value at r,c is moving
-        if (moving_regions.find(regions.at<unsigned int>(r,c)) !=
+        if (moving_regions.find(regions.at<uchar>(r,c)) !=
             moving_regions.end())
         {
           try
           {
-            moving_regions_img.at<unsigned int>(r,c) = 255;
+            moving_regions_img.at<uchar>(r,c) = 255;
             painted++;
           }
           catch(cv::Exception e)
@@ -602,40 +603,12 @@ class TabletopPushingPerceptionNode
         }
       }
     }
-    ROS_INFO_STREAM("Painted " << painted << " pixels");
-    ROS_INFO_STREAM("Map contains " << moving_regions.size() << " elements.");
     cv::imshow("Moving regions", moving_regions_img);
-    cv::waitKey();
+    cv::waitKey(3);
 
     // TODO: Determine if there is a single moving region or multiple regions
     // Compute secondary features from these
   }
-
-  // void updateRegionTracks(cv::Mat& color_frame, cv::Mat& depth_frame,
-  //                         cv::Mat& regions)
-  // {
-  //   cv::Mat bw_frame(color_frame.rows, color_frame.cols, CV_8UC1);
-  //   cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
-  //   std::vector<Flow> sparse_flow = tracker_.updateTracks(bw_frame);
-
-  //   // Determine which regions are moving
-  //   std::multimap<unsigned int, Flow> moving_regions;
-  //   for (unsigned int i = 0; i < sparse_flow.size(); ++i)
-  //   {
-  //     // Filter out small flow
-  //     if (sparse_flow[i].dx + sparse_flow[i].dy < min_flow_thresh_) continue;
-  //     // Add regions associated with moving points to the set
-  //     // Store the flow associated with each region
-  //     moving_regions.insert(RegionMember
-  //                           (regions.at<unsigned int>(sparse_flow[i].x,
-  //                                                     sparse_flow[i].y),
-  //                            sparse_flow[i]));
-  //   }
-
-  //   // TODO: Create an image with only moving regions drawn
-  //   // TODO: Determine if there is a single moving region or multiple regions
-  //   // Compute secondary features from these
-  // }
 
   //
   // Controller State representations
