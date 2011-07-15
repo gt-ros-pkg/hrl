@@ -84,9 +84,8 @@
 #include <utility>
 #include <math.h>
 
-#define CALL_PUSH_POSE_ON_CALLBCK 1
 #define DISPLAY_SUPERPIXELS 1
-#define DISPLAY_TRACKER_OUTPUT 1
+// #define DISPLAY_TRACKER_OUTPUT 1
 // #define VOTE_FOR_REGION_ID 1
 #define DISPLAY_MOVING_STUFF 1
 
@@ -382,23 +381,45 @@ class TabletopPushingPerceptionNode
                       const sensor_msgs::ImageConstPtr& depth_msg)
   {
     // Convert images to OpenCV format
-    cv::Mat visual_frame(bridge_.imgMsgToCv(img_msg));
+    cv::Mat color_frame(bridge_.imgMsgToCv(img_msg));
     cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
+    // Swap kinect color channel order
+    cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
+
+    // TODO: Fill in gaps inside the depth data
+    // Convert nans to zeros
+    for (int r = 0; r < depth_frame.rows; ++r)
+    {
+      for (int c = 0; c < depth_frame.cols; ++c)
+      {
+        if (isnan(depth_frame.at<float>(r,c)))
+          depth_frame.at<float>(r,c) = 0.0;
+      }
+    }
+
+    // Select inner ROI of images to remove border issues
+    int x_size = crop_max_x_ - crop_min_x_;
+    int y_size = crop_max_y_ - crop_min_y_;
+    cv::Rect roi(crop_min_x_, crop_min_y_, x_size, y_size);
+
+    cv::Mat depth_region = depth_frame(roi);
+    cv::Mat color_region = color_frame(roi);
 
     // Save internally for use in the service callback
-    cur_visual_frame_ = visual_frame;
-    cur_depth_frame_ = depth_frame;
+    cur_color_frame_ = color_region;
+    cur_depth_frame_ = depth_region;
     have_depth_data_ = true;
-#ifdef CALL_PUSH_POSE_ON_CALLBCK
-    PushPose::Response p = findPushPose(cur_visual_frame_, cur_depth_frame_);
-#endif // CALL_PUSH_POSE_ON_CALLBCK
+
+    // TODO: Add a service call to turn tracking on and off
+    // TODO: Must deal with reseting and what not
+    trackRegions(cur_color_frame_, cur_depth_frame_);
   }
 
   bool getPushPose(PushPose::Request& req, PushPose::Response& res)
   {
     if ( have_depth_data_ )
     {
-      res = findPushPose(cur_visual_frame_, cur_depth_frame_);
+      res = findPushPose(cur_color_frame_, cur_depth_frame_);
     }
     else
     {
@@ -411,65 +432,7 @@ class TabletopPushingPerceptionNode
   PushPose::Response findPushPose(cv::Mat& visual_frame,
                                   cv::Mat& depth_frame)
   {
-    return superpixelFindPushPose(visual_frame, depth_frame);
-  }
-
-  // TODO: Pull out the superpixel stuff to be separate for use in findPose and
-  // in online prediction
-  PushPose::Response superpixelFindPushPose(cv::Mat& color_frame,
-                                            cv::Mat& depth_frame)
-  {
-    // Swap kinect color channel order
-    cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
-    // TODO: Use normal estimation for segmentation
-    // TODO: Fill in gaps inside the depth data
-    // Convert nans to zeros
-    for (int r = 0; r < depth_frame.rows; ++r)
-    {
-      for (int c = 0; c < depth_frame.cols; ++c)
-      {
-        if (isnan(depth_frame.at<float>(r,c)))
-          depth_frame.at<float>(r,c) = 0.0;
-      }
-    }
-
-    // Select inner ROI of images to remove border issues?
-    int x_size = crop_max_x_ - crop_min_x_;
-    int y_size = crop_max_y_ - crop_min_y_;
-    cv::Rect roi(crop_min_x_, crop_min_y_, x_size, y_size);
-
-    cv::Mat depth_region = depth_frame(roi);
-    cv::Mat color_region = color_frame(roi);
-    cv::Mat display_regions;
-    int num_regions = 0;
-    cv::Mat regions = getSuperpixelImage(color_region, depth_region,
-                                         num_regions, display_regions,
-                                         sigma_, k_, min_size_, wc_, wd_);
-    ROS_INFO_STREAM("Computed " << num_regions << " regions");
-#ifdef DISPLAY_SUPERPIXELS
-    cv::Mat depth_display = depth_region.clone();
-    double max_val = 1.0;
-    cv::minMaxLoc(depth_display, NULL, &max_val);
-    if (max_val > 0.0)
-    {
-      depth_display /= max_val;
-    }
-    cv::imshow("color_frame", color_region);
-    cv::imshow("depth_frame", depth_display);
-    // cv::imshow("depth_frame_real", depth_frame);
-    // cv::imshow("depth_frame_region", depth_region);
-    cv::imshow("regions", display_regions);
-    // cv::imshow("real_regions", regions);
-#endif // DISPLAY_SUPERPIXELS
-
-    if (!tracker_.isInitialized())
-    {
-      initRegionTracks(color_region, depth_region);
-    }
-    else
-    {
-      updateRegionTracks(color_region, depth_region, regions);
-    }
+    cv::Mat regions = getSuperpixels(visual_frame, depth_frame);
 
     // TODO: Choose a patch based on some simple criterian
     // TODO: Estimate the surface of the patch from the depth image
@@ -485,6 +448,22 @@ class TabletopPushingPerceptionNode
   //
   // Region tracking methods
   //
+
+  void trackRegions(cv::Mat& color_frame, cv::Mat& depth_frame)
+  {
+    cv::Mat regions = getSuperpixels(color_frame, depth_frame);
+
+    if (!tracker_.isInitialized())
+    {
+      initRegionTracks(color_frame, depth_frame);
+    }
+    else
+    {
+      updateRegionTracks(color_frame, depth_frame, regions);
+    }
+    // TODO: Return controller states here
+  }
+
   void initRegionTracks(cv::Mat& color_frame, cv::Mat& depth_frame)
   {
     cv::Mat bw_frame(color_frame.rows, color_frame.cols, CV_8UC1);
@@ -559,7 +538,7 @@ class TabletopPushingPerceptionNode
        moving_regions.insert(RegionMember
                              (regions.at<uchar>(sparse_flow[i].y,
                                                 sparse_flow[i].x),
-                              r_sparse_flow[i]));
+                              sparse_flow[i]));
 #endif // VOTE_FOR_REGION_ID
     }
 
@@ -595,6 +574,7 @@ class TabletopPushingPerceptionNode
   //
   // Controller State representations
   //
+
   void computeEllipsoid2D(cv::Mat& regions, std::vector<int>& active)
   {
   }
@@ -602,6 +582,39 @@ class TabletopPushingPerceptionNode
   void computeEllipsoid3D(cv::Mat& regions, cv::Mat& depth_frame,
                           std::vector<int>& active)
   {
+  }
+
+
+  //
+  // Visual Feature Extraction
+  //
+
+  cv::Mat getSuperpixels(cv::Mat& color_frame, cv::Mat& depth_frame)
+  {
+    // TODO: Use normal estimation for segmentation
+    cv::Mat display_regions;
+    int num_regions = 0;
+    cv::Mat regions = getSuperpixelImage(color_frame, depth_frame,
+                                         num_regions, display_regions,
+                                         sigma_, k_, min_size_, wc_, wd_);
+    ROS_INFO_STREAM("Computed " << num_regions << " regions");
+
+#ifdef DISPLAY_SUPERPIXELS
+    cv::Mat depth_display = depth_frame.clone();
+    double max_val = 1.0;
+    cv::minMaxLoc(depth_display, NULL, &max_val);
+    if (max_val > 0.0)
+    {
+      depth_display /= max_val;
+    }
+    cv::imshow("color_frame", color_frame);
+    cv::imshow("depth_frame", depth_display);
+    // cv::imshow("depth_frame_real", depth_frame);
+    // cv::imshow("depth_frame_region", depth_region);
+    cv::imshow("regions", display_regions);
+    // cv::imshow("real_regions", regions);
+#endif // DISPLAY_SUPERPIXELS
+    return regions;
   }
 
   /**
@@ -623,7 +636,7 @@ class TabletopPushingPerceptionNode
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
   ros::ServiceServer push_pose_server_;
-  cv::Mat cur_visual_frame_;
+  cv::Mat cur_color_frame_;
   cv::Mat cur_depth_frame_;
   FeatureTracker tracker_;
   bool have_depth_data_;
