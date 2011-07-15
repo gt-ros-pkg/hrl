@@ -92,7 +92,6 @@
 #define CALL_PUSH_POSE_ON_CALLBCK
 #define DISPLAY_SUPERPIXELS
 #define DISPLAY_TRACKER_OUTPUT
-#define USE_DEPTH_ROI
 
 #define R_INDEX 2
 #define G_INDEX 1
@@ -370,6 +369,10 @@ class TabletopPushingPerceptionNode
     n_private.param("min_flow_thresh", min_flow_thresh_, 0);
     n_private.param("num_moving_points_per_region_thresh",
                     num_region_points_thresh_, 1);
+    n_private.param("crop_min_x", crop_min_x_, 0);
+    n_private.param("crop_max_x", crop_max_x_, 640);
+    n_private.param("crop_min_y", crop_min_y_, 0);
+    n_private.param("crop_max_y", crop_max_y_, 480);
 
     // Setup internal class stuff
     r_tracker_.setMinFlowThresh(min_flow_thresh_);
@@ -431,13 +434,9 @@ class TabletopPushingPerceptionNode
     int num_regions = 0;
 
     // Select inner ROI of images to remove border issues?
-#ifdef USE_DEPTH_ROI
-    // TODO: Set these values from the parameter server
-    int y_start = 31;
-    int x_start = 0;
-    int x_end = 580 - x_start;
-    int y_end = depth_frame.rows - y_start;
-    cv::Rect roi(x_start, y_start, x_end, y_end);
+    int x_size = crop_max_x_ - crop_min_x_;
+    int y_size = crop_max_y_ - crop_min_y_;
+    cv::Rect roi(crop_min_x_, crop_min_y_, x_size, y_size);
     cv::Mat depth_region = depth_frame(roi);
     cv::Mat color_region = color_frame(roi);
     cv::Mat display_regions;
@@ -447,16 +446,9 @@ class TabletopPushingPerceptionNode
     cv::Mat regions = getSuperpixelImage(color_region,
                                          num_regions, display_regions,
                                          sigma_, k_, min_size_);
-#else // USE_DEPTH_ROI
-    cv::Mat regions = getSuperpixelImage(color_frame, depth_frame, num_regions,
-                                         display_regions, sigma_, k_, min_size_,
-                                         wc_, wd_);
-
-#endif // USE_DEPTH_ROI
     ROS_INFO_STREAM("Computed " << num_regions << " regions");
 
 #ifdef DISPLAY_SUPERPIXELS
-#ifdef USE_DEPTH_ROI
     cv::Mat depth_display = depth_region.clone();
     double max_val = 1.0;
     cv::minMaxLoc(depth_display, NULL, &max_val);
@@ -466,22 +458,10 @@ class TabletopPushingPerceptionNode
     }
     cv::imshow("color_frame", color_region);
     cv::imshow("depth_region", depth_display);
-#else // USE_DEPTH_ROI
-    cv::Mat depth_display = depth_frame.clone();
-    double max_val = 1.0;
-    cv::minMaxLoc(depth_display, NULL, &max_val);
-    if (max_val > 0.0)
-    {
-      depth_display /= max_val;
-    }
-    cv::imshow("color_frame", color_frame);
-    cv::imshow("depth_scaled_frame", depth_display);
-#endif // USE_DEPTH_ROI
     cv::imshow("regions", display_regions);
     // cv::imshow("real_regions", regions);
 #endif // DISPLAY_SUPERPIXELS
 
-#ifdef USE_DEPTH_ROI
     if (!r_tracker_.isInitialized())
     {
       initRegionTracks(color_region, depth_region);
@@ -490,16 +470,6 @@ class TabletopPushingPerceptionNode
     {
       updateRegionTracks(color_region, depth_region, regions);
     }
-#else // USE_DEPTH_ROI
-    if (!r_tracker_.isInitialized())
-    {
-      initRegionTracks(color_frame, depth_frame);
-    }
-    else
-    {
-      updateRegionTracks(color_frame, depth_frame, regions);
-    }
-#endif // USE_DEPTH_ROI
 
     // TODO: Choose a patch based on some simple criterian
     // TODO: Estimate the surface of the patch from the depth image
@@ -659,6 +629,10 @@ class TabletopPushingPerceptionNode
   double wd_;
   int min_flow_thresh_;
   int num_region_points_thresh_;
+  int crop_min_x_;
+  int crop_max_x_;
+  int crop_min_y_;
+  int crop_max_y_;
 };
 
 int main(int argc, char ** argv)
