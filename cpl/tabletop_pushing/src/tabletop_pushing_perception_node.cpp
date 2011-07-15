@@ -89,10 +89,11 @@
 #include <utility>
 #include <math.h>
 
-#define CALL_PUSH_POSE_ON_CALLBCK
-#define DISPLAY_SUPERPIXELS
-#define DISPLAY_TRACKER_OUTPUT
-#define VOTE_FOR_REGION_ID
+#define CALL_PUSH_POSE_ON_CALLBCK 1
+#define DISPLAY_SUPERPIXELS 1
+#define DISPLAY_TRACKER_OUTPUT 1
+#define VOTE_FOR_REGION_ID 1
+#define DISPLAY_MOVING_STUFF 1
 #define R_INDEX 2
 #define G_INDEX 1
 #define B_INDEX 0
@@ -373,6 +374,7 @@ class TabletopPushingPerceptionNode
     n_private.param("crop_max_x", crop_max_x_, 640);
     n_private.param("crop_min_y", crop_min_y_, 0);
     n_private.param("crop_max_y", crop_max_y_, 480);
+    n_private.param("display_wait_ms", display_wait_ms_, 3);
 
     // Setup internal class stuff
     tracker_.setMinFlowThresh(min_flow_thresh_);
@@ -565,10 +567,9 @@ class TabletopPushingPerceptionNode
 #endif // VOTE_FOR_REGION_ID
     }
     // TODO: Remove table plane regions from possible moving regions
-    // Create an image with only moving regions drawn
-    // TODO: Change this to be a color image of the moving one?
-    cv::Mat moving_regions_img(regions.rows, regions.cols, CV_8UC1,
-                               cv::Scalar(0));
+    // Create an mask of the moving regions drawn
+    cv::Mat moving_regions_mask(regions.rows, regions.cols, CV_8UC1,
+                                cv::Scalar(0));
     for (int r = 0; r < regions.rows; ++r)
     {
       for (int c = 0; c < regions.cols; ++c)
@@ -577,13 +578,17 @@ class TabletopPushingPerceptionNode
         if (moving_regions.count(regions.at<uchar>(r,c)) >=
             num_region_points_thresh_)
         {
-          moving_regions_img.at<uchar>(r,c) = 255;
+          moving_regions_mask.at<uchar>(r,c) = 255;
         }
       }
     }
+#ifdef DISPLAY_MOVING_STUFF
+    // Create a color image of the moving parts using the mask
+    cv::Mat moving_regions_img;
+    color_frame.copyTo(moving_regions_img, moving_regions_mask);
     cv::imshow("Moving regions", moving_regions_img);
-    cv::waitKey(3);
-
+    cv::waitKey(display_wait_ms_);
+#endif // DISPLAY_MOVING_STUFF
     // TODO: Determine if there is a single moving region or multiple regions
     // Compute secondary features from these
   }
@@ -634,6 +639,7 @@ class TabletopPushingPerceptionNode
   int crop_max_x_;
   int crop_min_y_;
   int crop_max_y_;
+  int display_wait_ms_;
 };
 
 int main(int argc, char ** argv)
