@@ -92,7 +92,7 @@
 #define CALL_PUSH_POSE_ON_CALLBCK
 #define DISPLAY_SUPERPIXELS
 #define DISPLAY_TRACKER_OUTPUT
-
+#define VOTE_FOR_REGION_ID
 #define R_INDEX 2
 #define G_INDEX 1
 #define B_INDEX 0
@@ -118,7 +118,7 @@ typedef std::pair<uchar, Flow> RegionMember;
 class FeatureTracker
 {
  public:
-  FeatureTracker(std::string name, double hessian_thresh=500, int num_octaves=4,
+  FeatureTracker(std::string name, double hessian_thresh=250, int num_octaves=4,
                  int num_layers=2, bool extended=true) :
       surf_(hessian_thresh, num_octaves, num_layers, extended),
       initialized_(false), ratio_threshold_(0.3), window_name_(name),
@@ -171,7 +171,7 @@ class FeatureTracker
       if (sparse_flow[i].dx + sparse_flow[i].dy > min_flow_thresh_)
         moving_points++;
     }
-    ROS_INFO_STREAM(window_name_ << ": num moving points: " << moving_points);
+    ROS_DEBUG_STREAM(window_name_ << ": num moving points: " << moving_points);
 
 #ifdef DISPLAY_TRACKER_OUTPUT
     cv::Mat display_frame(frame.rows, frame.cols, CV_8UC3);;
@@ -180,8 +180,8 @@ class FeatureTracker
     {
       if (sparse_flow[i].dx + sparse_flow[i].dy > min_flow_thresh_)
       {
-        ROS_INFO_STREAM("Point is moving (" << sparse_flow[i].dx << ", "
-                        << sparse_flow[i].dy << ")");
+        ROS_DEBUG_STREAM("Point is moving (" << sparse_flow[i].dx << ", "
+                         << sparse_flow[i].dy << ")");
         cv::line(display_frame,
                  prev_keypoints_[matches_prev[i]].pt,
                  cur_keypoints_[matches_cur[i]].pt,
@@ -356,7 +356,7 @@ class TabletopPushingPerceptionNode
       depth_sub_(n, "depth_image_topic", 1),
       sync_(MySyncPolicy(1), image_sub_, depth_sub_),
       tf_(),
-      r_tracker_("r_tracker"), g_tracker_("g_tracker"), b_tracker_("b_tracker"),
+      tracker_("i_tracker"),
       have_depth_data_(false), min_flow_thresh_(0), num_region_points_thresh_(1)
   {
     // Get parameters from the server
@@ -375,9 +375,7 @@ class TabletopPushingPerceptionNode
     n_private.param("crop_max_y", crop_max_y_, 480);
 
     // Setup internal class stuff
-    r_tracker_.setMinFlowThresh(min_flow_thresh_);
-    g_tracker_.setMinFlowThresh(min_flow_thresh_);
-    b_tracker_.setMinFlowThresh(min_flow_thresh_);
+    tracker_.setMinFlowThresh(min_flow_thresh_);
 
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
@@ -430,24 +428,30 @@ class TabletopPushingPerceptionNode
     // Swap kinect color channel order
     cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
     // TODO: Use normal estimation for segmentation
-    // TODO: Fill in gaps inside the depth data.
-    int num_regions = 0;
+    // TODO: Fill in gaps inside the depth data
+    // Convert nans to zeros
+    for (int r = 0; r < depth_frame.rows; ++r)
+    {
+      for (int c = 0; c < depth_frame.cols; ++c)
+      {
+        if (isnan(depth_frame.at<float>(r,c)))
+          depth_frame.at<float>(r,c) = 0.0;
+      }
+    }
 
     // Select inner ROI of images to remove border issues?
     int x_size = crop_max_x_ - crop_min_x_;
     int y_size = crop_max_y_ - crop_min_y_;
     cv::Rect roi(crop_min_x_, crop_min_y_, x_size, y_size);
+
     cv::Mat depth_region = depth_frame(roi);
     cv::Mat color_region = color_frame(roi);
     cv::Mat display_regions;
-    // cv::Mat regions = getSuperpixelImage(color_region, depth_region,
-    //                                      num_regions, display_regions,
-    //                                      sigma_, k_, min_size_, wc_, wd_);
-    cv::Mat regions = getSuperpixelImage(color_region,
+    int num_regions = 0;
+    cv::Mat regions = getSuperpixelImage(color_region, depth_region,
                                          num_regions, display_regions,
-                                         sigma_, k_, min_size_);
+                                         sigma_, k_, min_size_, wc_, wd_);
     ROS_INFO_STREAM("Computed " << num_regions << " regions");
-
 #ifdef DISPLAY_SUPERPIXELS
     cv::Mat depth_display = depth_region.clone();
     double max_val = 1.0;
@@ -457,12 +461,14 @@ class TabletopPushingPerceptionNode
       depth_display /= max_val;
     }
     cv::imshow("color_frame", color_region);
-    cv::imshow("depth_region", depth_display);
+    cv::imshow("depth_frame", depth_display);
+    // cv::imshow("depth_frame_real", depth_frame);
+    // cv::imshow("depth_frame_region", depth_region);
     cv::imshow("regions", display_regions);
     // cv::imshow("real_regions", regions);
 #endif // DISPLAY_SUPERPIXELS
 
-    if (!r_tracker_.isInitialized())
+    if (!tracker_.isInitialized())
     {
       initRegionTracks(color_region, depth_region);
     }
@@ -487,76 +493,82 @@ class TabletopPushingPerceptionNode
   //
   void initRegionTracks(cv::Mat& color_frame, cv::Mat& depth_frame)
   {
-    // cv::Mat bw_frame(color_frame.rows, color_frame.cols, CV_8UC1);
-    // cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
-    // tracker_.initTracks(bw_frame);
-    vector<cv::Mat> channels;
-    cv::split(color_frame, channels);
-    r_tracker_.initTracks(channels[R_INDEX]);
-    g_tracker_.initTracks(channels[G_INDEX]);
-    b_tracker_.initTracks(channels[B_INDEX]);
+    cv::Mat bw_frame(color_frame.rows, color_frame.cols, CV_8UC1);
+    cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
+    tracker_.initTracks(bw_frame);
   }
 
   void updateRegionTracks(cv::Mat& color_frame, cv::Mat& depth_frame,
                           cv::Mat& regions)
   {
-    // cv::Mat bw_frame(color_frame.rows, color_frame.cols, CV_8UC1);
-    // cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
-    vector<cv::Mat> channels;
-    cv::split(color_frame, channels);
-    std::vector<Flow> r_sparse_flow = r_tracker_.updateTracks(channels[R_INDEX]);
-    std::vector<Flow> g_sparse_flow = g_tracker_.updateTracks(channels[G_INDEX]);
-    std::vector<Flow> b_sparse_flow = b_tracker_.updateTracks(channels[B_INDEX]);
+    cv::Mat bw_frame(color_frame.rows, color_frame.cols, CV_8UC1);
+    cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
+    std::vector<Flow> sparse_flow = tracker_.updateTracks(bw_frame);
 
     // Determine which regions are moving
     std::multimap<uchar, Flow> moving_regions;
 
-    ROS_INFO_STREAM("Finding moving points");
-    int points_added = 0;
-    for (unsigned int i = 0; i < r_sparse_flow.size(); ++i)
+    ROS_DEBUG_STREAM("Finding moving points");
+    for (unsigned int i = 0; i < sparse_flow.size(); ++i)
     {
       // Filter out small flow
-      if (r_sparse_flow[i].dx + r_sparse_flow[i].dy <= min_flow_thresh_)
+      if (sparse_flow[i].dx + sparse_flow[i].dy <= min_flow_thresh_)
         continue;
       // Add regions associated with moving points to the set
+#ifdef VOTE_FOR_REGION_ID
+      // Vote among surrounding pixels for the region to add
+      std::set<uchar> region_ids;
+      region_ids.insert(regions.at<uchar>(sparse_flow[i].y - 1,
+                                          sparse_flow[i].x - 1));
+      region_ids.insert(regions.at<uchar>(sparse_flow[i].y - 1,
+                                          sparse_flow[i].x));
+      region_ids.insert(regions.at<uchar>(sparse_flow[i].y - 1,
+                                          sparse_flow[i].x + 1));
+      region_ids.insert(regions.at<uchar>(sparse_flow[i].y,
+                                          sparse_flow[i].x - 1));
+      region_ids.insert(regions.at<uchar>(sparse_flow[i].y,
+                                          sparse_flow[i].x));
+      region_ids.insert(regions.at<uchar>(sparse_flow[i].y,
+                                          sparse_flow[i].x + 1));
+      region_ids.insert(regions.at<uchar>(sparse_flow[i].y + 1,
+                                          sparse_flow[i].x - 1));
+      region_ids.insert(regions.at<uchar>(sparse_flow[i].y + 1,
+                                          sparse_flow[i].x));
+      region_ids.insert(regions.at<uchar>(sparse_flow[i].y + 1,
+                                          sparse_flow[i].x + 1));
+      std::set<uchar>::iterator region_it;
+      int max_count = 0;
+      uchar max_id;
+      for (region_it = region_ids.begin(); region_it != region_ids.end();
+           ++region_it)
+      {
+        int cur_count = region_ids.count(*region_it);
+        if (cur_count > max_count)
+        {
+          max_count = cur_count;
+          max_id = *region_it;
+        }
+      }
+      moving_regions.insert(RegionMember(max_id, sparse_flow[i]));
+      uchar cur_id = regions.at<uchar>(sparse_flow[i].y, sparse_flow[i].x);
+      if (cur_id != max_id)
+        ROS_INFO_STREAM("Point has id: " << static_cast<unsigned int>(cur_id)
+                        << " max region id is: "
+                        << static_cast<unsigned int>(max_id));
+
+#else // VOTE_FOR_REGION_ID
       // Store the flow associated with each region
-      moving_regions.insert(RegionMember
-                            (regions.at<uchar>(r_sparse_flow[i].y,
-                                               r_sparse_flow[i].x),
-                             r_sparse_flow[i]));
-      points_added++;
+       moving_regions.insert(RegionMember
+                             (regions.at<uchar>(sparse_flow[i].y,
+                                                sparse_flow[i].x),
+                              r_sparse_flow[i]));
+#endif // VOTE_FOR_REGION_ID
     }
-    for (unsigned int i = 0; i < g_sparse_flow.size(); ++i)
-    {
-      // Filter out small flow
-      if (g_sparse_flow[i].dx + g_sparse_flow[i].dy <= min_flow_thresh_)
-        continue;
-
-      moving_regions.insert(RegionMember
-                            (regions.at<uchar>(g_sparse_flow[i].y,
-                                               g_sparse_flow[i].x),
-                             g_sparse_flow[i]));
-      points_added++;
-    }
-
-    for (unsigned int i = 0; i < b_sparse_flow.size(); ++i)
-    {
-      // Filter out small flow
-      if (b_sparse_flow[i].dx + b_sparse_flow[i].dy <= min_flow_thresh_)
-        continue;
-
-      moving_regions.insert(RegionMember
-                            (regions.at<uchar>(b_sparse_flow[i].y,
-                                               b_sparse_flow[i].x),
-                             b_sparse_flow[i]));
-      points_added++;
-    }
-
+    // TODO: Remove table plane regions from possible moving regions
     // Create an image with only moving regions drawn
     // TODO: Change this to be a color image of the moving one?
     cv::Mat moving_regions_img(regions.rows, regions.cols, CV_8UC1,
                                cv::Scalar(0));
-    int painted = 0;
     for (int r = 0; r < regions.rows; ++r)
     {
       for (int c = 0; c < regions.cols; ++c)
@@ -565,15 +577,7 @@ class TabletopPushingPerceptionNode
         if (moving_regions.count(regions.at<uchar>(r,c)) >=
             num_region_points_thresh_)
         {
-          try
-          {
-            moving_regions_img.at<uchar>(r,c) = 255;
-            painted++;
-          }
-          catch(cv::Exception e)
-          {
-            ROS_ERROR_STREAM("Error trying to set image value: " << e.err);
-          }
+          moving_regions_img.at<uchar>(r,c) = 255;
         }
       }
     }
@@ -617,10 +621,7 @@ class TabletopPushingPerceptionNode
   ros::ServiceServer push_pose_server_;
   cv::Mat cur_visual_frame_;
   cv::Mat cur_depth_frame_;
-  // FeatureTracker tracker_;
-  FeatureTracker r_tracker_;
-  FeatureTracker g_tracker_;
-  FeatureTracker b_tracker_;
+  FeatureTracker tracker_;
   bool have_depth_data_;
   double k_;
   double sigma_;

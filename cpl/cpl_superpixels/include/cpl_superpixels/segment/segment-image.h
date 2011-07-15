@@ -67,8 +67,8 @@ static inline float depth_diff(image<float> *r, image<float> *g,
                                int x1, int y1, int x2, int y2,
                                float wc, float wd) {
   return sqrt(wc*square(imRef(r, x1, y1)-imRef(r, x2, y2)) +
-	      wc*square(imRef(g, x1, y1)-imRef(g, x2, y2)) +
-	      wc*square(imRef(b, x1, y1)-imRef(b, x2, y2)) +
+              wc*square(imRef(g, x1, y1)-imRef(g, x2, y2)) +
+              wc*square(imRef(b, x1, y1)-imRef(b, x2, y2)) +
               wd*square(imRef(d, x1, y1)-imRef(d, x2, y2)));
 }
 

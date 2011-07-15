@@ -39,10 +39,10 @@ cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
                            int min_size, double wc, double wd)
 {
   IplImage color_ipl_img = color_img;
-  IplImage depth_ipl_img = depth_img;
   // Superpixels, Felzenszwalb
   image<rgb>* color_im = IPLtoFELZS(&color_ipl_img);
-  image<float>* depth_im = DEPTHtoFELZS(&depth_ipl_img);
+  image<float>* depth_im = DEPTHtoFELZS(depth_img);
+  cv::Mat depth_revert;
   image<rgb> *disp_im = segment_image(color_im, depth_im, sigma, k, min_size,
                                       &num_ccs, wc, wd);
   delete color_im;
@@ -50,16 +50,13 @@ cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
   // Convert to cv::Mat
   IplImage* disp_ipl;
   IplImage* idx_ipl;
+  cv::Mat idx_img;
   disp_ipl = FELZStoIPL(disp_im);
-  idx_ipl = FELZSIDXtoIPL(disp_im);
+  idx_img = FELZSIDXtoMAT(disp_im);
   delete disp_im;
   cv::Mat tmp_img(disp_ipl);
   tmp_img.copyTo(disp_img);
   cvReleaseImage(&disp_ipl);
-  cv::Mat tmp_img2(idx_ipl);
-  cv::Mat idx_img(tmp_img2.size(), tmp_img2.type());
-  tmp_img2.copyTo(idx_img);
-  cvReleaseImage(&idx_ipl);
   return idx_img;
 }
 
