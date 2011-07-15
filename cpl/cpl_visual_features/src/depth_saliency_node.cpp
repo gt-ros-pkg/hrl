@@ -89,13 +89,12 @@ class DepthSaliencyNode
     std::vector<int> params;
     params.push_back(CV_IMWRITE_PNG_COMPRESSION);
     params.push_back(0);
-
-    for (int x = 0; x < depth_frame.cols; ++x)
+    for (int r = 0; r < depth_frame.rows; ++r)
     {
-      for (int y = 0; y < depth_frame.rows; ++y)
+      for (int c = 0; c < depth_frame.cols; ++c)
       {
-        if (isnan(depth_frame.at<float>(x,y)))
-          depth_frame.at<float>(x,y) = 0.0;
+        if (isnan(depth_frame.at<float>(r,c)))
+          depth_frame.at<float>(r,c) = 0.0;
       }
     }
     ROS_INFO_STREAM("Removed NaNs");
