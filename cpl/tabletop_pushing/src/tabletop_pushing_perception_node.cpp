@@ -45,9 +45,6 @@
 #include <image_transport/image_transport.h>
 #include <cv_bridge/CvBridge.h>
 
-#include <boost/filesystem.hpp>
-#include <boost/thread/mutex.hpp>
-
 // TF
 #include <tf/transform_listener.h>
 #include <tf/transform_datatypes.h>
@@ -84,19 +81,14 @@
 #include <map>
 #include <queue>
 #include <string>
-#include <sstream>
-#include <fstream>
 #include <utility>
 #include <math.h>
 
 #define CALL_PUSH_POSE_ON_CALLBCK 1
 #define DISPLAY_SUPERPIXELS 1
 #define DISPLAY_TRACKER_OUTPUT 1
-#define VOTE_FOR_REGION_ID 1
+// #define VOTE_FOR_REGION_ID 1
 #define DISPLAY_MOVING_STUFF 1
-#define R_INDEX 2
-#define G_INDEX 1
-#define B_INDEX 0
 
 using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
@@ -158,7 +150,7 @@ class FeatureTracker
     // Find nearest neighbors with previous descriptors
     findMatches(cur_descriptors_, prev_descriptors_, matches_cur, matches_prev);
     ROS_DEBUG_STREAM(window_name_ << ": num feature matches: "
-                    << matches_cur.size());
+                     << matches_cur.size());
     int moving_points = 0;
     for (unsigned int i = 0; i < matches_cur.size(); i++)
     {
@@ -557,7 +549,11 @@ class TabletopPushingPerceptionNode
         ROS_INFO_STREAM("Point has id: " << static_cast<unsigned int>(cur_id)
                         << " max region id is: "
                         << static_cast<unsigned int>(max_id));
-
+      if (max_count < 5)
+      {
+        ROS_INFO_STREAM("No majority region, skipping.");
+        continue;
+      }
 #else // VOTE_FOR_REGION_ID
       // Store the flow associated with each region
        moving_regions.insert(RegionMember
@@ -566,6 +562,7 @@ class TabletopPushingPerceptionNode
                               r_sparse_flow[i]));
 #endif // VOTE_FOR_REGION_ID
     }
+
     // TODO: Remove table plane regions from possible moving regions
     // Create an mask of the moving regions drawn
     cv::Mat moving_regions_mask(regions.rows, regions.cols, CV_8UC1,
@@ -582,6 +579,7 @@ class TabletopPushingPerceptionNode
         }
       }
     }
+
 #ifdef DISPLAY_MOVING_STUFF
     // Create a color image of the moving parts using the mask
     cv::Mat moving_regions_img;
@@ -589,8 +587,9 @@ class TabletopPushingPerceptionNode
     cv::imshow("Moving regions", moving_regions_img);
     cv::waitKey(display_wait_ms_);
 #endif // DISPLAY_MOVING_STUFF
+
     // TODO: Determine if there is a single moving region or multiple regions
-    // Compute secondary features from these
+    // TODO: Compute secondary features from these
   }
 
   //
