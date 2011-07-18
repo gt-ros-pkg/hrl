@@ -97,6 +97,21 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
 
 typedef std::vector<float> Descriptor;
 
+const cv::RotatedRect EMPTY_ELLIPSE(cv::Point2f(0.0f, 0.0f),
+                                    cv::Size2f(0.0f, 0.0f),
+                                    0.0f);
+
+bool operator==(cv::RotatedRect a, cv::RotatedRect b)
+{
+  return (a.center.x == b.center.x && a.center.y == b.center.y &&
+          a.size.width == b.size.width && a.size.height == b.size.height);
+}
+
+bool operator!=(cv::RotatedRect a, cv::RotatedRect b)
+{
+  return !(a == b);
+}
+
 struct Flow
 {
   Flow(int _x, int _y, int _dx, int _dy) : x(_x), y(_y), dx(_dx), dy(_dy)
@@ -465,26 +480,29 @@ class TabletopPushingPerceptionNode
     }
 
     cv::Mat moving = updateRegionTracks(color_frame, depth_frame, regions);
-    // TODO: Determine if there is a single moving region or multiple regions
-    std::vector<std::vector<cv::Point> > moving_contours;
-    moving_contours.clear();
-    cv::findContours(moving, moving_contours, cv::RETR_EXTERNAL,
-                     CV_CHAIN_APPROX_NONE);
-    // Compute secondary features from these
-    for (unsigned int i = 0; i < moving_contours.size();)
+    cv::RotatedRect el = computeEllipsoid2D(color_frame, moving);
+
+    // Compute ellipsoid changes from previous frame and store as part of
+    // current state
+    if (cur_ellipse_ == EMPTY_ELLIPSE)
     {
-      // Get moments
-      cv::Mat pt_mat(moving_contours[i]);
-      cv::Moments m;
-      m = cv::moments(pt_mat);
-      // Fit an ellipse
-      cv::RotatedRect el = cv::fitEllipse(pt_mat);
-      // Determine ellipse properties
+      cur_ellipse_ = el;
     }
-
-    // TODO: Compute secondary features from these
-
-    // TODO: Return controller states here
+    else if (el != EMPTY_ELLIPSE)
+    {
+      // Calculate the deltas
+      cv::RotatedRect delta(cv::Point2f(el.center.x - cur_ellipse_.center.x,
+                                        el.center.y - cur_ellipse_.center.y),
+                            cv::Size2f(el.size.width - cur_ellipse_.size.width,
+                                       el.size.height - cur_ellipse_.size.height),
+                            el.angle - cur_ellipse_.angle);
+      delta_ellipse_ = delta;
+    }
+    else
+    {
+      // No detected movement so maintain keep the last one stationary
+      delta_ellipse_ = EMPTY_ELLIPSE;
+    }
   }
 
   void initRegionTracks(cv::Mat& color_frame, cv::Mat& depth_frame)
@@ -539,6 +557,7 @@ class TabletopPushingPerceptionNode
     // Create a color image of the moving parts using the mask
     cv::Mat moving_regions_img;
     color_frame.copyTo(moving_regions_img, moving_regions_mask);
+    cv::imshow("Mask", moving_regions_mask);
     cv::imshow("Moving regions", moving_regions_img);
     cv::waitKey(display_wait_ms_);
 #endif // DISPLAY_MOVING_STUFF
@@ -550,13 +569,54 @@ class TabletopPushingPerceptionNode
   // Controller State representations
   //
 
-  void computeEllipsoid2D(cv::Mat& regions, std::vector<int>& active)
+  cv::RotatedRect computeEllipsoid2D(cv::Mat& color_frame, cv::Mat moving)
   {
+    cv::Mat contour_img;
+    color_frame.copyTo(contour_img, moving);
+    std::vector<std::vector<cv::Point> > moving_contours;
+    moving_contours.clear();
+    // NOTE: This method makes changes to the "moving" image
+    cv::findContours(moving, moving_contours, cv::RETR_EXTERNAL,
+                     CV_CHAIN_APPROX_NONE);
+
+    // TODO: Compute a single ellipse to describe the motion?
+    std::vector<cv::RotatedRect> els;
+    // Compute secondary features from these
+    for (unsigned int i = 0; i < moving_contours.size(); ++i)
+    {
+      // Get moments
+      cv::Mat pt_mat(moving_contours[i]);
+      cv::Moments m;
+      m = cv::moments(pt_mat);
+      // Fit an ellipse
+      cv::RotatedRect el = cv::fitEllipse(pt_mat);
+      ROS_INFO_STREAM("ellipse " << i << " has center (" << el.center.x
+                      << ", " << el.center.y << ")"
+                      <<  " and size (" << el.size.width << ", "
+                      << el.size.height << ")");
+      // Draw ellipse for display purposes
+      cv::Scalar ellipse_color(255, 0, 0);
+      cv::ellipse(contour_img, el, ellipse_color, 2);
+      els.push_back(el);
+    }
+    cv::Scalar object_contour_color(0, 0, 255);
+    if (moving_contours.size() > 0)
+    {
+      cv::drawContours(contour_img, moving_contours, -1,
+                       object_contour_color, 2);
+    }
+
+    cv::imshow("contour window", contour_img);
+    cv::waitKey();
+    if (moving_contours.size() > 0)
+      return els[0];
+    return EMPTY_ELLIPSE;
   }
 
-  void computeEllipsoid3D(cv::Mat& regions, cv::Mat& depth_frame,
-                          std::vector<int>& active)
+  void computeEllipsoid2D(cv::Mat& color_frame, cv::Mat& depth_frame,
+                          cv::Mat moving)
   {
+    // TODO: Determine return type to use (3D Pose and axes sizes)
   }
 
 
@@ -627,6 +687,8 @@ class TabletopPushingPerceptionNode
   int crop_min_y_;
   int crop_max_y_;
   int display_wait_ms_;
+  cv::RotatedRect cur_ellipse_;
+  cv::RotatedRect delta_ellipse_;
 };
 
 int main(int argc, char ** argv)
