@@ -327,6 +327,11 @@ class FeatureTracker
     min_flow_thresh_= min_thresh;
   }
 
+  void stop()
+  {
+    initialized_ = false;
+  }
+
  protected:
   std::vector<cv::KeyPoint> prev_keypoints_;
   std::vector<cv::KeyPoint> cur_keypoints_;
@@ -456,11 +461,13 @@ class TabletopPushingPerceptionNode
     if (!tracker_.isInitialized())
     {
       initRegionTracks(color_frame, depth_frame);
+      return;
     }
-    else
-    {
-      updateRegionTracks(color_frame, depth_frame, regions);
-    }
+
+    cv::Mat moving = updateRegionTracks(color_frame, depth_frame, regions);
+    // TODO: Determine if there is a single moving region or multiple regions
+    // TODO: Compute secondary features from these
+
     // TODO: Return controller states here
   }
 
@@ -471,8 +478,8 @@ class TabletopPushingPerceptionNode
     tracker_.initTracks(bw_frame);
   }
 
-  void updateRegionTracks(cv::Mat& color_frame, cv::Mat& depth_frame,
-                          cv::Mat& regions)
+  cv::Mat updateRegionTracks(cv::Mat& color_frame, cv::Mat& depth_frame,
+                             cv::Mat& regions)
   {
     cv::Mat bw_frame(color_frame.rows, color_frame.cols, CV_8UC1);
     cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
@@ -488,62 +495,15 @@ class TabletopPushingPerceptionNode
       if (sparse_flow[i].dx + sparse_flow[i].dy <= min_flow_thresh_)
         continue;
       // Add regions associated with moving points to the set
-#ifdef VOTE_FOR_REGION_ID
-      // Vote among surrounding pixels for the region to add
-      std::set<uchar> region_ids;
-      region_ids.insert(regions.at<uchar>(sparse_flow[i].y - 1,
-                                          sparse_flow[i].x - 1));
-      region_ids.insert(regions.at<uchar>(sparse_flow[i].y - 1,
-                                          sparse_flow[i].x));
-      region_ids.insert(regions.at<uchar>(sparse_flow[i].y - 1,
-                                          sparse_flow[i].x + 1));
-      region_ids.insert(regions.at<uchar>(sparse_flow[i].y,
-                                          sparse_flow[i].x - 1));
-      region_ids.insert(regions.at<uchar>(sparse_flow[i].y,
-                                          sparse_flow[i].x));
-      region_ids.insert(regions.at<uchar>(sparse_flow[i].y,
-                                          sparse_flow[i].x + 1));
-      region_ids.insert(regions.at<uchar>(sparse_flow[i].y + 1,
-                                          sparse_flow[i].x - 1));
-      region_ids.insert(regions.at<uchar>(sparse_flow[i].y + 1,
-                                          sparse_flow[i].x));
-      region_ids.insert(regions.at<uchar>(sparse_flow[i].y + 1,
-                                          sparse_flow[i].x + 1));
-      std::set<uchar>::iterator region_it;
-      int max_count = 0;
-      uchar max_id;
-      for (region_it = region_ids.begin(); region_it != region_ids.end();
-           ++region_it)
-      {
-        int cur_count = region_ids.count(*region_it);
-        if (cur_count > max_count)
-        {
-          max_count = cur_count;
-          max_id = *region_it;
-        }
-      }
-      moving_regions.insert(RegionMember(max_id, sparse_flow[i]));
-      uchar cur_id = regions.at<uchar>(sparse_flow[i].y, sparse_flow[i].x);
-      if (cur_id != max_id)
-        ROS_INFO_STREAM("Point has id: " << static_cast<unsigned int>(cur_id)
-                        << " max region id is: "
-                        << static_cast<unsigned int>(max_id));
-      if (max_count < 5)
-      {
-        ROS_INFO_STREAM("No majority region, skipping.");
-        continue;
-      }
-#else // VOTE_FOR_REGION_ID
       // Store the flow associated with each region
       moving_regions.insert(RegionMember
                             (regions.at<uchar>(sparse_flow[i].y,
                                                sparse_flow[i].x),
                              sparse_flow[i]));
-#endif // VOTE_FOR_REGION_ID
     }
 
     // TODO: Remove table plane regions from possible moving regions
-    // Create a mask of the moving regions
+    // Create a mask of the moving regions drawn
     cv::Mat moving_regions_mask(regions.rows, regions.cols, CV_8UC1,
                                 cv::Scalar(0));
     for (int r = 0; r < regions.rows; ++r)
@@ -567,8 +527,7 @@ class TabletopPushingPerceptionNode
     cv::waitKey(display_wait_ms_);
 #endif // DISPLAY_MOVING_STUFF
 
-    // TODO: Determine if there is a single moving region or multiple regions
-    // TODO: Compute secondary features from these
+    return moving_regions_mask;
   }
 
   //
