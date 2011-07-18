@@ -466,6 +466,22 @@ class TabletopPushingPerceptionNode
 
     cv::Mat moving = updateRegionTracks(color_frame, depth_frame, regions);
     // TODO: Determine if there is a single moving region or multiple regions
+    std::vector<std::vector<cv::Point> > moving_contours;
+    moving_contours.clear();
+    cv::findContours(moving, moving_contours, cv::RETR_EXTERNAL,
+                     CV_CHAIN_APPROX_NONE);
+    // Compute secondary features from these
+    for (unsigned int i = 0; i < moving_contours.size();)
+    {
+      // Get moments
+      cv::Mat pt_mat(moving_contours[i]);
+      cv::Moments m;
+      m = cv::moments(pt_mat);
+      // Fit an ellipse
+      cv::RotatedRect el = cv::fitEllipse(pt_mat);
+      // Determine ellipse properties
+    }
+
     // TODO: Compute secondary features from these
 
     // TODO: Return controller states here
