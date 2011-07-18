@@ -535,15 +535,15 @@ class TabletopPushingPerceptionNode
       }
 #else // VOTE_FOR_REGION_ID
       // Store the flow associated with each region
-       moving_regions.insert(RegionMember
-                             (regions.at<uchar>(sparse_flow[i].y,
-                                                sparse_flow[i].x),
-                              sparse_flow[i]));
+      moving_regions.insert(RegionMember
+                            (regions.at<uchar>(sparse_flow[i].y,
+                                               sparse_flow[i].x),
+                             sparse_flow[i]));
 #endif // VOTE_FOR_REGION_ID
     }
 
     // TODO: Remove table plane regions from possible moving regions
-    // Create an mask of the moving regions drawn
+    // Create a mask of the moving regions
     cv::Mat moving_regions_mask(regions.rows, regions.cols, CV_8UC1,
                                 cv::Scalar(0));
     for (int r = 0; r < regions.rows; ++r)
