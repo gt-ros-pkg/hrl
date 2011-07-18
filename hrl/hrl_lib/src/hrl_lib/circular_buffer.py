@@ -104,6 +104,11 @@ class CircularBuffer():
         if i >= self.n_vals or -i > self.n_vals:
             raise IndexError('index (i = %d) out of bounds, since n_vals = %d' % (i, self.n_vals))
 
+    def __setitem__(self, i, val):
+        self.check_index(i)
+        i = self.convert_index(i)
+        self.buf[i] = val
+
     def __getitem__(self, i):
         #print 'input argument for __getitem__ =', i
         if type(i) is type(slice(1)):
@@ -157,7 +162,6 @@ class CircularBuffer():
 
 
 if __name__ == '__main__':
-
     cb1 = CircularBuffer(5, ())
     cb1.append(1)
     cb1.append(2)
@@ -172,11 +176,6 @@ if __name__ == '__main__':
     print 'cb1.buf:', cb1.buf
     print 'cb1[0::3]', cb1[0::3]
     print 'cb1.get_array()[0::3]', cb1.get_array()[0::3]
-
-
-
-
-
 
 
 
