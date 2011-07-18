@@ -87,7 +87,8 @@
 #define DISPLAY_SUPERPIXELS 1
 // #define DISPLAY_TRACKER_OUTPUT 1
 // #define VOTE_FOR_REGION_ID 1
-#define DISPLAY_MOVING_STUFF 1
+// #define DISPLAY_MOVING_STUFF 1
+#define DISPLAY_ELLIPSE_STUFF 1
 
 using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
@@ -197,7 +198,6 @@ class FeatureTracker
     }
 
     cv::imshow(window_name_, display_frame);
-    char c = cv::waitKey(3);
 #endif // DISPLAY_TRACKER_OUTPUT
 
     prev_keypoints_ = cur_keypoints_;
@@ -386,6 +386,8 @@ class TabletopPushingPerceptionNode
     n_private.param("crop_min_y", crop_min_y_, 0);
     n_private.param("crop_max_y", crop_max_y_, 480);
     n_private.param("display_wait_ms", display_wait_ms_, 3);
+    n_private.param("min_depth", min_depth_crop_, 0.0);
+    n_private.param("max_depth", max_depth_crop_, 5.0);
 
     // Setup internal class stuff
     tracker_.setMinFlowThresh(min_flow_thresh_);
@@ -412,7 +414,8 @@ class TabletopPushingPerceptionNode
     {
       for (int c = 0; c < depth_frame.cols; ++c)
       {
-        if (isnan(depth_frame.at<float>(r,c)))
+        float cur_d = depth_frame.at<float>(r,c);
+        if (isnan(cur_d))
           depth_frame.at<float>(r,c) = 0.0;
       }
     }
@@ -580,10 +583,11 @@ class TabletopPushingPerceptionNode
                      CV_CHAIN_APPROX_NONE);
 
     // TODO: Compute a single ellipse to describe the motion?
-    std::vector<cv::RotatedRect> els;
+    std::vector<cv::RotatedRect> ellipses;
     // Compute secondary features from these
     for (unsigned int i = 0; i < moving_contours.size(); ++i)
     {
+      if (moving_contours[i].size() < 6) continue;
       // Get moments
       cv::Mat pt_mat(moving_contours[i]);
       cv::Moments m;
@@ -597,7 +601,7 @@ class TabletopPushingPerceptionNode
       // Draw ellipse for display purposes
       cv::Scalar ellipse_color(255, 0, 0);
       cv::ellipse(contour_img, el, ellipse_color, 2);
-      els.push_back(el);
+      ellipses.push_back(el);
     }
     cv::Scalar object_contour_color(0, 0, 255);
     if (moving_contours.size() > 0)
@@ -605,11 +609,12 @@ class TabletopPushingPerceptionNode
       cv::drawContours(contour_img, moving_contours, -1,
                        object_contour_color, 2);
     }
-
+#ifdef DISPLAY_ELLIPSE_STUFF
     cv::imshow("contour window", contour_img);
-    cv::waitKey();
-    if (moving_contours.size() > 0)
-      return els[0];
+    cv::waitKey(display_wait_ms_);
+#endif // DISPLAY_ELLIPSE_STUFF
+    if (ellipses.size() > 0)
+      return ellipses[0];
     return EMPTY_ELLIPSE;
   }
 
@@ -629,22 +634,35 @@ class TabletopPushingPerceptionNode
     // TODO: Use normal estimation for segmentation
     cv::Mat display_regions;
     int num_regions = 0;
-    cv::Mat regions = getSuperpixelImage(color_frame, depth_frame,
+    cv::Mat workspace_mask(color_frame.rows, color_frame.cols, CV_8UC1,
+                           cv::Scalar(255));
+    // Black out pixels in color and depth images outside of worksape
+    for (int r = 0; r < depth_frame.rows; ++r)
+    {
+      for (int c = 0; c < depth_frame.cols; ++c)
+      {
+        float cur_d = depth_frame.at<float>(r,c);
+        if (cur_d < min_depth_crop_ || cur_d > max_depth_crop_)
+        {
+          workspace_mask.at<uchar>(r,c) = 0;
+        }
+      }
+    }
+    cv::Mat color_for_seg;
+    color_frame.copyTo(color_for_seg, workspace_mask);
+    cv::Mat depth_for_seg;
+    depth_frame.copyTo(depth_for_seg, workspace_mask);
+
+    cv::Mat regions = getSuperpixelImage(color_for_seg, depth_for_seg,
                                          num_regions, display_regions,
                                          sigma_, k_, min_size_, wc_, wd_);
     ROS_INFO_STREAM("Computed " << num_regions << " regions");
 
 #ifdef DISPLAY_SUPERPIXELS
-    cv::Mat depth_display = depth_frame.clone();
-    double max_val = 1.0;
-    cv::minMaxLoc(depth_display, NULL, &max_val);
-    if (max_val > 0.0)
-    {
-      depth_display /= max_val;
-    }
+    cv::imshow("depth_for_seg_frame", depth_for_seg);
     cv::imshow("color_frame", color_frame);
-    cv::imshow("depth_frame", depth_display);
-    // cv::imshow("depth_frame_real", depth_frame);
+    cv::imshow("color_for_seg_frame", color_for_seg);
+    cv::imshow("depth_frame", depth_frame);
     // cv::imshow("depth_frame_region", depth_region);
     cv::imshow("regions", display_regions);
     // cv::imshow("real_regions", regions);
@@ -689,6 +707,8 @@ class TabletopPushingPerceptionNode
   int display_wait_ms_;
   cv::RotatedRect cur_ellipse_;
   cv::RotatedRect delta_ellipse_;
+  double min_depth_crop_;
+  double max_depth_crop_;
 };
 
 int main(int argc, char ** argv)

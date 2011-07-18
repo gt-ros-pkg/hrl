@@ -15,5 +15,7 @@
     <param name="crop_min_y" value="30" type="int"/>
     <param name="crop_max_y" value="470" type="int"/>
     <param name="display_wait_ms" value="3" type="int"/>
+    <param name="min_depth" value="-2.0" type="double"/>
+    <param name="max_depth" value="3.0" type="double"/>
   </node>
 </launch>
