@@ -272,20 +272,17 @@ class TabletopPushNode:
         push_arm.move_absolute(loc, stop='pressure', frame=push_frame)
         rospy.loginfo('Done moving to start point')
 
-        # Sweep inward
-        # TODO: Change this to split the push_dist in x and y depending on yaw
-        # and move relative gripper?
+        # NOTE: because of the wrist orientation, +Z at the gripper
+        # equates to negative Y in the torso_lift_link at 0.0 yaw
         rospy.loginfo('Sweeping in')
-        r, pos_error = push_arm.move_relative_base(
-            np.matrix([0.0, push_dist, 0.0]).T,
-            #'l_wrist_roll_link',
+        r, pos_error = push_arm.move_relative_gripper(
+            np.matrix([0.0, 0.0, push_dist]).T,
             stop='pressure', pressure=5000)
         rospy.loginfo('Done sweeping in')
 
         rospy.loginfo('Sweeping outward')
-        push_arm.move_relative_base(
-            np.matrix([0.0, (-push_dist + pos_error), 0.0]).T,
-            #'l_wrist_roll_link',
+        push_arm.move_relative_gripper(
+            np.matrix([0.0, 0.0, (-push_dist + pos_error)]).T,
             stop='pressure', pressure=5000)
         rospy.loginfo('Done sweeping outward')
 
@@ -338,17 +335,13 @@ class TabletopPushNode:
         # Push inward
         rospy.loginfo('Pushing forward')
         r, pos_error = push_arm.move_relative_gripper(
-            # np.matrix([push_dist, 0.0, 0.0]).T,
             np.matrix([0.0, 0.0, push_dist]).T,
-            #'l_wrist_roll_link',
             stop='pressure', pressure=5000)
         rospy.loginfo('Done pushing forward')
 
         rospy.loginfo('Pushing reverse')
         push_arm.move_relative_gripper(
-            np.matrix([0.0, 0.0, -(push_dist+pos_error)]).T,
-            # np.matrix([(-push_dist + pos_error), 0.0, 0.0]).T,
-            #'l_wrist_roll_link',
+            np.matrix([0.0, 0.0, (-push_dist+pos_error)]).T,
             stop='pressure', pressure=5000)
         rospy.loginfo('Done pushing reverse')
 
