@@ -135,7 +135,6 @@ class TabletopExecutive:
         push_req.start_point.point.y += self.gripper_x_offset*sin(wrist_yaw)
         push_req.start_point.point.z += self.gripper_z_offset
 
-        # TODO: Correctly pick which arm to use
         push_req.left_arm = (which_arm == 'l')
         push_req.right_arm = not push_req.left_arm
 
@@ -172,12 +171,10 @@ class TabletopExecutive:
 
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
-        wrist_yaw = 0.25*pi # -0.25*pi
+        wrist_yaw = 0.0 # 0.25*pi
         sweep_req.wrist_yaw = wrist_yaw
         sweep_req.desired_push_dist = push_dist
 
-        # TODO: Correctly pick which arm to use
-        # TODO: Add the push direction here?
         sweep_req.left_arm = (which_arm == 'l')
         sweep_req.right_arm = not sweep_req.left_arm
 
@@ -186,7 +183,6 @@ class TabletopExecutive:
         else:
             y_offset_dir = -1
 
-        # TODO: Flip the sign depending on which arm is chosen
         # TODO: Remove these offsets and incorporate them directly into the perceptual inference
         # Offset pose to not hit the object immediately
         sweep_req.start_point.point.x += (self.sweep_x_offset*cos(wrist_yaw) +
@@ -225,15 +221,13 @@ class TabletopExecutive:
         push_req = GripperPushRequest()
         push_req.start_point.header = pose_res.push_pose.header
         push_req.start_point.point = pose_res.push_pose.pose.position
-        # rospy.loginfo('Push pose point:' + str(push_req.start_point.point))
+
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
-        wrist_yaw = -0.25*pi # 0.5*pi
+        wrist_yaw = 0.0 # -0.25*pi
         push_req.wrist_yaw = wrist_yaw
         push_req.desired_push_dist = push_dist
 
-        # TODO: Correctly pick which arm to use
-        # TODO: Add the push direction here?
         push_req.left_arm = (which_arm == 'l')
         push_req.right_arm = not push_req.left_arm
 
@@ -242,7 +236,6 @@ class TabletopExecutive:
         else:
             y_offset_dir = -1
 
-        # TODO: Flip the sign depending on which arm is chosen
         # TODO: Remove these offsets and incorporate them directly into the perceptual inference
         # Offset pose to not hit the object immediately
         push_req.start_point.point.x += (self.overhead_x_offset*cos(wrist_yaw) +
@@ -260,4 +253,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(1, 0, 0, 1, 0, 0)
+    node.run(1, 1, 1, 1, 1, 1)
