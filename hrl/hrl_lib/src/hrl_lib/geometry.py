@@ -122,6 +122,27 @@ def test_distance_from_curve():
     pp.plot(*zip(*pts_l))
     pp.show()
 
+# finds a,b such that x=ay+b (good if expected slope is large)
+# x, y -- nX1 matrices
+# returns a,b,mean residual
+def fit_line_high_slope(x, y):
+    A = np.column_stack((y, np.ones((y.shape[0],1))))
+    x,resids,rank,s = np.linalg.linalg.lstsq(A, x)
+    a = x[0,0]
+    b = x[1,0]
+    return a,b,resids/y.shape[0]
+
+# finds a,b such that y=ax+b (good if expected slope is small)
+# x, y -- nX1 matrices
+# returns a,b,mean residual
+def fit_line_low_slope(x, y):
+    A = np.column_stack((x, np.ones((x.shape[0],1))))
+    y,resids,rank,s = np.linalg.linalg.lstsq(A, y)
+    a = y[0,0]
+    b = y[1,0]
+    return a,b,resids/x.shape[0]
+
+
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pp
