@@ -241,14 +241,12 @@ class TabletopPushNode:
             push_arm = self.left_arm_move
             robot_arm = self.robot.left
             ready_joints = LEFT_ARM_READY_JOINTS
-            push_dir = -1
             which_arm = 'l'
             wrist_roll = -pi
         else:
             push_arm = self.right_arm_move
             robot_arm = self.robot.right
             ready_joints = RIGHT_ARM_READY_JOINTS
-            push_dir = +1
             which_arm = 'r'
             wrist_roll = 0.0
         push_arm.pressure_listener.rezero()
@@ -265,7 +263,7 @@ class TabletopPushNode:
         # Rotate wrist before moving to position
         rospy.loginfo('Rotating wrist for sweep')
         arm_pose = robot_arm.pose()
-        arm_pose[-1] =  wrist_roll # Works for left, need to check for right
+        arm_pose[-1] =  wrist_roll
         robot_arm.set_pose(arm_pose, nsecs=2.0, block=True)
 
         # Move to offset pose
@@ -279,14 +277,14 @@ class TabletopPushNode:
         # and move relative gripper?
         rospy.loginfo('Sweeping in')
         r, pos_error = push_arm.move_relative_base(
-            np.matrix([0.0, push_dir*push_dist, 0.0]).T,
+            np.matrix([0.0, push_dist, 0.0]).T,
             #'l_wrist_roll_link',
             stop='pressure', pressure=5000)
         rospy.loginfo('Done sweeping in')
 
         rospy.loginfo('Sweeping outward')
         push_arm.move_relative_base(
-            np.matrix([0.0, (-push_dir*push_dist + pos_error), 0.0]).T,
+            np.matrix([0.0, (-push_dist + pos_error), 0.0]).T,
             #'l_wrist_roll_link',
             stop='pressure', pressure=5000)
         rospy.loginfo('Done sweeping outward')
@@ -328,9 +326,7 @@ class TabletopPushNode:
         # Rotate wrist before moving to position
         rospy.loginfo('Rotating elbow for overhead push')
         arm_pose = robot_arm.pose()
-        # l_arm -28.25147617 ~= -9*pi
-        # r_arm 43.98995395 ~= 14*pi
-        arm_pose[-3] =  wrist_pitch # Works for left, need to check for right
+        arm_pose[-3] =  wrist_pitch
         robot_arm.set_pose(arm_pose, nsecs=2.0, block=True)
 
         # Move to offset pose
@@ -341,15 +337,17 @@ class TabletopPushNode:
 
         # Push inward
         rospy.loginfo('Pushing forward')
-        r, pos_error = push_arm.move_relative_base(
-            np.matrix([push_dist, 0.0, 0.0]).T,
+        r, pos_error = push_arm.move_relative_gripper(
+            # np.matrix([push_dist, 0.0, 0.0]).T,
+            np.matrix([0.0, 0.0, push_dist]).T,
             #'l_wrist_roll_link',
             stop='pressure', pressure=5000)
         rospy.loginfo('Done pushing forward')
 
         rospy.loginfo('Pushing reverse')
-        push_arm.move_relative_base(
-            np.matrix([(-push_dist + pos_error), 0.0, 0.0]).T,
+        push_arm.move_relative_gripper(
+            np.matrix([0.0, 0.0, -(push_dist+pos_error)]).T,
+            # np.matrix([(-push_dist + pos_error), 0.0, 0.0]).T,
             #'l_wrist_roll_link',
             stop='pressure', pressure=5000)
         rospy.loginfo('Done pushing reverse')
