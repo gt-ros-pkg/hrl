@@ -54,7 +54,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/features/integral_image_normal.h>
-#include <pcl/io/pcd_io.h>
+// #include <pcl/io/pcd_io.h>
 #include <pcl_ros/transforms.h>
 #include <pcl/features/normal_3d.h>
 
@@ -94,7 +94,8 @@ using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
-                                                        sensor_msgs::Image> MySyncPolicy;
+                                                        sensor_msgs::Image,
+                                                        sensor_msgs::PointCloud2> MySyncPolicy;
 
 typedef std::vector<float> Descriptor;
 
@@ -366,7 +367,8 @@ class TabletopPushingPerceptionNode
       n_(n),
       image_sub_(n, "color_image_topic", 1),
       depth_sub_(n, "depth_image_topic", 1),
-      sync_(MySyncPolicy(1), image_sub_, depth_sub_),
+      cloud_sub_(n, "point_cloud_topic", 1),
+      sync_(MySyncPolicy(1), image_sub_, depth_sub_, cloud_sub_),
       tf_(),
       tracker_("i_tracker"),
       have_depth_data_(false), min_flow_thresh_(0), num_region_points_thresh_(1)
@@ -386,8 +388,12 @@ class TabletopPushingPerceptionNode
     n_private.param("crop_min_y", crop_min_y_, 0);
     n_private.param("crop_max_y", crop_max_y_, 480);
     n_private.param("display_wait_ms", display_wait_ms_, 3);
-    n_private.param("min_depth", min_depth_crop_, 0.0);
-    n_private.param("max_depth", max_depth_crop_, 5.0);
+    n_private.param("min_workspace_x", min_workspace_x_, 0.0);
+    n_private.param("min_workspace_y", min_workspace_y_, 0.0);
+    n_private.param("min_workspace_z", min_workspace_z_, 0.0);
+    n_private.param("max_workspace_x", max_workspace_x_, 0.0);
+    n_private.param("max_workspace_y", max_workspace_y_, 0.0);
+    n_private.param("max_workspace_z", max_workspace_z_, 0.0);
 
     // Setup internal class stuff
     tracker_.setMinFlowThresh(min_flow_thresh_);
@@ -400,11 +406,15 @@ class TabletopPushingPerceptionNode
   }
 
   void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
-                      const sensor_msgs::ImageConstPtr& depth_msg)
+                      const sensor_msgs::ImageConstPtr& depth_msg,
+                      const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   {
     // Convert images to OpenCV format
     cv::Mat color_frame(bridge_.imgMsgToCv(img_msg));
     cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
+    XYZPointCloud cloud;
+    pcl::fromROSMsg(*cloud_msg, cloud);
+
     // Swap kinect color channel order
     cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
 
@@ -428,21 +438,24 @@ class TabletopPushingPerceptionNode
     cv::Mat depth_region = depth_frame(roi);
     cv::Mat color_region = color_frame(roi);
 
+    // TODO: Crop point cloud
+
     // Save internally for use in the service callback
     cur_color_frame_ = color_region;
     cur_depth_frame_ = depth_region;
+    cur_point_cloud_ = cloud;
     have_depth_data_ = true;
 
     // TODO: Add a service call to turn tracking on and off
     // TODO: Must deal with reseting and what not
-    trackRegions(cur_color_frame_, cur_depth_frame_);
+    trackRegions(cur_color_frame_, cur_depth_frame_, cur_point_cloud_);
   }
 
   bool getPushPose(PushPose::Request& req, PushPose::Response& res)
   {
     if ( have_depth_data_ )
     {
-      res = findPushPose(cur_color_frame_, cur_depth_frame_);
+      res = findPushPose(cur_color_frame_, cur_depth_frame_, cur_point_cloud_);
     }
     else
     {
@@ -453,9 +466,10 @@ class TabletopPushingPerceptionNode
   }
 
   PushPose::Response findPushPose(cv::Mat& visual_frame,
-                                  cv::Mat& depth_frame)
+                                  cv::Mat& depth_frame,
+                                  XYZPointCloud& cloud)
   {
-    cv::Mat regions = getSuperpixels(visual_frame, depth_frame);
+    cv::Mat regions = getSuperpixels(visual_frame, depth_frame, cloud);
 
     // TODO: Choose a patch based on some simple criterian
     // TODO: Estimate the surface of the patch from the depth image
@@ -472,9 +486,10 @@ class TabletopPushingPerceptionNode
   // Region tracking methods
   //
 
-  void trackRegions(cv::Mat& color_frame, cv::Mat& depth_frame)
+  void trackRegions(cv::Mat& color_frame, cv::Mat& depth_frame,
+                    XYZPointCloud& cloud)
   {
-    cv::Mat regions = getSuperpixels(color_frame, depth_frame);
+    cv::Mat regions = getSuperpixels(color_frame, depth_frame, cloud);
 
     if (!tracker_.isInitialized())
     {
@@ -629,7 +644,8 @@ class TabletopPushingPerceptionNode
   // Visual Feature Extraction
   //
 
-  cv::Mat getSuperpixels(cv::Mat& color_frame, cv::Mat& depth_frame)
+  cv::Mat getSuperpixels(cv::Mat& color_frame, cv::Mat& depth_frame,
+                         XYZPointCloud& cloud)
   {
     // TODO: Use normal estimation for segmentation
     cv::Mat display_regions;
@@ -641,8 +657,11 @@ class TabletopPushingPerceptionNode
     {
       for (int c = 0; c < depth_frame.cols; ++c)
       {
-        float cur_d = depth_frame.at<float>(r,c);
-        if (cur_d < min_depth_crop_ || cur_d > max_depth_crop_)
+        // NOTE: Cloud is accessed by at(column, row)
+        pcl::PointXYZ cur_pt = cloud.at(crop_min_x_ + c, crop_min_y_ + r);
+        if (cur_pt.x < min_workspace_x_ || cur_pt.x > max_workspace_x_ ||
+            cur_pt.y < min_workspace_y_ || cur_pt.y > max_workspace_y_ ||
+            cur_pt.z < min_workspace_y_ || cur_pt.z > max_workspace_y_)
         {
           workspace_mask.at<uchar>(r,c) = 0;
         }
@@ -685,12 +704,14 @@ class TabletopPushingPerceptionNode
   ros::NodeHandle n_;
   message_filters::Subscriber<sensor_msgs::Image> image_sub_;
   message_filters::Subscriber<sensor_msgs::Image> depth_sub_;
+  message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
   message_filters::Synchronizer<MySyncPolicy> sync_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
   ros::ServiceServer push_pose_server_;
   cv::Mat cur_color_frame_;
   cv::Mat cur_depth_frame_;
+  XYZPointCloud cur_point_cloud_;
   FeatureTracker tracker_;
   bool have_depth_data_;
   double k_;
@@ -707,8 +728,12 @@ class TabletopPushingPerceptionNode
   int display_wait_ms_;
   cv::RotatedRect cur_ellipse_;
   cv::RotatedRect delta_ellipse_;
-  double min_depth_crop_;
-  double max_depth_crop_;
+  double min_workspace_x_;
+  double max_workspace_x_;
+  double min_workspace_y_;
+  double max_workspace_y_;
+  double min_workspace_z_;
+  double max_workspace_z_;
 };
 
 int main(int argc, char ** argv)
