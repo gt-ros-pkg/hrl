@@ -660,9 +660,9 @@ class TabletopPushingPerceptionNode
 
 #ifdef DISPLAY_SUPERPIXELS
     cv::imshow("depth_for_seg_frame", depth_for_seg);
-    cv::imshow("color_frame", color_frame);
+    // cv::imshow("color_frame", color_frame);
     cv::imshow("color_for_seg_frame", color_for_seg);
-    cv::imshow("depth_frame", depth_frame);
+    // cv::imshow("depth_frame", depth_frame);
     // cv::imshow("depth_frame_region", depth_region);
     cv::imshow("regions", display_regions);
     // cv::imshow("real_regions", regions);
