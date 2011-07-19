@@ -222,7 +222,7 @@ class TabletopPushNode:
 
         rospy.loginfo('Moving gripper backwards')
         push_arm.move_relative_gripper(
-            np.matrix([(-push_dist + pos_error), 0.0, 0.0]).T,
+            np.matrix([-push_dist, 0.0, 0.0]).T,
             stop='pressure', pressure=5000)
         rospy.loginfo('Done moving backwards')
 
@@ -272,17 +272,18 @@ class TabletopPushNode:
         push_arm.move_absolute(loc, stop='pressure', frame=push_frame)
         rospy.loginfo('Done moving to start point')
 
-        # NOTE: because of the wrist orientation, +Z at the gripper
+        # NOTE: because of the wrist roll orientation, +Z at the gripper
         # equates to negative Y in the torso_lift_link at 0.0 yaw
+        # So we flip the push_dist to make things look like one would expect
         rospy.loginfo('Sweeping in')
         r, pos_error = push_arm.move_relative_gripper(
-            np.matrix([0.0, 0.0, push_dist]).T,
+            np.matrix([0.0, 0.0, -push_dist]).T,
             stop='pressure', pressure=5000)
         rospy.loginfo('Done sweeping in')
 
         rospy.loginfo('Sweeping outward')
         push_arm.move_relative_gripper(
-            np.matrix([0.0, 0.0, (-push_dist + pos_error)]).T,
+            np.matrix([0.0, 0.0, (push_dist)]).T,
             stop='pressure', pressure=5000)
         rospy.loginfo('Done sweeping outward')
 
@@ -341,7 +342,7 @@ class TabletopPushNode:
 
         rospy.loginfo('Pushing reverse')
         push_arm.move_relative_gripper(
-            np.matrix([0.0, 0.0, (-push_dist+pos_error)]).T,
+            np.matrix([0.0, 0.0, -push_dist]).T,
             stop='pressure', pressure=5000)
         rospy.loginfo('Done pushing reverse')
 
