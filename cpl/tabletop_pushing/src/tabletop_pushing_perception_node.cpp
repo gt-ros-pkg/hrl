@@ -53,10 +53,7 @@
 #include <pcl/ros/conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/features/integral_image_normal.h>
-// #include <pcl/io/pcd_io.h>
 #include <pcl_ros/transforms.h>
-#include <pcl/features/normal_3d.h>
 
 // OpenCV
 #include <opencv2/core/core.hpp>
@@ -85,8 +82,7 @@
 #include <math.h>
 
 #define DISPLAY_SUPERPIXELS 1
-// #define DISPLAY_TRACKER_OUTPUT 1
-// #define VOTE_FOR_REGION_ID 1
+#define DISPLAY_TRACKER_OUTPUT 1
 // #define DISPLAY_MOVING_STUFF 1
 #define DISPLAY_ELLIPSE_STUFF 1
 
@@ -130,7 +126,7 @@ class FeatureTracker
   FeatureTracker(std::string name, double hessian_thresh=250, int num_octaves=4,
                  int num_layers=2, bool extended=true) :
       surf_(hessian_thresh, num_octaves, num_layers, extended),
-      initialized_(false), ratio_threshold_(0.3), window_name_(name),
+      initialized_(false), ratio_threshold_(0.5), window_name_(name),
       min_flow_thresh_(0)
   {
     prev_keypoints_.clear();
@@ -394,6 +390,9 @@ class TabletopPushingPerceptionNode
     n_private.param("max_workspace_x", max_workspace_x_, 0.0);
     n_private.param("max_workspace_y", max_workspace_y_, 0.0);
     n_private.param("max_workspace_z", max_workspace_z_, 0.0);
+    std::string default_workspace_frame = "/torso_lift_link";
+    n_private.param("workspace_frame", workspace_frame_,
+                    default_workspace_frame);
 
     // Setup internal class stuff
     tracker_.setMinFlowThresh(min_flow_thresh_);
@@ -412,13 +411,15 @@ class TabletopPushingPerceptionNode
     // Convert images to OpenCV format
     cv::Mat color_frame(bridge_.imgMsgToCv(img_msg));
     cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
-    XYZPointCloud cloud;
-    pcl::fromROSMsg(*cloud_msg, cloud);
 
     // Swap kinect color channel order
     cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
 
-    // TODO: Fill in gaps inside the depth data
+    // Transform point cloud into the correct frame and convert to PCL struct
+    XYZPointCloud cloud;
+    pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, tf_);
+    pcl::fromROSMsg(*cloud_msg, cloud);
+
     // Convert nans to zeros
     for (int r = 0; r < depth_frame.rows; ++r)
     {
@@ -438,7 +439,7 @@ class TabletopPushingPerceptionNode
     cv::Mat depth_region = depth_frame(roi);
     cv::Mat color_region = color_frame(roi);
 
-    // TODO: Crop point cloud
+    // TODO: Select ROI of point cloud?
 
     // Save internally for use in the service callback
     cur_color_frame_ = color_region;
@@ -474,7 +475,7 @@ class TabletopPushingPerceptionNode
     // TODO: Choose a patch based on some simple criterian
     // TODO: Estimate the surface of the patch from the depth image
     // TODO: Extract the push pose as point in the center of that surface
-    // TODO: Transform to be in the torso_lift_link
+    // TODO: Transform to be in the workspace_frame
     PushPose::Response res;
     geometry_msgs::PoseStamped p;
     res.push_pose = p;
@@ -490,6 +491,7 @@ class TabletopPushingPerceptionNode
                     XYZPointCloud& cloud)
   {
     cv::Mat regions = getSuperpixels(color_frame, depth_frame, cloud);
+    // TODO: Fit plane to table
 
     if (!tracker_.isInitialized())
     {
@@ -546,6 +548,12 @@ class TabletopPushingPerceptionNode
       // Filter out small flow
       if (sparse_flow[i].dx + sparse_flow[i].dy <= min_flow_thresh_)
         continue;
+
+      // Ignore movement in the background regions
+      if (cur_workspace_mask_.at<uchar>(sparse_flow[i].y,
+                                        sparse_flow[i].x) == 0)
+        continue;
+
       // Add regions associated with moving points to the set
       // Store the flow associated with each region
       moving_regions.insert(RegionMember
@@ -633,7 +641,7 @@ class TabletopPushingPerceptionNode
     return EMPTY_ELLIPSE;
   }
 
-  void computeEllipsoid2D(cv::Mat& color_frame, cv::Mat& depth_frame,
+  void computeEllipsoid3D(cv::Mat& color_frame, cv::Mat& depth_frame,
                           cv::Mat moving)
   {
     // TODO: Determine return type to use (3D Pose and axes sizes)
@@ -647,7 +655,6 @@ class TabletopPushingPerceptionNode
   cv::Mat getSuperpixels(cv::Mat& color_frame, cv::Mat& depth_frame,
                          XYZPointCloud& cloud)
   {
-    // TODO: Use normal estimation for segmentation
     cv::Mat display_regions;
     int num_regions = 0;
     cv::Mat workspace_mask(color_frame.rows, color_frame.cols, CV_8UC1,
@@ -686,7 +693,13 @@ class TabletopPushingPerceptionNode
     cv::imshow("regions", display_regions);
     // cv::imshow("real_regions", regions);
 #endif // DISPLAY_SUPERPIXELS
+    cur_workspace_mask_ = workspace_mask;
     return regions;
+  }
+
+  void getTablePlane(cv::Mat& color_frame, cv::Mat& depth_frame,
+                     XYZPointCloud& cloud)
+  {
   }
 
   /**
@@ -712,6 +725,7 @@ class TabletopPushingPerceptionNode
   cv::Mat cur_color_frame_;
   cv::Mat cur_depth_frame_;
   XYZPointCloud cur_point_cloud_;
+  cv::Mat cur_workspace_mask_;
   FeatureTracker tracker_;
   bool have_depth_data_;
   double k_;
@@ -734,6 +748,7 @@ class TabletopPushingPerceptionNode
   double max_workspace_y_;
   double min_workspace_z_;
   double max_workspace_z_;
+  std::string workspace_frame_;
 };
 
 int main(int argc, char ** argv)
