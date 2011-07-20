@@ -76,14 +76,22 @@ class TabletopExecutive:
                                                  0.02)
 
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
-        self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',GripperPush)
-        self.gripper_sweep_proxy = rospy.ServiceProxy('gripper_sweep',GripperPush)
-        self.overhead_push_proxy = rospy.ServiceProxy('overhead_push',GripperPush)
+        self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
+                                                     GripperPush)
+        self.gripper_sweep_proxy = rospy.ServiceProxy('gripper_sweep',
+                                                      GripperPush)
+        self.overhead_push_proxy = rospy.ServiceProxy('overhead_push',
+                                                      GripperPush)
+        self.raise_and_look_push_proxy = rospy.ServiceProxy('raise_and_look',
+                                                            RaiseAndLook)
         self.use_fake_push_pose = use_fake_push_pose
 
     def run(self,
             num_l_gripper_pushes, num_l_sweeps, num_l_overhead_pushes,
             num_r_gripper_pushes, num_r_sweeps, num_r_overhead_pushes):
+        # TODO: Get table height and raise to that before anything else
+        # raise_and_look_action()
+
         for i in xrange(num_l_gripper_pushes):
             self.gripper_push_object(self.gripper_push_dist, 'l')
         for i in xrange(num_r_gripper_pushes):

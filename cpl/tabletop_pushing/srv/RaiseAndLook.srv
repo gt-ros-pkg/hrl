@@ -1,0 +1,3 @@
+geometry_msgs/PoseStamped table_centroid
+---
+bool head_succeeded

@@ -33,10 +33,12 @@
 
 import roslib; roslib.load_manifest('tabletop_pushing')
 import rospy
+import actionlib
 import hrl_pr2_lib.linear_move as lm
 import hrl_pr2_lib.pr2 as pr2
 import hrl_lib.tf_utils as tfu
 from geometry_msgs.msg import PoseStamped
+from pr2_controllers_msgs.msg import *
 import tf
 import numpy as np
 from tabletop_pushing.srv import *
@@ -68,16 +70,23 @@ class TabletopPushNode:
 
     def __init__(self, no_arms = False):
         rospy.init_node('tabletop_push_node', log_level=rospy.DEBUG)
-        self.gripper_x_offset = rospy.get_param('~gripper_push_start_x_offset',
-                                                0.03)
-        self.gripper_z_offset = rospy.get_param('~gripper_push_start_z_offset',
-                                                0.03)
+        self.torso_z_offset = rospy.get_param('~torso_z_offset', 0.15)
         use_slip = rospy.get_param('~use_slip_detection', 1)
 
         self.tf_listener = tf.TransformListener()
 
-        self.no_arms = no_arms
+        # TODO: Set joint gains
 
+        # Setup actionlib clients to PR2 controllers
+        self.torso_client = actionlib.SimpleActionClient(
+            'torso_controller/position_joint_action', SingleJointPositionAction)
+        self.torso_client.wait_for_server()
+        self.head_client = actionlib.SimpleActionClient(
+            'head_traj_controller/point_head_action', PointHeadAction)
+        self.head_client.wait_for_server()
+
+        # Setup arms
+        self.no_arms = no_arms
         if not no_arms:
             rospy.loginfo('Creating pr2 object')
             self.robot = pr2.PR2(self.tf_listener, arms=True, base=False)
@@ -101,6 +110,9 @@ class TabletopPushNode:
         self.overhead_push_service = rospy.Service('overhead_push',
                                                    GripperPush,
                                                    self.overhead_push_action)
+        self.raise_and_look_serice = rospy.Service('raise_and_look',
+                                                   RaiseAndLook,
+                                                   self.raise_and_look_action)
 
     #
     # Arm pose initialization functions
@@ -347,12 +359,36 @@ class TabletopPushNode:
         response.dist_pushed = push_dist - pos_error
         return response
 
-    def raise_to_table_height_action(self, request):
+    def raise_and_look_action(self, request):
         '''
         Service callback to raise the spine to a specific height relative to the
         table height and tilt the head so that the Kinect views the table
         '''
-        pass
+        # Set goal height based on passed on table height
+        torso_goal = SingleJointPositionGoal()
+        torso_goal.position = request.table_centroid.position.z + \
+            self.torso_z_offset
+        self.torso_client.send_goal(torso_goal)
+        self.torso_client.wait_for_result()
+
+        # Point the head at the table centroid
+        # NOTE: Should we fix the tilt angle instead for consistency?
+        head_goal = PointHeadActionGoal()
+        head_goal.target.header.frame_id = request.table_centroid.header.frame_id
+        head_goal.target.point = request.table_centroid.position
+        self.head_client.send_goal(head_goal)
+        self.head_client.wait_for_result()
+        head_res = self.head_client.get_state()
+
+        response = RaiseAndLookResponse()
+        if client.get_state() == GoalStatus.SUCCEEDED:
+            rospy.loginfo('Succeeded in pointing head')
+            response.head_succeeeded = True
+        else:
+            rospy.loginfo('Failed to point head')
+            response.head_succeeeded = False
+
+        return response
 
     #
     # Util Functions
@@ -376,7 +412,6 @@ class TabletopPushNode:
         '''
         Main control loop for the node
         '''
-        # self.print_pose()
         if not self.no_arms:
             self.init_arm_pose(True, which_arm='r')
             self.init_arm_pose(True, which_arm='l')

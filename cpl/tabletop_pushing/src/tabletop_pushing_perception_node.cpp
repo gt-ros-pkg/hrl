@@ -713,10 +713,8 @@ class TabletopPushingPerceptionNode
   PoseStamped getTablePlane(cv::Mat& color_frame, cv::Mat& depth_frame,
                             XYZPointCloud& cloud)
   {
-    // pcl::PointCloud<pcl::PointXYZ> cloud_filtered, cloud_z_filtered,
-    //      cloud_downsampled;
-
     // // Downsample using a voxel grid for faster performance
+    // pcl::PointCloud<pcl::PointXYZ> cloud_downsampled;
     // pcl::VoxelGrid<pcl::PointXYZ> downsample;
     // downsample.setInputCloud(
     //     boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud));
@@ -736,15 +734,6 @@ class TabletopPushingPerceptionNode
     z_pass.filter(cloud_z_filtered);
     ROS_INFO_STREAM("Filtered z");
 
-    // // Filter to be just in the  range in front of the robot
-    // pcl::PassThrough<pcl::PointXYZ> x_pass;
-    // x_pass.setInputCloud(
-    //     boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud_z_filtered));
-    // x_pass.setFilterFieldName ("x");
-    // x_pass.setFilterLimits (0.5, 1.5);
-    // x_pass.filter(cloud_filtered);
-    // ROS_INFO_STREAM("Filtered x");
-
     // Segment the tabletop from the points using RANSAC plane fitting
     pcl::ModelCoefficients coefficients;
     pcl::PointIndices plane_inliers;
@@ -763,7 +752,7 @@ class TabletopPushingPerceptionNode
     pcl::PointCloud<pcl::PointXYZ> plane_cloud;
     pcl::copyPointCloud(cloud_z_filtered, plane_inliers, plane_cloud);
 
-    // TODO: Figure out if this returns nothing
+    // TODO: Figure out if the above returns nothing
     // Return plane centroid
     Eigen::Vector4f xyz_centroid;
     pcl::compute3DCentroid(plane_cloud, xyz_centroid);
