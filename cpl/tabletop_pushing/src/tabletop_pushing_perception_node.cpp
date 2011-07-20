@@ -60,6 +60,9 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/features/feature.h>
 #include <pcl/common/eigen.h>
+#include "pcl/filters/voxel_grid.h"
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/extract_indices.h>
 
 // OpenCV
 #include <opencv2/core/core.hpp>
@@ -87,13 +90,14 @@
 #include <utility>
 #include <math.h>
 
-#define DISPLAY_SUPERPIXELS 1
-#define DISPLAY_TRACKER_OUTPUT 1
+// #define DISPLAY_SUPERPIXELS 1
+// #define DISPLAY_TRACKER_OUTPUT 1
 // #define DISPLAY_MOVING_STUFF 1
-#define DISPLAY_ELLIPSE_STUFF 1
+// #define DISPLAY_ELLIPSE_STUFF 1
 
 using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
+using geometry_msgs::PoseStamped;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image,
@@ -423,8 +427,8 @@ class TabletopPushingPerceptionNode
 
     // Transform point cloud into the correct frame and convert to PCL struct
     XYZPointCloud cloud;
-    pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, tf_);
     pcl::fromROSMsg(*cloud_msg, cloud);
+    pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, tf_);
 
     // Convert nans to zeros
     for (int r = 0; r < depth_frame.rows; ++r)
@@ -483,7 +487,7 @@ class TabletopPushingPerceptionNode
     // TODO: Extract the push pose as point in the center of that surface
     // TODO: Transform to be in the workspace_frame
     PushPose::Response res;
-    geometry_msgs::PoseStamped p;
+    PoseStamped p;
     res.push_pose = p;
     res.invalid_push_pose = false;
     return res;
@@ -497,10 +501,13 @@ class TabletopPushingPerceptionNode
                     XYZPointCloud& cloud)
   {
     cv::Mat regions = getSuperpixels(color_frame, depth_frame, cloud);
-    // TODO: Fit plane to table
 
     if (!tracker_.isInitialized())
     {
+      // Fit plane to table
+      // TODO: Get extent as well
+      table_centroid_ = getTablePlane(color_frame, depth_frame, cloud);
+
       initRegionTracks(color_frame, depth_frame);
       return;
     }
@@ -703,12 +710,11 @@ class TabletopPushingPerceptionNode
     return regions;
   }
 
-  geometry_msgs::PoseStamped getTablePlane(cv::Mat& color_frame,
-                                           cv::Mat& depth_frame,
-                                           XYZPointCloud& cloud)
+  PoseStamped getTablePlane(cv::Mat& color_frame, cv::Mat& depth_frame,
+                            XYZPointCloud& cloud)
   {
     // pcl::PointCloud<pcl::PointXYZ> cloud_filtered, cloud_z_filtered,
-    //     cloud_downsampled;
+    //      cloud_downsampled;
 
     // // Downsample using a voxel grid for faster performance
     // pcl::VoxelGrid<pcl::PointXYZ> downsample;
@@ -718,14 +724,17 @@ class TabletopPushingPerceptionNode
     // downsample.filter(cloud_downsampled);
     // ROS_INFO_STREAM("Voxel Downsampled Cloud");
 
-    // // Filter Cloud to be just table top height
-    // pcl::PassThrough<pcl::PointXYZ> z_pass;
-    // z_pass.setInputCloud(
-    //     boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud_downsampled));
-    // z_pass.setFilterFieldName ("z");
-    // z_pass.setFilterLimits (-1.0, 1.0);
-    // z_pass.filter(cloud_z_filtered);
-    // ROS_INFO_STREAM("Filtered z");
+    // Filter Cloud to not look for table planes on the ground
+    pcl::PointCloud<pcl::PointXYZ> cloud_z_filtered;
+    pcl::PassThrough<pcl::PointXYZ> z_pass;
+    z_pass.setInputCloud(
+        boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud));
+    z_pass.setFilterFieldName ("z");
+    // TODO: Put these on parameter server
+    // TODO: Transform from globabl limits
+    z_pass.setFilterLimits (-0.5, 1.5);
+    z_pass.filter(cloud_z_filtered);
+    ROS_INFO_STREAM("Filtered z");
 
     // // Filter to be just in the  range in front of the robot
     // pcl::PassThrough<pcl::PointXYZ> x_pass;
@@ -746,19 +755,19 @@ class TabletopPushingPerceptionNode
     plane_seg.setMethodType (pcl::SAC_RANSAC);
     plane_seg.setDistanceThreshold (0.01);
     plane_seg.setInputCloud (
-        boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud));
+        boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud_z_filtered));
     plane_seg.segment(plane_inliers, coefficients);
 
 
     // Extract the plane members into their own point cloud
     pcl::PointCloud<pcl::PointXYZ> plane_cloud;
-    pcl::copyPointCloud(cloud, plane_inliers, plane_cloud);
+    pcl::copyPointCloud(cloud_z_filtered, plane_inliers, plane_cloud);
 
     // TODO: Figure out if this returns nothing
     // Return plane centroid
     Eigen::Vector4f xyz_centroid;
     pcl::compute3DCentroid(plane_cloud, xyz_centroid);
-    geometry_msgs::PoseStamped p;
+    PoseStamped p;
     p.pose.position.x = xyz_centroid[0];
     p.pose.position.y = xyz_centroid[1];
     p.pose.position.z = xyz_centroid[2];
@@ -766,6 +775,8 @@ class TabletopPushingPerceptionNode
                     << p.pose.position.x << ", "
                     << p.pose.position.y << ", "
                     << p.pose.position.z << "]");
+    p.header = cloud.header;
+    // TODO: Get extent as well
     return p;
   }
 
@@ -816,6 +827,7 @@ class TabletopPushingPerceptionNode
   double min_workspace_z_;
   double max_workspace_z_;
   std::string workspace_frame_;
+  PoseStamped table_centroid_;
 };
 
 int main(int argc, char ** argv)
