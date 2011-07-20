@@ -90,10 +90,10 @@
 #include <utility>
 #include <math.h>
 
-// #define DISPLAY_SUPERPIXELS 1
+#define DISPLAY_SUPERPIXELS 1
 // #define DISPLAY_TRACKER_OUTPUT 1
 // #define DISPLAY_MOVING_STUFF 1
-// #define DISPLAY_ELLIPSE_STUFF 1
+#define DISPLAY_ELLIPSE_STUFF 1
 
 using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
@@ -155,6 +155,61 @@ class FeatureTracker
     prev_keypoints_ = cur_keypoints_;
     prev_descriptors_ = cur_descriptors_;
     initialized_ = true;
+  }
+
+  std::vector<Flow> updateTracksLK(cv::Mat& frame)
+  {
+    cur_keypoints_.clear();
+    cur_descriptors_.clear();
+    updateCurrentDescriptors(frame);
+
+    std::vector<int> matches_cur;
+    std::vector<int> matches_prev;
+    std::vector<Flow> sparse_flow;
+    matches_cur.clear();
+    matches_prev.clear();
+
+    // Find nearest neighbors with previous descriptors
+    findMatches(cur_descriptors_, prev_descriptors_, matches_cur, matches_prev);
+    ROS_DEBUG_STREAM(window_name_ << ": num feature matches: "
+                     << matches_cur.size());
+    int moving_points = 0;
+    for (unsigned int i = 0; i < matches_cur.size(); i++)
+    {
+      int dx = prev_keypoints_[matches_prev[i]].pt.x -
+          cur_keypoints_[matches_cur[i]].pt.x;
+      int dy = prev_keypoints_[matches_prev[i]].pt.y -
+          cur_keypoints_[matches_cur[i]].pt.y;
+      sparse_flow.push_back(Flow(cur_keypoints_[matches_cur[i]].pt.x,
+                                 cur_keypoints_[matches_cur[i]].pt.y,
+                                 dx, dy));
+      if (sparse_flow[i].dx + sparse_flow[i].dy > min_flow_thresh_)
+        moving_points++;
+    }
+    ROS_DEBUG_STREAM(window_name_ << ": num moving points: " << moving_points);
+
+#ifdef DISPLAY_TRACKER_OUTPUT
+    cv::Mat display_frame(frame.rows, frame.cols, CV_8UC3);;
+    cv::cvtColor(frame, display_frame, CV_GRAY2BGR);
+    for (unsigned int i = 0; i < matches_cur.size(); i++)
+    {
+      if (sparse_flow[i].dx + sparse_flow[i].dy > min_flow_thresh_)
+      {
+        ROS_DEBUG_STREAM("Point is moving (" << sparse_flow[i].dx << ", "
+                         << sparse_flow[i].dy << ")");
+        cv::line(display_frame,
+                 prev_keypoints_[matches_prev[i]].pt,
+                 cur_keypoints_[matches_cur[i]].pt,
+                 cv::Scalar(0,0,255), 1);
+      }
+    }
+
+    cv::imshow(window_name_, display_frame);
+#endif // DISPLAY_TRACKER_OUTPUT
+
+    prev_keypoints_ = cur_keypoints_;
+    prev_descriptors_ = cur_descriptors_;
+    return sparse_flow;
   }
 
   std::vector<Flow> updateTracks(cv::Mat& frame)
@@ -384,7 +439,10 @@ class TabletopPushingPerceptionNode
     n_private.param("segment_k", k_, 500.0);
     n_private.param("segment_sigma", sigma_, 0.9);
     n_private.param("segment_min_size", min_size_, 30);
-    n_private.param("segment_color_weight", wc_, 0.1);
+    // TODO: Add separate color channel weights
+    n_private.param("segment_r_weight", wr_, 0.1);
+    n_private.param("segment_g_weight", wg_, 0.1);
+    n_private.param("segment_b_weight", wb_, 0.1);
     n_private.param("segment_depth_weight", wd_, 0.7);
     n_private.param("min_flow_thresh", min_flow_thresh_, 0);
     n_private.param("num_moving_points_per_region_thresh",
@@ -403,6 +461,8 @@ class TabletopPushingPerceptionNode
     std::string default_workspace_frame = "/torso_lift_link";
     n_private.param("workspace_frame", workspace_frame_,
                     default_workspace_frame);
+    n_private.param("min_table_z", min_table_z_, -0.5);
+    n_private.param("max_table_z", min_table_z_, 1.5);
 
     // Setup internal class stuff
     tracker_.setMinFlowThresh(min_flow_thresh_);
@@ -692,17 +752,21 @@ class TabletopPushingPerceptionNode
     cv::Mat depth_for_seg;
     depth_frame.copyTo(depth_for_seg, workspace_mask);
 
+#ifdef DISPLAY_SUPERPIXELS
+    // cv::imshow("color_frame", color_frame);
+    // cv::imshow("depth_frame", depth_frame);
+    cv::imshow("color_for_seg_frame", color_for_seg);
+    cv::imshow("depth_for_seg_frame", depth_for_seg);
+#endif // DISPLAY_SUPERPIXELS
+
+    // cv::cvtColor(color_for_seg, color_for_seg, CV_BGR2Lab);
     cv::Mat regions = getSuperpixelImage(color_for_seg, depth_for_seg,
                                          num_regions, display_regions,
-                                         sigma_, k_, min_size_, wc_, wd_);
+                                         sigma_, k_, min_size_,
+                                         wr_, wg_, wb_,wd_);
     ROS_INFO_STREAM("Computed " << num_regions << " regions");
 
 #ifdef DISPLAY_SUPERPIXELS
-    cv::imshow("depth_for_seg_frame", depth_for_seg);
-    // cv::imshow("color_frame", color_frame);
-    cv::imshow("color_for_seg_frame", color_for_seg);
-    // cv::imshow("depth_frame", depth_frame);
-    // cv::imshow("depth_frame_region", depth_region);
     cv::imshow("regions", display_regions);
     // cv::imshow("real_regions", regions);
 #endif // DISPLAY_SUPERPIXELS
@@ -723,14 +787,13 @@ class TabletopPushingPerceptionNode
     // ROS_INFO_STREAM("Voxel Downsampled Cloud");
 
     // Filter Cloud to not look for table planes on the ground
+    // TODO: Transform from globabl ground plane limits
     pcl::PointCloud<pcl::PointXYZ> cloud_z_filtered;
     pcl::PassThrough<pcl::PointXYZ> z_pass;
     z_pass.setInputCloud(
         boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud));
     z_pass.setFilterFieldName ("z");
-    // TODO: Put these on parameter server
-    // TODO: Transform from globabl limits
-    z_pass.setFilterLimits (-0.5, 1.5);
+    z_pass.setFilterLimits(min_table_z_, max_table_z_);
     z_pass.filter(cloud_z_filtered);
     ROS_INFO_STREAM("Filtered z");
 
@@ -746,13 +809,22 @@ class TabletopPushingPerceptionNode
     plane_seg.setInputCloud (
         boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud_z_filtered));
     plane_seg.segment(plane_inliers, coefficients);
-
+    // Check size of plane_inliers
+    if (plane_inliers.indices.size() < 1)
+    {
+      ROS_WARN_STREAM("No points found by RANSAC plane fitting");
+      PoseStamped p;
+      p.pose.position.x = 0.0;
+      p.pose.position.y = 0.0;
+      p.pose.position.z = 0.0;
+      p.header = cloud.header;
+      return p;
+    }
 
     // Extract the plane members into their own point cloud
     pcl::PointCloud<pcl::PointXYZ> plane_cloud;
     pcl::copyPointCloud(cloud_z_filtered, plane_inliers, plane_cloud);
 
-    // TODO: Figure out if the above returns nothing
     // Return plane centroid
     Eigen::Vector4f xyz_centroid;
     pcl::compute3DCentroid(plane_cloud, xyz_centroid);
@@ -760,10 +832,6 @@ class TabletopPushingPerceptionNode
     p.pose.position.x = xyz_centroid[0];
     p.pose.position.y = xyz_centroid[1];
     p.pose.position.z = xyz_centroid[2];
-    ROS_INFO_STREAM("Tabletop centroid is: ["
-                    << p.pose.position.x << ", "
-                    << p.pose.position.y << ", "
-                    << p.pose.position.z << "]");
     p.header = cloud.header;
     // TODO: Get extent as well
     return p;
@@ -798,7 +866,9 @@ class TabletopPushingPerceptionNode
   double k_;
   double sigma_;
   int min_size_;
-  double wc_;
+  double wr_;
+  double wg_;
+  double wb_;
   double wd_;
   int min_flow_thresh_;
   int num_region_points_thresh_;
@@ -815,6 +885,8 @@ class TabletopPushingPerceptionNode
   double max_workspace_y_;
   double min_workspace_z_;
   double max_workspace_z_;
+  double min_table_z_;
+  double max_table_z_;
   std::string workspace_frame_;
   PoseStamped table_centroid_;
 };
