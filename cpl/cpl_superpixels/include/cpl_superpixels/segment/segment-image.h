@@ -65,10 +65,10 @@ static inline float diff(image<float> *r, image<float> *g, image<float> *b,
 static inline float depth_diff(image<float> *r, image<float> *g,
                                image<float> *b, image<float> *d,
                                int x1, int y1, int x2, int y2,
-                               float wc, float wd) {
-  return sqrt(wc*square(imRef(r, x1, y1)-imRef(r, x2, y2)) +
-              wc*square(imRef(g, x1, y1)-imRef(g, x2, y2)) +
-              wc*square(imRef(b, x1, y1)-imRef(b, x2, y2)) +
+                               float wr,float wg, float wb, float wd) {
+  return sqrt(wr*square(imRef(r, x1, y1)-imRef(r, x2, y2)) +
+              wg*square(imRef(g, x1, y1)-imRef(g, x2, y2)) +
+              wb*square(imRef(b, x1, y1)-imRef(b, x2, y2)) +
               wd*exp(square(imRef(d, x1, y1)-imRef(d, x2, y2))));
 }
 
@@ -211,7 +211,7 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
  */
 image<rgb> *segment_image(image<rgb> *color_im, image<float> *depth_im,
                           float sigma, float c, int min_size, int *num_ccs,
-                          float wc, float wd) {
+                          float wr, float wg, float wb, float wd) {
   int width = color_im->width();
   int height = color_im->height();
 
@@ -247,7 +247,7 @@ image<rgb> *segment_image(image<rgb> *color_im, image<float> *depth_im,
 	edges[num].a = y * width + x;
 	edges[num].b = y * width + (x+1);
 	edges[num].w = depth_diff(smooth_r, smooth_g, smooth_b, smooth_d, x, y,
-                                  x+1, y, wc, wd);
+                                  x+1, y, wr, wg, wb, wd);
 	num++;
       }
 
@@ -255,7 +255,7 @@ image<rgb> *segment_image(image<rgb> *color_im, image<float> *depth_im,
 	edges[num].a = y * width + x;
 	edges[num].b = (y+1) * width + x;
 	edges[num].w = depth_diff(smooth_r, smooth_g, smooth_b, smooth_d, x, y,
-                                  x, y+1, wc, wd);
+                                  x, y+1, wr, wg, wb, wd);
 	num++;
       }
 
@@ -263,7 +263,7 @@ image<rgb> *segment_image(image<rgb> *color_im, image<float> *depth_im,
 	edges[num].a = y * width + x;
 	edges[num].b = (y+1) * width + (x+1);
 	edges[num].w = depth_diff(smooth_r, smooth_g, smooth_b, smooth_d, x, y,
-                                  x+1, y+1, wc, wd);
+                                  x+1, y+1, wr, wg, wb, wd);
 	num++;
       }
 
@@ -271,7 +271,7 @@ image<rgb> *segment_image(image<rgb> *color_im, image<float> *depth_im,
 	edges[num].a = y * width + x;
 	edges[num].b = (y-1) * width + (x+1);
 	edges[num].w = depth_diff(smooth_r, smooth_g, smooth_b, smooth_d, x, y,
-                                  x+1, y-1, wc, wd);
+                                  x+1, y-1, wr, wg, wb, wd);
 	num++;
       }
     }

@@ -36,7 +36,8 @@ cv::Mat getSuperpixelImage(cv::Mat input_img, int& num_ccs, cv::Mat& disp_img,
 
 cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
                            cv::Mat& disp_img, double sigma, double k,
-                           int min_size, double wc, double wd)
+                           int min_size,
+                           double wr, double wg, double wb, double wd)
 {
   IplImage color_ipl_img = color_img;
   // Superpixels, Felzenszwalb
@@ -44,7 +45,7 @@ cv::Mat getSuperpixelImage(cv::Mat color_img, cv::Mat depth_img, int& num_ccs,
   image<float>* depth_im = DEPTHtoFELZS(depth_img);
   cv::Mat depth_revert;
   image<rgb> *disp_im = segment_image(color_im, depth_im, sigma, k, min_size,
-                                      &num_ccs, wc, wd);
+                                      &num_ccs, wr, wg, wb, wd);
   delete color_im;
   delete depth_im;
   // Convert to cv::Mat
