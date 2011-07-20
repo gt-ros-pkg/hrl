@@ -204,9 +204,6 @@ class TabletopPushNode:
         pose = np.matrix([start_point.x, start_point.y, start_point.z])
         rot = np.matrix([orientation])
 
-        # rospy.loginfo('Pose: ' + str(pose))
-        # rospy.loginfo('Ort: ' + str(rot))
-
         # Move to start pose
         loc = [pose, rot]
         push_arm.set_movement_mode_cart()
@@ -349,6 +346,13 @@ class TabletopPushNode:
         self.reset_arm_pose(True, which_arm)
         response.dist_pushed = push_dist - pos_error
         return response
+
+    def raise_to_table_height_action(self, request):
+        '''
+        Service callback to raise the spine to a specific height relative to the
+        table height and tilt the head so that the Kinect views the table
+        '''
+        pass
 
     #
     # Util Functions
