@@ -54,6 +54,12 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_ros/transforms.h>
+#include <pcl/ModelCoefficients.h>
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/features/feature.h>
+#include <pcl/common/eigen.h>
 
 // OpenCV
 #include <opencv2/core/core.hpp>
@@ -697,9 +703,70 @@ class TabletopPushingPerceptionNode
     return regions;
   }
 
-  void getTablePlane(cv::Mat& color_frame, cv::Mat& depth_frame,
-                     XYZPointCloud& cloud)
+  geometry_msgs::PoseStamped getTablePlane(cv::Mat& color_frame,
+                                           cv::Mat& depth_frame,
+                                           XYZPointCloud& cloud)
   {
+    // pcl::PointCloud<pcl::PointXYZ> cloud_filtered, cloud_z_filtered,
+    //     cloud_downsampled;
+
+    // // Downsample using a voxel grid for faster performance
+    // pcl::VoxelGrid<pcl::PointXYZ> downsample;
+    // downsample.setInputCloud(
+    //     boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud));
+    // downsample.setLeafSize(0.005, 0.005, 0.005);
+    // downsample.filter(cloud_downsampled);
+    // ROS_INFO_STREAM("Voxel Downsampled Cloud");
+
+    // // Filter Cloud to be just table top height
+    // pcl::PassThrough<pcl::PointXYZ> z_pass;
+    // z_pass.setInputCloud(
+    //     boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud_downsampled));
+    // z_pass.setFilterFieldName ("z");
+    // z_pass.setFilterLimits (-1.0, 1.0);
+    // z_pass.filter(cloud_z_filtered);
+    // ROS_INFO_STREAM("Filtered z");
+
+    // // Filter to be just in the  range in front of the robot
+    // pcl::PassThrough<pcl::PointXYZ> x_pass;
+    // x_pass.setInputCloud(
+    //     boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud_z_filtered));
+    // x_pass.setFilterFieldName ("x");
+    // x_pass.setFilterLimits (0.5, 1.5);
+    // x_pass.filter(cloud_filtered);
+    // ROS_INFO_STREAM("Filtered x");
+
+    // Segment the tabletop from the points using RANSAC plane fitting
+    pcl::ModelCoefficients coefficients;
+    pcl::PointIndices plane_inliers;
+    // Create the segmentation object
+    pcl::SACSegmentation<pcl::PointXYZ> plane_seg;
+    plane_seg.setOptimizeCoefficients (true);
+    plane_seg.setModelType (pcl::SACMODEL_PLANE);
+    plane_seg.setMethodType (pcl::SAC_RANSAC);
+    plane_seg.setDistanceThreshold (0.01);
+    plane_seg.setInputCloud (
+        boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud));
+    plane_seg.segment(plane_inliers, coefficients);
+
+
+    // Extract the plane members into their own point cloud
+    pcl::PointCloud<pcl::PointXYZ> plane_cloud;
+    pcl::copyPointCloud(cloud, plane_inliers, plane_cloud);
+
+    // TODO: Figure out if this returns nothing
+    // Return plane centroid
+    Eigen::Vector4f xyz_centroid;
+    pcl::compute3DCentroid(plane_cloud, xyz_centroid);
+    geometry_msgs::PoseStamped p;
+    p.pose.position.x = xyz_centroid[0];
+    p.pose.position.y = xyz_centroid[1];
+    p.pose.position.z = xyz_centroid[2];
+    ROS_INFO_STREAM("Tabletop centroid is: ["
+                    << p.pose.position.x << ", "
+                    << p.pose.position.y << ", "
+                    << p.pose.position.z << "]");
+    return p;
   }
 
   /**
