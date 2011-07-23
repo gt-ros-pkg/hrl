@@ -16,7 +16,6 @@
   <depend package="hrl_lib"/>
   <depend package="hrl_pr2_lib"/>
   <depend package="laser_interface"/>
-  <depend package="hrl_tilting_hokuyo"/>
   <depend package="pcl"/>
   <depend package="geometry_msgs"/>
   <depend package="cv_bridge"/>
@@ -24,6 +23,14 @@
   <depend package="image_transport"/>
   <depend package="tf"/>
   <depend package="opencv2"/>
+  <!--<depend package="kdl"/>-->
+  <depend package="python_orocos_kdl"/>
+
+  <depend package="pluginlib"/>
+  <depend package="pr2_controller_interface"/>
+  <export>
+    <pr2_controller_interface plugin="${prefix}/controller_plugins.xml" />
+  </export>
 
 </package>
 
