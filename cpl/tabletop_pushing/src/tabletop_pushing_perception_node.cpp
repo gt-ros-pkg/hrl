@@ -90,7 +90,7 @@
 #include <utility>
 #include <math.h>
 
-#define DISPLAY_SUPERPIXELS 1
+// #define DISPLAY_SUPERPIXELS 1
 // #define DISPLAY_TRACKER_OUTPUT 1
 // #define DISPLAY_MOVING_STUFF 1
 #define DISPLAY_ELLIPSE_STUFF 1
@@ -137,7 +137,8 @@ class FeatureTracker
                  int num_layers=2, bool extended=true) :
       surf_(hessian_thresh, num_octaves, num_layers, extended),
       initialized_(false), ratio_threshold_(0.5), window_name_(name),
-      min_flow_thresh_(0)
+      min_flow_thresh_(0), max_corners_(500), klt_corner_thresh_(0.3),
+      klt_corner_min_dist_(2)
   {
     prev_keypoints_.clear();
     cur_keypoints_.clear();
@@ -157,58 +158,52 @@ class FeatureTracker
     initialized_ = true;
   }
 
-  std::vector<Flow> updateTracksLK(cv::Mat& frame)
+  std::vector<Flow> updateTracksLK(cv::Mat& cur_frame, cv::Mat& prev_frame)
   {
-    cur_keypoints_.clear();
-    cur_descriptors_.clear();
-    updateCurrentDescriptors(frame);
-
-    std::vector<int> matches_cur;
-    std::vector<int> matches_prev;
     std::vector<Flow> sparse_flow;
-    matches_cur.clear();
-    matches_prev.clear();
-
-    // Find nearest neighbors with previous descriptors
-    findMatches(cur_descriptors_, prev_descriptors_, matches_cur, matches_prev);
-    ROS_DEBUG_STREAM(window_name_ << ": num feature matches: "
-                     << matches_cur.size());
+    std::vector<cv::Point2f> prev_points;
+    std::vector<cv::Point2f> new_points;
+    ROS_INFO_STREAM("max_corners: " << max_corners_);
+    ROS_INFO_STREAM("quality_level: " << klt_corner_thresh_);
+    ROS_INFO_STREAM("min_distance: " << klt_corner_min_dist_);
+    cv::goodFeaturesToTrack(prev_frame, prev_points, max_corners_,
+                            klt_corner_thresh_, klt_corner_min_dist_);
+    ROS_INFO_STREAM("Found " << prev_points.size() << " corners.");
+    std::vector<uchar> status;
+    std::vector<float> err;
+    cv::calcOpticalFlowPyrLK(prev_frame, cur_frame, prev_points, new_points,
+                             status, err);
     int moving_points = 0;
-    for (unsigned int i = 0; i < matches_cur.size(); i++)
+    for (unsigned int i = 0; i < prev_points.size(); i++)
     {
-      int dx = prev_keypoints_[matches_prev[i]].pt.x -
-          cur_keypoints_[matches_cur[i]].pt.x;
-      int dy = prev_keypoints_[matches_prev[i]].pt.y -
-          cur_keypoints_[matches_cur[i]].pt.y;
-      sparse_flow.push_back(Flow(cur_keypoints_[matches_cur[i]].pt.x,
-                                 cur_keypoints_[matches_cur[i]].pt.y,
-                                 dx, dy));
+      if (! status[i]) continue;
+      int dx = prev_points[i].x - new_points[i].x;
+      int dy = prev_points[i].y - new_points[i].y;
+      sparse_flow.push_back(Flow(new_points[i].x, new_points[i].y, dx, dy));
       if (sparse_flow[i].dx + sparse_flow[i].dy > min_flow_thresh_)
         moving_points++;
     }
-    ROS_DEBUG_STREAM(window_name_ << ": num moving points: " << moving_points);
+    ROS_INFO_STREAM(window_name_ << ": num moving points: " << moving_points);
 
 #ifdef DISPLAY_TRACKER_OUTPUT
-    cv::Mat display_frame(frame.rows, frame.cols, CV_8UC3);;
-    cv::cvtColor(frame, display_frame, CV_GRAY2BGR);
-    for (unsigned int i = 0; i < matches_cur.size(); i++)
+    cv::Mat display_cur_frame(cur_frame.rows, cur_frame.cols, CV_8UC3);;
+    cv::cvtColor(cur_frame, display_cur_frame, CV_GRAY2BGR);
+    for (unsigned int i = 0; i < sparse_flow.size(); i++)
     {
       if (sparse_flow[i].dx + sparse_flow[i].dy > min_flow_thresh_)
       {
         ROS_DEBUG_STREAM("Point is moving (" << sparse_flow[i].dx << ", "
                          << sparse_flow[i].dy << ")");
-        cv::line(display_frame,
-                 prev_keypoints_[matches_prev[i]].pt,
-                 cur_keypoints_[matches_cur[i]].pt,
+        cv::line(display_cur_frame,
+                 cv::Point(sparse_flow[i].x, sparse_flow[i].y),
+                 cv::Point(sparse_flow[i].x + sparse_flow[i].dx,
+                           sparse_flow[i].y + sparse_flow[i].dy),
                  cv::Scalar(0,0,255), 1);
       }
     }
 
-    cv::imshow(window_name_, display_frame);
+    cv::imshow(window_name_, display_cur_frame);
 #endif // DISPLAY_TRACKER_OUTPUT
-
-    prev_keypoints_ = cur_keypoints_;
-    prev_descriptors_ = cur_descriptors_;
     return sparse_flow;
   }
 
@@ -404,6 +399,21 @@ class FeatureTracker
     min_flow_thresh_= min_thresh;
   }
 
+  void setKLTCornerThresh(double corner_thresh)
+  {
+    klt_corner_thresh_ = corner_thresh;
+  }
+
+  void setKLTCornerMinDist(double min_dist)
+  {
+    klt_corner_min_dist_ = min_dist;
+  }
+
+  void setKLTMaxCorners(int max_corners)
+  {
+    max_corners_ = max_corners;
+  }
+
   void stop()
   {
     initialized_ = false;
@@ -419,6 +429,9 @@ class FeatureTracker
   double ratio_threshold_;
   std::string window_name_;
   int min_flow_thresh_;
+  int max_corners_;
+  double klt_corner_thresh_;
+  double klt_corner_min_dist_;
 };
 
 class TabletopPushingPerceptionNode
@@ -439,7 +452,6 @@ class TabletopPushingPerceptionNode
     n_private.param("segment_k", k_, 500.0);
     n_private.param("segment_sigma", sigma_, 0.9);
     n_private.param("segment_min_size", min_size_, 30);
-    // TODO: Add separate color channel weights
     n_private.param("segment_r_weight", wr_, 0.1);
     n_private.param("segment_g_weight", wg_, 0.1);
     n_private.param("segment_b_weight", wb_, 0.1);
@@ -463,6 +475,15 @@ class TabletopPushingPerceptionNode
                     default_workspace_frame);
     n_private.param("min_table_z", min_table_z_, -0.5);
     n_private.param("max_table_z", min_table_z_, 1.5);
+    int max_corners;
+    n_private.param("klt_max_corners", max_corners, 500);
+    tracker_.setKLTMaxCorners(max_corners);
+    double klt_corner_thresh;
+    n_private.param("klt_corner_thresh", klt_corner_thresh, 0.3);
+    tracker_.setKLTCornerThresh(klt_corner_thresh);
+    double klt_min_dist;
+    n_private.param("klt_corner_min_dist", klt_min_dist, 2.0);
+    tracker_.setKLTCornerMinDist(klt_min_dist);
 
     // Setup internal class stuff
     tracker_.setMinFlowThresh(min_flow_thresh_);
@@ -509,11 +530,13 @@ class TabletopPushingPerceptionNode
     cv::Mat depth_region = depth_frame(roi);
     cv::Mat color_region = color_frame(roi);
 
-    // TODO: Select ROI of point cloud?
-
+    // TODO: Switch this to a different class parameter when we dehook tracking
+    // from the immediate sensor callback
     // Save internally for use in the service callback
-    cur_color_frame_ = color_region;
-    cur_depth_frame_ = depth_region;
+    prev_color_frame_ = cur_color_frame_.clone();
+    prev_depth_frame_ = cur_depth_frame_.clone();
+    cur_color_frame_ = color_region.clone();
+    cur_depth_frame_ = depth_region.clone();
     cur_point_cloud_ = cloud;
     have_depth_data_ = true;
 
@@ -536,8 +559,8 @@ class TabletopPushingPerceptionNode
     return true;
   }
 
-  PushPose::Response findPushPose(cv::Mat& visual_frame,
-                                  cv::Mat& depth_frame,
+  PushPose::Response findPushPose(cv::Mat visual_frame,
+                                  cv::Mat depth_frame,
                                   XYZPointCloud& cloud)
   {
     cv::Mat regions = getSuperpixels(visual_frame, depth_frame, cloud);
@@ -557,7 +580,7 @@ class TabletopPushingPerceptionNode
   // Region tracking methods
   //
 
-  void trackRegions(cv::Mat& color_frame, cv::Mat& depth_frame,
+  void trackRegions(cv::Mat color_frame, cv::Mat depth_frame,
                     XYZPointCloud& cloud)
   {
     cv::Mat regions = getSuperpixels(color_frame, depth_frame, cloud);
@@ -610,7 +633,11 @@ class TabletopPushingPerceptionNode
   {
     cv::Mat bw_frame(color_frame.rows, color_frame.cols, CV_8UC1);
     cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
-    std::vector<Flow> sparse_flow = tracker_.updateTracks(bw_frame);
+    cv::Mat prev_bw_frame(prev_color_frame_.rows, prev_color_frame_.cols,
+                          CV_8UC1);
+    cv::cvtColor(prev_color_frame_, prev_bw_frame, CV_BGR2GRAY);
+    std::vector<Flow> sparse_flow = tracker_.updateTracksLK(bw_frame,
+                                                            prev_bw_frame);
 
     // Determine which regions are moving
     std::multimap<uchar, Flow> moving_regions;
@@ -859,6 +886,8 @@ class TabletopPushingPerceptionNode
   ros::ServiceServer push_pose_server_;
   cv::Mat cur_color_frame_;
   cv::Mat cur_depth_frame_;
+  cv::Mat prev_color_frame_;
+  cv::Mat prev_depth_frame_;
   XYZPointCloud cur_point_cloud_;
   cv::Mat cur_workspace_mask_;
   FeatureTracker tracker_;
