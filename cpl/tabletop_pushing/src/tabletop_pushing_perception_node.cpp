@@ -90,9 +90,10 @@
 #include <utility>
 #include <math.h>
 
-// #define DISPLAY_SUPERPIXELS 1
+#define DISPLAY_SUPERPIXELS 1
 // #define DISPLAY_TRACKER_OUTPUT 1
 // #define DISPLAY_MOVING_STUFF 1
+#define DISPLAY_IMAGE_DIFFERENCING 1
 #define DISPLAY_ELLIPSE_STUFF 1
 
 using cpl_superpixels::getSuperpixelImage;
@@ -484,6 +485,8 @@ class TabletopPushingPerceptionNode
     double klt_min_dist;
     n_private.param("klt_corner_min_dist", klt_min_dist, 2.0);
     tracker_.setKLTCornerMinDist(klt_min_dist);
+    n_private.param("intensity_diff_thresh", intensity_diff_thresh_, 50);
+    n_private.param("depth_diff_thresh", depth_diff_thresh_, 0.05);
 
     // Setup internal class stuff
     tracker_.setMinFlowThresh(min_flow_thresh_);
@@ -636,8 +639,11 @@ class TabletopPushingPerceptionNode
     cv::Mat prev_bw_frame(prev_color_frame_.rows, prev_color_frame_.cols,
                           CV_8UC1);
     cv::cvtColor(prev_color_frame_, prev_bw_frame, CV_BGR2GRAY);
-    std::vector<Flow> sparse_flow = tracker_.updateTracksLK(bw_frame,
-                                                            prev_bw_frame);
+    // std::vector<Flow> sparse_flow = tracker_.updateTracksLK(bw_frame,
+    //                                                         prev_bw_frame);
+    std::vector<Flow> sparse_flow = imageDifferencing(color_frame, depth_frame,
+                                                      prev_color_frame_,
+                                                      prev_depth_frame_);
 
     // Determine which regions are moving
     std::multimap<uchar, Flow> moving_regions;
@@ -689,6 +695,63 @@ class TabletopPushingPerceptionNode
 #endif // DISPLAY_MOVING_STUFF
 
     return moving_regions_mask;
+  }
+
+  std::vector<Flow> imageDifferencing(cv::Mat cur_color_frame,
+                                      cv::Mat cur_depth_frame,
+                                      cv::Mat prev_color_frame,
+                                      cv::Mat prev_depth_frame)
+  {
+    cv::Mat color_diff_img = cv::abs(cur_color_frame - prev_color_frame);
+    std::vector<cv::Mat> diff_channels;
+    cv::split(color_diff_img, diff_channels);
+    cv::Mat depth_diff_img = cv::abs(cur_depth_frame - prev_depth_frame);
+    for (int r = 0; r < depth_diff_img.rows; ++r)
+    {
+      for (int c = 0; c < depth_diff_img.cols; ++c)
+      {
+        if (cur_depth_frame.at<float>(r,c) == 0.0 ||
+            prev_depth_frame.at<float>(r,c) == 0.0)
+          depth_diff_img.at<float>(r,c) = 0.0;
+      }
+    }
+    cv::Mat change_mask(cur_color_frame.rows, cur_color_frame.cols, CV_8UC1,
+                        cv::Scalar(0));
+    for (int r = 0; r < change_mask.rows; ++r)
+    {
+      for (int c = 0; c < change_mask.cols; ++c)
+      {
+        if (diff_channels[0].at<uchar>(r,c) > (uchar) intensity_diff_thresh_ ||
+            diff_channels[1].at<uchar>(r,c) > (uchar) intensity_diff_thresh_ ||
+            diff_channels[2].at<uchar>(r,c) > (uchar) intensity_diff_thresh_ ||
+            depth_diff_img.at<float>(r,c) > depth_diff_thresh_)
+        {
+          change_mask.at<uchar>(r,c) = 255;
+        }
+      }
+    }
+    cv::Mat change_morphed(change_mask.rows, change_mask.cols, CV_8UC1);
+    cv::Mat element(5, 5, CV_8UC1, cv::Scalar(255));
+    cv::erode(change_mask, change_morphed, element);
+
+#ifdef DISPLAY_IMAGE_DIFFERENCING
+    // cv::imshow("diff0", diff_channels[0]);
+    // cv::imshow("diff1", diff_channels[1]);
+    // cv::imshow("diff2", diff_channels[2]);
+    // cv::imshow("diff_depth", depth_diff_img);
+    cv::imshow("change_mask", change_mask);
+    cv::imshow("change_morphed", change_morphed);
+#endif // DISPLAY_IMAGE_DIFFERENCING
+    std::vector<Flow> sparse_flow;
+    for (int r = 0; r < change_morphed.rows; ++r)
+    {
+      for (int c = 0; c < change_morphed.cols; ++c)
+      {
+        if (change_morphed.at<uchar>(r,c))
+          sparse_flow.push_back(Flow(c, r, 1, 1));
+      }
+    }
+    return sparse_flow;
   }
 
   //
@@ -918,6 +981,8 @@ class TabletopPushingPerceptionNode
   double max_table_z_;
   std::string workspace_frame_;
   PoseStamped table_centroid_;
+  int intensity_diff_thresh_;
+  double depth_diff_thresh_;
 };
 
 int main(int argc, char ** argv)
