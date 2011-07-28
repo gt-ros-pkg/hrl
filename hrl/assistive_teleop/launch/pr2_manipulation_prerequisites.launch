@@ -10,8 +10,8 @@
   <!-- load move_arm -->
   <!-- <include file="$(find pr2_arm_navigation_actions)/launch/move_right_arm.launch"/> -->
   <!-- <include file="$(find pr2_arm_navigation_actions)/launch/move_left_arm.launch"/> -->
-  <include file="$(find web_teleop_trunk)/launch/move_right_arm.launch"/>
-  <include file="$(find web_teleop_trunk)/launch/move_left_arm.launch"/>
+  <include file="$(find assistive_teleop)/launch/move_right_arm.launch"/>
+  <include file="$(find assistive_teleop)/launch/move_left_arm.launch"/>
 
   <!-- load planning_environment -->
   <include file="$(find pr2_arm_navigation_actions)/launch/environment_server.launch"/>
