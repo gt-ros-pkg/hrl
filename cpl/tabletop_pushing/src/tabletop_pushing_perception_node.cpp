@@ -90,10 +90,10 @@
 #include <utility>
 #include <math.h>
 
-#define DISPLAY_SUPERPIXELS 1
+// #define DISPLAY_SUPERPIXELS 1
 // #define DISPLAY_TRACKER_OUTPUT 1
 // #define DISPLAY_MOVING_STUFF 1
-#define DISPLAY_IMAGE_DIFFERENCING 1
+// #define DISPLAY_IMAGE_DIFFERENCING 1
 #define DISPLAY_ELLIPSE_STUFF 1
 
 using cpl_superpixels::getSuperpixelImage;
