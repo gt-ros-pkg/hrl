@@ -477,7 +477,7 @@ class TabletopPushingPerceptionNode
     n_private.param("workspace_frame", workspace_frame_,
                     default_workspace_frame);
     n_private.param("min_table_z", min_table_z_, -0.5);
-    n_private.param("max_table_z", min_table_z_, 1.5);
+    n_private.param("max_table_z", max_table_z_, 1.5);
     int max_corners;
     n_private.param("klt_max_corners", max_corners, 500);
     tracker_.setKLTMaxCorners(max_corners);
@@ -909,10 +909,16 @@ class TabletopPushingPerceptionNode
     pcl::PassThrough<pcl::PointXYZ> z_pass;
     z_pass.setInputCloud(
         boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud));
+    // z_pass.setInputCloud(
+    //     boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud));
     z_pass.setFilterFieldName ("z");
     z_pass.setFilterLimits(min_table_z_, max_table_z_);
     z_pass.filter(cloud_z_filtered);
     ROS_INFO_STREAM("Filtered z");
+    ROS_INFO_STREAM("Filtered z has " << cloud_z_filtered.size()
+                    << " points.");
+    ROS_INFO_STREAM("Cloud has " << cloud.size()
+                    << " points.");
 
     // Segment the tabletop from the points using RANSAC plane fitting
     pcl::ModelCoefficients coefficients;
