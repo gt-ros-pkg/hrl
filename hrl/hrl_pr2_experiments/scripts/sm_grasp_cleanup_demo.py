@@ -28,10 +28,10 @@
 
 #  \author Travis Deyle and Kelsey Hawkins (Healthcare Robotics Lab, Georgia Tech.)
 
-GRASP_LOCATION  =  [ 0.50,  0.30,  0.00]
-PLACE_LOCATIONS = [[ 0.58, -0.13,  0.00],
-                   [ 0.58, -0.21,  0.00],
-                   [ 0.58, -0.29,  0.00]]
+GRASP_LOCATION  =  [ 0.50, -0.30,  0.00]
+PLACE_LOCATIONS = [[ 0.58,  0.13,  0.00],
+                   [ 0.58,  0.21,  0.00],
+                   [ 0.58,  0.29,  0.00]]
 
 import sys
 
@@ -75,6 +75,10 @@ def sm_grasp():
         print "First arg should be 'r' or 'l'"
         return None
     arm = sys.argv[1]
+    if arm == 'r':
+        arm_mult = 1
+    else:
+        arm_mult = -1
 
     # Create a SMACH state machine
     sm = smach.StateMachine(outcomes=['succeeded','aborted','preempted'])
@@ -148,9 +152,9 @@ def sm_grasp():
             grasp_goal.disable_coll = False
             grasp_goal.grasp_type = OverheadGraspGoal.VISION_GRASP
             grasp_goal.x = GRASP_LOCATION[0]
-            grasp_goal.y = GRASP_LOCATION[1]
+            grasp_goal.y = arm_mult * GRASP_LOCATION[1]
             grasp_goal.behavior_name = "overhead_grasp"
-            grasp_goal.sig_level = 0.995
+            grasp_goal.sig_level = 0.999
             ############################################################
             return grasp_goal
 
@@ -172,10 +176,10 @@ def sm_grasp():
             place_goal.disable_coll = False
             place_goal.grasp_type = OverheadGraspGoal.MANUAL_GRASP
             place_goal.x = PLACE_LOCATIONS[userdata.object_number-1][0]
-            place_goal.y = PLACE_LOCATIONS[userdata.object_number-1][1]
+            place_goal.y = arm_mult * PLACE_LOCATIONS[userdata.object_number-1][1]
             place_goal.roll = PLACE_LOCATIONS[userdata.object_number-1][2]
             place_goal.behavior_name = "overhead_grasp"
-            place_goal.sig_level = 0.9975
+            place_goal.sig_level = 0.999
             ############################################################
             return place_goal
 
