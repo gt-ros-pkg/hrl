@@ -92,12 +92,15 @@ class TabletopExecutive:
             num_r_gripper_pushes, num_r_sweeps, num_r_overhead_pushes):
 
         # TODO: Get table height and raise to that before anything else
+        rospy.loginfo("Getting table pose")
         table_req = LocateTableRequest()
         table_req.recalculate = True
         raise_req = RaiseAndLookRequest()
-        raise_req.table_centroid = self.table_proxy(table_req);
-        table_res = self.raise_and_look_push_proxy(raise_req)
-
+        table_res = self.table_proxy(table_req);
+        raise_req.table_centroid = table_res.table_centroid
+        rospy.loginfo("Raising spine");
+        raise_res = self.raise_and_look_push_proxy(raise_req)
+        rospy.loginfo("Pushing shit");
         for i in xrange(num_l_gripper_pushes):
             self.gripper_push_object(self.gripper_push_dist, 'l')
         for i in xrange(num_r_gripper_pushes):

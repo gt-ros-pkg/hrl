@@ -366,28 +366,27 @@ class TabletopPushNode:
         '''
         # Set goal height based on passed on table height
         torso_goal = SingleJointPositionGoal()
-        torso_goal.position = request.table_centroid.position.z + \
+        torso_goal.position = request.table_centroid.pose.position.z + \
             self.torso_z_offset
         self.torso_client.send_goal(torso_goal)
         self.torso_client.wait_for_result()
 
         # Point the head at the table centroid
         # NOTE: Should we fix the tilt angle instead for consistency?
-        head_goal = PointHeadActionGoal()
+        head_goal = PointHeadGoal()
         head_goal.target.header.frame_id = request.table_centroid.header.frame_id
-        head_goal.target.point = request.table_centroid.position
+        head_goal.target.point = request.table_centroid.pose.position
         self.head_client.send_goal(head_goal)
         self.head_client.wait_for_result()
         head_res = self.head_client.get_state()
 
         response = RaiseAndLookResponse()
-        if client.get_state() == GoalStatus.SUCCEEDED:
+        if self.head_client.get_state() == actionlib.GoalStatus.SUCCEEDED:
             rospy.loginfo('Succeeded in pointing head')
-            response.head_succeeeded = True
+            response.head_succeeded = True
         else:
             rospy.loginfo('Failed to point head')
-            response.head_succeeeded = False
-
+            response.head_succeeded = False
         return response
 
     #
