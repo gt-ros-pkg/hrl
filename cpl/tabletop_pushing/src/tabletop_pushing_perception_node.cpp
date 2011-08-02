@@ -915,10 +915,10 @@ class TabletopPushingPerceptionNode
     z_pass.setFilterLimits(min_table_z_, max_table_z_);
     z_pass.filter(cloud_z_filtered);
     ROS_INFO_STREAM("Filtered z");
-    ROS_INFO_STREAM("Filtered z has " << cloud_z_filtered.size()
-                    << " points.");
-    ROS_INFO_STREAM("Cloud has " << cloud.size()
-                    << " points.");
+    // ROS_INFO_STREAM("Filtered z has " << cloud_z_filtered.size()
+    //                 << " points.");
+    // ROS_INFO_STREAM("Cloud has " << cloud.size()
+    //                 << " points.");
 
     // Segment the tabletop from the points using RANSAC plane fitting
     pcl::ModelCoefficients coefficients;

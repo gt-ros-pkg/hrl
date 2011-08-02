@@ -368,8 +368,10 @@ class TabletopPushNode:
         torso_goal = SingleJointPositionGoal()
         torso_goal.position = request.table_centroid.pose.position.z + \
             self.torso_z_offset
+        rospy.loginfo('Moving torso to ' + str(torso_goal.position))
         self.torso_client.send_goal(torso_goal)
         self.torso_client.wait_for_result()
+        rospy.loginfo('Got torso client result')
 
         # Point the head at the table centroid
         # NOTE: Should we fix the tilt angle instead for consistency?
