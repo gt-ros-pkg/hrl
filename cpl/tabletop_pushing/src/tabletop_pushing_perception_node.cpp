@@ -80,6 +80,7 @@
 
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
+#include <tabletop_pushing/LocateTable.h>
 
 // STL
 #include <vector>
@@ -98,6 +99,7 @@
 
 using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
+using tabletop_pushing::LocateTable;
 using geometry_msgs::PoseStamped;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
@@ -496,6 +498,9 @@ class TabletopPushingPerceptionNode
                            this);
     push_pose_server_ = n_.advertiseService(
         "get_push_pose", &TabletopPushingPerceptionNode::getPushPose, this);
+    table_location_server_ = n_.advertiseService(
+        "get_table_location", &TabletopPushingPerceptionNode::getTableLocation,
+        this);
   }
 
   void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
@@ -546,6 +551,21 @@ class TabletopPushingPerceptionNode
     // TODO: Add a service call to turn tracking on and off
     // TODO: Must deal with reseting and what not
     trackRegions(cur_color_frame_, cur_depth_frame_, cur_point_cloud_);
+  }
+
+  bool getTableLocation(LocateTable::Request& req, LocateTable::Response& res)
+  {
+    if ( have_depth_data_ )
+    {
+      res.table_centroid = getTablePlane(cur_color_frame_, cur_depth_frame_,
+                                         cur_point_cloud_);
+    }
+    else
+    {
+      ROS_ERROR_STREAM("Calling getTableLocation prior to receiving sensor data.");
+      return false;
+    }
+    return true;
   }
 
   bool getPushPose(PushPose::Request& req, PushPose::Response& res)
@@ -947,6 +967,7 @@ class TabletopPushingPerceptionNode
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
   ros::ServiceServer push_pose_server_;
+  ros::ServiceServer table_location_server_;
   cv::Mat cur_color_frame_;
   cv::Mat cur_depth_frame_;
   cv::Mat prev_color_frame_;
