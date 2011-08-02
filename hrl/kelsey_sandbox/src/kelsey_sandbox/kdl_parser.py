@@ -17,47 +17,19 @@ def to_kdl_frame(p):
 def to_kdl_joint(jnt):
     f_parent_jnt = to_kdl_frame(jnt.parent_to_joint_origin_transform)
     if jnt.type == urdf.Joint.FIXED:
-        kdl_jnt = kdl.Joint(kdl.Joint.None)
-        kdl_jnt.name = jnt.name
-        return kdl_jnt
+        return kdl.Joint(jnt.name, kdl.Joint.None)
     elif jnt.type == urdf.Joint.REVOLUTE:
         axis = to_kdl_vector(jnt.axis)
-        kdl_jnt = kdl.Joint(kdl.Joint.None)
-        kdl_jnt.type = kdl.Joint.RotAxis
-        kdl_jnt.name = jnt.name
-        kdl_jnt.origin = f_parent_jnt.p
-        kdl_jnt.axis = f_parent_jnt.M * axis
-        kdl_jnt.axis = kdl_jnt.axis / kdl_jnt.axis.Norm()
-        #kdl_jnt.joint_pose.p = kdl_jnt.origin
-        #kdl_jnt.joint_pose.M = kdl.Rotation.Rot2(kdl_jnt.axis, 0)
-        return kdl_jnt
+        return kdl.Joint(jnt.name, f_parent_jnt.p, f_parent_jnt.M * axis, kdl.Joint.RotAxis)
     elif jnt.type == urdf.Joint.CONTINUOUS:
         axis = to_kdl_vector(jnt.axis)
-        kdl_jnt = kdl.Joint(kdl.Joint.None)
-        kdl_jnt.type = kdl.Joint.RotAxis
-        kdl_jnt.name = jnt.name
-        kdl_jnt.origin = f_parent_jnt.p
-        kdl_jnt.axis = f_parent_jnt.M * axis
-        kdl_jnt.axis = kdl_jnt.axis / kdl_jnt.axis.Norm()
-        #kdl_jnt.joint_pose.p = kdl_jnt.origin
-        #kdl_jnt.joint_pose.M = kdl.Rotation.Rot2(kdl_jnt.axis, 0)
-        return kdl_jnt
+        return kdl.Joint(jnt.name, f_parent_jnt.p, f_parent_jnt.M * axis, kdl.Joint.RotAxis)
     elif jnt.type == urdf.Joint.PRISMATIC:
         axis = to_kdl_vector(jnt.axis)
-        kdl_jnt = kdl.Joint(kdl.Joint.None)
-        kdl_jnt.type = kdl.Joint.TransAxis
-        kdl_jnt.name = jnt.name
-        kdl_jnt.origin = f_parent_jnt.p
-        kdl_jnt.axis = f_parent_jnt.M * axis
-        kdl_jnt.axis = kdl_jnt.axis / kdl_jnt.axis.Norm()
-        #kdl_jnt.joint_pose.p = kdl_jnt.origin
-        #kdl_jnt.joint_pose.M = kdl.Rotation.Rot2(kdl_jnt.axis, 0)
-        return kdl_jnt
+        return kdl.Joint(jnt.name, f_parent_jnt.p, f_parent_jnt.M * axis, kdl.Joint.RotAxis)
     else:
         rospy.logwarn("Unknown joint type %s." % jnt.name)
-        kdl_jnt = kdl.Joint(kdl.Joint.None)
-        kdl_jnt.name = jnt.name
-        return kdl_jnt
+        return kdl.Joint(jnt.name, kdl.Joint.None)
 
 def to_kdl_rbi(i):
     origin = to_kdl_frame(i.origin)
@@ -74,9 +46,8 @@ def add_children_to_tree(root, tree):
     
     jnt = to_kdl_joint(root.parent_joint)
 
-    sgm = kdl.Segment(jnt, to_kdl_frame(root.parent_joint.parent_to_joint_origin_transform))
-    sgm.name = root.name
-    sgm.I = inert
+    sgm = kdl.Segment(root.name, jnt, 
+                      to_kdl_frame(root.parent_joint.parent_to_joint_origin_transform), inert)
 
     tree.addSegment(sgm, root.parent_joint.parent_link_name)
 
