@@ -84,13 +84,19 @@ class TabletopExecutive:
                                                       GripperPush)
         self.raise_and_look_push_proxy = rospy.ServiceProxy('raise_and_look',
                                                             RaiseAndLook)
+        self.table_proxy = rospy.ServiceProxy('get_table_location', LocateTable)
         self.use_fake_push_pose = use_fake_push_pose
 
     def run(self,
             num_l_gripper_pushes, num_l_sweeps, num_l_overhead_pushes,
             num_r_gripper_pushes, num_r_sweeps, num_r_overhead_pushes):
+
         # TODO: Get table height and raise to that before anything else
-        # raise_and_look_action()
+        table_req = LocateTableRequest()
+        table_req.recalculate = True
+        raise_req = RaiseAndLookRequest()
+        raise_req.table_centroid = self.table_proxy(table_req);
+        table_res = self.raise_and_look_push_proxy(raise_req)
 
         for i in xrange(num_l_gripper_pushes):
             self.gripper_push_object(self.gripper_push_dist, 'l')
