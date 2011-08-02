@@ -559,6 +559,13 @@ class TabletopPushingPerceptionNode
     {
       res.table_centroid = getTablePlane(cur_color_frame_, cur_depth_frame_,
                                          cur_point_cloud_);
+      if (res.table_centroid.pose.position.x == 0.0 &&
+          res.table_centroid.pose.position.y == 0.0 &&
+          res.table_centroid.pose.position.z == 0.0)
+      {
+        return false;
+      }
+
     }
     else
     {
