@@ -96,8 +96,13 @@ class TabletopExecutive:
         table_req = LocateTableRequest()
         table_req.recalculate = True
         raise_req = RaiseAndLookRequest()
-        table_res = self.table_proxy(table_req);
+        try:
+            table_res = self.table_proxy(table_req);
+        except rospy.ServiceException, e:
+            rospy.logwarn("Service did not process request: %s"%str(e))
+            return
         raise_req.table_centroid = table_res.table_centroid
+
         rospy.loginfo("Raising spine");
         raise_res = self.raise_and_look_push_proxy(raise_req)
         rospy.loginfo("Pushing shit");

@@ -91,7 +91,7 @@
 #include <utility>
 #include <math.h>
 
-// #define DISPLAY_SUPERPIXELS 1
+#define DISPLAY_SUPERPIXELS 1
 // #define DISPLAY_TRACKER_OUTPUT 1
 // #define DISPLAY_MOVING_STUFF 1
 // #define DISPLAY_IMAGE_DIFFERENCING 1
@@ -858,7 +858,7 @@ class TabletopPushingPerceptionNode
         pcl::PointXYZ cur_pt = cloud.at(crop_min_x_ + c, crop_min_y_ + r);
         if (cur_pt.x < min_workspace_x_ || cur_pt.x > max_workspace_x_ ||
             cur_pt.y < min_workspace_y_ || cur_pt.y > max_workspace_y_ ||
-            cur_pt.z < min_workspace_y_ || cur_pt.z > max_workspace_y_)
+            cur_pt.z < min_workspace_z_ || cur_pt.z > max_workspace_z_)
         {
           workspace_mask.at<uchar>(r,c) = 0;
         }
