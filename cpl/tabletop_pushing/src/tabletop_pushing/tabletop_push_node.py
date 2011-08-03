@@ -78,9 +78,6 @@ class TabletopPushNode:
         # TODO: Set joint gains
 
         # Setup actionlib clients to PR2 controllers
-        self.torso_client = actionlib.SimpleActionClient(
-            'torso_controller/position_joint_action', SingleJointPositionAction)
-        self.torso_client.wait_for_server()
         self.head_client = actionlib.SimpleActionClient(
             'head_traj_controller/point_head_action', PointHeadAction)
         self.head_client.wait_for_server()
@@ -365,16 +362,17 @@ class TabletopPushNode:
         table height and tilt the head so that the Kinect views the table
         '''
         # Set goal height based on passed on table height
-        torso_goal = SingleJointPositionGoal()
-        torso_goal.position = request.table_centroid.pose.position.z + \
-            self.torso_z_offset
-        rospy.loginfo('Moving torso to ' + str(torso_goal.position))
-        self.torso_client.send_goal(torso_goal)
-        self.torso_client.wait_for_result()
+        current_torso_position = 0.0 # TODO: Get this
+        torso_goal_position = request.table_centroid.pose.position.z + \
+            self.torso_z_offset + current_torso_position
+        rospy.loginfo('Moving torso to ' + str(torso_goal_position))
+        self.robot.torso.set_pose(torso_goal_position)
         rospy.loginfo('Got torso client result')
 
         # Point the head at the table centroid
         # NOTE: Should we fix the tilt angle instead for consistency?
+        # TODO: Switch to using the PR2Head class
+        # self.robot.head.look_at(...
         head_goal = PointHeadGoal()
         head_goal.target.header.frame_id = request.table_centroid.header.frame_id
         head_goal.target.point = request.table_centroid.pose.position

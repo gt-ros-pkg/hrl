@@ -91,11 +91,11 @@
 #include <utility>
 #include <math.h>
 
-#define DISPLAY_SUPERPIXELS 1
+// #define DISPLAY_SUPERPIXELS 1
 // #define DISPLAY_TRACKER_OUTPUT 1
 // #define DISPLAY_MOVING_STUFF 1
 // #define DISPLAY_IMAGE_DIFFERENCING 1
-#define DISPLAY_ELLIPSE_STUFF 1
+// #define DISPLAY_ELLIPSE_STUFF 1
 
 using cpl_superpixels::getSuperpixelImage;
 using tabletop_pushing::PushPose;
@@ -807,10 +807,12 @@ class TabletopPushingPerceptionNode
       m = cv::moments(pt_mat);
       // Fit an ellipse
       cv::RotatedRect el = cv::fitEllipse(pt_mat);
+#ifdef SHOW_ELLIPSE_INFO
       ROS_INFO_STREAM("ellipse " << i << " has center (" << el.center.x
                       << ", " << el.center.y << ")"
                       <<  " and size (" << el.size.width << ", "
                       << el.size.height << ")");
+#endif // SHOW_ELLIPSE_INFO
       // Draw ellipse for display purposes
       cv::Scalar ellipse_color(255, 0, 0);
       cv::ellipse(contour_img, el, ellipse_color, 2);
@@ -881,7 +883,9 @@ class TabletopPushingPerceptionNode
                                          num_regions, display_regions,
                                          sigma_, k_, min_size_,
                                          wr_, wg_, wb_,wd_);
+#ifdef SHOW_ELLIPSE_INFO
     ROS_INFO_STREAM("Computed " << num_regions << " regions");
+#endif // SHOW_ELLIPSE_INFO
 
 #ifdef DISPLAY_SUPERPIXELS
     cv::imshow("regions", display_regions);
@@ -914,11 +918,6 @@ class TabletopPushingPerceptionNode
     z_pass.setFilterFieldName ("z");
     z_pass.setFilterLimits(min_table_z_, max_table_z_);
     z_pass.filter(cloud_z_filtered);
-    ROS_INFO_STREAM("Filtered z");
-    // ROS_INFO_STREAM("Filtered z has " << cloud_z_filtered.size()
-    //                 << " points.");
-    // ROS_INFO_STREAM("Cloud has " << cloud.size()
-    //                 << " points.");
 
     // Segment the tabletop from the points using RANSAC plane fitting
     pcl::ModelCoefficients coefficients;
@@ -956,6 +955,10 @@ class TabletopPushingPerceptionNode
     p.pose.position.y = xyz_centroid[1];
     p.pose.position.z = xyz_centroid[2];
     p.header = cloud.header;
+    ROS_INFO_STREAM("Table centroid is: ("
+                    << p.pose.position.x << ", "
+                    << p.pose.position.y << ", "
+                    << p.pose.position.z << ")");
     // TODO: Get extent as well
     return p;
   }
