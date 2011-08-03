@@ -1,0 +1,16 @@
+<package>
+  <description brief="adls">
+
+  </description>
+  <author>Aaron King</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/adls</url>
+  <depend package="netft_rdt_driver"/>
+  <depend package="force_torque"/>
+  <depend package="hrl_lib"/>
+  <depend package="rospy"/>
+  <depend package="ros_vrpn_client"/>
+</package>
+
+
