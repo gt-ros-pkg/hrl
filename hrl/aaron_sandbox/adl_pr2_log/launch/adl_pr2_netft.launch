@@ -3,13 +3,7 @@
     <arg name="scratcher_dist" value="0.110"/>
     <arg name="shaver_dist" value="0.100"/>
 
-    <node name="l_wrist_ft_raw"
-		pkg="netft_rdt_driver" 
-		type="netft_node" 
-		args="10.68.0.60" 
-		respawn="true">
-    <remap from="/netft_data" to="/l_wrist_ft_raw"/>
-    </node>
+    <include file="$(find hrl_pr2_lib)/launch/netft.launch" />
 
    <node pkg="tf" type="static_transform_publisher" name="r_scratcher_tip_frame_adl" args="$(arg scratcher_dist) 0 0 0 0 0 /r_gripper_tool_frame /r_scratcher_tip_adl 10" />
 

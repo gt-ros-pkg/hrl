@@ -21,11 +21,10 @@ def log_parse():
 	parser = optparse.OptionParser('Input the Pose node name and the ft sensor node name')
 
 	parser.add_option("-f", "--force" , action="store", type="string",\
-		dest="ft_sensor_name",default="l_wrist_ft_raw")
+		dest="ft_topic_name",default="ft_data_pm_adjusted")
 
 	(options, args) = parser.parse_args()
-
-	return options.ft_sensor_name 
+	return options.ft_topic_name 
 
 
 class PR2_ADL_log():
@@ -64,7 +63,8 @@ class PR2_ADL_log():
 		self.torque_raw_data = []
 		self.f_time_data = []
 
-		self.ft_sensor_node_name = log_parse()
+		self.ft_topic_name = log_parse()
+		self.ft_frame_name = '/l_netft_frame'
 		self.tool_input()
 		self.select_robot_arm()
 		
@@ -75,24 +75,22 @@ class PR2_ADL_log():
 		self.pr2_jt_sub = rospy.Subscriber(self.arm_controller_state_name,\
 			JointTrajectoryControllerState, self.pr2_jt_cb )
 		rospy.logout('Done subscribing to '+self.arm_controller_state_name+' topic')
-		self.force_sub = rospy.Subscriber(self.ft_sensor_node_name,\
+		self.force_sub = rospy.Subscriber(self.ft_topic_name,\
 			WrenchStamped , self.force_cb )	#using new NetFT box
-
-		rospy.logout('Done subscribing to '+self.ft_sensor_node_name+' topic')
-		self.ft_pub = rospy.Publisher("l_wrist_ft",WrenchStamped)
+		rospy.logout('Done subscribing to '+self.ft_topic_name+' topic')
+		self.ft_pub = rospy.Publisher("l_ft_data_base_link",WrenchStamped)
 		self.m = WrenchStamped()
 
 
 #	Callback Function for the NetFT Subscriber node
 	def force_cb(self, msg):
 		self.force_time = msg.header.stamp.to_time()
-#		Transform the force coordinate frame to match with the /optitrak frame		
-		self.force_raw = np.matrix([-msg.wrench.force.z, 
-					msg.wrench.force.y,
-					-msg.wrench.force.x]).T
-		self.torque_raw = np.matrix([-msg.wrench.torque.z, 
-					msg.wrench.torque.y,
-					-msg.wrench.torque.x]).T
+		self.force_raw = np.matrix([-msg.wrench.force.x, 
+					-msg.wrench.force.y,
+					-msg.wrench.force.z]).T
+		self.torque_raw = np.matrix([-msg.wrench.torque.x,
+					-msg.wrench.torque.y,
+					-msg.wrench.torque.z]).T
 		self.f_count += 1
 
 	
@@ -117,7 +115,7 @@ class PR2_ADL_log():
 				print 'How hard is it??!!! l or r'
 
 
-	def static_gravity(self):
+	def static_bias(self):
 		print '!!!!!!!!!!!!!!!!!!!!'
 		print 'BIASING FT'
 		print '!!!!!!!!!!!!!!!!!!!!'
@@ -129,8 +127,6 @@ class PR2_ADL_log():
 			rospy.sleep(2/100.)
 		if f_list[0] != None and t_list[0] !=None:
 			self.torque_bias = np.mean(np.column_stack(t_list),1)
-#			self.gravity = np.mean(np.column_stack(f_list),1)
-#			print self.gravity
 			self.force_bias = np.mean(np.column_stack(f_list),1)
 			print self.force_bias
 			print '!!!!!!!!!!!!!!!!!!!!'
@@ -166,31 +162,23 @@ class PR2_ADL_log():
 		p, self.ft_quat = self.tflistener.lookupTransform('/base_link',self.ft_frame_name, rospy.Time(0))
 		self.ft_rot_mat = hrl_tr.quaternion_to_matrix(self.ft_quat)
 		if bias:
-#			self.force = self.force_raw - self.force_bias
-#			self.force = self.rot_mat*(self.force_raw - self.force_bias) - self.gravity
 			self.force = self.ft_rot_mat*(self.force_raw - self.force_bias)
-			self.torque = self.torque_raw - self.torque_bias
+			self.torque = self.ft_rot_mat*(self.torque_raw - self.torque_bias)
 		else:
 			self.force = self.force_raw
 			self.torque = self.torque_raw
-#		Transform the force coordinate frame to match with the /optitrak frame		
-#		self.force = np.transpose(self.rot_mat) * self.force
-		self.torque = np.transpose(self.rot_mat) * self.torque
-		self.publish_ft()
+		self.publish_ft_global()
 
-
-
-	def publish_ft(self):
-		self.m.header.frame_id = "l_wrist_roll_link"
+	def publish_ft_global(self):
+		self.m.header.frame_id = "/base_link"
 		self.m.header.stamp = rospy.Time.now()
 		self.m.wrench.force.x = self.force[0,0]
 		self.m.wrench.force.y = self.force[1,0]
 		self.m.wrench.force.z = self.force[2,0]
-		self.m.wrench.torque.x = self.torque[0,0]
-		self.m.wrench.torque.y = self.torque[1,0]
-		self.m.wrench.torque.z = self.torque[2,0]
+		self.m.wrench.torque.x = self.force[0,0]
+		self.m.wrench.torque.y = self.force[1,0]
+		self.m.wrench.torque.z = self.force[2,0]
 		self.ft_pub.publish(self.m)
-
 
 	def tool_input(self):
 		confirm = False
@@ -227,7 +215,7 @@ class PR2_ADL_log():
 #		self.torque_bias = d['mean_torque_raw']
 		raw_input('press Enter to set origin')
 		self.set_origin()
-		self.static_gravity()
+		self.static_bias()
 			
 		raw_input('press Enter to begin the test')
 		self.init_time = rospy.get_time()
