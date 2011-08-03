@@ -163,10 +163,12 @@ class PR2_ADL_log():
 
 	
 	def read_ft(self, bias=True):
+		p, self.ft_quat = self.tflistener.lookupTransform('/base_link',self.ft_frame_name, rospy.Time(0))
+		self.ft_rot_mat = hrl_tr.quaternion_to_matrix(self.ft_quat)
 		if bias:
 #			self.force = self.force_raw - self.force_bias
 #			self.force = self.rot_mat*(self.force_raw - self.force_bias) - self.gravity
-			self.force = self.rot_mat*(self.force_raw - self.force_bias)
+			self.force = self.ft_rot_mat*(self.force_raw - self.force_bias)
 			self.torque = self.torque_raw - self.torque_bias
 		else:
 			self.force = self.force_raw
