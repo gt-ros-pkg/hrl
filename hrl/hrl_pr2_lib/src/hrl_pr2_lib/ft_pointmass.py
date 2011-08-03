@@ -13,9 +13,9 @@ class Pointmass_Adjust:
     pos_x = 0.0853 #m, in 'l_wrist_roll_link'
     pos_y = 0.0
     pos_z = 0.0
-    x_force_offset = 3.88
-    y_force_offset = 14.10
-    z_force_offset = -5.70
+    x_force_offset = 3.85 #3.88 -- These values determined from experiment, used values are adjusted for better qualitative results using rviz
+    y_force_offset = 13.96 #14.10
+    z_force_offset = -5.72 #-5.70
     x_torque_offset = -0.21875
     y_torque_offset = 0.3804
     z_torque_offset = 0.3899
@@ -32,7 +32,7 @@ class Pointmass_Adjust:
     def transform(self, ft_in):
         ft_in_wrist = WrenchStamped()
         ft_in_wrist.header.stamp = ft_in.header.stamp
-        ft_in_wrist.header.frame_id = 'l_netft_frame'
+        ft_in_wrist.header.frame_id = '/l_netft_frame'
         ft_in_wrist.wrench.force.x = ft_in.wrench.force.z
         ft_in_wrist.wrench.torque.x = ft_in.wrench.torque.z
         ft_in_wrist.wrench.force.y = -ft_in.wrench.force.y
@@ -63,7 +63,7 @@ class Pointmass_Adjust:
         force_point.z = 0.1*ft_out.wrench.force.z
         force_vec = Marker()
         force_vec.header.stamp = rospy.Time.now()
-        force_vec.header.frame_id = 'l_netft_frame'
+        force_vec.header.frame_id = '/l_netft_frame'
         force_vec.ns = "ft_sensor"
         force_vec.id = 1
         force_vec.action = 0
@@ -92,7 +92,7 @@ class Pointmass_Adjust:
       
         grav = PoseStamped()
         grav.header.stamp = rospy.Time.now()
-        grav.header.frame_id = 'base_link'
+        grav.header.frame_id = '/base_link'
         grav.pose.position.x = pos[0]
         grav.pose.position.y = pos[1]
         grav.pose.position.z = pos[2] - 1#self.pos_x
@@ -102,13 +102,12 @@ class Pointmass_Adjust:
         grav.pose.orientation.w = 0.5*math.sqrt(2)
 
         grav.header.stamp = rospy.Time(0)
-        netft_grav = self.tfl.transformPose('l_netft_frame', grav)
+        netft_grav = self.tfl.transformPose('/l_netft_frame', grav)
         netft_grav.header.stamp = rospy.Time.now()
 
         self.adjustment.wrench.force.x = 9.80665*self.mass*netft_grav.pose.position.x
         self.adjustment.wrench.force.y = 9.80665*self.mass*netft_grav.pose.position.y
         self.adjustment.wrench.force.z = 9.80665*self.mass*netft_grav.pose.position.z
-        print self.adjustment
 
 if __name__ == "__main__":
     PMC = Pointmass_Adjust()
