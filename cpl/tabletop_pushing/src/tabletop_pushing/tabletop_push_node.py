@@ -355,22 +355,54 @@ class TabletopPushNode:
         Service callback to raise the spine to a specific height relative to the
         table height and tilt the head so that the Kinect views the table
         '''
+        # Get torso_lift_link position in base_link frame
+        (trans, rot) = self.tf_listener.lookupTransform('/base_link',
+                                                        '/torso_lift_link',
+                                                        rospy.Time(0))
+        lift_link_z = trans[2]
+
+        # tabletop position in base_link frame
+        table_base = self.tf_listener.transformPose('/base_link',
+                                                    request.table_centroid)
+        table_z = table_base.pose.position.z
+        goal_lift_link_z = table_z + self.torso_z_offset
+        lift_link_delta_z = goal_lift_link_z - lift_link_z
+        rospy.loginfo('Torso height (m): ' + str(lift_link_z))
+        rospy.loginfo('Table height (m): ' + str(table_z))
+        rospy.loginfo('Torso goal height (m): ' + str(goal_lift_link_z))
+        rospy.loginfo('Torso delta (m): ' + str(lift_link_delta_z))
+
         # Set goal height based on passed on table height
         current_torso_position = np.asarray(self.robot.torso.pose()).ravel()[0]
-        rospy.loginfo('Current torso Pose: ' + str(current_torso_position))
-        torso_goal_position = request.table_centroid.pose.position.z*2.0 + \
-            self.torso_z_offset + current_torso_position
-        torso_max = 0.6
+        # rospy.loginfo('Current torso Pose: ' + str(current_torso_position))
+
+        # torso_goal_position = request.table_centroid.pose.position.z*2.0 + \
+        #     self.torso_z_offset + current_torso_position
+        torso_goal_position = current_torso_position + lift_link_delta_z
+        torso_max = 0.3
         torso_min = 0.0
         torso_goal_position = (max(min(torso_max, torso_goal_position),
                                    torso_min))
-        rospy.loginfo('Moving torso to ' + str(torso_goal_position))
+        # rospy.loginfo('Moving torso to ' + str(torso_goal_position))
         # Multiply by 2.0, because of units of spine
         self.robot.torso.set_pose(torso_goal_position)
 
-        rospy.loginfo('Got torso client result')
+        # rospy.loginfo('Got torso client result')
         new_torso_position = np.asarray(self.robot.torso.pose()).ravel()[0]
-        rospy.loginfo('New torso position is: ' + str(new_torso_position))
+        # rospy.loginfo('New torso position is: ' + str(new_torso_position))
+
+        # Get torso_lift_link position in base_link frame
+        (new_trans, rot) = self.tf_listener.lookupTransform('/base_link',
+                                                            '/torso_lift_link',
+                                                            rospy.Time(0))
+        new_lift_link_z = new_trans[2]
+        rospy.loginfo('New Torso height (m): ' + str(new_lift_link_z))
+        # tabletop position in base_link frame
+        # new_table_base = self.tf_listener.transformPose('/base_link',
+        #                                                 request.table_centroid)
+        # new_table_z = new_table_base.pose.position.z
+        # rospy.loginfo('New Table height: ' + str(new_table_z))
+
         # Point the head at the table centroid
         # NOTE: Should we fix the tilt angle instead for consistency?
         look_pt = np.asmatrix([request.table_centroid.pose.position.x,
