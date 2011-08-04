@@ -4,11 +4,14 @@ import numpy as np, math
 import sys
 import pygame as pg
 
-import roslib; roslib.load_manifest('equilibrium_point_control')
+import roslib
+roslib.load_manifest('equilibrium_point_control')
+roslib.load_manifest('hrl_lib')
+
 import rospy
 
-from equilibrium_point_control.epc import EPGenerator, EPC, EPStopConditions
-from equilibrium_point_control.timer import Timer
+from equilibrium_point_control.ep_control import EPGenerator, EPC, EPStopConditions
+from hrl_lib.timer import Timer
 
 class TestEPGenerator(EPGenerator):
     def __init__(self, num_steps=1000):

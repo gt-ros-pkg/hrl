@@ -31,7 +31,10 @@
 import numpy as np
 import PyKDL as kdl
 
-from equilibrium_point_control.hrl_arm_template import HRLArmKinematics
+import roslib
+roslib.load_manifest("hrl_generic_arms")
+
+from hrl_generic_arms.hrl_arm_template import HRLArmKinematics
 
 class KDLArmKinematics(HRLArmKinematics):
     def __init__(self, chain):

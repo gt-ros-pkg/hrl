@@ -66,7 +66,11 @@ class HRLArm(object):
     # Returns the current pose of the tooltip
     # @return (pos, rot)
     def get_end_effector_pose(self):
-        return self.kinematics.FK(self.get_joint_angles())
+        q = self.get_joint_angles()
+        if q is None:
+            return None
+        else:
+            return self.kinematics.FK(q)
 
 
 ##
@@ -125,7 +129,7 @@ class HRLArmKinematics(object):
     def FK(self, q, link_number=None):
         if link_number == None or link_number > self.n_jts:
             use_end_affector = True
-            link_number = self.n_jts
+            link_number = None
         else:
             use_end_affector = False
             

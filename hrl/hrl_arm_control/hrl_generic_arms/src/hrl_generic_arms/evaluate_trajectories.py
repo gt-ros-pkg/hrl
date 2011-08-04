@@ -1,5 +1,5 @@
 
-from equilibrium_point_control.epc import EPGenerator, EPC, EPStopConditions
+from hrl_generic_arms.ep_control import EPGenerator, EPC, EPStopConditions
 
 ##
 # Runs a series of trials by generating new EPGenerators on a list of different

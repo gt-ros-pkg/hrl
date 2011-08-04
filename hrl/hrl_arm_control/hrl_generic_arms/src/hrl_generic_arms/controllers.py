@@ -1,6 +1,6 @@
 import numpy as np, math
 
-import roslib; roslib.load_manifest('equilibrium_point_control')
+import roslib; roslib.load_manifest('hrl_generic_arms')
 import rospy
 from std_msgs.msg import Float64
 

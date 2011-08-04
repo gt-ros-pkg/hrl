@@ -133,6 +133,7 @@ class PR2ArmCartesianBase(PR2Arm):
         pos_waypoints = np.dstack([np.linspace(pos_a.A[0][0], pos_b.A[0][0], num_steps), 
                                    np.linspace(pos_a.A[1][0], pos_b.A[1][0], num_steps), 
                                    np.linspace(pos_a.A[2][0], pos_b.A[2][0], num_steps)])[0]
+        pos_waypoints = [np.mat(pos).T for pos in pos_waypoints]
         rot_homo_a, rot_homo_b = np.eye(4), np.eye(4)
         rot_homo_a[:3,:3] = rot_a
         rot_homo_b[:3,:3] = rot_b
@@ -146,6 +147,14 @@ class PR2ArmCartesianBase(PR2Arm):
 
     def reset_ep(self):
         self.ep = self.kinematics.FK(self.get_joint_angles(True))
+
+    def ep_error(self, ep_actual, ep_desired):
+        pos_act, rot_act = ep_actual
+        pos_des, rot_des = ep_desired
+        err = np.mat(np.zeros((6, 1)))
+        err[:3,0] = pos_act - pos_des
+        err[3:6,0] = np.mat(tf_trans.euler_from_matrix(rot_des.T * rot_act)).T
+        return err
 
 class PR2ArmJTranspose(PR2ArmCartesianBase):
     pass

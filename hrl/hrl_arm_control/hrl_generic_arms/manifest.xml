@@ -1,0 +1,18 @@
+<package>
+  <description brief="hrl_generic_arms">
+
+     hrl_generic_arms
+
+  </description>
+  <author>Kelsey Hawkins</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_generic_arms</url>
+  <depend package="equilibrium_point_control"/>
+  <depend package="geometry_msgs"/>
+  <depend package="std_msgs"/>
+  <depend package="tf"/>
+
+</package>
+
+

@@ -4,10 +4,11 @@
      hrl_kdl_arms
 
   </description>
-  <author>Kelsey Hawkins204919-280-5739</author>
+  <author>Kelsey Hawkins</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_kdl_arms</url>
+  <depend package="hrl_generic_arms"/>
 
 </package>
 
