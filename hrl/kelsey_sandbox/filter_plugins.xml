@@ -1,0 +1,16 @@
+<class_libraries>
+    <library path="lib/libdelay_filter">
+      <class name="kelsey_sandbox/DelayFilterFloat" 
+             type="filters::DelayFilter<float>"           
+             base_class_type="filters::FilterBase<float>" />
+      <class name="kelsey_sandbox/DelayFilterDouble" 
+             type="filters::DelayFilter<double>"           
+             base_class_type="filters::FilterBase<double>" />
+      <class name="kelsey_sandbox/MultiChannelDelayFilterFloat" 
+             type="filters::MultiChannelDelayFilter<float>"           
+             base_class_type="filters::MultiChannelFilterBase<float>" />
+      <class name="kelsey_sandbox/MultiChannelDelayFilterDouble" 
+             type="filters::MultiChannelDelayFilter<double>"           
+             base_class_type="filters::MultiChannelFilterBase<double>" />
+    </library>
+</class_libraries>

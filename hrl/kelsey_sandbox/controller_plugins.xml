@@ -1,0 +1,15 @@
+<library path="lib/libcoll_detect_contr">
+  <class name="kelsey_sandbox/CollDetect" 
+         type="cd_controller::CollisionDetection"           
+         base_class_type="pr2_controller_interface::Controller" />
+</library>
+<library path="lib/libtest_contr">
+  <class name="kelsey_sandbox/TestContr" 
+         type="kelsey_sandbox::TestContr"           
+         base_class_type="pr2_controller_interface::Controller" />
+</library>
+<library path="lib/libimpulse_filter">
+  <class name="kelsey_sandbox/ImpulseFilter" 
+         type="kelsey_sandbox::ImpulseFilter"           
+         base_class_type="pr2_controller_interface::Controller" />
+</library>
