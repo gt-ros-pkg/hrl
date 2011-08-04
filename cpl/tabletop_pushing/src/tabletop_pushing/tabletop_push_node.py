@@ -356,16 +356,20 @@ class TabletopPushNode:
         table height and tilt the head so that the Kinect views the table
         '''
         # Set goal height based on passed on table height
-        current_torso_position = np.asarray(self.robot.torso.pose()).ravel()[0]/2.0
+        current_torso_position = np.asarray(self.robot.torso.pose()).ravel()[0]
         rospy.loginfo('Current torso Pose: ' + str(current_torso_position))
-        torso_goal_position = request.table_centroid.pose.position.z + \
+        torso_goal_position = request.table_centroid.pose.position.z*2.0 + \
             self.torso_z_offset + current_torso_position
+        torso_max = 0.6
+        torso_min = 0.0
+        torso_goal_position = (max(min(torso_max, torso_goal_position),
+                                   torso_min))
         rospy.loginfo('Moving torso to ' + str(torso_goal_position))
         # Multiply by 2.0, because of units of spine
-        self.robot.torso.set_pose(torso_goal_position*2.0)
+        self.robot.torso.set_pose(torso_goal_position)
 
         rospy.loginfo('Got torso client result')
-        new_torso_position = np.asarray(self.robot.torso.pose()).ravel()[0]/2.0
+        new_torso_position = np.asarray(self.robot.torso.pose()).ravel()[0]
         rospy.loginfo('New torso position is: ' + str(new_torso_position))
         # Point the head at the table centroid
         # NOTE: Should we fix the tilt angle instead for consistency?

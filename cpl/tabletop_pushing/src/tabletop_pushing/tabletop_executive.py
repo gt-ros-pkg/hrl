@@ -50,6 +50,7 @@ class TabletopExecutive:
     def __init__(self, use_fake_push_pose=False):
         # TODO: Replace these parameters with learned / perceived values
         # The offsets should be removed and learned implicitly
+        rospy.init_node('tabletop_executive_node',log_level=rospy.DEBUG)
         self.gripper_push_dist = rospy.get_param('~gripper_push_dist',
                                                  0.15)
         self.gripper_x_offset = rospy.get_param('~gripper_push_start_x_offset',
@@ -87,9 +88,10 @@ class TabletopExecutive:
         self.raise_and_look_push_proxy = rospy.ServiceProxy('raise_and_look',
                                                             RaiseAndLook)
         self.table_proxy = rospy.ServiceProxy('get_table_location', LocateTable)
-        self.tracker_clinet = actionlib.SimpleActionClient('/seg_track_action',
+        self.tracker_client = actionlib.SimpleActionClient('seg_track_action',
                                                            SegTrackAction)
-        self.client.wait_for_server()
+        # rospy.loginfo('Waiting for tracker server')
+        # self.tracker_client.wait_for_server()
         self.use_fake_push_pose = use_fake_push_pose
 
     def run(self,
@@ -134,7 +136,7 @@ class TabletopExecutive:
     def start_tracker(self):
         track_goal = SegTrackGoal()
         track_goal.reinit = True
-        self.tracker_clinet.send_goal(track_goal)
+        self.tracker_client.send_goal(track_goal)
 
     def gripper_push_object(self, push_dist, which_arm):
         # Make push_pose service request
@@ -292,4 +294,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(1, 0, 0, 0, 0, 0)
+    node.run(1, 1, 1, 1, 1, 1)
