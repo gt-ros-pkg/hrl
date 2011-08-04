@@ -33,6 +33,7 @@
  *********************************************************************/
 // ROS
 #include <ros/ros.h>
+#include <actionlib/server/simple_action_server.h>
 
 #include <geometry_msgs/PoseStamped.h>
 #include <sensor_msgs/Image.h>
@@ -81,6 +82,7 @@
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
 #include <tabletop_pushing/LocateTable.h>
+#include <tabletop_pushing/SegTrackAction.h>
 
 // STL
 #include <vector>
@@ -446,9 +448,14 @@ class TabletopPushingPerceptionNode
       depth_sub_(n, "depth_image_topic", 1),
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(1), image_sub_, depth_sub_, cloud_sub_),
+      track_server_(n, "seg_track_server",
+                    boost::bind(&TabletopPushingPerceptionNode::startTracker,
+                                this, _1),
+                    false),
       tf_(),
       tracker_("i_tracker"),
-      have_depth_data_(false), min_flow_thresh_(0), num_region_points_thresh_(1)
+      have_depth_data_(false), min_flow_thresh_(0),
+      num_region_points_thresh_(1), tracking_(false)
   {
     // Get parameters from the server
     ros::NodeHandle n_private("~");
@@ -538,8 +545,6 @@ class TabletopPushingPerceptionNode
     cv::Mat depth_region = depth_frame(roi);
     cv::Mat color_region = color_frame(roi);
 
-    // TODO: Switch this to a different class parameter when we dehook tracking
-    // from the immediate sensor callback
     // Save internally for use in the service callback
     prev_color_frame_ = cur_color_frame_.clone();
     prev_depth_frame_ = cur_depth_frame_.clone();
@@ -548,9 +553,9 @@ class TabletopPushingPerceptionNode
     cur_point_cloud_ = cloud;
     have_depth_data_ = true;
 
-    // TODO: Add a service call to turn tracking on and off
-    // TODO: Must deal with reseting and what not
-    trackRegions(cur_color_frame_, cur_depth_frame_, cur_point_cloud_);
+    // Started via actionlib call
+    if (tracking_)
+      trackRegions(cur_color_frame_, cur_depth_frame_, cur_point_cloud_);
   }
 
   bool getTableLocation(LocateTable::Request& req, LocateTable::Response& res)
@@ -609,6 +614,12 @@ class TabletopPushingPerceptionNode
   //
   // Region tracking methods
   //
+
+  void startTracker(const tabletop_pushing::SegTrackGoalConstPtr &goal)
+  {
+    tracking_ = true;
+    tracker_.stop();
+  }
 
   void trackRegions(cv::Mat color_frame, cv::Mat depth_frame,
                     XYZPointCloud& cloud)
@@ -980,6 +991,7 @@ class TabletopPushingPerceptionNode
   message_filters::Subscriber<sensor_msgs::Image> depth_sub_;
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
   message_filters::Synchronizer<MySyncPolicy> sync_;
+  actionlib::SimpleActionServer<tabletop_pushing::SegTrackAction> track_server_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
   ros::ServiceServer push_pose_server_;
@@ -1020,6 +1032,7 @@ class TabletopPushingPerceptionNode
   PoseStamped table_centroid_;
   int intensity_diff_thresh_;
   double depth_diff_thresh_;
+  bool tracking_;
 };
 
 int main(int argc, char ** argv)

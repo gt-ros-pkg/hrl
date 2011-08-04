@@ -1,0 +1,8 @@
+# goal
+bool reinit
+---
+# result
+geometry_msgs/PoseStamped end_pose
+---
+# feedback
+geometry_msgs/PoseStamped pose
