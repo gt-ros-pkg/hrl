@@ -3,7 +3,7 @@
 import roslib; roslib.load_manifest('hrl_pr2_lib')
 import rospy
 import math
-from geometry_msgs.msg import WrenchStamped, PoseStamped, Point
+from geometry_msgs.msg import WrenchStamped, PoseStamped, Point, PointStamped
 from tf import TransformListener, transformations
 from visualization_msgs.msg import Marker
 
@@ -90,24 +90,17 @@ class Pointmass_Adjust:
         self.adjustment.wrench.torque.y = self.mass*self.pos_x*math.cos(rot[1])
         self.adjustment.wrench.torque.z = self.mass*self.pos_x*math.sin(rot[0])
       
-        grav = PoseStamped()
-        grav.header.stamp = rospy.Time.now()
+        grav = PointStamped() # Generate a 'vector' of the force due to gravity at the ft sensor 
+        grav.header.stamp = rospy.Time(0) #Used to tell tf to grab latest available transform in transformVector3
         grav.header.frame_id = '/base_link'
-        grav.pose.position.x = pos[0]
-        grav.pose.position.y = pos[1]
-        grav.pose.position.z = pos[2] - 1#self.pos_x
-        grav.pose.orientation.x = 0
-        grav.pose.orientation.y = 0.5*math.sqrt(2)
-        grav.pose.orientation.z = 0
-        grav.pose.orientation.w = 0.5*math.sqrt(2)
+        grav.point.x = pos[0]
+        grav.point.y = pos[1]
+        grav.point.z = pos[2] - 9.80665*self.mass 
 
-        grav.header.stamp = rospy.Time(0)
-        netft_grav = self.tfl.transformPose('/l_netft_frame', grav)
-        netft_grav.header.stamp = rospy.Time.now()
-
-        self.adjustment.wrench.force.x = 9.80665*self.mass*netft_grav.pose.position.x
-        self.adjustment.wrench.force.y = 9.80665*self.mass*netft_grav.pose.position.y
-        self.adjustment.wrench.force.z = 9.80665*self.mass*netft_grav.pose.position.z
+        netft_grav = self.tfl.transformPoint('/l_netft_frame', grav) #Returns components of the 'gravity force' in each axis of the 'l_netft_frame'
+        self.adjustment.wrench.force.x = netft_grav.point.x
+        self.adjustment.wrench.force.y = netft_grav.point.y
+        self.adjustment.wrench.force.z = netft_grav.point.z
 
 if __name__ == "__main__":
     PMC = Pointmass_Adjust()
@@ -115,4 +108,3 @@ if __name__ == "__main__":
     while not rospy.is_shutdown():
         PMC.calc_adjustment()
         r.sleep()
-        #rospy.spin()
