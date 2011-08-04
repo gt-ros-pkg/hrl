@@ -60,3 +60,15 @@ def tree_from_urdf_model(robot_model):
     for child in robot_model.root_link.child_links:
         add_children_to_tree(child, tree)
     return tree
+
+def tree_from_file(filename):
+    robot_model = urdf.create_model_from_file(filename)
+    return tree_from_urdf_model(robot_model)
+
+def tree_from_param(param="/robot_description"):
+    robot_model = urdf.create_model_from_param(param)
+    return tree_from_urdf_model(robot_model)
+
+def chain_from_param(base_link, end_link, param="/robot_description"):
+    tree = tree_from_param(param)
+    return tree.getChain(base_link, end_link)

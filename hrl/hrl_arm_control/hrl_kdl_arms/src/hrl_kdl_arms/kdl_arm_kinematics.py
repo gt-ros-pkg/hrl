@@ -27,47 +27,29 @@
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# Author: Kelsey Hawkins and Advait Jain
+# Author: Kelsey Hawkins
 import numpy as np
 import PyKDL as kdl
 
 from equilibrium_point_control.hrl_arm_template import HRLArmKinematics
 
-class KDLArmParameters(object):
-    joint_offsets = None
-    rotation_axes = None
-    arm_base_pos = np.mat([0.]*3).T
-    arm_base_rot = np.eye(3)
-    tool_pos = np.mat([0.]*3).T
-    tool_rot = np.eye(3)
-
 class KDLArmKinematics(HRLArmKinematics):
-    def __init__(self, arm_params):
-        super(KDLArmKinematics, self).__init__(len(arm_params.joint_offsets), 
-                                               arm_params.arm_base_pos, 
-                                               arm_params.arm_base_rot,
-                                               arm_params.tool_pos, 
-                                               arm_params.tool_rot)
-        self.chain = self.create_chain(arm_params.joint_offsets, 
-                                       arm_params.rotation_axes)
+    def __init__(self, chain):
+        super(KDLArmKinematics, self).__init__(chain.getNrOfJoints())
+        self.chain = chain
+
         self.fk_kdl = kdl.ChainFkSolverPos_recursive(self.chain)
         self.ik_v_kdl = kdl.ChainIkSolverVel_pinv(self.chain)
         self.ik_p_kdl = kdl.ChainIkSolverPos_NR(self.chain, self.fk_kdl, self.ik_v_kdl)
         self.jac_kdl = kdl.ChainJntToJacSolver(self.chain)
+        self.dyn_kdl = kdl.ChainDynParam(self.chain, kdl.Vector.Zero())
 
-    def create_chain(self, joint_offsets, rotation_axes):
-        assert len(joint_offsets) == len(rotation_axes)
-        joint_types = [kdl.Joint.RotX, kdl.Joint.RotY, kdl.Joint.RotZ]
-        ch = kdl.Chain()
-        for i, row in enumerate(joint_offsets):
-            ch.addSegment(kdl.Segment(kdl.Joint(joint_types[rotation_axes[i]]),
-                                      kdl.Frame(kdl.Vector(*row))))
-        return ch
-
-    def FK_vanilla(self, q, link_number):
+    def FK_vanilla(self, q, link_number=None):
+        if link_number is None:
+            link_number = self.chain.getNrOfSegments()
         endeffec_frame = kdl.Frame()
-        kinematics_status = self.fk_kdl.JntToCart(self.joint_list_to_kdl(q), endeffec_frame,
-                                              link_number)
+        kinematics_status = self.fk_kdl.JntToCart(joint_list_to_kdl(q), endeffec_frame,
+                                                  link_number)
         if kinematics_status >= 0:
             p = endeffec_frame.p
             pos = np.mat([p.x(), p.y(), p.z()]).T
@@ -90,31 +72,44 @@ class KDLArmKinematics(HRLArmKinematics):
             q_guess = [0.] * self.n_jts
 
         q_kdl = kdl.JntArray(self.n_jts)
-        q_guess_kdl = self.joint_list_to_kdl(q_guess)
+        q_guess_kdl = joint_list_to_kdl(q_guess)
         if self.ik_p_kdl.CartToJnt(q_guess_kdl, frame_kdl, q_kdl) >= 0:
-            return self.joint_kdl_to_list(q_kdl)
+            return joint_kdl_to_list(q_kdl)
         else:
             return None
 
     def jacobian_vanilla(self, q, pos=None):
         j_kdl = kdl.Jacobian(self.n_jts)
-        q_kdl = self.joint_list_to_kdl(q)
+        q_kdl = joint_list_to_kdl(q)
         self.jac_kdl.JntToJac(q_kdl, j_kdl)
-        j_mat =  np.zeros((6, self.n_jts))
-        for i in range(6):
-            for j in range(self.n_jts):
-                j_mat[i,j] = j_kdl[i,j]
-        return j_mat
+        return kdl_to_mat(j_kdl)
 
-    def joint_kdl_to_list(self, q):
-        if q == None:
-            return None
-        return [q[i] for i in range(self.n_jts)]
+    def inertia(self, q):
+        h_kdl = kdl.JntSpaceInertiaMatrix(self.n_jts)
+        self.dyn_kdl.JntToMass(joint_list_to_kdl(q), h_kdl)
+        return kdl_to_mat(h_kdl)
 
-    def joint_list_to_kdl(self, q):
-        if q is None:
-            return None
-        q_kdl = kdl.JntArray(len(q))
-        for i, q_i in enumerate(q):
-            q_kdl[i] = q_i
-        return q_kdl
+    def cart_inertia(self, q):
+        H = self.inertia(q)
+        J = self.jacobian(q)
+        return np.linalg.inv(J * np.linalg.inv(H) * J.T)
+        
+def kdl_to_mat(m):
+    mat =  np.mat(np.zeros((m.rows(), m.columns())))
+    for i in range(m.rows()):
+        for j in range(m.columns()):
+            mat[i,j] = m[i,j]
+    return mat
+
+def joint_kdl_to_list(q):
+    if q == None:
+        return None
+    return [q[i] for i in range(q.rows())]
+
+def joint_list_to_kdl(q):
+    if q is None:
+        return None
+    q_kdl = kdl.JntArray(len(q))
+    for i, q_i in enumerate(q):
+        q_kdl[i] = q_i
+    return q_kdl
