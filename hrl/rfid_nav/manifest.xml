@@ -1,0 +1,20 @@
+<package>
+  <description brief="rfid_nav">
+
+     rfid_nav
+
+  </description>
+  <author>Travis</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/rfid_nav</url>
+  <depend package="pr2_navigation_slam"/>
+  <depend package="pr2_navigation_perception"/>
+  <depend package="pr2_navigation_teleop"/>
+  <depend package="pr2_machine"/>
+  <depend package="move_base"/>
+  <depend package="sbpl"/>
+
+</package>
+
+

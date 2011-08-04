@@ -1,0 +1,57 @@
+loop_closure_planner:
+  allow_unknown: false
+explore_planner:
+  allow_unknown: true
+#  allow_unknown: false
+#Independent settings for the planner's costmap
+explore_costmap: 
+  global_frame: /map
+  # global_frame: /odom_combined
+  robot_base_frame: base_footprint
+  update_frequency: 5.0
+  publish_frequency: 2.0
+  static_map: true
+  rolling_window: false
+  unknown_cost_value: 255
+  map_topic: /map_reload
+  max_obstacle_height: 1.4
+  min_obstacle_heigh: 0.08
+  width: 60.0
+  height: 60.0
+  transform_tolerance: 0.2
+  obstacle_range: 2.5
+  raytrace_range: 3.0
+  inflation_radius: 0.35
+#  inflation_radius: 0.60
+#  robot_radius: 0.55
+
+# FULL TILT DETECT (uses voxel grid)
+  map_type: voxel
+  z_voxels: 7
+  unknown_threshold: 2
+  mark_threshold: 0
+
+  observation_sources: base_scan_marking base_scan tilt_scan ground_object_cloud
+
+  base_scan_marking: {sensor_frame: base_laser_link, topic: /base_scan_marking, data_type: PointCloud, expected_update_rate: 0.2,
+                     observation_persistence: 0.0, marking: true, clearing: false, min_obstacle_height: 0.08, max_obstacle_height: 2.0}
+
+  base_scan: {sensor_frame: base_laser_link, topic: /base_scan, data_type: LaserScan, expected_update_rate: 0.2,
+             observation_persistence: 0.0, marking: false, clearing: true, min_obstacle_height: -0.10, max_obstacle_height: 2.0}
+
+  tilt_scan: {sensor_frame: laser_tilt_link, topic: /tilt_scan, data_type: LaserScan, expected_update_rate: 0.2,
+             observation_persistence: 0.2, marking: false, clearing: true, min_obstacle_height: -20.00, max_obstacle_height: 40.0}
+
+  ground_object_cloud: {sensor_frame: laser_tilt_link, topic: /ground_object_cloud, data_type: PointCloud, expected_update_rate: 0.2,
+                       observation_persistence: 4.6, marking: true, clearing: false, min_obstacle_height: -0.10, max_obstacle_height: 2.0}
+
+# PLANAR DETECTION (uses costmap type)
+#  map_type: costmap
+#  track_unknown_space: true
+
+#  observation_sources: base_scan 
+
+#  base_scan: {sensor_frame: base_laser_link, topic: /base_scan, data_type: LaserScan, expected_update_rate: 0.33,
+#             observation_persistence: 0.0, marking: true, clearing: true, min_obstacle_height: 0.08, max_obstacle_height: 2.0}
+
+
