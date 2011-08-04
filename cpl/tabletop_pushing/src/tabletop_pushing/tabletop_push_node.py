@@ -33,7 +33,6 @@
 
 import roslib; roslib.load_manifest('tabletop_pushing')
 import rospy
-import actionlib
 import hrl_pr2_lib.linear_move as lm
 import hrl_pr2_lib.pr2 as pr2
 import hrl_lib.tf_utils as tfu

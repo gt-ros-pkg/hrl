@@ -448,7 +448,7 @@ class TabletopPushingPerceptionNode
       depth_sub_(n, "depth_image_topic", 1),
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(1), image_sub_, depth_sub_, cloud_sub_),
-      track_server_(n, "seg_track_server",
+      track_server_(n, "seg_track_action",
                     boost::bind(&TabletopPushingPerceptionNode::startTracker,
                                 this, _1),
                     false),

@@ -33,6 +33,7 @@
 
 import roslib; roslib.load_manifest('tabletop_pushing')
 import rospy
+import actionlib
 import hrl_pr2_lib.linear_move as lm
 import hrl_pr2_lib.pr2 as pr2
 import hrl_lib.tf_utils as tfu
@@ -40,6 +41,7 @@ from geometry_msgs.msg import PoseStamped
 import tf
 import numpy as np
 from tabletop_pushing.srv import *
+from tabletop_pushing.msg import *
 from math import sin, cos, pi
 import sys
 
@@ -85,26 +87,21 @@ class TabletopExecutive:
         self.raise_and_look_push_proxy = rospy.ServiceProxy('raise_and_look',
                                                             RaiseAndLook)
         self.table_proxy = rospy.ServiceProxy('get_table_location', LocateTable)
+        self.tracker_clinet = actionlib.SimpleActionClient('/seg_track_action',
+                                                           SegTrackAction)
+        self.client.wait_for_server()
         self.use_fake_push_pose = use_fake_push_pose
 
     def run(self,
             num_l_gripper_pushes, num_l_sweeps, num_l_overhead_pushes,
             num_r_gripper_pushes, num_r_sweeps, num_r_overhead_pushes):
 
-        # TODO: Get table height and raise to that before anything else
-        rospy.loginfo("Getting table pose")
-        table_req = LocateTableRequest()
-        table_req.recalculate = True
-        raise_req = RaiseAndLookRequest()
-        try:
-            table_res = self.table_proxy(table_req);
-        except rospy.ServiceException, e:
-            rospy.logwarn("Service did not process request: %s"%str(e))
-            return
-        raise_req.table_centroid = table_res.table_centroid
+        # Get table height and raise to that before anything else
+        self.raise_and_look()
 
-        rospy.loginfo("Raising spine");
-        raise_res = self.raise_and_look_push_proxy(raise_req)
+        # Start tracking
+        self.start_tracker()
+
         rospy.loginfo("Pushing shit");
         for i in xrange(num_l_gripper_pushes):
             self.gripper_push_object(self.gripper_push_dist, 'l')
@@ -118,6 +115,26 @@ class TabletopExecutive:
             self.overhead_push_object(self.overhead_push_dist, 'l')
         for i in xrange(num_r_overhead_pushes):
             self.overhead_push_object(self.overhead_push_dist, 'r')
+
+    def raise_and_look(self):
+        rospy.loginfo("Getting table pose")
+        table_req = LocateTableRequest()
+        table_req.recalculate = True
+        raise_req = RaiseAndLookRequest()
+        try:
+            table_res = self.table_proxy(table_req);
+        except rospy.ServiceException, e:
+            rospy.logwarn("Service did not process request: %s"%str(e))
+            return
+        raise_req.table_centroid = table_res.table_centroid
+
+        rospy.loginfo("Raising spine");
+        raise_res = self.raise_and_look_push_proxy(raise_req)
+
+    def start_tracker(self):
+        track_goal = SegTrackGoal()
+        track_goal.reinit = True
+        self.tracker_clinet.send_goal(track_goal)
 
     def gripper_push_object(self, push_dist, which_arm):
         # Make push_pose service request
