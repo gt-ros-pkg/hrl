@@ -17,6 +17,8 @@ import tf.transformations as tf_trans
 
 from hrl_generic_arms.hrl_arm_template import HRLArm
 from hrl_generic_arms.pose_converter import PoseConverter
+import kdl_parser_python.kdl_parser as kdlp
+from hrl_kdl_arms.kdl_arm_kinematics import KDLArmKinematics
 
 
 JOINT_NAMES_LIST = ['_shoulder_pan_joint',
@@ -78,6 +80,16 @@ class PR2Arm(HRLArm):
             while ret_q[ind] > np.pi:
                 ret_q[ind] -= 2*np.pi
         return np.array(ret_q)
+
+def create_pr2_arm(arm, arm_type=PR2Arm, base_link="torso_lift_link",  
+                   end_link="%s_gripper_tool_frame", param="/robot_description"):
+    if "%s" in base_link:
+        base_link = base_link % arm
+    if "%s" in end_link:
+        end_link = end_link % arm
+    chain, joint_info = kdlp.chain_from_param(base_link, end_link, param=param)
+    kin = KDLArmKinematics(chain, joint_info)
+    return arm_type(arm, kin)
 
 class PR2ArmJointTrajectory(PR2Arm):
     def __init__(self, arm, kinematics):

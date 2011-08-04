@@ -13,11 +13,7 @@ from geometry_msgs.msg import Point, Quaternion, Vector3, PoseStamped
 from std_msgs.msg import ColorRGBA
 from sensor_msgs.msg import JointState
 import tf.transformations as tf_trans
-from equilibrium_point_control.pose_converter import PoseConverter
-
-import urdf_interface as urdf
-import kdl_parser as kdlp
-from hrl_pr2_arms.kdl_arm_kinematics import KDLArmKinematics
+from hrl_generic_arms.pose_converter import PoseConverter
 
 from spheroid_space import SpheroidSpace
 
@@ -26,11 +22,11 @@ JOINT_STATE_INDS_L = [29, 30, 28, 32, 31, 33, 34]
 
 class SpheroidViz:
     def __init__(self):
-        rot = np.mat([[1, 0, 0], [0, 1./np.sqrt(2), -1./np.sqrt(2)], [0, 1./np.sqrt(2), 1./np.sqrt(2)]])
-        self.sspace = SpheroidSpace(0.2, np.mat([1.0, 0.5, 0.5]).T, rot)
+        ellipse_rot = np.mat([[-1., 0., 0.], [0., -1., 0.], [0., 0., 1.]])
+        self.sspace = SpheroidSpace(0.15, np.mat([0.78, -0.18, 0.1]).T, ellipse_rot)
         self.colors = [ColorRGBA(1., 0., 0., 1.), ColorRGBA(0., 1., 0., 1.)]
-        self.vis_pub = rospy.Publisher("force_torque_markers_array", MarkerArray)
-        self.pose_pub = rospy.Publisher("spheroid_poses", PoseStamped)
+        self.vis_pub = rospy.Publisher("/force_torque_markers_array", MarkerArray)
+        self.pose_pub = rospy.Publisher("/spheroid_poses", PoseStamped)
 
         m = Marker()
         m.header.frame_id = "torso_lift_link"
@@ -50,7 +46,7 @@ class SpheroidViz:
     def publish_vector(self, m_id):
         new_m = copy.deepcopy(self.m)
         new_m.id = m_id
-        u, v, p = 1, np.random.uniform(0, np.pi), np.random.uniform(0, 2 * np.pi)
+        u, v, p = 1.0, np.random.uniform(0, np.pi), np.random.uniform(0, 2 * np.pi)
         pos = self.sspace.spheroidal_to_cart((u, v, p))
         new_m.points.append(Point(*pos))
 
@@ -77,7 +73,7 @@ def main():
     while not rospy.is_shutdown():
         jfv.publish_vector(i)
         i += 1
-        rospy.sleep(0.5)
+        rospy.sleep(0.1)
     return
 
 if __name__ == "__main__":

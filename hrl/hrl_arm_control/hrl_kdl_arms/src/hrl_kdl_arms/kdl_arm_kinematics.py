@@ -34,12 +34,16 @@ import PyKDL as kdl
 import roslib
 roslib.load_manifest("hrl_generic_arms")
 
+import rospy
+
+import urdf_parser_python.urdf_parser as urdf
 from hrl_generic_arms.hrl_arm_template import HRLArmKinematics
 
 class KDLArmKinematics(HRLArmKinematics):
-    def __init__(self, chain):
+    def __init__(self, chain, joint_info):
         super(KDLArmKinematics, self).__init__(chain.getNrOfJoints())
         self.chain = chain
+        self.joint_info = joint_info
 
         self.fk_kdl = kdl.ChainFkSolverPos_recursive(self.chain)
         self.ik_v_kdl = kdl.ChainIkSolverVel_pinv(self.chain)
@@ -77,7 +81,7 @@ class KDLArmKinematics(HRLArmKinematics):
         q_kdl = kdl.JntArray(self.n_jts)
         q_guess_kdl = joint_list_to_kdl(q_guess)
         if self.ik_p_kdl.CartToJnt(q_guess_kdl, frame_kdl, q_kdl) >= 0:
-            return joint_kdl_to_list(q_kdl)
+            return self.normalize_angles(joint_kdl_to_list(q_kdl))
         else:
             return None
 
@@ -96,6 +100,47 @@ class KDLArmKinematics(HRLArmKinematics):
         H = self.inertia(q)
         J = self.jacobian(q)
         return np.linalg.inv(J * np.linalg.inv(H) * J.T)
+
+    def normalize_angles(self, q):
+        min_lims = self.joint_info["safe_mins"]
+        max_lims = self.joint_info["safe_maxs"]
+        q_mod = np.mod(q, 2 * np.pi)
+        in_lims_a = np.all([q_mod >= min_lims, q_mod <= max_lims], 0)
+        in_lims_b = np.all([(q_mod - 2*np.pi) >= min_lims, (q_mod - 2*np.pi) <= max_lims], 0)
+        if np.all(np.any([in_lims_a, in_lims_b],0)):
+            return np.where(in_lims_a, q_mod, q_mod - 2 * np.pi)
+        return None
+
+    def angles_in_limits(self, q):
+        min_lims = self.joint_info["lim_mins"]
+        max_lims = self.joint_info["lim_maxs"]
+        return np.all([q >= min_lims, q <= max_lims], 0)
+
+    def angles_in_safetys(self, q):
+        min_lims = self.joint_info["safe_mins"]
+        max_lims = self.joint_info["safe_maxs"]
+        return np.all([q >= min_lims, q <= max_lims], 0)
+
+    def random_joint_angles(self):
+        min_lims = self.joint_info["safe_mins"]
+        max_lims = self.joint_info["safe_maxs"]
+        contins = np.array(self.joint_info["types"]) == urdf.Joint.CONTINUOUS
+        min_lims = np.where(contins, -np.pi, min_lims)
+        max_lims = np.where(contins, np.pi, max_lims)
+        zip_lims = zip(min_lims, max_lims)
+        return [np.random.uniform(min_lim, max_lim) for min_lim, max_lim in zip_lims]
+
+    def IK_search(self, pos, rot, timeout=1.):
+        st_time = rospy.get_time()
+        while not rospy.is_shutdown() and rospy.get_time() - st_time < timeout:
+            q_init = self.random_joint_angles()
+            q_ik = self.IK_vanilla(pos, rot, q_init)
+            if q_ik is not None:
+                #print "time", rospy.get_time() - st_time
+                return q_ik
+        return None
+        
+
         
 def kdl_to_mat(m):
     mat =  np.mat(np.zeros((m.rows(), m.columns())))

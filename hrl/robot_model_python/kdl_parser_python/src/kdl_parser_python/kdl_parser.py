@@ -1,8 +1,21 @@
 #!/usr/bin/env python
 
+import numpy as np
+
 import roslib
 roslib.load_manifest("kdl_parser_python")
-#roslib.load_manifest("python_orocos_kdl")
+
+# this is an odd little trick which puts our libraries ahead of all the others
+# so that we get the new version of PyKDL instead of the old one
+import sys
+kpp_paths, other_paths = [], []
+for path in sys.path:
+    if "kdl_parser_python" in path:
+        kpp_paths.append(path)
+    else:
+        other_paths.append(path)
+sys.path = kpp_paths + other_paths
+
 import urdf_parser_python.urdf_parser as urdf
 import PyKDL as kdl
 
@@ -70,5 +83,35 @@ def tree_from_param(param="/robot_description"):
     return tree_from_urdf_model(robot_model)
 
 def chain_from_param(base_link, end_link, param="/robot_description"):
-    tree = tree_from_param(param)
-    return tree.getChain(base_link, end_link)
+    robot_model = urdf.create_model_from_param(param)
+    tree = tree_from_urdf_model(robot_model)
+    chain = tree.getChain(base_link, end_link)
+    joint_info = joint_info_from_model(chain, robot_model)
+    return chain, joint_info
+
+def joint_info_from_model(chain, model):
+    joint_info = {"names" : [], 
+                  "types" : [],
+                  "lim_mins" : [], 
+                  "lim_maxs" : [], 
+                  "safe_mins" : [], 
+                  "safe_maxs" : []}
+    for i in range(chain.getNrOfSegments()):
+        seg = chain.getSegment(i)
+        joint = seg.getJoint()
+        if joint.getType() != joint.None:
+            name = joint.getName()
+            joint_info["names"].append(name)
+            mdl_jnt = model.joints[name]
+            joint_info["types"].append(mdl_jnt.type)
+            if mdl_jnt.type == urdf.Joint.CONTINUOUS:
+                joint_info["lim_mins"].append(-np.inf)
+                joint_info["lim_maxs"].append(np.inf)
+                joint_info["safe_mins"].append(-np.inf)
+                joint_info["safe_maxs"].append(np.inf)
+            else:
+                joint_info["lim_mins"].append(mdl_jnt.limits.lower)
+                joint_info["lim_maxs"].append(mdl_jnt.limits.upper)
+                joint_info["safe_mins"].append(mdl_jnt.safety.soft_lower_limit)
+                joint_info["safe_maxs"].append(mdl_jnt.safety.soft_upper_limit)
+    return joint_info

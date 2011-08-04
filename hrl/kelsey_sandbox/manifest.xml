@@ -31,7 +31,7 @@
   <depend package="filters"/>
   <!--
   <export>
-    <cpp cflags="-I${prefix}/include `rosboost-cfg --cflags`" lflags=""/>
+    <cpp cflags="-I${prefix}/include `rosboost-cfg -cflags`" lflags=""/>
     <pr2_controller_interface plugin="${prefix}/controller_plugins.xml" />
     <filters plugin="${prefix}/filter_plugins.xml" />
   </export>
