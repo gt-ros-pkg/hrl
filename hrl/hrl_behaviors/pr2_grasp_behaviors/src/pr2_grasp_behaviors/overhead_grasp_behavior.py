@@ -111,11 +111,11 @@ def main():
         og = OverheadGrasp(sys.argv[1], use_coll_detection=True)
         while not rospy.is_shutdown():
             params = og.random_generator()
-            print "Grasp Result:", og.perform_grasp(params, is_place=False, collide=True, 
-                                                    behavior_name="overhead_grasp", sig_level=0.99)
+            print "Grasp Result:", og.perform_grasp(params, is_place=False, collide=False, 
+                                                    behavior_name="overhead_grasp", sig_level=0.999)
             params = og.random_generator()
-            print "Place Result:", og.perform_grasp(params, is_place=True, collide=True, 
-                                                    behavior_name="overhead_grasp", sig_level=0.99)
+            print "Place Result:", og.perform_grasp(params, is_place=True, collide=False, 
+                                                    behavior_name="overhead_grasp", sig_level=0.999)
         return
 
     if sys.argv[2] == "data":
