@@ -22,6 +22,7 @@
   <depend package="rosparam"/>
   <depend package="hrl_kdl_arms"/>
   <depend package="hrl_generic_arms"/>
+  <depend package="kdl_parser_python"/>
 
 </package>
 

@@ -2,20 +2,21 @@
 
 import copy
 import numpy as np
-import roslib; roslib.load_manifest('hrl_pr2_arms')
+import roslib
+roslib.load_manifest('hrl_pr2_arms')
 import rospy
 import actionlib
 
 from std_msgs.msg import Header
 from sensor_msgs.msg import JointState
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal
-from teleop_controllers.msg import CartesianGains
+#from teleop_controllers.msg import CartesianGains
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from trajectory_msgs.msg import JointTrajectoryPoint
 import tf.transformations as tf_trans
 
-from equilibrium_point_control.hrl_arm_template import HRLArm
-from equilibrium_point_control.pose_converter import PoseConverter
+from hrl_generic_arms.hrl_arm_template import HRLArm
+from hrl_generic_arms.pose_converter import PoseConverter
 
 
 JOINT_NAMES_LIST = ['_shoulder_pan_joint',
@@ -78,11 +79,6 @@ class PR2Arm(HRLArm):
                 ret_q[ind] -= 2*np.pi
         return np.array(ret_q)
 
-##
-# Returns pairs of positions and rotations linearly interpolated between
-# the start and end position/orientations.  Rotations are found using slerp
-# @return List of (pos, rot) waypoints between start and end.
-
 class PR2ArmJointTrajectory(PR2Arm):
     def __init__(self, arm, kinematics):
         super(PR2ArmJointTrajectory, self).__init__(arm, kinematics)
@@ -127,6 +123,10 @@ class PR2ArmCartesianBase(PR2Arm):
         self.command_pose_pub.publish(cep_pose_stmp)
         self.ep = copy.deepcopy(cep)
 
+    ##
+    # Returns pairs of positions and rotations linearly interpolated between
+    # the start and end position/orientations.  Rotations are found using slerp
+    # @return List of (pos, rot) waypoints between start and end.
     def interpolate_ep(self, ep_a, ep_b, num_steps):
         pos_a, rot_a = ep_a
         pos_b, rot_b = ep_b
