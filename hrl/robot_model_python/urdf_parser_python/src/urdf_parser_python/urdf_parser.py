@@ -1,6 +1,8 @@
 
 import roslib
+roslib.load_manifest("rospy")
 roslib.load_manifest("tf")
+import rospy
 
 import re
 import xml.dom.minidom as minidom
@@ -306,6 +308,12 @@ class Model(object):
 
         # TODO materials / geometry
 
+def create_model_from_dom(dom):
+    robot_dom = dom.getElementsByTagName("robot")[0]
+    model = Model()
+    model.init_xml(robot_dom)
+    return model
+
 def create_model_from_file(filename):
     dom = minidom.parse(filename)
     return create_model_from_dom(dom)
@@ -313,10 +321,9 @@ def create_model_from_file(filename):
 def create_model_from_string(string):
     dom = minidom.parseString(string)
     return create_model_from_dom(dom)
-
-def create_model_from_dom(dom):
-    robot_dom = dom.getElementsByTagName("robot")[0]
-    model = Model()
-    model.init_xml(robot_dom)
-    return model
             
+def create_model_from_param(param="/robot_description"):
+    import rospy
+    urdf_str = rospy.get_param(param)
+    return create_model_from_string(urdf_str)
+

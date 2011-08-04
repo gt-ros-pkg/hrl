@@ -1,0 +1,14 @@
+<package>
+  <description brief="urdf_parser_python">
+
+     urdf_parser_python
+
+  </description>
+  <author>Kelsey Hawkins</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/urdf_parser_python</url>
+
+</package>
+
+

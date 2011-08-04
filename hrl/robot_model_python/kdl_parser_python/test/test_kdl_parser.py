@@ -5,10 +5,12 @@ import numpy as np
 import roslib
 roslib.load_manifest("hrl_pr2_arms")
 roslib.load_manifest("rospy")
-roslib.load_manifest("python_orocos_kdl")
+roslib.load_manifest("urdf_parser_python")
+roslib.load_manifest("kdl_parser_python")
+#roslib.load_manifest("python_orocos_kdl")
 import rospy
-import urdf_interface as urdf
-import kdl_parser as kdlp
+import urdf_parser_python.urdf_parser as urdf
+import kdl_parser_python.kdl_parser as kdlp
 import PyKDL as kdl
 from hrl_pr2_arms.kdl_arm_kinematics import KDLArmKinematics
 
@@ -20,7 +22,8 @@ def joint_list_to_kdl(q):
         q_kdl[i] = q_i
     return q_kdl
 
-model = urdf.create_model_from_file("/etc/ros/diamondback/urdf/robot.xml")
+#model = urdf.create_model_from_file("/etc/ros/diamondback/urdf/robot.xml")
+model = urdf.create_model_from_param()
 tree = kdlp.tree_from_urdf_model(model)
 chain = tree.getChain("torso_lift_link", "r_gripper_tool_frame")
 #chain = tree.getChain("torso_lift_link", "r_gripper_palm_link")

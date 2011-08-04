@@ -1,8 +1,9 @@
+#!/usr/bin/env python
 
 import roslib
-#roslib.load_manifest("kelsey_sandbox")
-roslib.load_manifest("python_orocos_kdl")
-import urdf_interface as urdf
+roslib.load_manifest("kdl_parser_python")
+#roslib.load_manifest("python_orocos_kdl")
+import urdf_parser_python.urdf_parser as urdf
 import PyKDL as kdl
 
 def to_kdl_vector(v):
