@@ -41,10 +41,18 @@ class PoseConverter:
             if homo_mat is not None:
                 return header, homo_mat, rot_quat
 
-            elif ((type(args[0]) == list or type(args[0]) == tuple) and len(args[0]) == 3 and
-                  (type(args[1]) == list or type(args[1]) == tuple) and len(args[1]) == 4):
-                homo_mat = np.mat(quaternion_matrix(args[1]))
-                homo_mat[:3,3] = np.mat(args[0]).T
+            elif ((type(args[0]) == list or type(args[0]) == tuple or 
+                   type(args[0]) == np.core.matrix or type(args[0]) == np.ndarray) and 
+                  len(args[0]) == 3 and
+                  (type(args[1]) == list or type(args[1]) == tuple or
+                   type(args[1]) == np.core.matrix or type(args[1]) == np.ndarray) and 
+                  len(args[1]) == 4):
+                if len(np.shape(args[0])) > 1 and np.shape(args[0])[1] == 1:
+                    pos = args[0]
+                else:
+                    pos = np.mat(args[0]).T
+                homo_mat = np.mat(tf_trans.quaternion_matrix(args[1]))
+                homo_mat[:3,3] = pos
                 return None, homo_mat, args[1]
 
         assert False, "Unknown pose type"
