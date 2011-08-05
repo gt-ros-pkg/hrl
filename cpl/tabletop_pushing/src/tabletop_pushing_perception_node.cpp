@@ -455,7 +455,6 @@ class ProbImageDifferencing
 
     // Restart the queue
     pixel_histories_.clear();
-    ROS_INFO_STREAM("Calling update internally");
     update(cur_color_frame, cur_depth_frame);
   }
 
@@ -463,38 +462,17 @@ class ProbImageDifferencing
   {
     // Convert to correct format
     cv::Mat color_frame(cur_color_frame.size(), CV_32FC3);
-    ROS_INFO_STREAM("converting to");
     cur_color_frame.convertTo(color_frame, CV_32FC3, 1./255, 0);
-
-    int greatest_ones = 0;
-    for (int r = 0; r < color_frame.rows; ++r)
-    {
-      for (int c = 0; c < color_frame.cols; ++c)
-      {
-        for (int i = 0; i < 3; ++i)
-        {
-          if (color_frame.at<cv::Vec3f>(r,c)[i] > 1.0)
-            greatest_ones++;
-        }
-      }
-    }
-
-    ROS_INFO_STREAM("Have " << greatest_ones << " pixels that conver to values > 1.0");
-
-    ROS_INFO_STREAM("Pushing back");
     pixel_histories_.push_back(color_frame);
-
     // Pop the front of the queue if we have too many frames
     if (pixel_histories_.size() > num_hist_frames_)
     {
-      ROS_INFO_STREAM("Popping front");
       pixel_histories_.pop_front();
     }
 
     // Update Gaussian estimates at each pixel
 
     // Calculate means
-    ROS_INFO_STREAM("Getting frames.");
     cv::Mat means(color_frame.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     for (unsigned int i = 0; i < pixel_histories_.size(); ++i)
     {
@@ -506,10 +484,9 @@ class ProbImageDifferencing
         }
       }
     }
-    means /= means;
+    means /= pixel_histories_.size();
 
     // Calculate variances
-    ROS_INFO_STREAM("Getting variances.");
     cv::Mat vars(color_frame.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     for (unsigned int i = 0; i < pixel_histories_.size(); ++i)
     {
@@ -526,7 +503,6 @@ class ProbImageDifferencing
     vars /= (pixel_histories_.size()-1.0);
 
     // Calculate probability of pixels having moved
-    ROS_INFO_STREAM("Getting probabilities.");
     cv::Vec3f ones;
     ones[0] = 1.0;
     ones[1] = 1.0;
@@ -538,33 +514,11 @@ class ProbImageDifferencing
         cv::Vec3f x = color_frame.at<cv::Vec3f>(r,c);
         cv::Vec3f mu = means.at<cv::Vec3f>(r,c);
         cv::Vec3f var = vars.at<cv::Vec3f>(r,c);
+        // NOTE: Probability of not belonging to the gaussian
         cv::Vec3f probs = ones - p_x_gaussian(x, mu, var);
         motion_probs_.at<cv::Vec3f>(r,c) = probs;
-        if ( c % 30 == 0 && r % 30 == 0)
-        {
-          // ROS_INFO_STREAM("Probs at (" << r << ", " << c << ") = "
-          //                 << probs[0] << " * " << probs[1] << " * " << probs[2]
-          //                 << " = " << probs[0]*probs[1]*probs[2]);
-          ROS_INFO_STREAM("vars at (" << r << ", " << c << ") : ("
-                          << var[0] << ", " << var[1] << ", " << var[2]
-                          << ")");
-        }
       }
     }
-    int greater_ones = 0;
-    for (int r = 0; r < motion_probs_.rows; ++r)
-    {
-      for (int c = 0; c < motion_probs_.cols; ++c)
-      {
-        for (int i = 0; i < 3; ++i)
-        {
-          if (motion_probs_.at<cv::Vec3f>(r,c)[i] > 1.0)
-            greater_ones++;
-        }
-      }
-    }
-    ROS_INFO_STREAM("Have " << greater_ones << " pixels with probabilty over 1");
-
     return motion_probs_;
   }
 
@@ -586,7 +540,7 @@ class ProbImageDifferencing
       else
         return 0.0;
     }
-    return 1.0/(sqrt(2.0*sigma2*M_PI))*exp(-1.0/(2.0*sigma2)*(x-mu)*(x-mu));
+    return 1.0/(sqrt(2.0*sigma2*M_PI))*exp(-(x-mu)*(x-mu)/(2.0*sigma2));
   }
 
  protected:
@@ -809,10 +763,10 @@ class TabletopPushingPerceptionNode
     cv::Mat cur_probs = motion_probs_.update(color_frame, depth_frame);
     std::vector<cv::Mat> motion_prob_channels;
     cv::split(cur_probs, motion_prob_channels);
-    cv::imshow("b_motion_prob", motion_prob_channels[0]);
-    cv::imshow("g_motion_prob", motion_prob_channels[1]);
-    cv::imshow("r_motion_prob", motion_prob_channels[2]);
-    cv::waitKey();
+    // cv::imshow("b_motion_prob", motion_prob_channels[0]);
+    // cv::imshow("g_motion_prob", motion_prob_channels[1]);
+    // cv::imshow("r_motion_prob", motion_prob_channels[2]);
+    // cv::waitKey();
 
     cv::Mat moving = updateRegionTracks(color_frame, depth_frame, regions);
     cv::RotatedRect el = computeEllipsoid2D(color_frame, moving);
