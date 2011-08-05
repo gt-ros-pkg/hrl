@@ -405,17 +405,17 @@ class FeatureTracker
   double klt_corner_min_dist_;
 };
 
-class TabletopPushingPerceptionNode
+class RegionTrackingNode
 {
  public:
-  TabletopPushingPerceptionNode(ros::NodeHandle &n) :
+  RegionTrackingNode(ros::NodeHandle &n) :
       n_(n),
       image_sub_(n, "color_image_topic", 1),
       depth_sub_(n, "depth_image_topic", 1),
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(1), image_sub_, depth_sub_, cloud_sub_),
-      track_server_(n, "seg_track_action",
-                    boost::bind(&TabletopPushingPerceptionNode::startTracker,
+      track_server_(n, "region_track_action",
+                    boost::bind(&RegionTrackingNode::startTracker,
                                 this, _1),
                     false),
       tf_(),
@@ -467,12 +467,12 @@ class TabletopPushingPerceptionNode
     tracker_.setMinFlowThresh(min_flow_thresh_);
 
     // Setup ros node connections
-    sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
+    sync_.registerCallback(&RegionTrackingNode::sensorCallback,
                            this);
     push_pose_server_ = n_.advertiseService(
-        "get_push_pose", &TabletopPushingPerceptionNode::getPushPose, this);
+        "get_push_pose", &RegionTrackingNode::getPushPose, this);
     table_location_server_ = n_.advertiseService(
-        "get_table_location", &TabletopPushingPerceptionNode::getTableLocation,
+        "get_table_location", &RegionTrackingNode::getTableLocation,
         this);
   }
 
@@ -1013,6 +1013,6 @@ int main(int argc, char ** argv)
 {
   ros::init(argc, argv, "tabletop_perception_node");
   ros::NodeHandle n;
-  TabletopPushingPerceptionNode perception_node(n);
+  RegionTrackingNode tracking_node(n);
   perception_node.spin();
 }
