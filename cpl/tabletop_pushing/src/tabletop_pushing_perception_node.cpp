@@ -86,6 +86,7 @@
 
 // STL
 #include <vector>
+#include <deque>
 #include <set>
 #include <map>
 #include <queue>
@@ -439,6 +440,150 @@ class FeatureTracker
   double klt_corner_min_dist_;
 };
 
+class ProbImageDifferencing
+{
+ public:
+  ProbImageDifferencing(int num_hist_frames) :
+      num_hist_frames_(num_hist_frames)
+  {
+  }
+
+  void initialize(cv::Mat& cur_color_frame, cv::Mat& cur_depth_frame)
+  {
+    // Restart the motion history
+    motion_probs_.create(cur_color_frame.size(), CV_32FC3);
+
+    // Restart the queue
+    pixel_histories_.clear();
+    ROS_INFO_STREAM("Calling update internally");
+    update(cur_color_frame, cur_depth_frame);
+  }
+
+  cv::Mat update(cv::Mat& cur_color_frame, cv::Mat& cur_depth_frame)
+  {
+    // Convert to correct format
+    cv::Mat color_frame(cur_color_frame.size(), CV_32FC3);
+    ROS_INFO_STREAM("converting to");
+    cur_color_frame.convertTo(color_frame, CV_32FC3, 1./255, 0);
+
+    int greatest_ones = 0;
+    for (int r = 0; r < color_frame.rows; ++r)
+    {
+      for (int c = 0; c < color_frame.cols; ++c)
+      {
+        for (int i = 0; i < 3; ++i)
+        {
+          if (color_frame.at<cv::Vec3f>(r,c)[i] > 1.0)
+            greatest_ones++;
+        }
+      }
+    }
+
+    ROS_INFO_STREAM("Have " << greatest_ones << " pixels that conver to values > 1.0");
+
+    ROS_INFO_STREAM("Pushing back");
+    pixel_histories_.push_back(color_frame);
+
+    // Pop the front of the queue if we have too many frames
+    if (pixel_histories_.size() > num_hist_frames_)
+    {
+      ROS_INFO_STREAM("Popping front");
+      pixel_histories_.pop_front();
+    }
+
+    // Update Gaussian estimates at each pixel
+
+    // Calculate means
+    ROS_INFO_STREAM("Getting frames.");
+    cv::Mat means(color_frame.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    for (unsigned int i = 0; i < pixel_histories_.size(); ++i)
+    {
+      for (int r = 0; r < means.rows; ++r)
+      {
+        for (int c = 0; c < means.cols; ++c)
+        {
+          means.at<cv::Vec3f>(r,c) += pixel_histories_[i].at<cv::Vec3f>(r,c);
+        }
+      }
+    }
+    means /= means;
+
+    // Calculate variances
+    ROS_INFO_STREAM("Getting variances.");
+    cv::Mat vars(color_frame.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    for (unsigned int i = 0; i < pixel_histories_.size(); ++i)
+    {
+      for (int r = 0; r < means.rows; ++r)
+      {
+        for (int c = 0; c < means.cols; ++c)
+        {
+          cv::Vec3f diff = pixel_histories_[i].at<cv::Vec3f>(r,c) -
+              means.at<cv::Vec3f>(r,c);
+          vars.at<cv::Vec3f>(r,c) += diff.mul(diff);
+        }
+      }
+    }
+    vars /= (pixel_histories_.size()-1.0);
+
+    // Calculate probability of pixels having moved
+    ROS_INFO_STREAM("Getting probabilities.");
+    for (int r = 0; r < motion_probs_.rows; ++r)
+    {
+      for (int c = 0; c < motion_probs_.cols; ++c)
+      {
+        cv::Vec3f x = color_frame.at<cv::Vec3f>(r,c);
+        cv::Vec3f mu = means.at<cv::Vec3f>(r,c);
+        cv::Vec3f var = vars.at<cv::Vec3f>(r,c);
+        cv::Vec3f probs = p_x_gaussian(x, mu, var);
+        motion_probs_.at<cv::Vec3f>(r,c) = probs;
+        if ( c % 30 == 0 && r % 30 == 0)
+        {
+          ROS_INFO_STREAM("Probs at (" << r << ", " << c << ") = "
+                          << probs[0] << " * " << probs[1] << " * " << probs[2]
+                          << " = " << probs[0]*probs[1]*probs[2]);
+          ROS_INFO_STREAM("vars at (" << r << ", " << c << ") : ("
+                          << var[0] << ", " << var[1] << ", " << var[2]
+                          << ")");
+        }
+      }
+    }
+    int greater_ones = 0;
+    for (int r = 0; r < motion_probs_.rows; ++r)
+    {
+      for (int c = 0; c < motion_probs_.cols; ++c)
+      {
+        for (int i = 0; i < 3; ++i)
+        {
+          if (motion_probs_.at<cv::Vec3f>(r,c)[i] > 1.0)
+            greater_ones++;
+        }
+      }
+    }
+    ROS_INFO_STREAM("Have " << greater_ones << " pixels with probabilty over 1");
+
+    return motion_probs_;
+  }
+
+  cv::Vec3f p_x_gaussian(cv::Vec3f x, cv::Vec3f mu, cv::Vec3f var)
+  {
+    cv::Vec3f p_x;
+    p_x[0] = p_x_gaussian(x[0], mu[0], var[0]);
+    p_x[1] = p_x_gaussian(x[1], mu[1], var[1]);
+    p_x[2] = p_x_gaussian(x[2], mu[2], var[2]);
+    return p_x;
+  }
+
+  float p_x_gaussian(float x, float mu, float sigma2)
+  {
+    return 1.0/(sqrt(2.0*sigma2*M_PI))*exp(-1.0/(2.0*sigma2)*(x-mu)*(x-mu));
+  }
+
+ protected:
+  cv::Mat motion_probs_;
+  std::deque<cv::Mat> pixel_histories_;
+  int num_hist_frames_;
+};
+
 class TabletopPushingPerceptionNode
 {
  public:
@@ -454,8 +599,9 @@ class TabletopPushingPerceptionNode
                     false),
       tf_(),
       tracker_("i_tracker"),
+      motion_probs_(5),
       have_depth_data_(false), min_flow_thresh_(0),
-      num_region_points_thresh_(1), tracking_(false)
+      num_region_points_thresh_(1), tracking_(true)
   {
     // Get parameters from the server
     ros::NodeHandle n_private("~");
@@ -617,8 +763,14 @@ class TabletopPushingPerceptionNode
 
   void startTracker(const tabletop_pushing::SegTrackGoalConstPtr &goal)
   {
-    tracking_ = true;
     tracker_.stop();
+    tracking_ = true;
+
+  }
+  void stopTracker(const tabletop_pushing::SegTrackGoalConstPtr &goal)
+  {
+    tracker_.stop();
+    tracking_ = false;
   }
 
   void trackRegions(cv::Mat color_frame, cv::Mat depth_frame,
@@ -628,13 +780,28 @@ class TabletopPushingPerceptionNode
 
     if (!tracker_.isInitialized())
     {
+      // NOTE: Temp location to test shit
+      ROS_INFO_STREAM("Initializing motion probs");
+      // motion_probs_.initialize(color_frame, depth_frame);
+
       // Fit plane to table
       // TODO: Get extent as well
       table_centroid_ = getTablePlane(color_frame, depth_frame, cloud);
-
+      ROS_INFO_STREAM("Got centroid");
       initRegionTracks(color_frame, depth_frame);
+      ROS_INFO_STREAM("Initialized region tracks");
       return;
     }
+
+    // NOTE: Temp location to test shit
+    // ROS_INFO_STREAM("Updating motion probs");
+    // cv::Mat cur_probs = motion_probs_.update(color_frame, depth_frame);
+    // std::vector<cv::Mat> motion_prob_channels;
+    // cv::split(cur_probs, motion_prob_channels);
+    // cv::imshow("b_motion_prob", motion_prob_channels[0]);
+    // cv::imshow("g_motion_prob", motion_prob_channels[1]);
+    // cv::imshow("r_motion_prob", motion_prob_channels[2]);
+    // cv::waitKey();
 
     cv::Mat moving = updateRegionTracks(color_frame, depth_frame, regions);
     cv::RotatedRect el = computeEllipsoid2D(color_frame, moving);
@@ -742,6 +909,7 @@ class TabletopPushingPerceptionNode
   {
     cv::Mat color_diff_img = cv::abs(cur_color_frame - prev_color_frame);
     std::vector<cv::Mat> diff_channels;
+    // TODO: Use cv::Vec3b instead of split...
     cv::split(color_diff_img, diff_channels);
     cv::Mat depth_diff_img = cv::abs(cur_depth_frame - prev_depth_frame);
     for (int r = 0; r < depth_diff_img.rows; ++r)
@@ -1002,6 +1170,7 @@ class TabletopPushingPerceptionNode
   cv::Mat prev_depth_frame_;
   XYZPointCloud cur_point_cloud_;
   cv::Mat cur_workspace_mask_;
+  ProbImageDifferencing motion_probs_;
   FeatureTracker tracker_;
   bool have_depth_data_;
   double k_;
