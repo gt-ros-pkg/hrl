@@ -71,11 +71,6 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/features2d/features2d.hpp>
 
-// Visual features
-#include <cpl_visual_features/sliding_window.h>
-#include <cpl_visual_features/features/hsv_color_histogram.h>
-#include <cpl_visual_features/features/attribute_learning_base_feature.h>
-
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
 #include <tabletop_pushing/LocateTable.h>
@@ -84,12 +79,13 @@
 // STL
 #include <vector>
 #include <deque>
-#include <set>
-#include <map>
 #include <queue>
 #include <string>
 #include <utility>
 #include <math.h>
+
+
+#define DISPLAY_MOTION_PROBS 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -110,7 +106,7 @@ class ProbImageDifferencing
   void initialize(cv::Mat& cur_color_frame, cv::Mat& cur_depth_frame)
   {
     // Restart the motion history
-    motion_probs_.create(cur_color_frame.size(), CV_32FC3);
+    motion_probs_.create(cur_color_frame.size(), CV_32FC4);
 
     // Restart the queue
     pixel_histories_.clear();
@@ -162,10 +158,11 @@ class ProbImageDifferencing
     vars /= (pixel_histories_.size()-1.0);
 
     // Calculate probability of pixels having moved
-    cv::Vec3f ones;
+    cv::Vec4f ones;
     ones[0] = 1.0;
     ones[1] = 1.0;
     ones[2] = 1.0;
+    ones[3] = 1.0;
     for (int r = 0; r < motion_probs_.rows; ++r)
     {
       for (int c = 0; c < motion_probs_.cols; ++c)
@@ -174,19 +171,20 @@ class ProbImageDifferencing
         cv::Vec3f mu = means.at<cv::Vec3f>(r,c);
         cv::Vec3f var = vars.at<cv::Vec3f>(r,c);
         // NOTE: Probability of not belonging to the gaussian
-        cv::Vec3f probs = ones - p_x_gaussian(x, mu, var);
-        motion_probs_.at<cv::Vec3f>(r,c) = probs;
+        cv::Vec4f probs = ones - p_x_gaussian(x, mu, var);
+        motion_probs_.at<cv::Vec4f>(r,c) = probs;
       }
     }
     return motion_probs_;
   }
 
-  cv::Vec3f p_x_gaussian(cv::Vec3f x, cv::Vec3f mu, cv::Vec3f var)
+  cv::Vec4f p_x_gaussian(cv::Vec3f x, cv::Vec3f mu, cv::Vec3f var)
   {
-    cv::Vec3f p_x;
+    cv::Vec4f p_x;
     p_x[0] = p_x_gaussian(x[0], mu[0], var[0]);
     p_x[1] = p_x_gaussian(x[1], mu[1], var[1]);
     p_x[2] = p_x_gaussian(x[2], mu[2], var[2]);
+    p_x[3] = p_x[0]*p_x[1]*p_x[2];
     return p_x;
   }
 
@@ -384,10 +382,13 @@ class TabletopPushingPerceptionNode
     cv::Mat cur_probs = motion_probs_.update(color_frame, depth_frame);
     std::vector<cv::Mat> motion_prob_channels;
     cv::split(cur_probs, motion_prob_channels);
-    // cv::imshow("b_motion_prob", motion_prob_channels[0]);
-    // cv::imshow("g_motion_prob", motion_prob_channels[1]);
-    // cv::imshow("r_motion_prob", motion_prob_channels[2]);
-    // cv::waitKey();
+#ifdef DISPLAY_MOTION_PROBS
+    cv::imshow("b_motion_prob", motion_prob_channels[0]);
+    cv::imshow("g_motion_prob", motion_prob_channels[1]);
+    cv::imshow("r_motion_prob", motion_prob_channels[2]);
+    cv::imshow("combined_motion_prob", motion_prob_channels[3]);
+#endif // DISPLAY_MOTION_PROBS
+    cv::waitKey(display_wait_ms_);
   }
 
   PoseStamped getTablePlane(cv::Mat& color_frame, cv::Mat& depth_frame,
