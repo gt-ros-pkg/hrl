@@ -527,6 +527,10 @@ class ProbImageDifferencing
 
     // Calculate probability of pixels having moved
     ROS_INFO_STREAM("Getting probabilities.");
+    cv::Vec3f ones;
+    ones[0] = 1.0;
+    ones[1] = 1.0;
+    ones[2] = 1.0;
     for (int r = 0; r < motion_probs_.rows; ++r)
     {
       for (int c = 0; c < motion_probs_.cols; ++c)
@@ -534,13 +538,13 @@ class ProbImageDifferencing
         cv::Vec3f x = color_frame.at<cv::Vec3f>(r,c);
         cv::Vec3f mu = means.at<cv::Vec3f>(r,c);
         cv::Vec3f var = vars.at<cv::Vec3f>(r,c);
-        cv::Vec3f probs = p_x_gaussian(x, mu, var);
+        cv::Vec3f probs = ones - p_x_gaussian(x, mu, var);
         motion_probs_.at<cv::Vec3f>(r,c) = probs;
         if ( c % 30 == 0 && r % 30 == 0)
         {
-          ROS_INFO_STREAM("Probs at (" << r << ", " << c << ") = "
-                          << probs[0] << " * " << probs[1] << " * " << probs[2]
-                          << " = " << probs[0]*probs[1]*probs[2]);
+          // ROS_INFO_STREAM("Probs at (" << r << ", " << c << ") = "
+          //                 << probs[0] << " * " << probs[1] << " * " << probs[2]
+          //                 << " = " << probs[0]*probs[1]*probs[2]);
           ROS_INFO_STREAM("vars at (" << r << ", " << c << ") : ("
                           << var[0] << ", " << var[1] << ", " << var[2]
                           << ")");
@@ -789,7 +793,7 @@ class TabletopPushingPerceptionNode
     {
       // NOTE: Temp location to test shit
       ROS_INFO_STREAM("Initializing motion probs");
-      // motion_probs_.initialize(color_frame, depth_frame);
+      motion_probs_.initialize(color_frame, depth_frame);
 
       // Fit plane to table
       // TODO: Get extent as well
@@ -801,14 +805,14 @@ class TabletopPushingPerceptionNode
     }
 
     // NOTE: Temp location to test shit
-    // ROS_INFO_STREAM("Updating motion probs");
-    // cv::Mat cur_probs = motion_probs_.update(color_frame, depth_frame);
-    // std::vector<cv::Mat> motion_prob_channels;
-    // cv::split(cur_probs, motion_prob_channels);
-    // cv::imshow("b_motion_prob", motion_prob_channels[0]);
-    // cv::imshow("g_motion_prob", motion_prob_channels[1]);
-    // cv::imshow("r_motion_prob", motion_prob_channels[2]);
-    // cv::waitKey();
+    ROS_INFO_STREAM("Updating motion probs");
+    cv::Mat cur_probs = motion_probs_.update(color_frame, depth_frame);
+    std::vector<cv::Mat> motion_prob_channels;
+    cv::split(cur_probs, motion_prob_channels);
+    cv::imshow("b_motion_prob", motion_prob_channels[0]);
+    cv::imshow("g_motion_prob", motion_prob_channels[1]);
+    cv::imshow("r_motion_prob", motion_prob_channels[2]);
+    cv::waitKey();
 
     cv::Mat moving = updateRegionTracks(color_frame, depth_frame, regions);
     cv::RotatedRect el = computeEllipsoid2D(color_frame, moving);
