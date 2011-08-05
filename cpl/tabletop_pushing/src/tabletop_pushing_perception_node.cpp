@@ -95,40 +95,48 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
 
+typedef cv::Vec<float,5> Vec5f;
+
 class ProbImageDifferencing
 {
  public:
   ProbImageDifferencing(int num_hist_frames) :
-      num_hist_frames_(num_hist_frames)
+      num_hist_frames_(num_hist_frames), ONES(1.0, 1.0, 1.0, 1.0)
   {
   }
 
-  void initialize(cv::Mat& cur_color_frame, cv::Mat& cur_depth_frame)
+  void initialize(cv::Mat& color_frame, cv::Mat& depth_frame)
   {
     // Restart the motion history
-    motion_probs_.create(cur_color_frame.size(), CV_32FC4);
+    motion_probs_.create(color_frame.size(), CV_32FC4);
+    d_motion_probs_.create(depth_frame.size(), CV_32FC1);
 
     // Restart the queue
     pixel_histories_.clear();
-    update(cur_color_frame, cur_depth_frame);
+    d_histories_.clear();
+    update(color_frame, depth_frame);
   }
 
-  cv::Mat update(cv::Mat& cur_color_frame, cv::Mat& cur_depth_frame)
+  // std::vector<cv::Mat> update(cv::Mat& bgrd_frame)
+  std::vector<cv::Mat> update(cv::Mat& color_frame, cv::Mat& depth_frame)
   {
     // Convert to correct format
-    cv::Mat color_frame(cur_color_frame.size(), CV_32FC3);
-    cur_color_frame.convertTo(color_frame, CV_32FC3, 1./255, 0);
-    pixel_histories_.push_back(color_frame);
+    cv::Mat bgr_frame(color_frame.size(), CV_32FC3);
+    color_frame.convertTo(bgr_frame, CV_32FC3, 1./255, 0);
+    pixel_histories_.push_back(bgr_frame);
+    d_histories_.push_back(depth_frame);
+
     // Pop the front of the queue if we have too many frames
     if (pixel_histories_.size() > num_hist_frames_)
     {
       pixel_histories_.pop_front();
+      d_histories_.pop_front();
     }
 
     // Update Gaussian estimates at each pixel
-
     // Calculate means
-    cv::Mat means(color_frame.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    cv::Mat means(bgr_frame.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    cv::Mat d_means(depth_frame.size(), CV_32FC1, cv::Scalar(0.0));
     for (unsigned int i = 0; i < pixel_histories_.size(); ++i)
     {
       for (int r = 0; r < means.rows; ++r)
@@ -136,13 +144,16 @@ class ProbImageDifferencing
         for (int c = 0; c < means.cols; ++c)
         {
           means.at<cv::Vec3f>(r,c) += pixel_histories_[i].at<cv::Vec3f>(r,c);
+          d_means.at<float>(r,c) += d_histories_[i].at<float>(r,c);
         }
       }
     }
     means /= pixel_histories_.size();
+    d_means /= d_histories_.size();
 
     // Calculate variances
-    cv::Mat vars(color_frame.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    cv::Mat vars(bgr_frame.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    cv::Mat d_vars(depth_frame.size(), CV_32FC1, cv::Scalar(0.0));
     for (unsigned int i = 0; i < pixel_histories_.size(); ++i)
     {
       for (int r = 0; r < means.rows; ++r)
@@ -152,30 +163,38 @@ class ProbImageDifferencing
           cv::Vec3f diff = pixel_histories_[i].at<cv::Vec3f>(r,c) -
               means.at<cv::Vec3f>(r,c);
           vars.at<cv::Vec3f>(r,c) += diff.mul(diff);
+
+          float d_diff = d_histories_[i].at<float>(r,c)-d_means.at<float>(r,c);
+          d_vars.at<float>(r,c) += d_diff * d_diff;
         }
       }
     }
     vars /= (pixel_histories_.size()-1.0);
+    d_vars /= (d_histories_.size()-1.0);
 
     // Calculate probability of pixels having moved
-    cv::Vec4f ones;
-    ones[0] = 1.0;
-    ones[1] = 1.0;
-    ones[2] = 1.0;
-    ones[3] = 1.0;
     for (int r = 0; r < motion_probs_.rows; ++r)
     {
       for (int c = 0; c < motion_probs_.cols; ++c)
       {
-        cv::Vec3f x = color_frame.at<cv::Vec3f>(r,c);
+        cv::Vec3f x = bgr_frame.at<cv::Vec3f>(r,c);
         cv::Vec3f mu = means.at<cv::Vec3f>(r,c);
         cv::Vec3f var = vars.at<cv::Vec3f>(r,c);
         // NOTE: Probability of not belonging to the gaussian
-        cv::Vec4f probs = ones - p_x_gaussian(x, mu, var);
+        cv::Vec4f probs = ONES - p_x_gaussian(x, mu, var);
         motion_probs_.at<cv::Vec4f>(r,c) = probs;
+        float x_d = depth_frame.at<float>(r,c);
+        float mu_d = means.at<float>(r,c);
+        float var_d = vars.at<float>(r,c);
+        float prob_d = 1.0 - p_x_gaussian(x_d, mu_d, var_d);
+        d_motion_probs_.at<float>(r,c) = prob_d;
+        // motion_probs_.at<cv::Vec4f>(r,c)[3]*= prob_d;
       }
     }
-    return motion_probs_;
+    std::vector<cv::Mat> motions;
+    motions.push_back(motion_probs_);
+    motions.push_back(d_motion_probs_);
+    return motions;
   }
 
   cv::Vec4f p_x_gaussian(cv::Vec3f x, cv::Vec3f mu, cv::Vec3f var)
@@ -202,8 +221,11 @@ class ProbImageDifferencing
 
  protected:
   cv::Mat motion_probs_;
+  cv::Mat d_motion_probs_;
   std::deque<cv::Mat> pixel_histories_;
+  std::deque<cv::Mat> d_histories_;
   int num_hist_frames_;
+  const cv::Vec4f ONES;
 };
 
 class TabletopPushingPerceptionNode
@@ -378,17 +400,19 @@ class TabletopPushingPerceptionNode
       tracker_initialized_ = true;
       return;
     }
-
-    cv::Mat cur_probs = motion_probs_.update(color_frame, depth_frame);
+    std::vector<cv::Mat> cur_probs = motion_probs_.update(color_frame, depth_frame);
     std::vector<cv::Mat> motion_prob_channels;
-    cv::split(cur_probs, motion_prob_channels);
+    cv::split(cur_probs[0], motion_prob_channels);
 #ifdef DISPLAY_MOTION_PROBS
+    cv::imshow("bgr_frame", color_frame);
+    cv::imshow("d_frame", depth_frame);
     cv::imshow("b_motion_prob", motion_prob_channels[0]);
     cv::imshow("g_motion_prob", motion_prob_channels[1]);
     cv::imshow("r_motion_prob", motion_prob_channels[2]);
     cv::imshow("combined_motion_prob", motion_prob_channels[3]);
-#endif // DISPLAY_MOTION_PROBS
+    cv::imshow("d_motion_prob", cur_probs[1]);
     cv::waitKey(display_wait_ms_);
+#endif // DISPLAY_MOTION_PROBS
   }
 
   PoseStamped getTablePlane(cv::Mat& color_frame, cv::Mat& depth_frame,
