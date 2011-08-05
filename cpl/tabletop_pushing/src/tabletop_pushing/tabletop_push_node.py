@@ -75,10 +75,13 @@ class TabletopPushNode:
         self.tf_listener = tf.TransformListener()
 
         # Set joint gains
-        prefix = "/".join(sys.argv[0].split("/")[:-2]) + "/params/"
+        prefix = roslib.packages.get_pkg_dir('hrl_pr2_arms')+'/params'
+        rospy.loginfo('prefix: ' + prefix)
         cs = ControllerSwitcher()
-        rospy.loginfo(cs.switch("r_arm_controller", "r_arm_controller",
-                                prefix + "pr2_arm_controllers_push.yaml")
+        # rospy.loginfo(cs.switch("r_arm_controller", "r_arm_controller",
+        #                         prefix + "pr2_arm_controllers_push.yaml")
+        # rospy.loginfo(cs.switch("l_arm_controller", "l_arm_controller",
+        #                         prefix + "pr2_arm_controllers_push.yaml")
 
         # Setup arms
         self.no_arms = no_arms
