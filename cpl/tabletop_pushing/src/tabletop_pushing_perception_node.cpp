@@ -184,13 +184,14 @@ class ProbImageDifferencing
         cv::Vec4f probs = ONES - p_x_gaussian(x, mu, var);
         motion_probs_.at<cv::Vec4f>(r,c) = probs;
         float x_d = depth_frame.at<float>(r,c);
-        float mu_d = means.at<float>(r,c);
-        float var_d = vars.at<float>(r,c);
+        float mu_d = d_means.at<float>(r,c);
+        float var_d = d_vars.at<float>(r,c);
         float prob_d = 1.0 - p_x_gaussian(x_d, mu_d, var_d);
         d_motion_probs_.at<float>(r,c) = prob_d;
         // motion_probs_.at<cv::Vec4f>(r,c)[3]*= prob_d;
       }
     }
+    // TODO: Merge these into a single image?
     std::vector<cv::Mat> motions;
     motions.push_back(motion_probs_);
     motions.push_back(d_motion_probs_);
