@@ -575,6 +575,13 @@ class ProbImageDifferencing
 
   float p_x_gaussian(float x, float mu, float sigma2)
   {
+    if (sigma2 == 0.0)
+    {
+      if (x == mu)
+        return 1.0;
+      else
+        return 0.0;
+    }
     return 1.0/(sqrt(2.0*sigma2*M_PI))*exp(-1.0/(2.0*sigma2)*(x-mu)*(x-mu));
   }
 
