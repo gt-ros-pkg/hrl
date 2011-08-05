@@ -24,6 +24,7 @@
   <depend package="actionlib"/>
   <depend package="actionlib_msgs"/>
   <depend package="pr2_controllers_msgs"/>
+  <depend package="hrl_pr2_arms"/>
 </package>
 
 
