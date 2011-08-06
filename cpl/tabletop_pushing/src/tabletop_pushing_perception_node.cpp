@@ -86,6 +86,8 @@
 
 
 #define DISPLAY_MOTION_PROBS 1
+#define DISPLAY_INPUT_IMAGES 1
+// #define DISPLAY_INTERMEDIATE_PROBS 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -244,10 +246,18 @@ class ProbImageDifferencing
     float sigma = sqrt(var);
     float s0 = T_in_*sigma;
     float s1 = T_out_*sigma;
+
     if (mean_diff <= s0)
-      return 1.0;
+    {
+      // Don't make things impossible (i.e. depth does not change when things
+      // are too close)
+      return 0.99999999;
+      // return 1.0;
+    }
     if (mean_diff >= s1)
+    {
       return 0.0;
+    }
     float m = 1.0/(s0-s1);
     return m*(mean_diff-s1);
   }
@@ -258,8 +268,12 @@ class ProbImageDifferencing
   {
     if (var == 0.0)
     {
+      // Don't make things impossible
       if (x == mu)
-        return 1.0;
+      {
+        return 0.99999999;
+        // return 1.0;
+      }
       else
         return 0.0;
     }
@@ -476,17 +490,21 @@ class TabletopPushingPerceptionNode
     std::vector<cv::Mat> motion_prob_channels;
     cv::split(cur_probs[0], motion_prob_channels);
 #ifdef DISPLAY_MOTION_PROBS
+#ifdef DISPLAY_INPUT_IMAGES
     cv::imshow("bgr_frame", color_frame);
     cv::imshow("d_frame", depth_frame);
+#endif // DISPLAY_INPUT_IMAGES
+#ifdef DISPLAY_INTERMEDIATE_PROBS
     cv::imshow("b_motion_prob", motion_prob_channels[0]);
     cv::imshow("g_motion_prob", motion_prob_channels[1]);
     cv::imshow("r_motion_prob", motion_prob_channels[2]);
-    cv::imshow("combined_motion_prob", motion_prob_channels[3]);
-    cv::Mat change_morphed(cur_probs[0].rows, cur_probs[0].cols, CV_8UC1);
-    cv::Mat element(5, 5, CV_8UC1, cv::Scalar(255));
-    cv::erode(motion_prob_channels[3], change_morphed, element);
-    cv::imshow("combined_motion_prob_clean", motion_prob_channels[3]);
     cv::imshow("d_motion_prob", cur_probs[1]);
+    cv::imshow("combined_motion_prob", motion_prob_channels[3]);
+#endif // DISPLAY_INTERMEDIATE_PROBS
+    cv::Mat motion_morphed(cur_probs[0].rows, cur_probs[0].cols, CV_32FC1);
+    cv::Mat element(3, 3, CV_32FC1, cv::Scalar(1.0));
+    cv::erode(motion_prob_channels[3], motion_morphed, element);
+    cv::imshow("combined_motion_prob_clean", motion_morphed);
     cv::waitKey(display_wait_ms_);
 #endif // DISPLAY_MOTION_PROBS
   }
