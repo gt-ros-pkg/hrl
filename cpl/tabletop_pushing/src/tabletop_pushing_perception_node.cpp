@@ -100,7 +100,7 @@ typedef cv::Vec<float,5> Vec5f;
 class ProbImageDifferencing
 {
  public:
-  ProbImageDifferencing(int num_hist_frames) :
+  ProbImageDifferencing(unsigned int num_hist_frames) :
       num_hist_frames_(num_hist_frames), ONES(1.0, 1.0, 1.0, 1.0)
   {
   }
@@ -123,6 +123,13 @@ class ProbImageDifferencing
     // Convert to correct format
     cv::Mat bgr_frame(color_frame.size(), CV_32FC3);
     color_frame.convertTo(bgr_frame, CV_32FC3, 1./255, 0);
+
+    // Calculate probability of being the same color and depth at each pixel
+    std::vector<cv::Mat> motions;
+    if (pixel_histories_.size() > 1)
+      motions = calculateProbabilities(bgr_frame, depth_frame);
+
+    // Store current frame in history
     pixel_histories_.push_back(bgr_frame);
     d_histories_.push_back(depth_frame);
 
@@ -133,6 +140,12 @@ class ProbImageDifferencing
       d_histories_.pop_front();
     }
 
+    return motions;
+  }
+
+  std::vector<cv::Mat> calculateProbabilities(cv::Mat& bgr_frame,
+                                              cv::Mat& depth_frame)
+  {
     // Update Gaussian estimates at each pixel
     // Calculate means
     cv::Mat means(bgr_frame.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
@@ -191,6 +204,7 @@ class ProbImageDifferencing
         // motion_probs_.at<cv::Vec4f>(r,c)[3]*= prob_d;
       }
     }
+
     // TODO: Merge these into a single image?
     std::vector<cv::Mat> motions;
     motions.push_back(motion_probs_);
@@ -225,7 +239,7 @@ class ProbImageDifferencing
   cv::Mat d_motion_probs_;
   std::deque<cv::Mat> pixel_histories_;
   std::deque<cv::Mat> d_histories_;
-  int num_hist_frames_;
+  unsigned int num_hist_frames_;
   const cv::Vec4f ONES;
 };
 
@@ -402,6 +416,8 @@ class TabletopPushingPerceptionNode
       return;
     }
     std::vector<cv::Mat> cur_probs = motion_probs_.update(color_frame, depth_frame);
+    if (cur_probs.size() < 1) return;
+
     std::vector<cv::Mat> motion_prob_channels;
     cv::split(cur_probs[0], motion_prob_channels);
 #ifdef DISPLAY_MOTION_PROBS
