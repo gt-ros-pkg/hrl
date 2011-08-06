@@ -87,6 +87,8 @@
 
 #define DISPLAY_MOTION_PROBS 1
 #define DISPLAY_INPUT_IMAGES 1
+#define DISPLAY_MEANS 1
+#define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
 
 using tabletop_pushing::PushPose;
@@ -168,6 +170,11 @@ class ProbImageDifferencing
     means /= pixel_histories_.size();
     d_means /= d_histories_.size();
 
+#ifdef DISPLAY_MEANS
+    cv::imshow("means", means);
+    cv::imshow("d_means", d_means);
+#endif // DISPLAY_MEANS
+
     // Calculate variances
     cv::Mat vars(bgr_frame.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     cv::Mat d_vars(depth_frame.size(), CV_32FC1, cv::Scalar(0.0));
@@ -189,6 +196,11 @@ class ProbImageDifferencing
     }
     vars /= (pixel_histories_.size()-1.0);
     d_vars /= (d_histories_.size()-1.0);
+
+#ifdef DISPLAY_VARS
+    cv::imshow("vars", vars);
+    cv::imshow("d_vars", d_vars);
+#endif // DISPLAY_VARS
 
     int d_probs_greater = 0;
     int d_probs_lesser = 0;
@@ -251,12 +263,12 @@ class ProbImageDifferencing
     {
       // Don't make things impossible (i.e. depth does not change when things
       // are too close)
-      return 0.99999999;
+      return 0.99;
       // return 1.0;
     }
     if (mean_diff >= s1)
     {
-      return 0.0;
+      return 0.01;
     }
     float m = 1.0/(s0-s1);
     return m*(mean_diff-s1);
@@ -271,11 +283,11 @@ class ProbImageDifferencing
       // Don't make things impossible
       if (x == mu)
       {
-        return 0.99999999;
+        return 0.99;
         // return 1.0;
       }
       else
-        return 0.0;
+        return 0.01;
     }
     float mean_diff = x-mu;
     return exp(-(mean_diff*mean_diff)/(2.0*var))/(sqrt(2.0*var*M_PI));
@@ -365,8 +377,8 @@ class TabletopPushingPerceptionNode
     cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
 
     // Swap kinect color channel order
-    cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
-    // cv::cvtColor(color_frame, color_frame, CV_RGB2Lab);
+    // cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
+    cv::cvtColor(color_frame, color_frame, CV_RGB2HSV);
 
     // Transform point cloud into the correct frame and convert to PCL struct
     XYZPointCloud cloud;
@@ -502,7 +514,7 @@ class TabletopPushingPerceptionNode
     cv::imshow("combined_motion_prob", motion_prob_channels[3]);
 #endif // DISPLAY_INTERMEDIATE_PROBS
     cv::Mat motion_morphed(cur_probs[0].rows, cur_probs[0].cols, CV_32FC1);
-    cv::Mat element(3, 3, CV_32FC1, cv::Scalar(1.0));
+    cv::Mat element(5, 5, CV_32FC1, cv::Scalar(1.0));
     cv::erode(motion_prob_channels[3], motion_morphed, element);
     cv::imshow("combined_motion_prob_clean", motion_morphed);
     cv::waitKey(display_wait_ms_);

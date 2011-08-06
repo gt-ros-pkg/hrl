@@ -21,8 +21,9 @@
 
     <param name="min_table_z" value="-1.25" type="double"/>
     <param name="max_table_z" value="1.0" type="double"/>
-    <param name="num_hist_frames" value="10" type="int"/>
-    <param name="T_in" value="2" type="double"/>
+
+    <param name="num_hist_frames" value="5" type="int"/>
+    <param name="T_in" value="1.5" type="double"/>
     <param name="T_out" value="8" type="double"/>
   </node>
 </launch>
