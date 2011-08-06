@@ -1,7 +1,7 @@
 <launch>
     <include file="$(find tabletop_pushing)/launch/reactive_move.launch"/>
     <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch"/>
-    <include file="$(find tabletop_pushing)/launch/tabletop_perception_kinect.launch"/>
+    <!-- <include file="$(find tabletop_pushing)/launch/tabletop_perception_kinect.launch"/> -->
     <node pkg="tabletop_pushing" type="tabletop_push_node.py" name="tabletop_push_node" output="screen">
       <param name="collision_aware_ik" type="int" value="0"/>
       <param name="torso_z_offset" type="double" value="0.2"/>

@@ -100,8 +100,10 @@ typedef cv::Vec<float,5> Vec5f;
 class ProbImageDifferencing
 {
  public:
-  ProbImageDifferencing(unsigned int num_hist_frames) :
-      num_hist_frames_(num_hist_frames), ONES(1.0, 1.0, 1.0, 1.0)
+  ProbImageDifferencing(unsigned int num_hist_frames, float T_in=3,
+                        float T_out=15) :
+      num_hist_frames_(num_hist_frames), ONES(1.0, 1.0, 1.0, 1.0),
+      T_in_(T_in), T_out_(T_out)
   {
   }
 
@@ -175,6 +177,7 @@ class ProbImageDifferencing
         {
           cv::Vec3f diff = pixel_histories_[i].at<cv::Vec3f>(r,c) -
               means.at<cv::Vec3f>(r,c);
+
           vars.at<cv::Vec3f>(r,c) += diff.mul(diff);
 
           float d_diff = d_histories_[i].at<float>(r,c)-d_means.at<float>(r,c);
@@ -185,6 +188,8 @@ class ProbImageDifferencing
     vars /= (pixel_histories_.size()-1.0);
     d_vars /= (d_histories_.size()-1.0);
 
+    int d_probs_greater = 0;
+    int d_probs_lesser = 0;
     // Calculate probability of pixels having moved
     for (int r = 0; r < motion_probs_.rows; ++r)
     {
@@ -200,10 +205,21 @@ class ProbImageDifferencing
         float mu_d = d_means.at<float>(r,c);
         float var_d = d_vars.at<float>(r,c);
         float prob_d = 1.0 - p_x_gaussian(x_d, mu_d, var_d);
+        if (prob_d > 1.0)
+        {
+          d_probs_greater++;
+        }
+        else if (prob_d < 0.0)
+        {
+          d_probs_lesser++;
+          // ROS_INFO_STREAM("prob_d is: " << prob_d);
+        }
         d_motion_probs_.at<float>(r,c) = prob_d;
-        // motion_probs_.at<cv::Vec4f>(r,c)[3]*= prob_d;
+        motion_probs_.at<cv::Vec4f>(r,c)[3]*= prob_d;
       }
     }
+    // ROS_INFO_STREAM("d_probs_greater " << d_probs_greater);
+    // ROS_INFO_STREAM("d_probs_lesser " << d_probs_lesser);
 
     // TODO: Merge these into a single image?
     std::vector<cv::Mat> motions;
@@ -222,16 +238,43 @@ class ProbImageDifferencing
     return p_x;
   }
 
-  float p_x_gaussian(float x, float mu, float sigma2)
+  float p_x_gaussian(float x, float mu, float var)
   {
-    if (sigma2 == 0.0)
+    float mean_diff = abs(x-mu);
+    float sigma = sqrt(var);
+    float s0 = T_in_*sigma;
+    float s1 = T_out_*sigma;
+    if (mean_diff <= s0)
+      return 1.0;
+    if (mean_diff >= s1)
+      return 0.0;
+    float m = 1.0/(s0-s1);
+    return m*(mean_diff-s1);
+  }
+
+  // Gets the likelihood of the gaussian with mean mu and variance var at
+  // point x
+  float l_x_gaussian(float x, float mu, float var)
+  {
+    if (var == 0.0)
     {
       if (x == mu)
         return 1.0;
       else
         return 0.0;
     }
-    return 1.0/(sqrt(2.0*sigma2*M_PI))*exp(-(x-mu)*(x-mu)/(2.0*sigma2));
+    float mean_diff = x-mu;
+    return exp(-(mean_diff*mean_diff)/(2.0*var))/(sqrt(2.0*var*M_PI));
+  }
+
+  void setNumHistFrames(unsigned int num_hist_frames)
+  {
+    num_hist_frames_ = num_hist_frames;
+  }
+  void setT_inT_out(float T_in, float T_out)
+  {
+    T_in_ = T_in;
+    T_out_ = T_out;
   }
 
  protected:
@@ -241,6 +284,9 @@ class ProbImageDifferencing
   std::deque<cv::Mat> d_histories_;
   unsigned int num_hist_frames_;
   const cv::Vec4f ONES;
+  float T_in_;
+  float T_out_;
+
 };
 
 class TabletopPushingPerceptionNode
@@ -277,6 +323,14 @@ class TabletopPushingPerceptionNode
                     default_workspace_frame);
     n_private.param("min_table_z", min_table_z_, -0.5);
     n_private.param("max_table_z", max_table_z_, 1.5);
+    int num_hist_frames = 5;
+    n_private.param("num_hist_frames", num_hist_frames, 5);
+    motion_probs_.setNumHistFrames(num_hist_frames);
+    double T_in = 3;
+    double T_out = 5;
+    n_private.param("T_in", T_in, 3.0);
+    n_private.param("T_out", T_out, 5.0);
+    motion_probs_.setT_inT_out(T_in, T_out);
 
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
@@ -298,6 +352,7 @@ class TabletopPushingPerceptionNode
 
     // Swap kinect color channel order
     cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
+    // cv::cvtColor(color_frame, color_frame, CV_RGB2Lab);
 
     // Transform point cloud into the correct frame and convert to PCL struct
     XYZPointCloud cloud;
@@ -402,7 +457,7 @@ class TabletopPushingPerceptionNode
     tracking_ = false;
   }
 
-  void trackRegions(cv::Mat color_frame, cv::Mat depth_frame,
+  void trackRegions(cv::Mat& color_frame, cv::Mat& depth_frame,
                     XYZPointCloud& cloud)
   {
     if (!tracker_initialized_)
@@ -427,6 +482,10 @@ class TabletopPushingPerceptionNode
     cv::imshow("g_motion_prob", motion_prob_channels[1]);
     cv::imshow("r_motion_prob", motion_prob_channels[2]);
     cv::imshow("combined_motion_prob", motion_prob_channels[3]);
+    cv::Mat change_morphed(cur_probs[0].rows, cur_probs[0].cols, CV_8UC1);
+    cv::Mat element(5, 5, CV_8UC1, cv::Scalar(255));
+    cv::erode(motion_prob_channels[3], change_morphed, element);
+    cv::imshow("combined_motion_prob_clean", motion_prob_channels[3]);
     cv::imshow("d_motion_prob", cur_probs[1]);
     cv::waitKey(display_wait_ms_);
 #endif // DISPLAY_MOTION_PROBS

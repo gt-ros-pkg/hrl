@@ -194,8 +194,8 @@ class TabletopExecutive:
             if self.use_fake_push_pose:
                 pose_res = PushPoseResponse()
                 pose_res.push_pose.header.frame_id = '/torso_lift_link'
-                pose_res.push_pose.pose.position.x = 0.7
-                pose_res.push_pose.pose.position.y = 0.0
+                pose_res.push_pose.pose.position.x = 0.75
+                pose_res.push_pose.pose.position.y = 0.05
                 pose_res.push_pose.pose.position.z = -0.15
             else:
                 pose_res = self.push_pose_proxy(pose_req)
@@ -214,7 +214,7 @@ class TabletopExecutive:
         # orientation = pose_res.push_pose.pose.orientation
         wrist_yaw = 0.0 # 0.25*pi
         sweep_req.wrist_yaw = wrist_yaw
-        sweep_req.desired_push_dist = push_dist
+        sweep_req.desired_push_dist = -push_dist
 
         sweep_req.left_arm = (which_arm == 'l')
         sweep_req.right_arm = not sweep_req.left_arm
@@ -294,4 +294,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(0, 1, 0, 0, 0, 0)
+    node.run(0, 1, 0, 1, 0, 0)
