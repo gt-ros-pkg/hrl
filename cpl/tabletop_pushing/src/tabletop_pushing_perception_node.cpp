@@ -89,7 +89,7 @@
 #define DISPLAY_INPUT_IMAGES 1
 #define DISPLAY_MEANS 1
 #define DISPLAY_VARS 1
-// #define DISPLAY_INTERMEDIATE_PROBS 1
+#define DISPLAY_INTERMEDIATE_PROBS 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -218,7 +218,8 @@ class ProbImageDifferencing
         float x_d = depth_frame.at<float>(r,c);
         float mu_d = d_means.at<float>(r,c);
         float var_d = d_vars.at<float>(r,c);
-        float prob_d = 1.0 - p_x_gaussian(x_d, mu_d, var_d);
+        float prob_d = 1.0 - p_x_gaussian_hist(x_d, mu_d, var_d);
+        // float prob_d = 1.0 - p_x_gaussian_kenney(x_d, mu_d, var_d);
         if (prob_d > 1.0)
         {
           d_probs_greater++;
@@ -245,14 +246,17 @@ class ProbImageDifferencing
   cv::Vec4f p_x_gaussian(cv::Vec3f x, cv::Vec3f mu, cv::Vec3f var)
   {
     cv::Vec4f p_x;
-    p_x[0] = p_x_gaussian(x[0], mu[0], var[0]);
-    p_x[1] = p_x_gaussian(x[1], mu[1], var[1]);
-    p_x[2] = p_x_gaussian(x[2], mu[2], var[2]);
+    p_x[0] = p_x_gaussian_hist(x[0], mu[0], var[0]);
+    p_x[1] = p_x_gaussian_hist(x[1], mu[1], var[1]);
+    p_x[2] = p_x_gaussian_hist(x[2], mu[2], var[2]);
+    // p_x[0] = p_x_gaussian_kenney(x[0], mu[0], var[0]);
+    // p_x[1] = p_x_gaussian_kenney(x[1], mu[1], var[1]);
+    // p_x[2] = p_x_gaussian_kenney(x[2], mu[2], var[2]);
     p_x[3] = p_x[0]*p_x[1]*p_x[2];
     return p_x;
   }
 
-  float p_x_gaussian(float x, float mu, float var)
+  float p_x_gaussian_kenney(float x, float mu, float var)
   {
     float mean_diff = abs(x-mu);
     float sigma = sqrt(var);
@@ -274,9 +278,18 @@ class ProbImageDifferencing
     return m*(mean_diff-s1);
   }
 
-  // Gets the likelihood of the gaussian with mean mu and variance var at
-  // point x
-  float l_x_gaussian(float x, float mu, float var)
+
+  float p_x_gaussian_hist(float x, float mu, float var)
+  {
+    // TODO: Figure out a better way of approximating width
+    float x1 = x-0.05;
+    float x2 = x+0.05;
+    float p_x = (abs(gaussian_pdf(x2, mu, var) - gaussian_pdf(x1, mu, var))*
+                 abs(x2-x1));
+    return p_x;
+  }
+
+  float gaussian_pdf(float x, float mu, float var)
   {
     if (var == 0.0)
     {
