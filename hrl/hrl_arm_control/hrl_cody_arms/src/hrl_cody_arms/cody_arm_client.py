@@ -238,13 +238,13 @@ if __name__ == '__main__':
             print 'f:', f.A1
             rospy.sleep(0.05)
 
-    if False:
+    if True:
         while not rospy.is_shutdown():
             jep = ac.get_ep()
             print 'jep:', jep
             rospy.sleep(0.05)
 
-    if True:
+    if False:
         while not rospy.is_shutdown():
             qdot = ac.get_joint_velocities()
             print 'qdot:', np.degrees(qdot)
