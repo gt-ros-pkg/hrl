@@ -45,6 +45,7 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/CvBridge.h>
+#include <cv_bridge/cv_bridge.h>
 
 // TF
 #include <tf/transform_listener.h>
@@ -64,6 +65,7 @@
 #include "pcl/filters/voxel_grid.h"
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/surface/convex_hull.h>
 
 // OpenCV
 #include <opencv2/core/core.hpp>
@@ -86,11 +88,11 @@
 #include <utility>
 #include <math.h>
 
-#define DISPLAY_MOTION_PROBS 1
-#define DISPLAY_INPUT_IMAGES 1
-#define DISPLAY_MEANS 1
-#define DISPLAY_VARS 1
-#define DISPLAY_INTERMEDIATE_PROBS 1
+// #define DISPLAY_MOTION_PROBS 1
+// #define DISPLAY_INPUT_IMAGES 1
+// #define DISPLAY_MEANS 1
+// #define DISPLAY_VARS 1
+// #define DISPLAY_INTERMEDIATE_PROBS 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -439,11 +441,12 @@ class TabletopPushingPerceptionNode
       depth_sub_(n, "depth_image_topic", 1),
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(1), image_sub_, depth_sub_, cloud_sub_),
+      it_(n),
       track_server_(n, "seg_track_action",
                     boost::bind(&TabletopPushingPerceptionNode::trackerGoalCallback,
                                 this, _1),
                     false),
-      tf_(), motion_probs_(5), have_depth_data_(false), tracking_(true),
+      tf_(), motion_probs_(5), have_depth_data_(false), tracking_(false),
       tracker_initialized_(false)
   {
     // Get parameters from the server
@@ -481,6 +484,8 @@ class TabletopPushingPerceptionNode
     table_location_server_ = n_.advertiseService(
         "get_table_location", &TabletopPushingPerceptionNode::getTableLocation,
         this);
+    motion_img_pub_ = it_.advertise("motion_probs", 15);
+    track_server_.start();
   }
 
   void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
@@ -590,10 +595,20 @@ class TabletopPushingPerceptionNode
 
   void trackerGoalCallback(const tabletop_pushing::SegTrackGoalConstPtr &goal)
   {
+    ROS_INFO_STREAM("Tracker callback.");
     if (goal->start)
+    {
+      ROS_INFO_STREAM("Starting tracker.");
       startTracker();
+      tabletop_pushing::SegTrackResult result;
+      track_server_.setSucceeded(result);
+    }
     else
+    {
+      ROS_INFO_STREAM("Stopping tracker.");
       stopTracker();
+      track_server_.setPreempted();
+    }
   }
 
   void startTracker()
@@ -614,7 +629,7 @@ class TabletopPushingPerceptionNode
     if (!tracker_initialized_)
     {
       motion_probs_.initialize(color_frame, depth_frame);
-
+      ROS_INFO_STREAM("Initializing tracker.");
       // Fit plane to table
       // TODO: Get extent as well
       table_centroid_ = getTablePlane(color_frame, depth_frame, cloud);
@@ -622,10 +637,14 @@ class TabletopPushingPerceptionNode
       return;
     }
     std::vector<cv::Mat> cur_probs = motion_probs_.update(color_frame, depth_frame);
-    if (cur_probs.size() < 1) return;
 
+    if (cur_probs.size() < 1) return;
     std::vector<cv::Mat> motion_prob_channels;
     cv::split(cur_probs[0], motion_prob_channels);
+    cv::Mat motion_morphed(cur_probs[0].rows, cur_probs[0].cols, CV_32FC1);
+    cv::Mat element(3, 3, CV_32FC1, cv::Scalar(1.0));
+    cv::erode(motion_prob_channels[3], motion_morphed, element);
+
 #ifdef DISPLAY_MOTION_PROBS
 #ifdef DISPLAY_INPUT_IMAGES
     cv::imshow("bgr_frame", color_frame);
@@ -638,13 +657,18 @@ class TabletopPushingPerceptionNode
     cv::imshow("d_motion_prob", cur_probs[1]);
     cv::imshow("combined_motion_prob", motion_prob_channels[3]);
 #endif // DISPLAY_INTERMEDIATE_PROBS
-    cv::Mat motion_morphed(cur_probs[0].rows, cur_probs[0].cols, CV_32FC1);
-    cv::Mat element(3, 3, CV_32FC1, cv::Scalar(1.0));
-    cv::erode(motion_prob_channels[3], motion_morphed, element);
     cv::imshow("combined_motion_prob_clean", motion_morphed);
     cv::waitKey(display_wait_ms_);
 #endif // DISPLAY_MOTION_PROBS
-    ROS_INFO_STREAM("Computing graph cut.");
+    cv_bridge::CvImage motion_msg;
+    cv::Mat motion_send(motion_morphed.size(), CV_8UC1);
+    motion_morphed.convertTo(motion_send, CV_8UC1, 255, 0);
+    motion_msg.image = motion_send;
+    motion_msg.header.frame_id = "/openni_rgb_optical_frame";
+    motion_msg.header.stamp = ros::Time::now();
+    motion_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
+    motion_img_pub_.publish(motion_msg.toImageMsg());
+    // ROS_INFO_STREAM("Computing graph cut.");
     // cv::Mat cut = mgc_(color_frame, depth_frame, motion_prob_channels[3]);
     // cv::imshow("Cut", cut);
     // cv::waitKey();
@@ -704,6 +728,14 @@ class TabletopPushingPerceptionNode
                     << p.pose.position.y << ", "
                     << p.pose.position.z << ")");
     // TODO: Get extent as well
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_hull (
+    //     new pcl::PointCloud<pcl::PointXYZ>);
+    // pcl::ConvexHull<pcl::PointXYZ> hull;
+    // hull.setInputCloud(plane_cloud);
+    // hull.setAlpha(0.1);
+    // hull.reconstruct(cloud_hull);
+    // ROS_INFO_STREAM("Convex hull has: " << cloud_hull->points.size()
+    //                 << " points");
     return p;
   }
 
@@ -724,6 +756,8 @@ class TabletopPushingPerceptionNode
   message_filters::Subscriber<sensor_msgs::Image> depth_sub_;
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
   message_filters::Synchronizer<MySyncPolicy> sync_;
+  image_transport::ImageTransport it_;
+  image_transport::Publisher motion_img_pub_;
   actionlib::SimpleActionServer<tabletop_pushing::SegTrackAction> track_server_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;

@@ -88,7 +88,7 @@ class TabletopExecutive:
         self.raise_and_look_push_proxy = rospy.ServiceProxy('raise_and_look',
                                                             RaiseAndLook)
         self.table_proxy = rospy.ServiceProxy('get_table_location', LocateTable)
-        self.tracker_client = actionlib.SimpleActionClient('seg_track_action',
+        self.tracker_client = actionlib.SimpleActionClient("seg_track_action",
                                                            SegTrackAction)
         # rospy.loginfo('Waiting for tracker server')
         # self.tracker_client.wait_for_server()
@@ -118,6 +118,8 @@ class TabletopExecutive:
         for i in xrange(num_r_overhead_pushes):
             self.overhead_push_object(self.overhead_push_dist, 'r')
 
+        # self.stop_tracker()
+
     def raise_and_look(self):
         rospy.loginfo("Getting table pose")
         table_req = LocateTableRequest()
@@ -135,8 +137,18 @@ class TabletopExecutive:
 
     def start_tracker(self):
         track_goal = SegTrackGoal()
-        track_goal.reinit = True
+        track_goal.start = True
         self.tracker_client.send_goal(track_goal)
+        rospy.loginfo('Waiting for tracker server')
+        self.tracker_client.wait_for_server()
+
+    def stop_tracker(self):
+        track_goal = SegTrackGoal()
+        track_goal.start = False
+        self.tracker_client.send_goal(track_goal)
+        rospy.loginfo('Waiting for tracker server')
+        self.tracker_client.wait_for_server()
+
 
     def gripper_push_object(self, push_dist, which_arm):
         # Make push_pose service request
