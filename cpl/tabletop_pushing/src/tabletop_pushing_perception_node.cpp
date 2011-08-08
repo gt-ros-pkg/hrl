@@ -76,6 +76,8 @@
 #include <tabletop_pushing/LocateTable.h>
 #include <tabletop_pushing/SegTrackAction.h>
 
+#include <tabletop_pushing/extern/graphcut/graph.h>
+
 // STL
 #include <vector>
 #include <deque>
@@ -83,7 +85,6 @@
 #include <string>
 #include <utility>
 #include <math.h>
-
 
 #define DISPLAY_MOTION_PROBS 1
 #define DISPLAY_INPUT_IMAGES 1
@@ -98,8 +99,7 @@ typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
-
-typedef cv::Vec<float,5> Vec5f;
+typedef Graph<float, float, float> GraphType;
 
 class ProbImageDifferencing
 {
@@ -128,7 +128,8 @@ class ProbImageDifferencing
   {
     // Convert to correct format
     cv::Mat bgr_frame(color_frame.size(), CV_32FC3);
-    color_frame.convertTo(bgr_frame, CV_32FC3, 1./255, 0);
+    color_frame.convertTo(bgr_frame, CV_32FC3, 1.0/255, 0);
+    // color_frame.convertTo(bgr_frame, CV_32FC3, 1.0, 0);
 
     // Calculate probability of being the same color and depth at each pixel
     std::vector<cv::Mat> motions;
@@ -218,8 +219,7 @@ class ProbImageDifferencing
         float x_d = depth_frame.at<float>(r,c);
         float mu_d = d_means.at<float>(r,c);
         float var_d = d_vars.at<float>(r,c);
-        float prob_d = 1.0 - p_x_gaussian_hist(x_d, mu_d, var_d);
-        // float prob_d = 1.0 - p_x_gaussian_kenney(x_d, mu_d, var_d);
+        float prob_d = 1.0 - p_x_gaussian_kenney(x_d, mu_d, var_d);
         if (prob_d > 1.0)
         {
           d_probs_greater++;
@@ -231,6 +231,8 @@ class ProbImageDifferencing
         }
         d_motion_probs_.at<float>(r,c) = prob_d;
         motion_probs_.at<cv::Vec4f>(r,c)[3]*= prob_d;
+        // motion_probs_.at<cv::Vec4f>(r,c)[3]= max(prob_d,
+        //                                          motion_probs_.at<cv::Vec4f>(r,c)[3]);
       }
     }
     // ROS_INFO_STREAM("d_probs_greater " << d_probs_greater);
@@ -246,13 +248,11 @@ class ProbImageDifferencing
   cv::Vec4f p_x_gaussian(cv::Vec3f x, cv::Vec3f mu, cv::Vec3f var)
   {
     cv::Vec4f p_x;
-    p_x[0] = p_x_gaussian_hist(x[0], mu[0], var[0]);
-    p_x[1] = p_x_gaussian_hist(x[1], mu[1], var[1]);
-    p_x[2] = p_x_gaussian_hist(x[2], mu[2], var[2]);
-    // p_x[0] = p_x_gaussian_kenney(x[0], mu[0], var[0]);
-    // p_x[1] = p_x_gaussian_kenney(x[1], mu[1], var[1]);
-    // p_x[2] = p_x_gaussian_kenney(x[2], mu[2], var[2]);
+    p_x[0] = p_x_gaussian_kenney(x[0], mu[0], var[0]);
+    p_x[1] = p_x_gaussian_kenney(x[1], mu[1], var[1]);
+    p_x[2] = p_x_gaussian_kenney(x[2], mu[2], var[2]);
     p_x[3] = p_x[0]*p_x[1]*p_x[2];
+    // p_x[3] = max(p_x[0],max(p_x[1],p_x[2]));
     return p_x;
   }
 
@@ -328,6 +328,108 @@ class ProbImageDifferencing
 
 };
 
+class MotionGraphcut
+{
+ public:
+  MotionGraphcut()
+  {
+
+  }
+
+  virtual ~MotionGraphcut()
+  {
+  }
+
+  cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
+                     cv::Mat& motion_probs)
+  {
+    const int R = color_frame.rows;
+    const int C = color_frame.cols;
+    int num_nodes = R*C;
+    int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
+    ROS_INFO_STREAM("Creating graph.");
+    g = new GraphType(num_nodes, num_edges);
+    for (int r = 0; r < R; ++r)
+    {
+      for (int c = 0; c < C; ++c)
+      {
+        ROS_INFO_STREAM("Adding node " << r*C+c);
+        g->add_node();
+        float p_x = motion_probs.at<float>(r,c);
+        // if (p_x > 1.0) ROS_INFO_STREAM("p_x too big! " << p_x);
+        // if (p_x < 0.0) ROS_INFO_STREAM("p_x too small! " << p_x);
+        ROS_INFO_STREAM("Adding tweights at (" << r << ", " << c << ") of:"
+                        << "(" << R << ", " << C << ")");
+        ROS_INFO_STREAM("p_x is: " << p_x);
+        g->add_tweights(r*C+c, /*capacities*/ p_x, 1.0-p_x);
+        // Connect node to previous ones
+        if (c > 0)
+        {
+          // Add left-link
+          // ROS_INFO_STREAM("Adding left-link");
+          float w_l = getEdgeWeight(color_frame.at<cv::Vec3f>(r*C+c),
+                                    depth_frame.at<float>(r*C+c),
+                                    color_frame.at<cv::Vec3f>(r*C+c-1),
+                                    depth_frame.at<float>(r*C+c-1));
+          ROS_INFO_STREAM("w_l is: " << w_l);
+          g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
+        }
+
+        if (r > 0)
+        {
+          // Add up-link
+          // ROS_INFO_STREAM("Adding up-link");
+          float w_u = getEdgeWeight(color_frame.at<cv::Vec3f>(r*C+c),
+                                    depth_frame.at<float>(r*C+c),
+                                    color_frame.at<cv::Vec3f>((r-1)*C+c),
+                                    depth_frame.at<float>((r-1)*C+c));
+          ROS_INFO_STREAM("w_u is: " << w_u);
+          g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
+          // Add up-left-link
+          if (c > 0)
+          {
+            ROS_INFO_STREAM("Adding up-left-link");
+            float w_ul = getEdgeWeight(color_frame.at<cv::Vec3f>(r*C+c),
+                                       depth_frame.at<float>(r*C+c),
+                                       color_frame.at<cv::Vec3f>((r-1)*C+c-1),
+                                       depth_frame.at<float>((r-1)*C+c-1));
+            if (w_ul < 0.0) ROS_INFO_STREAM("w_l is too small " << w_ul);
+            g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
+          }
+        }
+      }
+    }
+    ROS_INFO_STREAM("Computing maxflow.");
+    int flow = g->maxflow(false);
+    ROS_INFO_STREAM("Formatting output.");
+    // Convert output into image
+    cv::Mat segs(R, C, CV_32FC1, cv::Scalar(0.0));
+    for (int r = 0; r < R; ++r)
+    {
+      for (int c = 0; c < C; ++c)
+      {
+        float label = (g->what_segment(r*C+c) == GraphType::SOURCE);
+        segs.at<float>(r,c) = label;
+      }
+    }
+    delete g;
+    return segs;
+  }
+
+  float getEdgeWeight(cv::Vec3f c0, float d0, cv::Vec3f c1, float d1)
+  {
+    cv::Vec3f c_d = c0-c1;
+    float w_d = 255*(d0-d1);
+    w_d *= w_d;
+    // w_d = abs(w_d);
+    float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]+w_d);
+    return min(900.0f, max(w_c,0.0f));
+  }
+
+ protected:
+  GraphType *g;
+};
+
 class TabletopPushingPerceptionNode
 {
  public:
@@ -338,7 +440,7 @@ class TabletopPushingPerceptionNode
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(1), image_sub_, depth_sub_, cloud_sub_),
       track_server_(n, "seg_track_action",
-                    boost::bind(&TabletopPushingPerceptionNode::startTracker,
+                    boost::bind(&TabletopPushingPerceptionNode::trackerGoalCallback,
                                 this, _1),
                     false),
       tf_(), motion_probs_(5), have_depth_data_(false), tracking_(true),
@@ -408,6 +510,8 @@ class TabletopPushingPerceptionNode
           depth_frame.at<float>(r,c) = 0.0;
       }
     }
+
+    // TODO: Downsample images
 
     // Select inner ROI of images to remove border issues
     int x_size = crop_max_x_ - crop_min_x_;
@@ -484,13 +588,21 @@ class TabletopPushingPerceptionNode
   // Region tracking methods
   //
 
-  void startTracker(const tabletop_pushing::SegTrackGoalConstPtr &goal)
+  void trackerGoalCallback(const tabletop_pushing::SegTrackGoalConstPtr &goal)
+  {
+    if (goal->start)
+      startTracker();
+    else
+      stopTracker();
+  }
+
+  void startTracker()
   {
     tracker_initialized_ = false;
     tracking_ = true;
 
   }
-  void stopTracker(const tabletop_pushing::SegTrackGoalConstPtr &goal)
+  void stopTracker()
   {
     tracker_initialized_ = false;
     tracking_ = false;
@@ -527,11 +639,15 @@ class TabletopPushingPerceptionNode
     cv::imshow("combined_motion_prob", motion_prob_channels[3]);
 #endif // DISPLAY_INTERMEDIATE_PROBS
     cv::Mat motion_morphed(cur_probs[0].rows, cur_probs[0].cols, CV_32FC1);
-    cv::Mat element(5, 5, CV_32FC1, cv::Scalar(1.0));
+    cv::Mat element(3, 3, CV_32FC1, cv::Scalar(1.0));
     cv::erode(motion_prob_channels[3], motion_morphed, element);
     cv::imshow("combined_motion_prob_clean", motion_morphed);
     cv::waitKey(display_wait_ms_);
 #endif // DISPLAY_MOTION_PROBS
+    ROS_INFO_STREAM("Computing graph cut.");
+    // cv::Mat cut = mgc_(color_frame, depth_frame, motion_prob_channels[3]);
+    // cv::imshow("Cut", cut);
+    // cv::waitKey();
   }
 
   PoseStamped getTablePlane(cv::Mat& color_frame, cv::Mat& depth_frame,
@@ -617,6 +733,7 @@ class TabletopPushingPerceptionNode
   cv::Mat cur_depth_frame_;
   XYZPointCloud cur_point_cloud_;
   ProbImageDifferencing motion_probs_;
+  MotionGraphcut mgc_;
   bool have_depth_data_;
   int crop_min_x_;
   int crop_max_x_;
