@@ -118,7 +118,7 @@ class TabletopExecutive:
         for i in xrange(num_r_overhead_pushes):
             self.overhead_push_object(self.overhead_push_dist, 'r')
 
-        # self.stop_tracker()
+        self.stop_tracker()
 
     def raise_and_look(self):
         rospy.loginfo("Getting table pose")

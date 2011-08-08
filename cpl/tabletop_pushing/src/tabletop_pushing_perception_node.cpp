@@ -728,14 +728,14 @@ class TabletopPushingPerceptionNode
                     << p.pose.position.y << ", "
                     << p.pose.position.z << ")");
     // TODO: Get extent as well
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_hull (
-    //     new pcl::PointCloud<pcl::PointXYZ>);
-    // pcl::ConvexHull<pcl::PointXYZ> hull;
-    // hull.setInputCloud(plane_cloud);
+    pcl::PointCloud<pcl::PointXYZ> cloud_hull;
+    pcl::ConvexHull<pcl::PointXYZ> hull;
+    hull.setInputCloud(boost::make_shared<
+                       pcl::PointCloud<pcl::PointXYZ> >(plane_cloud));
     // hull.setAlpha(0.1);
-    // hull.reconstruct(cloud_hull);
-    // ROS_INFO_STREAM("Convex hull has: " << cloud_hull->points.size()
-    //                 << " points");
+    hull.reconstruct(cloud_hull);
+    ROS_INFO_STREAM("Convex hull has: " << cloud_hull.points.size()
+                    << " points");
     return p;
   }
 
