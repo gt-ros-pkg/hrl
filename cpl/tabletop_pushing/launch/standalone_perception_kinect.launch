@@ -25,7 +25,9 @@
     <param name="num_hist_frames" value="5" type="int"/>
     <!-- <param name="T_in" value="1.5" type="double"/> -->
     <!-- <param name="T_out" value="8" type="double"/> -->
-    <param name="T_in" value="0.5" type="double"/>
+    <param name="T_in" value="1.0" type="double"/>
     <param name="T_out" value="15" type="double"/>
+    <param name="autostart_tracking" value="true" type="bool"/>
+    <param name="erosion_size" value="3" type="int"/>
   </node>
 </launch>
