@@ -25,12 +25,12 @@
     <param name="trajectory_filter_allowed_time" type="double" value="2.0" />
     <param name="group" type="string" value="left_arm" />
     <param name="controller_action_name" type="string" value="/l_arm_controller/joint_trajectory_action" />
-
+<!--
     <param name="head_monitor_link" type="string" value="l_wrist_roll_link" />
     <param name="head_monitor_link_x" type="double" value="0.10" />
     <param name="head_monitor_time_offset" type="double" value="1.5" />
     <param name="head_monitor_max_frequency" type="double" value="3.0" />
-
+-->
     <param name="pause_allowed_time" type="double" value="5.0" />
 
   </node>
