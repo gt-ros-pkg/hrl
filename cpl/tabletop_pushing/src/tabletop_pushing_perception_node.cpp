@@ -79,6 +79,8 @@
 #include <tabletop_pushing/SegTrackAction.h>
 
 #include <tabletop_pushing/extern/graphcut/graph.h>
+#include <tabletop_pushing/extern/graphcut/energy.h>
+#include <tabletop_pushing/extern/graphcut/GCoptimization.h>
 
 // STL
 #include <vector>
@@ -88,11 +90,11 @@
 #include <utility>
 #include <math.h>
 
-// #define DISPLAY_MOTION_PROBS 1
-// #define DISPLAY_INPUT_IMAGES 1
-// #define DISPLAY_MEANS 1
-// #define DISPLAY_VARS 1
-// #define DISPLAY_INTERMEDIATE_PROBS 1
+#define DISPLAY_MOTION_PROBS 1
+#define DISPLAY_INPUT_IMAGES 1
+#define DISPLAY_MEANS 1
+#define DISPLAY_VARS 1
+#define DISPLAY_INTERMEDIATE_PROBS 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -131,7 +133,6 @@ class ProbImageDifferencing
     // Convert to correct format
     cv::Mat bgr_frame(color_frame.size(), CV_32FC3);
     color_frame.convertTo(bgr_frame, CV_32FC3, 1.0/255, 0);
-    // color_frame.convertTo(bgr_frame, CV_32FC3, 1.0, 0);
 
     // Calculate probability of being the same color and depth at each pixel
     std::vector<cv::Mat> motions;
@@ -232,9 +233,9 @@ class ProbImageDifferencing
           // ROS_INFO_STREAM("prob_d is: " << prob_d);
         }
         d_motion_probs_.at<float>(r,c) = prob_d;
-        motion_probs_.at<cv::Vec4f>(r,c)[3]*= prob_d;
-        // motion_probs_.at<cv::Vec4f>(r,c)[3]= max(prob_d,
-        //                                          motion_probs_.at<cv::Vec4f>(r,c)[3]);
+        // motion_probs_.at<cv::Vec4f>(r,c)[3]*= prob_d;
+        motion_probs_.at<cv::Vec4f>(r,c)[3]= max(prob_d,
+                                                 motion_probs_.at<cv::Vec4f>(r,c)[3]);
       }
     }
     // ROS_INFO_STREAM("d_probs_greater " << d_probs_greater);
@@ -345,6 +346,20 @@ class MotionGraphcut
   cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
                      cv::Mat& motion_probs)
   {
+    // for (int r = 0; r < depth_frame.rows; ++r)
+    // {
+    //   for (int c = 0; c < depth_frame.cols; ++c)
+    //   {
+    //     float cur_d = depth_frame.at<float>(r,c);
+    //     if (isnan(cur_d))
+    //     {
+    //       // depth_frame.at<float>(r,c) = 0.0;
+    //       ROS_INFO_STREAM("depth_frame in operator() has a nan at : (" << r << ", " << c
+    //                       << ")");
+    //     }
+    //   }
+    // }
+
     const int R = color_frame.rows;
     const int C = color_frame.cols;
     int num_nodes = R*C;
@@ -355,49 +370,39 @@ class MotionGraphcut
     {
       for (int c = 0; c < C; ++c)
       {
-        ROS_INFO_STREAM("Adding node " << r*C+c);
+        // ROS_INFO_STREAM("Adding node " << r*C+c << " of " << num_nodes);
         g->add_node();
         float p_x = motion_probs.at<float>(r,c);
-        // if (p_x > 1.0) ROS_INFO_STREAM("p_x too big! " << p_x);
-        // if (p_x < 0.0) ROS_INFO_STREAM("p_x too small! " << p_x);
-        ROS_INFO_STREAM("Adding tweights at (" << r << ", " << c << ") of:"
-                        << "(" << R << ", " << C << ")");
-        ROS_INFO_STREAM("p_x is: " << p_x);
         g->add_tweights(r*C+c, /*capacities*/ p_x, 1.0-p_x);
+        // ROS_INFO_STREAM("Added tweights.");
         // Connect node to previous ones
         if (c > 0)
         {
           // Add left-link
-          // ROS_INFO_STREAM("Adding left-link");
-          float w_l = getEdgeWeight(color_frame.at<cv::Vec3f>(r*C+c),
-                                    depth_frame.at<float>(r*C+c),
-                                    color_frame.at<cv::Vec3f>(r*C+c-1),
-                                    depth_frame.at<float>(r*C+c-1));
-          ROS_INFO_STREAM("w_l is: " << w_l);
+          float w_l = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+                                    depth_frame.at<float>(r,c),
+                                    color_frame.at<cv::Vec3f>(r,c-1),
+                                    depth_frame.at<float>(r,c-1));
           g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
         }
 
         if (r > 0)
         {
           // Add up-link
-          // ROS_INFO_STREAM("Adding up-link");
-          float w_u = getEdgeWeight(color_frame.at<cv::Vec3f>(r*C+c),
-                                    depth_frame.at<float>(r*C+c),
-                                    color_frame.at<cv::Vec3f>((r-1)*C+c),
-                                    depth_frame.at<float>((r-1)*C+c));
-          ROS_INFO_STREAM("w_u is: " << w_u);
+          float w_u = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+                                    depth_frame.at<float>(r,c),
+                                    color_frame.at<cv::Vec3f>(r-1,c),
+                                    depth_frame.at<float>(r-1,c));
           g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
           // Add up-left-link
-          if (c > 0)
-          {
-            ROS_INFO_STREAM("Adding up-left-link");
-            float w_ul = getEdgeWeight(color_frame.at<cv::Vec3f>(r*C+c),
-                                       depth_frame.at<float>(r*C+c),
-                                       color_frame.at<cv::Vec3f>((r-1)*C+c-1),
-                                       depth_frame.at<float>((r-1)*C+c-1));
-            if (w_ul < 0.0) ROS_INFO_STREAM("w_l is too small " << w_ul);
-            g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
-          }
+          // if (c > 0)
+          // {
+          //   float w_ul = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+          //                              depth_frame.at<float>(r,c),
+          //                              color_frame.at<cv::Vec3f>(r-1,c-1),
+          //                              depth_frame.at<float>(r-1,c-1);
+          //   g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
+          // }
         }
       }
     }
@@ -420,12 +425,46 @@ class MotionGraphcut
 
   float getEdgeWeight(cv::Vec3f c0, float d0, cv::Vec3f c1, float d1)
   {
+    // ROS_INFO_STREAM("Get c_d");
     cv::Vec3f c_d = c0-c1;
+    // ROS_INFO_STREAM("c_d: (" << c_d[0] << ", "  << c_d[1] << ", "  << c_d[2]
+    //                 << ")");
     float w_d = 255*(d0-d1);
+    if (isnan(w_d))
+    {
+      ROS_INFO_STREAM("w_d: " << w_d);
+      ROS_INFO_STREAM("d0: " << d0);
+      ROS_INFO_STREAM("d1: " << d1);
+    }
+    if (isinf(w_d))
+    {
+      ROS_INFO_STREAM("w_d: " << w_d);
+      ROS_INFO_STREAM("d0: " << d0);
+      ROS_INFO_STREAM("d1: " << d1);
+    }
     w_d *= w_d;
+    // ROS_INFO_STREAM("w_d^2: " << w_d);
     // w_d = abs(w_d);
     float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]+w_d);
-    return min(900.0f, max(w_c,0.0f));
+    if (isnan(w_c))
+    {
+      ROS_INFO_STREAM("w_c: " << w_c);
+      ROS_INFO_STREAM("c_d0: " << c_d[0]);
+      ROS_INFO_STREAM("c_d1: " << c_d[1]);
+      ROS_INFO_STREAM("c_d2: " << c_d[2]);
+    }
+    if (isinf(w_c))
+    {
+      ROS_INFO_STREAM("w_c: " << w_c);
+      ROS_INFO_STREAM("c_d0: " << c_d[0]);
+      ROS_INFO_STREAM("c_d1: " << c_d[1]);
+      ROS_INFO_STREAM("c_d2: " << c_d[2]);
+    }
+
+    // ROS_INFO_STREAM("w_c: " << w_c);
+    float w = min(900.0f, max(w_c,0.0f));
+    // ROS_INFO_STREAM("w: " << w);
+    return w;
   }
 
  protected:
@@ -475,7 +514,8 @@ class TabletopPushingPerceptionNode
     n_private.param("T_in", T_in, 3.0);
     n_private.param("T_out", T_out, 5.0);
     motion_probs_.setT_inT_out(T_in, T_out);
-
+    n_private.param("autostart_tracking", tracking_, false);
+    n_private.param("erosion_size", erosion_size_, 3);
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
                            this);
@@ -529,6 +569,7 @@ class TabletopPushingPerceptionNode
     // Save internally for use in the service callback
     cur_color_frame_ = color_region.clone();
     cur_depth_frame_ = depth_region.clone();
+
     cur_point_cloud_ = cloud;
     have_depth_data_ = true;
 
@@ -642,7 +683,7 @@ class TabletopPushingPerceptionNode
     std::vector<cv::Mat> motion_prob_channels;
     cv::split(cur_probs[0], motion_prob_channels);
     cv::Mat motion_morphed(cur_probs[0].rows, cur_probs[0].cols, CV_32FC1);
-    cv::Mat element(3, 3, CV_32FC1, cv::Scalar(1.0));
+    cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(255));
     cv::erode(motion_prob_channels[3], motion_morphed, element);
 
 #ifdef DISPLAY_MOTION_PROBS
@@ -668,10 +709,13 @@ class TabletopPushingPerceptionNode
     motion_msg.header.stamp = ros::Time::now();
     motion_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     motion_img_pub_.publish(motion_msg.toImageMsg());
-    // ROS_INFO_STREAM("Computing graph cut.");
-    // cv::Mat cut = mgc_(color_frame, depth_frame, motion_prob_channels[3]);
-    // cv::imshow("Cut", cut);
-    // cv::waitKey();
+
+    ROS_INFO_STREAM("Computing graph cut.");
+    cv::Mat color_frame_f(color_frame.size(), CV_32FC3);
+    color_frame.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
+    cv::Mat cut = mgc_(color_frame_f, depth_frame, motion_prob_channels[3]);
+    cv::imshow("Cut", cut);
+    cv::waitKey();
   }
 
   PoseStamped getTablePlane(cv::Mat& color_frame, cv::Mat& depth_frame,
@@ -774,6 +818,7 @@ class TabletopPushingPerceptionNode
   int crop_min_y_;
   int crop_max_y_;
   int display_wait_ms_;
+  int erosion_size_;
   cv::RotatedRect cur_ellipse_;
   cv::RotatedRect delta_ellipse_;
   double min_workspace_x_;
