@@ -681,4 +681,53 @@ template <typename captype, typename tcaptype, typename flowtype>
 	}
 }
 
-#include "instances.inc"
+template <typename captype, typename tcaptype, typename flowtype> 
+	void Graph<captype,tcaptype,flowtype>::Copy(Graph<captype, tcaptype, flowtype>* g0)
+{
+	node* i;
+	arc* a;
+
+	reset();
+
+	if (node_max < nodes + g0->node_num)
+	{
+		free(nodes);
+		nodes = node_last = (node*) malloc(g0->node_num*sizeof(node));
+		node_max = nodes + g0->node_num;
+	}
+	if (arc_max < arcs + (g0->arc_last - g0->arcs))
+	{
+		free(arcs);
+		arcs = arc_last = (arc*) malloc((g0->arc_last - g0->arcs)*sizeof(arc));
+		arc_max = arcs + (g0->arc_last - g0->arcs);
+	}
+
+	node_num = g0->node_num;
+	node_last = nodes + node_num;
+	memcpy(nodes, g0->nodes, node_num*sizeof(node));
+	for (i=nodes; i<node_last; i++)
+	{
+		if (i->first) i->first  = (arc*)((char*)arcs + (((char*)i->first)  - ((char*)g0->arcs)));
+		if (i->parent && i->parent!=TERMINAL && i->parent!=ORPHAN) i->parent = (arc*)((char*)arcs + (((char*)i->parent) - ((char*)g0->arcs)));
+		if (i->next) i->next   = (node*)((char*)nodes + (((char*)i->next) - ((char*)g0->nodes)));
+	}
+
+	arc_last = arcs + (g0->arc_last - g0->arcs);
+	memcpy(arcs, g0->arcs, (g0->arc_last - g0->arcs)*sizeof(arc));
+	for (a=arcs; a<arc_last; a++)
+	{
+		a->head    = (node*)((char*)nodes + (((char*)a->head)  - ((char*)g0->nodes)));
+		if (a->next) a->next = (arc*)((char*)arcs + (((char*)a->next)    - ((char*)g0->arcs)));
+		a->sister  = (arc*)((char*)arcs + (((char*)a->sister)  - ((char*)g0->arcs)));
+	}
+
+	error_function = g0->error_function;
+	flow = g0->flow;
+	maxflow_iteration = g0->maxflow_iteration;
+
+	queue_first[0] = (g0->queue_first[0]==NULL) ? NULL : (node*)((char*)nodes + (((char*)g0->queue_first[0]) - ((char*)g0->nodes)));
+	queue_first[1] = (g0->queue_first[1]==NULL) ? NULL : (node*)((char*)nodes + (((char*)g0->queue_first[1]) - ((char*)g0->nodes)));
+	queue_last[0] = (g0->queue_last[0]==NULL) ? NULL : (node*)((char*)nodes + (((char*)g0->queue_last[0]) - ((char*)g0->nodes)));
+	queue_last[1] = (g0->queue_last[1]==NULL) ? NULL : (node*)((char*)nodes + (((char*)g0->queue_last[1]) - ((char*)g0->nodes)));
+	TIME = g0->TIME;
+}
