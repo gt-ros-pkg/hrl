@@ -11,13 +11,13 @@ class Pointmass_Adjust:
    
     pub_marker = True #Set to (True) or to not(False) publish rviz marker showing force vector
 
-    mass = 1.0213 #kg
+    mass = 1.0463 #kg 1.0213
     pos_x = 0.0853 #m, in 'l_wrist_roll_link'
     pos_y = 0.0
     pos_z = 0.0
-    x_force_offset = 5.72 #5.70 -- These values determined from experiment, used values are adjusted for better qualitative results using rviz
-    y_force_offset = -13.96 #14.10
-    z_force_offset = 3.85 #-3.88
+    x_force_offset = 5.52 #5.70 -- These values determined from experiment, used values are adjusted for better qualitative results using rviz
+    y_force_offset = -14.16 #14.10
+    z_force_offset = 4.30 #-3.88
     x_torque_offset = -0.21875
     y_torque_offset = 0.3804
     z_torque_offset = 0.3899
