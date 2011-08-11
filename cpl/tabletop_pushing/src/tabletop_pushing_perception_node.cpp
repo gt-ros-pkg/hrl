@@ -91,12 +91,14 @@
 #include <math.h>
 
 // #define DISPLAY_MOTION_PROBS 1
-// #define DISPLAY_INPUT_IMAGES 1
+#define DISPLAY_INPUT_IMAGES 1
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
 #define DISPLAY_OPTICAL_FLOW 1
 #define DISPLAY_OPT_FLOW_INTERNALS 1
+// #define DISPLAY_OPT_FLOW_II_INTERNALS 1
+#define DISPLAY_GRAPHCUT 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -343,8 +345,10 @@ class LKFlowReliable
   {
   }
 
-  cv::Mat operator()(cv::Mat& cur_color_frame, cv::Mat& cur_depth_frame,
-                     cv::Mat& prev_color_frame, cv::Mat& prev_depth_frame)
+  std::vector<cv::Mat> operator()(cv::Mat& cur_color_frame,
+                                  cv::Mat& cur_depth_frame,
+                                  cv::Mat& prev_color_frame,
+                                  cv::Mat& prev_depth_frame)
   {
     // Convert to grayscale
     cv::Mat tmp_bw(cur_color_frame.size(), CV_8UC1);
@@ -368,12 +372,12 @@ class LKFlowReliable
     //   flow_pyr.push_back(flow);
     //   // TODO: Warp to higher level
     // }
-    cv::Mat flow = baseLK(cur_bw, prev_bw);
-    // cv::Mat flowII = baseLKII(cur_bw, prev_bw);
-    return flow;
+    std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
+    // std::vector<cv::Mat> flow_n_scoresII = baseLKII(cur_bw, prev_bw);
+    return flow_n_scores;
   }
 
-  cv::Mat baseLK(cv::Mat& cur_bw, cv::Mat& prev_bw)
+  std::vector<cv::Mat> baseLK(cv::Mat& cur_bw, cv::Mat& prev_bw)
   {
     // Get gradients using sobel
     cv::Mat Ix(cur_bw.size(), CV_32FC1);
@@ -391,6 +395,7 @@ class LKFlowReliable
 
     int win_radius = win_size_/2;
     cv::Mat flow(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
+    cv::Mat t_scores(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
     {
       for (int c = win_radius; c < Ix.cols-win_radius; ++c)
@@ -411,20 +416,13 @@ class LKFlowReliable
             sIyt += Iy.at<float>(y,x)*It.at<float>(y,x);
           }
         }
-        cv::Mat H(cv::Size(2,2), CV_32FC1);
-        H.at<float>(0,0) = sIxx;
-        H.at<float>(0,1) = sIxy;
-        H.at<float>(1,0) = sIxy;
-        H.at<float>(1,1) = sIyy;
-        cv::Mat lambdas;
-        cv::eigen(H, lambdas);
+
         float det = sIxx*sIyy - sIxy*sIxy;
         cv::Vec2f uv;
         if (det == 0.0)
         {
           uv[0] = 0.0;
           uv[1] = 0.0;
-          // ROS_INFO_STREAM("Have 0 det!");
         }
         else
         {
@@ -432,12 +430,25 @@ class LKFlowReliable
           uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
         }
         flow.at<cv::Vec2f>(r,c) = uv;
+
+        cv::Mat H(cv::Size(2,2), CV_32FC1);
+        H.at<float>(0,0) = sIxx;
+        H.at<float>(0,1) = sIxy;
+        H.at<float>(1,0) = sIxy;
+        H.at<float>(1,1) = sIyy;
+        cv::Mat lambdas;
+        cv::eigen(H, lambdas);
+        cv::Vec2f ll(lambdas.at<float>(0,0), lambdas.at<float>(1,0));
+        t_scores.at<cv::Vec2f>(r,c) = ll;
       }
     }
-    return flow;
+    std::vector<cv::Mat> outs;
+    outs.push_back(flow);
+    outs.push_back(t_scores);
+    return outs;
   }
 
-  cv::Mat baseLKII(cv::Mat& cur_bw, cv::Mat& prev_bw)
+  std::vector<cv::Mat> baseLKII(cv::Mat& cur_bw, cv::Mat& prev_bw)
   {
     // TODO: Make an integral image version for speedup
     // Get gradients using sobel
@@ -475,12 +486,6 @@ class LKFlowReliable
           IIyt.at<float>(0,c-1);
     }
 
-    cv::imshow("IIxx", IIxx);
-    cv::imshow("IIxy", IIxy);
-    cv::imshow("IIyy", IIyy);
-    cv::imshow("IIxt", IIxt);
-    cv::imshow("IIyt", IIyt);
-    cv::waitKey();
     // Compute integral image first column values
     for (int r = 1; r < Ix.rows; ++r)
     {
@@ -495,12 +500,6 @@ class LKFlowReliable
       IIyt.at<float>(r,0) = Iy.at<float>(r,0)*It.at<float>(r,0) +
           IIyt.at<float>(r-1,0);
     }
-    cv::imshow("IIxx", IIxx);
-    cv::imshow("IIxy", IIxy);
-    cv::imshow("IIyy", IIyy);
-    cv::imshow("IIxt", IIxt);
-    cv::imshow("IIyt", IIyt);
-    cv::waitKey();
 
     // Compute integral image values
     for (int r = 1; r < Ix.rows; ++r)
@@ -525,40 +524,80 @@ class LKFlowReliable
       }
     }
 #ifdef DISPLAY_OPT_FLOW_INTERNALS
+
+#ifdef DISPLAY_OPT_FLOW_II_INTERNALS
     cv::imshow("IIxx", IIxx);
     cv::imshow("IIxy", IIxy);
     cv::imshow("IIyy", IIyy);
     cv::imshow("IIxt", IIxt);
     cv::imshow("IIyt", IIyt);
-    cv::waitKey();
+#endif // DISPLAY_OPT_FLOW_II_INTERNALS
+
+    cv::imshow("cur_bw", cur_bw);
+    cv::imshow("prev_bw", prev_bw);
+    cv::imshow("It", It);
+    cv::imshow("Ix", Ix);
+    cv::imshow("Iy", Iy);
 #endif // DISPLAY_OPT_FLOW_INTERNALS
 
     int win_radius = win_size_/2;
     cv::Mat flow(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
+    cv::Mat t_scores(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
     {
       for (int c = win_radius; c < Ix.cols-win_radius; ++c)
       {
-        float sIxx = IIxx.at<float>(r+win_radius,c+win_radius)+
-            IIxx.at<float>(r - win_radius, c - win_radius) -
-            (IIxx.at<float>(r - win_radius, c + win_radius) +
-             IIxx.at<float>(r + win_radius, c - win_radius));
-        float sIyy = IIyy.at<float>(r+win_radius,c+win_radius)+
-            IIyy.at<float>(r - win_radius, c - win_radius) -
-            (IIyy.at<float>(r - win_radius, c + win_radius) +
-             IIyy.at<float>(r + win_radius, c - win_radius));
-        float sIxy = IIxy.at<float>(r+win_radius,c+win_radius)+
-            IIxy.at<float>(r - win_radius, c - win_radius) -
-            (IIxy.at<float>(r - win_radius, c + win_radius) +
-             IIxy.at<float>(r + win_radius, c - win_radius));
-        float sIxt = IIxt.at<float>(r+win_radius,c+win_radius)+
-            IIxt.at<float>(r - win_radius, c - win_radius) -
-            (IIxt.at<float>(r - win_radius, c + win_radius) +
-             IIxt.at<float>(r + win_radius, c - win_radius));
-        float sIyt = IIyt.at<float>(r+win_radius,c+win_radius)+
-            IIyt.at<float>(r - win_radius, c - win_radius) -
-            (IIyt.at<float>(r - win_radius, c + win_radius) +
-             IIyt.at<float>(r + win_radius, c - win_radius));
+        float sIxx = 0.0;
+        float sIyy = 0.0;
+        float sIxy = 0.0;
+        float sIxt = 0.0;
+        float sIyt = 0.0;
+
+        int r_min = r - win_radius - 1;
+        int c_min = c - win_radius - 1;
+        int r_max = r + win_radius;
+        int c_max = c + win_radius;
+
+        if (c_min > 0 && r_min > 0)
+        {
+          sIxx = IIxx.at<float>(r_max, c_max) + IIxx.at<float>(r_min, c_min)
+              - (IIxx.at<float>(r_min, c_max) + IIxx.at<float>(r_max, c_min));
+          sIyy = IIyy.at<float>(r_max, c_max) + IIyy.at<float>(r_min, c_min)
+              - (IIyy.at<float>(r_min, c_max) + IIyy.at<float>(r_max, c_min));
+          sIxy = IIxy.at<float>(r_max, c_max) + IIxy.at<float>(r_min, c_min)
+              - (IIxy.at<float>(r_min, c_max) + IIxy.at<float>(r_max, c_min));
+          sIxt = IIxt.at<float>(r_max, c_max) + IIxt.at<float>(r_min, c_min)
+              - (IIxt.at<float>(r_min, c_max) + IIxt.at<float>(r_max, c_min));
+          sIyt = IIyt.at<float>(r_max, c_max) + IIyt.at<float>(r_min, c_min)
+              - (IIyt.at<float>(r_min, c_max) + IIyt.at<float>(r_max, c_min));
+        }
+        else
+        {
+          if (c_min > 0)
+          {
+            sIxx = IIxx.at<float>(r_max, c_max) - IIxx.at<float>(r_max, c_min);
+            sIyy = IIyy.at<float>(r_max, c_max) - IIyy.at<float>(r_max, c_min);
+            sIxy = IIxy.at<float>(r_max, c_max) - IIxy.at<float>(r_max, c_min);
+            sIxt = IIxt.at<float>(r_max, c_max) - IIxt.at<float>(r_max, c_min);
+            sIyt = IIyt.at<float>(r_max, c_max) - IIyt.at<float>(r_max, c_min);
+          }
+          else if (r_min > 0)
+          {
+            sIxx = IIxx.at<float>(r_max, c_max) - IIxx.at<float>(r_min, c_max);
+            sIyy = IIyy.at<float>(r_max, c_max) - IIyy.at<float>(r_min, c_max);
+            sIxy = IIxy.at<float>(r_max, c_max) - IIxy.at<float>(r_min, c_max);
+            sIxt = IIxt.at<float>(r_max, c_max) - IIxt.at<float>(r_min, c_max);
+            sIyt = IIyt.at<float>(r_max, c_max) - IIyt.at<float>(r_min, c_max);
+          }
+          else
+          {
+            sIxx = IIxx.at<float>(r_max, c_max);
+            sIyy = IIyy.at<float>(r_max, c_max);
+            sIxy = IIxy.at<float>(r_max, c_max);
+            sIxt = IIxt.at<float>(r_max, c_max);
+            sIyt = IIyt.at<float>(r_max, c_max);
+          }
+        }
         float sIxx2 = 0.0;
         float sIyy2 = 0.0;
         float sIxy2 = 0.0;
@@ -575,41 +614,33 @@ class LKFlowReliable
             sIyt2 += Iy.at<float>(y,x)*It.at<float>(y,x);
           }
         }
+        // TODO: Check if it is just round-off error
+        // if (sIxx - sIxx2 > 0.0001)
+        // {
+        //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIxx != sIxx2: "
+        //                   << sIxx << ", " << sIxx2);
+        // }
+        // if (sIyy != sIyy2)
+        // {
+        //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIyy != sIyy2: "
+        //                   << sIyy << ", " << sIyy2);
+        // }
+        // if (sIxy != sIxy2)
+        // {
+        //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIxy != sIxy2: "
+        //                   << sIxy << ", " << sIxy2);
+        // }
+        // if (sIxt != sIxt2)
+        // {
+        //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIxt != sIxt2: "
+        //                   << sIxt << ", " << sIxt2);
+        // }
+        // if (sIyt != sIyt2)
+        // {
+        //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIyt != sIyt2: "
+        //                   << sIyt << ", " << sIyt2);
+        // }
 
-        if (sIxx != sIxx2)
-        {
-          ROS_INFO_STREAM("sIxx doesn't match: " << sIxx
-                          << ", " << sIxx2);
-        }
-        if (sIxy != sIxy2)
-        {
-          ROS_INFO_STREAM("sIxy doesn't match: " << sIxy
-                          << ", " << sIxy2);
-        }
-        if (sIyy != sIyy2)
-        {
-          ROS_INFO_STREAM("sIyy doesn't match: " << sIyy
-                          << ", " << sIyy2);
-        }
-        if (sIxt != sIxt2)
-        {
-          ROS_INFO_STREAM("sIxt doesn't match: " << sIxt
-                          << ", " << sIxt2);
-        }
-        if (sIyt != sIyt2)
-        {
-          ROS_INFO_STREAM("sIyt doesn't match: " << sIyt
-                          << ", " << sIyt2);
-        }
-
-
-        cv::Mat H(cv::Size(2,2), CV_32FC1);
-        H.at<float>(0,0) = sIxx;
-        H.at<float>(0,1) = sIxy;
-        H.at<float>(1,0) = sIxy;
-        H.at<float>(1,1) = sIyy;
-        cv::Mat lambdas;
-        cv::eigen(H, lambdas);
         float det = sIxx*sIyy - sIxy*sIxy;
         cv::Vec2f uv;
         if (det == 0.0)
@@ -621,16 +652,25 @@ class LKFlowReliable
         {
           uv[0] = (-sIyy*sIxt + sIxy*sIyt)/det;
           uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
-          if (isinf(uv[0]) || isinf(uv[1]))
-          {
-            uv[0] = 0.0;
-            uv[1] = 0.0;
-          }
         }
         flow.at<cv::Vec2f>(r,c) = uv;
+
+        cv::Mat H(cv::Size(2,2), CV_32FC1);
+        H.at<float>(0,0) = sIxx;
+        H.at<float>(0,1) = sIxy;
+        H.at<float>(1,0) = sIxy;
+        H.at<float>(1,1) = sIyy;
+        cv::Mat lambdas;
+        cv::eigen(H, lambdas);
+        cv::Vec2f ll(lambdas.at<float>(0,0), lambdas.at<float>(1,0));
+        t_scores.at<cv::Vec2f>(r,c) = ll;
+
       }
     }
-    return flow;
+    std::vector<cv::Mat> outs;
+    outs.push_back(flow);
+    outs.push_back(t_scores);
+    return outs;
   }
 
   int win_size_;
@@ -650,68 +690,8 @@ class MotionGraphcut
   }
 
   cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
-                     cv::Mat& motion_probs)
-  {
-    const int R = color_frame.rows;
-    const int C = color_frame.cols;
-    int num_nodes = R*C;
-    int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
-    g = new GraphType(num_nodes, num_edges);
-    for (int r = 0; r < R; ++r)
-    {
-      for (int c = 0; c < C; ++c)
-      {
-        g->add_node();
-        float p_x = motion_probs.at<float>(r,c);
-        g->add_tweights(r*C+c, /*capacities*/ p_x, 1.0-p_x);
-        // Connect node to previous ones
-        if (c > 0)
-        {
-          // Add left-link
-          float w_l = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                    depth_frame.at<float>(r,c),
-                                    color_frame.at<cv::Vec3f>(r,c-1),
-                                    depth_frame.at<float>(r,c-1));
-          g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
-        }
-
-        if (r > 0)
-        {
-          // Add up-link
-          float w_u = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                    depth_frame.at<float>(r,c),
-                                    color_frame.at<cv::Vec3f>(r-1,c),
-                                    depth_frame.at<float>(r-1,c));
-          g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
-          // Add up-left-link
-          if (c > 0)
-          {
-            float w_ul = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                       depth_frame.at<float>(r,c),
-                                       color_frame.at<cv::Vec3f>(r-1,c-1),
-                                       depth_frame.at<float>(r-1,c-1));
-            g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
-          }
-        }
-      }
-    }
-    int flow = g->maxflow(false);
-    // Convert output into image
-    cv::Mat segs(R, C, CV_32FC1, cv::Scalar(0.0));
-    for (int r = 0; r < R; ++r)
-    {
-      for (int c = 0; c < C; ++c)
-      {
-        float label = (g->what_segment(r*C+c) == GraphType::SOURCE);
-        segs.at<float>(r,c) = label;
-      }
-    }
-    delete g;
-    return segs;
-  }
-
-  cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
-                     cv::Mat& u, cv::Mat& v)
+                     cv::Mat& u, cv::Mat& v, cv::Mat flow_scores,
+                     cv::Mat& workspace_mask)
   {
     const int R = color_frame.rows;
     const int C = color_frame.cols;
@@ -724,9 +704,18 @@ class MotionGraphcut
       {
         g->add_node();
         float magnitude = u.at<float>(r,c) + v.at<float>(r,c) ;
-        if (magnitude < 1)
+
+        // Check if we are hardcoding this spot to background
+        if (workspace_mask.at<uchar>(r,c) == 0)
         {
-          g->add_tweights(r*C+c, /*capacities*/ 10.0, 50.0);
+          // TODO: Set weight to infinte on bg
+          g->add_tweights(r*C+c, /*capacities*/ 0.0, 50.0);
+        }
+        // TODO: Check texture measure before assigning weight to movement or
+        // no movement
+        else if (magnitude < 1)
+        {
+          g->add_tweights(r*C+c, /*capacities*/ 10.0, 20.0);
         }
         else
         {
@@ -741,6 +730,7 @@ class MotionGraphcut
                                     color_frame.at<cv::Vec3f>(r,c-1),
                                     depth_frame.at<float>(r,c-1));
           g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
+          // ROS_INFO_STREAM("w_l: " << w_l);
         }
 
         if (r > 0)
@@ -750,6 +740,7 @@ class MotionGraphcut
                                     depth_frame.at<float>(r,c),
                                     color_frame.at<cv::Vec3f>(r-1,c),
                                     depth_frame.at<float>(r-1,c));
+          // ROS_INFO_STREAM("w_u: " << w_u);
           g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
           // Add up-left-link
           if (c > 0)
@@ -781,7 +772,7 @@ class MotionGraphcut
   float getEdgeWeight(cv::Vec3f c0, float d0, cv::Vec3f c1, float d1)
   {
     cv::Vec3f c_d = c0-c1;
-    float w_d = 255*(d0-d1);
+    float w_d = 0.5*(d0-d1);
     w_d *= w_d;
     float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]+w_d);
     return w_c;
@@ -886,12 +877,30 @@ class TabletopPushingPerceptionNode
     cv::Mat depth_region = depth_frame(roi);
     cv::Mat color_region = color_frame(roi);
 
+    cv::Mat workspace_mask(color_region.rows, color_region.cols, CV_8UC1,
+                           cv::Scalar(255));
+    // Black out pixels in color and depth images outside of worksape
+    for (int r = 0; r < color_region.rows; ++r)
+    {
+      for (int c = 0; c < color_region.cols; ++c)
+      {
+        // NOTE: Cloud is accessed by at(column, row)
+        pcl::PointXYZ cur_pt = cloud.at(crop_min_x_ + c, crop_min_y_ + r);
+        if (cur_pt.x < min_workspace_x_ || cur_pt.x > max_workspace_x_ ||
+            cur_pt.y < min_workspace_y_ || cur_pt.y > max_workspace_y_ ||
+            cur_pt.z < min_workspace_z_ || cur_pt.z > max_workspace_z_)
+        {
+          workspace_mask.at<uchar>(r,c) = 0;
+        }
+      }
+    }
     // Save internally for use in the service callback
     prev_color_frame_ = cur_color_frame_.clone();
     prev_depth_frame_ = cur_depth_frame_.clone();
     cur_color_frame_ = color_region.clone();
     cur_depth_frame_ = depth_region.clone();
-
+    prev_workspace_mask_ = cur_workspace_mask_.clone();
+    cur_workspace_mask_ = workspace_mask.clone();
     cur_point_cloud_ = cloud;
     have_depth_data_ = true;
 
@@ -993,55 +1002,36 @@ class TabletopPushingPerceptionNode
     {
       motion_probs_.initialize(color_frame, depth_frame);
       ROS_INFO_STREAM("Initializing tracker.");
-      // Fit plane to table
-      // TODO: Get extent as well
       table_centroid_ = getTablePlane(color_frame, depth_frame, cloud);
       tracker_initialized_ = true;
       return;
     }
-//     std::vector<cv::Mat> cur_probs = motion_probs_.update(color_frame, depth_frame);
 
-//     if (cur_probs.size() < 1) return;
-//     std::vector<cv::Mat> motion_prob_channels;
-//     cv::split(cur_probs[0], motion_prob_channels);
-//     cv::Mat motion_morphed(cur_probs[0].rows, cur_probs[0].cols, CV_32FC1);
-//     cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(255));
-//     cv::erode(motion_prob_channels[3], motion_morphed, element);
-
-// #ifdef DISPLAY_MOTION_PROBS
-// #ifdef DISPLAY_INPUT_IMAGES
-//     cv::imshow("bgr_frame", color_frame);
-//     cv::imshow("d_frame", depth_frame);
-// #endif // DISPLAY_INPUT_IMAGES
-// #ifdef DISPLAY_INTERMEDIATE_PROBS
-//     cv::imshow("b_motion_prob", motion_prob_channels[0]);
-//     cv::imshow("g_motion_prob", motion_prob_channels[1]);
-//     cv::imshow("r_motion_prob", motion_prob_channels[2]);
-//     cv::imshow("d_motion_prob", cur_probs[1]);
-//     cv::imshow("combined_motion_prob", motion_prob_channels[3]);
-// #endif // DISPLAY_INTERMEDIATE_PROBS
-//     cv::imshow("combined_motion_prob_clean", motion_morphed);
-//     cv::waitKey(display_wait_ms_);
-// #endif // DISPLAY_MOTION_PROBS
+#ifdef DISPLAY_INPUT_IMAGES
+    cv::imshow("input_color", color_frame);
+    cv::imshow("input_depth", depth_frame);
+    cv::imshow("workspace_mask", cur_workspace_mask_);
+#endif // DISPLAY_INPUT_IMAGES
 
     ROS_INFO_STREAM("Computing flow");
-    cv::Mat flow = lkflow_(cur_color_frame_, cur_depth_frame_, prev_color_frame_,
-                           prev_depth_frame_);
+    std::vector<cv::Mat> flow_outs = lkflow_(cur_color_frame_, cur_depth_frame_,
+                                             prev_color_frame_,
+                                             prev_depth_frame_);
     std::vector<cv::Mat> flows;
-    cv::split(flow, flows);
+    cv::split(flow_outs[0], flows);
+
 #ifdef DISPLAY_OPTICAL_FLOW
-    ROS_INFO_STREAM("Displaying flow");
     cv::Mat flow_disp_img(cur_color_frame_.size(), CV_8UC3);
     flow_disp_img = cur_color_frame_.clone();
     for (int r = 0; r < flow_disp_img.rows; ++r)
     {
       for (int c = 0; c < flow_disp_img.cols; ++c)
       {
-        cv::Vec2f uv = flow.at<cv::Vec2f>(r,c);
+        cv::Vec2f uv = flow_outs[0].at<cv::Vec2f>(r,c);
         if (abs(uv[0])+abs(uv[1]) > 1)
         {
           cv::line(flow_disp_img, cv::Point(c,r), cv::Point(c-uv[0], r-uv[1]),
-                   cv::Scalar(0,0,255));
+                   cv::Scalar(0,255,0));
         }
       }
     }
@@ -1053,11 +1043,56 @@ class TabletopPushingPerceptionNode
     ROS_INFO_STREAM("Computing graph cut.");
     cv::Mat color_frame_f(color_frame.size(), CV_32FC3);
     color_frame.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
-    //cv::Mat cut = mgc_(color_frame_f, depth_frame, motion_prob_channels[3]);
-    cv::Mat cut = mgc_(color_frame_f, depth_frame, flows[0], flows[1]);
+    cv::Mat cut = mgc_(color_frame_f, depth_frame,
+                       flows[0], flows[1],
+                       flow_outs[1],
+                       cur_workspace_mask_);
     ROS_INFO_STREAM("Computed graph cut.");
+
+
+    // cv::Mat toy_frame(200,200, CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    // cv::Mat toy_depth_frame(200,200, CV_32FC1, cv::Scalar(0.0));
+    // cv::Mat toy_u(200,200, CV_32FC1, cv::Scalar(0.0));
+    // cv::Mat toy_v(200,200, CV_32FC1, cv::Scalar(0.0));
+    // cv::Mat toy_scores(200, 200, CV_32FC2, cv::Scalar(0.0,0.0));
+    // cv::Mat toy_mask(200, 200, CV_8UC1, cv::Scalar(255));
+    // for (int r = 0; r < toy_frame.rows/2; r+=2)
+    // {
+    //   for (int c = 0; c < toy_frame.cols/2; ++c)
+    //   {
+    //     toy_frame.at<cv::Vec3f>(r,c) = cv::Vec3f(1.0,0.0,1.0);
+    //     toy_depth_frame.at<float>(r,c) = 0.3+c*0.01;
+    //     toy_u.at<float>(r,c) = 0.8+c*0.01;
+    //     toy_v.at<float>(r,c) = 6.0+c*0.01;
+    //   }
+    //   for (int c = toy_frame.cols/2; c < toy_frame.cols; ++c)
+    //   {
+    //     toy_mask.at<uchar>(r,c) = 0;
+    //   }
+    // }
+    // for (int r = toy_frame.rows / 2; r < toy_frame.rows; ++r)
+    // {
+    //   for (int c = toy_frame.cols /2; c < toy_frame.cols; ++c)
+    //   {
+    //     toy_frame.at<cv::Vec3f>(r,c) = cv::Vec3f(0.5,0.5,0.0);
+    //     toy_depth_frame.at<float>(r,c) = 0.2+c*0.01;
+    //     toy_v.at<float>(r,c) = 0.20;
+    //     toy_u.at<float>(r,c) = (toy_frame.cols-c)*0.5;
+    //   }
+    // }
+    // cv::Mat toy_cut = mgc_(toy_frame, toy_depth_frame, toy_u, toy_v,
+    //                        toy_scores, toy_mask);
+
+#ifdef DISPLAY_GRAPHCUT
     cv::imshow("Cut", cut);
+    // cv::imshow("toy_frame", toy_frame);
+    // cv::imshow("toy_mask", toy_mask);
+    // cv::imshow("toy_u", toy_u);
+    // cv::imshow("toy_v", toy_v);
+    // cv::imshow("toy_depth_frame", toy_depth_frame);
+    // cv::imshow("toy_cut", toy_cut);
     cv::waitKey(display_wait_ms_);
+#endif // DISPLAY_GRAPHCUT
 
     cv_bridge::CvImage motion_msg;
     cv::Mat motion_send(cut.size(), CV_8UC1);
@@ -1160,8 +1195,10 @@ class TabletopPushingPerceptionNode
   ros::ServiceServer table_location_server_;
   cv::Mat cur_color_frame_;
   cv::Mat cur_depth_frame_;
+  cv::Mat cur_workspace_mask_;
   cv::Mat prev_color_frame_;
   cv::Mat prev_depth_frame_;
+  cv::Mat prev_workspace_mask_;
   XYZPointCloud cur_point_cloud_;
   ProbImageDifferencing motion_probs_;
   LKFlowReliable lkflow_;
