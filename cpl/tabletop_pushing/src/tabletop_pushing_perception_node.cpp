@@ -344,9 +344,56 @@ class LKFlowReliable
   cv::Mat operator()(cv::Mat& cur_color_frame, cv::Mat& cur_depth_frame,
                      cv::Mat& prev_color_frame, cv::Mat& prev_depth_frame)
   {
-    // TODO: Get gradients using sobel
-    // cv::Mat color_dx(patch.size(), CV_64FC1);
-    // cv::Mat color_dy(patch.size(), CV_64FC1);
+    // TODO: Add pyramid stuff
+
+    // Convert to grayscale
+    cv::Mat cur_bw(cur_color_frame.size(), CV_8UC1);
+    cv::Mat prev_bw(prev_color_frame.size(), CV_8UC1);
+    cv::cvtColor(cur_color_frame, cur_bw, CV_BGR2GRAY);
+    cv::cvtColor(prev_color_frame, prev_bw, CV_BGR2GRAY);
+
+    // Get gradients using sobel
+    cv::Mat Ix(cur_bw.size(), CV_32FC1);
+    cv::Mat Iy(cur_bw.size(), CV_32FC1);
+    cv::Sobel(cur_bw, Ix, Ix.depth(), 1, 0, 3);
+    cv::Sobel(cur_bw, Iy, Iy.depth(), 0, 1, 3);
+    cv::Mat It = cur_bw - prev_bw;
+
+    int win_radius = win_size_/2;
+    cv::Mat flow(cur_color_frame.size(), CV_32FC2);
+    for (int r = win_radius; r < Ix.rows-win_radius; ++r)
+    {
+      for (int c = win_radius; c < Ix.cols-win_radius; ++c)
+      {
+        float sIxx = 0.0;
+        float sIyy = 0.0;
+        float sIxy = 0.0;
+        float sIxt = 0.0;
+        float sIyt = 0.0;
+        for (int y = r-win_radius; y <= r+win_radius; ++y)
+        {
+          for (int x = c-win_radius; x <= r+win_radius; ++x)
+          {
+            sIxx += Ix.at<float>(y,x)*Ix.at<float>(y,x);
+            sIyy += Iy.at<float>(y,x)*Iy.at<float>(y,x);
+            sIxy += Ix.at<float>(y,x)*Iy.at<float>(y,x);
+            sIxt += Ix.at<float>(y,x)*It.at<float>(y,x);
+            sIyt += Iy.at<float>(y,x)*It.at<float>(y,x);
+          }
+        }
+        float det = sIxx*sIxy - sIxy*sIxy;
+        float u = (-sIxx*sIxt + sIxy*sIyt)/det;
+        float v = (sIxy*sIxt - sIxx*sIyt)/det;
+        flow.at<cv::Vec2f>(r,c) = cv::Vec2f(u,v);
+      }
+    }
+
+    return flow;
+  }
+
+  cv::Mat farneback()(cv::Mat& cur_color_frame, cv::Mat& cur_depth_frame,
+                      cv::Mat& prev_color_frame, cv::Mat& prev_depth_frame)
+  {
     cv::Mat cur_bw(cur_color_frame.size(), CV_8UC1);
     cv::cvtColor(cur_color_frame, cur_bw, CV_BGR2GRAY);
     cv::Mat prev_bw(prev_color_frame.size(), CV_8UC1);
@@ -363,6 +410,8 @@ class LKFlowReliable
                                  winsize, iterations, polyN, polySigma, flags);
     return flow;
   }
+  int win_size_;
+  int num_levels_;
 };
 
 class MotionGraphcut
