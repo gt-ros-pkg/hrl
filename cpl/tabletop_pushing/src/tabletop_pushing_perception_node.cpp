@@ -90,11 +90,13 @@
 #include <utility>
 #include <math.h>
 
-#define DISPLAY_MOTION_PROBS 1
-#define DISPLAY_INPUT_IMAGES 1
+// #define DISPLAY_MOTION_PROBS 1
+// #define DISPLAY_INPUT_IMAGES 1
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
+#define DISPLAY_OPTICAL_FLOW 1
+#define DISPLAY_OPT_FLOW_INTERNALS 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -230,7 +232,6 @@ class ProbImageDifferencing
         else if (prob_d < 0.0)
         {
           d_probs_lesser++;
-          // ROS_INFO_STREAM("prob_d is: " << prob_d);
         }
         d_motion_probs_.at<float>(r,c) = prob_d;
         // motion_probs_.at<cv::Vec4f>(r,c)[3]*= prob_d;
@@ -332,7 +333,8 @@ class ProbImageDifferencing
 class LKFlowReliable
 {
  public:
-  LKFlowReliable()
+  LKFlowReliable(int win_size = 5, int num_levels = 4) :
+      win_size_(win_size), num_levels_(num_levels)
   {
 
   }
@@ -344,23 +346,51 @@ class LKFlowReliable
   cv::Mat operator()(cv::Mat& cur_color_frame, cv::Mat& cur_depth_frame,
                      cv::Mat& prev_color_frame, cv::Mat& prev_depth_frame)
   {
-    // TODO: Add pyramid stuff
-
     // Convert to grayscale
-    cv::Mat cur_bw(cur_color_frame.size(), CV_8UC1);
-    cv::Mat prev_bw(prev_color_frame.size(), CV_8UC1);
-    cv::cvtColor(cur_color_frame, cur_bw, CV_BGR2GRAY);
-    cv::cvtColor(prev_color_frame, prev_bw, CV_BGR2GRAY);
+    cv::Mat tmp_bw(cur_color_frame.size(), CV_8UC1);
+    cv::Mat cur_bw(cur_color_frame.size(), CV_32FC1);
+    cv::Mat prev_bw(prev_color_frame.size(), CV_32FC1);
+    cv::cvtColor(cur_color_frame, tmp_bw, CV_BGR2GRAY);
+    tmp_bw.convertTo(cur_bw, CV_32FC1, 1.0/255, 0);
+    cv::cvtColor(prev_color_frame, tmp_bw, CV_BGR2GRAY);
+    tmp_bw.convertTo(prev_bw, CV_32FC1, 1.0/255, 0);
 
+    // Perform multiscale flow
+    std::vector<cv::Mat> cur_pyr;
+    std::vector<cv::Mat> prev_pyr;
+    cv::buildPyramid(cur_bw, cur_pyr, num_levels_-1);
+    cv::buildPyramid(prev_bw, prev_pyr, num_levels_-1);
+    std::vector<cv::Mat> flow_pyr;
+    // TODO: Intergrate pyramid flows
+    // for (int i = 0; i < num_levels_; ++i)
+    // {
+    //   cv::Mat flow = baseLK(cur_pyr[i], prev_pyr[i]);
+    //   flow_pyr.push_back(flow);
+    //   // TODO: Warp to higher level
+    // }
+    cv::Mat flow = baseLK(cur_bw, prev_bw);
+    // cv::Mat flowII = baseLKII(cur_bw, prev_bw);
+    return flow;
+  }
+
+  cv::Mat baseLK(cv::Mat& cur_bw, cv::Mat& prev_bw)
+  {
     // Get gradients using sobel
     cv::Mat Ix(cur_bw.size(), CV_32FC1);
     cv::Mat Iy(cur_bw.size(), CV_32FC1);
     cv::Sobel(cur_bw, Ix, Ix.depth(), 1, 0, 3);
     cv::Sobel(cur_bw, Iy, Iy.depth(), 0, 1, 3);
     cv::Mat It = cur_bw - prev_bw;
+#ifdef DISPLAY_OPT_FLOW_INTERNALS
+    cv::imshow("cur_bw", cur_bw);
+    cv::imshow("prev_bw", prev_bw);
+    cv::imshow("It", It);
+    cv::imshow("Ix", Ix);
+    cv::imshow("Iy", Iy);
+#endif // DISPLAY_OPT_FLOW_INTERNALS
 
     int win_radius = win_size_/2;
-    cv::Mat flow(cur_color_frame.size(), CV_32FC2);
+    cv::Mat flow(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
     {
       for (int c = win_radius; c < Ix.cols-win_radius; ++c)
@@ -372,7 +402,7 @@ class LKFlowReliable
         float sIyt = 0.0;
         for (int y = r-win_radius; y <= r+win_radius; ++y)
         {
-          for (int x = c-win_radius; x <= r+win_radius; ++x)
+          for (int x = c-win_radius; x <= c+win_radius; ++x)
           {
             sIxx += Ix.at<float>(y,x)*Ix.at<float>(y,x);
             sIyy += Iy.at<float>(y,x)*Iy.at<float>(y,x);
@@ -381,35 +411,228 @@ class LKFlowReliable
             sIyt += Iy.at<float>(y,x)*It.at<float>(y,x);
           }
         }
-        float det = sIxx*sIxy - sIxy*sIxy;
-        float u = (-sIxx*sIxt + sIxy*sIyt)/det;
-        float v = (sIxy*sIxt - sIxx*sIyt)/det;
-        flow.at<cv::Vec2f>(r,c) = cv::Vec2f(u,v);
+        cv::Mat H(cv::Size(2,2), CV_32FC1);
+        H.at<float>(0,0) = sIxx;
+        H.at<float>(0,1) = sIxy;
+        H.at<float>(1,0) = sIxy;
+        H.at<float>(1,1) = sIyy;
+        cv::Mat lambdas;
+        cv::eigen(H, lambdas);
+        float det = sIxx*sIyy - sIxy*sIxy;
+        cv::Vec2f uv;
+        if (det == 0.0)
+        {
+          uv[0] = 0.0;
+          uv[1] = 0.0;
+          // ROS_INFO_STREAM("Have 0 det!");
+        }
+        else
+        {
+          uv[0] = (-sIyy*sIxt + sIxy*sIyt)/det;
+          uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
+        }
+        flow.at<cv::Vec2f>(r,c) = uv;
       }
     }
-
     return flow;
   }
 
-  cv::Mat farneback()(cv::Mat& cur_color_frame, cv::Mat& cur_depth_frame,
-                      cv::Mat& prev_color_frame, cv::Mat& prev_depth_frame)
+  cv::Mat baseLKII(cv::Mat& cur_bw, cv::Mat& prev_bw)
   {
-    cv::Mat cur_bw(cur_color_frame.size(), CV_8UC1);
-    cv::cvtColor(cur_color_frame, cur_bw, CV_BGR2GRAY);
-    cv::Mat prev_bw(prev_color_frame.size(), CV_8UC1);
-    cv::cvtColor(prev_color_frame, prev_bw, CV_BGR2GRAY);
-    cv::Mat flow(cur_color_frame.size(), CV_32FC2);
-    double pyr_scale = 0.5;
-    int levels = 4;
-    int winsize = 3;
-    int iterations = 5;
-    int polyN = 5;
-    double polySigma = 1.1;
-    int flags = 0; // OPTFLOW_FARNEBACK_GUASSIAN;
-    cv::calcOpticalFlowFarneback(prev_bw, cur_bw, flow, pyr_scale, levels,
-                                 winsize, iterations, polyN, polySigma, flags);
+    // TODO: Make an integral image version for speedup
+    // Get gradients using sobel
+    cv::Mat Ix(cur_bw.size(), CV_32FC1);
+    cv::Mat Iy(cur_bw.size(), CV_32FC1);
+    cv::Sobel(cur_bw, Ix, Ix.depth(), 1, 0, 3);
+    cv::Sobel(cur_bw, Iy, Iy.depth(), 0, 1, 3);
+    cv::Mat It = cur_bw - prev_bw;
+
+    cv::Mat IIxx(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat IIyy(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat IIxy(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat IIxt(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat IIyt(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
+
+    // Initialize integral images
+    IIxx.at<float>(0,0) = Ix.at<float>(0,0)*Ix.at<float>(0,0);
+    IIyy.at<float>(0,0) = Iy.at<float>(0,0)*Iy.at<float>(0,0);
+    IIxy.at<float>(0,0) = Ix.at<float>(0,0)*Iy.at<float>(0,0);
+    IIxt.at<float>(0,0) = Ix.at<float>(0,0)*It.at<float>(0,0);
+    IIyt.at<float>(0,0) = Iy.at<float>(0,0)*It.at<float>(0,0);
+
+    // Compute integral image first row values
+    for (int c = 1; c < Ix.cols; ++c)
+    {
+      IIxx.at<float>(0,c) = Ix.at<float>(0,c)*Ix.at<float>(0,c) +
+          IIxx.at<float>(0,c-1);
+      IIxy.at<float>(0,c) = Ix.at<float>(0,c)*Iy.at<float>(0,c)  +
+          IIxy.at<float>(0,c-1);
+      IIyy.at<float>(0,c) = Iy.at<float>(0,c)*Iy.at<float>(0,c) +
+          IIyy.at<float>(0,c-1);
+      IIxt.at<float>(0,c) = Ix.at<float>(0,c)*It.at<float>(0,c) +
+          IIxt.at<float>(0,c-1);
+      IIyt.at<float>(0,c) = Iy.at<float>(0,c)*It.at<float>(0,c) +
+          IIyt.at<float>(0,c-1);
+    }
+
+    cv::imshow("IIxx", IIxx);
+    cv::imshow("IIxy", IIxy);
+    cv::imshow("IIyy", IIyy);
+    cv::imshow("IIxt", IIxt);
+    cv::imshow("IIyt", IIyt);
+    cv::waitKey();
+    // Compute integral image first column values
+    for (int r = 1; r < Ix.rows; ++r)
+    {
+      IIxx.at<float>(r,0) = Ix.at<float>(r,0)*Ix.at<float>(r,0) +
+          IIxx.at<float>(r-1,0);
+      IIxy.at<float>(r,0) = Ix.at<float>(r,0)*Iy.at<float>(r,0)  +
+          IIxy.at<float>(r-1,0);
+      IIyy.at<float>(r,0) = Iy.at<float>(r,0)*Iy.at<float>(r,0) +
+          IIyy.at<float>(r-1,0);
+      IIxt.at<float>(r,0) = Ix.at<float>(r,0)*It.at<float>(r,0) +
+          IIxt.at<float>(r-1,0);
+      IIyt.at<float>(r,0) = Iy.at<float>(r,0)*It.at<float>(r,0) +
+          IIyt.at<float>(r-1,0);
+    }
+    cv::imshow("IIxx", IIxx);
+    cv::imshow("IIxy", IIxy);
+    cv::imshow("IIyy", IIyy);
+    cv::imshow("IIxt", IIxt);
+    cv::imshow("IIyt", IIyt);
+    cv::waitKey();
+
+    // Compute integral image values
+    for (int r = 1; r < Ix.rows; ++r)
+    {
+      for (int c = 1; c < Ix.cols; ++c)
+      {
+        IIxx.at<float>(r,c) = Ix.at<float>(r,c)*Ix.at<float>(r,c) +
+            IIxx.at<float>(r,c-1) + IIxx.at<float>(r-1,c) -
+            IIxx.at<float>(r-1,c-1);
+        IIxy.at<float>(r,c) = Ix.at<float>(r,c)*Iy.at<float>(r,c) +
+            IIxy.at<float>(r,c-1) + IIxy.at<float>(r-1,c) -
+            IIxy.at<float>(r-1,c-1);;
+        IIyy.at<float>(r,c) = Iy.at<float>(r,c)*Iy.at<float>(r,c) +
+            IIyy.at<float>(r,c-1) + IIyy.at<float>(r-1,c) -
+            IIyy.at<float>(r-1,c-1);;
+        IIxt.at<float>(r,c) = Ix.at<float>(r,c)*It.at<float>(r,c) +
+            IIxt.at<float>(r,c-1) + IIxt.at<float>(r-1,c) -
+            IIxt.at<float>(r-1,c-1);;
+        IIyt.at<float>(r,c) = Iy.at<float>(r,c)*It.at<float>(r,c) +
+            IIyt.at<float>(r,c-1) + IIyt.at<float>(r-1,c) -
+            IIyt.at<float>(r-1,c-1);;
+      }
+    }
+#ifdef DISPLAY_OPT_FLOW_INTERNALS
+    cv::imshow("IIxx", IIxx);
+    cv::imshow("IIxy", IIxy);
+    cv::imshow("IIyy", IIyy);
+    cv::imshow("IIxt", IIxt);
+    cv::imshow("IIyt", IIyt);
+    cv::waitKey();
+#endif // DISPLAY_OPT_FLOW_INTERNALS
+
+    int win_radius = win_size_/2;
+    cv::Mat flow(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
+    for (int r = win_radius; r < Ix.rows-win_radius; ++r)
+    {
+      for (int c = win_radius; c < Ix.cols-win_radius; ++c)
+      {
+        float sIxx = IIxx.at<float>(r+win_radius,c+win_radius)+
+            IIxx.at<float>(r - win_radius, c - win_radius) -
+            (IIxx.at<float>(r - win_radius, c + win_radius) +
+             IIxx.at<float>(r + win_radius, c - win_radius));
+        float sIyy = IIyy.at<float>(r+win_radius,c+win_radius)+
+            IIyy.at<float>(r - win_radius, c - win_radius) -
+            (IIyy.at<float>(r - win_radius, c + win_radius) +
+             IIyy.at<float>(r + win_radius, c - win_radius));
+        float sIxy = IIxy.at<float>(r+win_radius,c+win_radius)+
+            IIxy.at<float>(r - win_radius, c - win_radius) -
+            (IIxy.at<float>(r - win_radius, c + win_radius) +
+             IIxy.at<float>(r + win_radius, c - win_radius));
+        float sIxt = IIxt.at<float>(r+win_radius,c+win_radius)+
+            IIxt.at<float>(r - win_radius, c - win_radius) -
+            (IIxt.at<float>(r - win_radius, c + win_radius) +
+             IIxt.at<float>(r + win_radius, c - win_radius));
+        float sIyt = IIyt.at<float>(r+win_radius,c+win_radius)+
+            IIyt.at<float>(r - win_radius, c - win_radius) -
+            (IIyt.at<float>(r - win_radius, c + win_radius) +
+             IIyt.at<float>(r + win_radius, c - win_radius));
+        float sIxx2 = 0.0;
+        float sIyy2 = 0.0;
+        float sIxy2 = 0.0;
+        float sIxt2 = 0.0;
+        float sIyt2 = 0.0;
+        for (int y = r-win_radius; y <= r+win_radius; ++y)
+        {
+          for (int x = c-win_radius; x <= c+win_radius; ++x)
+          {
+            sIxx2 += Ix.at<float>(y,x)*Ix.at<float>(y,x);
+            sIyy2 += Iy.at<float>(y,x)*Iy.at<float>(y,x);
+            sIxy2 += Ix.at<float>(y,x)*Iy.at<float>(y,x);
+            sIxt2 += Ix.at<float>(y,x)*It.at<float>(y,x);
+            sIyt2 += Iy.at<float>(y,x)*It.at<float>(y,x);
+          }
+        }
+
+        if (sIxx != sIxx2)
+        {
+          ROS_INFO_STREAM("sIxx doesn't match: " << sIxx
+                          << ", " << sIxx2);
+        }
+        if (sIxy != sIxy2)
+        {
+          ROS_INFO_STREAM("sIxy doesn't match: " << sIxy
+                          << ", " << sIxy2);
+        }
+        if (sIyy != sIyy2)
+        {
+          ROS_INFO_STREAM("sIyy doesn't match: " << sIyy
+                          << ", " << sIyy2);
+        }
+        if (sIxt != sIxt2)
+        {
+          ROS_INFO_STREAM("sIxt doesn't match: " << sIxt
+                          << ", " << sIxt2);
+        }
+        if (sIyt != sIyt2)
+        {
+          ROS_INFO_STREAM("sIyt doesn't match: " << sIyt
+                          << ", " << sIyt2);
+        }
+
+
+        cv::Mat H(cv::Size(2,2), CV_32FC1);
+        H.at<float>(0,0) = sIxx;
+        H.at<float>(0,1) = sIxy;
+        H.at<float>(1,0) = sIxy;
+        H.at<float>(1,1) = sIyy;
+        cv::Mat lambdas;
+        cv::eigen(H, lambdas);
+        float det = sIxx*sIyy - sIxy*sIxy;
+        cv::Vec2f uv;
+        if (det == 0.0)
+        {
+          uv[0] = 0.0;
+          uv[1] = 0.0;
+        }
+        else
+        {
+          uv[0] = (-sIyy*sIxt + sIxy*sIyt)/det;
+          uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
+          if (isinf(uv[0]) || isinf(uv[1]))
+          {
+            uv[0] = 0.0;
+            uv[1] = 0.0;
+          }
+        }
+        flow.at<cv::Vec2f>(r,c) = uv;
+      }
+    }
     return flow;
   }
+
   int win_size_;
   int num_levels_;
 };
@@ -487,69 +710,73 @@ class MotionGraphcut
     return segs;
   }
 
-  // cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
-  //                    std::vector<cv::Mat>& flows)
-  // {
-  //   const int R = color_frame.rows;
-  //   const int C = color_frame.cols;
-  //   int num_nodes = R*C;
-  //   int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
-  //   ROS_INFO_STREAM("Creating graph.");
-  //   g = new GraphType(num_nodes, num_edges);
-  //   for (int r = 0; r < R; ++r)
-  //   {
-  //     for (int c = 0; c < C; ++c)
-  //     {
-  //       g->add_node();
-  //       float p_x = motion_probs.at<float>(r,c);
-  //       g->add_tweights(r*C+c, /*capacities*/ p_x, 1.0-p_x);
-  //       // Connect node to previous ones
-  //       if (c > 0)
-  //       {
-  //         // Add left-link
-  //         float w_l = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-  //                                   depth_frame.at<float>(r,c),
-  //                                   color_frame.at<cv::Vec3f>(r,c-1),
-  //                                   depth_frame.at<float>(r,c-1));
-  //         g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
-  //       }
+  cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
+                     cv::Mat& u, cv::Mat& v)
+  {
+    const int R = color_frame.rows;
+    const int C = color_frame.cols;
+    int num_nodes = R*C;
+    int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
+    g = new GraphType(num_nodes, num_edges);
+    for (int r = 0; r < R; ++r)
+    {
+      for (int c = 0; c < C; ++c)
+      {
+        g->add_node();
+        float magnitude = u.at<float>(r,c) + v.at<float>(r,c) ;
+        if (magnitude < 1)
+        {
+          g->add_tweights(r*C+c, /*capacities*/ 10.0, 50.0);
+        }
+        else
+        {
+          g->add_tweights(r*C+c, /*capacities*/ magnitude*20, 1.0);
+        }
+        // Connect node to previous ones
+        if (c > 0)
+        {
+          // Add left-link
+          float w_l = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+                                    depth_frame.at<float>(r,c),
+                                    color_frame.at<cv::Vec3f>(r,c-1),
+                                    depth_frame.at<float>(r,c-1));
+          g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
+        }
 
-  //       if (r > 0)
-  //       {
-  //         // Add up-link
-  //         float w_u = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-  //                                   depth_frame.at<float>(r,c),
-  //                                   color_frame.at<cv::Vec3f>(r-1,c),
-  //                                   depth_frame.at<float>(r-1,c));
-  //         g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
-  //         // Add up-left-link
-  //         if (c > 0)
-  //         {
-  //           float w_ul = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-  //                                      depth_frame.at<float>(r,c),
-  //                                      color_frame.at<cv::Vec3f>(r-1,c-1),
-  //                                      depth_frame.at<float>(r-1,c-1));
-  //           g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
-  //         }
-  //       }
-  //     }
-  //   }
-  //   ROS_INFO_STREAM("Computing maxflow.");
-  //   int flow = g->maxflow(false);
-  //   ROS_INFO_STREAM("Formatting output.");
-  //   // Convert output into image
-  //   cv::Mat segs(R, C, CV_32FC1, cv::Scalar(0.0));
-  //   for (int r = 0; r < R; ++r)
-  //   {
-  //     for (int c = 0; c < C; ++c)
-  //     {
-  //       float label = (g->what_segment(r*C+c) == GraphType::SOURCE);
-  //       segs.at<float>(r,c) = label;
-  //     }
-  //   }
-  //   delete g;
-  //   return segs;
-  // }
+        if (r > 0)
+        {
+          // Add up-link
+          float w_u = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+                                    depth_frame.at<float>(r,c),
+                                    color_frame.at<cv::Vec3f>(r-1,c),
+                                    depth_frame.at<float>(r-1,c));
+          g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
+          // Add up-left-link
+          if (c > 0)
+          {
+            float w_ul = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+                                       depth_frame.at<float>(r,c),
+                                       color_frame.at<cv::Vec3f>(r-1,c-1),
+                                       depth_frame.at<float>(r-1,c-1));
+            g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
+          }
+        }
+      }
+    }
+    int flow = g->maxflow(false);
+    // Convert output into image
+    cv::Mat segs(R, C, CV_32FC1, cv::Scalar(0.0));
+    for (int r = 0; r < R; ++r)
+    {
+      for (int c = 0; c < C; ++c)
+      {
+        float label = (g->what_segment(r*C+c) == GraphType::SOURCE);
+        segs.at<float>(r,c) = label;
+      }
+    }
+    delete g;
+    return segs;
+  }
 
   float getEdgeWeight(cv::Vec3f c0, float d0, cv::Vec3f c1, float d1)
   {
@@ -557,8 +784,7 @@ class MotionGraphcut
     float w_d = 255*(d0-d1);
     w_d *= w_d;
     float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]+w_d);
-    float w = min(900.0f, max(w_c,0.0f));
-    return w;
+    return w_c;
   }
 
  protected:
@@ -773,52 +999,69 @@ class TabletopPushingPerceptionNode
       tracker_initialized_ = true;
       return;
     }
-    std::vector<cv::Mat> cur_probs = motion_probs_.update(color_frame, depth_frame);
+//     std::vector<cv::Mat> cur_probs = motion_probs_.update(color_frame, depth_frame);
 
-    if (cur_probs.size() < 1) return;
-    std::vector<cv::Mat> motion_prob_channels;
-    cv::split(cur_probs[0], motion_prob_channels);
-    cv::Mat motion_morphed(cur_probs[0].rows, cur_probs[0].cols, CV_32FC1);
-    cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(255));
-    cv::erode(motion_prob_channels[3], motion_morphed, element);
+//     if (cur_probs.size() < 1) return;
+//     std::vector<cv::Mat> motion_prob_channels;
+//     cv::split(cur_probs[0], motion_prob_channels);
+//     cv::Mat motion_morphed(cur_probs[0].rows, cur_probs[0].cols, CV_32FC1);
+//     cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(255));
+//     cv::erode(motion_prob_channels[3], motion_morphed, element);
 
-#ifdef DISPLAY_MOTION_PROBS
-#ifdef DISPLAY_INPUT_IMAGES
-    cv::imshow("bgr_frame", color_frame);
-    cv::imshow("d_frame", depth_frame);
-#endif // DISPLAY_INPUT_IMAGES
-#ifdef DISPLAY_INTERMEDIATE_PROBS
-    cv::imshow("b_motion_prob", motion_prob_channels[0]);
-    cv::imshow("g_motion_prob", motion_prob_channels[1]);
-    cv::imshow("r_motion_prob", motion_prob_channels[2]);
-    cv::imshow("d_motion_prob", cur_probs[1]);
-    cv::imshow("combined_motion_prob", motion_prob_channels[3]);
-#endif // DISPLAY_INTERMEDIATE_PROBS
-    cv::imshow("combined_motion_prob_clean", motion_morphed);
-    cv::waitKey(display_wait_ms_);
-#endif // DISPLAY_MOTION_PROBS
+// #ifdef DISPLAY_MOTION_PROBS
+// #ifdef DISPLAY_INPUT_IMAGES
+//     cv::imshow("bgr_frame", color_frame);
+//     cv::imshow("d_frame", depth_frame);
+// #endif // DISPLAY_INPUT_IMAGES
+// #ifdef DISPLAY_INTERMEDIATE_PROBS
+//     cv::imshow("b_motion_prob", motion_prob_channels[0]);
+//     cv::imshow("g_motion_prob", motion_prob_channels[1]);
+//     cv::imshow("r_motion_prob", motion_prob_channels[2]);
+//     cv::imshow("d_motion_prob", cur_probs[1]);
+//     cv::imshow("combined_motion_prob", motion_prob_channels[3]);
+// #endif // DISPLAY_INTERMEDIATE_PROBS
+//     cv::imshow("combined_motion_prob_clean", motion_morphed);
+//     cv::waitKey(display_wait_ms_);
+// #endif // DISPLAY_MOTION_PROBS
 
     ROS_INFO_STREAM("Computing flow");
     cv::Mat flow = lkflow_(cur_color_frame_, cur_depth_frame_, prev_color_frame_,
                            prev_depth_frame_);
     std::vector<cv::Mat> flows;
     cv::split(flow, flows);
-
+#ifdef DISPLAY_OPTICAL_FLOW
     ROS_INFO_STREAM("Displaying flow");
-    cv::imshow("Flow-x", flows[0]);
-    cv::imshow("Flow-y", flows[1]);
-    cv::waitKey();
+    cv::Mat flow_disp_img(cur_color_frame_.size(), CV_8UC3);
+    flow_disp_img = cur_color_frame_.clone();
+    for (int r = 0; r < flow_disp_img.rows; ++r)
+    {
+      for (int c = 0; c < flow_disp_img.cols; ++c)
+      {
+        cv::Vec2f uv = flow.at<cv::Vec2f>(r,c);
+        if (abs(uv[0])+abs(uv[1]) > 1)
+        {
+          cv::line(flow_disp_img, cv::Point(c,r), cv::Point(c-uv[0], r-uv[1]),
+                   cv::Scalar(0,0,255));
+        }
+      }
+    }
+    cv::imshow("flow_disp", flow_disp_img);
+    cv::imshow("u", flows[0]);
+    cv::imshow("v", flows[1]);
+#endif // DISPLAY_OPTICAL_FLOW
 
     ROS_INFO_STREAM("Computing graph cut.");
     cv::Mat color_frame_f(color_frame.size(), CV_32FC3);
     color_frame.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
-    cv::Mat cut = mgc_(color_frame_f, depth_frame, motion_prob_channels[3]);
+    //cv::Mat cut = mgc_(color_frame_f, depth_frame, motion_prob_channels[3]);
+    cv::Mat cut = mgc_(color_frame_f, depth_frame, flows[0], flows[1]);
+    ROS_INFO_STREAM("Computed graph cut.");
     cv::imshow("Cut", cut);
-    cv::waitKey();
+    cv::waitKey(display_wait_ms_);
 
     cv_bridge::CvImage motion_msg;
-    cv::Mat motion_send(motion_morphed.size(), CV_8UC1);
-    motion_morphed.convertTo(motion_send, CV_8UC1, 255, 0);
+    cv::Mat motion_send(cut.size(), CV_8UC1);
+    cut.convertTo(motion_send, CV_8UC1, 255, 0);
     motion_msg.image = motion_send;
     motion_msg.header.frame_id = "/openni_rgb_optical_frame";
     motion_msg.header.stamp = ros::Time::now();
