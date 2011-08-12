@@ -28,6 +28,10 @@
 
 # Author: Advait Jain
 
+# moved this to the top to get PyKDL from the ROS package for the Meka
+# modules as well.
+import roslib; roslib.load_manifest('hrl_cody_arms')
+
 
 import m3.rt_proxy as m3p
 import m3.arm
@@ -44,7 +48,6 @@ import sys, time, os
 import copy
 from threading import RLock
 
-import roslib; roslib.load_manifest('hrl_cody_arms')
 import rospy
 
 import hrl_lib.transforms as tr
@@ -216,7 +219,7 @@ class MekaArmServer():
 
     def initialize_joints(self, right_arm_settings, left_arm_settings):
         self.proxy = m3p.M3RtProxy()
-        self.proxy.start()
+        self.proxy.start(True, True) # the second true enables ROS (needed for the skin patch)
         for c in ['m3pwr_pwr003','m3loadx6_ma1_l0','m3arm_ma1','m3loadx6_ma2_l0','m3arm_ma2']:
             if not self.proxy.is_component_available(c):
                 raise m3t.M3Exception('Component '+c+' is not available.')
