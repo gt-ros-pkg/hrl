@@ -96,7 +96,7 @@
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
 #define DISPLAY_OPTICAL_FLOW 1
-#define DISPLAY_OPT_FLOW_INTERNALS 1
+// #define DISPLAY_OPT_FLOW_INTERNALS 1
 // #define DISPLAY_OPT_FLOW_II_INTERNALS 1
 #define DISPLAY_GRAPHCUT 1
 
@@ -395,7 +395,8 @@ class LKFlowReliable
 
     int win_radius = win_size_/2;
     cv::Mat flow(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
-    cv::Mat t_scores(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
+    // cv::Mat t_scores(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
+    cv::Mat t_scores(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
     {
       for (int c = win_radius; c < Ix.cols-win_radius; ++c)
@@ -431,15 +432,16 @@ class LKFlowReliable
         }
         flow.at<cv::Vec2f>(r,c) = uv;
 
-        cv::Mat H(cv::Size(2,2), CV_32FC1);
-        H.at<float>(0,0) = sIxx;
-        H.at<float>(0,1) = sIxy;
-        H.at<float>(1,0) = sIxy;
-        H.at<float>(1,1) = sIyy;
-        cv::Mat lambdas;
-        cv::eigen(H, lambdas);
-        cv::Vec2f ll(lambdas.at<float>(0,0), lambdas.at<float>(1,0));
-        t_scores.at<cv::Vec2f>(r,c) = ll;
+        // cv::Mat H(cv::Size(2,2), CV_32FC1);
+        // H.at<float>(0,0) = sIxx;
+        // H.at<float>(0,1) = sIxy;
+        // H.at<float>(1,0) = sIxy;
+        // H.at<float>(1,1) = sIyy;
+        // cv::Mat lambdas;
+        // cv::eigen(H, lambdas);
+        // cv::Vec2f ll(lambdas.at<float>(0,0), lambdas.at<float>(1,0));
+        // t_scores.at<cv::Vec2f>(r,c) = ll;
+        t_scores.at<float>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
       }
     }
     std::vector<cv::Mat> outs;
@@ -680,9 +682,13 @@ class LKFlowReliable
 class MotionGraphcut
 {
  public:
-  MotionGraphcut()
+  MotionGraphcut(float eigen_ratio = 5.0f, float w_f = 3.0f, float w_b = 2.0f,
+                 float w_n_f = 0.01f, float w_n_b = 0.01f, float w_w_b = 5.0f,
+                 float w_u = 0.1f) :
+      w_f_(w_f), w_b_(w_b), w_n_f_(w_n_f), w_n_b_(w_n_b),  w_w_b_(w_w_b),
+      w_u_(w_u)
   {
-
+    setEigenRatio(eigen_ratio);
   }
 
   virtual ~MotionGraphcut()
@@ -709,17 +715,25 @@ class MotionGraphcut
         if (workspace_mask.at<uchar>(r,c) == 0)
         {
           // TODO: Set weight to infinte on bg
-          g->add_tweights(r*C+c, /*capacities*/ 0.0, 50.0);
+          g->add_tweights(r*C+c, /*capacities*/ 0.0, w_w_b_);
         }
         // TODO: Check texture measure before assigning weight to movement or
         // no movement
-        else if (magnitude < 1)
+        if (flow_scores.at<float>(r,c) < corner_thresh_)
         {
-          g->add_tweights(r*C+c, /*capacities*/ 10.0, 20.0);
+
+          if (magnitude > 1.0)
+          {
+            g->add_tweights(r*C+c, /*capacities*/ w_f_, w_n_f_);
+          }
+          else
+          {
+            g->add_tweights(r*C+c, /*capacities*/ w_n_b_, w_b_);
+          }
         }
         else
         {
-          g->add_tweights(r*C+c, /*capacities*/ magnitude*20, 1.0);
+          g->add_tweights(r*C+c, /*capacities*/ w_u_, w_u_);
         }
         // Connect node to previous ones
         if (c > 0)
@@ -774,12 +788,28 @@ class MotionGraphcut
     cv::Vec3f c_d = c0-c1;
     float w_d = 0.5*(d0-d1);
     w_d *= w_d;
-    float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]+w_d);
+    float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]+min(w_d, 1.25f))
+        *10.0;
+    // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]);
     return w_c;
+  }
+
+  void setEigenRatio(float eigen_ratio)
+  {
+    corner_thresh_ = (eigen_ratio+1)*(eigen_ratio+1)/eigen_ratio;
   }
 
  protected:
   GraphType *g;
+  float corner_thresh_;
+ public:
+  // TODO: Add weighting parameters, set via parameter server
+  float w_f_;
+  float w_b_;
+  float w_n_f_;
+  float w_n_b_;
+  float w_w_b_;
+  float w_u_;
 };
 
 class TabletopPushingPerceptionNode
@@ -1028,14 +1058,33 @@ class TabletopPushingPerceptionNode
       for (int c = 0; c < flow_disp_img.cols; ++c)
       {
         cv::Vec2f uv = flow_outs[0].at<cv::Vec2f>(r,c);
-        if (abs(uv[0])+abs(uv[1]) > 1)
+        if (abs(uv[0])+abs(uv[1]) > 0.5)
         {
           cv::line(flow_disp_img, cv::Point(c,r), cv::Point(c-uv[0], r-uv[1]),
                    cv::Scalar(0,255,0));
         }
       }
     }
+    cv::Mat flow_thresh_disp_img(cur_color_frame_.size(), CV_8UC3);
+    flow_thresh_disp_img = cur_color_frame_.clone();
+    // TODO: Move into graphcut, put on parameter server...
+    float eigen_ratio = 5.0;
+    float corner_thresh = (eigen_ratio+1)*(eigen_ratio+1)/eigen_ratio;
+    for (int r = 0; r < flow_thresh_disp_img.rows; ++r)
+    {
+      for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
+      {
+        cv::Vec2f uv = flow_outs[0].at<cv::Vec2f>(r,c);
+        if (abs(uv[0])+abs(uv[1]) > 1 &&
+            flow_outs[1].at<float>(r,c) < corner_thresh)
+        {
+          cv::line(flow_thresh_disp_img, cv::Point(c,r),
+                   cv::Point(c-uv[0], r-uv[1]), cv::Scalar(0,255,0));
+        }
+      }
+    }
     cv::imshow("flow_disp", flow_disp_img);
+    cv::imshow("flow_thresh_disp", flow_thresh_disp_img);
     cv::imshow("u", flows[0]);
     cv::imshow("v", flows[1]);
 #endif // DISPLAY_OPTICAL_FLOW
@@ -1047,8 +1096,6 @@ class TabletopPushingPerceptionNode
                        flows[0], flows[1],
                        flow_outs[1],
                        cur_workspace_mask_);
-    ROS_INFO_STREAM("Computed graph cut.");
-
 
     // cv::Mat toy_frame(200,200, CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     // cv::Mat toy_depth_frame(200,200, CV_32FC1, cv::Scalar(0.0));

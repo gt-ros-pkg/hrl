@@ -7,7 +7,8 @@ include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
 #  Release        : w/o debug symbols, w/ optimization
 #  RelWithDebInfo : w/ debug symbols, w/ optimization
 #  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
-set(ROS_BUILD_TYPE RelWithDebInfo)
+# set(ROS_BUILD_TYPE RelWithDebInfo)
+set(ROS_BUILD_TYPE Debug)
 
 # Build actions
 rosbuild_find_ros_package(actionlib_msgs)
@@ -33,6 +34,6 @@ rosbuild_gensrv()
 #rosbuild_link_boost(${PROJECT_NAME} thread)
 rosbuild_add_library(graphcut include/tabletop_pushing/extern/graphcut/graph.cpp include/tabletop_pushing/extern/graphcut/maxflow.cpp include/tabletop_pushing/extern/graphcut/LinkedBlockList.cpp include/tabletop_pushing/extern/graphcut/GCoptimization.cpp)
 rosbuild_add_executable(tabletop_pushing_perception_node src/tabletop_pushing_perception_node.cpp)
-rosbuild_add_executable(tabletop_segmenter_node src/ransac_segmenter.cpp)
-rosbuild_add_executable(offline_segmenter_node src/offline_segmenter.cpp)
-target_link_libraries(tabletop_pushing_perception_node graphcut)
+# rosbuild_add_executable(tabletop_segmenter_node src/ransac_segmenter.cpp)
+# rosbuild_add_executable(offline_segmenter_node src/offline_segmenter.cpp)
+# target_link_libraries(tabletop_pushing_perception_node graphcut)
