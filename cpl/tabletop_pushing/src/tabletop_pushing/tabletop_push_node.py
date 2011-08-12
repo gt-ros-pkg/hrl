@@ -207,9 +207,10 @@ class TabletopPushNode:
             which_arm = 'r'
         push_arm.pressure_listener.rezero()
 
-        rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
-        push_arm.set_movement_mode_ik()
-        robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
+        if request.arm_init:
+            rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
+            push_arm.set_movement_mode_ik()
+            robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
 
         orientation = tf.transformations.quaternion_from_euler(0.0, 0.0, wrist_yaw)
         pose = np.matrix([start_point.x, start_point.y, start_point.z])
@@ -234,7 +235,9 @@ class TabletopPushNode:
             stop='pressure', pressure=5000)
         rospy.loginfo('Done moving backwards')
 
-        self.reset_arm_pose(True, which_arm)
+        if request.arm_reset:
+            self.reset_arm_pose(True, which_arm)
+
         response.dist_pushed = push_dist - pos_error
         return response
 
@@ -259,20 +262,22 @@ class TabletopPushNode:
             wrist_roll = 0.0
         push_arm.pressure_listener.rezero()
 
-        rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
-        push_arm.set_movement_mode_ik()
-        robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
+        if request.arm_init:
+            rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
+            push_arm.set_movement_mode_ik()
+            robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
 
         orientation = tf.transformations.quaternion_from_euler(0.5*pi, 0.0,
                                                                wrist_yaw)
         pose = np.matrix([start_point.x, start_point.y, start_point.z])
         rot = np.matrix([orientation])
 
-        # Rotate wrist before moving to position
-        rospy.loginfo('Rotating wrist for sweep')
-        arm_pose = robot_arm.pose()
-        arm_pose[-1] =  wrist_roll
-        robot_arm.set_pose(arm_pose, nsecs=2.0, block=True)
+        if request.arm_init:
+            # Rotate wrist before moving to position
+            rospy.loginfo('Rotating wrist for sweep')
+            arm_pose = robot_arm.pose()
+            arm_pose[-1] =  wrist_roll
+            robot_arm.set_pose(arm_pose, nsecs=2.0, block=True)
 
         # Move to offset pose
         loc = [pose, rot]
@@ -295,7 +300,8 @@ class TabletopPushNode:
             stop='pressure', pressure=5000)
         rospy.loginfo('Done sweeping outward')
 
-        self.reset_arm_pose(True, which_arm)
+        if request.arm_reset:
+            self.reset_arm_pose(True, which_arm)
         response.dist_pushed = push_dist - pos_error
         return response
 
@@ -320,20 +326,22 @@ class TabletopPushNode:
             wrist_pitch = -0.5*pi
 
         push_arm.pressure_listener.rezero()
-        rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
-        push_arm.set_movement_mode_ik()
-        robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
+        if request.arm_init:
+            rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
+            push_arm.set_movement_mode_ik()
+            robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
 
         orientation = tf.transformations.quaternion_from_euler(0.0, 0.5*pi,
                                                                wrist_yaw)
         pose = np.matrix([start_point.x, start_point.y, start_point.z])
         rot = np.matrix([orientation])
 
-        # Rotate wrist before moving to position
-        rospy.loginfo('Rotating elbow for overhead push')
-        arm_pose = robot_arm.pose()
-        arm_pose[-3] =  wrist_pitch
-        robot_arm.set_pose(arm_pose, nsecs=2.0, block=True)
+        if request.arm_init:
+            # Rotate wrist before moving to position
+            rospy.loginfo('Rotating elbow for overhead push')
+            arm_pose = robot_arm.pose()
+            arm_pose[-3] =  wrist_pitch
+            robot_arm.set_pose(arm_pose, nsecs=2.0, block=True)
 
         # Move to offset pose
         loc = [pose, rot]
@@ -354,7 +362,8 @@ class TabletopPushNode:
             stop='pressure', pressure=5000)
         rospy.loginfo('Done pushing reverse')
 
-        self.reset_arm_pose(True, which_arm)
+        if request.arm_reset:
+            self.reset_arm_pose(True, which_arm)
         response.dist_pushed = push_dist - pos_error
         return response
 

@@ -93,6 +93,7 @@ class TabletopExecutive:
         # rospy.loginfo('Waiting for tracker server')
         # self.tracker_client.wait_for_server()
         self.use_fake_push_pose = use_fake_push_pose
+        self.push_count = 0
 
     def run(self,
             num_l_gripper_pushes, num_l_sweeps, num_l_overhead_pushes,
@@ -105,16 +106,35 @@ class TabletopExecutive:
         self.start_tracker()
 
         rospy.loginfo("Pushing shit");
+
+        self.push_count = 0
+        self.num_total_pushes = num_l_gripper_pushes
         for i in xrange(num_l_gripper_pushes):
             self.gripper_push_object(self.gripper_push_dist, 'l')
+
+        self.push_count = 0
+        self.num_total_pushes = num_r_gripper_pushes
         for i in xrange(num_r_gripper_pushes):
             self.gripper_push_object(self.gripper_push_dist, 'r')
+
+        self.sweep_count = 0
+        self.num_total_sweeps = num_l_sweeps
         for i in xrange(num_l_sweeps):
             self.sweep_object(self.gripper_sweep_dist, 'l')
+
+
+        self.sweep_count = 0
+        self.num_total_sweeps = num_r_sweeps
         for i in xrange(num_r_sweeps):
             self.sweep_object(self.gripper_sweep_dist, 'r')
+
+        self.push_count = 0
+        self.num_total_pushes = num_l_overhead_pushes
         for i in xrange(num_l_overhead_pushes):
             self.overhead_push_object(self.overhead_push_dist, 'l')
+
+        self.push_count = 0
+        self.num_total_pushes = num_r_overhead_pushes
         for i in xrange(num_r_overhead_pushes):
             self.overhead_push_object(self.overhead_push_dist, 'r')
 
@@ -149,7 +169,6 @@ class TabletopExecutive:
         rospy.loginfo('Waiting for tracker server')
         self.tracker_client.wait_for_server()
 
-
     def gripper_push_object(self, push_dist, which_arm):
         # Make push_pose service request
         pose_req = PushPoseRequest()
@@ -162,19 +181,28 @@ class TabletopExecutive:
                 pose_res = PushPoseResponse()
                 pose_res.push_pose.header.frame_id = '/torso_lift_link'
                 pose_res.push_pose.pose.position.x = 0.5
-                pose_res.push_pose.pose.position.y = 0.0
-                pose_res.push_pose.pose.position.z = -0.20
+                pose_res.push_pose.pose.position.y = 0.3 - self.push_count*0.15
+                # TODO: -z_offset+8
+                pose_res.push_pose.pose.position.z = -0.22
             else:
                 pose_res = self.push_pose_proxy(pose_req)
         except rospy.ServiceException, e:
             rospy.logwarn("Service did not process request: %s"%str(e))
             return
+        self.push_count += 1
 
         # Convert pose response to correct push request format
         push_req = GripperPushRequest()
         push_req.start_point.header = pose_res.push_pose.header
         push_req.start_point.point = pose_res.push_pose.pose.position
-
+        if self.push_count == 1:
+            push_req.arm_init = True
+        else:
+            push_req.arm_init = False
+        if self.push_count < self.num_total_pushes:
+            push_req.arm_reset = False
+        else:
+            push_req.arm_reset = True
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
         wrist_yaw = 0.0 # 0.5*pi # 0.25*pi # -0.25*pi
@@ -215,11 +243,20 @@ class TabletopExecutive:
         except rospy.ServiceException, e:
             rospy.logwarn("Service did not process request: %s"%str(e))
             return
-
+        self.sweep_count += 1
         # Convert pose response to correct push request format
         sweep_req = GripperPushRequest()
         sweep_req.start_point.header = pose_res.push_pose.header
         sweep_req.start_point.point = pose_res.push_pose.pose.position
+        if self.sweep_count == 1:
+            sweep_req.arm_init = True
+        else:
+            sweep_req.arm_init = False
+        if self.sweep_count < self.num_total_sweeps:
+            sweep_req.arm_reset = False
+        else:
+            sweep_req.arm_reset = True
+
         # rospy.loginfo('Push pose point:' + str(sweep_req.start_point.point))
 
         # TODO: Correctly set the wrist yaw
@@ -270,10 +307,20 @@ class TabletopExecutive:
             rospy.logwarn("Service did not process request: %s"%str(e))
             return
 
+        self.push_count += 1
+
         # Convert pose response to correct push request format
         push_req = GripperPushRequest()
         push_req.start_point.header = pose_res.push_pose.header
         push_req.start_point.point = pose_res.push_pose.pose.position
+        if self.push_count == 1:
+            push_req.arm_init = True
+        else:
+            push_req.arm_init = False
+        if self.push_count < self.num_total_pushes:
+            push_req.arm_reset = False
+        else:
+            push_req.arm_reset = True
 
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
@@ -306,4 +353,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(1, 1, 0, 1, 1, 0)
+    node.run(0, 2, 2, 0, 2, 2)
