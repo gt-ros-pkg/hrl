@@ -90,15 +90,15 @@
 #include <utility>
 #include <math.h>
 
+#define DISPLAY_INPUT_IMAGES 1
 // #define DISPLAY_MOTION_PROBS 1
-// #define DISPLAY_INPUT_IMAGES 1
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
-// #define DISPLAY_OPTICAL_FLOW 1
+ #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
 // #define DISPLAY_OPT_FLOW_II_INTERNALS 1
-// #define DISPLAY_GRAPHCUT 1
+ #define DISPLAY_GRAPHCUT 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -684,9 +684,9 @@ class MotionGraphcut
  public:
   MotionGraphcut(float eigen_ratio = 5.0f, float w_f = 3.0f, float w_b = 2.0f,
                  float w_n_f = 0.01f, float w_n_b = 0.01f, float w_w_b = 5.0f,
-                 float w_u = 0.1f) :
+                 float w_u_f = 0.1f, float w_u_b = 0.1f) :
       w_f_(w_f), w_b_(w_b), w_n_f_(w_n_f), w_n_b_(w_n_b),  w_w_b_(w_w_b),
-      w_u_(w_u)
+      w_u_f_(w_u_f), w_u_b_(w_u_b)
   {
     setEigenRatio(eigen_ratio);
   }
@@ -733,7 +733,7 @@ class MotionGraphcut
         }
         else
         {
-          g->add_tweights(r*C+c, /*capacities*/ w_u_, w_u_);
+          g->add_tweights(r*C+c, /*capacities*/ w_u_f_, w_u_b_);
         }
         // Connect node to previous ones
         if (c > 0)
@@ -803,12 +803,13 @@ class MotionGraphcut
   float corner_thresh_;
  public:
   // TODO: Add weighting parameters, set via parameter server
-  float w_f_;
-  float w_b_;
-  float w_n_f_;
-  float w_n_b_;
-  float w_w_b_;
-  float w_u_;
+  double w_f_;
+  double w_b_;
+  double w_n_f_;
+  double w_n_b_;
+  double w_w_b_;
+  double w_u_f_;
+  double w_u_b_;
 };
 
 class TabletopPushingPerceptionNode
@@ -856,6 +857,16 @@ class TabletopPushingPerceptionNode
     motion_probs_.setT_inT_out(T_in, T_out);
     n_private.param("autostart_tracking", tracking_, false);
     n_private.param("erosion_size", erosion_size_, 3);
+
+    n_private.param("mgc_w_f", mgc_.w_f_, 3.0);
+    n_private.param("mgc_w_b", mgc_.w_b_, 2.0);
+    n_private.param("mgc_w_n_f", mgc_.w_n_f_, 0.01);
+    n_private.param("mgc_w_n_b", mgc_.w_n_b_, 0.01);
+    n_private.param("mgc_w_w_b", mgc_.w_w_b_, 5.0);
+    n_private.param("mgc_w_u_f", mgc_.w_u_f_, 0.1);
+    n_private.param("mgc_w_u_b", mgc_.w_u_b_, 0.1);
+
+
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
                            this);
