@@ -91,14 +91,14 @@
 #include <math.h>
 
 // #define DISPLAY_MOTION_PROBS 1
-#define DISPLAY_INPUT_IMAGES 1
+// #define DISPLAY_INPUT_IMAGES 1
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
-#define DISPLAY_OPTICAL_FLOW 1
+// #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
 // #define DISPLAY_OPT_FLOW_II_INTERNALS 1
-#define DISPLAY_GRAPHCUT 1
+// #define DISPLAY_GRAPHCUT 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -788,8 +788,7 @@ class MotionGraphcut
     cv::Vec3f c_d = c0-c1;
     float w_d = 0.5*(d0-d1);
     w_d *= w_d;
-    float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]+min(w_d, 1.25f))
-        *10.0;
+    float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]+min(w_d, 1.25f));
     // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]);
     return w_c;
   }

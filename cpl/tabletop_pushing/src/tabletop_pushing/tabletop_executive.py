@@ -52,7 +52,7 @@ class TabletopExecutive:
         # The offsets should be removed and learned implicitly
         rospy.init_node('tabletop_executive_node',log_level=rospy.DEBUG)
         self.gripper_push_dist = rospy.get_param('~gripper_push_dist',
-                                                 0.15)
+                                                 0.30)
         self.gripper_x_offset = rospy.get_param('~gripper_push_start_x_offset',
                                                 -0.03)
         self.gripper_y_offset = rospy.get_param('~gripper_push_start_x_offset',
@@ -161,9 +161,9 @@ class TabletopExecutive:
             if self.use_fake_push_pose:
                 pose_res = PushPoseResponse()
                 pose_res.push_pose.header.frame_id = '/torso_lift_link'
-                pose_res.push_pose.pose.position.x = 0.7
+                pose_res.push_pose.pose.position.x = 0.5
                 pose_res.push_pose.pose.position.y = 0.0
-                pose_res.push_pose.pose.position.z = -0.15
+                pose_res.push_pose.pose.position.z = -0.20
             else:
                 pose_res = self.push_pose_proxy(pose_req)
         except rospy.ServiceException, e:
@@ -177,7 +177,7 @@ class TabletopExecutive:
 
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
-        wrist_yaw = 0.0 # 0.25*pi # -0.25*pi
+        wrist_yaw = 0.0 # 0.5*pi # 0.25*pi # -0.25*pi
         push_req.wrist_yaw = wrist_yaw
         push_req.desired_push_dist = push_dist
 
@@ -208,7 +208,7 @@ class TabletopExecutive:
                 pose_res.push_pose.header.frame_id = '/torso_lift_link'
                 pose_res.push_pose.pose.position.x = 0.75
                 pose_res.push_pose.pose.position.y = 0.05
-                pose_res.push_pose.pose.position.z = -0.15
+                pose_res.push_pose.pose.position.z = -0.25
             else:
                 pose_res = self.push_pose_proxy(pose_req)
 
@@ -263,7 +263,7 @@ class TabletopExecutive:
                 pose_res.push_pose.header.frame_id = '/torso_lift_link'
                 pose_res.push_pose.pose.position.x = 0.7
                 pose_res.push_pose.pose.position.y = 0.0
-                pose_res.push_pose.pose.position.z = -0.15
+                pose_res.push_pose.pose.position.z = -0.25
             else:
                 pose_res = self.push_pose_proxy(pose_req)
         except rospy.ServiceException, e:
@@ -306,4 +306,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(0, 1, 0, 1, 0, 0)
+    node.run(1, 1, 0, 1, 1, 0)

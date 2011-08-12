@@ -71,6 +71,7 @@ class TabletopPushNode:
     def __init__(self, no_arms = False):
         rospy.init_node('tabletop_push_node', log_level=rospy.DEBUG)
         self.torso_z_offset = rospy.get_param('~torso_z_offset', 0.15)
+        self.look_pt_x = rospy.get_param('~look_point_x', 0.45)
         use_slip = rospy.get_param('~use_slip_detection', 1)
 
         self.tf_listener = tf.TransformListener()
@@ -412,7 +413,7 @@ class TabletopPushNode:
 
         # Point the head at the table centroid
         # NOTE: Should we fix the tilt angle instead for consistency?
-        look_pt = np.asmatrix([0.50,
+        look_pt = np.asmatrix([self.look_pt_x,
                                0.0,
                                -self.torso_z_offset])
         # look_pt = np.asmatrix([request.table_centroid.pose.position.x-0.30,
@@ -459,7 +460,7 @@ class TabletopPushNode:
             self.init_arm_pose(True, which_arm='r')
             self.init_arm_pose(True, which_arm='l')
             rospy.loginfo('Done initializing arms')
-        look_pt = np.asmatrix([0.5, 0.0, -self.torso_z_offset])
+        look_pt = np.asmatrix([self.look_pt_x, 0.0, -self.torso_z_offset])
         rospy.loginfo('Point head at ' + str(look_pt))
         # TODO: Fix hardcoding of 'openni_rgb_frame'
         head_res = self.robot.head.look_at(look_pt,
