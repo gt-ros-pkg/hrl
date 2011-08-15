@@ -35,5 +35,8 @@
     <param name="mgc_w_w_b" value="50.0" type="double"/>
     <param name="mgc_u_b" value="10.0" type="double"/>
     <param name="mgc_u_f" value="20.0" type="double"/>
+
+    <param name="mgc_eigen_ratio" value="5.0" type="double"/>
+
   </node>
 </launch>

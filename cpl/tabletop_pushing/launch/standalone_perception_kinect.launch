@@ -29,5 +29,16 @@
     <!-- <param name="T_out" value="15" type="double"/> -->
     <param name="autostart_tracking" value="true" type="bool"/>
     <param name="erosion_size" value="3" type="int"/>
+
+    <param name="mgc_w_f" value="15.0" type="double"/>
+    <param name="mgc_w_b" value="15.0" type="double"/>
+    <param name="mgc_w_n_f" value="0.1" type="double"/>
+    <param name="mgc_w_n_b" value="0.1" type="double"/>
+    <param name="mgc_w_w_b" value="50.0" type="double"/>
+    <param name="mgc_u_b" value="5.0" type="double"/>
+    <param name="mgc_u_f" value="5.0" type="double"/>
+
+    <param name="mgc_eigen_ratio" value="5.0" type="double"/>
+
   </node>
 </launch>
