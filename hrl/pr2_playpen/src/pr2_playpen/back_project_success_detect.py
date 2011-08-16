@@ -116,37 +116,39 @@ def back_project_hs(src, patch):
     #return , hist
 
 if __name__ == '__main__':
-    src = cv.LoadImageM(sys.argv[1])
-    src2 = cv.LoadImageM(sys.argv[2])
-    patch = cv.LoadImageM(sys.argv[3])
-
-    cv.NamedWindow("Source", cv.CV_WINDOW_AUTOSIZE)
-    cv.ShowImage("Source", src)
-
-    back_proj_img, hist1 = back_project_hs(src, patch)
-    back_proj_img2, hist2 = back_project_hs(src2, patch)
-
-    cv.NamedWindow("back_projection", cv.CV_WINDOW_AUTOSIZE)
-    cv.ShowImage("back_projection", back_proj_img)
-
-    print cv.CompareHist(hist1, hist2, cv.CV_COMP_BHATTACHARYYA)
-    cv.NamedWindow("back_projection2", cv.CV_WINDOW_AUTOSIZE)
-    cv.ShowImage("back_projection2", back_proj_img2)
+    folder = sys.argv[1]
     
-    cv.WaitKey(0)
+    cv.NamedWindow("Source", cv.CV_WINDOW_AUTOSIZE)
+    cv.NamedWindow("back_projection", cv.CV_WINDOW_AUTOSIZE)
+    cv.NamedWindow("back_projection2", cv.CV_WINDOW_AUTOSIZE)
+    src2 = cv.LoadImageM(folder+'object'+str(0).zfill(3)+'_try'+str(3).zfill(3)+'_before_pr2.png')
+    patch_images = []
+    for k in xrange(1):
+        patch_images.append(cv.LoadImageM('/home/mkillpack/Desktop/patch2.png'))
+    for i in xrange(9):
+        for j in xrange(100):
+            src = cv.LoadImageM(folder+'object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png')
+            cv.ShowImage("Source", src)
+            back_proj_img, hist1 = back_project_hs(src, patch_images[0])
+            back_proj_img2, hist2 = back_project_hs(src2, patch_images[0])
+            cv.ShowImage("back_projection", back_proj_img)
 
-    #making a mask
-    mask = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
+            print cv.CompareHist(hist1, hist2, cv.CV_COMP_BHATTACHARYYA)
+            cv.ShowImage("back_projection2", back_proj_img2)
+            cv.WaitKey(0)
 
-    cv.SubRS(back_proj_img2, 255, back_proj_img2)
-    cv.SubRS(back_proj_img, 255, back_proj_img, mask=back_proj_img2)
-    cv.SubRS(back_proj_img, 255, back_proj_img)
+            #making a mask
+            mask = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
 
-    cv.MorphologyEx(back_proj_img,back_proj_img, None, None, cv.CV_MOP_OPEN, 8)
-    #cv.MorphologyEx(back_proj_img,back_proj_img, None, None, cv.CV_MOP_CLOSE, 8)
-    cv.ShowImage("back_projection", back_proj_img)
-    cv.WaitKey(0)
+            cv.SubRS(back_proj_img2, 255, back_proj_img2)
+            #cv.SubRS(back_proj_img, 255, back_proj_img, mask=back_proj_img2)
+            #cv.SubRS(back_proj_img, 255, back_proj_img)
 
-    cv.Scale(back_proj_img, back_proj_img, 1/255.0)
-    print "here's the sum :", cv.Sum(back_proj_img)
+            cv.MorphologyEx(back_proj_img,back_proj_img, None, None, cv.CV_MOP_OPEN, 8)
+            #cv.MorphologyEx(back_proj_img,back_proj_img, None, None, cv.CV_MOP_CLOSE, 8)
+            cv.ShowImage("back_projection", back_proj_img2)
+            cv.WaitKey(0)
+
+            cv.Scale(back_proj_img, back_proj_img, 1/255.0)
+            print "here's the sum :", cv.Sum(back_proj_img)
 
