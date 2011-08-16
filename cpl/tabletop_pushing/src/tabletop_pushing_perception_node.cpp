@@ -359,21 +359,45 @@ class LKFlowReliable
     cv::cvtColor(prev_color_frame, tmp_bw, CV_BGR2GRAY);
     tmp_bw.convertTo(prev_bw, CV_32FC1, 1.0/255, 0);
 
-    // // Perform multiscale flow
-    // std::vector<cv::Mat> cur_pyr;
-    // std::vector<cv::Mat> prev_pyr;
-    // cv::buildPyramid(cur_bw, cur_pyr, num_levels_-1);
-    // cv::buildPyramid(prev_bw, prev_pyr, num_levels_-1);
-    // std::vector<cv::Mat> flow_pyr;
+    // Perform multiscale flow
+    std::vector<cv::Mat> cur_pyr;
+    std::vector<cv::Mat> prev_pyr;
+    cv::buildPyramid(cur_bw, cur_pyr, num_levels_-1);
+    cv::buildPyramid(prev_bw, prev_pyr, num_levels_-1);
+    std::vector<cv::Mat> flow_pyr;
+    std::vector<cv::Mat> score_pyr;
 
-    // // TODO: Intergrate pyramid flows
-    // for (int i = 0; i < num_levels_; ++i)
-    // {
-    //   std::vector<cv::Mat> flow_outs = baseLK(cur_pyr[i], prev_pyr[i]);
-    //   flow_pyr.push_back(flow_outs[0]);
-    // }
-    // // TODO: Warp and upsample to higher level
+    for (int i = 0; i < num_levels_; ++i)
+    {
+      std::vector<cv::Mat> flow_outs = baseLK(cur_pyr[i], prev_pyr[i]);
+      cv::Mat up;
+      cv::Mat up_temp;
+      vector<cv::Size> sizes;
+      flow_outs[0].copyTo(up);
+      flow_outs[0].copyTo(up_temp);
+      cv::Size current_size = cur_bw.size();
+      for (int j = i; j > 0; --j)
+      {
+        sizes.push_back(current_size);
+        current_size.width /= 2;
+        current_size.height /= 2;
+      }
+      for (int j = i; j > 0; --j)
+      {
+        cv::Size up_size;
+        up_size = sizes.back();
+        sizes.pop_back();
+        cv::pyrUp(up_temp, up, up_size);
+        up_temp = up;
+      }
+      flow_pyr.push_back(up);
+      score_pyr.push_back(flow_outs[1]);
+    }
 
+
+    // TODO: Warp and upsample to higher level
+
+    // TODO: Separate scoring from flow calculation?
     std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
     // std::vector<cv::Mat> flow_n_scoresII = baseLKII(cur_bw, prev_bw);
     return flow_n_scores;
@@ -433,16 +457,6 @@ class LKFlowReliable
           uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
         }
         flow.at<cv::Vec2f>(r,c) = uv;
-
-        // cv::Mat H(cv::Size(2,2), CV_32FC1);
-        // H.at<float>(0,0) = sIxx;
-        // H.at<float>(0,1) = sIxy;
-        // H.at<float>(1,0) = sIxy;
-        // H.at<float>(1,1) = sIyy;
-        // cv::Mat lambdas;
-        // cv::eigen(H, lambdas);
-        // cv::Vec2f ll(lambdas.at<float>(0,0), lambdas.at<float>(1,0));
-        // t_scores.at<cv::Vec2f>(r,c) = ll;
         t_scores.at<float>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
       }
     }
@@ -686,9 +700,9 @@ class MotionGraphcut
  public:
   MotionGraphcut(float eigen_ratio = 5.0f, float w_f = 3.0f, float w_b = 2.0f,
                  float w_n_f = 0.01f, float w_n_b = 0.01f, float w_w_b = 5.0f,
-                 float w_u_f = 0.1f, float w_u_b = 0.1f) :
+                 float w_u_f = 0.1f, float w_u_b = 0.1f, float gamma = 0.2f) :
       w_f_(w_f), w_b_(w_b), w_n_f_(w_n_f), w_n_b_(w_n_b),  w_w_b_(w_w_b),
-      w_u_f_(w_u_f), w_u_b_(w_u_b)
+      w_u_f_(w_u_f), w_u_b_(w_u_b), gamma_(gamma)
   {
     setEigenRatio(eigen_ratio);
   }
@@ -791,7 +805,8 @@ class MotionGraphcut
     float w_d = (d0-d1);
     w_d *= w_d;
     // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]+min(w_d, 1.25f));
-    float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]);
+    // TODO: Add this weight to the parameter server
+    float w_c = 0.1*exp(sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]));
     return w_c;
   }
 
@@ -812,6 +827,7 @@ class MotionGraphcut
   double w_w_b_;
   double w_u_f_;
   double w_u_b_;
+  double gamma_;
 };
 
 class TabletopPushingPerceptionNode
@@ -867,6 +883,7 @@ class TabletopPushingPerceptionNode
     n_private.param("mgc_w_w_b", mgc_.w_w_b_, 5.0);
     n_private.param("mgc_w_u_f", mgc_.w_u_f_, 0.1);
     n_private.param("mgc_w_u_b", mgc_.w_u_b_, 0.1);
+    n_private.param("mgc_gamma", mgc_.gamma_, 0.1);
     double eigen_ratio = 0.5;
     n_private.param("mgc_eigen_ratio", eigen_ratio, 0.5);
     mgc_.setEigenRatio(eigen_ratio);
@@ -911,9 +928,8 @@ class TabletopPushingPerceptionNode
       }
     }
 
-    // TODO: Downsample images
-
     // Select inner ROI of images to remove border issues
+    // TODO: Make mask on crop, instead of a hard crop.
     int x_size = crop_max_x_ - crop_min_x_;
     int y_size = crop_max_y_ - crop_min_y_;
     cv::Rect roi(crop_min_x_, crop_min_y_, x_size, y_size);
@@ -1098,8 +1114,8 @@ class TabletopPushingPerceptionNode
     }
     cv::imshow("flow_disp", flow_disp_img);
     cv::imshow("flow_thresh_disp", flow_thresh_disp_img);
-    cv::imshow("u", flows[0]);
-    cv::imshow("v", flows[1]);
+    // cv::imshow("u", flows[0]);
+    // cv::imshow("v", flows[1]);
 #endif // DISPLAY_OPTICAL_FLOW
 
     ROS_INFO_STREAM("Computing graph cut.");
@@ -1110,47 +1126,8 @@ class TabletopPushingPerceptionNode
                        flow_outs[1],
                        cur_workspace_mask_);
 
-    cv::Mat toy_frame(200,200, CV_32FC3, cv::Scalar(0.0,0.0,0.0));
-    cv::Mat toy_depth_frame(200,200, CV_32FC1, cv::Scalar(0.0));
-    cv::Mat toy_u(200,200, CV_32FC1, cv::Scalar(0.0));
-    cv::Mat toy_v(200,200, CV_32FC1, cv::Scalar(0.0));
-    cv::Mat toy_scores(200, 200, CV_32FC2, cv::Scalar(0.0,0.0));
-    cv::Mat toy_mask(200, 200, CV_8UC1, cv::Scalar(255));
-    for (int r = 0; r < toy_frame.rows/2; r+=3)
-    {
-      for (int c = 0; c < toy_frame.cols/2; ++c)
-      {
-        toy_frame.at<cv::Vec3f>(r,c) = cv::Vec3f(1.0,0.0,1.0);
-        toy_depth_frame.at<float>(r,c) = 0.3+c*0.01;
-        toy_u.at<float>(r,c) = 0.8+c*0.01;
-        toy_v.at<float>(r,c) = 6.0+c*0.01;
-      }
-      for (int c = toy_frame.cols/2; c < toy_frame.cols; ++c)
-      {
-        toy_mask.at<uchar>(r,c) = 0;
-      }
-    }
-    for (int r = toy_frame.rows / 2; r < toy_frame.rows; ++r)
-    {
-      for (int c = toy_frame.cols /2; c < toy_frame.cols; ++c)
-      {
-        toy_frame.at<cv::Vec3f>(r,c) = cv::Vec3f(0.5,0.5,0.0);
-        toy_depth_frame.at<float>(r,c) = 0.2+c*0.01;
-        toy_v.at<float>(r,c) = 0.20;
-        toy_u.at<float>(r,c) = (toy_frame.cols-c)*0.5;
-      }
-    }
-    cv::Mat toy_cut = mgc_(toy_frame, toy_depth_frame, toy_u, toy_v,
-                           toy_scores, toy_mask);
-
 #ifdef DISPLAY_GRAPHCUT
     cv::imshow("Cut", cut);
-    cv::imshow("toy_frame", toy_frame);
-    cv::imshow("toy_mask", toy_mask);
-    cv::imshow("toy_u", toy_u);
-    cv::imshow("toy_v", toy_v);
-    cv::imshow("toy_depth_frame", toy_depth_frame);
-    cv::imshow("toy_cut", toy_cut);
     cv::waitKey(display_wait_ms_);
 #endif // DISPLAY_GRAPHCUT
 
