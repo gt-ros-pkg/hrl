@@ -61,6 +61,7 @@ std::vector<int> in_indices;
 int counter(0);
 int counter_ind(0);
 //bool mouse_active(false);
+CvPoint pts[1000];
 int done (0);
 
 /***********************************************************************************/
@@ -176,10 +177,19 @@ void UI::color_segment_callback()
       cvWaitKey(33);
     }
 
+
   //decrease the search in the image by finding the bounding box
   height = cv_image->height;
   width = cv_image->width;
-    
+  
+  for (int j = 0; j < poly_vec.size(); j++)
+    {
+      pts[j] = cvPoint(poly_vec[j][0], poly_vec[j][1]);
+    }
+  IplImage* mask = cvCreateImage(cvSize(width, height), 8, 1);
+  cvFillConvexPoly(mask, pts, poly_vec.size(), cvScalar(255));
+  cvSaveImage('./mask.png', mask);
+
   //do some color segmentation selection for indices after selecting a point of certain color or maybe multiple, would
   //allow auto segmentation of a certain region automatically
 
