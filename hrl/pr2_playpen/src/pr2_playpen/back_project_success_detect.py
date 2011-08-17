@@ -4,6 +4,10 @@ roslib.load_manifest('opencv2')
 import sys
 import cv
 
+cv.NamedWindow("back_projection", cv.CV_WINDOW_AUTOSIZE)
+cv.NamedWindow("back_modified", cv.CV_WINDOW_AUTOSIZE)
+cv.NamedWindow("back_modified2", cv.CV_WINDOW_AUTOSIZE)
+
 def hs_histogram(src, patch):
     # Convert to HSV
     hsv = cv.CreateImage(cv.GetSize(src), 8, 3)
@@ -102,53 +106,103 @@ def back_project_hs(src, patch):
     print "max hist value is :", max_value
 
     back_proj_img = cv.CreateImage(cv.GetSize(src), 8, 1)
+
+    #cv.NormalizeHist(hist, 2000)
+
     cv.CalcBackProject([h_plane_img, s_plane_img], back_proj_img, hist)
+    back_modified = cv.CreateImage(cv.GetSize(src), 8, 1)
+    back_modified2 = cv.CreateImage(cv.GetSize(src), 8, 1)
+
     # cv.Dilate(back_proj_img, back_proj_img)
     # cv.Erode(back_proj_img, back_proj_img)
-    cv.MorphologyEx(back_proj_img,back_proj_img, None, None, cv.CV_MOP_CLOSE, 1)
-    cv.MorphologyEx(back_proj_img,back_proj_img, None, None, cv.CV_MOP_OPEN, 2)
-#    cv.SubRS(back_proj_img, 255, back_proj_img)
+    #cv.Smooth(back_proj_img, back_modified)
+    
+    #cv.AdaptiveThreshold(back_proj_img, back_modified, 255, adaptive_method=cv.CV_ADAPTIVE_THRESH_GAUSSIAN_C)
+    #cv.Threshold(back_proj_img, back_modified, 250, 255, cv.CV_THRESH_BINARY)
+    #cv.MorphologyEx(back_modified,back_modified2, None, None, cv.CV_MOP_CLOSE, 3)
+    #cv.MorphologyEx(back_modified,back_modified2, None, None, cv.CV_MOP_CLOSE, 1)    
+    # cv.MorphologyEx(back_proj_img,back_modified2, None, None, cv.CV_MOP_CLOSE, 1)
+    #cv.MorphologyEx(back_modified2,back_modified2, None, None, cv.CV_MOP_OPEN, 2)    
+
+
+
+
+    cv.MorphologyEx(back_proj_img,back_modified, None, None, cv.CV_MOP_OPEN, 1)
+    cv.MorphologyEx(back_modified,back_modified, None, None, cv.CV_MOP_CLOSE, 2)    
+    cv.Threshold(back_modified, back_modified, 250, 255, cv.CV_THRESH_BINARY)
+
+    # cv.MorphologyEx(back_proj_img,back_modified2, None, None, cv.CV_MOP_CLOSE, 1)
+    # cv.MorphologyEx(back_modified2,back_modified2, None, None, cv.CV_MOP_OPEN, 2)    
+
+
+
+
+    #cv.FloodFill(back_modified, (320, 240), cv.Scalar(255), cv.Scalar(30), cv.Scalar(30), flags=8)
+
+    # for i in xrange (10):
+    #     cv.MorphologyEx(back_modified,back_modified, None, None, cv.CV_MOP_OPEN, 3)
+    #     cv.MorphologyEx(back_modified,back_modified, None, None, cv.CV_MOP_CLOSE, 1)    
+
+    
+    #cv.SubRS(back_modified, 255, back_modified)
 
     # cv.CalcBackProject([s_plane_img], back_proj_img, hist)
     # cv.Scale(back_proj_img, back_proj_img, 30000)
+    cv.ShowImage("back_projection", back_proj_img)
+    cv.ShowImage("back_modified", back_modified)
+    cv.ShowImage("back_modified2", back_modified2)
+
+    cv.WaitKey(0)
+
+
     
-    return back_proj_img, hist
+    #return back_proj_img, hist
+    return back_modified, hist
     #return , hist
 
 if __name__ == '__main__':
     folder = sys.argv[1]
     
     cv.NamedWindow("Source", cv.CV_WINDOW_AUTOSIZE)
-    cv.NamedWindow("back_projection", cv.CV_WINDOW_AUTOSIZE)
-    cv.NamedWindow("back_projection2", cv.CV_WINDOW_AUTOSIZE)
-    src2 = cv.LoadImageM(folder+'object'+str(0).zfill(3)+'_try'+str(3).zfill(3)+'_before_pr2.png')
+    cv.NamedWindow("final", cv.CV_WINDOW_AUTOSIZE)
+    src2 = cv.LoadImageM(folder+'object'+str(0).zfill(3)+'_try'+str(0).zfill(3)+'_after_pr2.png')
     patch_images = []
+
     for k in xrange(1):
         patch_images.append(cv.LoadImageM('/home/mkillpack/Desktop/patch2.png'))
-    for i in xrange(9):
+    #for i in xrange(9):
+    for i in [4]:
         for j in xrange(100):
+            print folder+'object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png'
             src = cv.LoadImageM(folder+'object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png')
             cv.ShowImage("Source", src)
+
             back_proj_img, hist1 = back_project_hs(src, patch_images[0])
             back_proj_img2, hist2 = back_project_hs(src2, patch_images[0])
-            cv.ShowImage("back_projection", back_proj_img)
+            scratch = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
+            scratch2 = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
 
+            # so something clever with ands ors and diffs 
+            cv.Zero(scratch)
+            cv.Zero(scratch2)
+            cv.SubRS(back_proj_img, 255, scratch)
+            cv.And(scratch, back_proj_img2, scratch2)
+            #cv.SubRS(scratch2, 255, scratch)                
+            cv.ShowImage("final", scratch2)
             print cv.CompareHist(hist1, hist2, cv.CV_COMP_BHATTACHARYYA)
-            cv.ShowImage("back_projection2", back_proj_img2)
-            cv.WaitKey(0)
 
             #making a mask
-            mask = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
+            #mask = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
 
-            cv.SubRS(back_proj_img2, 255, back_proj_img2)
+            #cv.SubRS(back_proj_img2, 255, back_proj_img2)
             #cv.SubRS(back_proj_img, 255, back_proj_img, mask=back_proj_img2)
             #cv.SubRS(back_proj_img, 255, back_proj_img)
 
-            cv.MorphologyEx(back_proj_img,back_proj_img, None, None, cv.CV_MOP_OPEN, 8)
+            #cv.MorphologyEx(back_proj_img,back_proj_img, None, None, cv.CV_MOP_OPEN, 8)
             #cv.MorphologyEx(back_proj_img,back_proj_img, None, None, cv.CV_MOP_CLOSE, 8)
-            cv.ShowImage("back_projection", back_proj_img2)
-            cv.WaitKey(0)
+            #cv.ShowImage("back_projection", back_proj_img2)
+            #cv.WaitKey(0)
 
             cv.Scale(back_proj_img, back_proj_img, 1/255.0)
-            print "here's the sum :", cv.Sum(back_proj_img)
+            print "here's the sum :", cv.Sum(scratch2)
 
