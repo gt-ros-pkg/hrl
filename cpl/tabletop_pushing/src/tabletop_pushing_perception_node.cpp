@@ -807,8 +807,10 @@ class MotionGraphcut
         }
       }
     }
+#ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::imshow("fg_weights", fg_weights);
     cv::imshow("bg_weights", bg_weights);
+#endif // VISUALIZE_GRAPH_WEIGHTS
     int flow = g->maxflow(false);
     // Convert output into image
     cv::Mat segs(R, C, CV_32FC1, cv::Scalar(0.0));
