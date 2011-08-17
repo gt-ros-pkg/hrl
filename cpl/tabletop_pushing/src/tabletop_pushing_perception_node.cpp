@@ -90,15 +90,16 @@
 #include <utility>
 #include <math.h>
 
-#define DISPLAY_INPUT_IMAGES 1
+// #define DISPLAY_INPUT_IMAGES 1
 // #define DISPLAY_MOTION_PROBS 1
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
- #define DISPLAY_OPTICAL_FLOW 1
+#define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
 // #define DISPLAY_OPT_FLOW_II_INTERNALS 1
- #define DISPLAY_GRAPHCUT 1
+#define DISPLAY_GRAPHCUT 1
+// #define VISUALIZE_GRAPH_WEIGHTS 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -335,7 +336,7 @@ class ProbImageDifferencing
 class LKFlowReliable
 {
  public:
-  LKFlowReliable(int win_size = 5, int num_levels = 4) :
+  LKFlowReliable(int win_size = 5, int num_levels = 1) :
       win_size_(win_size), num_levels_(num_levels)
   {
 
@@ -698,11 +699,12 @@ class LKFlowReliable
 class MotionGraphcut
 {
  public:
-  MotionGraphcut(float eigen_ratio = 5.0f, float w_f = 3.0f, float w_b = 2.0f,
-                 float w_n_f = 0.01f, float w_n_b = 0.01f, float w_w_b = 5.0f,
-                 float w_u_f = 0.1f, float w_u_b = 0.1f, float gamma = 0.2f) :
+  MotionGraphcut(double eigen_ratio = 5.0f, double w_f = 3.0f, double w_b = 2.0f,
+                 double w_n_f = 0.01f, double w_n_b = 0.01f, double w_w_b = 5.0f,
+                 double w_u_f = 0.1f, double w_u_b = 0.1f,
+                 double magnitude_thresh=0.1) :
       w_f_(w_f), w_b_(w_b), w_n_f_(w_n_f), w_n_b_(w_n_b),  w_w_b_(w_w_b),
-      w_u_f_(w_u_f), w_u_b_(w_u_b), gamma_(gamma)
+      w_u_f_(w_u_f), w_u_b_(w_u_b), magnitude_thresh_(magnitude_thresh)
   {
     setEigenRatio(eigen_ratio);
   }
@@ -720,6 +722,11 @@ class MotionGraphcut
     int num_nodes = R*C;
     int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
     g = new GraphType(num_nodes, num_edges);
+
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+    cv::Mat fg_weights(color_frame.size(), CV_32FC1);
+    cv::Mat bg_weights(color_frame.size(), CV_32FC1);
+#endif // VISUALIZE_GRAPH_WEIGHTS
     for (int r = 0; r < R; ++r)
     {
       for (int c = 0; c < C; ++c)
@@ -732,24 +739,40 @@ class MotionGraphcut
         {
           // TODO: Set weight to infinte on bg
           g->add_tweights(r*C+c, /*capacities*/ 0.0, w_w_b_);
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+          fg_weights.at<float>(r,c) = 0.0;
+          bg_weights.at<float>(r,c) = 1.0;
+#endif // VISUALIZE_GRAPH_WEIGHTS
         }
         // TODO: Check texture measure before assigning weight to movement or
         // no movement
         if (flow_scores.at<float>(r,c) < corner_thresh_)
         {
 
-          if (magnitude > 2.0)
+          if (magnitude > magnitude_thresh_)
           {
             g->add_tweights(r*C+c, /*capacities*/ w_f_, w_n_f_);
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+            fg_weights.at<float>(r,c) = w_f_;
+            bg_weights.at<float>(r,c) = w_n_f_;
+#endif // VISUALIZE_GRAPH_WEIGHTS
           }
           else
           {
             g->add_tweights(r*C+c, /*capacities*/ w_n_b_, w_b_);
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+            fg_weights.at<float>(r,c) = w_n_b_;
+            bg_weights.at<float>(r,c) = w_b_;
+#endif // VISUALIZE_GRAPH_WEIGHTS
           }
         }
         else
         {
           g->add_tweights(r*C+c, /*capacities*/ w_u_f_, w_u_b_);
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+          fg_weights.at<float>(r,c) = w_u_f_;
+          bg_weights.at<float>(r,c) = w_u_b_;
+#endif // VISUALIZE_GRAPH_WEIGHTS
         }
         // Connect node to previous ones
         if (c > 0)
@@ -784,6 +807,8 @@ class MotionGraphcut
         }
       }
     }
+    cv::imshow("fg_weights", fg_weights);
+    cv::imshow("bg_weights", bg_weights);
     int flow = g->maxflow(false);
     // Convert output into image
     cv::Mat segs(R, C, CV_32FC1, cv::Scalar(0.0));
@@ -804,20 +829,21 @@ class MotionGraphcut
     cv::Vec3f c_d = c0-c1;
     float w_d = (d0-d1);
     w_d *= w_d;
-    // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]+min(w_d, 1.25f));
+    // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2] + w_d);
+    float w_c = sqrt(c_d[0]*c_d[0] + w_d);
     // TODO: Add this weight to the parameter server
-    float w_c = 0.1*exp(sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]));
+    // float w_c = 0.1*exp(sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]));
     return w_c;
   }
 
-  void setEigenRatio(float eigen_ratio)
+  void setEigenRatio(double eigen_ratio)
   {
     corner_thresh_ = (eigen_ratio+1)*(eigen_ratio+1)/eigen_ratio;
   }
 
  protected:
   GraphType *g;
-  float corner_thresh_;
+  double corner_thresh_;
  public:
   // TODO: Add weighting parameters, set via parameter server
   double w_f_;
@@ -827,7 +853,7 @@ class MotionGraphcut
   double w_w_b_;
   double w_u_f_;
   double w_u_b_;
-  double gamma_;
+  double magnitude_thresh_;
 };
 
 class TabletopPushingPerceptionNode
@@ -883,11 +909,10 @@ class TabletopPushingPerceptionNode
     n_private.param("mgc_w_w_b", mgc_.w_w_b_, 5.0);
     n_private.param("mgc_w_u_f", mgc_.w_u_f_, 0.1);
     n_private.param("mgc_w_u_b", mgc_.w_u_b_, 0.1);
-    n_private.param("mgc_gamma", mgc_.gamma_, 0.1);
     double eigen_ratio = 0.5;
     n_private.param("mgc_eigen_ratio", eigen_ratio, 0.5);
     mgc_.setEigenRatio(eigen_ratio);
-
+    n_private.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
                            this);
@@ -909,8 +934,8 @@ class TabletopPushingPerceptionNode
     cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
 
     // Swap kinect color channel order
-    cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
-    // cv::cvtColor(color_frame, color_frame, CV_RGB2HSV);
+    // cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
+    cv::cvtColor(color_frame, color_frame, CV_RGB2HSV);
 
     // Transform point cloud into the correct frame and convert to PCL struct
     XYZPointCloud cloud;
@@ -928,27 +953,21 @@ class TabletopPushingPerceptionNode
       }
     }
 
-    // Select inner ROI of images to remove border issues
-    // TODO: Make mask on crop, instead of a hard crop.
-    int x_size = crop_max_x_ - crop_min_x_;
-    int y_size = crop_max_y_ - crop_min_y_;
-    cv::Rect roi(crop_min_x_, crop_min_y_, x_size, y_size);
-
-    cv::Mat depth_region = depth_frame(roi);
-    cv::Mat color_region = color_frame(roi);
-
-    cv::Mat workspace_mask(color_region.rows, color_region.cols, CV_8UC1,
+    cv::Mat workspace_mask(color_frame.rows, color_frame.cols, CV_8UC1,
                            cv::Scalar(255));
-    // Black out pixels in color and depth images outside of worksape
-    for (int r = 0; r < color_region.rows; ++r)
+    // Black out pixels in color and depth images outside of workspace
+    // As well as outside of the crop window
+    for (int r = 0; r < color_frame.rows; ++r)
     {
-      for (int c = 0; c < color_region.cols; ++c)
+      for (int c = 0; c < color_frame.cols; ++c)
       {
         // NOTE: Cloud is accessed by at(column, row)
-        pcl::PointXYZ cur_pt = cloud.at(crop_min_x_ + c, crop_min_y_ + r);
+        pcl::PointXYZ cur_pt = cloud.at(c, r);
         if (cur_pt.x < min_workspace_x_ || cur_pt.x > max_workspace_x_ ||
             cur_pt.y < min_workspace_y_ || cur_pt.y > max_workspace_y_ ||
-            cur_pt.z < min_workspace_z_ || cur_pt.z > max_workspace_z_)
+            cur_pt.z < min_workspace_z_ || cur_pt.z > max_workspace_z_ ||
+            r < crop_min_y_ || c < crop_min_x_ || r > crop_max_y_ ||
+            c > crop_max_x_ )
         {
           workspace_mask.at<uchar>(r,c) = 0;
         }
@@ -957,8 +976,8 @@ class TabletopPushingPerceptionNode
     // Save internally for use in the service callback
     prev_color_frame_ = cur_color_frame_.clone();
     prev_depth_frame_ = cur_depth_frame_.clone();
-    cur_color_frame_ = color_region.clone();
-    cur_depth_frame_ = depth_region.clone();
+    cur_color_frame_ = color_frame.clone();
+    cur_depth_frame_ = depth_frame.clone();
     prev_workspace_mask_ = cur_workspace_mask_.clone();
     cur_workspace_mask_ = workspace_mask.clone();
     cur_point_cloud_ = cloud;
@@ -1073,7 +1092,7 @@ class TabletopPushingPerceptionNode
     cv::imshow("workspace_mask", cur_workspace_mask_);
 #endif // DISPLAY_INPUT_IMAGES
 
-    ROS_INFO_STREAM("Computing flow");
+    ROS_DEBUG_STREAM("Computing flow");
     std::vector<cv::Mat> flow_outs = lkflow_(cur_color_frame_, cur_depth_frame_,
                                              prev_color_frame_,
                                              prev_depth_frame_);
@@ -1091,7 +1110,7 @@ class TabletopPushingPerceptionNode
         if (abs(uv[0])+abs(uv[1]) > 0.5)
         {
           cv::line(flow_disp_img, cv::Point(c,r), cv::Point(c-uv[0], r-uv[1]),
-                   cv::Scalar(0,255,0));
+                   cv::Scalar(0,255,255));
         }
       }
     }
@@ -1108,7 +1127,7 @@ class TabletopPushingPerceptionNode
             flow_outs[1].at<float>(r,c) < corner_thresh)
         {
           cv::line(flow_thresh_disp_img, cv::Point(c,r),
-                   cv::Point(c-uv[0], r-uv[1]), cv::Scalar(0,255,0));
+                   cv::Point(c-uv[0], r-uv[1]), cv::Scalar(0,255,255));
         }
       }
     }
@@ -1118,7 +1137,7 @@ class TabletopPushingPerceptionNode
     // cv::imshow("v", flows[1]);
 #endif // DISPLAY_OPTICAL_FLOW
 
-    ROS_INFO_STREAM("Computing graph cut.");
+    ROS_DEBUG_STREAM("Computing graph cut.");
     cv::Mat color_frame_f(color_frame.size(), CV_32FC3);
     color_frame.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
     cv::Mat cut = mgc_(color_frame_f, depth_frame,
@@ -1127,7 +1146,11 @@ class TabletopPushingPerceptionNode
                        cur_workspace_mask_);
 
 #ifdef DISPLAY_GRAPHCUT
+    cv::Mat eroded_cut(cut.size(), cut.type());
+    cv::Mat element(5, 5, CV_32FC1, cv::Scalar(1.0));
+    cv::erode(cut, eroded_cut, element);
     cv::imshow("Cut", cut);
+    cv::imshow("Eroded Cut", eroded_cut);
     cv::waitKey(display_wait_ms_);
 #endif // DISPLAY_GRAPHCUT
 

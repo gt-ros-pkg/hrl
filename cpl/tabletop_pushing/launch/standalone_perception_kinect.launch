@@ -42,7 +42,7 @@
     <param name="mgc_u_b" value="0.5" type="double"/>
     <param name="mgc_u_f" value="0.5" type="double"/>
     <param name="mgc_eigen_ratio" value="5.0" type="double"/>
-    <param name="mgc_magnitude_thresh" value="1.5" type="double"/>
+    <param name="mgc_magnitude_thresh" value="0.75" type="double"/>
 
   </node>
 </launch>
