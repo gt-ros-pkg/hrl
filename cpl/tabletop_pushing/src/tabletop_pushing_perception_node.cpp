@@ -1144,11 +1144,11 @@ class TabletopPushingPerceptionNode
                        flows[0], flows[1],
                        flow_outs[1],
                        cur_workspace_mask_);
-
-#ifdef DISPLAY_GRAPHCUT
     cv::Mat eroded_cut(cut.size(), cut.type());
     cv::Mat element(5, 5, CV_32FC1, cv::Scalar(1.0));
     cv::erode(cut, eroded_cut, element);
+
+#ifdef DISPLAY_GRAPHCUT
     cv::imshow("Cut", cut);
     cv::imshow("Eroded Cut", eroded_cut);
     cv::waitKey(display_wait_ms_);
