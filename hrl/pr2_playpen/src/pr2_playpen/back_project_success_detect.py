@@ -1,3 +1,4 @@
+#!/usr/bin/env python  
 # Calculating and displaying 2D Hue-Saturation histogram of a color image
 import roslib
 roslib.load_manifest('opencv2')
@@ -168,10 +169,12 @@ if __name__ == '__main__':
     src2 = cv.LoadImageM(folder+'object'+str(0).zfill(3)+'_try'+str(0).zfill(3)+'_after_pr2.png')
     patch_images = []
 
+    avg_noise = cv.CreateImage(cv.GetSize(src2), 8, 1)
+    cv.Zero(avg_noise)
     for k in xrange(1):
         patch_images.append(cv.LoadImageM('/home/mkillpack/Desktop/patch2.png'))
-    #for i in xrange(9):
-    for i in [4]:
+    #for i in [4]:
+    for i in xrange(9):
         for j in xrange(100):
             print folder+'object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png'
             src = cv.LoadImageM(folder+'object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png')
@@ -181,14 +184,42 @@ if __name__ == '__main__':
             back_proj_img2, hist2 = back_project_hs(src2, patch_images[0])
             scratch = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
             scratch2 = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
-
-            # so something clever with ands ors and diffs 
+            
+            # do something clever with ands ors and diffs 
             cv.Zero(scratch)
             cv.Zero(scratch2)
-            cv.SubRS(back_proj_img, 255, scratch)
-            cv.And(scratch, back_proj_img2, scratch2)
+
+
+            #idea is to have a background model from back_proj_img2, or at least an emtpy single shot
+            cv.Sub(back_proj_img, back_proj_img2, scratch)
+
+
+            #cv.SubRS(back_proj_img, 255, scratch)
+            cv.SubRS(back_proj_img2, 255, scratch2)
+            #cv.Sub(back_proj_img, back_proj_img2, scratch2) #opposite noise, but excludes object 
+            cv.Sub(back_proj_img2, back_proj_img, scratch2) #noise, but includes object if failed, 
+                                                            #would need to learn before then update selectively 
+                                                            #Maybe want both added in the end. 
+            cv.Sub(scratch2, avg_noise, scratch)            
+            cv.Or(avg_noise, scratch2, avg_noise)
+
+            ##adding this part fills in wherever the object has been too, heatmaps?
+            #cv.Sub(back_proj_img2, back_proj_img, scratch)
+            #cv.Or(avg_noise, scratch, avg_noise)
+            #
+
+
+            #cv.Sub(back_proj_img2, avg_noise, back_proj_img2)
+            #cv.Sub(scratch,, back_proj_img2)
+            cv.ShowImage("final", scratch)
+            #cv.Sub(scratch, avg_noise, scratch2)
+
+
+
+            #cv.And(scratch, back_proj_img2, scratch2)
             #cv.SubRS(scratch2, 255, scratch)                
-            cv.ShowImage("final", scratch2)
+            #cv.ShowImage("final", back_proj_img)
+
             print cv.CompareHist(hist1, hist2, cv.CV_COMP_BHATTACHARYYA)
 
             #making a mask
