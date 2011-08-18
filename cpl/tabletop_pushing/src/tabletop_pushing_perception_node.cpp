@@ -100,6 +100,7 @@
 // #define DISPLAY_OPT_FLOW_II_INTERNALS 1
 // #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
+// #define DOWNSAMPLE_IMAGES 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -741,12 +742,10 @@ class MotionGraphcut
           g->add_tweights(r*C+c, /*capacities*/ 0.0, w_w_b_);
 #ifdef VISUALIZE_GRAPH_WEIGHTS
           fg_weights.at<float>(r,c) = 0.0;
-          bg_weights.at<float>(r,c) = 1.0;
+          bg_weights.at<float>(r,c) = w_w_b_;
 #endif // VISUALIZE_GRAPH_WEIGHTS
         }
-        // TODO: Check texture measure before assigning weight to movement or
-        // no movement
-        if (flow_scores.at<float>(r,c) < corner_thresh_)
+        else if (flow_scores.at<float>(r,c) < corner_thresh_)
         {
 
           if (magnitude > magnitude_thresh_)
@@ -840,9 +839,8 @@ class MotionGraphcut
     float w_d = (d0-d1);
     w_d *= w_d;
     // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2] + w_d);
-    float w_c = sqrt(c_d[0]*c_d[0] + w_d);
-    // TODO: Add this weight to the parameter server
-    // float w_c = 0.1*exp(sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2]));
+    float w_c = sqrt(c_d[0]*c_d[0] + c_d[1]*c_d[1] + w_d);
+    // float w_c = sqrt(c_d[0]*c_d[0] + w_d);
     return w_c;
   }
 
@@ -923,6 +921,10 @@ class TabletopPushingPerceptionNode
     n_private.param("mgc_eigen_ratio", eigen_ratio, 0.5);
     mgc_.setEigenRatio(eigen_ratio);
     n_private.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
+
+    n_private.param("lk_win_size", lkflow_.win_size_, 5);
+    n_private.param("lk_num_levels", lkflow_.num_levels_, 1);
+
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
                            this);
@@ -983,27 +985,44 @@ class TabletopPushingPerceptionNode
         }
       }
     }
+    // TODO: Downsample everything first
+#ifdef DOWNSAMPLE_IMAGES
+    cv::Mat color_frame_down;
+    cv::Mat depth_frame_down;
+    cv::Mat workspace_mask_down;
+    cv::pyrDown(color_frame, color_frame_down);
+    cv::pyrDown(depth_frame, depth_frame_down);
+    cv::pyrDown(workspace_mask, workspace_mask_down);
+#endif // DOWNSAMPLE_IMAGES
     // Save internally for use in the service callback
     prev_color_frame_ = cur_color_frame_.clone();
     prev_depth_frame_ = cur_depth_frame_.clone();
+    prev_workspace_mask_ = cur_workspace_mask_.clone();
+
+#ifdef DOWNSAMPLE_IMAGES
+    cur_color_frame_ = color_frame_down.clone();
+    cur_depth_frame_ = depth_frame_down.clone();
+    cur_workspace_mask_ = workspace_mask_down.clone();
+#else
     cur_color_frame_ = color_frame.clone();
     cur_depth_frame_ = depth_frame.clone();
-    prev_workspace_mask_ = cur_workspace_mask_.clone();
     cur_workspace_mask_ = workspace_mask.clone();
+#endif // DOWNSAMPLE_IMAGES
     cur_point_cloud_ = cloud;
     have_depth_data_ = true;
 
     // Started via actionlib call
     if (tracking_)
-      trackRegions(cur_color_frame_, cur_depth_frame_, cur_point_cloud_);
+      trackRegions(cur_color_frame_, cur_depth_frame_,
+                   prev_color_frame_, prev_depth_frame_,
+                   cur_point_cloud_);
   }
 
   bool getTableLocation(LocateTable::Request& req, LocateTable::Response& res)
   {
     if ( have_depth_data_ )
     {
-      res.table_centroid = getTablePlane(cur_color_frame_, cur_depth_frame_,
-                                         cur_point_cloud_);
+      res.table_centroid = getTablePlane(cur_point_cloud_);
       if (res.table_centroid.pose.position.x == 0.0 &&
           res.table_centroid.pose.position.y == 0.0 &&
           res.table_centroid.pose.position.z == 0.0)
@@ -1085,33 +1104,42 @@ class TabletopPushingPerceptionNode
   }
 
   void trackRegions(cv::Mat& color_frame, cv::Mat& depth_frame,
+                    cv::Mat& prev_color_frame, cv::Mat& prev_depth_frame,
                     XYZPointCloud& cloud)
   {
     if (!tracker_initialized_)
     {
       motion_probs_.initialize(color_frame, depth_frame);
       ROS_INFO_STREAM("Initializing tracker.");
-      table_centroid_ = getTablePlane(color_frame, depth_frame, cloud);
+      table_centroid_ = getTablePlane(cloud);
       tracker_initialized_ = true;
       return;
     }
 
 #ifdef DISPLAY_INPUT_IMAGES
-    cv::imshow("input_color", color_frame);
+    cv::Mat color_disp_frame(color_frame.size(), color_frame.type());
+    std::vector<cv::Mat> hsv;
+    cv::split(color_frame, hsv);
+
+    cv::cvtColor(color_frame, color_disp_frame, CV_HSV2BGR);
+    cv::imshow("hue", hsv[0]);
+    cv::imshow("saturation", hsv[1]);
+    cv::imshow("intensity", hsv[2]);
+    cv::imshow("input_color", color_disp_frame);
     cv::imshow("input_depth", depth_frame);
     cv::imshow("workspace_mask", cur_workspace_mask_);
 #endif // DISPLAY_INPUT_IMAGES
 
-    ROS_DEBUG_STREAM("Computing flow");
-    std::vector<cv::Mat> flow_outs = lkflow_(cur_color_frame_, cur_depth_frame_,
-                                             prev_color_frame_,
-                                             prev_depth_frame_);
+    ROS_INFO_STREAM("Computing flow");
+    std::vector<cv::Mat> flow_outs = lkflow_(color_frame, depth_frame,
+                                             prev_color_frame,
+                                             prev_depth_frame);
     std::vector<cv::Mat> flows;
     cv::split(flow_outs[0], flows);
 
 #ifdef DISPLAY_OPTICAL_FLOW
-    cv::Mat flow_disp_img(cur_color_frame_.size(), CV_8UC3);
-    flow_disp_img = cur_color_frame_.clone();
+    cv::Mat flow_disp_img(color_disp_frame.size(), CV_8UC3);
+    flow_disp_img = color_disp_frame.clone();
     for (int r = 0; r < flow_disp_img.rows; ++r)
     {
       for (int c = 0; c < flow_disp_img.cols; ++c)
@@ -1124,8 +1152,8 @@ class TabletopPushingPerceptionNode
         }
       }
     }
-    cv::Mat flow_thresh_disp_img(cur_color_frame_.size(), CV_8UC3);
-    flow_thresh_disp_img = cur_color_frame_.clone();
+    cv::Mat flow_thresh_disp_img(color_disp_frame.size(), CV_8UC3);
+    flow_thresh_disp_img = color_disp_frame.clone();
 
     float corner_thresh = (eigen_ratio_+1)*(eigen_ratio_+1)/eigen_ratio_;
     for (int r = 0; r < flow_thresh_disp_img.rows; ++r)
@@ -1147,7 +1175,7 @@ class TabletopPushingPerceptionNode
     // cv::imshow("v", flows[1]);
 #endif // DISPLAY_OPTICAL_FLOW
 
-    ROS_DEBUG_STREAM("Computing graph cut.");
+    ROS_INFO_STREAM("Computing graph cut.");
     cv::Mat color_frame_f(color_frame.size(), CV_32FC3);
     color_frame.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
     cv::Mat cut = mgc_(color_frame_f, depth_frame,
@@ -1175,8 +1203,7 @@ class TabletopPushingPerceptionNode
     motion_img_pub_.publish(motion_msg.toImageMsg());
   }
 
-  PoseStamped getTablePlane(cv::Mat& color_frame, cv::Mat& depth_frame,
-                            XYZPointCloud& cloud)
+  PoseStamped getTablePlane(XYZPointCloud& cloud)
   {
     // Filter Cloud to not look for table planes on the ground
     pcl::PointCloud<pcl::PointXYZ> cloud_z_filtered;

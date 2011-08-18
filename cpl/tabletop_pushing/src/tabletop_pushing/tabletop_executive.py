@@ -181,7 +181,10 @@ class TabletopExecutive:
                 pose_res = PushPoseResponse()
                 pose_res.push_pose.header.frame_id = '/torso_lift_link'
                 pose_res.push_pose.pose.position.x = 0.5
-                pose_res.push_pose.pose.position.y = 0.3 - self.push_count*0.15
+                if which_arm == 'l':
+                    pose_res.push_pose.pose.position.y = 0.3 - self.push_count*0.15
+                else:
+                    pose_res.push_pose.pose.position.y = -0.3 + self.push_count*0.15
                 # TODO: -z_offset+8
                 pose_res.push_pose.pose.position.z = -0.22
             else:
@@ -235,7 +238,10 @@ class TabletopExecutive:
                 pose_res = PushPoseResponse()
                 pose_res.push_pose.header.frame_id = '/torso_lift_link'
                 pose_res.push_pose.pose.position.x = 0.75
-                pose_res.push_pose.pose.position.y = 0.05
+                if which_arm == 'l':
+                    pose_res.push_pose.pose.position.y = 0.05
+                else:
+                    pose_res.push_pose.pose.position.y = -0.05
                 pose_res.push_pose.pose.position.z = -0.25
             else:
                 pose_res = self.push_pose_proxy(pose_req)
@@ -261,9 +267,6 @@ class TabletopExecutive:
 
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
-        wrist_yaw = 0.0 # 0.25*pi
-        sweep_req.wrist_yaw = wrist_yaw
-        sweep_req.desired_push_dist = -push_dist
 
         sweep_req.left_arm = (which_arm == 'l')
         sweep_req.right_arm = not sweep_req.left_arm
@@ -272,6 +275,11 @@ class TabletopExecutive:
             y_offset_dir = +1
         else:
             y_offset_dir = -1
+
+        wrist_yaw = 0.0 # 0.25*pi
+        sweep_req.wrist_yaw = wrist_yaw
+        sweep_req.desired_push_dist = -y_offset_dir*push_dist
+
 
         # TODO: Remove these offsets and incorporate them directly into the perceptual inference
         # Offset pose to not hit the object immediately
@@ -353,4 +361,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(4, 0, 0, 0, 0, 0)
+    node.run(0, 0, 2, 0, 0, 0)

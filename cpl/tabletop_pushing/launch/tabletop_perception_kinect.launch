@@ -9,7 +9,7 @@
     <param name="crop_min_y" value="30" type="int"/>
     <param name="crop_max_y" value="470" type="int"/>
 
-    <param name="display_wait_ms" value="3" type="int"/>
+    <param name="display_wait_ms" value="1" type="int"/>
     <param name="autostart_tracking" value="false" type="bool"/>
 
     <param name="workspace_frame" value="/torso_lift_link" type="string"/>
@@ -37,6 +37,9 @@
     <param name="mgc_u_f" value="0.5" type="double"/>
     <param name="mgc_eigen_ratio" value="5.0" type="double"/>
     <param name="mgc_magnitude_thresh" value="1.0" type="double"/>
+
+    <param name="lk_win_size" value="5" type="int"/>
+    <param name="lk_num_levels" value="1" type="int"/>
 
   </node>
 </launch>
