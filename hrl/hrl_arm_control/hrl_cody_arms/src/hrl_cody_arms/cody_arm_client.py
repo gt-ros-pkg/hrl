@@ -33,7 +33,6 @@
 import math
 import numpy as np
 import copy
-from threading import RLock
 
 import roslib; roslib.load_manifest('hrl_cody_arms')
 import rospy
