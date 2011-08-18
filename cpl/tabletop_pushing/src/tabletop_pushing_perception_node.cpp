@@ -95,10 +95,10 @@
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
-#define DISPLAY_OPTICAL_FLOW 1
+// #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
 // #define DISPLAY_OPT_FLOW_II_INTERNALS 1
-#define DISPLAY_GRAPHCUT 1
+// #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 
 using tabletop_pushing::PushPose;
@@ -757,6 +757,14 @@ class MotionGraphcut
             bg_weights.at<float>(r,c) = w_n_f_;
 #endif // VISUALIZE_GRAPH_WEIGHTS
           }
+//           else if (magnitude > 0.0)
+//           {
+//             g->add_tweights(r*C+c, /*capacities*/ w_u_f_, w_u_b_);
+// #ifdef VISUALIZE_GRAPH_WEIGHTS
+//             fg_weights.at<float>(r,c) = w_u_f_;
+//             bg_weights.at<float>(r,c) = w_u_b_;
+// #endif // VISUALIZE_GRAPH_WEIGHTS
+//           }
           else
           {
             g->add_tweights(r*C+c, /*capacities*/ w_n_b_, w_b_);
@@ -1158,7 +1166,8 @@ class TabletopPushingPerceptionNode
 
     cv_bridge::CvImage motion_msg;
     cv::Mat motion_send(cut.size(), CV_8UC1);
-    cut.convertTo(motion_send, CV_8UC1, 255, 0);
+    // cut.convertTo(motion_send, CV_8UC1, 255, 0);
+    eroded_cut.convertTo(motion_send, CV_8UC1, 255, 0);
     motion_msg.image = motion_send;
     motion_msg.header.frame_id = "/openni_rgb_optical_frame";
     motion_msg.header.stamp = ros::Time::now();
