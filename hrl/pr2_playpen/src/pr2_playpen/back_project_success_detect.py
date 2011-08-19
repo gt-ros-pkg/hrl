@@ -191,11 +191,11 @@ if __name__ == '__main__':
 
 
             #idea is to have a background model from back_proj_img2, or at least an emtpy single shot
-            cv.Sub(back_proj_img, back_proj_img2, scratch)
+            ###cv.Sub(back_proj_img, back_proj_img2, scratch)
 
 
             #cv.SubRS(back_proj_img, 255, scratch)
-            cv.SubRS(back_proj_img2, 255, scratch2)
+            ###cv.SubRS(back_proj_img2, 255, scratch2)
             #cv.Sub(back_proj_img, back_proj_img2, scratch2) #opposite noise, but excludes object 
             cv.Sub(back_proj_img2, back_proj_img, scratch2) #noise, but includes object if failed, 
                                                             #would need to learn before then update selectively 
