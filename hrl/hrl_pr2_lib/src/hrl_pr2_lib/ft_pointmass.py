@@ -15,12 +15,12 @@ class Pointmass_Adjust:
     pos_x = 0.0853 #m, in 'l_wrist_roll_link'
     pos_y = 0.0
     pos_z = 0.0
-    x_force_offset = 5.52 #5.70 -- These values determined from experiment, used values are adjusted for better qualitative results using rviz
-    y_force_offset = -14.16 #14.10
+    x_force_offset = 5.62 #5.70 -- These values determined from experiment, used values are adjusted for better qualitative results using rviz
+    y_force_offset = -13.56 #14.10
     z_force_offset = 4.30 #-3.88
-    x_torque_offset = -0.21875
-    y_torque_offset = 0.3804
-    z_torque_offset = 0.3899
+    x_torque_offset = -0.4025 #0.3899
+    y_torque_offset = -0.4175 #0.3804
+    z_torque_offset = -0.21875
     adjustment = WrenchStamped()
 
     def __init__(self):
@@ -37,7 +37,7 @@ class Pointmass_Adjust:
         ft_out.wrench.force.x = ft_in.wrench.force.x  - self.x_force_offset + self.adjustment.wrench.force.x
         ft_out.wrench.force.y = ft_in.wrench.force.y  - self.y_force_offset + self.adjustment.wrench.force.y
         ft_out.wrench.force.z = ft_in.wrench.force.z  - self.z_force_offset + self.adjustment.wrench.force.z
-        ft_out.wrench.torque.x = ft_in.wrench.torque.x - self.x_torque_offset 
+        ft_out.wrench.torque.x = ft_in.wrench.torque.x - self.x_torque_offset  - self.adjustment.wrench.torque.x
         ft_out.wrench.torque.y = ft_in.wrench.torque.y  - self.y_torque_offset - self.adjustment.wrench.torque.y
         ft_out.wrench.torque.z = ft_in.wrench.torque.z  - self.z_torque_offset - self.adjustment.wrench.torque.z
 
@@ -77,8 +77,9 @@ class Pointmass_Adjust:
         except:
             return
         rot = transformations.euler_from_quaternion(quat) 
-        ###############self.adjustment.wrench.torque.y = self.mass*self.pos_x*math.cos(rot[1])
-        ###########self.adjustment.wrench.torque.z = self.mass*self.pos_x*math.sin(rot[0])
+        self.adjustment.wrench.torque.x = self.mass*9.80665*self.pos_x*math.sin(rot[0])
+        self.adjustment.wrench.torque.y = self.mass*9.80665*self.pos_x*math.sin(rot[1])
+        self.adjustment.wrench.torque.z = 0
       
         grav = PointStamped() # Generate a 'vector' of the force due to gravity at the ft sensor 
         grav.header.stamp = rospy.Time(0) #Used to tell tf to grab latest available transform in transformVector3
@@ -91,7 +92,6 @@ class Pointmass_Adjust:
         self.adjustment.wrench.force.x = netft_grav.point.x
         self.adjustment.wrench.force.y = netft_grav.point.y
         self.adjustment.wrench.force.z = netft_grav.point.z
-        print "x:%s, y:%s, z:%s" %(netft_grav.point.x, netft_grav.point.y, netft_grav.point.z)
 
         self.adjustment.header.stamp=rospy.Time.now()
         #self.form_marker(self.adjustment)
