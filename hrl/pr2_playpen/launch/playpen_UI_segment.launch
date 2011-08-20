@@ -3,6 +3,8 @@
 	<include file="$(find pr2_playpen)/launch/playpen_kinect.launch"/>
 	<!--    <node name="reconfig_kinect_playpen" pkg="dynamic_reconfigure" type="dynparam" args="load kinect_playpen $(find pr2_playpen)/launch/run_kinect_params.yaml" />-->
 
+	<!--<node pkg="tf" type="static_transform_publisher" name="kinect_playpen_to_pr2_lift_link" args="0 0 0 0 0 0 openni_camera2  base_link 100" />	 -->
+
 	<node pkg="UI_segment_object" name="playpen_segment_cloud" type="segment_object" respawn="true" output="screen">
 	      <remap from="/camera/rgb/image_color" to="/playpen_kinect/rgb/image_color" />
 	      <remap from="/camera/rgb/points" to="/playpen_kinect/rgb/points" />
@@ -17,5 +19,7 @@
 	</node>
 
 	<node pkg="pr2_playpen" name="playpen_segment_cloud_pub" type="segment_client.py" output="screen" args="--node playpen_segment_cloud_pub --serv playpen_get_object" />
+
+
 	
 </launch>
