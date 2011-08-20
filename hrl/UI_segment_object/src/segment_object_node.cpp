@@ -51,6 +51,8 @@
 #include "UI_segment_object/GetPt.h"
 #include "UI_segment_object/None_Bool.h"
 #include "UI_segment_object/Save.h"
+#include "pcl_ros/transforms.h"
+#include <tf/transform_listener.h>
 
 boost::mutex m;
 /*****************************************************************************/
@@ -188,7 +190,7 @@ void UI::color_segment_callback()
     }
   IplImage* mask = cvCreateImage(cvSize(width, height), 8, 1);
   cvFillConvexPoly(mask, pts, poly_vec.size(), cvScalar(255));
-  cvSaveImage('./mask.png', mask);
+  cvSaveImage("./mask.png", mask);
 
   //do some color segmentation selection for indices after selecting a point of certain color or maybe multiple, would
   //allow auto segmentation of a certain region automatically
@@ -335,10 +337,11 @@ protected:
   ros::Publisher pub_object_;
   pcl::PointCloud<pcl::PointXYZ> cloud_plane_; //(new pcl::PointCloud<pcl::PointXYZ>());
   pcl::PointCloud<pcl::PointXYZRGB> cloud_xyz_rgb;
+  pcl::PointCloud<pcl::PointXYZRGB> cloud_xyz_rgb2;
   sensor_msgs::PointCloud2::ConstPtr cloud_msg;
   sensor_msgs::PointCloud2::ConstPtr ptcloud2_xyz_rgb;
   pcl::ModelCoefficients coefficients;
-  pcl::SACSegmentation<pcl::PointXYZ> seg;  
+  pcl::SACSegmentation<pcl::PointXYZRGB> seg;  
   pcl::PointIndices inliers;
   bool new_plane_coeff;
 
@@ -454,10 +457,25 @@ geometry_msgs::Point PointCloudPub::pt_callback(const sensor_msgs::PointCloud2Co
 sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
 
+  // void TabletopDetector::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
+  //   if(!pc_lock.try_lock())
+  //     return;
+
+  //   pcl::PointCloud<pcl::PointXYZRGB> pc_full, pc_full_frame;
+  //   pcl::fromROSMsg(*pc_msg, pc_full);
+  //   string base_frame("/base_link");
+  //   ros::Time now = ros::Time::now();
+  //   tf_listener.waitForTransform(pc_msg->header.frame_id, base_frame, now, ros::Duration(3.0));
+  //   pcl_ros::transformPointCloud(base_frame, pc_full, pc_full_frame, tf_listener);
+
+  string base_frame("/base_link");
+  tf::TransformListener tf_listener;
+
+  pcl::PointCloud<pcl::PointXYZRGB> pt_cloud_before_trans;
   pcl::PointCloud<pcl::PointXYZ> cloud_xyz;
   pcl::PointCloud<pcl::PointXYZ> cloud_xyz2;
 
-  pcl::PointCloud<pcl::PointXYZ> cloud_plane;  //(new pcl::PointCloud<pcl::PointXYZ>());
+  pcl::PointCloud<pcl::PointXYZRGB> cloud_plane;  //(new pcl::PointCloud<pcl::PointXYZ>());
   sensor_msgs::PointCloud2 object;
   sensor_msgs::PointCloud2 region;
   std::cerr << "Point cloud data: " << msg->height*msg->width << " points" << std::endl;
@@ -468,9 +486,12 @@ sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointC
   
   pcl::fromROSMsg(*msg, cloud_xyz);
   pcl::fromROSMsg(*msg, cloud_xyz_rgb);
+
+  //pcl::fromROSMsg(*msg, pt_cloud_before_trans);
+
+  //pcl_ros::transformPointCloud(base_frame, pt_cloud_before_trans, cloud_xyz_rgb, tf_listener);
   
-  
-  pcl::ExtractIndices<pcl::PointXYZ> extract;
+  pcl::ExtractIndices<pcl::PointXYZRGB> extract;
 
   //  pcl::PointIndices::Ptr ui_ind (new pcl::PointIndices());
   pcl::PointIndices ui_ind;
@@ -481,12 +502,17 @@ sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointC
       ui_ind.indices.push_back(in_indices[i]);
     }
   
-  extract.setInputCloud(cloud_xyz.makeShared());
+  ////////////////////////////////////////changes here/////////********************************************************************************
+  //extract.setInputCloud(cloud_xyz.makeShared());
+  extract.setInputCloud(cloud_xyz_rgb.makeShared());
+
+
+
   //  extract.setIndices(ui_ind);
   extract.setIndices(boost::make_shared<pcl::PointIndices>(ui_ind));
   extract.setNegative(false);
-  extract.filter(cloud_xyz2);
-  pcl::toROSMsg(cloud_xyz2, region);
+  extract.filter(cloud_xyz_rgb2);
+  pcl::toROSMsg(cloud_xyz_rgb2, region);
   publish_region(region);
 
   if (new_plane_coeff==true)
@@ -496,10 +522,10 @@ sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointC
       //      seg.segment (inliers, coefficients);
     }
 
-  seg.setInputCloud (cloud_xyz2.makeShared());
+  seg.setInputCloud (cloud_xyz_rgb2.makeShared());
   seg.segment (inliers, coefficients);
 
-  extract.setInputCloud(cloud_xyz2.makeShared());
+  extract.setInputCloud(cloud_xyz_rgb2.makeShared());
   extract.setIndices(boost::make_shared<pcl::PointIndices>(inliers));
   extract.setNegative(true);
   extract.filter(cloud_plane);
