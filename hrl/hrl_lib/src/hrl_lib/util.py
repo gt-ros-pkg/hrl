@@ -1,3 +1,4 @@
+
 import os, sys, tty
 import numpy as np
 import cPickle as pk
@@ -206,6 +207,17 @@ def get_keystroke(msg):
     r = sys.stdin.read(1)
     os.system('stty sane')
     return r
+
+## execute a bash command and get its output as a list of strings.
+# e.g get_bash_command_output('ls -t')
+def get_bash_command_output(cmd):
+    p = os.popen(cmd)
+    output_l = [s.rstrip('\n') for s in p.readlines()]
+    p.close()
+    return output_l
+
+
+
 
 
 
