@@ -29,12 +29,13 @@
 
 # Author: Kelsey Hawkins
 import numpy as np
-import PyKDL as kdl
 
 import roslib
-roslib.load_manifest("hrl_generic_arms")
+roslib.load_manifest("hrl_kdl_arms")
 
+import PyKDL as kdl
 import rospy
+import tf.transformations as tf_trans
 
 import urdf_parser_python.urdf_parser as urdf
 from hrl_generic_arms.hrl_arm_template import HRLArmKinematics
@@ -47,7 +48,10 @@ class KDLArmKinematics(HRLArmKinematics):
 
         self.fk_kdl = kdl.ChainFkSolverPos_recursive(self.chain)
         self.ik_v_kdl = kdl.ChainIkSolverVel_pinv(self.chain)
-        self.ik_p_kdl = kdl.ChainIkSolverPos_NR(self.chain, self.fk_kdl, self.ik_v_kdl)
+        mins_kdl = joint_list_to_kdl(joint_info["safe_mins"])
+        maxs_kdl = joint_list_to_kdl(joint_info["safe_maxs"])
+        self.ik_p_kdl = kdl.ChainIkSolverPos_NR_JL(self.chain, mins_kdl, maxs_kdl, 
+                                                   self.fk_kdl, self.ik_v_kdl)
         self.jac_kdl = kdl.ChainJntToJacSolver(self.chain)
         self.dyn_kdl = kdl.ChainDynParam(self.chain, kdl.Vector.Zero())
 
@@ -136,10 +140,47 @@ class KDLArmKinematics(HRLArmKinematics):
             q_init = self.random_joint_angles()
             q_ik = self.IK_vanilla(pos, rot, q_init)
             if q_ik is not None:
-                #print "time", rospy.get_time() - st_time
                 return q_ik
         return None
-        
+
+    def IK_biased(self, pos, rot, q_init, q_bias, q_bias_weights, rot_weight=1., 
+                  bias_vel=0.01, num_iter=100):
+        q_out = np.mat(self.IK_search(pos, rot)).T
+        for i in range(num_iter):
+            pos_fk, rot_fk = self.FK_vanilla(q_out)
+            delta_twist = np.mat(np.zeros((6, 1)))
+            pos_delta = pos - pos_fk
+            delta_twist[:3,0] = pos_delta
+            rot_delta = np.mat(np.eye(4))
+            rot_delta[:3,:3] = rot * rot_fk.T
+            rot_delta_angles = np.mat(tf_trans.euler_from_matrix(rot_delta)).T
+            delta_twist[3:6,0] = rot_delta_angles
+            J = self.jacobian_vanilla(q_out)
+            J[3:6,:] *= np.sqrt(rot_weight)
+            delta_twist[3:6,0] *= np.sqrt(rot_weight)
+            J_tinv = np.linalg.inv(J.T * J + np.diag(q_bias_weights) * np.eye(len(q_init))) * J.T
+            q_bias_diff = q_bias - q_out
+            q_bias_diff_normed = q_bias_diff * bias_vel / np.linalg.norm(q_bias_diff)
+            delta_q = q_bias_diff_normed + J_tinv * (delta_twist - J * q_bias_diff_normed)
+            q_out += delta_q 
+            q_out = np.mat(np.clip(q_out.T.A[0], self.joint_info["safe_mins"], 
+                                                 self.joint_info["safe_maxs"])).T
+        return q_out
+
+    def IK_biased_search(self, pos, rot, q_bias, q_bias_weights, rot_weight=1., 
+                         bias_vel=0.01, num_iter=100, num_search=20):
+        q_sol_min = []
+        min_val = 1000000.
+        for i in range(num_search):
+            q_init = self.random_joint_angles()
+            q_sol = self.IK_biased(pos, rot, q_init, q_bias, q_bias_weights, rot_weight=1., 
+                                   bias_vel=0.01, num_iter=100)
+            cur_val = np.linalg.norm(np.diag(q_bias_weights) * (q_sol - q_bias)) 
+            if cur_val < min_val:
+                min_val = cur_val
+                q_sol_min = q_sol
+        return q_sol_min
+            
 
         
 def kdl_to_mat(m):
@@ -157,6 +198,8 @@ def joint_kdl_to_list(q):
 def joint_list_to_kdl(q):
     if q is None:
         return None
+    if type(q) == np.core.matrix and q.shape[1] == 0:
+        q = q.T.tolist()[0]
     q_kdl = kdl.JntArray(len(q))
     for i, q_i in enumerate(q):
         q_kdl[i] = q_i

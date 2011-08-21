@@ -117,4 +117,4 @@ class PoseConverter:
     @staticmethod
     def to_pos_quat(*args):
         header, homo_mat, quat_rot = PoseConverter._make_generic(args)
-        return list(homo_mat.T.A[0]), quat_rot
+        return list(homo_mat[:3,3].T.A[0]), quat_rot
