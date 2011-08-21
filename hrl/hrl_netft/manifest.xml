@@ -1,0 +1,25 @@
+<package>
+  <description brief="hrl_netft">
+
+     hrl_netft
+
+  </description>
+  <author>Kelsey Hawkins</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_netft</url>
+  <depend package="rospy"/>
+  <depend package="roscpp"/>
+  <depend package="pr2_controller_interface"/>
+  <depend package="tf"/>
+
+  <depend package="hrl_pr2_arms"/>
+
+  <!--
+  <export>
+    <pr2_controller_interface plugin="${prefix}/controller_plugins.xml" />
+  </export>
+  -->
+</package>
+
+
