@@ -106,7 +106,7 @@
 
 // Functional IFDEFS
 #define DOWNSAMPLE_IMAGES 1
-// #define MULTISCALE_OPTICAL_FLOW
+// #define MULTISCALE_OPTICAL_FLOW 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -354,9 +354,7 @@ class LKFlowReliable
   }
 
   std::vector<cv::Mat> operator()(cv::Mat& cur_color_frame,
-                                  cv::Mat& cur_depth_frame,
-                                  cv::Mat& prev_color_frame,
-                                  cv::Mat& prev_depth_frame)
+                                  cv::Mat& prev_color_frame)
   {
     // Convert to grayscale
     cv::Mat tmp_bw(cur_color_frame.size(), CV_8UC1);
@@ -379,6 +377,7 @@ class LKFlowReliable
     for (int i = 0; i < num_levels_; ++i)
     {
       std::vector<cv::Mat> flow_outs = baseLKII(cur_pyr[i], prev_pyr[i]);
+      // std::vector<cv::Mat> flow_outs = baseLK(cur_pyr[i], prev_pyr[i]);
       cv::Mat up;
       cv::Mat up_temp;
       vector<cv::Size> sizes;
@@ -401,13 +400,31 @@ class LKFlowReliable
       }
       flow_pyr.push_back(up);
       score_pyr.push_back(flow_outs[1]);
+      std::stringstream win_title;
+      win_title << "flow" << i;
+      cv::Mat flow_disp_img(cur_color_frame.size(), CV_8UC3);
+      flow_disp_img = cur_color_frame.clone();
+      for (int r = 0; r < flow_disp_img.rows; ++r)
+      {
+        for (int c = 0; c < flow_disp_img.cols; ++c)
+        {
+          cv::Vec2f uv = flow_pyr[i].at<cv::Vec2f>(r,c);
+          if (abs(uv[0])+abs(uv[1]) > 0.25)
+          {
+            cv::line(flow_disp_img, cv::Point(c,r), cv::Point(c-uv[0], r-uv[1]),
+                     cv::Scalar(0,255,0));
+          }
+        }
+      }
+      cv::imshow(win_title.str(),flow_disp_img);
     }
     // TODO: Combine flow from different scales into a single thingy
-    std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
+    // std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
+    std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
 #else
     // TODO: Separate scoring from flow calculation?
-    // std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
-    std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
+    std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
+    // std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
 #endif // MULTISCALE_OPTICAL_FLOW
 
     return flow_n_scores;
@@ -499,30 +516,30 @@ class LKFlowReliable
     IIxt.at<float>(0,0) = Ix.at<float>(0,0)*It.at<float>(0,0);
     IIyt.at<float>(0,0) = Iy.at<float>(0,0)*It.at<float>(0,0);
 
-    // Compute integral image first row values
+    // Compute integral image first row of values
     for (int c = 1; c < Ix.cols; ++c)
     {
       IIxx.at<float>(0,c) = Ix.at<float>(0,c)*Ix.at<float>(0,c) +
           IIxx.at<float>(0,c-1);
-      IIxy.at<float>(0,c) = Ix.at<float>(0,c)*Iy.at<float>(0,c)  +
-          IIxy.at<float>(0,c-1);
       IIyy.at<float>(0,c) = Iy.at<float>(0,c)*Iy.at<float>(0,c) +
           IIyy.at<float>(0,c-1);
+      IIxy.at<float>(0,c) = Ix.at<float>(0,c)*Iy.at<float>(0,c)  +
+          IIxy.at<float>(0,c-1);
       IIxt.at<float>(0,c) = Ix.at<float>(0,c)*It.at<float>(0,c) +
           IIxt.at<float>(0,c-1);
       IIyt.at<float>(0,c) = Iy.at<float>(0,c)*It.at<float>(0,c) +
           IIyt.at<float>(0,c-1);
     }
 
-    // Compute integral image first column values
+    // Compute integral image first column of values
     for (int r = 1; r < Ix.rows; ++r)
     {
       IIxx.at<float>(r,0) = Ix.at<float>(r,0)*Ix.at<float>(r,0) +
           IIxx.at<float>(r-1,0);
-      IIxy.at<float>(r,0) = Ix.at<float>(r,0)*Iy.at<float>(r,0)  +
-          IIxy.at<float>(r-1,0);
       IIyy.at<float>(r,0) = Iy.at<float>(r,0)*Iy.at<float>(r,0) +
           IIyy.at<float>(r-1,0);
+      IIxy.at<float>(r,0) = Ix.at<float>(r,0)*Iy.at<float>(r,0)  +
+          IIxy.at<float>(r-1,0);
       IIxt.at<float>(r,0) = Ix.at<float>(r,0)*It.at<float>(r,0) +
           IIxt.at<float>(r-1,0);
       IIyt.at<float>(r,0) = Iy.at<float>(r,0)*It.at<float>(r,0) +
@@ -537,12 +554,12 @@ class LKFlowReliable
         IIxx.at<float>(r,c) = Ix.at<float>(r,c)*Ix.at<float>(r,c) +
             IIxx.at<float>(r,c-1) + IIxx.at<float>(r-1,c) -
             IIxx.at<float>(r-1,c-1);
-        IIxy.at<float>(r,c) = Ix.at<float>(r,c)*Iy.at<float>(r,c) +
-            IIxy.at<float>(r,c-1) + IIxy.at<float>(r-1,c) -
-            IIxy.at<float>(r-1,c-1);;
         IIyy.at<float>(r,c) = Iy.at<float>(r,c)*Iy.at<float>(r,c) +
             IIyy.at<float>(r,c-1) + IIyy.at<float>(r-1,c) -
             IIyy.at<float>(r-1,c-1);;
+        IIxy.at<float>(r,c) = Ix.at<float>(r,c)*Iy.at<float>(r,c) +
+            IIxy.at<float>(r,c-1) + IIxy.at<float>(r-1,c) -
+            IIxy.at<float>(r-1,c-1);;
         IIxt.at<float>(r,c) = Ix.at<float>(r,c)*It.at<float>(r,c) +
             IIxt.at<float>(r,c-1) + IIxt.at<float>(r-1,c) -
             IIxt.at<float>(r-1,c-1);;
@@ -626,6 +643,7 @@ class LKFlowReliable
             sIyt = IIyt.at<float>(r_max, c_max);
           }
         }
+        // Compute using the standard way for debugging
         float sIxx2 = 0.0;
         float sIyy2 = 0.0;
         float sIxy2 = 0.0;
@@ -643,31 +661,31 @@ class LKFlowReliable
           }
         }
         // TODO: Check if it is just round-off error
-        // if (sIxx - sIxx2 > 0.0001)
+        // if (sIxx - sIxx2 > 0.001)
         // {
         //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIxx != sIxx2: "
         //                   << sIxx << ", " << sIxx2);
         // }
-        // if (sIyy != sIyy2)
+        // if (sIyy - sIyy2 > 0.001)
         // {
         //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIyy != sIyy2: "
         //                   << sIyy << ", " << sIyy2);
         // }
-        // if (sIxy != sIxy2)
+        // if (sIxy - sIxy2  > 0.001)
         // {
         //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIxy != sIxy2: "
         //                   << sIxy << ", " << sIxy2);
         // }
-        // if (sIxt != sIxt2)
-        // {
-        //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIxt != sIxt2: "
-        //                   << sIxt << ", " << sIxt2);
-        // }
-        // if (sIyt != sIyt2)
-        // {
-        //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIyt != sIyt2: "
-        //                   << sIyt << ", " << sIyt2);
-        // }
+        if (sIxt - sIxt2  > 0.001)
+        {
+          ROS_INFO_STREAM("(" << r << ", " << c << "): sIxt != sIxt2: "
+                          << sIxt << ", " << sIxt2);
+        }
+        if (sIyt - sIyt2 > 0.001)
+        {
+          ROS_INFO_STREAM("(" << r << ", " << c << "): sIyt != sIyt2: "
+                          << sIyt << ", " << sIyt2);
+        }
 
         float det = sIxx*sIyy - sIxy*sIxy;
         cv::Vec2f uv;
@@ -806,7 +824,6 @@ class MotionGraphcut
                                     color_frame.at<cv::Vec3f>(r,c-1),
                                     depth_frame.at<float>(r,c-1));
           g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
-          // ROS_INFO_STREAM("w_l: " << w_l);
         }
 
         if (r > 0)
@@ -816,7 +833,6 @@ class MotionGraphcut
                                     depth_frame.at<float>(r,c),
                                     color_frame.at<cv::Vec3f>(r-1,c),
                                     depth_frame.at<float>(r-1,c));
-          // ROS_INFO_STREAM("w_u: " << w_u);
           g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
           // Add up-left-link
           if (c > 0)
@@ -963,8 +979,7 @@ class TabletopPushingPerceptionNode
     cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
 
     // Swap kinect color channel order
-    // cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
-    cv::cvtColor(color_frame, color_frame, CV_RGB2HSV);
+    cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
 
     // Transform point cloud into the correct frame and convert to PCL struct
     XYZPointCloud cloud;
@@ -1136,16 +1151,16 @@ class TabletopPushingPerceptionNode
       return;
     }
 
-    cv::Mat color_disp_frame(color_frame.size(), color_frame.type());
-    cv::cvtColor(color_frame, color_disp_frame, CV_HSV2BGR);
+    cv::Mat color_frame_hsv(color_frame.size(), color_frame.type());
+    cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
 
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
-    cv::split(color_frame, hsv);
+    cv::split(color_frame_hsv, hsv);
     cv::imshow("hue", hsv[0]);
     cv::imshow("saturation", hsv[1]);
     cv::imshow("intensity", hsv[2]);
-    cv::imshow("input_color", color_disp_frame);
+    cv::imshow("input_color", color_frame);
 #endif // DISPLAY_INPUT_COLOR
 #ifdef DISPLAY_INPUT_DEPTH
     cv::imshow("input_depth", depth_frame);
@@ -1154,16 +1169,13 @@ class TabletopPushingPerceptionNode
     cv::imshow("workspace_mask", cur_workspace_mask_);
 #endif // DISPLAY_WORKSPACE_MASK
 
-    // ROS_INFO_STREAM("Computing flow");
-    std::vector<cv::Mat> flow_outs = lkflow_(color_frame, depth_frame,
-                                             prev_color_frame,
-                                             prev_depth_frame);
+    std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
     std::vector<cv::Mat> flows;
     cv::split(flow_outs[0], flows);
 
 #ifdef DISPLAY_OPTICAL_FLOW
-    cv::Mat flow_disp_img(color_disp_frame.size(), CV_8UC3);
-    flow_disp_img = color_disp_frame.clone();
+    cv::Mat flow_disp_img(color_frame.size(), CV_8UC3);
+    flow_disp_img = color_frame.clone();
     for (int r = 0; r < flow_disp_img.rows; ++r)
     {
       for (int c = 0; c < flow_disp_img.cols; ++c)
@@ -1176,8 +1188,8 @@ class TabletopPushingPerceptionNode
         }
       }
     }
-    cv::Mat flow_thresh_disp_img(color_disp_frame.size(), CV_8UC3);
-    flow_thresh_disp_img = color_disp_frame.clone();
+    cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
+    flow_thresh_disp_img = color_frame.clone();
 
     float corner_thresh = (eigen_ratio_+1)*(eigen_ratio_+1)/eigen_ratio_;
     for (int r = 0; r < flow_thresh_disp_img.rows; ++r)
@@ -1199,9 +1211,8 @@ class TabletopPushingPerceptionNode
     // cv::imshow("v", flows[1]);
 #endif // DISPLAY_OPTICAL_FLOW
 
-    // ROS_INFO_STREAM("Computing graph cut.");
-    cv::Mat color_frame_f(color_frame.size(), CV_32FC3);
-    color_frame.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
+    cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
+    color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
     cv::Mat cut = mgc_(color_frame_f, depth_frame,
                        flows[0], flows[1],
                        flow_outs[1],
@@ -1219,9 +1230,9 @@ class TabletopPushingPerceptionNode
     motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
 
-    // TODO: Also publish color version
+    // Also publish color version
     cv::Mat moving_regions_img;
-    color_disp_frame.copyTo(moving_regions_img, motion_mask_send);
+    color_frame.copyTo(moving_regions_img, motion_mask_send);
     cv_bridge::CvImage motion_img_msg;
     cv::Mat motion_img_send(cut.size(), CV_8UC3);
     moving_regions_img.convertTo(motion_img_send, CV_8UC3, 1.0, 0);
