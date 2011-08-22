@@ -90,7 +90,10 @@
 #include <utility>
 #include <math.h>
 
-// #define DISPLAY_INPUT_IMAGES 1
+// Debugging IFDEFS
+// #define DISPLAY_INPUT_COLOR 1
+// #define DISPLAY_INPUT_DEPTH 1
+// #define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_MOTION_PROBS 1
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
@@ -100,7 +103,10 @@
 // #define DISPLAY_OPT_FLOW_II_INTERNALS 1
 // #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
-// #define DOWNSAMPLE_IMAGES 1
+
+// Functional IFDEFS
+#define DOWNSAMPLE_IMAGES 1
+// #define MULTISCALE_OPTICAL_FLOW
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -361,44 +367,47 @@ class LKFlowReliable
     cv::cvtColor(prev_color_frame, tmp_bw, CV_BGR2GRAY);
     tmp_bw.convertTo(prev_bw, CV_32FC1, 1.0/255, 0);
 
-    // // Perform multiscale flow
-    // std::vector<cv::Mat> cur_pyr;
-    // std::vector<cv::Mat> prev_pyr;
-    // cv::buildPyramid(cur_bw, cur_pyr, num_levels_-1);
-    // cv::buildPyramid(prev_bw, prev_pyr, num_levels_-1);
-    // std::vector<cv::Mat> flow_pyr;
-    // std::vector<cv::Mat> score_pyr;
+#ifdef MULTISCALE_OPTICAL_FLOW
+    // Perform multiscale flow
+    std::vector<cv::Mat> cur_pyr;
+    std::vector<cv::Mat> prev_pyr;
+    cv::buildPyramid(cur_bw, cur_pyr, num_levels_-1);
+    cv::buildPyramid(prev_bw, prev_pyr, num_levels_-1);
+    std::vector<cv::Mat> flow_pyr;
+    std::vector<cv::Mat> score_pyr;
 
-    // for (int i = 0; i < num_levels_; ++i)
-    // {
-    //   std::vector<cv::Mat> flow_outs = baseLK(cur_pyr[i], prev_pyr[i]);
-    //   cv::Mat up;
-    //   cv::Mat up_temp;
-    //   vector<cv::Size> sizes;
-    //   flow_outs[0].copyTo(up);
-    //   flow_outs[0].copyTo(up_temp);
-    //   cv::Size current_size = cur_bw.size();
-    //   for (int j = i; j > 0; --j)
-    //   {
-    //     sizes.push_back(current_size);
-    //     current_size.width /= 2;
-    //     current_size.height /= 2;
-    //   }
-    //   for (int j = i; j > 0; --j)
-    //   {
-    //     cv::Size up_size;
-    //     up_size = sizes.back();
-    //     sizes.pop_back();
-    //     cv::pyrUp(up_temp, up, up_size);
-    //     up_temp = up;
-    //   }
-    //   flow_pyr.push_back(up);
-    //   score_pyr.push_back(flow_outs[1]);
-    // }
+    for (int i = 0; i < num_levels_; ++i)
+    {
+      std::vector<cv::Mat> flow_outs = baseLK(cur_pyr[i], prev_pyr[i]);
+      cv::Mat up;
+      cv::Mat up_temp;
+      vector<cv::Size> sizes;
+      flow_outs[0].copyTo(up);
+      flow_outs[0].copyTo(up_temp);
+      cv::Size current_size = cur_bw.size();
+      for (int j = i; j > 0; --j)
+      {
+        sizes.push_back(current_size);
+        current_size.width /= 2;
+        current_size.height /= 2;
+      }
+      for (int j = i; j > 0; --j)
+      {
+        cv::Size up_size;
+        up_size = sizes.back();
+        sizes.pop_back();
+        cv::pyrUp(up_temp, up, up_size);
+        up_temp = up;
+      }
+      flow_pyr.push_back(up);
+      score_pyr.push_back(flow_outs[1]);
+    }
     // TODO: Combine flow from different scales into a single thingy
-
+    std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
+#else
     // TODO: Separate scoring from flow calculation?
     std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
+#endif // MULTISCALE_OPTICAL_FLOW
     // std::vector<cv::Mat> flow_n_scoresII = baseLKII(cur_bw, prev_bw);
     return flow_n_scores;
   }
@@ -885,7 +894,11 @@ class TabletopPushingPerceptionNode
                                 this, _1),
                     false),
       tf_(), motion_probs_(5), have_depth_data_(false), tracking_(false),
-      tracker_initialized_(false)
+      tracker_initialized_(false), tracker_count_(0),
+      prev_z_min_count_(0), prev_z_max_count_(0),
+      prev_x_min_count_(0), prev_x_max_count_(0),
+      prev_y_min_count_(0), prev_y_max_count_(0)
+
   {
     // Get parameters from the server
     ros::NodeHandle n_private("~");
@@ -975,6 +988,13 @@ class TabletopPushingPerceptionNode
                            cv::Scalar(255));
     // Black out pixels in color and depth images outside of workspace
     // As well as outside of the crop window
+    int z_min_count = 0;
+    int z_max_count = 0;
+    int x_min_count = 0;
+    int x_max_count = 0;
+    int y_min_count = 0;
+    int y_max_count = 0;
+
     for (int r = 0; r < color_frame.rows; ++r)
     {
       for (int c = 0; c < color_frame.cols; ++c)
@@ -988,9 +1008,56 @@ class TabletopPushingPerceptionNode
             c > crop_max_x_ )
         {
           workspace_mask.at<uchar>(r,c) = 0;
+          if (cur_pt.z < min_workspace_z_ )
+          {
+            z_min_count++;
+          }
+          if (cur_pt.z > max_workspace_z_ )
+          {
+            z_max_count++;
+          }
+          if (cur_pt.y < min_workspace_y_ )
+          {
+            y_min_count++;
+          }
+          if (cur_pt.y > max_workspace_y_ )
+          {
+            y_max_count++;
+          }
+          if (cur_pt.x < min_workspace_x_ )
+          {
+            x_min_count++;
+          }
+          if (cur_pt.x > max_workspace_x_ )
+          {
+            x_max_count++;
+          }
+
         }
       }
     }
+
+    if (abs(z_min_count - prev_z_min_count_) > 500)
+      ROS_INFO_STREAM("Z_min cont is: " << z_min_count << "\n");
+    if (abs(z_max_count - prev_z_max_count_) > 500)
+      ROS_INFO_STREAM("Z_max cont is: " << z_max_count << "\n");
+    if (abs(x_min_count - prev_x_min_count_) > 500)
+      ROS_INFO_STREAM("X_min cont is: " << x_min_count << "\n");
+    if (abs(x_max_count - prev_x_max_count_) > 500)
+      ROS_INFO_STREAM("X_max cont is: " << x_max_count << "\n");
+    if (abs(y_min_count - prev_y_min_count_) > 500)
+      ROS_INFO_STREAM("Y_min cont is: " << y_min_count << "\n");
+    if (abs(y_max_count - prev_y_max_count_) > 500)
+      ROS_INFO_STREAM("Y_max cont is: " << y_max_count << "\n");
+
+    prev_z_min_count_ = z_min_count;
+    prev_y_min_count_ = y_min_count;
+    prev_x_min_count_ = x_min_count;
+    prev_z_max_count_ = z_max_count;
+    prev_y_max_count_ = y_max_count;
+    prev_x_max_count_ = x_max_count;
+
+
     // TODO: Downsample everything first
 #ifdef DOWNSAMPLE_IMAGES
     cv::Mat color_frame_down;
@@ -1119,24 +1186,30 @@ class TabletopPushingPerceptionNode
       ROS_INFO_STREAM("Initializing tracker.");
       table_centroid_ = getTablePlane(cloud);
       tracker_initialized_ = true;
+      tracker_count_ = 1;
       return;
     }
 
-#ifdef DISPLAY_INPUT_IMAGES
+#if defined DISPLAY_INPUT_COLOR || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT
     cv::Mat color_disp_frame(color_frame.size(), color_frame.type());
+    cv::cvtColor(color_frame, color_disp_frame, CV_HSV2BGR);
+#endif
+#ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
     cv::split(color_frame, hsv);
-
-    cv::cvtColor(color_frame, color_disp_frame, CV_HSV2BGR);
     cv::imshow("hue", hsv[0]);
     cv::imshow("saturation", hsv[1]);
     cv::imshow("intensity", hsv[2]);
     cv::imshow("input_color", color_disp_frame);
+#endif // DISPLAY_INPUT_COLOR
+#ifdef DISPLAY_INPUT_DEPTH
     cv::imshow("input_depth", depth_frame);
+#endif // DISPLAY_INPUT_DEPTH
+#ifdef DISPLAY_WORKSPACE_MASK
     cv::imshow("workspace_mask", cur_workspace_mask_);
-#endif // DISPLAY_INPUT_IMAGES
+#endif // DISPLAY_WORKSPACE_MASK
 
-    ROS_INFO_STREAM("Computing flow");
+    // ROS_INFO_STREAM("Computing flow");
     std::vector<cv::Mat> flow_outs = lkflow_(color_frame, depth_frame,
                                              prev_color_frame,
                                              prev_depth_frame);
@@ -1181,7 +1254,7 @@ class TabletopPushingPerceptionNode
     // cv::imshow("v", flows[1]);
 #endif // DISPLAY_OPTICAL_FLOW
 
-    ROS_INFO_STREAM("Computing graph cut.");
+    // ROS_INFO_STREAM("Computing graph cut.");
     cv::Mat color_frame_f(color_frame.size(), CV_32FC3);
     color_frame.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
     cv::Mat cut = mgc_(color_frame_f, depth_frame,
@@ -1192,12 +1265,6 @@ class TabletopPushingPerceptionNode
     cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(1.0));
     cv::erode(cut, eroded_cut, element);
 
-#ifdef DISPLAY_GRAPHCUT
-    cv::imshow("Cut", cut);
-    cv::imshow("Eroded Cut", eroded_cut);
-    cv::waitKey(display_wait_ms_);
-#endif // DISPLAY_GRAPHCUT
-
     cv_bridge::CvImage motion_msg;
     cv::Mat motion_send(cut.size(), CV_8UC1);
     // cut.convertTo(motion_send, CV_8UC1, 255, 0);
@@ -1207,6 +1274,20 @@ class TabletopPushingPerceptionNode
     motion_msg.header.stamp = ros::Time::now();
     motion_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     motion_img_pub_.publish(motion_msg.toImageMsg());
+    // TODO: Also publish color version
+
+#ifdef DISPLAY_GRAPHCUT
+    cv::imshow("Cut", cut);
+    cv::imshow("Eroded Cut", eroded_cut);
+    cv::Mat moving_regions_img;
+    color_disp_frame.copyTo(moving_regions_img, motion_send);
+    cv::imshow("moving_regions", moving_regions_img);
+#endif // DISPLAY_GRAPHCUT
+
+#if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_MOTION_PROBS || defined DISPLAY_MEANS || defined DISPLAY_VARS || defined DISPLAY_INTERMEDIATE_PROBS || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_OPT_FLOW_II_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS
+    cv::waitKey(display_wait_ms_);
+#endif // Any display defined
+    ++tracker_count_;
   }
 
   PoseStamped getTablePlane(XYZPointCloud& cloud)
@@ -1329,6 +1410,13 @@ class TabletopPushingPerceptionNode
   PoseStamped table_centroid_;
   bool tracking_;
   bool tracker_initialized_;
+  int tracker_count_;
+  int prev_z_min_count_;
+  int prev_z_max_count_;
+  int prev_x_min_count_;
+  int prev_x_max_count_;
+  int prev_y_min_count_;
+  int prev_y_max_count_;
 };
 
 int main(int argc, char ** argv)

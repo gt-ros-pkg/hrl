@@ -361,4 +361,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(0, 0, 2, 0, 0, 0)
+    node.run(0, 0, 0, 3, 0, 0)
