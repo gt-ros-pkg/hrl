@@ -8,12 +8,9 @@
     <param name="crop_max_x" value="600" type="int"/>
     <param name="crop_min_y" value="30" type="int"/>
     <param name="crop_max_y" value="470" type="int"/>
-    <!-- <param name="crop_min_x" value="0" type="int"/> -->
-    <!-- <param name="crop_max_x" value="640" type="int"/> -->
-    <!-- <param name="crop_min_y" value="0" type="int"/> -->
-    <!-- <param name="crop_max_y" value="480" type="int"/> -->
 
     <param name="display_wait_ms" value="1" type="int"/>
+    <param name="autostart_tracking" value="true" type="bool"/>
 
     <param name="workspace_frame" value="/openni_rgb_optical_frame" type="string"/>
     <param name="min_workspace_x" value="-4.0" type="double"/>
@@ -29,8 +26,7 @@
     <param name="num_hist_frames" value="5" type="int"/>
     <param name="T_in" value="1.5" type="double"/>
     <param name="T_out" value="8" type="double"/>
-    <param name="autostart_tracking" value="true" type="bool"/>
-    <param name="erosion_size" value="3" type="int"/>
+     <param name="erosion_size" value="3" type="int"/>
 
     <param name="mgc_w_f" value="1.0" type="double"/>
     <param name="mgc_w_b" value="0.5" type="double"/>
@@ -41,6 +37,9 @@
     <param name="mgc_u_f" value="0.5" type="double"/>
     <param name="mgc_eigen_ratio" value="5.0" type="double"/>
     <param name="mgc_magnitude_thresh" value="1.0" type="double"/>
+
+    <param name="lk_win_size" value="5" type="int"/>
+    <param name="lk_num_levels" value="1" type="int"/>
 
   </node>
 </launch>

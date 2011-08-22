@@ -361,43 +361,41 @@ class LKFlowReliable
     cv::cvtColor(prev_color_frame, tmp_bw, CV_BGR2GRAY);
     tmp_bw.convertTo(prev_bw, CV_32FC1, 1.0/255, 0);
 
-    // Perform multiscale flow
-    std::vector<cv::Mat> cur_pyr;
-    std::vector<cv::Mat> prev_pyr;
-    cv::buildPyramid(cur_bw, cur_pyr, num_levels_-1);
-    cv::buildPyramid(prev_bw, prev_pyr, num_levels_-1);
-    std::vector<cv::Mat> flow_pyr;
-    std::vector<cv::Mat> score_pyr;
+    // // Perform multiscale flow
+    // std::vector<cv::Mat> cur_pyr;
+    // std::vector<cv::Mat> prev_pyr;
+    // cv::buildPyramid(cur_bw, cur_pyr, num_levels_-1);
+    // cv::buildPyramid(prev_bw, prev_pyr, num_levels_-1);
+    // std::vector<cv::Mat> flow_pyr;
+    // std::vector<cv::Mat> score_pyr;
 
-    for (int i = 0; i < num_levels_; ++i)
-    {
-      std::vector<cv::Mat> flow_outs = baseLK(cur_pyr[i], prev_pyr[i]);
-      cv::Mat up;
-      cv::Mat up_temp;
-      vector<cv::Size> sizes;
-      flow_outs[0].copyTo(up);
-      flow_outs[0].copyTo(up_temp);
-      cv::Size current_size = cur_bw.size();
-      for (int j = i; j > 0; --j)
-      {
-        sizes.push_back(current_size);
-        current_size.width /= 2;
-        current_size.height /= 2;
-      }
-      for (int j = i; j > 0; --j)
-      {
-        cv::Size up_size;
-        up_size = sizes.back();
-        sizes.pop_back();
-        cv::pyrUp(up_temp, up, up_size);
-        up_temp = up;
-      }
-      flow_pyr.push_back(up);
-      score_pyr.push_back(flow_outs[1]);
-    }
-
-
-    // TODO: Warp and upsample to higher level
+    // for (int i = 0; i < num_levels_; ++i)
+    // {
+    //   std::vector<cv::Mat> flow_outs = baseLK(cur_pyr[i], prev_pyr[i]);
+    //   cv::Mat up;
+    //   cv::Mat up_temp;
+    //   vector<cv::Size> sizes;
+    //   flow_outs[0].copyTo(up);
+    //   flow_outs[0].copyTo(up_temp);
+    //   cv::Size current_size = cur_bw.size();
+    //   for (int j = i; j > 0; --j)
+    //   {
+    //     sizes.push_back(current_size);
+    //     current_size.width /= 2;
+    //     current_size.height /= 2;
+    //   }
+    //   for (int j = i; j > 0; --j)
+    //   {
+    //     cv::Size up_size;
+    //     up_size = sizes.back();
+    //     sizes.pop_back();
+    //     cv::pyrUp(up_temp, up, up_size);
+    //     up_temp = up;
+    //   }
+    //   flow_pyr.push_back(up);
+    //   score_pyr.push_back(flow_outs[1]);
+    // }
+    // TODO: Combine flow from different scales into a single thingy
 
     // TODO: Separate scoring from flow calculation?
     std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
@@ -724,6 +722,14 @@ class MotionGraphcut
     int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
     g = new GraphType(num_nodes, num_edges);
 
+    // TODO: Build foreground color histogram for computing likelihood of fg
+    // for (int r = 0; r < R; ++r)
+    // {
+    //   for (int c = 0; c < C; ++c)
+    //   {
+    //   }
+    // }
+
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::Mat fg_weights(color_frame.size(), CV_32FC1);
     cv::Mat bg_weights(color_frame.size(), CV_32FC1);
@@ -839,8 +845,8 @@ class MotionGraphcut
     float w_d = (d0-d1);
     w_d *= w_d;
     // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2] + w_d);
-    float w_c = sqrt(c_d[0]*c_d[0] + c_d[1]*c_d[1] + w_d);
-    // float w_c = sqrt(c_d[0]*c_d[0] + w_d);
+    // float w_c = sqrt(c_d[0]*c_d[0] + c_d[1]*c_d[1] + w_d);
+    float w_c = sqrt(c_d[0]*c_d[0] + w_d);
     return w_c;
   }
 
@@ -1148,7 +1154,7 @@ class TabletopPushingPerceptionNode
         if (abs(uv[0])+abs(uv[1]) > 0.5)
         {
           cv::line(flow_disp_img, cv::Point(c,r), cv::Point(c-uv[0], r-uv[1]),
-                   cv::Scalar(0,255,255));
+                   cv::Scalar(0,255,0));
         }
       }
     }
@@ -1165,7 +1171,7 @@ class TabletopPushingPerceptionNode
             flow_outs[1].at<float>(r,c) < corner_thresh)
         {
           cv::line(flow_thresh_disp_img, cv::Point(c,r),
-                   cv::Point(c-uv[0], r-uv[1]), cv::Scalar(0,255,255));
+                   cv::Point(c-uv[0], r-uv[1]), cv::Scalar(0,255,0));
         }
       }
     }
@@ -1183,7 +1189,7 @@ class TabletopPushingPerceptionNode
                        flow_outs[1],
                        cur_workspace_mask_);
     cv::Mat eroded_cut(cut.size(), cut.type());
-    cv::Mat element(5, 5, CV_32FC1, cv::Scalar(1.0));
+    cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(1.0));
     cv::erode(cut, eroded_cut, element);
 
 #ifdef DISPLAY_GRAPHCUT
