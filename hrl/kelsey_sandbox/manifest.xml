@@ -25,6 +25,8 @@
   <depend package="opencv2"/>
   <!--<depend package="kdl"/>-->
   <depend package="python_orocos_kdl"/>
+  <depend package="camera_calibration"/>
+  <depend package="pixel_2_3d"/>
 
   <depend package="pr2_controller_interface"/>
   <depend package="pluginlib"/>

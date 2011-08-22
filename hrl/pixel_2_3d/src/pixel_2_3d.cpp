@@ -33,9 +33,11 @@ namespace pixel_2_3d {
             ros::ServiceServer pix_srv;
             image_transport::ImageTransport img_trans;
             image_transport::CameraSubscriber camera_sub;
-            image_geometry::PinholeCameraModel cam_model;
             pcl::PointCloud<pcl::PointXYZRGB>::Ptr cur_pc;
             double normal_search_radius;
+            std::string output_frame;
+            uint32_t img_width, img_height;
+            bool cam_called, pc_called;
 
             Pixel23dServer();
             void onInit();
@@ -48,12 +50,14 @@ namespace pixel_2_3d {
     };
 
     Pixel23dServer::Pixel23dServer() : nh("~"), img_trans(nh),
-                                       cur_pc(new pcl::PointCloud<pcl::PointXYZRGB>) {
+                                       cur_pc(new pcl::PointCloud<pcl::PointXYZRGB>),
+                                       cam_called(false), pc_called(false) {
         onInit();
     }
 
     void Pixel23dServer::onInit() {
         nh.param<double>("normal_radius", normal_search_radius, 0.03);
+        nh.param<std::string>("output_frame", output_frame, "");
         camera_sub = img_trans.subscribeCamera<Pixel23dServer>
                                               ("/image", 1, 
                                                &Pixel23dServer::cameraCallback, this);
@@ -62,42 +66,57 @@ namespace pixel_2_3d {
         pt3d_pub = nh.advertise<geometry_msgs::PoseStamped>("/pixel3d", 1);
         l_click_sub = nh.subscribe("/l_mouse_click", 1, &Pixel23dServer::lClickCallback, this);
         ROS_INFO("[pixel_2_3d] Pixel23dServer loaded");
-        ros::Duration(1).sleep();
     }
 
     void Pixel23dServer::cameraCallback(const sensor_msgs::ImageConstPtr& img_msg,
                                          const sensor_msgs::CameraInfoConstPtr& info_msg) {
-        cam_model.fromCameraInfo(info_msg);
+        if(!info_msg)
+            return;
+        img_width = info_msg->width;
+        img_height = info_msg->height;
+        cam_called = true;
+        camera_sub.shutdown();
     }
 
     void Pixel23dServer::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
         pcl::fromROSMsg(*pc_msg, *cur_pc);
+        pc_called = true;
     }
 
-    double pixDist(cv::Point2d& a, cv::Point2d& b) {
-        double dist = std::sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));
-        if(dist != dist)
-            return 1e8;
-        return dist;
-    }
-    
     bool Pixel23dServer::pixCallback(Pixel23d::Request& req, Pixel23d::Response& resp) {
+        resp.pixel3d.pose.position.x = -10000.0;
+        resp.pixel3d.pose.position.y = -10000.0;
+        resp.pixel3d.pose.position.z = -10000.0;
 
-        pcl_ros::transformPointCloud(cam_model.tfFrame(), *cur_pc, *cur_pc, tf_listener);
-        cv::Point2d img_pix(req.pixel_u, req.pixel_v);
-        std::vector<double> dists;
-        for(uint32_t i=0;i<cur_pc->points.size();i++) {
-            cv::Point3d pt3d(cur_pc->points[i].x, cur_pc->points[i].y, cur_pc->points[i].z);
-            cv::Point2d pt_pix = cam_model.project3dToPixel(pt3d);
-            dists.push_back(pixDist(pt_pix, img_pix));
+        if(!cam_called) {
+            ROS_WARN("No camera_info message received.");
+            resp.error_flag = resp.NO_CAMERA_INFO;
+            return true;
         }
-        uint32_t min_ind = std::min_element(dists.begin(), dists.end()) - dists.begin();
+        if(!pc_called) {
+            ROS_WARN("No point cloud message received.");
+            resp.error_flag = resp.NO_POINT_CLOUD;
+            return true;
+        }
+
+        int64_t pc_ind = req.pixel_u + req.pixel_v * img_width;
+        if(req.pixel_u < 0 || req.pixel_v < 0 || 
+           req.pixel_u >= (int32_t) img_width || req.pixel_v >= (int32_t) img_height) {
+            ROS_WARN("Pixel requested is outside image size.");
+            resp.error_flag = resp.OUTSIDE_IMAGE;
+            return true;
+        }
         geometry_msgs::PointStamped pt3d, pt3d_trans;
         pt3d_trans.header.frame_id = cur_pc->header.frame_id;
         pt3d_trans.header.stamp = ros::Time::now();
-        pt3d_trans.point.x = cur_pc->points[min_ind].x;
-        pt3d_trans.point.y = cur_pc->points[min_ind].y;
-        pt3d_trans.point.z = cur_pc->points[min_ind].z;
+        pt3d_trans.point.x = cur_pc->points[pc_ind].x;
+        pt3d_trans.point.y = cur_pc->points[pc_ind].y;
+        pt3d_trans.point.z = cur_pc->points[pc_ind].z;
+        if(pt3d_trans.point.x != pt3d_trans.point.x) {
+            ROS_WARN("Point cloud not defined for this region.");
+            resp.error_flag = resp.OUTSIDE_POINT_CLOUD;
+            return true;
+        }
 
         // Filter to only points in small voxel range
         pcl::ConditionAnd<PRGB>::Ptr near_cond(new pcl::ConditionAnd<PRGB>());
@@ -136,12 +155,12 @@ namespace pixel_2_3d {
         mls.setSearchRadius(normal_search_radius);
         mls.reconstruct(mls_points);
 
-        int min_ind_near = std::find(inds.begin(), inds.end(), min_ind) - inds.begin();
+        int pc_ind_near = std::find(inds.begin(), inds.end(), pc_ind) - inds.begin();
 
         // convert normal to quaternion
-        double nx = normals_ptr->points[min_ind_near].normal[0];
-        double ny = normals_ptr->points[min_ind_near].normal[1];
-        double nz = normals_ptr->points[min_ind_near].normal[2];
+        double nx = normals_ptr->points[pc_ind_near].normal[0];
+        double ny = normals_ptr->points[pc_ind_near].normal[1];
+        double nz = normals_ptr->points[pc_ind_near].normal[2];
         double dot = nx*pt3d_trans.point.x + ny*pt3d_trans.point.y + nz*pt3d_trans.point.z;
         if(dot > 0) { nx = -nx; ny = -ny; nz = -nz; }
         double j = std::sqrt(1/(1+ny*ny/(nz*nz)));
@@ -154,7 +173,7 @@ namespace pixel_2_3d {
         M.getRotation(quat);
 
         geometry_msgs::PoseStamped pt3d_pose;
-        pt3d_pose.header.frame_id = cam_model.tfFrame();
+        pt3d_pose.header.frame_id = cur_pc->header.frame_id;
         pt3d_pose.header.stamp = ros::Time(0);
         pt3d_pose.pose.position.x = pt3d_trans.point.x;
         pt3d_pose.pose.position.y = pt3d_trans.point.y;
@@ -164,8 +183,10 @@ namespace pixel_2_3d {
         pt3d_pose.pose.orientation.z = quat.getZ();
         pt3d_pose.pose.orientation.w = quat.getW();
         
-        tf_listener.transformPose("/base_footprint", pt3d_pose, pt3d_pose);
-        resp.pixel3d.header.frame_id = "/base_footprint";
+        if(output_frame == "")
+            output_frame = cur_pc->header.frame_id;
+        tf_listener.transformPose(output_frame, pt3d_pose, pt3d_pose);
+        resp.pixel3d.header.frame_id = output_frame;
         resp.pixel3d.header.stamp = ros::Time::now();
         resp.pixel3d.pose.position.x = pt3d_pose.pose.position.x;
         resp.pixel3d.pose.position.y = pt3d_pose.pose.position.y;
@@ -175,9 +196,10 @@ namespace pixel_2_3d {
         resp.pixel3d.pose.orientation.z = pt3d_pose.pose.orientation.z;
         resp.pixel3d.pose.orientation.w = pt3d_pose.pose.orientation.w;
         pt3d_pub.publish(pt3d_pose);
-        ROS_INFO("[pixel_2_3d] Pixel (%d, %d) converted to point at (%f, %f, %f) in /base_footprint.",
+        ROS_INFO("[pixel_2_3d] Pixel (%d, %d) converted to point at (%f, %f, %f) in %s.",
                  req.pixel_u, req.pixel_v, 
-                 pt3d_pose.pose.position.x, pt3d_pose.pose.position.y, pt3d_pose.pose.position.z);
+                 pt3d_pose.pose.position.x, pt3d_pose.pose.position.y, pt3d_pose.pose.position.z,
+                 output_frame.c_str());
         return true;
     }
 
