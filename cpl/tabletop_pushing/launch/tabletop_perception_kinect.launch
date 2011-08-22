@@ -29,7 +29,7 @@
     <param name="erosion_size" value="3" type="int"/>
 
     <param name="mgc_w_f" value="1.0" type="double"/>
-    <param name="mgc_w_b" value="0.5" type="double"/>
+    <param name="mgc_w_b" value="0.505" type="double"/>
     <param name="mgc_w_n_f" value="0.25" type="double"/>
     <param name="mgc_w_n_b" value="0.5" type="double"/>
     <param name="mgc_w_w_b" value="1.0" type="double"/>
