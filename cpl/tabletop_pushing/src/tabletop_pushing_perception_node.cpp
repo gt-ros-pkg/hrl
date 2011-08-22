@@ -343,7 +343,7 @@ class ProbImageDifferencing
 class LKFlowReliable
 {
  public:
-  LKFlowReliable(int win_size = 5, int num_levels = 1) :
+  LKFlowReliable(int win_size = 5, int num_levels = 4) :
       win_size_(win_size), num_levels_(num_levels)
   {
 
@@ -378,7 +378,7 @@ class LKFlowReliable
 
     for (int i = 0; i < num_levels_; ++i)
     {
-      std::vector<cv::Mat> flow_outs = baseLK(cur_pyr[i], prev_pyr[i]);
+      std::vector<cv::Mat> flow_outs = baseLKII(cur_pyr[i], prev_pyr[i]);
       cv::Mat up;
       cv::Mat up_temp;
       vector<cv::Size> sizes;
@@ -403,12 +403,13 @@ class LKFlowReliable
       score_pyr.push_back(flow_outs[1]);
     }
     // TODO: Combine flow from different scales into a single thingy
-    std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
+    std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
 #else
     // TODO: Separate scoring from flow calculation?
-    std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
+    // std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
+    std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
 #endif // MULTISCALE_OPTICAL_FLOW
-    // std::vector<cv::Mat> flow_n_scoresII = baseLKII(cur_bw, prev_bw);
+
     return flow_n_scores;
   }
 
@@ -854,8 +855,8 @@ class MotionGraphcut
     float w_d = (d0-d1);
     w_d *= w_d;
     // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2] + w_d);
-    // float w_c = sqrt(c_d[0]*c_d[0] + c_d[1]*c_d[1] + w_d);
-    float w_c = sqrt(c_d[0]*c_d[0] + w_d);
+    float w_c = sqrt(c_d[0]*c_d[0] + c_d[1]*c_d[1] + w_d);
+    // float w_c = sqrt(c_d[0]*c_d[0] + w_d);
     return w_c;
   }
 
@@ -894,11 +895,7 @@ class TabletopPushingPerceptionNode
                                 this, _1),
                     false),
       tf_(), motion_probs_(5), have_depth_data_(false), tracking_(false),
-      tracker_initialized_(false), tracker_count_(0),
-      prev_z_min_count_(0), prev_z_max_count_(0),
-      prev_x_min_count_(0), prev_x_max_count_(0),
-      prev_y_min_count_(0), prev_y_max_count_(0)
-
+      tracker_initialized_(false), tracker_count_(0)
   {
     // Get parameters from the server
     ros::NodeHandle n_private("~");
@@ -942,7 +939,7 @@ class TabletopPushingPerceptionNode
     n_private.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
 
     n_private.param("lk_win_size", lkflow_.win_size_, 5);
-    n_private.param("lk_num_levels", lkflow_.num_levels_, 1);
+    n_private.param("lk_num_levels", lkflow_.num_levels_, 4);
 
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
@@ -952,7 +949,8 @@ class TabletopPushingPerceptionNode
     table_location_server_ = n_.advertiseService(
         "get_table_location", &TabletopPushingPerceptionNode::getTableLocation,
         this);
-    motion_img_pub_ = it_.advertise("motion_probs", 15);
+    motion_mask_pub_ = it_.advertise("motion_mask", 15);
+    motion_img_pub_ = it_.advertise("motion_img", 15);
     track_server_.start();
   }
 
@@ -988,12 +986,6 @@ class TabletopPushingPerceptionNode
                            cv::Scalar(255));
     // Black out pixels in color and depth images outside of workspace
     // As well as outside of the crop window
-    int z_min_count = 0;
-    int z_max_count = 0;
-    int x_min_count = 0;
-    int x_max_count = 0;
-    int y_min_count = 0;
-    int y_max_count = 0;
 
     for (int r = 0; r < color_frame.rows; ++r)
     {
@@ -1008,57 +1000,11 @@ class TabletopPushingPerceptionNode
             c > crop_max_x_ )
         {
           workspace_mask.at<uchar>(r,c) = 0;
-          if (cur_pt.z < min_workspace_z_ )
-          {
-            z_min_count++;
-          }
-          if (cur_pt.z > max_workspace_z_ )
-          {
-            z_max_count++;
-          }
-          if (cur_pt.y < min_workspace_y_ )
-          {
-            y_min_count++;
-          }
-          if (cur_pt.y > max_workspace_y_ )
-          {
-            y_max_count++;
-          }
-          if (cur_pt.x < min_workspace_x_ )
-          {
-            x_min_count++;
-          }
-          if (cur_pt.x > max_workspace_x_ )
-          {
-            x_max_count++;
-          }
-
         }
       }
     }
 
-    if (abs(z_min_count - prev_z_min_count_) > 500)
-      ROS_INFO_STREAM("Z_min cont is: " << z_min_count << "\n");
-    if (abs(z_max_count - prev_z_max_count_) > 500)
-      ROS_INFO_STREAM("Z_max cont is: " << z_max_count << "\n");
-    if (abs(x_min_count - prev_x_min_count_) > 500)
-      ROS_INFO_STREAM("X_min cont is: " << x_min_count << "\n");
-    if (abs(x_max_count - prev_x_max_count_) > 500)
-      ROS_INFO_STREAM("X_max cont is: " << x_max_count << "\n");
-    if (abs(y_min_count - prev_y_min_count_) > 500)
-      ROS_INFO_STREAM("Y_min cont is: " << y_min_count << "\n");
-    if (abs(y_max_count - prev_y_max_count_) > 500)
-      ROS_INFO_STREAM("Y_max cont is: " << y_max_count << "\n");
-
-    prev_z_min_count_ = z_min_count;
-    prev_y_min_count_ = y_min_count;
-    prev_x_min_count_ = x_min_count;
-    prev_z_max_count_ = z_max_count;
-    prev_y_max_count_ = y_max_count;
-    prev_x_max_count_ = x_max_count;
-
-
-    // TODO: Downsample everything first
+    // Downsample everything first
 #ifdef DOWNSAMPLE_IMAGES
     cv::Mat color_frame_down;
     cv::Mat depth_frame_down;
@@ -1190,10 +1136,9 @@ class TabletopPushingPerceptionNode
       return;
     }
 
-#if defined DISPLAY_INPUT_COLOR || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT
     cv::Mat color_disp_frame(color_frame.size(), color_frame.type());
     cv::cvtColor(color_frame, color_disp_frame, CV_HSV2BGR);
-#endif
+
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
     cv::split(color_frame, hsv);
@@ -1265,22 +1210,30 @@ class TabletopPushingPerceptionNode
     cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(1.0));
     cv::erode(cut, eroded_cut, element);
 
-    cv_bridge::CvImage motion_msg;
-    cv::Mat motion_send(cut.size(), CV_8UC1);
-    // cut.convertTo(motion_send, CV_8UC1, 255, 0);
-    eroded_cut.convertTo(motion_send, CV_8UC1, 255, 0);
-    motion_msg.image = motion_send;
-    motion_msg.header.frame_id = "/openni_rgb_optical_frame";
-    motion_msg.header.stamp = ros::Time::now();
-    motion_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
-    motion_img_pub_.publish(motion_msg.toImageMsg());
+    cv_bridge::CvImage motion_mask_msg;
+    cv::Mat motion_mask_send(cut.size(), CV_8UC1);
+    eroded_cut.convertTo(motion_mask_send, CV_8UC1, 255, 0);
+    motion_mask_msg.image = motion_mask_send;
+    motion_mask_msg.header.frame_id = "/openni_rgb_optical_frame";
+    motion_mask_msg.header.stamp = ros::Time::now();
+    motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
+    motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
+
     // TODO: Also publish color version
+    cv::Mat moving_regions_img;
+    color_disp_frame.copyTo(moving_regions_img, motion_mask_send);
+    cv_bridge::CvImage motion_img_msg;
+    cv::Mat motion_img_send(cut.size(), CV_8UC3);
+    moving_regions_img.convertTo(motion_img_send, CV_8UC3, 1.0, 0);
+    motion_img_msg.image = motion_img_send;
+    motion_img_msg.header.frame_id = "/openni_rgb_optical_frame";
+    motion_img_msg.header.stamp = motion_mask_msg.header.stamp;
+    motion_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
+    motion_img_pub_.publish(motion_img_msg.toImageMsg());
 
 #ifdef DISPLAY_GRAPHCUT
     cv::imshow("Cut", cut);
     cv::imshow("Eroded Cut", eroded_cut);
-    cv::Mat moving_regions_img;
-    color_disp_frame.copyTo(moving_regions_img, motion_send);
     cv::imshow("moving_regions", moving_regions_img);
 #endif // DISPLAY_GRAPHCUT
 
@@ -1373,6 +1326,7 @@ class TabletopPushingPerceptionNode
   message_filters::Synchronizer<MySyncPolicy> sync_;
   image_transport::ImageTransport it_;
   image_transport::Publisher motion_img_pub_;
+  image_transport::Publisher motion_mask_pub_;
   actionlib::SimpleActionServer<tabletop_pushing::SegTrackAction> track_server_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
@@ -1411,12 +1365,6 @@ class TabletopPushingPerceptionNode
   bool tracking_;
   bool tracker_initialized_;
   int tracker_count_;
-  int prev_z_min_count_;
-  int prev_z_max_count_;
-  int prev_x_min_count_;
-  int prev_x_max_count_;
-  int prev_y_min_count_;
-  int prev_y_max_count_;
 };
 
 int main(int argc, char ** argv)
