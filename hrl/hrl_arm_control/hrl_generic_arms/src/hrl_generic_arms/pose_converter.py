@@ -29,7 +29,7 @@ class PoseConverter:
                 return [seq, stamp, frame_id], homo_mat, rot_quat
 
             elif type(args[0]) == np.core.matrix and np.shape(args[0]) == (4, 4):
-                return None, args[0], tf_trans.quaternion_from_matrix(args[0])
+                return None, args[0], tf_trans.quaternion_from_matrix(args[0]).tolist()
 
             elif (type(args[0]) == tuple or type(args[0]) == list) and len(args[0]) == 2:
                 header, homo_mat, rot_quat = PoseConverter._make_generic_pos_rot(args[0][0], args[0][1])
@@ -64,7 +64,7 @@ class PoseConverter:
             homo_mat = np.mat(np.eye(4))
             homo_mat[:3,3] = pos
             homo_mat[:3,:3] = rot
-            return None, homo_mat, tf_trans.quaternion_from_matrix(homo_mat)
+            return None, homo_mat, tf_trans.quaternion_from_matrix(homo_mat).tolist()
         return None, None, None
 
     @staticmethod
