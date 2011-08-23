@@ -68,7 +68,8 @@ class HRLArmKinematics():
     def FK(self, q, link_number=None):
         if link_number == None:
             link_number = self.n_jts
-        link_number = min(link_number, self.n_jts)
+        if link_number > self.n_jts:
+            raise RuntimeError('Link Number is greater than n_jts: %d'%link_number)
         pos, rot = self.FK_vanilla(q, link_number)
 
         if link_number == self.n_jts:
