@@ -98,11 +98,11 @@
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
-// #define DISPLAY_OPTICAL_FLOW 1
+#define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
 // #define DISPLAY_OPT_FLOW_II_INTERNALS 1
-// #define DISPLAY_GRAPHCUT 1
-// #define VISUALIZE_GRAPH_WEIGHTS 1
+#define DISPLAY_GRAPHCUT 1
+#define VISUALIZE_GRAPH_WEIGHTS 1
 
 // Functional IFDEFS
 #define DOWNSAMPLE_IMAGES 1
@@ -419,12 +419,10 @@ class LKFlowReliable
       cv::imshow(win_title.str(),flow_disp_img);
     }
     // TODO: Combine flow from different scales into a single thingy
-    // std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
-    std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
+    std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
 #else
     // TODO: Separate scoring from flow calculation?
-    std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
-    // std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
+    std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
 #endif // MULTISCALE_OPTICAL_FLOW
 
     return flow_n_scores;
@@ -493,81 +491,92 @@ class LKFlowReliable
     return outs;
   }
 
+  void integralImage(cv::Mat& input)
+  {
+    // Compute integral image first row of values
+    for (int c = 1; c < input.cols; ++c)
+    {
+      input.at<double>(0,c) += input.at<double>(0,c-1);
+    }
+
+    // Compute integral image first column of values
+    for (int r = 1; r < input.rows; ++r)
+    {
+      input.at<double>(r,0) += input.at<double>(r-1,0);
+    }
+
+    // Compute integral image values
+    for (int r = 1; r < input.rows; ++r)
+    {
+      for (int c = 1; c < input.cols; ++c)
+      {
+        input.at<double>(r,c) += input.at<double>(r,c-1) +
+            input.at<double>(r-1,c) - input.at<double>(r-1,c-1);
+      }
+    }
+
+  }
+
+  inline double filterIntegral(cv::Mat& integral, int x, int y, int radius)
+  {
+    int y_min = y - radius - 1;
+    int x_min = x - radius - 1;
+    int y_max = y + radius;
+    int x_max = x + radius;
+
+    double filter_response = integral.at<double>(y_max, x_max);
+    if (x_min >= 0)
+    {
+      filter_response -= integral.at<double>(y_max, x_min);
+    }
+    if (y_min >= 0)
+    {
+      filter_response -= integral.at<double>(y_min, x_max);
+    }
+    if (x_min >= 0 && y_min >= 0)
+    {
+      filter_response += integral.at<double>(y_min, x_min);
+    }
+    return filter_response;
+  }
+
   std::vector<cv::Mat> baseLKII(cv::Mat& cur_bw, cv::Mat& prev_bw)
   {
     // TODO: Make an integral image version for speedup
     // Get gradients using sobel
-    cv::Mat Ix(cur_bw.size(), CV_32FC1);
-    cv::Mat Iy(cur_bw.size(), CV_32FC1);
-    cv::Sobel(cur_bw, Ix, Ix.depth(), 1, 0, 3);
-    cv::Sobel(cur_bw, Iy, Iy.depth(), 0, 1, 3);
-    cv::Mat It = cur_bw - prev_bw;
+    cv::Mat cur_blur(cur_bw.size(), cur_bw.type());
+    cv::Mat prev_blur(prev_bw.size(), prev_bw.type());
+    float sigma = 1.5;
+    int k_size = 3;
+    cv::GaussianBlur(cur_bw, cur_blur, cv::Size(k_size, k_size), sigma, sigma);
+    cv::GaussianBlur(prev_bw, prev_blur, cv::Size(k_size, k_size), sigma, sigma);
+    cv::Mat Ix32(cur_bw.size(), CV_32FC1);
+    cv::Mat Iy32(cur_bw.size(), CV_32FC1);
+    cv::Sobel(cur_blur, Ix32, Ix32.depth(), 1, 0, 3);
+    cv::Sobel(cur_blur, Iy32, Iy32.depth(), 0, 1, 3);
+    cv::Mat Ix(cur_bw.size(), CV_64FC1);
+    cv::Mat Iy(cur_bw.size(), CV_64FC1);
 
-    cv::Mat IIxx(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat IIyy(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat IIxy(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat IIxt(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat IIyt(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
-
-    // Initialize integral images
-    IIxx.at<float>(0,0) = Ix.at<float>(0,0)*Ix.at<float>(0,0);
-    IIyy.at<float>(0,0) = Iy.at<float>(0,0)*Iy.at<float>(0,0);
-    IIxy.at<float>(0,0) = Ix.at<float>(0,0)*Iy.at<float>(0,0);
-    IIxt.at<float>(0,0) = Ix.at<float>(0,0)*It.at<float>(0,0);
-    IIyt.at<float>(0,0) = Iy.at<float>(0,0)*It.at<float>(0,0);
-
-    // Compute integral image first row of values
-    for (int c = 1; c < Ix.cols; ++c)
-    {
-      IIxx.at<float>(0,c) = Ix.at<float>(0,c)*Ix.at<float>(0,c) +
-          IIxx.at<float>(0,c-1);
-      IIyy.at<float>(0,c) = Iy.at<float>(0,c)*Iy.at<float>(0,c) +
-          IIyy.at<float>(0,c-1);
-      IIxy.at<float>(0,c) = Ix.at<float>(0,c)*Iy.at<float>(0,c)  +
-          IIxy.at<float>(0,c-1);
-      IIxt.at<float>(0,c) = Ix.at<float>(0,c)*It.at<float>(0,c) +
-          IIxt.at<float>(0,c-1);
-      IIyt.at<float>(0,c) = Iy.at<float>(0,c)*It.at<float>(0,c) +
-          IIyt.at<float>(0,c-1);
-    }
-
-    // Compute integral image first column of values
-    for (int r = 1; r < Ix.rows; ++r)
-    {
-      IIxx.at<float>(r,0) = Ix.at<float>(r,0)*Ix.at<float>(r,0) +
-          IIxx.at<float>(r-1,0);
-      IIyy.at<float>(r,0) = Iy.at<float>(r,0)*Iy.at<float>(r,0) +
-          IIyy.at<float>(r-1,0);
-      IIxy.at<float>(r,0) = Ix.at<float>(r,0)*Iy.at<float>(r,0)  +
-          IIxy.at<float>(r-1,0);
-      IIxt.at<float>(r,0) = Ix.at<float>(r,0)*It.at<float>(r,0) +
-          IIxt.at<float>(r-1,0);
-      IIyt.at<float>(r,0) = Iy.at<float>(r,0)*It.at<float>(r,0) +
-          IIyt.at<float>(r-1,0);
-    }
-
-    // Compute integral image values
-    for (int r = 1; r < Ix.rows; ++r)
-    {
-      for (int c = 1; c < Ix.cols; ++c)
-      {
-        IIxx.at<float>(r,c) = Ix.at<float>(r,c)*Ix.at<float>(r,c) +
-            IIxx.at<float>(r,c-1) + IIxx.at<float>(r-1,c) -
-            IIxx.at<float>(r-1,c-1);
-        IIyy.at<float>(r,c) = Iy.at<float>(r,c)*Iy.at<float>(r,c) +
-            IIyy.at<float>(r,c-1) + IIyy.at<float>(r-1,c) -
-            IIyy.at<float>(r-1,c-1);;
-        IIxy.at<float>(r,c) = Ix.at<float>(r,c)*Iy.at<float>(r,c) +
-            IIxy.at<float>(r,c-1) + IIxy.at<float>(r-1,c) -
-            IIxy.at<float>(r-1,c-1);;
-        IIxt.at<float>(r,c) = Ix.at<float>(r,c)*It.at<float>(r,c) +
-            IIxt.at<float>(r,c-1) + IIxt.at<float>(r-1,c) -
-            IIxt.at<float>(r-1,c-1);;
-        IIyt.at<float>(r,c) = Iy.at<float>(r,c)*It.at<float>(r,c) +
-            IIyt.at<float>(r,c-1) + IIyt.at<float>(r-1,c) -
-            IIyt.at<float>(r-1,c-1);;
-      }
-    }
+    cv::Mat It32 = cur_blur - prev_blur;
+    cv::Mat It(It32.size(), CV_64FC1);
+    Ix32.convertTo(Ix, CV_64FC1);
+    Iy32.convertTo(Iy, CV_64FC1);
+    It32.convertTo(It, CV_64FC1);
+    cv::Mat IIxx(cur_bw.size(), CV_64FC1);
+    cv::Mat IIyy(cur_bw.size(), CV_64FC1);
+    cv::Mat IIxy(cur_bw.size(), CV_64FC1);
+    cv::Mat IIxt(cur_bw.size(), CV_64FC1);
+    cv::Mat IIyt(cur_bw.size(), CV_64FC1);
+    cv::multiply(Ix, Ix, IIxx);
+    cv::multiply(Iy, Iy, IIyy);
+    cv::multiply(Ix, Iy, IIxy);
+    cv::multiply(Ix, It, IIxt);
+    cv::multiply(Iy, It, IIyt);
+    integralImage(IIxx);
+    integralImage(IIyy);
+    integralImage(IIxy);
+    integralImage(IIxt);
+    integralImage(IIyt);
 #ifdef DISPLAY_OPT_FLOW_INTERNALS
 
 #ifdef DISPLAY_OPT_FLOW_II_INTERNALS
@@ -586,107 +595,18 @@ class LKFlowReliable
 #endif // DISPLAY_OPT_FLOW_INTERNALS
 
     int win_radius = win_size_/2;
-    cv::Mat flow(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
-    cv::Mat t_scores(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
+    cv::Mat flow(cur_bw.size(), CV_64FC2, cv::Scalar(0.0,0.0));
+    cv::Mat t_scores(cur_bw.size(), CV_64FC2, cv::Scalar(0.0,0.0));
     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
     {
       for (int c = win_radius; c < Ix.cols-win_radius; ++c)
       {
-        float sIxx = 0.0;
-        float sIyy = 0.0;
-        float sIxy = 0.0;
-        float sIxt = 0.0;
-        float sIyt = 0.0;
-
-        int r_min = r - win_radius - 1;
-        int c_min = c - win_radius - 1;
-        int r_max = r + win_radius;
-        int c_max = c + win_radius;
-
-        if (c_min > 0 && r_min > 0)
-        {
-          sIxx = IIxx.at<float>(r_max, c_max) + IIxx.at<float>(r_min, c_min)
-              - (IIxx.at<float>(r_min, c_max) + IIxx.at<float>(r_max, c_min));
-          sIyy = IIyy.at<float>(r_max, c_max) + IIyy.at<float>(r_min, c_min)
-              - (IIyy.at<float>(r_min, c_max) + IIyy.at<float>(r_max, c_min));
-          sIxy = IIxy.at<float>(r_max, c_max) + IIxy.at<float>(r_min, c_min)
-              - (IIxy.at<float>(r_min, c_max) + IIxy.at<float>(r_max, c_min));
-          sIxt = IIxt.at<float>(r_max, c_max) + IIxt.at<float>(r_min, c_min)
-              - (IIxt.at<float>(r_min, c_max) + IIxt.at<float>(r_max, c_min));
-          sIyt = IIyt.at<float>(r_max, c_max) + IIyt.at<float>(r_min, c_min)
-              - (IIyt.at<float>(r_min, c_max) + IIyt.at<float>(r_max, c_min));
-        }
-        else
-        {
-          if (c_min > 0)
-          {
-            sIxx = IIxx.at<float>(r_max, c_max) - IIxx.at<float>(r_max, c_min);
-            sIyy = IIyy.at<float>(r_max, c_max) - IIyy.at<float>(r_max, c_min);
-            sIxy = IIxy.at<float>(r_max, c_max) - IIxy.at<float>(r_max, c_min);
-            sIxt = IIxt.at<float>(r_max, c_max) - IIxt.at<float>(r_max, c_min);
-            sIyt = IIyt.at<float>(r_max, c_max) - IIyt.at<float>(r_max, c_min);
-          }
-          else if (r_min > 0)
-          {
-            sIxx = IIxx.at<float>(r_max, c_max) - IIxx.at<float>(r_min, c_max);
-            sIyy = IIyy.at<float>(r_max, c_max) - IIyy.at<float>(r_min, c_max);
-            sIxy = IIxy.at<float>(r_max, c_max) - IIxy.at<float>(r_min, c_max);
-            sIxt = IIxt.at<float>(r_max, c_max) - IIxt.at<float>(r_min, c_max);
-            sIyt = IIyt.at<float>(r_max, c_max) - IIyt.at<float>(r_min, c_max);
-          }
-          else
-          {
-            sIxx = IIxx.at<float>(r_max, c_max);
-            sIyy = IIyy.at<float>(r_max, c_max);
-            sIxy = IIxy.at<float>(r_max, c_max);
-            sIxt = IIxt.at<float>(r_max, c_max);
-            sIyt = IIyt.at<float>(r_max, c_max);
-          }
-        }
+        const double sIxx = filterIntegral(IIxx, c, r, win_radius);
+        const double sIyy = filterIntegral(IIyy, c, r, win_radius);
+        const double sIxy = filterIntegral(IIxy, c, r, win_radius);
+        const double sIxt = filterIntegral(IIxt, c, r, win_radius);
+        const double sIyt = filterIntegral(IIyt, c, r, win_radius);
         // Compute using the standard way for debugging
-        float sIxx2 = 0.0;
-        float sIyy2 = 0.0;
-        float sIxy2 = 0.0;
-        float sIxt2 = 0.0;
-        float sIyt2 = 0.0;
-        for (int y = r-win_radius; y <= r+win_radius; ++y)
-        {
-          for (int x = c-win_radius; x <= c+win_radius; ++x)
-          {
-            sIxx2 += Ix.at<float>(y,x)*Ix.at<float>(y,x);
-            sIyy2 += Iy.at<float>(y,x)*Iy.at<float>(y,x);
-            sIxy2 += Ix.at<float>(y,x)*Iy.at<float>(y,x);
-            sIxt2 += Ix.at<float>(y,x)*It.at<float>(y,x);
-            sIyt2 += Iy.at<float>(y,x)*It.at<float>(y,x);
-          }
-        }
-        // TODO: Check if it is just round-off error
-        // if (sIxx - sIxx2 > 0.001)
-        // {
-        //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIxx != sIxx2: "
-        //                   << sIxx << ", " << sIxx2);
-        // }
-        // if (sIyy - sIyy2 > 0.001)
-        // {
-        //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIyy != sIyy2: "
-        //                   << sIyy << ", " << sIyy2);
-        // }
-        // if (sIxy - sIxy2  > 0.001)
-        // {
-        //   ROS_INFO_STREAM("(" << r << ", " << c << "): sIxy != sIxy2: "
-        //                   << sIxy << ", " << sIxy2);
-        // }
-        if (sIxt - sIxt2  > 0.001)
-        {
-          ROS_INFO_STREAM("(" << r << ", " << c << "): sIxt != sIxt2: "
-                          << sIxt << ", " << sIxt2);
-        }
-        if (sIyt - sIyt2 > 0.001)
-        {
-          ROS_INFO_STREAM("(" << r << ", " << c << "): sIyt != sIyt2: "
-                          << sIyt << ", " << sIyt2);
-        }
-
         float det = sIxx*sIyy - sIxy*sIxy;
         cv::Vec2f uv;
         if (det == 0.0)
@@ -700,17 +620,7 @@ class LKFlowReliable
           uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
         }
         flow.at<cv::Vec2f>(r,c) = uv;
-
-        cv::Mat H(cv::Size(2,2), CV_32FC1);
-        H.at<float>(0,0) = sIxx;
-        H.at<float>(0,1) = sIxy;
-        H.at<float>(1,0) = sIxy;
-        H.at<float>(1,1) = sIyy;
-        cv::Mat lambdas;
-        cv::eigen(H, lambdas);
-        cv::Vec2f ll(lambdas.at<float>(0,0), lambdas.at<float>(1,0));
-        t_scores.at<cv::Vec2f>(r,c) = ll;
-
+        t_scores.at<double>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
       }
     }
     std::vector<cv::Mat> outs;
@@ -721,6 +631,10 @@ class LKFlowReliable
 
   int win_size_;
   int num_levels_;
+};
+
+class BlobTracker
+{
 };
 
 class MotionGraphcut
@@ -868,11 +782,10 @@ class MotionGraphcut
   float getEdgeWeight(cv::Vec3f c0, float d0, cv::Vec3f c1, float d1)
   {
     cv::Vec3f c_d = c0-c1;
-    float w_d = (d0-d1);
-    w_d *= w_d;
-    // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2] + w_d);
-    float w_c = sqrt(c_d[0]*c_d[0] + c_d[1]*c_d[1] + w_d);
-    // float w_c = sqrt(c_d[0]*c_d[0] + w_d);
+    float w_d = d0-d1;
+    // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2] + w_d*w_d);
+    // float w_c = sqrt(c_d[0]*c_d[0] + c_d[1]*c_d[1] + w_d*w_d);
+    float w_c = sqrt(c_d[0]*c_d[0] + w_d*w_d);
     return w_c;
   }
 
@@ -884,8 +797,8 @@ class MotionGraphcut
  protected:
   GraphType *g;
   double corner_thresh_;
+
  public:
-  // TODO: Add weighting parameters, set via parameter server
   double w_f_;
   double w_b_;
   double w_n_f_;
@@ -894,6 +807,14 @@ class MotionGraphcut
   double w_u_f_;
   double w_u_b_;
   double magnitude_thresh_;
+};
+
+class RobustBlobTracking
+{
+ public:
+  RobustBlobTracking()
+  {
+  }
 };
 
 class TabletopPushingPerceptionNode
@@ -911,7 +832,7 @@ class TabletopPushingPerceptionNode
                                 this, _1),
                     false),
       tf_(), motion_probs_(5), have_depth_data_(false), tracking_(false),
-      tracker_initialized_(false), tracker_count_(0)
+      tracker_initialized_(false), tracker_count_(0), roi_(0,0,640,480)
   {
     // Get parameters from the server
     ros::NodeHandle n_private("~");
@@ -967,6 +888,10 @@ class TabletopPushingPerceptionNode
         this);
     motion_mask_pub_ = it_.advertise("motion_mask", 15);
     motion_img_pub_ = it_.advertise("motion_img", 15);
+    roi_.x = crop_min_x_;
+    roi_.y = crop_min_y_;
+    roi_.width = crop_max_x_ - crop_min_x_;
+    roi_.height = crop_max_y_ - crop_min_y_;
     track_server_.start();
   }
 
@@ -1001,7 +926,6 @@ class TabletopPushingPerceptionNode
                            cv::Scalar(255));
     // Black out pixels in color and depth images outside of workspace
     // As well as outside of the crop window
-
     for (int r = 0; r < color_frame.rows; ++r)
     {
       for (int c = 0; c < color_frame.cols; ++c)
@@ -1061,6 +985,7 @@ class TabletopPushingPerceptionNode
           res.table_centroid.pose.position.y == 0.0 &&
           res.table_centroid.pose.position.z == 0.0)
       {
+        ROS_ERROR_STREAM("No plane found, leaving");
         return false;
       }
 
@@ -1146,6 +1071,13 @@ class TabletopPushingPerceptionNode
       motion_probs_.initialize(color_frame, depth_frame);
       ROS_INFO_STREAM("Initializing tracker.");
       table_centroid_ = getTablePlane(cloud);
+      if (table_centroid_.pose.position.x == 0.0 &&
+          table_centroid_.pose.position.y == 0.0 &&
+          table_centroid_.pose.position.z == 0.0)
+      {
+        ROS_ERROR_STREAM("No plane found!");
+      }
+
       tracker_initialized_ = true;
       tracker_count_ = 1;
       return;
@@ -1174,20 +1106,6 @@ class TabletopPushingPerceptionNode
     cv::split(flow_outs[0], flows);
 
 #ifdef DISPLAY_OPTICAL_FLOW
-    cv::Mat flow_disp_img(color_frame.size(), CV_8UC3);
-    flow_disp_img = color_frame.clone();
-    for (int r = 0; r < flow_disp_img.rows; ++r)
-    {
-      for (int c = 0; c < flow_disp_img.cols; ++c)
-      {
-        cv::Vec2f uv = flow_outs[0].at<cv::Vec2f>(r,c);
-        if (abs(uv[0])+abs(uv[1]) > 0.5)
-        {
-          cv::line(flow_disp_img, cv::Point(c,r), cv::Point(c-uv[0], r-uv[1]),
-                   cv::Scalar(0,255,0));
-        }
-      }
-    }
     cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
     flow_thresh_disp_img = color_frame.clone();
 
@@ -1197,7 +1115,7 @@ class TabletopPushingPerceptionNode
       for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
       {
         cv::Vec2f uv = flow_outs[0].at<cv::Vec2f>(r,c);
-        if (abs(uv[0])+abs(uv[1]) > 1 &&
+        if (abs(uv[0])+abs(uv[1]) > mgc_.magnitude_thresh_ &&
             flow_outs[1].at<float>(r,c) < corner_thresh)
         {
           cv::line(flow_thresh_disp_img, cv::Point(c,r),
@@ -1205,22 +1123,31 @@ class TabletopPushingPerceptionNode
         }
       }
     }
-    cv::imshow("flow_disp", flow_disp_img);
-    cv::imshow("flow_thresh_disp", flow_thresh_disp_img);
+    cv::imshow("flow_disp", flow_thresh_disp_img);
     // cv::imshow("u", flows[0]);
     // cv::imshow("v", flows[1]);
 #endif // DISPLAY_OPTICAL_FLOW
 
     cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
     color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
-    cv::Mat cut = mgc_(color_frame_f, depth_frame,
-                       flows[0], flows[1],
-                       flow_outs[1],
-                       cur_workspace_mask_);
+    // // TODO: Downsample for faster computation
+    // cv::Mat color_frame_f_down;
+    // cv::Mat depth_frame_down;
+    // cv::Mat workspace_mask_down;
+    // cv::pyrDown(color_frame_f, color_frame_f_down);
+    // cv::pyrDown(depth_frame, depth_frame_down);
+    // cv::pyrDown(cur_workspace_mask_, workspace_mask_down);
+    // // TODO: Downsample flow and workspace mask
+    // cv::Mat cut = mgc_(color_frame_f_down, depth_frame_down, flows[0], flows[1],
+    //                    flow_outs[1], workspace_mask_down);
+    cv::Mat cut = mgc_(color_frame_f, depth_frame, flows[0], flows[1],
+                       flow_outs[1], workspace_mask_);
     cv::Mat eroded_cut(cut.size(), cut.type());
     cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(1.0));
     cv::erode(cut, eroded_cut, element);
 
+    // cv::Mat upper_cut(color_frame.size(), CV_32FC1); // HAHAHA!
+    // cv::pyrUp(eroded_cut, upper_cut, color_frame.size());
     cv_bridge::CvImage motion_mask_msg;
     cv::Mat motion_mask_send(cut.size(), CV_8UC1);
     eroded_cut.convertTo(motion_mask_send, CV_8UC1, 255, 0);
@@ -1234,7 +1161,7 @@ class TabletopPushingPerceptionNode
     cv::Mat moving_regions_img;
     color_frame.copyTo(moving_regions_img, motion_mask_send);
     cv_bridge::CvImage motion_img_msg;
-    cv::Mat motion_img_send(cut.size(), CV_8UC3);
+    cv::Mat motion_img_send(eroded_cut.size(), CV_8UC3);
     moving_regions_img.convertTo(motion_img_send, CV_8UC3, 1.0, 0);
     motion_img_msg.image = motion_img_send;
     motion_img_msg.header.frame_id = "/openni_rgb_optical_frame";
@@ -1375,7 +1302,9 @@ class TabletopPushingPerceptionNode
   PoseStamped table_centroid_;
   bool tracking_;
   bool tracker_initialized_;
+  bool detecting_arm_;
   int tracker_count_;
+  cv::Rect roi_;
 };
 
 int main(int argc, char ** argv)
