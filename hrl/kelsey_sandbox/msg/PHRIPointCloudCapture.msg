@@ -1,0 +1,2 @@
+sensor_msgs/PointCloud2 pc_capture
+geometry_msgs/PoseArray saved_frames

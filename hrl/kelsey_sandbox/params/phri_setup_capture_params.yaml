@@ -1,0 +1,1 @@
+{ 'base_frame' : '/optitrak', 'frames_to_save' : ['/openni_rgb_optical_frame'], 'pc_topic' : '/kinect_head/rgb/points' }
