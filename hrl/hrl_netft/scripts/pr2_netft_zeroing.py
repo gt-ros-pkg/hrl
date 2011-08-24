@@ -5,7 +5,10 @@ import sys
 import copy
 import numpy as np
 
-import roslib; roslib.load_manifest("hrl_netft")
+import roslib
+roslib.load_manifest("tf")
+roslib.load_manifest("rosparam")
+roslib.load_manifest("visualization_msgs")
 import rospy
 import rosparam
 import tf
@@ -14,9 +17,7 @@ from geometry_msgs.msg import WrenchStamped, Wrench, Vector3, Point
 from std_msgs.msg import Float64, Bool, ColorRGBA
 from visualization_msgs.msg import Marker
 
-from hrl_pr2_arms.pr2_arm import PR2Arm, create_pr2_arm
-from hrl_pr2_arms.pr2_arm import PR2ArmJointTrajectory, PR2ArmJTranspose
-from hrl_pr2_arms.pr2_arm import PR2ArmJInverse, PR2ArmJTransposeTask
+g = 9.81
 
 class NetFTListener:
 
@@ -33,6 +34,8 @@ class NetFTListener:
                            msg.wrench.torque.z]
 
 def collect_data_pr2(n_4, n_5, n_6):
+    roslib.load_manifest("hrl_pr2_arms")
+    from hrl_pr2_arms.pr2_arm import PR2ArmJointTrajectory, create_pr2_arm
     netft_topic = rospy.get_param("~netft_topic")
     gravity_frame = rospy.get_param("~gravity_frame")
     netft_frame = rospy.get_param("~netft_frame")
@@ -73,6 +76,7 @@ def collect_data_tool():
     netft_frame = rospy.get_param("~netft_frame")
     netft_list = NetFTListener(netft_topic)
     tf_list = tf.TransformListener()
+    data = []
     while not rospy.is_shutdown():
         done_query = raw_input("Enter 'd' when done")
         if done_query == 'd':
@@ -82,14 +86,19 @@ def collect_data_tool():
     print "Wrench, orientation data", data
     return data
 
-def process_data(data):
-    g = 9.81
+def process_data(data, is_pr2):
     wf_chain = []
     grav_chain = []
+    if is_pr2:
+        # account for the fact that the ft sensor is sensing forces
+        # backwards and is measuring reaction forces as opposed to the appied forces
+        react_mult = -1.
+    else:
+        react_mult = 1.
     for w, quat in data:
         wf_chain.extend(w[:3])
         rot_mat = np.mat(tf_trans.quaternion_matrix(quat))[:3,:3]
-        z_grav = - rot_mat.T * np.mat([0, 0, -1.]).T
+        z_grav = react_mult * rot_mat.T * np.mat([0, 0, -1.]).T
         z_x, z_y, z_z = z_grav.T.A[0]
         grav_chain.append([g * z_x, 1, 0, 0])
         grav_chain.append([g * z_y, 0, 1, 0])
@@ -106,7 +115,7 @@ def process_data(data):
     for w, quat in data:
         wt_chain.extend(w[3:])
         rot_mat = np.mat(tf_trans.quaternion_matrix(quat))[:3,:3]
-        z_grav = - rot_mat.T * np.mat([0, 0, -1.]).T
+        z_grav = react_mult * rot_mat.T * np.mat([0, 0, -1.]).T
         force_grav = mass * g * z_grav
         f_x, f_y, f_z = force_grav.T.A[0]
         torque_chain.append([0, f_z, -f_y, 1, 0, 0])
@@ -137,7 +146,7 @@ def save_params(p, filename):
     rosparam.dump_params(filename, rospy.get_name())
 
 class NetFTZeroer:
-    def __init__(self, start_zero=True):
+    def __init__(self, start_zero=True, is_pr2=True):
 
         netft_topic = rospy.get_param("~netft_topic")
         self.gravity_frame = rospy.get_param("~gravity_frame")
@@ -165,41 +174,47 @@ class NetFTZeroer:
         else:
             self.got_zero = True
 
+        if is_pr2:
+            self.react_mult = -1.
+        else:
+            self.react_mult = 1.
+
         self.wrench_location_frame = rospy.get_param("~wrench_location_frame")
         self.wrench_base_frame = rospy.get_param("~wrench_base_frame")
 
         self.colors = [ColorRGBA(1., 0., 0., 1.), ColorRGBA(0., 1., 0., 1.)]
-        self.wpub = rospy.Publisher("wpub", Float64)
-        self.wpub2 = rospy.Publisher("wpub2", Float64)
 
         rospy.sleep(0.1)
         rospy.Subscriber(netft_topic, WrenchStamped, self.process_wrench)
 
     def process_wrench(self, msg):
-        g = 9.81
         cur_wrench = np.mat([msg.wrench.force.x, 
                              msg.wrench.force.y, 
                              msg.wrench.force.z, 
                              msg.wrench.torque.x, 
                              msg.wrench.torque.y, 
                              msg.wrench.torque.z]).T
-        (ft_pos, ft_quat) = self.tf_list.lookupTransform(self.gravity_frame, self.netft_frame, rospy.Time(0))
+        try:
+            (ft_pos, ft_quat) = self.tf_list.lookupTransform(self.gravity_frame, 
+                                                             self.netft_frame, rospy.Time(0))
+        except:
+            return
         rot_mat = np.mat(tf_trans.quaternion_matrix(ft_quat))[:3,:3]
-        z_grav = - rot_mat.T * np.mat([0, 0, -1.]).T
+        z_grav = self.react_mult * rot_mat.T * np.mat([0, 0, -1.]).T
         force_grav = np.mat(np.zeros((6, 1)))
         force_grav[:3, 0] = self.mass * g * z_grav
         torque_grav = np.mat(np.zeros((6, 1)))
         torque_grav[3:, 0] = np.mat(np.cross(self.com_pos.T.A[0], force_grav[:3, 0].T.A[0])).T
         zeroing_wrench = force_grav + torque_grav + self.wrench_zero
-        zeroed_wrench = zeroing_wrench - cur_wrench
+        zeroed_wrench = self.react_mult * (cur_wrench - zeroing_wrench)
         
         if not self.got_zero:
-            self.wrench_zero = cur_wrench - (force_grav + torque_grav)
+            self.wrench_zero = self.react_mult * (cur_wrench - (force_grav + torque_grav))
             self.got_zero = True
 
         tf_zeroed_wrench = self.transform_wrench(zeroed_wrench)
-        self.wpub.publish(Float64(np.linalg.norm(tf_zeroed_wrench[:3,0])))
-        self.wpub2.publish(Float64(np.linalg.norm((cur_wrench - self.wrench_zero)[:3,0])))
+        if tf_zeroed_wrench is None:
+            return
         zero_msg = WrenchStamped(msg.header, 
                                  Wrench(Vector3(*tf_zeroed_wrench[:3,0]), Vector3(*tf_zeroed_wrench[3:,0])))
         self.zero_pub.publish(zero_msg)
@@ -207,12 +222,15 @@ class NetFTZeroer:
         
 
     def transform_wrench(self, wrench):
-        ft_pos, ft_quat = self.tf_list.lookupTransform(self.gravity_frame, 
-                                                       self.netft_frame, rospy.Time(0))
-        loc_pos, loc_quat = self.tf_list.lookupTransform(self.gravity_frame, 
-                                                         self.wrench_location_frame, rospy.Time(0))
-        base_pos, base_quat = self.tf_list.lookupTransform(self.wrench_base_frame,
+        try:
+            ft_pos, ft_quat = self.tf_list.lookupTransform(self.gravity_frame, 
                                                            self.netft_frame, rospy.Time(0))
+            loc_pos, loc_quat = self.tf_list.lookupTransform(self.gravity_frame, 
+                                                             self.wrench_location_frame, rospy.Time(0))
+            base_pos, base_quat = self.tf_list.lookupTransform(self.wrench_base_frame,
+                                                               self.netft_frame, rospy.Time(0))
+        except:
+            return None
         pos_diff = np.array(ft_pos) - np.array(loc_pos)
         loc_tf_wrench = wrench.copy()
         loc_tf_wrench[3:, 0] += np.mat(np.cross(pos_diff, loc_tf_wrench[:3, 0].T.A[0])).T
@@ -225,8 +243,11 @@ class NetFTZeroer:
         self.got_zero = False
 
     def visualize_wrench(self, wrench):
-        loc_pos, loc_quat = self.tf_list.lookupTransform(self.wrench_base_frame, 
-                                                         self.wrench_location_frame, rospy.Time(0))
+        try:
+            loc_pos, loc_quat = self.tf_list.lookupTransform(self.wrench_base_frame, 
+                                                             self.wrench_location_frame, rospy.Time(0))
+        except:
+            return
         self.publish_vector(self.wrench_base_frame, np.array(loc_pos), 0.05 * wrench[:3,0].A.T[0], 0)
         self.publish_vector(self.wrench_base_frame, np.array(loc_pos), 0.2 * wrench[3:,0].A.T[0], 1)
 
@@ -282,19 +303,19 @@ def main():
 
     if opts.is_run:
         rospy.sleep(0.1)
-        nft_z = NetFTZeroer()
+        nft_z = NetFTZeroer(is_pr2=opts.is_pr2)
         rospy.spin()
         return
 
     if opts.is_train:
         if opts.is_pr2:
             data = collect_data_pr2(n_4, n_5, n_6)
-            param_vector = process_data(data)
+            param_vector = process_data(data, True)
             save_params(param_vector, opts.filename)
             return
         else:
             data = collect_data_tool()
-            param_vector = process_data(data)
+            param_vector = process_data(data, False)
             save_params(param_vector, opts.filename)
             return
 
