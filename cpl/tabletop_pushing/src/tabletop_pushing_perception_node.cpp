@@ -1141,7 +1141,7 @@ class TabletopPushingPerceptionNode
     // cv::Mat cut = mgc_(color_frame_f_down, depth_frame_down, flows[0], flows[1],
     //                    flow_outs[1], workspace_mask_down);
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flows[0], flows[1],
-                       flow_outs[1], workspace_mask_);
+                       flow_outs[1], cur_workspace_mask_);
     cv::Mat eroded_cut(cut.size(), cut.type());
     cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(1.0));
     cv::erode(cut, eroded_cut, element);
