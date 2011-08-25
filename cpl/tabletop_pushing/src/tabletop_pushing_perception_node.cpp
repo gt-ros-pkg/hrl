@@ -98,14 +98,12 @@
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
-#define DISPLAY_OPTICAL_FLOW 1
+// #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
-// #define DISPLAY_OPT_FLOW_II_INTERNALS 1
-#define DISPLAY_GRAPHCUT 1
-#define VISUALIZE_GRAPH_WEIGHTS 1
+// #define DISPLAY_GRAPHCUT 1
+// #define VISUALIZE_GRAPH_WEIGHTS 1
 
 // Functional IFDEFS
-#define DOWNSAMPLE_IMAGES 1
 // #define MULTISCALE_OPTICAL_FLOW 1
 
 using tabletop_pushing::PushPose;
@@ -343,8 +341,8 @@ class ProbImageDifferencing
 class LKFlowReliable
 {
  public:
-  LKFlowReliable(int win_size = 5, int num_levels = 4) :
-      win_size_(win_size), num_levels_(num_levels)
+  LKFlowReliable(int win_size = 5) :
+      win_size_(win_size)
   {
 
   }
@@ -365,66 +363,8 @@ class LKFlowReliable
     cv::cvtColor(prev_color_frame, tmp_bw, CV_BGR2GRAY);
     tmp_bw.convertTo(prev_bw, CV_32FC1, 1.0/255, 0);
 
-#ifdef MULTISCALE_OPTICAL_FLOW
-    // Perform multiscale flow
-    std::vector<cv::Mat> cur_pyr;
-    std::vector<cv::Mat> prev_pyr;
-    cv::buildPyramid(cur_bw, cur_pyr, num_levels_-1);
-    cv::buildPyramid(prev_bw, prev_pyr, num_levels_-1);
-    std::vector<cv::Mat> flow_pyr;
-    std::vector<cv::Mat> score_pyr;
-
-    for (int i = 0; i < num_levels_; ++i)
-    {
-      std::vector<cv::Mat> flow_outs = baseLKII(cur_pyr[i], prev_pyr[i]);
-      // std::vector<cv::Mat> flow_outs = baseLK(cur_pyr[i], prev_pyr[i]);
-      cv::Mat up;
-      cv::Mat up_temp;
-      vector<cv::Size> sizes;
-      flow_outs[0].copyTo(up);
-      flow_outs[0].copyTo(up_temp);
-      cv::Size current_size = cur_bw.size();
-      for (int j = i; j > 0; --j)
-      {
-        sizes.push_back(current_size);
-        current_size.width /= 2;
-        current_size.height /= 2;
-      }
-      for (int j = i; j > 0; --j)
-      {
-        cv::Size up_size;
-        up_size = sizes.back();
-        sizes.pop_back();
-        cv::pyrUp(up_temp, up, up_size);
-        up_temp = up;
-      }
-      flow_pyr.push_back(up);
-      score_pyr.push_back(flow_outs[1]);
-      std::stringstream win_title;
-      win_title << "flow" << i;
-      cv::Mat flow_disp_img(cur_color_frame.size(), CV_8UC3);
-      flow_disp_img = cur_color_frame.clone();
-      for (int r = 0; r < flow_disp_img.rows; ++r)
-      {
-        for (int c = 0; c < flow_disp_img.cols; ++c)
-        {
-          cv::Vec2f uv = flow_pyr[i].at<cv::Vec2f>(r,c);
-          if (abs(uv[0])+abs(uv[1]) > 0.25)
-          {
-            cv::line(flow_disp_img, cv::Point(c,r), cv::Point(c-uv[0], r-uv[1]),
-                     cv::Scalar(0,255,0));
-          }
-        }
-      }
-      cv::imshow(win_title.str(),flow_disp_img);
-    }
-    // TODO: Combine flow from different scales into a single thingy
     std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
-#else
-    // TODO: Separate scoring from flow calculation?
-    std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
-#endif // MULTISCALE_OPTICAL_FLOW
-
+    // std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
     return flow_n_scores;
   }
 
@@ -446,7 +386,6 @@ class LKFlowReliable
 
     int win_radius = win_size_/2;
     cv::Mat flow(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
-    // cv::Mat t_scores(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
     cv::Mat t_scores(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
     {
@@ -494,9 +433,10 @@ class LKFlowReliable
   void integralImage(cv::Mat& input)
   {
     // Compute integral image first row of values
+    double* row0 = input.ptr<double>(0);
     for (int c = 1; c < input.cols; ++c)
     {
-      input.at<double>(0,c) += input.at<double>(0,c-1);
+      row0[c] += row0[c-1];
     }
 
     // Compute integral image first column of values
@@ -506,16 +446,19 @@ class LKFlowReliable
     }
 
     // Compute integral image values
+    double* prev_row = row0;
+    double* cur_row;
     for (int r = 1; r < input.rows; ++r)
     {
+      cur_row = input.ptr<double>(r);
       for (int c = 1; c < input.cols; ++c)
       {
-        input.at<double>(r,c) += input.at<double>(r,c-1) +
-            input.at<double>(r-1,c) - input.at<double>(r-1,c-1);
+        cur_row[c] += cur_row[c-1] + prev_row[c] - prev_row[c-1];
       }
+      prev_row = cur_row;
     }
-
   }
+
 
   inline double filterIntegral(cv::Mat& integral, int x, int y, int radius)
   {
@@ -542,8 +485,6 @@ class LKFlowReliable
 
   std::vector<cv::Mat> baseLKII(cv::Mat& cur_bw, cv::Mat& prev_bw)
   {
-    // TODO: Make an integral image version for speedup
-    // Get gradients using sobel
     cv::Mat cur_blur(cur_bw.size(), cur_bw.type());
     cv::Mat prev_blur(prev_bw.size(), prev_bw.type());
     float sigma = 1.5;
@@ -577,16 +518,13 @@ class LKFlowReliable
     integralImage(IIxy);
     integralImage(IIxt);
     integralImage(IIyt);
-#ifdef DISPLAY_OPT_FLOW_INTERNALS
 
-#ifdef DISPLAY_OPT_FLOW_II_INTERNALS
+#ifdef DISPLAY_OPT_FLOW_INTERNALS
     cv::imshow("IIxx", IIxx);
     cv::imshow("IIxy", IIxy);
     cv::imshow("IIyy", IIyy);
     cv::imshow("IIxt", IIxt);
     cv::imshow("IIyt", IIyt);
-#endif // DISPLAY_OPT_FLOW_II_INTERNALS
-
     cv::imshow("cur_bw", cur_bw);
     cv::imshow("prev_bw", prev_bw);
     cv::imshow("It", It);
@@ -596,7 +534,7 @@ class LKFlowReliable
 
     int win_radius = win_size_/2;
     cv::Mat flow(cur_bw.size(), CV_64FC2, cv::Scalar(0.0,0.0));
-    cv::Mat t_scores(cur_bw.size(), CV_64FC2, cv::Scalar(0.0,0.0));
+    cv::Mat t_scores(cur_bw.size(), CV_32FC1, cv::Scalar(0.0,0.0));
     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
     {
       for (int c = win_radius; c < Ix.cols-win_radius; ++c)
@@ -606,7 +544,6 @@ class LKFlowReliable
         const double sIxy = filterIntegral(IIxy, c, r, win_radius);
         const double sIxt = filterIntegral(IIxt, c, r, win_radius);
         const double sIyt = filterIntegral(IIyt, c, r, win_radius);
-        // Compute using the standard way for debugging
         float det = sIxx*sIyy - sIxy*sIxy;
         cv::Vec2f uv;
         if (det == 0.0)
@@ -620,7 +557,7 @@ class LKFlowReliable
           uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
         }
         flow.at<cv::Vec2f>(r,c) = uv;
-        t_scores.at<double>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
+        t_scores.at<float>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
       }
     }
     std::vector<cv::Mat> outs;
@@ -630,7 +567,6 @@ class LKFlowReliable
   }
 
   int win_size_;
-  int num_levels_;
 };
 
 class BlobTracker
@@ -664,18 +600,11 @@ class MotionGraphcut
     int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
     g = new GraphType(num_nodes, num_edges);
 
-    // TODO: Build foreground color histogram for computing likelihood of fg
-    // for (int r = 0; r < R; ++r)
-    // {
-    //   for (int c = 0; c < C; ++c)
-    //   {
-    //   }
-    // }
-
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::Mat fg_weights(color_frame.size(), CV_32FC1);
     cv::Mat bg_weights(color_frame.size(), CV_32FC1);
 #endif // VISUALIZE_GRAPH_WEIGHTS
+
     for (int r = 0; r < R; ++r)
     {
       for (int c = 0; c < C; ++c)
@@ -686,8 +615,8 @@ class MotionGraphcut
         // Check if we are hardcoding this spot to background
         if (workspace_mask.at<uchar>(r,c) == 0)
         {
-          // TODO: Set weight to infinte on bg
           g->add_tweights(r*C+c, /*capacities*/ 0.0, w_w_b_);
+
 #ifdef VISUALIZE_GRAPH_WEIGHTS
           fg_weights.at<float>(r,c) = 0.0;
           bg_weights.at<float>(r,c) = w_w_b_;
@@ -699,6 +628,7 @@ class MotionGraphcut
           if (magnitude > magnitude_thresh_)
           {
             g->add_tweights(r*C+c, /*capacities*/ w_f_, w_n_f_);
+
 #ifdef VISUALIZE_GRAPH_WEIGHTS
             fg_weights.at<float>(r,c) = w_f_;
             bg_weights.at<float>(r,c) = w_n_f_;
@@ -715,6 +645,7 @@ class MotionGraphcut
           else
           {
             g->add_tweights(r*C+c, /*capacities*/ w_n_b_, w_b_);
+
 #ifdef VISUALIZE_GRAPH_WEIGHTS
             fg_weights.at<float>(r,c) = w_n_b_;
             bg_weights.at<float>(r,c) = w_b_;
@@ -729,6 +660,7 @@ class MotionGraphcut
           bg_weights.at<float>(r,c) = w_u_b_;
 #endif // VISUALIZE_GRAPH_WEIGHTS
         }
+
         // Connect node to previous ones
         if (c > 0)
         {
@@ -760,19 +692,23 @@ class MotionGraphcut
         }
       }
     }
+
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::imshow("fg_weights", fg_weights);
     cv::imshow("bg_weights", bg_weights);
 #endif // VISUALIZE_GRAPH_WEIGHTS
+
     int flow = g->maxflow(false);
+
     // Convert output into image
     cv::Mat segs(R, C, CV_32FC1, cv::Scalar(0.0));
     for (int r = 0; r < R; ++r)
     {
+      float* seg_row = segs.ptr<float>(r);
       for (int c = 0; c < C; ++c)
       {
         float label = (g->what_segment(r*C+c) == GraphType::SOURCE);
-        segs.at<float>(r,c) = label;
+        seg_row[c] = label;
       }
     }
     delete g;
@@ -831,8 +767,8 @@ class TabletopPushingPerceptionNode
                     boost::bind(&TabletopPushingPerceptionNode::trackerGoalCallback,
                                 this, _1),
                     false),
-      tf_(), motion_probs_(5), have_depth_data_(false), tracking_(false),
-      tracker_initialized_(false), tracker_count_(0), roi_(0,0,640,480)
+      tf_(), /*motion_probs_(5),*/ have_depth_data_(false), tracking_(false),
+      tracker_initialized_(false), roi_(0,0,640,480)
   {
     // Get parameters from the server
     ros::NodeHandle n_private("~");
@@ -852,17 +788,11 @@ class TabletopPushingPerceptionNode
                     default_workspace_frame);
     n_private.param("min_table_z", min_table_z_, -0.5);
     n_private.param("max_table_z", max_table_z_, 1.5);
-    int num_hist_frames = 5;
-    n_private.param("num_hist_frames", num_hist_frames, 5);
-    motion_probs_.setNumHistFrames(num_hist_frames);
-    double T_in = 3;
-    double T_out = 5;
-    n_private.param("T_in", T_in, 3.0);
-    n_private.param("T_out", T_out, 5.0);
-    motion_probs_.setT_inT_out(T_in, T_out);
     n_private.param("autostart_tracking", tracking_, false);
     n_private.param("erosion_size", erosion_size_, 3);
+    n_private.param("num_downsamples", num_downsamples_, 2);
 
+    // Graphcut weights
     n_private.param("mgc_w_f", mgc_.w_f_, 3.0);
     n_private.param("mgc_w_b", mgc_.w_b_, 2.0);
     n_private.param("mgc_w_n_f", mgc_.w_n_f_, 0.01);
@@ -870,13 +800,22 @@ class TabletopPushingPerceptionNode
     n_private.param("mgc_w_w_b", mgc_.w_w_b_, 5.0);
     n_private.param("mgc_w_u_f", mgc_.w_u_f_, 0.1);
     n_private.param("mgc_w_u_b", mgc_.w_u_b_, 0.1);
+
+    // Lucas Kanade params
     double eigen_ratio = 0.5;
     n_private.param("mgc_eigen_ratio", eigen_ratio, 0.5);
     mgc_.setEigenRatio(eigen_ratio);
     n_private.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
-
     n_private.param("lk_win_size", lkflow_.win_size_, 5);
-    n_private.param("lk_num_levels", lkflow_.num_levels_, 4);
+
+    // int num_hist_frames = 5;
+    // n_private.param("num_hist_frames", num_hist_frames, 5);
+    // motion_probs_.setNumHistFrames(num_hist_frames);
+    // double T_in = 3;
+    // double T_out = 5;
+    // n_private.param("T_in", T_in, 3.0);
+    // n_private.param("T_out", T_out, 5.0);
+    // motion_probs_.setT_inT_out(T_in, T_out);
 
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
@@ -914,11 +853,16 @@ class TabletopPushingPerceptionNode
     // Convert nans to zeros
     for (int r = 0; r < depth_frame.rows; ++r)
     {
+      float* depth_row = depth_frame.ptr<float>(r);
       for (int c = 0; c < depth_frame.cols; ++c)
       {
-        float cur_d = depth_frame.at<float>(r,c);
+        //float cur_d = depth_frame.at<float>(r,c);
+        float cur_d = depth_row[c];
         if (isnan(cur_d))
-          depth_frame.at<float>(r,c) = 0.0;
+        {
+          //depth_frame.at<float>(r,c) = 0.0;
+          depth_row[c] = 0.0;
+        }
       }
     }
 
@@ -928,6 +872,7 @@ class TabletopPushingPerceptionNode
     // As well as outside of the crop window
     for (int r = 0; r < color_frame.rows; ++r)
     {
+      uchar* workspace_row = workspace_mask.ptr<uchar>(r);
       for (int c = 0; c < color_frame.cols; ++c)
       {
         // NOTE: Cloud is accessed by at(column, row)
@@ -938,34 +883,26 @@ class TabletopPushingPerceptionNode
             r < crop_min_y_ || c < crop_min_x_ || r > crop_max_y_ ||
             c > crop_max_x_ )
         {
-          workspace_mask.at<uchar>(r,c) = 0;
+          // workspace_mask.at<uchar>(r,c) = 0;
+          workspace_row[c] = 0;
         }
       }
     }
 
     // Downsample everything first
-#ifdef DOWNSAMPLE_IMAGES
-    cv::Mat color_frame_down;
-    cv::Mat depth_frame_down;
-    cv::Mat workspace_mask_down;
-    cv::pyrDown(color_frame, color_frame_down);
-    cv::pyrDown(depth_frame, depth_frame_down);
-    cv::pyrDown(workspace_mask, workspace_mask_down);
-#endif // DOWNSAMPLE_IMAGES
+    cv::Mat color_frame_down = downSample(color_frame, num_downsamples_);
+    cv::Mat depth_frame_down = downSample(depth_frame, num_downsamples_);
+    cv::Mat workspace_mask_down = downSample(workspace_mask, num_downsamples_);
+
     // Save internally for use in the service callback
     prev_color_frame_ = cur_color_frame_.clone();
     prev_depth_frame_ = cur_depth_frame_.clone();
     prev_workspace_mask_ = cur_workspace_mask_.clone();
 
-#ifdef DOWNSAMPLE_IMAGES
+    // Update the current versions
     cur_color_frame_ = color_frame_down.clone();
     cur_depth_frame_ = depth_frame_down.clone();
     cur_workspace_mask_ = workspace_mask_down.clone();
-#else
-    cur_color_frame_ = color_frame.clone();
-    cur_depth_frame_ = depth_frame.clone();
-    cur_workspace_mask_ = workspace_mask.clone();
-#endif // DOWNSAMPLE_IMAGES
     cur_point_cloud_ = cloud;
     have_depth_data_ = true;
 
@@ -1062,13 +999,16 @@ class TabletopPushingPerceptionNode
     tracking_ = false;
   }
 
+  //
+  // Core method for calculation
+  //
   void trackRegions(cv::Mat& color_frame, cv::Mat& depth_frame,
                     cv::Mat& prev_color_frame, cv::Mat& prev_depth_frame,
                     XYZPointCloud& cloud)
   {
     if (!tracker_initialized_)
     {
-      motion_probs_.initialize(color_frame, depth_frame);
+      // motion_probs_.initialize(color_frame, depth_frame);
       ROS_INFO_STREAM("Initializing tracker.");
       table_centroid_ = getTablePlane(cloud);
       if (table_centroid_.pose.position.x == 0.0 &&
@@ -1079,12 +1019,48 @@ class TabletopPushingPerceptionNode
       }
 
       tracker_initialized_ = true;
-      tracker_count_ = 1;
       return;
     }
 
     cv::Mat color_frame_hsv(color_frame.size(), color_frame.type());
     cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
+
+    std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
+    std::vector<cv::Mat> flows;
+    cv::split(flow_outs[0], flows);
+
+    cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
+    color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
+    cv::Mat cut = mgc_(color_frame_f, depth_frame, flows[0], flows[1],
+                       flow_outs[1], cur_workspace_mask_);
+
+    // Perform close morphology
+    cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(1.0));
+    cv::Mat eroded_cut(cut.size(), cut.type());
+    cv::Mat dialated_cut(cut.size(), cut.type());
+    cv::dilate(cut, dialated_cut, element);
+    cv::erode(dialated_cut, eroded_cut, element);
+
+    cv_bridge::CvImage motion_mask_msg;
+    cv::Mat motion_mask_send(cut.size(), CV_8UC1);
+    eroded_cut.convertTo(motion_mask_send, CV_8UC1, 255, 0);
+    motion_mask_msg.image = motion_mask_send;
+    motion_mask_msg.header.frame_id = "/openni_rgb_optical_frame";
+    motion_mask_msg.header.stamp = ros::Time::now();
+    motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
+    motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
+
+    // Also publish color version
+    cv::Mat moving_regions_img;
+    color_frame.copyTo(moving_regions_img, motion_mask_send);
+    cv_bridge::CvImage motion_img_msg;
+    cv::Mat motion_img_send(eroded_cut.size(), CV_8UC3);
+    moving_regions_img.convertTo(motion_img_send, CV_8UC3, 1.0, 0);
+    motion_img_msg.image = motion_img_send;
+    motion_img_msg.header.frame_id = "/openni_rgb_optical_frame";
+    motion_img_msg.header.stamp = motion_mask_msg.header.stamp;
+    motion_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
+    motion_img_pub_.publish(motion_img_msg.toImageMsg());
 
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
@@ -1100,10 +1076,6 @@ class TabletopPushingPerceptionNode
 #ifdef DISPLAY_WORKSPACE_MASK
     cv::imshow("workspace_mask", cur_workspace_mask_);
 #endif // DISPLAY_WORKSPACE_MASK
-
-    std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
-    std::vector<cv::Mat> flows;
-    cv::split(flow_outs[0], flows);
 
 #ifdef DISPLAY_OPTICAL_FLOW
     cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
@@ -1128,59 +1100,45 @@ class TabletopPushingPerceptionNode
     // cv::imshow("v", flows[1]);
 #endif // DISPLAY_OPTICAL_FLOW
 
-    cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
-    color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
-    // // TODO: Downsample for faster computation
-    // cv::Mat color_frame_f_down;
-    // cv::Mat depth_frame_down;
-    // cv::Mat workspace_mask_down;
-    // cv::pyrDown(color_frame_f, color_frame_f_down);
-    // cv::pyrDown(depth_frame, depth_frame_down);
-    // cv::pyrDown(cur_workspace_mask_, workspace_mask_down);
-    // // TODO: Downsample flow and workspace mask
-    // cv::Mat cut = mgc_(color_frame_f_down, depth_frame_down, flows[0], flows[1],
-    //                    flow_outs[1], workspace_mask_down);
-    cv::Mat cut = mgc_(color_frame_f, depth_frame, flows[0], flows[1],
-                       flow_outs[1], cur_workspace_mask_);
-    cv::Mat eroded_cut(cut.size(), cut.type());
-    cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(1.0));
-    cv::erode(cut, eroded_cut, element);
-
-    // cv::Mat upper_cut(color_frame.size(), CV_32FC1); // HAHAHA!
-    // cv::pyrUp(eroded_cut, upper_cut, color_frame.size());
-    cv_bridge::CvImage motion_mask_msg;
-    cv::Mat motion_mask_send(cut.size(), CV_8UC1);
-    eroded_cut.convertTo(motion_mask_send, CV_8UC1, 255, 0);
-    motion_mask_msg.image = motion_mask_send;
-    motion_mask_msg.header.frame_id = "/openni_rgb_optical_frame";
-    motion_mask_msg.header.stamp = ros::Time::now();
-    motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
-    motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
-
-    // Also publish color version
-    cv::Mat moving_regions_img;
-    color_frame.copyTo(moving_regions_img, motion_mask_send);
-    cv_bridge::CvImage motion_img_msg;
-    cv::Mat motion_img_send(eroded_cut.size(), CV_8UC3);
-    moving_regions_img.convertTo(motion_img_send, CV_8UC3, 1.0, 0);
-    motion_img_msg.image = motion_img_send;
-    motion_img_msg.header.frame_id = "/openni_rgb_optical_frame";
-    motion_img_msg.header.stamp = motion_mask_msg.header.stamp;
-    motion_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
-    motion_img_pub_.publish(motion_img_msg.toImageMsg());
-
 #ifdef DISPLAY_GRAPHCUT
     cv::imshow("Cut", cut);
     cv::imshow("Eroded Cut", eroded_cut);
+    // cv::imshow("Upper Cut", upper_cut);
     cv::imshow("moving_regions", moving_regions_img);
 #endif // DISPLAY_GRAPHCUT
 
 #if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_MOTION_PROBS || defined DISPLAY_MEANS || defined DISPLAY_VARS || defined DISPLAY_INTERMEDIATE_PROBS || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_OPT_FLOW_II_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS
     cv::waitKey(display_wait_ms_);
 #endif // Any display defined
-    ++tracker_count_;
   }
 
+  cv::Mat downSample(cv::Mat data_in, int scales)
+  {
+    cv::Mat out = data_in.clone();
+    for (int i = 0; i < scales; ++i)
+    {
+      cv::pyrDown(data_in, out);
+      data_in = out;
+    }
+    return out;
+  }
+
+  cv::Mat downSelect(cv::Mat& data_in)
+  {
+    // TODO: Check types...
+    cv::Mat down(data_in.rows/2, data_in.cols/2, CV_32FC1);
+    for (int r = 0; r < down.rows; ++r)
+    {
+      float* down_row = down.ptr<float>(r);
+      float* data_in_row = down.ptr<float>(r*2+1);
+      for (int c = 0; c < down.cols; ++c)
+      {
+        //down.at<float>(r,c) = data_in.at<float>(r*2+1, c*2+1);
+        down_row[c] = data_in_row[c*2+1];
+      }
+    }
+    return down;
+  }
   PoseStamped getTablePlane(XYZPointCloud& cloud)
   {
     // Filter Cloud to not look for table planes on the ground
@@ -1277,7 +1235,7 @@ class TabletopPushingPerceptionNode
   cv::Mat prev_depth_frame_;
   cv::Mat prev_workspace_mask_;
   XYZPointCloud cur_point_cloud_;
-  ProbImageDifferencing motion_probs_;
+  // ProbImageDifferencing motion_probs_;
   LKFlowReliable lkflow_;
   MotionGraphcut mgc_;
   bool have_depth_data_;
@@ -1298,12 +1256,12 @@ class TabletopPushingPerceptionNode
   double min_table_z_;
   double max_table_z_;
   double eigen_ratio_;
+  int num_downsamples_;
   std::string workspace_frame_;
   PoseStamped table_centroid_;
   bool tracking_;
   bool tracker_initialized_;
   bool detecting_arm_;
-  int tracker_count_;
   cv::Rect roi_;
 };
 

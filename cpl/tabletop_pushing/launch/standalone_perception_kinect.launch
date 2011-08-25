@@ -39,7 +39,7 @@
     <param name="mgc_magnitude_thresh" value="1.0" type="double"/>
 
     <param name="lk_win_size" value="5" type="int"/>
-    <param name="lk_num_levels" value="4" type="int"/>
+    <param name="num_downsamples" value="1" type="int"/>
 
   </node>
 </launch>
