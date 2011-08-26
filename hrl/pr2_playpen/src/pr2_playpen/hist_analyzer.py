@@ -95,30 +95,32 @@ if __name__ == '__main__':
 
     for i in xrange(9):
         for j in xrange(100):
-            print sys.argv[1]+'object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png'
-            img = cv.LoadImageM(sys.argv[1]+'object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png')
-            cv.ShowImage("Source", img)
+            print sys.argv[1]+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png'
+            try:
+                img = cv.LoadImageM(sys.argv[1]+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png')
+                cv.ShowImage("Source", img)
 
-            back_proj_img, hist1 = ha.back_project_hs(img)
-            back_proj_img2, hist2 = ha.back_project_hs(ha.background_noise[0])
+                back_proj_img, hist1 = ha.back_project_hs(img)
+                back_proj_img2, hist2 = ha.back_project_hs(ha.background_noise[0])
 
-            scratch = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
-            scratch2 = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
+                scratch = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
+                scratch2 = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
 
-            # do something clever with ands ors and diffs 
-            cv.Zero(scratch)
-            cv.Zero(scratch2)
+                # do something clever with ands ors and diffs 
+                cv.Zero(scratch)
+                cv.Zero(scratch2)
 
-            #cv.Sub(back_proj_img, back_proj_img2, scratch2) #opposite noise, but excludes object 
-            cv.Sub(back_proj_img2, back_proj_img, scratch2) #noise, but includes object if failed, 
-            cv.Sub(scratch2, ha.avg_noise, scratch) 
+                #cv.Sub(back_proj_img, back_proj_img2, scratch2) #opposite noise, but excludes object 
+                cv.Sub(back_proj_img2, back_proj_img, scratch2) #noise, but includes object if failed, 
+                cv.Sub(scratch2, ha.avg_noise, scratch) 
 
-            cv.ShowImage("final", scratch)
+                cv.ShowImage("final", scratch)
 
-            #cv.ShowImage("back_projection", back_proj_img2)
-            cv.WaitKey(33)
+                #cv.ShowImage("back_projection", back_proj_img2)
+                cv.WaitKey(33)
 
-            cv.Scale(back_proj_img, back_proj_img, 1/255.0)
-            print "here's the sum :", cv.Sum(scratch)
-
+                cv.Scale(back_proj_img, back_proj_img, 1/255.0)
+                print "here's the sum :", cv.Sum(scratch)
+            except:
+                print "no file like that, probably outside of index range"
 
