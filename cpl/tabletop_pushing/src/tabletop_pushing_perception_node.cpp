@@ -753,6 +753,57 @@ class RobustBlobTracking
   }
 };
 
+class PR2ArmDetector
+{
+ public:
+  PR2ArmDetector() : have_model_(false)
+  {
+    means_.clear();
+    vars_.clear();
+    weights_.clear();
+  }
+
+  void setColorModel(std::vector<cv::Vec3f> means,
+                     std::vector<cv::Vec3f> vars,
+                     std::vector<float> weights)
+  {
+    have_model_ = true;
+    means_ = means;
+    vars_ = vars;
+    weights_ = weights;
+  }
+
+  float pixelArmProbability(cv::Vec3f pixel_color)
+  {
+    if (not have_model_) return 0.0;
+    // TODO: Test pixel vs color model; assumes HSV
+    cv::Vec3f diff = means_[0] - pixel_color;
+    float prob = 1.0 - (asb(diff[0]) + abs(diff[1]) + abs(diff[2])) / 3.0;
+    return prob;
+  }
+
+  cv::Mat imageArmProbability(cv::Mat& arm_img)
+  {
+    cv::Mat prob_img(arm_img.size(), CV_32FC1);
+    for(int r = 0; r < arm_img.rows; ++r)
+    {
+      cv::Vec3f* arm_row = arm_img.ptr<cv::Vec3f>(r);
+      float* prob_row = prob_img.ptr<float>(r);
+      for (int c = 0; c < arm_img.cols; ++c)
+      {
+        prob_row[c] = pixelArmProbability(arm_row[c]);
+      }
+    }
+    return prob_img;
+  }
+
+ protected:
+  bool have_model_;
+  std::vector<cv::Vec3f> means_;
+  std::vector<cv::Vec3f> vars_;
+  std::vector<float> weights_;
+};
+
 class TabletopPushingPerceptionNode
 {
  public:

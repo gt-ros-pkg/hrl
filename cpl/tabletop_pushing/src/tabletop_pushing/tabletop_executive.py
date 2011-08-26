@@ -241,7 +241,7 @@ class TabletopExecutive:
                 if which_arm == 'l':
                     pose_res.push_pose.pose.position.y = 0.05
                 else:
-                    pose_res.push_pose.pose.position.y = -0.05
+                    pose_res.push_pose.pose.position.y = -0.15
                 pose_res.push_pose.pose.position.z = -0.25
             else:
                 pose_res = self.push_pose_proxy(pose_req)
@@ -361,4 +361,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(0, 0, 0, 3, 0, 0)
+    node.run(0, 0, 0, 0, 1, 0)
