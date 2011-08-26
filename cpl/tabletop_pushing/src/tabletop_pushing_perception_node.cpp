@@ -856,11 +856,9 @@ class TabletopPushingPerceptionNode
       float* depth_row = depth_frame.ptr<float>(r);
       for (int c = 0; c < depth_frame.cols; ++c)
       {
-        //float cur_d = depth_frame.at<float>(r,c);
         float cur_d = depth_row[c];
         if (isnan(cur_d))
         {
-          //depth_frame.at<float>(r,c) = 0.0;
           depth_row[c] = 0.0;
         }
       }
@@ -883,7 +881,6 @@ class TabletopPushingPerceptionNode
             r < crop_min_y_ || c < crop_min_x_ || r > crop_max_y_ ||
             c > crop_max_x_ )
         {
-          // workspace_mask.at<uchar>(r,c) = 0;
           workspace_row[c] = 0;
         }
       }
