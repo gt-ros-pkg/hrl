@@ -778,7 +778,7 @@ class PR2ArmDetector
     if (not have_model_) return 0.0;
     // TODO: Test pixel vs color model; assumes HSV
     cv::Vec3f diff = means_[0] - pixel_color;
-    float prob = 1.0 - (asb(diff[0]) + abs(diff[1]) + abs(diff[2])) / 3.0;
+    float prob = 1.0 - (abs(diff[0]) + abs(diff[1]) + abs(diff[2])) / 3.0;
     return prob;
   }
 
