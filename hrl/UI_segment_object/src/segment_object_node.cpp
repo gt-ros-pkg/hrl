@@ -344,7 +344,8 @@ protected:
   pcl::SACSegmentation<pcl::PointXYZRGB> seg;  
   pcl::PointIndices inliers;
   bool new_plane_coeff;
-
+  bool transform_pts;
+  std::string transform_pts_frame_id;
 };
 
 PointCloudPub::PointCloudPub(ros::NodeHandle &nh):
@@ -359,9 +360,21 @@ PointCloudPub::PointCloudPub(ros::NodeHandle &nh):
   seg.setModelType (pcl::SACMODEL_PLANE);
   seg.setMethodType (pcl::SAC_RANSAC);
   seg.setDistanceThreshold (0.01);
-  seg.setProbability(0.99);
+  seg.setProbability(0.98);
 
-
+  while (nh_.getParam("/transform_cloud/use", transform_pts) == false)
+    {
+      std::cerr << "waiting for boolean param to transform pts or not ... \n";
+      sleep(0.05);
+    }
+  if (transform_pts == true)
+    {
+      while (nh_.getParam("/transform_cloud/frame_id", transform_pts_frame_id) == false)
+	{
+	  std::cerr << "waiting for frame_id to transform pts ... \n";
+	  sleep(0.05);
+	}
+    }
 }
 
 PointCloudPub::~PointCloudPub()
@@ -456,19 +469,6 @@ geometry_msgs::Point PointCloudPub::pt_callback(const sensor_msgs::PointCloud2Co
 
 sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
-
-  // void TabletopDetector::pcCallback(sensor_msgs::PointCloud2::ConstPtr pc_msg) {
-  //   if(!pc_lock.try_lock())
-  //     return;
-
-  //   pcl::PointCloud<pcl::PointXYZRGB> pc_full, pc_full_frame;
-  //   pcl::fromROSMsg(*pc_msg, pc_full);
-  //   string base_frame("/base_link");
-  //   ros::Time now = ros::Time::now();
-  //   tf_listener.waitForTransform(pc_msg->header.frame_id, base_frame, now, ros::Duration(3.0));
-  //   pcl_ros::transformPointCloud(base_frame, pc_full, pc_full_frame, tf_listener);
-
-  string base_frame("/base_link");
   tf::TransformListener tf_listener;
 
   pcl::PointCloud<pcl::PointXYZRGB> pt_cloud_before_trans;
@@ -485,12 +485,20 @@ sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointC
   //   }
   
   pcl::fromROSMsg(*msg, cloud_xyz);
-  pcl::fromROSMsg(*msg, cloud_xyz_rgb);
 
-  //pcl::fromROSMsg(*msg, pt_cloud_before_trans);
+  if (transform_pts == true)
+    {
+      pcl::fromROSMsg(*msg, pt_cloud_before_trans);
+      tf::StampedTransform transform;
+      tf_listener.waitForTransform(transform_pts_frame_id, "/openni_rgb_optical_frame2", ros::Time(0), ros::Duration(5.0));
+      tf_listener.lookupTransform(transform_pts_frame_id, "/openni_rgb_optical_frame2", ros::Time(0), transform);
+      pcl_ros::transformPointCloud(pt_cloud_before_trans, cloud_xyz_rgb, transform);
+    }
+  else
+    {
+      pcl::fromROSMsg(*msg, cloud_xyz_rgb);
+    }
 
-  //pcl_ros::transformPointCloud(base_frame, pt_cloud_before_trans, cloud_xyz_rgb, tf_listener);
-  
   pcl::ExtractIndices<pcl::PointXYZRGB> extract;
 
   //  pcl::PointIndices::Ptr ui_ind (new pcl::PointIndices());
@@ -498,17 +506,11 @@ sensor_msgs::PointCloud2 PointCloudPub::cloud_callback(const sensor_msgs::PointC
   //////////////setup ui_ind here...../////////////
   for (int i = 0; i < counter_ind ; i++)
     {
-      //      ui_ind->indices.push_back(in_indices[i]);
       ui_ind.indices.push_back(in_indices[i]);
     }
   
-  ////////////////////////////////////////changes here/////////********************************************************************************
-  //extract.setInputCloud(cloud_xyz.makeShared());
   extract.setInputCloud(cloud_xyz_rgb.makeShared());
 
-
-
-  //  extract.setIndices(ui_ind);
   extract.setIndices(boost::make_shared<pcl::PointIndices>(ui_ind));
   extract.setNegative(false);
   extract.filter(cloud_xyz_rgb2);
