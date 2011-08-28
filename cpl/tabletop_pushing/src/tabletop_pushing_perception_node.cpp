@@ -569,10 +569,6 @@ class LKFlowReliable
   int win_size_;
 };
 
-class BlobTracker
-{
-};
-
 class MotionGraphcut
 {
  public:
@@ -743,14 +739,6 @@ class MotionGraphcut
   double w_u_f_;
   double w_u_b_;
   double magnitude_thresh_;
-};
-
-class RobustBlobTracking
-{
- public:
-  RobustBlobTracking()
-  {
-  }
 };
 
 class PR2ArmDetector
