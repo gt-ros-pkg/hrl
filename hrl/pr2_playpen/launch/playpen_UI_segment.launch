@@ -1,9 +1,13 @@
 <launch>
 
-	<include file="$(find pr2_playpen)/launch/playpen_kinect.launch"/>
-	<!--    <node name="reconfig_kinect_playpen" pkg="dynamic_reconfigure" type="dynparam" args="load kinect_playpen $(find pr2_playpen)/launch/run_kinect_params.yaml" />-->
+        <rosparam>
+            transform_cloud/use: false
+            transform_cloud/frame_id: "base_link"
+        </rosparam>
 
-	<!--<node pkg="tf" type="static_transform_publisher" name="kinect_playpen_to_pr2_lift_link" args="0 0 0 0 0 0 openni_camera2  base_link 100" />	 -->
+	<include file="$(find pr2_playpen)/launch/playpen_kinect.launch"/>
+	<!--	<include file="$(find pr2_playpen)/launch/pt_cloud_tf_test.launch"/> -->
+	<!--    <node name="reconfig_kinect_playpen" pkg="dynamic_reconfigure" type="dynparam" args="load kinect_playpen $(find pr2_playpen)/launch/run_kinect_params.yaml" />-->
 
 	<node pkg="UI_segment_object" name="playpen_segment_cloud" type="segment_object" respawn="true" output="screen">
 	      <remap from="/camera/rgb/image_color" to="/playpen_kinect/rgb/image_color" />
