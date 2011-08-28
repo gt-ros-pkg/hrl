@@ -208,8 +208,9 @@ class NetFTZeroer:
         zeroing_wrench = force_grav + torque_grav + self.wrench_zero
         zeroed_wrench = self.react_mult * (cur_wrench - zeroing_wrench)
         
+        print force_grav, "-", cur_wrench
         if not self.got_zero:
-            self.wrench_zero = self.react_mult * (cur_wrench - (force_grav + torque_grav))
+            self.wrench_zero = (cur_wrench - (force_grav + torque_grav))
             self.got_zero = True
 
         tf_zeroed_wrench = self.transform_wrench(zeroed_wrench)
@@ -254,7 +255,7 @@ class NetFTZeroer:
     def publish_vector(self, frame, loc, v, m_id):
         m = Marker()
         m.header.frame_id = frame
-        m.header.stamp = rospy.Time()
+        m.header.stamp = rospy.Time.now()
         m.ns = "netft_zeroing"
         m.id = m_id
         m.type = Marker.ARROW
