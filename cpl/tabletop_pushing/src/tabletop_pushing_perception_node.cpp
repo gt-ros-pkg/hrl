@@ -806,13 +806,14 @@ class PR2ArmDetector
     return prob;
   }
 
-  cv::Vec3i getBinNumbers(cv::Vec3b pixel_color)
+  inline const cv::Vec3i getBinNumbers(cv::Vec3b pixel_color) const
   {
-    cv::Vec3i bins;
-    // TODO: Map colors into the correct bins
-    bins[0] = pixel_color[0]/bin_size_;
-    bins[1] = pixel_color[1]/bin_size_;
-    bins[2] = pixel_color[2]/bin_size_;
+    const cv::Vec3i bins(pixel_color[0]/bin_size_,
+                         pixel_color[1]/bin_size_,
+                         pixel_color[2]/bin_size_);
+    // bins[0] = pixel_color[0]/bin_size_;
+    // bins[1] = pixel_color[1]/bin_size_;
+    // bins[2] = pixel_color[2]/bin_size_;
     return bins;
   }
 
