@@ -741,33 +741,79 @@ class MotionGraphcut
   double magnitude_thresh_;
 };
 
+/**
+ * Class to use color model to detect pr2 arms.
+ * Assumes input image is CV_8UC3 HSV image
+ */
 class PR2ArmDetector
 {
  public:
-  PR2ArmDetector() : have_model_(false)
+  PR2ArmDetector(int num_bins = 32) :
+      have_gmm_model_(false), have_hist_model_(false), theta_(0.5)
   {
-    means_.clear();
-    vars_.clear();
-    weights_.clear();
+    // means_.clear();
+    // vars_.clear();
+    // weights_.clear();
+    int sizes[] = {num_bins, num_bins, num_bins};
+    fg_hist_.create(3, sizes, CV_32FC1);
+    bin_size_ = 256/num_bins;
   }
 
-  void setColorModel(std::vector<cv::Vec3f> means,
-                     std::vector<cv::Vec3f> vars,
-                     std::vector<float> weights)
+  // void setGMMColorModel(std::vector<cv::Vec3f> means,
+  //                       std::vector<cv::Vec3f> vars,
+  //                       std::vector<float> weights)
+  // {
+  //   have_gmm_model_ = true;
+  //   means_ = means;
+  //   vars_ = vars;
+  //   weights_ = weights;
+  // }
+
+  void setHISTColorModel(cv::Mat fg_hist, cv::Mat bg_hist, float theta)
   {
-    have_model_ = true;
-    means_ = means;
-    vars_ = vars;
-    weights_ = weights;
+    have_hist_model_ = true;
+    fg_hist_ = fg_hist;
+    bg_hist_ = bg_hist;
+    // TODO: Calculate: theta_ = c_p*fg_count_/(c_n*bg_count_);
+    // c_p = cost of false positive
+    // c_n = cost of false negative
+    theta_ = theta;
   }
 
-  float pixelArmProbability(cv::Vec3f pixel_color)
+  float pixelArmProbability(cv::Vec3b pixel_color)
   {
-    if (not have_model_) return 0.0;
-    // TODO: Test pixel vs color model; assumes HSV
-    cv::Vec3f diff = means_[0] - pixel_color;
-    float prob = 1.0 - (abs(diff[0]) + abs(diff[1]) + abs(diff[2])) / 3.0;
+    // return pixelArmProbabilityGMM(pixel_color);
+    return pixelArmProbabilityHIST(pixel_color);
+  }
+
+  // float pixelArmProbabilityGMM(cv::Vec3b pixel_color)
+  // {
+  //   if (not have_gmm_model_) return 0.0;
+  //   // TODO: Test pixel vs color model; assumes HSV
+  //   cv::Vec3f diff = means_[0] - pixel_color;
+  //   float prob = 1.0 - (abs(diff[0]) + abs(diff[1]) + abs(diff[2])) / 3.0;
+  //   return prob;
+  // }
+
+  float pixelArmProbabilityHIST(cv::Vec3b pixel_color)
+  {
+    if (not have_hist_model_) return 0.0;
+    // TODO: Map pixel_color into bins;
+    cv::Vec3i bins = getBinNumbers(pixel_color);
+    float p_arm = fg_hist_.at<float>(bins[0], bins[1], bins[2]) / fg_count_;
+    float p_bg = bg_hist_.at<float>(bins[0], bins[1], bins[2]) / bg_count_;
+    float prob = p_arm / p_bg;
     return prob;
+  }
+
+  cv::Vec3i getBinNumbers(cv::Vec3b pixel_color)
+  {
+    cv::Vec3i bins;
+    // TODO: Map colors into the correct bins
+    bins[0] = pixel_color[0]/bin_size_;
+    bins[1] = pixel_color[1]/bin_size_;
+    bins[2] = pixel_color[2]/bin_size_;
+    return bins;
   }
 
   cv::Mat imageArmProbability(cv::Mat& arm_img)
@@ -775,7 +821,7 @@ class PR2ArmDetector
     cv::Mat prob_img(arm_img.size(), CV_32FC1);
     for(int r = 0; r < arm_img.rows; ++r)
     {
-      cv::Vec3f* arm_row = arm_img.ptr<cv::Vec3f>(r);
+      cv::Vec3b* arm_row = arm_img.ptr<cv::Vec3b>(r);
       float* prob_row = prob_img.ptr<float>(r);
       for (int c = 0; c < arm_img.cols; ++c)
       {
@@ -786,10 +832,18 @@ class PR2ArmDetector
   }
 
  protected:
-  bool have_model_;
-  std::vector<cv::Vec3f> means_;
-  std::vector<cv::Vec3f> vars_;
-  std::vector<float> weights_;
+  bool have_gmm_model_;
+  bool have_hist_model_;
+  // std::vector<cv::Vec3f> means_;
+  // std::vector<cv::Vec3f> vars_;
+  // std::vector<float> weights_;
+  cv::Mat fg_hist_;
+  cv::Mat bg_hist_;
+  cv::Vec3i bin_sizes_;
+  float theta_;
+  int fg_count_;
+  int bg_count_;
+  int bin_size_;
 };
 
 class TabletopPushingPerceptionNode
