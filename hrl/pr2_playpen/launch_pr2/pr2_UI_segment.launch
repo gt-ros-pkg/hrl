@@ -1,4 +1,8 @@
 <launch>
+        <rosparam>
+            transform_cloud/use: true
+            transform_cloud/frame_id: "base_link"
+        </rosparam>
 	<!--	<include file="$(find openni_camera)/launch/openni_node.launch"/>-->
 	<include file="$(find hrl_pr2_lib)/launch/openni_kinect.launch"/>
 	<node name="reconfig_kinect_pr2" pkg="dynamic_reconfigure" type="dynparam" args="load kinect_head $(find pr2_playpen)/launch_pr2/run_kinect_params.yaml" />

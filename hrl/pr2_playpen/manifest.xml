@@ -9,6 +9,8 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/pr2_playpen</url>
   
+  <depend package="opencv2"/>
+  <depend package="cv_bridge"/>
   <depend package="robotis"/>
   <depend package="actionlib" />
   <depend package="object_manipulation_msgs" />
