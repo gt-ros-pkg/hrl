@@ -1,0 +1,106 @@
+<launch>
+    <include file="$(find kelsey_sandbox)/launch/kinect.launch" />
+
+    <node name="nano25" 
+		pkg="netft_rdt_driver" 
+		type="netft_node" 
+		args="192.168.2.120" 
+		respawn="true">
+    <remap from="/netft_data" to="/tool_netft/wrench_raw"/>
+    </node>
+
+    <node name="adl2" 
+		pkg="ros_vrpn_client"
+		type="ros_vrpn_client"
+		args="_vrpn_server_ip:=192.168.2.110"
+	        respawn="false" output="screen"/>
+
+<!--
+    <node name="pr2_antenna" 
+		pkg="ros_vrpn_client"
+		type="ros_vrpn_client"
+		args="_vrpn_server_ip:=192.168.2.110"
+	        respawn="false" output="screen"/>
+-->
+
+    <node name="head" 
+		pkg="ros_vrpn_client"
+		type="ros_vrpn_client"
+		args="_vrpn_server_ip:=192.168.2.110"
+	        respawn="false" output="screen"/>
+
+    <node name="head_center"
+        pkg="tf"
+        type="static_transform_publisher"
+        args="0.17 -0.07 -0.062 -0.55 0 0 /head /head_center 10" />
+
+    <node name="kinect" 
+		pkg="ros_vrpn_client"
+		type="ros_vrpn_client"
+		args="_vrpn_server_ip:=192.168.2.110"
+	        respawn="false" output="screen"/>
+
+    <node name="kinect_calibration_board" 
+		pkg="ros_vrpn_client"
+		type="ros_vrpn_client"
+		args="_vrpn_server_ip:=192.168.2.110"
+	        respawn="false" output="screen"/>
+
+   <node name="kinect_cb_corner"
+        pkg="tf" 
+        type="static_transform_publisher" 
+        args="0.0327 0.03146 -0.00563 0 0 0 /kinect_calibration_board /kinect_cb_corner 10" />
+
+    <node name="scratcher"
+        pkg="tf" 
+        type="static_transform_publisher"  
+        args="0.072 0 0 0 0 0 /tool_netft_frame /scratcher 10" />
+
+    <node name="shaver"
+        pkg="tf" 
+        type="static_transform_publisher" 
+        args="0.070 0 0 0 0 0 /tool_netft_frame /shaver 10" />
+
+   <node name="comb"
+        pkg="tf" 
+        type="static_transform_publisher" 
+        args="0.179 0 -0.02 0 0 0 /tool_netft_frame /comb 10" />
+
+   <node name="tooth_brush"
+        pkg="tf" 
+        type="static_transform_publisher" 
+        args="0.147 0 -0.018 0 0 0 /tool_netft_frame /tooth_brush 10" />
+
+   <node name="wipe" 
+        pkg="tf" 
+        type="static_transform_publisher" 
+        args="0.137 0 0 0 0 0 /tool_netft_frame /wipe 10" />
+
+   <node name="wipe_finger"
+       	pkg="tf" 
+       	type="static_transform_publisher" 
+       	args="0.094 0 0 0 0 0 /tool_netft_frame /wipe_finger 10" />
+
+   <node name="spoon"
+        pkg="tf" 
+        type="static_transform_publisher" 
+        args="0.115 0 0 0 0 0 /tool_netft_frame /spoon 10" />
+
+    <node name="tool_netft_frame"
+		pkg="tf" 
+		type="static_transform_publisher"  
+		args="0.234 0.041 -0.015 0 0 0 /adl2 /tool_netft_frame 10" />
+
+    <node name="tool_netft_raw_frame"
+		pkg="tf" 
+		type="static_transform_publisher"  
+		args="0.234 0.041 -0.015 0.5 -0.5 0.5 -0.5 /adl2 /tool_netft_raw_frame 10" />
+
+   <node name="kinect_calib"
+		pkg="tf" 
+		type="static_transform_publisher" 
+		args="0.06718349 -0.04715135 -0.03754586 0.35913234 -0.60252837  0.60347844 -0.37920615 /kinect /openni_rgb_optical_frame 10" />
+		<!-- 8/24 args="0.060630 -0.014821 -0.032091 0.364927 -0.595023 0.610907 -0.373588 /kinect /openni_rgb_optical_frame 10" /> -->
+		<!-- 8/23 args="0.041244 -0.041612 -0.050649 0.359926 -0.593559 0.608560 -0.384442 /kinect /openni_rgb_optical_frame 10" /> -->
+
+</launch>
