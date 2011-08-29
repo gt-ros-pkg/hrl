@@ -1,0 +1,9 @@
+<stack>
+  <description brief="hrl_experiments">hrl_experiments</description>
+  <author>Maintained by Aaron King</author>
+  <license>BSD</license>  
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_experiments</url>
+  <depend stack="ros" />
+
+</stack>
