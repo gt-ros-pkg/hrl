@@ -9,15 +9,18 @@ import roslib
 roslib.load_manifest('UI_segment_object')
 roslib.load_manifest('camera_calibration')
 roslib.load_manifest('pixel_2_3d')
+roslib.load_manifest('hrl_generic_arms')
 
 import cv
 
 import rospy
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
+import tf
 
 from camera_calibration.calibrator import ChessboardInfo, Calibrator
 from pixel_2_3d.srv import Pixel23d
+from hrl_generic_arms.pose_converter import PoseConverter
 
 class ImageListener:
     def __init__(self, topic):
@@ -59,7 +62,7 @@ def main():
     chessboard.n_cols = 6
     chessboard.n_rows = 7
     chessboard.dim = 0.02273
-    cboard_frame = "kinect_calibration_board"
+    cboard_frame = "kinect_cb_corner"
     kinect_tracker_frame = "kinect"
 
     rospy.init_node("kinect_calib_test")
@@ -75,9 +78,13 @@ def main():
     corner_i = 0
     saved_corners_2d, saved_corners_3d, cb_locs = [], [], []
     while not rospy.is_shutdown():
-        cb_pos, cb_quat = tf_list.lookupTransform(cboard_frame, 
-                                                  kinect_tracker_frame, 
-                                                  rospy.Time())
+        try:
+            cb_pos, cb_quat = tf_list.lookupTransform(kinect_tracker_frame, 
+                                                      cboard_frame, 
+                                                      rospy.Time())
+        except:
+            rospy.sleep(0.001)
+            continue
         cv_img = img_list.get_cv_img()
         if cv_img is not None:
             has_corners, corners, chess = calib.get_corners(cv_img)
@@ -88,8 +95,7 @@ def main():
                 corner = corners[0]
                 for event in pygame.event.get():
                     if event.type == pygame.KEYDOWN:
-                        if event.dict['key'] == pygame.K_SPACE:
-                            print "good"
+                        print event.dict['key'], pygame.K_d
                         if event.dict['key'] == pygame.K_d:
                             done = True
                         if event.dict['key'] == pygame.K_q:
@@ -107,6 +113,7 @@ def main():
                                            pix3d_resp.pixel3d.pose.position.y,
                                            pix3d_resp.pixel3d.pose.position.z)
                         if len(saved_corners_3d) == 0:
+			    cb_locs.append(cb_pos)
                             saved_corners_2d.append(corner_avg_tuple)
                             saved_corners_3d.append(corner_3d_tuple)
                         else:
@@ -127,8 +134,14 @@ def main():
         rospy.sleep(0.001)
     A = np.mat(saved_corners_3d).T
     B = np.mat(cb_locs).T
-    R, t = umeyama_method(A, B)
+    print A, B
+    t, R = umeyama_method(A, B)
     print A, B, R, t
+    print "-" * 60
+    print "Transformation Parameters:"
+    pos, quat = PoseConverter.to_pos_quat(t, R)
+    print '%f %f %f %f %f %f %f /%s /%s 100' % tuple(pos + quat + 
+                                                     [cboard_frame, kinect_tracker_frame])
     
 if __name__ == '__main__':
     main()
