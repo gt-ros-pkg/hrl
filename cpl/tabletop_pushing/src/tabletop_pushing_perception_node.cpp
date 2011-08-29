@@ -749,13 +749,15 @@ class PR2ArmDetector
 {
  public:
   PR2ArmDetector(int num_bins = 32) :
-      have_gmm_model_(false), have_hist_model_(false), theta_(0.5)
+      have_gmm_model_(false), have_hist_model_(false), theta_(0.5),
+      num_bins_(num_bins)
   {
     // means_.clear();
     // vars_.clear();
     // weights_.clear();
     int sizes[] = {num_bins, num_bins, num_bins};
     fg_hist_.create(3, sizes, CV_32FC1);
+    bg_hist_.create(3, sizes, CV_32FC1);
     bin_size_ = 256/num_bins;
   }
 
@@ -811,9 +813,6 @@ class PR2ArmDetector
     const cv::Vec3i bins(pixel_color[0]/bin_size_,
                          pixel_color[1]/bin_size_,
                          pixel_color[2]/bin_size_);
-    // bins[0] = pixel_color[0]/bin_size_;
-    // bins[1] = pixel_color[1]/bin_size_;
-    // bins[2] = pixel_color[2]/bin_size_;
     return bins;
   }
 
@@ -832,6 +831,64 @@ class PR2ArmDetector
     return prob_img;
   }
 
+  void learnColorModels(std::string directory_path, int count,
+                        std::string save_path)
+  {
+    // Empty histograms before starting
+    for (unsigned int i = 0; i < num_bins_; ++i)
+    {
+      for (unsigned int j = 0; j < num_bins_; ++j)
+      {
+        for (unsigned int k = 0; k < num_bins_; ++k)
+        {
+          fg_hist_.at<float>(i,j,k) = 0;
+          bg_hist_.at<float>(i,j,k) = 0;
+        }
+      }
+    }
+    fg_count_ = 0;
+    bg_count_ = 0;
+
+    // Add pixels form each of the things
+    for (int i = 0; i < count; ++i)
+    {
+      std::stringstream img_name;
+      img_name << directory_path << count << ".tiff";
+      std::stringstream mask_name;
+      img_name << directory_path << count << "_mask.tiff";
+      cv::Mat img = cv::imread(img_name.str());
+      cv::Mat mask = cv::imread(mask_name.str());
+
+      // TODO: Extract fg and bg regions and add to histogram
+      for (unsigned int r = 0; r < img.rows; ++r)
+      {
+        float* img_row = img.ptr<float>(r);
+        float* mask_row = mask.ptr<float>(r);
+        for (unsigned int c = 0; c < img.cols; ++c)
+        {
+          if (mask_row[c] == 1.0)
+          {
+            cv::Vec3i bins = getBinNumbers(img_row[c]);
+            fg_hist_.at<float>(bins[0], bins[1], bins[2]) += 1;
+            fg_count_++;
+          }
+          else if (mask_row[c] == 0.0)
+          {
+            cv::Vec3i bins = getBinNumbers(img_row[c]);
+            bg_hist_.at<float>(bins[0], bins[1], bins[2]) += 1;
+            bg_count_++;
+          }
+        }
+      }
+    }
+    // TODO: Save stuff to disk
+  }
+
+  void loadColorModels(std::string input_path)
+  {
+    // TODO: Read shit from disk
+  }
+
  protected:
   bool have_gmm_model_;
   bool have_hist_model_;
@@ -845,6 +902,7 @@ class PR2ArmDetector
   int fg_count_;
   int bg_count_;
   int bin_size_;
+  int num_bins_;
 };
 
 class TabletopPushingPerceptionNode
@@ -1224,7 +1282,6 @@ class TabletopPushingPerceptionNode
       float* data_in_row = down.ptr<float>(r*2+1);
       for (int c = 0; c < down.cols; ++c)
       {
-        //down.at<float>(r,c) = data_in.at<float>(r*2+1, c*2+1);
         down_row[c] = data_in_row[c*2+1];
       }
     }
