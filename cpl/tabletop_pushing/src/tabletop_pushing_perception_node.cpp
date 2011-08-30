@@ -376,6 +376,7 @@ class LKFlowReliable
   std::vector<cv::Mat> baseLK(cv::Mat& cur_bw, cv::Mat& prev_bw)
   {
     // Get gradients using sobel
+    // TODO: Smooth and get derivatives simultanously
     cv::Mat Ix(cur_bw.size(), CV_32FC1);
     cv::Mat Iy(cur_bw.size(), CV_32FC1);
     cv::Sobel(cur_bw, Ix, Ix.depth(), 1, 0, 3);
@@ -494,6 +495,7 @@ class LKFlowReliable
     cv::Mat prev_blur(prev_bw.size(), prev_bw.type());
     float sigma = 1.5;
     int k_size = 3;
+    // TODO: Smooth and get derivatives simultanously
     cv::GaussianBlur(cur_bw, cur_blur, cv::Size(k_size, k_size), sigma, sigma);
     cv::GaussianBlur(prev_bw, prev_blur, cv::Size(k_size, k_size), sigma, sigma);
     cv::Mat Ix32(cur_bw.size(), CV_32FC1);
@@ -746,67 +748,29 @@ class MotionGraphcut
   double magnitude_thresh_;
 };
 
-/**
- * Class to use color model to detect pr2 arms.
- * Assumes input image is CV_8UC3 HSV image
- */
 class PR2ArmDetector
 {
  public:
   PR2ArmDetector(int num_bins = 32) :
-      have_gmm_model_(false), have_hist_model_(false), theta_(0.5),
-      num_bins_(num_bins), laplace_denom_(num_bins_*num_bins_*num_bins_),
-      bin_size_(256/num_bins)
+      have_hist_model_(false), theta_(0.5), num_bins_(num_bins),
+      laplace_denom_(num_bins_*num_bins_*num_bins_), bin_size_(256/num_bins)
   {
-    // means_.clear();
-    // vars_.clear();
-    // weights_.clear();
     int sizes[] = {num_bins, num_bins, num_bins};
     fg_hist_.create(3, sizes, CV_32FC1);
     bg_hist_.create(3, sizes, CV_32FC1);
-    // bin_size_ = 256/num_bins;
   }
-
-  // void setGMMColorModel(std::vector<cv::Vec3f> means,
-  //                       std::vector<cv::Vec3f> vars,
-  //                       std::vector<float> weights)
-  // {
-  //   have_gmm_model_ = true;
-  //   means_ = means;
-  //   vars_ = vars;
-  //   weights_ = weights;
-  // }
 
   void setHISTColorModel(cv::Mat fg_hist, cv::Mat bg_hist, double theta)
   {
     have_hist_model_ = true;
     fg_hist_ = fg_hist;
     bg_hist_ = bg_hist;
-    // TODO: Calculate: theta_ = c_p*fg_count_/(c_n*bg_count_);
-    // c_p = cost of false positive
-    // c_n = cost of false negative
     theta_ = theta;
   }
 
   float pixelArmProbability(cv::Vec3b pixel_color)
   {
-    // return pixelArmProbabilityGMM(pixel_color);
-    return pixelArmProbabilityHIST(pixel_color);
-  }
-
-  // float pixelArmProbabilityGMM(cv::Vec3b pixel_color)
-  // {
-  //   if (not have_gmm_model_) return 0.0;
-  //   // TODO: Test pixel vs color model; assumes HSV
-  //   cv::Vec3f diff = means_[0] - pixel_color;
-  //   float prob = 1.0 - (abs(diff[0]) + abs(diff[1]) + abs(diff[2])) / 3.0;
-  //   return prob;
-  // }
-
-  float pixelArmProbabilityHIST(cv::Vec3b pixel_color)
-  {
     if (not have_hist_model_) return 0.0;
-    // TODO: Map pixel_color into bins;
     cv::Vec3i bins = getBinNumbers(pixel_color);
     float p_arm = log((fg_hist_.at<float>(bins[0], bins[1], bins[2])+1) /
                       (fg_count_+laplace_denom_));
@@ -824,6 +788,10 @@ class PR2ArmDetector
     return bins;
   }
 
+  /**
+   * Class to use color model to detect pr2 arms.
+   * Assumes input image is CV_8UC3 HSV image
+   */
   cv::Mat imageArmProbability(cv::Mat& arm_img)
   {
     cv::Mat prob_img(arm_img.size(), CV_32FC1);
@@ -833,7 +801,6 @@ class PR2ArmDetector
       float* prob_row = prob_img.ptr<float>(r);
       for (int c = 0; c < arm_img.cols; ++c)
       {
-        //prob_row[c] = pixelArmProbability(arm_row[c]);
         float pixel_ratio = pixelArmProbability(arm_row[c]);
         if (pixel_ratio >= theta_)
         {
@@ -973,14 +940,9 @@ class PR2ArmDetector
     data_in.close();
     have_hist_model_ = true;
     float prior = static_cast<float>(fg_count_) / static_cast<float>(bg_count_);
-    // ROS_INFO_STREAM("prior prob: " << prior);
   }
 
-  bool have_gmm_model_;
   bool have_hist_model_;
-  // std::vector<cv::Vec3f> means_;
-  // std::vector<cv::Vec3f> vars_;
-  // std::vector<float> weights_;
   cv::Mat fg_hist_;
   cv::Mat bg_hist_;
   double theta_;
