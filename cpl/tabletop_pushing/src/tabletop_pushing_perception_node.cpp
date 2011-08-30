@@ -837,6 +837,7 @@ class PR2ArmDetector
   void learnColorModels(std::string directory_path, int count,
                         std::string save_path)
   {
+    ROS_INFO_STREAM("Learning color models.");
     // Empty histograms before starting
     for (int i = 0; i < num_bins_; ++i)
     {
@@ -856,26 +857,27 @@ class PR2ArmDetector
     for (int i = 0; i < count; ++i)
     {
       std::stringstream img_name;
-      img_name << directory_path << count << ".tiff";
+      img_name << directory_path << i << ".tiff";
       std::stringstream mask_name;
-      img_name << directory_path << count << "_mask.tiff";
-      cv::Mat img = cv::imread(img_name.str());
-      cv::Mat mask = cv::imread(mask_name.str());
-
+      mask_name << directory_path << i << "_mask.tiff";
+      cv::Mat img_bgr = cv::imread(img_name.str());
+      cv::Mat img;
+      cv::cvtColor(img_bgr, img, CV_BGR2HSV);
+      cv::Mat mask = cv::imread(mask_name.str(), 0);
       // Extract fg and bg regions and add to histogram
       for (int r = 0; r < img.rows; ++r)
       {
-        float* img_row = img.ptr<float>(r);
-        float* mask_row = mask.ptr<float>(r);
+        cv::Vec3b* img_row = img.ptr<cv::Vec3b>(r);
+        uchar* mask_row = mask.ptr<uchar>(r);
         for (int c = 0; c < img.cols; ++c)
         {
-          if (mask_row[c] == 1.0)
+          if (mask_row[c] == 255)
           {
             cv::Vec3i bins = getBinNumbers(img_row[c]);
             fg_hist_.at<float>(bins[0], bins[1], bins[2]) += 1;
             fg_count_++;
           }
-          else if (mask_row[c] == 0.0)
+          else if (mask_row[c] == 0)
           {
             cv::Vec3i bins = getBinNumbers(img_row[c]);
             bg_hist_.at<float>(bins[0], bins[1], bins[2]) += 1;
@@ -930,7 +932,7 @@ class PR2ArmDetector
     data_in >> bg_count_;
     data_in >> num_bins_;
     data_in >> theta_;
-    // TODO: Read out the histograms
+    // Read in the histograms
     for (int i = 0; i < num_bins_; ++i)
     {
       for (int j = 0; j < num_bins_; ++j)
@@ -954,7 +956,6 @@ class PR2ArmDetector
     data_in.close();
   }
 
- protected:
   bool have_gmm_model_;
   bool have_hist_model_;
   // std::vector<cv::Vec3f> means_;
@@ -1483,4 +1484,30 @@ int main(int argc, char ** argv)
   ros::NodeHandle n;
   TabletopPushingPerceptionNode perception_node(n);
   perception_node.spin();
+
+  // TODO: Set up some parameter server argument to perform the training
+  // before running if desired
+
+  // Compare pr2a and pr2b:
+  // std::string hist_data_path = "/home/thermans/sandbox/bag_test/";
+  // std::string hist_save_path = "/home/thermans/sandbox/test_color1.txt";
+  // std::string hist_save_path2 = "/home/thermans/sandbox/test_color2.txt";
+  // int data_count = 3;
+  // PR2ArmDetector pr2a;
+  // pr2a.learnColorModels(hist_data_path, data_count,
+  //                       hist_save_path);
+  // PR2ArmDetector pr2b;
+  // pr2b.loadColorModels(hist_save_path);
+  // pr2b.saveColorModels(hist_save_path2);
+  // ROS_INFO_STREAM("pr2a.fg_count_ " << pr2a.fg_count_);
+  // ROS_INFO_STREAM("pr2b.fg_count_ " << pr2b.fg_count_);
+  // ROS_INFO_STREAM("pr2a.bg_count_ " << pr2a.bg_count_);
+  // ROS_INFO_STREAM("pr2b.bg_count_ " << pr2b.bg_count_);
+  // ROS_INFO_STREAM("pr2a.theta_ " << pr2a.theta_);
+  // ROS_INFO_STREAM("pr2b.theta_ " << pr2b.theta_);
+  // ROS_INFO_STREAM("pr2a.bin_size_ " << pr2a.bin_size_);
+  // ROS_INFO_STREAM("pr2b.bin_size_ " << pr2b.bin_size_);
+  // ROS_INFO_STREAM("pr2a.num_bins_ " << pr2a.num_bins_);
+  // ROS_INFO_STREAM("pr2b.num_bins_ " << pr2b.num_bins_);
+  return 0;
 }
