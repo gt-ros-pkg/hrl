@@ -33,6 +33,7 @@
  *********************************************************************/
 // ROS
 #include <ros/ros.h>
+#include <ros/package.h>
 #include <actionlib/server/simple_action_server.h>
 
 #include <geometry_msgs/PoseStamped.h>
@@ -94,7 +95,7 @@
 #include <math.h>
 
 // Debugging IFDEFS
-// #define DISPLAY_INPUT_COLOR 1
+#define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_MOTION_PROBS 1
@@ -105,6 +106,7 @@
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
 // #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
+#define DISPLAY_ARM_PROBS 1
 
 // Functional IFDEFS
 // #define MULTISCALE_OPTICAL_FLOW 1
@@ -753,7 +755,8 @@ class PR2ArmDetector
  public:
   PR2ArmDetector(int num_bins = 32) :
       have_gmm_model_(false), have_hist_model_(false), theta_(0.5),
-      num_bins_(num_bins)
+      num_bins_(num_bins), laplace_denom_(num_bins_*num_bins_*num_bins_),
+      bin_size_(256/num_bins)
   {
     // means_.clear();
     // vars_.clear();
@@ -761,7 +764,7 @@ class PR2ArmDetector
     int sizes[] = {num_bins, num_bins, num_bins};
     fg_hist_.create(3, sizes, CV_32FC1);
     bg_hist_.create(3, sizes, CV_32FC1);
-    bin_size_ = 256/num_bins;
+    // bin_size_ = 256/num_bins;
   }
 
   // void setGMMColorModel(std::vector<cv::Vec3f> means,
@@ -774,7 +777,7 @@ class PR2ArmDetector
   //   weights_ = weights;
   // }
 
-  void setHISTColorModel(cv::Mat fg_hist, cv::Mat bg_hist, float theta)
+  void setHISTColorModel(cv::Mat fg_hist, cv::Mat bg_hist, double theta)
   {
     have_hist_model_ = true;
     fg_hist_ = fg_hist;
@@ -805,9 +808,11 @@ class PR2ArmDetector
     if (not have_hist_model_) return 0.0;
     // TODO: Map pixel_color into bins;
     cv::Vec3i bins = getBinNumbers(pixel_color);
-    float p_arm = fg_hist_.at<float>(bins[0], bins[1], bins[2]) / fg_count_;
-    float p_bg = bg_hist_.at<float>(bins[0], bins[1], bins[2]) / bg_count_;
-    float prob = p_arm / p_bg;
+    float p_arm = log((fg_hist_.at<float>(bins[0], bins[1], bins[2])+1) /
+                      (fg_count_+laplace_denom_));
+    float p_bg = log((bg_hist_.at<float>(bins[0], bins[1], bins[2])+1) /
+                     (bg_count_+laplace_denom_));
+    float prob = exp(p_arm - p_bg);
     return prob;
   }
 
@@ -828,7 +833,17 @@ class PR2ArmDetector
       float* prob_row = prob_img.ptr<float>(r);
       for (int c = 0; c < arm_img.cols; ++c)
       {
-        prob_row[c] = pixelArmProbability(arm_row[c]);
+        //prob_row[c] = pixelArmProbability(arm_row[c]);
+        float pixel_ratio = pixelArmProbability(arm_row[c]);
+        if (pixel_ratio >= theta_)
+        {
+          prob_row[c] = 1.0;
+          // ROS_INFO_STREAM("pixel_ratio_: " << pixel_ratio);
+        }
+        else
+        {
+          prob_row[c] = 0.0;
+        }
       }
     }
     return prob_img;
@@ -852,6 +867,7 @@ class PR2ArmDetector
     }
     fg_count_ = 0;
     bg_count_ = 0;
+    int total_count = 0;
 
     // Add pixels form each of the things
     for (int i = 0; i < count; ++i)
@@ -932,6 +948,7 @@ class PR2ArmDetector
     data_in >> bg_count_;
     data_in >> num_bins_;
     data_in >> theta_;
+    laplace_denom_ = num_bins_*num_bins_*num_bins_;
     // Read in the histograms
     for (int i = 0; i < num_bins_; ++i)
     {
@@ -954,6 +971,9 @@ class PR2ArmDetector
       }
     }
     data_in.close();
+    have_hist_model_ = true;
+    float prior = static_cast<float>(fg_count_) / static_cast<float>(bg_count_);
+    // ROS_INFO_STREAM("prior prob: " << prior);
   }
 
   bool have_gmm_model_;
@@ -963,11 +983,12 @@ class PR2ArmDetector
   // std::vector<float> weights_;
   cv::Mat fg_hist_;
   cv::Mat bg_hist_;
-  float theta_;
+  double theta_;
   int fg_count_;
   int bg_count_;
   int bin_size_;
   int num_bins_;
+  int laplace_denom_;
 };
 
 class TabletopPushingPerceptionNode
@@ -1034,6 +1055,14 @@ class TabletopPushingPerceptionNode
     // n_private.param("T_out", T_out, 5.0);
     // motion_probs_.setT_inT_out(T_in, T_out);
 
+    // Arm detections stuff
+    std::string package_path = ros::package::getPath("tabletop_pushing");
+    std::stringstream arm_data_default_path;
+    arm_data_default_path << package_path << "/cfg/pr2_arm_model0.txt";
+    n_private.param("arm_detection_model_path", arm_data_path_,
+                    arm_data_default_path.str());
+    arm_detect_.loadColorModels(arm_data_path_);
+    n_private.param("arm_detection_theta", arm_detect_.theta_, 0.5);
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
                            this);
@@ -1276,6 +1305,8 @@ class TabletopPushingPerceptionNode
     motion_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     motion_img_pub_.publish(motion_img_msg.toImageMsg());
 
+    // Figure out arm probabilites
+    cv::Mat arm_probs = arm_detect_.imageArmProbability(color_frame_hsv);
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
     cv::split(color_frame_hsv, hsv);
@@ -1290,7 +1321,9 @@ class TabletopPushingPerceptionNode
 #ifdef DISPLAY_WORKSPACE_MASK
     cv::imshow("workspace_mask", cur_workspace_mask_);
 #endif // DISPLAY_WORKSPACE_MASK
-
+#ifdef DISPLAY_ARM_PROBS
+    cv::imshow("arm_probs", arm_probs);
+#endif // DISPLAY_ARM_PROBS
 #ifdef DISPLAY_OPTICAL_FLOW
     cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
     flow_thresh_disp_img = color_frame.clone();
@@ -1476,6 +1509,8 @@ class TabletopPushingPerceptionNode
   bool tracker_initialized_;
   bool detecting_arm_;
   cv::Rect roi_;
+  PR2ArmDetector arm_detect_;
+  std::string arm_data_path_;
 };
 
 int main(int argc, char ** argv)
@@ -1489,25 +1524,12 @@ int main(int argc, char ** argv)
   // before running if desired
 
   // Compare pr2a and pr2b:
-  // std::string hist_data_path = "/home/thermans/sandbox/bag_test/";
+  // std::string hist_data_path = "/home/thermans/sandbox/pr2_arm_test_data/";
   // std::string hist_save_path = "/home/thermans/sandbox/test_color1.txt";
-  // std::string hist_save_path2 = "/home/thermans/sandbox/test_color2.txt";
-  // int data_count = 3;
+  // int data_count =21;
   // PR2ArmDetector pr2a;
   // pr2a.learnColorModels(hist_data_path, data_count,
   //                       hist_save_path);
-  // PR2ArmDetector pr2b;
-  // pr2b.loadColorModels(hist_save_path);
-  // pr2b.saveColorModels(hist_save_path2);
-  // ROS_INFO_STREAM("pr2a.fg_count_ " << pr2a.fg_count_);
-  // ROS_INFO_STREAM("pr2b.fg_count_ " << pr2b.fg_count_);
-  // ROS_INFO_STREAM("pr2a.bg_count_ " << pr2a.bg_count_);
-  // ROS_INFO_STREAM("pr2b.bg_count_ " << pr2b.bg_count_);
-  // ROS_INFO_STREAM("pr2a.theta_ " << pr2a.theta_);
-  // ROS_INFO_STREAM("pr2b.theta_ " << pr2b.theta_);
-  // ROS_INFO_STREAM("pr2a.bin_size_ " << pr2a.bin_size_);
-  // ROS_INFO_STREAM("pr2b.bin_size_ " << pr2b.bin_size_);
-  // ROS_INFO_STREAM("pr2a.num_bins_ " << pr2a.num_bins_);
-  // ROS_INFO_STREAM("pr2b.num_bins_ " << pr2b.num_bins_);
   return 0;
 }
+

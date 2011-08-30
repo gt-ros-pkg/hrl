@@ -41,5 +41,8 @@
     <param name="lk_win_size" value="5" type="int"/>
     <param name="num_downsamples" value="1" type="int"/>
 
+    <param name="arm_detection_theta" value="0.5" type="double"/>
+    <!-- <param name="arm_detection_model_path" value="/home/thermans/" type="string"/> -->
+
   </node>
 </launch>

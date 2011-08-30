@@ -40,6 +40,7 @@
 
     <param name="lk_win_size" value="5" type="int"/>
     <param name="lk_num_levels" value="1" type="int"/>
+    <param name="arm_detection_theta" value="10.0" type="double"/>
 
   </node>
 </launch>
