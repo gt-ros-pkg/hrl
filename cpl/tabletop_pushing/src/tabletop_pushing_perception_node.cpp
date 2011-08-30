@@ -87,6 +87,9 @@
 #include <deque>
 #include <queue>
 #include <string>
+#include <sstream>
+#include <iostream>
+#include <fstream>
 #include <utility>
 #include <math.h>
 
@@ -835,11 +838,11 @@ class PR2ArmDetector
                         std::string save_path)
   {
     // Empty histograms before starting
-    for (unsigned int i = 0; i < num_bins_; ++i)
+    for (int i = 0; i < num_bins_; ++i)
     {
-      for (unsigned int j = 0; j < num_bins_; ++j)
+      for (int j = 0; j < num_bins_; ++j)
       {
-        for (unsigned int k = 0; k < num_bins_; ++k)
+        for (int k = 0; k < num_bins_; ++k)
         {
           fg_hist_.at<float>(i,j,k) = 0;
           bg_hist_.at<float>(i,j,k) = 0;
@@ -859,12 +862,12 @@ class PR2ArmDetector
       cv::Mat img = cv::imread(img_name.str());
       cv::Mat mask = cv::imread(mask_name.str());
 
-      // TODO: Extract fg and bg regions and add to histogram
-      for (unsigned int r = 0; r < img.rows; ++r)
+      // Extract fg and bg regions and add to histogram
+      for (int r = 0; r < img.rows; ++r)
       {
         float* img_row = img.ptr<float>(r);
         float* mask_row = mask.ptr<float>(r);
-        for (unsigned int c = 0; c < img.cols; ++c)
+        for (int c = 0; c < img.cols; ++c)
         {
           if (mask_row[c] == 1.0)
           {
@@ -881,12 +884,74 @@ class PR2ArmDetector
         }
       }
     }
-    // TODO: Save stuff to disk
+    saveColorModels(save_path);
+  }
+
+  void saveColorModels(std::string output_path)
+  {
+    std::ofstream data_out(output_path.c_str());
+    // Write out header infos
+    data_out << fg_count_ << std::endl;
+    data_out << bg_count_ << std::endl;
+    data_out << num_bins_ << std::endl;
+    data_out << theta_ << std::endl;
+    // Write out the histograms
+    for (int i = 0; i < num_bins_; ++i)
+    {
+      for (int j = 0; j < num_bins_; ++j)
+      {
+        for (int k = 0; k < num_bins_; ++k)
+        {
+          data_out << fg_hist_.at<float>(i,j,k) << " ";
+        }
+        data_out << std::endl;
+      }
+    }
+    data_out << std::endl;
+    for (int i = 0; i < num_bins_; ++i)
+    {
+      for (int j = 0; j < num_bins_; ++j)
+      {
+        for (int k = 0; k < num_bins_; ++k)
+        {
+          data_out << bg_hist_.at<float>(i,j,k) << " ";
+        }
+        data_out << std::endl;
+      }
+    }
+    data_out.close();
   }
 
   void loadColorModels(std::string input_path)
   {
-    // TODO: Read shit from disk
+    std::ifstream data_in(input_path.c_str());
+    // Read in header infos
+    data_in >> fg_count_;
+    data_in >> bg_count_;
+    data_in >> num_bins_;
+    data_in >> theta_;
+    // TODO: Read out the histograms
+    for (int i = 0; i < num_bins_; ++i)
+    {
+      for (int j = 0; j < num_bins_; ++j)
+      {
+        for (int k = 0; k < num_bins_; ++k)
+        {
+          data_in >> fg_hist_.at<float>(i,j,k);
+        }
+      }
+    }
+    for (int i = 0; i < num_bins_; ++i)
+    {
+      for (int j = 0; j < num_bins_; ++j)
+      {
+        for (int k = 0; k < num_bins_; ++k)
+        {
+          data_in >> bg_hist_.at<float>(i,j,k);
+        }
+      }
+    }
+    data_in.close();
   }
 
  protected:
@@ -897,7 +962,6 @@ class PR2ArmDetector
   // std::vector<float> weights_;
   cv::Mat fg_hist_;
   cv::Mat bg_hist_;
-  cv::Vec3i bin_sizes_;
   float theta_;
   int fg_count_;
   int bg_count_;
