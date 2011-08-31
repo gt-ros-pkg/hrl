@@ -1,4 +1,5 @@
 #! /usr/bin/python
+print "Planning environment messages moved. Find it to fix this module"
 import roslib; roslib.load_manifest('hrl_pr2_lib')
 import rospy
 

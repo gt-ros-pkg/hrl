@@ -1,2 +1,2 @@
-planning_environment_msgs/ContactInformation[] contacts
+arm_navigation_msgs/ContactInformation[] contacts
 
