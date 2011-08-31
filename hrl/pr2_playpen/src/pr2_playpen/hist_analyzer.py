@@ -4,7 +4,7 @@ import roslib
 roslib.load_manifest('opencv2')
 import sys
 import cv
-
+import numpy as np
 
 cv.NamedWindow("avg_noise", cv.CV_WINDOW_AUTOSIZE)
 cv.NamedWindow("back_modified", cv.CV_WINDOW_AUTOSIZE)
@@ -108,27 +108,45 @@ if __name__ == '__main__':
     ha.calc_hist()
     ha.calc_noise()
 
+    back_sum_ls = []
+
+    for i in xrange(130):
+        img = cv.LoadImage(folder+'file'+str(i).zfill(3)+'.png')
+        result = ha.compare_imgs(img, ha.background_noise[0])
+        back_sum_ls.append(float(cv.Sum(result)[0]))
+
+    avg = np.mean(back_sum_ls)
+    std = np.std(back_sum_ls)
+
+    print "avg and std are :", avg, std
+
     n = 0
     sum_val = 0
-    
+    #test_sum_ls = []
+
     for i in xrange(9):
         for j in xrange(100):
             #print sys.argv[1]+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)
             try:
                 img = cv.LoadImageM(sys.argv[1]+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png')
                 #img = cv.LoadImageM(sys.argv[1]+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_before_pr2.png')
-                cv.ShowImage("Source", img)
-
                 result = ha.compare_imgs(img, ha.background_noise[0])
+                n = n+1
+                sum_val = sum_val + float(cv.Sum(result)[0])
+
+                #print "here's the sum :", cv.Sum(result)[0]
+                cv.ShowImage("Source", img)
                 cv.ShowImage("final", result)
 
-                #cv.ShowImage("back_projection", back_proj_img2)
                 cv.WaitKey(-1)
-                n = n+1
-                print "here's the sum :", cv.Sum(scratch)[0]
-                sum_val = sum_val + float(cv.Sum(scratch)[0])
-                cv.Scale(back_proj_img, back_proj_img, 1/255.0)
 
+                loc_sum = float(cv.Sum(result)[0])
+                if loc_sum > avg-3*std and loc_sum < avg+3*std:
+                    print "success ! \t:", loc_sum, "\t compared to \t", avg, 3*std
+                    
+                else:
+                    print "epic fail ! \t:", loc_sum, "\t compared to \t", avg, 3*std
+                
             except:
                 print "no file like that, probably outside of index range"
 
