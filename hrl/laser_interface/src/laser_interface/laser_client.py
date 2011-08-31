@@ -6,6 +6,7 @@ import tf
 
 import subprocess as sb
 import numpy as np
+import geometry_msgs.msg as gms
 
 class LaserPointerClient:
 
@@ -22,7 +23,7 @@ class LaserPointerClient:
         else:
             self.tf_listener = tf_listener
 
-        rospy.Subscriber('cursor3d', PointStamped, self.laser_point_handler)
+        rospy.Subscriber('cursor3d', gms.PointStamped, self.laser_point_handler)
         self.double_click = rospy.Subscriber('mouse_left_double_click', String, self.double_click_cb)
         self.sound.waveSound(self.base_sound_path + '/sounds/beep.wav').play()
 
