@@ -102,11 +102,11 @@
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
-// #define DISPLAY_OPTICAL_FLOW 1
+#define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
 // #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
-#define DISPLAY_ARM_PROBS 1
+// #define DISPLAY_ARM_PROBS 1
 
 // Functional IFDEFS
 // #define MULTISCALE_OPTICAL_FLOW 1
@@ -349,7 +349,55 @@ class LKFlowReliable
   LKFlowReliable(int win_size = 5) :
       win_size_(win_size)
   {
+    // cv::Mat dx;
+    // cv::Mat dy;
+    // cv::getDerivKernels(dx, dy, 1, 0, CV_SCHARR, true, CV_64F);
+    // cv::Mat g = cv::getGaussianKernel(3, 1, CV_64F);
+    // // TODO: Combine dx and g
+    // cv::filter2D(dx, dx, CV_64F, g);
+    // cv::transpose(dy, dy);
+    // cv::filter2D(dy, dy, CV_64F, g);
+    // // TODO: Combine dy.T and g
+    // ROS_INFO_STREAM("dx");
+    // for (int r = 0; r < dx.rows; ++r)
+    // {
+    //   double* k_row = dx.ptr<double>(r);
+    //   std::stringstream row_out;
+    //   row_out << "[";
+    //   for (int c = 0; c < dx.cols; ++c)
+    //   {
+    //     row_out << k_row[c] << " ";
+    //   }
+    //   row_out << "]";
+    //   ROS_INFO_STREAM(row_out.str());
+    // }
+    // ROS_INFO_STREAM("dy");
+    // for (int r = 0; r < dy.rows; ++r)
+    // {
+    //   double* k_row = dy.ptr<double>(r);
+    //   std::stringstream row_out;
+    //   row_out << "[";
+    //   for (int c = 0; c < dy.cols; ++c)
+    //   {
+    //     row_out << k_row[c] << " ";
+    //   }
+    //   row_out << "]";
+    //   ROS_INFO_STREAM(row_out.str());
+    // }
 
+    // ROS_INFO_STREAM("g");
+    // for (int r = 0; r < g.rows; ++r)
+    // {
+    //   double* k_row = g.ptr<double>(r);
+    //   std::stringstream row_out;
+    //   row_out << "[";
+    //   for (int c = 0; c < g.cols; ++c)
+    //   {
+    //     row_out << k_row[c] << " ";
+    //   }
+    //   row_out << "]";
+    //   ROS_INFO_STREAM(row_out.str());
+    // }
   }
 
   virtual ~LKFlowReliable()
@@ -493,15 +541,18 @@ class LKFlowReliable
   {
     cv::Mat cur_blur(cur_bw.size(), cur_bw.type());
     cv::Mat prev_blur(prev_bw.size(), prev_bw.type());
-    float sigma = 1.5;
-    int k_size = 3;
+    const float sigma = 1.5;
+    const int k_size = 3;
     // TODO: Smooth and get derivatives simultanously
+    // TODO: Create kernels at construction time
     cv::GaussianBlur(cur_bw, cur_blur, cv::Size(k_size, k_size), sigma, sigma);
     cv::GaussianBlur(prev_bw, prev_blur, cv::Size(k_size, k_size), sigma, sigma);
     cv::Mat Ix32(cur_bw.size(), CV_32FC1);
     cv::Mat Iy32(cur_bw.size(), CV_32FC1);
-    cv::Sobel(cur_blur, Ix32, Ix32.depth(), 1, 0, 3);
-    cv::Sobel(cur_blur, Iy32, Iy32.depth(), 0, 1, 3);
+    // cv::Sobel(cur_blur, Ix32, Ix32.depth(), 1, 0, 3);
+    // cv::Sobel(cur_blur, Iy32, Iy32.depth(), 0, 1, 3);
+    cv::Scharr(cur_blur, Ix32, Ix32.depth(), 1, 0, 3);
+    cv::Scharr(cur_blur, Iy32, Iy32.depth(), 0, 1, 3);
     cv::Mat Ix(cur_bw.size(), CV_64FC1);
     cv::Mat Iy(cur_bw.size(), CV_64FC1);
 
@@ -613,7 +664,8 @@ class MotionGraphcut
       for (int c = 0; c < C; ++c)
       {
         g->add_node();
-        float magnitude = u.at<float>(r,c) + v.at<float>(r,c) ;
+        float magnitude = std::sqrt(u.at<float>(r,c)*u.at<float>(r,c) +
+                                    v.at<float>(r,c)*v.at<float>(r,c));
 
         // Check if we are hardcoding this spot to background
         if (workspace_mask.at<uchar>(r,c) == 0)
@@ -1268,7 +1320,7 @@ class TabletopPushingPerceptionNode
     motion_img_pub_.publish(motion_img_msg.toImageMsg());
 
     // Figure out arm probabilites
-    cv::Mat arm_probs = arm_detect_.imageArmProbability(color_frame_hsv);
+    // cv::Mat arm_probs = arm_detect_.imageArmProbability(color_frame_hsv);
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
     cv::split(color_frame_hsv, hsv);
@@ -1296,7 +1348,7 @@ class TabletopPushingPerceptionNode
       for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
       {
         cv::Vec2f uv = flow_outs[0].at<cv::Vec2f>(r,c);
-        if (abs(uv[0])+abs(uv[1]) > mgc_.magnitude_thresh_ &&
+        if (std::sqrt(uv[0]*uv[0]+uv[1]*uv[1]) > mgc_.magnitude_thresh_ &&
             flow_outs[1].at<float>(r,c) < corner_thresh)
         {
           cv::line(flow_thresh_disp_img, cv::Point(c,r),
@@ -1482,16 +1534,6 @@ int main(int argc, char ** argv)
   TabletopPushingPerceptionNode perception_node(n);
   perception_node.spin();
 
-  // TODO: Set up some parameter server argument to perform the training
-  // before running if desired
-
-  // Compare pr2a and pr2b:
-  // std::string hist_data_path = "/home/thermans/sandbox/pr2_arm_test_data/";
-  // std::string hist_save_path = "/home/thermans/sandbox/test_color1.txt";
-  // int data_count =21;
-  // PR2ArmDetector pr2a;
-  // pr2a.learnColorModels(hist_data_path, data_count,
-  //                       hist_save_path);
   return 0;
 }
 
