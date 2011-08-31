@@ -21,8 +21,8 @@ class MoveBase:
         #rospy.Subscriber('simple_move_base', gm.Pose2D, self.pose2d_cb)
         self.tl = tf.TransformListener()
 
-        self.go_xy_server = actionlib.SimpleActionServer('go_xy', hm.GoXYAction, self._go_xy_cb)
-        self.go_ang_server = actionlib.SimpleActionServer('go_angle', hm.GoAngleAction, self._go_ang_cb)
+        self.go_xy_server = actionlib.SimpleActionServer('go_xy', hm.GoXYAction, self._go_xy_cb, auto_start=False)
+        self.go_ang_server = actionlib.SimpleActionServer('go_angle', hm.GoAngleAction, self._go_ang_cb, auto_start=False)
 
     def _go_xy_cb(self, goal):
         rospy.loginfo('received go_xy goal %f %f' % (goal.x, goal.y))
