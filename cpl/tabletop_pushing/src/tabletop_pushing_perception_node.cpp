@@ -36,6 +36,8 @@
 #include <ros/package.h>
 #include <actionlib/server/simple_action_server.h>
 
+#include <std_msgs/Header.h>
+#include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -95,16 +97,16 @@
 #include <math.h>
 
 // Debugging IFDEFS
-// #define DISPLAY_INPUT_COLOR 1
+#define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_MOTION_PROBS 1
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
-#define DISPLAY_OPTICAL_FLOW 1
+// #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
-#define DISPLAY_GRAPHCUT 1
+// #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define DISPLAY_ARM_PROBS 1
 
@@ -114,6 +116,7 @@
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
 using geometry_msgs::PoseStamped;
+using geometry_msgs::PointStamped;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image,
@@ -779,8 +782,6 @@ class PR2ArmDetector
     bg_hist_.create(3, sizes, CV_32FC1);
   }
 
-  // void projectEEPoseIntoImage();
-
   void setHISTColorModel(cv::Mat fg_hist, cv::Mat bg_hist, double theta)
   {
     have_hist_model_ = true;
@@ -1124,6 +1125,7 @@ class TabletopPushingPerceptionNode
     prev_color_frame_ = cur_color_frame_.clone();
     prev_depth_frame_ = cur_depth_frame_.clone();
     prev_workspace_mask_ = cur_workspace_mask_.clone();
+    prev_camera_header_ = cur_camera_header_;
 
     // Update the current versions
     cur_color_frame_ = color_frame_down.clone();
@@ -1131,6 +1133,7 @@ class TabletopPushingPerceptionNode
     cur_workspace_mask_ = workspace_mask_down.clone();
     cur_point_cloud_ = cloud;
     have_depth_data_ = true;
+    cur_camera_header_ = img_msg->header;
 
     // Started via actionlib call
     if (tracking_)
@@ -1267,12 +1270,12 @@ class TabletopPushingPerceptionNode
     cv::dilate(cut, dialated_cut, element);
     cv::erode(dialated_cut, eroded_cut, element);
 
+    // Publish the moving region stuff
     cv_bridge::CvImage motion_mask_msg;
     cv::Mat motion_mask_send(cut.size(), CV_8UC1);
     eroded_cut.convertTo(motion_mask_send, CV_8UC1, 255, 0);
     motion_mask_msg.image = motion_mask_send;
-    motion_mask_msg.header.frame_id = "/openni_rgb_optical_frame";
-    motion_mask_msg.header.stamp = ros::Time::now();
+    motion_mask_msg.header = cur_camera_header_;
     motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
 
@@ -1283,21 +1286,28 @@ class TabletopPushingPerceptionNode
     cv::Mat motion_img_send(eroded_cut.size(), CV_8UC3);
     moving_regions_img.convertTo(motion_img_send, CV_8UC3, 1.0, 0);
     motion_img_msg.image = motion_img_send;
-    motion_img_msg.header.frame_id = "/openni_rgb_optical_frame";
-    motion_img_msg.header.stamp = motion_mask_msg.header.stamp;
+    motion_img_msg.header = cur_camera_header_;
     motion_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     motion_img_pub_.publish(motion_img_msg.toImageMsg());
 
-    // Figure out arm probabilites
+    // Figure out arm locations
+    // std::vector<cv::Point> hands = projectEEPoseIntoImage(cur_camera_header_);
     // cv::Mat arm_probs = arm_detect_.imageArmProbability(color_frame_hsv);
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
     cv::split(color_frame_hsv, hsv);
-    cv::imshow("hue", hsv[0]);
-    cv::imshow("saturation", hsv[1]);
-    cv::imshow("intensity", hsv[2]);
+    // cv::imshow("hue", hsv[0]);
+    // cv::imshow("saturation", hsv[1]);
+    // cv::imshow("intensity", hsv[2]);
     cv::imshow("input_color", color_frame);
 #endif // DISPLAY_INPUT_COLOR
+#ifdef DISPLAY_HAND_CIRCLES
+    cv::Mat hands_img(color_frame.size(), CV_8UC3);
+    hands_img = color_frame.clone();
+    cv::circle(hands_img, hands[0], 5, cv::Scalar(0,255,0));
+    cv::circle(hands_img, hands[1], 5, cv::Scalar(0,0,255));
+    cv::imshow("hands", hands_img);
+#endif
 #ifdef DISPLAY_INPUT_DEPTH
     cv::imshow("input_depth", depth_frame);
 #endif // DISPLAY_INPUT_DEPTH
@@ -1369,6 +1379,53 @@ class TabletopPushingPerceptionNode
     }
     return down;
   }
+
+  std::vector<cv::Point> projectEEPoseIntoImage(std_msgs::Header image_header)
+  {
+
+    PointStamped l_ee;
+    l_ee.header.frame_id = "l_gripper_palm_link";
+    l_ee.header.stamp = image_header.stamp;
+    l_ee.point.x = 0.0;
+    l_ee.point.y = 0.0;
+    l_ee.point.z = 0.0;
+    PointStamped r_ee;
+    r_ee.header.frame_id = "r_gripper_palm_link";
+    r_ee.header.stamp = image_header.stamp;
+    r_ee.point.x = 0.0;
+    r_ee.point.y = 0.0;
+    r_ee.point.z = 0.0;
+
+    PointStamped l_image_loc;
+    PointStamped r_image_loc;
+
+    try
+    {
+      tf_.transformPoint(image_header.frame_id, l_ee, l_image_loc);
+      tf_.transformPoint(image_header.frame_id, r_ee, r_image_loc);
+    }
+    catch (tf::TransformException e)
+    {
+      ROS_INFO_STREAM(e.what());
+    }
+    // TODO: Need to project these points into the image
+    cv::Point l_loc(l_image_loc.point.x / l_image_loc.point.z,
+                    l_image_loc.point.y / l_image_loc.point.z);
+    cv::Point r_loc(r_image_loc.point.x / r_image_loc.point.z,
+                    r_image_loc.point.y / r_image_loc.point.z);
+    // ROS_INFO_STREAM("l_image loc is: (" << l_image_loc.point.x << ", "
+    //                 << l_image_loc.point.y << ", "
+    //                 << l_image_loc.point.z << ")");
+    // ROS_INFO_STREAM("r_image loc is: (" << r_image_loc.point.x << ", "
+    //                 << r_image_loc.point.y << ", "
+    //                 << r_image_loc.point.z << ")");
+    std::vector<cv::Point> hand_locs;
+    hand_locs.push_back(l_loc);
+    hand_locs.push_back(r_loc);
+    return hand_locs;
+  }
+
+
   PoseStamped getTablePlane(XYZPointCloud& cloud)
   {
     // Filter Cloud to not look for table planes on the ground
@@ -1464,6 +1521,8 @@ class TabletopPushingPerceptionNode
   cv::Mat prev_color_frame_;
   cv::Mat prev_depth_frame_;
   cv::Mat prev_workspace_mask_;
+  std_msgs::Header cur_camera_header_;
+  std_msgs::Header prev_camera_header_;
   XYZPointCloud cur_point_cloud_;
   // ProbImageDifferencing motion_probs_;
   LKFlowReliable lkflow_;
