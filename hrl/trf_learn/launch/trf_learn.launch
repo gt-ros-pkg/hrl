@@ -1,30 +1,35 @@
 <launch>
     <arg name="aware_home" default="false"/>
-    <arg name="wg" default="true"/>
+    <arg name="wg" default="false"/>
+    <arg name="hrl" default="true"/>
 
     <include file="$(find pr2_machine)/$(env ROBOT).machine" />
-    <include file="$(find gt_pr2)/navigation/pr2_2dnav.launch"/>
+    <include file="$(find pr2_2dnav)/pr2_2dnav.launch"/>
+
+    <!-- MAPS -->
     <group if="$(arg aware_home)">
     	<include file="$(find gt_pr2)/aware_map.launch"/>
     </group>
+
     <group if="$(arg wg)">
       <node name="map_server" pkg="map_server" type="map_server"
             args="$(find willow_maps)/willow-sans-whitelab-2010-02-18-0.025.pgm 0.025" machine="c2" />
     </group>
 
-    <!-- IK and FK -->
+    <group if="$(arg hrl)">
+        <node name="map_server" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/hsi_full_4_24.yaml" machine="c2"/>
+    </group>
+
     <include file="$(find hai_sandbox)/launch/right_arm_collision_free_ik.launch"/>
     <include file="$(find hai_sandbox)/launch/left_arm_collision_free_ik.launch"/>
 
-    <!-- Reactive Grasping Controllers -->
     <include file="$(find pr2_gripper_sensor_action)/launch/pr2_gripper_sensor_actions.launch"/>
 
-    <!-- Sensor Nodes -->
     <node ns="prosilica" pkg="image_proc" type="image_proc" respawn="true" name="prosilica_image_proc"/>
     <node name="fpfh_fx" pkg="feature_extractor_fpfh" type="fpfh_node" machine="c2"/>
     <node name="$(anon dynam_load)" pkg="hrl_lib" type="load_dynamic_config" 
           args="/narrow_stereo_textured/narrow_stereo_textured_proc $(find trf_learn)/launch/narrow_stereo_manip.yaml"/>
 
     <!-- Move Base -->
-    <node pkg="hrl_pr2_lib" type="move_base_server.py" name="move_base_server"/>
+    <!-- <node pkg="hrl_pr2_lib" type="move_base_server.py" name="move_base_server"/> -->
 </launch>
