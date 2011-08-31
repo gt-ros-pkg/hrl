@@ -9,7 +9,7 @@ from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from pr2_gripper_sensor_msgs.msg import PR2GripperEventDetectorGoal
 
-import collision_monitor as cmon
+#import collision_monitor as cmon
 #import hrl_pr2_lib.devices as de
 import hrl_lib.tf_utils as tfu
 import hrl_pr2_lib.pressure_listener as pm
@@ -123,7 +123,7 @@ class LinearReactiveMovement:
         self.cman = con.ControllerManager(arm, self.tf_listener, using_slip_controller,
                                           using_slip_detection)
         self.reactive_gr = rgr.ReactiveGrasper(self.cman)
-        self.collision_monitor = cmon.CollisionClient(arm)
+        #self.collision_monitor = cmon.CollisionClient(arm)
 
         #cpy from kaijen code
         #gripper_event_detector_action_name = arm+'_gripper_sensor_controller/event_detector'
@@ -455,7 +455,7 @@ class LinearReactiveMovement:
     def _process_stop_option(self, stop):
         stop_funcs = []
         self.pressure_listener.check_safety_threshold()
-        self.collision_monitor.check_self_contacts()
+        #self.collision_monitor.check_self_contacts()
 
         #stop_funcs.append([self.pressure_listener.check_safety_threshold, 'pressure_safety'])
         #stop_funcs.append([self.collision_monitor.check_self_contacts, 'self_collision'])
