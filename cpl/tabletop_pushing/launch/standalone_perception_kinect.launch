@@ -1,4 +1,5 @@
 <launch>
+  <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch"/>
   <node name="tabletop_pushing_perception" pkg="tabletop_pushing" type="tabletop_pushing_perception_node" respawn="false" output="screen">
     <remap from="color_image_topic" to="/kinect_head/rgb/image_color"/>
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
@@ -35,7 +36,7 @@
     <param name="mgc_w_w_b" value="1.0" type="double"/>
     <param name="mgc_u_b" value="0.5" type="double"/>
     <param name="mgc_u_f" value="0.5" type="double"/>
-    <param name="mgc_eigen_ratio" value="6.0" type="double"/>
+    <param name="mgc_eigen_ratio" value="5.0" type="double"/>
     <param name="mgc_magnitude_thresh" value="1.0" type="double"/>
 
     <param name="lk_win_size" value="5" type="int"/>

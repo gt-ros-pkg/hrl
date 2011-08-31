@@ -95,7 +95,7 @@
 #include <math.h>
 
 // Debugging IFDEFS
-#define DISPLAY_INPUT_COLOR 1
+// #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_MOTION_PROBS 1
@@ -104,7 +104,7 @@
 // #define DISPLAY_INTERMEDIATE_PROBS 1
 #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
-// #define DISPLAY_GRAPHCUT 1
+#define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define DISPLAY_ARM_PROBS 1
 
@@ -349,55 +349,16 @@ class LKFlowReliable
   LKFlowReliable(int win_size = 5) :
       win_size_(win_size)
   {
-    // cv::Mat dx;
-    // cv::Mat dy;
-    // cv::getDerivKernels(dx, dy, 1, 0, CV_SCHARR, true, CV_64F);
-    // cv::Mat g = cv::getGaussianKernel(3, 1, CV_64F);
-    // // TODO: Combine dx and g
-    // cv::filter2D(dx, dx, CV_64F, g);
-    // cv::transpose(dy, dy);
-    // cv::filter2D(dy, dy, CV_64F, g);
-    // // TODO: Combine dy.T and g
-    // ROS_INFO_STREAM("dx");
-    // for (int r = 0; r < dx.rows; ++r)
-    // {
-    //   double* k_row = dx.ptr<double>(r);
-    //   std::stringstream row_out;
-    //   row_out << "[";
-    //   for (int c = 0; c < dx.cols; ++c)
-    //   {
-    //     row_out << k_row[c] << " ";
-    //   }
-    //   row_out << "]";
-    //   ROS_INFO_STREAM(row_out.str());
-    // }
-    // ROS_INFO_STREAM("dy");
-    // for (int r = 0; r < dy.rows; ++r)
-    // {
-    //   double* k_row = dy.ptr<double>(r);
-    //   std::stringstream row_out;
-    //   row_out << "[";
-    //   for (int c = 0; c < dy.cols; ++c)
-    //   {
-    //     row_out << k_row[c] << " ";
-    //   }
-    //   row_out << "]";
-    //   ROS_INFO_STREAM(row_out.str());
-    // }
-
-    // ROS_INFO_STREAM("g");
-    // for (int r = 0; r < g.rows; ++r)
-    // {
-    //   double* k_row = g.ptr<double>(r);
-    //   std::stringstream row_out;
-    //   row_out << "[";
-    //   for (int c = 0; c < g.cols; ++c)
-    //   {
-    //     row_out << k_row[c] << " ";
-    //   }
-    //   row_out << "]";
-    //   ROS_INFO_STREAM(row_out.str());
-    // }
+    // Create derivative kernels for flow calculation
+    cv::getDerivKernels(dy_kernel_, dx_kernel_, 1, 0, CV_SCHARR, true, CV_32F);
+    // TODO: Make directly
+    // [+3 +10 +3
+    //   0   0  0
+    //  -3 -10 -3]
+    cv::flip(dy_kernel_, dy_kernel_, -1);
+    g_kernel_ = cv::getGaussianKernel(3, 2.0, CV_32F);
+    // cv::filter2D(dy_kernel_, dy_kernel_, CV_32F, g_kernel_);
+    cv::transpose(dy_kernel_, dx_kernel_);
   }
 
   virtual ~LKFlowReliable()
@@ -539,28 +500,29 @@ class LKFlowReliable
 
   std::vector<cv::Mat> baseLKII(cv::Mat& cur_bw, cv::Mat& prev_bw)
   {
+
+    // Blur the input images and get the difference
     cv::Mat cur_blur(cur_bw.size(), cur_bw.type());
     cv::Mat prev_blur(prev_bw.size(), prev_bw.type());
-    const float sigma = 1.5;
-    const int k_size = 3;
-    // TODO: Smooth and get derivatives simultanously
-    // TODO: Create kernels at construction time
-    cv::GaussianBlur(cur_bw, cur_blur, cv::Size(k_size, k_size), sigma, sigma);
-    cv::GaussianBlur(prev_bw, prev_blur, cv::Size(k_size, k_size), sigma, sigma);
+    cv::filter2D(cur_bw, cur_blur, CV_32F, g_kernel_);
+    cv::filter2D(prev_bw, prev_blur, CV_32F, g_kernel_);
+    cv::Mat It32 = cur_blur - prev_blur;
+
+    // Get image derivatives
     cv::Mat Ix32(cur_bw.size(), CV_32FC1);
     cv::Mat Iy32(cur_bw.size(), CV_32FC1);
-    // cv::Sobel(cur_blur, Ix32, Ix32.depth(), 1, 0, 3);
-    // cv::Sobel(cur_blur, Iy32, Iy32.depth(), 0, 1, 3);
-    cv::Scharr(cur_blur, Ix32, Ix32.depth(), 1, 0, 3);
-    cv::Scharr(cur_blur, Iy32, Iy32.depth(), 0, 1, 3);
+    cv::filter2D(cur_bw, Ix32, CV_32F, dx_kernel_);
+    cv::filter2D(cur_bw, Iy32, CV_32F, dy_kernel_);
+
+    // Convert images to 64 bit to preserve precision in integration
     cv::Mat Ix(cur_bw.size(), CV_64FC1);
     cv::Mat Iy(cur_bw.size(), CV_64FC1);
-
-    cv::Mat It32 = cur_blur - prev_blur;
     cv::Mat It(It32.size(), CV_64FC1);
     Ix32.convertTo(Ix, CV_64FC1);
     Iy32.convertTo(Iy, CV_64FC1);
     It32.convertTo(It, CV_64FC1);
+
+    // Create the integral images
     cv::Mat IIxx(cur_bw.size(), CV_64FC1);
     cv::Mat IIyy(cur_bw.size(), CV_64FC1);
     cv::Mat IIxy(cur_bw.size(), CV_64FC1);
@@ -583,13 +545,14 @@ class LKFlowReliable
     cv::imshow("IIyy", IIyy);
     cv::imshow("IIxt", IIxt);
     cv::imshow("IIyt", IIyt);
-    cv::imshow("cur_bw", cur_bw);
-    cv::imshow("prev_bw", prev_bw);
+    cv::imshow("cur_bw", cur_blur);
+    cv::imshow("prev_bw", prev_blur);
     cv::imshow("It", It);
     cv::imshow("Ix", Ix);
     cv::imshow("Iy", Iy);
 #endif // DISPLAY_OPT_FLOW_INTERNALS
 
+    // Compute the LK flow densely using the integral images
     int win_radius = win_size_/2;
     cv::Mat flow(cur_bw.size(), CV_64FC2, cv::Scalar(0.0,0.0));
     cv::Mat t_scores(cur_bw.size(), CV_32FC1, cv::Scalar(0.0,0.0));
@@ -625,6 +588,10 @@ class LKFlowReliable
   }
 
   int win_size_;
+ protected:
+  cv::Mat dx_kernel_;
+  cv::Mat dy_kernel_;
+  cv::Mat g_kernel_;
 };
 
 class MotionGraphcut
@@ -805,12 +772,14 @@ class PR2ArmDetector
  public:
   PR2ArmDetector(int num_bins = 32) :
       have_hist_model_(false), theta_(0.5), num_bins_(num_bins),
-      laplace_denom_(num_bins_*num_bins_*num_bins_), bin_size_(256/num_bins)
+      bin_size_(256/num_bins), laplace_denom_(num_bins_*num_bins_*num_bins_)
   {
     int sizes[] = {num_bins, num_bins, num_bins};
     fg_hist_.create(3, sizes, CV_32FC1);
     bg_hist_.create(3, sizes, CV_32FC1);
   }
+
+  // void projectEEPoseIntoImage();
 
   void setHISTColorModel(cv::Mat fg_hist, cv::Mat bg_hist, double theta)
   {
@@ -1357,8 +1326,9 @@ class TabletopPushingPerceptionNode
       }
     }
     cv::imshow("flow_disp", flow_thresh_disp_img);
-    // cv::imshow("u", flows[0]);
-    // cv::imshow("v", flows[1]);
+    cv::imshow("u", flows[0]);
+    cv::imshow("v", flows[1]);
+
 #endif // DISPLAY_OPTICAL_FLOW
 
 #ifdef DISPLAY_GRAPHCUT

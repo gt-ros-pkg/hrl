@@ -35,8 +35,8 @@
     <param name="mgc_w_w_b" value="1.0" type="double"/>
     <param name="mgc_u_b" value="0.5" type="double"/>
     <param name="mgc_u_f" value="0.5" type="double"/>
-    <param name="mgc_eigen_ratio" value="12.0" type="double"/>
-    <param name="mgc_magnitude_thresh" value="0.5" type="double"/>
+    <param name="mgc_eigen_ratio" value="3.0" type="double"/>
+    <param name="mgc_magnitude_thresh" value="1.0" type="double"/>
 
     <param name="lk_win_size" value="5" type="int"/>
     <param name="lk_num_levels" value="1" type="int"/>
