@@ -5,6 +5,7 @@ roslib.load_manifest('opencv2')
 import sys
 import cv
 import numpy as np
+from collections import deque
 
 cv.NamedWindow("avg_noise", cv.CV_WINDOW_AUTOSIZE)
 cv.NamedWindow("back_modified", cv.CV_WINDOW_AUTOSIZE)
@@ -95,7 +96,7 @@ class HistAnalyzer:
 
 if __name__ == '__main__':
     folder = sys.argv[1]+'/background_noise/'
-    background_noise = []
+    background_noise = deque() #[]
 
     cv.NamedWindow("Source", cv.CV_WINDOW_AUTOSIZE)
     cv.NamedWindow("final", cv.CV_WINDOW_AUTOSIZE)
@@ -108,7 +109,7 @@ if __name__ == '__main__':
     ha.calc_hist()
     ha.calc_noise()
 
-    back_sum_ls = []
+    back_sum_ls = deque() #[]
 
     for i in xrange(130):
         img = cv.LoadImage(folder+'file'+str(i).zfill(3)+'.png')
@@ -130,7 +131,7 @@ if __name__ == '__main__':
             try:
                 img = cv.LoadImageM(sys.argv[1]+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png')
                 #img = cv.LoadImageM(sys.argv[1]+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_before_pr2.png')
-                result = ha.compare_imgs(img, ha.background_noise[0])
+                result = ha.compare_imgs(img, ha.background_noise[-1])
                 n = n+1
                 sum_val = sum_val + float(cv.Sum(result)[0])
 
@@ -141,13 +142,20 @@ if __name__ == '__main__':
                 cv.WaitKey(-1)
 
                 loc_sum = float(cv.Sum(result)[0])
-                if loc_sum > avg-3*std and loc_sum < avg+3*std:
-                    print "success ! \t:", loc_sum, "\t compared to \t", avg, 3*std
-                    
+                #if loc_sum > avg-5*std and loc_sum < avg+5*std:
+                if loc_sum < avg+5*std:
+                    print "success ! \t:", loc_sum, "\t compared to \t", avg, 5*std
+                    #ha.background_noise.popleft()
+                    #ha.background_noise.append(img)
                 else:
-                    print "epic fail ! \t:", loc_sum, "\t compared to \t", avg, 3*std
+                    print "epic fail ! \t:", loc_sum, "\t compared to \t", avg, 5*std
                 
             except:
                 print "no file like that, probably outside of index range"
+        print "recalculating hist and noise..."
+        #ha.calc_hist()
+        #ha.calc_noise()
+        print "done!"
+
 
     print "average error for objects present :", sum_val/n
