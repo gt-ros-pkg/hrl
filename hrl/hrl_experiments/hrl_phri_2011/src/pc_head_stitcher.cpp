@@ -73,6 +73,7 @@ void stitchPCs(std::vector<PCC::Ptr> &captures) {
         pc_combo += *source_tf_pc;
         ROS_INFO("Stitched cloud %d", i);
     }
+    pc_combo.header.frame_id = "/head_center";
     pubLoop(pc_combo, "/stitched_head");
     /*
     PCRGB pc_downsampled;

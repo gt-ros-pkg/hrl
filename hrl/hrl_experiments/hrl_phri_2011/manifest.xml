@@ -14,6 +14,7 @@
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
   <depend package="eigen_conversions"/>
+  <depend package="pixel_2_3d"/>
 
 </package>
 

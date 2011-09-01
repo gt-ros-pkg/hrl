@@ -99,8 +99,7 @@
    <node name="kinect_calib"
 		pkg="tf" 
 		type="static_transform_publisher" 
-		args="0.06718349 -0.04715135 -0.03754586 0.35913234 -0.60252837  0.60347844 -0.37920615 /kinect /openni_rgb_optical_frame 10" />
-		<!-- 8/24 args="0.060630 -0.014821 -0.032091 0.364927 -0.595023 0.610907 -0.373588 /kinect /openni_rgb_optical_frame 10" /> -->
-		<!-- 8/23 args="0.041244 -0.041612 -0.050649 0.359926 -0.593559 0.608560 -0.384442 /kinect /openni_rgb_optical_frame 10" /> -->
+		args="0.088009 0.007286 -0.047603 -0.494364 0.507961 -0.490571 0.506872 /kinect /openni_rgb_optical_frame 10" />
+    <!-- 8/31 kinect calibration error 0.00853 mean error out of N=34 samples -->
 
 </launch>
