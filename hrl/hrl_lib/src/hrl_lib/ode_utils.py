@@ -38,7 +38,7 @@ roslib.load_manifest('hrl_lib')
 
 # take ODE's rotation (as returned by getRotation) and convert to a
 # rotation matrix.
-def ode_roation_to_matrix(self, rot):
+def ode_rotation_to_matrix(rot):
     rot_mat = np.matrix([[rot[0], rot[4], rot[8]],
                          [rot[1], rot[5], rot[9]],
                          [rot[2], rot[6], rot[10]]])
