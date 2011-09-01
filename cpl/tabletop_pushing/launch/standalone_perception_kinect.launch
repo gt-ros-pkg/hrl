@@ -4,6 +4,7 @@
     <remap from="color_image_topic" to="/kinect_head/rgb/image_color"/>
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
     <remap from="point_cloud_topic" to="/kinect_head/depth/points"/>
+    <remap from="camera_info_topic" to="/kinect_head/rgb/camera_info"/>
 
     <param name="crop_min_x" value="15" type="int"/>
     <param name="crop_max_x" value="600" type="int"/>
@@ -27,7 +28,8 @@
     <param name="num_hist_frames" value="5" type="int"/>
     <param name="T_in" value="1.5" type="double"/>
     <param name="T_out" value="8" type="double"/>
-     <param name="erosion_size" value="3" type="int"/>
+    <param name="erosion_size" value="3" type="int"/>
+    <param name="min_contour_size" value="30" type="int"/>
 
     <param name="mgc_w_f" value="1.0" type="double"/>
     <param name="mgc_w_b" value="0.505" type="double"/>

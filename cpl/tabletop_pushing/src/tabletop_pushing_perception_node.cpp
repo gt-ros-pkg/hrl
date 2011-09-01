@@ -41,6 +41,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/CameraInfo.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
@@ -97,7 +98,7 @@
 #include <math.h>
 
 // Debugging IFDEFS
-#define DISPLAY_INPUT_COLOR 1
+// #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_MOTION_PROBS 1
@@ -109,6 +110,7 @@
 // #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define DISPLAY_ARM_PROBS 1
+// #define DISPLAY_HAND_CIRCLES 1
 
 // Functional IFDEFS
 // #define MULTISCALE_OPTICAL_FLOW 1
@@ -616,7 +618,7 @@ class MotionGraphcut
 
   cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
                      cv::Mat& u, cv::Mat& v, cv::Mat flow_scores,
-                     cv::Mat& workspace_mask)
+                     cv::Mat& workspace_mask, std::vector<cv::Point> ee_locs)
   {
     const int R = color_frame.rows;
     const int C = color_frame.cols;
@@ -713,6 +715,27 @@ class MotionGraphcut
                                        color_frame.at<cv::Vec3f>(r-1,c-1),
                                        depth_frame.at<float>(r-1,c-1));
             g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
+          }
+        }
+      }
+    }
+
+    // Add foreground weights to the locations of the hands?
+    for (unsigned int i = 0; i < ee_locs.size(); ++i)
+    {
+      if (ee_locs[i].x >= 0 && ee_locs[i].x < C &&
+          ee_locs[i].y >= 0 && ee_locs[i].y < R)
+      {
+        // Add weights to the neighborhood around this point
+        for (int r = max(0, ee_locs[i].y-2); r < min(ee_locs[i].y+2, R); ++r)
+        {
+          for (int c = max(0, ee_locs[i].x-2); c < min(ee_locs[i].x+2, C); ++c)
+          {
+            g->add_tweights(r*C+c, /*capacities*/ w_f_, w_n_f_);
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+            fg_weights.at<float>(r,c) = w_f_;
+            bg_weights.at<float>(r,c) = w_n_f_;
+#endif // VISUALIZE_GRAPH_WEIGHTS
           }
         }
       }
@@ -856,7 +879,6 @@ class PR2ArmDetector
     }
     fg_count_ = 0;
     bg_count_ = 0;
-    int total_count = 0;
 
     // Add pixels form each of the things
     for (int i = 0; i < count; ++i)
@@ -961,7 +983,7 @@ class PR2ArmDetector
     }
     data_in.close();
     have_hist_model_ = true;
-    float prior = static_cast<float>(fg_count_) / static_cast<float>(bg_count_);
+    // float prior = static_cast<float>(fg_count_) / static_cast<float>(bg_count_);
   }
 
   bool have_hist_model_;
@@ -970,8 +992,8 @@ class PR2ArmDetector
   double theta_;
   int fg_count_;
   int bg_count_;
-  int bin_size_;
   int num_bins_;
+  int bin_size_;
   int laplace_denom_;
 };
 
@@ -983,14 +1005,14 @@ class TabletopPushingPerceptionNode
       image_sub_(n, "color_image_topic", 1),
       depth_sub_(n, "depth_image_topic", 1),
       cloud_sub_(n, "point_cloud_topic", 1),
-      sync_(MySyncPolicy(1), image_sub_, depth_sub_, cloud_sub_),
+      sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
       it_(n),
       track_server_(n, "seg_track_action",
                     boost::bind(&TabletopPushingPerceptionNode::trackerGoalCallback,
                                 this, _1),
                     false),
       tf_(), /*motion_probs_(5),*/ have_depth_data_(false), tracking_(false),
-      tracker_initialized_(false), roi_(0,0,640,480)
+      tracker_initialized_(false), roi_(0,0,640,480), min_contour_size_(30)
   {
     // Get parameters from the server
     ros::NodeHandle n_private("~");
@@ -1012,7 +1034,11 @@ class TabletopPushingPerceptionNode
     n_private.param("max_table_z", max_table_z_, 1.5);
     n_private.param("autostart_tracking", tracking_, false);
     n_private.param("erosion_size", erosion_size_, 3);
+    n_private.param("min_contour_size", min_contour_size_, 30);
     n_private.param("num_downsamples", num_downsamples_, 2);
+    std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
+    n_private.param("cam_info_topic", cam_info_topic_,
+                    cam_info_topic_def);
 
     // Graphcut weights
     n_private.param("mgc_w_f", mgc_.w_f_, 3.0);
@@ -1047,6 +1073,7 @@ class TabletopPushingPerceptionNode
                     arm_data_default_path.str());
     arm_detect_.loadColorModels(arm_data_path_);
     n_private.param("arm_detection_theta", arm_detect_.theta_, 0.5);
+
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
                            this);
@@ -1246,6 +1273,8 @@ class TabletopPushingPerceptionNode
       {
         ROS_ERROR_STREAM("No plane found!");
       }
+      cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(
+          cam_info_topic_, n_, ros::Duration(5.0));
 
       tracker_initialized_ = true;
       return;
@@ -1258,30 +1287,43 @@ class TabletopPushingPerceptionNode
     std::vector<cv::Mat> flows;
     cv::split(flow_outs[0], flows);
 
+    std::vector<cv::Point> hands = projectEEPoseIntoImage(cur_camera_header_);
+
     cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
     color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flows[0], flows[1],
-                       flow_outs[1], cur_workspace_mask_);
+                       flow_outs[1], cur_workspace_mask_, hands);
 
-    // Perform close morphology
-    cv::Mat element(erosion_size_, erosion_size_, CV_32FC1, cv::Scalar(1.0));
-    cv::Mat eroded_cut(cut.size(), cut.type());
-    cv::Mat dialated_cut(cut.size(), cut.type());
-    cv::dilate(cut, dialated_cut, element);
-    cv::erode(dialated_cut, eroded_cut, element);
+    // Remove blobs smaller than min_contour_size_
+    cv::Mat eroded_cut(cut.size(), CV_8UC1);
+    cut.convertTo(eroded_cut, CV_8UC1, 255, 0);
+    std::vector<std::vector<cv::Point> > contours;
+    cv::findContours(eroded_cut, contours, CV_RETR_EXTERNAL,
+                     CV_CHAIN_APPROX_NONE);
+    for (unsigned int i = 0; i < contours.size(); ++i)
+    {
+      cv::Moments m;
+      cv::Mat pt_mat = cv::Mat(contours[i]);
+      m = cv::moments(pt_mat);
+      if (m.m00 < min_contour_size_)
+      {
+        for (unsigned int j = 0; j < contours[i].size(); ++j)
+        {
+          eroded_cut.at<uchar>(contours[i][j].y, contours[i][j].x) = 0;
+        }
+      }
+    }
 
     // Publish the moving region stuff
     cv_bridge::CvImage motion_mask_msg;
-    cv::Mat motion_mask_send(cut.size(), CV_8UC1);
-    eroded_cut.convertTo(motion_mask_send, CV_8UC1, 255, 0);
-    motion_mask_msg.image = motion_mask_send;
+    motion_mask_msg.image = eroded_cut;
     motion_mask_msg.header = cur_camera_header_;
     motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
 
     // Also publish color version
     cv::Mat moving_regions_img;
-    color_frame.copyTo(moving_regions_img, motion_mask_send);
+    color_frame.copyTo(moving_regions_img, eroded_cut);//motion_mask_send);
     cv_bridge::CvImage motion_img_msg;
     cv::Mat motion_img_send(eroded_cut.size(), CV_8UC3);
     moving_regions_img.convertTo(motion_img_send, CV_8UC3, 1.0, 0);
@@ -1291,7 +1333,6 @@ class TabletopPushingPerceptionNode
     motion_img_pub_.publish(motion_img_msg.toImageMsg());
 
     // Figure out arm locations
-    // std::vector<cv::Point> hands = projectEEPoseIntoImage(cur_camera_header_);
     // cv::Mat arm_probs = arm_detect_.imageArmProbability(color_frame_hsv);
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
@@ -1344,7 +1385,6 @@ class TabletopPushingPerceptionNode
 #ifdef DISPLAY_GRAPHCUT
     cv::imshow("Cut", cut);
     cv::imshow("Eroded Cut", eroded_cut);
-    // cv::imshow("Upper Cut", upper_cut);
     cv::imshow("moving_regions", moving_regions_img);
 #endif // DISPLAY_GRAPHCUT
 
@@ -1380,45 +1420,57 @@ class TabletopPushingPerceptionNode
     return down;
   }
 
+  cv::Point projectPointIntoImage(PointStamped cur_point,
+                                  std::string target_frame)
+  {
+    cv::Point img_loc;
+    try
+    {
+      // Transform point into the camera frame
+      PointStamped image_frame_loc_m;
+      tf_.transformPoint(target_frame, cur_point, image_frame_loc_m);
+
+      // Project point onto the image
+      img_loc.x = static_cast<int>((cam_info_.K[0]*image_frame_loc_m.point.x +
+                                    cam_info_.K[2]*image_frame_loc_m.point.z) /
+                                   image_frame_loc_m.point.z);
+      img_loc.y = static_cast<int>((cam_info_.K[4]*image_frame_loc_m.point.y +
+                                    cam_info_.K[5]*image_frame_loc_m.point.z) /
+                                   image_frame_loc_m.point.z);
+
+      // Downsample poses if the image is downsampled
+      for (int i = 0; i < num_downsamples_; ++i)
+      {
+        img_loc.x /= 2;
+        img_loc.y /= 2;
+      }
+    }
+    catch (tf::TransformException e)
+    {
+      ROS_ERROR_STREAM(e.what());
+    }
+    return img_loc;
+  }
+
   std::vector<cv::Point> projectEEPoseIntoImage(std_msgs::Header image_header)
   {
 
     PointStamped l_ee;
-    l_ee.header.frame_id = "l_gripper_palm_link";
+    l_ee.header.frame_id = "l_gripper_tool_frame";
     l_ee.header.stamp = image_header.stamp;
     l_ee.point.x = 0.0;
     l_ee.point.y = 0.0;
     l_ee.point.z = 0.0;
     PointStamped r_ee;
-    r_ee.header.frame_id = "r_gripper_palm_link";
+    r_ee.header.frame_id = "r_gripper_tool_frame";
     r_ee.header.stamp = image_header.stamp;
     r_ee.point.x = 0.0;
     r_ee.point.y = 0.0;
     r_ee.point.z = 0.0;
 
-    PointStamped l_image_loc;
-    PointStamped r_image_loc;
+    cv::Point l_loc = projectPointIntoImage(l_ee, image_header.frame_id);
+    cv::Point r_loc = projectPointIntoImage(r_ee, image_header.frame_id);
 
-    try
-    {
-      tf_.transformPoint(image_header.frame_id, l_ee, l_image_loc);
-      tf_.transformPoint(image_header.frame_id, r_ee, r_image_loc);
-    }
-    catch (tf::TransformException e)
-    {
-      ROS_INFO_STREAM(e.what());
-    }
-    // TODO: Need to project these points into the image
-    cv::Point l_loc(l_image_loc.point.x / l_image_loc.point.z,
-                    l_image_loc.point.y / l_image_loc.point.z);
-    cv::Point r_loc(r_image_loc.point.x / r_image_loc.point.z,
-                    r_image_loc.point.y / r_image_loc.point.z);
-    // ROS_INFO_STREAM("l_image loc is: (" << l_image_loc.point.x << ", "
-    //                 << l_image_loc.point.y << ", "
-    //                 << l_image_loc.point.z << ")");
-    // ROS_INFO_STREAM("r_image loc is: (" << r_image_loc.point.x << ", "
-    //                 << r_image_loc.point.y << ", "
-    //                 << r_image_loc.point.z << ")");
     std::vector<cv::Point> hand_locs;
     hand_locs.push_back(l_loc);
     hand_locs.push_back(r_loc);
@@ -1508,6 +1560,7 @@ class TabletopPushingPerceptionNode
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
   message_filters::Synchronizer<MySyncPolicy> sync_;
   image_transport::ImageTransport it_;
+  sensor_msgs::CameraInfo cam_info_;
   image_transport::Publisher motion_img_pub_;
   image_transport::Publisher motion_mask_pub_;
   actionlib::SimpleActionServer<tabletop_pushing::SegTrackAction> track_server_;
@@ -1554,6 +1607,8 @@ class TabletopPushingPerceptionNode
   cv::Rect roi_;
   PR2ArmDetector arm_detect_;
   std::string arm_data_path_;
+  std::string cam_info_topic_;
+  int min_contour_size_;
 };
 
 int main(int argc, char ** argv)
