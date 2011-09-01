@@ -55,6 +55,36 @@ def umeyama_method(A, B):
     t = uy - R * ux
     return t, R
 
+def ransac(A, B, err_thresh, percent_set_train=0.5, percent_set_fit=0.5, iterations=200):
+    best_model = None
+    best_consen_set = None
+    best_error = 1000000.0
+    n = int(percent_set_train * A.shape[1])
+    min_num = int(percent_set_fit * A.shape[1])
+    for i in range(iterations):
+        shuff_inds = np.arange(A.shape[1])
+        np.random.shuffle(shuff_inds)
+        maybe_inds = shuff_inds[:n]
+        maybe_A = A[:, maybe_inds]
+        maybe_B = B[:, maybe_inds]
+        t_maybe, R_maybe = umeyama_method(maybe_A, maybe_B)
+        err = (R_maybe * A + t_maybe - B).A
+        err_mag = np.sqrt(err[0,:] ** 2 + err[1,:] ** 2 + err[2,:] ** 2)
+        if np.sum(err_mag < err_thresh) < min_num:
+            print "Not enough points within thresh"
+            continue
+        consensus_A = A[:, err_mag < err_thresh]
+        consensus_B = B[:, err_mag < err_thresh]
+        t_cons, R_cons = umeyama_method(consensus_A, consensus_B)
+        err_cons = (R_cons * consensus_A + t_cons - consensus_B).A
+        err_mag_cons = np.sqrt(err_cons[0,:] ** 2 + err_cons[1,:] ** 2 + err_cons[2,:] ** 2)
+        if np.mean(err_mag_cons) < best_error:
+            best_error = np.mean(err_mag_cons)
+            best_model = (t_cons, R_cons)
+        print "Best error:", best_error
+        print "Consensus Size:", consensus_A.shape[1]
+    return best_model
+        
 def main():
     gray = (100,100,100)
     corner_len = 5
@@ -118,7 +148,7 @@ def main():
                             saved_corners_3d.append(corner_3d_tuple)
                         else:
                             diff_arr = np.array(np.mat(saved_corners_3d) - np.mat(corner_3d_tuple))
-                            if np.min(np.sqrt(np.sum(diff_arr ** 2, 1))) >= 0.1:
+                            if np.min(np.sqrt(np.sum(diff_arr ** 2, 1))) >= 0.03:
                                 cb_locs.append(cb_pos)
                                 saved_corners_2d.append(corner_avg_tuple)
                                 saved_corners_3d.append(corner_3d_tuple)
@@ -140,8 +170,11 @@ def main():
     print "-" * 60
     print "Transformation Parameters:"
     pos, quat = PoseConverter.to_pos_quat(t, R)
-    print '%f %f %f %f %f %f %f /%s /%s 100' % tuple(pos + quat + 
-                                                     [cboard_frame, kinect_tracker_frame])
+    print '%f %f %f %f %f %f %f' % tuple(pos + quat)
+    t_r, R_r = ransac(A, B, 0.02, percent_set_train=0.5, percent_set_fit=0.6)
+    print t_r, R_r
+    pos, quat = PoseConverter.to_pos_quat(t_r, R_r)
+    print '%f %f %f %f %f %f %f' % tuple(pos + quat)
     
 if __name__ == '__main__':
     main()
