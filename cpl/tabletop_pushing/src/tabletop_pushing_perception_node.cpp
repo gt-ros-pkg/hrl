@@ -112,6 +112,10 @@
 // #define DISPLAY_ARM_PROBS 1
 // #define DISPLAY_HAND_CIRCLES 1
 
+// #define WRITE_INPUT_TO_DISK 1
+// #define WRITE_CUTS_TO_DISK 1
+// #define WRITE_FLOWS_TO_DISK 1
+
 // Functional IFDEFS
 // #define MULTISCALE_OPTICAL_FLOW 1
 
@@ -1012,7 +1016,8 @@ class TabletopPushingPerceptionNode
                                 this, _1),
                     false),
       tf_(), /*motion_probs_(5),*/ have_depth_data_(false), tracking_(false),
-      tracker_initialized_(false), roi_(0,0,640,480), min_contour_size_(30)
+      tracker_initialized_(false), roi_(0,0,640,480), min_contour_size_(30),
+      tracker_count_(0)
   {
     // Get parameters from the server
     ros::NodeHandle n_private("~");
@@ -1040,6 +1045,7 @@ class TabletopPushingPerceptionNode
     n_private.param("cam_info_topic", cam_info_topic_,
                     cam_info_topic_def);
 
+    base_output_path_ = "/home/thermans/sandbox/cut_out/";
     // Graphcut weights
     n_private.param("mgc_w_f", mgc_.w_f_, 3.0);
     n_private.param("mgc_w_b", mgc_.w_b_, 2.0);
@@ -1277,6 +1283,7 @@ class TabletopPushingPerceptionNode
           cam_info_topic_, n_, ros::Duration(5.0));
 
       tracker_initialized_ = true;
+      tracker_count_ = 0;
       return;
     }
 
@@ -1334,6 +1341,43 @@ class TabletopPushingPerceptionNode
 
     // Figure out arm locations
     // cv::Mat arm_probs = arm_detect_.imageArmProbability(color_frame_hsv);
+
+#ifdef WRITE_INPUT_TO_DISK
+    std::stringstream input_out_name;
+    input_out_name << base_output_path_ << "input" << tracker_count_ << ".tiff";
+    cv::imwrite(input_out_name.str(), color_frame);
+#endif // WRITE_INPUT_TO_DISK
+
+#ifdef WRITE_FLOWS_TO_DISK
+    cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
+    flow_thresh_disp_img = color_frame.clone();
+
+    float corner_thresh = (eigen_ratio_+1)*(eigen_ratio_+1)/eigen_ratio_;
+    for (int r = 0; r < flow_thresh_disp_img.rows; ++r)
+    {
+      for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
+      {
+        cv::Vec2f uv = flow_outs[0].at<cv::Vec2f>(r,c);
+        if (std::sqrt(uv[0]*uv[0]+uv[1]*uv[1]) > mgc_.magnitude_thresh_ &&
+            flow_outs[1].at<float>(r,c) < corner_thresh)
+        {
+          cv::line(flow_thresh_disp_img, cv::Point(c,r),
+                   cv::Point(c-uv[0], r-uv[1]), cv::Scalar(0,255,0));
+        }
+      }
+    }
+
+    std::stringstream flow_out_name;
+    flow_out_name << base_output_path_ << "flow" << tracker_count_ << ".tiff";
+    cv::imwrite(flow_out_name.str(), flow_thresh_disp_img);
+#endif // WRITE_FLOWS_TO_DISK
+
+#ifdef WRITE_CUTS_TO_DISK
+    std::stringstream cut_out_name;
+    cut_out_name << base_output_path_ << "cut" << tracker_count_ << ".tiff";
+    cv::imwrite(cut_out_name.str(), moving_regions_img);
+#endif // WRITE_CUTS_TO_DISK
+
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
     cv::split(color_frame_hsv, hsv);
@@ -1391,6 +1435,7 @@ class TabletopPushingPerceptionNode
 #if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_MOTION_PROBS || defined DISPLAY_MEANS || defined DISPLAY_VARS || defined DISPLAY_INTERMEDIATE_PROBS || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_OPT_FLOW_II_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS
     cv::waitKey(display_wait_ms_);
 #endif // Any display defined
+    ++tracker_count_;
   }
 
   cv::Mat downSample(cv::Mat data_in, int scales)
@@ -1609,6 +1654,8 @@ class TabletopPushingPerceptionNode
   std::string arm_data_path_;
   std::string cam_info_topic_;
   int min_contour_size_;
+  int tracker_count_;
+  std::string base_output_path_;
 };
 
 int main(int argc, char ** argv)
