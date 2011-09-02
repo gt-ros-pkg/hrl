@@ -386,8 +386,8 @@ class LKFlowReliable
     cv::cvtColor(prev_color_frame, tmp_bw, CV_BGR2GRAY);
     tmp_bw.convertTo(prev_bw, CV_32FC1, 1.0/255, 0);
 
-    std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
-    // std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
+    // std::vector<cv::Mat> flow_n_scores = baseLKII(cur_bw, prev_bw);
+    std::vector<cv::Mat> flow_n_scores = baseLK(cur_bw, prev_bw);
     return flow_n_scores;
   }
 
@@ -397,9 +397,21 @@ class LKFlowReliable
     // TODO: Smooth and get derivatives simultanously
     cv::Mat Ix(cur_bw.size(), CV_32FC1);
     cv::Mat Iy(cur_bw.size(), CV_32FC1);
-    cv::Sobel(cur_bw, Ix, Ix.depth(), 1, 0, 3);
-    cv::Sobel(cur_bw, Iy, Iy.depth(), 0, 1, 3);
-    cv::Mat It = cur_bw - prev_bw;
+    cv::Mat cur_blur(cur_bw.size(), cur_bw.type());
+    cv::Mat prev_blur(prev_bw.size(), prev_bw.type());
+    cv::filter2D(cur_bw, cur_blur, CV_32F, g_kernel_);
+    cv::filter2D(prev_bw, prev_blur, CV_32F, g_kernel_);
+    cv::Mat It = cur_blur - prev_blur;
+
+    // Get image derivatives
+    // cv::Mat Ix32(cur_bw.size(), CV_32FC1);
+    // cv::Mat Iy32(cur_bw.size(), CV_32FC1);
+    cv::filter2D(cur_bw, Ix, CV_32F, dx_kernel_);
+    cv::filter2D(cur_bw, Iy, CV_32F, dy_kernel_);
+
+    // cv::Sobel(cur_bw, Ix, Ix.depth(), 1, 0, 3);
+    // cv::Sobel(cur_bw, Iy, Iy.depth(), 0, 1, 3);
+    // cv::Mat It = cur_bw - prev_bw;
 #ifdef DISPLAY_OPT_FLOW_INTERNALS
     cv::imshow("cur_bw", cur_bw);
     cv::imshow("prev_bw", prev_bw);
