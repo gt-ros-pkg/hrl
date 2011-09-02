@@ -38,7 +38,7 @@ typedef map<string, Eigen::eigen2_Transform3d, less<string>,
 
 
 void boxFilter(const PCRGB &in_pc, PCRGB &out_pc,
-                double min_x, double max_x, double min_y, double max_y, double min_z, double max_z) {
+               double min_x, double max_x, double min_y, double max_y, double min_z, double max_z) {
     pcl::ConditionAnd<PRGB>::Ptr near_cond(new pcl::ConditionAnd<PRGB>());
     PCRGB::Ptr near_pts(new PCRGB());
     pcl::ConditionalRemoval<PRGB> near_extract;
@@ -85,7 +85,6 @@ void pubLoop(PCRGB &pc, const std::string& topic) {
     pcl::toROSMsg(pc, pc_msg);
     while(ros::ok()) {
         pc_msg.header.stamp = ros::Time::now();
-        pc_msg.header.frame_id = std::string("/optitrak");
         pub_pc.publish(pc_msg);
         r.sleep();
     }
