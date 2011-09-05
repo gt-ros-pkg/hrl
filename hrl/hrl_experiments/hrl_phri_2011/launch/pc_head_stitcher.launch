@@ -1,0 +1,10 @@
+<launch>
+    <arg name="bag" />
+    <node pkg="hrl_phri_2011" type="pc_head_stitcher" name="pc_head_stitcher" output="screen"
+          args="$(find hrl_phri_2011)/$(arg bag)" >
+        <param name="icp_radius" value="0.03" />
+        <param name="keep_radius" value="0.003" />
+        <param name="num_erode" value="2" />
+    </node>
+</launch>
+

@@ -99,7 +99,7 @@
    <node name="kinect_calib"
 		pkg="tf" 
 		type="static_transform_publisher" 
-		args="0.088009 0.007286 -0.047603 -0.494364 0.507961 -0.490571 0.506872 /kinect /openni_rgb_optical_frame 10" />
-    <!-- 8/31 kinect calibration error 0.00853 mean error out of N=34 samples -->
+		args="0.089455 -0.002889 -0.057416 -0.481324 0.501655 -0.512041 0.504463 /kinect /openni_rgb_optical_frame 10" />
+    <!-- 8/31 kinect calibration error 0.0101 mean error out of N=100 samples -->
 
 </launch>
