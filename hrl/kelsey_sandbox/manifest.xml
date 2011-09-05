@@ -13,8 +13,10 @@
   <depend package="std_msgs"/>
   <depend package="sensor_msgs"/>
   <depend package="pr2_msgs"/>
+  <!--
   <depend package="hrl_lib"/>
   <depend package="hrl_pr2_lib"/>
+  -->
   <depend package="laser_interface"/>
   <depend package="pcl"/>
   <depend package="geometry_msgs"/>
