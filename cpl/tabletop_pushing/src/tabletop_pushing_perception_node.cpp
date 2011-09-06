@@ -132,11 +132,12 @@ typedef Graph<float, float, float> GraphType;
 class ProbImageDifferencing
 {
  public:
-  ProbImageDifferencing(unsigned int num_hist_frames, float T_in=3,
+  ProbImageDifferencing(unsigned int num_hist_frames=5, float T_in=3,
                         float T_out=15) :
       num_hist_frames_(num_hist_frames), ONES(1.0, 1.0, 1.0, 1.0),
       T_in_(T_in), T_out_(T_out)
   {
+    g_kernel_ = cv::getGaussianKernel(3, 2.0, CV_32F);
   }
 
   void initialize(cv::Mat& color_frame, cv::Mat& depth_frame)
@@ -152,15 +153,20 @@ class ProbImageDifferencing
   }
 
   // std::vector<cv::Mat> update(cv::Mat& bgrd_frame)
-  std::vector<cv::Mat> update(cv::Mat& color_frame, cv::Mat& depth_frame)
+  std::vector<cv::Mat> update(cv::Mat& color_frame, cv::Mat& depth_frame_pre_blur)
   {
     // Convert to correct format
+    cv::Mat bgr_frame_pre_blur(color_frame.size(), CV_32FC3);
+    color_frame.convertTo(bgr_frame_pre_blur, CV_32FC3, 1.0/255, 0);
     cv::Mat bgr_frame(color_frame.size(), CV_32FC3);
-    color_frame.convertTo(bgr_frame, CV_32FC3, 1.0/255, 0);
+    cv::Mat depth_frame(color_frame.size(), CV_32FC3);
+    // Smooth images before using
+    cv::filter2D(bgr_frame_pre_blur, bgr_frame, CV_32F, g_kernel_);
+    cv::filter2D(depth_frame_pre_blur, depth_frame, CV_32F, g_kernel_);
 
     // Calculate probability of being the same color and depth at each pixel
     std::vector<cv::Mat> motions;
-    if (pixel_histories_.size() > 1)
+    if (pixel_histories_.size() > 0)
       motions = calculateProbabilities(bgr_frame, depth_frame);
 
     // Store current frame in history
@@ -199,7 +205,12 @@ class ProbImageDifferencing
     d_means /= d_histories_.size();
 
 #ifdef DISPLAY_MEANS
-    cv::imshow("means", means);
+    std::vector<cv::Mat> means_vec;
+    cv::split(means, means_vec);
+
+    cv::imshow("means_h", means_vec[0]);
+    cv::imshow("means_s", means_vec[1]);
+    cv::imshow("means_v", means_vec[2]);
     cv::imshow("d_means", d_means);
 #endif // DISPLAY_MEANS
 
@@ -222,11 +233,22 @@ class ProbImageDifferencing
         }
       }
     }
-    vars /= (pixel_histories_.size()-1.0);
-    d_vars /= (d_histories_.size()-1.0);
+    if (pixel_histories_.size() > 1)
+    {
+      vars /= (pixel_histories_.size()-1.0);
+      d_vars /= (d_histories_.size()-1.0);
+    }
+    else
+    {
+      // pass
+    }
 
 #ifdef DISPLAY_VARS
-    cv::imshow("vars", vars);
+    std::vector<cv::Mat> vars_vec;
+    cv::split(vars, vars_vec);
+    cv::imshow("vars_h", vars_vec[0]);
+    cv::imshow("vars_s", vars_vec[1]);
+    cv::imshow("vars_v", vars_vec[2]);
     cv::imshow("d_vars", d_vars);
 #endif // DISPLAY_VARS
 
@@ -241,12 +263,14 @@ class ProbImageDifferencing
         cv::Vec3f mu = means.at<cv::Vec3f>(r,c);
         cv::Vec3f var = vars.at<cv::Vec3f>(r,c);
         // NOTE: Probability of not belonging to the gaussian
-        cv::Vec4f probs = ONES - p_x_gaussian(x, mu, var);
+        // cv::Vec4f probs = ONES - p_x_gaussian(x, mu, var);
+        cv::Vec4f probs = p_x_fitzpatrick(x, mu, var);
         motion_probs_.at<cv::Vec4f>(r,c) = probs;
         float x_d = depth_frame.at<float>(r,c);
         float mu_d = d_means.at<float>(r,c);
         float var_d = d_vars.at<float>(r,c);
-        float prob_d = 1.0 - p_x_gaussian_kenney(x_d, mu_d, var_d);
+        // float prob_d = 1.0 - p_x_gaussian_kenney(x_d, mu_d, var_d);
+        float prob_d = p_x_fitzpatrick(x_d, mu_d, var_d);
         if (prob_d > 1.0)
         {
           d_probs_greater++;
@@ -278,6 +302,27 @@ class ProbImageDifferencing
     p_x[3] = p_x[0]*p_x[1]*p_x[2];
     // p_x[3] = max(p_x[0],max(p_x[1],p_x[2]));
     return p_x;
+  }
+
+  cv::Vec4f p_x_fitzpatrick(cv::Vec3f x, cv::Vec3f mu, cv::Vec3f var)
+  {
+    cv::Vec4f p_x;
+    p_x[0] = p_x_fitzpatrick(x[0], mu[0], var[0]);
+    p_x[1] = p_x_fitzpatrick(x[1], mu[1], var[1]);
+    p_x[2] = p_x_fitzpatrick(x[2], mu[2], var[2]);
+    p_x[3] = p_x[0]*p_x[1]*p_x[2];
+    // p_x[3] = max(p_x[0],max(p_x[1],p_x[2]));
+    return p_x;
+  }
+
+  inline float p_x_fitzpatrick(const float x, const float mu, float var)
+  {
+    // float new_var = 5.0;
+    if (isnan(var))
+    {
+      var = 0.1;
+    }
+    return fabs(x-mu)/(var+0.1);
   }
 
   float p_x_gaussian_kenney(float x, float mu, float var)
@@ -349,7 +394,7 @@ class ProbImageDifferencing
   const cv::Vec4f ONES;
   float T_in_;
   float T_out_;
-
+  cv::Mat g_kernel_;
 };
 
 class LKFlowReliable
@@ -1027,7 +1072,7 @@ class TabletopPushingPerceptionNode
                     boost::bind(&TabletopPushingPerceptionNode::trackerGoalCallback,
                                 this, _1),
                     false),
-      tf_(), /*motion_probs_(5),*/ have_depth_data_(false), tracking_(false),
+      tf_(), motion_probs_(5), have_depth_data_(false), tracking_(false),
       tracker_initialized_(false), roi_(0,0,640,480), min_contour_size_(30),
       tracker_count_(0)
   {
@@ -1074,14 +1119,14 @@ class TabletopPushingPerceptionNode
     n_private.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
     n_private.param("lk_win_size", lkflow_.win_size_, 5);
 
-    // int num_hist_frames = 5;
-    // n_private.param("num_hist_frames", num_hist_frames, 5);
-    // motion_probs_.setNumHistFrames(num_hist_frames);
-    // double T_in = 3;
-    // double T_out = 5;
-    // n_private.param("T_in", T_in, 3.0);
-    // n_private.param("T_out", T_out, 5.0);
-    // motion_probs_.setT_inT_out(T_in, T_out);
+    int num_hist_frames = 5;
+    n_private.param("num_hist_frames", num_hist_frames, 5);
+    motion_probs_.setNumHistFrames(num_hist_frames);
+    double T_in = 3;
+    double T_out = 5;
+    n_private.param("T_in", T_in, 3.0);
+    n_private.param("T_out", T_out, 5.0);
+    motion_probs_.setT_inT_out(T_in, T_out);
 
     // Arm detections stuff
     std::string package_path = ros::package::getPath("tabletop_pushing");
@@ -1282,7 +1327,7 @@ class TabletopPushingPerceptionNode
   {
     if (!tracker_initialized_)
     {
-      // motion_probs_.initialize(color_frame, depth_frame);
+      motion_probs_.initialize(color_frame, depth_frame);
       ROS_INFO_STREAM("Initializing tracker.");
       table_centroid_ = getTablePlane(cloud);
       if (table_centroid_.pose.position.x == 0.0 &&
@@ -1301,6 +1346,19 @@ class TabletopPushingPerceptionNode
 
     cv::Mat color_frame_hsv(color_frame.size(), color_frame.type());
     cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
+
+    // TODO: Use the responses on the intensity channel as motion evidence
+    std::vector<cv::Mat> probs_o_motion = motion_probs_.update(color_frame_hsv,
+                                                               depth_frame);
+#ifdef DISPLAY_MOTION_PROBS
+    std::vector<cv::Mat> motions;
+    cv::split(probs_o_motion[0], motions);
+    cv::imshow("color_motion_prob_h", motions[0]);
+    cv::imshow("color_motion_prob_s", motions[1]);
+    cv::imshow("color_motion_prob_v", motions[2]);
+    cv::imshow("color_motion_prob_joint", motions[3]);
+    cv::imshow("depth_motion_prob", probs_o_motion[1]);
+#endif // DISPLAY_MOTION_PROBS
 
     std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
     std::vector<cv::Mat> flows;
@@ -1634,7 +1692,7 @@ class TabletopPushingPerceptionNode
   std_msgs::Header cur_camera_header_;
   std_msgs::Header prev_camera_header_;
   XYZPointCloud cur_point_cloud_;
-  // ProbImageDifferencing motion_probs_;
+  ProbImageDifferencing motion_probs_;
   LKFlowReliable lkflow_;
   MotionGraphcut mgc_;
   bool have_depth_data_;
