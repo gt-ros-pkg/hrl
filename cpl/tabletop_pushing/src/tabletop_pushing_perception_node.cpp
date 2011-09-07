@@ -130,7 +130,8 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
 typedef Graph<float, float, float> GraphType;
 
 
-void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow, float mag_thresh)
+void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow_u, cv::Mat& flow_v,
+                        float mag_thresh)
 {
   cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
   flow_thresh_disp_img = color_frame.clone();
@@ -139,19 +140,19 @@ void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow, float mag_thresh)
   {
     for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
     {
-      cv::Vec2f uv = flow.at<cv::Vec2f>(r,c);
-      if (std::sqrt(uv[0]*uv[0]+uv[1]*uv[1]) > mag_thresh)
+      float u = flow_u.at<float>(r,c);
+      float v = flow_u.at<float>(r,c);
+      if (std::sqrt(u*u+v*v) > mag_thresh)
       {
-        cv::line(flow_thresh_disp_img, cv::Point(c,r),
-                 cv::Point(c-uv[0], r-uv[1]), cv::Scalar(0,255,0));
+        cv::line(flow_thresh_disp_img, cv::Point(c,r), cv::Point(c-u, r-v),
+                 cv::Scalar(0,255,0));
       }
     }
   }
   std::vector<cv::Mat> flows;
-  cv::split(flow, flows);
   cv::imshow("flow_disp", flow_thresh_disp_img);
-  cv::imshow("u", flows[0]);
-  cv::imshow("v", flows[1]);
+  cv::imshow("u", flow_u);
+  cv::imshow("v", flow_v);
 }
 
 class ProbImageDifferencing
@@ -426,7 +427,7 @@ class LKFlowReliable
 {
  public:
   LKFlowReliable(int win_size = 5, int num_levels = 4) :
-      win_size_(win_size), num_levels_(num_levels)
+      win_size_(win_size), max_level_(num_levels-1)
   {
     // Create derivative kernels for flow calculation
     cv::getDerivKernels(dy_kernel_, dx_kernel_, 1, 0, CV_SCHARR, true, CV_32F);
@@ -463,48 +464,33 @@ class LKFlowReliable
 
   std::vector<cv::Mat> hierarchy(cv::Mat& f2, cv::Mat& f1)
   {
-    cv::Mat Dx(f2.rows, f2.cols, CV_32FC1, cv::Scalar(0.0));
-    cv::Mat Dy;
-    std::vector<cv::Mat> flow_outs;
+    const int divisor = std::pow(2,max_level_);
+    cv::Mat Dx(f2.rows/divisor, f2.cols/divisor, CV_32FC1, cv::Scalar(0.0));
+    cv::Mat Dy = Dx.clone();
     std::vector<cv::Mat> g1s;
     std::vector<cv::Mat> g2s;
-    cv::buildPyramid(f1, g1s, num_levels_-1);
-    cv::buildPyramid(f2, g2s, num_levels_-1);
+    cv::buildPyramid(f1, g1s, max_level_);
+    cv::buildPyramid(f2, g2s, max_level_);
+    std::vector<cv::Mat> flow_outs;
 
-    for (int l = num_levels_-1; l >= 0; --l)
+    for (int l = max_level_; l >= 0; --l)
     {
-      if (l == num_levels_-1)
-      {
-        for(int i = 0; i < num_levels_-1; ++i)
-        {
-          Dx = reduce(Dx);
-        }
-        Dy = Dx.clone();
-      }
-      else
+      if (l != max_level_)
       {
         Dx = expand(Dx);
         Dy = expand(Dy);
       }
       cv::Mat W = warp(g1s[l], Dx, Dy);
       flow_outs = baseLK(g2s[l], W);
-      cv::Mat vxy = flow_outs[0];
-      std::vector<cv::Mat> uv;
-      cv::split(vxy, uv);
-      Dx = Dx + uv[0];
-      Dy = Dy + uv[1];
+      Dx = Dx + flow_outs[0];
+      Dy = Dy + flow_outs[1];
       Dx = smooth(Dx);
       Dy = smooth(Dy);
     }
-    // TODO: Don't split then merge this stuff, make it consistent
-    cv::Mat uv;
-    std::vector<cv::Mat> channels;
-    channels.push_back(Dx);
-    channels.push_back(Dy);
-    cv::merge(channels, uv);
     std::vector<cv::Mat> total_outs;
-    total_outs.push_back(uv);
-    total_outs.push_back(flow_outs[1]);
+    total_outs.push_back(Dx);
+    total_outs.push_back(Dy);
+    total_outs.push_back(flow_outs[2]);
     return total_outs;
   }
 
@@ -532,7 +518,8 @@ class LKFlowReliable
 #endif // DISPLAY_OPT_FLOW_INTERNALS
 
     int win_radius = win_size_/2;
-    cv::Mat flow(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
+    cv::Mat flow_u(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat flow_v(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
     cv::Mat t_scores(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
     {
@@ -567,77 +554,16 @@ class LKFlowReliable
           uv[0] = (-sIyy*sIxt + sIxy*sIyt)/det;
           uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
         }
-        flow.at<cv::Vec2f>(r,c) = uv;
+        flow_u.at<float>(r,c) = uv[0];
+        flow_v.at<float>(r,c) = uv[1];
         t_scores.at<float>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
       }
     }
     std::vector<cv::Mat> outs;
-    outs.push_back(flow);
+    outs.push_back(flow_u);
+    outs.push_back(flow_v);
     outs.push_back(t_scores);
     return outs;
-  }
-
-  cv::Mat baseLKNoScores(cv::Mat& cur_bw, cv::Mat& prev_bw)
-  {
-    cv::Mat Ix(cur_bw.size(), CV_32FC1);
-    cv::Mat Iy(cur_bw.size(), CV_32FC1);
-    cv::Mat cur_blur(cur_bw.size(), cur_bw.type());
-    cv::Mat prev_blur(prev_bw.size(), prev_bw.type());
-    cv::filter2D(cur_bw, cur_blur, CV_32F, g_kernel_);
-    cv::filter2D(prev_bw, prev_blur, CV_32F, g_kernel_);
-    cv::Mat It = cur_blur - prev_blur;
-
-    // Get image derivatives
-    cv::filter2D(cur_bw, Ix, CV_32F, dx_kernel_);
-    cv::filter2D(cur_bw, Iy, CV_32F, dy_kernel_);
-
-#ifdef DISPLAY_OPT_FLOW_INTERNALS
-    cv::imshow("cur_bw", cur_bw);
-    cv::imshow("prev_bw", prev_bw);
-    cv::imshow("It", It);
-    cv::imshow("Ix", Ix);
-    cv::imshow("Iy", Iy);
-#endif // DISPLAY_OPT_FLOW_INTERNALS
-
-    int win_radius = win_size_/2;
-    cv::Mat flow(cur_bw.size(), CV_32FC2, cv::Scalar(0.0,0.0));
-    for (int r = win_radius; r < Ix.rows-win_radius; ++r)
-    {
-      for (int c = win_radius; c < Ix.cols-win_radius; ++c)
-      {
-        float sIxx = 0.0;
-        float sIyy = 0.0;
-        float sIxy = 0.0;
-        float sIxt = 0.0;
-        float sIyt = 0.0;
-        for (int y = r-win_radius; y <= r+win_radius; ++y)
-        {
-          for (int x = c-win_radius; x <= c+win_radius; ++x)
-          {
-            sIxx += Ix.at<float>(y,x)*Ix.at<float>(y,x);
-            sIyy += Iy.at<float>(y,x)*Iy.at<float>(y,x);
-            sIxy += Ix.at<float>(y,x)*Iy.at<float>(y,x);
-            sIxt += Ix.at<float>(y,x)*It.at<float>(y,x);
-            sIyt += Iy.at<float>(y,x)*It.at<float>(y,x);
-          }
-        }
-
-        float det = sIxx*sIyy - sIxy*sIxy;
-        cv::Vec2f uv;
-        if (det == 0.0)
-        {
-          uv[0] = 0.0;
-          uv[1] = 0.0;
-        }
-        else
-        {
-          uv[0] = (-sIyy*sIxt + sIxy*sIyt)/det;
-          uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
-        }
-        flow.at<cv::Vec2f>(r,c) = uv;
-      }
-    }
-    return flow;
   }
 
   cv::Mat reduce(cv::Mat& input /*, cv::Mat kernel*/)
@@ -729,7 +655,6 @@ class LKFlowReliable
       prev_row = cur_row;
     }
   }
-
 
   inline double filterIntegral(cv::Mat& integral, int x, int y, int radius)
   {
@@ -853,12 +778,12 @@ class LKFlowReliable
 
   void setNumLevels(int num_levels)
   {
-    num_levels_ = num_levels;
+    max_level_ = num_levels-1;
   }
 
  protected:
   int win_size_;
-  int num_levels_;
+  int max_level_;
   cv::Mat dx_kernel_;
   cv::Mat dy_kernel_;
   cv::Mat g_kernel_;
@@ -1556,8 +1481,6 @@ class TabletopPushingPerceptionNode
     cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
 
     std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
-    std::vector<cv::Mat> flows;
-    cv::split(flow_outs[0], flows);
 
     // TODO: Get the structure for all of the arm
     std::vector<cv::Point> hands = projectEEPoseIntoImage(cur_camera_header_);
@@ -1566,8 +1489,8 @@ class TabletopPushingPerceptionNode
 
     cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
     color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
-    cv::Mat cut = mgc_(color_frame_f, depth_frame, flows[0], flows[1],
-                       flow_outs[1], cur_workspace_mask_, hands);
+    cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
+                       flow_outs[2], cur_workspace_mask_, hands);
 
 
     cv::Mat cleaned_cut(cut.size(), CV_8UC1);
@@ -1628,12 +1551,13 @@ class TabletopPushingPerceptionNode
     {
       for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
       {
-        cv::Vec2f uv = flow_outs[0].at<cv::Vec2f>(r,c);
-        if (std::sqrt(uv[0]*uv[0]+uv[1]*uv[1]) > mgc_.magnitude_thresh_ &&
-            flow_outs[1].at<float>(r,c) < corner_thresh)
+        float u = flow_outs[0].at<float>(r,c);
+        float v = flow_outs[1].at<float>(r,c);
+        if (std::sqrt(u*u+v*v) > mgc_.magnitude_thresh_ &&
+            flow_outs[2].at<float>(r,c) < corner_thresh)
         {
           cv::line(flow_thresh_disp_img, cv::Point(c,r),
-                   cv::Point(c-uv[0], r-uv[1]), cv::Scalar(0,255,0));
+                   cv::Point(c-u, r-v), cv::Scalar(0,255,0));
         }
       }
     }
@@ -1674,7 +1598,8 @@ class TabletopPushingPerceptionNode
     cv::imshow("arm_probs", arm_probs);
 #endif // DISPLAY_ARM_PROBS
 #ifdef DISPLAY_OPTICAL_FLOW
-    displayOpticalFlow(color_frame, flow_outs[0], mgc_.magnitude_thresh_);
+    displayOpticalFlow(color_frame, flow_outs[0], flow_outs[1],
+                       mgc_.magnitude_thresh_);
 #endif // DISPLAY_OPTICAL_FLOW
 
 #ifdef DISPLAY_GRAPHCUT
