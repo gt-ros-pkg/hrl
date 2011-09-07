@@ -48,10 +48,12 @@ def main():
                 goal.x = 0.5 + random.uniform(-0.1, 0.1)
                 goal.y = 0.0 + random.uniform(-0.1, 0.1)
                 goal.behavior_name = "overhead_grasp"
-                goal.sig_level = 0.99
+                goal.sig_level = 0.9975
                 ############################################################
 
+                rospy.sleep(1.0)
                 grasp_client.send_goal(goal)
+                rospy.sleep(1.0)
                 grasp_client.wait_for_result()
                 result = grasp_client.get_result()
                 if result.grasp_result not in results_dict:
@@ -74,7 +76,9 @@ def main():
                 goal.sig_level = 0.9975
                 ############################################################
 
+                rospy.sleep(1.0)
                 grasp_client.send_goal(goal)
+                rospy.sleep(1.0)
                 grasp_client.wait_for_result()
                 result = grasp_client.get_result()
                 if result.grasp_result not in results_dict:
