@@ -23,12 +23,6 @@
     <param name="min_table_z" value="-1.0" type="double"/>
     <param name="max_table_z" value="1.0" type="double"/>
 
-    <param name="num_hist_frames" value="15" type="int"/>
-    <param name="T_in" value="1" type="double"/>
-    <param name="T_out" value="8" type="double"/>
-    <param name="erosion_size" value="3" type="int"/>
-    <param name="min_contour_size" value="30" type="int"/>
-
     <param name="mgc_w_f" value="1.0" type="double"/>
     <param name="mgc_w_b" value="0.505" type="double"/>
     <param name="mgc_w_n_f" value="0.25" type="double"/>
@@ -40,63 +34,8 @@
     <param name="mgc_magnitude_thresh" value="1.0" type="double"/>
 
     <param name="lk_win_size" value="5" type="int"/>
-    <param name="lk_num_levels" value="1" type="int"/>
+    <param name="lk_num_levels" value="4" type="int"/>
     <param name="num_downsamples" value="1" type="int"/>
     <param name="arm_detection_theta" value="10.0" type="double"/>
-
-  </node>
-
-  <node name="self_filter_kinect" pkg="robot_self_filter" type="self_filter" respawn="true" output="screen">
-
-     <!-- The topic for the input cloud -->
-     <remap from="cloud_in" to="/kinect_head/depth/points" />
-
-     <!-- The topic for the output cloud -->
-     <remap from="cloud_out" to="/kinect_head/depth/points_filtered" />
-
-     <!-- The frame of the sensor used to obtain the data to be
-       filtered; This parameter is optional. If it is not specified,
-       shadow points will be considered outside -->
-     <param name="sensor_frame" type="string" value="/openni_rgb_optical_frame" />
-
-     <!-- Minimum distance to sensor (for point not to be considered inside) -->
-     <param name="min_sensor_dist" type="double" value="0.01" />
-
-     <!-- The padding to be added for the body parts the robot can see -->
-     <param name="self_see_padd" type="double" value="0.02" />
-
-     <!-- The scaling to be added for the body parts the robot can see -->
-     <param name="self_see_scale" type="double" value="1.0" />
-
-     <!-- The names of the links the sensor can see -->
-     <param name="self_see_links" type="string" value="l_upper_arm_link
-  						       l_upper_arm_roll_link
-  						       l_elbow_flex_link
-  						       l_forearm_link
-  						       l_forearm_roll_link
-  						       l_wrist_flex_link
-  						       l_wrist_roll_link
-  						       l_gripper_l_finger_link
-  						       l_gripper_l_finger_tip_link
-  						       l_gripper_r_finger_link
-  						       l_gripper_r_finger_tip_link
-  						       l_shoulder_pan_link
-  						       l_shoulder_lift_link
-  						       r_upper_arm_link
-  						       r_upper_arm_roll_link
-  						       r_elbow_flex_link
-  						       r_forearm_link
-  						       r_forearm_roll_link
-  						       r_wrist_flex_link
-  						       r_wrist_roll_link
-  						       r_gripper_l_finger_link
-  						       r_gripper_l_finger_tip_link
-  						       r_gripper_r_finger_link
-  						       r_gripper_r_finger_tip_link
-  						       r_shoulder_pan_link
-  						       r_shoulder_lift_link
-  						       base_laser_link
-  						       base_link" />
-     <param name="subsample_value" type="double" value="0.0"/>
   </node>
 </launch>
