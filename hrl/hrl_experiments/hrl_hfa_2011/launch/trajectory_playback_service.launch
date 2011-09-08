@@ -1,4 +1,4 @@
 <launch>
-    <node pkg="hrl_trajectory_playback" name="l_arm_untuck" type="playback.py" args="--pkl $(find hrl_pr2_experiments)/data/l_arm_untuck.pkl --name l_arm_untuck --left" />
-    <node pkg="hrl_trajectory_playback" name="r_arm_untuck" type="playback.py" args="--pkl $(find hrl_pr2_experiments)/data/r_arm_untuck.pkl --name r_arm_untuck" />
+    <node pkg="hrl_trajectory_playback" name="l_arm_untuck" type="playback.py" args="--pkl $(find hrl_hfa_2011)/data/l_arm_untuck.pkl --name l_arm_untuck --left" />
+    <node pkg="hrl_trajectory_playback" name="r_arm_untuck" type="playback.py" args="--pkl $(find hrl_hfa_2011)/data/r_arm_untuck.pkl --name r_arm_untuck" />
 </launch>

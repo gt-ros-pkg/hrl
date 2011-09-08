@@ -1,4 +1,4 @@
 <launch>
     <arg name="arm" default="l" />
-    <node pkg="hrl_pr2_experiments" name="cleanup_demo" type="sm_grasp_cleanup_demo.py" output="screen" args="$(arg arm)" />
+    <node pkg="hrl_hfa_2011" name="cleanup_demo" type="sm_grasp_cleanup_demo.py" output="screen" args="$(arg arm)" />
 </launch>
