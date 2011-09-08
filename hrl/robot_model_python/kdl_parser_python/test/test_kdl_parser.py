@@ -15,10 +15,10 @@ import kdl_parser_python.kdl_parser as kdlp
 import PyKDL as kdl
 from hrl_kdl_arms.kdl_arm_kinematics import KDLArmKinematics
 
-chain = kdlp.chain_from_param("torso_lift_link", "r_gripper_tool_frame")
+chain, joint_info = kdlp.chain_from_param("torso_lift_link", "r_gripper_tool_frame")
 
 if True:
-    kinematics = KDLArmKinematics(chain=chain)
+    kinematics = KDLArmKinematics(chain, joint_info)
     while not rospy.is_shutdown():
         q = np.random.uniform(-0.3, 0.3, 7)
         print kinematics.chain.getNrOfSegments()
