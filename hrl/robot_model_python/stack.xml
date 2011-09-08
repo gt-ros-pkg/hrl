@@ -1,10 +1,12 @@
 <stack>
-  <description brief="robot_model_python">robot_model_python</description>
+  <description brief="robot_model_python">
+
+    Python implementation of the URDF and KDL parsing utilities found in the robot_model stack.
+  
+  </description>
   <author>Maintained by Kelsey Hawkins</author>
   <license>BSD</license>  
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/robot_model_python</url>
-  <!--<depend stack="ros" />
-  <depend stack="geometry" />-->
 
 </stack>

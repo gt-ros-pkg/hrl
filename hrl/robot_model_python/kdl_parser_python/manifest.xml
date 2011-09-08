@@ -1,7 +1,7 @@
 <package>
   <description brief="kdl_parser_python">
 
-     kdl_parser_python
+    Provides utilities for parsing the objects given by the urdf_parser_python package into PyKDL trees.
 
   </description>
   <author>Kelsey Hawkins</author>
@@ -10,10 +10,6 @@
   <url>http://ros.org/wiki/kdl_parser_python</url>
   <depend package="rospy"/>
   <depend package="urdf_parser_python"/>
-
-  <export>
-    <python path="${prefix}/lib:${prefix}/src"  />
-  </export>
 
 </package>
 

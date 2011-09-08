@@ -1,7 +1,7 @@
 <package>
   <description brief="urdf_parser_python">
 
-     urdf_parser_python
+    Python implementation of the urdf_parser package.  Provides tools for reading the URDF specification into Python objects.
 
   </description>
   <author>Kelsey Hawkins</author>
