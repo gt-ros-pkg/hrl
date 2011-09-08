@@ -1,6 +1,6 @@
 <launch>
     <arg name="mode"/>
-    <node pkg="hrl_arm_move_behaviors" name="sm_touch_face" type="sm_touch_face.py" output="screen"
+    <node pkg="hrl_rfh_summer_2011" name="sm_touch_face" type="sm_touch_face.py" output="screen"
           args="$(arg mode)">
         <param name="arm" type="str" value="r"/>
         <param name="tool_frame" type="str" value="r_scratcher_touch"/>

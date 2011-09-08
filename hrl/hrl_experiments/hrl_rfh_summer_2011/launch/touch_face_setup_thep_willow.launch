@@ -14,7 +14,7 @@
     <!-- ################################################################################# -->
 
     <!-- ############################ EPC actionlib server ############################### -->
-    <include file="$(find hrl_arm_move_behaviors)/launch/epc_move_actionlib.launch"/>
+    <include file="$(find hrl_rfh_summer_2011)/launch/epc_move_actionlib.launch"/>
     <!-- ################################################################################# -->
 
     <!-- ############################ Force torque parameters ############################ -->
@@ -33,7 +33,7 @@
         <param name="significance_mode" type="bool" value="false"/>
         <rosparam param="min_errors"> [-0.04, -0.08, -0.12, -0.10, -0.15, -0.07, -0.06] </rosparam>
         <rosparam param="max_errors"> [0.04, 0.08, 0.12, 0.10, 0.15, 0.07, 0.06] </rosparam>
-        <param name="filename_prefix" type="str" value="$(find hrl_arm_move_behaviors)/data/"/>
+        <param name="filename_prefix" type="str" value="$(find hrl_rfh_summer_2011)/data/"/>
         <rosparam param="filename_list">
             [move_coarse_ik_r_data.bag,
              move_prep_pose_r_data.bag]
@@ -77,11 +77,11 @@
     <!-- The IK are already listed in rfid_services.launch -->
     <node pkg="hrl_trajectory_playback" name="unfold_traj_playback" type="playback.py" 
 	  output="screen" respawn="false" 
-	  args="--pkl $(find hrl_arm_move_behaviors)/data/r_slow_untuck.pkl --name unfold" />
+	  args="--pkl $(find hrl_rfh_summer_2011)/data/r_slow_untuck.pkl --name unfold" />
     <!-- ################################################################################# -->
     
     <!-- ############################## Navigation Stack ################################# -->
-    <include file="$(find hrl_arm_move_behaviors)/launch/willow_nav.launch" />
+    <include file="$(find hrl_rfh_summer_2011)/launch/willow_nav.launch" />
     <!-- ################################################################################# -->
 
     <!-- ##################### Tool static transforms (do not touch!) #################### -->
