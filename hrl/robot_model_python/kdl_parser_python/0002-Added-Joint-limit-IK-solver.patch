@@ -1,0 +1,48 @@
+From 723d4788651eb4761e35916bb9a52b879e2b6d6d Mon Sep 17 00:00:00 2001
+From: Kelsey Hawkins <kelsey@monty1.(none)>
+Date: Wed, 7 Sep 2011 22:46:13 -0700
+Subject: [PATCH 2/2] Added Joint limit IK solver
+
+---
+ python_orocos_kdl/PyKDL/kinfam.sip |   18 ++++++++++++++++++
+ 1 files changed, 18 insertions(+), 0 deletions(-)
+
+diff --git a/python_orocos_kdl/PyKDL/kinfam.sip b/python_orocos_kdl/PyKDL/kinfam.sip
+index c33407b..aaba457 100644
+--- a/python_orocos_kdl/PyKDL/kinfam.sip
++++ b/python_orocos_kdl/PyKDL/kinfam.sip
+@@ -50,6 +50,10 @@ public:
+ %MethodCode
+     sipRes=sipCpp->getTypeName().data();
+ %End
++    const char* getName() const;
++%MethodCode
++    sipRes=sipCpp->getName().data();
++%End
+ };
+ 
+ class Segment
+@@ -304,6 +308,20 @@ public:
+     virtual int CartToJnt(const JntArray& q_init , const Frame& p_in ,JntArray& q_out);
+ };
+ 
++class ChainIkSolverPos_NR_JL : ChainIkSolverPos
++{
++%TypeHeaderCode
++#include <kdl/chainiksolverpos_nr_jl.hpp>
++using namespace KDL;
++%End
++public:
++    ChainIkSolverPos_NR_JL(const Chain& chain,const JntArray &q_min,const JntArray &q_max, 
++                        ChainFkSolverPos& fksolver,ChainIkSolverVel& iksolver,
++                        unsigned int maxiter=100,double eps=epsilon);
++    
++    virtual int CartToJnt(const JntArray& q_init , const Frame& p_in ,JntArray& q_out);
++};
++
+ class ChainIkSolverVel_pinv : ChainIkSolverVel
+ {
+ %TypeHeaderCode
+-- 
+1.7.0.4
+
