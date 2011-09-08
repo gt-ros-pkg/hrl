@@ -28,7 +28,6 @@
     <param name="num_hist_frames" value="5" type="int"/>
     <param name="T_in" value="1.5" type="double"/>
     <param name="T_out" value="8" type="double"/>
-    <param name="erosion_size" value="3" type="int"/>
     <param name="min_contour_size" value="30" type="int"/>
 
     <param name="mgc_w_f" value="1.0" type="double"/>
@@ -40,6 +39,7 @@
     <param name="mgc_u_f" value="0.5" type="double"/>
     <param name="mgc_eigen_ratio" value="5.0" type="double"/>
     <param name="mgc_magnitude_thresh" value="1.0" type="double"/>
+    <param name="mgc_arm_grow_radius" value="2" type="int"/>
 
     <param name="lk_win_size" value="5" type="int"/>
     <param name="lk_num_levels" value="3" type="int"/>

@@ -105,12 +105,13 @@
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
-// #define DISPLAY_OPTICAL_FLOW 1
+#define DISPLAY_OPTICAL_FLOW 1
+// #define DISPLAY_UV 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
-// #define DISPLAY_GRAPHCUT 1
+#define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define DISPLAY_ARM_PROBS 1
-// #define DISPLAY_HAND_CIRCLES 1
+#define DISPLAY_FOREARM_CIRCLES 1
 
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
@@ -146,13 +147,16 @@ void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow_u, cv::Mat& flow_v,
       {
         cv::line(flow_thresh_disp_img, cv::Point(c,r), cv::Point(c-u, r-v),
                  cv::Scalar(0,255,0));
+        // cv::circle(flow_thresh_disp_img, cv::Point(c,r), 2, cv::Scalar(0,255,0));
       }
     }
   }
   std::vector<cv::Mat> flows;
   cv::imshow("flow_disp", flow_thresh_disp_img);
+#ifdef DISPLAY_UV
   cv::imshow("u", flow_u);
   cv::imshow("v", flow_v);
+#endif // DISPLAY_UV
 }
 
 class ProbImageDifferencing
@@ -437,8 +441,7 @@ class LKFlowReliable
     //  -3 -10 -3]
     cv::flip(dy_kernel_, dy_kernel_, -1);
     g_kernel_ = cv::getGaussianKernel(3, 2.0, CV_32F);
-    // cv::filter2D(dy_kernel_, dy_kernel_, CV_32F, g_kernel_);
-    new_g_kernel_ = cv::getGaussianKernel(5, 1.0, CV_32F);
+    optic_g_kernel_ = cv::getGaussianKernel(5, 10.0, CV_32F);
     cv::transpose(dy_kernel_, dx_kernel_);
   }
 
@@ -565,6 +568,93 @@ class LKFlowReliable
     outs.push_back(t_scores);
     return outs;
   }
+
+//   std::vector<cv::Mat> baseLKOptic(cv::Mat& cur_bw, cv::Mat& prev_bw)
+//   {
+//     cv::Mat Ix(cur_bw.size(), CV_32FC1);
+//     cv::Mat Iy(cur_bw.size(), CV_32FC1);
+//     cv::Mat cur_blur(cur_bw.size(), cur_bw.type());
+//     cv::Mat prev_blur(prev_bw.size(), prev_bw.type());
+//     cv::Mat It = cur_bw - prev_bw;
+
+//     // Get image derivatives
+//     cv::filter2D(cur_bw, Ix, CV_32F, dx_kernel_);
+//     cv::filter2D(cur_bw, Iy, CV_32F, dy_kernel_);
+
+// #ifdef DISPLAY_OPT_FLOW_INTERNALS
+//     cv::imshow("cur_bw", cur_bw);
+//     cv::imshow("prev_bw", prev_bw);
+//     cv::imshow("It", It);
+//     cv::imshow("Ix", Ix);
+//     cv::imshow("Iy", Iy);
+// #endif // DISPLAY_OPT_FLOW_INTERNALS
+
+//     cv::Mat Ixx = Ix.mul(Ix);
+//     cv::Mat Iyy = Iy.mul(Iy);
+//     cv::Mat Ixy = Ix.mul(Iy);
+//     cv::Mat Ixt = Ix.mul(It);
+//     cv::Mat Iyt = Iy.mul(It);
+
+//     cv::Mat w11(cur_bw.size(), CV_32FC1);
+//     cv::Mat w22(cur_bw.size(), CV_32FC1);
+//     cv::Mat w12(cur_bw.size(), CV_32FC1);
+//     cv::filter2D(Ixx, w11, optic_g_kernel_);
+//     cv::filter2D(Iyy, w22, optic_g_kernel_);
+//     cv::filter2D(Ixy, w12, optic_g_kernel_);
+
+//     cv::Mat g1(cur_bw.size(), CV_32FC1);
+//     cv::Mat g2(cur_bw.size(), CV_32FC1);
+//     cv::filter2D(Ixt, g1, optic_g_kernel_);
+//     cv::filter2D(Iyt, g2, optic_g_kernel_);
+
+//     int win_radius = win_size_/2;
+//     cv::Mat flow_u(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
+//     cv::Mat flow_v(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
+//     cv::Mat t_scores(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
+//     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
+//     {
+//       for (int c = win_radius; c < Ix.cols-win_radius; ++c)
+//       {
+//         float sIxx = 0.0;
+//         float sIyy = 0.0;
+//         float sIxy = 0.0;
+//         float sIxt = 0.0;
+//         float sIyt = 0.0;
+//         for (int y = r-win_radius; y <= r+win_radius; ++y)
+//         {
+//           for (int x = c-win_radius; x <= c+win_radius; ++x)
+//           {
+//             sIxx += Ix.at<float>(y,x)*Ix.at<float>(y,x);
+//             sIyy += Iy.at<float>(y,x)*Iy.at<float>(y,x);
+//             sIxy += Ix.at<float>(y,x)*Iy.at<float>(y,x);
+//             sIxt += Ix.at<float>(y,x)*It.at<float>(y,x);
+//             sIyt += Iy.at<float>(y,x)*It.at<float>(y,x);
+//           }
+//         }
+
+//         float det = sIxx*sIyy - sIxy*sIxy;
+//         cv::Vec2f uv;
+//         if (det == 0.0)
+//         {
+//           uv[0] = 0.0;
+//           uv[1] = 0.0;
+//         }
+//         else
+//         {
+//           uv[0] = (-sIyy*sIxt + sIxy*sIyt)/det;
+//           uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
+//         }
+//         flow_u.at<float>(r,c) = uv[0];
+//         flow_v.at<float>(r,c) = uv[1];
+//         t_scores.at<float>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
+//       }
+//     }
+//     std::vector<cv::Mat> outs;
+//     outs.push_back(flow_u);
+//     outs.push_back(flow_v);
+//     outs.push_back(t_scores);
+//     return outs;
+//   }
 
   cv::Mat reduce(cv::Mat& input /*, cv::Mat kernel*/)
   {
@@ -787,7 +877,7 @@ class LKFlowReliable
   cv::Mat dx_kernel_;
   cv::Mat dy_kernel_;
   cv::Mat g_kernel_;
-  cv::Mat new_g_kernel_;
+  cv::Mat optic_g_kernel_;
 };
 
 class MotionGraphcut
@@ -796,9 +886,10 @@ class MotionGraphcut
   MotionGraphcut(double eigen_ratio = 5.0f, double w_f = 3.0f, double w_b = 2.0f,
                  double w_n_f = 0.01f, double w_n_b = 0.01f, double w_w_b = 5.0f,
                  double w_u_f = 0.1f, double w_u_b = 0.1f,
-                 double magnitude_thresh=0.1) :
+                 double magnitude_thresh=0.1, int arm_grow_radius=2) :
       w_f_(w_f), w_b_(w_b), w_n_f_(w_n_f), w_n_b_(w_n_b),  w_w_b_(w_w_b),
-      w_u_f_(w_u_f), w_u_b_(w_u_b), magnitude_thresh_(magnitude_thresh)
+      w_u_f_(w_u_f), w_u_b_(w_u_b), magnitude_thresh_(magnitude_thresh),
+      arm_grow_radius_(arm_grow_radius)
   {
     setEigenRatio(eigen_ratio);
   }
@@ -809,7 +900,7 @@ class MotionGraphcut
 
   cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
                      cv::Mat& u, cv::Mat& v, cv::Mat flow_scores,
-                     cv::Mat& workspace_mask, std::vector<cv::Point> ee_locs)
+                     cv::Mat& workspace_mask, std::vector<cv::Point> arm_locs)
   {
     const int R = color_frame.rows;
     const int C = color_frame.cols;
@@ -852,14 +943,6 @@ class MotionGraphcut
             bg_weights.at<float>(r,c) = w_n_f_;
 #endif // VISUALIZE_GRAPH_WEIGHTS
           }
-//           else if (magnitude > 0.0)
-//           {
-//             g->add_tweights(r*C+c, /*capacities*/ w_u_f_, w_u_b_);
-// #ifdef VISUALIZE_GRAPH_WEIGHTS
-//             fg_weights.at<float>(r,c) = w_u_f_;
-//             bg_weights.at<float>(r,c) = w_u_b_;
-// #endif // VISUALIZE_GRAPH_WEIGHTS
-//           }
           else
           {
             g->add_tweights(r*C+c, /*capacities*/ w_n_b_, w_b_);
@@ -912,15 +995,18 @@ class MotionGraphcut
     }
 
     // Add foreground weights to the locations of the hands?
-    for (unsigned int i = 0; i < ee_locs.size(); ++i)
+    for (unsigned int i = 0; i < arm_locs.size(); ++i)
     {
-      if (ee_locs[i].x >= 0 && ee_locs[i].x < C &&
-          ee_locs[i].y >= 0 && ee_locs[i].y < R)
+      if (arm_locs[i].x >= 0 && arm_locs[i].x < C &&
+          arm_locs[i].y >= 0 && arm_locs[i].y < R)
       {
+        // TODO: use cv::LineIterator to get line locations between the joints
         // Add weights to the neighborhood around this point
-        for (int r = max(0, ee_locs[i].y-2); r < min(ee_locs[i].y+2, R); ++r)
+        for (int r = max(0, arm_locs[i].y - arm_grow_radius_);
+             r < min(arm_locs[i].y + arm_grow_radius_, R); ++r)
         {
-          for (int c = max(0, ee_locs[i].x-2); c < min(ee_locs[i].x+2, C); ++c)
+          for (int c = max(0, arm_locs[i].x - arm_grow_radius_);
+               c < min(arm_locs[i].x + arm_grow_radius_, C); ++c)
           {
             g->add_tweights(r*C+c, /*capacities*/ w_f_, w_n_f_);
 #ifdef VISUALIZE_GRAPH_WEIGHTS
@@ -930,6 +1016,32 @@ class MotionGraphcut
           }
         }
       }
+    }
+
+    // Add lines for left arm
+    for (unsigned int i = 1; i < arm_locs.size()/2; ++i)
+    {
+      cv::LineIterator li(color_frame, arm_locs[i-1], arm_locs[i]);
+      // TODO: Iterate on the line
+      int cur_x;
+      int cur_y;
+      for (int r = max(0, cur_y - arm_grow_radius_);
+           r < min(cur_y + arm_grow_radius_, R); ++r)
+      {
+        for (int c = max(0, cur_x - arm_grow_radius_);
+             c < min(cur_x + arm_grow_radius_, C); ++c)
+        {
+          g->add_tweights(r*C+c, /*capacities*/ w_f_, w_n_f_);
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+          fg_weights.at<float>(r,c) = w_f_;
+          bg_weights.at<float>(r,c) = w_n_f_;
+#endif // VISUALIZE_GRAPH_WEIGHTS
+        }
+      }
+    }
+    // Add lines for right arm
+    for (unsigned int i = arm_locs.size()/2; i < arm_locs.size(); ++i)
+    {
     }
 
 #ifdef VISUALIZE_GRAPH_WEIGHTS
@@ -982,6 +1094,7 @@ class MotionGraphcut
   double w_u_f_;
   double w_u_b_;
   double magnitude_thresh_;
+  int arm_grow_radius_;
 };
 
 class PR2ArmDetector
@@ -1225,7 +1338,6 @@ class TabletopPushingPerceptionNode
     n_private.param("min_table_z", min_table_z_, -0.5);
     n_private.param("max_table_z", max_table_z_, 1.5);
     n_private.param("autostart_tracking", tracking_, false);
-    n_private.param("erosion_size", erosion_size_, 3);
     n_private.param("min_contour_size", min_contour_size_, 30);
     n_private.param("num_downsamples", num_downsamples_, 2);
     std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
@@ -1241,6 +1353,7 @@ class TabletopPushingPerceptionNode
     n_private.param("mgc_w_w_b", mgc_.w_w_b_, 5.0);
     n_private.param("mgc_w_u_f", mgc_.w_u_f_, 0.1);
     n_private.param("mgc_w_u_b", mgc_.w_u_b_, 0.1);
+    n_private.param("mgc_arm_grow_radius", mgc_.arm_grow_radius_, 2);
 
     // Lucas Kanade params
     double eigen_ratio = 0.5;
@@ -1361,6 +1474,7 @@ class TabletopPushingPerceptionNode
                                                cur_point_cloud_);
 
       // TODO: Process the moving stuff to separate arm from other stuff
+      prev_motion_mask_ = motion_mask.clone();
     }
   }
 
@@ -1482,15 +1596,14 @@ class TabletopPushingPerceptionNode
 
     std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
 
-    // TODO: Get the structure for all of the arm
-    std::vector<cv::Point> hands = projectEEPoseIntoImage(cur_camera_header_);
+    std::vector<cv::Point> forearms = projectForearmPoseIntoImage(cur_camera_header_);
     // TODO: Use this structure after segmenting moving form non-moving to
     // segment arm from not-arm
 
     cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
     color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
-                       flow_outs[2], cur_workspace_mask_, hands);
+                       flow_outs[2], cur_workspace_mask_, forearms);
 
 
     cv::Mat cleaned_cut(cut.size(), CV_8UC1);
@@ -1581,12 +1694,33 @@ class TabletopPushingPerceptionNode
     // cv::imshow("intensity", hsv[2]);
     cv::imshow("input_color", color_frame);
 #endif // DISPLAY_INPUT_COLOR
-#ifdef DISPLAY_HAND_CIRCLES
-    cv::Mat hands_img(color_frame.size(), CV_8UC3);
-    hands_img = color_frame.clone();
-    cv::circle(hands_img, hands[0], 5, cv::Scalar(0,255,0));
-    cv::circle(hands_img, hands[1], 5, cv::Scalar(0,0,255));
-    cv::imshow("hands", hands_img);
+#ifdef DISPLAY_FOREARM_CIRCLES
+    cv::Mat forearms_img(color_frame.size(), CV_8UC3);
+    forearms_img = color_frame.clone();
+    for (unsigned int i = 0; i < forearms.size(); ++i)
+    {
+      // if (forearms[i].x <= 0 || forearms[i].x > forearms_img.cols ||
+      //     forearms[i].y <= 0 || forearms[i].y > forearms_img.rows)
+      //   continue;
+      if (i < forearms.size()/2)
+      {
+        cv::circle(forearms_img, forearms[i], 5, cv::Scalar(0,255,0));
+        if (i > 0)
+        {
+          cv::line(forearms_img, forearms[i], forearms[i-1], cv::Scalar(0,255,0), 3);
+        }
+      }
+      else
+      {
+        cv::circle(forearms_img, forearms[i], 5, cv::Scalar(0,0,255));
+        if (i > forearms.size()/2)
+        {
+          cv::line(forearms_img, forearms[i], forearms[i-1], cv::Scalar(0,0,255), 3);
+        }
+
+      }
+    }
+    cv::imshow("forearms", forearms_img);
 #endif
 #ifdef DISPLAY_INPUT_DEPTH
     cv::imshow("input_depth", depth_frame);
@@ -1603,8 +1737,8 @@ class TabletopPushingPerceptionNode
 #endif // DISPLAY_OPTICAL_FLOW
 
 #ifdef DISPLAY_GRAPHCUT
-    cv::imshow("Cut", cut);
-    cv::imshow("Cleaned Cut", cleaned_cut);
+    // cv::imshow("Cut", cut);
+    // cv::imshow("Cleaned Cut", cleaned_cut);
     cv::imshow("moving_regions", moving_regions_img);
 #endif // DISPLAY_GRAPHCUT
 
@@ -1650,30 +1784,37 @@ class TabletopPushingPerceptionNode
     return img_loc;
   }
 
-  // TODO: Project all arm joints into image
-  std::vector<cv::Point> projectEEPoseIntoImage(std_msgs::Header image_header)
+
+  std::vector<cv::Point> projectForearmPoseIntoImage(std_msgs::Header img_header)
   {
-
-    PointStamped l_ee;
-    l_ee.header.frame_id = "l_gripper_tool_frame";
-    l_ee.header.stamp = image_header.stamp;
-    l_ee.point.x = 0.0;
-    l_ee.point.y = 0.0;
-    l_ee.point.z = 0.0;
-    PointStamped r_ee;
-    r_ee.header.frame_id = "r_gripper_tool_frame";
-    r_ee.header.stamp = image_header.stamp;
-    r_ee.point.x = 0.0;
-    r_ee.point.y = 0.0;
-    r_ee.point.z = 0.0;
-
-    cv::Point l_loc = projectPointIntoImage(l_ee, image_header.frame_id);
-    cv::Point r_loc = projectPointIntoImage(r_ee, image_header.frame_id);
-
-    std::vector<cv::Point> hand_locs;
-    hand_locs.push_back(l_loc);
-    hand_locs.push_back(r_loc);
-    return hand_locs;
+    // Project all arm joints into image
+    std::vector<cv::Point> joint_locs;
+    // Left arm
+    joint_locs.push_back(projectJointOriginIntoImage(img_header,
+                                                    "l_gripper_tool_frame"));
+    joint_locs.push_back(projectJointOriginIntoImage(img_header,
+                                                    "l_wrist_flex_link"));
+    joint_locs.push_back(projectJointOriginIntoImage(img_header,
+                                                    "l_forearm_roll_link"));
+    // Right arm
+    joint_locs.push_back(projectJointOriginIntoImage(img_header,
+                                                    "r_gripper_tool_frame"));
+    joint_locs.push_back(projectJointOriginIntoImage(img_header,
+                                                    "r_wrist_flex_link"));
+    joint_locs.push_back(projectJointOriginIntoImage(img_header,
+                                                    "r_forearm_roll_link"));
+    return joint_locs;
+  }
+  cv::Point projectJointOriginIntoImage(std_msgs::Header img_header,
+                                        std::string joint_name)
+  {
+    PointStamped joint_origin;
+    joint_origin.header.frame_id = joint_name;
+    joint_origin.header.stamp = img_header.stamp;
+    joint_origin.point.x = 0.0;
+    joint_origin.point.y = 0.0;
+    joint_origin.point.z = 0.0;
+    return projectPointIntoImage(joint_origin, img_header.frame_id);
   }
 
   //
@@ -1786,6 +1927,7 @@ class TabletopPushingPerceptionNode
   cv::Mat prev_color_frame_;
   cv::Mat prev_depth_frame_;
   cv::Mat prev_workspace_mask_;
+  cv::Mat prev_motion_mask_;
   std_msgs::Header cur_camera_header_;
   std_msgs::Header prev_camera_header_;
   XYZPointCloud cur_point_cloud_;
@@ -1797,9 +1939,6 @@ class TabletopPushingPerceptionNode
   int crop_min_y_;
   int crop_max_y_;
   int display_wait_ms_;
-  int erosion_size_;
-  cv::RotatedRect cur_ellipse_;
-  cv::RotatedRect delta_ellipse_;
   double min_workspace_x_;
   double max_workspace_x_;
   double min_workspace_y_;
@@ -1814,7 +1953,6 @@ class TabletopPushingPerceptionNode
   PoseStamped table_centroid_;
   bool tracking_;
   bool tracker_initialized_;
-  bool detecting_arm_;
   cv::Rect roi_;
   // PR2ArmDetector arm_detect_;
   std::string arm_data_path_;
