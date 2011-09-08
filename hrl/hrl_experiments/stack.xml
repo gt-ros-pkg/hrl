@@ -1,6 +1,10 @@
 <stack>
-  <description brief="hrl_experiments">hrl_experiments</description>
-  <author>Maintained by Aaron King</author>
+  <description brief="hrl_experiments">
+  
+  Contains packages with code for running various experiments.
+  
+  </description>
+  <author>Maintained by Kelsey Hawkins</author>
   <license>BSD</license>  
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_experiments</url>

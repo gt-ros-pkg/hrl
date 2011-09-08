@@ -1,10 +1,10 @@
 <package>
   <description brief="hrl_pr2_experiments">
 
-     hrl_pr2_experiments
+     Human Factors and Aging / Healthcare Robotics Lab joint venture.
 
   </description>
-  <author>kelsey</author>
+  <author>Kelsey Hawkins</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_pr2_experiments</url>

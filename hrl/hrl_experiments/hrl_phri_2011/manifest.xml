@@ -1,10 +1,10 @@
 <package>
   <description brief="hrl_phri_2011">
 
-     hrl_phri_2011
+    pHRI 2011 paper work.
 
   </description>
-  <author>Aaron King</author>
+  <author>Kelsey Hawkins</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_phri_2011</url>
