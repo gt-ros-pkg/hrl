@@ -111,12 +111,12 @@
 // #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define DISPLAY_ARM_PROBS 1
-// #define DISPLAY_FOREARM_CIRCLES 1
+// #define DISPLAY_ARM_CIRCLES 1
 
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
-// #define WRITE_FOREARMS_TO_DISK 1
+// #define WRITE_ARMS_TO_DISK 1
 
 // Functional IFDEFS
 // #define REMOVE_SMALL_BLOBS
@@ -569,93 +569,6 @@ class LKFlowReliable
     outs.push_back(t_scores);
     return outs;
   }
-
-//   std::vector<cv::Mat> baseLKOptic(cv::Mat& cur_bw, cv::Mat& prev_bw)
-//   {
-//     cv::Mat Ix(cur_bw.size(), CV_32FC1);
-//     cv::Mat Iy(cur_bw.size(), CV_32FC1);
-//     cv::Mat cur_blur(cur_bw.size(), cur_bw.type());
-//     cv::Mat prev_blur(prev_bw.size(), prev_bw.type());
-//     cv::Mat It = cur_bw - prev_bw;
-
-//     // Get image derivatives
-//     cv::filter2D(cur_bw, Ix, CV_32F, dx_kernel_);
-//     cv::filter2D(cur_bw, Iy, CV_32F, dy_kernel_);
-
-// #ifdef DISPLAY_OPT_FLOW_INTERNALS
-//     cv::imshow("cur_bw", cur_bw);
-//     cv::imshow("prev_bw", prev_bw);
-//     cv::imshow("It", It);
-//     cv::imshow("Ix", Ix);
-//     cv::imshow("Iy", Iy);
-// #endif // DISPLAY_OPT_FLOW_INTERNALS
-
-//     cv::Mat Ixx = Ix.mul(Ix);
-//     cv::Mat Iyy = Iy.mul(Iy);
-//     cv::Mat Ixy = Ix.mul(Iy);
-//     cv::Mat Ixt = Ix.mul(It);
-//     cv::Mat Iyt = Iy.mul(It);
-
-//     cv::Mat w11(cur_bw.size(), CV_32FC1);
-//     cv::Mat w22(cur_bw.size(), CV_32FC1);
-//     cv::Mat w12(cur_bw.size(), CV_32FC1);
-//     cv::filter2D(Ixx, w11, optic_g_kernel_);
-//     cv::filter2D(Iyy, w22, optic_g_kernel_);
-//     cv::filter2D(Ixy, w12, optic_g_kernel_);
-
-//     cv::Mat g1(cur_bw.size(), CV_32FC1);
-//     cv::Mat g2(cur_bw.size(), CV_32FC1);
-//     cv::filter2D(Ixt, g1, optic_g_kernel_);
-//     cv::filter2D(Iyt, g2, optic_g_kernel_);
-
-//     int win_radius = win_size_/2;
-//     cv::Mat flow_u(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
-//     cv::Mat flow_v(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
-//     cv::Mat t_scores(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
-//     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
-//     {
-//       for (int c = win_radius; c < Ix.cols-win_radius; ++c)
-//       {
-//         float sIxx = 0.0;
-//         float sIyy = 0.0;
-//         float sIxy = 0.0;
-//         float sIxt = 0.0;
-//         float sIyt = 0.0;
-//         for (int y = r-win_radius; y <= r+win_radius; ++y)
-//         {
-//           for (int x = c-win_radius; x <= c+win_radius; ++x)
-//           {
-//             sIxx += Ix.at<float>(y,x)*Ix.at<float>(y,x);
-//             sIyy += Iy.at<float>(y,x)*Iy.at<float>(y,x);
-//             sIxy += Ix.at<float>(y,x)*Iy.at<float>(y,x);
-//             sIxt += Ix.at<float>(y,x)*It.at<float>(y,x);
-//             sIyt += Iy.at<float>(y,x)*It.at<float>(y,x);
-//           }
-//         }
-
-//         float det = sIxx*sIyy - sIxy*sIxy;
-//         cv::Vec2f uv;
-//         if (det == 0.0)
-//         {
-//           uv[0] = 0.0;
-//           uv[1] = 0.0;
-//         }
-//         else
-//         {
-//           uv[0] = (-sIyy*sIxt + sIxy*sIyt)/det;
-//           uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
-//         }
-//         flow_u.at<float>(r,c) = uv[0];
-//         flow_v.at<float>(r,c) = uv[1];
-//         t_scores.at<float>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
-//       }
-//     }
-//     std::vector<cv::Mat> outs;
-//     outs.push_back(flow_u);
-//     outs.push_back(flow_v);
-//     outs.push_back(t_scores);
-//     return outs;
-//   }
 
   cv::Mat reduce(cv::Mat& input /*, cv::Mat kernel*/)
   {
@@ -1570,14 +1483,16 @@ class TabletopPushingPerceptionNode
 
     std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
 
-    std::vector<cv::Point> forearms = projectForearmPoseIntoImage(cur_camera_header_);
+    std::vector<cv::Point> arms = projectArmPoseIntoImage(cur_camera_header_);
+
     // TODO: Use this structure after segmenting moving form non-moving to
     // segment arm from not-arm
+    // getColorModels(color_frame_hsv, arms);
 
     cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
     color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
-                       flow_outs[2], cur_workspace_mask_, forearms);
+                       flow_outs[2], cur_workspace_mask_, arms);
 
 
     cv::Mat cleaned_cut(cut.size(), CV_8UC1);
@@ -1620,9 +1535,6 @@ class TabletopPushingPerceptionNode
     motion_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     motion_img_pub_.publish(motion_img_msg.toImageMsg());
 
-    // Figure out arm locations
-    // cv::Mat arm_probs = arm_detect_.imageArmProbability(color_frame_hsv);
-
 #ifdef WRITE_INPUT_TO_DISK
     std::stringstream input_out_name;
     input_out_name << base_output_path_ << "input" << tracker_count_ << ".tiff";
@@ -1660,17 +1572,17 @@ class TabletopPushingPerceptionNode
     cv::imwrite(cut_out_name.str(), moving_regions_img);
 #endif // WRITE_CUTS_TO_DISK
 
-#ifdef WRITE_FOREARMS_TO_DISK
+#ifdef WRITE_ARMS_TO_DISK
     std::stringstream arm_out_name;
     arm_out_name << base_output_path_ << "arm" << tracker_count_ << ".tiff";
-    cv::Mat forearm_write_img(color_frame.size(), CV_8UC3);
-    forearm_write_img = color_frame.clone();
-    for (unsigned int i = 0; i < forearms.size(); ++i)
+    cv::Mat arm_write_img(color_frame.size(), CV_8UC3);
+    arm_write_img = color_frame.clone();
+    for (unsigned int i = 0; i < arms.size(); ++i)
     {
-      cv::circle(forearm_write_img, forearms[i], 2, cv::Scalar(0,255,0));
+      cv::circle(arm_write_img, arms[i], 2, cv::Scalar(0,255,0));
     }
-    cv::imwrite(arm_out_name.str(), forearm_write_img);
-#endif // WRITE_FOREARMS_TO_DISK
+    cv::imwrite(arm_out_name.str(), arm_write_img);
+#endif // WRITE_ARMS_TO_DISK
 
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
@@ -1680,14 +1592,14 @@ class TabletopPushingPerceptionNode
     // cv::imshow("intensity", hsv[2]);
     cv::imshow("input_color", color_frame);
 #endif // DISPLAY_INPUT_COLOR
-#ifdef DISPLAY_FOREARM_CIRCLES
-    cv::Mat forearms_img(color_frame.size(), CV_8UC3);
-    forearms_img = color_frame.clone();
-    for (unsigned int i = 0; i < forearms.size(); ++i)
+#ifdef DISPLAY_ARM_CIRCLES
+    cv::Mat arms_img(color_frame.size(), CV_8UC3);
+    arms_img = color_frame.clone();
+    for (unsigned int i = 0; i < arms.size(); ++i)
     {
-      cv::circle(forearms_img, forearms[i], 2, cv::Scalar(0,255,0));
+      cv::circle(arms_img, arms[i], 2, cv::Scalar(0,255,0));
     }
-    cv::imshow("forearms", forearms_img);
+    cv::imshow("arms", arms_img);
 #endif
 #ifdef DISPLAY_INPUT_DEPTH
     cv::imshow("input_depth", depth_frame);
@@ -1807,7 +1719,7 @@ class TabletopPushingPerceptionNode
     }
   }
 
-  std::vector<cv::Point> projectForearmPoseIntoImage(std_msgs::Header img_header)
+  std::vector<cv::Point> projectArmPoseIntoImage(std_msgs::Header img_header)
   {
     // Project all arm joints into image
     std::vector<cv::Point> arm_locs;
