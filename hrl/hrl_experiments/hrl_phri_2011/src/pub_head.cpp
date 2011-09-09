@@ -2,7 +2,7 @@
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "pc_head_stitcher");
+    ros::init(argc, argv, "pub_head");
 
     // Load bag
     rosbag::Bag bag;

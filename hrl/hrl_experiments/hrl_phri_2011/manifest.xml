@@ -15,6 +15,10 @@
   <depend package="pcl_ros"/>
   <depend package="eigen_conversions"/>
   <depend package="pixel_2_3d"/>
+  <depend package="opencv2"/>
+  <depend package="image_transport"/>
+  <depend package="cv_bridge"/>
+  <depend package="sensor_msgs"/>
 
 </package>
 

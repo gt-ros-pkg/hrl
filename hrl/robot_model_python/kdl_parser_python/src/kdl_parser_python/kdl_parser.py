@@ -4,6 +4,18 @@ import numpy as np
 
 import roslib
 roslib.load_manifest("kdl_parser_python")
+
+# this is an odd little trick which puts our libraries ahead of all the others
+# so that we get the new version of PyKDL instead of the old one
+import sys
+kpp_paths, other_paths = [], []
+for path in sys.path:
+    if "kdl_parser_python" in path:
+        kpp_paths.append(path)
+    else:
+        other_paths.append(path)
+sys.path = kpp_paths + other_paths
+
 import urdf_parser_python.urdf_parser as urdf
 import PyKDL as kdl
 
@@ -69,6 +81,12 @@ def tree_from_file(filename):
 def tree_from_param(param="/robot_description"):
     robot_model = urdf.create_model_from_param(param)
     return tree_from_urdf_model(robot_model)
+
+def chain_from_file(base_link, end_link, filename):
+    tree = tree_from_file(filename)
+    chain = tree.getChain(base_link, end_link)
+    joint_info = joint_info_from_model(chain, robot_model)
+    return chain, joint_info
 
 def chain_from_param(base_link, end_link, param="/robot_description"):
     robot_model = urdf.create_model_from_param(param)

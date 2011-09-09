@@ -31,6 +31,8 @@ rosbuild_genmsg()
 
 rosbuild_add_boost_directories()
 
-rosbuild_add_executable(pc_head_stitcher src/pc_head_stitcher.cpp)
-rosbuild_add_executable(force_labeler src/force_labeler.cpp)
+#rosbuild_add_executable(pc_head_stitcher src/pc_head_stitcher.cpp)
+#rosbuild_add_executable(force_labeler src/force_labeler.cpp)
 rosbuild_add_executable(pub_head src/pub_head.cpp)
+rosbuild_add_executable(ellipsoid_test src/ellipsoid_test.cpp)
+rosbuild_add_executable(visualize_head src/visualize_head.cpp)

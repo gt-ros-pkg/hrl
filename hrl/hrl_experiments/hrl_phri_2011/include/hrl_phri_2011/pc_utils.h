@@ -33,8 +33,8 @@ typedef pcl::PointCloud<PRGB> PCRGB;
 typedef pcl::PointCloud<pcl::Normal> PCNormals;
 typedef pcl::PointCloud<pcl::FPFHSignature33> FPFeatures;
 typedef pcl::KdTree<PRGB> KDTree;
-typedef map<string, Eigen::eigen2_Transform3d, less<string>, 
-            Eigen::aligned_allocator<std::pair<const string, Eigen::eigen2_Transform3d> > > map_str_t3d;
+typedef map<string, Eigen::Affine3d, less<string>, 
+            Eigen::aligned_allocator<std::pair<const string, Eigen::Affine3d> > > map_str_t3d;
 
 
 void boxFilter(const PCRGB &in_pc, PCRGB &out_pc,
@@ -61,7 +61,7 @@ void boxFilter(const PCRGB &in_pc, PCRGB &out_pc,
 }
 
 void transformPC(const PCRGB &in_pc, PCRGB &out_pc, 
-                 const Eigen::eigen2_Transform3d& transform) {
+                 const Eigen::Affine3d& transform) {
     MatrixXd pt_mat = MatrixXd::Constant(4, in_pc.points.size(), 1.0);
     uint32_t i = 0;
     BOOST_FOREACH(PRGB const pt, in_pc.points) {
@@ -128,7 +128,7 @@ void computeSACRegistration(const PCRGB::Ptr& target_pc, const PCRGB::Ptr& sourc
     PCRGB reg_out;
     sac_ia.align(reg_out);
     ROS_INFO("OUT ALIGN1");
-    Eigen::eigen2_Transform3d sac_tf;
+    Eigen::Affine3d sac_tf;
     sac_tf.matrix() = sac_ia.getFinalTransformation().cast<double>();
     PCRGB tf_pc;
     transformPC(*source_pc, tf_pc, sac_tf);
@@ -140,7 +140,7 @@ void computeSACRegistration(const PCRGB::Ptr& target_pc, const PCRGB::Ptr& sourc
 }
 
 void computeICPRegistration(const PCRGB::Ptr& target_pc, const PCRGB::Ptr& source_pc,
-                            Eigen::eigen2_Transform3d& tf_mat, int max_iters=300) {
+                            Eigen::Affine3d& tf_mat, int max_iters=300) {
     pcl::IterativeClosestPointNonLinear<PRGB, PRGB> icp;
     icp.setInputTarget(target_pc);
     icp.setInputCloud(source_pc);
