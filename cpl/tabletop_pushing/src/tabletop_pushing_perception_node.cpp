@@ -491,6 +491,7 @@ class LKFlowReliable
       Dx = smooth(Dx);
       Dy = smooth(Dy);
     }
+    // TODO: Median filter Dx and Dy before returning.
     std::vector<cv::Mat> total_outs;
     total_outs.push_back(Dx);
     total_outs.push_back(Dy);
@@ -825,6 +826,9 @@ class MotionGraphcut
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::Mat fg_weights(color_frame.size(), CV_32FC1);
     cv::Mat bg_weights(color_frame.size(), CV_32FC1);
+    cv::Mat left_weights(color_frame.size(), CV_32FC1);
+    cv::Mat up_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat up_left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
 #endif // VISUALIZE_GRAPH_WEIGHTS
 
     for (int r = 0; r < R; ++r)
@@ -885,6 +889,9 @@ class MotionGraphcut
                                     color_frame.at<cv::Vec3f>(r,c-1),
                                     depth_frame.at<float>(r,c-1));
           g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+          left_weights.at<float>(r,c) = w_l;
+#endif // VISUALIZE_GRAPH_WEIGHTS
         }
 
         if (r > 0)
@@ -895,6 +902,10 @@ class MotionGraphcut
                                     color_frame.at<cv::Vec3f>(r-1,c),
                                     depth_frame.at<float>(r-1,c));
           g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+          up_weights.at<float>(r,c) = w_u;
+#endif // VISUALIZE_GRAPH_WEIGHTS
+
           // Add up-left-link
           if (c > 0)
           {
@@ -903,6 +914,10 @@ class MotionGraphcut
                                        color_frame.at<cv::Vec3f>(r-1,c-1),
                                        depth_frame.at<float>(r-1,c-1));
             g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+          up_left_weights.at<float>(r,c) = w_ul;
+#endif // VISUALIZE_GRAPH_WEIGHTS
+
           }
         }
       }
@@ -934,6 +949,9 @@ class MotionGraphcut
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::imshow("fg_weights", fg_weights);
     cv::imshow("bg_weights", bg_weights);
+    cv::imshow("up_weights", up_weights);
+    cv::imshow("left_weights", left_weights);
+    cv::imshow("up_left_weights", up_left_weights);
 #endif // VISUALIZE_GRAPH_WEIGHTS
 
     int flow = g->maxflow(false);
@@ -959,7 +977,9 @@ class MotionGraphcut
     float w_d = d0-d1;
     // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2] + w_d*w_d);
     // float w_c = sqrt(c_d[0]*c_d[0] + c_d[1]*c_d[1] + w_d*w_d);
-    float w_c = sqrt(c_d[0]*c_d[0] + w_d*w_d);
+    // float w_c = sqrt(c_d[0]*c_d[0] + w_d*w_d);
+    // float w_c = w_c_alpha_*exp(c_d[0]*c_d[0]) + w_c_gamma_*exp(w_d*w_d);
+    float w_c = w_c_alpha_*exp(fabs(c_d[0])) + w_c_gamma_*exp(fabs(w_d));
     return w_c;
   }
 
@@ -980,6 +1000,8 @@ class MotionGraphcut
   double w_w_b_;
   double w_u_f_;
   double w_u_b_;
+  double w_c_alpha_;
+  double w_c_gamma_;
   double magnitude_thresh_;
   int arm_grow_radius_;
 };
@@ -1240,6 +1262,9 @@ class TabletopPushingPerceptionNode
     n_private.param("mgc_w_w_b", mgc_.w_w_b_, 5.0);
     n_private.param("mgc_w_u_f", mgc_.w_u_f_, 0.1);
     n_private.param("mgc_w_u_b", mgc_.w_u_b_, 0.1);
+
+    n_private.param("mgc_w_c_alpha", mgc_.w_c_alpha_, 0.1);
+    n_private.param("mgc_w_c_gamma", mgc_.w_c_gamma_, 0.1);
     n_private.param("mgc_arm_grow_radius", mgc_.arm_grow_radius_, 2);
 
     // Lucas Kanade params

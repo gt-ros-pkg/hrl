@@ -106,17 +106,6 @@ class TabletopExecutive:
         self.start_tracker()
 
         rospy.loginfo("Pushing shit");
-
-        self.push_count = 0
-        self.num_total_pushes = num_l_gripper_pushes
-        for i in xrange(num_l_gripper_pushes):
-            self.gripper_push_object(self.gripper_push_dist, 'l')
-
-        self.push_count = 0
-        self.num_total_pushes = num_r_gripper_pushes
-        for i in xrange(num_r_gripper_pushes):
-            self.gripper_push_object(self.gripper_push_dist, 'r')
-
         self.sweep_count = 0
         self.num_total_sweeps = num_l_sweeps
         for i in xrange(num_l_sweeps):
@@ -127,6 +116,16 @@ class TabletopExecutive:
         self.num_total_sweeps = num_r_sweeps
         for i in xrange(num_r_sweeps):
             self.sweep_object(self.gripper_sweep_dist, 'r')
+
+        self.push_count = 0
+        self.num_total_pushes = num_l_gripper_pushes
+        for i in xrange(num_l_gripper_pushes):
+            self.gripper_push_object(self.gripper_push_dist, 'l')
+
+        self.push_count = 0
+        self.num_total_pushes = num_r_gripper_pushes
+        for i in xrange(num_r_gripper_pushes):
+            self.gripper_push_object(self.gripper_push_dist, 'r')
 
         self.push_count = 0
         self.num_total_pushes = num_l_overhead_pushes
@@ -361,4 +360,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(0, 0, 0, 0, 1, 0)
+    node.run(0, 1, 0, 2, 0, 0)
