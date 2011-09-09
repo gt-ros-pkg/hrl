@@ -105,17 +105,18 @@
 // #define DISPLAY_MEANS 1
 // #define DISPLAY_VARS 1
 // #define DISPLAY_INTERMEDIATE_PROBS 1
-#define DISPLAY_OPTICAL_FLOW 1
+// #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_UV 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
-#define DISPLAY_GRAPHCUT 1
+// #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define DISPLAY_ARM_PROBS 1
-#define DISPLAY_FOREARM_CIRCLES 1
+// #define DISPLAY_FOREARM_CIRCLES 1
 
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
+// #define WRITE_FOREARMS_TO_DISK 1
 
 // Functional IFDEFS
 // #define REMOVE_SMALL_BLOBS
@@ -1000,7 +1001,6 @@ class MotionGraphcut
       if (arm_locs[i].x >= 0 && arm_locs[i].x < C &&
           arm_locs[i].y >= 0 && arm_locs[i].y < R)
       {
-        // TODO: use cv::LineIterator to get line locations between the joints
         // Add weights to the neighborhood around this point
         for (int r = max(0, arm_locs[i].y - arm_grow_radius_);
              r < min(arm_locs[i].y + arm_grow_radius_, R); ++r)
@@ -1016,32 +1016,6 @@ class MotionGraphcut
           }
         }
       }
-    }
-
-    // Add lines for left arm
-    for (unsigned int i = 1; i < arm_locs.size()/2; ++i)
-    {
-      cv::LineIterator li(color_frame, arm_locs[i-1], arm_locs[i]);
-      // TODO: Iterate on the line
-      int cur_x;
-      int cur_y;
-      for (int r = max(0, cur_y - arm_grow_radius_);
-           r < min(cur_y + arm_grow_radius_, R); ++r)
-      {
-        for (int c = max(0, cur_x - arm_grow_radius_);
-             c < min(cur_x + arm_grow_radius_, C); ++c)
-        {
-          g->add_tweights(r*C+c, /*capacities*/ w_f_, w_n_f_);
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-          fg_weights.at<float>(r,c) = w_f_;
-          bg_weights.at<float>(r,c) = w_n_f_;
-#endif // VISUALIZE_GRAPH_WEIGHTS
-        }
-      }
-    }
-    // Add lines for right arm
-    for (unsigned int i = arm_locs.size()/2; i < arm_locs.size(); ++i)
-    {
     }
 
 #ifdef VISUALIZE_GRAPH_WEIGHTS
@@ -1686,6 +1660,18 @@ class TabletopPushingPerceptionNode
     cv::imwrite(cut_out_name.str(), moving_regions_img);
 #endif // WRITE_CUTS_TO_DISK
 
+#ifdef WRITE_FOREARMS_TO_DISK
+    std::stringstream arm_out_name;
+    arm_out_name << base_output_path_ << "arm" << tracker_count_ << ".tiff";
+    cv::Mat forearm_write_img(color_frame.size(), CV_8UC3);
+    forearm_write_img = color_frame.clone();
+    for (unsigned int i = 0; i < forearms.size(); ++i)
+    {
+      cv::circle(forearm_write_img, forearms[i], 2, cv::Scalar(0,255,0));
+    }
+    cv::imwrite(arm_out_name.str(), forearm_write_img);
+#endif // WRITE_FOREARMS_TO_DISK
+
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
     cv::split(color_frame_hsv, hsv);
@@ -1699,26 +1685,7 @@ class TabletopPushingPerceptionNode
     forearms_img = color_frame.clone();
     for (unsigned int i = 0; i < forearms.size(); ++i)
     {
-      // if (forearms[i].x <= 0 || forearms[i].x > forearms_img.cols ||
-      //     forearms[i].y <= 0 || forearms[i].y > forearms_img.rows)
-      //   continue;
-      if (i < forearms.size()/2)
-      {
-        cv::circle(forearms_img, forearms[i], 5, cv::Scalar(0,255,0));
-        if (i > 0)
-        {
-          cv::line(forearms_img, forearms[i], forearms[i-1], cv::Scalar(0,255,0), 3);
-        }
-      }
-      else
-      {
-        cv::circle(forearms_img, forearms[i], 5, cv::Scalar(0,0,255));
-        if (i > forearms.size()/2)
-        {
-          cv::line(forearms_img, forearms[i], forearms[i-1], cv::Scalar(0,0,255), 3);
-        }
-
-      }
+      cv::circle(forearms_img, forearms[i], 2, cv::Scalar(0,255,0));
     }
     cv::imshow("forearms", forearms_img);
 #endif
@@ -1784,26 +1751,81 @@ class TabletopPushingPerceptionNode
     return img_loc;
   }
 
+  void getLineValues(cv::Point p1, cv::Point p2, std::vector<cv::Point>& line)
+  {
+    bool steep = (abs(p1.y - p2.y) > abs(p1.x - p2.x));
+    if (steep)
+    {
+      // Swap x and y
+      cv::Point tmp(p1.y, p1.x);
+      p1.x = tmp.x;
+      p1.y = tmp.y;
+      tmp.y = p2.x;
+      tmp.x = p2.y;
+      p2.x = tmp.x;
+      p2.y = tmp.y;
+    }
+    if (p1.x > p2.x)
+    {
+      // Swap p1 and p2
+      cv::Point tmp(p1.x, p1.y);
+      p1.x = p2.x;
+      p1.y = p2.y;
+      p2.x = tmp.x;
+      p2.y = tmp.y;
+    }
+    int dx = p2.x - p1.x;
+    int dy = abs(p2.y - p1.y);
+    int error = dx / 2;
+    int ystep = 0;
+    if (p1.y < p2.y)
+    {
+      ystep = 1;
+    }
+    else if (p1.y > p2.y)
+    {
+      ystep = -1;
+    }
+    for(int x = p1.x, y = p1.y; x <= p2.x; ++x)
+    {
+      if (steep)
+      {
+        cv::Point p_new(y,x);
+        line.push_back(p_new);
+      }
+      else
+      {
+        cv::Point p_new(x,y);
+        line.push_back(p_new);
+      }
+      error -= dy;
+      if (error < 0)
+      {
+        y += ystep;
+        error += dx;
+      }
+    }
+  }
 
   std::vector<cv::Point> projectForearmPoseIntoImage(std_msgs::Header img_header)
   {
     // Project all arm joints into image
-    std::vector<cv::Point> joint_locs;
+    std::vector<cv::Point> arm_locs;
     // Left arm
-    joint_locs.push_back(projectJointOriginIntoImage(img_header,
-                                                    "l_gripper_tool_frame"));
-    joint_locs.push_back(projectJointOriginIntoImage(img_header,
-                                                    "l_wrist_flex_link"));
-    joint_locs.push_back(projectJointOriginIntoImage(img_header,
-                                                    "l_forearm_roll_link"));
+    cv::Point l0 = projectJointOriginIntoImage(img_header, "l_gripper_tool_frame");
+    cv::Point l1 = projectJointOriginIntoImage(img_header, "l_wrist_flex_link");
+    cv::Point l2 = projectJointOriginIntoImage(img_header, "l_forearm_roll_link");
     // Right arm
-    joint_locs.push_back(projectJointOriginIntoImage(img_header,
-                                                    "r_gripper_tool_frame"));
-    joint_locs.push_back(projectJointOriginIntoImage(img_header,
-                                                    "r_wrist_flex_link"));
-    joint_locs.push_back(projectJointOriginIntoImage(img_header,
-                                                    "r_forearm_roll_link"));
-    return joint_locs;
+    cv::Point r0 = projectJointOriginIntoImage(img_header, "r_gripper_tool_frame");
+    cv::Point r1 = projectJointOriginIntoImage(img_header, "r_wrist_flex_link");
+    cv::Point r2 = projectJointOriginIntoImage(img_header, "r_forearm_roll_link");
+
+    getLineValues(l0, l1, arm_locs);
+    getLineValues(l1, l2, arm_locs);
+    getLineValues(r0, r1, arm_locs);
+    getLineValues(r1, r2, arm_locs);
+
+    return arm_locs;
   }
   cv::Point projectJointOriginIntoImage(std_msgs::Header img_header,
                                         std::string joint_name)
