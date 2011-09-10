@@ -2,18 +2,15 @@
 # Calculating and displaying 2D Hue-Saturation histogram of a color image
 import roslib
 roslib.load_manifest('pr2_playpen')
+import rospy
 import sys
 import cv
 import numpy as np
+import cPickle
 from collections import deque
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
-
-
-cv.NamedWindow("avg_noise", cv.CV_WINDOW_AUTOSIZE)
-cv.NamedWindow("back_modified", cv.CV_WINDOW_AUTOSIZE)
-cv.NamedWindow("back_modified2", cv.CV_WINDOW_AUTOSIZE)
 
 class HistAnalyzer:
 
@@ -51,7 +48,7 @@ class HistAnalyzer:
 
     def check_for_hist(self):
         if self.hist == None:
-            print "YOU CAN'T CALCULATE NOISE WITH HIST MODEL OF TABLETOP"
+            print "YOU CAN'T CALCULATE NOISE WITHOUT HIST MODEL OF TABLETOP"
             exit
 
     def calc_noise(self):
@@ -124,8 +121,8 @@ if __name__ == '__main__':
         folder = opt.batch_folder+'/background_noise/'
         background_noise = deque() #[]
 
-        cv.NamedWindow("Source", cv.CV_WINDOW_AUTOSIZE)
-        cv.NamedWindow("final", cv.CV_WINDOW_AUTOSIZE)
+        #cv.NamedWindow("Source", cv.CV_WINDOW_AUTOSIZE)
+        #cv.NamedWindow("final", cv.CV_WINDOW_AUTOSIZE)
 
         for i in xrange(130):
             background_noise.append(cv.LoadImage(folder+'file'+str(i).zfill(3)+'.png'))
@@ -149,43 +146,65 @@ if __name__ == '__main__':
 
         n = 0
         sum_val = 0
-        #test_sum_ls = []
 
         for i in xrange(9):
-            for j in xrange(100):
-                #print sys.argv[1]+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)
+            file_h = open(opt.batch_folder+'/object'+str(i).zfill(3)+'.pkl', 'r')
+            res_dict = cPickle.load(file_h)
+            for j in xrange(len(res_dict['success'])):
                 try:
-                    img = cv.LoadImageM(opt.batch_folder+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png')
-                    #img = cv.LoadImageM(sys.argv[1]+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_before_pr2.png')
+                    #check for object before starting ...##########################
+                    img = cv.LoadImageM(opt.batch_folder+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_before_pr2.png')
                     result = ha.compare_imgs(img, ha.background_noise[-1])
-                    n = n+1
-                    sum_val = sum_val + float(cv.Sum(result)[0])
 
-                    #print "here's the sum :", cv.Sum(result)[0]
-                    cv.ShowImage("Source", img)
-                    cv.ShowImage("final", result)
-
-                    cv.WaitKey(-1)
-
+                    is_object = False
                     loc_sum = float(cv.Sum(result)[0])
-                    #if loc_sum > avg-5*std and loc_sum < avg+5*std:
                     if loc_sum < avg+5*std:
-                        print "success ! \t:", loc_sum, "\t compared to \t", avg, 5*std
-                        #ha.background_noise.popleft()
-                        #ha.background_noise.append(img)
+                        res_dict['success'][j] = None
+                        print "no object to start with!?"
                     else:
-                        print "epic fail ! \t:", loc_sum, "\t compared to \t", avg, 5*std
+                        is_object = True
+                        print "there's an object let's check for success ..."
+
+
+                    #check for success if object was in workspace to start with
+                    if is_object == True:
+                        img = cv.LoadImageM(opt.batch_folder+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png')
+                        result2 = ha.compare_imgs(img, ha.background_noise[-1])
+                        n = n+1
+                        sum_val = sum_val + float(cv.Sum(result2)[0])
+
+                        #print "here's the sum :", cv.Sum(result2)[0]
+                        #cv.ShowImage("Source", img)
+                        #cv.ShowImage("final", result2)
+                        #cv.WaitKey(-1)
+
+                        loc_sum = float(cv.Sum(result2)[0])
+                        if loc_sum < avg+5*std:
+                            res_dict['success'][j] = True
+                            print "success ! \t:", loc_sum, "\t compared to \t", avg, 5*std
+                            #ha.background_noise.popleft()
+                            #ha.background_noise.append(img)
+                        else:
+                            res_dict['success'][j] = False
+                            print "epic fail ! \t:", loc_sum, "\t compared to \t", avg, 5*std
 
                 except:
-                    print "no file like that, probably outside of index range"
+                    print "problem in try statement"
+            file_h.close()
+            try:
+                os.system('rm '+opt.batch_folder+'/object'+str(i).zfill(3)+'.pkl')
+            except:
+                print "PROBLEM DELETING OLD FILE..., it didn't exist"
+                exit
+            file_h2 =  open(opt.batch_folder+'/object'+str(i).zfill(3)+'.pkl', 'w')
+            cPickle.dump(res_dict, file_h2)
+            file_h2.close()
             print "recalculating hist and noise..."
             #ha.calc_hist()
             #ha.calc_noise()
             print "done!"
 
-
         print "average error for objects present :", sum_val/n
-
 
     elif opt.topic != None:
         pass
