@@ -77,10 +77,10 @@ void transformPC(const PCRGB &in_pc, PCRGB &out_pc,
     }
 }
 
-void pubLoop(PCRGB &pc, const std::string& topic) {
+void pubLoop(PCRGB &pc, const std::string& topic, double rate = 1.0) {
     ros::NodeHandle nh;
     ros::Publisher pub_pc = nh.advertise<sensor_msgs::PointCloud2>(topic, 1);
-    ros::Rate r(1);
+    ros::Rate r(rate);
     sensor_msgs::PointCloud2 pc_msg;
     pcl::toROSMsg(pc, pc_msg);
     while(ros::ok()) {

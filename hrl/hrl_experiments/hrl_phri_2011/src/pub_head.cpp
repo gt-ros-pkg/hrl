@@ -3,6 +3,10 @@
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "pub_head");
+    if(argc < 2 || argc > 5) {
+        printf("Usage pub_head bag_file [topic] [frame] [rate]\n");
+        return 1;
+    }
 
     // Load bag
     rosbag::Bag bag;
@@ -15,6 +19,14 @@ int main(int argc, char **argv)
         pcl::fromROSMsg(*pc2, *pc_head);
         break;
     }
-    pubLoop(*pc_head, "/stitched_head");
+    if(argc >= 4)
+        pc_head->header.frame_id = argv[3];
+    if(argc == 2)
+        pubLoop(*pc_head, "/stitched_head");
+    else if(argc == 3)
+        pubLoop(*pc_head, argv[2]);
+    else if(argc == 5)
+        pubLoop(*pc_head, argv[2], atof(argv[4]));
+
     return 0;
 }
