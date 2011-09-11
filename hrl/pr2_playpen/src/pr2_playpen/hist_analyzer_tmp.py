@@ -3,6 +3,7 @@
 import roslib
 roslib.load_manifest('pr2_playpen')
 import rospy
+from pr2_playpen.srv import * #this is for Train and Check
 import sys
 import cv
 import numpy as np
@@ -16,6 +17,8 @@ class HistAnalyzer:
 
     def __init__(self, background_noise, mask, topic='/playpen_kinect/rgb/image_color'):
         rospy.Subscriber(topic, Image, self.get_img)
+        self.check = rospy.Service("playpen_check_success_hist", Check, self.serv_success)
+        self.train_empty = rospy.Service("playpen_train_hist", Train, self.serv_train)
         self.background_noise = background_noise
         self.h_bins = 30
         self.s_bins = 32
@@ -33,6 +36,18 @@ class HistAnalyzer:
             self.online_img = self.bridge.imgmsg_to_cv(msg, "bgr8")
         except CvBridgeError, e:
             print e
+
+    def serv_train(self, req):
+        if req.expected== 'table':
+            print 'great'
+        num_samples = 0
+        return TrainResponse(num_samples)
+
+
+    def serv_success(self, req):
+        result = "none"
+        return CheckResponse(result)
+
 
     def calc_hist(self):
         self.hist = cv.CreateHist([self.h_bins, self.s_bins], cv.CV_HIST_ARRAY, self.ranges, 1)

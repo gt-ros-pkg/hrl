@@ -273,7 +273,7 @@ if __name__ == "__main__":
                    success = False
                    data['success'].append(success)
                 else:
-                   success = False
+                   success = None
                    #hcp.tries = hcp.tries-1 # this is to compensate for failures in perception hopefully
 
                 print "SUCCESS IS :", success
