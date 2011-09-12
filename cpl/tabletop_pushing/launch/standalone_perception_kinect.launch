@@ -37,9 +37,13 @@
     <param name="mgc_w_w_b" value="1.0" type="double"/>
     <param name="mgc_u_b" value="0.5" type="double"/>
     <param name="mgc_u_f" value="0.5" type="double"/>
+    <param name="mgc_w_c_alpha" value="0.1" type="double"/>
+    <param name="mgc_w_c_beta" value="0.05" type="double"/>
+    <param name="mgc_w_c_gamma" value="0.15" type="double"/>
     <param name="mgc_eigen_ratio" value="5.0" type="double"/>
     <param name="mgc_magnitude_thresh" value="1.0" type="double"/>
     <param name="mgc_arm_grow_radius" value="2" type="int"/>
+    <param name="mgc_arm_search_radius" value="50" type="int"/>
 
     <param name="lk_win_size" value="5" type="int"/>
     <param name="lk_num_levels" value="3" type="int"/>
