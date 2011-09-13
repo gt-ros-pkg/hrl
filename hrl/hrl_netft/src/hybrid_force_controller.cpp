@@ -32,106 +32,835 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include "hrl_netft/hybrid_force_controller.h"
-#include "pluginlib/class_list_macros.h"
-#include <math.h>
-#include <boost/foreach.hpp>
-#include <string>
-#include <algorithm>
+#include <boost/thread.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/scoped_ptr.hpp>
+
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+#include <Eigen/LU>
+
+#include <kdl/chainfksolver.hpp>
+#include <kdl/chainfksolverpos_recursive.hpp>
+#include <kdl/chain.hpp>
+#include <kdl/chainjnttojacsolver.hpp>
+#include <kdl/frames.hpp>
+
+#include <ros/ros.h>
+
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TwistStamped.h>
+#include <pr2_manipulation_controllers/JTTaskControllerState.h>
+
+#include <pluginlib/class_list_macros.h>
+#include <angles/angles.h>
+#include <control_toolbox/pid.h>
+#include <eigen_conversions/eigen_kdl.h>
+#include <eigen_conversions/eigen_msg.h>
+#include <pr2_controller_interface/controller.h>
+#include <pr2_mechanism_model/chain.h>
+#include <realtime_tools/realtime_publisher.h>
+#include <tf/transform_listener.h>
+#include <tf_conversions/tf_eigen.h>
+
+#include <rosrt/rosrt.h>
+
+#include <hrl_netft/HybridCartesianGains.h>
+
+using namespace pr2_manipulation_controllers;
+
+namespace hrl_netft {
+
+template <int Joints>
+struct Kin
+{
+  typedef Eigen::Matrix<double, Joints, 1> JointVec;
+  typedef Eigen::Matrix<double, 6, Joints> Jacobian;
+
+  Kin(const KDL::Chain &kdl_chain) :
+    fk_solver_(kdl_chain), jac_solver_(kdl_chain),
+    kdl_q(Joints), kdl_J(Joints)
+  {
+  }
+  ~Kin()
+  {
+  }
+
+  void fk(const JointVec &q, Eigen::Affine3d &x)
+  {
+    kdl_q.data = q;
+    KDL::Frame kdl_x;
+    fk_solver_.JntToCart(kdl_q, kdl_x);
+    tf::transformKDLToEigen(kdl_x, x);
+  }
+  void jac(const JointVec &q, Jacobian &J)
+  {
+    kdl_q.data = q;
+    jac_solver_.JntToJac(kdl_q, kdl_J);
+    J = kdl_J.data;
+  }
+
+  KDL::ChainFkSolverPos_recursive fk_solver_;
+  KDL::ChainJntToJacSolver jac_solver_;
+  KDL::JntArray kdl_q;
+  KDL::Jacobian kdl_J;
+};
+
+class HybridForceController : public pr2_controller_interface::Controller
+{
+public:
+  // Ensure 128-bit alignment for Eigen
+  // See also http://eigen.tuxfamily.org/dox/StructHavingEigenMembers.html
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+private:
+  enum { Joints = 7 };
+  typedef Eigen::Matrix<double, Joints, 1> JointVec;
+  typedef Eigen::Matrix<double, 6, 1> CartVec;
+  typedef Eigen::Matrix<double, 6, Joints> Jacobian;
+  typedef pr2_manipulation_controllers::JTTaskControllerState StateMsg;
+public:
+  HybridForceController();
+  ~HybridForceController();
+
+  bool init(pr2_mechanism_model::RobotState *robot, ros::NodeHandle &n);
+  void starting();
+  void update();
+
+  Eigen::Affine3d x_desi_, x_desi_filtered_;
+  CartVec wrench_desi_;
+
+  ros::NodeHandle node_;
+  ros::Subscriber sub_gains_;
+  ros::Subscriber sub_posture_;
+  ros::Subscriber sub_pose_;
+  ros::Subscriber sub_force_; // khawkins
+  tf::TransformListener tf_;
+
+  rosrt::Publisher<StateMsg> pub_state_;
+  rosrt::Publisher<geometry_msgs::PoseStamped> pub_x_, pub_x_desi_;
+  rosrt::Publisher<geometry_msgs::Twist> pub_xd_, pub_xd_desi_;
+  rosrt::Publisher<geometry_msgs::Twist> pub_x_err_, pub_wrench_;
+  rosrt::Publisher<std_msgs::Float64MultiArray> pub_tau_;
+
+  std::string root_name_, tip_name_;
+  ros::Time last_time_;
+  int loop_count_;
+  pr2_mechanism_model::RobotState *robot_state_;
+
+  pr2_mechanism_model::Chain chain_;
+  boost::scoped_ptr<Kin<Joints> > kin_;
+  Eigen::Matrix<double,6,1> Kp, Kd;  //aleeper
+  Eigen::Matrix<double,6,6> St;  //aleeper
+  bool use_tip_frame_; // aleeper
+  Eigen::Matrix<double,6,1> Kfp, Kfd, force_selector, motion_selector;  // khawkins
+  double pose_command_filter_;
+  double vel_saturation_trans_, vel_saturation_rot_;
+  JointVec saturation_;
+  JointVec joint_dd_ff_;
+  double joint_vel_filter_;
+  double jacobian_inverse_damping_;
+  JointVec q_posture_;
+  double k_posture_;
+  bool use_posture_;
+
+  // Minimum resolutions
+  double res_force_, res_position_;
+  double res_torque_, res_orientation_;
+
+  Eigen::Affine3d last_pose_;
+  CartVec last_wrench_;
+  double last_stiffness_, last_compliance_;
+  double last_Dx_, last_Df_;
+
+
+  JointVec qdot_filtered_;
+
+  // force/torque khawkins
+  pr2_hardware_interface::AnalogIn *analog_in_;
+  CartVec F_sensor_zero_;
+  double gripper_mass_;
+  Eigen::Vector3d gripper_com_;
+  Eigen::Affine3d ft_transform_;
+  CartVec F_des_;
+  bool zero_wrench_;
+
+/*  void setGains(const std_msgs::Float64MultiArray::ConstPtr &msg)
+  {
+    if (msg->data.size() >= 6)
+      for (size_t i = 0; i < 6; ++i)
+        Kp[i] = msg->data[i];
+    if (msg->data.size() == 12)
+      for (size_t i = 0; i < 6; ++i)
+        Kd[i] = msg->data[6+i];
+
+    ROS_INFO("New gains: %.1lf, %.1lf, %.1lf %.1lf, %.1lf, %.1lf",
+             Kp[0], Kp[1], Kp[2], Kp[3], Kp[4], Kp[5]);
+  }
+*/
+  void setGains(const hrl_netft::HybridCartesianGains::ConstPtr &msg) // khawkins
+  {
+
+    //ROS_INFO_STREAM("Received CartesianGains msg: " << *msg);
+    //ROS_INFO("root: [%s] tip: [%s]", root_name_.c_str(), tip_name_.c_str()); 
+    
+    // Store gains...
+    if (msg->gains.size() >= 6)
+      for (size_t i = 0; i < 6; ++i)
+        Kp[i] = msg->gains[i];
+    if (msg->gains.size() == 12)
+      for (size_t i = 0; i < 6; ++i)
+        Kd[i] = msg->gains[6+i];
+
+    // Store force gains... khawkins
+    if (msg->gains.size() >= 6)
+      for (size_t i = 0; i < 6; ++i)
+        Kfp[i] = msg->force_gains[i];
+    if (msg->gains.size() == 12)
+      for (size_t i = 0; i < 6; ++i)
+        Kfd[i] = msg->force_gains[6+i];
+
+    // Store selector matricies khawkins
+    if (msg->force_selector.size() == 6)
+        for (size_t i = 0; i < msg->force_selector.size(); ++i)
+            if(msg->force_selector[i]) {
+                force_selector[i] = 1;
+                motion_selector[i] = 0;
+            } else {
+                force_selector[i] = 0;
+                motion_selector[i] = 1;
+            }
+
+    // Store frame information
+    if(!msg->header.frame_id.compare(root_name_))
+    {
+      use_tip_frame_ = false;
+      ROS_INFO("New gains in root frame [%s]: %.1lf, %.1lf, %.1lf %.1lf, %.1lf, %.1lf",
+               root_name_.c_str(), Kp[0], Kp[1], Kp[2], Kp[3], Kp[4], Kp[5]);
+      St.setIdentity();
+    }
+    else if(!msg->header.frame_id.compare(tip_name_))
+    {
+      use_tip_frame_ = true;
+      ROS_INFO("New gains in tip frame [%s]: %.1lf, %.1lf, %.1lf %.1lf, %.1lf, %.1lf",
+               tip_name_.c_str(), Kp[0], Kp[1], Kp[2], Kp[3], Kp[4], Kp[5]);
+      
+    }
+    else
+    {
+      use_tip_frame_ = false;
+      
+      geometry_msgs::PoseStamped in_root;
+      in_root.pose.orientation.w = 1.0;
+      in_root.header.frame_id = msg->header.frame_id;
+
+      try {
+        tf_.waitForTransform(root_name_, msg->header.frame_id, msg->header.stamp, ros::Duration(0.1));
+        tf_.transformPose(root_name_, in_root, in_root);
+      }
+      catch (const tf::TransformException &ex)
+      {
+        ROS_ERROR("Failed to transform: %s", ex.what());
+        return;
+      }
+      
+      Eigen::Affine3d t;
+      
+      tf::poseMsgToEigen(in_root.pose, t);
+
+      St << 
+          t(0,0),t(0,1),t(0,2),0,0,0,
+          t(1,0),t(1,1),t(1,2),0,0,0,
+          t(2,0),t(2,1),t(2,2),0,0,0,
+          0,0,0,t(0,0),t(0,1),t(0,2),
+          0,0,0,t(1,0),t(1,1),t(1,2),
+          0,0,0,t(2,0),t(2,1),t(2,2);
+    
+      St.transposeInPlace();
+  
+      ROS_INFO("New gains in arbitrary frame [%s]: %.1lf, %.1lf, %.1lf %.1lf, %.1lf, %.1lf",
+             msg->header.frame_id.c_str(), Kp[0], Kp[1], Kp[2], Kp[3], Kp[4], Kp[5]);
+    }
+  }
+
+  void commandPosture(const std_msgs::Float64MultiArray::ConstPtr &msg)
+  {
+    if (msg->data.size() == 0) {
+      use_posture_ = false;
+      ROS_INFO("Posture turned off");
+    }
+    else if ((int)msg->data.size() != q_posture_.size()) {
+      ROS_ERROR("Posture message had the wrong size: %d", (int)msg->data.size());
+      return;
+    }
+    else
+    {
+      use_posture_ = true;
+      for (int j = 0; j < Joints; ++j)
+        q_posture_[j] = msg->data[j];
+    }
+  }
+
+  void commandPose(const geometry_msgs::PoseStamped::ConstPtr &command)
+  {
+    geometry_msgs::PoseStamped in_root;
+    try {
+      tf_.waitForTransform(root_name_, command->header.frame_id, command->header.stamp, ros::Duration(0.1));
+      tf_.transformPose(root_name_, *command, in_root);
+    }
+    catch (const tf::TransformException &ex)
+    {
+      ROS_ERROR("Failed to transform: %s", ex.what());
+      return;
+    }
+
+    tf::poseMsgToEigen(in_root.pose, x_desi_);
+  }
+
+  void commandForce(const std_msgs::Float64MultiArray::ConstPtr &msg)
+  {
+    if (msg->data.size() == 0) {
+      F_des_.setZero();
+      ROS_INFO("Forces commanded to zero");
+    }
+    else if ((int)msg->data.size() != 6) {
+      ROS_ERROR("Force message had the wrong size: %d", (int)msg->data.size());
+      return;
+    }
+    else
+    {
+      for (int j = 0; j < 6; ++j)
+        F_des_[j] = msg->data[j];
+    }
+  }
+};
+
+
+HybridForceController::HybridForceController()
+  : robot_state_(NULL), use_posture_(false)
+{}
+
+HybridForceController::~HybridForceController()
+{
+  sub_gains_.shutdown();
+  sub_posture_.shutdown();
+  sub_pose_.shutdown();
+}
+
+
+bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, ros::NodeHandle &n)
+{
+  rosrt::init();
+  node_ = n;
+
+  ROS_INFO_STREAM("JTTask controller compiled at " << __TIME__ );
+  // get name of root and tip from the parameter server
+  // std::string tip_name; // aleeper: Should use the class member instead!
+  if (!node_.getParam("root_name", root_name_)){
+    ROS_ERROR("HybridForceController: No root name found on parameter server (namespace: %s)",
+              node_.getNamespace().c_str());
+    return false;
+  }
+  if (!node_.getParam("tip_name", tip_name_)){
+    ROS_ERROR("HybridForceController: No tip name found on parameter server (namespace: %s)",
+              node_.getNamespace().c_str());
+    return false;
+  }
+
+  // test if we got robot pointer
+  assert(robot_state);
+  robot_state_ = robot_state;
+
+  // Chain of joints
+  if (!chain_.init(robot_state_, root_name_, tip_name_))
+    return false;
+  if (!chain_.allCalibrated())
+  {
+    ROS_ERROR("Not all joints in the chain are calibrated (namespace: %s)", node_.getNamespace().c_str());
+    return false;
+  }
+
+
+  // Kinematics
+  KDL::Chain kdl_chain;
+  chain_.toKDL(kdl_chain);
+  kin_.reset(new Kin<Joints>(kdl_chain));
+
+  // Cartesian gains
+  double kp_trans, kd_trans, kp_rot, kd_rot;
+  if (!node_.getParam("cart_gains/trans/p", kp_trans) ||
+      !node_.getParam("cart_gains/trans/d", kd_trans))
+  {
+    ROS_ERROR("P and D translational gains not specified (namespace: %s)", node_.getNamespace().c_str());
+    return false;
+  }
+  if (!node_.getParam("cart_gains/rot/p", kp_rot) ||
+      !node_.getParam("cart_gains/rot/d", kd_rot))
+  {
+    ROS_ERROR("P and D rotational gains not specified (namespace: %s)", node_.getNamespace().c_str());
+    return false;
+  }
+  Kp << kp_trans, kp_trans, kp_trans,  kp_rot, kp_rot, kp_rot;
+  Kd << kd_trans, kd_trans, kd_trans,  kd_rot, kd_rot, kd_rot;
+
+  // aleeper
+  use_tip_frame_ = false;
+  if (!node_.getParam("use_tip_frame", use_tip_frame_)){
+    ROS_WARN("HybridForceController: use_tip_frame was not specified, assuming 'false': %s)",
+              node_.getNamespace().c_str());
+  }
+  St.setIdentity();
+
+  // Force desired khawkins
+  F_des_.setZero();
+
+  // Force gains khawkins
+  double kfp_trans, kfd_trans, kfp_rot, kfd_rot;
+  if (!node_.getParam("force_gains/trans/p", kfp_trans) ||
+      !node_.getParam("force_gains/trans/d", kfd_trans))
+  {
+    ROS_ERROR("P and D translational gains not specified (namespace: %s)", node_.getNamespace().c_str());
+    return false;
+  }
+  if (!node_.getParam("force_gains/rot/p", kfp_rot) ||
+      !node_.getParam("force_gains/rot/d", kfd_rot))
+  {
+    ROS_ERROR("P and D rotational gains not specified (namespace: %s)", node_.getNamespace().c_str());
+    return false;
+  }
+  Kfp << kfp_trans, kfp_trans, kfp_trans,  kfp_rot, kfp_rot, kfp_rot;
+  Kfd << kfd_trans, kfd_trans, kfd_trans,  kfd_rot, kfd_rot, kfd_rot;
+  motion_selector = CartVec::Ones();
+  force_selector = CartVec::Zero();
+
+  node_.param("pose_command_filter", pose_command_filter_, 1.0);
+
+  // Velocity saturation
+  node_.param("vel_saturation_trans", vel_saturation_trans_, 0.0);
+  node_.param("vel_saturation_rot", vel_saturation_rot_, 0.0);
+
+  node_.param("jacobian_inverse_damping", jacobian_inverse_damping_, 0.0);
+  node_.param("joint_vel_filter", joint_vel_filter_, 1.0);
+
+  // Joint gains
+  for (int i = 0; i < Joints; ++i)
+    node_.param("joint_feedforward/" + chain_.getJoint(i)->joint_->name, joint_dd_ff_[i], 0.0);
+  for (int i = 0; i < Joints; ++i)
+    node_.param("saturation/" + chain_.getJoint(i)->joint_->name, saturation_[i], 0.0);
+
+  // Posture gains
+  node_.param("k_posture", k_posture_, 1.0);
+
+  node_.param("resolution/force", res_force_, 0.01);
+  node_.param("resolution/position", res_position_, 0.001);
+  node_.param("resolution/torque", res_torque_, 0.01);
+  node_.param("resolution/orientation", res_orientation_, 0.001);
+
+  // force/torque sensor khawkins
+  zero_wrench_ = true;
+  node_.param("gripper_params/mass", gripper_mass_, 1.02074);
+  node_.param("gripper_params/com_pos_x", gripper_com_[0], -0.00126);
+  node_.param("gripper_params/com_pos_y", gripper_com_[1], 0.001760);
+  node_.param("gripper_params/com_pos_z", gripper_com_[2], -0.08532);
+  std::string analog_in_name;
+  if (!node_.getParam("force_torque_analog_in", analog_in_name))
+  {
+    ROS_ERROR("HybridForceController: No \"analog_in_name\" found on parameter namespace: %s",
+              node_.getNamespace().c_str());
+    return false;
+  }
+  pr2_hardware_interface::HardwareInterface* hw = robot_state_->model_->hw_;  
+  analog_in_ = hw->getAnalogIn(analog_in_name);
+  if (analog_in_ == NULL)
+  {
+    ROS_ERROR("HybridForceController: Cannot find AnalogIn named \"%s\"",
+              analog_in_name.c_str());
+    return false;
+  }
+  ROS_INFO("HybridForceController: Using AnalogIn named \"%s\"", analog_in_name.c_str());
+  std::string force_torque_frame;
+  if (!node_.getParam("force_torque_frame", force_torque_frame))
+  {
+    ROS_ERROR("HybridForceController: No \"force_torque_frame\" found on parameter namespace: %s",
+              node_.getNamespace().c_str());
+    return false;
+  }
+  try {
+    tf::StampedTransform ft_stf;
+    tf_.waitForTransform(tip_name_, force_torque_frame, ros::Time(0), ros::Duration(1.0));
+    tf_.lookupTransform(force_torque_frame, tip_name_, ros::Time(0), ft_stf);
+    tf::TransformTFToEigen(ft_stf, ft_transform_);
+  }
+  catch (const tf::TransformException &ex)
+  {
+    ROS_ERROR("Failed to transform: %s", ex.what());
+    return false;
+  }
+
+  sub_gains_ = node_.subscribe("gains", 5, &HybridForceController::setGains, this);
+  sub_posture_ = node_.subscribe("command_posture", 5, &HybridForceController::commandPosture, this);
+  sub_pose_ = node_.subscribe("command_pose", 1, &HybridForceController::commandPose, this);
+  sub_force_ = node_.subscribe("command_force", 1, &HybridForceController::commandForce, this); // khawkins
+
+  StateMsg state_template;
+  state_template.header.frame_id = root_name_;
+  state_template.x.header.frame_id = root_name_;
+  state_template.x_desi.header.frame_id = root_name_;
+  state_template.x_desi_filtered.header.frame_id = root_name_;
+  state_template.tau_pose.resize(Joints);
+  state_template.tau_posture.resize(Joints);
+  state_template.tau.resize(Joints);
+  state_template.J.layout.dim.resize(2);
+  state_template.J.data.resize(6*Joints);
+  state_template.N.layout.dim.resize(2);
+  state_template.N.data.resize(Joints*Joints);
+  pub_state_.initialize(node_.advertise<StateMsg>("state", 10), 10, state_template);
+
+  geometry_msgs::PoseStamped pose_template;
+  pose_template.header.frame_id = root_name_;
+  pub_x_.initialize(node_.advertise<geometry_msgs::PoseStamped>("state/x", 10),
+                    10, pose_template);
+  pub_x_desi_.initialize(node_.advertise<geometry_msgs::PoseStamped>("state/x_desi", 10),
+                         10, pose_template);
+  pub_x_err_.initialize(node_.advertise<geometry_msgs::Twist>("state/x_err", 10),
+                        10, geometry_msgs::Twist());
+  pub_xd_.initialize(node_.advertise<geometry_msgs::Twist>("state/xd", 10),
+                     10, geometry_msgs::Twist());
+  pub_xd_desi_.initialize(node_.advertise<geometry_msgs::Twist>("state/xd_desi", 10),
+                          10, geometry_msgs::Twist());
+  pub_wrench_.initialize(node_.advertise<geometry_msgs::Twist>("state/wrench", 10),
+                         10, geometry_msgs::Twist());
+
+  std_msgs::Float64MultiArray joints_template;
+  joints_template.layout.dim.resize(1);
+  joints_template.layout.dim[0].size = Joints;
+  joints_template.layout.dim[0].stride = 1;
+  joints_template.data.resize(7);
+  pub_tau_.initialize(node_.advertise<std_msgs::Float64MultiArray>("state/tau", 10),
+                      10, joints_template);
+
+  return true;
+}
+
+void HybridForceController::starting()
+{
+  //Kp << 800.0, 800.0, 800.0,   80.0, 80.0, 80.0;
+  //Kd << 12.0, 12.0, 12.0,   0.0, 0.0, 0.0;
+
+  JointVec q;
+  chain_.getPositions(q);
+  kin_->fk(q, x_desi_);
+  x_desi_filtered_ = x_desi_;
+  last_pose_ = x_desi_;
+  q_posture_ = q;
+  qdot_filtered_.setZero();
+  last_wrench_.setZero();
+
+  last_stiffness_ = 0;
+  last_compliance_ = 0;
+  last_Dx_ = 0;
+  last_Df_ = 0;
+
+  loop_count_ = 0;
+
+  zero_wrench_ = true; //khawkins
+}
+
+
+static void computePoseError(const Eigen::Affine3d &xact, const Eigen::Affine3d &xdes, Eigen::Matrix<double,6,1> &err)
+{
+  err.head<3>() = xact.translation() - xdes.translation();
+  err.tail<3>()   = 0.5 * (xdes.linear().col(0).cross(xact.linear().col(0)) +
+                          xdes.linear().col(1).cross(xact.linear().col(1)) +
+                          xdes.linear().col(2).cross(xact.linear().col(2)));
+}
+
+void HybridForceController::update()
+{
+  // get time
+  ros::Time time = robot_state_->getTime();
+  ros::Duration dt = time - last_time_;
+  last_time_ = time;
+  ++loop_count_;
+
+  // ======== Measures current arm state
+
+  JointVec q;
+  chain_.getPositions(q);
+
+  Eigen::Affine3d x;
+  kin_->fk(q, x);
+
+  Jacobian J;
+  kin_->jac(q, J);
+
+
+  JointVec qdot_raw;
+  chain_.getVelocities(qdot_raw);
+  for (int i = 0; i < Joints; ++i)
+    qdot_filtered_[i] += joint_vel_filter_ * (qdot_raw[i] - qdot_filtered_[i]);
+  JointVec qdot = qdot_filtered_;
+  CartVec xdot = J * qdot;
+
+  // ======== Controls to the current pose setpoint
+
+  {
+    Eigen::Vector3d p0(x_desi_filtered_.translation());
+    Eigen::Vector3d p1(x_desi_.translation());
+    Eigen::Quaterniond q0(x_desi_filtered_.linear());
+    Eigen::Quaterniond q1(x_desi_.linear());
+    q0.normalize();
+    q1.normalize();
+
+    tf::Quaternion tf_q0(q0.x(), q0.y(), q0.z(), q0.w());
+    tf::Quaternion tf_q1(q1.x(), q1.y(), q1.z(), q1.w());
+    tf::Quaternion tf_q = tf_q0.slerp(tf_q1, pose_command_filter_);
+
+    Eigen::Vector3d p = p0 + pose_command_filter_ * (p1 - p0);
+    //Eigen::Quaterniond q = q0.slerp(pose_command_filter_, q1);
+    Eigen::Quaterniond q(tf_q.w(), tf_q.x(), tf_q.y(), tf_q.z());
+    //x_desi_filtered_ = q * Eigen::Translation3d(p);
+    x_desi_filtered_ = Eigen::Translation3d(p) * q;
+  }
+  CartVec x_err;
+  //computePoseError(x, x_desi_, x_err);
+  computePoseError(x, x_desi_filtered_, x_err);
+
+  if(use_tip_frame_)
+  { 
+      St << 
+          x(0,0),x(0,1),x(0,2),0,0,0,
+          x(1,0),x(1,1),x(1,2),0,0,0,
+          x(2,0),x(2,1),x(2,2),0,0,0,
+          0,0,0,x(0,0),x(0,1),x(0,2),
+          0,0,0,x(1,0),x(1,1),x(1,2),
+          0,0,0,x(2,0),x(2,1),x(2,2);
+      St.transposeInPlace();
+  }
+
+  // HERE WE CONVERT CALCULATIONS TO THE FRAME IN WHICH GAINS ARE SPECIFIED!
+  CartVec xdot_desi = (Kp.array() / Kd.array()) * (St * x_err).array() * -1.0;  // aleeper
+
+  // Caps the cartesian velocity
+  if (vel_saturation_trans_ > 0.0)
+  {
+    if (fabs(xdot_desi.head<3>().norm()) > vel_saturation_trans_)
+      xdot_desi.head<3>() *= (vel_saturation_trans_ / xdot_desi.head<3>().norm());
+  }
+  if (vel_saturation_rot_ > 0.0)
+  {
+    if (fabs(xdot_desi.tail<3>().norm()) > vel_saturation_rot_)
+      xdot_desi.tail<3>() *= (vel_saturation_rot_ / xdot_desi.tail<3>().norm());
+  }
+
+  CartVec F_motion = Kd.array() * (xdot_desi.array() - (St * xdot).array());  // aleeper
+
+  // select motions in specified directions khawkins
+  F_motion = motion_selector.array() * F_motion.array();
+
+  // force/torque khawkins
+  CartVec F_sensor, F_grav, F_sensor_zeroed, F_control;
+  for(int i=0;i<6;i++)
+      F_sensor[i] = analog_in_->state_.state_[i];
+  // ft_transform_ : ft_frame B tip_frame
+  // x : base_frame B tip_frame
+  Eigen::Vector4d z_grav(0, 0, -1, 0);
+  z_grav = -1 * ft_transform_.matrix() * x.matrix().inverse() * z_grav;
+  for(int i=0;i<3;i++)
+      F_grav[i] = gripper_mass_ * 9.81 * z_grav[i];
+  Eigen::Vector3d F_grav_vec(F_grav[0], F_grav[1], F_grav[2]);
+  Eigen::Vector3d torque_vec = gripper_com_.cross(F_grav_vec);
+  for(int i=0;i<3;i++)
+      F_grav[i+3] = torque_vec[i];
+  if(zero_wrench_) {
+      F_sensor_zero_ = F_sensor - F_grav;
+      zero_wrench_ = false;
+  }
+  F_sensor_zeroed = (F_sensor - F_grav - F_sensor_zero_);
+
+  // put wrench in tip_frame
+  Eigen::Vector3d F_sensor_zeroed_force(F_sensor_zeroed[0], F_sensor_zeroed[1], F_sensor_zeroed[2]);  
+  Eigen::Vector3d F_sensor_zeroed_torque(F_sensor_zeroed[3], F_sensor_zeroed[4], F_sensor_zeroed[5]);  
+  F_sensor_zeroed_force = ft_transform_.linear().transpose() * F_sensor_zeroed_force;
+  F_sensor_zeroed_torque = ft_transform_.linear().transpose() * F_sensor_zeroed_torque;
+  Eigen::Vector3d torque_offset = ft_transform_.translation().cross(F_sensor_zeroed_torque);
+  for(int i=0;i<3;i++)
+      F_sensor_zeroed[i] = F_sensor_zeroed_force[i];
+  for(int i=0;i<3;i++)
+      F_sensor_zeroed[i+3] = F_sensor_zeroed_torque[i] + torque_offset[i];
+
+  // Motion and Force Control of Robot Manipulators; O. Khatib and J. Burdick
+  F_control = force_selector.array() *(F_des_.array() + // force control
+                                       Kfp.array() * (F_des_ - F_sensor_zeroed).array()) -
+              Kfd.array() * force_selector.array() * (St * xdot).array(); // velocity damping
+
+  // HERE WE CONVERT BACK TO THE ROOT FRAME SINCE THE JACOBIAN IS IN ROOT FRAME.
+  //JointVec tau_pose = J.transpose() * St.transpose() * F_motion;
+  JointVec tau_pose = J.transpose() * St.transpose() * (F_motion + F_control); // khawkins
+
+  // ======== J psuedo-inverse and Nullspace computation
+
+  // Computes pseudo-inverse of J
+  Eigen::Matrix<double,6,6> I6; I6.setIdentity();
+  Eigen::Matrix<double,6,6> JJt = J * J.transpose();
+  Eigen::Matrix<double,6,6> JJt_inv;
+  JJt_inv = JJt.inverse();
+  Eigen::Matrix<double,6,6> JJt_damped = J * J.transpose() + jacobian_inverse_damping_ * I6;
+  Eigen::Matrix<double,6,6> JJt_inv_damped;
+  JJt_inv_damped = JJt_damped.inverse();
+  Eigen::Matrix<double,Joints,6> J_pinv = J.transpose() * JJt_inv_damped;
+
+  // Computes the nullspace of J
+  Eigen::Matrix<double,Joints,Joints> I;
+  I.setIdentity();
+  Eigen::Matrix<double,Joints,Joints> N = I - J_pinv * J;
+
+  // ======== Posture control
+
+  // Computes the desired joint torques for achieving the posture
+  JointVec tau_posture;
+  tau_posture.setZero();
+  if (use_posture_)
+  {
+    JointVec posture_err = q_posture_ - q;
+    for (size_t j = 0; j < Joints; ++j)
+    {
+      if (chain_.getJoint(j)->joint_->type == urdf::Joint::CONTINUOUS)
+        posture_err[j] = angles::normalize_angle(posture_err[j]);
+    }
+
+    for (size_t j = 0; j < Joints; ++j) {
+      if (fabs(q_posture_[j] - 9999) < 1e-5)
+        posture_err[j] = 0.0;
+    }
+
+    JointVec qdd_posture = k_posture_ * posture_err;
+    tau_posture = joint_dd_ff_.array() * (N * qdd_posture).array();
+  }
+
+  JointVec tau = tau_pose + tau_posture;
+
+  // ======== Torque Saturation
+  double sat_scaling = 1.0;
+  for (int i = 0; i < Joints; ++i) {
+    if (saturation_[i] > 0.0)
+      sat_scaling = std::min(sat_scaling, fabs(saturation_[i] / tau[i]));
+  }
+  JointVec tau_sat = sat_scaling * tau;
+
+  chain_.addEfforts(tau_sat);
+
+
+  // ======== Environment stiffness
+
+  CartVec df = F_motion - last_wrench_;
+  CartVec dx;
+  computePoseError(last_pose_, x, dx);
+
+  // Just in the Z direction for now
+
+  double Df, Dx;
+  if (fabs(dx[2]) >= res_position_)
+    Df = df[2] * res_position_ / fabs(dx[2]);
+  else
+    Df = (1. - fabs(dx[2])/res_position_) * last_Df_ + df[2];
+  if (fabs(df[2]) >= res_force_)
+    Dx = dx[2] * res_force_ / fabs(df[2]);
+  else
+    Dx = (1. - fabs(df[2])/res_force_) * last_Dx_ + dx[2];
+  last_Df_ = Df;
+  last_Dx_ = Dx;
+
+  double stiffness, compliance;
+  if (fabs(dx[2]) >= res_position_)
+    stiffness = fabs(df[2]) / fabs(dx[2]);
+  else
+    stiffness = (1 - fabs(dx[2])/res_position_) * last_stiffness_ + fabs(df[2]) / res_position_;
+  if (fabs(df[2]) >= res_force_)
+    compliance = fabs(dx[2]) / fabs(df[2]);
+  else
+    compliance = (1 - fabs(df[2])/res_force_) * last_compliance_ + fabs(dx[2]) / res_force_;
+
+  last_pose_ = x;
+  last_wrench_ = F_motion;
+  last_stiffness_ = stiffness;
+  last_compliance_ = compliance;
+
+  if (loop_count_ % 10 == 0)
+  {
+    geometry_msgs::PoseStamped::Ptr pose_msg;
+    geometry_msgs::Twist::Ptr twist_msg;
+    std_msgs::Float64MultiArray::Ptr q_msg;
+
+    if (pose_msg = pub_x_.allocate()) {  // X
+      pose_msg->header.stamp = time;
+      tf::poseEigenToMsg(x, pose_msg->pose);
+      pub_x_.publish(pose_msg);
+    }
+
+    if (pose_msg = pub_x_desi_.allocate()) {  // X desi
+      pose_msg->header.stamp = time;
+      tf::poseEigenToMsg(x_desi_, pose_msg->pose);
+      pub_x_desi_.publish(pose_msg);
+    }
+
+    if (twist_msg = pub_x_err_.allocate()) {  // X err
+      tf::twistEigenToMsg(x_err, *twist_msg);
+      pub_x_err_.publish(twist_msg);
+    }
+
+    if (twist_msg = pub_xd_.allocate()) {  // Xdot
+      tf::twistEigenToMsg(xdot, *twist_msg);
+      pub_xd_.publish(twist_msg);
+    }
+
+    if (twist_msg = pub_xd_desi_.allocate()) {  // Xdot desi
+      tf::twistEigenToMsg(xdot_desi, *twist_msg);
+      pub_xd_desi_.publish(twist_msg);
+    }
+
+    if (twist_msg = pub_wrench_.allocate()) {  // F
+      tf::twistEigenToMsg(F_motion, *twist_msg);
+      pub_wrench_.publish(twist_msg);
+    }
+
+    if (q_msg = pub_tau_.allocate()) {  // tau
+      for (size_t i = 0; i < Joints; ++i)
+        q_msg->data[i] = tau[i];
+      pub_tau_.publish(q_msg);
+    }
+
+    StateMsg::Ptr state_msg;
+    if (state_msg = pub_state_.allocate()) {
+      state_msg->header.stamp = time;
+      state_msg->x.header.stamp = time;
+      tf::poseEigenToMsg(x, state_msg->x.pose);
+      state_msg->x_desi.header.stamp = time;
+      tf::poseEigenToMsg(x_desi_, state_msg->x_desi.pose);
+      state_msg->x_desi_filtered.header.stamp = time;
+      tf::poseEigenToMsg(x_desi_filtered_, state_msg->x_desi_filtered.pose);
+      tf::twistEigenToMsg(x_err, state_msg->x_err);
+      tf::twistEigenToMsg(xdot, state_msg->xd);
+      tf::twistEigenToMsg(xdot_desi, state_msg->xd_desi);
+      tf::wrenchEigenToMsg(F_motion, state_msg->F);
+      tf::matrixEigenToMsg(J, state_msg->J);
+      tf::matrixEigenToMsg(N, state_msg->N);
+      for (size_t j = 0; j < Joints; ++j) {
+        state_msg->tau_pose[j] = tau_pose[j];
+        state_msg->tau_posture[j] = tau_posture[j];
+        state_msg->tau[j] = tau[j];
+      }
+      state_msg->stiffness = stiffness;
+      state_msg->compliance = compliance;
+      state_msg->Df = Df / res_position_;
+      state_msg->Dx = Dx / res_force_;
+      state_msg->df = df[2];
+      state_msg->dx = dx[2];
+      pub_state_.publish(state_msg);
+    }
+  }
+}
+
+} //namespace
 
 PLUGINLIB_DECLARE_CLASS(hrl_netft, HybridForceController, hrl_netft::HybridForceController, pr2_controller_interface::Controller)
 
-
-namespace hrl_netft
-{
-
-HybridForceController::HybridForceController() : 
-    max_force_(0.0),
-    max_torque_(0.0),
-    analog_in_(NULL),
-    pub_cycle_count_(0),
-    should_publish_(false),
-    base_link("torso_lift_link"),
-    netft_link("l_netft_frame"),
-    tool_link("l_gripper_tool_frame")
-{}
-
-HybridForceController::~HybridForceController() {}
-
-bool HybridForceController::init(pr2_mechanism_model::RobotState *robot, ros::NodeHandle &node)
-{
-    if (!robot) 
-        return false;
-
-    ////////////////////////////// NetFT Setup /////////////////////////
-    std::string analog_in_name;
-    if (!node.getParam("analog_in_name", analog_in_name)) {
-        ROS_ERROR("HybridForceController: No \"analog_in_name\" found on parameter namespace: %s",
-                node.getNamespace().c_str());
-        return false;
-    }
-
-    pr2_hardware_interface::HardwareInterface* hw = robot->model_->hw_;  
-    analog_in_ = hw->getAnalogIn(analog_in_name);
-    if (analog_in_ == NULL) {
-        ROS_ERROR("HybridForceController: Cannot find AnalogIn named \"%s\"",
-                analog_in_name.c_str());
-        BOOST_FOREACH(const pr2_hardware_interface::AnalogInMap::value_type &v, hw->analog_ins_) {
-            ROS_INFO("AnalogIn : %s", v.first.c_str());
-        }
-        return false;
-    }
-    ROS_INFO("HybridForceController: Using AnalogIn named \"%s\"", analog_in_name.c_str());
-    ////////////////////////////////////////////////////////////////////
-
-    ///////////////////////// KDL Setup ////////////////////////////////
-    if(!netft_chain_.init(robot, base_link.c_str(), netft_link.c_str()))
-        return false;
-    netft_chain_.toKDL(netft_kdl_chain_);
-    netft_kin_.reset(new Kin(netft_kdl_chain_));
-    if(!tool_chain_.init(robot, base_link.c_str(), tool_link.c_str()))
-        return false;
-    tool_chain_.toKDL(tool_kdl_chain_);
-    tool_kin_.reset(new Kin(tool_kdl_chain_));
-
-    // Initialize realtime publisher to publish to ROS topic 
-    pub_state_.init(node, "state", 2);
-    ////////////////////////////////////////////////////////////////////
-
-    return true;
-}
-
-
-void HybridForceController::starting() {
-}
-
-
-void HybridForceController::update() {
-    if(analog_in_->state_.state_.size() != 6) {
-        ROS_ERROR_THROTTLE(5.0, "HybridForceController: AnalogInput is has unexpected size %d", 
-                int(analog_in_->state_.state_.size()));
-        return;
-    }
-
-    for(int i=0;i<6;i++)
-        ft_wrench_(i) = analog_in_->state_.state_[i];
-
-    // Publish data in ROS message every 10 cycles (about 100Hz)
-    if(++pub_cycle_count_ > 10) {
-        should_publish_ = true;
-        pub_cycle_count_ = 0;
-    }
-
-    if(should_publish_ && pub_state_.trylock()) {
-        should_publish_ = false;
-        eigenToWrench(ft_wrench_, pub_state_.msg_.tool_force_sensed.wrench);
-        pub_state_.unlockAndPublish();
-    }
-}
-
-void eigenToWrench(const CartVec& eig_w, geometry_msgs::Wrench& ros_w) {
-    ros_w.force.x = eig_w(0); ros_w.force.y = eig_w(1); ros_w.force.z = eig_w(2); 
-    ros_w.torque.x = eig_w(3); ros_w.torque.y = eig_w(4); ros_w.torque.z = eig_w(5); 
-}
-
-}//namespace hrl_netft
