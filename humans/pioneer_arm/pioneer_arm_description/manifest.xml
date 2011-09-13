@@ -25,6 +25,8 @@
   <depend package="p2os_urdf"/>
   <depend package="rospy"/>
 
+  <rosdep name="python-argparse"/>
+  
 </package>
 
 

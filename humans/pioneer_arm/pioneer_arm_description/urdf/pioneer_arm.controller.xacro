@@ -36,9 +36,8 @@
 			<controller:gazebo_ros_actuator_array name="actuator_array_controller" plugin="libgazebo_ros_actuator_array.so">
 				<interface:audio name="actuator_array_iface"/>
 				<alwaysOn>true</alwaysOn>
-				<updateRate>1000.0</updateRate>
+				<updateRate>10.0</updateRate>
 				<robotParam>${robot_description}</robotParam>
-				<actuatorNamespace>arm</actuatorNamespace>
 				<joint>
 					<name>Joint0</name>
 					<home>0.0</home>
@@ -49,7 +48,7 @@
 				</joint>
 				<joint>
 					<name>Joint1</name>
-					<home>2.3561944902</home>
+					<home>2.094395102</home>
 					<p>10.0</p>
 					<i>0.0</i>
 					<d>0.0</d>
@@ -57,7 +56,7 @@
 				</joint>
 				<joint>
 					<name>Joint2</name>
-					<home>1.570796327</home>
+					<home>1.483529864</home>
 					<p>10.0</p>
 					<i>0.0</i>
 					<d>0.0</d>

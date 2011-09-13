@@ -1,0 +1,7 @@
+<launch>
+	<!-- run p2os to control the pioneer -->
+	<node pkg="p2os_with_arm_driver" type="p2os" name="p2os" respawn="false" output="screen">
+		<param name="use_arm" type="bool" value="true" />
+		<param name="port" type="string" value="/dev/ttyUSB0" />
+	</node>
+</launch>

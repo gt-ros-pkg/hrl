@@ -1,7 +1,7 @@
 all: installed
 
 SVN_DIR = p2os_driver
-SVN_URL = $(shell roslocate uri p2os_driver)
+SVN_URL = $(shell roslocate svn p2os_driver)
 #SVN_URL = https://usc-ros-pkg.svn.sourceforge.net/svnroot/usc-ros-pkg/trunk/p2os/p2os_driver
 SVN_REVISION = -r 163
 SVN_PATCH = patches/pioneer_arm_patches.patch

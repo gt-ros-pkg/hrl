@@ -74,7 +74,7 @@
 			<parent link="Link0" />
 			<child link="Link1" />
 			<axis xyz="0 0 -1" />
-			<limit lower="-1.5707963268" upper="1.5707963268" effort="100.0" velocity="0.7853981634" />
+			<limit lower="-1.5707963268" upper="1.5707963268" effort="10.0" velocity="15.71" />
 			<dynamics damping="0.0" friction="0.0" />
 		</joint>
 		
@@ -107,7 +107,7 @@
 			<parent link="Link1" />
 			<child link="Link2" />
 			<axis xyz="0 -1 0" />
-			<limit lower="-1.308996939" upper="2.3561944902" effort="100.0" velocity="0.7853981634" />
+			<limit lower="-1.308996939" upper="2.3561944902" effort="10.0" velocity="15.71" />
 			<dynamics damping="0.0" friction="0.0" />
 		</joint>
 		
@@ -140,7 +140,7 @@
 			<parent link="Link2" />
 			<child link="Link3" />
 			<axis xyz="0 -1 0" />
-			<limit lower="-2.0943951024" upper="1.5707963268" effort="100.0" velocity="0.7853981634" />
+			<limit lower="-2.0943951024" upper="1.5707963268" effort="10.0" velocity="15.71" />
 			<dynamics damping="0.0" friction="0.0" />
 		</joint>
 
@@ -173,7 +173,7 @@
 			<parent link="Link3" />
 			<child link="Link4" />
 			<axis xyz="1 0 0" />
-			<limit lower="-1.5707963268" upper="1.5707963268" effort="100.0" velocity="0.7853981634" />
+			<limit lower="-1.5707963268" upper="1.5707963268" effort="10.0" velocity="15.71" />
 			<dynamics damping="0.0" friction="0.0" />
 		</joint>
 		
@@ -206,7 +206,7 @@
 			<parent link="Link4" />
 			<child link="Link5" />
 			<axis xyz="0 1 0" />
-			<limit lower="-1.5707963268" upper="1.5707963268" effort="100.0" velocity="0.7853981634" />
+			<limit lower="-1.5707963268" upper="1.5707963268" effort="10.0" velocity="15.71" />
 			<dynamics damping="0.0" friction="0.0" />
 		</joint>
 
@@ -239,7 +239,7 @@
 			<parent link="Link5" />
 			<child link="GripperLink" />
 			<axis xyz="0 0 1" />
-			<limit lower="-0.5235987756" upper="1.2217304764" effort="100.0" velocity="0.7853981634" />
+			<limit lower="-0.5235987756" upper="1.2217304764" effort="10.0" velocity="15.71" />
 			<dynamics damping="0.0" friction="0.0" />
 		</joint>
 
@@ -268,11 +268,11 @@
 		</link>
 
         <joint name="RightGripperJoint" type="prismatic">
-			<origin xyz=" 0.10000 -0.01060  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+			<origin xyz=" 0.09275 -0.01060  0.00000" rpy=" 0.00000  0.00000  0.00000" />
 			<parent link="Link5" />
 			<child link="RightGripper" />
 			<axis xyz="0 -1 0" />
-			<limit lower="0.0" upper="0.026" effort="100.0" velocity="0.0117" />
+			<limit lower="0.0" upper="0.026" effort="1.0" velocity="0.2340" />
 			<dynamics damping="0" friction="0" />
 			<mimic joint="Joint5" multiplier="0.0148969027" offset="-0.5235987756"/>
 		</joint>
@@ -302,11 +302,11 @@
 		</link>
 
         <joint name="LeftGripperJoint" type="prismatic">
-			<origin xyz=" 0.10000  0.01060  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+			<origin xyz=" 0.09275  0.01060  0.00000" rpy=" 0.00000  0.00000  0.00000" />
 			<parent link="Link5" />
 			<child link="LeftGripper" />
 			<axis xyz="0 1 0" />
-			<limit lower="0.0" upper="0.026" effort="1.0" velocity="0.0117" />
+			<limit lower="0.0" upper="0.026" effort="1.0" velocity="0.2340" />
 			<dynamics damping="0" friction="0" />
 			<mimic joint="Joint5" multiplier="0.0148969027" offset="-0.5235987756"/>
 		</joint>
