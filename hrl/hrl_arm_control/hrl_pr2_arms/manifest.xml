@@ -18,7 +18,7 @@
   <depend package="actionlib"/>
   <depend package="trajectory_msgs"/>
   <depend package="pr2_mechanism_msgs"/>
-  <depend package="teleop_controllers"/>
+  <!--<depend package="teleop_controllers"/>-->
   <depend package="rosparam"/>
   <depend package="hrl_kdl_arms"/>
   <depend package="hrl_generic_arms"/>
