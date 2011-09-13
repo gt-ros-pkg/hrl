@@ -74,26 +74,34 @@ public:
 
 
 protected:
-  /// \brief ros subscriptions
+  /// \brief ROS command subscription
   ros::Subscriber command_sub_;
+  /// \brief ROS command message
   sensor_msgs::JointState command_msg_;
+  /// \brief Callback performed upon receipt of a command. Copies the common joint information
+  /// between the received command message and the current list of configured joints and stores
+  /// it in command_msg_. The pure virtual function command_() is then called.
   void command_callback(const sensor_msgs::JointState::ConstPtr& command_msg);
 
-  /// \brief ros services
+  /// \brief ROS stop service
   ros::ServiceServer stop_srv_;
+  /// \brief ROS stop service callback function. Simply calls the pure virtual stop_() function
   bool stop_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
 
+  /// \brief ROS home service
   ros::ServiceServer home_srv_;
+  /// \brief ROS home service callback function. Simply calls the pure virtual home_() function
   bool home_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
 
-  /// \brief ros publishers
+  /// \brief ROS joint_state publisher
   ros::Publisher joint_state_pub_;
+  /// \brief ROS joint_state message
   sensor_msgs::JointState joint_state_msg_;
 
-  /// \brief parameter values
+  /// \brief name of the parameter value that holds the robot description
   std::string robot_description_parameter_;
 
-  /// \brief class properties
+  /// \brief list of joints to be controlled
   std::vector<JointProperties> joints_;
 
   /// \brief helper method that performs standard initialization of the

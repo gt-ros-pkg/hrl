@@ -32,17 +32,19 @@
 import wx
 
 class JointPanel(wx.Panel):
-    def __init__(self, parent, joint_name="joint", min_position=-3.14159, max_position=3.14159, input_mode=True):
-            
+    def __init__(self, parent, joint_name="joint", min_position=-3.14159, max_position=3.14159, max_velocity=100.0, max_effort=100.0, input_mode=True):
+        
         # Create Joint Properties and initialize to None
         self.joint_name = joint_name
         self.min_position = min_position
         self.max_position = max_position
-        self.position = None
-        self.velocity = None
-        self.effort = None
+        self.max_velocity = max_velocity
+        self.max_effort = max_effort
+        self.position = (max_position - min_position)/2 + min_position
+        self.velocity = max_velocity/2
+        self.effort = max_effort
         self.input_mode = input_mode
-                
+        
         # Set some control properties
         self.slider_increments = 100
         
@@ -95,6 +97,8 @@ class JointPanel(wx.Panel):
             self.effort_text.Bind(wx.EVT_TEXT_ENTER, self._on_effort_update)
             self.effort_text.Bind(wx.EVT_KILL_FOCUS, self._on_effort_update)
 
+        # Perform an initial update/redraw of the panel
+        self.update_panel()
 
     def update_panel(self):
         if (self.position is not None):
@@ -135,6 +139,10 @@ class JointPanel(wx.Panel):
     def _on_velocity_update(self, event):
         try:
             self.velocity = float(self.velocity_text.GetValue())
+            if self.velocity > self.max_velocity:
+                self.velocity = self.max_velocity
+            elif self.velocity < -self.max_velocity:
+                self.velocity = -self.max_velocity
         except:
             self.velocity = None
         self.update_panel()
@@ -142,8 +150,9 @@ class JointPanel(wx.Panel):
     def _on_effort_update(self, event):
         try:
             self.effort = float(self.effort_text.GetValue())
+            if self.effort > self.max_effort:
+                self.effort = self.max_effort
         except:
             self.effort = None
         self.update_panel()
 
-    

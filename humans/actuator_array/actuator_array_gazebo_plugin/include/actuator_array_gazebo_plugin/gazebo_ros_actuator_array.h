@@ -79,10 +79,8 @@ namespace gazebo
  \verbatim
  <model:physical name="some_fancy_model">
    <controller:gazebo_ros_actuator_array name="actuator_array_controller" plugin="libgazebo_ros_actuator_array.so">
-     <interface:audio name="actuator_array_iface"/>
      <alwaysOn>true</alwaysOn>
      <updateRate>1000.0</updateRate>
-     <robotNamespace>robot_name</robotNamspace>
      <robotParam>robot_description</robotParam>
      <joint>
        <name>joint01</name>
@@ -138,10 +136,8 @@ namespace gazebo
  \verbatim
  <model:physical name="some_fancy_model">
    <controller:gazebo_ros_actuator_array name="actuator_array_controller" plugin="libgazebo_ros_actuator_array.so">
-     <interface:audio name="actuator_array_iface"/>
      <alwaysOn>true</alwaysOn>
      <updateRate>1000.0</updateRate>
-     <robotNamespace>robot_name</robotNamspace>
      <robotParam>robot_description</robotParam>
      <joint>
        <name>joint01</name>
@@ -209,13 +205,8 @@ private:
   ParamT<std::string> *robotNamespaceP;
   std::string robot_namespace_;
 
-//  /// \brief for setting a sub-namespace for the actuator array interface
-//  ParamT<std::string> *actuatorNamespaceP;
-//  std::string actuatorNamespace;
-
   /// \brief for setting the parameter name that holds the robot description
   ParamT<std::string> *robotParamP;
-//  std::string robotParam;
 
   /// \brief Holds properties of each joint extracted from the robot_description
   std::vector<GazeboJointProperties>  gazebo_joints_;
@@ -223,31 +214,11 @@ private:
   std::vector<actuator_array_driver::JointProperties>  mimic_joints_;
   std::vector<MimicJointProperties>  mimic_gazebo_joints_;
 
-//  /// \brief Holds the PID controllers for each joint/actuator
-//  std::vector<control_toolbox::Pid>  joint_pids_;
-//  std::vector<control_toolbox::Pid>  mimic_joint_pids_;
-
   /// \brief The parent Model
   Model *myParent;
 
   /// \brief Time of previous update
   gazebo::Time last_time_;
-
-//  /// \brief pointer to ros node
-//  ros::NodeHandle* rosnode_;
-
-//  /// \brief ros publishers
-//  sensor_msgs::JointState joint_state_msg_;
-//  ros::Publisher pub_joint_state_;
-
-//  /// \brief ros services
-//  ros::ServiceServer srv_home_;
-//  bool ServiceHome(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
-
-//  /// \brief ros subscriptions
-//  sensor_msgs::JointState command_msg_;
-//  ros::Subscriber sub_command_;
-//  void UpdateCommand(const sensor_msgs::JointState::ConstPtr& command_msg);
 
   /// \brief A mutex to lock access to fields that are used in message callbacks
   boost::mutex lock_;

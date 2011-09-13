@@ -82,9 +82,6 @@ class ActuatorArrayGuiFrame(wx.Frame):
         self.Bind(wx.EVT_TIMER, self._on_update_timer, self.update_timer)
         self.update_timer.Start(100, False)
 
-        # Class properties
-        self.initialized = False
-        
 
         # Create menu
         self.menubar = wx.MenuBar()
@@ -204,17 +201,6 @@ class ActuatorArrayGuiFrame(wx.Frame):
             self.joint_status_panels[i].velocity = self.joint_state_msg.velocity[i]
             self.joint_status_panels[i].effort = self.joint_state_msg.effort[i]
             self.joint_status_panels[i].update_panel()
-        # Check to see if the GUI has been initialized yet
-        if not self.initialized:
-            initialization_valid = True
-            for i in range(len(self.joint_names)):
-                self.joint_command_panels[i].position = self.joint_state_msg.position[i]
-                self.joint_command_panels[i].velocity = self.joint_state_msg.velocity[i]
-                self.joint_command_panels[i].effort = self.joint_state_msg.effort[i]
-                self.joint_command_panels[i].update_panel()
-                if self.joint_state_msg.position[i] is None:
-                    initialization_valid = False
-            self.initialized = initialization_valid
         
         # If the auto-send flag is set, send out a command as well
         if self.auto_button.GetValue() == True:
