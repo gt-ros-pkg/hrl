@@ -121,7 +121,6 @@
 
 // Functional IFDEFS
 // #define REMOVE_SMALL_BLOBS 1
-// #define USE_ARM_MIN_MAX_X_Y 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -161,6 +160,129 @@ void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow_u, cv::Mat& flow_v,
   cv::imshow("v", flow_v);
 #endif // DISPLAY_UV
 }
+
+class ArmModel
+{
+ public:
+  ArmModel() : l_hand_on(false),  r_hand_on(false), l_arm_on(false),
+               r_arm_on(false)
+  {
+    hands.clear();
+    arms.clear();
+  }
+  unsigned int size()
+  {
+    return 2;
+  }
+
+  std::vector<cv::Point> operator[](unsigned int i)
+  {
+    if (i == 0)
+      return hands;
+    if (i == 1)
+      return arms;
+    // else
+    //   throw e;
+  }
+
+  /**
+   * Return the distance to the closest point on the arm from an image point p
+   *
+   * @param p The point in the image
+   *
+   * @return The distance to the closest point on any in-image arm
+   */
+  float distanceToArm(cv::Point2f p)
+  {
+    float l_dist = distanceToArm(p, l_chain);
+    float r_dist = distanceToArm(p, r_chain);
+    if (l_dist < 0 && r_dist < 0) return -1.0f;
+    if (l_dist < 0)
+    {
+      return r_dist;
+    }
+    if (r_dist < 0)
+    {
+      return l_dist;
+    }
+    return min(l_dist, r_dist);
+  }
+
+  float distanceToArm(cv::Point2f p, std::vector<cv::Point>& chain)
+  {
+    if (chain.size() == 0)
+    {
+      return -1.0f;
+    }
+    float min_dist = 640.0f*480.0f;
+    for (unsigned int i = 1; i < chain.size(); ++i)
+    {
+      float d_i = pointLineDistance(p, chain[i-1] , chain[i]);
+      if (d_i < min_dist)
+        min_dist = d_i;
+    }
+    return min_dist;
+  }
+
+  float pointLineDistance(cv::Point2f p, cv::Point2f l0, cv::Point2f l1)
+  {
+    if (l0.x == l1.x)
+    {
+      cv::Point2f q(l0.x, p.y);
+      float l_max_x = max(l0.x, l1.x);
+      float l_min_x = min(l0.x, l1.x);
+      if (p.y > l_max_x)
+      {
+        q.y = l_max_x;
+      }
+      else if (p.y < l_min_x)
+      {
+        q.y = l_min_x;
+      }
+      return hypot(p.x - q.x, p.y - q.y);
+    }
+    cv::Point2f* x0;
+    cv::Point2f* x1;
+
+    if (l0.x < l1.x)
+    {
+      x0 = &l0;
+      x1 = &l1;
+    }
+    else
+    {
+      x0 = &l1;
+      x1 = &l0;
+    }
+    cv::Point2f v = *x1 - *x0;
+    cv::Point2f w = p - *x0;
+
+    float c0 = w.x*v.x+w.y*v.y;
+    float c1 = v.x*v.x+v.y*v.y;
+    float b = c0/c1;
+
+    cv::Point2f q = *x0 + b*v;
+    float d = hypot(p.x - q.x, p.y - q.y);
+    if (c0 <= 0 || q.x < x0->x)
+    {
+      d = hypot(p.x - x0->x, p.y - x0->y);
+    }
+    if (c1 <= 0 || q.x > x1->x)
+    {
+      d = hypot(p.x - x1->x, p.y - x1->y);
+    }
+    return d;
+  }
+
+  std::vector<cv::Point> hands;
+  std::vector<cv::Point> arms;
+  std::vector<cv::Point> l_chain;
+  std::vector<cv::Point> r_chain;
+  bool l_hand_on;
+  bool r_hand_on;
+  bool l_arm_on;
+  bool r_arm_on;
+};
 
 class LKFlowReliable
 {
@@ -344,7 +466,6 @@ class LKFlowReliable
     {
       for (int x = 0; x < map_x.cols; ++x)
       {
-        // TODO: Check image ordering forward/inverse stuff
         map_x.at<float>(y,x) = x + vx.at<float>(y,x);
         map_y.at<float>(y,x) = y + vy.at<float>(y,x);
       }
@@ -564,8 +685,7 @@ class MotionGraphcut
    */
   cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
                      cv::Mat& u, cv::Mat& v, cv::Mat flow_scores,
-                     cv::Mat& workspace_mask,
-                     std::vector<std::vector<cv::Point> > arm_locs)
+                     cv::Mat& workspace_mask, ArmModel arm_locs)
   {
     const int R = color_frame.rows;
     const int C = color_frame.cols;
@@ -577,7 +697,7 @@ class MotionGraphcut
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::Mat fg_weights(color_frame.size(), CV_32FC1);
     cv::Mat bg_weights(color_frame.size(), CV_32FC1);
-    cv::Mat left_weights(color_frame.size(), CV_32FC1);
+    cv::Mat left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     cv::Mat up_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     cv::Mat up_left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
 #endif // VISUALIZE_GRAPH_WEIGHTS
@@ -731,15 +851,14 @@ class MotionGraphcut
    * @param moving_mask    Binary image representing where the moving stuff is
    * @param workspace_mask Binary image where white is valid locations for things
    *                       to be moving at
-   * @param arm_locs       Position of the arm projected into the image frame
+   * @param arms           Position of the arm projected into the image frame
    *
    * @return               Mask of the predicted arm in the image
    */
   cv::Mat segmentArmFromMoving(cv::Mat& color_frame_in, cv::Mat& depth_frame_in,
-                               cv::Mat& workspace_mask_in,
-                               std::vector<std::vector<cv::Point> > hands_n_arms,
-                               int min_arm_x, int max_arm_x,
-                               int min_arm_y, int max_arm_y)
+                               cv::Mat& workspace_mask_in, ArmModel& arms,
+                               int min_arm_x, int max_arm_x, int min_arm_y,
+                               int max_arm_y)
 
   {
     // NOTE: We examine only a subwindow in the image to avoid too make things
@@ -774,14 +893,12 @@ class MotionGraphcut
 
     // One gaussian estimated from wrist to elbow, elbow to forearm and a
     // separate one is estimated from the gripper tip to wrist
-    std::vector<cv::Point> hand_locs = hands_n_arms[0];
-    std::vector<cv::Point> arm_locs = hands_n_arms[1];
     std::vector<cv::Vec3f> hand_stats = getImagePointGaussian(color_frame,
-                                                              hand_locs,
+                                                              arms[0],
                                                               crop_min_x,
                                                               crop_min_y);
     std::vector<cv::Vec3f> arm_stats = getImagePointGaussian(color_frame,
-                                                             arm_locs,
+                                                             arms[1],
                                                              crop_min_x,
                                                              crop_min_y);
     // Tie weights to fg / bg
@@ -803,7 +920,7 @@ class MotionGraphcut
         else
         {
           const float me_score = getArmFGScore(color_frame, r, c, arm_stats,
-                                               hand_stats, hands_n_arms);
+                                               hand_stats, arms, roi);
           const float not_me_score = 1.0 - me_score;
           g->add_tweights(r*C+c, /*capacities*/ me_score, not_me_score);
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
@@ -862,118 +979,6 @@ class MotionGraphcut
       }
     }
 
-    // Add weights to the neighborhood around this point
-
-    // TODO: This is super inefficient, fix it to not write over the same
-    // pixels multiple times
-    // Add foreground weights to the locations of the hands?
-//     for (unsigned int i = 0; i < arm_locs.size(); ++i)
-//     {
-//       // Add weights to the neighborhood around this point
-//       for (int r = max(0, arm_locs[i].y - crop_min_y - arm_search_radius_);
-//            r < min(arm_locs[i].y - crop_min_y + arm_search_radius_, R); ++r)
-//       {
-//         for (int c = max(0, arm_locs[i].x - crop_min_x - arm_search_radius_);
-//              c < min(arm_locs[i].x - crop_min_x + arm_search_radius_, C); ++c)
-//         {
-//           cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
-//           const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
-//               arm_stats[1][0] + 0.1);
-//           const float arm_s_score = 1.0-fabs(cur_c[1] - arm_stats[0][1])/(
-//               arm_stats[1][1] + 0.1);
-//           const float arm_score = (arm_h_score + arm_s_score)/2.0;
-//           const float hand_h_score = 1.0-fabs(cur_c[0] - hand_stats[0][0])/(
-//               hand_stats[1][0] + 0.1);
-//           const float hand_s_score = 1.0-fabs(cur_c[1] - hand_stats[0][1])/(
-//               hand_stats[1][1] + 0.1);
-//           const float hand_score = (hand_h_score + hand_s_score)/2.0;
-//           const float me_score = max(hand_score, arm_score);
-//           const float not_me_score = 1.0-me_score;
-//           g->add_tweights(r*C+c, /*capacities*/ me_score, not_me_score);
-// #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-//           fg_weights.at<float>(r,c) = me_score;
-//           bg_weights.at<float>(r,c) = not_me_score;
-// #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-//         }
-//       }
-//     }
-//     // Add foreground weights to the locations of the hands?
-//     for (unsigned int i = 0; i < hand_locs.size(); ++i)
-//     {
-//       // Add weights to the neighborhood around this point
-//       for (int r = max(0, hand_locs[i].y - crop_min_y - arm_search_radius_);
-//            r < min(hand_locs[i].y - crop_min_y + arm_search_radius_, R); ++r)
-//       {
-//         for (int c = max(0, hand_locs[i].x - crop_min_x -arm_search_radius_);
-//              c < min(hand_locs[i].x - crop_min_x + arm_search_radius_, C); ++c)
-//         {
-//           cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
-//           const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
-//               arm_stats[1][0] + 0.1);
-//           const float arm_s_score = 1.0-fabs(cur_c[1] - arm_stats[0][1])/(
-//               arm_stats[1][1] + 0.1);
-//           const float arm_score = (arm_h_score + arm_s_score)/2.0;
-//           const float hand_h_score = 1.0-fabs(cur_c[0] - hand_stats[0][0])/(
-//               hand_stats[1][0] + 0.1);
-//           const float hand_s_score = 1.0-fabs(cur_c[1] - hand_stats[0][1])/(
-//               hand_stats[1][1] + 0.1);
-//           const float hand_score = (hand_h_score + hand_s_score)/2.0;
-//           const float me_score = max(hand_score, arm_score);
-//           const float not_me_score = 1.0-me_score;
-//           g->add_tweights(r*C+c, /*capacities*/ me_score, not_me_score);
-// #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-//           fg_weights.at<float>(r,c) = me_score;
-//           bg_weights.at<float>(r,c) = not_me_score;
-// #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-//         }
-//       }
-//     }
-
-    // TODO: Get rid of this and make it a special case of the distance to spine
-    // function
-    // Add foreground weights to the locations of the hands
-    for (unsigned int i = 0; i < arm_locs.size(); ++i)
-    {
-      // Add weights to the neighborhood around this point
-      for (int r = max(0, arm_locs[i].y - crop_min_y - arm_grow_radius_);
-           r < min(arm_locs[i].y - crop_min_y + arm_grow_radius_, R); ++r)
-      {
-        for (int c = max(0, arm_locs[i].x - crop_min_x - arm_grow_radius_);
-             c < min(arm_locs[i].x - crop_min_x + arm_grow_radius_, C); ++c)
-        {
-          // g->add_tweights(r*C+c, /*capacities*/ 2.0*w_f_, 0.5*w_n_f_);
-          g->add_tweights(r*C+c, /*capacities*/ 1.0, 0.0);
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-          fg_weights.at<float>(r,c) = 1.0;
-          bg_weights.at<float>(r,c) = 0.0;
-          // fg_weights.at<float>(r,c) = w_f_;
-          // bg_weights.at<float>(r,c) = w_n_f_;
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-        }
-      }
-    }
-    // Add foreground weights to the locations of the hands?
-    for (unsigned int i = 0; i < hand_locs.size(); ++i)
-    {
-      // Add weights to the neighborhood around this point
-      for (int r = max(0, hand_locs[i].y - crop_min_y - arm_grow_radius_);
-           r < min(hand_locs[i].y - crop_min_y + arm_grow_radius_, R); ++r)
-      {
-        for (int c = max(0, hand_locs[i].x - crop_min_x - arm_grow_radius_);
-             c < min(hand_locs[i].x - crop_min_x + arm_grow_radius_, C); ++c)
-        {
-          // g->add_tweights(r*C+c, /*capacities*/ 2.0*w_f_, 0.5*w_n_f_);
-          g->add_tweights(r*C+c, /*capacities*/ 1.0, 0.0);
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-          fg_weights.at<float>(r,c) = 1.0;
-          bg_weights.at<float>(r,c) = 0.0;
-          // fg_weights.at<float>(r,c) = w_f_;
-          // bg_weights.at<float>(r,c) = w_n_f_;
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-        }
-      }
-    }
-
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::imshow("fg_weights_arm", fg_weights);
     cv::imshow("bg_weights_arm", bg_weights);
@@ -1004,21 +1009,23 @@ class MotionGraphcut
 
   float getArmFGScore(cv::Mat& color_frame, int r, int c,
                       std::vector<cv::Vec3f>& arm_stats,
-                      std::vector<cv::Vec3f>& hand_stats,
-                      std::vector<std::vector<cv::Point> > hands_n_arms)
+                      std::vector<cv::Vec3f>& hand_stats, ArmModel& arms,
+                      cv::Rect& roi)
   {
+    const float dist_var = 20.0;
+    const float dist_score = exp(-arms.distanceToArm(
+        cv::Point2f(c+roi.x,r+roi.y))/dist_var);
     cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
     const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
         arm_stats[1][0] + 0.1);
     const float arm_s_score = 1.0-fabs(cur_c[1] - arm_stats[0][1])/(
         arm_stats[1][1] + 0.1);
-    const float arm_score = (arm_h_score + arm_s_score)/2.0;
+    const float arm_score = (arm_h_score + arm_s_score)/2.0+0.5*dist_score;
     const float hand_h_score = 1.0-fabs(cur_c[0] - hand_stats[0][0])/(
         hand_stats[1][0] + 0.1);
     const float hand_s_score = 1.0-fabs(cur_c[1] - hand_stats[0][1])/(
         hand_stats[1][1] + 0.1);
-    const float hand_score = (hand_h_score + hand_s_score)/2.0;
-    // TODO: Add distance to arm chain as weight
+    const float hand_score = (hand_h_score + hand_s_score)/2.0 + 0.5*dist_score;
     return max(hand_score, arm_score);
   }
 
@@ -1433,6 +1440,9 @@ class TabletopPushingPerceptionNode
   {
     if (!tracker_initialized_)
     {
+      cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(
+          cam_info_topic_, n_, ros::Duration(5.0));
+
       ROS_INFO_STREAM("Initializing tracker.");
       table_centroid_ = getTablePlane(cloud);
       if (table_centroid_.pose.position.x == 0.0 &&
@@ -1441,8 +1451,6 @@ class TabletopPushingPerceptionNode
       {
         ROS_ERROR_STREAM("No plane found!");
       }
-      cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(
-          cam_info_topic_, n_, ros::Duration(5.0));
 
       tracker_initialized_ = true;
       tracker_count_ = 0;
@@ -1466,9 +1474,9 @@ class TabletopPushingPerceptionNode
     int max_arm_x = 0;
     int min_arm_y = 0;
     int max_arm_y = 0;
-    std::vector<std::vector<cv::Point> > hands_and_arms =
-        projectArmPoses(cur_camera_header_, color_frame.size(),
-                        min_arm_x, max_arm_x, min_arm_y, max_arm_y);
+    ArmModel hands_and_arms = projectArmPoses(cur_camera_header_,
+                                              color_frame.size(), min_arm_x,
+                                              max_arm_x, min_arm_y, max_arm_y);
     // Perform graphcut for motion detection
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
                        flow_outs[2], cur_workspace_mask_, hands_and_arms);
@@ -1525,7 +1533,9 @@ class TabletopPushingPerceptionNode
     arm_cut.convertTo(cleaned_arm_cut, CV_8UC1, 255, 0);
     cv::Mat arm_regions_img;
     color_frame.copyTo(arm_regions_img, cleaned_arm_cut);
-
+    cv::Mat not_arm_move = cleaned_cut - cleaned_arm_cut;
+    cv::Mat not_arm_move_color;
+    color_frame.copyTo(not_arm_move_color, not_arm_move);
 #ifdef WRITE_INPUT_TO_DISK
     std::stringstream input_out_name;
     input_out_name << base_output_path_ << "input" << tracker_count_ << ".tiff";
@@ -1606,6 +1616,7 @@ class TabletopPushingPerceptionNode
     // cv::imshow("Cleaned Cut", cleaned_cut);
     cv::imshow("moving_regions", moving_regions_img);
     cv::imshow("arm_cut", arm_regions_img);
+    cv::imshow("not_arm_move", not_arm_move_color);
 #endif // DISPLAY_GRAPHCUT
 
 #if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_MOTION_PROBS || defined DISPLAY_MEANS || defined DISPLAY_VARS || defined DISPLAY_INTERMEDIATE_PROBS || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_OPT_FLOW_II_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS
@@ -1627,7 +1638,6 @@ class TabletopPushingPerceptionNode
       // Transform point into the camera frame
       PointStamped image_frame_loc_m;
       tf_.transformPoint(target_frame, cur_point, image_frame_loc_m);
-
       // Project point onto the image
       img_loc.x = static_cast<int>((cam_info_.K[0]*image_frame_loc_m.point.x +
                                     cam_info_.K[2]*image_frame_loc_m.point.z) /
@@ -1650,10 +1660,11 @@ class TabletopPushingPerceptionNode
     return img_loc;
   }
 
-  void getLineValues(cv::Point p1, cv::Point p2, std::vector<cv::Point>& line,
+  bool getLineValues(cv::Point p1, cv::Point p2, std::vector<cv::Point>& line,
                      cv::Size frame_size,
                      int &min_x, int &max_x, int &min_y, int &max_y)
   {
+    int num_points_added = 0;
     bool steep = (abs(p1.y - p2.y) > abs(p1.x - p2.x));
     if (steep)
     {
@@ -1708,6 +1719,7 @@ class TabletopPushingPerceptionNode
           if (p_new.y > max_y)
             max_y = p_new.y;
           line.push_back(p_new);
+          ++num_points_added;
         }
       }
       else
@@ -1729,6 +1741,7 @@ class TabletopPushingPerceptionNode
           if (p_new.y > max_y)
             max_y = p_new.y;
           line.push_back(p_new);
+          ++num_points_added;
         }
       }
       error -= dy;
@@ -1738,51 +1751,53 @@ class TabletopPushingPerceptionNode
         error += dx;
       }
     }
+    return (num_points_added > 0);
   }
-  std::vector<std::vector<cv::Point> > projectArmPoses(std_msgs::Header img_header,
-                                                       cv::Size frame_size,
-                                                       int &min_x, int &max_x,
-                                                       int &min_y, int &max_y)
+
+  ArmModel projectArmPoses(std_msgs::Header img_header, cv::Size frame_size,
+                           int &min_x, int &max_x, int &min_y, int &max_y)
   {
     // Project all arm joints into image
-    std::vector<std::vector<cv::Point> > arm_locs;
+    ArmModel arm_locs;
     // Left arm
     cv::Point l0 = projectJointOriginIntoImage(img_header, "l_gripper_tool_frame");
     cv::Point l1 = projectJointOriginIntoImage(img_header, "l_wrist_flex_link");
     cv::Point l2 = projectJointOriginIntoImage(img_header, "l_forearm_roll_link");
     cv::Point l3 = projectJointOriginIntoImage(img_header, "l_upper_arm_roll_link");
+    arm_locs.l_chain.push_back(l0);
+    arm_locs.l_chain.push_back(l1);
+    arm_locs.l_chain.push_back(l2);
+    arm_locs.l_chain.push_back(l3);
 
     // Right arm
     cv::Point r0 = projectJointOriginIntoImage(img_header, "r_gripper_tool_frame");
     cv::Point r1 = projectJointOriginIntoImage(img_header, "r_wrist_flex_link");
     cv::Point r2 = projectJointOriginIntoImage(img_header, "r_forearm_roll_link");
     cv::Point r3 = projectJointOriginIntoImage(img_header, "r_upper_arm_roll_link");
-
-    // TODO: Setup testing of distance to the line segments
-    std::vector<cv::Point> hand_locs;
-    std::vector<cv::Point> forearm_locs;
+    arm_locs.r_chain.push_back(r0);
+    arm_locs.r_chain.push_back(r1);
+    arm_locs.r_chain.push_back(r2);
+    arm_locs.r_chain.push_back(r3);
 
     // Keep track of min and max values
     min_x = 10000;
     max_x = 0;
     min_y = 10000;
     max_y = 0;
-    getLineValues(l0, l1, hand_locs, frame_size,
-                  min_x, max_x, min_y, max_y);
-    getLineValues(l1, l2, forearm_locs, frame_size,
-                  min_x, max_x, min_y, max_y);
-    getLineValues(l2, l3, forearm_locs, frame_size,
-                  min_x, max_x, min_y, max_y);
-    getLineValues(r0, r1, hand_locs, frame_size,
-                  min_x, max_x, min_y, max_y);
-    getLineValues(r1, r2, forearm_locs, frame_size,
-                  min_x, max_x, min_y, max_y);
-    getLineValues(r2, r3, forearm_locs, frame_size,
-                  min_x, max_x, min_y, max_y);
-
-    arm_locs.push_back(hand_locs);
-    arm_locs.push_back(forearm_locs);
-
+    arm_locs.l_hand_on = getLineValues(l0, l1, arm_locs.hands, frame_size,
+                                       min_x, max_x, min_y, max_y);
+    arm_locs.l_arm_on = getLineValues(l1, l2, arm_locs.arms, frame_size,
+                                      min_x, max_x, min_y, max_y);
+    arm_locs.l_arm_on = (getLineValues(l2, l3, arm_locs.arms, frame_size,
+                                       min_x, max_x, min_y, max_y) ||
+                         arm_locs.l_arm_on);
+    arm_locs.r_hand_on = getLineValues(r0, r1, arm_locs.hands, frame_size,
+                                       min_x, max_x, min_y, max_y);
+    arm_locs.r_arm_on = getLineValues(r1, r2, arm_locs.arms, frame_size,
+                                      min_x, max_x, min_y, max_y);
+    arm_locs.r_arm_on = (getLineValues(r2, r3, arm_locs.arms, frame_size,
+                                       min_x, max_x, min_y, max_y) ||
+                         arm_locs.r_arm_on);
     return arm_locs;
   }
 
@@ -1796,6 +1811,38 @@ class TabletopPushingPerceptionNode
     joint_origin.point.y = 0.0;
     joint_origin.point.z = 0.0;
     return projectPointIntoImage(joint_origin, img_header.frame_id);
+  }
+
+  void drawTableHullOnImage(pcl::PointCloud<pcl::PointXYZ>& hull,
+                            PoseStamped cent)
+  {
+    cv::Mat hull_display = cur_color_frame_.clone();
+    cv::Point p_prev;
+    for (unsigned int i = 0; i < hull.points.size(); ++i)
+    {
+      PointStamped h;
+      h.header = hull.header;
+      h.point.x = hull.points[i].x;
+      h.point.y = hull.points[i].y;
+      h.point.z = hull.points[i].z;
+      ROS_INFO_STREAM("3D Point is at: (" << h.point.x << ", "
+                      << h.point.y << ", " << h.point.z << ")");
+      cv::Point p = projectPointIntoImage(h, cur_camera_header_.frame_id);
+      ROS_INFO_STREAM("2D Point is at: (" << p.x << ", " << p.y << ")");
+      cv::circle(hull_display, p, 2, cv::Scalar(0,255,0));
+      if (i > 0 && p.x > 0 && p.y > 0 && p_prev.x > 0 && p_prev.y > 0 &&
+          p.x < hull_display.cols && p.y < hull_display.rows &&
+          p_prev.x < hull_display.cols && p_prev.y < hull_display.rows)
+      {
+        cv::line(hull_display, p, p_prev, cv::Scalar(0,255,0));
+      }
+      p_prev = p;
+    }
+    // cv::Point cent_img = projectPointIntoImage(cent,
+    //                                            cur_camera_header_.frame_id);
+    // cv::circle(hull_display, cent_img, 5, cv::Scalar(0,0,255));
+    cv::imshow("table_image", hull_display);
+    cv::waitKey(5);
   }
 
   //
@@ -1873,6 +1920,8 @@ class TabletopPushingPerceptionNode
     hull.reconstruct(cloud_hull);
     ROS_INFO_STREAM("Convex hull has: " << cloud_hull.points.size()
                     << " points");
+    cloud_hull.header = cloud.header;
+    // drawTableHullOnImage(cloud_hull, p);
     return p;
   }
 
