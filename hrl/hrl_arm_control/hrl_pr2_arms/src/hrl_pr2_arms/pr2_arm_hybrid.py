@@ -68,7 +68,7 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
             if direction in names:
                 self.force_selector[names.index(direction)] = 1
 
-    def _update_gains(self):
+    def update_gains(self):
         motion_gains = (self.trans_p_motion_gains + self.rot_p_motion_gains + 
                         self.trans_d_motion_gains + self.rot_d_motion_gains)
         force_gains = (self.trans_p_force_gains + self.rot_p_force_gains + 
@@ -83,5 +83,3 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
         f_msg.layout.dim.append(dim)
         f_msg.data = f
         self.command_force_pub.publish(f_msg)
-
-
