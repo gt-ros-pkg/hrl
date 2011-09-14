@@ -50,6 +50,7 @@
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <geometry_msgs/WrenchStamped.h>
 #include <pr2_manipulation_controllers/JTTaskControllerState.h>
 
 #include <pluginlib/class_list_macros.h>
@@ -141,6 +142,8 @@ public:
   rosrt::Publisher<geometry_msgs::Twist> pub_xd_, pub_xd_desi_;
   rosrt::Publisher<geometry_msgs::Twist> pub_x_err_, pub_wrench_;
   rosrt::Publisher<std_msgs::Float64MultiArray> pub_tau_;
+  rosrt::Publisher<geometry_msgs::WrenchStamped> pub_ft_wrench_; // khawkins
+  rosrt::Publisher<geometry_msgs::WrenchStamped> pub_ft_wrench_raw_; // khawkins
 
   std::string root_name_, tip_name_;
   ros::Time last_time_;
@@ -177,6 +180,7 @@ public:
 
   // force/torque khawkins
   pr2_hardware_interface::AnalogIn *analog_in_;
+  std::string force_torque_frame_;
   CartVec F_sensor_zero_;
   double gripper_mass_;
   Eigen::Vector3d gripper_com_;
@@ -477,8 +481,7 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
     return false;
   }
   ROS_INFO("HybridForceController: Using AnalogIn named \"%s\"", analog_in_name.c_str());
-  std::string force_torque_frame;
-  if (!node_.getParam("force_torque_frame", force_torque_frame))
+  if (!node_.getParam("force_torque_frame", force_torque_frame_))
   {
     ROS_ERROR("HybridForceController: No \"force_torque_frame\" found on parameter namespace: %s",
               node_.getNamespace().c_str());
@@ -486,8 +489,8 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
   }
   try {
     tf::StampedTransform ft_stf;
-    tf_.waitForTransform(tip_name_, force_torque_frame, ros::Time(0), ros::Duration(1.0));
-    tf_.lookupTransform(force_torque_frame, tip_name_, ros::Time(0), ft_stf);
+    tf_.waitForTransform(tip_name_, force_torque_frame_, ros::Time(0), ros::Duration(1.0));
+    tf_.lookupTransform(force_torque_frame_, tip_name_, ros::Time(0), ft_stf);
     tf::TransformTFToEigen(ft_stf, ft_transform_);
   }
   catch (const tf::TransformException &ex)
@@ -529,6 +532,10 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
                           10, geometry_msgs::Twist());
   pub_wrench_.initialize(node_.advertise<geometry_msgs::Twist>("state/wrench", 10),
                          10, geometry_msgs::Twist());
+  pub_ft_wrench_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("state/ft_wrench", 10),
+                            10, geometry_msgs::WrenchStamped());
+  pub_ft_wrench_raw_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("state/ft_wrench_raw", 10),
+                                10, geometry_msgs::WrenchStamped());
 
   std_msgs::Float64MultiArray joints_template;
   joints_template.layout.dim.resize(1);
@@ -789,6 +796,7 @@ void HybridForceController::update()
   {
     geometry_msgs::PoseStamped::Ptr pose_msg;
     geometry_msgs::Twist::Ptr twist_msg;
+    geometry_msgs::WrenchStamped::Ptr wrench_msg;
     std_msgs::Float64MultiArray::Ptr q_msg;
 
     if (pose_msg = pub_x_.allocate()) {  // X
@@ -821,6 +829,20 @@ void HybridForceController::update()
     if (twist_msg = pub_wrench_.allocate()) {  // F
       tf::twistEigenToMsg(F_motion, *twist_msg);
       pub_wrench_.publish(twist_msg);
+    }
+
+    if (wrench_msg = pub_ft_wrench_.allocate()) {  // F ft
+      wrench_msg->header.stamp = time;
+      wrench_msg->header.frame_id = tip_name_;
+      tf::wrenchEigenToMsg(F_sensor_zeroed, wrench_msg->wrench);
+      pub_ft_wrench_.publish(wrench_msg);
+    }
+
+    if (wrench_msg = pub_ft_wrench_raw_.allocate()) {  // F ft raw
+      wrench_msg->header.stamp = time;
+      wrench_msg->header.frame_id = force_torque_frame_;
+      tf::wrenchEigenToMsg(F_sensor, wrench_msg->wrench);
+      pub_ft_wrench_raw_.publish(wrench_msg);
     }
 
     if (q_msg = pub_tau_.allocate()) {  // tau
