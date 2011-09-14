@@ -101,17 +101,14 @@
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
-// #define DISPLAY_MOTION_PROBS 1
-// #define DISPLAY_MEANS 1
-// #define DISPLAY_VARS 1
-// #define DISPLAY_INTERMEDIATE_PROBS 1
 // #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_UV 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
 // #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
+// #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
-// #define DISPLAY_ARM_PROBS 1
+// #define VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS 1
 // #define DISPLAY_ARM_CIRCLES 1
 
 // #define WRITE_INPUT_TO_DISK 1
@@ -121,6 +118,8 @@
 
 // Functional IFDEFS
 // #define REMOVE_SMALL_BLOBS 1
+// #define FAKE_SEGMENT
+#define MEDIAN_FILTER_FLOW 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -132,13 +131,16 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
 typedef Graph<float, float, float> GraphType;
 
+inline const float max(const float a, const double b)
+{
+  return max(static_cast<double>(a), b);
+}
 
 void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow_u, cv::Mat& flow_v,
                         float mag_thresh)
 {
   cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
   flow_thresh_disp_img = color_frame.clone();
-  // float corner_thresh = (eigen_ratio_+1)*(eigen_ratio_+1)/eigen_ratio_;
   for (int r = 0; r < flow_thresh_disp_img.rows; ++r)
   {
     for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
@@ -317,9 +319,7 @@ class LKFlowReliable
     tmp_bw.convertTo(cur_bw, CV_32FC1, 1.0/255, 0);
     cv::cvtColor(prev_color_frame, tmp_bw, CV_BGR2GRAY);
     tmp_bw.convertTo(prev_bw, CV_32FC1, 1.0/255, 0);
-
-    std::vector<cv::Mat> flow_n_scores = hierarchy(cur_bw, prev_bw);
-    return flow_n_scores;
+    return hierarchy(cur_bw, prev_bw);
   }
 
   std::vector<cv::Mat> hierarchy(cv::Mat& f2, cv::Mat& f1)
@@ -347,7 +347,6 @@ class LKFlowReliable
       Dx = smooth(Dx);
       Dy = smooth(Dy);
     }
-    // TODO: Median filter Dx and Dy before returning.
     std::vector<cv::Mat> total_outs;
     total_outs.push_back(Dx);
     total_outs.push_back(Dy);
@@ -444,6 +443,9 @@ class LKFlowReliable
   cv::Mat smooth(cv::Mat& input, int n=1)
   {
     cv::Mat sm = input.clone();
+#ifdef MEDIAN_FILTER_FLOW
+    cv::medianBlur(input, sm, 3);
+#else // MEDIAN_FILTER_FLOW
     for (int l = 0; l < n; ++l)
     {
       sm = reduce(sm);
@@ -452,6 +454,7 @@ class LKFlowReliable
     {
       sm = expand(sm);
     }
+#endif // MEDIAN_FILTER_FLOW
     return sm;
   }
 
@@ -653,15 +656,13 @@ class LKFlowReliable
 class MotionGraphcut
 {
  public:
-  MotionGraphcut(double eigen_ratio = 5.0f, double w_f = 3.0f, double w_b = 2.0f,
-                 double w_n_f = 0.01f, double w_n_b = 0.01f, double w_w_b = 5.0f,
-                 double w_u_f = 0.1f, double w_u_b = 0.1f,
-                 double magnitude_thresh=0.1, int arm_grow_radius=2) :
-      w_f_(w_f), w_b_(w_b), w_n_f_(w_n_f), w_n_b_(w_n_b),  w_w_b_(w_w_b),
-      w_u_f_(w_u_f), w_u_b_(w_u_b), magnitude_thresh_(magnitude_thresh),
-      arm_grow_radius_(arm_grow_radius)
+  MotionGraphcut(double workspace_background_weight = 1.0f,
+                 double min_weight = 0.01, double magnitude_thresh=0.1,
+                 int arm_grow_radius=2) :
+      workspace_background_weight_(workspace_background_weight),
+      min_weight_(min_weight),
+      magnitude_thresh_(magnitude_thresh), arm_grow_radius_(arm_grow_radius)
   {
-    setEigenRatio(eigen_ratio);
   }
 
   virtual ~MotionGraphcut()
@@ -675,7 +676,7 @@ class MotionGraphcut
    * @param depth_frame    The current depth image to segment
    * @param u              Flow dx/dt
    * @param v              Flow dy/dt
-   * @param flow_scores    Scores corresponding to texture at the point
+   * @param eigen_scores    Scores corresponding to texture at the point
    * @param workspace_mask Binary image where white is valid locations for things
    *                       to be moving at
    * @param arm_locs Image locations of projected arm kinematics
@@ -684,7 +685,7 @@ class MotionGraphcut
    *         black is the background (static) regions
    */
   cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
-                     cv::Mat& u, cv::Mat& v, cv::Mat flow_scores,
+                     cv::Mat& u, cv::Mat& v, cv::Mat eigen_scores,
                      cv::Mat& workspace_mask, ArmModel arm_locs)
   {
     const int R = color_frame.rows;
@@ -697,10 +698,12 @@ class MotionGraphcut
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::Mat fg_weights(color_frame.size(), CV_32FC1);
     cv::Mat bg_weights(color_frame.size(), CV_32FC1);
+#endif // VISUALIZE_GRAPH_WEIGHTS
+#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
     cv::Mat left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     cv::Mat up_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     cv::Mat up_left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-#endif // VISUALIZE_GRAPH_WEIGHTS
+#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
 
     // TODO: Set low probability of stuff close to table height?
     for (int r = 0; r < R; ++r)
@@ -714,44 +717,27 @@ class MotionGraphcut
         // Check if we are hardcoding this spot to background
         if (workspace_mask.at<uchar>(r,c) == 0)
         {
-          g->add_tweights(r*C+c, /*capacities*/ 0.0, w_w_b_);
+          g->add_tweights(r*C+c, min_weight_, workspace_background_weight_);
 
 #ifdef VISUALIZE_GRAPH_WEIGHTS
-          fg_weights.at<float>(r,c) = 0.0;
-          bg_weights.at<float>(r,c) = w_w_b_;
+          fg_weights.at<float>(r,c) = min_weight_;
+          bg_weights.at<float>(r,c) = workspace_background_weight_;
 #endif // VISUALIZE_GRAPH_WEIGHTS
+          continue;
         }
-        else if (flow_scores.at<float>(r,c) < corner_thresh_)
-        {
-
-          if (magnitude > magnitude_thresh_)
-          {
-            g->add_tweights(r*C+c, /*capacities*/ w_f_, w_n_f_);
-
+        const float mag_score = max(getFlowFGScore(magnitude), min_weight_);
+        const float not_mag_score = max(1.0 - mag_score, min_weight_);
+        g->add_tweights(r*C+c, mag_score, not_mag_score);
 #ifdef VISUALIZE_GRAPH_WEIGHTS
-            fg_weights.at<float>(r,c) = w_f_;
-            bg_weights.at<float>(r,c) = w_n_f_;
+        fg_weights.at<float>(r,c) = mag_score;
+        bg_weights.at<float>(r,c) = not_mag_score;
 #endif // VISUALIZE_GRAPH_WEIGHTS
-          }
-          else
-          {
-            g->add_tweights(r*C+c, /*capacities*/ w_n_b_, w_b_);
-
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-            fg_weights.at<float>(r,c) = w_n_b_;
-            bg_weights.at<float>(r,c) = w_b_;
-#endif // VISUALIZE_GRAPH_WEIGHTS
-          }
-        }
-        else
-        {
-          g->add_tweights(r*C+c, /*capacities*/ w_u_f_, w_u_b_);
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-          fg_weights.at<float>(r,c) = w_u_f_;
-          bg_weights.at<float>(r,c) = w_u_b_;
-#endif // VISUALIZE_GRAPH_WEIGHTS
-        }
-
+      }
+    }
+    for (int r = 0; r < R; ++r)
+    {
+      for (int c = 0; c < C; ++c)
+      {
         // Connect node to previous ones
         if (c > 0)
         {
@@ -761,11 +747,10 @@ class MotionGraphcut
                                     color_frame.at<cv::Vec3f>(r,c-1),
                                     depth_frame.at<float>(r,c-1));
           g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
-#ifdef VISUALIZE_GRAPH_WEIGHTS
+#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
           left_weights.at<float>(r,c) = w_l;
-#endif // VISUALIZE_GRAPH_WEIGHTS
+#endif // VISUALIZE_EDGE_GRAPH_WEIGHTS
         }
-
         if (r > 0)
         {
           // Add up-link
@@ -774,10 +759,9 @@ class MotionGraphcut
                                     color_frame.at<cv::Vec3f>(r-1,c),
                                     depth_frame.at<float>(r-1,c));
           g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
-#ifdef VISUALIZE_GRAPH_WEIGHTS
+#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
           up_weights.at<float>(r,c) = w_u;
-#endif // VISUALIZE_GRAPH_WEIGHTS
-
+#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
           // Add up-left-link
           if (c > 0)
           {
@@ -786,32 +770,9 @@ class MotionGraphcut
                                        color_frame.at<cv::Vec3f>(r-1,c-1),
                                        depth_frame.at<float>(r-1,c-1));
             g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
-#ifdef VISUALIZE_GRAPH_WEIGHTS
+#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
           up_left_weights.at<float>(r,c) = w_ul;
-#endif // VISUALIZE_GRAPH_WEIGHTS
-
-          }
-        }
-      }
-    }
-
-    // Add foreground weights to the locations of the hands and arms
-    for (unsigned int i = 0; i < arm_locs.size(); ++i)
-    {
-      for (unsigned int j = 0; j < arm_locs[i].size(); ++j)
-      {
-        // Add weights to the neighborhood around this point
-        for (int r = max(0, arm_locs[i][j].y - arm_grow_radius_);
-             r < min(arm_locs[i][j].y + arm_grow_radius_, R); ++r)
-        {
-          for (int c = max(0, arm_locs[i][j].x - arm_grow_radius_);
-               c < min(arm_locs[i][j].x + arm_grow_radius_, C); ++c)
-          {
-            g->add_tweights(r*C+c, /*capacities*/ w_f_, w_n_f_);
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-            fg_weights.at<float>(r,c) = w_f_;
-            bg_weights.at<float>(r,c) = w_n_f_;
-#endif // VISUALIZE_GRAPH_WEIGHTS
+#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
           }
         }
       }
@@ -820,6 +781,8 @@ class MotionGraphcut
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::imshow("fg_weights", fg_weights);
     cv::imshow("bg_weights", bg_weights);
+#endif // VISUALIZE_GRAPH_WEIGHTS
+#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
     double up_max = 1.0;
     cv::minMaxLoc(up_weights, NULL, &up_max);
     up_weights /= up_max;
@@ -833,9 +796,10 @@ class MotionGraphcut
     cv::minMaxLoc(up_left_weights, NULL, &up_left_max);
     up_left_weights /= up_max;
     cv::imshow("up_left_weights", up_left_weights);
-#endif // VISUALIZE_GRAPH_WEIGHTS
+#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
 
-    int flow = g->maxflow(false);
+    // int flow = g->maxflow(false);
+    g->maxflow(false);
 
     // Convert output into image
     cv::Mat segs = convertFlowResultsToCvMat(g, R, C);
@@ -886,6 +850,8 @@ class MotionGraphcut
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::Mat fg_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     cv::Mat bg_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
+#endif // VISUALIZE_GRAPH_WEIGHTS
+#ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
     cv::Mat left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     cv::Mat up_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     cv::Mat up_left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
@@ -907,26 +873,171 @@ class MotionGraphcut
       for (int c = 0; c < C; ++c)
       {
         g->add_node();
+//         // Check if we are hardcoding this spot to background
+//         if (workspace_mask.at<uchar>(r,c) == -1)
+//         {
+//           g->add_tweights(r*C+c, min_weight_, workspace_background_weight_);
+// #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
+//           fg_weights.at<float>(r,c) = min_weight_;
+//           bg_weights.at<float>(r,c) = workspace_background_weight_;
+// #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
+//           continue;
+//         }
+//         else
+//         {
+        const float me_score = max(getArmFGScore(color_frame, r, c, arm_stats,
+                                                 hand_stats, arms, roi),
+                                   min_weight_);
+        const float not_me_score = max(1.0 - me_score, min_weight_);
+        g->add_tweights(r*C+c, /*capacities*/ me_score, not_me_score);
+#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
+        fg_weights.at<float>(r,c) = me_score;
+        bg_weights.at<float>(r,c) = not_me_score;
+#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
+      }
+    }
+
+    // Add edge weights
+    for (int r = 0; r < R; ++r)
+    {
+      for (int c = 0; c < C; ++c)
+      {
+        // Connect node to previous ones
+        if (c > 0)
+        {
+          // Add left-link
+          float w_l = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+                                    depth_frame.at<float>(r,c),
+                                    color_frame.at<cv::Vec3f>(r,c-1),
+                                    depth_frame.at<float>(r,c-1));
+          g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
+#ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
+          left_weights.at<float>(r,c) = w_l;
+#endif // VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
+        }
+
+        if (r > 0)
+        {
+          // Add up-link
+          float w_u = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+                                    depth_frame.at<float>(r,c),
+                                    color_frame.at<cv::Vec3f>(r-1,c),
+                                    depth_frame.at<float>(r-1,c));
+          g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
+#ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
+          up_weights.at<float>(r,c) = w_u;
+#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
+
+          // Add up-left-link
+          if (c > 0)
+          {
+            float w_ul = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+                                       depth_frame.at<float>(r,c),
+                                       color_frame.at<cv::Vec3f>(r-1,c-1),
+                                       depth_frame.at<float>(r-1,c-1));
+            g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
+#ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
+            up_left_weights.at<float>(r,c) = w_ul;
+#endif // VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
+
+          }
+        }
+      }
+    }
+
+#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
+    cv::imshow("fg_weights_arm", fg_weights);
+    cv::imshow("bg_weights_arm", bg_weights);
+#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
+#ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
+    double up_max = 1.0;
+    cv::minMaxLoc(up_weights, NULL, &up_max);
+    up_weights /= up_max;
+    double left_max = 1.0;
+    cv::minMaxLoc(left_weights, NULL, &left_max);
+    left_weights /= left_max;
+    double up_left_max = 1.0;
+    cv::minMaxLoc(up_left_weights, NULL, &up_left_max);
+    up_left_weights /= up_max;
+    cv::imshow("up_weights_arm", up_weights);
+    cv::imshow("left_weights_arm", left_weights);
+    cv::imshow("up_left_weights_arm", up_left_weights);
+#endif // VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
+
+    // int flow = g->maxflow(false);
+    g->maxflow(false);
+
+    // Convert output into image
+    cv::Mat segs = convertFlowResultsToCvMat(g, R, C, roi,
+                                             color_frame_in.size());
+    delete g;
+    // TODO: Ensure a single continuous region for each arm seeded by the known
+    // locations
+    return segs;
+  }
+
+  cv::Mat multilabelArmMovement(cv::Mat& color_frame, cv::Mat& depth_frame,
+                                cv::Mat& u, cv::Mat& v, cv::Mat& workspace_mask,
+                                ArmModel arms)
+  {
+    // NOTE: We examine only a subwindow in the image to avoid too make things
+    // more efficient
+    cv::Rect roi(0, 0, color_frame.cols, color_frame.rows);
+    const int R = color_frame.rows;
+    const int C = color_frame.cols;
+
+    int num_nodes = R*C;
+    int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
+    GraphType *g;
+    g = new GraphType(num_nodes, num_edges);
+
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+    cv::Mat fg_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat bg_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
+#endif // VISUALIZE_GRAPH_WEIGHTS
+#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
+    cv::Mat left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat up_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat up_left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
+#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
+
+    // One gaussian estimated from wrist to elbow, elbow to forearm and a
+    // separate one is estimated from the gripper tip to wrist
+    std::vector<cv::Vec3f> hand_stats = getImagePointGaussian(color_frame,
+                                                              arms[0]);
+    std::vector<cv::Vec3f> arm_stats = getImagePointGaussian(color_frame,
+                                                             arms[1]);
+    // Tie weights to fg / bg
+    for (int r = 0; r < R; ++r)
+    {
+      for (int c = 0; c < C; ++c)
+      {
+        g->add_node();
         // Check if we are hardcoding this spot to background
         if (workspace_mask.at<uchar>(r,c) == 0)
         {
-          g->add_tweights(r*C+c, /*capacities*/ 0.0, w_w_b_);
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-          fg_weights.at<float>(r,c) = 0.0;
-          bg_weights.at<float>(r,c) = w_w_b_;
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
+          g->add_tweights(r*C+c, min_weight_, workspace_background_weight_);
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+          fg_weights.at<float>(r,c) = min_weight_;
+          bg_weights.at<float>(r,c) = workspace_background_weight_;
+#endif // VISUALIZE_GRAPH_WEIGHTS
           continue;
         }
         else
         {
-          const float me_score = getArmFGScore(color_frame, r, c, arm_stats,
-                                               hand_stats, arms, roi);
-          const float not_me_score = 1.0 - me_score;
-          g->add_tweights(r*C+c, /*capacities*/ me_score, not_me_score);
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
+          const float magnitude = std::sqrt(u.at<float>(r,c)*u.at<float>(r,c) +
+                                            v.at<float>(r,c)*v.at<float>(r,c));
+          const float move_score = max(getFlowFGScore(magnitude), min_weight_);
+          const float me_score = max(getArmFGScore(color_frame, r, c, arm_stats,
+                                                   hand_stats, arms, roi),
+                                     min_weight_);
+          // TODO: Get motion score
+          // TODO: Get tabletop score
+          // TODO: Determine background score
+#ifdef VISUALIZE_GRAPH_WEIGHTS
           fg_weights.at<float>(r,c) = me_score;
-          bg_weights.at<float>(r,c) = not_me_score;
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
+          // bg_weights.at<float>(r,c) = not_me_score;
+#endif // VISUALIZE_GRAPH_WEIGHTS
         }
       }
     }
@@ -940,48 +1051,50 @@ class MotionGraphcut
         if (c > 0)
         {
           // Add left-link
-          float w_l = getArmEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                       depth_frame.at<float>(r,c),
-                                       color_frame.at<cv::Vec3f>(r,c-1),
-                                       depth_frame.at<float>(r,c-1));
+          float w_l = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+                                    depth_frame.at<float>(r,c),
+                                    color_frame.at<cv::Vec3f>(r,c-1),
+                                    depth_frame.at<float>(r,c-1));
           g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
+#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
           left_weights.at<float>(r,c) = w_l;
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
+#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
         }
 
         if (r > 0)
         {
           // Add up-link
-          float w_u = getArmEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                       depth_frame.at<float>(r,c),
-                                       color_frame.at<cv::Vec3f>(r-1,c),
-                                       depth_frame.at<float>(r-1,c));
+          float w_u = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+                                    depth_frame.at<float>(r,c),
+                                    color_frame.at<cv::Vec3f>(r-1,c),
+                                    depth_frame.at<float>(r-1,c));
           g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
+#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
           up_weights.at<float>(r,c) = w_u;
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
+#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
 
           // Add up-left-link
           if (c > 0)
           {
-            float w_ul = getArmEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                          depth_frame.at<float>(r,c),
-                                          color_frame.at<cv::Vec3f>(r-1,c-1),
-                                          depth_frame.at<float>(r-1,c-1));
+            float w_ul = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
+                                       depth_frame.at<float>(r,c),
+                                       color_frame.at<cv::Vec3f>(r-1,c-1),
+                                       depth_frame.at<float>(r-1,c-1));
             g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
+#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
             up_left_weights.at<float>(r,c) = w_ul;
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
+#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
 
           }
         }
       }
     }
 
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
+#ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::imshow("fg_weights_arm", fg_weights);
     cv::imshow("bg_weights_arm", bg_weights);
+#endif // VISUALIZE_GRAPH_WEIGHTS
+#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
     double up_max = 1.0;
     cv::minMaxLoc(up_weights, NULL, &up_max);
     up_weights /= up_max;
@@ -994,17 +1107,21 @@ class MotionGraphcut
     cv::imshow("up_weights_arm", up_weights);
     cv::imshow("left_weights_arm", left_weights);
     cv::imshow("up_left_weights_arm", up_left_weights);
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
+#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
 
-    int flow = g->maxflow(false);
+    // int flow = g->maxflow(false);
+    g->maxflow(false);
 
     // Convert output into image
-    cv::Mat segs = convertFlowResultsToCvMat(g, R, C, roi,
-                                             color_frame_in.size());
+    cv::Mat segs = convertFlowResultsToCvMat(g, R, C);
     delete g;
     // TODO: Ensure a single continuous region for each arm seeded by the known
     // locations
     return segs;
+  }
+  float getFlowFGScore(float magnitude)
+  {
+    return min(1.0, max( 0.3*exp(magnitude), 0.0));
   }
 
   float getArmFGScore(cv::Mat& color_frame, int r, int c,
@@ -1125,46 +1242,17 @@ class MotionGraphcut
     // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2] + w_d*w_d);
     // float w_c = sqrt(c_d[0]*c_d[0] + c_d[1]*c_d[1] + w_d*w_d);
     // float w_c = sqrt(c_d[0]*c_d[0] + w_d*w_d);
-    // float w_c = w_c_alpha_*exp(c_d[0]*c_d[0]) + w_c_gamma_*exp(w_d*w_d);
     float w_c = w_c_alpha_*exp(fabs(c_d[0])) + w_c_beta_*exp(fabs(c_d[1])) +
         w_c_gamma_*exp(fabs(w_d));
     return w_c;
   }
-  float getArmEdgeWeight(cv::Vec3f c0, float d0, cv::Vec3f c1, float d1)
-  {
-    cv::Vec3f c_d = c0-c1;
-    float w_d = d0-d1;
-    // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2] + w_d*w_d);
-    // float w_c = sqrt(c_d[0]*c_d[0] + c_d[1]*c_d[1] + w_d*w_d);
-    // float w_c = sqrt(c_d[0]*c_d[0] + w_d*w_d);
-    // float w_c = w_c_alpha_*exp(c_d[0]*c_d[0]) + w_c_gamma_*exp(w_d*w_d);
-    float w_c = w_c_arm_alpha_*exp(fabs(c_d[0])) + w_c_arm_beta_*exp(fabs(c_d[1])) +
-        w_c_arm_gamma_*exp(fabs(w_d));
-    return w_c;
-  }
-
-  void setEigenRatio(double eigen_ratio)
-  {
-    corner_thresh_ = (eigen_ratio+1)*(eigen_ratio+1)/eigen_ratio;
-  }
-
- protected:
-  double corner_thresh_;
 
  public:
-  double w_f_;
-  double w_b_;
-  double w_n_f_;
-  double w_n_b_;
-  double w_w_b_;
-  double w_u_f_;
-  double w_u_b_;
+  double workspace_background_weight_;
+  double min_weight_;
   double w_c_alpha_;
   double w_c_beta_;
   double w_c_gamma_;
-  double w_c_arm_alpha_;
-  double w_c_arm_beta_;
-  double w_c_arm_gamma_;
   double magnitude_thresh_;
   int arm_grow_radius_;
   int arm_search_radius_;
@@ -1215,26 +1303,15 @@ class TabletopPushingPerceptionNode
 
     base_output_path_ = "/home/thermans/sandbox/cut_out/";
     // Graphcut weights
-    n_private.param("mgc_w_f", mgc_.w_f_, 3.0);
-    n_private.param("mgc_w_b", mgc_.w_b_, 2.0);
-    n_private.param("mgc_w_n_f", mgc_.w_n_f_, 0.01);
-    n_private.param("mgc_w_n_b", mgc_.w_n_b_, 0.01);
-    n_private.param("mgc_w_w_b", mgc_.w_w_b_, 5.0);
-    n_private.param("mgc_w_u_f", mgc_.w_u_f_, 0.1);
-    n_private.param("mgc_w_u_b", mgc_.w_u_b_, 0.1);
-
+    n_private.param("mgc_workspace_bg_weight",
+                    mgc_.workspace_background_weight_, 1.0);
+    n_private.param("mgc_min_weight", mgc_.min_weight_, 0.01);
     n_private.param("mgc_w_c_alpha", mgc_.w_c_alpha_, 0.1);
     n_private.param("mgc_w_c_beta",  mgc_.w_c_beta_, 0.1);
     n_private.param("mgc_w_c_gamma", mgc_.w_c_gamma_, 0.1);
-    n_private.param("mgc_w_c_arm_alpha", mgc_.w_c_arm_alpha_, 0.1);
-    n_private.param("mgc_w_c_arm_beta",  mgc_.w_c_arm_beta_, 0.1);
-    n_private.param("mgc_w_c_arm_gamma", mgc_.w_c_arm_gamma_, 0.1);
     n_private.param("mgc_arm_grow_radius", mgc_.arm_grow_radius_, 2);
     n_private.param("mgc_arm_search_radius", mgc_.arm_search_radius_, 50);
     // Lucas Kanade params
-    double eigen_ratio = 0.5;
-    n_private.param("mgc_eigen_ratio", eigen_ratio, 0.5);
-    mgc_.setEigenRatio(eigen_ratio);
     n_private.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
     int win_size = 5;
     n_private.param("lk_win_size", win_size, 5);
@@ -1458,7 +1535,7 @@ class TabletopPushingPerceptionNode
                            cv::Scalar(0));
       return empty_motion;
     }
-
+#ifndef FAKE_SEGMENT
     // Convert frame to floating point HSV
     // TODO: Consolidate into a single function call ?
     cv::Mat color_frame_hsv(color_frame.size(), color_frame.type());
@@ -1510,7 +1587,10 @@ class TabletopPushingPerceptionNode
       }
     }
 #endif // REMOVE_SMALL_BLOBS
-
+#else // FAKE_SEGMENT
+    cv::Mat cleaned_cut(color_frame.size(), CV_8UC1, cv::Scalar(0));
+    cv::Mat arm_cut(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
+#endif // FAKE_SEGMENT
     // Publish the moving region stuff
     cv_bridge::CvImage motion_mask_msg;
     motion_mask_msg.image = cleaned_cut;
@@ -1522,7 +1602,7 @@ class TabletopPushingPerceptionNode
     cv::Mat moving_regions_img;
     color_frame.copyTo(moving_regions_img, cleaned_cut);
     cv_bridge::CvImage motion_img_msg;
-    cv::Mat motion_img_send(cut.size(), CV_8UC3);
+    cv::Mat motion_img_send(cleaned_cut.size(), CV_8UC3);
     moving_regions_img.convertTo(motion_img_send, CV_8UC3, 1.0, 0);
     motion_img_msg.image = motion_img_send;
     motion_img_msg.header = cur_camera_header_;
@@ -1546,16 +1626,13 @@ class TabletopPushingPerceptionNode
 #ifdef WRITE_FLOWS_TO_DISK
     cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
     flow_thresh_disp_img = color_frame.clone();
-
-    float corner_thresh = (eigen_ratio_+1)*(eigen_ratio_+1)/eigen_ratio_;
     for (int r = 0; r < flow_thresh_disp_img.rows; ++r)
     {
       for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
       {
         float u = flow_outs[0].at<float>(r,c);
         float v = flow_outs[1].at<float>(r,c);
-        if (std::sqrt(u*u+v*v) > mgc_.magnitude_thresh_ &&
-            flow_outs[2].at<float>(r,c) < corner_thresh)
+        if (std::sqrt(u*u+v*v) > mgc_.magnitude_thresh_)
         {
           cv::line(flow_thresh_disp_img, cv::Point(c,r),
                    cv::Point(c-u, r-v), cv::Scalar(0,255,0));
@@ -1603,9 +1680,6 @@ class TabletopPushingPerceptionNode
 #ifdef DISPLAY_WORKSPACE_MASK
     cv::imshow("workspace_mask", cur_workspace_mask_);
 #endif // DISPLAY_WORKSPACE_MASK
-#ifdef DISPLAY_ARM_PROBS
-    cv::imshow("arm_probs", arm_probs);
-#endif // DISPLAY_ARM_PROBS
 #ifdef DISPLAY_OPTICAL_FLOW
     displayOpticalFlow(color_frame, flow_outs[0], flow_outs[1],
                        mgc_.magnitude_thresh_);
@@ -1619,7 +1693,7 @@ class TabletopPushingPerceptionNode
     cv::imshow("not_arm_move", not_arm_move_color);
 #endif // DISPLAY_GRAPHCUT
 
-#if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_MOTION_PROBS || defined DISPLAY_MEANS || defined DISPLAY_VARS || defined DISPLAY_INTERMEDIATE_PROBS || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_OPT_FLOW_II_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS
+#if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS || defined VISUALIZE_ARM_GRAPH_WEIGHTS || defined DISPLAY_ARM_CIRCLES
     cv::waitKey(display_wait_ms_);
 #endif // Any display defined
     ++tracker_count_;

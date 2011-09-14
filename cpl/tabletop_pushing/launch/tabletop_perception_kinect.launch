@@ -27,23 +27,13 @@
     <param name="min_table_z" value="-1.0" type="double"/>
     <param name="max_table_z" value="1.0" type="double"/>
 
-    <param name="mgc_w_f" value="1.0" type="double"/>
-    <param name="mgc_w_b" value="0.505" type="double"/>
-    <param name="mgc_w_n_f" value="0.05" type="double"/>
-    <param name="mgc_w_n_b" value="0.5" type="double"/>
-    <param name="mgc_w_w_b" value="1.0" type="double"/>
-    <param name="mgc_u_b" value="0.5" type="double"/>
-    <param name="mgc_u_f" value="0.5" type="double"/>
+    <param name="mgc_workspace_background_weight" value="0.95" type="double"/>
+    <param name="mgc_min_weight" value="0.01" type="double"/>
 
     <param name="mgc_w_c_alpha" value="0.4" type="double"/>
-    <param name="mgc_w_c_beta" value="0.7" type="double"/>
+    <param name="mgc_w_c_beta" value="0.9" type="double"/>
     <param name="mgc_w_c_gamma" value="2.0" type="double"/>
 
-    <param name="mgc_w_c_arm_alpha" value="0.4" type="double"/>
-    <param name="mgc_w_c_arm_beta" value="0.5" type="double"/>
-    <param name="mgc_w_c_arm_gamma" value="2.0" type="double"/>
-
-    <param name="mgc_eigen_ratio" value="7.0" type="double"/>
     <param name="mgc_magnitude_thresh" value="1.0" type="double"/>
     <param name="mgc_arm_grow_radius" value="1" type="int"/>
     <param name="mgc_arm_search_radius" value="40" type="int"/>
