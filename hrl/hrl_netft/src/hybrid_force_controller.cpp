@@ -48,6 +48,7 @@
 
 #include <ros/ros.h>
 
+#include <std_msgs/Bool.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/WrenchStamped.h>
@@ -135,6 +136,8 @@ public:
   ros::Subscriber sub_posture_;
   ros::Subscriber sub_pose_;
   ros::Subscriber sub_force_; // khawkins
+  ros::Subscriber sub_ft_zero_; // khawkins
+  ros::Subscriber sub_ft_params_; // khawkins
   tf::TransformListener tf_;
 
   rosrt::Publisher<StateMsg> pub_state_;
@@ -283,6 +286,29 @@ public:
   
       ROS_INFO("New gains in arbitrary frame [%s]: %.1lf, %.1lf, %.1lf %.1lf, %.1lf, %.1lf",
              msg->header.frame_id.c_str(), Kp[0], Kp[1], Kp[2], Kp[3], Kp[4], Kp[5]);
+    }
+  }
+
+  void zeroFTSensor(const std_msgs::Bool::ConstPtr &msg) {
+    zero_wrench_ = true;
+    ROS_INFO("Sensor Zeroed");
+  }
+
+  void setFTSensorParams(const std_msgs::Float64MultiArray::ConstPtr &msg) // khawkins
+  {
+    if ((int)msg->data.size() == 1) {
+      gripper_mass_ = msg->data[0];
+    }
+    else if ((int)msg->data.size() == 4) {
+      gripper_mass_ = msg->data[0];
+      gripper_com_[0] = msg->data[1];
+      gripper_com_[1] = msg->data[2];
+      gripper_com_[2] = msg->data[3];
+    }
+    else
+    {
+      ROS_ERROR("ft_params message had the wrong size: %d", (int)msg->data.size());
+      return;
     }
   }
 
@@ -503,6 +529,8 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
   sub_posture_ = node_.subscribe("command_posture", 5, &HybridForceController::commandPosture, this);
   sub_pose_ = node_.subscribe("command_pose", 1, &HybridForceController::commandPose, this);
   sub_force_ = node_.subscribe("command_force", 1, &HybridForceController::commandForce, this); // khawkins
+  sub_ft_zero_ = node_.subscribe("ft_zero", 5, &HybridForceController::zeroFTSensor, this); // khawkins
+  sub_ft_params_ = node_.subscribe("ft_params", 5, &HybridForceController::setFTSensorParams, this); // khawkins
 
   StateMsg state_template;
   state_template.header.frame_id = root_name_;

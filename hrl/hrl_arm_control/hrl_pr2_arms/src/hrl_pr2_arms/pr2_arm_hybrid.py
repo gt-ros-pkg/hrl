@@ -7,7 +7,7 @@ roslib.load_manifest('hrl_pr2_arms')
 roslib.load_manifest('hrl_netft')
 import rospy
 import actionlib
-from std_msgs.msg import Float64MultiArray, Header, MultiArrayDimension
+from std_msgs.msg import Float64MultiArray, Header, MultiArrayDimension, Bool
 
 from hrl_pr2_arms.pr2_arm import PR2ArmCartesianBase
 from hrl_netft.msg import HybridCartesianGains
@@ -19,6 +19,7 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
             controller_name = controller_name % arm
         self.command_gains_pub = rospy.Publisher(controller_name + '/gains', HybridCartesianGains)
         self.command_force_pub = rospy.Publisher(controller_name + '/command_force', Float64MultiArray)
+        self.command_zero_pub = rospy.Publisher(controller_name + '/ft_zero', Bool)
         self.tip_frame = rospy.get_param(controller_name + '/tip_name')
         self.force_selector = 6 * [0]
         self.trans_p_motion_gains = 3 * [rospy.get_param(controller_name + '/cart_gains/trans/p')]
@@ -60,13 +61,19 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
 
     def set_force_directions(self, directions):
         if len(directions) == 6 and all([direction in [0, 1] for direction in directions]):
-            self.force_selector = list(directions)
+            self.force_selector = list(directions):
             return
         self.force_selector = 6 * [0]
         names = ['x', 'y', 'z', 'rx', 'ry', 'rz']
         for direction in directions:
             if direction in names:
                 self.force_selector[names.index(direction)] = 1
+
+    def set_mass_params(self, mass, center_of_mass=None):
+        params_msg = Float64MultiArray()
+        params_msg.data = [mass]
+        if center_of_mass is not None:
+            params_msg.data += list(center_of_mass)
 
     def update_gains(self):
         motion_gains = (self.trans_p_motion_gains + self.rot_p_motion_gains + 
@@ -83,3 +90,6 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
         f_msg.layout.dim.append(dim)
         f_msg.data = f
         self.command_force_pub.publish(f_msg)
+
+    def zero_sensor(self):
+        self.command_zero_pub(Bool())
