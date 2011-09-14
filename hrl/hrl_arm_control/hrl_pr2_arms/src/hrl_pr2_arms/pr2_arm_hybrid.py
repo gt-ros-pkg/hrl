@@ -60,7 +60,7 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
 
     def set_force_directions(self, directions):
         if len(directions) == 6 and all([direction in [0, 1] for direction in directions]):
-            self.force_selector = list(directions):
+            self.force_selector = list(directions)
             return
         self.force_selector = 6 * [0]
         names = ['x', 'y', 'z', 'rx', 'ry', 'rz']
