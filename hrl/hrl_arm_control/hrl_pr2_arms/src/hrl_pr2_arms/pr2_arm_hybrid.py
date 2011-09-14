@@ -51,17 +51,20 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
             try:
                 if len(val) == 3:
                     self.__dict__[local_name] = list(val)
-                elif type(p_trans) in [int, float]:
-                    self.__dict__[local_name] = 3 * [float(val)]
+                else:
+                    raise Exception()
             except Exception as e:
-                pass
+                if type(val) in [int, float]:
+                    self.__dict__[local_name] = 3 * [float(val)]
+                else:
+                    rospy.logerr("Bad gain parameter (must be single value or array-like of 3)")
 
     def set_tip_frame(self, tip_frame):
         self.tip_frame = tip_frame
 
     def set_force_directions(self, directions):
         if len(directions) == 6 and all([direction in [0, 1] for direction in directions]):
-            self.force_selector = list(directions):
+            self.force_selector = list(directions)
             return
         self.force_selector = 6 * [0]
         names = ['x', 'y', 'z', 'rx', 'ry', 'rz']
