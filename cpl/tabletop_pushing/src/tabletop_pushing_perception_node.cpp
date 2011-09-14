@@ -658,10 +658,10 @@ class MotionGraphcut
  public:
   MotionGraphcut(double workspace_background_weight = 1.0f,
                  double min_weight = 0.01, double magnitude_thresh=0.1,
-                 int arm_grow_radius=2) :
+                 double flow_gain = 0.3, int arm_grow_radius=2) :
       workspace_background_weight_(workspace_background_weight),
-      min_weight_(min_weight),
-      magnitude_thresh_(magnitude_thresh), arm_grow_radius_(arm_grow_radius)
+      min_weight_(min_weight), magnitude_thresh_(magnitude_thresh),
+      flow_gain_(flow_gain), arm_grow_radius_(arm_grow_radius)
   {
   }
 
@@ -713,7 +713,6 @@ class MotionGraphcut
         g->add_node();
         float magnitude = std::sqrt(u.at<float>(r,c)*u.at<float>(r,c) +
                                     v.at<float>(r,c)*v.at<float>(r,c));
-
         // Check if we are hardcoding this spot to background
         if (workspace_mask.at<uchar>(r,c) == 0)
         {
@@ -896,7 +895,6 @@ class MotionGraphcut
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
       }
     }
-
     // Add edge weights
     for (int r = 0; r < R; ++r)
     {
@@ -915,7 +913,6 @@ class MotionGraphcut
           left_weights.at<float>(r,c) = w_l;
 #endif // VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
         }
-
         if (r > 0)
         {
           // Add up-link
@@ -1119,9 +1116,10 @@ class MotionGraphcut
     // locations
     return segs;
   }
+
   float getFlowFGScore(float magnitude)
   {
-    return min(1.0, max( 0.3*exp(magnitude), 0.0));
+    return min(1.0, max( flow_gain_*exp(magnitude), 0.0));
   }
 
   float getArmFGScore(cv::Mat& color_frame, int r, int c,
@@ -1247,13 +1245,13 @@ class MotionGraphcut
     return w_c;
   }
 
- public:
   double workspace_background_weight_;
   double min_weight_;
   double w_c_alpha_;
   double w_c_beta_;
   double w_c_gamma_;
   double magnitude_thresh_;
+  double flow_gain_;
   int arm_grow_radius_;
   int arm_search_radius_;
 };
@@ -1313,6 +1311,7 @@ class TabletopPushingPerceptionNode
     n_private.param("mgc_arm_search_radius", mgc_.arm_search_radius_, 50);
     // Lucas Kanade params
     n_private.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
+    n_private.param("mgc_flow_gain", mgc_.flow_gain_, 0.3);
     int win_size = 5;
     n_private.param("lk_win_size", win_size, 5);
     lkflow_.setWinSize(win_size);
@@ -1675,7 +1674,11 @@ class TabletopPushingPerceptionNode
     cv::imshow("arms", arms_img);
 #endif
 #ifdef DISPLAY_INPUT_DEPTH
-    cv::imshow("input_depth", depth_frame);
+    double depth_max = 1.0;
+    cv::minMaxLoc(depth_frame, NULL, &depth_max);
+    cv::Mat depth_display = depth_frame.clone();
+    depth_display /= depth_max;
+    cv::imshow("input_depth", depth_display);
 #endif // DISPLAY_INPUT_DEPTH
 #ifdef DISPLAY_WORKSPACE_MASK
     cv::imshow("workspace_mask", cur_workspace_mask_);

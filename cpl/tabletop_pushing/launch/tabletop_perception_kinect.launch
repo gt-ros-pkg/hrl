@@ -29,6 +29,7 @@
 
     <param name="mgc_workspace_background_weight" value="0.95" type="double"/>
     <param name="mgc_min_weight" value="0.01" type="double"/>
+    <param name="mgc_flow_gain" value="0.35" type="double"/>
 
     <param name="mgc_w_c_alpha" value="0.4" type="double"/>
     <param name="mgc_w_c_beta" value="0.9" type="double"/>
