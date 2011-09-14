@@ -33,6 +33,7 @@
 import math
 import numpy as np
 import copy
+import sys
 
 import roslib; roslib.load_manifest('hrl_cody_arms')
 import rospy
@@ -226,8 +227,20 @@ class CodyArmClient(HRLArm):
 if __name__ == '__main__':
     import m3.toolbox as m3t
     import hrl_lib.transforms as tr
+    import optparse
 
-    ac = CodyArmClient('r')
+    p = optparse.OptionParser()
+    p.add_option('--arm_to_use', action='store', dest='arm',
+                 type='string', help='which arm to use (l or r)',
+                 default=None)
+    opt, args = p.parse_args()
+
+    if opt.arm == None:
+        print 'Please specify an arm_to_use'
+        print 'Exiting...'
+        sys.exit()
+
+    ac = CodyArmClient(opt.arm)
 
     # print FT sensor readings.
     if False:
