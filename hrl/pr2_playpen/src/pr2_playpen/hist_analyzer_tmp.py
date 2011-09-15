@@ -67,11 +67,13 @@ class HistAnalyzer:
             exit
 
     def calc_noise(self):
+        cv.NamedWindow("noise", cv.CV_WINDOW_AUTOSIZE)
         self.check_for_hist()
         self.avg_noise = cv.CreateImage(cv.GetSize(self.background_noise[0]), 8, 1)
         cv.Zero(self.avg_noise)
 
         for i in xrange(len(self.background_noise)-1):
+            cv.ShowImage("noise", self.avg_noise)
             back_proj_img1, hist1 = self.back_project_hs(self.background_noise[i])
             back_proj_img2, hist2 = self.back_project_hs(self.background_noise[i+1])
 
@@ -136,23 +138,32 @@ if __name__ == '__main__':
         folder = opt.batch_folder+'/background_noise/'
         background_noise = deque() #[]
 
-        #cv.NamedWindow("Source", cv.CV_WINDOW_AUTOSIZE)
-        #cv.NamedWindow("final", cv.CV_WINDOW_AUTOSIZE)
+        cv.NamedWindow("Source", cv.CV_WINDOW_AUTOSIZE)
+        cv.NamedWindow("final", cv.CV_WINDOW_AUTOSIZE)
 
         for i in xrange(130):
-            background_noise.append(cv.LoadImage(folder+'file'+str(i).zfill(3)+'.png'))
+            try:
+                background_noise.append(cv.LoadImage(folder+'file'+str(i).zfill(3)+'.png'))
+            except:
+                print "no file # ", i
         mask = cv.LoadImage(folder+'mask.png', 0)
 
         ha = HistAnalyzer(background_noise, mask)
         ha.calc_hist()
         ha.calc_noise()
 
+        cv.ShowImage("Source", ha.avg_noise)
+        cv.WaitKey(-1)
+
         back_sum_ls = deque() #[]
 
         for i in xrange(130):
-            img = cv.LoadImage(folder+'file'+str(i).zfill(3)+'.png')
-            result = ha.compare_imgs(img, ha.background_noise[0])
-            back_sum_ls.append(float(cv.Sum(result)[0]))
+            try:
+                img = cv.LoadImage(folder+'file'+str(i).zfill(3)+'.png')
+                result = ha.compare_imgs(img, ha.background_noise[0])
+                back_sum_ls.append(float(cv.Sum(result)[0]))
+            except:
+                print "no training file # ", i
 
         avg = np.mean(back_sum_ls)
         std = np.std(back_sum_ls)
@@ -189,9 +200,9 @@ if __name__ == '__main__':
                         sum_val = sum_val + float(cv.Sum(result2)[0])
 
                         #print "here's the sum :", cv.Sum(result2)[0]
-                        #cv.ShowImage("Source", img)
-                        #cv.ShowImage("final", result2)
-                        #cv.WaitKey(-1)
+                        cv.ShowImage("Source", img)
+                        cv.ShowImage("final", result2)
+                        cv.WaitKey(-1)
 
                         loc_sum = float(cv.Sum(result2)[0])
                         if loc_sum < avg+5*std:
