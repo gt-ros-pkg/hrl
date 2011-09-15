@@ -23,13 +23,19 @@ import random as rd
 #
 #          * predict_partial - partial application
 
+def retTrue( *args ):
+    return True
+
+def retFalse( *args ):
+    return False
+
 class PFilter:
     def __init__(self, motion, appearance):
         """ Makes a particle filter """
         self.motion = motion
         self.appearance = appearance
 
-    def step(self, control_input, measurement, particle_set, draw_func=None, set_op=False):
+    def step(self, control_input, measurement, particle_set, draw_func=None, set_op=False, should_resample_func=retTrue):
         """ Go through one cycle of particle filtering """
         #print particle_set
         predictions    = predict(self.motion, control_input, particle_set)
@@ -38,13 +44,16 @@ class PFilter:
         #print weighted_set
         if draw_func is not None:
             draw_func(weighted_set)
-            
-        if set_op:
-            normalized_set = set_norm_likelihood(weighted_set)
-            retVal = set_resample_uss(particle_set.shape[1], normalized_set)
+
+        if should_resample_func():
+            if set_op:
+                normalized_set = set_norm_likelihood(weighted_set)
+                retVal = set_resample_uss(particle_set.shape[1], normalized_set)
+            else:
+                normalized_set = normalize_likelihood(weighted_set)
+                retVal = resample_uss(len(particle_set), normalized_set)
         else:
-            normalized_set = normalize_likelihood(weighted_set)
-            retVal = resample_uss(len(particle_set), normalized_set)
+            retVal = weighted_set # Change by travis to avoid resampling, but return weights as part of particle set
             
         return retVal
 
