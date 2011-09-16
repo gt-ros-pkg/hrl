@@ -30,7 +30,9 @@ class HistAnalyzer:
         self.avg_noise = None
         self.online_img = None
         self.bridge = CvBridge()
-        
+        self.calc_hist()
+        self.calc_noise()
+
     def get_img(self, msg):
         try:
             self.online_img = self.bridge.imgmsg_to_cv(msg, "bgr8")
@@ -68,6 +70,10 @@ class HistAnalyzer:
 
     def calc_noise(self):
         cv.NamedWindow("noise", cv.CV_WINDOW_AUTOSIZE)
+        cv.NamedWindow("img1_back", cv.CV_WINDOW_AUTOSIZE)
+        cv.NamedWindow("img2_back", cv.CV_WINDOW_AUTOSIZE)
+        cv.NamedWindow("diff_back", cv.CV_WINDOW_AUTOSIZE)
+        cv.NamedWindow("diff_noise_scratch", cv.CV_WINDOW_AUTOSIZE)
         self.check_for_hist()
         self.avg_noise = cv.CreateImage(cv.GetSize(self.background_noise[0]), 8, 1)
         cv.Zero(self.avg_noise)
@@ -77,6 +83,8 @@ class HistAnalyzer:
             back_proj_img1, hist1 = self.back_project_hs(self.background_noise[i])
             back_proj_img2, hist2 = self.back_project_hs(self.background_noise[i+1])
 
+            cv.ShowImage("img1_back", back_proj_img1)
+            cv.ShowImage("img2_back", back_proj_img2)
             scratch = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
             scratch2 = cv.CreateImage(cv.GetSize(back_proj_img2), 8, 1)
             
@@ -85,9 +93,15 @@ class HistAnalyzer:
             cv.Zero(scratch2)
             cv.Sub(back_proj_img2, back_proj_img1, scratch2) #noise, but includes object if failed, 
 
-            cv.Sub(scratch2, self.avg_noise, scratch)            
+            #cv.Sub(scratch2, self.avg_noise, scratch)            
+            #cv.Or(self.avg_noise, scratch2, self.avg_noise)
+
             cv.Or(self.avg_noise, scratch2, self.avg_noise)
-            cv.WaitKey(100)
+
+            cv.ShowImage("diff_back", scratch2)
+            cv.ShowImage("diff_noise_scratch", scratch)
+
+            cv.WaitKey(-1)
 
     def compare_imgs(self, img1, img2):
         back_proj_img, hist1 = self.back_project_hs(img1)
@@ -149,8 +163,8 @@ if __name__ == '__main__':
         mask = cv.LoadImage(folder+'mask.png', 0)
 
         ha = HistAnalyzer(background_noise, mask)
-        ha.calc_hist()
-        ha.calc_noise()
+        #ha.calc_hist()
+        #ha.calc_noise()
 
         cv.ShowImage("Source", ha.avg_noise)
         cv.WaitKey(-1)
