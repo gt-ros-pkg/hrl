@@ -66,7 +66,7 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/features/feature.h>
 #include <pcl/common/eigen.h>
-#include "pcl/filters/voxel_grid.h"
+#include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/surface/convex_hull.h>
@@ -102,6 +102,7 @@
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_OPTICAL_FLOW 1
+// #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_UV 1
 // #define DISPLAY_OPT_FLOW_INTERNALS 1
 // #define DISPLAY_GRAPHCUT 1
@@ -110,7 +111,7 @@
 // #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS 1
 // #define DISPLAY_ARM_CIRCLES 1
-
+// #define DISPLAY_TABLE_DISTANCES 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
@@ -131,7 +132,7 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
 typedef Graph<float, float, float> GraphType;
 
-inline const float max(const float a, const double b)
+inline float max(const float a, const double b)
 {
   return max(static_cast<double>(a), b);
 }
@@ -181,7 +182,8 @@ class ArmModel
   {
     if (i == 0)
       return hands;
-    if (i == 1)
+    // if (i == 1)
+    else
       return arms;
     // else
     //   throw e;
@@ -350,7 +352,7 @@ class LKFlowReliable
     std::vector<cv::Mat> total_outs;
     total_outs.push_back(Dx);
     total_outs.push_back(Dy);
-    total_outs.push_back(flow_outs[2]);
+    // total_outs.push_back(flow_outs[2]);
     return total_outs;
   }
 
@@ -380,7 +382,7 @@ class LKFlowReliable
     int win_radius = win_size_/2;
     cv::Mat flow_u(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
     cv::Mat flow_v(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat t_scores(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
+    // cv::Mat t_scores(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
     {
       for (int c = win_radius; c < Ix.cols-win_radius; ++c)
@@ -416,13 +418,13 @@ class LKFlowReliable
         }
         flow_u.at<float>(r,c) = uv[0];
         flow_v.at<float>(r,c) = uv[1];
-        t_scores.at<float>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
+        // t_scores.at<float>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
       }
     }
     std::vector<cv::Mat> outs;
     outs.push_back(flow_u);
     outs.push_back(flow_v);
-    outs.push_back(t_scores);
+    // outs.push_back(t_scores);
     return outs;
   }
 
@@ -685,8 +687,8 @@ class MotionGraphcut
    *         black is the background (static) regions
    */
   cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
-                     cv::Mat& u, cv::Mat& v, cv::Mat eigen_scores,
-                     cv::Mat& workspace_mask, ArmModel arm_locs)
+                     cv::Mat& u, cv::Mat& v, cv::Mat& workspace_mask,
+                     cv::Mat& table_heights, ArmModel arm_locs)
   {
     const int R = color_frame.rows;
     const int C = color_frame.cols;
@@ -698,6 +700,7 @@ class MotionGraphcut
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::Mat fg_weights(color_frame.size(), CV_32FC1);
     cv::Mat bg_weights(color_frame.size(), CV_32FC1);
+    cv::Mat table_weights(color_frame.size(), CV_32FC1);
 #endif // VISUALIZE_GRAPH_WEIGHTS
 #ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
     cv::Mat left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
@@ -721,15 +724,20 @@ class MotionGraphcut
 #ifdef VISUALIZE_GRAPH_WEIGHTS
           fg_weights.at<float>(r,c) = min_weight_;
           bg_weights.at<float>(r,c) = workspace_background_weight_;
+          table_weights.at<float>(r,c) = min_weight_;
 #endif // VISUALIZE_GRAPH_WEIGHTS
           continue;
         }
         const float mag_score = max(getFlowFGScore(magnitude), min_weight_);
+        const float table_score = max(getTableScore(color_frame.at<cv::Vec3f>(r,c),
+            abs(table_heights.at<float>(r,c))), min_weight_);
         const float not_mag_score = max(1.0 - mag_score, min_weight_);
-        g->add_tweights(r*C+c, mag_score, not_mag_score);
+        const float bg_score = not_mag_score + table_score;
+        g->add_tweights(r*C+c, mag_score, bg_score);
 #ifdef VISUALIZE_GRAPH_WEIGHTS
         fg_weights.at<float>(r,c) = mag_score;
-        bg_weights.at<float>(r,c) = not_mag_score;
+        bg_weights.at<float>(r,c) = bg_score;
+        table_weights.at<float>(r,c) = table_score;
 #endif // VISUALIZE_GRAPH_WEIGHTS
       }
     }
@@ -780,6 +788,10 @@ class MotionGraphcut
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::imshow("fg_weights", fg_weights);
     cv::imshow("bg_weights", bg_weights);
+    // double table_max = 1.0;
+    // cv::minMaxLoc(table_weights, NULL, &table_max);
+    // table_weights /= table_max;
+    cv::imshow("table_weights", table_weights);
 #endif // VISUALIZE_GRAPH_WEIGHTS
 #ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
     double up_max = 1.0;
@@ -985,6 +997,9 @@ class MotionGraphcut
 
     int num_nodes = R*C;
     int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
+    // TODO: Set num_labels_ and enumerate the members
+    // GCoptimizationGridGraph *gc = new
+    //     GCoptimizationGridGraph(C, R, num_labels_);
     GraphType *g;
     g = new GraphType(num_nodes, num_edges);
 
@@ -1119,7 +1134,19 @@ class MotionGraphcut
 
   float getFlowFGScore(float magnitude)
   {
-    return min(1.0, max( flow_gain_*exp(magnitude), 0.0));
+    return min(1.0, max(flow_gain_*exp(magnitude), 0.0));
+  }
+
+  float getTableScore(cv::Vec3f cur_c, float height_from_table)
+  {
+    const float dist_score = exp(-height_from_table/table_height_var_);
+    // const float h_score = 1.0-fabs(cur_c[0] - table_stats_[0][0])/(
+    //     table_stats_[1][0] + 0.1);
+    // const float s_score = 1.0-fabs(cur_c[1] - table_stats_[0][1])/(
+    //     table_stats_[1][1] + 0.1);
+    // const float table_score = (h_score + s_score)/2.0+0.5*dist_score;
+    // return table_score;
+    return dist_score;
   }
 
   float getArmFGScore(cv::Mat& color_frame, int r, int c,
@@ -1127,9 +1154,8 @@ class MotionGraphcut
                       std::vector<cv::Vec3f>& hand_stats, ArmModel& arms,
                       cv::Rect& roi)
   {
-    const float dist_var = 20.0;
     const float dist_score = exp(-arms.distanceToArm(
-        cv::Point2f(c+roi.x,r+roi.y))/dist_var);
+        cv::Point2f(c+roi.x,r+roi.y))/arm_dist_var_);
     cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
     const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
         arm_stats[1][0] + 0.1);
@@ -1203,6 +1229,15 @@ class MotionGraphcut
     return stats;
   }
 
+  void setTableColorStats(cv::Mat& color_frame, std::vector<cv::Point>& pts)
+  {
+    cv::Mat color_frame_hsv(color_frame.size(), color_frame.type());
+    cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
+    cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
+    color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
+    table_stats_ = getImagePointGaussian(color_frame_f, pts);
+  }
+
   cv::Mat convertFlowResultsToCvMat(GraphType *g, int R, int C)
   {
     cv::Mat segs(R, C, CV_32FC1, cv::Scalar(0.0));
@@ -1245,6 +1280,14 @@ class MotionGraphcut
     return w_c;
   }
 
+  enum SegLabels
+  {
+    MOVING,
+    ARM,
+    TABLE,
+    BG
+  };
+
   double workspace_background_weight_;
   double min_weight_;
   double w_c_alpha_;
@@ -1252,8 +1295,11 @@ class MotionGraphcut
   double w_c_gamma_;
   double magnitude_thresh_;
   double flow_gain_;
+  double table_height_var_;
+  double arm_dist_var_;
   int arm_grow_radius_;
   int arm_search_radius_;
+  std::vector<cv::Vec3f> table_stats_;
 };
 
 class TabletopPushingPerceptionNode
@@ -1298,6 +1344,7 @@ class TabletopPushingPerceptionNode
     std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
     n_private.param("cam_info_topic", cam_info_topic_,
                     cam_info_topic_def);
+    n_private.param("table_ransac_thresh", table_ransac_thresh_, 0.01);
 
     base_output_path_ = "/home/thermans/sandbox/cut_out/";
     // Graphcut weights
@@ -1312,6 +1359,8 @@ class TabletopPushingPerceptionNode
     // Lucas Kanade params
     n_private.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
     n_private.param("mgc_flow_gain", mgc_.flow_gain_, 0.3);
+    n_private.param("mgc_table_var", mgc_.table_height_var_, 20.0);
+    n_private.param("mgc_arm_dist_var", mgc_.arm_dist_var_, 20.0);
     int win_size = 5;
     n_private.param("lk_win_size", win_size, 5);
     lkflow_.setWinSize(win_size);
@@ -1541,7 +1590,7 @@ class TabletopPushingPerceptionNode
     cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
     cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
     color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
-
+    cv::Mat heights_above_table = getTableHeightDistances();
     // Get optical flow
     std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
 
@@ -1555,7 +1604,8 @@ class TabletopPushingPerceptionNode
                                               max_arm_x, min_arm_y, max_arm_y);
     // Perform graphcut for motion detection
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
-                       flow_outs[2], cur_workspace_mask_, hands_and_arms);
+                       cur_workspace_mask_, heights_above_table,
+                       hands_and_arms);
     // Perform graphcut for arm localization
     cv::Mat arm_cut(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     if (hands_and_arms[0].size() > 0 || hands_and_arms[1].size() > 0)
@@ -1618,8 +1668,6 @@ class TabletopPushingPerceptionNode
 #ifdef WRITE_INPUT_TO_DISK
     std::stringstream input_out_name;
     input_out_name << base_output_path_ << "input" << tracker_count_ << ".tiff";
-    if (tracker_count_ < 2)
-      ROS_INFO_STREAM("writing input to " << input_out_name.str());
     cv::imwrite(input_out_name.str(), color_frame);
 #endif // WRITE_INPUT_TO_DISK
 #ifdef WRITE_FLOWS_TO_DISK
@@ -1652,6 +1700,10 @@ class TabletopPushingPerceptionNode
     std::stringstream arm_cut_out_name;
     arm_cut_out_name << base_output_path_ << "arm_cut" << tracker_count_ << ".tiff";
     cv::imwrite(arm_cut_out_name.str(), arm_regions_img);
+    std::stringstream not_arm_move_out_name;
+    not_arm_move_out_name << base_output_path_ << "not_arm_move" << tracker_count_
+                         << ".tiff";
+    cv::imwrite(not_arm_move_out_name.str(), not_arm_move_color);
 #endif // WRITE_ARM_CUT_TO_DISK
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
@@ -1735,6 +1787,15 @@ class TabletopPushingPerceptionNode
       ROS_ERROR_STREAM(e.what());
     }
     return img_loc;
+  }
+
+  cv::Point projectPointIntoImage(PoseStamped cur_pose,
+                                  std::string target_frame)
+  {
+    PointStamped cur_point;
+    cur_point.header = cur_pose.header;
+    cur_point.point = cur_pose.pose.position;
+    return projectPointIntoImage(cur_point, target_frame);
   }
 
   bool getLineValues(cv::Point p1, cv::Point p2, std::vector<cv::Point>& line,
@@ -1837,10 +1898,11 @@ class TabletopPushingPerceptionNode
     // Project all arm joints into image
     ArmModel arm_locs;
     // Left arm
+    // TODO: Add more hand joints
     cv::Point l0 = projectJointOriginIntoImage(img_header, "l_gripper_tool_frame");
     cv::Point l1 = projectJointOriginIntoImage(img_header, "l_wrist_flex_link");
-    cv::Point l2 = projectJointOriginIntoImage(img_header, "l_forearm_roll_link");
-    cv::Point l3 = projectJointOriginIntoImage(img_header, "l_upper_arm_roll_link");
+    cv::Point l2 = projectJointOriginIntoImage(img_header, "l_forearm_link");
+    cv::Point l3 = projectJointOriginIntoImage(img_header, "l_upper_arm_link");
     arm_locs.l_chain.push_back(l0);
     arm_locs.l_chain.push_back(l1);
     arm_locs.l_chain.push_back(l2);
@@ -1849,8 +1911,8 @@ class TabletopPushingPerceptionNode
     // Right arm
     cv::Point r0 = projectJointOriginIntoImage(img_header, "r_gripper_tool_frame");
     cv::Point r1 = projectJointOriginIntoImage(img_header, "r_wrist_flex_link");
-    cv::Point r2 = projectJointOriginIntoImage(img_header, "r_forearm_roll_link");
-    cv::Point r3 = projectJointOriginIntoImage(img_header, "r_upper_arm_roll_link");
+    cv::Point r2 = projectJointOriginIntoImage(img_header, "r_forearm_link");
+    cv::Point r3 = projectJointOriginIntoImage(img_header, "r_upper_arm_link");
     arm_locs.r_chain.push_back(r0);
     arm_locs.r_chain.push_back(r1);
     arm_locs.r_chain.push_back(r2);
@@ -1887,39 +1949,53 @@ class TabletopPushingPerceptionNode
     joint_origin.point.x = 0.0;
     joint_origin.point.y = 0.0;
     joint_origin.point.z = 0.0;
+    // TODO: Use more information in setting correct locations
+    if (joint_name == "r_gripper_tool_frame" ||
+        joint_name == "l_gripper_tool_frame")
+    {
+      joint_origin.point.z = 0.01;
+    }
+    // TODO: Check this better
+    if (joint_name == "r_upper_arm_link")
+    {
+      joint_origin.point.y = -0.05;
+    }
+    // TODO: Check this better
+    // if (joint_name == "l_upper_arm_link")
+    // {
+    //   joint_origin.point.y = 0.05;
+    // }
     return projectPointIntoImage(joint_origin, img_header.frame_id);
   }
 
-  void drawTableHullOnImage(pcl::PointCloud<pcl::PointXYZ>& hull,
+  void drawTablePlaneOnImage(pcl::PointCloud<pcl::PointXYZ>& plane,
                             PoseStamped cent)
   {
-    cv::Mat hull_display = cur_color_frame_.clone();
-    cv::Point p_prev;
-    for (unsigned int i = 0; i < hull.points.size(); ++i)
+    cv::Mat plane_display = cur_color_frame_.clone();
+    std::vector<cv::Point> table_points;
+    for (unsigned int i = 0; i < plane.points.size(); ++i)
     {
       PointStamped h;
-      h.header = hull.header;
-      h.point.x = hull.points[i].x;
-      h.point.y = hull.points[i].y;
-      h.point.z = hull.points[i].z;
-      ROS_INFO_STREAM("3D Point is at: (" << h.point.x << ", "
-                      << h.point.y << ", " << h.point.z << ")");
+      h.header = plane.header;
+      h.point.x = plane.points[i].x;
+      h.point.y = plane.points[i].y;
+      h.point.z = plane.points[i].z;
       cv::Point p = projectPointIntoImage(h, cur_camera_header_.frame_id);
-      ROS_INFO_STREAM("2D Point is at: (" << p.x << ", " << p.y << ")");
-      cv::circle(hull_display, p, 2, cv::Scalar(0,255,0));
-      if (i > 0 && p.x > 0 && p.y > 0 && p_prev.x > 0 && p_prev.y > 0 &&
-          p.x < hull_display.cols && p.y < hull_display.rows &&
-          p_prev.x < hull_display.cols && p_prev.y < hull_display.rows)
-      {
-        cv::line(hull_display, p, p_prev, cv::Scalar(0,255,0));
-      }
-      p_prev = p;
+      table_points.push_back(p);
+#ifdef DISPLAY_PLANE_ESTIMATE
+      cv::circle(plane_display, p, 2, cv::Scalar(0,255,0));
+#endif // DISPLAY_PLANE_ESTIMATE
     }
-    // cv::Point cent_img = projectPointIntoImage(cent,
-    //                                            cur_camera_header_.frame_id);
-    // cv::circle(hull_display, cent_img, 5, cv::Scalar(0,0,255));
-    cv::imshow("table_image", hull_display);
+    ROS_INFO_STREAM("Calculating table color stats.");
+    mgc_.setTableColorStats(cur_color_frame_, table_points);
+
+#ifdef DISPLAY_PLANE_ESTIMATE
+    cv::Point cent_img = projectPointIntoImage(cent,
+                                               cur_camera_header_.frame_id);
+    cv::circle(plane_display, cent_img, 5, cv::Scalar(0,0,255));
+    cv::imshow("table_image", plane_display);
     cv::waitKey(5);
+#endif // DISPLAY_PLANE_ESTIMATE
   }
 
   //
@@ -1934,6 +2010,32 @@ class TabletopPushingPerceptionNode
       data_in = out;
     }
     return out;
+  }
+
+  cv::Mat getTableHeightDistances()
+  {
+    cv::Mat table_distances(cur_depth_frame_.size(), CV_32FC1, cv::Scalar(0.0));
+    const float table_height = table_centroid_.pose.position.z;
+    for (int r = 0; r < table_distances.rows; ++r)
+    {
+      for (int c = 0; c < table_distances.cols; ++c)
+      {
+        pcl::PointXYZ cur_pt = cur_point_cloud_.at(2*c, 2*r);
+        if (isnan(cur_pt.x) || isnan(cur_pt.y) || isnan(cur_pt.z))
+        {
+          // 3 meters is sufficiently far away
+          table_distances.at<float>(r,c) = 3.0;
+        }
+        else
+        {
+          table_distances.at<float>(r,c) = cur_pt.z - table_height;
+        }
+      }
+    }
+#ifdef DISPLAY_TABLE_DISTANCES
+    cv::imshow("table_distances_raw", table_distances);
+#endif // DISPLAY_TABLE_DISTANCES
+    return table_distances;
   }
 
   PoseStamped getTablePlane(XYZPointCloud& cloud)
@@ -1955,7 +2057,7 @@ class TabletopPushingPerceptionNode
     plane_seg.setOptimizeCoefficients (true);
     plane_seg.setModelType (pcl::SACMODEL_PLANE);
     plane_seg.setMethodType (pcl::SAC_RANSAC);
-    plane_seg.setDistanceThreshold (0.01);
+    plane_seg.setDistanceThreshold (table_ransac_thresh_);
     plane_seg.setInputCloud (
         boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud_z_filtered));
     plane_seg.segment(plane_inliers, coefficients);
@@ -1988,17 +2090,7 @@ class TabletopPushingPerceptionNode
                     << p.pose.position.x << ", "
                     << p.pose.position.y << ", "
                     << p.pose.position.z << ")");
-    // TODO: Get extent as well
-    pcl::PointCloud<pcl::PointXYZ> cloud_hull;
-    pcl::ConvexHull<pcl::PointXYZ> hull;
-    hull.setInputCloud(boost::make_shared<
-                       pcl::PointCloud<pcl::PointXYZ> >(plane_cloud));
-    // hull.setAlpha(0.1);
-    hull.reconstruct(cloud_hull);
-    ROS_INFO_STREAM("Convex hull has: " << cloud_hull.points.size()
-                    << " points");
-    cloud_hull.header = cloud.header;
-    // drawTableHullOnImage(cloud_hull, p);
+    drawTablePlaneOnImage(plane_cloud, p);
     return p;
   }
 
@@ -2066,6 +2158,7 @@ class TabletopPushingPerceptionNode
   int min_contour_size_;
   int tracker_count_;
   std::string base_output_path_;
+  double table_ransac_thresh_;
 };
 
 int main(int argc, char ** argv)
@@ -2077,4 +2170,3 @@ int main(int argc, char ** argv)
 
   return 0;
 }
-
