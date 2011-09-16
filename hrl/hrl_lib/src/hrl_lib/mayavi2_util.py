@@ -67,48 +67,32 @@ def plot(pts,color=(1.,1.,1.), scalar_list=None):
 # @param color - 3 tuple of color. (float b/w 0 and 1)
 # @param mode - how to display the points ('point','sphere','cube' etc.)
 # @param scale_fator - controls size of the spheres. not sure what it means.
-def plot_points(pts,color=(1.,1.,1.),mode='point',scale_factor=0.01,scalar_list=None):
+def plot_points(pts, color=(1.,1.,1.), scale_factor=0.02, mode='point', scalar_list=None):
     if scalar_list != None:
-        mlab.points3d(pts[0,:].A1,pts[1,:].A1,pts[2,:].A1,scalar_list,mode=mode,scale_factor=scale_factor)
+        mlab.points3d(pts[0,:].A1, pts[1,:].A1, pts[2,:].A1, scalar_list,mode=mode, scale_factor=scale_factor)
         mlab.colorbar()
     else:
-        mlab.points3d(pts[0,:].A1,pts[1,:].A1,pts[2,:].A1,mode=mode,color=color,scale_factor=scale_factor)
+        mlab.points3d(pts[0,:].A1, pts[1,:].A1, pts[2,:].A1, mode=mode, color=color, scale_factor=scale_factor)
 
 
-## Use mayavi2 to plot normals, and curvature of a point cloud.
+## plot points and arrows.
 # @param pts - 3xN np matrix
-# @param normals - 3xN np matrix of surface normals at the points in pts.
-# @param curvature - list of curvatures.
-# @param mask_points - how many point to skip while drawint the normals
+# @param vecs - 3xN np matrix of arrow vectors
 # @param color - of the arrows
-# @param scale_factor - modulate size of arrows.
-#
-# Surface normals are plotted as arrows at the pts, curvature is colormapped and
-# shown as spheres. The radius of the sphere also indicates the magnitude
-# of the curvature. If curvature is None then it is not plotted. The pts
-# are then displayed as pixels.
-def plot_normals(pts, normals, curvature=None, mask_points=1,
-                 color=(0.,1.,0.), scale_factor = 0.1):
+def plot_quiver(pts, vecs, color=(0.,1.,0.), arrow_scale = 0.05,
+                point_mode='sphere', point_scale=0.002):
     x = pts[0,:].A1
     y = pts[1,:].A1
     z = pts[2,:].A1
 
-    u = normals[0,:].A1
-    v = normals[1,:].A1
-    w = normals[2,:].A1
+    u = vecs[0,:].A1
+    v = vecs[1,:].A1
+    w = vecs[2,:].A1
 
-    if curvature != None:
-        curvature = np.array(curvature)
-        #idxs = np.where(curvature>0.03)
-        #mlab.points3d(x[idxs],y[idxs],z[idxs],curvature[idxs],mode='sphere',scale_factor=0.1,mask_points=1)
-        mlab.points3d(x,y,z,curvature,mode='sphere',scale_factor=0.1,mask_points=1, color=color)
-#        mlab.points3d(x,y,z,mode='point')
-        mlab.colorbar()
-    else:
-        mlab.points3d(x,y,z,mode='point')
-    mlab.quiver3d(x, y, z, u, v, w, mask_points=mask_points,
-                  scale_factor=scale_factor, color=color)
-#    mlab.axes()
+    plot_points(pts, mode=point_mode, scale_factor=point_scale)
+    mlab.quiver3d(x, y, z, u, v, w, scale_factor=arrow_scale,
+                  color=color)
+
 
 ## Plot a yellow cuboid.
 # cuboid is defined by 12 tuples of corners that define the 12 edges,
