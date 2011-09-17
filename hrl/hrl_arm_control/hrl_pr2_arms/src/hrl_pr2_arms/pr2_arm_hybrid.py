@@ -8,6 +8,7 @@ roslib.load_manifest('hrl_netft')
 import rospy
 import actionlib
 from std_msgs.msg import Float64MultiArray, Header, MultiArrayDimension, Bool
+from geometry_msgs.msg import WrenchStamped
 
 from hrl_pr2_arms.pr2_arm import PR2ArmCartesianBase
 from hrl_netft.msg import HybridCartesianGains
@@ -20,6 +21,9 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
         self.command_gains_pub = rospy.Publisher(controller_name + '/gains', HybridCartesianGains)
         self.command_force_pub = rospy.Publisher(controller_name + '/command_force', Float64MultiArray)
         self.command_zero_pub = rospy.Publisher(controller_name + '/ft_zero', Bool)
+        self.ft_wrench_sub = rospy.Subscriber(controller_name + '/state/ft_wrench', WrenchStamped, 
+                                              self._ft_wrench_cb)
+        self.ft_wrench = np.mat(6 * [0]).T
         self.tip_frame = rospy.get_param(controller_name + '/tip_name')
         self.force_selector = 6 * [0]
         self.trans_p_motion_gains = 3 * [rospy.get_param(controller_name + '/cart_gains/trans/p')]
@@ -32,16 +36,23 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
         self.rot_d_force_gains = 3 * [rospy.get_param(controller_name + '/force_gains/rot/d')]
         rospy.sleep(1)
 
+    def _ft_wrench_cb(self, ws):
+        self.ft_wrench = np.mat([ws.wrench.force.x, ws.wrench.force.y, ws.wrench.force.z, 
+                                 ws.wrench.torque.x, ws.wrench.torque.y, ws.wrench.torque.z]).T
+
+    def get_ft_wrench(self):
+        return self.ft_wrench
+
     def set_motion_gains(self, p_trans=None, p_rot=None, d_trans=None, d_rot=None):
-        local_names = ['trans_p_motion_gains', 'trans_d_motion_gains',
-                       'rot_p_motion_gains', 'rot_d_motion_gains']
+        local_names = ['trans_p_motion_gains', 'rot_p_motion_gains', 
+                        'trans_d_motion_gains','rot_d_motion_gains']
         vals = [p_trans, p_rot, d_trans, d_rot]
         for local_name, val in zip(local_names, vals):
             self._set_gain(local_name, val)
 
     def set_force_gains(self, p_trans=None, p_rot=None, d_trans=None, d_rot=None):
-        local_names = ['trans_p_force_gains', 'trans_d_force_gains',
-                       'rot_p_force_gains', 'rot_d_force_gains']
+        local_names = ['trans_p_force_gains', 'rot_p_force_gains',
+                       'trans_d_force_gains', 'rot_d_force_gains']
         vals = [p_trans, p_rot, d_trans, d_rot]
         for local_name, val in zip(local_names, vals):
             self._set_gain(local_name, val)
@@ -95,4 +106,5 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
         self.command_force_pub.publish(f_msg)
 
     def zero_sensor(self):
-        self.command_zero_pub(Bool())
+        bool_msg = Bool()
+        self.command_zero_pub.publish(bool_msg)
