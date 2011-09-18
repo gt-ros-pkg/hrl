@@ -121,6 +121,7 @@
 // #define REMOVE_SMALL_BLOBS 1
 // #define FAKE_SEGMENT
 #define MEDIAN_FILTER_FLOW 1
+// #define USE_TABLE_COLOR_ESTIMATE 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -152,7 +153,7 @@ void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow_u, cv::Mat& flow_v,
       {
         cv::line(flow_thresh_disp_img, cv::Point(c,r), cv::Point(c-u, r-v),
                  cv::Scalar(0,255,0));
-        // cv::circle(flow_thresh_disp_img, cv::Point(c,r), 2, cv::Scalar(0,255,0));
+        // cv::circle(flow_thresh_disp_img, cv::Point(c,r), 1, cv::Scalar(0,0,255));
       }
     }
   }
@@ -1140,13 +1141,16 @@ class MotionGraphcut
   float getTableScore(cv::Vec3f cur_c, float height_from_table)
   {
     const float dist_score = exp(-height_from_table/table_height_var_);
-    // const float h_score = 1.0-fabs(cur_c[0] - table_stats_[0][0])/(
-    //     table_stats_[1][0] + 0.1);
-    // const float s_score = 1.0-fabs(cur_c[1] - table_stats_[0][1])/(
-    //     table_stats_[1][1] + 0.1);
-    // const float table_score = (h_score + s_score)/2.0+0.5*dist_score;
-    // return table_score;
+#ifndef USE_TABLE_COLOR_ESTIMATE
     return dist_score;
+#else // USE_TABLE_COLOR_ESTIMATE
+    const float h_score = 1.0-fabs(cur_c[0] - table_stats_[0][0])/(
+        table_stats_[1][0] + 0.1);
+    const float s_score = 1.0-fabs(cur_c[1] - table_stats_[0][1])/(
+        table_stats_[1][1] + 0.1);
+    const float table_score = (h_score + s_score)/2.0+0.5*dist_score;
+    return table_score;
+#endif // USE_TABLE_COLOR_ESTIMATE
   }
 
   float getArmFGScore(cv::Mat& color_frame, int r, int c,
@@ -1306,7 +1310,7 @@ class TabletopPushingPerceptionNode
 {
  public:
   TabletopPushingPerceptionNode(ros::NodeHandle &n) :
-      n_(n),
+      n_(n), n_private_("~"),
       image_sub_(n, "color_image_topic", 1),
       depth_sub_(n, "depth_image_topic", 1),
       cloud_sub_(n, "point_cloud_topic", 1),
@@ -1321,51 +1325,51 @@ class TabletopPushingPerceptionNode
       tracker_count_(0)
   {
     // Get parameters from the server
-    ros::NodeHandle n_private("~");
-    n_private.param("crop_min_x", crop_min_x_, 0);
-    n_private.param("crop_max_x", crop_max_x_, 640);
-    n_private.param("crop_min_y", crop_min_y_, 0);
-    n_private.param("crop_max_y", crop_max_y_, 480);
-    n_private.param("display_wait_ms", display_wait_ms_, 3);
-    n_private.param("min_workspace_x", min_workspace_x_, 0.0);
-    n_private.param("min_workspace_y", min_workspace_y_, 0.0);
-    n_private.param("min_workspace_z", min_workspace_z_, 0.0);
-    n_private.param("max_workspace_x", max_workspace_x_, 0.0);
-    n_private.param("max_workspace_y", max_workspace_y_, 0.0);
-    n_private.param("max_workspace_z", max_workspace_z_, 0.0);
+    n_private_.param("crop_min_x", crop_min_x_, 0);
+    n_private_.param("crop_max_x", crop_max_x_, 640);
+    n_private_.param("crop_min_y", crop_min_y_, 0);
+    n_private_.param("crop_max_y", crop_max_y_, 480);
+    n_private_.param("display_wait_ms", display_wait_ms_, 3);
+    n_private_.param("min_workspace_x", min_workspace_x_, 0.0);
+    n_private_.param("min_workspace_y", min_workspace_y_, 0.0);
+    n_private_.param("min_workspace_z", min_workspace_z_, 0.0);
+    n_private_.param("below_table_z", below_table_z_, 0.1);
+    n_private_.param("max_workspace_x", max_workspace_x_, 0.0);
+    n_private_.param("max_workspace_y", max_workspace_y_, 0.0);
+    n_private_.param("max_workspace_z", max_workspace_z_, 0.0);
     std::string default_workspace_frame = "/torso_lift_link";
-    n_private.param("workspace_frame", workspace_frame_,
+    n_private_.param("workspace_frame", workspace_frame_,
                     default_workspace_frame);
-    n_private.param("min_table_z", min_table_z_, -0.5);
-    n_private.param("max_table_z", max_table_z_, 1.5);
-    n_private.param("autostart_tracking", tracking_, false);
-    n_private.param("min_contour_size", min_contour_size_, 30);
-    n_private.param("num_downsamples", num_downsamples_, 2);
+    n_private_.param("min_table_z", min_table_z_, -0.5);
+    n_private_.param("max_table_z", max_table_z_, 1.5);
+    n_private_.param("autostart_tracking", tracking_, false);
+    n_private_.param("min_contour_size", min_contour_size_, 30);
+    n_private_.param("num_downsamples", num_downsamples_, 2);
     std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
-    n_private.param("cam_info_topic", cam_info_topic_,
+    n_private_.param("cam_info_topic", cam_info_topic_,
                     cam_info_topic_def);
-    n_private.param("table_ransac_thresh", table_ransac_thresh_, 0.01);
+    n_private_.param("table_ransac_thresh", table_ransac_thresh_, 0.01);
 
     base_output_path_ = "/home/thermans/sandbox/cut_out/";
     // Graphcut weights
-    n_private.param("mgc_workspace_bg_weight",
+    n_private_.param("mgc_workspace_bg_weight",
                     mgc_.workspace_background_weight_, 1.0);
-    n_private.param("mgc_min_weight", mgc_.min_weight_, 0.01);
-    n_private.param("mgc_w_c_alpha", mgc_.w_c_alpha_, 0.1);
-    n_private.param("mgc_w_c_beta",  mgc_.w_c_beta_, 0.1);
-    n_private.param("mgc_w_c_gamma", mgc_.w_c_gamma_, 0.1);
-    n_private.param("mgc_arm_grow_radius", mgc_.arm_grow_radius_, 2);
-    n_private.param("mgc_arm_search_radius", mgc_.arm_search_radius_, 50);
+    n_private_.param("mgc_min_weight", mgc_.min_weight_, 0.01);
+    n_private_.param("mgc_w_c_alpha", mgc_.w_c_alpha_, 0.1);
+    n_private_.param("mgc_w_c_beta",  mgc_.w_c_beta_, 0.1);
+    n_private_.param("mgc_w_c_gamma", mgc_.w_c_gamma_, 0.1);
+    n_private_.param("mgc_arm_grow_radius", mgc_.arm_grow_radius_, 2);
+    n_private_.param("mgc_arm_search_radius", mgc_.arm_search_radius_, 50);
     // Lucas Kanade params
-    n_private.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
-    n_private.param("mgc_flow_gain", mgc_.flow_gain_, 0.3);
-    n_private.param("mgc_table_var", mgc_.table_height_var_, 20.0);
-    n_private.param("mgc_arm_dist_var", mgc_.arm_dist_var_, 20.0);
+    n_private_.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
+    n_private_.param("mgc_flow_gain", mgc_.flow_gain_, 0.3);
+    n_private_.param("mgc_table_var", mgc_.table_height_var_, 20.0);
+    n_private_.param("mgc_arm_dist_var", mgc_.arm_dist_var_, 20.0);
     int win_size = 5;
-    n_private.param("lk_win_size", win_size, 5);
+    n_private_.param("lk_win_size", win_size, 5);
     lkflow_.setWinSize(win_size);
     int num_levels = 4;
-    n_private.param("lk_num_levels", num_levels, 4);
+    n_private_.param("lk_num_levels", num_levels, 4);
     lkflow_.setNumLevels(num_levels);
 
     // Setup ros node connections
@@ -1576,6 +1580,11 @@ class TabletopPushingPerceptionNode
       {
         ROS_ERROR_STREAM("No plane found!");
       }
+      else
+      {
+        min_workspace_z_ = table_centroid_.pose.position.z - below_table_z_;
+        n_private_.setParam("min_workspace_z", min_workspace_z_);
+      }
 
       tracker_initialized_ = true;
       tracker_count_ = 0;
@@ -1590,7 +1599,7 @@ class TabletopPushingPerceptionNode
     cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
     cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
     color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
-    cv::Mat heights_above_table = getTableHeightDistances();
+
     // Get optical flow
     std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
 
@@ -1602,10 +1611,14 @@ class TabletopPushingPerceptionNode
     ArmModel hands_and_arms = projectArmPoses(cur_camera_header_,
                                               color_frame.size(), min_arm_x,
                                               max_arm_x, min_arm_y, max_arm_y);
+    // Get pixel heights above the table
+    cv::Mat heights_above_table = getTableHeightDistances();
+
     // Perform graphcut for motion detection
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
                        cur_workspace_mask_, heights_above_table,
                        hands_and_arms);
+
     // Perform graphcut for arm localization
     cv::Mat arm_cut(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     if (hands_and_arms[0].size() > 0 || hands_and_arms[1].size() > 0)
@@ -1987,7 +2000,10 @@ class TabletopPushingPerceptionNode
 #endif // DISPLAY_PLANE_ESTIMATE
     }
     ROS_INFO_STREAM("Calculating table color stats.");
+
+#ifdef USE_TABLE_COLOR_ESTIMATE
     mgc_.setTableColorStats(cur_color_frame_, table_points);
+#endif // USE_TABLE_COLOR_ESTIMATE
 
 #ifdef DISPLAY_PLANE_ESTIMATE
     cv::Point cent_img = projectPointIntoImage(cent,
@@ -2107,6 +2123,7 @@ class TabletopPushingPerceptionNode
 
  protected:
   ros::NodeHandle n_;
+  ros::NodeHandle n_private_;
   message_filters::Subscriber<sensor_msgs::Image> image_sub_;
   message_filters::Subscriber<sensor_msgs::Image> depth_sub_;
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
@@ -2146,6 +2163,7 @@ class TabletopPushingPerceptionNode
   double max_workspace_z_;
   double min_table_z_;
   double max_table_z_;
+  double below_table_z_;
   double eigen_ratio_;
   int num_downsamples_;
   std::string workspace_frame_;
