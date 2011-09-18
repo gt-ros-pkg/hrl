@@ -67,6 +67,7 @@
 
 #include <rosrt/rosrt.h>
 
+#include <filters/filter_chain.h>
 #include <hrl_netft/HybridCartesianGains.h>
 
 using namespace pr2_manipulation_controllers;
@@ -188,6 +189,8 @@ public:
   double gripper_mass_;
   Eigen::Vector3d gripper_com_;
   Eigen::Affine3d ft_transform_;
+  filters::MultiChannelFilterChain<double> force_filter_;
+  std::vector<double> in_force_filter_, out_force_filter_;
   CartVec F_des_;
   bool zero_wrench_;
 
@@ -366,7 +369,7 @@ public:
 
 
 HybridForceController::HybridForceController()
-  : robot_state_(NULL), use_posture_(false)
+  : robot_state_(NULL), use_posture_(false), force_filter_("double")
 {}
 
 HybridForceController::~HybridForceController()
@@ -461,6 +464,9 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
   Kfd << kfd_trans, kfd_trans, kfd_trans,  kfd_rot, kfd_rot, kfd_rot;
   motion_selector = CartVec::Ones();
   force_selector = CartVec::Zero();
+  force_filter_.configure(6, "force_filter", node_);
+  in_force_filter_.resize(6);
+  out_force_filter_.resize(6);
 
   node_.param("pose_command_filter", pose_command_filter_, 1.0);
 
@@ -560,9 +566,9 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
                           10, geometry_msgs::Twist());
   pub_wrench_.initialize(node_.advertise<geometry_msgs::Twist>("state/wrench", 10),
                          10, geometry_msgs::Twist());
-  pub_ft_wrench_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("state/ft_wrench", 10),
+  pub_ft_wrench_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("ft_wrench", 10),
                             10, geometry_msgs::WrenchStamped());
-  pub_ft_wrench_raw_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("state/ft_wrench_raw", 10),
+  pub_ft_wrench_raw_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("ft_wrench_raw", 10),
                                 10, geometry_msgs::WrenchStamped());
 
   std_msgs::Float64MultiArray joints_template;
@@ -673,7 +679,7 @@ void HybridForceController::update()
   }
 
   // HERE WE CONVERT CALCULATIONS TO THE FRAME IN WHICH GAINS ARE SPECIFIED!
-  CartVec xdot_desi = (Kp.array() / Kd.array()) * (St * x_err).array() * -1.0;  // aleeper
+  CartVec xdot_desi = Kp.array() * (St * x_err).array() * -1.0;  // aleeper
 
   // Caps the cartesian velocity
   if (vel_saturation_trans_ > 0.0)
@@ -687,7 +693,7 @@ void HybridForceController::update()
       xdot_desi.tail<3>() *= (vel_saturation_rot_ / xdot_desi.tail<3>().norm());
   }
 
-  CartVec F_motion = Kd.array() * (xdot_desi.array() - (St * xdot).array());  // aleeper
+  CartVec F_motion = xdot_desi.array() - Kd.array() * (St * xdot).array();  // aleeper
 
   // select motions in specified directions khawkins
   F_motion = motion_selector.array() * F_motion.array();
@@ -700,12 +706,10 @@ void HybridForceController::update()
   // x : base_frame B tip_frame
   Eigen::Vector4d z_grav(0, 0, -1, 0);
   z_grav = -1 * ft_transform_.matrix() * x.matrix().inverse() * z_grav;
-  for(int i=0;i<3;i++)
-      F_grav[i] = gripper_mass_ * 9.81 * z_grav[i];
+  F_grav.head<3>() = gripper_mass_ * 9.81 * z_grav.head<3>();
   Eigen::Vector3d F_grav_vec(F_grav[0], F_grav[1], F_grav[2]);
   Eigen::Vector3d torque_vec = gripper_com_.cross(F_grav_vec);
-  for(int i=0;i<3;i++)
-      F_grav[i+3] = torque_vec[i];
+  F_grav.tail<3>() = torque_vec;
   if(zero_wrench_) {
       F_sensor_zero_ = F_sensor - F_grav;
       zero_wrench_ = false;
@@ -718,10 +722,22 @@ void HybridForceController::update()
   F_sensor_zeroed_force = ft_transform_.linear().transpose() * F_sensor_zeroed_force;
   F_sensor_zeroed_torque = ft_transform_.linear().transpose() * F_sensor_zeroed_torque;
   Eigen::Vector3d torque_offset = ft_transform_.translation().cross(F_sensor_zeroed_torque);
-  for(int i=0;i<3;i++)
-      F_sensor_zeroed[i] = F_sensor_zeroed_force[i];
-  for(int i=0;i<3;i++)
-      F_sensor_zeroed[i+3] = F_sensor_zeroed_torque[i] + torque_offset[i];
+  F_sensor_zeroed.head<3>() = F_sensor_zeroed_force;
+  F_sensor_zeroed.tail<3>() = F_sensor_zeroed_torque + torque_offset;
+
+  if(!use_tip_frame_) {
+      // put wrench in gains frame
+      F_sensor_zeroed.head<3>() = x.linear() * F_sensor_zeroed.head<3>();
+      F_sensor_zeroed.tail<3>() = x.linear() * F_sensor_zeroed.tail<3>();
+      F_sensor_zeroed = St * F_sensor_zeroed;
+  }
+
+  // filter wrench signal
+  for(int i=0;i<6;i++)
+      in_force_filter_[i] = F_sensor_zeroed[i];
+  force_filter_.update(in_force_filter_, out_force_filter_);
+  for(int i=0;i<6;i++)
+      F_sensor_zeroed[i] = out_force_filter_[i];
 
   // Motion and Force Control of Robot Manipulators; O. Khatib and J. Burdick
   F_control = force_selector.array() *(F_des_.array() + // force control

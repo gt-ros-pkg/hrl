@@ -25,8 +25,6 @@ JOINT_NAMES_LIST = ['_shoulder_pan_joint',
                     '_shoulder_lift_joint', '_upper_arm_roll_joint',
                     '_elbow_flex_joint', '_forearm_roll_joint',
                     '_wrist_flex_joint', '_wrist_roll_joint']
-JOINT_STATE_INDS_R = [17, 18, 16, 20, 19, 21, 22]
-JOINT_STATE_INDS_L = [29, 30, 28, 32, 31, 33, 34]
 
 class PR2Arm(HRLArm):
     ##
@@ -41,17 +39,16 @@ class PR2Arm(HRLArm):
         self.joint_names_list = []
         for s in JOINT_NAMES_LIST:
             self.joint_names_list.append(arm + s)
-        if arm == 'r':
-            self.JOINT_STATE_INDS = JOINT_STATE_INDS_R
-        else:
-            self.JOINT_STATE_INDS = JOINT_STATE_INDS_L
+        self.joint_state_inds = None
         self.joint_angles = None
 
     ##
     # Joint angles listener callback
     def joint_state_cb(self, msg):
         with self.lock:
-            self.joint_angles = [msg.position[i] for i in self.JOINT_STATE_INDS]
+            if self.joint_state_inds is None:
+                self.joint_state_inds = [msg.name.index(joint_name) for joint_name in self.joint_names_list]
+            self.joint_angles = [msg.position[i] for i in self.joint_state_inds]
 
     ##
     # Returns the current joint angle positions
@@ -132,6 +129,7 @@ class PR2ArmCartesianBase(PR2Arm):
 
     def set_ep(self, cep, duration, delay=0.0):
         cep_pose_stmp = PoseConverter.to_pose_stamped_msg('torso_lift_link', cep)
+        cep_pose_stmp.header.stamp = rospy.Time.now()
         self.command_pose_pub.publish(cep_pose_stmp)
         self.ep = copy.deepcopy(cep)
 

@@ -21,7 +21,7 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
         self.command_gains_pub = rospy.Publisher(controller_name + '/gains', HybridCartesianGains)
         self.command_force_pub = rospy.Publisher(controller_name + '/command_force', Float64MultiArray)
         self.command_zero_pub = rospy.Publisher(controller_name + '/ft_zero', Bool)
-        self.ft_wrench_sub = rospy.Subscriber(controller_name + '/state/ft_wrench', WrenchStamped, 
+        self.ft_wrench_sub = rospy.Subscriber(controller_name + '/ft_wrench', WrenchStamped, 
                                               self._ft_wrench_cb)
         self.ft_wrench = np.mat(6 * [0]).T
         self.tip_frame = rospy.get_param(controller_name + '/tip_name')

@@ -28,7 +28,7 @@ l_cart:
     l_forearm_roll_joint: 8.376
     l_wrist_flex_joint: 5.568
     l_wrist_roll_joint: 5.568
-  vel_saturation_trans: 2.0
+  vel_saturation_trans: 6.0
   vel_saturation_rot: 4.0
 
   use_tip_frame: true
@@ -42,6 +42,16 @@ l_cart:
     rot:
       p: 1.0
       d: 1.0
+  force_filter: 
+    filter_chain:
+      -
+        name: force_bw_filter
+        type: MultiChannelTransferFunctionFilter
+        params:
+          a: [1, -1.98418996, 0.98431396]
+          b: [0.000031000568, 0.000062001136, 0.000031000568]
+#a: [1, -1.973265, 0.9736179]
+#b: [0.00008817295, 0.0001763459, 0.00008817295]
   gripper_params:
     com_pos_x: -0.0012628567508067693
     com_pos_y: 0.0017608807708057572
