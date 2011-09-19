@@ -27,6 +27,7 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/features/feature.h>
 #include <pcl/common/eigen.h>
+#include <pcl/io/io.h>
 #include "pcl/filters/voxel_grid.h"
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
@@ -253,8 +254,8 @@ class ProbImageDifferencing
         }
         d_motion_probs_.at<float>(r,c) = prob_d;
         // motion_probs_.at<cv::Vec4f>(r,c)[3]*= prob_d;
-        motion_probs_.at<cv::Vec4f>(r,c)[3]= max(prob_d,
-                                                 motion_probs_.at<cv::Vec4f>(r,c)[3]);
+        motion_probs_.at<cv::Vec4f>(r,c)[3]= std::max(
+            prob_d, motion_probs_.at<cv::Vec4f>(r,c)[3]);
       }
     }
 

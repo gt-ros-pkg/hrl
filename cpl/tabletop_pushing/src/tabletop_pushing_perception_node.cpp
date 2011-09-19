@@ -42,6 +42,7 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/CameraInfo.h>
+#include <sensor_msgs/image_encodings.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
@@ -133,7 +134,12 @@ typedef Graph<float, float, float> GraphType;
 
 inline float max(const float a, const double b)
 {
-  return max(static_cast<double>(a), b);
+  return std::max(static_cast<double>(a), b);
+}
+
+inline float min(const float a, const double b)
+{
+  return std::min(static_cast<double>(a), b);
 }
 
 void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow_u, cv::Mat& flow_v,
@@ -685,10 +691,10 @@ class MotionGraphcut
     // more efficient
     const int crop_min_x = max(0, min_arm_x - arm_search_radius_);
     const int crop_max_x = min(color_frame_in.cols,
-                               max_arm_x + arm_search_radius_);
+                                    max_arm_x + arm_search_radius_);
     const int crop_min_y = max(0, min_arm_y - arm_search_radius_);
     const int crop_max_y = min(color_frame_in.rows,
-                               max_arm_y + arm_search_radius_);
+                                    max_arm_y + arm_search_radius_);
     cv::Rect roi(crop_min_x, crop_min_y, crop_max_x-crop_min_x,
                  crop_max_y-crop_min_y);
     cv::Mat color_frame = color_frame_in(roi);

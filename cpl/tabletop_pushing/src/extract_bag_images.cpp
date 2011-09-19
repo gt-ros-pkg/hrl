@@ -3,6 +3,7 @@
 #include <image_transport/image_transport.h>
 #include <cv_bridge/CvBridge.h>
 #include <sstream>
+#include <string>
 #include <opencv2/highgui/highgui.hpp>
 
 class BagExtractor
@@ -48,7 +49,7 @@ class BagExtractor
   image_transport::Subscriber image_sub_;
   sensor_msgs::CvBridge bridge_;
   int img_count_;
-  string base_path_;
+  std::string base_path_;
 };
 
 int main(int argc, char ** argv)
