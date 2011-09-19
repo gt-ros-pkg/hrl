@@ -118,8 +118,6 @@
 // #define WRITE_ARM_CUT_TO_DISK 1
 
 // Functional IFDEFS
-// #define REMOVE_SMALL_BLOBS 1
-// #define FAKE_SEGMENT
 #define MEDIAN_FILTER_FLOW 1
 // #define USE_TABLE_COLOR_ESTIMATE 1
 
@@ -297,10 +295,6 @@ class LKFlowReliable
   {
     // Create derivative kernels for flow calculation
     cv::getDerivKernels(dy_kernel_, dx_kernel_, 1, 0, CV_SCHARR, true, CV_32F);
-    // TODO: Make directly
-    // [+3 +10 +3
-    //   0   0  0
-    //  -3 -10 -3]
     cv::flip(dy_kernel_, dy_kernel_, -1);
     g_kernel_ = cv::getGaussianKernel(3, 2.0, CV_32F);
     optic_g_kernel_ = cv::getGaussianKernel(5, 10.0, CV_32F);
@@ -353,11 +347,9 @@ class LKFlowReliable
     std::vector<cv::Mat> total_outs;
     total_outs.push_back(Dx);
     total_outs.push_back(Dy);
-    // total_outs.push_back(flow_outs[2]);
     return total_outs;
   }
 
-  // TODO: Clean up this method to be more like optic.m
   std::vector<cv::Mat> baseLK(cv::Mat& cur_bw, cv::Mat& prev_bw)
   {
     cv::Mat Ix(cur_bw.size(), CV_32FC1);
@@ -383,7 +375,6 @@ class LKFlowReliable
     int win_radius = win_size_/2;
     cv::Mat flow_u(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
     cv::Mat flow_v(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
-    // cv::Mat t_scores(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
     for (int r = win_radius; r < Ix.rows-win_radius; ++r)
     {
       for (int c = win_radius; c < Ix.cols-win_radius; ++c)
@@ -419,24 +410,22 @@ class LKFlowReliable
         }
         flow_u.at<float>(r,c) = uv[0];
         flow_v.at<float>(r,c) = uv[1];
-        // t_scores.at<float>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
       }
     }
     std::vector<cv::Mat> outs;
     outs.push_back(flow_u);
     outs.push_back(flow_v);
-    // outs.push_back(t_scores);
     return outs;
   }
 
-  cv::Mat reduce(cv::Mat& input /*, cv::Mat kernel*/)
+  cv::Mat reduce(cv::Mat& input)
   {
     cv::Mat output;// = input.clone();
     cv::pyrDown(input, output);
     return output;
   }
 
-  cv::Mat expand(cv::Mat& input /*, cv::Mat kernel*/)
+  cv::Mat expand(cv::Mat& input)
   {
     cv::Mat output(input.rows*2, input.cols*2, CV_32FC1);
     cv::pyrUp(input, output, output.size());
@@ -491,147 +480,6 @@ class LKFlowReliable
     //   }
     // }
     return warpI2;
-  }
-
-  void integralImage(cv::Mat& input)
-  {
-    // Compute integral image first row of values
-    double* row0 = input.ptr<double>(0);
-    for (int c = 1; c < input.cols; ++c)
-    {
-      row0[c] += row0[c-1];
-    }
-
-    // Compute integral image first column of values
-    for (int r = 1; r < input.rows; ++r)
-    {
-      input.at<double>(r,0) += input.at<double>(r-1,0);
-    }
-
-    // Compute integral image values
-    double* prev_row = row0;
-    double* cur_row;
-    for (int r = 1; r < input.rows; ++r)
-    {
-      cur_row = input.ptr<double>(r);
-      for (int c = 1; c < input.cols; ++c)
-      {
-        cur_row[c] += cur_row[c-1] + prev_row[c] - prev_row[c-1];
-      }
-      prev_row = cur_row;
-    }
-  }
-
-  inline double filterIntegral(cv::Mat& integral, int x, int y, int radius)
-  {
-    int y_min = y - radius - 1;
-    int x_min = x - radius - 1;
-    int y_max = y + radius;
-    int x_max = x + radius;
-
-    double filter_response = integral.at<double>(y_max, x_max);
-    if (x_min >= 0)
-    {
-      filter_response -= integral.at<double>(y_max, x_min);
-    }
-    if (y_min >= 0)
-    {
-      filter_response -= integral.at<double>(y_min, x_max);
-    }
-    if (x_min >= 0 && y_min >= 0)
-    {
-      filter_response += integral.at<double>(y_min, x_min);
-    }
-    return filter_response;
-  }
-
-  std::vector<cv::Mat> baseLKII(cv::Mat& cur_bw, cv::Mat& prev_bw)
-  {
-
-    // Blur the input images and get the difference
-    cv::Mat cur_blur(cur_bw.size(), cur_bw.type());
-    cv::Mat prev_blur(prev_bw.size(), prev_bw.type());
-    cv::filter2D(cur_bw, cur_blur, CV_32F, g_kernel_);
-    cv::filter2D(prev_bw, prev_blur, CV_32F, g_kernel_);
-    cv::Mat It32 = cur_blur - prev_blur;
-
-    // Get image derivatives
-    cv::Mat Ix32(cur_bw.size(), CV_32FC1);
-    cv::Mat Iy32(cur_bw.size(), CV_32FC1);
-    cv::filter2D(cur_bw, Ix32, CV_32F, dx_kernel_);
-    cv::filter2D(cur_bw, Iy32, CV_32F, dy_kernel_);
-
-    // Convert images to 64 bit to preserve precision in integration
-    cv::Mat Ix(cur_bw.size(), CV_64FC1);
-    cv::Mat Iy(cur_bw.size(), CV_64FC1);
-    cv::Mat It(It32.size(), CV_64FC1);
-    Ix32.convertTo(Ix, CV_64FC1);
-    Iy32.convertTo(Iy, CV_64FC1);
-    It32.convertTo(It, CV_64FC1);
-
-    // Create the integral images
-    cv::Mat IIxx(cur_bw.size(), CV_64FC1);
-    cv::Mat IIyy(cur_bw.size(), CV_64FC1);
-    cv::Mat IIxy(cur_bw.size(), CV_64FC1);
-    cv::Mat IIxt(cur_bw.size(), CV_64FC1);
-    cv::Mat IIyt(cur_bw.size(), CV_64FC1);
-    cv::multiply(Ix, Ix, IIxx);
-    cv::multiply(Iy, Iy, IIyy);
-    cv::multiply(Ix, Iy, IIxy);
-    cv::multiply(Ix, It, IIxt);
-    cv::multiply(Iy, It, IIyt);
-    integralImage(IIxx);
-    integralImage(IIyy);
-    integralImage(IIxy);
-    integralImage(IIxt);
-    integralImage(IIyt);
-
-#ifdef DISPLAY_OPT_FLOW_INTERNALS
-    cv::imshow("IIxx", IIxx);
-    cv::imshow("IIxy", IIxy);
-    cv::imshow("IIyy", IIyy);
-    cv::imshow("IIxt", IIxt);
-    cv::imshow("IIyt", IIyt);
-    cv::imshow("cur_bw", cur_blur);
-    cv::imshow("prev_bw", prev_blur);
-    cv::imshow("It", It);
-    cv::imshow("Ix", Ix);
-    cv::imshow("Iy", Iy);
-#endif // DISPLAY_OPT_FLOW_INTERNALS
-
-    // Compute the LK flow densely using the integral images
-    int win_radius = win_size_/2;
-    cv::Mat flow(cur_bw.size(), CV_64FC2, cv::Scalar(0.0,0.0));
-    cv::Mat t_scores(cur_bw.size(), CV_32FC1, cv::Scalar(0.0,0.0));
-    for (int r = win_radius; r < Ix.rows-win_radius; ++r)
-    {
-      for (int c = win_radius; c < Ix.cols-win_radius; ++c)
-      {
-        const double sIxx = filterIntegral(IIxx, c, r, win_radius);
-        const double sIyy = filterIntegral(IIyy, c, r, win_radius);
-        const double sIxy = filterIntegral(IIxy, c, r, win_radius);
-        const double sIxt = filterIntegral(IIxt, c, r, win_radius);
-        const double sIyt = filterIntegral(IIyt, c, r, win_radius);
-        float det = sIxx*sIyy - sIxy*sIxy;
-        cv::Vec2f uv;
-        if (det == 0.0)
-        {
-          uv[0] = 0.0;
-          uv[1] = 0.0;
-        }
-        else
-        {
-          uv[0] = (-sIyy*sIxt + sIxy*sIyt)/det;
-          uv[1] = (sIxy*sIxt - sIxx*sIyt)/det;
-        }
-        flow.at<cv::Vec2f>(r,c) = uv;
-        t_scores.at<float>(r,c) = (sIxx+sIyy)*(sIxx+sIyy)/(det);
-      }
-    }
-    std::vector<cv::Mat> outs;
-    outs.push_back(flow);
-    outs.push_back(t_scores);
-    return outs;
   }
 
   //
@@ -709,7 +557,6 @@ class MotionGraphcut
     cv::Mat up_left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
 #endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
 
-    // TODO: Set low probability of stuff close to table height?
     for (int r = 0; r < R; ++r)
     {
       for (int c = 0; c < C; ++c)
@@ -789,9 +636,6 @@ class MotionGraphcut
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::imshow("fg_weights", fg_weights);
     cv::imshow("bg_weights", bg_weights);
-    // double table_max = 1.0;
-    // cv::minMaxLoc(table_weights, NULL, &table_max);
-    // table_weights /= table_max;
     cv::imshow("table_weights", table_weights);
 #endif // VISUALIZE_GRAPH_WEIGHTS
 #ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
@@ -986,153 +830,6 @@ class MotionGraphcut
     return segs;
   }
 
-  cv::Mat multilabelArmMovement(cv::Mat& color_frame, cv::Mat& depth_frame,
-                                cv::Mat& u, cv::Mat& v, cv::Mat& workspace_mask,
-                                ArmModel arms)
-  {
-    // NOTE: We examine only a subwindow in the image to avoid too make things
-    // more efficient
-    cv::Rect roi(0, 0, color_frame.cols, color_frame.rows);
-    const int R = color_frame.rows;
-    const int C = color_frame.cols;
-
-    int num_nodes = R*C;
-    int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
-    // TODO: Set num_labels_ and enumerate the members
-    // GCoptimizationGridGraph *gc = new
-    //     GCoptimizationGridGraph(C, R, num_labels_);
-    GraphType *g;
-    g = new GraphType(num_nodes, num_edges);
-
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-    cv::Mat fg_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat bg_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-#endif // VISUALIZE_GRAPH_WEIGHTS
-#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
-    cv::Mat left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat up_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat up_left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
-
-    // One gaussian estimated from wrist to elbow, elbow to forearm and a
-    // separate one is estimated from the gripper tip to wrist
-    std::vector<cv::Vec3f> hand_stats = getImagePointGaussian(color_frame,
-                                                              arms[0]);
-    std::vector<cv::Vec3f> arm_stats = getImagePointGaussian(color_frame,
-                                                             arms[1]);
-    // Tie weights to fg / bg
-    for (int r = 0; r < R; ++r)
-    {
-      for (int c = 0; c < C; ++c)
-      {
-        g->add_node();
-        // Check if we are hardcoding this spot to background
-        if (workspace_mask.at<uchar>(r,c) == 0)
-        {
-          g->add_tweights(r*C+c, min_weight_, workspace_background_weight_);
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-          fg_weights.at<float>(r,c) = min_weight_;
-          bg_weights.at<float>(r,c) = workspace_background_weight_;
-#endif // VISUALIZE_GRAPH_WEIGHTS
-          continue;
-        }
-        else
-        {
-          const float magnitude = std::sqrt(u.at<float>(r,c)*u.at<float>(r,c) +
-                                            v.at<float>(r,c)*v.at<float>(r,c));
-          const float move_score = max(getFlowFGScore(magnitude), min_weight_);
-          const float me_score = max(getArmFGScore(color_frame, r, c, arm_stats,
-                                                   hand_stats, arms, roi),
-                                     min_weight_);
-          // TODO: Get motion score
-          // TODO: Get tabletop score
-          // TODO: Determine background score
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-          fg_weights.at<float>(r,c) = me_score;
-          // bg_weights.at<float>(r,c) = not_me_score;
-#endif // VISUALIZE_GRAPH_WEIGHTS
-        }
-      }
-    }
-
-    // Add edge weights
-    for (int r = 0; r < R; ++r)
-    {
-      for (int c = 0; c < C; ++c)
-      {
-        // Connect node to previous ones
-        if (c > 0)
-        {
-          // Add left-link
-          float w_l = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                    depth_frame.at<float>(r,c),
-                                    color_frame.at<cv::Vec3f>(r,c-1),
-                                    depth_frame.at<float>(r,c-1));
-          g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
-#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
-          left_weights.at<float>(r,c) = w_l;
-#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
-        }
-
-        if (r > 0)
-        {
-          // Add up-link
-          float w_u = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                    depth_frame.at<float>(r,c),
-                                    color_frame.at<cv::Vec3f>(r-1,c),
-                                    depth_frame.at<float>(r-1,c));
-          g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
-#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
-          up_weights.at<float>(r,c) = w_u;
-#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
-
-          // Add up-left-link
-          if (c > 0)
-          {
-            float w_ul = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                       depth_frame.at<float>(r,c),
-                                       color_frame.at<cv::Vec3f>(r-1,c-1),
-                                       depth_frame.at<float>(r-1,c-1));
-            g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
-#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
-            up_left_weights.at<float>(r,c) = w_ul;
-#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
-
-          }
-        }
-      }
-    }
-
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-    cv::imshow("fg_weights_arm", fg_weights);
-    cv::imshow("bg_weights_arm", bg_weights);
-#endif // VISUALIZE_GRAPH_WEIGHTS
-#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
-    double up_max = 1.0;
-    cv::minMaxLoc(up_weights, NULL, &up_max);
-    up_weights /= up_max;
-    double left_max = 1.0;
-    cv::minMaxLoc(left_weights, NULL, &left_max);
-    left_weights /= left_max;
-    double up_left_max = 1.0;
-    cv::minMaxLoc(up_left_weights, NULL, &up_left_max);
-    up_left_weights /= up_max;
-    cv::imshow("up_weights_arm", up_weights);
-    cv::imshow("left_weights_arm", left_weights);
-    cv::imshow("up_left_weights_arm", up_left_weights);
-#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
-
-    // int flow = g->maxflow(false);
-    g->maxflow(false);
-
-    // Convert output into image
-    cv::Mat segs = convertFlowResultsToCvMat(g, R, C);
-    delete g;
-    // TODO: Ensure a single continuous region for each arm seeded by the known
-    // locations
-    return segs;
-  }
-
   float getFlowFGScore(float magnitude)
   {
     return min(1.0, max(flow_gain_*exp(magnitude), 0.0));
@@ -1162,14 +859,14 @@ class MotionGraphcut
         cv::Point2f(c+roi.x,r+roi.y))/arm_dist_var_);
     cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
     const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
-        arm_stats[1][0] + 0.1);
+        arm_stats[1][0] + arm_color_var_add_);
     const float arm_s_score = 1.0-fabs(cur_c[1] - arm_stats[0][1])/(
-        arm_stats[1][1] + 0.1);
+        arm_stats[1][1] + arm_color_var_add_);
     const float arm_score = (arm_h_score + arm_s_score)/2.0+0.5*dist_score;
     const float hand_h_score = 1.0-fabs(cur_c[0] - hand_stats[0][0])/(
-        hand_stats[1][0] + 0.1);
+        hand_stats[1][0] + arm_color_var_add_);
     const float hand_s_score = 1.0-fabs(cur_c[1] - hand_stats[0][1])/(
-        hand_stats[1][1] + 0.1);
+        hand_stats[1][1] + arm_color_var_add_);
     const float hand_score = (hand_h_score + hand_s_score)/2.0 + 0.5*dist_score;
     return max(hand_score, arm_score);
   }
@@ -1276,9 +973,6 @@ class MotionGraphcut
   {
     cv::Vec3f c_d = c0-c1;
     float w_d = d0-d1;
-    // float w_c = sqrt(c_d[0]*c_d[0]+c_d[1]*c_d[1]+c_d[2]*c_d[2] + w_d*w_d);
-    // float w_c = sqrt(c_d[0]*c_d[0] + c_d[1]*c_d[1] + w_d*w_d);
-    // float w_c = sqrt(c_d[0]*c_d[0] + w_d*w_d);
     float w_c = w_c_alpha_*exp(fabs(c_d[0])) + w_c_beta_*exp(fabs(c_d[1])) +
         w_c_gamma_*exp(fabs(w_d));
     return w_c;
@@ -1301,6 +995,7 @@ class MotionGraphcut
   double flow_gain_;
   double table_height_var_;
   double arm_dist_var_;
+  double arm_color_var_add_;
   int arm_grow_radius_;
   int arm_search_radius_;
   std::vector<cv::Vec3f> table_stats_;
@@ -1321,8 +1016,7 @@ class TabletopPushingPerceptionNode
                                 this, _1),
                     false),
       tf_(), have_depth_data_(false), tracking_(false),
-      tracker_initialized_(false), roi_(0,0,640,480), min_contour_size_(30),
-      tracker_count_(0)
+      tracker_initialized_(false), tracker_count_(0)
   {
     // Get parameters from the server
     n_private_.param("crop_min_x", crop_min_x_, 0);
@@ -1343,7 +1037,6 @@ class TabletopPushingPerceptionNode
     n_private_.param("min_table_z", min_table_z_, -0.5);
     n_private_.param("max_table_z", max_table_z_, 1.5);
     n_private_.param("autostart_tracking", tracking_, false);
-    n_private_.param("min_contour_size", min_contour_size_, 30);
     n_private_.param("num_downsamples", num_downsamples_, 2);
     std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
     n_private_.param("cam_info_topic", cam_info_topic_,
@@ -1365,6 +1058,7 @@ class TabletopPushingPerceptionNode
     n_private_.param("mgc_flow_gain", mgc_.flow_gain_, 0.3);
     n_private_.param("mgc_table_var", mgc_.table_height_var_, 20.0);
     n_private_.param("mgc_arm_dist_var", mgc_.arm_dist_var_, 20.0);
+    n_private_.param("mgc_arm_color_var_add", mgc_.arm_color_var_add_, 0.01);
     int win_size = 5;
     n_private_.param("lk_win_size", win_size, 5);
     lkflow_.setWinSize(win_size);
@@ -1382,10 +1076,6 @@ class TabletopPushingPerceptionNode
         this);
     motion_mask_pub_ = it_.advertise("motion_mask", 15);
     motion_img_pub_ = it_.advertise("motion_img", 15);
-    roi_.x = crop_min_x_;
-    roi_.y = crop_min_y_;
-    roi_.width = crop_max_x_ - crop_min_x_;
-    roi_.height = crop_max_y_ - crop_min_y_;
     track_server_.start();
   }
 
@@ -1463,14 +1153,10 @@ class TabletopPushingPerceptionNode
     // Started via actionlib call
     if (tracking_)
     {
-      cv::Mat motion_mask = segmentMovingStuff(cur_color_frame_,
-                                               cur_depth_frame_,
-                                               prev_color_frame_,
-                                               prev_depth_frame_,
-                                               cur_point_cloud_);
-
-      // TODO: Process the moving stuff to separate arm from other stuff
-      prev_motion_mask_ = motion_mask.clone();
+      cv::Mat seg_mask = segmentMovingStuff(cur_color_frame_, cur_depth_frame_,
+                                            prev_color_frame_, prev_depth_frame_,
+                                            cur_point_cloud_);
+      prev_seg_mask_ = seg_mask.clone();
     }
   }
 
@@ -1588,11 +1274,11 @@ class TabletopPushingPerceptionNode
 
       tracker_initialized_ = true;
       tracker_count_ = 0;
-      cv::Mat empty_motion(color_frame.rows, color_frame.cols, CV_8UC1,
-                           cv::Scalar(0));
-      return empty_motion;
+      cv::Mat empty_segments(color_frame.rows, color_frame.cols, CV_8UC1,
+                             cv::Scalar(0));
+      return empty_segments;
     }
-#ifndef FAKE_SEGMENT
+
     // Convert frame to floating point HSV
     // TODO: Consolidate into a single function call ?
     cv::Mat color_frame_hsv(color_frame.size(), color_frame.type());
@@ -1630,29 +1316,7 @@ class TabletopPushingPerceptionNode
     }
     cv::Mat cleaned_cut(cut.size(), CV_8UC1);
     cut.convertTo(cleaned_cut, CV_8UC1, 255, 0);
-#ifdef REMOVE_SMALL_BLOBS
-    // Remove blobs smaller than min_contour_size_
-    std::vector<std::vector<cv::Point> > contours;
-    cv::findContours(cleaned_cut, contours, CV_RETR_EXTERNAL,
-                     CV_CHAIN_APPROX_NONE);
-    for (unsigned int i = 0; i < contours.size(); ++i)
-    {
-      cv::Moments m;
-      cv::Mat pt_mat = cv::Mat(contours[i]);
-      m = cv::moments(pt_mat);
-      if (m.m00 < min_contour_size_)
-      {
-        for (unsigned int j = 0; j < contours[i].size(); ++j)
-        {
-          cleaned_cut.at<uchar>(contours[i][j].y, contours[i][j].x) = 0;
-        }
-      }
-    }
-#endif // REMOVE_SMALL_BLOBS
-#else // FAKE_SEGMENT
-    cv::Mat cleaned_cut(color_frame.size(), CV_8UC1, cv::Scalar(0));
-    cv::Mat arm_cut(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-#endif // FAKE_SEGMENT
+
     // Publish the moving region stuff
     cv_bridge::CvImage motion_mask_msg;
     motion_mask_msg.image = cleaned_cut;
@@ -1981,8 +1645,7 @@ class TabletopPushingPerceptionNode
     return projectPointIntoImage(joint_origin, img_header.frame_id);
   }
 
-  void drawTablePlaneOnImage(pcl::PointCloud<pcl::PointXYZ>& plane,
-                            PoseStamped cent)
+  void drawTablePlaneOnImage(XYZPointCloud& plane, PoseStamped cent)
   {
     cv::Mat plane_display = cur_color_frame_.clone();
     std::vector<cv::Point> table_points;
@@ -2057,10 +1720,10 @@ class TabletopPushingPerceptionNode
   PoseStamped getTablePlane(XYZPointCloud& cloud)
   {
     // Filter Cloud to not look for table planes on the ground
-    pcl::PointCloud<pcl::PointXYZ> cloud_z_filtered;
+    XYZPointCloud cloud_z_filtered;
     pcl::PassThrough<pcl::PointXYZ> z_pass;
     z_pass.setInputCloud(
-        boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud));
+        boost::make_shared<XYZPointCloud>(cloud));
     z_pass.setFilterFieldName ("z");
     z_pass.setFilterLimits(min_table_z_, max_table_z_);
     z_pass.filter(cloud_z_filtered);
@@ -2075,7 +1738,7 @@ class TabletopPushingPerceptionNode
     plane_seg.setMethodType (pcl::SAC_RANSAC);
     plane_seg.setDistanceThreshold (table_ransac_thresh_);
     plane_seg.setInputCloud (
-        boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud_z_filtered));
+        boost::make_shared<XYZPointCloud>(cloud_z_filtered));
     plane_seg.segment(plane_inliers, coefficients);
 
     // Check size of plane_inliers
@@ -2091,7 +1754,7 @@ class TabletopPushingPerceptionNode
     }
 
     // Extract the plane members into their own point cloud
-    pcl::PointCloud<pcl::PointXYZ> plane_cloud;
+    XYZPointCloud plane_cloud;
     pcl::copyPointCloud(cloud_z_filtered, plane_inliers, plane_cloud);
 
     // Return plane centroid
@@ -2143,7 +1806,7 @@ class TabletopPushingPerceptionNode
   cv::Mat prev_color_frame_;
   cv::Mat prev_depth_frame_;
   cv::Mat prev_workspace_mask_;
-  cv::Mat prev_motion_mask_;
+  cv::Mat prev_seg_mask_;
   std_msgs::Header cur_camera_header_;
   std_msgs::Header prev_camera_header_;
   XYZPointCloud cur_point_cloud_;
@@ -2164,16 +1827,12 @@ class TabletopPushingPerceptionNode
   double min_table_z_;
   double max_table_z_;
   double below_table_z_;
-  double eigen_ratio_;
   int num_downsamples_;
   std::string workspace_frame_;
   PoseStamped table_centroid_;
   bool tracking_;
   bool tracker_initialized_;
-  cv::Rect roi_;
-  std::string arm_data_path_;
   std::string cam_info_topic_;
-  int min_contour_size_;
   int tracker_count_;
   std::string base_output_path_;
   double table_ransac_thresh_;
