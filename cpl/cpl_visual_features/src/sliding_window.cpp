@@ -231,7 +231,7 @@ int main(int argc, char** argv)
       vector<float> ab_desc = attribute_wd.descriptors_[0];
       attribute_wd.descriptors_.clear();
       ROS_INFO_STREAM("Total feature vector size is: " << ab_desc.size());
-#endif USE_ATT_WINDOW
+#endif // USE_ATT_WINDOW
 
 #ifdef USE_LAB_WINDOW
       LabColorHist16::Descriptor des = labColorHistWindow(
@@ -247,7 +247,7 @@ int main(int argc, char** argv)
       ROS_INFO_STREAM("Descriptor has " << zero_counts
                       << " empty bins from a total of "
                       << des.size() << ".");
-#endif USE_LAB_WINDOW
+#endif // USE_LAB_WINDOW
     }
     catch(cv::Exception e)
     {
