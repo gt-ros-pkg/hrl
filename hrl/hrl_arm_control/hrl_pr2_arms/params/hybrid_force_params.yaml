@@ -37,10 +37,10 @@ l_cart:
   force_torque_frame: l_netft_frame
   force_gains:
     trans:
-      p: 3.8
+      p: 0.0
       d: 1.0
     rot:
-      p: 1.0
+      p: 0.0
       d: 1.0
   force_filter: 
     filter_chain:

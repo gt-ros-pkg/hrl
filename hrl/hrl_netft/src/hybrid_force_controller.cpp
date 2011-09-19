@@ -693,60 +693,62 @@ void HybridForceController::update()
       xdot_desi.tail<3>() *= (vel_saturation_rot_ / xdot_desi.tail<3>().norm());
   }
 
-  CartVec F_motion = xdot_desi.array() - Kd.array() * (St * xdot).array();  // aleeper
+  CartVec F_motion = xdot_desi;  // kphawkins / aleeper
+  CartVec F_damp = Kd.array() * (St * xdot).array();
+  CartVec F_cmd = motion_selector.array() * F_motion.array() + 
+                  force_selector.array() * F_des_.array() - F_damp.array();
+  F_motion = F_cmd;
 
-  // select motions in specified directions khawkins
-  F_motion = motion_selector.array() * F_motion.array();
+  ////////////////////// Process force/torque sensor khawkins ////////////////////
+  CartVec F_sensor_raw, F_sensor_zeroed, F_grav;
+  {
+    for(int i=0;i<6;i++)
+        F_sensor_raw[i] = analog_in_->state_.state_[i];
+    // ft_transform_ : ft_frame B tip_frame
+    // x : base_frame B tip_frame
+    Eigen::Vector4d z_grav(0, 0, -1, 0);
+    z_grav = -1 * ft_transform_.matrix() * x.matrix().inverse() * z_grav;
+    F_grav.head<3>() = gripper_mass_ * 9.81 * z_grav.head<3>();
+    Eigen::Vector3d F_grav_vec(F_grav[0], F_grav[1], F_grav[2]);
+    Eigen::Vector3d torque_vec = gripper_com_.cross(F_grav_vec);
+    F_grav.tail<3>() = torque_vec;
+    if(zero_wrench_) {
+        F_sensor_zero_ = F_sensor_raw - F_grav;
+        zero_wrench_ = false;
+    }
+    F_sensor_zeroed = (F_sensor_raw - F_grav - F_sensor_zero_);
 
-  // force/torque khawkins
-  CartVec F_sensor, F_grav, F_sensor_zeroed, F_control;
-  for(int i=0;i<6;i++)
-      F_sensor[i] = analog_in_->state_.state_[i];
-  // ft_transform_ : ft_frame B tip_frame
-  // x : base_frame B tip_frame
-  Eigen::Vector4d z_grav(0, 0, -1, 0);
-  z_grav = -1 * ft_transform_.matrix() * x.matrix().inverse() * z_grav;
-  F_grav.head<3>() = gripper_mass_ * 9.81 * z_grav.head<3>();
-  Eigen::Vector3d F_grav_vec(F_grav[0], F_grav[1], F_grav[2]);
-  Eigen::Vector3d torque_vec = gripper_com_.cross(F_grav_vec);
-  F_grav.tail<3>() = torque_vec;
-  if(zero_wrench_) {
-      F_sensor_zero_ = F_sensor - F_grav;
-      zero_wrench_ = false;
+    // put wrench in tip_frame
+    Eigen::Vector3d F_sensor_zeroed_force(F_sensor_zeroed[0], F_sensor_zeroed[1], F_sensor_zeroed[2]);  
+    Eigen::Vector3d F_sensor_zeroed_torque(F_sensor_zeroed[3], F_sensor_zeroed[4], F_sensor_zeroed[5]);  
+    F_sensor_zeroed_force = ft_transform_.linear().transpose() * F_sensor_zeroed_force;
+    F_sensor_zeroed_torque = ft_transform_.linear().transpose() * F_sensor_zeroed_torque;
+    Eigen::Vector3d torque_offset = ft_transform_.translation().cross(F_sensor_zeroed_torque);
+    F_sensor_zeroed.head<3>() = F_sensor_zeroed_force;
+    F_sensor_zeroed.tail<3>() = F_sensor_zeroed_torque + torque_offset;
+
+    if(!use_tip_frame_) {
+        // put wrench in gains frame
+        F_sensor_zeroed.head<3>() = x.linear() * F_sensor_zeroed.head<3>();
+        F_sensor_zeroed.tail<3>() = x.linear() * F_sensor_zeroed.tail<3>();
+        F_sensor_zeroed = St * F_sensor_zeroed;
+    }
+
+    // filter wrench signal
+    for(int i=0;i<6;i++)
+        in_force_filter_[i] = F_sensor_zeroed[i];
+    force_filter_.update(in_force_filter_, out_force_filter_);
+    for(int i=0;i<6;i++)
+        F_sensor_zeroed[i] = out_force_filter_[i];
   }
-  F_sensor_zeroed = (F_sensor - F_grav - F_sensor_zero_);
+  /////////////////////////////////////////////////////////////////////////////////
 
-  // put wrench in tip_frame
-  Eigen::Vector3d F_sensor_zeroed_force(F_sensor_zeroed[0], F_sensor_zeroed[1], F_sensor_zeroed[2]);  
-  Eigen::Vector3d F_sensor_zeroed_torque(F_sensor_zeroed[3], F_sensor_zeroed[4], F_sensor_zeroed[5]);  
-  F_sensor_zeroed_force = ft_transform_.linear().transpose() * F_sensor_zeroed_force;
-  F_sensor_zeroed_torque = ft_transform_.linear().transpose() * F_sensor_zeroed_torque;
-  Eigen::Vector3d torque_offset = ft_transform_.translation().cross(F_sensor_zeroed_torque);
-  F_sensor_zeroed.head<3>() = F_sensor_zeroed_force;
-  F_sensor_zeroed.tail<3>() = F_sensor_zeroed_torque + torque_offset;
-
-  if(!use_tip_frame_) {
-      // put wrench in gains frame
-      F_sensor_zeroed.head<3>() = x.linear() * F_sensor_zeroed.head<3>();
-      F_sensor_zeroed.tail<3>() = x.linear() * F_sensor_zeroed.tail<3>();
-      F_sensor_zeroed = St * F_sensor_zeroed;
-  }
-
-  // filter wrench signal
-  for(int i=0;i<6;i++)
-      in_force_filter_[i] = F_sensor_zeroed[i];
-  force_filter_.update(in_force_filter_, out_force_filter_);
-  for(int i=0;i<6;i++)
-      F_sensor_zeroed[i] = out_force_filter_[i];
-
-  // Motion and Force Control of Robot Manipulators; O. Khatib and J. Burdick
-  F_control = force_selector.array() *(F_des_.array() + // force control
-                                       Kfp.array() * (F_des_ - F_sensor_zeroed).array()) -
-              Kfd.array() * force_selector.array() * (St * xdot).array(); // velocity damping
+  // Impedance control
+  CartVec F_control = F_cmd.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
 
   // HERE WE CONVERT BACK TO THE ROOT FRAME SINCE THE JACOBIAN IS IN ROOT FRAME.
   //JointVec tau_pose = J.transpose() * St.transpose() * F_motion;
-  JointVec tau_pose = J.transpose() * St.transpose() * (F_motion + F_control); // khawkins
+  JointVec tau_pose = J.transpose() * St.transpose() * F_control; // khawkins
 
   // ======== J psuedo-inverse and Nullspace computation
 
@@ -885,7 +887,7 @@ void HybridForceController::update()
     if (wrench_msg = pub_ft_wrench_raw_.allocate()) {  // F ft raw
       wrench_msg->header.stamp = time;
       wrench_msg->header.frame_id = force_torque_frame_;
-      tf::wrenchEigenToMsg(F_sensor, wrench_msg->wrench);
+      tf::wrenchEigenToMsg(F_sensor_raw, wrench_msg->wrench);
       pub_ft_wrench_raw_.publish(wrench_msg);
     }
 
