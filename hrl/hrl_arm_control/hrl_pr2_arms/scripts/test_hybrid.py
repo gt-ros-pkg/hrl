@@ -14,11 +14,11 @@ rospy.init_node("ipython_node")
 arm = create_pr2_arm('l', PR2ArmHybridForce)
 # motion gains p - proportional, d - derivative
 #              t - translational, r - rotational
-kpt, kpr, kdt, kdr = 400, 100, 10, 1 
-kfpt, kfpr, kfdt, kfdr = 2, 1, 10, 0.5 # force gains (derivative damps velocity)
+kpt, kpr, kdt, kdr = 100, 10, 10, 1 
+kfpt, kfpr = 1, 0.3 # force gains 
 force_selector = [1, 0, 0, 0, 0, 0] # control force in x direction, motion in others
 arm.set_motion_gains(kpt, kpr, kdt, kdr)
-arm.set_force_gains(kfpt, kfpr, kfdt, kfdr)
+arm.set_force_gains(kfpt, kfpr)
 arm.update_gains()
 # force desired is currently at 0
 

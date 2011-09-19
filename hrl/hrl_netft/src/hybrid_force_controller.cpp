@@ -159,7 +159,7 @@ public:
   Eigen::Matrix<double,6,1> Kp, Kd;  //aleeper
   Eigen::Matrix<double,6,6> St;  //aleeper
   bool use_tip_frame_; // aleeper
-  Eigen::Matrix<double,6,1> Kfp, Kfd, force_selector, motion_selector;  // khawkins
+  Eigen::Matrix<double,6,1> Kfp, force_selector, motion_selector;  // khawkins
   double pose_command_filter_;
   double vel_saturation_trans_, vel_saturation_rot_;
   JointVec saturation_;
@@ -225,9 +225,6 @@ public:
     if (msg->gains.size() >= 6)
       for (size_t i = 0; i < 6; ++i)
         Kfp[i] = msg->force_gains[i];
-    if (msg->gains.size() == 12)
-      for (size_t i = 0; i < 6; ++i)
-        Kfd[i] = msg->force_gains[6+i];
 
     // Store selector matricies khawkins
     if (msg->force_selector.size() == 6)
@@ -349,21 +346,33 @@ public:
     tf::poseMsgToEigen(in_root.pose, x_desi_);
   }
 
-  void commandForce(const std_msgs::Float64MultiArray::ConstPtr &msg)
+  void commandForce(const geometry_msgs::WrenchStamped::ConstPtr &msg)
   {
-    if (msg->data.size() == 0) {
-      F_des_.setZero();
-      ROS_INFO("Forces commanded to zero");
+    F_des_ << msg->wrench.force.x, msg->wrench.force.y, msg->wrench.force.z, 
+              msg->wrench.torque.x, msg->wrench.torque.y, msg->wrench.torque.z;
+    if(msg->header.frame_id == root_name_)
+      return;
+
+    geometry_msgs::PoseStamped in_root;
+    in_root.pose.orientation.w = 1.0;
+    in_root.header.frame_id = msg->header.frame_id;
+
+    try {
+      tf_.waitForTransform(root_name_, msg->header.frame_id, msg->header.stamp, ros::Duration(0.1));
+      tf_.transformPose(root_name_, in_root, in_root);
     }
-    else if ((int)msg->data.size() != 6) {
-      ROS_ERROR("Force message had the wrong size: %d", (int)msg->data.size());
+    catch (const tf::TransformException &ex)
+    {
+      ROS_ERROR("Failed to transform: %s", ex.what());
       return;
     }
-    else
-    {
-      for (int j = 0; j < 6; ++j)
-        F_des_[j] = msg->data[j];
-    }
+    
+    Eigen::Affine3d t;
+    
+    tf::poseMsgToEigen(in_root.pose, t);
+
+    F_des_.head<3>() = t.linear() * F_des_.head<3>();
+    F_des_.tail<3>() = t.linear() * F_des_.tail<3>();
   }
 };
 
@@ -447,21 +456,18 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
   F_des_.setZero();
 
   // Force gains khawkins
-  double kfp_trans, kfd_trans, kfp_rot, kfd_rot;
-  if (!node_.getParam("force_gains/trans/p", kfp_trans) ||
-      !node_.getParam("force_gains/trans/d", kfd_trans))
+  double kfp_trans, kfp_rot;
+  if (!node_.getParam("force_gains/trans/p", kfp_trans))
   {
     ROS_ERROR("P and D translational gains not specified (namespace: %s)", node_.getNamespace().c_str());
     return false;
   }
-  if (!node_.getParam("force_gains/rot/p", kfp_rot) ||
-      !node_.getParam("force_gains/rot/d", kfd_rot))
+  if (!node_.getParam("force_gains/rot/p", kfp_rot))
   {
     ROS_ERROR("P and D rotational gains not specified (namespace: %s)", node_.getNamespace().c_str());
     return false;
   }
   Kfp << kfp_trans, kfp_trans, kfp_trans,  kfp_rot, kfp_rot, kfp_rot;
-  Kfd << kfd_trans, kfd_trans, kfd_trans,  kfd_rot, kfd_rot, kfd_rot;
   motion_selector = CartVec::Ones();
   force_selector = CartVec::Zero();
   force_filter_.configure(6, "force_filter", node_);
@@ -696,7 +702,7 @@ void HybridForceController::update()
   CartVec F_motion = xdot_desi;  // kphawkins / aleeper
   CartVec F_damp = Kd.array() * (St * xdot).array();
   CartVec F_cmd = motion_selector.array() * F_motion.array() + 
-                  force_selector.array() * F_des_.array() - F_damp.array();
+                  force_selector.array() * (St * F_des_).array() - F_damp.array();
   F_motion = F_cmd;
 
   ////////////////////// Process force/torque sensor khawkins ////////////////////
