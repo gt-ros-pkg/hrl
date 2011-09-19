@@ -584,7 +584,7 @@ class MotionGraphcut
         }
         const float mag_score = max(getFlowFGScore(magnitude), min_weight_);
         const float table_score = max(getTableScore(color_frame.at<cv::Vec3f>(r,c),
-            abs(table_heights.at<float>(r,c))), min_weight_);
+            fabs(table_heights.at<float>(r,c))), min_weight_);
         const float not_mag_score = max(1.0 - mag_score, min_weight_);
         const float bg_score = not_mag_score + table_score;
         g->add_tweights(r*C+c, mag_score, bg_score);
@@ -642,6 +642,9 @@ class MotionGraphcut
 #ifdef VISUALIZE_GRAPH_WEIGHTS
     cv::imshow("fg_weights", fg_weights);
     cv::imshow("bg_weights", bg_weights);
+    // double table_max=0;
+    // cv::minMaxLoc(table_weights, NULL, &table_max);
+    // table_weights /= table_max;
     cv::imshow("table_weights", table_weights);
 #endif // VISUALIZE_GRAPH_WEIGHTS
 #ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
@@ -845,12 +848,12 @@ class MotionGraphcut
   {
     const float dist_score = exp(-height_from_table/table_height_var_);
 #ifndef USE_TABLE_COLOR_ESTIMATE
-    return dist_score;
+    return min(1.0, max(dist_score, 0.0));
 #else // USE_TABLE_COLOR_ESTIMATE
     const float h_score = 1.0-fabs(cur_c[0] - table_stats_[0][0])/(
-        table_stats_[1][0] + 0.1);
+        table_stats_[1][0] + arm_color_var_add_);
     const float s_score = 1.0-fabs(cur_c[1] - table_stats_[0][1])/(
-        table_stats_[1][1] + 0.1);
+        table_stats_[1][1] + arm_color_var_add_);
     const float table_score = (h_score + s_score)/2.0+0.5*dist_score;
     return table_score;
 #endif // USE_TABLE_COLOR_ESTIMATE
@@ -1062,7 +1065,7 @@ class TabletopPushingPerceptionNode
     // Lucas Kanade params
     n_private_.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
     n_private_.param("mgc_flow_gain", mgc_.flow_gain_, 0.3);
-    n_private_.param("mgc_table_var", mgc_.table_height_var_, 20.0);
+    n_private_.param("mgc_table_var", mgc_.table_height_var_, 0.03);
     n_private_.param("mgc_arm_dist_var", mgc_.arm_dist_var_, 20.0);
     n_private_.param("mgc_arm_color_var_add", mgc_.arm_color_var_add_, 0.01);
     int win_size = 5;
@@ -1403,7 +1406,16 @@ class TabletopPushingPerceptionNode
     {
       for (unsigned int j = 0; j < hands_and_arms[i].size(); ++j)
       {
-        cv::circle(arms_img, hands_and_arms[i][j], 2, cv::Scalar(0,255,0));
+        cv::Scalar color;
+        if (i%2 == 0)
+        {
+          color = cv::Scalar(0,0,255);
+        }
+        else
+        {
+          color = cv::Scalar(0,255,0);
+        }
+        cv::circle(arms_img, hands_and_arms[i][j], 2, color);
       }
     }
     cv::imshow("arms", arms_img);
@@ -1424,11 +1436,9 @@ class TabletopPushingPerceptionNode
 #endif // DISPLAY_OPTICAL_FLOW
 
 #ifdef DISPLAY_GRAPHCUT
-    // cv::imshow("Cut", cut);
-    // cv::imshow("Cleaned Cut", cleaned_cut);
     cv::imshow("moving_regions", moving_regions_img);
     cv::imshow("arm_cut", arm_regions_img);
-    cv::imshow("not_arm_move", not_arm_move_color);
+    // cv::imshow("not_arm_move", not_arm_move_color);
 #endif // DISPLAY_GRAPHCUT
 
 #if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS || defined VISUALIZE_ARM_GRAPH_WEIGHTS || defined DISPLAY_ARM_CIRCLES
