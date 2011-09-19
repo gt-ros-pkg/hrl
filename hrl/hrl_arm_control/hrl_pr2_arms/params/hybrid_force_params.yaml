@@ -7,11 +7,11 @@ l_cart:
   pose_command_filter: 0.01
   cart_gains:
     trans:
-      p: 80.0
-      d: 15.0
+      p: 100.0
+      d: 10.0
     rot:
-      p: 8.0
-      d: 1.2
+      p: 10.0
+      d: 1.0
   joint_feedforward:
     l_shoulder_pan_joint: 3.33
     l_shoulder_lift_joint: 1.16
