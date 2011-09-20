@@ -748,8 +748,6 @@ class MotionGraphcut
 // #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
 //           continue;
 //         }
-//         else
-//         {
         const float me_score = max(getArmFGScore(color_frame, r, c, arm_stats,
                                                  hand_stats, arms, roi),
                                    min_weight_);
@@ -1590,9 +1588,22 @@ class TabletopPushingPerceptionNode
   {
     // Project all arm joints into image
     ArmModel arm_locs;
-    // Left arm
+
     // TODO: Add more hand joints
-    cv::Point l0 = projectJointOriginIntoImage(img_header, "l_gripper_tool_frame");
+    // Left hand
+    cv::Point ll0 = projectJointOriginIntoImage(img_header,
+                                                "l_gripper_l_finger_tip_link");
+    cv::Point ll1 = projectJointOriginIntoImage(img_header,
+                                                "l_gripper_l_finger_link");
+    cv::Point lr0 = projectJointOriginIntoImage(img_header,
+                                                "l_gripper_r_finger_tip_link");
+    cv::Point lr1 = projectJointOriginIntoImage(img_header,
+                                                "l_gripper_r_finger_link");
+    cv::Point lp = projectJointOriginIntoImage(img_header,
+                                               "l_gripper_palm_link");
+    // Left arm
+    cv::Point l0 = projectJointOriginIntoImage(img_header,
+                                               "l_gripper_tool_frame");
     cv::Point l1 = projectJointOriginIntoImage(img_header, "l_wrist_flex_link");
     cv::Point l2 = projectJointOriginIntoImage(img_header, "l_forearm_link");
     cv::Point l3 = projectJointOriginIntoImage(img_header, "l_upper_arm_link");
@@ -1601,12 +1612,31 @@ class TabletopPushingPerceptionNode
     arm_locs.l_chain.push_back(l2);
     arm_locs.l_chain.push_back(l3);
 
+    // Right hand
+    cv::Point rl0 = projectJointOriginIntoImage(img_header,
+                                                "r_gripper_l_finger_tip_link");
+    cv::Point rl1 = projectJointOriginIntoImage(img_header,
+                                                "r_gripper_l_finger_link");
+    cv::Point rr0 = projectJointOriginIntoImage(img_header,
+                                                "r_gripper_r_finger_tip_link");
+    cv::Point rr1 = projectJointOriginIntoImage(img_header,
+                                                "r_gripper_r_finger_link");
+    cv::Point rp = projectJointOriginIntoImage(img_header,
+                                               "r_gripper_palm_link");
+
     // Right arm
-    cv::Point r0 = projectJointOriginIntoImage(img_header, "r_gripper_tool_frame");
+    cv::Point r0 = projectJointOriginIntoImage(img_header,
+                                               "r_gripper_tool_frame");
     cv::Point r1 = projectJointOriginIntoImage(img_header, "r_wrist_flex_link");
     cv::Point r2 = projectJointOriginIntoImage(img_header, "r_forearm_link");
     cv::Point r3 = projectJointOriginIntoImage(img_header, "r_upper_arm_link");
-    arm_locs.r_chain.push_back(r0);
+    arm_locs.r_chain.push_back(rp);
+    arm_locs.r_chain.push_back(rl1);
+    arm_locs.r_chain.push_back(rl0);
+    arm_locs.r_chain.push_back(rr0);
+    arm_locs.r_chain.push_back(rr1);
+    arm_locs.r_chain.push_back(rp);
+    // arm_locs.r_chain.push_back(r0);
     arm_locs.r_chain.push_back(r1);
     arm_locs.r_chain.push_back(r2);
     arm_locs.r_chain.push_back(r3);
@@ -1616,17 +1646,49 @@ class TabletopPushingPerceptionNode
     max_x = 0;
     min_y = 10000;
     max_y = 0;
-    arm_locs.l_hand_on = getLineValues(l0, l1, arm_locs.hands, frame_size,
+    // Add left hand
+    arm_locs.l_hand_on = getLineValues(ll0, ll1, arm_locs.hands, frame_size,
                                        min_x, max_x, min_y, max_y);
+    arm_locs.l_hand_on = (getLineValues(ll1, lp, arm_locs.hands, frame_size,
+                                        min_x, max_x, min_y, max_y) ||
+                          arm_locs.l_hand_on);
+    arm_locs.l_hand_on = (getLineValues(lr0, lr1, arm_locs.hands, frame_size,
+                                        min_x, max_x, min_y, max_y) ||
+                          arm_locs.l_hand_on);
+    arm_locs.l_hand_on = (getLineValues(lr1, lp, arm_locs.hands, frame_size,
+                                        min_x, max_x, min_y, max_y) ||
+                          arm_locs.l_hand_on);
+    arm_locs.l_hand_on = (getLineValues(l0, l1, arm_locs.hands, frame_size,
+                                        min_x, max_x, min_y, max_y) ||
+                          arm_locs.l_hand_on);
+    // Add left arm
     arm_locs.l_arm_on = getLineValues(l1, l2, arm_locs.arms, frame_size,
                                       min_x, max_x, min_y, max_y);
     arm_locs.l_arm_on = (getLineValues(l2, l3, arm_locs.arms, frame_size,
                                        min_x, max_x, min_y, max_y) ||
                          arm_locs.l_arm_on);
-    arm_locs.r_hand_on = getLineValues(r0, r1, arm_locs.hands, frame_size,
-                                       min_x, max_x, min_y, max_y);
-    arm_locs.r_arm_on = getLineValues(r1, r2, arm_locs.arms, frame_size,
+    // Add right hand
+    arm_locs.r_hand_on = (getLineValues(rl0, rl1, arm_locs.hands, frame_size,
+                                       min_x, max_x, min_y, max_y) ||
+                         arm_locs.r_hand_on);
+    arm_locs.r_hand_on = (getLineValues(rl1, rp, arm_locs.hands, frame_size,
+                                        min_x, max_x, min_y, max_y) ||
+                         arm_locs.r_hand_on);
+    arm_locs.r_hand_on = (getLineValues(rr0, rr1, arm_locs.hands, frame_size,
+                                       min_x, max_x, min_y, max_y) ||
+                         arm_locs.r_hand_on);
+    arm_locs.r_hand_on = (getLineValues(rr1, rp, arm_locs.hands, frame_size,
+                                        min_x, max_x, min_y, max_y) ||
+                         arm_locs.r_hand_on);
+    arm_locs.r_hand_on = (getLineValues(r0, rp, arm_locs.hands, frame_size,
+                                        min_x, max_x, min_y, max_y) ||
+                         arm_locs.r_hand_on);
+    // Add right arm
+    arm_locs.r_arm_on = getLineValues(rp, r1, arm_locs.arms, frame_size,
                                       min_x, max_x, min_y, max_y);
+    arm_locs.r_arm_on = (getLineValues(r1, r2, arm_locs.arms, frame_size,
+                                       min_x, max_x, min_y, max_y) ||
+                         arm_locs.r_arm_on);
     arm_locs.r_arm_on = (getLineValues(r2, r3, arm_locs.arms, frame_size,
                                        min_x, max_x, min_y, max_y) ||
                          arm_locs.r_arm_on);
@@ -1654,10 +1716,14 @@ class TabletopPushingPerceptionNode
       joint_origin.point.y = -0.05;
     }
     // TODO: Check this better
-    // if (joint_name == "l_upper_arm_link")
-    // {
-    //   joint_origin.point.y = 0.05;
-    // }
+    if (joint_name == "l_upper_arm_link")
+    {
+      joint_origin.point.y = 0.05;
+    }
+    if (joint_name == "r_gripper_palm_link")
+    {
+      joint_origin.point.x = 0.05;
+    }
     return projectPointIntoImage(joint_origin, img_header.frame_id);
   }
 
