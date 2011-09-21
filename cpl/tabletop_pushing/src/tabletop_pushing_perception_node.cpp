@@ -201,10 +201,10 @@ class ArmModel
    *
    * @return The distance to the closest point on any in-image arm
    */
-  float distanceToArm(cv::Point2f p)
+  float distanceToArm(cv::Point2f p, cv::Mat& depth_frame)
   {
-    float l_dist = distanceToArm(p, l_chain);
-    float r_dist = distanceToArm(p, r_chain);
+    float l_dist = distanceToArm(p, l_chain, depth_frame);
+    float r_dist = distanceToArm(p, r_chain, depth_frame);
     if (l_dist < 0 && r_dist < 0) return -1.0f;
     if (l_dist < 0)
     {
@@ -217,7 +217,8 @@ class ArmModel
     return min(l_dist, r_dist);
   }
 
-  float distanceToArm(cv::Point2f p, std::vector<cv::Point>& chain)
+  float distanceToArm(cv::Point2f p, std::vector<cv::Point>& chain,
+                      cv::Mat& depth_frame)
   {
     if (chain.size() == 0)
     {
@@ -226,14 +227,15 @@ class ArmModel
     float min_dist = 640.0f*480.0f;
     for (unsigned int i = 1; i < chain.size(); ++i)
     {
-      float d_i = pointLineDistance(p, chain[i-1] , chain[i]);
+      float d_i = pointLineDistance(p, chain[i-1] , chain[i], depth_frame);
       if (d_i < min_dist)
         min_dist = d_i;
     }
     return min_dist;
   }
 
-  float pointLineDistance(cv::Point2f p, cv::Point2f l0, cv::Point2f l1)
+  float pointLineDistance(cv::Point2f p, cv::Point2f l0, cv::Point2f l1,
+                          cv::Mat& depth_frame)
   {
     if (l0.x == l1.x)
     {
@@ -248,42 +250,51 @@ class ArmModel
       {
         q.y = l_min_x;
       }
-      // TODO: Use 3D distnace instead of image distance
-      return hypot(p.x - q.x, p.y - q.y);
+      return pointPointDistance(p,q,depth_frame);
     }
-    cv::Point2f* x0;
-    cv::Point2f* x1;
+    cv::Point2f x0;
+    cv::Point2f x1;
 
     if (l0.x < l1.x)
     {
-      x0 = &l0;
-      x1 = &l1;
+      x0 = l0;
+      x1 = l1;
     }
     else
     {
-      x0 = &l1;
-      x1 = &l0;
+      x0 = l1;
+      x1 = l0;
     }
-    cv::Point2f v = *x1 - *x0;
-    cv::Point2f w = p - *x0;
+    cv::Point2f v = x1 - x0;
+    cv::Point2f w = p - x0;
 
     float c0 = w.x*v.x+w.y*v.y;
     float c1 = v.x*v.x+v.y*v.y;
     float b = c0/c1;
 
-    cv::Point2f q = *x0 + b*v;
+    cv::Point2f q = x0 + b*v;
 
-    // TODO: Use 3D distnace instead of image distance
-    float d = hypot(p.x - q.x, p.y - q.y);
-    if (c0 <= 0 || q.x < x0->x)
+    float d = pointPointDistance(p,q,depth_frame);
+    if (c0 <= 0 || q.x < x0.x)
     {
-      d = hypot(p.x - x0->x, p.y - x0->y);
+      d = pointPointDistance(p,x0,depth_frame);
     }
-    if (c1 <= 0 || q.x > x1->x)
+    if (c1 <= 0 || q.x > x1.x)
     {
-      d = hypot(p.x - x1->x, p.y - x1->y);
+      d = pointPointDistance(p,x1,depth_frame);
     }
     return d;
+  }
+
+  float pointPointDistance(cv::Point2f& p, cv::Point2f& q, cv::Mat& depth_frame)
+  {
+    // return hypot(p.x-q.x,p.y-q.y);
+    // TODO: Use 3D distance between the two points
+    const float d_x = p.x-q.x;
+    const float d_y = p.y-q.y;
+    const float d_d = (depth_frame.at<float>(p.y,p.x)-
+                       depth_frame.at<float>(q.y,q.x));
+    return sqrt(d_x*d_x + d_y*d_y + d_d*d_d);
   }
 
   std::vector<cv::Point> hands;
@@ -718,6 +729,7 @@ class MotionGraphcut
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::Mat fg_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     cv::Mat bg_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat dist_img(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
 #endif // VISUALIZE_GRAPH_WEIGHTS
 #ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
     cv::Mat left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
@@ -741,11 +753,17 @@ class MotionGraphcut
       for (int c = 0; c < C; ++c)
       {
         g->add_node();
-        const float me_score = max(getArmFGScore(color_frame, r, c, arm_stats,
-                                                 hand_stats, arms, roi),
-                                   min_weight_);
+#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
+        const float me_score = max(getArmFGScore(color_frame, depth_frame, r, c,
+                                                 arm_stats, hand_stats, arms,
+                                                 roi, dist_img), min_weight_);
+#else // VISUALIZE_ARM_GRAPH_WEIGHTS
+        const float me_score = max(getArmFGScore(color_frame, depth_frame, r, c,
+                                                 arm_stats, hand_stats, arms,
+                                                 roi), min_weight_);
+#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
         const float not_me_score = max(1.0 - me_score, min_weight_);
-        g->add_tweights(r*C+c, /*capacities*/ me_score, not_me_score);
+        g->add_tweights(r*C+c, me_score, not_me_score);
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
         fg_weights.at<float>(r,c) = me_score;
         bg_weights.at<float>(r,c) = not_me_score;
@@ -802,6 +820,7 @@ class MotionGraphcut
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::imshow("fg_weights_arm", fg_weights);
     cv::imshow("bg_weights_arm", bg_weights);
+    cv::imshow("arm_dist_scores", dist_img);
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
 #ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
     double up_max = 1.0;
@@ -849,14 +868,23 @@ class MotionGraphcut
     return table_score;
 #endif // USE_TABLE_COLOR_ESTIMATE
   }
-
-  float getArmFGScore(cv::Mat& color_frame, int r, int c,
+#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
+  float getArmFGScore(cv::Mat& color_frame, cv::Mat& depth_frame, int r, int c,
+                      std::vector<cv::Vec3f>& arm_stats,
+                      std::vector<cv::Vec3f>& hand_stats, ArmModel& arms,
+                      cv::Rect& roi, cv::Mat& dist_img)
+#else // VISUALIZE_ARM_GRAPH_WEIGHTS
+  float getArmFGScore(cv::Mat& color_frame, cv::Mat& depth_frame, int r, int c,
                       std::vector<cv::Vec3f>& arm_stats,
                       std::vector<cv::Vec3f>& hand_stats, ArmModel& arms,
                       cv::Rect& roi)
+#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
   {
     const float dist_score = exp(-arms.distanceToArm(
-        cv::Point2f(c+roi.x,r+roi.y))/arm_dist_var_);
+        cv::Point2f(c+roi.x,r+roi.y), depth_frame)/arm_dist_var_);
+#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
+    dist_img.at<float>(r,c) = dist_score;
+#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
     const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
         arm_stats[1][0] + arm_color_var_add_);
@@ -1600,13 +1628,13 @@ class TabletopPushingPerceptionNode
     cv::Point l1 = projectJointOriginIntoImage(img_header, "l_wrist_flex_link");
     cv::Point l2 = projectJointOriginIntoImage(img_header, "l_forearm_link");
     cv::Point l3 = projectJointOriginIntoImage(img_header, "l_upper_arm_link");
-    arm_locs.r_chain.push_back(lp);
-    arm_locs.r_chain.push_back(ll1);
-    arm_locs.r_chain.push_back(ll0);
-    arm_locs.r_chain.push_back(lr0);
-    arm_locs.r_chain.push_back(lr1);
+    arm_locs.l_chain.push_back(lp);
+    arm_locs.l_chain.push_back(ll1);
+    arm_locs.l_chain.push_back(ll0);
+    arm_locs.l_chain.push_back(lr0);
+    arm_locs.l_chain.push_back(lr1);
     // arm_locs.l_chain.push_back(l0);
-    arm_locs.r_chain.push_back(lp);
+    arm_locs.l_chain.push_back(lp);
     arm_locs.l_chain.push_back(l1);
     arm_locs.l_chain.push_back(l2);
     arm_locs.l_chain.push_back(l3);
@@ -1659,9 +1687,6 @@ class TabletopPushingPerceptionNode
     arm_locs.l_hand_on = (getLineValues(lr1, lp, arm_locs.hands, frame_size,
                                         min_x, max_x, min_y, max_y) ||
                           arm_locs.l_hand_on);
-    arm_locs.l_hand_on = (getLineValues(l0, lp, arm_locs.hands, frame_size,
-                                        min_x, max_x, min_y, max_y) ||
-                          arm_locs.l_hand_on);
     // Add left arm
     arm_locs.l_arm_on = getLineValues(lp, l1, arm_locs.arms, frame_size,
                                       min_x, max_x, min_y, max_y);
@@ -1682,9 +1707,6 @@ class TabletopPushingPerceptionNode
                                        min_x, max_x, min_y, max_y) ||
                          arm_locs.r_hand_on);
     arm_locs.r_hand_on = (getLineValues(rr1, rp, arm_locs.hands, frame_size,
-                                        min_x, max_x, min_y, max_y) ||
-                         arm_locs.r_hand_on);
-    arm_locs.r_hand_on = (getLineValues(r0, rp, arm_locs.hands, frame_size,
                                         min_x, max_x, min_y, max_y) ||
                          arm_locs.r_hand_on);
     // arm_locs.r_hand_on = getLineValues(r0, rp, arm_locs.hands, frame_size,
