@@ -36,12 +36,12 @@
     <param name="mgc_arm_dist_var" value="20.0" type="double"/>
 
     <param name="mgc_w_c_alpha" value="0.4" type="double"/>
-    <param name="mgc_w_c_beta" value="0.7" type="double"/>
+    <param name="mgc_w_c_beta" value="0.9" type="double"/>
     <param name="mgc_w_c_gamma" value="2.0" type="double"/>
 
     <param name="mgc_magnitude_thresh" value="1.0" type="double"/>
     <param name="mgc_arm_grow_radius" value="1" type="int"/>
-    <param name="mgc_arm_search_radius" value="40" type="int"/>
+    <param name="mgc_arm_search_radius" value="50" type="int"/>
     <param name="mgc_arm_color_var_add" value="0.1" type="double"/>
     <param name="lk_win_size" value="5" type="int"/>
     <param name="lk_num_levels" value="4" type="int"/>
