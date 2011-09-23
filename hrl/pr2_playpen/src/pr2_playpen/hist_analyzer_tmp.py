@@ -30,8 +30,80 @@ class HistAnalyzer:
         self.avg_noise = None
         self.online_img = None
         self.bridge = CvBridge()
-        self.calc_hist()
-        self.calc_noise()
+        size = cv.GetSize(background_noise[0])
+        self.IavgF = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.IdiffF = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.IprevF = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.IhiF = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.IlowF = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.Ilow1 = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.Ilow2 = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.Ilow3 = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.Ihi1 = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.Ihi2 = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.Ihi3 = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        cv.Zero(self.IavgF)
+        cv.Zero(self.IdiffF)
+        cv.Zero(self.IprevF)
+        cv.Zero(self.IhiF)
+        cv.Zero(self.IlowF)
+        self.Icount = 0.00001
+        self.Iscratch = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.Iscratch2 = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.Igray1 = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.Igray2 = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.Igray3 = cv.CreateImage(size, cv.IPL_DEPTH_32F, 1)
+        self.Imaskt = cv.CreateImage(size, cv.IPL_DEPTH_8U, 1)
+        cv.Zero(self.Iscratch)
+        cv.Zero(self.Iscratch2)
+        self.first = 1
+
+    def accumulateBackground(self, img):
+        cv.CvtScale(img, self.Iscratch, 1, 0)
+        if (not self.first):
+            cv.Acc(self.Iscratch, self.IavgF)
+            cv.AbsDiff(self.Iscratch, self.IprevF, self.Iscratch2)
+            cv.Acc(self.Iscratch2, self.IdiffF)
+            self.Icount += 1.0
+        self.first = 0
+        cv.Copy(self.Iscratch, self.IprevF)
+
+    def setHighThresh(self, thresh):
+        cv.ConvertScale(self.IdiffF, self.Iscratch, thresh)
+        cv.Add(self.Iscratch, self.IavgF, self.IhiF)
+        #cv.Split(self.IhiF, self.Ihi1, self.Ihi2, self.Ihi3, None)
+
+    def setLowThresh(self, thresh):
+        cv.ConvertScale(self.IdiffF, self.Iscratch, thresh)
+        cv.Sub(self.IavgF, self.Iscratch, self.IlowF)
+        #cv.Split(self.IlowF, self.Ilow1, self.Ilow2, self.Ilow3, None)
+
+
+    def createModelsfromStats(self):
+        cv.ConvertScale(self.IavgF, self.IavgF, float(1.0/self.Icount))
+        cv.ConvertScale(self.IdiffF, self.IdiffF, float(1.0/self.Icount))
+
+        cv.AddS(self.IdiffF, cv.Scalar(1.0, 1.0, 1.0), self.IdiffF)
+        self.setHighThresh(6.0)
+        self.setLowThresh(6.0)
+
+    def backgroundDiff(self, img, Imask):
+        cv.CvtScale(img, self.Iscratch, 1, 0)
+        #cv.Split(self.Iscratch, self.Igray1, self.Igray2, self.Igray3, None)
+        #cv.InRange(self.Igray1, self.Ilow1, self.Ihi1, Imask)
+        cv.InRange(self.Iscratch, self.IlowF, self.IhiF, Imask)
+
+        # cv.InRange(self.Igray2, self.Ilow2, self.Ihi2, self.Imaskt)
+        # cv.Or(Imask, self.Imaskt, Imask)
+
+        # cv.InRange(self.Igray3, self.Ilow3, self.Ihi3, self.Imaskt)
+        # cv.Or(Imask, self.Imaskt, Imask)
+
+        cv.SubRS(Imask, 255, Imask)
+        #cv.SaveImage('/home/mkillpack/Desktop/mask.png', Imask)
+        #cv.Erode(Imask, Imask)
+        return Imask
+
 
     def get_img(self, msg):
         try:
@@ -61,14 +133,14 @@ class HistAnalyzer:
             cv.Split(hsv, h_plane, s_plane, None, None)            
             planes = [h_plane, s_plane]#, s_plane, v_plane]
             cv.CalcHist([cv.GetImage(i) for i in planes], self.hist, True, self.mask)            
-        #cv.NormalizeHist(self.hist, 1.0)
+        cv.NormalizeHist(self.hist, 10000.0)
 
     def check_for_hist(self):
         if self.hist == None:
             print "YOU CAN'T CALCULATE NOISE WITHOUT HIST MODEL OF TABLETOP"
             exit
 
-    def calc_noise(self):
+    def calc_stats(self):
         cv.NamedWindow("noise", cv.CV_WINDOW_AUTOSIZE)
         cv.NamedWindow("img1_back", cv.CV_WINDOW_AUTOSIZE)
         cv.NamedWindow("img2_back", cv.CV_WINDOW_AUTOSIZE)
@@ -82,6 +154,8 @@ class HistAnalyzer:
             cv.ShowImage("noise", self.avg_noise)
             back_proj_img1, hist1 = self.back_project_hs(self.background_noise[i])
             back_proj_img2, hist2 = self.back_project_hs(self.background_noise[i+1])
+
+            self.accumulateBackground(back_proj_img1)
 
             cv.ShowImage("img1_back", back_proj_img1)
             cv.ShowImage("img2_back", back_proj_img2)
@@ -101,7 +175,8 @@ class HistAnalyzer:
             cv.ShowImage("diff_back", scratch2)
             cv.ShowImage("diff_noise_scratch", scratch)
 
-            cv.WaitKey(-1)
+            cv.WaitKey(33)
+        self.createModelsfromStats()
 
     def compare_imgs(self, img1, img2):
         back_proj_img, hist1 = self.back_project_hs(img1)
@@ -129,9 +204,10 @@ class HistAnalyzer:
         s_plane_img = cv.CreateImage(cv.GetSize(img), 8, 1)
         cv.Split(hsv, h_plane_img, s_plane_img, None, None)            
         cv.CalcBackProject([h_plane_img, s_plane_img], back_proj_img, self.hist)
-        cv.MorphologyEx(back_proj_img, back_proj_img, None, None, cv.CV_MOP_OPEN, 1)
-        cv.MorphologyEx(back_proj_img, back_proj_img, None, None, cv.CV_MOP_CLOSE, 2)    
-        cv.Threshold(back_proj_img, back_proj_img, 250, 255, cv.CV_THRESH_BINARY)
+        cv.Threshold(back_proj_img, back_proj_img, 200, 255, cv.CV_THRESH_BINARY)
+        #cv.MorphologyEx(back_proj_img, back_proj_img, None, None, cv.CV_MOP_OPEN, 1)
+        #cv.MorphologyEx(back_proj_img, back_proj_img, None, None, cv.CV_MOP_CLOSE, 2)    
+
 
         return back_proj_img, self.hist
 
@@ -163,8 +239,8 @@ if __name__ == '__main__':
         mask = cv.LoadImage(folder+'mask.png', 0)
 
         ha = HistAnalyzer(background_noise, mask)
-        #ha.calc_hist()
-        #ha.calc_noise()
+        ha.calc_hist()
+        ha.calc_stats()
 
         cv.ShowImage("Source", ha.avg_noise)
         cv.WaitKey(-1)
@@ -196,6 +272,14 @@ if __name__ == '__main__':
                     img = cv.LoadImageM(opt.batch_folder+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_before_pr2.png')
                     result = ha.compare_imgs(img, ha.background_noise[-1])
 
+                    Imask = cv.CreateImage(cv.GetSize(ha.background_noise[0]), cv.IPL_DEPTH_8U, 1)
+                    cv.Zero(Imask)
+                    cv.Zero(ha.Imaskt)
+                    Imask = ha.backgroundDiff(ha.back_project_hs(img), Imask)
+
+                    cv.ShowImage("final", Imask)
+                    cv.WaitKey(-1)
+
                     is_object = False
                     loc_sum = float(cv.Sum(result)[0])
                     if loc_sum < avg+5*std:
@@ -216,7 +300,7 @@ if __name__ == '__main__':
                         #print "here's the sum :", cv.Sum(result2)[0]
                         cv.ShowImage("Source", img)
                         cv.ShowImage("final", result2)
-                        cv.WaitKey(-1)
+                        cv.WaitKey(33)
 
                         loc_sum = float(cv.Sum(result2)[0])
                         if loc_sum < avg+5*std:
@@ -241,7 +325,7 @@ if __name__ == '__main__':
             file_h2.close()
             print "recalculating hist and noise..."
             #ha.calc_hist()
-            #ha.calc_noise()
+            #ha.calc_stats()
             print "done!"
 
         print "average error for objects present :", sum_val/n
