@@ -1,5 +1,6 @@
 #include <cmath>
 #include <ros/ros.h>
+#include <hrl_phri_2011/EllipsoidParams.h>
 
 using namespace std;
 
@@ -14,6 +15,12 @@ public:
         E_ = sqrt(fabs(SQ(A_) - SQ(B_))) / A_;
     }
 
+    Ellipsoid(const hrl_phri_2011::EllipsoidParams& ep) {
+        A_ = 1;
+        E_ = ep.E;
+        B_ = sqrt(1 - SQ(E_));
+    }
+
     void cartToEllipsoidal(double x, double y, double z, double& lat, double& lon, double& height);
     void ellipsoidalToCart(double lat, double lon, double height, double& x, double& y, double& z);
     void mollweideProjection(double lat, double lon, double& x, double& y);
@@ -21,20 +28,16 @@ public:
 
 void Ellipsoid::cartToEllipsoidal(double x, double y, double z, double& lat, double& lon, double& height) {
     lon = atan2(y, x);
-    if(lon < 0)
-        printf("*");
-    //lon += PI;
+    if(lon < 0) 
+        lon += 2 * PI;
     double a = A_ * E_;
     double p = sqrt(SQ(x) + SQ(y));
-    double d1 = sqrt(SQ(p + a) + SQ(z));
-    double d2 = sqrt(SQ(p - a) + SQ(z));
-    double cosh_height = (d1 + d2) / (2 * a);
+    lat = asin(sqrt((sqrt(SQ(SQ(z) - SQ(a) + SQ(p)) + SQ(2 * a * p)) / SQ(a) -
+                     SQ(z / a) - SQ(p / a) + 1) / 2));
+    if(z < 0)
+        lat = PI - fabs(lat);
+    double cosh_height = z / (a * cos(lat));
     height = log(cosh_height + sqrt(SQ(cosh_height) - 1));
-    lat = acos((d1 - d2) / (2 * a));
-    if(z > 0)
-        lat = fabs(lat);
-    else
-        lat = -fabs(lat);
 }
 
 void Ellipsoid::ellipsoidalToCart(double lat, double lon, double height, double& x, double& y, double& z) {

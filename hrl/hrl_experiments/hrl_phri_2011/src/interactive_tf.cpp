@@ -3,7 +3,8 @@
 #include <tf/transform_broadcaster.h>
 #include <geometry_msgs/Pose.h>
 
-class InteractiveTF {
+class InteractiveTF 
+{
 private:
     interactive_markers::InteractiveMarkerServer im_server_;
     tf::TransformBroadcaster tf_broad_;
@@ -23,11 +24,13 @@ InteractiveTF::InteractiveTF(const std::string& parent_frame,
     im_server_("transform_marker"),
     parent_frame_(parent_frame),
     child_frame_(child_frame),
-    rate_(rate) {
+    rate_(rate) 
+    {
     marker_pose_.orientation.w = 1;
 }
 
-void InteractiveTF::addTFMarker() {
+void InteractiveTF::addTFMarker() 
+{
     ros::NodeHandle nh;
     visualization_msgs::InteractiveMarker tf_marker;
     tf_marker.header.frame_id = "/base_link";
@@ -65,7 +68,8 @@ void InteractiveTF::addTFMarker() {
 }
 
 void InteractiveTF::processTFControl(
-        const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback) {
+        const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback) 
+        {
     ROS_INFO_STREAM(feedback->pose.position.x << " " << 
                     feedback->pose.position.y << " " << 
                     feedback->pose.position.z << " " << 
@@ -76,7 +80,8 @@ void InteractiveTF::processTFControl(
     marker_pose_ = feedback->pose;
 }
 
-void InteractiveTF::publishTF(const ros::TimerEvent& event) {
+void InteractiveTF::publishTF(const ros::TimerEvent& event) 
+{
     geometry_msgs::TransformStamped tf_msg;
     tf_msg.header.stamp = ros::Time::now();
     tf_msg.header.frame_id = parent_frame_;

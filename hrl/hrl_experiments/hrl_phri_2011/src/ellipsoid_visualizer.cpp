@@ -12,7 +12,8 @@
 typedef pcl::PointXYZRGB PRGB;
 typedef pcl::PointCloud<PRGB> PCRGB;
 
-void pubLoop(PCRGB &pc, const std::string& topic) {
+void pubLoop(PCRGB &pc, const std::string& topic) 
+{
     ros::NodeHandle nh;
     ros::Publisher pub_pc = nh.advertise<sensor_msgs::PointCloud2>(topic, 1);
     ros::Rate r(1);
@@ -25,13 +26,15 @@ void pubLoop(PCRGB &pc, const std::string& topic) {
     }
 }
 
-class EllispoidVisualizer {
+class EllispoidVisualizer 
+{
 private:
     ros::Publisher pub_pc;
     ros::Subscriber sub_e_params;
 
 public:
-    EllispoidVisualizer(const std::string& topic) {
+    EllispoidVisualizer(const std::string& topic) 
+    {
         ros::NodeHandle nh;
         pub_pc = nh.advertise<sensor_msgs::PointCloud2>(topic, 1);
         sub_e_params = nh.subscribe("/ellipsoid_params", 1, &EllispoidVisualizer::publishEllipoid, this);
@@ -40,7 +43,8 @@ public:
     void publishEllipoid(hrl_phri_2011::EllipsoidParams::ConstPtr e_params);
 };
 
-void EllispoidVisualizer::sampleEllipse(double A, double B, double height, PCRGB& pc) {
+void EllispoidVisualizer::sampleEllipse(double A, double B, double height, PCRGB& pc) 
+{
     Ellipsoid e(A, B);
     double lat = 0, lon = 0;
     int numlat = 8, numlon = 14;
@@ -73,12 +77,13 @@ void EllispoidVisualizer::sampleEllipse(double A, double B, double height, PCRGB
     }
 }
 
-void EllispoidVisualizer::publishEllipoid(hrl_phri_2011::EllipsoidParams::ConstPtr e_params) {
+void EllispoidVisualizer::publishEllipoid(hrl_phri_2011::EllipsoidParams::ConstPtr e_params) 
+{
     PCRGB pc;
     double A = 1;
-    double E = e_params->z_axis;
+    double E = e_params->E;
     double B = sqrt(1 - SQ(E));
-    sampleEllipse(A, B, e_params->y_axis, pc);
+    sampleEllipse(A, B, e_params->height, pc);
     pc.header.frame_id = "/ellipse_frame";
     pc.header.stamp = ros::Time::now();
     sensor_msgs::PointCloud2 pc_msg;

@@ -31,11 +31,12 @@ rosbuild_genmsg()
 
 rosbuild_add_boost_directories()
 
-#rosbuild_add_executable(pc_head_stitcher src/pc_head_stitcher.cpp)
+set(PROGRAMS pub_head ellipsoid_test interactive_tf interactive_ellipse ellipsoid_visualizer project_pc_ellipsoid data_extractor pc_head_stitcher)
 #rosbuild_add_executable(force_labeler src/force_labeler.cpp)
-rosbuild_add_executable(pub_head src/pub_head.cpp)
-rosbuild_add_executable(ellipsoid_test src/ellipsoid_test.cpp)
 #rosbuild_add_executable(visualize_head src/visualize_head.cpp)
-rosbuild_add_executable(interactive_tf src/interactive_tf.cpp)
-rosbuild_add_executable(interactive_ellipse src/interactive_ellipse.cpp)
-rosbuild_add_executable(ellipsoid_visualizer src/ellipsoid_visualizer.cpp)
+rosbuild_add_library(${PROJECT_NAME} src/pcl_basic.cpp src/pcl_features.cpp src/utils.cpp)
+
+foreach(program ${PROGRAMS})
+    rosbuild_add_executable(${program} src/${program}.cpp)
+    target_link_libraries(${program} ${PROJECT_NAME})
+endforeach(program)

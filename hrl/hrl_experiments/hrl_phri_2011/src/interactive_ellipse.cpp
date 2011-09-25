@@ -4,7 +4,8 @@
 #include <geometry_msgs/Pose.h>
 #include <hrl_phri_2011/EllipsoidParams.h>
 
-class InteractiveEllipse {
+class InteractiveEllipse 
+{
 private:
     interactive_markers::InteractiveMarkerServer im_server_;
     tf::TransformBroadcaster tf_broad_;
@@ -29,13 +30,15 @@ InteractiveEllipse::InteractiveEllipse(const std::string& parent_frame,
     im_server_("transform_marker"),
     parent_frame_(parent_frame),
     child_frame_(child_frame),
-    rate_(rate), z_axis_(0.0), y_axis_(0.0) {
+    rate_(rate), z_axis_(0.0), y_axis_(0.0) 
+    {
     ros::NodeHandle nh;
     marker_pose_.orientation.w = 1;
     params_pub = nh.advertise<hrl_phri_2011::EllipsoidParams>("/ellipsoid_params", 1);
 }
 
-void InteractiveEllipse::addTFMarker() {
+void InteractiveEllipse::addTFMarker() 
+{
     ros::NodeHandle nh;
     visualization_msgs::InteractiveMarker tf_marker;
     tf_marker.header.frame_id = parent_frame_;
@@ -73,7 +76,8 @@ void InteractiveEllipse::addTFMarker() {
 }
 
 void InteractiveEllipse::processTFControl(
-        const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback) {
+        const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback) 
+        {
     ROS_INFO_STREAM(feedback->pose.position.x << " " << 
                     feedback->pose.position.y << " " << 
                     feedback->pose.position.z << " " << 
@@ -84,7 +88,8 @@ void InteractiveEllipse::processTFControl(
     marker_pose_ = feedback->pose;
 }
 
-void InteractiveEllipse::addEllipseMarker() {
+void InteractiveEllipse::addEllipseMarker() 
+{
     visualization_msgs::InteractiveMarker tf_marker;
     tf_marker.header.frame_id = child_frame_;
     tf_marker.name = "ellipse_marker_y";
@@ -111,16 +116,19 @@ void InteractiveEllipse::addEllipseMarker() {
 }
 
 void InteractiveEllipse::processEllipseControlY(
-        const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback) {
+        const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback) 
+        {
     z_axis_ = feedback->pose.position.z;
 }
 
 void InteractiveEllipse::processEllipseControlZ(
-        const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback) {
+        const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback) 
+        {
     y_axis_ = feedback->pose.position.y;
 }
 
-void InteractiveEllipse::publishTF(const ros::TimerEvent& event) {
+void InteractiveEllipse::publishTF(const ros::TimerEvent& event) 
+{
     geometry_msgs::TransformStamped tf_msg;
     tf_msg.header.stamp = ros::Time::now();
     tf_msg.header.frame_id = parent_frame_;
@@ -135,8 +143,8 @@ void InteractiveEllipse::publishTF(const ros::TimerEvent& event) {
     tf_broad_.sendTransform(tf_msg);
     hrl_phri_2011::EllipsoidParams e_params;
     e_params.e_frame = tf_msg;
-    e_params.y_axis = y_axis_;
-    e_params.z_axis = z_axis_;
+    e_params.height = y_axis_;
+    e_params.E = z_axis_;
     params_pub.publish(e_params);
 }
 

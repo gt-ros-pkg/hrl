@@ -1,4 +1,8 @@
-#include <hrl_phri_2011/pc_utils.h>
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
+#include <rosbag/message_instance.h>
+
+#include <hrl_phri_2011/pcl_basic.h>
 
 int main(int argc, char **argv)
 {

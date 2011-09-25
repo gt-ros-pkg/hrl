@@ -11,7 +11,8 @@
 typedef pcl::PointXYZRGB PRGB;
 typedef pcl::PointCloud<PRGB> PCRGB;
 
-void pubLoop(PCRGB &pc, const std::string& topic) {
+void pubLoop(PCRGB &pc, const std::string& topic) 
+{
     ros::NodeHandle nh;
     ros::Publisher pub_pc = nh.advertise<sensor_msgs::PointCloud2>(topic, 1);
     ros::Rate r(1);
@@ -24,7 +25,8 @@ void pubLoop(PCRGB &pc, const std::string& topic) {
     }
 }
 
-void sampleEllipse(Ellipsoid& e, double height) {
+void sampleEllipse(Ellipsoid& e, double height) 
+{
     PCRGB pc;
     double lat = 0, lon = 0;
     int numlat = 8, numlon = 14;
@@ -68,7 +70,7 @@ int main(int argc, char **argv)
     double lat, lon, height, x, y, z, newx, newy, newz, newlat, newlon, newheight;
     boost::mt19937 rand_gen;
     rand_gen.seed(static_cast<uint32_t>(std::time(0)));
-    boost::uniform_real<> rand_lat_dist(-PI/2, PI/2);
+    boost::uniform_real<> rand_lat_dist(0, PI);
     boost::uniform_real<> rand_lon_dist(0, 2 * PI);
     boost::uniform_real<> rand_height_dist(0, 4);
     boost::uniform_real<> rand_x_dist(-1, 1);
@@ -83,6 +85,15 @@ int main(int argc, char **argv)
         lat = rand_lat(); lon = rand_lon(); height = rand_height();
         e.ellipsoidalToCart(lat, lon, height, x, y, z);
         e.cartToEllipsoidal(x, y, z, newlat, newlon, newheight);
+        if(x > 0 && y > 0)
+            printf("1:");
+        if(x < 0 && y > 0)
+            printf("2:");
+        if(x < 0 && y < 0)
+            printf("3:");
+        if(x > 0 && y < 0)
+            printf("4:");
+        //printf("%f %f %f\n", lon-newlon, lon, newlon);
         printf("%f %f %f\n", lat-newlat, lon-newlon, height-newheight);
         //cout << x << ", " << y << ", " << z << endl;
         e.mollweideProjection(lat, lon, x, y);
