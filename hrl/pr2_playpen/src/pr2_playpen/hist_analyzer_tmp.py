@@ -84,10 +84,11 @@ class HistAnalyzer:
         cv.ConvertScale(self.IdiffF, self.IdiffF, float(1.0/self.Icount))
 
         cv.AddS(self.IdiffF, cv.Scalar(1.0, 1.0, 1.0), self.IdiffF)
-        self.setHighThresh(6.0)
-        self.setLowThresh(6.0)
+        self.setHighThresh(200.0)
+        self.setLowThresh(200.0)
 
     def backgroundDiff(self, img, Imask):
+        print "got into backgroundDiff"
         cv.CvtScale(img, self.Iscratch, 1, 0)
         #cv.Split(self.Iscratch, self.Igray1, self.Igray2, self.Igray3, None)
         #cv.InRange(self.Igray1, self.Ilow1, self.Ihi1, Imask)
@@ -133,7 +134,7 @@ class HistAnalyzer:
             cv.Split(hsv, h_plane, s_plane, None, None)            
             planes = [h_plane, s_plane]#, s_plane, v_plane]
             cv.CalcHist([cv.GetImage(i) for i in planes], self.hist, True, self.mask)            
-        cv.NormalizeHist(self.hist, 10000.0)
+        #cv.NormalizeHist(self.hist, 10000.0)
 
     def check_for_hist(self):
         if self.hist == None:
@@ -144,8 +145,6 @@ class HistAnalyzer:
         cv.NamedWindow("noise", cv.CV_WINDOW_AUTOSIZE)
         cv.NamedWindow("img1_back", cv.CV_WINDOW_AUTOSIZE)
         cv.NamedWindow("img2_back", cv.CV_WINDOW_AUTOSIZE)
-        cv.NamedWindow("diff_back", cv.CV_WINDOW_AUTOSIZE)
-        cv.NamedWindow("diff_noise_scratch", cv.CV_WINDOW_AUTOSIZE)
         self.check_for_hist()
         self.avg_noise = cv.CreateImage(cv.GetSize(self.background_noise[0]), 8, 1)
         cv.Zero(self.avg_noise)
@@ -175,8 +174,16 @@ class HistAnalyzer:
             cv.ShowImage("diff_back", scratch2)
             cv.ShowImage("diff_noise_scratch", scratch)
 
-            cv.WaitKey(33)
+            cv.WaitKey(-1)
         self.createModelsfromStats()
+        print self.Icount
+        cv.NamedWindow("Ilow", cv.CV_WINDOW_AUTOSIZE)
+        cv.NamedWindow("Ihi", cv.CV_WINDOW_AUTOSIZE)
+        cv.NamedWindow("IavgF", cv.CV_WINDOW_AUTOSIZE)
+
+        cv.ShowImage("Ihi", self.IhiF)
+        cv.ShowImage("Ilow", self.IlowF)
+        cv.ShowImage("IavgF", self.IavgF)
 
     def compare_imgs(self, img1, img2):
         back_proj_img, hist1 = self.back_project_hs(img1)
@@ -204,12 +211,11 @@ class HistAnalyzer:
         s_plane_img = cv.CreateImage(cv.GetSize(img), 8, 1)
         cv.Split(hsv, h_plane_img, s_plane_img, None, None)            
         cv.CalcBackProject([h_plane_img, s_plane_img], back_proj_img, self.hist)
-        cv.Threshold(back_proj_img, back_proj_img, 200, 255, cv.CV_THRESH_BINARY)
+        #cv.Threshold(back_proj_img, back_proj_img, 200, 255, cv.CV_THRESH_BINARY)
         #cv.MorphologyEx(back_proj_img, back_proj_img, None, None, cv.CV_MOP_OPEN, 1)
         #cv.MorphologyEx(back_proj_img, back_proj_img, None, None, cv.CV_MOP_CLOSE, 2)    
-
-
         return back_proj_img, self.hist
+
 
 if __name__ == '__main__':
 
@@ -275,7 +281,11 @@ if __name__ == '__main__':
                     Imask = cv.CreateImage(cv.GetSize(ha.background_noise[0]), cv.IPL_DEPTH_8U, 1)
                     cv.Zero(Imask)
                     cv.Zero(ha.Imaskt)
-                    Imask = ha.backgroundDiff(ha.back_project_hs(img), Imask)
+                    back_img, hist = ha.back_project_hs(img)
+                    Imask = ha.backgroundDiff(back_img, Imask)
+
+                    cv.MorphologyEx(Imask, Imask, None, None, cv.CV_MOP_OPEN, 1)
+                    cv.MorphologyEx(Imask, Imask, None, None, cv.CV_MOP_CLOSE, 2)    
 
                     cv.ShowImage("final", Imask)
                     cv.WaitKey(-1)
@@ -300,7 +310,13 @@ if __name__ == '__main__':
                         #print "here's the sum :", cv.Sum(result2)[0]
                         cv.ShowImage("Source", img)
                         cv.ShowImage("final", result2)
-                        cv.WaitKey(33)
+                        Imask = cv.CreateImage(cv.GetSize(ha.background_noise[0]), cv.IPL_DEPTH_8U, 1)
+                        cv.Zero(Imask)
+                        cv.Zero(ha.Imaskt)
+                        Imask = ha.backgroundDiff(ha.back_project_hs(img), Imask)
+
+                        cv.ShowImage("final", Imask)
+                        cv.WaitKey(-1)
 
                         loc_sum = float(cv.Sum(result2)[0])
                         if loc_sum < avg+5*std:
