@@ -11,7 +11,7 @@ int main(int argc, char **argv)
     // Load bag
     rosbag::Bag bag;
     bag.open(std::string(argv[1]), rosbag::bagmode::Read);
-    rosbag::View view(bag, rosbag::TopicQuery("/stitched_head"));
+    rosbag::View view(bag);
 
     PCRGB::Ptr pc_head(new PCRGB());
     BOOST_FOREACH(rosbag::MessageInstance const m, view) {
@@ -19,14 +19,18 @@ int main(int argc, char **argv)
         pcl::fromROSMsg(*pc2, *pc_head);
         break;
     }
-    if(argc >= 4)
-        pc_head->header.frame_id = argv[3];
     if(argc == 2)
         pubLoop(*pc_head, "/stitched_head");
     else if(argc == 3)
-        pubLoop(*pc_head, argv[2]);
-    else if(argc == 5)
-        pubLoop(*pc_head, argv[2], atof(argv[4]));
+        pubLoop(*pc_head, std::string(argv[2]));
+    else if(argc == 4) {
+        pc_head->header.frame_id = std::string(argv[3]);
+        pubLoop(*pc_head, std::string(argv[2]));
+    }
+    else if(argc == 5) {
+        pc_head->header.frame_id = std::string(argv[3]);
+        pubLoop(*pc_head, std::string(argv[2]), atof(argv[4]));
+    }
 
     return 0;
 }
