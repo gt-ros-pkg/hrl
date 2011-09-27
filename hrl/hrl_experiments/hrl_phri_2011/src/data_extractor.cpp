@@ -8,6 +8,7 @@
 #include <hrl_phri_2011/hsl_rgb_conversions.h>
 #include <hrl_phri_2011/ForceProcessed.h>
 #include <hrl_phri_2011/pcl_features.h>
+#include <hrl_phri_2011/utils.h>
 
 typedef Eigen::Matrix<double, 6, 1> CartVec;
 
@@ -22,10 +23,12 @@ void wrenchMsgToEigen(const geometry_msgs::Wrench& wrench_msg, CartVec& wrench_e
 }
 
 #define NORM(x, y, z) ( std::sqrt( (x) * (x) + (y) * (y) + (z) * (z) ) )
+#ifndef SQ
 #define SQ(x) ( (x) * (x) )
+#endif
 #define NORMAL(x, sig) ( std::exp( - (x) * (x) / (2.0 * (sig) * (sig))) / std::sqrt(2.0 * 3.14159 * (sig) * (sig)))
 
-class ForceVisualizer 
+class DataExtractor 
 {
 private:
     ros::Subscriber wrench_sub;
@@ -42,7 +45,8 @@ private:
     int last_start_ind, contact_period;
     string region, user;
     vector<hrl_phri_2011::ForceProcessed> fp_list;
-    rosbag::Bag processed_bag;
+    bool compute_norms;
+    tf::Transform registration_tf;
 
     void wrenchCallback(geometry_msgs::WrenchStamped::ConstPtr wrench_stamped) 
     {
@@ -72,13 +76,14 @@ private:
         }
         tf::StampedTransform tool_loc_tf;
         try {
-            tf_list.waitForTransform("/head_center", "/wipe_finger", wrench_stamped->header.stamp, ros::Duration(3.0));
+            tf_list.waitForTransform("/head_center", "/wipe_finger", wrench_stamped->header.stamp, ros::Duration(0.1));
             tf_list.lookupTransform("/head_center", "/wipe_finger", wrench_stamped->header.stamp, tool_loc_tf);
         }
         catch (tf::TransformException ex) {
             ROS_ERROR("%s", ex.what());
             return;
         }
+        tool_loc_tf.mult(registration_tf, tool_loc_tf);
         btVector3 tool_loc = tool_loc_tf.getOrigin();
         PRGB query_pt;
         query_pt.x = tool_loc.x(); query_pt.y = tool_loc.y(); query_pt.z = tool_loc.z(); 
@@ -94,14 +99,16 @@ private:
         fp.header.frame_id = "/head_center";
         fp.wrench = wrench_stamped->wrench;
         fp.pc_ind = closest_ind;
-        fp.pc_normal.x = normals->points[closest_ind].normal[0];
-        fp.pc_normal.y = normals->points[closest_ind].normal[1];
-        fp.pc_normal.z = normals->points[closest_ind].normal[2];
         fp.force_magnitude = force_mag;
-        fp.force_normal = fp.pc_normal.x * fp.wrench.force.x + 
-                          fp.pc_normal.y * fp.wrench.force.y + 
-                          fp.pc_normal.z * fp.wrench.force.z;
-        fp.force_tangental = sqrt(SQ(fp.force_magnitude) - SQ(fp.force_normal));
+        if(compute_norms) {
+            fp.pc_normal.x = normals->points[closest_ind].normal[0];
+            fp.pc_normal.y = normals->points[closest_ind].normal[1];
+            fp.pc_normal.z = normals->points[closest_ind].normal[2];
+            fp.force_normal = fp.pc_normal.x * fp.wrench.force.x + 
+                              fp.pc_normal.y * fp.wrench.force.y + 
+                              fp.pc_normal.z * fp.wrench.force.z;
+            fp.force_tangental = sqrt(SQ(fp.force_magnitude) - SQ(fp.force_normal));
+        }
         fp.region = region;
         fp.user = user;
         fp.contact_period = contact_period;
@@ -115,10 +122,10 @@ private:
 public:
     void startVisualization() 
     {
-        wrench_sub = nh.subscribe("/tool_netft_zeroer/wrench_zeroed", 100, &ForceVisualizer::wrenchCallback, this);
+        wrench_sub = nh.subscribe("/tool_netft_zeroer/wrench_zeroed", 100, &DataExtractor::wrenchCallback, this);
     }
 
-    ForceVisualizer(PCRGB::Ptr& pch, const string& pbag_name) : 
+    DataExtractor(PCRGB::Ptr& pch, bool compute_normals, const geometry_msgs::Transform& registration) : 
         pc_head(pch),
         kd_tree(new pcl::KdTreeFLANN<PRGB> ()),
         normals(new PCNormals()),
@@ -129,19 +136,22 @@ public:
         force_high_sum(0.0),
         start_time(-1),
         last_start_ind(-1),
-        contact_period(0)
+        contact_period(0),
+        compute_norms(compute_normals)
     {
         kd_tree->setInputCloud(pc_head);
-        computeNormals(pc_head, kd_tree, normals);
+        if(compute_norms)
+            computeNormals(pc_head, kd_tree, normals);
         pc_head->header.frame_id = "/head_center";
-        processed_bag.open(pbag_name, rosbag::bagmode::Write);
         ros::param::param<double>("/force_contact_thresh", force_contact_thresh, 0.2);
         ros::param::param<double>("/time_contact_thresh", force_contact_thresh, 0.2);
-        ros::Duration(1.0).sleep();
+        tf::transformMsgToTF(registration, registration_tf);
     }
 
-    void writeBag() 
+    void writeBag(const string& pbag_name) 
     {
+        rosbag::Bag processed_bag;
+        processed_bag.open(pbag_name, rosbag::bagmode::Write);
         BOOST_FOREACH(const hrl_phri_2011::ForceProcessed& fp, fp_list) {
             processed_bag.write("/force_processed", fp.header.stamp, fp);
         }
@@ -153,6 +163,11 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "data_extractor");
 
+    if(argc < 3 || argc > 5) {
+        printf("Usage: data_extractor head_pc forces_bag_output [compute_normals=1] [registration_bag]\n");
+        return 1;
+    }
+
     rosbag::Bag pc_bag, force_bag;
     PCRGB::Ptr pc_head(new PCRGB);
     // Load PC bag
@@ -163,9 +178,21 @@ int main(int argc, char **argv)
         pcl::fromROSMsg(*pc2, *pc_head);
     }
 
-    ForceVisualizer fv(pc_head, argv[2]);
-    fv.startVisualization();
+    bool compute_normals = true;
+    if(argc >= 4)
+        compute_normals = atoi(argv[3]);
+    geometry_msgs::Transform tf_msg;
+    tf_msg.rotation.w = 1.0;
+    if(argc == 5) {
+        vector<geometry_msgs::TransformStamped::Ptr> tf_msgs;
+        readBagTopic<geometry_msgs::TransformStamped>(argv[4], tf_msgs, "/itf_transform");
+        tf_msg = tf_msgs[0]->transform;
+    }
+
+    DataExtractor de(pc_head, compute_normals, tf_msg);
+    de.startVisualization();
     ROS_INFO("Ready for collection");
     ros::spin();
-    fv.writeBag();
+    de.writeBag(argv[2]);
+    ROS_INFO("Bag written to %s", argv[2]);
 }

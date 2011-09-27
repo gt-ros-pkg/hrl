@@ -8,6 +8,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <hrl_phri_2011/EllipsoidParams.h>
+#include <hrl_phri_2011/utils.h>
 
 typedef pcl::PointXYZRGB PRGB;
 typedef pcl::PointCloud<PRGB> PCRGB;
@@ -31,15 +32,19 @@ class EllispoidVisualizer
 private:
     ros::Publisher pub_pc;
     ros::Subscriber sub_e_params;
+    PCRGB head_pc;
+    bool is_head;
 
 public:
-    EllispoidVisualizer(const std::string& topic) 
+    EllispoidVisualizer(const PCRGB& pc_head, const std::string& topic, bool use_head=true) : 
+        head_pc(pc_head), is_head(use_head)
     {
         ros::NodeHandle nh;
         pub_pc = nh.advertise<sensor_msgs::PointCloud2>(topic, 1);
         sub_e_params = nh.subscribe("/ellipsoid_params", 1, &EllispoidVisualizer::publishEllipoid, this);
     }
     void sampleEllipse(double A, double B, double height, PCRGB& pc);
+    void projectEllipsoid(double A, double B, double height, const PCRGB& pc, PCRGB& pc_ell);
     void publishEllipoid(hrl_phri_2011::EllipsoidParams::ConstPtr e_params);
 };
 
@@ -77,24 +82,48 @@ void EllispoidVisualizer::sampleEllipse(double A, double B, double height, PCRGB
     }
 }
 
+void EllispoidVisualizer::projectEllipsoid(double A, double B, double height, const PCRGB& pc, PCRGB& pc_ell) 
+{
+    Ellipsoid e(A, B);
+    double lat, lon, hei, x, y, z; //, h, s, l;
+    BOOST_FOREACH(PRGB const pt, pc.points) {
+        PRGB npt;
+        //extractHSL(pt.rgb, h, s, l);
+        e.cartToEllipsoidal(pt.x, pt.y, pt.z, lat, lon, hei);
+        e.ellipsoidalToCart(lat, lon, height, x, y, z);
+        npt.x = x; npt.y = y; npt.z = z;
+        npt.rgb = pt.rgb;
+        //writeHSL(0, 0, l, npt.rgb);
+        pc_ell.points.push_back(npt);
+    }
+    pc_ell.header.frame_id = "base_link";
+    //pubLoop(pc_ell, "/proj_head");
+}
+
 void EllispoidVisualizer::publishEllipoid(hrl_phri_2011::EllipsoidParams::ConstPtr e_params) 
 {
-    PCRGB pc;
+    PCRGB pc, proj_head;
     double A = 1;
     double E = e_params->E;
     double B = sqrt(1 - SQ(E));
-    sampleEllipse(A, B, e_params->height, pc);
     pc.header.frame_id = "/ellipse_frame";
+    sampleEllipse(A, B, e_params->height, pc);
+    if(is_head) {
+        projectEllipsoid(A, B, e_params->height, head_pc, proj_head);
+        proj_head.header.frame_id = "/ellipse_frame";
+        pc += proj_head;
+    }
     pc.header.stamp = ros::Time::now();
-    sensor_msgs::PointCloud2 pc_msg;
-    pcl::toROSMsg(pc, pc_msg);
-    pub_pc.publish(pc_msg);
+    pub_pc.publish(pc);
 }
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "test");
-    EllispoidVisualizer ev("/ellipsoid");
+    ros::init(argc, argv, "ellipsoid_visualizer");
+    PCRGB pc_head;
+    Ellipsoid ell;
+    loadRegisteredHead(argv[1], argv[2], pc_head, ell);
+    EllispoidVisualizer ev(pc_head, "/ellipsoid", true);
     ros::spin();
     /*
     ros::NodeHandle nh;

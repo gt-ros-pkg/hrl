@@ -44,15 +44,16 @@ void findOverlaps(const PCRGB::Ptr& target_pc, const PCRGB::Ptr& source_pc,
 void findTransformFromOverlapICP(const PCRGB::Ptr& target_pc, const PCRGB::Ptr& source_pc,
                                  Eigen::Affine3d& tf_mat) 
                                  {
-    int icp_iters;
+    int icp_iters, use_rgb;
     double color_weight, icp_radius;
     ros::param::param<int>("~icp_iters", icp_iters, 10);
     ros::param::param<double>("~color_weight", color_weight, 0.0005);
     ros::param::param<double>("~icp_radius", icp_radius, 0.05);
+    ros::param::param<int>("~use_rgb", use_rgb, 1);
     ROS_INFO("PS %d %f %f", icp_iters, color_weight, icp_radius);
 
     pcl::IndicesPtr target_inds_list(new vector<int>()), source_inds_list(new vector<int>());
-    findOverlaps(target_pc, source_pc, target_inds_list, source_inds_list, icp_radius, true, color_weight);
+    findOverlaps(target_pc, source_pc, target_inds_list, source_inds_list, icp_radius, use_rgb, color_weight);
     ROS_INFO("INDS %d %d", target_inds_list->size(), source_inds_list->size());
     PCRGB::Ptr target_pc_ol(new PCRGB());
     PCRGB::Ptr source_pc_ol(new PCRGB());
@@ -94,6 +95,8 @@ void erodePC(const PCRGB::Ptr& target_pc, const vector<int>& inds, PCRGB::Ptr& e
 
 void extractPCs(const vector<PCC::Ptr> & captures, vector<PCRGB::Ptr>& pc_list) 
 {
+    double z_cutoff;
+    ros::param::param<double>("~z_cutoff", z_cutoff, -0.2);
     BOOST_FOREACH(PCC::Ptr pcc, captures) {
         map_str_t3d cap_poses;
         for(uint32_t i=0;i<pcc->frame_names.size();i++) 
@@ -110,7 +113,7 @@ void extractPCs(const vector<PCC::Ptr> & captures, vector<PCRGB::Ptr>& pc_list)
             const PRGB p = pc_trans.points[i];
             PRGB new_p;
             if(p.x == p.x && p.y == p.y && p.z == p.z &&
-               p.x > -0.22 && p.x < 0.22 && p.y > -0.15 && p.y < 0.15 && p.z > -0.2 && p.z < 0.25) {
+               p.x > -0.22 && p.x < 0.22 && p.y > -0.15 && p.y < 0.15 && p.z > z_cutoff && p.z < 0.25) {
                 new_p.x = p.x; new_p.y = p.y; new_p.z = p.z; new_p.rgb = p.rgb;
                 inds.push_back(i);
                 pc_filtered.points.push_back(new_p);

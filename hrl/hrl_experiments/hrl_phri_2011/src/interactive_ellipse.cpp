@@ -3,6 +3,7 @@
 #include <tf/transform_broadcaster.h>
 #include <geometry_msgs/Pose.h>
 #include <hrl_phri_2011/EllipsoidParams.h>
+#include <hrl_phri_2011/utils.h>
 
 class InteractiveEllipse 
 {
@@ -14,7 +15,9 @@ private:
     double rate_;
     ros::Timer tf_timer_;
     geometry_msgs::Pose marker_pose_;
-    double z_axis_, y_axis_;
+    double z_axis_, y_axis_, old_z_axis_, old_y_axis_;
+    geometry_msgs::Transform old_marker_tf_;
+    geometry_msgs::TransformStamped tf_msg_;
 public:
     InteractiveEllipse(const std::string& parent_frame, const std::string& child_frame, double rate = 100);
     void processTFControl(const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback);
@@ -23,6 +26,7 @@ public:
     void addTFMarker();
     void addEllipseMarker();
     void publishTF(const ros::TimerEvent& event);
+    void loadEllipsoidParams(const hrl_phri_2011::EllipsoidParams& e_params);
 };
 
 InteractiveEllipse::InteractiveEllipse(const std::string& parent_frame, 
@@ -78,13 +82,13 @@ void InteractiveEllipse::addTFMarker()
 void InteractiveEllipse::processTFControl(
         const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback) 
         {
-    ROS_INFO_STREAM(feedback->pose.position.x << " " << 
-                    feedback->pose.position.y << " " << 
-                    feedback->pose.position.z << " " << 
-                    feedback->pose.orientation.x << " " << 
-                    feedback->pose.orientation.y << " " << 
-                    feedback->pose.orientation.z << " " << 
-                    feedback->pose.orientation.w << " ");
+    ROS_INFO_STREAM(tf_msg_.transform.translation.x << " " << 
+                    tf_msg_.transform.translation.y << " " <<
+                    tf_msg_.transform.translation.z << " " <<
+                    tf_msg_.transform.rotation.x << " " <<
+                    tf_msg_.transform.rotation.y << " " <<
+                    tf_msg_.transform.rotation.z << " " <<
+                    tf_msg_.transform.rotation.w);
     marker_pose_ = feedback->pose;
 }
 
@@ -129,34 +133,55 @@ void InteractiveEllipse::processEllipseControlZ(
 
 void InteractiveEllipse::publishTF(const ros::TimerEvent& event) 
 {
-    geometry_msgs::TransformStamped tf_msg;
-    tf_msg.header.stamp = ros::Time::now();
-    tf_msg.header.frame_id = parent_frame_;
-    tf_msg.child_frame_id = child_frame_;
-    tf_msg.transform.translation.x = marker_pose_.position.x;
-    tf_msg.transform.translation.y = marker_pose_.position.y;
-    tf_msg.transform.translation.z = marker_pose_.position.z;
-    tf_msg.transform.rotation.x = marker_pose_.orientation.x;
-    tf_msg.transform.rotation.y = marker_pose_.orientation.y;
-    tf_msg.transform.rotation.z = marker_pose_.orientation.z;
-    tf_msg.transform.rotation.w = marker_pose_.orientation.w;
-    tf_broad_.sendTransform(tf_msg);
+    tf_msg_.header.stamp = ros::Time::now();
+    tf_msg_.header.frame_id = parent_frame_;
+    tf_msg_.child_frame_id = child_frame_;
+    tf_msg_.transform.translation.x = marker_pose_.position.x;
+    tf_msg_.transform.translation.y = marker_pose_.position.y;
+    tf_msg_.transform.translation.z = marker_pose_.position.z;
+    tf_msg_.transform.rotation.x = marker_pose_.orientation.x;
+    tf_msg_.transform.rotation.y = marker_pose_.orientation.y;
+    tf_msg_.transform.rotation.z = marker_pose_.orientation.z;
+    tf_msg_.transform.rotation.w = marker_pose_.orientation.w;
+    tf::Transform cur_tf, old_tf;
+    tf::transformMsgToTF(tf_msg_.transform, cur_tf);
+    tf::transformMsgToTF(old_marker_tf_, old_tf);
+    Eigen::Affine3d cur_tf_eig, old_tf_eig;
+    tf::TransformTFToEigen(cur_tf, cur_tf_eig);
+    tf::TransformTFToEigen(old_tf, old_tf_eig);
+    cur_tf_eig = cur_tf_eig;
+    tf::TransformEigenToTF(cur_tf_eig, cur_tf);
+    tf::transformTFToMsg(cur_tf, tf_msg_.transform);
+    tf_broad_.sendTransform(tf_msg_);
     hrl_phri_2011::EllipsoidParams e_params;
-    e_params.e_frame = tf_msg;
-    e_params.height = y_axis_;
-    e_params.E = z_axis_;
+    e_params.e_frame = tf_msg_;
+    e_params.height = y_axis_ + old_y_axis_;
+    e_params.E = z_axis_ + old_z_axis_;
     params_pub.publish(e_params);
+}
+
+void InteractiveEllipse::loadEllipsoidParams(const hrl_phri_2011::EllipsoidParams& e_params) 
+{
+    old_marker_tf_ = e_params.e_frame.transform;
+    old_y_axis_ = e_params.height;
+    old_z_axis_ = e_params.E;
 }
 
 int main(int argc, char **argv)
 {
-    if(argc != 3 && argc != 4) {
-        printf("Usage: interative_tf parent_frame child_frame [rate]\n");
+    if(argc != 3 && argc != 4 && argc != 5) {
+        printf("Usage: interative_ellipse parent_frame child_frame [rate] [inital_params]\n");
         return 1;
     }
-    ros::init(argc, argv, "interactive_tf");
-    if(argc == 4) {
+    ros::init(argc, argv, "interative_ellipse");
+    if(argc >= 4) {
         InteractiveEllipse itf(argv[1], argv[2], atof(argv[3]));
+        if(argc == 5) {
+            // load params
+            std::vector<hrl_phri_2011::EllipsoidParams::Ptr> params;
+            readBagTopic<hrl_phri_2011::EllipsoidParams>(argv[4], params, "/ellipsoid_params");
+            itf.loadEllipsoidParams(*params[0]);
+        }
         itf.addTFMarker();
         itf.addEllipseMarker();
         ros::spin();

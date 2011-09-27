@@ -15,6 +15,15 @@
 
 #define NORMAL(x, sig) ( std::exp( - (x) * (x) / (2.0 * (sig) * (sig))) / std::sqrt(2.0 * 3.14159 * (sig) * (sig)))
 
+void projectEllipsoid(Ellipsoid& ell, double ell_height, const PCRGB& pc, PCRGB& pc_ell);
+void createForceCloud(const vector<hrl_phri_2011::ForceProcessed::Ptr>& fps, PCRGB& fpc);
+void colorPCHSL(const PCRGB& in_pc, const vector<double>& values, PCRGB& out_pc, double hue=0);
+void createPriorCloud(const PCRGB& in_pc, const vector<hrl_phri_2011::ForceProcessed::Ptr>& fps, PCRGB& out_pc);
+void marginalEllipsoid(const PCRGB& pc, const vector<hrl_phri_2011::ForceProcessed::Ptr>& fps, 
+                       const PCRGB& fpc, PCRGB& pc_ell, double sigma = 0.01);
+void projectEllipsoidDense(Ellipsoid& ell, double ell_height, const PCRGB& pc, 
+                           int num_lat, int num_lon, double sigma = 0.01, int k = 10);
+
 void projectEllipsoid(Ellipsoid& ell, double ell_height, const PCRGB& pc, PCRGB& pc_ell) 
 {
     double lat, lon, height, x, y, z, h, s, l;
@@ -33,16 +42,23 @@ void projectEllipsoid(Ellipsoid& ell, double ell_height, const PCRGB& pc, PCRGB&
 
 void createForceCloud(const vector<hrl_phri_2011::ForceProcessed::Ptr>& fps, PCRGB& fpc) 
 {
+    /*
     Affine3d a3d_tf(Quaternion<double>(0.994613, 0.0269077, -0.00270719, 0.100069));
     a3d_tf = Translation3d(0, 0.0284424, 0.0108643) * a3d_tf;
+    */
     for(uint32_t i=0;i<fps.size();i++) {
+        /*
         Affine3d a3d = a3d_tf * Translation3d(fps[i]->tool_frame.transform.translation.x,
                                               fps[i]->tool_frame.transform.translation.y,
                                               fps[i]->tool_frame.transform.translation.z);
-        PRGB pt;
         pt.x = a3d(0, 3);
         pt.y = a3d(1, 3);
         pt.z = a3d(2, 3);
+        */
+        PRGB pt;
+        pt.x = fps[i]->tool_frame.transform.translation.x;
+        pt.y = fps[i]->tool_frame.transform.translation.y;
+        pt.z = fps[i]->tool_frame.transform.translation.z;
         ((uint32_t*) &pt.rgb)[0] = 0xffffffff;
         fpc.points.push_back(pt);
     }
@@ -50,10 +66,6 @@ void createForceCloud(const vector<hrl_phri_2011::ForceProcessed::Ptr>& fps, PCR
 
 void createPriorCloud(const PCRGB& in_pc, const vector<hrl_phri_2011::ForceProcessed::Ptr>& fps, PCRGB& out_pc) 
 {
-    // TODO REMOVE EVIL HACK TODO
-    Affine3d a3d_tf(Quaternion<double>(0.994613, 0.0269077, -0.00270719, 0.100069));
-    a3d_tf = Translation3d(0, 0.0284424, 0.0108643) * a3d_tf;
-
     double prior_sigma;
     ros::param::param<double>("~prior_sigma", prior_sigma, 0.01);
 
@@ -64,14 +76,10 @@ void createPriorCloud(const PCRGB& in_pc, const vector<hrl_phri_2011::ForceProce
     vector<double> pdf(in_pc.size());
     double normal, Z = 0;
     for(uint32_t i=0;i<fps.size();i++) {
-        Affine3d a3d = a3d_tf * Translation3d(fps[i]->tool_frame.transform.translation.x,
-                                              fps[i]->tool_frame.transform.translation.y,
-                                              fps[i]->tool_frame.transform.translation.z);
         PRGB pt;
-        pt.x = a3d(0, 3);
-        pt.y = a3d(1, 3);
-        pt.z = a3d(2, 3);
-
+        pt.x = fps[i]->tool_frame.transform.translation.x;
+        pt.y = fps[i]->tool_frame.transform.translation.y;
+        pt.z = fps[i]->tool_frame.transform.translation.z;
         inds1[0] = -1;
         kd_tree.nearestKSearch(pt, 1, inds1, dists1);
         if(inds1[0] == -1)
@@ -84,7 +92,12 @@ void createPriorCloud(const PCRGB& in_pc, const vector<hrl_phri_2011::ForceProce
             Z += normal;
         }
     }
-    double max_val = *max_element(pdf.begin(), pdf.end());
+    colorPCHSL(in_pc, pdf, out_pc, 0);
+}
+
+void colorPCHSL(const PCRGB& in_pc, const vector<double>& values, PCRGB& out_pc, double hue)
+{
+    double max_val = *max_element(values.begin(), values.end());
     double h, s, l;
     for(size_t i=0;i<in_pc.size();i++) {
         const PRGB pt = in_pc.points[i];
@@ -92,14 +105,14 @@ void createPriorCloud(const PCRGB& in_pc, const vector<hrl_phri_2011::ForceProce
         npt.x = pt.x; npt.y = pt.y; npt.z = pt.z;
 
         extractHSL(in_pc.points[i].rgb, h, s, l);
-        s = 100.0 * pdf[i] / max_val;
+        s = 100.0 * values[i] / max_val;
         writeHSL(0, s, l, npt.rgb);
         out_pc.points.push_back(npt);
     }
 }
 
 void marginalEllipsoid(const PCRGB& pc, const vector<hrl_phri_2011::ForceProcessed::Ptr>& fps, 
-                       const PCRGB& fpc, PCRGB& pc_ell, double sigma = 0.01) 
+                       const PCRGB& fpc, PCRGB& pc_ell, double sigma) 
 {
     pcl::KdTreeFLANN<PRGB> kd_tree(new pcl::KdTreeFLANN<PRGB> ());
     kd_tree.setInputCloud(fpc.makeShared());
@@ -134,7 +147,7 @@ void marginalEllipsoid(const PCRGB& pc, const vector<hrl_phri_2011::ForceProcess
 }
 
 void projectEllipsoidDense(Ellipsoid& ell, double ell_height, const PCRGB& pc, 
-                           int num_lat, int num_lon, double sigma = 0.01, int k = 10) 
+                           int num_lat, int num_lon, double sigma, int k) 
 {
     pcl::KdTreeFLANN<PRGB> kd_tree(new pcl::KdTreeFLANN<PRGB> ());
     kd_tree.setInputCloud(pc.makeShared());
@@ -170,21 +183,14 @@ void projectEllipsoidDense(Ellipsoid& ell, double ell_height, const PCRGB& pc,
     pubLoop(pc_dense, "/proj_head");
 }
 
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "project_pc_ellipsoid");
 
-    // load params
-    vector<hrl_phri_2011::EllipsoidParams::Ptr> params;
-    readBagTopic<hrl_phri_2011::EllipsoidParams>(argv[2], params, "/ellipsoid_params");
-
-    // Load PC bag
-    //vector<sensor_msgs::PointCloud2::Ptr> pc2s;
-    //readBagTopic<sensor_msgs::PointCloud2>(argv[1], pc2s, "/stitched_head");
-    //pcl::fromROSMsg(*pc2s[0], *pc_head);
-    vector<PCRGB::Ptr> pc_list;
-    readBagTopic<PCRGB>(argv[1], pc_list, "/stitched_head");
-    //PCRGB::Ptr pc_head = pc_list[0];
+    PCRGB pc_head;
+    Ellipsoid ell;
+    loadRegisteredHead(argv[1], argv[2], pc_head, ell);
 
     // load forces
     vector<hrl_phri_2011::ForceProcessed::Ptr> forces;
@@ -194,25 +200,17 @@ int main(int argc, char **argv)
     createForceCloud(forces, fpc);
     fpc.header.frame_id = "/base_link";
     pubLoop(fpc, "force_cloud");
+    return 0;
     PCRGB prior_cloud;
-    createPriorCloud(*pc_list[0], forces, prior_cloud);
+    createPriorCloud(pc_head, forces, prior_cloud);
     prior_cloud.header.frame_id = "/base_link";
     pubLoop(prior_cloud, "prior_cloud");
-
-    PCRGB pc_tf;
-    tf::Transform tf_tf;
-    tf::transformMsgToTF(params[0]->e_frame.transform, tf_tf);
-    Eigen::Affine3d tf_eigen;
-    tf::TransformTFToEigen(tf_tf, tf_eigen);
-    tf_eigen = tf_eigen.inverse();
-    transformPC(*pc_list[0], pc_tf, tf_eigen);
-    Ellipsoid ell(*params[0]);
 
     PCRGB pc_ell;
     //PCRGB head_temp(*pc_head);
     //head_temp.header.frame_id = "/base_link";
-    projectEllipsoid(ell, params[0]->height, pc_tf, pc_ell);
-    marginalEllipsoid(*pc_list[0], forces, fpc, pc_ell);
+    projectEllipsoid(ell, ell.height, pc_head, pc_ell);
+    marginalEllipsoid(pc_head, forces, fpc, pc_ell);
     //marginalEllipsoid(*pc_head, forces, fpc, head_temp);
     //pubLoop(head_temp, "/proj_head");
 
@@ -222,5 +220,5 @@ int main(int argc, char **argv)
     ros::param::param<int>("~num_lon", num_lon, 300);
     ros::param::param<int>("~num_nbrs", num_nbrs, 10);
     ros::param::param<double>("~sigma", sigma, 0.01);
-    projectEllipsoidDense(ell, params[0]->height, pc_ell, num_lat, num_lon, sigma, num_nbrs);
+    projectEllipsoidDense(ell, ell.height, pc_ell, num_lat, num_lon, sigma, num_nbrs);
 }

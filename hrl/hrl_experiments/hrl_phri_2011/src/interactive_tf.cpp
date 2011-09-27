@@ -2,6 +2,9 @@
 #include <interactive_markers/interactive_marker_server.h>
 #include <tf/transform_broadcaster.h>
 #include <geometry_msgs/Pose.h>
+#include <rosbag/bag.h>
+
+using namespace std;
 
 class InteractiveTF 
 {
@@ -12,11 +15,13 @@ private:
     double rate_;
     ros::Timer tf_timer_;
     geometry_msgs::Pose marker_pose_;
+    geometry_msgs::TransformStamped cur_tf_msg;
 public:
     InteractiveTF(const std::string& parent_frame, const std::string& child_frame, double rate = 100);
     void processTFControl(const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback);
     void addTFMarker();
     void publishTF(const ros::TimerEvent& event);
+    void bagTF(const string& bag_name);
 };
 
 InteractiveTF::InteractiveTF(const std::string& parent_frame, 
@@ -94,19 +99,30 @@ void InteractiveTF::publishTF(const ros::TimerEvent& event)
     tf_msg.transform.rotation.z = marker_pose_.orientation.z;
     tf_msg.transform.rotation.w = marker_pose_.orientation.w;
     tf_broad_.sendTransform(tf_msg);
+    cur_tf_msg = tf_msg;
+}
+
+void InteractiveTF::bagTF(const string& bag_name) 
+{
+    rosbag::Bag bag;
+    bag.open(bag_name, rosbag::bagmode::Write);
+    bag.write("/itf_transform", cur_tf_msg.header.stamp, cur_tf_msg);
+    bag.close();
 }
 
 int main(int argc, char **argv)
 {
-    if(argc != 3 && argc != 4) {
-        printf("Usage: interative_tf parent_frame child_frame [rate]\n");
+    if(argc != 3 && argc != 4 && argc != 5) {
+        printf("Usage: interative_tf parent_frame child_frame [rate] [bag_file]\n");
         return 1;
     }
     ros::init(argc, argv, "interactive_tf");
-    if(argc == 4) {
+    if(argc >= 4) {
         InteractiveTF itf(argv[1], argv[2], atof(argv[3]));
         itf.addTFMarker();
         ros::spin();
+        if(argc >= 5)
+            itf.bagTF(argv[4]);
     } else {
         InteractiveTF itf(argv[1], argv[2]);
         itf.addTFMarker();

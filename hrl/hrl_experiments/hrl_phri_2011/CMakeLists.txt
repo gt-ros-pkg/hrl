@@ -31,7 +31,11 @@ rosbuild_genmsg()
 
 rosbuild_add_boost_directories()
 
-set(PROGRAMS pub_head ellipsoid_test interactive_tf interactive_ellipse ellipsoid_visualizer project_pc_ellipsoid data_extractor pc_head_stitcher)
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+find_package(Eigen3 REQUIRED)
+include_directories(EIGEN3_INCLUDE_DIR)
+
+set(PROGRAMS pub_head ellipsoid_test interactive_tf interactive_ellipse ellipsoid_visualizer project_pc_ellipsoid data_extractor pc_head_stitcher function_extractor gp_regression show_contact_cloud)
 #rosbuild_add_executable(force_labeler src/force_labeler.cpp)
 #rosbuild_add_executable(visualize_head src/visualize_head.cpp)
 rosbuild_add_library(${PROJECT_NAME} src/pcl_basic.cpp src/pcl_features.cpp src/utils.cpp)
@@ -40,3 +44,4 @@ foreach(program ${PROGRAMS})
     rosbuild_add_executable(${program} src/${program}.cpp)
     target_link_libraries(${program} ${PROJECT_NAME})
 endforeach(program)
+#target_link_libraries(gp_regression eigen3.pc)

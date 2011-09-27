@@ -1,3 +1,5 @@
+#ifndef ELLIPSOID_SPACE_H
+#define ELLIPSOID_SPACE_H
 #include <cmath>
 #include <ros/ros.h>
 #include <hrl_phri_2011/EllipsoidParams.h>
@@ -7,18 +9,30 @@ using namespace std;
 #define SQ(x) ((x) * (x))
 #define PI 3.14159265
 
-class Ellipsoid {
-private:
-    double A_, B_, E_;
-public:
-    Ellipsoid(double A, double B) : A_(A), B_(B) {
-        E_ = sqrt(fabs(SQ(A_) - SQ(B_))) / A_;
+struct Ellipsoid 
+{
+    double A, B, E, height;
+    Ellipsoid() : A(1), B(1), height(1)
+    {
+        E = sqrt(fabs(SQ(A) - SQ(B))) / A;
+    }
+    
+    Ellipsoid(double a, double b) : A(a), B(b), height(1) 
+    {
+        E = sqrt(fabs(SQ(A) - SQ(B))) / A;
     }
 
-    Ellipsoid(const hrl_phri_2011::EllipsoidParams& ep) {
-        A_ = 1;
-        E_ = ep.E;
-        B_ = sqrt(1 - SQ(E_));
+    Ellipsoid(const hrl_phri_2011::EllipsoidParams& ep) 
+    {
+        setParams(ep);
+    }
+
+    void setParams(const hrl_phri_2011::EllipsoidParams& ep) 
+    {
+        A = 1;
+        E = ep.E;
+        B = sqrt(1 - SQ(E));
+        height = ep.height;
     }
 
     void cartToEllipsoidal(double x, double y, double z, double& lat, double& lon, double& height);
@@ -30,7 +44,7 @@ void Ellipsoid::cartToEllipsoidal(double x, double y, double z, double& lat, dou
     lon = atan2(y, x);
     if(lon < 0) 
         lon += 2 * PI;
-    double a = A_ * E_;
+    double a = A * E;
     double p = sqrt(SQ(x) + SQ(y));
     lat = asin(sqrt((sqrt(SQ(SQ(z) - SQ(a) + SQ(p)) + SQ(2 * a * p)) / SQ(a) -
                      SQ(z / a) - SQ(p / a) + 1) / 2));
@@ -41,18 +55,18 @@ void Ellipsoid::cartToEllipsoidal(double x, double y, double z, double& lat, dou
 }
 
 void Ellipsoid::ellipsoidalToCart(double lat, double lon, double height, double& x, double& y, double& z) {
-    double a = A_ * E_;
+    double a = A * E;
     x = a * sinh(height) * sin(lat) * cos(lon);
     y = a * sinh(height) * sin(lat) * sin(lon);
     z = a * cosh(height) * cos(lat);
 }
 
 void Ellipsoid::mollweideProjection(double lat, double lon, double& x, double& y) {
-    double a = A_;
-    double b = A_ * (1 - SQ(E_)) / (PI * E_) * (log((1 + E_) / (1 - E_)) + 2 * E_ / (1 - SQ(E_)));
+    double a = A;
+    double b = A * (1 - SQ(E)) / (PI * E) * (log((1 + E) / (1 - E)) + 2 * E / (1 - SQ(E)));
     double Sl = sin(lat);
-    double k = PI * ( (log((1 + E_ * Sl) / (1 - E_ * Sl)) + 2 * E_ * Sl / (1 - SQ(E_) * SQ(Sl))) /
-                      (log((1 + E_)      / (1 - E_))      + 2 * E_      / (1 - SQ(E_))));
+    double k = PI * ( (log((1 + E * Sl) / (1 - E * Sl)) + 2 * E * Sl / (1 - SQ(E) * SQ(Sl))) /
+                      (log((1 + E)      / (1 - E))      + 2 * E      / (1 - SQ(E))));
     double t = lat;
     double diff_val = 10000.0;
     while(fabs(diff_val) > 0.00001) {
@@ -62,3 +76,4 @@ void Ellipsoid::mollweideProjection(double lat, double lon, double& x, double& y
     x = a * lon * cos(t);
     y = b * sin(t);
 }
+#endif // ELLIPSOID_SPACE_H

@@ -23,6 +23,7 @@ void extractHSL(float rgb, double& h, double& s, double& l) {
 }
 
 void writeRGB(uint8_t r, uint8_t g, uint8_t b, float& rgb) {
+    ((uint8_t*) &rgb)[3] = 0xff;
     ((uint8_t*) &rgb)[2] = r;
     ((uint8_t*) &rgb)[1] = g;
     ((uint8_t*) &rgb)[0] = b;
