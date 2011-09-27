@@ -156,6 +156,8 @@ class CodyArmClient(HRLArm):
                 f = copy.copy(self.raw_force)
 
         f_mat = np.matrix(f).T
+        f_mat = f_mat[0:3,:] # ignoring the torques.
+
         if bias:
             f_mat = f_mat - self.ft_bias['force']
         

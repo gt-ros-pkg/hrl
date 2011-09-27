@@ -100,21 +100,20 @@ class MekaArmServer():
                             'torque': np.matrix(np.zeros((3,1),dtype='float32'))}
         self.right_arm_ft = {'force': np.matrix(np.zeros((3,1),dtype='float32')),
                              'torque': np.matrix(np.zeros((3,1),dtype='float32'))}
-        self.fts_bias = {'left_arm': self.left_arm_ft, 'right_arm': self.right_arm_ft}
 
         # kalman filtering force vector. (self.step and bias_wrist_ft)
         self.Q_force, self.R_force = {}, {}
         self.xhat_force, self.P_force = {}, {}
 
-        self.Q_force['right_arm'] = [1e-3, 1e-3, 1e-3]
-        self.R_force['right_arm'] = [0.2**2, 0.2**2, 0.2**2]
-        self.xhat_force['right_arm'] = [0., 0., 0.]
-        self.P_force['right_arm'] = [1.0, 1.0, 1.0]
+        self.Q_force['right_arm'] = [1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3]
+        self.R_force['right_arm'] = [0.1**2, 0.1**2, 0.1**2, 0.05**2, 0.05**2, 0.05**2]
+        self.xhat_force['right_arm'] = [0., 0., 0., 0., 0., 0.]
+        self.P_force['right_arm'] = [1.0, 1.0, 1.0, 0., 0., 0.]
 
-        self.Q_force['left_arm'] = [1e-3, 1e-3, 1e-3]
-        self.R_force['left_arm'] = [0.2**2, 0.2**2, 0.2**2]
-        self.xhat_force['left_arm'] = [0., 0., 0.]
-        self.P_force['left_arm'] = [1.0, 1.0, 1.0]
+        self.Q_force['left_arm'] = [1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3]
+        self.R_force['left_arm'] = [0.1**2, 0.1**2, 0.1**2, 0.05**2, 0.05**2, 0.05**2]
+        self.xhat_force['left_arm'] = [0., 0., 0., 0., 0., 0.]
+        self.P_force['left_arm'] = [1.0, 1.0, 1.0, 0., 0., 0.]
 
         #----- ROS interface ---------
         rospy.init_node('arm_server', anonymous=False)
@@ -290,7 +289,7 @@ class MekaArmServer():
             #if arm == 'right_arm':
             #    z = self.get_wrist_force_nano().A1
 
-            for i in range(3):
+            for i in range(6):
                 xhat, p = kalman_update(self.xhat_force[arm][i],
                                         self.P_force[arm][i],
                                         self.Q_force[arm][i],
@@ -434,16 +433,38 @@ class MekaArmServer():
         m.append(lc.get_Fx_mN()/1000.)
         m.append(lc.get_Fy_mN()/1000.)
         m.append(-lc.get_Fz_mN()/1000.)        
-        m = tr.Rz(math.radians(-30.0))*np.matrix(m).T
-        m[1,0] = -m[1,0]
-        m[2,0] = -m[2,0]
-        return m
+
+        m.append(lc.get_Tx_mNm()/1000.)
+        m.append(lc.get_Ty_mNm()/1000.)
+        m.append(-lc.get_Tz_mNm()/1000.)        
+
+        m = np.matrix(m).T
+        r = tr.Rz(math.radians(-30.0))
+
+        m1 = r * m[0:3,:]
+        m1[1,0] = -m1[1,0]
+        m1[2,0] = -m1[2,0]
+
+        m2 = r * m[3:,:]
+        m2[1,0] = -m2[1,0]
+        m2[2,0] = -m2[2,0]
+
+        return np.row_stack((m1, m2))
 
     def get_wrist_force_nano(self):
         f = self.r_arm_ftc.read()[0:3, :]
         f = tr.Rz(math.radians(-60.)) * f
         f[1,0] = f[1,0] * -1
         return f
+
+    def get_wrist_torque(self, arm):
+        m = []
+        lc = self.fts[arm]
+        m = tr.Rz(math.radians(-30.0))*np.matrix(m).T
+        m[1,0] = -m[1,0]
+        m[2,0] = -m[2,0]
+        return m
+
 
 
     #-------------------- getting and setting joint angles ------------
