@@ -193,7 +193,7 @@ public:
   double gripper_mass_;
   Eigen::Vector3d gripper_com_;
   Eigen::Affine3d ft_transform_;
-  CartVec F_des_, F_max_, F_integ_, K_effective_;
+  CartVec F_des_, F_max_, F_integ_, K_effective_, F_err_last_;
   bool zero_wrench_;
 
   // filters khawkins
@@ -647,6 +647,7 @@ void HybridForceController::starting()
   q_posture_ = q;
   qdot_filtered_.setZero();
   last_wrench_.setZero();
+  F_err_last_.setZero();
 
   last_stiffness_ = 0;
   last_compliance_ = 0;
@@ -855,6 +856,11 @@ void HybridForceController::update()
           F_integ_[i] = Kfi_max[i];
       else if(F_integ_[i] < -Kfi_max[i])
           F_integ_[i] = -Kfi_max[i];
+  // Marc's anti-windup trick: set to zero when sign flips
+  for(int i=0;i<6;i++)
+      if((F_err[i] > 0) != (F_err_last_[i] > 0))
+          F_integ_[i] = 0;
+  F_err_last_ = F_err;
   //F_control = F_cmd.array() + F_integ_.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
   F_control_i = F_integ_.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
 
