@@ -18,10 +18,12 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
         super(PR2ArmHybridForce, self).__init__(arm, kinematics)
         if '%s' in controller_name:
             controller_name = controller_name % arm
+        self.auto_update = False
         self.command_gains_pub = rospy.Publisher(controller_name + '/gains', HybridCartesianGains)
         self.command_force_pub = rospy.Publisher(controller_name + '/command_force', WrenchStamped)
         self.command_force_max_pub = rospy.Publisher(controller_name + '/command_max_force', WrenchStamped)
         self.command_zero_pub = rospy.Publisher(controller_name + '/ft_zero', Bool)
+        self.command_posture_pub = rospy.Publisher(controller_name + '/command_posture', Float64MultiArray)
         self.ft_wrench_sub = rospy.Subscriber(controller_name + '/ft_wrench', WrenchStamped, 
                                               self._ft_wrench_cb)
         self.ft_wrench = np.mat(6 * [0]).T
@@ -57,6 +59,8 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
         vals = [p_trans, p_rot, d_trans, d_rot]
         for local_name, val in zip(local_names, vals):
             self._set_gain(local_name, val)
+        if self.auto_update:
+            self.update_gains()
 
     def set_force_gains(self, p_trans=None, p_rot=None, i_trans=None, i_rot=None, 
                               i_max_trans=None, i_max_rot=None):
@@ -66,6 +70,8 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
         vals = [p_trans, p_rot, i_trans, i_rot, i_max_trans, i_max_rot]
         for local_name, val in zip(local_names, vals):
             self._set_gain(local_name, val)
+        if self.auto_update:
+            self.update_gains()
 
     def _set_gain(self, local_name, val):
         if val is not None:
@@ -82,6 +88,8 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
 
     def set_tip_frame(self, tip_frame):
         self.tip_frame = tip_frame
+        if self.auto_update:
+            self.update_gains()
 
     def set_force_directions(self, directions):
         if len(directions) == 6 and all([direction in [0, 1] for direction in directions]):
@@ -92,6 +100,13 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
         for direction in directions:
             if direction in names:
                 self.force_selector[names.index(direction)] = 1
+        if self.auto_update:
+            self.update_gains()
+
+    def set_posture(self, posture):
+        msg = Float64MultiArray()
+        msg.data = posture
+        self.command_posture_pub.publish(msg)
 
     def set_mass_params(self, mass, center_of_mass=None):
         params_msg = Float64MultiArray()
@@ -130,3 +145,6 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
     def zero_sensor(self):
         bool_msg = Bool()
         self.command_zero_pub.publish(bool_msg)
+
+    def use_auto_update(self, use_auto_update):
+        self.auto_update = use_auto_update

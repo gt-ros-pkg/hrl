@@ -148,8 +148,10 @@ public:
   rosrt::Publisher<geometry_msgs::Twist> pub_x_err_, pub_wrench_;
   rosrt::Publisher<std_msgs::Float64MultiArray> pub_tau_;
   rosrt::Publisher<std_msgs::Float64MultiArray> pub_qdot_; // khawkins
-  rosrt::Publisher<geometry_msgs::WrenchStamped> pub_ft_wrench_; // khawkins
-  rosrt::Publisher<geometry_msgs::WrenchStamped> pub_ft_wrench_raw_; // khawkins
+  rosrt::Publisher<geometry_msgs::WrenchStamped> pub_sensor_ft_; // khawkins
+  rosrt::Publisher<geometry_msgs::WrenchStamped> pub_sensor_raw_ft_; // khawkins
+  rosrt::Publisher<geometry_msgs::WrenchStamped> pub_f_cmd_, pub_f_err_; // khawkins
+  rosrt::Publisher<geometry_msgs::WrenchStamped> pub_k_effective_; // khawkins
 
   std::string root_name_, tip_name_;
   ros::Time last_time_;
@@ -191,7 +193,7 @@ public:
   double gripper_mass_;
   Eigen::Vector3d gripper_com_;
   Eigen::Affine3d ft_transform_;
-  CartVec F_des_, F_max_, F_integ_;
+  CartVec F_des_, F_max_, F_integ_, K_effective_;
   bool zero_wrench_;
 
   // filters khawkins
@@ -461,6 +463,7 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
   // Force desired khawkins
   F_des_.setZero();
   F_integ_.setZero();
+  K_effective_.setZero();
 
   double f_trans_max, f_rot_max;
   node_.param("force_trans_max", f_trans_max, 9999.0);
@@ -607,9 +610,15 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
                           10, geometry_msgs::Twist());
   pub_wrench_.initialize(node_.advertise<geometry_msgs::Twist>("state/wrench", 10),
                          10, geometry_msgs::Twist());
-  pub_ft_wrench_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("ft_wrench", 10),
+  pub_sensor_ft_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("sensor_ft", 10),
                             10, geometry_msgs::WrenchStamped());
-  pub_ft_wrench_raw_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("ft_wrench_raw", 10),
+  pub_sensor_raw_ft_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("sensor_raw_ft", 10),
+                                10, geometry_msgs::WrenchStamped());
+  pub_f_cmd_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("f_cmd", 10),
+                                10, geometry_msgs::WrenchStamped());
+  pub_f_err_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("f_err", 10),
+                                10, geometry_msgs::WrenchStamped());
+  pub_k_effective_.initialize(node_.advertise<geometry_msgs::WrenchStamped>("k_effective", 10),
                                 10, geometry_msgs::WrenchStamped());
 
   std_msgs::Float64MultiArray joints_template;
@@ -728,7 +737,7 @@ void HybridForceController::update()
     //x_desi_filtered_ = q * Eigen::Translation3d(p);
     x_desi_filtered_ = Eigen::Translation3d(p) * q;
   }
-  CartVec x_err;
+  CartVec x_err, x_err_ctrl_frame;
   //computePoseError(x, x_desi_, x_err);
   computePoseError(x, x_desi_filtered_, x_err);
 
@@ -745,7 +754,8 @@ void HybridForceController::update()
   }
 
   // HERE WE CONVERT CALCULATIONS TO THE FRAME IN WHICH GAINS ARE SPECIFIED!
-  CartVec xdot_desi = Kp.array() * (St * x_err).array() * -1.0;  // aleeper
+  x_err_ctrl_frame = St * x_err;
+  CartVec xdot_desi = Kp.array() * x_err_ctrl_frame.array() * -1.0;  // aleeper
 
   // Caps the cartesian velocity
   if (vel_saturation_trans_ > 0.0)
@@ -759,9 +769,9 @@ void HybridForceController::update()
       xdot_desi.tail<3>() *= (vel_saturation_rot_ / xdot_desi.tail<3>().norm());
   }
 
-  CartVec F_motion = xdot_desi;  // kphawkins / aleeper
-  CartVec F_damp = Kd.array() * (St * xdot).array();
-  CartVec F_cmd = motion_selector.array() * F_motion.array() + 
+  CartVec xdot_ctrl_frame = St * xdot;
+  CartVec F_damp = Kd.array() * xdot_ctrl_frame.array();
+  CartVec F_cmd = motion_selector.array() * xdot_desi.array() + 
                   force_selector.array() * (St * F_des_).array() - F_damp.array();
   // saturation force with F_max
   double force_sat_scaling = 1.0, torque_sat_scaling = 1.0;
@@ -774,7 +784,7 @@ void HybridForceController::update()
   F_cmd.head<3>() = force_sat_scaling * F_cmd.head<3>();
   F_cmd.tail<3>() = torque_sat_scaling * F_cmd.tail<3>();
 
-  F_motion = F_cmd;
+  CartVec F_motion = F_cmd;
 
   ////////////////////// Process force/torque sensor khawkins ////////////////////
   CartVec F_sensor_raw, F_sensor_zeroed, F_grav;
@@ -825,25 +835,31 @@ void HybridForceController::update()
 
   // Impedance control
 
-  bool is_integral_control = false;
+  CartVec proportional_selector, integral_selector;
+  proportional_selector.setZero();
+  integral_selector.setZero();
   for(int i=0;i<6;i++)
       if(Kfi[i] != 0 || Kfi_max[i] != 0)
-          is_integral_control = true;
-  CartVec F_control;
-  if(!is_integral_control)
-      // Propotional:
-      F_control = F_cmd.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
-  else {
-      // Integral:
-      F_integ_ = F_integ_.array() + Kfi.array() * (F_cmd - F_sensor_zeroed).array();
-      for(int i=0;i<6;i++)
-          if(F_integ_[i] > Kfi_max[i])
-              F_integ_[i] = Kfi_max[i];
-          else if(F_integ_[i] < -Kfi_max[i])
-              F_integ_[i] = -Kfi_max[i];
-      //F_control = F_cmd.array() + F_integ_.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
-      F_control = F_integ_.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
-  }
+          integral_selector[i] = 1;
+      else
+          proportional_selector[i] = 1;
+  CartVec F_control, F_control_p, F_control_i, F_err;
+  F_err = F_cmd - F_sensor_zeroed;
+  // Propotional with feed-forward:
+  F_control_p = F_cmd.array() + Kfp.array() * F_err.array();
+
+  // Propotional-Integral:
+  F_integ_ = integral_selector.array() * (F_integ_.array() + Kfi.array() * F_err.array());
+  for(int i=0;i<6;i++)
+      if(F_integ_[i] > Kfi_max[i])
+          F_integ_[i] = Kfi_max[i];
+      else if(F_integ_[i] < -Kfi_max[i])
+          F_integ_[i] = -Kfi_max[i];
+  //F_control = F_cmd.array() + F_integ_.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
+  F_control_i = F_integ_.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
+
+  F_control = proportional_selector.array() * F_control_p.array() + 
+              integral_selector.array() * F_control_i.array();
 
 
   // HERE WE CONVERT BACK TO THE ROOT FRAME SINCE THE JACOBIAN IS IN ROOT FRAME.
@@ -938,6 +954,11 @@ void HybridForceController::update()
   last_stiffness_ = stiffness;
   last_compliance_ = compliance;
 
+  // khawkins
+  for(int i=0;i<6;i++)
+      if(fabs(x_err_ctrl_frame[i]) > 0.001)
+          K_effective_[i] = fabs(F_sensor_zeroed[i] / x_err_ctrl_frame[i]);
+
   if (loop_count_ % 10 == 0)
   {
     geometry_msgs::PoseStamped::Ptr pose_msg;
@@ -963,7 +984,7 @@ void HybridForceController::update()
     }
 
     if (twist_msg = pub_xd_.allocate()) {  // Xdot
-      tf::twistEigenToMsg(xdot, *twist_msg);
+      tf::twistEigenToMsg(xdot_ctrl_frame, *twist_msg);
       pub_xd_.publish(twist_msg);
     }
 
@@ -977,18 +998,39 @@ void HybridForceController::update()
       pub_wrench_.publish(twist_msg);
     }
 
-    if (wrench_msg = pub_ft_wrench_.allocate()) {  // F ft
+    if (wrench_msg = pub_sensor_ft_.allocate()) {  // F ft
       wrench_msg->header.stamp = time;
       wrench_msg->header.frame_id = tip_name_;
       tf::wrenchEigenToMsg(F_sensor_zeroed, wrench_msg->wrench);
-      pub_ft_wrench_.publish(wrench_msg);
+      pub_sensor_ft_.publish(wrench_msg);
     }
 
-    if (wrench_msg = pub_ft_wrench_raw_.allocate()) {  // F ft raw
+    if (wrench_msg = pub_sensor_raw_ft_.allocate()) {  // F ft raw
       wrench_msg->header.stamp = time;
       wrench_msg->header.frame_id = force_torque_frame_;
       tf::wrenchEigenToMsg(F_sensor_raw, wrench_msg->wrench);
-      pub_ft_wrench_raw_.publish(wrench_msg);
+      pub_sensor_raw_ft_.publish(wrench_msg);
+    }
+
+    if (wrench_msg = pub_f_cmd_.allocate()) {  // F_cmd
+      wrench_msg->header.stamp = time;
+      wrench_msg->header.frame_id = tip_name_;
+      tf::wrenchEigenToMsg(F_cmd, wrench_msg->wrench);
+      pub_f_cmd_.publish(wrench_msg);
+    }
+
+    if (wrench_msg = pub_f_err_.allocate()) {  // F_err
+      wrench_msg->header.stamp = time;
+      wrench_msg->header.frame_id = tip_name_;
+      tf::wrenchEigenToMsg(F_err, wrench_msg->wrench);
+      pub_f_err_.publish(wrench_msg);
+    }
+
+    if (wrench_msg = pub_k_effective_.allocate()) {  // K_effective
+      wrench_msg->header.stamp = time;
+      wrench_msg->header.frame_id = tip_name_;
+      tf::wrenchEigenToMsg(K_effective_, wrench_msg->wrench);
+      pub_k_effective_.publish(wrench_msg);
     }
 
     if (q_msg = pub_tau_.allocate()) {  // tau
