@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
     arm.set_motion_gains(d_trans=10)
     arm.update_gains()
-    hsc.command_force_velocity(2, -0.3, "torso_lift_link")
+    hsc.command_force_velocity(2, -0.5, "torso_lift_link")
     rospy.sleep(5)
 
     if False:

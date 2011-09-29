@@ -72,9 +72,10 @@ class PoseConverter:
         px = pose.position.x; py = pose.position.y; pz = pose.position.z
         ox = pose.orientation.x; oy = pose.orientation.y
         oz = pose.orientation.z; ow = pose.orientation.w
+        quat = [ox, oy, oz, ow]
         homo_mat = np.mat(tf_trans.quaternion_matrix(quat))
         homo_mat[:3,3] = np.mat([[px, py, pz]]).T
-        return homo_mat, [ox, oy, oz, ow]
+        return homo_mat, quat
 
     ##
     # @return geometry_msgs.Pose

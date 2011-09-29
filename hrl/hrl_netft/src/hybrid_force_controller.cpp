@@ -137,6 +137,7 @@ public:
   ros::Subscriber sub_posture_;
   ros::Subscriber sub_pose_;
   ros::Subscriber sub_force_; // khawkins
+  ros::Subscriber sub_max_force_; // khawkins
   ros::Subscriber sub_ft_zero_; // khawkins
   ros::Subscriber sub_ft_params_; // khawkins
   tf::TransformListener tf_;
@@ -146,6 +147,7 @@ public:
   rosrt::Publisher<geometry_msgs::Twist> pub_xd_, pub_xd_desi_;
   rosrt::Publisher<geometry_msgs::Twist> pub_x_err_, pub_wrench_;
   rosrt::Publisher<std_msgs::Float64MultiArray> pub_tau_;
+  rosrt::Publisher<std_msgs::Float64MultiArray> pub_qdot_; // khawkins
   rosrt::Publisher<geometry_msgs::WrenchStamped> pub_ft_wrench_; // khawkins
   rosrt::Publisher<geometry_msgs::WrenchStamped> pub_ft_wrench_raw_; // khawkins
 
@@ -159,7 +161,7 @@ public:
   Eigen::Matrix<double,6,1> Kp, Kd;  //aleeper
   Eigen::Matrix<double,6,6> St;  //aleeper
   bool use_tip_frame_; // aleeper
-  Eigen::Matrix<double,6,1> Kfp, force_selector, motion_selector;  // khawkins
+  Eigen::Matrix<double,6,1> Kfp, Kfi, Kfi_max, force_selector, motion_selector;  // khawkins
   double pose_command_filter_;
   double vel_saturation_trans_, vel_saturation_rot_;
   JointVec saturation_;
@@ -189,42 +191,33 @@ public:
   double gripper_mass_;
   Eigen::Vector3d gripper_com_;
   Eigen::Affine3d ft_transform_;
-  filters::MultiChannelFilterChain<double> force_filter_;
-  std::vector<double> in_force_filter_, out_force_filter_;
-  CartVec F_des_;
+  CartVec F_des_, F_max_, F_integ_;
   bool zero_wrench_;
 
-/*  void setGains(const std_msgs::Float64MultiArray::ConstPtr &msg)
-  {
-    if (msg->data.size() >= 6)
-      for (size_t i = 0; i < 6; ++i)
-        Kp[i] = msg->data[i];
-    if (msg->data.size() == 12)
-      for (size_t i = 0; i < 6; ++i)
-        Kd[i] = msg->data[6+i];
+  // filters khawkins
+  std::vector<boost::shared_ptr<filters::FilterChain<double> > > force_filter_, qdot_filter_, xdot_filter_;
 
-    ROS_INFO("New gains: %.1lf, %.1lf, %.1lf %.1lf, %.1lf, %.1lf",
-             Kp[0], Kp[1], Kp[2], Kp[3], Kp[4], Kp[5]);
-  }
-*/
   void setGains(const hrl_netft::HybridCartesianGains::ConstPtr &msg) // khawkins
   {
-
-    //ROS_INFO_STREAM("Received CartesianGains msg: " << *msg);
-    //ROS_INFO("root: [%s] tip: [%s]", root_name_.c_str(), tip_name_.c_str()); 
     
     // Store gains...
-    if (msg->gains.size() >= 6)
+    if (msg->p_gains.size() == 6)
       for (size_t i = 0; i < 6; ++i)
-        Kp[i] = msg->gains[i];
-    if (msg->gains.size() == 12)
+        Kp[i] = msg->p_gains[i];
+    if (msg->d_gains.size() == 6)
       for (size_t i = 0; i < 6; ++i)
-        Kd[i] = msg->gains[6+i];
+        Kd[i] = msg->d_gains[i];
 
     // Store force gains... khawkins
-    if (msg->gains.size() >= 6)
+    if (msg->fp_gains.size() == 6)
       for (size_t i = 0; i < 6; ++i)
-        Kfp[i] = msg->force_gains[i];
+        Kfp[i] = msg->fp_gains[i];
+    if (msg->fi_gains.size() == 6)
+      for (size_t i = 0; i < 6; ++i)
+        Kfi[i] = msg->fi_gains[i];
+    if (msg->fi_max_gains.size() == 6)
+      for (size_t i = 0; i < 6; ++i)
+        Kfi_max[i] = msg->fi_max_gains[i];
 
     // Store selector matricies khawkins
     if (msg->force_selector.size() == 6)
@@ -374,11 +367,18 @@ public:
     F_des_.head<3>() = t.linear() * F_des_.head<3>();
     F_des_.tail<3>() = t.linear() * F_des_.tail<3>();
   }
+
+  void commandMaxForce(const geometry_msgs::WrenchStamped::ConstPtr &msg)
+  {
+    F_max_ << msg->wrench.force.x, msg->wrench.force.y, msg->wrench.force.z, 
+              msg->wrench.torque.x, msg->wrench.torque.y, msg->wrench.torque.z;
+  }
+
 };
 
 
 HybridForceController::HybridForceController()
-  : robot_state_(NULL), use_posture_(false), force_filter_("double")
+  : robot_state_(NULL), use_posture_(false)
 {}
 
 HybridForceController::~HybridForceController()
@@ -386,6 +386,12 @@ HybridForceController::~HybridForceController()
   sub_gains_.shutdown();
   sub_posture_.shutdown();
   sub_pose_.shutdown();
+
+  // khawkins
+  sub_force_.shutdown();
+  sub_max_force_.shutdown();
+  sub_ft_zero_.shutdown();
+  sub_ft_params_.shutdown();
 }
 
 
@@ -454,25 +460,52 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
 
   // Force desired khawkins
   F_des_.setZero();
+  F_integ_.setZero();
+
+  double f_trans_max, f_rot_max;
+  node_.param("force_trans_max", f_trans_max, 9999.0);
+  node_.param("force_rot_max", f_rot_max, 9999.0);
+  F_max_ << f_trans_max, f_trans_max, f_trans_max,  f_rot_max, f_rot_max, f_rot_max;
 
   // Force gains khawkins
-  double kfp_trans, kfp_rot;
-  if (!node_.getParam("force_gains/trans/p", kfp_trans))
+  double kfp_trans, kfp_rot, kfi_trans, kfi_rot, kfi_max_trans, kfi_max_rot;
+  if (!node_.getParam("force_gains/trans/p", kfp_trans) ||
+      !node_.getParam("force_gains/trans/i", kfi_trans) ||
+      !node_.getParam("force_gains/trans/i_max", kfi_max_trans))
   {
-    ROS_ERROR("P and D translational gains not specified (namespace: %s)", node_.getNamespace().c_str());
+    ROS_ERROR("P and I translational force gains not specified (namespace: %s)", node_.getNamespace().c_str());
     return false;
   }
-  if (!node_.getParam("force_gains/rot/p", kfp_rot))
+  if (!node_.getParam("force_gains/rot/p", kfp_rot) ||
+      !node_.getParam("force_gains/rot/i", kfi_rot) ||
+      !node_.getParam("force_gains/rot/i_max", kfi_max_rot))
   {
-    ROS_ERROR("P and D rotational gains not specified (namespace: %s)", node_.getNamespace().c_str());
+    ROS_ERROR("P and I rotational force gains not specified (namespace: %s)", node_.getNamespace().c_str());
     return false;
   }
   Kfp << kfp_trans, kfp_trans, kfp_trans,  kfp_rot, kfp_rot, kfp_rot;
+  Kfi << kfi_trans, kfi_trans, kfi_trans,  kfi_rot, kfi_rot, kfi_rot;
+  Kfi_max << kfi_max_trans, kfi_max_trans, kfi_max_trans,  kfi_max_rot, kfi_max_rot, kfi_max_rot;
   motion_selector = CartVec::Ones();
-  force_selector = CartVec::Zero();
-  force_filter_.configure(6, "force_filter", node_);
-  in_force_filter_.resize(6);
-  out_force_filter_.resize(6);
+  force_selector = CartVec::Zero(); 
+  force_filter_.resize(6);
+  for(int i=0;i<6;i++) {
+    force_filter_[i].reset(new filters::FilterChain<double>("double"));
+    force_filter_[i]->configure("force_filter", node_);
+    ros::Duration(0.2).sleep();
+  }
+  qdot_filter_.resize(Joints);
+  for(int i=0;i<Joints;i++) {
+    ros::Duration(0.2).sleep();
+    qdot_filter_[i].reset(new filters::FilterChain<double>("double"));
+    qdot_filter_[i]->configure("qdot_filter", node_);
+  }
+  xdot_filter_.resize(6);
+  for(int i=0;i<6;i++) {
+    ros::Duration(0.2).sleep();
+    xdot_filter_[i].reset(new filters::FilterChain<double>("double"));
+    xdot_filter_[i]->configure("xdot_filter", node_);
+  }
 
   node_.param("pose_command_filter", pose_command_filter_, 1.0);
 
@@ -540,9 +573,11 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
   sub_gains_ = node_.subscribe("gains", 5, &HybridForceController::setGains, this);
   sub_posture_ = node_.subscribe("command_posture", 5, &HybridForceController::commandPosture, this);
   sub_pose_ = node_.subscribe("command_pose", 1, &HybridForceController::commandPose, this);
-  sub_force_ = node_.subscribe("command_force", 1, &HybridForceController::commandForce, this); // khawkins
-  sub_ft_zero_ = node_.subscribe("ft_zero", 5, &HybridForceController::zeroFTSensor, this); // khawkins
-  sub_ft_params_ = node_.subscribe("ft_params", 5, &HybridForceController::setFTSensorParams, this); // khawkins
+  // khawkins
+  sub_force_ = node_.subscribe("command_force", 1, &HybridForceController::commandForce, this);
+  sub_max_force_ = node_.subscribe("command_max_force", 1, &HybridForceController::commandMaxForce, this); 
+  sub_ft_zero_ = node_.subscribe("ft_zero", 5, &HybridForceController::zeroFTSensor, this);
+  sub_ft_params_ = node_.subscribe("ft_params", 5, &HybridForceController::setFTSensorParams, this);
 
   StateMsg state_template;
   state_template.header.frame_id = root_name_;
@@ -584,6 +619,8 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
   joints_template.data.resize(7);
   pub_tau_.initialize(node_.advertise<std_msgs::Float64MultiArray>("state/tau", 10),
                       10, joints_template);
+  pub_qdot_.initialize(node_.advertise<std_msgs::Float64MultiArray>("qd", 10),
+                       10, joints_template);
 
   return true;
 }
@@ -609,7 +646,8 @@ void HybridForceController::starting()
 
   loop_count_ = 0;
 
-  zero_wrench_ = true; //khawkins
+  F_integ_.setZero();
+  //zero_wrench_ = true; //khawkins
 }
 
 
@@ -641,12 +679,34 @@ void HybridForceController::update()
   kin_->jac(q, J);
 
 
+  /*
   JointVec qdot_raw;
   chain_.getVelocities(qdot_raw);
   for (int i = 0; i < Joints; ++i)
     qdot_filtered_[i] += joint_vel_filter_ * (qdot_raw[i] - qdot_filtered_[i]);
   JointVec qdot = qdot_filtered_;
+  */
+
+  // filter qdot using Savitzky-Golay differentiation
+  JointVec qdot;
+  double in_qdot, out_qdot;
+  for(int i=0;i<Joints;i++) {
+    in_qdot = q[i];
+    qdot_filter_[i]->update(in_qdot, out_qdot);
+    qdot[i] = out_qdot;
+  }
+  qdot = qdot / dt.toSec();
+  if(loop_count_ < 100)
+    qdot.setZero();
+
+  // low pass filter on xdot
   CartVec xdot = J * qdot;
+  double in_xdot, out_xdot;
+  for(int i=0;i<6;i++) {
+    in_xdot = xdot[i];
+    xdot_filter_[i]->update(in_xdot, out_xdot);
+    xdot[i] = out_xdot;
+  }
 
   // ======== Controls to the current pose setpoint
 
@@ -703,6 +763,17 @@ void HybridForceController::update()
   CartVec F_damp = Kd.array() * (St * xdot).array();
   CartVec F_cmd = motion_selector.array() * F_motion.array() + 
                   force_selector.array() * (St * F_des_).array() - F_damp.array();
+  // saturation force with F_max
+  double force_sat_scaling = 1.0, torque_sat_scaling = 1.0;
+  for(int i=0;i<3;i++)
+      if(F_max_[i] >= 0.0)
+          force_sat_scaling = std::min(force_sat_scaling, fabs(F_max_[i] / F_cmd[i]));
+  for(int i=3;i<6;i++)
+      if(F_max_[i] >= 0.0)
+          torque_sat_scaling = std::min(torque_sat_scaling, fabs(F_max_[i] / F_cmd[i]));
+  F_cmd.head<3>() = force_sat_scaling * F_cmd.head<3>();
+  F_cmd.tail<3>() = torque_sat_scaling * F_cmd.tail<3>();
+
   F_motion = F_cmd;
 
   ////////////////////// Process force/torque sensor khawkins ////////////////////
@@ -741,16 +812,39 @@ void HybridForceController::update()
     }
 
     // filter wrench signal
-    for(int i=0;i<6;i++)
-        in_force_filter_[i] = F_sensor_zeroed[i];
-    force_filter_.update(in_force_filter_, out_force_filter_);
-    for(int i=0;i<6;i++)
-        F_sensor_zeroed[i] = out_force_filter_[i];
+    double in_F, out_F;
+    for(int i=0;i<6;i++) {
+      in_F = F_sensor_zeroed[i];
+      force_filter_[i]->update(in_F, out_F);
+      F_sensor_zeroed[i] = out_F;
+    }
+    if(loop_count_ < 100)
+      F_sensor_zeroed.setZero();
   }
   /////////////////////////////////////////////////////////////////////////////////
 
   // Impedance control
-  CartVec F_control = F_cmd.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
+
+  bool is_integral_control = false;
+  for(int i=0;i<6;i++)
+      if(Kfi[i] != 0 || Kfi_max[i] != 0)
+          is_integral_control = true;
+  CartVec F_control;
+  if(!is_integral_control)
+      // Propotional:
+      F_control = F_cmd.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
+  else {
+      // Integral:
+      F_integ_ = F_integ_.array() + Kfi.array() * (F_cmd - F_sensor_zeroed).array();
+      for(int i=0;i<6;i++)
+          if(F_integ_[i] > Kfi_max[i])
+              F_integ_[i] = Kfi_max[i];
+          else if(F_integ_[i] < -Kfi_max[i])
+              F_integ_[i] = -Kfi_max[i];
+      //F_control = F_cmd.array() + F_integ_.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
+      F_control = F_integ_.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();
+  }
+
 
   // HERE WE CONVERT BACK TO THE ROOT FRAME SINCE THE JACOBIAN IS IN ROOT FRAME.
   //JointVec tau_pose = J.transpose() * St.transpose() * F_motion;
@@ -903,6 +997,12 @@ void HybridForceController::update()
       pub_tau_.publish(q_msg);
     }
 
+    if (q_msg = pub_qdot_.allocate()) {  // qdot
+      for (size_t i = 0; i < Joints; ++i)
+        q_msg->data[i] = qdot[i];
+      pub_qdot_.publish(q_msg);
+    }
+
     StateMsg::Ptr state_msg;
     if (state_msg = pub_state_.allocate()) {
       state_msg->header.stamp = time;
@@ -932,6 +1032,7 @@ void HybridForceController::update()
       pub_state_.publish(state_msg);
     }
   }
+  
 }
 
 } //namespace

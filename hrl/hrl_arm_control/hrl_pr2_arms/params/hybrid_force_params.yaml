@@ -2,16 +2,16 @@ l_cart:
   type: hrl_netft/HybridForceController
   root_name: torso_lift_link
   tip_name: l_gripper_tool_frame
-  k_posture: 25.0
+  k_posture: 20.0
   jacobian_inverse_damping: 0.01
   pose_command_filter: 0.01
   cart_gains:
     trans:
       p: 100.0
-      d: 10.0
+      d: 15.0
     rot:
-      p: 10.0
-      d: 1.0
+      p: 100.0
+      d: 0.0
   joint_feedforward:
     l_shoulder_pan_joint: 3.33
     l_shoulder_lift_joint: 1.16
@@ -21,38 +21,74 @@ l_cart:
     l_wrist_flex_joint: 0.0727
     l_wrist_roll_joint: 0.0727
   joint_max_effort:
-    l_shoulder_pan_joint: 11.88
-    l_shoulder_lift_joint: 11.64
-    l_upper_arm_roll_joint: 6.143
-    l_elbow_flex_joint: 6.804
-    l_forearm_roll_joint: 8.376
-    l_wrist_flex_joint: 5.568
-    l_wrist_roll_joint: 5.568
-  vel_saturation_trans: 6.0
-  vel_saturation_rot: 4.0
+    l_shoulder_pan_joint: 100
+    l_shoulder_lift_joint: 100
+    l_upper_arm_roll_joint: 100
+    l_elbow_flex_joint: 100
+    l_forearm_roll_joint: 100
+    l_wrist_flex_joint: 100
+    l_wrist_roll_joint: 100
+  vel_saturation_trans: 100
+  vel_saturation_rot: 100
+  #joint_max_effort:
+  #  l_shoulder_pan_joint: 11.88
+  #  l_shoulder_lift_joint: 11.64
+  #  l_upper_arm_roll_joint: 6.143
+  #  l_elbow_flex_joint: 6.804
+  #  l_forearm_roll_joint: 8.376
+  #  l_wrist_flex_joint: 5.568
+  #  l_wrist_roll_joint: 5.568
+  #vel_saturation_trans: 6.0
+  #vel_saturation_rot: 4.0
 
-  use_tip_frame: true
+  use_tip_frame: false
 
   force_torque_analog_in: force_torque_1
   force_torque_frame: l_netft_frame
   force_gains:
     trans:
-      p: 1.0
+      p: 2.0
+      i: 0.0
+      i_max: 0.0
     rot:
-      p: 0.3
+      p: 0.0
+      i: 0.0
+      i_max: 0.0
+  force_trans_max: -1
+  force_rot_max: -1
   force_filter: 
-    filter_chain:
       -
         name: force_bw_filter
-        type: MultiChannelTransferFunctionFilter
+        type: filters/TransferFunctionFilterDouble
         params:
           a: [1, -1.98418996, 0.98431396]
           b: [0.000031000568, 0.000062001136, 0.000031000568]
-#a: [1, -1.973265, 0.9736179]
-#b: [0.00008817295, 0.0001763459, 0.00008817295]
   gripper_params:
     com_pos_x: -0.0012628567508067693
     com_pos_y: 0.0017608807708057572
     com_pos_z: -0.085322945903206882
     mass: 1.0207469045830115
 
+  xdot_filter: 
+      -
+        name: xdot_bw_filter
+        type: filters/TransferFunctionFilterDouble
+        params:
+#a: [1]
+#b: [1]
+            a: [1, -1.984189961, 0.9843139633]
+            b: [0.000031000568, 0.000062001136, 0.000031000568]
+
+  qdot_filter: 
+      -
+        name: qdot_sg_filter
+        type: filters/TransferFunctionFilterDouble
+        params:
+#a: [1, 0]
+#b: [1, -1]
+            a: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            b: [0.30909091, 0.11060606000000001, -0.035930735999999998, -0.13051947999999999, -0.17316017, -0.16385280999999999, -0.10259740000000001, 0.010606061, 0.17575758]
+#a: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+#b: [0.11397059, 0.074264706, 0.039810923999999998, 0.010609244, -0.013340336, -0.032037814999999997, -0.045483192999999998, -0.053676471000000003, -0.056617647, -0.054306723000000001, -0.046743697000000001, -0.033928570999999998, -0.015861344999999999, 0.0074579831999999997, 0.036029411999999997, 0.069852941000000002]
+#a: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+#b: [0.033541056, 0.027639296000000001, 0.022116746, 0.016973405, 0.012209273, 0.0078243502999999996, 0.0038186369000000001, 0.00019213267, -0.0030551622999999998, -0.0059232481000000003, -0.0084121245999999993, -0.010521792, -0.012252249999999999, -0.013603499, -0.014575538000000001, -0.015168368999999999, -0.01538199, -0.015216402, -0.014671605000000001, -0.013747598, -0.012444383, -0.010761958, -0.0087003236000000005, -0.0062594801999999996, -0.0034394275999999999, -0.00024016584000000001, 0.0033383051999999998, 0.0072959853999999998, 0.011632875000000001, 0.016348973999999999, 0.021444281999999999]
