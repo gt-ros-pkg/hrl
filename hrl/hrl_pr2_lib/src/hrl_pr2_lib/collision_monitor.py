@@ -1,10 +1,10 @@
 #! /usr/bin/python
-print "Planning environment messages moved. Find it to fix this module"
 import roslib; roslib.load_manifest('hrl_pr2_lib')
 import rospy
 
 import sensor_msgs.msg as sm
-import planning_environment_msgs.srv as psrv
+# import planning_environment_msgs.srv as psrv
+import arm_navigation_msgs.srv as psrv
 import numpy as np
 import time
 import hrl_pr2_lib.msg as hmsg
