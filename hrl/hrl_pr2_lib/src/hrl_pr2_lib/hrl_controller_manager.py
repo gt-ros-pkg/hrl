@@ -24,13 +24,13 @@ class HRLIKUtilities(IKUtilities):
         #If collision_aware_ik is set to 0, then collision-aware IK is disabled 
  	self.perception_running = rospy.get_param('~collision_aware_ik', 1) 
 
-        self._ik_service = rospy.ServiceProxy(self.srvroot+'get_ik', GetPositionIK)
+        self._ik_service = rospy.ServiceProxy(self.srvroot+'get_ik', GetPositionIK, True)
         if self.perception_running:
-            self._ik_service_with_collision = rospy.ServiceProxy(self.srvroot+'get_constraint_aware_ik', GetConstraintAwarePositionIK)
+            self._ik_service_with_collision = rospy.ServiceProxy(self.srvroot+'get_constraint_aware_ik', GetConstraintAwarePositionIK, True)
 
-        self._fk_service = rospy.ServiceProxy(self.srvroot+'get_fk', GetPositionFK)
-        self._query_service = rospy.ServiceProxy(self.srvroot+'get_ik_solver_info', GetKinematicSolverInfo)
-        self._check_state_validity_service = rospy.ServiceProxy('/environment_server/get_state_validity', GetStateValidity)
+        self._fk_service = rospy.ServiceProxy(self.srvroot+'get_fk', GetPositionFK, True
+        self._query_service = rospy.ServiceProxy(self.srvroot+'get_ik_solver_info', GetKinematicSolverInfo, True)
+        self._check_state_validity_service = rospy.ServiceProxy('/planning_scene_validity_server/get_state_validity', GetStateValidity, True)
 
         #wait for IK/FK/query services and get the joint names and limits 
         if wait_for_services:
@@ -318,11 +318,23 @@ class HRLControllerManager(ControllerManager):
           self.tf_listener = tf.TransformListener()
         else:
           self.tf_listener = tf_listener
+
+        #which Cartesian controller to use
+        self.use_trajectory_cartesian = rospy.get_param('~use_trajectory_cartesian', 1)
+        self.use_task_cartesian = rospy.get_param('~use_task_cartesian', 0)
+        if self.use_trajectory_cartesian and self.use_task_cartesian:
+          rospy.loginfo("can't use both trajectory and task controllers!  Defaulting to task")
+          self.use_trajectory_cartesian = 0
+        rospy.loginfo("use_trajectory_cartesian: "+str(self.use_trajectory_cartesian))
+        rospy.loginfo("use_task_cartesian: "+str(self.use_task_cartesian))
   
         #names of the controllers
-        self.cartesian_controllers = ['_arm_cartesian_pose_controller', 
-                                        '_arm_cartesian_trajectory_controller']
-        self.cartesian_controllers = [self.whicharm+x for x in self.cartesian_controllers]
+        if self.use_trajectory_cartesian:
+            self.cartesian_controllers = ['_arm_cartesian_pose_controller', 
+                                            '_arm_cartesian_trajectory_controller']
+            self.cartesian_controllers = [self.whicharm+x for x in self.cartesian_controllers]
+        else:
+            self.cartesian_controllers = [self.whicharm + '_cart']
         self.joint_controller = self.whicharm+'_arm_controller'
         if self.using_slip_controller:
           self.gripper_controller = self.whicharm+'_gripper_sensor_controller'
@@ -330,7 +342,10 @@ class HRLControllerManager(ControllerManager):
           self.gripper_controller = self.whicharm+'_gripper_controller'
   
         #parameters for the Cartesian controllers    
-        self.cart_params = JTCartesianParams(self.whicharm)
+        if self.use_trajectory_cartesian:
+            self.cart_params = JTCartesianParams(self.whicharm)
+        else:
+            self.cart_params = JTCartesianTaskParams(self.whicharm, self.use_task_cartesian)
   
         #parameters for the joint controller
         self.joint_params = JointParams(self.whicharm)
@@ -342,15 +357,19 @@ class HRLControllerManager(ControllerManager):
         rospy.loginfo("done loading controllers")
   
         #services for the J-transpose Cartesian controller 
-        cartesian_check_moving_name = whicharm+'_arm_cartesian_trajectory_controller/check_moving'
-        cartesian_move_to_name = whicharm+'_arm_cartesian_trajectory_controller/move_to'
-        cartesian_preempt_name = whicharm+'_arm_cartesian_trajectory_controller/preempt'
-        self.wait_for_service(cartesian_check_moving_name)      
-        self.wait_for_service(cartesian_move_to_name)
-        self.wait_for_service(cartesian_preempt_name)      
-        self.cartesian_moving_service = rospy.ServiceProxy(cartesian_check_moving_name, CheckMoving)
-        self.cartesian_cmd_service = rospy.ServiceProxy(cartesian_move_to_name, MoveToPose)
-        self.cartesian_preempt_service = rospy.ServiceProxy(cartesian_preempt_name, Empty)
+        if self.use_trajectory_cartesian:
+            cartesian_check_moving_name = whicharm+'_arm_cartesian_trajectory_controller/check_moving'
+            cartesian_move_to_name = whicharm+'_arm_cartesian_trajectory_controller/move_to'
+            cartesian_preempt_name = whicharm+'_arm_cartesian_trajectory_controller/preempt'
+            self.wait_for_service(cartesian_check_moving_name)      
+            self.wait_for_service(cartesian_move_to_name)
+            self.wait_for_service(cartesian_preempt_name)      
+            self.cartesian_moving_service = rospy.ServiceProxy(cartesian_check_moving_name, CheckMoving)
+            self.cartesian_cmd_service = rospy.ServiceProxy(cartesian_move_to_name, MoveToPose)
+            self.cartesian_preempt_service = rospy.ServiceProxy(cartesian_preempt_name, Empty)
+        else:
+            cartesian_cmd_name = whicharm+'_cart/command_pose'
+            self.cartesian_cmd_pub = rospy.Publisher(cartesian_cmd_name, PoseStamped)
   
         #re-load the Cartesian controllers with the gentle params
         self.cart_params.set_params_to_gentle()
@@ -375,6 +394,14 @@ class HRLControllerManager(ControllerManager):
                        "_wrist_roll_joint"]
         self.joint_names = [whicharm + x for x in joint_names]
   
+        #thread to send clipped versions of the last Cartesian command
+        if not self.use_trajectory_cartesian:
+          self.cartesian_command_lock = threading.Lock()
+          self.cartesian_command_thread_running = False
+          self.cartesian_desired_pose = self.get_current_wrist_pose_stamped('/base_link')
+          self.cartesian_command_thread = threading.Thread(target=self.cartesian_command_thread_func)
+          self.cartesian_command_thread.setDaemon(True)
+          self.cartesian_command_thread.start()
         rospy.loginfo("done with controller_manager init for the %s arm"%whicharm)
 
     def command_interpolated_ik(self, end_pose, start_pose = None, collision_aware = 1, step_size = .02, max_joint_vel = .05, joints_bias = None, bias_radius = 0.0):
