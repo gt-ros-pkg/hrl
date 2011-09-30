@@ -1104,6 +1104,8 @@ class TabletopPushingPerceptionNode
         this);
     motion_mask_pub_ = it_.advertise("motion_mask", 15);
     motion_img_pub_ = it_.advertise("motion_img", 15);
+    arm_mask_pub_ = it_.advertise("arm_mask", 15);
+    arm_img_pub_ = it_.advertise("arm_img", 15);
     track_server_.start();
   }
 
@@ -1352,7 +1354,16 @@ class TabletopPushingPerceptionNode
     motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
 
-    // Also publish color version
+    // Publish arm stuff
+    cv::Mat cleaned_arm_cut(arm_cut.size(), CV_8UC1);
+    arm_cut.convertTo(cleaned_arm_cut, CV_8UC1, 255, 0);
+    cv_bridge::CvImage arm_mask_msg;
+    arm_mask_msg.image = cleaned_arm_cut;
+    arm_mask_msg.header = cur_camera_header_;
+    arm_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
+    arm_mask_pub_.publish(arm_mask_msg.toImageMsg());
+
+    // Also publish color versions
     cv::Mat moving_regions_img;
     color_frame.copyTo(moving_regions_img, cleaned_cut);
     cv_bridge::CvImage motion_img_msg;
@@ -1363,13 +1374,19 @@ class TabletopPushingPerceptionNode
     motion_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     motion_img_pub_.publish(motion_img_msg.toImageMsg());
 
-    cv::Mat cleaned_arm_cut(arm_cut.size(), CV_8UC1);
-    arm_cut.convertTo(cleaned_arm_cut, CV_8UC1, 255, 0);
     cv::Mat arm_regions_img;
     color_frame.copyTo(arm_regions_img, cleaned_arm_cut);
-    cv::Mat not_arm_move = cleaned_cut - cleaned_arm_cut;
-    cv::Mat not_arm_move_color;
-    color_frame.copyTo(not_arm_move_color, not_arm_move);
+    cv_bridge::CvImage arm_img_msg;
+    cv::Mat arm_img_send(arm_regions_img.size(), CV_8UC3);
+    arm_regions_img.convertTo(arm_img_send, CV_8UC3, 1.0, 0);
+    arm_img_msg.image = arm_img_send;
+    arm_img_msg.header = cur_camera_header_;
+    arm_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
+    arm_img_pub_.publish(arm_img_msg.toImageMsg());
+
+    // cv::Mat not_arm_move = cleaned_cut - cleaned_arm_cut;
+    // cv::Mat not_arm_move_color;
+    // color_frame.copyTo(not_arm_move_color, not_arm_move);
 #ifdef WRITE_INPUT_TO_DISK
     std::stringstream input_out_name;
     input_out_name << base_output_path_ << "input" << tracker_count_ << ".tiff";
@@ -1928,6 +1945,8 @@ class TabletopPushingPerceptionNode
   sensor_msgs::CameraInfo cam_info_;
   image_transport::Publisher motion_img_pub_;
   image_transport::Publisher motion_mask_pub_;
+  image_transport::Publisher arm_img_pub_;
+  image_transport::Publisher arm_mask_pub_;
   actionlib::SimpleActionServer<tabletop_pushing::SegTrackAction> track_server_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
