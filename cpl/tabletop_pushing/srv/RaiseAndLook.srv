@@ -1,4 +1,5 @@
 geometry_msgs/PoseStamped table_centroid
 bool point_head_only
+string camera_frame
 ---
 bool head_succeeded

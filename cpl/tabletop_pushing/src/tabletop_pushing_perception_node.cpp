@@ -739,14 +739,24 @@ class MotionGraphcut
 
     // One gaussian estimated from wrist to elbow, elbow to forearm and a
     // separate one is estimated from the gripper tip to wrist
+    if (arms[0].size() == 0)
+    {
+      ROS_WARN_STREAM("No hands!");
+    }
+    if (arms[1].size() == 0)
+    {
+      ROS_WARN_STREAM("No arms!");
+    }
     std::vector<cv::Vec3f> hand_stats = getImagePointGaussian(color_frame,
                                                               arms[0],
                                                               crop_min_x,
                                                               crop_min_y);
+    ROS_INFO_STREAM("Got hand stats");
     std::vector<cv::Vec3f> arm_stats = getImagePointGaussian(color_frame,
                                                              arms[1],
                                                              crop_min_x,
                                                              crop_min_y);
+    ROS_INFO_STREAM("Got arm stats");
     // Tie weights to fg / bg
     for (int r = 0; r < R; ++r)
     {
@@ -770,6 +780,7 @@ class MotionGraphcut
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
       }
     }
+    ROS_INFO_STREAM("Got source sink weights");
     // Add edge weights
     for (int r = 0; r < R; ++r)
     {
@@ -816,7 +827,7 @@ class MotionGraphcut
         }
       }
     }
-
+    ROS_INFO_STREAM("Set smoothness edge weights.");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::imshow("fg_weights_arm", fg_weights);
     cv::imshow("bg_weights_arm", bg_weights);
@@ -839,6 +850,7 @@ class MotionGraphcut
 
     // int flow = g->maxflow(false);
     g->maxflow(false);
+    ROS_INFO_STREAM("Got min cut");
 
     // Convert output into image
     cv::Mat segs = convertFlowResultsToCvMat(g, R, C, roi,
@@ -882,20 +894,80 @@ class MotionGraphcut
   {
     const float dist_score = exp(-arms.distanceToArm(
         cv::Point2f(c+roi.x,r+roi.y), depth_frame)/arm_dist_var_);
+    if (isnan(dist_score))
+    {
+      ROS_WARN_STREAM("dist score is nan: " << dist_score);
+    }
+    if (isinf(dist_score))
+    {
+      ROS_WARN_STREAM("dist score is inf: " << dist_score);
+    }
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     dist_img.at<float>(r,c) = dist_score;
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
     const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
         arm_stats[1][0] + arm_color_var_add_);
+    if (isnan(arm_h_score))
+    {
+      ROS_WARN_STREAM("dist score is nan: " << arm_h_score);
+    }
+    if (isinf(arm_h_score))
+    {
+      ROS_WARN_STREAM("dist score is inf: " << arm_h_score);
+    }
+
     const float arm_s_score = 1.0-fabs(cur_c[1] - arm_stats[0][1])/(
         arm_stats[1][1] + arm_color_var_add_);
+    if (isnan(arm_s_score))
+    {
+      ROS_WARN_STREAM("dist score is nan: " << arm_s_score);
+    }
+    if (isinf(arm_s_score))
+    {
+      ROS_WARN_STREAM("dist score is inf: " << arm_s_score);
+    }
     const float arm_score = (arm_h_score + arm_s_score)/2.0+0.5*dist_score;
+    if (isnan(arm_score))
+    {
+      ROS_WARN_STREAM("dist score is nan: " << arm_score);
+    }
+    if (isinf(arm_score))
+    {
+      ROS_WARN_STREAM("dist score is inf: " << arm_score);
+    }
+
     const float hand_h_score = 1.0-fabs(cur_c[0] - hand_stats[0][0])/(
         hand_stats[1][0] + arm_color_var_add_);
+    if (isnan(hand_h_score))
+    {
+      ROS_WARN_STREAM("dist score is nan: " << hand_h_score);
+    }
+    if (isinf(hand_h_score))
+    {
+      ROS_WARN_STREAM("dist score is inf: " << hand_h_score);
+    }
+
     const float hand_s_score = 1.0-fabs(cur_c[1] - hand_stats[0][1])/(
         hand_stats[1][1] + arm_color_var_add_);
+    if (isnan(hand_s_score))
+    {
+      ROS_WARN_STREAM("dist score is nan: " << hand_s_score);
+    }
+    if (isinf(hand_s_score))
+    {
+      ROS_WARN_STREAM("dist score is inf: " << hand_s_score);
+    }
     const float hand_score = (hand_h_score + hand_s_score)/2.0 + 0.5*dist_score;
+    if (isnan(hand_score))
+    {
+      ROS_WARN_STREAM("dist score is nan: " << hand_score);
+    }
+    if (isinf(hand_score))
+    {
+      ROS_WARN_STREAM("dist score is inf: " << hand_score);
+    }
+
     return max(hand_score, arm_score);
   }
 
@@ -930,6 +1002,10 @@ class MotionGraphcut
       means[0] /= pixel_count;
       means[1] /= pixel_count;
       means[2] /= pixel_count;
+    }
+    else
+    {
+      ROS_WARN_STREAM("Calculating stats for 0 pixels");
     }
     cv::Vec3f vars;
     vars[0] = 0.0;
@@ -1200,13 +1276,15 @@ class TabletopPushingPerceptionNode
           res.table_centroid.pose.position.z == 0.0)
       {
         ROS_ERROR_STREAM("No plane found, leaving");
+        res.found_table = false;
         return false;
       }
-
+      res.found_table = true;
     }
     else
     {
       ROS_ERROR_STREAM("Calling getTableLocation prior to receiving sensor data.");
+      res.found_table = false;
       return false;
     }
     return true;
@@ -1316,11 +1394,9 @@ class TabletopPushingPerceptionNode
     cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
     cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
     color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
-    ROS_DEBUG_STREAM("Converted color spaces");
 
     // Get optical flow
     std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
-    ROS_DEBUG_STREAM("Got flow results");
     // Project locations of the arms and hands into the image
     int min_arm_x = 0;
     int max_arm_x = 0;
@@ -1329,28 +1405,27 @@ class TabletopPushingPerceptionNode
     ArmModel hands_and_arms = projectArmPoses(cur_camera_header_,
                                               color_frame.size(), min_arm_x,
                                               max_arm_x, min_arm_y, max_arm_y);
-    ROS_DEBUG_STREAM("Got arm projections");
     // Get pixel heights above the table
     cv::Mat heights_above_table = getTableHeightDistances();
-    ROS_DEBUG_STREAM("Got table distances");
     // Perform graphcut for motion detection
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
                        cur_workspace_mask_, heights_above_table,
                        hands_and_arms);
-    ROS_DEBUG_STREAM("Performed motion cut");
+    ROS_INFO_STREAM("Performed motion cut");
     // Perform graphcut for arm localization
     cv::Mat arm_cut(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     if (hands_and_arms[0].size() > 0 || hands_and_arms[1].size() > 0)
     {
+      ROS_INFO_STREAM("Perfmoring arm cut");
       arm_cut = mgc_.segmentArmFromMoving(color_frame_f, depth_frame,
                                           cur_workspace_mask_, hands_and_arms,
                                           min_arm_x, max_arm_x, min_arm_y,
                                           max_arm_y);
-      ROS_DEBUG_STREAM("Perfmored arm cut");
+      ROS_INFO_STREAM("Perfmored arm cut");
     }
     else
     {
-      ROS_DEBUG_STREAM("No arm cut");
+      ROS_INFO_STREAM("No arm cut");
     }
     cv::Mat cleaned_cut(cut.size(), CV_8UC1);
     cut.convertTo(cleaned_cut, CV_8UC1, 255, 0);
@@ -1361,7 +1436,6 @@ class TabletopPushingPerceptionNode
     motion_mask_msg.header = cur_camera_header_;
     motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
-    ROS_DEBUG_STREAM("Published motion mask");
 
     // Publish arm stuff
     cv::Mat cleaned_arm_cut(arm_cut.size(), CV_8UC1);
@@ -1371,7 +1445,6 @@ class TabletopPushingPerceptionNode
     arm_mask_msg.header = cur_camera_header_;
     arm_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     arm_mask_pub_.publish(arm_mask_msg.toImageMsg());
-    ROS_DEBUG_STREAM("Published arm mask");
 
     // Also publish color versions
     cv::Mat moving_regions_img;
@@ -1383,7 +1456,6 @@ class TabletopPushingPerceptionNode
     motion_img_msg.header = cur_camera_header_;
     motion_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     motion_img_pub_.publish(motion_img_msg.toImageMsg());
-    ROS_DEBUG_STREAM("Published motion image");
 
     cv::Mat arm_regions_img;
     color_frame.copyTo(arm_regions_img, cleaned_arm_cut);
@@ -1394,8 +1466,7 @@ class TabletopPushingPerceptionNode
     arm_img_msg.header = cur_camera_header_;
     arm_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     arm_img_pub_.publish(arm_img_msg.toImageMsg());
-
-    ROS_DEBUG_STREAM("Published arm image");
+    ROS_INFO_STREAM("Published stuff.");
     // cv::Mat not_arm_move = cleaned_cut - cleaned_arm_cut;
     // cv::Mat not_arm_move_color;
     // color_frame.copyTo(not_arm_move_color, not_arm_move);

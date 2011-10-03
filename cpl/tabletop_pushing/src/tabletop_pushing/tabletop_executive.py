@@ -145,6 +145,7 @@ class TabletopExecutive:
         table_req.recalculate = True
         raise_req = RaiseAndLookRequest()
         raise_req.point_head_only = True
+        raise_req.camera_frame = 'openni_rgb_frame'
         # First make sure the head is looking the correct way before estimating
         # the table centroid
         raise_res = self.raise_and_look_push_proxy(raise_req)
@@ -152,6 +153,8 @@ class TabletopExecutive:
             table_res = self.table_proxy(table_req);
         except rospy.ServiceException, e:
             rospy.logwarn("Service did not process request: %s"%str(e))
+            return
+        if not table_res.found_table:
             return
         raise_req.table_centroid = table_res.table_centroid
 
@@ -365,4 +368,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(0, 1, 1, 0, 1, 0)
+    node.run(3, 1, 0, 0, 0, 0)

@@ -72,6 +72,8 @@ class TabletopPushNode:
         rospy.init_node('tabletop_push_node', log_level=rospy.DEBUG)
         self.torso_z_offset = rospy.get_param('~torso_z_offset', 0.15)
         self.look_pt_x = rospy.get_param('~look_point_x', 0.45)
+        self.head_pose_cam_frame = rospy.get_param('~head_pose_cam_frame',
+                                                   'openni_rgb_frame')
         use_slip = rospy.get_param('~use_slip_detection', 1)
 
         self.tf_listener = tf.TransformListener()
@@ -374,7 +376,7 @@ class TabletopPushNode:
         '''
         if request.point_head_only:
             response = RaiseAndLookResponse()
-            response.head_succeeded = self.init_head_pose()
+            response.head_succeeded = self.init_head_pose(request.camera_frame)
             return response
 
         # Get torso_lift_link position in base_link frame
@@ -427,10 +429,9 @@ class TabletopPushNode:
                                0.0,
                                -self.torso_z_offset])
         rospy.loginfo('Point head at ' + str(look_pt))
-        # TODO: Fix hardcoding of 'openni_rgb_frame'
         head_res = self.robot.head.look_at(look_pt,
                                            request.table_centroid.header.frame_id,
-                                           'openni_rgb_frame')
+                                           request.camera_frame)
         response = RaiseAndLookResponse()
         if head_res:
             rospy.loginfo('Succeeded in pointing head')
@@ -455,13 +456,13 @@ class TabletopPushNode:
         rospy.loginfo('Right Cart_position: ' + str(cart_pose[0]))
         rospy.loginfo('Right Cart_orientation: ' + str(cart_pose[1]))
 
-    def init_head_pose(self):
+    def init_head_pose(self, camera_frame):
         look_pt = np.asmatrix([self.look_pt_x, 0.0, -self.torso_z_offset])
         rospy.loginfo('Point head at ' + str(look_pt))
-        # TODO: Fix hardcoding of 'openni_rgb_frame'
+        rospy.loginfo('Camera frame is: ' + camera_frame)
         head_res = self.robot.head.look_at(look_pt,
                                            'torso_lift_link',
-                                           'openni_rgb_frame')
+                                           camera_frame)
         if head_res:
             rospy.loginfo('Succeeded in pointing head')
             return True
@@ -479,7 +480,7 @@ class TabletopPushNode:
             self.init_arm_pose(True, which_arm='r')
             self.init_arm_pose(True, which_arm='l')
             rospy.loginfo('Done initializing arms')
-        self.init_head_pose()
+        self.init_head_pose(self.head_pose_cam_frame)
         rospy.spin()
 
 if __name__ == '__main__':
