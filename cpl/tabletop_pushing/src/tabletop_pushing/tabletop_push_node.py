@@ -372,6 +372,11 @@ class TabletopPushNode:
         Service callback to raise the spine to a specific height relative to the
         table height and tilt the head so that the Kinect views the table
         '''
+        if request.point_head_only:
+            response = RaiseAndLookResponse()
+            response.head_succeeded = self.init_head_pose()
+            return response
+
         # Get torso_lift_link position in base_link frame
         (trans, rot) = self.tf_listener.lookupTransform('/base_link',
                                                         '/torso_lift_link',
@@ -396,13 +401,13 @@ class TabletopPushNode:
         torso_goal_position = current_torso_position + lift_link_delta_z
         torso_goal_position = (max(min(torso_max, torso_goal_position),
                                    torso_min))
-        # rospy.loginfo('Moving torso to ' + str(torso_goal_position))
+        rospy.loginfo('Moving torso to ' + str(torso_goal_position))
         # Multiply by 2.0, because of units of spine
         self.robot.torso.set_pose(torso_goal_position)
 
-        # rospy.loginfo('Got torso client result')
+        rospy.loginfo('Got torso client result')
         new_torso_position = np.asarray(self.robot.torso.pose()).ravel()[0]
-        # rospy.loginfo('New torso position is: ' + str(new_torso_position))
+        rospy.loginfo('New torso position is: ' + str(new_torso_position))
 
         # Get torso_lift_link position in base_link frame
         (new_trans, rot) = self.tf_listener.lookupTransform('/base_link',
@@ -411,25 +416,21 @@ class TabletopPushNode:
         new_lift_link_z = new_trans[2]
         rospy.loginfo('New Torso height (m): ' + str(new_lift_link_z))
         # tabletop position in base_link frame
-        # new_table_base = self.tf_listener.transformPose('/base_link',
-        #                                                 request.table_centroid)
-        # new_table_z = new_table_base.pose.position.z
-        # rospy.loginfo('New Table height: ' + str(new_table_z))
+        new_table_base = self.tf_listener.transformPose('/base_link',
+                                                        request.table_centroid)
+        new_table_z = new_table_base.pose.position.z
+        rospy.loginfo('New Table height: ' + str(new_table_z))
 
         # Point the head at the table centroid
         # NOTE: Should we fix the tilt angle instead for consistency?
         look_pt = np.asmatrix([self.look_pt_x,
                                0.0,
                                -self.torso_z_offset])
-        # look_pt = np.asmatrix([request.table_centroid.pose.position.x-0.30,
-        #                        0.0,
-        #                        -self.torso_z_offset])
         rospy.loginfo('Point head at ' + str(look_pt))
         # TODO: Fix hardcoding of 'openni_rgb_frame'
         head_res = self.robot.head.look_at(look_pt,
                                            request.table_centroid.header.frame_id,
                                            'openni_rgb_frame')
-
         response = RaiseAndLookResponse()
         if head_res:
             rospy.loginfo('Succeeded in pointing head')
@@ -454,6 +455,19 @@ class TabletopPushNode:
         rospy.loginfo('Right Cart_position: ' + str(cart_pose[0]))
         rospy.loginfo('Right Cart_orientation: ' + str(cart_pose[1]))
 
+    def init_head_pose(self):
+        look_pt = np.asmatrix([self.look_pt_x, 0.0, -self.torso_z_offset])
+        rospy.loginfo('Point head at ' + str(look_pt))
+        # TODO: Fix hardcoding of 'openni_rgb_frame'
+        head_res = self.robot.head.look_at(look_pt,
+                                           'torso_lift_link',
+                                           'openni_rgb_frame')
+        if head_res:
+            rospy.loginfo('Succeeded in pointing head')
+            return True
+        else:
+            rospy.loginfo('Failed to point head')
+            return False
     #
     # Main Control Loop
     #
@@ -465,21 +479,7 @@ class TabletopPushNode:
             self.init_arm_pose(True, which_arm='r')
             self.init_arm_pose(True, which_arm='l')
             rospy.loginfo('Done initializing arms')
-        look_pt = np.asmatrix([self.look_pt_x, 0.0, -self.torso_z_offset])
-        rospy.loginfo('Point head at ' + str(look_pt))
-        # TODO: Fix hardcoding of 'openni_rgb_frame'
-        head_res = self.robot.head.look_at(look_pt,
-                                           'torso_lift_link',
-                                           'openni_rgb_frame')
-
-        response = RaiseAndLookResponse()
-        if head_res:
-            rospy.loginfo('Succeeded in pointing head')
-            response.head_succeeded = True
-        else:
-            rospy.loginfo('Failed to point head')
-            response.head_succeeded = False
-
+        self.init_head_pose()
         rospy.spin()
 
 if __name__ == '__main__':

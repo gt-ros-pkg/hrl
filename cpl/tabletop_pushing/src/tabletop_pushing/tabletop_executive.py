@@ -144,6 +144,10 @@ class TabletopExecutive:
         table_req = LocateTableRequest()
         table_req.recalculate = True
         raise_req = RaiseAndLookRequest()
+        raise_req.point_head_only = True
+        # First make sure the head is looking the correct way before estimating
+        # the table centroid
+        raise_res = self.raise_and_look_push_proxy(raise_req)
         try:
             table_res = self.table_proxy(table_req);
         except rospy.ServiceException, e:
@@ -152,6 +156,7 @@ class TabletopExecutive:
         raise_req.table_centroid = table_res.table_centroid
 
         rospy.loginfo("Raising spine");
+        raise_req.point_head_only = False
         raise_res = self.raise_and_look_push_proxy(raise_req)
 
     def start_tracker(self):
@@ -360,4 +365,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(0, 1, 0, 2, 0, 0)
+    node.run(0, 1, 1, 0, 1, 0)

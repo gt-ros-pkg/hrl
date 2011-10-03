@@ -1300,6 +1300,7 @@ class TabletopPushingPerceptionNode
       {
         min_workspace_z_ = table_centroid_.pose.position.z - below_table_z_;
         n_private_.setParam("min_workspace_z", min_workspace_z_);
+        ROS_INFO_STREAM("Found plane");
       }
 
       tracker_initialized_ = true;
@@ -1315,10 +1316,11 @@ class TabletopPushingPerceptionNode
     cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
     cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
     color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
+    ROS_DEBUG_STREAM("Converted color spaces");
 
     // Get optical flow
     std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
-
+    ROS_DEBUG_STREAM("Got flow results");
     // Project locations of the arms and hands into the image
     int min_arm_x = 0;
     int max_arm_x = 0;
@@ -1327,14 +1329,15 @@ class TabletopPushingPerceptionNode
     ArmModel hands_and_arms = projectArmPoses(cur_camera_header_,
                                               color_frame.size(), min_arm_x,
                                               max_arm_x, min_arm_y, max_arm_y);
+    ROS_DEBUG_STREAM("Got arm projections");
     // Get pixel heights above the table
     cv::Mat heights_above_table = getTableHeightDistances();
-
+    ROS_DEBUG_STREAM("Got table distances");
     // Perform graphcut for motion detection
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
                        cur_workspace_mask_, heights_above_table,
                        hands_and_arms);
-
+    ROS_DEBUG_STREAM("Performed motion cut");
     // Perform graphcut for arm localization
     cv::Mat arm_cut(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     if (hands_and_arms[0].size() > 0 || hands_and_arms[1].size() > 0)
@@ -1343,6 +1346,11 @@ class TabletopPushingPerceptionNode
                                           cur_workspace_mask_, hands_and_arms,
                                           min_arm_x, max_arm_x, min_arm_y,
                                           max_arm_y);
+      ROS_DEBUG_STREAM("Perfmored arm cut");
+    }
+    else
+    {
+      ROS_DEBUG_STREAM("No arm cut");
     }
     cv::Mat cleaned_cut(cut.size(), CV_8UC1);
     cut.convertTo(cleaned_cut, CV_8UC1, 255, 0);
@@ -1353,6 +1361,7 @@ class TabletopPushingPerceptionNode
     motion_mask_msg.header = cur_camera_header_;
     motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
+    ROS_DEBUG_STREAM("Published motion mask");
 
     // Publish arm stuff
     cv::Mat cleaned_arm_cut(arm_cut.size(), CV_8UC1);
@@ -1362,6 +1371,7 @@ class TabletopPushingPerceptionNode
     arm_mask_msg.header = cur_camera_header_;
     arm_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     arm_mask_pub_.publish(arm_mask_msg.toImageMsg());
+    ROS_DEBUG_STREAM("Published arm mask");
 
     // Also publish color versions
     cv::Mat moving_regions_img;
@@ -1373,6 +1383,7 @@ class TabletopPushingPerceptionNode
     motion_img_msg.header = cur_camera_header_;
     motion_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     motion_img_pub_.publish(motion_img_msg.toImageMsg());
+    ROS_DEBUG_STREAM("Published motion image");
 
     cv::Mat arm_regions_img;
     color_frame.copyTo(arm_regions_img, cleaned_arm_cut);
@@ -1384,6 +1395,7 @@ class TabletopPushingPerceptionNode
     arm_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     arm_img_pub_.publish(arm_img_msg.toImageMsg());
 
+    ROS_DEBUG_STREAM("Published arm image");
     // cv::Mat not_arm_move = cleaned_cut - cleaned_arm_cut;
     // cv::Mat not_arm_move_color;
     // color_frame.copyTo(not_arm_move_color, not_arm_move);
@@ -1812,9 +1824,9 @@ class TabletopPushingPerceptionNode
       cv::circle(plane_display, p, 2, cv::Scalar(0,255,0));
 #endif // DISPLAY_PLANE_ESTIMATE
     }
-    ROS_INFO_STREAM("Calculating table color stats.");
 
 #ifdef USE_TABLE_COLOR_ESTIMATE
+    ROS_INFO_STREAM("Calculating table color stats.");
     mgc_.setTableColorStats(cur_color_frame_, table_points);
 #endif // USE_TABLE_COLOR_ESTIMATE
 
