@@ -143,7 +143,6 @@ def fit_line_low_slope(x, y):
     return a,b,resids/x.shape[0]
 
 
-
 if __name__ == '__main__':
     import matplotlib.pyplot as pp
 

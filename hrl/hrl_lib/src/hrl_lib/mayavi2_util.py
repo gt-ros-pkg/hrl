@@ -91,7 +91,7 @@ def plot_quiver(pts, vecs, color=(0.,1.,0.), arrow_scale = 0.05,
 
     plot_points(pts, mode=point_mode, scale_factor=point_scale)
     mlab.quiver3d(x, y, z, u, v, w, scale_factor=arrow_scale,
-                  color=color)
+                  color=color, scale_mode='vector')
 
 
 ## Plot a yellow cuboid.
