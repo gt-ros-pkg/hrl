@@ -74,6 +74,8 @@ class TabletopPushNode:
         self.look_pt_x = rospy.get_param('~look_point_x', 0.45)
         self.head_pose_cam_frame = rospy.get_param('~head_pose_cam_frame',
                                                    'openni_rgb_frame')
+        self.default_torso_height = rospy.get_param('~default_torso_height',
+                                                    0.2)
         use_slip = rospy.get_param('~use_slip_detection', 1)
 
         self.tf_listener = tf.TransformListener()
@@ -397,6 +399,7 @@ class TabletopPushNode:
         rospy.loginfo('Torso delta (m): ' + str(lift_link_delta_z))
 
         # Set goal height based on passed on table height
+        # TODO: Set these better
         torso_max = 0.3
         torso_min = 0.01
         current_torso_position = np.asarray(self.robot.torso.pose()).ravel()[0]
@@ -459,7 +462,6 @@ class TabletopPushNode:
     def init_head_pose(self, camera_frame):
         look_pt = np.asmatrix([self.look_pt_x, 0.0, -self.torso_z_offset])
         rospy.loginfo('Point head at ' + str(look_pt))
-        rospy.loginfo('Camera frame is: ' + camera_frame)
         head_res = self.robot.head.look_at(look_pt,
                                            'torso_lift_link',
                                            camera_frame)
@@ -469,6 +471,13 @@ class TabletopPushNode:
         else:
             rospy.loginfo('Failed to point head')
             return False
+
+    def init_spine_pose(self):
+        rospy.loginfo('Setting spine height to '+str(self.default_torso_height))
+        self.robot.torso.set_pose(self.default_torso_height)
+        new_torso_position = np.asarray(self.robot.torso.pose()).ravel()[0]
+        rospy.loginfo('New spine height is ' + str(new_torso_position))
+
     #
     # Main Control Loop
     #
@@ -476,11 +485,12 @@ class TabletopPushNode:
         '''
         Main control loop for the node
         '''
+        self.init_spine_pose()
+        self.init_head_pose(self.head_pose_cam_frame)
         if not self.no_arms:
             self.init_arm_pose(True, which_arm='r')
             self.init_arm_pose(True, which_arm='l')
             rospy.loginfo('Done initializing arms')
-        self.init_head_pose(self.head_pose_cam_frame)
         rospy.spin()
 
 if __name__ == '__main__':
