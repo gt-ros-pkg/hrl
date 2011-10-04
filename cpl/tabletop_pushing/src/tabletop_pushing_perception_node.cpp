@@ -763,6 +763,7 @@ class MotionGraphcut
       for (int c = 0; c < C; ++c)
       {
         g->add_node();
+        ROS_INFO_STREAM("Added node: (" << r << ", " << c << ")");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
         const float me_score = max(getArmFGScore(color_frame, depth_frame, r, c,
                                                  arm_stats, hand_stats, arms,
@@ -771,9 +772,12 @@ class MotionGraphcut
         const float me_score = max(getArmFGScore(color_frame, depth_frame, r, c,
                                                  arm_stats, hand_stats, arms,
                                                  roi), min_weight_);
+        ROS_INFO_STREAM("Got me score");
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
         const float not_me_score = max(1.0 - me_score, min_weight_);
+        ROS_INFO_STREAM("Got not me score");
         g->add_tweights(r*C+c, me_score, not_me_score);
+        ROS_INFO_STREAM("Set scores");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
         fg_weights.at<float>(r,c) = me_score;
         bg_weights.at<float>(r,c) = not_me_score;
