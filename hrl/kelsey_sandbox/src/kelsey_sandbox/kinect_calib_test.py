@@ -93,15 +93,19 @@ def main():
     chessboard.n_rows = 7
     chessboard.dim = 0.02273
     cboard_frame = "kinect_cb_corner"
-    kinect_tracker_frame = "kinect"
+#kinect_tracker_frame = "kinect"
+#TODO
+    use_pygame = False
+    kinect_tracker_frame = "pr2_antenna"
 
     rospy.init_node("kinect_calib_test")
     img_list = ImageListener("/kinect_head/rgb/image_color")
-    pix3d_srv = rospy.ServiceProxy("/pixel_2_3d", Pixel23d)
+    pix3d_srv = rospy.ServiceProxy("/pixel_2_3d", Pixel23d, True)
     tf_list = tf.TransformListener()
-    pygame.init()
-    clock = pygame.time.Clock()
-    screen = pygame.display.set_mode((640, 480))
+    if use_pygame:
+        pygame.init()
+        clock = pygame.time.Clock()
+        screen = pygame.display.set_mode((640, 480))
     calib = Calibrator([chessboard])
     done = False
     corner_list = np.ones((2, corner_len)) * -1000.0
@@ -123,15 +127,16 @@ def main():
             if has_corners:
                 corner_i += 1
                 corner = corners[0]
-                for event in pygame.event.get():
-                    if event.type == pygame.KEYDOWN:
-                        print event.dict['key'], pygame.K_d
-                        if event.dict['key'] == pygame.K_d:
-                            done = True
-                        if event.dict['key'] == pygame.K_q:
-                            return
-                if done:
-                    break
+                if use_pygame:
+                    for event in pygame.event.get():
+                        if event.type == pygame.KEYDOWN:
+                            print event.dict['key'], pygame.K_d
+                            if event.dict['key'] == pygame.K_d:
+                                done = True
+                            if event.dict['key'] == pygame.K_q:
+                                return
+                    if done:
+                        break
                 corner_list[:, corner_i % corner_len] = corner
                 if np.linalg.norm(np.var(corner_list, 1)) < 1.0:
                     corner_avg = np.mean(corner_list, 1)
@@ -143,7 +148,7 @@ def main():
                                            pix3d_resp.pixel3d.pose.position.y,
                                            pix3d_resp.pixel3d.pose.position.z)
                         if len(saved_corners_3d) == 0:
-			    cb_locs.append(cb_pos)
+                            cb_locs.append(cb_pos)
                             saved_corners_2d.append(corner_avg_tuple)
                             saved_corners_3d.append(corner_3d_tuple)
                         else:
@@ -152,15 +157,17 @@ def main():
                                 cb_locs.append(cb_pos)
                                 saved_corners_2d.append(corner_avg_tuple)
                                 saved_corners_3d.append(corner_3d_tuple)
+                                print "Added sample", len(saved_corners_2d) - 1
                 else:
                     cv.Circle(cv_img, corner, 4, [255, 0, 0])
             else:
                 corner_list = np.ones((2, corner_len)) * -1000.0
-        if cv_img is None:
-            screen.fill(gray)
-        else:
-            screen.blit(img_list.get_pg_img(cv_img), (0, 0))
-        pygame.display.flip()
+        if use_pygame:
+            if cv_img is None:
+                screen.fill(gray)
+            else:
+                screen.blit(img_list.get_pg_img(cv_img), (0, 0))
+            pygame.display.flip()
         rospy.sleep(0.001)
     A = np.mat(saved_corners_3d).T
     B = np.mat(cb_locs).T

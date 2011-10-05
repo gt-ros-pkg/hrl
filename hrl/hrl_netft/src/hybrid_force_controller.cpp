@@ -602,7 +602,7 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
                     10, pose_template);
   pub_x_desi_.initialize(node_.advertise<geometry_msgs::PoseStamped>("state/x_desi", 10),
                          10, pose_template);
-  pub_x_err_.initialize(node_.advertise<geometry_msgs::Twist>("state/x_err", 10),
+  pub_x_err_.initialize(node_.advertise<geometry_msgs::Twist>("x_err", 10),
                         10, geometry_msgs::Twist());
   pub_xd_.initialize(node_.advertise<geometry_msgs::Twist>("state/xd", 10),
                      10, geometry_msgs::Twist());
@@ -775,6 +775,8 @@ void HybridForceController::update()
   CartVec F_cmd = motion_selector.array() * xdot_desi.array() + 
                   force_selector.array() * (St * F_des_).array() - F_damp.array();
   // saturation force with F_max
+  /*
+     TODO What was I thinking? TODO
   double force_sat_scaling = 1.0, torque_sat_scaling = 1.0;
   for(int i=0;i<3;i++)
       if(F_max_[i] >= 0.0)
@@ -784,6 +786,17 @@ void HybridForceController::update()
           torque_sat_scaling = std::min(torque_sat_scaling, fabs(F_max_[i] / F_cmd[i]));
   F_cmd.head<3>() = force_sat_scaling * F_cmd.head<3>();
   F_cmd.tail<3>() = torque_sat_scaling * F_cmd.tail<3>();
+  */
+
+  // Cap force with F_max
+  for(int i=0;i<6;i++) {
+      if(F_max_[i] >= 0.0) {
+          if(F_cmd[i] > 0)
+              F_cmd[i] = std::min(F_max_[i], F_cmd[i]);
+          else
+              F_cmd[i] = -std::min(F_max_[i], -F_cmd[i]);
+      }
+  }
 
   CartVec F_motion = F_cmd;
 
@@ -857,8 +870,9 @@ void HybridForceController::update()
       else if(F_integ_[i] < -Kfi_max[i])
           F_integ_[i] = -Kfi_max[i];
   // Marc's anti-windup trick: set to zero when sign flips
+  double velocity = std::sqrt(xdot(0) * xdot(0) + xdot(1) * xdot(1) + xdot(2) * xdot(2));
   for(int i=0;i<6;i++)
-      if((F_err[i] > 0) != (F_err_last_[i] > 0))
+      if(((F_err[i] > 0) != (F_err_last_[i] > 0)) && velocity > 0.01)
           F_integ_[i] = 0;
   F_err_last_ = F_err;
   //F_control = F_cmd.array() + F_integ_.array() + Kfp.array() * (F_cmd - F_sensor_zeroed).array();

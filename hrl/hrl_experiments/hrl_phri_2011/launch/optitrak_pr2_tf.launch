@@ -1,0 +1,11 @@
+<launch>
+    <node pkg="hrl_phri_2011" type="tf_link_flipper.py" name="optitrak_pr2_tf" output="screen">
+        <param name="parent_frame" value="/optitrak"/>
+        <param name="child_frame" value="/pr2_antenna"/>
+        <param name="link_frame" value="/openni_rgb_optical_frame"/>
+        <rosparam param="link_transform">
+            pos: [0, 0, 0]
+            quat: [0, 0, 0, 1]
+        </rosparam>
+    </node>
+</launch>
