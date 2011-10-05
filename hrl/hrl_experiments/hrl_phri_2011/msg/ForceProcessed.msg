@@ -4,10 +4,13 @@ geometry_msgs/TransformStamped tool_frame
 
 # pointcloud data
 int32 pc_ind
+geometry_msgs/Point pc_pt
+float32 pc_dist
 geometry_msgs/Vector3 pc_normal
 
 # wrench data
 geometry_msgs/Wrench wrench
+geometry_msgs/Wrench raw_wrench
 float32 force_magnitude
 float32 force_normal
 float32 force_tangental

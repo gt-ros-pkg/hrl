@@ -286,6 +286,9 @@ def main():
     p.add_option('-p', '--pr2', dest="is_pr2",
                  action="store_true", default=False,
                  help="Will run automated data collection if this is the PR2.")
+    p.add_option('-z', '--start_zero', dest="start_zero",
+                 action="store_true", default=False,
+                 help="Use the first value in to zero the sensor.")
     p.add_option('-n', '--ntrials', dest="n_trials",
                  default="6,6,4",
                  help="Number of trials for each of the last 3 joint angles to move through. (default: 6,6,4)")
@@ -304,7 +307,7 @@ def main():
 
     if opts.is_run:
         rospy.sleep(0.1)
-        nft_z = NetFTZeroer(is_pr2=opts.is_pr2)
+        nft_z = NetFTZeroer(start_zero=opts.start_zero, is_pr2=opts.is_pr2)
         rospy.spin()
         return
 

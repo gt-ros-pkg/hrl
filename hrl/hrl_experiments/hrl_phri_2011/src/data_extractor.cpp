@@ -38,12 +38,7 @@ private:
     KDTree::Ptr kd_tree;
     PCNormals::Ptr normals;
     int pub_ind;
-    vector<double> force_densities;
-    vector<double> force_high;
-    double force_density_sum, force_high_sum, start_time, force_contact_thresh;
-    double time_contact_thresh, time_start_contact;
-    int last_start_ind, contact_period;
-    string region, user;
+    double start_time;
     vector<hrl_phri_2011::ForceProcessed> fp_list;
     bool compute_norms;
     tf::Transform registration_tf;
@@ -56,24 +51,6 @@ private:
         CartVec w;
         wrenchMsgToEigen(wrench_stamped->wrench, w);
         double force_mag = NORM(w(0, 0), w(1, 0), w(2, 0));
-        if(force_mag < force_contact_thresh) {
-            if(cur_time - time_start_contact < time_contact_thresh) {
-                // erase prev entries
-                for(int i=0;i<pub_ind - last_start_ind;i++) 
-                    fp_list.pop_back();
-            } else {
-                // end this contact period
-                contact_period++;
-            }
-            last_start_ind = -1;
-            return;
-        }
-        // we are probably making contact
-        if(last_start_ind == -1) {
-            // just starting contact
-            last_start_ind = pub_ind;
-            time_start_contact = cur_time;
-        }
         tf::StampedTransform tool_loc_tf;
         try {
             tf_list.waitForTransform("/head_center", "/wipe_finger", wrench_stamped->header.stamp, ros::Duration(0.1));
@@ -91,6 +68,7 @@ private:
         vector<float> nk_dists(1);
         kd_tree->nearestKSearch(query_pt, 1, nk_inds, nk_dists);
         int closest_ind = nk_inds[0];
+        float closest_dist = nk_dists[0];
 
         hrl_phri_2011::ForceProcessed fp;
         fp.time_offset = cur_time - start_time;
@@ -99,20 +77,16 @@ private:
         fp.header.frame_id = "/head_center";
         fp.wrench = wrench_stamped->wrench;
         fp.pc_ind = closest_ind;
+        fp.pc_dist = closest_dist;
+        fp.pc_pt.x = pc_head->points[closest_ind].x;
+        fp.pc_pt.y = pc_head->points[closest_ind].y;
+        fp.pc_pt.z = pc_head->points[closest_ind].z;
         fp.force_magnitude = force_mag;
         if(compute_norms) {
             fp.pc_normal.x = normals->points[closest_ind].normal[0];
             fp.pc_normal.y = normals->points[closest_ind].normal[1];
             fp.pc_normal.z = normals->points[closest_ind].normal[2];
-            fp.force_normal = fp.pc_normal.x * fp.wrench.force.x + 
-                              fp.pc_normal.y * fp.wrench.force.y + 
-                              fp.pc_normal.z * fp.wrench.force.z;
-            fp.force_tangental = sqrt(SQ(fp.force_magnitude) - SQ(fp.force_normal));
         }
-        fp.region = region;
-        fp.user = user;
-        fp.contact_period = contact_period;
-        fp.time_from_contact_start = cur_time - time_start_contact;
         fp_list.push_back(fp);
         pub_ind++;
         if(pub_ind % 100 == 0)
@@ -120,9 +94,14 @@ private:
     }
 
 public:
-    void startVisualization() 
+    void startVisualization(bool use_raw = false) 
     {
-        wrench_sub = nh.subscribe("/tool_netft_zeroer/wrench_zeroed", 100, &DataExtractor::wrenchCallback, this);
+        string topic;
+        if(!use_raw)
+            topic = "/tool_netft_zeroer/wrench_zeroed";
+        else
+            topic = "/tool_netft/wrench_raw";
+        wrench_sub = nh.subscribe(topic, 100, &DataExtractor::wrenchCallback, this);
     }
 
     DataExtractor(PCRGB::Ptr& pch, bool compute_normals, const geometry_msgs::Transform& registration) : 
@@ -130,21 +109,13 @@ public:
         kd_tree(new pcl::KdTreeFLANN<PRGB> ()),
         normals(new PCNormals()),
         pub_ind(0),
-        force_densities(pch->points.size()),
-        force_high(pch->points.size()),
-        force_density_sum(0.0),
-        force_high_sum(0.0),
         start_time(-1),
-        last_start_ind(-1),
-        contact_period(0),
         compute_norms(compute_normals)
     {
         kd_tree->setInputCloud(pc_head);
         if(compute_norms)
             computeNormals(pc_head, kd_tree, normals);
         pc_head->header.frame_id = "/head_center";
-        ros::param::param<double>("/force_contact_thresh", force_contact_thresh, 0.2);
-        ros::param::param<double>("/time_contact_thresh", force_contact_thresh, 0.2);
         tf::transformMsgToTF(registration, registration_tf);
     }
 
@@ -163,7 +134,7 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "data_extractor");
 
-    if(argc < 3 || argc > 5) {
+    if(argc < 3 || argc > 6) {
         printf("Usage: data_extractor head_pc forces_bag_output [compute_normals=1] [registration_bag]\n");
         return 1;
     }
@@ -181,16 +152,19 @@ int main(int argc, char **argv)
     bool compute_normals = true;
     if(argc >= 4)
         compute_normals = atoi(argv[3]);
+    bool use_raw = false;
+    if(argc >= 6)
+        use_raw = atoi(argv[5]);
     geometry_msgs::Transform tf_msg;
     tf_msg.rotation.w = 1.0;
-    if(argc == 5) {
+    if(argc >= 5) {
         vector<geometry_msgs::TransformStamped::Ptr> tf_msgs;
         readBagTopic<geometry_msgs::TransformStamped>(argv[4], tf_msgs, "/itf_transform");
         tf_msg = tf_msgs[0]->transform;
     }
 
     DataExtractor de(pc_head, compute_normals, tf_msg);
-    de.startVisualization();
+    de.startVisualization(use_raw);
     ROS_INFO("Ready for collection");
     ros::spin();
     de.writeBag(argv[2]);
