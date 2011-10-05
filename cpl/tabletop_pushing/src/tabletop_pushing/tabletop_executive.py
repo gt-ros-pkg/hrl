@@ -158,6 +158,8 @@ class TabletopExecutive:
             return
         raise_req.table_centroid = table_res.table_centroid
 
+        # TODO: Make sure this requested table_centroid is valid
+
         rospy.loginfo("Raising spine");
         raise_req.point_head_only = False
         raise_res = self.raise_and_look_push_proxy(raise_req)

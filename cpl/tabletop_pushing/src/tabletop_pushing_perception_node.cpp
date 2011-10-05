@@ -39,6 +39,7 @@
 #include <std_msgs/Header.h>
 #include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Pose2D.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/CameraInfo.h>
@@ -128,6 +129,7 @@ using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
 using geometry_msgs::PoseStamped;
 using geometry_msgs::PointStamped;
+using geometry_msgs::Pose2D;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image,
@@ -762,7 +764,7 @@ class MotionGraphcut
     // Tie weights to fg / bg
     for (int r = 0; r < R; ++r)
     {
-      // ROS_INFO_STREAM("Calculating on row " << r);
+      ROS_INFO_STREAM("Calculating on row " << r);
       for (int c = 0; c < C; ++c)
       {
         g->add_node();
@@ -797,7 +799,7 @@ class MotionGraphcut
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
       }
     }
-    // ROS_INFO_STREAM("Got source sink weights");
+    ROS_INFO_STREAM("Got source sink weights");
     // Add edge weights
     for (int r = 0; r < R; ++r)
     {
@@ -844,7 +846,7 @@ class MotionGraphcut
         }
       }
     }
-    // ROS_INFO_STREAM("Set smoothness edge weights.");
+    ROS_INFO_STREAM("Set smoothness edge weights.");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::imshow("fg_weights_arm", fg_weights);
     cv::imshow("bg_weights_arm", bg_weights);
@@ -867,7 +869,7 @@ class MotionGraphcut
 
     // int flow = g->maxflow(false);
     g->maxflow(false);
-    // ROS_INFO_STREAM("Got min cut");
+    ROS_INFO_STREAM("Got min cut");
 
     // Convert output into image
     cv::Mat segs = convertFlowResultsToCvMat(g, R, C, roi,
@@ -1061,6 +1063,15 @@ class MotionGraphcut
   int arm_grow_radius_;
   int arm_search_radius_;
   std::vector<cv::Vec3f> table_stats_;
+};
+
+class ObjectSingulation
+{
+  Pose2D operator()(cv::Mat& segment_mask, cv::Mat& color_img, cv::Mat& depth_img)
+  {
+    Pose2D push_dir;
+    return push_dir;
+  }
 };
 
 class TabletopPushingPerceptionNode
@@ -1370,21 +1381,21 @@ class TabletopPushingPerceptionNode
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
                        cur_workspace_mask_, heights_above_table,
                        hands_and_arms);
-    // ROS_INFO_STREAM("Performed motion cut");
+    ROS_INFO_STREAM("Performed motion cut");
     // Perform graphcut for arm localization
     cv::Mat arm_cut(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     if (hands_and_arms[0].size() > 0 || hands_and_arms[1].size() > 0)
     {
-      // ROS_INFO_STREAM("Perfmoring arm cut");
+      ROS_INFO_STREAM("Perfmoring arm cut");
       arm_cut = mgc_.segmentArmFromMoving(color_frame_f, depth_frame,
                                           cur_workspace_mask_, hands_and_arms,
                                           min_arm_x, max_arm_x, min_arm_y,
                                           max_arm_y);
-      // ROS_INFO_STREAM("Perfmored arm cut");
+      ROS_INFO_STREAM("Perfmored arm cut");
     }
     else
     {
-      // ROS_INFO_STREAM("No arm cut");
+      ROS_INFO_STREAM("No arm cut");
     }
     cv::Mat cleaned_cut(cut.size(), CV_8UC1);
     cut.convertTo(cleaned_cut, CV_8UC1, 255, 0);
@@ -1425,7 +1436,7 @@ class TabletopPushingPerceptionNode
     arm_img_msg.header = cur_camera_header_;
     arm_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     arm_img_pub_.publish(arm_img_msg.toImageMsg());
-    // ROS_INFO_STREAM("Published stuff.");
+    ROS_INFO_STREAM("Published stuff.");
     // cv::Mat not_arm_move = cleaned_cut - cleaned_arm_cut;
     // cv::Mat not_arm_move_color;
     // color_frame.copyTo(not_arm_move_color, not_arm_move);
