@@ -4,17 +4,17 @@
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
     <remap from="point_cloud_topic" to="/kinect_head/depth/points"/>
 
-    <!-- <param name="crop_min_x" value="15" type="int"/> -->
-    <!-- <param name="crop_max_x" value="600" type="int"/> -->
-    <!-- <param name="crop_min_y" value="30" type="int"/> -->
+    <param name="crop_min_x" value="15" type="int"/>
+    <param name="crop_max_x" value="600" type="int"/>
+    <!-- <param name="crop_min_y" value="32" type="int"/> -->
     <!-- <param name="crop_max_y" value="470" type="int"/> -->
-    <param name="crop_min_x" value="0" type="int"/>
-    <param name="crop_max_x" value="640" type="int"/>
+    <!-- <param name="crop_min_x" value="0" type="int"/> -->
+    <!-- <param name="crop_max_x" value="640" type="int"/> -->
     <param name="crop_min_y" value="32" type="int"/>
     <param name="crop_max_y" value="480" type="int"/>
 
     <param name="display_wait_ms" value="3" type="int"/>
-    <param name="autostart_tracking" value="true" type="bool"/>
+    <param name="autostart_tracking" value="false" type="bool"/>
 
     <param name="workspace_frame" value="/torso_lift_link" type="string"/>
     <param name="min_workspace_x" value="-1.0" type="double"/>
@@ -33,7 +33,7 @@
     <param name="mgc_min_weight" value="0.01" type="double"/>
     <param name="mgc_flow_gain" value="0.35" type="double"/>
     <param name="mgc_table_var" value="0.03" type="double"/>
-    <param name="mgc_arm_dist_var" value="20.0" type="double"/>
+    <param name="mgc_arm_dist_var" value="15.0" type="double"/>
 
     <param name="mgc_w_c_alpha" value="0.4" type="double"/>
     <param name="mgc_w_c_beta" value="0.9" type="double"/>
@@ -43,6 +43,8 @@
     <param name="mgc_arm_grow_radius" value="1" type="int"/>
     <param name="mgc_arm_search_radius" value="50" type="int"/>
     <param name="mgc_arm_color_var_add" value="0.1" type="double"/>
+    <param name="mgc_arm_color_weight" value="0.4" type="double"/>
+
     <param name="lk_win_size" value="5" type="int"/>
     <param name="lk_num_levels" value="4" type="int"/>
     <param name="num_downsamples" value="1" type="int"/>

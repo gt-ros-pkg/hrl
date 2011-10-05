@@ -120,6 +120,7 @@
 
 // Functional IFDEFS
 #define MEDIAN_FILTER_FLOW 1
+#define USE_WORKSPACE_MASK_FOR_ARM 1
 // #define USE_TABLE_COLOR_ESTIMATE 1
 
 using tabletop_pushing::PushPose;
@@ -751,19 +752,30 @@ class MotionGraphcut
                                                               arms[0],
                                                               crop_min_x,
                                                               crop_min_y);
-    ROS_INFO_STREAM("Got hand stats");
     std::vector<cv::Vec3f> arm_stats = getImagePointGaussian(color_frame,
                                                              arms[1],
                                                              crop_min_x,
                                                              crop_min_y);
-    ROS_INFO_STREAM("Got arm stats");
     // Tie weights to fg / bg
     for (int r = 0; r < R; ++r)
     {
+      // ROS_INFO_STREAM("Calculating on row " << r);
       for (int c = 0; c < C; ++c)
       {
         g->add_node();
-        ROS_INFO_STREAM("Added node: (" << r << ", " << c << ")");
+#ifdef USE_WORKSPACE_MASK_FOR_ARM
+        if (workspace_mask.at<uchar>(r,c) == 0)
+        {
+          g->add_tweights(r*C+c, min_weight_, workspace_background_weight_);
+
+#ifdef VISUALIZE_GRAPH_WEIGHTS
+          fg_weights.at<float>(r,c) = min_weight_;
+          bg_weights.at<float>(r,c) = workspace_background_weight_;
+          table_weights.at<float>(r,c) = min_weight_;
+#endif // VISUALIZE_GRAPH_WEIGHTS
+          continue;
+        }
+#endif // USE_WORKSPACE_MASK_FOR_ARM
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
         const float me_score = max(getArmFGScore(color_frame, depth_frame, r, c,
                                                  arm_stats, hand_stats, arms,
@@ -772,19 +784,17 @@ class MotionGraphcut
         const float me_score = max(getArmFGScore(color_frame, depth_frame, r, c,
                                                  arm_stats, hand_stats, arms,
                                                  roi), min_weight_);
-        ROS_INFO_STREAM("Got me score");
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
+        // ROS_INFO_STREAM_COND(c % 20 == 0 && r % 20 == 0, "Got me score");
         const float not_me_score = max(1.0 - me_score, min_weight_);
-        ROS_INFO_STREAM("Got not me score");
         g->add_tweights(r*C+c, me_score, not_me_score);
-        ROS_INFO_STREAM("Set scores");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
         fg_weights.at<float>(r,c) = me_score;
         bg_weights.at<float>(r,c) = not_me_score;
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
       }
     }
-    ROS_INFO_STREAM("Got source sink weights");
+    // ROS_INFO_STREAM("Got source sink weights");
     // Add edge weights
     for (int r = 0; r < R; ++r)
     {
@@ -831,7 +841,7 @@ class MotionGraphcut
         }
       }
     }
-    ROS_INFO_STREAM("Set smoothness edge weights.");
+    // ROS_INFO_STREAM("Set smoothness edge weights.");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::imshow("fg_weights_arm", fg_weights);
     cv::imshow("bg_weights_arm", bg_weights);
@@ -854,14 +864,12 @@ class MotionGraphcut
 
     // int flow = g->maxflow(false);
     g->maxflow(false);
-    ROS_INFO_STREAM("Got min cut");
+    // ROS_INFO_STREAM("Got min cut");
 
     // Convert output into image
     cv::Mat segs = convertFlowResultsToCvMat(g, R, C, roi,
                                              color_frame_in.size());
     delete g;
-    // TODO: Ensure a single continuous region for each arm seeded by the known
-    // locations
     return segs;
   }
 
@@ -898,80 +906,22 @@ class MotionGraphcut
   {
     const float dist_score = exp(-arms.distanceToArm(
         cv::Point2f(c+roi.x,r+roi.y), depth_frame)/arm_dist_var_);
-    if (isnan(dist_score))
-    {
-      ROS_WARN_STREAM("dist score is nan: " << dist_score);
-    }
-    if (isinf(dist_score))
-    {
-      ROS_WARN_STREAM("dist score is inf: " << dist_score);
-    }
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     dist_img.at<float>(r,c) = dist_score;
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
     const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
         arm_stats[1][0] + arm_color_var_add_);
-    if (isnan(arm_h_score))
-    {
-      ROS_WARN_STREAM("dist score is nan: " << arm_h_score);
-    }
-    if (isinf(arm_h_score))
-    {
-      ROS_WARN_STREAM("dist score is inf: " << arm_h_score);
-    }
-
     const float arm_s_score = 1.0-fabs(cur_c[1] - arm_stats[0][1])/(
         arm_stats[1][1] + arm_color_var_add_);
-    if (isnan(arm_s_score))
-    {
-      ROS_WARN_STREAM("dist score is nan: " << arm_s_score);
-    }
-    if (isinf(arm_s_score))
-    {
-      ROS_WARN_STREAM("dist score is inf: " << arm_s_score);
-    }
-    const float arm_score = (arm_h_score + arm_s_score)/2.0+0.5*dist_score;
-    if (isnan(arm_score))
-    {
-      ROS_WARN_STREAM("dist score is nan: " << arm_score);
-    }
-    if (isinf(arm_score))
-    {
-      ROS_WARN_STREAM("dist score is inf: " << arm_score);
-    }
-
+    const float arm_score = (arm_alpha_*(arm_h_score + arm_s_score) +
+                             (1.0-arm_alpha_)*dist_score);
     const float hand_h_score = 1.0-fabs(cur_c[0] - hand_stats[0][0])/(
         hand_stats[1][0] + arm_color_var_add_);
-    if (isnan(hand_h_score))
-    {
-      ROS_WARN_STREAM("dist score is nan: " << hand_h_score);
-    }
-    if (isinf(hand_h_score))
-    {
-      ROS_WARN_STREAM("dist score is inf: " << hand_h_score);
-    }
-
     const float hand_s_score = 1.0-fabs(cur_c[1] - hand_stats[0][1])/(
         hand_stats[1][1] + arm_color_var_add_);
-    if (isnan(hand_s_score))
-    {
-      ROS_WARN_STREAM("dist score is nan: " << hand_s_score);
-    }
-    if (isinf(hand_s_score))
-    {
-      ROS_WARN_STREAM("dist score is inf: " << hand_s_score);
-    }
-    const float hand_score = (hand_h_score + hand_s_score)/2.0 + 0.5*dist_score;
-    if (isnan(hand_score))
-    {
-      ROS_WARN_STREAM("dist score is nan: " << hand_score);
-    }
-    if (isinf(hand_score))
-    {
-      ROS_WARN_STREAM("dist score is inf: " << hand_score);
-    }
-
+    const float hand_score = (arm_alpha_*(hand_h_score + hand_s_score) +
+                              (1.0-arm_alpha_)*dist_score);
     return max(hand_score, arm_score);
   }
 
@@ -1104,6 +1054,7 @@ class MotionGraphcut
   double table_height_var_;
   double arm_dist_var_;
   double arm_color_var_add_;
+  double arm_alpha_;
   int arm_grow_radius_;
   int arm_search_radius_;
   std::vector<cv::Vec3f> table_stats_;
@@ -1167,6 +1118,7 @@ class TabletopPushingPerceptionNode
     n_private_.param("mgc_table_var", mgc_.table_height_var_, 0.03);
     n_private_.param("mgc_arm_dist_var", mgc_.arm_dist_var_, 20.0);
     n_private_.param("mgc_arm_color_var_add", mgc_.arm_color_var_add_, 0.1);
+    n_private_.param("mgc_arm_color_weight", mgc_.arm_alpha_, 0.5);
     int win_size = 5;
     n_private_.param("lk_win_size", win_size, 5);
     lkflow_.setWinSize(win_size);
@@ -1415,21 +1367,21 @@ class TabletopPushingPerceptionNode
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
                        cur_workspace_mask_, heights_above_table,
                        hands_and_arms);
-    ROS_INFO_STREAM("Performed motion cut");
+    // ROS_INFO_STREAM("Performed motion cut");
     // Perform graphcut for arm localization
     cv::Mat arm_cut(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     if (hands_and_arms[0].size() > 0 || hands_and_arms[1].size() > 0)
     {
-      ROS_INFO_STREAM("Perfmoring arm cut");
+      // ROS_INFO_STREAM("Perfmoring arm cut");
       arm_cut = mgc_.segmentArmFromMoving(color_frame_f, depth_frame,
                                           cur_workspace_mask_, hands_and_arms,
                                           min_arm_x, max_arm_x, min_arm_y,
                                           max_arm_y);
-      ROS_INFO_STREAM("Perfmored arm cut");
+      // ROS_INFO_STREAM("Perfmored arm cut");
     }
     else
     {
-      ROS_INFO_STREAM("No arm cut");
+      // ROS_INFO_STREAM("No arm cut");
     }
     cv::Mat cleaned_cut(cut.size(), CV_8UC1);
     cut.convertTo(cleaned_cut, CV_8UC1, 255, 0);
@@ -1470,7 +1422,7 @@ class TabletopPushingPerceptionNode
     arm_img_msg.header = cur_camera_header_;
     arm_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     arm_img_pub_.publish(arm_img_msg.toImageMsg());
-    ROS_INFO_STREAM("Published stuff.");
+    // ROS_INFO_STREAM("Published stuff.");
     // cv::Mat not_arm_move = cleaned_cut - cleaned_arm_cut;
     // cv::Mat not_arm_move_color;
     // color_frame.copyTo(not_arm_move_color, not_arm_move);
@@ -1522,6 +1474,17 @@ class TabletopPushingPerceptionNode
     // cv::imshow("intensity", hsv[2]);
     // cv::imshow("input_color", color_frame);
 #endif // DISPLAY_INPUT_COLOR
+#ifdef DISPLAY_INPUT_DEPTH
+    double depth_max = 1.0;
+    cv::minMaxLoc(depth_frame, NULL, &depth_max);
+    cv::Mat depth_display = depth_frame.clone();
+    depth_display /= depth_max;
+    cv::imshow("input_depth", depth_display);
+#endif // DISPLAY_INPUT_DEPTH
+#ifdef DISPLAY_OPTICAL_FLOW
+    displayOpticalFlow(color_frame, flow_outs[0], flow_outs[1],
+                       mgc_.magnitude_thresh_);
+#endif // DISPLAY_OPTICAL_FLOW
 #ifdef DISPLAY_ARM_CIRCLES
     cv::Mat arms_img(color_frame.size(), CV_8UC3);
     arms_img = color_frame.clone();
@@ -1543,21 +1506,9 @@ class TabletopPushingPerceptionNode
     }
     cv::imshow("arms", arms_img);
 #endif
-#ifdef DISPLAY_INPUT_DEPTH
-    double depth_max = 1.0;
-    cv::minMaxLoc(depth_frame, NULL, &depth_max);
-    cv::Mat depth_display = depth_frame.clone();
-    depth_display /= depth_max;
-    cv::imshow("input_depth", depth_display);
-#endif // DISPLAY_INPUT_DEPTH
 #ifdef DISPLAY_WORKSPACE_MASK
     cv::imshow("workspace_mask", cur_workspace_mask_);
 #endif // DISPLAY_WORKSPACE_MASK
-#ifdef DISPLAY_OPTICAL_FLOW
-    displayOpticalFlow(color_frame, flow_outs[0], flow_outs[1],
-                       mgc_.magnitude_thresh_);
-#endif // DISPLAY_OPTICAL_FLOW
-
 #ifdef DISPLAY_GRAPHCUT
     cv::imshow("moving_regions", moving_regions_img);
     cv::imshow("arm_cut", arm_regions_img);
