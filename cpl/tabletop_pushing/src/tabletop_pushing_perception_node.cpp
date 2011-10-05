@@ -96,6 +96,7 @@
 #include <iostream>
 #include <fstream>
 #include <utility>
+#include <stdexcept>
 #include <math.h>
 
 // Debugging IFDEFS
@@ -188,11 +189,13 @@ class ArmModel
   {
     if (i == 0)
       return hands;
-    // if (i == 1)
-    else
-      return arms;
-    // else
-    //   throw e;
+    if (i > 1 || i < 0)
+    {
+      std::stringstream err_msg;
+      err_msg << "Index argument: " << i << " is out of range in class ArmModel";
+      throw std::out_of_range(err_msg.str());
+    }
+    return arms;
   }
 
   /**
