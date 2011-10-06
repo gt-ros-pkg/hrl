@@ -764,15 +764,16 @@ class MotionGraphcut
     // Tie weights to fg / bg
     for (int r = 0; r < R; ++r)
     {
-      ROS_INFO_STREAM("Calculating on row " << r);
+      ROS_INFO_STREAM("Calculating on row " << r << " of " << R);
       for (int c = 0; c < C; ++c)
       {
         g->add_node();
+        ROS_INFO_STREAM("Added node");
 #ifdef USE_WORKSPACE_MASK_FOR_ARM
         if (workspace_mask.at<uchar>(r,c) == 0)
         {
           g->add_tweights(r*C+c, min_weight_, workspace_background_weight_);
-
+          ROS_INFO_STREAM("Out of workspace weight added");
 #ifdef VISUALIZE_GRAPH_WEIGHTS
           fg_weights.at<float>(r,c) = min_weight_;
           bg_weights.at<float>(r,c) = workspace_background_weight_;
@@ -790,16 +791,17 @@ class MotionGraphcut
                                                  arm_stats, hand_stats, arms,
                                                  roi), min_weight_);
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-        // ROS_INFO_STREAM_COND(c % 20 == 0 && r % 20 == 0, "Got me score");
+        // ROS_INFO_STREAM_COND(r == 149, "Got me score");
         const float not_me_score = max(1.0 - me_score, min_weight_);
         g->add_tweights(r*C+c, me_score, not_me_score);
+        // ROS_INFO_STREAM_COND(r == 149, "Set me score weight");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
         fg_weights.at<float>(r,c) = me_score;
         bg_weights.at<float>(r,c) = not_me_score;
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
       }
     }
-    ROS_INFO_STREAM("Got source sink weights");
+    // ROS_INFO_STREAM("Got source sink weights");
     // Add edge weights
     for (int r = 0; r < R; ++r)
     {
@@ -846,7 +848,7 @@ class MotionGraphcut
         }
       }
     }
-    ROS_INFO_STREAM("Set smoothness edge weights.");
+    // ROS_INFO_STREAM("Set smoothness edge weights.");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::imshow("fg_weights_arm", fg_weights);
     cv::imshow("bg_weights_arm", bg_weights);
@@ -869,7 +871,7 @@ class MotionGraphcut
 
     // int flow = g->maxflow(false);
     g->maxflow(false);
-    ROS_INFO_STREAM("Got min cut");
+    // ROS_INFO_STREAM("Got min cut");
 
     // Convert output into image
     cv::Mat segs = convertFlowResultsToCvMat(g, R, C, roi,
@@ -911,22 +913,32 @@ class MotionGraphcut
   {
     const float dist_score = exp(-arms.distanceToArm(
         cv::Point2f(c+roi.x,r+roi.y), depth_frame)/arm_dist_var_);
+    ROS_INFO_STREAM("Got dist_score");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     dist_img.at<float>(r,c) = dist_score;
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
+    ROS_INFO_STREAM("Got cur_c");
     const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
         arm_stats[1][0] + arm_color_var_add_);
     const float arm_s_score = 1.0-fabs(cur_c[1] - arm_stats[0][1])/(
         arm_stats[1][1] + arm_color_var_add_);
-    const float arm_score = (arm_alpha_*(arm_h_score + arm_s_score) +
+    const float arm_v_score = 1.0-fabs(cur_c[2] - arm_stats[0][2])/(
+        arm_stats[1][2] + arm_color_var_add_);
+    const float arm_score = (arm_alpha_*(arm_h_score + arm_s_score +
+                                         arm_v_score)/3.0*2.0 +
                              (1.0-arm_alpha_)*dist_score);
+    ROS_INFO_STREAM("Got arm_score");
     const float hand_h_score = 1.0-fabs(cur_c[0] - hand_stats[0][0])/(
         hand_stats[1][0] + arm_color_var_add_);
     const float hand_s_score = 1.0-fabs(cur_c[1] - hand_stats[0][1])/(
         hand_stats[1][1] + arm_color_var_add_);
-    const float hand_score = (arm_alpha_*(hand_h_score + hand_s_score) +
+    const float hand_v_score = 1.0-fabs(cur_c[2] - hand_stats[0][2])/(
+        hand_stats[1][2] + arm_color_var_add_);
+    const float hand_score = (arm_alpha_*(hand_h_score + hand_s_score +
+                                          hand_v_score) / 3.0*2.0 +
                               (1.0-arm_alpha_)*dist_score);
+    ROS_INFO_STREAM("Got hand_score");
     return max(hand_score, arm_score);
   }
 
@@ -1037,7 +1049,7 @@ class MotionGraphcut
     cv::Vec3f c_d = c0-c1;
     float w_d = d0-d1;
     float w_c = w_c_alpha_*exp(fabs(c_d[0])) + w_c_beta_*exp(fabs(c_d[1])) +
-        w_c_gamma_*exp(fabs(w_d));
+        /*w_c_beta_*exp(fabs(c_d[2])) +*/ w_c_gamma_*exp(fabs(w_d));
     return w_c;
   }
 
@@ -1381,21 +1393,14 @@ class TabletopPushingPerceptionNode
     cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
                        cur_workspace_mask_, heights_above_table,
                        hands_and_arms);
-    ROS_INFO_STREAM("Performed motion cut");
     // Perform graphcut for arm localization
     cv::Mat arm_cut(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
     if (hands_and_arms[0].size() > 0 || hands_and_arms[1].size() > 0)
     {
-      ROS_INFO_STREAM("Perfmoring arm cut");
       arm_cut = mgc_.segmentArmFromMoving(color_frame_f, depth_frame,
                                           cur_workspace_mask_, hands_and_arms,
                                           min_arm_x, max_arm_x, min_arm_y,
                                           max_arm_y);
-      ROS_INFO_STREAM("Perfmored arm cut");
-    }
-    else
-    {
-      ROS_INFO_STREAM("No arm cut");
     }
     cv::Mat cleaned_cut(cut.size(), CV_8UC1);
     cut.convertTo(cleaned_cut, CV_8UC1, 255, 0);
@@ -1436,7 +1441,6 @@ class TabletopPushingPerceptionNode
     arm_img_msg.header = cur_camera_header_;
     arm_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     arm_img_pub_.publish(arm_img_msg.toImageMsg());
-    ROS_INFO_STREAM("Published stuff.");
     // cv::Mat not_arm_move = cleaned_cut - cleaned_arm_cut;
     // cv::Mat not_arm_move_color;
     // color_frame.copyTo(not_arm_move_color, not_arm_move);
