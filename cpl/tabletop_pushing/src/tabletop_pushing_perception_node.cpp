@@ -922,8 +922,8 @@ class MotionGraphcut
     const float arm_v_score = 1.0-fabs(cur_c[2] - arm_stats[0][2])/(
         arm_stats[1][2] + arm_color_var_add_);
     const float arm_score = (arm_alpha_*(arm_h_score + arm_s_score +
-                                         arm_v_score)/3.0*2.0 +
-                             (1.0-arm_alpha_)*dist_score);
+                                         arm_v_score)/3.0 +
+                             arm_beta_*dist_score);
     // ROS_INFO_STREAM("Got arm_score");
     const float hand_h_score = 1.0-fabs(cur_c[0] - hand_stats[0][0])/(
         hand_stats[1][0] + arm_color_var_add_);
@@ -932,8 +932,8 @@ class MotionGraphcut
     const float hand_v_score = 1.0-fabs(cur_c[2] - hand_stats[0][2])/(
         hand_stats[1][2] + arm_color_var_add_);
     const float hand_score = (arm_alpha_*(hand_h_score + hand_s_score +
-                                          hand_v_score) / 3.0*2.0 +
-                              (1.0-arm_alpha_)*dist_score);
+                                          hand_v_score) / 3.0 +
+                              arm_beta_*dist_score);
     // ROS_INFO_STREAM("Got hand_score");
     return max(hand_score, arm_score);
   }
@@ -1068,6 +1068,7 @@ class MotionGraphcut
   double arm_dist_var_;
   double arm_color_var_add_;
   double arm_alpha_;
+  double arm_beta_;
   int arm_grow_radius_;
   int arm_search_radius_;
   std::vector<cv::Vec3f> table_stats_;
@@ -1141,6 +1142,7 @@ class TabletopPushingPerceptionNode
     n_private_.param("mgc_arm_dist_var", mgc_.arm_dist_var_, 20.0);
     n_private_.param("mgc_arm_color_var_add", mgc_.arm_color_var_add_, 0.1);
     n_private_.param("mgc_arm_color_weight", mgc_.arm_alpha_, 0.5);
+    n_private_.param("mgc_arm_dist_weight", mgc_.arm_beta_, 0.5);
     int win_size = 5;
     n_private_.param("lk_win_size", win_size, 5);
     lkflow_.setWinSize(win_size);

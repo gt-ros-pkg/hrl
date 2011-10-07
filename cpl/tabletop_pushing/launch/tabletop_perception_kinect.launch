@@ -1,5 +1,5 @@
 <launch>
-  <node name="tabletop_pushing_perception" pkg="tabletop_pushing" type="tabletop_pushing_perception_node" respawn="false" output="screen">
+  <node name="tabletop_pushing_perception" pkg="tabletop_pushing" type="tabletop_pushing_perception_node" respawn="false" output="log">
     <remap from="color_image_topic" to="/kinect_head/rgb/image_color"/>
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
     <remap from="point_cloud_topic" to="/kinect_head/depth/points"/>
@@ -14,7 +14,7 @@
     <param name="crop_max_y" value="480" type="int"/>
 
     <param name="display_wait_ms" value="3" type="int"/>
-    <param name="autostart_tracking" value="false" type="bool"/>
+    <param name="autostart_tracking" value="true" type="bool"/>
 
     <param name="workspace_frame" value="/torso_lift_link" type="string"/>
     <param name="min_workspace_x" value="-1.0" type="double"/>
@@ -41,9 +41,10 @@
 
     <param name="mgc_magnitude_thresh" value="1.0" type="double"/>
     <param name="mgc_arm_grow_radius" value="1" type="int"/>
-    <param name="mgc_arm_search_radius" value="50" type="int"/>
+    <param name="mgc_arm_search_radius" value="100" type="int"/>
     <param name="mgc_arm_color_var_add" value="0.1" type="double"/>
-    <param name="mgc_arm_color_weight" value="0.4" type="double"/>
+    <param name="mgc_arm_color_weight" value="0.8" type="double"/>
+    <param name="mgc_arm_dist_weight" value="0.5" type="double"/>
 
     <param name="lk_win_size" value="5" type="int"/>
     <param name="lk_num_levels" value="4" type="int"/>
