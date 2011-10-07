@@ -298,9 +298,10 @@ class ArmModel
     // TODO: Use 3D distance between the two points
     const float d_x = p.x-q.x;
     const float d_y = p.y-q.y;
-    const float d_d = (depth_frame.at<float>(p.y,p.x)-
-                       depth_frame.at<float>(q.y,q.x));
-    return sqrt(d_x*d_x + d_y*d_y + d_d*d_d);
+    // const float d_d = (depth_frame.at<float>(p.y,p.x)-
+    //                    depth_frame.at<float>(q.y,q.x));
+    // return sqrt(d_x*d_x + d_y*d_y + d_d*d_d);
+    return sqrt(d_x*d_x + d_y*d_y);
   }
 
   std::vector<cv::Point> hands;
@@ -764,20 +765,17 @@ class MotionGraphcut
     // Tie weights to fg / bg
     for (int r = 0; r < R; ++r)
     {
-      ROS_INFO_STREAM("Calculating on row " << r << " of " << R);
       for (int c = 0; c < C; ++c)
       {
         g->add_node();
-        ROS_INFO_STREAM("Added node");
 #ifdef USE_WORKSPACE_MASK_FOR_ARM
         if (workspace_mask.at<uchar>(r,c) == 0)
         {
           g->add_tweights(r*C+c, min_weight_, workspace_background_weight_);
-          ROS_INFO_STREAM("Out of workspace weight added");
-#ifdef VISUALIZE_GRAPH_WEIGHTS
+#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
           fg_weights.at<float>(r,c) = min_weight_;
           bg_weights.at<float>(r,c) = workspace_background_weight_;
-          table_weights.at<float>(r,c) = min_weight_;
+          dist_img.at<float>(r,c) = min_weight_;
 #endif // VISUALIZE_GRAPH_WEIGHTS
           continue;
         }
@@ -791,10 +789,8 @@ class MotionGraphcut
                                                  arm_stats, hand_stats, arms,
                                                  roi), min_weight_);
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-        // ROS_INFO_STREAM_COND(r == 149, "Got me score");
         const float not_me_score = max(1.0 - me_score, min_weight_);
         g->add_tweights(r*C+c, me_score, not_me_score);
-        // ROS_INFO_STREAM_COND(r == 149, "Set me score weight");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
         fg_weights.at<float>(r,c) = me_score;
         bg_weights.at<float>(r,c) = not_me_score;
@@ -913,12 +909,12 @@ class MotionGraphcut
   {
     const float dist_score = exp(-arms.distanceToArm(
         cv::Point2f(c+roi.x,r+roi.y), depth_frame)/arm_dist_var_);
-    ROS_INFO_STREAM("Got dist_score");
+    // ROS_INFO_STREAM("Got dist_score");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     dist_img.at<float>(r,c) = dist_score;
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
-    ROS_INFO_STREAM("Got cur_c");
+    // ROS_INFO_STREAM("Got cur_c");
     const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
         arm_stats[1][0] + arm_color_var_add_);
     const float arm_s_score = 1.0-fabs(cur_c[1] - arm_stats[0][1])/(
@@ -928,7 +924,7 @@ class MotionGraphcut
     const float arm_score = (arm_alpha_*(arm_h_score + arm_s_score +
                                          arm_v_score)/3.0*2.0 +
                              (1.0-arm_alpha_)*dist_score);
-    ROS_INFO_STREAM("Got arm_score");
+    // ROS_INFO_STREAM("Got arm_score");
     const float hand_h_score = 1.0-fabs(cur_c[0] - hand_stats[0][0])/(
         hand_stats[1][0] + arm_color_var_add_);
     const float hand_s_score = 1.0-fabs(cur_c[1] - hand_stats[0][1])/(
@@ -938,7 +934,7 @@ class MotionGraphcut
     const float hand_score = (arm_alpha_*(hand_h_score + hand_s_score +
                                           hand_v_score) / 3.0*2.0 +
                               (1.0-arm_alpha_)*dist_score);
-    ROS_INFO_STREAM("Got hand_score");
+    // ROS_INFO_STREAM("Got hand_score");
     return max(hand_score, arm_score);
   }
 
@@ -1441,9 +1437,9 @@ class TabletopPushingPerceptionNode
     arm_img_msg.header = cur_camera_header_;
     arm_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     arm_img_pub_.publish(arm_img_msg.toImageMsg());
-    // cv::Mat not_arm_move = cleaned_cut - cleaned_arm_cut;
-    // cv::Mat not_arm_move_color;
-    // color_frame.copyTo(not_arm_move_color, not_arm_move);
+    cv::Mat not_arm_move = cleaned_cut - cleaned_arm_cut;
+    cv::Mat not_arm_move_color;
+    color_frame.copyTo(not_arm_move_color, not_arm_move);
 #ifdef WRITE_INPUT_TO_DISK
     std::stringstream input_out_name;
     input_out_name << base_output_path_ << "input" << tracker_count_ << ".tiff";
@@ -1530,7 +1526,7 @@ class TabletopPushingPerceptionNode
 #ifdef DISPLAY_GRAPHCUT
     cv::imshow("moving_regions", moving_regions_img);
     cv::imshow("arm_cut", arm_regions_img);
-    // cv::imshow("not_arm_move", not_arm_move_color);
+    cv::imshow("not_arm_move", not_arm_move_color);
 #endif // DISPLAY_GRAPHCUT
 
 #if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS || defined VISUALIZE_ARM_GRAPH_WEIGHTS || defined DISPLAY_ARM_CIRCLES
@@ -1696,8 +1692,6 @@ class TabletopPushingPerceptionNode
                                                "l_gripper_palm_link");
     // TODO: Add more arm locations
     // Left arm
-    cv::Point l0 = projectJointOriginIntoImage(img_header,
-                                               "l_gripper_tool_frame");
     cv::Point l1 = projectJointOriginIntoImage(img_header, "l_wrist_flex_link");
     cv::Point l2 = projectJointOriginIntoImage(img_header, "l_forearm_link");
     cv::Point l3 = projectJointOriginIntoImage(img_header, "l_upper_arm_link");
@@ -1706,7 +1700,6 @@ class TabletopPushingPerceptionNode
     arm_locs.l_chain.push_back(ll0);
     arm_locs.l_chain.push_back(lr0);
     arm_locs.l_chain.push_back(lr1);
-    // arm_locs.l_chain.push_back(l0);
     arm_locs.l_chain.push_back(lp);
     arm_locs.l_chain.push_back(l1);
     arm_locs.l_chain.push_back(l2);
@@ -1726,8 +1719,6 @@ class TabletopPushingPerceptionNode
 
     // TODO: Add more arm locations
     // Right arm
-    cv::Point r0 = projectJointOriginIntoImage(img_header,
-                                               "r_gripper_tool_frame");
     cv::Point r1 = projectJointOriginIntoImage(img_header, "r_wrist_flex_link");
     cv::Point r2 = projectJointOriginIntoImage(img_header, "r_forearm_link");
     cv::Point r3 = projectJointOriginIntoImage(img_header, "r_upper_arm_link");
@@ -1736,7 +1727,6 @@ class TabletopPushingPerceptionNode
     arm_locs.r_chain.push_back(rl0);
     arm_locs.r_chain.push_back(rr0);
     arm_locs.r_chain.push_back(rr1);
-    // arm_locs.r_chain.push_back(r0);
     arm_locs.r_chain.push_back(rp);
     arm_locs.r_chain.push_back(r1);
     arm_locs.r_chain.push_back(r2);
@@ -1782,8 +1772,6 @@ class TabletopPushingPerceptionNode
     arm_locs.r_hand_on = (getLineValues(rr1, rp, arm_locs.hands, frame_size,
                                         min_x, max_x, min_y, max_y) ||
                          arm_locs.r_hand_on);
-    // arm_locs.r_hand_on = getLineValues(r0, rp, arm_locs.hands, frame_size,
-    //                                    min_x, max_x, min_y, max_y);
     // Add right arm
     arm_locs.r_arm_on = getLineValues(rp, r1, arm_locs.arms, frame_size,
                                       min_x, max_x, min_y, max_y);
