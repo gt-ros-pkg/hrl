@@ -107,7 +107,6 @@
 // #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_UV 1
-// #define DISPLAY_OPT_FLOW_INTERNALS 1
 // #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
@@ -161,7 +160,6 @@ void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow_u, cv::Mat& flow_v,
       {
         cv::line(flow_thresh_disp_img, cv::Point(c,r), cv::Point(c-u, r-v),
                  cv::Scalar(0,255,0));
-        // cv::circle(flow_thresh_disp_img, cv::Point(c,r), 1, cv::Scalar(0,0,255));
       }
     }
   }
@@ -390,14 +388,6 @@ class LKFlowReliable
     // Get image derivatives
     cv::filter2D(cur_bw, Ix, CV_32F, dx_kernel_);
     cv::filter2D(cur_bw, Iy, CV_32F, dy_kernel_);
-
-#ifdef DISPLAY_OPT_FLOW_INTERNALS
-    cv::imshow("cur_bw", cur_bw);
-    cv::imshow("prev_bw", prev_bw);
-    cv::imshow("It", It);
-    cv::imshow("Ix", Ix);
-    cv::imshow("Iy", Iy);
-#endif // DISPLAY_OPT_FLOW_INTERNALS
 
     int win_radius = win_size_/2;
     cv::Mat flow_u(cur_bw.size(), CV_32FC1, cv::Scalar(0.0));
@@ -1070,15 +1060,19 @@ class MotionGraphcut
 class ObjectSingulation
 {
  public:
-  Pose2D getPushVector(cv::Mat& segment_mask, cv::Mat& color_img,
-                       cv::Mat& depth_img)
+  Pose2D getPushVector(cv::Mat& motion_mask, cv::Mat& arm_mask,
+                       cv::Mat& color_img, cv::Mat& depth_img)
   {
     Pose2D push_dir;
+    cv::Mat boundary_img = getObjectBoundaryStrengths(motion_mask, arm_mask,
+                                                      color_img, depth_img);
+    // TODO: Find strongest border location, inside the region, find a pose
+    // parallel to it
     return push_dir;
   }
 
-  cv::Mat getObjectBoundaryStrengths(cv::Mat& segment_mask, cv::Mat& color_img,
-                                     cv::Mat& depth_img)
+  cv::Mat getObjectBoundaryStrengths(cv::Mat& motion_mask, cv::Mat& arm_mask,
+                                     cv::Mat& color_img, cv::Mat& depth_img)
   {
     cv::Mat boundary_img(color_img.size(), CV_32FC1);
     return boundary_img;
@@ -1325,7 +1319,13 @@ class TabletopPushingPerceptionNode
       ROS_INFO_STREAM("Stopping tracker.");
       stopTracker();
       tabletop_pushing::SegTrackResult result;
-      // TODO: Get singulation response if requested
+      if (goal->get_singulation_vector)
+      {
+        result.singulation_vector = os_.getPushVector(last_motion_mask_,
+                                                      last_arm_mask_,
+                                                      last_color_frame_,
+                                                      last_depth_frame_);
+      }
       track_server_.setSucceeded(result);
       // track_server_.setPreempted();
     }

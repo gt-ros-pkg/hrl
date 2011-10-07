@@ -102,8 +102,6 @@ class TabletopExecutive:
         self.table_proxy = rospy.ServiceProxy('get_table_location', LocateTable)
         self.tracker_client = actionlib.SimpleActionClient("seg_track_action",
                                                            SegTrackAction)
-        # rospy.loginfo('Waiting for tracker server')
-        # self.tracker_client.wait_for_server()
         self.use_fake_push_pose = use_fake_push_pose
         self.push_count = 0
 
@@ -117,18 +115,6 @@ class TabletopExecutive:
         # Start tracking
         self.init_tracker()
 
-        rospy.loginfo("Pushing shit");
-        self.sweep_count = 0
-        self.num_total_sweeps = num_l_sweeps
-        for i in xrange(num_l_sweeps):
-            self.sweep_object(self.gripper_sweep_dist, 'l')
-
-
-        self.sweep_count = 0
-        self.num_total_sweeps = num_r_sweeps
-        for i in xrange(num_r_sweeps):
-            self.sweep_object(self.gripper_sweep_dist, 'r')
-
         self.push_count = 0
         self.num_total_pushes = num_l_gripper_pushes
         for i in xrange(num_l_gripper_pushes):
@@ -139,6 +125,16 @@ class TabletopExecutive:
         for i in xrange(num_r_gripper_pushes):
             self.gripper_push_object(self.gripper_push_dist, 'r')
 
+        self.sweep_count = 0
+        self.num_total_sweeps = num_l_sweeps
+        for i in xrange(num_l_sweeps):
+            self.sweep_object(self.gripper_sweep_dist, 'l')
+
+        self.sweep_count = 0
+        self.num_total_sweeps = num_r_sweeps
+        for i in xrange(num_r_sweeps):
+            self.sweep_object(self.gripper_sweep_dist, 'r')
+
         self.push_count = 0
         self.num_total_pushes = num_l_overhead_pushes
         for i in xrange(num_l_overhead_pushes):
@@ -148,8 +144,6 @@ class TabletopExecutive:
         self.num_total_pushes = num_r_overhead_pushes
         for i in xrange(num_r_overhead_pushes):
             self.overhead_push_object(self.overhead_push_dist, 'r')
-
-        # self.stop_tracker()
 
     def raise_and_look(self):
         rospy.loginfo("Getting table pose")
@@ -196,10 +190,12 @@ class TabletopExecutive:
         track_goal = SegTrackGoal()
         track_goal.start = False
         track_goal.init = False
+        track_goal.get_singulation_vector = True
         self.tracker_client.send_goal(track_goal)
         rospy.loginfo('Waiting for tracker server')
-        self.tracker_client.wait_for_server()
-        return None
+        self.tracker_client.wait_for_result()
+        result = self.tracker.get_result()
+        return result.singulation_vector
 
     def gripper_push_object(self, push_dist, which_arm):
         # Make push_pose service request
@@ -259,7 +255,6 @@ class TabletopExecutive:
 
         rospy.loginfo("Calling gripper pre push service")
         pre_push_res = self.gripper_pre_push_proxy(push_req)
-        # TODO: Start segment tracking
         self.start_tracker()
         rospy.loginfo("Calling gripper push service")
         push_res = self.gripper_push_proxy(push_req)
