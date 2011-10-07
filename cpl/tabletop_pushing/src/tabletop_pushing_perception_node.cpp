@@ -797,7 +797,6 @@ class MotionGraphcut
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
       }
     }
-    // ROS_INFO_STREAM("Got source sink weights");
     // Add edge weights
     for (int r = 0; r < R; ++r)
     {
@@ -844,7 +843,6 @@ class MotionGraphcut
         }
       }
     }
-    // ROS_INFO_STREAM("Set smoothness edge weights.");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::imshow("fg_weights_arm", fg_weights);
     cv::imshow("bg_weights_arm", bg_weights);
@@ -867,7 +865,6 @@ class MotionGraphcut
 
     // int flow = g->maxflow(false);
     g->maxflow(false);
-    // ROS_INFO_STREAM("Got min cut");
 
     // Convert output into image
     cv::Mat segs = convertFlowResultsToCvMat(g, R, C, roi,
@@ -909,12 +906,10 @@ class MotionGraphcut
   {
     const float dist_score = exp(-arms.distanceToArm(
         cv::Point2f(c+roi.x,r+roi.y), depth_frame)/arm_dist_var_);
-    // ROS_INFO_STREAM("Got dist_score");
 #ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
     dist_img.at<float>(r,c) = dist_score;
 #endif // VISUALIZE_ARM_GRAPH_WEIGHTS
     cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
-    // ROS_INFO_STREAM("Got cur_c");
     const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
         arm_stats[1][0] + arm_color_var_add_);
     const float arm_s_score = 1.0-fabs(cur_c[1] - arm_stats[0][1])/(
@@ -924,7 +919,6 @@ class MotionGraphcut
     const float arm_score = (arm_alpha_*(arm_h_score + arm_s_score +
                                          arm_v_score)/3.0 +
                              arm_beta_*dist_score);
-    // ROS_INFO_STREAM("Got arm_score");
     const float hand_h_score = 1.0-fabs(cur_c[0] - hand_stats[0][0])/(
         hand_stats[1][0] + arm_color_var_add_);
     const float hand_s_score = 1.0-fabs(cur_c[1] - hand_stats[0][1])/(
@@ -934,7 +928,6 @@ class MotionGraphcut
     const float hand_score = (arm_alpha_*(hand_h_score + hand_s_score +
                                           hand_v_score) / 3.0 +
                               arm_beta_*dist_score);
-    // ROS_INFO_STREAM("Got hand_score");
     return max(hand_score, arm_score);
   }
 
@@ -1012,14 +1005,14 @@ class MotionGraphcut
 
   cv::Mat convertFlowResultsToCvMat(GraphType *g, int R, int C)
   {
-    cv::Mat segs(R, C, CV_32FC1, cv::Scalar(0.0));
+    cv::Mat segs(R, C, CV_8UC1, cv::Scalar(0));
     for (int r = 0; r < R; ++r)
     {
-      float* seg_row = segs.ptr<float>(r);
+      uchar* seg_row = segs.ptr<uchar>(r);
       for (int c = 0; c < C; ++c)
       {
-        float label = (g->what_segment(r*C+c) == GraphType::SOURCE);
-        seg_row[c] = label;
+        int label = (g->what_segment(r*C+c) == GraphType::SOURCE);
+        seg_row[c] = label*255;
       }
     }
     return segs;
@@ -1028,13 +1021,13 @@ class MotionGraphcut
   cv::Mat convertFlowResultsToCvMat(GraphType *g, int R, int C,
                                     cv::Rect roi, cv::Size out_size)
   {
-    cv::Mat segs(out_size, CV_32FC1, cv::Scalar(0.0));
+    cv::Mat segs(out_size, CV_8UC1, cv::Scalar(0));
     for (int r = 0; r < R; ++r)
     {
       for (int c = 0; c < C; ++c)
       {
-        float label = (g->what_segment(r*C+c) == GraphType::SOURCE);
-        segs.at<float>(r+roi.y, c+roi.x) = label;
+        int label = (g->what_segment(r*C+c) == GraphType::SOURCE);
+        segs.at<uchar>(r+roi.y, c+roi.x) = label*255;
       }
     }
     return segs;
@@ -1332,6 +1325,7 @@ class TabletopPushingPerceptionNode
       ROS_INFO_STREAM("Stopping tracker.");
       stopTracker();
       tabletop_pushing::SegTrackResult result;
+      // TODO: Get singulation response if requested
       track_server_.setSucceeded(result);
       // track_server_.setPreempted();
     }
@@ -1367,7 +1361,6 @@ class TabletopPushingPerceptionNode
       cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(
           cam_info_topic_, n_, ros::Duration(5.0));
 
-      ROS_INFO_STREAM("Initializing tracker.");
       table_centroid_ = getTablePlane(cloud);
       if (table_centroid_.pose.position.x == 0.0 &&
           table_centroid_.pose.position.y == 0.0 &&
@@ -1420,7 +1413,7 @@ class TabletopPushingPerceptionNode
                        cur_workspace_mask_, heights_above_table,
                        hands_and_arms);
     // Perform graphcut for arm localization
-    cv::Mat arm_cut(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat arm_cut(color_frame.size(), CV_8UC1, cv::Scalar(0));
     if (hands_and_arms[0].size() > 0 || hands_and_arms[1].size() > 0)
     {
       arm_cut = mgc_.segmentArmFromMoving(color_frame_f, depth_frame,
@@ -1428,30 +1421,26 @@ class TabletopPushingPerceptionNode
                                           min_arm_x, max_arm_x, min_arm_y,
                                           max_arm_y);
     }
-    cv::Mat cleaned_cut(cut.size(), CV_8UC1);
-    cut.convertTo(cleaned_cut, CV_8UC1, 255, 0);
 
     // Publish the moving region stuff
     cv_bridge::CvImage motion_mask_msg;
-    motion_mask_msg.image = cleaned_cut;
+    motion_mask_msg.image = cut;
     motion_mask_msg.header = cur_camera_header_;
     motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
 
     // Publish arm stuff
-    cv::Mat cleaned_arm_cut(arm_cut.size(), CV_8UC1);
-    arm_cut.convertTo(cleaned_arm_cut, CV_8UC1, 255, 0);
     cv_bridge::CvImage arm_mask_msg;
-    arm_mask_msg.image = cleaned_arm_cut;
+    arm_mask_msg.image = arm_cut;
     arm_mask_msg.header = cur_camera_header_;
     arm_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
     arm_mask_pub_.publish(arm_mask_msg.toImageMsg());
 
     // Also publish color versions
     cv::Mat moving_regions_img;
-    color_frame.copyTo(moving_regions_img, cleaned_cut);
+    color_frame.copyTo(moving_regions_img, cut);
     cv_bridge::CvImage motion_img_msg;
-    cv::Mat motion_img_send(cleaned_cut.size(), CV_8UC3);
+    cv::Mat motion_img_send(cut.size(), CV_8UC3);
     moving_regions_img.convertTo(motion_img_send, CV_8UC3, 1.0, 0);
     motion_img_msg.image = motion_img_send;
     motion_img_msg.header = cur_camera_header_;
@@ -1459,7 +1448,7 @@ class TabletopPushingPerceptionNode
     motion_img_pub_.publish(motion_img_msg.toImageMsg());
 
     cv::Mat arm_regions_img;
-    color_frame.copyTo(arm_regions_img, cleaned_arm_cut);
+    color_frame.copyTo(arm_regions_img, arm_cut);
     cv_bridge::CvImage arm_img_msg;
     cv::Mat arm_img_send(arm_regions_img.size(), CV_8UC3);
     arm_regions_img.convertTo(arm_img_send, CV_8UC3, 1.0, 0);
@@ -1467,9 +1456,15 @@ class TabletopPushingPerceptionNode
     arm_img_msg.header = cur_camera_header_;
     arm_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
     arm_img_pub_.publish(arm_img_msg.toImageMsg());
-    cv::Mat not_arm_move = cleaned_cut - cleaned_arm_cut;
-    cv::Mat not_arm_move_color;
-    color_frame.copyTo(not_arm_move_color, not_arm_move);
+    // cv::Mat not_arm_move = cut - arm_cut;
+    // cv::Mat not_arm_move_color;
+    // color_frame.copyTo(not_arm_move_color, not_arm_move);
+
+    cut.copyTo(last_motion_mask_);
+    arm_cut.copyTo(last_arm_mask_);
+    color_frame_f.copyTo(last_color_frame_);
+    depth_frame.copyTo(last_depth_frame_);
+
 #ifdef WRITE_INPUT_TO_DISK
     std::stringstream input_out_name;
     input_out_name << base_output_path_ << "input" << tracker_count_ << ".tiff";
@@ -1505,10 +1500,10 @@ class TabletopPushingPerceptionNode
     std::stringstream arm_cut_out_name;
     arm_cut_out_name << base_output_path_ << "arm_cut" << tracker_count_ << ".tiff";
     cv::imwrite(arm_cut_out_name.str(), arm_regions_img);
-    std::stringstream not_arm_move_out_name;
-    not_arm_move_out_name << base_output_path_ << "not_arm_move" << tracker_count_
-                         << ".tiff";
-    cv::imwrite(not_arm_move_out_name.str(), not_arm_move_color);
+    // std::stringstream not_arm_move_out_name;
+    // not_arm_move_out_name << base_output_path_ << "not_arm_move" << tracker_count_
+    //                      << ".tiff";
+    // cv::imwrite(not_arm_move_out_name.str(), not_arm_move_color);
 #endif // WRITE_ARM_CUT_TO_DISK
 #ifdef DISPLAY_INPUT_COLOR
     std::vector<cv::Mat> hsv;
@@ -1556,14 +1551,14 @@ class TabletopPushingPerceptionNode
 #ifdef DISPLAY_GRAPHCUT
     cv::imshow("moving_regions", moving_regions_img);
     cv::imshow("arm_cut", arm_regions_img);
-    cv::imshow("not_arm_move", not_arm_move_color);
+    // cv::imshow("not_arm_move", not_arm_move_color);
 #endif // DISPLAY_GRAPHCUT
 
 #if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS || defined VISUALIZE_ARM_GRAPH_WEIGHTS || defined DISPLAY_ARM_CIRCLES
     cv::waitKey(display_wait_ms_);
 #endif // Any display defined
     ++tracker_count_;
-    return cleaned_cut;
+    return cut;
   }
 
   //
@@ -2033,6 +2028,10 @@ class TabletopPushingPerceptionNode
   cv::Mat prev_depth_frame_;
   cv::Mat prev_workspace_mask_;
   cv::Mat prev_seg_mask_;
+  cv::Mat last_motion_mask_;
+  cv::Mat last_arm_mask_;
+  cv::Mat last_color_frame_;
+  cv::Mat last_depth_frame_;
   std_msgs::Header cur_camera_header_;
   std_msgs::Header prev_camera_header_;
   XYZPointCloud cur_point_cloud_;
