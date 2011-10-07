@@ -246,7 +246,6 @@ class TabletopExecutive:
         push_req.left_arm = (which_arm == 'l')
         push_req.right_arm = not push_req.left_arm
 
-        # TODO: Call to ready pose
         rospy.loginfo("Calling gripper pre push service")
         pre_push_res = self.gripper_pre_push_proxy(push_req)
         # TODO: Start segment tracking
@@ -255,7 +254,6 @@ class TabletopExecutive:
         push_res = self.gripper_push_proxy(push_req)
         # TODO: Get push tracking response
         # TODO: Call inverse pushing action
-        # TODO: Go back to some ready or set pose...
         rospy.loginfo("Calling gripper post push service")
         post_push_res = self.gripper_post_push_proxy(push_req)
 
@@ -323,10 +321,15 @@ class TabletopExecutive:
         sweep_req.start_point.point.z += self.sweep_z_offset
 
         # rospy.loginfo('Sweep start point:' + str(sweep_req.start_point.point))
+        rospy.loginfo("Calling gripper pre sweep service")
+        pre_sweep_res = self.gripper_pre_sweep_proxy(sweep_req)
 
         # Call push service
         rospy.loginfo("Calling gripper sweep service")
         sweep_res = self.gripper_sweep_proxy(sweep_req)
+
+        rospy.loginfo("Calling gripper post sweep service")
+        post_sweep_res = self.gripper_post_sweep_proxy(sweep_req)
 
     def overhead_push_object(self, push_dist, which_arm):
         # Make push_pose service request
@@ -388,10 +391,15 @@ class TabletopExecutive:
 
         # rospy.loginfo('Push start point:' + str(push_req.start_point.point))
 
-        # Call push service
+        rospy.loginfo("Calling pre overhead push service")
+        pre_push_res = self.overhead_pre_push_proxy(push_req)
+
         rospy.loginfo("Calling overhead push service")
         push_res = self.overhead_push_proxy(push_req)
 
+        rospy.loginfo("Calling post overhead push service")
+        post_push_res = self.overhead_post_push_proxy(push_req)
+
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(1, 0, 0, 1, 0, 0)
+    node.run(1, 0, 0, 0, 0, 0)
