@@ -107,6 +107,12 @@ class TabletopPushNode:
         self.gripper_push_service = rospy.Service('gripper_push',
                                                   GripperPush,
                                                   self.gripper_push_action)
+        self.gripper_push_service = rospy.Service('gripper_pre_push',
+                                                  GripperPush,
+                                                  self.gripper_pre_push_action)
+        self.gripper_push_service = rospy.Service('gripper_post_push',
+                                                  GripperPush,
+                                                  self.gripper_post_push_action)
         self.gripper_sweep_service = rospy.Service('gripper_sweep',
                                                    GripperPush,
                                                    self.gripper_sweep_action)
@@ -193,6 +199,98 @@ class TabletopPushNode:
     # Behavior functions
     #
     def gripper_push_action(self, request):
+        response = GripperPushResponse()
+        push_frame = request.start_point.header.frame_id
+        start_point = request.start_point.point
+        wrist_yaw = request.wrist_yaw
+        push_dist = request.desired_push_dist
+
+        if request.left_arm:
+            push_arm = self.left_arm_move
+            robot_arm = self.robot.left
+            ready_joints = LEFT_ARM_READY_JOINTS
+            which_arm = 'l'
+        else:
+            push_arm = self.right_arm_move
+            robot_arm = self.robot.right
+            ready_joints = RIGHT_ARM_READY_JOINTS
+            which_arm = 'r'
+        push_arm.pressure_listener.rezero()
+
+        # Push in a straight line
+        rospy.loginfo('Pushing forward')
+        r, pos_error = push_arm.move_relative_gripper(
+            np.matrix([push_dist, 0.0, 0.0]).T,
+            stop='pressure', pressure=5000)
+        rospy.loginfo('Done pushing forward')
+
+        response.dist_pushed = push_dist - pos_error
+        return response
+
+    def gripper_pre_push_action(self, request):
+        response = GripperPushResponse()
+        push_frame = request.start_point.header.frame_id
+        start_point = request.start_point.point
+        wrist_yaw = request.wrist_yaw
+        push_dist = request.desired_push_dist
+        if request.left_arm:
+            push_arm = self.left_arm_move
+            robot_arm = self.robot.left
+            ready_joints = LEFT_ARM_READY_JOINTS
+            which_arm = 'l'
+        else:
+            push_arm = self.right_arm_move
+            robot_arm = self.robot.right
+            ready_joints = RIGHT_ARM_READY_JOINTS
+            which_arm = 'r'
+
+        if request.arm_init:
+            rospy.loginfo('Moving %s_arm to ready pose' % which_arm)
+            push_arm.set_movement_mode_ik()
+            robot_arm.set_pose(ready_joints, nsecs=2.0, block=True)
+
+        orientation = tf.transformations.quaternion_from_euler(0.0, 0.0,
+                                                               wrist_yaw)
+        pose = np.matrix([start_point.x, start_point.y, start_point.z])
+        rot = np.matrix([orientation])
+
+        # Move to start pose
+        loc = [pose, rot]
+        push_arm.set_movement_mode_cart()
+        push_arm.move_absolute(loc, stop='pressure', frame=push_frame)
+        rospy.loginfo('Done moving to start point')
+        return response
+
+    def gripper_post_push_action(self, request):
+        response = GripperPushResponse()
+        push_frame = request.start_point.header.frame_id
+        start_point = request.start_point.point
+        wrist_yaw = request.wrist_yaw
+        push_dist = request.desired_push_dist
+
+        if request.left_arm:
+            push_arm = self.left_arm_move
+            robot_arm = self.robot.left
+            ready_joints = LEFT_ARM_READY_JOINTS
+            which_arm = 'l'
+        else:
+            push_arm = self.right_arm_move
+            robot_arm = self.robot.right
+            ready_joints = RIGHT_ARM_READY_JOINTS
+            which_arm = 'r'
+
+        # Retract in a straight line
+        rospy.loginfo('Moving gripper backwards')
+        push_arm.move_relative_gripper(
+            np.matrix([-push_dist, 0.0, 0.0]).T,
+            stop='pressure', pressure=5000)
+        rospy.loginfo('Done moving backwards')
+
+        if request.arm_reset:
+            self.reset_arm_pose(True, which_arm)
+        return response
+
+    def gripper_push_action_complete(self, request):
         response = GripperPushResponse()
         push_frame = request.start_point.header.frame_id
         start_point = request.start_point.point

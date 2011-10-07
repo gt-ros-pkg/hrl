@@ -58,7 +58,7 @@ class TabletopExecutive:
         self.gripper_y_offset = rospy.get_param('~gripper_push_start_x_offset',
                                                 0.0)
         self.gripper_z_offset = rospy.get_param('~gripper_push_start_z_offset',
-                                                0.00)
+                                                0.02)
 
         self.gripper_sweep_dist = rospy.get_param('~gripper_sweep_dist',
                                                  0.25)
@@ -81,10 +81,22 @@ class TabletopExecutive:
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
                                                      GripperPush)
+        self.gripper_pre_push_proxy = rospy.ServiceProxy('gripper_pre_push',
+                                                         GripperPush)
+        self.gripper_post_push_proxy = rospy.ServiceProxy('gripper_post_push',
+                                                          GripperPush)
+        self.gripper_pre_sweep_proxy = rospy.ServiceProxy('gripper_pre_sweep',
+                                                          GripperPush)
         self.gripper_sweep_proxy = rospy.ServiceProxy('gripper_sweep',
                                                       GripperPush)
+        self.gripper_post_sweep_proxy = rospy.ServiceProxy('gripper_post_sweep',
+                                                           GripperPush)
+        self.overhead_pre_push_proxy = rospy.ServiceProxy('overhead_pre_push',
+                                                          GripperPush)
         self.overhead_push_proxy = rospy.ServiceProxy('overhead_push',
                                                       GripperPush)
+        self.overhead_post_push_proxy = rospy.ServiceProxy('overhead_post_push',
+                                                           GripperPush)
         self.raise_and_look_push_proxy = rospy.ServiceProxy('raise_and_look',
                                                             RaiseAndLook)
         self.table_proxy = rospy.ServiceProxy('get_table_location', LocateTable)
@@ -183,6 +195,9 @@ class TabletopExecutive:
         pose_req = PushPoseRequest()
         pose_req.use_laser = False
 
+        # TODO: Pull this out to a higher level method
+        # TODO: Keep track of statefullness as to whether it is an initial
+        # probe or a testing probe
         # Get push pose
         rospy.loginfo("Calling push pose service")
         try:
@@ -231,9 +246,18 @@ class TabletopExecutive:
         push_req.left_arm = (which_arm == 'l')
         push_req.right_arm = not push_req.left_arm
 
+        # TODO: Call to ready pose
+        rospy.loginfo("Calling gripper pre push service")
+        pre_push_res = self.gripper_pre_push_proxy(push_req)
+        # TODO: Start segment tracking
         # Call push service
         rospy.loginfo("Calling gripper push service")
         push_res = self.gripper_push_proxy(push_req)
+        # TODO: Get push tracking response
+        # TODO: Call inverse pushing action
+        # TODO: Go back to some ready or set pose...
+        rospy.loginfo("Calling gripper post push service")
+        post_push_res = self.gripper_post_push_proxy(push_req)
 
     def sweep_object(self, push_dist, which_arm):
         # Make push_pose service request
@@ -370,4 +394,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(3, 1, 0, 0, 0, 0)
+    node.run(1, 0, 0, 1, 0, 0)
