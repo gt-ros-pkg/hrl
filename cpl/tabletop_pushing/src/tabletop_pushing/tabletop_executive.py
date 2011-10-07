@@ -115,7 +115,7 @@ class TabletopExecutive:
         self.raise_and_look()
 
         # Start tracking
-        self.start_tracker()
+        self.init_tracker()
 
         rospy.loginfo("Pushing shit");
         self.sweep_count = 0
@@ -149,7 +149,7 @@ class TabletopExecutive:
         for i in xrange(num_r_overhead_pushes):
             self.overhead_push_object(self.overhead_push_dist, 'r')
 
-        self.stop_tracker()
+        # self.stop_tracker()
 
     def raise_and_look(self):
         rospy.loginfo("Getting table pose")
@@ -176,9 +176,18 @@ class TabletopExecutive:
         raise_req.point_head_only = False
         raise_res = self.raise_and_look_push_proxy(raise_req)
 
+    def init_tracker(self):
+        track_goal = SegTrackGoal()
+        track_goal.start = False
+        track_goal.init = True
+        self.tracker_client.send_goal(track_goal)
+        rospy.loginfo('Waiting for tracker server')
+        self.tracker_client.wait_for_server()
+
     def start_tracker(self):
         track_goal = SegTrackGoal()
         track_goal.start = True
+        track_goal.init = False
         self.tracker_client.send_goal(track_goal)
         rospy.loginfo('Waiting for tracker server')
         self.tracker_client.wait_for_server()
@@ -186,9 +195,11 @@ class TabletopExecutive:
     def stop_tracker(self):
         track_goal = SegTrackGoal()
         track_goal.start = False
+        track_goal.init = False
         self.tracker_client.send_goal(track_goal)
         rospy.loginfo('Waiting for tracker server')
         self.tracker_client.wait_for_server()
+        return None
 
     def gripper_push_object(self, push_dist, which_arm):
         # Make push_pose service request
@@ -249,11 +260,11 @@ class TabletopExecutive:
         rospy.loginfo("Calling gripper pre push service")
         pre_push_res = self.gripper_pre_push_proxy(push_req)
         # TODO: Start segment tracking
-        # Call push service
+        self.start_tracker()
         rospy.loginfo("Calling gripper push service")
         push_res = self.gripper_push_proxy(push_req)
         # TODO: Get push tracking response
-        # TODO: Call inverse pushing action
+        track_res = self.stop_tracker()
         rospy.loginfo("Calling gripper post push service")
         post_push_res = self.gripper_post_push_proxy(push_req)
 
@@ -323,11 +334,10 @@ class TabletopExecutive:
         # rospy.loginfo('Sweep start point:' + str(sweep_req.start_point.point))
         rospy.loginfo("Calling gripper pre sweep service")
         pre_sweep_res = self.gripper_pre_sweep_proxy(sweep_req)
-
-        # Call push service
+        self.start_tracker()
         rospy.loginfo("Calling gripper sweep service")
         sweep_res = self.gripper_sweep_proxy(sweep_req)
-
+        self.stop_tracker()
         rospy.loginfo("Calling gripper post sweep service")
         post_sweep_res = self.gripper_post_sweep_proxy(sweep_req)
 
@@ -393,13 +403,13 @@ class TabletopExecutive:
 
         rospy.loginfo("Calling pre overhead push service")
         pre_push_res = self.overhead_pre_push_proxy(push_req)
-
+        self.start_tracker()
         rospy.loginfo("Calling overhead push service")
         push_res = self.overhead_push_proxy(push_req)
-
+        self.stop_tracker()
         rospy.loginfo("Calling post overhead push service")
         post_push_res = self.overhead_post_push_proxy(push_req)
 
 if __name__ == '__main__':
     node = TabletopExecutive(True)
-    node.run(1, 0, 0, 0, 0, 0)
+    node.run(3, 0, 0, 0, 0, 0)

@@ -1,5 +1,6 @@
 # goal
 bool start
+bool init
 ---
 # result
 geometry_msgs/PoseStamped end_pose

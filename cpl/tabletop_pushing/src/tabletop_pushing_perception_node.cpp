@@ -1076,10 +1076,19 @@ class MotionGraphcut
 
 class ObjectSingulation
 {
-  Pose2D operator()(cv::Mat& segment_mask, cv::Mat& color_img, cv::Mat& depth_img)
+ public:
+  Pose2D getPushVector(cv::Mat& segment_mask, cv::Mat& color_img,
+                       cv::Mat& depth_img)
   {
     Pose2D push_dir;
     return push_dir;
+  }
+
+  cv::Mat getObjectBoundaryStrengths(cv::Mat& segment_mask, cv::Mat& color_img,
+                                     cv::Mat& depth_img)
+  {
+    cv::Mat boundary_img(color_img.size(), CV_32FC1);
+    return boundary_img;
   }
 };
 
@@ -1237,13 +1246,10 @@ class TabletopPushingPerceptionNode
     cur_camera_header_ = img_msg->header;
 
     // Started via actionlib call
-    if (tracking_)
-    {
-      cv::Mat seg_mask = segmentMovingStuff(cur_color_frame_, cur_depth_frame_,
-                                            prev_color_frame_, prev_depth_frame_,
-                                            cur_point_cloud_);
-      prev_seg_mask_ = seg_mask.clone();
-    }
+    cv::Mat seg_mask = segmentMovingStuff(cur_color_frame_, cur_depth_frame_,
+                                          prev_color_frame_, prev_depth_frame_,
+                                          cur_point_cloud_);
+    prev_seg_mask_ = seg_mask.clone();
   }
 
   bool getTableLocation(LocateTable::Request& req, LocateTable::Response& res)
@@ -1306,7 +1312,14 @@ class TabletopPushingPerceptionNode
 
   void trackerGoalCallback(const tabletop_pushing::SegTrackGoalConstPtr &goal)
   {
-    ROS_INFO_STREAM("Tracker callback.");
+    if (goal->init)
+    {
+      ROS_INFO_STREAM("Initializing tracker.");
+      initTracker();
+      tabletop_pushing::SegTrackResult result;
+      track_server_.setSucceeded(result);
+    }
+
     if (goal->start)
     {
       ROS_INFO_STREAM("Starting tracker.");
@@ -1318,19 +1331,27 @@ class TabletopPushingPerceptionNode
     {
       ROS_INFO_STREAM("Stopping tracker.");
       stopTracker();
-      track_server_.setPreempted();
+      tabletop_pushing::SegTrackResult result;
+      track_server_.setSucceeded(result);
+      // track_server_.setPreempted();
     }
+  }
+
+  void initTracker()
+  {
+    tracker_initialized_ = false;
+    tracking_ = false;
   }
 
   void startTracker()
   {
-    tracker_initialized_ = false;
+    // tracker_initialized_ = true;
     tracking_ = true;
-
   }
+
   void stopTracker()
   {
-    tracker_initialized_ = false;
+    // tracker_initialized_ = false;
     tracking_ = false;
   }
 
@@ -1363,6 +1384,13 @@ class TabletopPushingPerceptionNode
 
       tracker_initialized_ = true;
       tracker_count_ = 0;
+      cv::Mat empty_segments(color_frame.rows, color_frame.cols, CV_8UC1,
+                             cv::Scalar(0));
+      return empty_segments;
+    }
+
+    if (!tracking_)
+    {
       cv::Mat empty_segments(color_frame.rows, color_frame.cols, CV_8UC1,
                              cv::Scalar(0));
       return empty_segments;
@@ -2010,6 +2038,7 @@ class TabletopPushingPerceptionNode
   XYZPointCloud cur_point_cloud_;
   LKFlowReliable lkflow_;
   MotionGraphcut mgc_;
+  ObjectSingulation os_;
   bool have_depth_data_;
   int crop_min_x_;
   int crop_max_x_;
