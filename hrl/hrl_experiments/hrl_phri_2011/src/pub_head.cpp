@@ -6,7 +6,7 @@
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "pub_head");
+    ros::init(argc, argv, "pub_head", ros::init_options::AnonymousName);
     if(argc < 2 || argc > 5) {
         printf("Usage pub_head bag_file [topic] [frame] [rate]\n");
         return 1;

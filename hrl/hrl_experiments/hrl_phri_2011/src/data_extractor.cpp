@@ -9,6 +9,7 @@
 #include <hrl_phri_2011/ForceProcessed.h>
 #include <hrl_phri_2011/pcl_features.h>
 #include <hrl_phri_2011/utils.h>
+#include <hrl_phri_2011/ellipsoid_space.h>
 
 typedef Eigen::Matrix<double, 6, 1> CartVec;
 
@@ -41,7 +42,8 @@ private:
     double start_time;
     vector<hrl_phri_2011::ForceProcessed> fp_list;
     bool compute_norms;
-    tf::Transform registration_tf;
+    tf::Transform registration_tf, ell_reg_tf;
+    Ellipsoid ell;
 
     void wrenchCallback(geometry_msgs::WrenchStamped::ConstPtr wrench_stamped) 
     {
@@ -87,6 +89,14 @@ private:
             fp.pc_normal.y = normals->points[closest_ind].normal[1];
             fp.pc_normal.z = normals->points[closest_ind].normal[2];
         }
+
+        // do ellipsoidal processing
+        tf::Transform tool_loc_ell = ell_reg_tf * tool_loc_tf;
+        tf::transformTFToMsg(tool_loc_ell, fp.tool_ell_frame);
+        btVector3 tloce_pos = tool_loc_ell.getOrigin();
+        ell.cartToEllipsoidal(tloce_pos.x(), tloce_pos.y(), tloce_pos.z(), 
+                              fp.ell_coords.x, fp.ell_coords.y, fp.ell_coords.z);
+
         fp_list.push_back(fp);
         pub_ind++;
         if(pub_ind % 100 == 0)
@@ -104,19 +114,25 @@ public:
         wrench_sub = nh.subscribe(topic, 100, &DataExtractor::wrenchCallback, this);
     }
 
-    DataExtractor(PCRGB::Ptr& pch, bool compute_normals, const geometry_msgs::Transform& registration) : 
+    DataExtractor(PCRGB::Ptr& pch, bool compute_normals, const geometry_msgs::Transform& registration,
+                  const hrl_phri_2011::EllipsoidParams& ep) : 
         pc_head(pch),
         kd_tree(new pcl::KdTreeFLANN<PRGB> ()),
         normals(new PCNormals()),
         pub_ind(0),
         start_time(-1),
-        compute_norms(compute_normals)
+        compute_norms(compute_normals),
+        ell(ep)
     {
         kd_tree->setInputCloud(pc_head);
         if(compute_norms)
             computeNormals(pc_head, kd_tree, normals);
         pc_head->header.frame_id = "/head_center";
         tf::transformMsgToTF(registration, registration_tf);
+        if(ep.e_frame.transform.rotation.w != 0) {
+            tf::transformMsgToTF(ep.e_frame.transform, ell_reg_tf);
+            ell_reg_tf = ell_reg_tf.inverse();
+        }
     }
 
     void writeBag(const string& pbag_name) 
@@ -134,8 +150,8 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "data_extractor");
 
-    if(argc < 3 || argc > 6) {
-        printf("Usage: data_extractor head_pc forces_bag_output [compute_normals=1] [registration_bag]\n");
+    if(argc < 3 || argc > 7) {
+        printf("Usage: data_extractor head_pc forces_bag_output [compute_normals=1] [registration_bag] [use_raw=0] [ellipse_registration]\n");
         return 1;
     }
 
@@ -162,8 +178,15 @@ int main(int argc, char **argv)
         readBagTopic<geometry_msgs::TransformStamped>(argv[4], tf_msgs, "/itf_transform");
         tf_msg = tf_msgs[0]->transform;
     }
+    vector<hrl_phri_2011::EllipsoidParams::Ptr> e_params_msgs;
+    e_params_msgs.push_back(boost::shared_ptr<hrl_phri_2011::EllipsoidParams>(new hrl_phri_2011::EllipsoidParams()));
+    if(argc >= 7) {
+        e_params_msgs.clear();
+        readBagTopic<hrl_phri_2011::EllipsoidParams>(argv[6], e_params_msgs, "/ellipsoid_params");
+    }
+    
 
-    DataExtractor de(pc_head, compute_normals, tf_msg);
+    DataExtractor de(pc_head, compute_normals, tf_msg, *e_params_msgs[0]);
     de.startVisualization(use_raw);
     ROS_INFO("Ready for collection");
     ros::spin();

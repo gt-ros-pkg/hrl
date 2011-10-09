@@ -18,6 +18,7 @@ private:
     double z_axis_, y_axis_, old_z_axis_, old_y_axis_;
     geometry_msgs::Transform old_marker_tf_;
     geometry_msgs::TransformStamped tf_msg_;
+    hrl_phri_2011::EllipsoidParams cur_e_params_;
 public:
     InteractiveEllipse(const std::string& parent_frame, const std::string& child_frame, double rate = 100);
     void processTFControl(const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback);
@@ -27,6 +28,7 @@ public:
     void addEllipseMarker();
     void publishTF(const ros::TimerEvent& event);
     void loadEllipsoidParams(const hrl_phri_2011::EllipsoidParams& e_params);
+    void bagTF(const string& bag_name);
 };
 
 InteractiveEllipse::InteractiveEllipse(const std::string& parent_frame, 
@@ -158,6 +160,7 @@ void InteractiveEllipse::publishTF(const ros::TimerEvent& event)
     e_params.height = y_axis_ + old_y_axis_;
     e_params.E = z_axis_ + old_z_axis_;
     params_pub.publish(e_params);
+    cur_e_params_ = e_params;
 }
 
 void InteractiveEllipse::loadEllipsoidParams(const hrl_phri_2011::EllipsoidParams& e_params) 
@@ -167,16 +170,24 @@ void InteractiveEllipse::loadEllipsoidParams(const hrl_phri_2011::EllipsoidParam
     old_z_axis_ = e_params.E;
 }
 
+void InteractiveEllipse::bagTF(const string& bag_name) 
+{
+    rosbag::Bag bag;
+    bag.open(bag_name, rosbag::bagmode::Write);
+    bag.write("/ellipsoid_params", ros::Time::now(), cur_e_params_);
+    bag.close();
+}
+
 int main(int argc, char **argv)
 {
-    if(argc != 3 && argc != 4 && argc != 5) {
+    if(argc != 3 && argc != 4 && argc != 5 && argc != 6) {
         printf("Usage: interative_ellipse parent_frame child_frame [rate] [inital_params]\n");
         return 1;
     }
     ros::init(argc, argv, "interative_ellipse");
     if(argc >= 4) {
         InteractiveEllipse itf(argv[1], argv[2], atof(argv[3]));
-        if(argc == 5) {
+        if(argc >= 5) {
             // load params
             std::vector<hrl_phri_2011::EllipsoidParams::Ptr> params;
             readBagTopic<hrl_phri_2011::EllipsoidParams>(argv[4], params, "/ellipsoid_params");
@@ -185,6 +196,8 @@ int main(int argc, char **argv)
         itf.addTFMarker();
         itf.addEllipseMarker();
         ros::spin();
+        if(argc >= 6)
+            itf.bagTF(argv[5]);
     } else {
         InteractiveEllipse itf(argv[1], argv[2]);
         itf.addTFMarker();

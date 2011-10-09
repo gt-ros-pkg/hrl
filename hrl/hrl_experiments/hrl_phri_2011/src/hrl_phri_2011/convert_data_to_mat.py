@@ -38,7 +38,10 @@ def main():
         "force_normal" : "force_norm",
         "force_tangental" : "force_tan",
         "contact_period" : "contact_period",
-        "time_from_contact_start" : "time_contact"
+        "time_from_contact_start" : "time_contact",
+        "ell_coords.x" : "lat",
+        "ell_coords.y" : "long",
+        "ell_coords.z" : "height",
     }
     data = {}
     for field in field_map:

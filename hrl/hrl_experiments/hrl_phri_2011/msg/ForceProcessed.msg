@@ -16,6 +16,8 @@ float32 force_normal
 float32 force_tangental
 
 # semantic data
+geometry_msgs/Point ell_coords
+geometry_msgs/Transform tool_ell_frame
 string region
 string user
 int32 contact_period
