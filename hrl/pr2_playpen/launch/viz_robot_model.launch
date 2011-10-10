@@ -1,0 +1,8 @@
+<launch>
+
+    <!-- send pr2 urdf to param server -->
+    <param name="robot_description" command="$(find xacro)/xacro.py '$(find pr2_description)/robots/pr2.urdf.xacro'" />
+
+    <node pkg="rosbag" type="play" name="rosbagplay" 
+    args="/home/mkillpack/hrl_file_server/playpen_data_sets/2011-06-30_19-01-02/object000_try023.bag" />
+</launch>
