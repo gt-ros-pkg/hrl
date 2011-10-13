@@ -49,35 +49,50 @@ int main(int argc, char **argv)
     readBagTopic<PCRGB>(argv[2], pc_list, "/stitched_head");
     head_pc = pc_list[0];
 
-    PCRGB joint_den, pos_den, marginal_den;
+    PCRGB joint_den, pos_den, marginal_den, expected_val, force_variance;
     pcl::KdTreeFLANN<PRGB> data_kd_tree(new pcl::KdTreeFLANN<PRGB> ());
     pcl::KdTreeFLANN<PRGB> head_kd_tree(new pcl::KdTreeFLANN<PRGB> ());
     data_kd_tree.setInputCloud(data_pc);
     head_kd_tree.setInputCloud(head_pc);
     vector<int> inds; vector<float> dists;
+    double cur_force;
     double joint_cur_dist, joint_kern_val, joint_kern_sum = 0.0;
-    double pos_cur_dist, pos_kern_val, pos_kern_sum = 0.0, max_pos_kern = 0;
+    double pos_cur_dist, pos_kern_val, pos_kern_sum = 0.0, max_pos_kern = 0, cur_pos_kern_val;
     double marginal_kern_sum = 0.0;
+    double exp_val;
+    double force_var, cur_force_err;
     PRGB pt;
     for(size_t i=0;i<head_pc->size();i++) {
         joint_kern_val = 0;
         pos_kern_val = 0;
+        exp_val = 0;
+        force_var = 0;
         pt.x = head_pc->points[i].x;
         pt.y = head_pc->points[i].y;
         pt.z = head_pc->points[i].z;
         data_kd_tree.radiusSearch(*head_pc, i, pilot_ph * 3, inds, dists);
         if(dists.size() != 0) {
             for(size_t j=0;j<dists.size();j++) {
+                cur_force = data_pc->points[inds[j]].rgb;
                 joint_cur_dist = dists[j] / SQ(pilot_ph) + 
-                           SQ(target_force - data_pc->points[inds[j]].rgb) / SQ(pilot_fh);
+                           SQ(target_force - cur_force) / SQ(pilot_fh);
                 pos_cur_dist = dists[j] / SQ(pilot_ph);
-                joint_kern_val += exp(- 0.5 * joint_cur_dist);
-                pos_kern_val += exp(- 0.5 * pos_cur_dist);
+                joint_kern_val += exp(- 0.5 * joint_cur_dist) / (SQ(pilot_ph) * pilot_ph * pilot_fh);
+                cur_pos_kern_val = exp(- 0.5 * pos_cur_dist) / (SQ(pilot_ph) * pilot_ph);
+                pos_kern_val += cur_pos_kern_val;
+                exp_val += cur_pos_kern_val * cur_force;
             }
-            //pt.rgb = pos_kern_val;
-            //pt.rgb = joint_kern_val;
+            if(pos_kern_val > 0.01) {
+                for(size_t j=0;j<dists.size();j++) {
+                    cur_force = data_pc->points[inds[j]].rgb;
+                    cur_force_err = cur_force - exp_val / pos_kern_val;
+                    force_var += pos_kern_val * SQ(cur_force_err);
+                }
+            }
+
             inds.clear(); dists.clear();
         }
+
         // joint density
         pt.rgb = joint_kern_val;
         joint_den.push_back(pt);
@@ -99,19 +114,37 @@ int main(int argc, char **argv)
         else
             pt.rgb = 0;
         marginal_den.push_back(pt);
+
+        // expected value
+        if(pos_kern_val > 0.01) {
+            pt.rgb = exp_val / pos_kern_val;
+        }
+        else
+            pt.rgb = 0;
+        expected_val.push_back(pt);
+
+        // variance
+        if(pos_kern_val > 0.01) {
+            pt.rgb = force_var / pos_kern_val;
+        }
+        else
+            pt.rgb = 0;
+        force_variance.push_back(pt);
     }
 
-    // remove low position density artifacts
     for(size_t i=0;i<pos_den.size();i++) {
+        // remove low position density artifacts
         if(pos_den.points[i].rgb < max_pos_kern * 0.01) {
             pos_den.points[i].rgb = 0;
             marginal_den.points[i].rgb = 0;
+            expected_val.points[i].rgb = 0;
+            force_variance.points[i].rgb = 0;
         }
     }
 
     vector<PCRGB::Ptr> pcs;
     vector<string> topics;
-    PCRGB color_joint_den, color_pos_den, color_marginal_den;
+    PCRGB color_joint_den, color_pos_den, color_marginal_den, color_expected_val, color_force_variance;
 
     colorizeDataPC(joint_den, color_joint_den);
     color_joint_den.header.frame_id = "/base_link";
@@ -124,6 +157,14 @@ int main(int argc, char **argv)
     colorizeDataPC(marginal_den, color_marginal_den);
     color_marginal_den.header.frame_id = "/base_link";
     pcs.push_back(color_marginal_den.makeShared()); topics.push_back("/marginal_density");
+
+    colorizeDataPC(expected_val, color_expected_val);
+    color_expected_val.header.frame_id = "/base_link";
+    pcs.push_back(color_expected_val.makeShared()); topics.push_back("/expected_value");
+
+    colorizeDataPC(force_variance, color_force_variance);
+    color_force_variance.header.frame_id = "/base_link";
+    pcs.push_back(color_force_variance.makeShared()); topics.push_back("/force_variance");
 
     pubLoop(pcs, topics, 1);
     //pubLoop(color_pilot_den, "/function_mean", 1);
