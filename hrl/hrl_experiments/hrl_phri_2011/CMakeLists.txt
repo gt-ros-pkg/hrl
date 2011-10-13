@@ -38,7 +38,7 @@ MESSAGE(STATUS "include = ${CHOLMOD_INCLUDE_DIR}")
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
-set(PROGRAMS pub_head ellipsoid_test interactive_tf interactive_ellipse ellipsoid_visualizer project_pc_ellipsoid data_extractor pc_head_stitcher function_extractor gp_regression show_contact_cloud save_contact_cloud concat_clouds colorize_data_cloud)
+set(PROGRAMS pub_head ellipsoid_test interactive_tf interactive_ellipse ellipsoid_visualizer project_pc_ellipsoid data_extractor pc_head_stitcher function_extractor gp_regression show_contact_cloud save_contact_cloud concat_clouds colorize_data_cloud density_estimation)
 #rosbuild_add_executable(force_labeler src/force_labeler.cpp)
 #rosbuild_add_executable(visualize_head src/visualize_head.cpp)
 rosbuild_add_library(${PROJECT_NAME} src/pcl_basic.cpp src/pcl_features.cpp src/utils.cpp)
