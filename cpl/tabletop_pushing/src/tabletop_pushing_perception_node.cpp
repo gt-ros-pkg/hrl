@@ -1060,23 +1060,124 @@ class MotionGraphcut
 class ObjectSingulation
 {
  public:
+  ObjectSingulation(int kmeans_max_iter=200, double kmeans_epsilon=0.5,
+                    int kmeans_tries=5) :
+      kmeans_max_iter_(kmeans_max_iter), kmeans_epsilon_(kmeans_epsilon),
+      kmeans_tries_(kmeans_tries)
+  {
+  }
+
   Pose2D getPushVector(cv::Mat& motion_mask, cv::Mat& arm_mask,
-                       cv::Mat& color_img, cv::Mat& depth_img)
+                       cv::Mat& color_img, cv::Mat& depth_img,
+                       cv::Mat& u, cv::Mat& v)
   {
     Pose2D push_dir;
-    cv::Mat boundary_img = getObjectBoundaryStrengths(motion_mask, arm_mask,
-                                                      color_img, depth_img);
-    // TODO: Find strongest border location, inside the region, find a pose
-    // parallel to it
+    // cv::Mat boundary_img = getObjectBoundaryStrengths(motion_mask, arm_mask,
+    //                                                   color_img, depth_img);
+    cv::Mat stuff_mask = motion_mask-arm_mask;
+    // Get flow clusters
+    std::vector<cv::Vec2f> centers = clusterFlowFields(u, v, stuff_mask);
+    // Determine push_direction based on centers and their directions
     return push_dir;
   }
 
+  Pose2D determinePushVector(std::vector<cv::Vec2f> centers)
+  {
+  }
+  
   cv::Mat getObjectBoundaryStrengths(cv::Mat& motion_mask, cv::Mat& arm_mask,
                                      cv::Mat& color_img, cv::Mat& depth_img)
   {
     cv::Mat boundary_img(color_img.size(), CV_32FC1);
     return boundary_img;
   }
+
+  std::vector<cv::Vec2f> clusterFlowFields(cv::Mat& u, cv::Mat& v,
+                                           cv::Mat& mask, int max_k=2)
+  {
+    // Setup the samples as the flow vectors for the segmented moving region
+    int num_samples = 0;
+    for (int r = 0; r < mask.rows; ++r)
+    {
+      uchar* mask_row = mask.ptr<uchar>(r);
+      for (int c = 0; c < mask.cols; ++c)
+      {
+        if ( mask_row[c] != 0)
+        {
+          ++num_samples;
+        }
+      }
+    }
+    cv::Mat samples(num_samples, 2, CV_32FC1);
+    cv::Mat sample_locs(num_samples, 1, CV_32FC2);
+    for (int r = 0, i = 0; r < mask.rows; ++r)
+    {
+      uchar* mask_row = mask.ptr<uchar>(r);
+      for (int c = 0; c < mask.cols; ++c)
+      {
+        if ( mask_row[c] != 0)
+        {
+          samples.at<float>(i, 0) = u.at<float>(r,c);
+          samples.at<float>(i, 1) = v.at<float>(r,c);
+          sample_locs.at<cv::Vec2f>(i,0) = cv::Vec2f(r,c);
+          ++i;
+        }
+      }
+    }
+
+    // Perform kmeans clustering for a range of k values
+    std::vector<cv::Mat> labels;
+    std::vector<cv::Mat> centers;
+    double compactness[max_k];
+    cv::TermCriteria term_crit(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER,
+                               kmeans_max_iter_, kmeans_epsilon_);
+    for (int k = 1; k <= max_k; ++k)
+    {
+      cv::Mat labels_k;
+      cv::Mat centers_k;
+      double slack = cv::kmeans(samples, k, labels_k, term_crit, kmeans_tries_,
+                                cv::KMEANS_PP_CENTERS, centers_k);
+      compactness[k-1] = slack;
+      labels.push_back(labels_k);
+      centers.push_back(centers_k);
+    }
+
+    // TODO: Determine the best fitting clusters
+    // NOTE: The more cluster centers given should almost always fit with better
+    // confidence, thus we need to use some heuristic to determine if the flow
+    // centers have a significant angle between them comapred to the difference
+    // at fewer cluster centers
+    int best_k = max_k;
+
+    // Get the image location center matching the best fit flow clusters
+    std::vector<cv::Vec2f> cluster_centers;
+    for (int k = 0; k < max_k; ++k)
+    {
+      cv::Vec2f center_k(0,0);
+      int num_members = 0;
+      for (int i = 0; i < num_samples; ++i)
+      {
+        if (labels[best_k-1].at<uchar>(i,0) == k)
+        {
+          cv::Vec2f loc_i = sample_locs.at<cv::Vec2f>(i,0);
+          center_k += loc_i;
+          ++num_members;
+        }
+      }
+      center_k[0] = center_k[0]/num_members;
+      center_k[1] = center_k[1]/num_members;
+      cluster_centers.push_back(center_k);
+      cv::Vec2f flow_k;
+      flow_k[0] = centers[best_k-1].at<float>(k,0);
+      flow_k[1] = centers[best_k-1].at<float>(k,1);
+      cluster_centers.push_back(flow_k);
+    }
+    return cluster_centers;
+  }
+  // Class member variables
+  int kmeans_max_iter_;
+  double kmeans_epsilon_;
+  int kmeans_tries_;
 };
 
 class TabletopPushingPerceptionNode
@@ -1324,7 +1425,9 @@ class TabletopPushingPerceptionNode
         result.singulation_vector = os_.getPushVector(last_motion_mask_,
                                                       last_arm_mask_,
                                                       last_color_frame_,
-                                                      last_depth_frame_);
+                                                      last_depth_frame_,
+                                                      last_flow_u_,
+                                                      last_flow_v_);
       }
       track_server_.setSucceeded(result);
       // track_server_.setPreempted();
@@ -1464,6 +1567,8 @@ class TabletopPushingPerceptionNode
     arm_cut.copyTo(last_arm_mask_);
     color_frame_f.copyTo(last_color_frame_);
     depth_frame.copyTo(last_depth_frame_);
+    flow_outs[0].copyTo(last_flow_u_);
+    flow_outs[1].copyTo(last_flow_v_);
 
 #ifdef WRITE_INPUT_TO_DISK
     std::stringstream input_out_name;
@@ -2032,6 +2137,8 @@ class TabletopPushingPerceptionNode
   cv::Mat last_arm_mask_;
   cv::Mat last_color_frame_;
   cv::Mat last_depth_frame_;
+  cv::Mat last_flow_u_;
+  cv::Mat last_flow_v_;
   std_msgs::Header cur_camera_header_;
   std_msgs::Header prev_camera_header_;
   XYZPointCloud cur_point_cloud_;
