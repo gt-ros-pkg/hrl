@@ -99,21 +99,24 @@
 #include <utility>
 #include <stdexcept>
 #include <math.h>
+#include <time.h> // for srand(time(NULL))
+#include <cstdlib> // for MAX_RAND
 
 // Debugging IFDEFS
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
-// #define DISPLAY_OPTICAL_FLOW 1
+#define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_UV 1
-// #define DISPLAY_GRAPHCUT 1
+#define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS 1
 // #define DISPLAY_ARM_CIRCLES 1
 // #define DISPLAY_TABLE_DISTANCES 1
+#define DISPLAY_FLOW_FIELD_CLUSTERING 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
@@ -122,6 +125,7 @@
 // Functional IFDEFS
 #define MEDIAN_FILTER_FLOW 1
 #define USE_WORKSPACE_MASK_FOR_ARM 1
+#define AUTO_FLOW_CLUSTER 1
 // #define USE_TABLE_COLOR_ESTIMATE 1
 
 using tabletop_pushing::PushPose;
@@ -1076,15 +1080,18 @@ class ObjectSingulation
     //                                                   color_img, depth_img);
     cv::Mat stuff_mask = motion_mask-arm_mask;
     // Get flow clusters
-    std::vector<cv::Vec2f> centers = clusterFlowFields(u, v, stuff_mask);
+    std::vector<cv::Vec2f> centers = clusterFlowFields(color_img, depth_img,
+                                                       u, v, stuff_mask);
     // Determine push_direction based on centers and their directions
     return push_dir;
   }
 
   Pose2D determinePushVector(std::vector<cv::Vec2f> centers)
   {
+    Pose2D push_pose;
+    return push_pose;
   }
-  
+
   cv::Mat getObjectBoundaryStrengths(cv::Mat& motion_mask, cv::Mat& arm_mask,
                                      cv::Mat& color_img, cv::Mat& depth_img)
   {
@@ -1092,8 +1099,10 @@ class ObjectSingulation
     return boundary_img;
   }
 
-  std::vector<cv::Vec2f> clusterFlowFields(cv::Mat& u, cv::Mat& v,
-                                           cv::Mat& mask, int max_k=2)
+  std::vector<cv::Vec2f> clusterFlowFields(cv::Mat& color_img,
+                                           cv::Mat& depth_img,
+                                           cv::Mat& u, cv::Mat& v,
+                                           cv::Mat& mask)
   {
     // Setup the samples as the flow vectors for the segmented moving region
     int num_samples = 0;
@@ -1108,7 +1117,14 @@ class ObjectSingulation
         }
       }
     }
-    cv::Mat samples(num_samples, 2, CV_32FC1);
+    if (num_samples < 1)
+    {
+      std::vector<cv::Vec2f> cluster_centers;
+      cluster_centers.clear();
+      return cluster_centers;
+    }
+    int num_sample_elements = 6;
+    cv::Mat samples(num_samples, num_sample_elements, CV_32FC1);
     cv::Mat sample_locs(num_samples, 1, CV_32FC2);
     for (int r = 0, i = 0; r < mask.rows; ++r)
     {
@@ -1117,21 +1133,25 @@ class ObjectSingulation
       {
         if ( mask_row[c] != 0)
         {
-          samples.at<float>(i, 0) = u.at<float>(r,c);
-          samples.at<float>(i, 1) = v.at<float>(r,c);
-          sample_locs.at<cv::Vec2f>(i,0) = cv::Vec2f(r,c);
+          samples.at<float>(i, 0) = atan2(u.at<float>(r,c),
+                                          v.at<float>(r,c));
+          samples.at<float>(i, 1) = u.at<float>(r,c);
+          samples.at<float>(i, 2) = v.at<float>(r,c);
+          samples.at<float>(i, 3) = c;
+          samples.at<float>(i, 4) = r;
+          samples.at<float>(i, 5) = depth_img.at<float>(r,c);
+          sample_locs.at<cv::Vec2f>(i,0) = cv::Vec2f(c,r);
           ++i;
         }
       }
     }
-
     // Perform kmeans clustering for a range of k values
     std::vector<cv::Mat> labels;
     std::vector<cv::Mat> centers;
-    double compactness[max_k];
+    double compactness[max_k_];
     cv::TermCriteria term_crit(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER,
                                kmeans_max_iter_, kmeans_epsilon_);
-    for (int k = 1; k <= max_k; ++k)
+    for (int k = 1; k <= max_k_; ++k)
     {
       cv::Mat labels_k;
       cv::Mat centers_k;
@@ -1140,6 +1160,7 @@ class ObjectSingulation
       compactness[k-1] = slack;
       labels.push_back(labels_k);
       centers.push_back(centers_k);
+      ROS_INFO_STREAM("Compactness for k = " << k << " is: " << slack);
     }
 
     // TODO: Determine the best fitting clusters
@@ -1147,11 +1168,11 @@ class ObjectSingulation
     // confidence, thus we need to use some heuristic to determine if the flow
     // centers have a significant angle between them comapred to the difference
     // at fewer cluster centers
-    int best_k = max_k;
+    int best_k = max_k_;
 
     // Get the image location center matching the best fit flow clusters
     std::vector<cv::Vec2f> cluster_centers;
-    for (int k = 0; k < max_k; ++k)
+    for (int k = 0; k < best_k; ++k)
     {
       cv::Vec2f center_k(0,0);
       int num_members = 0;
@@ -1167,17 +1188,59 @@ class ObjectSingulation
       center_k[0] = center_k[0]/num_members;
       center_k[1] = center_k[1]/num_members;
       cluster_centers.push_back(center_k);
-      cv::Vec2f flow_k;
-      flow_k[0] = centers[best_k-1].at<float>(k,0);
-      flow_k[1] = centers[best_k-1].at<float>(k,1);
+      cv::Vec2f flow_k(0,0);
+      flow_k[0] = centers[best_k-1].at<float>(k,1);
+      flow_k[1] = centers[best_k-1].at<float>(k,2);
       cluster_centers.push_back(flow_k);
     }
+
+#ifdef DISPLAY_FLOW_FIELD_CLUSTERING
+    cv::Mat flow_center_disp = color_img.clone();
+    for (unsigned int i = 0; i < cluster_centers.size(); i+=2)
+    {
+      cv::Point pt_a(cluster_centers[i][0], cluster_centers[i][1]);
+      cv::Point pt_b(pt_a.x - cluster_centers[i+1][0],
+                     pt_a.y - cluster_centers[i+1][1]);
+      cv::circle(flow_center_disp, pt_a, 20, cv::Scalar(0,255,0));
+      cv::line(flow_center_disp, pt_a, pt_b, cv::Scalar(0,255,0));
+    }
+    cv::imshow("Flow Cluster Centers", flow_center_disp);
+    cv::Mat flow_clusters_disp = color_img.clone();
+    // TODO: Add a number of random colors here
+    std::vector<cv::Scalar> colors;
+    for (int k = 0; k < best_k; ++k)
+    {
+      cv::Scalar rand_color;
+      rand_color[0] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX))*255;
+      rand_color[1] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX))*255;
+      rand_color[2] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX))*255;
+      colors.push_back(rand_color);
+    }
+    for (int i = 0; i < num_samples; ++i)
+    {
+      cv::Vec2f loc_i = sample_locs.at<cv::Vec2f>(i,0);
+      float dx = u.at<float>(loc_i[1],loc_i[0]);
+      float dy = u.at<float>(loc_i[1],loc_i[0]);
+      if (std::sqrt(dx*dx+dy*dy) > 1.0)
+      {
+        cv::Scalar cur_color = colors[labels[best_k-1].at<uchar>(i,0)];
+        cv::line(flow_clusters_disp, cv::Point(loc_i[0], loc_i[1]),
+                 cv::Point(loc_i[0] - dx, loc_i[1] - dy), cur_color);
+      }
+    }
+    cv::imshow("Flow Clusters", flow_clusters_disp);
+#endif // DISPLAY_FLOW_FIELD_CLUSTERING
+
     return cluster_centers;
   }
   // Class member variables
   int kmeans_max_iter_;
   double kmeans_epsilon_;
   int kmeans_tries_;
+  int max_k_;
 };
 
 class TabletopPushingPerceptionNode
@@ -1246,6 +1309,11 @@ class TabletopPushingPerceptionNode
     int num_levels = 4;
     n_private_.param("lk_num_levels", num_levels, 4);
     lkflow_.setNumLevels(num_levels);
+
+    n_private_.param("max_flow_clusters", os_.max_k_, 2);
+    n_private_.param("flow_cluster_max_iter", os_.kmeans_max_iter_, 200);
+    n_private_.param("flow_cluster_epsilon", os_.kmeans_epsilon_, 0.05);
+    n_private_.param("flow_cluster_attempts", os_.kmeans_tries_, 5);
 
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
@@ -1565,10 +1633,15 @@ class TabletopPushingPerceptionNode
 
     cut.copyTo(last_motion_mask_);
     arm_cut.copyTo(last_arm_mask_);
-    color_frame_f.copyTo(last_color_frame_);
+    color_frame.copyTo(last_color_frame_);
     depth_frame.copyTo(last_depth_frame_);
     flow_outs[0].copyTo(last_flow_u_);
     flow_outs[1].copyTo(last_flow_v_);
+
+#ifdef AUTO_FLOW_CLUSTER
+    os_.getPushVector(last_motion_mask_, last_arm_mask_, last_color_frame_,
+                      last_depth_frame_, last_flow_u_, last_flow_v_);
+#endif // AUTO_FLOW_CLUSTER
 
 #ifdef WRITE_INPUT_TO_DISK
     std::stringstream input_out_name;
@@ -2173,6 +2246,7 @@ class TabletopPushingPerceptionNode
 
 int main(int argc, char ** argv)
 {
+  srand(time(NULL));
   ros::init(argc, argv, "tabletop_perception_node");
   ros::NodeHandle n;
   TabletopPushingPerceptionNode perception_node(n);
