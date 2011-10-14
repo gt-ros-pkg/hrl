@@ -180,6 +180,7 @@ int main(int argc, char **argv)
     }
     vector<hrl_phri_2011::EllipsoidParams::Ptr> e_params_msgs;
     e_params_msgs.push_back(boost::shared_ptr<hrl_phri_2011::EllipsoidParams>(new hrl_phri_2011::EllipsoidParams()));
+    e_params_msgs[0]->e_frame.transform.rotation.w = 1.0;
     if(argc >= 7) {
         e_params_msgs.clear();
         readBagTopic<hrl_phri_2011::EllipsoidParams>(argv[6], e_params_msgs, "/ellipsoid_params");

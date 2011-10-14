@@ -12,11 +12,14 @@ for i=1:length(fcs_arr)
 end
 fcs_combo = fcs_combo(1:max_len, 1:cur_fcs-1);
 
+clear combo_inds;
 nfcs_combo = NaN * zeros([normal_len, 1000]);
 cur_nfcs = 1;
 for i=1:length(nfcs_arr)
     cur_data = nfcs_arr{i};
-    nfcs_combo(:, cur_nfcs:(size(cur_data, 2)+cur_nfcs-1)) = cur_data;
+    cur_inds = cur_nfcs:(size(cur_data, 2)+cur_nfcs-1);
+    nfcs_combo(:, cur_inds) = cur_data;
+    combo_inds{i} = cur_inds;
     cur_nfcs = cur_nfcs + size(cur_data, 2);
 end
 

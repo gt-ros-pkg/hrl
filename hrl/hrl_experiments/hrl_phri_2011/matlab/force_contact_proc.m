@@ -43,4 +43,6 @@ fcs_arr{subj_num} = force_contacts;
 fcsa_arr{subj_num} = force_contacts_all;
 nfcs_arr{subj_num} = normize_fcs;
 
+sf_ptiles(subj_num, :) = prctile(force_contacts_all, [25, 50, 75, 95]);
+sf_ptiles_dense(subj_num, :) = prctile(force_contacts_all, [1:0.01:100]);
 
