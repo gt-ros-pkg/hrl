@@ -106,17 +106,17 @@
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
-#define DISPLAY_OPTICAL_FLOW 1
+// #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_UV 1
-#define DISPLAY_GRAPHCUT 1
+// #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS 1
 // #define DISPLAY_ARM_CIRCLES 1
 // #define DISPLAY_TABLE_DISTANCES 1
-#define DISPLAY_FLOW_FIELD_CLUSTERING 1
+// #define DISPLAY_FLOW_FIELD_CLUSTERING 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
@@ -125,7 +125,7 @@
 // Functional IFDEFS
 #define MEDIAN_FILTER_FLOW 1
 #define USE_WORKSPACE_MASK_FOR_ARM 1
-#define AUTO_FLOW_CLUSTER 1
+// #define AUTO_FLOW_CLUSTER 1
 // #define USE_TABLE_COLOR_ESTIMATE 1
 
 using tabletop_pushing::PushPose;
@@ -1104,6 +1104,15 @@ class ObjectSingulation
                                            cv::Mat& u, cv::Mat& v,
                                            cv::Mat& mask)
   {
+    return clusterFlowFieldsKMeans(color_img, depth_img, u, v, mask);
+    // return clusterFlowFieldsRANSAC(color_img, depth_img, u, v, mask);
+  }
+
+  std::vector<cv::Vec2f> clusterFlowFieldsKMeans(cv::Mat& color_img,
+                                                 cv::Mat& depth_img,
+                                                 cv::Mat& u, cv::Mat& v,
+                                                 cv::Mat& mask)
+  {
     // Setup the samples as the flow vectors for the segmented moving region
     int num_samples = 0;
     for (int r = 0; r < mask.rows; ++r)
@@ -1160,7 +1169,6 @@ class ObjectSingulation
       compactness[k-1] = slack;
       labels.push_back(labels_k);
       centers.push_back(centers_k);
-      ROS_INFO_STREAM("Compactness for k = " << k << " is: " << slack);
     }
 
     // TODO: Determine the best fitting clusters
@@ -1234,6 +1242,15 @@ class ObjectSingulation
     cv::imshow("Flow Clusters", flow_clusters_disp);
 #endif // DISPLAY_FLOW_FIELD_CLUSTERING
 
+    return cluster_centers;
+  }
+
+  std::vector<cv::Vec2f> clusterFlowFieldsRANSAC(cv::Mat& color_img,
+                                                 cv::Mat& depth_img,
+                                                 cv::Mat& u, cv::Mat& v,
+                                                 cv::Mat& mask)
+  {
+    std::vector<cv::Vec2f> cluster_centers;
     return cluster_centers;
   }
   // Class member variables
@@ -1314,6 +1331,7 @@ class TabletopPushingPerceptionNode
     n_private_.param("flow_cluster_max_iter", os_.kmeans_max_iter_, 200);
     n_private_.param("flow_cluster_epsilon", os_.kmeans_epsilon_, 0.05);
     n_private_.param("flow_cluster_attempts", os_.kmeans_tries_, 5);
+    n_private_.param("image_hist_size", image_hist_size_, 5);
 
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
@@ -1490,12 +1508,12 @@ class TabletopPushingPerceptionNode
       tabletop_pushing::SegTrackResult result;
       if (goal->get_singulation_vector)
       {
-        result.singulation_vector = os_.getPushVector(last_motion_mask_,
-                                                      last_arm_mask_,
-                                                      last_color_frame_,
-                                                      last_depth_frame_,
-                                                      last_flow_u_,
-                                                      last_flow_v_);
+        result.singulation_vector = os_.getPushVector(motion_mask_hist_.back(),
+                                                      arm_mask_hist_.back(),
+                                                      color_frame_hist_.back(),
+                                                      depth_frame_hist_.back(),
+                                                      flow_u_hist_.back(),
+                                                      flow_v_hist_.back());
       }
       track_server_.setSucceeded(result);
       // track_server_.setPreempted();
@@ -1631,16 +1649,40 @@ class TabletopPushingPerceptionNode
     // cv::Mat not_arm_move_color;
     // color_frame.copyTo(not_arm_move_color, not_arm_move);
 
-    cut.copyTo(last_motion_mask_);
-    arm_cut.copyTo(last_arm_mask_);
-    color_frame.copyTo(last_color_frame_);
-    depth_frame.copyTo(last_depth_frame_);
-    flow_outs[0].copyTo(last_flow_u_);
-    flow_outs[1].copyTo(last_flow_v_);
+    cv::Mat last_motion_mask;
+    cv::Mat last_arm_mask;
+    cv::Mat last_color_frame;
+    cv::Mat last_depth_frame;
+    cv::Mat last_flow_u;
+    cv::Mat last_flow_v;
+
+    cut.copyTo(last_motion_mask);
+    arm_cut.copyTo(last_arm_mask);
+    color_frame.copyTo(last_color_frame);
+    depth_frame.copyTo(last_depth_frame);
+    flow_outs[0].copyTo(last_flow_u);
+    flow_outs[1].copyTo(last_flow_v);
+
+    motion_mask_hist_.push_back(last_motion_mask);
+    arm_mask_hist_.push_back(last_arm_mask);
+    color_frame_hist_.push_back(last_color_frame);
+    depth_frame_hist_.push_back(last_depth_frame);
+    flow_u_hist_.push_back(last_flow_u);
+    flow_v_hist_.push_back(last_flow_v);
+
+    if (motion_mask_hist_.size() > image_hist_size_)
+    {
+      motion_mask_hist_.pop_front();
+      arm_mask_hist_.pop_front();
+      color_frame_hist_.pop_front();
+      depth_frame_hist_.pop_front();
+      flow_u_hist_.pop_front();
+      flow_v_hist_.pop_front();
+    }
 
 #ifdef AUTO_FLOW_CLUSTER
-    os_.getPushVector(last_motion_mask_, last_arm_mask_, last_color_frame_,
-                      last_depth_frame_, last_flow_u_, last_flow_v_);
+    os_.getPushVector(last_motion_mask, last_arm_mask, last_color_frame,
+                      last_depth_frame, last_flow_u, last_flow_v);
 #endif // AUTO_FLOW_CLUSTER
 
 #ifdef WRITE_INPUT_TO_DISK
@@ -1732,7 +1774,7 @@ class TabletopPushingPerceptionNode
     // cv::imshow("not_arm_move", not_arm_move_color);
 #endif // DISPLAY_GRAPHCUT
 
-#if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS || defined VISUALIZE_ARM_GRAPH_WEIGHTS || defined DISPLAY_ARM_CIRCLES
+#if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS || defined VISUALIZE_ARM_GRAPH_WEIGHTS || defined DISPLAY_ARM_CIRCLES || defined DISPLAY_FLOW_FIELD_CLUSTERING
     cv::waitKey(display_wait_ms_);
 #endif // Any display defined
     ++tracker_count_;
@@ -2070,7 +2112,6 @@ class TabletopPushingPerceptionNode
                                                cur_camera_header_.frame_id);
     cv::circle(plane_display, cent_img, 5, cv::Scalar(0,0,255));
     cv::imshow("table_image", plane_display);
-    cv::waitKey(5);
 #endif // DISPLAY_PLANE_ESTIMATE
   }
 
@@ -2206,12 +2247,12 @@ class TabletopPushingPerceptionNode
   cv::Mat prev_depth_frame_;
   cv::Mat prev_workspace_mask_;
   cv::Mat prev_seg_mask_;
-  cv::Mat last_motion_mask_;
-  cv::Mat last_arm_mask_;
-  cv::Mat last_color_frame_;
-  cv::Mat last_depth_frame_;
-  cv::Mat last_flow_u_;
-  cv::Mat last_flow_v_;
+  std::deque<cv::Mat> motion_mask_hist_;
+  std::deque<cv::Mat> arm_mask_hist_;
+  std::deque<cv::Mat> color_frame_hist_;
+  std::deque<cv::Mat> depth_frame_hist_;
+  std::deque<cv::Mat> flow_u_hist_;
+  std::deque<cv::Mat> flow_v_hist_;
   std_msgs::Header cur_camera_header_;
   std_msgs::Header prev_camera_header_;
   XYZPointCloud cur_point_cloud_;
@@ -2242,6 +2283,7 @@ class TabletopPushingPerceptionNode
   int tracker_count_;
   std::string base_output_path_;
   double table_ransac_thresh_;
+  int image_hist_size_;
 };
 
 int main(int argc, char ** argv)
