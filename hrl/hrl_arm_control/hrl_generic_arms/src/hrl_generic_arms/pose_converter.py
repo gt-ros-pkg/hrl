@@ -3,6 +3,7 @@ import numpy as np
 import roslib; roslib.load_manifest('hrl_generic_arms')
 import rospy
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
+from geometry_msgs.msg import Transform, TransformStamped, Vector3
 import tf.transformations as tf_trans
 
 class PoseConverter:
@@ -98,6 +99,28 @@ class PoseConverter:
             ps.header.frame_id = header[2]
         ps.pose = Pose(Point(*homo_mat[:3,3].T.A[0]), Quaternion(*quat_rot))
         return ps
+
+    ##
+    # @return geometry_msgs.Transform
+    @staticmethod
+    def to_tf_msg(*args):
+        header, homo_mat, quat_rot = PoseConverter._make_generic(args)
+        return Transform(Vector3(*homo_mat[:3,3].T.A[0]), Quaternion(*quat_rot))
+
+    ##
+    # @return geometry_msgs.TransformStamped
+    @staticmethod
+    def to_tf_stamped_msg(*args):
+        header, homo_mat, quat_rot = PoseConverter._make_generic(args)
+        tf_stamped = TransformStamped()
+        if header is None:
+            tf_stamped.header.stamp = rospy.Time.now()
+        else:
+            tf_stamped.header.seq = header[0]
+            tf_stamped.header.stamp = header[1]
+            tf_stamped.header.frame_id = header[2]
+        tf_stamped.transform = Transform(Vector3(*homo_mat[:3,3].T.A[0]), Quaternion(*quat_rot))
+        return tf_stamped
 
     ##
     # @return (3x1 numpy mat, 3x3 numpy mat)

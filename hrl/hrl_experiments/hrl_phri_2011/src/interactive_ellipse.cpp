@@ -11,6 +11,7 @@ private:
     interactive_markers::InteractiveMarkerServer im_server_;
     tf::TransformBroadcaster tf_broad_;
     ros::Publisher params_pub;
+    ros::Subscriber params_cmd;
     std::string parent_frame_, child_frame_;
     double rate_;
     ros::Timer tf_timer_;
@@ -24,7 +25,7 @@ public:
     void processTFControl(const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback);
     void processEllipseControlY(const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback);
     void processEllipseControlZ(const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback);
-    void addTFMarker();
+    void addTFMarker(const geometry_msgs::Transform& mkr_tf);
     void addEllipseMarker();
     void publishTF(const ros::TimerEvent& event);
     void loadEllipsoidParams(const hrl_phri_2011::EllipsoidParams& e_params);
@@ -41,13 +42,21 @@ InteractiveEllipse::InteractiveEllipse(const std::string& parent_frame,
     ros::NodeHandle nh;
     marker_pose_.orientation.w = 1;
     params_pub = nh.advertise<hrl_phri_2011::EllipsoidParams>("/ellipsoid_params", 1);
+    params_cmd = nh.subscribe("/ell_params_cmd", 1, &InteractiveEllipse::loadEllipsoidParams, this);
 }
 
-void InteractiveEllipse::addTFMarker() 
+void InteractiveEllipse::addTFMarker(const geometry_msgs::Transform& mkr_tf) 
 {
     ros::NodeHandle nh;
     visualization_msgs::InteractiveMarker tf_marker;
     tf_marker.header.frame_id = parent_frame_;
+    tf_marker.pose.position.x = mkr_tf.translation.x;
+    tf_marker.pose.position.y = mkr_tf.translation.y;
+    tf_marker.pose.position.z = mkr_tf.translation.z;
+    tf_marker.pose.orientation.x = mkr_tf.rotation.x;
+    tf_marker.pose.orientation.y = mkr_tf.rotation.y;
+    tf_marker.pose.orientation.z = mkr_tf.rotation.z;
+    tf_marker.pose.orientation.w = mkr_tf.rotation.w;
     tf_marker.name = "tf_marker";
     tf_marker.scale = 0.2;
     visualization_msgs::InteractiveMarkerControl tf_control;
@@ -165,7 +174,21 @@ void InteractiveEllipse::publishTF(const ros::TimerEvent& event)
 
 void InteractiveEllipse::loadEllipsoidParams(const hrl_phri_2011::EllipsoidParams& e_params) 
 {
-    old_marker_tf_ = e_params.e_frame.transform;
+    geometry_msgs::Pose pose, empty_pose;
+    pose.position.x = e_params.e_frame.transform.translation.x;
+    pose.position.y = e_params.e_frame.transform.translation.y;
+    pose.position.z = e_params.e_frame.transform.translation.z;
+    pose.orientation.x = e_params.e_frame.transform.rotation.x;
+    pose.orientation.y = e_params.e_frame.transform.rotation.y;
+    pose.orientation.z = e_params.e_frame.transform.rotation.z;
+    pose.orientation.w = e_params.e_frame.transform.rotation.w;
+    marker_pose_ = pose;
+    empty_pose.orientation.w = 1;
+    im_server_.setPose("tf_marker", pose);
+    im_server_.setPose("ellipse_marker_y", empty_pose);
+    im_server_.setPose("ellipse_marker_z", empty_pose);
+    im_server_.applyChanges();
+
     old_y_axis_ = e_params.height;
     old_z_axis_ = e_params.E;
 }
@@ -180,30 +203,28 @@ void InteractiveEllipse::bagTF(const string& bag_name)
 
 int main(int argc, char **argv)
 {
-    if(argc != 3 && argc != 4 && argc != 5 && argc != 6) {
-        printf("Usage: interative_ellipse parent_frame child_frame [rate] [inital_params]\n");
+    if(argc < 3 || argc > 7) {
+        printf("Usage: interative_ellipse parent_frame child_frame rate [inital_params] [remove_ells]\n");
         return 1;
     }
     ros::init(argc, argv, "interative_ellipse");
     if(argc >= 4) {
         InteractiveEllipse itf(argv[1], argv[2], atof(argv[3]));
+        geometry_msgs::Transform mkr_tf;
+        mkr_tf.rotation.w = 1;
+        itf.addTFMarker(mkr_tf);
+        if(!(argc >= 7 && atoi(argv[6])))
+            itf.addEllipseMarker();
         if(argc >= 5) {
             // load params
             std::vector<hrl_phri_2011::EllipsoidParams::Ptr> params;
             readBagTopic<hrl_phri_2011::EllipsoidParams>(argv[4], params, "/ellipsoid_params");
             itf.loadEllipsoidParams(*params[0]);
         }
-        itf.addTFMarker();
-        itf.addEllipseMarker();
         ros::spin();
         if(argc >= 6)
             itf.bagTF(argv[5]);
-    } else {
-        InteractiveEllipse itf(argv[1], argv[2]);
-        itf.addTFMarker();
-        itf.addEllipseMarker();
-        ros::spin();
-    }
+    } 
 
     return 0;
 }
