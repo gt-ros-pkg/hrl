@@ -122,9 +122,14 @@ class PhantomROS {
   //    void force_callback(const geometry_msgs::WrenchConstPtr& wrench)
     void force_callback(const phantom_omni::OmniFeedbackConstPtr& omnifeed)
     {
-        state->force[0] = omnifeed->force.x;
-        state->force[1] = omnifeed->force.y;
-        state->force[2] = omnifeed->force.z;
+      ////////////////////Some people might not like this extra damping, but it 
+      ////////////////////helps to stabilize the overall force feedback. It isn't
+      ////////////////////like we are getting direct impedance matching from the 
+      ////////////////////omni anyway
+        state->force[0] = omnifeed->force.x - 0.001*state->velocity[0];
+	state->force[1] = omnifeed->force.y - 0.001*state->velocity[1];
+	state->force[2] = omnifeed->force.z - 0.001*state->velocity[2];
+
 	state->lock_pos[0] = omnifeed->position.x;
 	state->lock_pos[1] = omnifeed->position.y;
 	state->lock_pos[2] = omnifeed->position.z;
