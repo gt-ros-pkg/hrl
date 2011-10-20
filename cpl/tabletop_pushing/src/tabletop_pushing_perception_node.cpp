@@ -1132,6 +1132,7 @@ class ObjectSingulation
       cluster_centers.clear();
       return cluster_centers;
     }
+    // TODO: Estimate affine transforms from the flow
     int num_sample_elements = 6;
     cv::Mat samples(num_samples, num_sample_elements, CV_32FC1);
     cv::Mat sample_locs(num_samples, 1, CV_32FC2);
@@ -1253,7 +1254,41 @@ class ObjectSingulation
     std::vector<cv::Vec2f> cluster_centers;
     return cluster_centers;
   }
+
+  cv::Mat estimateAffineTransform(cv::Mat& u, cv::Mat& v,
+                                  const int r_min, const int r_max,
+                                  const int c_min, const int c_max)
+  {
+    const int r_range = r_max-r_min+1;
+    const int c_range = c_max-c_min+1;
+    const int num_eqs = r_range*c_range*2;
+    cv::Mat phi(num_eqs, 6, CV_32FC1, cv::Scalar(0.0));
+    cv::Mat V(num_eqs, 1, CV_32FC1, cv::Scalar(0.0));
+    for (int r = r_min, cur_r = 0; r <= r_max; ++r)
+    {
+      for (int c = c_min; c <= c_max; ++c, ++cur_r)
+      {
+        phi.at<float>(cur_r, 0) = r;
+        phi.at<float>(cur_r, 1) = c;
+        phi.at<float>(cur_r, 2) = 1.0;
+        V.at<float>(cur_r, 0) = u.at<float>(r,c);
+        ++cur_r;
+        phi.at<float>(cur_r, 3) = r;
+        phi.at<float>(cur_r, 4) = c;
+        phi.at<float>(cur_r, 5) = 1.0;
+        V.at<float>(cur_r, 0) = v.at<float>(r,c);
+      }
+    }
+    cv::Mat a(6, 1, CV_32FC1, cv::Scalar(1.0));
+    cv::solve(phi, v, a, cv::DECOMP_SVD);
+    cv::Mat A = a.reshape(1, 2);
+    return A;
+  }
+
+  //
   // Class member variables
+  //
+
   int kmeans_max_iter_;
   double kmeans_epsilon_;
   int kmeans_tries_;
