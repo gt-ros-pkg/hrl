@@ -6,10 +6,10 @@ import tf.transformations as tf_trans
 from hrl_generic_arms.pose_converter import PoseConverter
 
 class EllipsoidSpace:
-    def __init__(self, a, center=np.mat(np.zeros((3,1))), rot=np.mat(np.eye(3))):
-        self.A = A
-        self.B = B
-        self.E = np.sqrt(np.fabs(A**2 + B**2)) / A
+    def __init__(self, E, center=np.mat(np.zeros((3,1))), rot=np.mat(np.eye(3))):
+        self.A = 1
+        self.E = E
+        self.B = np.sqrt(1. - E**2)
         self.a = self.A * self.E
         self.center = center
         self.rot = rot
@@ -60,4 +60,18 @@ class EllipsoidSpace:
         quat_flip = tf_trans.quaternion_from_euler(flip_axis_ang, 0.0, 0.0)
         norm_quat_ortho_flipped = tf_trans.quaternion_multiply(norm_quat_ortho, quat_flip)
         return PoseConverter.to_pos_rot(pos, norm_quat_ortho_flipped)
+
+    def pos_to_ellipsoidal(self, x, y, z):
+        lon = np.arctan2(y, x)
+        if lon < 0.:
+            lon += 2 * np.pi
+        p = np.sqrt(x**2 + y**2)
+        a = self.a
+        lat = np.arcsin(np.sqrt((np.sqrt((z**2 - a**2 + p**2) + (2. * a * p)**2) / a**2 -
+                                 (z / a)**2 - (p / a)**2 + 1) / 2.))
+        if z < 0.:
+            lat = np.pi - np.fabs(lat)
+        cosh_height = z / (a * np.cos(lat))
+        height = np.log(cosh_height + np.sqrt(cosh_height**2 - 1))
+        return lat, lon, height
         

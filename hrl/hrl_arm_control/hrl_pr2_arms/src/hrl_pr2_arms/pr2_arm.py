@@ -137,21 +137,20 @@ class PR2ArmCartesianBase(PR2Arm):
     # Returns pairs of positions and rotations linearly interpolated between
     # the start and end position/orientations.  Rotations are found using slerp
     # @return List of (pos, rot) waypoints between start and end.
-    def interpolate_ep(self, ep_a, ep_b, num_steps):
+    def interpolate_ep(self, ep_a, ep_b, t_vals):
         pos_a, rot_a = ep_a
         pos_b, rot_b = ep_b
-        pos_waypoints = np.dstack([np.linspace(pos_a.A[0][0], pos_b.A[0][0], num_steps), 
-                                   np.linspace(pos_a.A[1][0], pos_b.A[1][0], num_steps), 
-                                   np.linspace(pos_a.A[2][0], pos_b.A[2][0], num_steps)])[0]
-        pos_waypoints = [np.mat(pos).T for pos in pos_waypoints]
+        num_samps = len(t_vals)
+        pos_waypoints = pos_a + np.tile(pos_b - pos_a, (1, num_samps)) * t_vals
+        pos_waypoints = [np.mat(pos).T for pos in pos_waypoints.T]
         rot_homo_a, rot_homo_b = np.eye(4), np.eye(4)
         rot_homo_a[:3,:3] = rot_a
         rot_homo_b[:3,:3] = rot_b
         quat_a = tf_trans.quaternion_from_matrix(rot_homo_a)
         quat_b = tf_trans.quaternion_from_matrix(rot_homo_b)
         rot_waypoints = []
-        for fraction in np.linspace(0, 1, num_steps):
-            cur_quat = tf_trans.quaternion_slerp(quat_a, quat_b, fraction)
+        for t in t_vals:
+            cur_quat = tf_trans.quaternion_slerp(quat_a, quat_b, t)
             rot_waypoints.append(np.mat(tf_trans.quaternion_matrix(cur_quat))[:3,:3])
         return zip(pos_waypoints, rot_waypoints)
 
