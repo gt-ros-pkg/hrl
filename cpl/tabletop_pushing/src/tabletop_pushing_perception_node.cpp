@@ -1264,19 +1264,19 @@ class ObjectSingulation
     const int num_eqs = r_range*c_range*2;
     cv::Mat phi(num_eqs, 6, CV_32FC1, cv::Scalar(0.0));
     cv::Mat V(num_eqs, 1, CV_32FC1, cv::Scalar(0.0));
-    for (int r = r_min, cur_r = 0; r <= r_max; ++r)
+    for (int r = r_min, out_row = 0; r <= r_max; ++r)
     {
-      for (int c = c_min; c <= c_max; ++c, ++cur_r)
+      for (int c = c_min; c <= c_max; ++c, ++out_row)
       {
-        phi.at<float>(cur_r, 0) = r;
-        phi.at<float>(cur_r, 1) = c;
-        phi.at<float>(cur_r, 2) = 1.0;
-        V.at<float>(cur_r, 0) = u.at<float>(r,c);
-        ++cur_r;
-        phi.at<float>(cur_r, 3) = r;
-        phi.at<float>(cur_r, 4) = c;
-        phi.at<float>(cur_r, 5) = 1.0;
-        V.at<float>(cur_r, 0) = v.at<float>(r,c);
+        phi.at<float>(out_row, 0) = r;
+        phi.at<float>(out_row, 1) = c;
+        phi.at<float>(out_row, 2) = 1.0;
+        V.at<float>(out_row, 0) = u.at<float>(r,c);
+        ++out_row;
+        phi.at<float>(out_row, 3) = r;
+        phi.at<float>(out_row, 4) = c;
+        phi.at<float>(out_row, 5) = 1.0;
+        V.at<float>(out_row, 0) = v.at<float>(r,c);
       }
     }
     cv::Mat a(6, 1, CV_32FC1, cv::Scalar(1.0));
