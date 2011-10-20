@@ -1133,6 +1133,7 @@ class ObjectSingulation
       return cluster_centers;
     }
     // TODO: Estimate affine transforms from the flow
+    // cv::Mat af = estimateAffineTransform(u, v, r, c, radius);
     int num_sample_elements = 6;
     cv::Mat samples(num_samples, num_sample_elements, CV_32FC1);
     cv::Mat sample_locs(num_samples, 1, CV_32FC2);
@@ -1256,9 +1257,12 @@ class ObjectSingulation
   }
 
   cv::Mat estimateAffineTransform(cv::Mat& u, cv::Mat& v,
-                                  const int r_min, const int r_max,
-                                  const int c_min, const int c_max)
+                                  const int r, const int c, const int radius)
   {
+    const int r_min = max(r - radius, 0);
+    const int r_max = min(r - radius, u.rows-1);
+    const int c_min = max(c - radius, 0);
+    const int c_max = min(c - radius, u.cols-1);
     const int r_range = r_max-r_min+1;
     const int c_range = c_max-c_min+1;
     const int num_eqs = r_range*c_range*2;
