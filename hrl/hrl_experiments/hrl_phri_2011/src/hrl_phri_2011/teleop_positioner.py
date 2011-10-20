@@ -36,7 +36,7 @@ def main():
     arm = create_pr2_arm('l', PR2ArmHybridForce)
     rospy.sleep(0.1)
 
-    #arm.zero_sensor()
+    arm.zero_sensor()
     cur_pose = arm.get_end_effector_pose()
     arm.set_ep(cur_pose, 1)
     arm.set_force_directions([])

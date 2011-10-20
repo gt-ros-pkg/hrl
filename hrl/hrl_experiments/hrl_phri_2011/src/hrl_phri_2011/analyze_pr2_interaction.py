@@ -32,8 +32,8 @@ def main():
     for ptile in ptile_inds:
         ptiles[ptile] = scipy.stats.scoreatpercentile(x_forces, ptile)
         print "Percentile %d: %f" % (ptile, ptiles[ptile])
-    plt.plot(x_forces)
-    plt.show()
+#plt.plot(x_forces)
+#plt.show()
 
 if __name__ == "__main__":
     main()
