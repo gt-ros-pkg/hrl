@@ -5,43 +5,42 @@ import tf.transformations as tf_trans
 
 from hrl_generic_arms.pose_converter import PoseConverter
 
-class SpheroidSpace:
+class EllipsoidSpace:
     def __init__(self, a, center=np.mat(np.zeros((3,1))), rot=np.mat(np.eye(3))):
-        self.a = a
+        self.A = A
+        self.B = B
+        self.E = np.sqrt(np.fabs(A**2 + B**2)) / A
+        self.a = self.A * self.E
         self.center = center
         self.rot = rot
-    def spheroidal_to_cart(self, uvp):
-        u, v, p = uvp
-        assert u > 0 and v >= 0 and v <= np.pi and p >= 0 and p < 2 * np.pi
-        x = self.a * np.sinh(u) * np.sin(v) * np.cos(p)
-        y = self.a * np.sinh(u) * np.sin(v) * np.sin(p)
-        z = self.a * np.cosh(u) * np.cos(v)
+    def ellipsoidal_to_cart(self, lat, lon, height):
+        #assert height > 0 and lat >= 0 and lat <= np.pi and lon >= 0 and lon < 2 * np.pi
+        x = self.a * np.sinh(height) * np.sin(lat) * np.cos(lon)
+        y = self.a * np.sinh(height) * np.sin(lat) * np.sin(lon)
+        z = self.a * np.cosh(height) * np.cos(lat)
         pos_local = np.mat([x, y, z]).T
         return self.center + self.rot * pos_local
-    def partial_u(self, uvp):
-        u, v, p = uvp
-        assert u > 0 and v >= 0 and v <= np.pi and p >= 0 and p < 2 * np.pi
-        x = self.a * np.cosh(u) * np.sin(v) * np.cos(p)
-        y = self.a * np.cosh(u) * np.sin(v) * np.sin(p)
-        z = self.a * np.sinh(u) * np.cos(v)
+    def partial_u(self, lat, lon, height):
+        #assert height > 0 and lat >= 0 and lat <= np.pi and lon >= 0 and lon < 2 * np.pi
+        x = self.a * np.cosh(height) * np.sin(lat) * np.cos(lon)
+        y = self.a * np.cosh(height) * np.sin(lat) * np.sin(lon)
+        z = self.a * np.sinh(height) * np.cos(lat)
         return self.rot * np.mat([x, y, z]).T
-    def partial_v(self, uvp):
-        u, v, p = uvp
-        assert u > 0 and v >= 0 and v <= np.pi and p >= 0 and p < 2 * np.pi
-        x = self.a * np.sinh(u) * np.cos(v) * np.cos(p)
-        y = self.a * np.sinh(u) * np.cos(v) * np.sin(p)
-        z = self.a * np.cosh(u) * -np.sin(v)
+    def partial_v(self, lat, lon, height):
+        #assert height > 0 and lat >= 0 and lat <= np.pi and lon >= 0 and lon < 2 * np.pi
+        x = self.a * np.sinh(height) * np.cos(lat) * np.cos(lon)
+        y = self.a * np.sinh(height) * np.cos(lat) * np.sin(lon)
+        z = self.a * np.cosh(height) * -np.sin(lat)
         return self.rot * np.mat([x, y, z]).T
-    def partial_p(self, uvp):
-        u, v, p = uvp
-        assert u > 0 and v >= 0 and v <= np.pi and p >= 0 and p < 2 * np.pi
-        x = self.a * np.sinh(u) * np.sin(v) * -np.sin(p)
-        y = self.a * np.sinh(u) * np.sin(v) * np.cos(p)
+    def partial_p(self, lat, lon, height):
+        #assert height > 0 and lat >= 0 and lat <= np.pi and lon >= 0 and lon < 2 * np.pi
+        x = self.a * np.sinh(height) * np.sin(lat) * -np.sin(lon)
+        y = self.a * np.sinh(height) * np.sin(lat) * np.cos(lon)
         z = 0.
         return self.rot * np.mat([x, y, z]).T
-    def spheroidal_to_pose(self, uvp, rot_gripper=0.):
-        pos = self.spheroidal_to_cart(uvp)
-        df_du = self.partial_u(uvp)
+    def ellipsoidal_to_pose(self, lat, lon, height, rot_gripper=0.):
+        pos = self.ellipsoidal_to_cart(lat, lon, height)
+        df_du = self.partial_u(lat, lon, height)
         nx, ny, nz = df_du.T.A[0] / np.linalg.norm(df_du)
         j = np.sqrt(1./(1.+ny*ny/(nz*nz)))
         k = -ny*j/nz
