@@ -52,7 +52,7 @@ void EllispoidVisualizer::sampleEllipse(double A, double B, double height, PCRGB
 {
     Ellipsoid e(A, B);
     double lat = 0, lon = 0;
-    int numlat = 8, numlon = 14;
+    int numlat = 8, numlon = 16;
     for(int i=0;i<numlat;i++) {
         lat += PI / numlat;
         lon = 0;

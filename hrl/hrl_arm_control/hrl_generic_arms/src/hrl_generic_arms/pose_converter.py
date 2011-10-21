@@ -18,21 +18,33 @@ class PoseConverter:
             return header, homo_mat, rot_quat
 
         if len(args) == 1:
-            if type(args[0]) == Pose:
+            if type(args[0]) is Pose:
                 homo_mat, rot_quat = PoseConverter._extract_pose_msg(args[0])
                 return None, homo_mat, rot_quat
 
-            elif type(args[0]) == PoseStamped:
+            elif type(args[0]) is PoseStamped:
                 homo_mat, rot_quat = PoseConverter._extract_pose_msg(args[0].pose)
                 seq = args[0].header.seq
                 stamp = args[0].header.stamp
                 frame_id = args[0].header.frame_id
                 return [seq, stamp, frame_id], homo_mat, rot_quat
 
+            if type(args[0]) is Transform:
+                homo_mat, rot_quat = PoseConverter._extract_tf_msg(args[0])
+                return None, homo_mat, rot_quat
+
+            elif type(args[0]) is TransformStamped:
+                homo_mat, rot_quat = PoseConverter._extract_tf_msg(args[0].transform)
+                seq = args[0].header.seq
+                stamp = args[0].header.stamp
+                frame_id = args[0].header.frame_id
+                return [seq, stamp, frame_id], homo_mat, rot_quat
+                
+
             elif type(args[0]) is np.matrix and np.shape(args[0]) == (4, 4):
                 return None, args[0], tf_trans.quaternion_from_matrix(args[0]).tolist()
 
-            elif (type(args[0]) == tuple or type(args[0]) == list) and len(args[0]) == 2:
+            elif (type(args[0]) is tuple or type(args[0]) == list) and len(args[0]) == 2:
                 header, homo_mat, rot_quat = PoseConverter._make_generic_pos_rot(args[0][0], args[0][1])
                 if homo_mat is not None:
                     return header, homo_mat, rot_quat
@@ -73,6 +85,16 @@ class PoseConverter:
         px = pose.position.x; py = pose.position.y; pz = pose.position.z
         ox = pose.orientation.x; oy = pose.orientation.y
         oz = pose.orientation.z; ow = pose.orientation.w
+        quat = [ox, oy, oz, ow]
+        homo_mat = np.mat(tf_trans.quaternion_matrix(quat))
+        homo_mat[:3,3] = np.mat([[px, py, pz]]).T
+        return homo_mat, quat
+
+    @staticmethod
+    def _extract_tf_msg(tf_msg):
+        px = tf_msg.translation.x; py = tf_msg.translation.y; pz = tf_msg.translation.z 
+        ox = tf_msg.rotation.x; oy = tf_msg.rotation.y
+        oz = tf_msg.rotation.z; ow = tf_msg.rotation.w
         quat = [ox, oy, oz, ow]
         homo_mat = np.mat(tf_trans.quaternion_matrix(quat))
         homo_mat[:3,3] = np.mat([[px, py, pz]]).T

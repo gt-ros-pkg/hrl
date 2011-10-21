@@ -203,11 +203,11 @@ void InteractiveEllipse::bagTF(const string& bag_name)
 
 int main(int argc, char **argv)
 {
+    ros::init(argc, argv, "interative_ellipse");
     if(argc < 3 || argc > 7) {
         printf("Usage: interative_ellipse parent_frame child_frame rate [inital_params] [remove_ells]\n");
         return 1;
     }
-    ros::init(argc, argv, "interative_ellipse");
     if(argc >= 4) {
         InteractiveEllipse itf(argv[1], argv[2], atof(argv[3]));
         geometry_msgs::Transform mkr_tf;

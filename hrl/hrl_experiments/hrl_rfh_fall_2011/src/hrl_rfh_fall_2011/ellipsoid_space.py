@@ -1,18 +1,30 @@
 
 import numpy as np
 
+import roslib
+roslib.load_manifest("hrl_generic_arms")
+roslib.load_manifest("hrl_phri_2011")
+
 import tf.transformations as tf_trans
 
 from hrl_generic_arms.pose_converter import PoseConverter
+from hrl_phri_2011.msg import EllipsoidParams
 
 class EllipsoidSpace(object):
     def __init__(self, E, center=np.mat(np.zeros((3,1))), rot=np.mat(np.eye(3))):
         self.A = 1
         self.E = E
-        self.B = np.sqrt(1. - E**2)
+        #self.B = np.sqrt(1. - E**2)
         self.a = self.A * self.E
         self.center = center
         self.rot = rot
+
+    def load_ell_params(self, e_params):
+        self.center, self.rot = PoseConverter.to_pos_rot(e_params.e_frame)
+        self.E = e_params.E
+        self.a = self.A * self.E
+        self.height = e_params.height
+
     def ellipsoidal_to_cart(self, lat, lon, height):
         #assert height > 0 and lat >= 0 and lat <= np.pi and lon >= 0 and lon < 2 * np.pi
         x = self.a * np.sinh(height) * np.sin(lat) * np.cos(lon)
