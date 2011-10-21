@@ -31,8 +31,8 @@ head_poses = {
 
 def create_arrow_marker(pose, m_id, color=ColorRGBA(1., 0., 0., 1.)):
     m = Marker()
-#m.header.frame_id = "/ellipse_frame"
-    m.header.frame_id = "/base_link"
+    m.header.frame_id = "/ellipse_frame"
+#m.header.frame_id = "/base_link"
     m.header.stamp = rospy.Time.now()
     m.ns = "ell_pose"
     m.id = m_id
