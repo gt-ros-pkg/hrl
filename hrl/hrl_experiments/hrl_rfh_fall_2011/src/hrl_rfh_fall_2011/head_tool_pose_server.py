@@ -50,6 +50,7 @@ class HeadToolPoseServer(object):
         self.head_pose_srv = rospy.Service("/get_head_pose", GetHeadPose, self.get_head_pose_srv)
         self.lock_ell = False
         self.found_params = False
+#self.tmp_pub = rospy.Publisher("/toolpose", PoseStamped)
 
     def lock_ell_model(self, lock_model):
         self.lock_ell = lock_model
@@ -97,7 +98,9 @@ class HeadToolPoseServer(object):
             pose = (np.mat([-9999, -9999, -9999]).T, np.mat(np.zeros((3, 3))))
         else:
             pose = self.get_head_pose(req.name, req.gripper_rot)
-        return PoseConverter.to_pose_stamped_msg("/ellipse_frame", pose)
+        pose_stamped = PoseConverter.to_pose_stamped_msg("/base_link", pose)
+#self.tmp_pub.publish(pose_stamped)
+        return pose_stamped
 
 def main():
     rospy.init_node("head_tool_pose_server")
