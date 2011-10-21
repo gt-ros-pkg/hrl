@@ -7,6 +7,7 @@ import roslib
 roslib.load_manifest('hrl_rfh_fall_2011')
 roslib.load_manifest('hrl_generic_arms')
 import rospy
+import tf.transformations as tf_trans
 
 from hrl_phri_2011.msg import EllipsoidParams
 from geometry_msgs.msg import PoseStamped, PoseArray, Vector3
@@ -24,7 +25,7 @@ head_poses = {
     "jaw_bone" : [(5.1 * np.pi/8,    -2 * np.pi/8,     1),      (0,     0,      0)],
     "back_neck" : [(5.1 * np.pi/8,    -3 * np.pi/8,     1),      (0,     0,      0)],
     "nose" : [(4 * np.pi/8,    0 * np.pi/8,     1),      (0,     0,      0)],
-    "chin" : [(5.2 * np.pi/8,    0 * np.pi/8,     1),      (0,     0,      0)],
+    "chin" : [(5.4 * np.pi/8,    0 * np.pi/8,     1),      (np.pi / 2,    np.pi/8,      0)],
     "mouth_corner" : [(4.5 * np.pi/8,    -0.9 * np.pi/8,     1),      (0,     0,      0)]
 }
 
@@ -37,7 +38,7 @@ def create_arrow_marker(pose, m_id, color=ColorRGBA(1., 0., 0., 1.)):
     m.id = m_id
     m.type = Marker.ARROW
     m.action = Marker.ADD
-    m.scale = Vector3(0.05, 0.05, 0.05)
+    m.scale = Vector3(0.19, 0.09, 0.02)
     m.color = color
     m.pose = PoseConverter.to_pose_msg(pose)
     return m
@@ -92,14 +93,17 @@ class HeadToolPoseServer(object):
 
     def get_head_pose(self, name):
         lat, lon, height = head_poses[name][0]
-        return self.ell_space.ellipsoidal_to_pose(lat, lon, height)
+        roll, pitch, yaw = head_poses[name][1]
+        pos, rot = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
+        rot = rot * tf_trans.euler_matrix(yaw, pitch, roll, 'rzyx')[:3, :3] 
+        return pos, rot
 
     def get_head_pose_srv(self, req):
         if req.name not in head_poses:
             pose = (np.mat([-9999, -9999, -9999]).T, np.mat(np.zeros((3, 3))))
         else:
             pose = self.get_head_pose(req.name)
-        return PoseConverter.to_pose_msg(pose)
+        return PoseConverter.to_pose_stamped_msg("/base_link", pose)
 
 def main():
     rospy.init_node("head_tool_pose_server")
