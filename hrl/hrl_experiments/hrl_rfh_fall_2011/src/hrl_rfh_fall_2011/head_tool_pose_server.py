@@ -59,7 +59,7 @@ class HeadToolPoseServer(object):
             self.ell_space.load_ell_params(e_params)
             self.found_params = True
 
-    def pub_many_vectors(self):
+    def get_many_vectors(self):
         arrows = MarkerArray()
         coords = []
         i = 0
@@ -73,12 +73,9 @@ class HeadToolPoseServer(object):
                 i += 1
         arrows.markers = [create_arrow_marker(self.ell_space.ellipsoidal_to_pose(lat, lon, height), i, clr)
                           for lat, lon, height, i, clr in coords] 
-        pub_arrows = rospy.Publisher("visualization_markers_array", MarkerArray)
-        while not rospy.is_shutdown():
-            pub_arrows.publish(arrows)
-            rospy.sleep(1)
+        return arrows
 
-    def pub_pose_vectors(self):
+    def get_pose_markers(self):
         arrows = MarkerArray()
         coords = []
         i = 0
@@ -86,10 +83,7 @@ class HeadToolPoseServer(object):
         for name in head_poses:
             arrows.markers.append(create_arrow_marker(self.get_head_pose(name), i))
             i += 1
-        pub_arrows = rospy.Publisher("visualization_markers_array", MarkerArray)
-        while not rospy.is_shutdown():
-            pub_arrows.publish(arrows)
-            rospy.sleep(1)
+        return arrows
 
     def get_head_pose(self, name):
         lat, lon, height = head_poses[name][0]
@@ -103,16 +97,16 @@ class HeadToolPoseServer(object):
             pose = (np.mat([-9999, -9999, -9999]).T, np.mat(np.zeros((3, 3))))
         else:
             pose = self.get_head_pose(req.name)
-        return PoseConverter.to_pose_stamped_msg("/base_link", pose)
+        return PoseConverter.to_pose_stamped_msg("/ellipse_frame", pose)
 
 def main():
     rospy.init_node("head_tool_pose_server")
     htps = HeadToolPoseServer()
+    pub_arrows = rospy.Publisher("visualization_markers_array", MarkerArray)
     while not rospy.is_shutdown():
-        if htps.found_params:
-            break
-    htps.pub_pose_vectors()
-    
+        arrows = htps.get_pose_markers()
+        pub_arrows.publish(arrows)
+        rospy.sleep(0.1)
 
 if __name__ == "__main__":
     main()
