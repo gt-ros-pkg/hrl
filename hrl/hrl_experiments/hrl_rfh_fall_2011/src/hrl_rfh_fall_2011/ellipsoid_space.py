@@ -5,7 +5,7 @@ import tf.transformations as tf_trans
 
 from hrl_generic_arms.pose_converter import PoseConverter
 
-class EllipsoidSpace:
+class EllipsoidSpace(object):
     def __init__(self, E, center=np.mat(np.zeros((3,1))), rot=np.mat(np.eye(3))):
         self.A = 1
         self.E = E
@@ -49,7 +49,7 @@ class EllipsoidSpace:
                            [-nz,  nx*j,         k]])
         _, norm_quat = PoseConverter.to_pos_quat(np.mat([0, 0, 0]).T, norm_rot)
         rot_angle = np.arctan(-norm_rot[2,1] / norm_rot[2,2])
-        print norm_rot
+        #print norm_rot
         quat_ortho_rot = tf_trans.quaternion_from_euler(rot_angle + np.pi + rot_gripper, 0.0, 0.0)
         norm_quat_ortho = tf_trans.quaternion_multiply(norm_quat, quat_ortho_rot)
         norm_rot_ortho = np.mat(tf_trans.quaternion_matrix(norm_quat_ortho)[:3,:3])

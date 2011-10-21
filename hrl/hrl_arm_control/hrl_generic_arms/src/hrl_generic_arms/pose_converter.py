@@ -29,7 +29,7 @@ class PoseConverter:
                 frame_id = args[0].header.frame_id
                 return [seq, stamp, frame_id], homo_mat, rot_quat
 
-            elif type(args[0]) == np.core.matrix and np.shape(args[0]) == (4, 4):
+            elif type(args[0]) is np.matrix and np.shape(args[0]) == (4, 4):
                 return None, args[0], tf_trans.quaternion_from_matrix(args[0]).tolist()
 
             elif (type(args[0]) == tuple or type(args[0]) == list) and len(args[0]) == 2:
@@ -43,10 +43,10 @@ class PoseConverter:
                 return header, homo_mat, rot_quat
 
             elif ((type(args[0]) == list or type(args[0]) == tuple or 
-                   type(args[0]) == np.core.matrix or type(args[0]) == np.ndarray) and 
+                   type(args[0]) is np.matrix or type(args[0]) == np.ndarray) and 
                   len(args[0]) == 3 and
                   (type(args[1]) == list or type(args[1]) == tuple or
-                   type(args[1]) == np.core.matrix or type(args[1]) == np.ndarray) and 
+                   type(args[1]) is np.matrix or type(args[1]) == np.ndarray) and 
                   len(args[1]) == 4):
                 if len(np.shape(args[0])) > 1 and np.shape(args[0])[1] == 1:
                     pos = args[0]
@@ -60,7 +60,7 @@ class PoseConverter:
 
     @staticmethod
     def _make_generic_pos_rot(pos, rot):
-        if (type(pos) == np.core.matrix and type(rot) == np.core.matrix and
+        if (type(pos) is np.matrix and type(rot) is np.matrix and
             np.shape(pos) == (3, 1) and np.shape(rot) == (3, 3)):
             homo_mat = np.mat(np.eye(4))
             homo_mat[:3,3] = pos

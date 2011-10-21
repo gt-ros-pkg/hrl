@@ -8,6 +8,7 @@ roslib.load_manifest('hrl_generic_arms')
 
 from hrl_generic_arms.ep_trajectory_controller import EPTrajectoryControl, min_jerk_traj
 from equilibrium_point_control.ep_control import EPGenerator, EPC, EPStopConditions
+from hrl_rfh_fall_2011.ellipsoid_space import EllipsoidSpace
 
 class EllipsoidController(object):
     def __init__(self, ell_space):
