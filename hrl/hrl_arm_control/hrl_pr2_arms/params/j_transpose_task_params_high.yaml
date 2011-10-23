@@ -32,6 +32,8 @@ r_cart:
   vel_saturation_trans: 2.0
   vel_saturation_rot: 4.0
 
+  use_tip_frame: true
+
 l_cart:
   type: pr2_manipulation_controllers/JTTaskController
   root_name: torso_lift_link
@@ -64,3 +66,5 @@ l_cart:
     l_wrist_roll_joint: 5.568
   vel_saturation_trans: 2.0
   vel_saturation_rot: 4.0
+
+  use_tip_frame: true
