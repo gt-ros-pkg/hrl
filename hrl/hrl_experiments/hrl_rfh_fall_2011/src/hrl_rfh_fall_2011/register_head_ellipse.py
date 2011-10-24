@@ -11,6 +11,7 @@ roslib.load_manifest('smach_ros')
 import rospy
 
 import smach
+import tf.transformations as tf_trans
 from smach_ros import SimpleActionState, ServiceState, IntrospectionServer
 from hrl_phri_2011.msg import EllipsoidParams
 from geometry_msgs.msg import PoseStamped
@@ -38,6 +39,8 @@ class ClickMonitor(smach.State):
 class SMEllipsoidRegistration(object):
     def __init__(self):
         self.ep_pub = rospy.Publisher("/ell_params_cmd", EllipsoidParams)
+        self.cheek_pub = rospy.Publisher("/cheek_pose", PoseStamped)
+        self.ell_center_pub = rospy.Publisher("/ell_pose", PoseStamped)
 
     def get_pub_head_registration(self):
         
@@ -46,14 +49,16 @@ class SMEllipsoidRegistration(object):
                             outcomes=['succeeded'])
         def pub_head_registration(ud):
             # find the center of the ellipse given a cheek click
-            # TODO find this tranformation
-            cheek_transformation = np.mat([[1,      0,      0,      0],
-                                           [0,      1,      0,      0],
-                                           [0,      0,      1,      0],
-                                           [0,      0,      0,      1]])
-            b_B_c = PoseConverter.to_homo_mat(ud.cheek_pose)
-            b_B_c[0:3,0:3] = np.eye(3)
-            ell_center = b_B_c * cheek_transformation
+            cheek_transformation = np.mat(tf_trans.euler_matrix(2.6 * np.pi/6, 0, 0, 'szyx'))
+            cheek_transformation[0:3, 3] = np.mat([-0.08, -0.04, 0]).T
+            cheek_pose = PoseConverter.to_homo_mat(ud.cheek_pose)
+            #b_B_c[0:3,0:3] = np.eye(3)
+            norm_xy = cheek_pose[0:2, 2] / np.linalg.norm(cheek_pose[0:2, 2])
+            head_rot = np.arctan2(norm_xy[1], norm_xy[0])
+            cheek_pose[0:3,0:3] = tf_trans.euler_matrix(0, 0, head_rot, 'sxyz')[0:3,0:3]
+            self.cheek_pub.publish(PoseConverter.to_pose_stamped_msg("/base_link", cheek_pose))
+            ell_center = cheek_pose * cheek_transformation
+            self.ell_center_pub.publish(PoseConverter.to_pose_stamped_msg("/base_link", ell_center))
 
             # create an ellipsoid msg and command it 
             ep = EllipsoidParams()

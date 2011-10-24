@@ -4,13 +4,14 @@ import copy
 import numpy as np
 import roslib
 roslib.load_manifest('hrl_pr2_arms')
+roslib.load_manifest('object_manipulation_msgs')
 import rospy
 import actionlib
 
-from std_msgs.msg import Header
+from std_msgs.msg import Header, Float64MultiArray
 from sensor_msgs.msg import JointState
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal
-#from teleop_controllers.msg import CartesianGains
+from object_manipulation_msgs.msg import CartesianGains
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from trajectory_msgs.msg import JointTrajectoryPoint
 import tf.transformations as tf_trans
@@ -30,9 +31,12 @@ class PR2Arm(HRLArm):
     ##
     # Initializes subscribers
     # @param arm 'r' for right, 'l' for left
-    def __init__(self, arm, kinematics):
+    def __init__(self, arm, kinematics, controller_name):
         super(PR2Arm, self).__init__(kinematics)
         self.arm = arm
+        if '%s' in controller_name:
+            controller_name = controller_name % arm
+        self.controller_name = controller_name
 
         rospy.Subscriber('joint_states', JointState, self.joint_state_cb)
 
@@ -89,12 +93,13 @@ def create_pr2_arm(arm, arm_type=PR2Arm, base_link="torso_lift_link",
     return arm_type(arm, kin)
 
 class PR2ArmJointTrajectory(PR2Arm):
-    def __init__(self, arm, kinematics):
-        super(PR2ArmJointTrajectory, self).__init__(arm, kinematics)
+    def __init__(self, arm, kinematics, controller_name='/%s_arm_controller'):
+        super(PR2ArmJointTrajectory, self).__init__(arm, kinematics, controller_name)
         self.joint_action_client = actionlib.SimpleActionClient(
-                                       arm + '_arm_controller/joint_trajectory_action',
+                                       self.controller_name + '/joint_trajectory_action',
                                        JointTrajectoryAction)
         rospy.sleep(1)
+        self.reset_ep()
 
     ##
     # Commands joint angles to a single position
@@ -114,18 +119,19 @@ class PR2ArmJointTrajectory(PR2Arm):
         self.joint_action_client.send_goal(jtg)
         self.ep = copy.copy(jep)
 
-    def interpolate_ep(self, ep_a, ep_b, num_steps):
-        linspace_list = [np.linspace(ep_a[i], ep_b[i], num_steps) for i in range(len(ep_a))]
+    def interpolate_ep(self, ep_a, ep_b, t_vals):
+        linspace_list = [[ep_a[i] + (ep_b[i] - ep_a[i]) * t for t in t_vals] for i in range(len(ep_a))]
         return np.dstack(linspace_list)[0]
 
     def reset_ep(self):
-        self.ep = self.get_joint_angles(True)
+        self.ep = self.get_joint_angles(False)
 
 class PR2ArmCartesianBase(PR2Arm):
-    def __init__(self, arm, kinematics):
-        super(PR2ArmCartesianBase, self).__init__(arm, kinematics)
-        self.command_pose_pub = rospy.Publisher('/' + arm + '_cart/command_pose', PoseStamped)
+    def __init__(self, arm, kinematics, controller_name='/%s_cart'):
+        super(PR2ArmCartesianBase, self).__init__(arm, kinematics, controller_name)
+        self.command_pose_pub = rospy.Publisher(self.controller_name + '/command_pose', PoseStamped)
         rospy.sleep(1)
+        self.reset_ep()
 
     def set_ep(self, cep, duration, delay=0.0):
         cep_pose_stmp = PoseConverter.to_pose_stamped_msg('torso_lift_link', cep)
@@ -141,7 +147,7 @@ class PR2ArmCartesianBase(PR2Arm):
         pos_a, rot_a = ep_a
         pos_b, rot_b = ep_b
         num_samps = len(t_vals)
-        pos_waypoints = pos_a + np.tile(pos_b - pos_a, (1, num_samps)) * t_vals
+        pos_waypoints = np.array(pos_a) + np.array(np.tile(pos_b - pos_a, (1, num_samps))) * np.array(t_vals)
         pos_waypoints = [np.mat(pos).T for pos in pos_waypoints.T]
         rot_homo_a, rot_homo_b = np.eye(4), np.eye(4)
         rot_homo_a[:3,:3] = rot_a
@@ -155,7 +161,7 @@ class PR2ArmCartesianBase(PR2Arm):
         return zip(pos_waypoints, rot_waypoints)
 
     def reset_ep(self):
-        self.ep = self.kinematics.FK(self.get_joint_angles(True))
+        self.ep = self.kinematics.FK(self.get_joint_angles(False))
 
     def ep_error(self, ep_actual, ep_desired):
         pos_act, rot_act = ep_actual
@@ -165,16 +171,28 @@ class PR2ArmCartesianBase(PR2Arm):
         err[3:6,0] = np.mat(tf_trans.euler_from_matrix(rot_des.T * rot_act)).T
         return err
 
-class PR2ArmJTranspose(PR2ArmCartesianBase):
+class PR2ArmCartesianPostureBase(PR2ArmCartesianBase):
+    def __init__(self, arm, kinematics, controller_name='/%s_cart'):
+        super(PR2ArmCartesianPostureBase, self).__init__(arm, kinematics, controller_name)
+        self.command_posture_pub = rospy.Publisher(self.controller_name + '/command_posture', 
+                                                   Float64MultiArray)
+
+    def set_posture(self, posture):
+        assert len(posture) == 7, "Wrong posture length"
+        msg = Float64MultiArray()
+        msg.data = list(posture)
+        self.command_posture_pub.publish(msg)
+
+class PR2ArmJTranspose(PR2ArmCartesianPostureBase):
     pass
 
-class PR2ArmJInverse(PR2ArmCartesianBase):
+class PR2ArmJInverse(PR2ArmCartesianPostureBase):
     pass
 
-class PR2ArmJTransposeTask(PR2ArmCartesianBase):
-    def __init__(self, arm, kinematics):
-        super(PR2ArmJTransposeTask, self).__init__(arm, kinematics)
-        self.command_gains_pub = rospy.Publisher('/' + arm + '_cart/gains', CartesianGains)
+class PR2ArmJTransposeTask(PR2ArmCartesianPostureBase):
+    def __init__(self, arm, kinematics, controller_name='/%s_cart'):
+        super(PR2ArmJTransposeTask, self).__init__(arm, kinematics, controller_name)
+        self.command_gains_pub = rospy.Publisher(self.controller_name + '/gains', CartesianGains)
         rospy.sleep(1)
 
     def set_gains(self, p_gains, d_gains, frame='torso_lift_link'):

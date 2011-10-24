@@ -79,7 +79,7 @@ class EllipsoidSpace(object):
             lon += 2 * np.pi
         p = np.sqrt(x**2 + y**2)
         a = self.a
-        lat = np.arcsin(np.sqrt((np.sqrt((z**2 - a**2 + p**2) + (2. * a * p)**2) / a**2 -
+        lat = np.arcsin(np.sqrt((np.sqrt((z**2 - a**2 + p**2)**2 + (2. * a * p)**2) / a**2 -
                                  (z / a)**2 - (p / a)**2 + 1) / 2.))
         if z < 0.:
             lat = np.pi - np.fabs(lat)

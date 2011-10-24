@@ -10,20 +10,18 @@ import actionlib
 from std_msgs.msg import Float64MultiArray, Header, MultiArrayDimension, Bool
 from geometry_msgs.msg import WrenchStamped
 
-from hrl_pr2_arms.pr2_arm import PR2ArmCartesianBase
+from hrl_pr2_arms.pr2_arm import PR2ArmCartesianPostureBase
 from hrl_netft.msg import HybridCartesianGains
 
-class PR2ArmHybridForce(PR2ArmCartesianBase):
+class PR2ArmHybridForce(PR2ArmCartesianPostureBase):
     def __init__(self, arm, kinematics, controller_name='/%s_cart'):
-        super(PR2ArmHybridForce, self).__init__(arm, kinematics)
-        if '%s' in controller_name:
-            controller_name = controller_name % arm
+        super(PR2ArmHybridForce, self).__init__(arm, kinematics, controller_name)
+        controller_name = self.controller_name
         self.auto_update = False
         self.command_gains_pub = rospy.Publisher(controller_name + '/gains', HybridCartesianGains)
         self.command_force_pub = rospy.Publisher(controller_name + '/command_force', WrenchStamped)
         self.command_force_max_pub = rospy.Publisher(controller_name + '/command_max_force', WrenchStamped)
         self.command_zero_pub = rospy.Publisher(controller_name + '/ft_zero', Bool)
-        self.command_posture_pub = rospy.Publisher(controller_name + '/command_posture', Float64MultiArray)
         self.ft_wrench_sub = rospy.Subscriber(controller_name + '/ft_wrench', WrenchStamped, 
                                               self._ft_wrench_cb)
         self.ft_wrench = np.mat(6 * [0]).T
@@ -102,11 +100,6 @@ class PR2ArmHybridForce(PR2ArmCartesianBase):
                 self.force_selector[names.index(direction)] = 1
         if self.auto_update:
             self.update_gains()
-
-    def set_posture(self, posture):
-        msg = Float64MultiArray()
-        msg.data = posture
-        self.command_posture_pub.publish(msg)
 
     def set_mass_params(self, mass, center_of_mass=None):
         params_msg = Float64MultiArray()

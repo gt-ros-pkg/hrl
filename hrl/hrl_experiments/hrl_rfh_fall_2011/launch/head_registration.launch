@@ -1,12 +1,4 @@
 <launch>
-    <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" />
-    <node pkg="pixel_2_3d" type="pixel_2_3d" name="pixel_2_3d" output="screen" respawn="true">
-        <remap from="image" to="/kinect_head/rgb/image_color"/>
-        <remap from="point_cloud" to="/kinect_head/rgb/points"/>
-        <remap from="l_mouse_click" to="/clickable_display/l_mouse_click"/>
-        <param name="normal_radius" type="double" value="0.025" />
-        <param name="output_frame" value="/base_link"/>
-    </node>
     <node pkg="hrl_phri_2011" type="ellipsoid_visualizer" name="ellipsoid_visualizer"
           args="$(find hrl_phri_2011)/data/sub1_head_stitched.bag $(find hrl_phri_2011)/data/sub1_ellipsoid_registration.bag" />
     <node pkg="hrl_phri_2011" type="interactive_ellipse" name="interactive_ellipse"

@@ -11,7 +11,7 @@
   <depend package="hrl_lib"/>
   <depend package="hrl_pr2_lib"/>
   <depend package="pr2_controllers_msgs"/>
-  <depend package="motion_planning_msgs"/>
+  <!-- <depend package="motion_planning_msgs"/> -->
 </package>
 
 

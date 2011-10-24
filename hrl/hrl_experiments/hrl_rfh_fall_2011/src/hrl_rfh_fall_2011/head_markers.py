@@ -16,16 +16,16 @@ from hrl_rfh_fall_2011.ellipsoid_space import EllipsoidSpace
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
 
-eye_scale = Vector3(0.02, 0.01, 0.005)
-l_eye_loc = [(3.5 * np.pi/8, -0.9 * np.pi/8,     0.90), (    np.pi/2,    np.pi/2,     0)]
-r_eye_loc = [(3.5 * np.pi/8,  0.9 * np.pi/8,     0.90), (    np.pi/2,    np.pi/2,     0)]
+eye_scale = Vector3(0.02, 0.01, 0.010)
+l_eye_loc = [(3.5 * np.pi/8, -0.9 * np.pi/8,     1.20), (    np.pi/2,    np.pi/2,     0)]
+r_eye_loc = [(3.5 * np.pi/8,  0.9 * np.pi/8,     1.20), (    np.pi/2,    np.pi/2,     0)]
 
-mouth_scale = Vector3(0.05, 0.01, 0.005)
-mouth_loc = [(4.7 * np.pi/8,    0 * np.pi/8,     0.95), (    np.pi/2,    np.pi/2,     0)]
+mouth_scale = Vector3(0.05, 0.01, 0.010)
+mouth_loc = [(4.7 * np.pi/8,    0 * np.pi/8,     1.25), (    np.pi/2,    np.pi/2,     0)]
 
-ear_scale = Vector3(0.06, 0.03, 0.005)
-l_ear_loc = [(  4 * np.pi/8,   -3.9 * np.pi/8,     0.80), (  0,    np.pi/2,   0)]
-r_ear_loc = [(  4 * np.pi/8,    3.9 * np.pi/8,     0.80), (  0,    np.pi/2,   0)]
+ear_scale = Vector3(0.06, 0.03, 0.030)
+l_ear_loc = [(  4 * np.pi/8,   -3.9 * np.pi/8,     1.10), (  0,    np.pi/2,   0)]
+r_ear_loc = [(  4 * np.pi/8,    3.9 * np.pi/8,     1.10), (  0,    np.pi/2,   0)]
 
 class HeadMarkers(object):
     def __init__(self):

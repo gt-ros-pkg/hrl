@@ -4,7 +4,6 @@ roslib.load_manifest('hrl_trajectory_playback')
 import rospy
 
 import pr2_controllers_msgs.msg as pm
-from motion_planning_msgs.srv import FilterJointTrajectory
 import hrl_lib.util as hrl_util
 from hrl_pr2_lib.pr2 import PR2, Joint
 from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
@@ -36,9 +35,6 @@ class TrajPlayback():
         self.vel /= 0.3
 
         self.pr2 = PR2()
-        # rospy.wait_for_service('trajectory_filter/filter_trajectory')
-        # self.filter_traj = rospy.ServiceProxy('trajectory_filter/filter_trajectory',
-        #                                       FilterJointTrajectory)
 
         self.__service = rospy.Service( 'traj_playback/' + name,
                                         TrajPlaybackSrv,

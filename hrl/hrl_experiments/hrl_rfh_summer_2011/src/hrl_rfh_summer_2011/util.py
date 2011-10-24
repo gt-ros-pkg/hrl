@@ -1,6 +1,6 @@
 import numpy as np
 
-import roslib; roslib.load_manifest('hrl_arm_move_behaviors')
+import roslib; roslib.load_manifest('hrl_rfh_summer_2011')
 import rospy
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 import tf.transformations as tf_trans
