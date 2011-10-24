@@ -11,7 +11,7 @@ from std_msgs.msg import Bool
 # to move the arm, this object can be passed into EPC.epc_motion to control
 # the arm.  Equilibrium points can be of any type so long as generate_ep,
 # control_ep, and clamp_ep are all written with this type in mind.
-class EPGenerator():
+class EPGenerator(object):
     #----------------- abstract functions ---------------------
     ##
     # Generates a new equilibrium point.
@@ -56,11 +56,12 @@ class EPStopConditions:
 
 ##
 # Simple class containing the core EPC function: a control loop paradigm.
-class EPC():
+class EPC(object):
 
     ##
     # Initializes variables and subscribers
     def __init__(self, epc_name = 'epc'):
+        self.epc_name = epc_name
         self.stop_epc = False
         self.pause_epc = False
         rospy.Subscriber('/'+epc_name+'/stop', Bool, self._stop_cb)
