@@ -38,6 +38,11 @@ class HRLArm(object):
     # publish different viz markers.
     def publish_rviz_markers(self):
         raise RuntimeError('Unimplemented Function')
+
+    ##
+    # Resets the equilibrium point based on some estimate
+    def reset_ep(self):
+        raise RuntimeError('Unimplemented Function')
     #----------------------------------------------------------
 
     ##
