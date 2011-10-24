@@ -3,9 +3,9 @@
 
   <!-- Need to add some form of map (ie static mapserver or gmapping -->
      <node name="$(anon mapserver)" pkg="map_server" type="map_server"
-     	   args="$(find rfid_nav)/launch/maps/aware_home.yaml" />
+     	   args="$(find rfid_nav)/launch/maps/hsi.yaml" />
+     	   <!-- args="$(find rfid_nav)/launch/maps/aware_home.yaml" /> -->
      	   <!-- args="$(find rfid_nav)/launch/maps/hsi_conf_room.yaml" /> -->
-     	   <!-- args="$(find rfid_nav)/launch/maps/hsi.yaml" /> -->
      <include file="$(find pr2_navigation_global)/amcl_node.xml" />
 
      <!-- OR -->
