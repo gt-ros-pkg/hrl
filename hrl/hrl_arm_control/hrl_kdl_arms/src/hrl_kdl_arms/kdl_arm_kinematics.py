@@ -120,7 +120,7 @@ class KDLArmKinematics(HRLArmKinematics):
         max_lims = self.joint_info["lim_maxs"]
         return np.all([q >= min_lims, q <= max_lims], 0)
 
-    def angles_in_safetys(self, q):
+    def angles_in_safeties(self, q):
         min_lims = self.joint_info["safe_mins"]
         max_lims = self.joint_info["safe_maxs"]
         return np.all([q >= min_lims, q <= max_lims], 0)
