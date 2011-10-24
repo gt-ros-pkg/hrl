@@ -127,6 +127,8 @@
 #define USE_WORKSPACE_MASK_FOR_ARM 1
 #define AUTO_FLOW_CLUSTER 1
 // #define USE_TABLE_COLOR_ESTIMATE 1
+#define SCALE_AFFINE_DISTANCES 1
+// #define CLUSTER_AFFINE_WITH_IMAGE_LOCS 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -1073,6 +1075,15 @@ class ObjectSingulation
     float x;
     float y;
     int label;
+
+    cv::Mat X()
+    {
+      cv::Mat X(3, 1, CV_32FC1);
+      X.at<float>(0,0) = x;
+      X.at<float>(1,0) = y;
+      X.at<float>(2,0) = 1.0;
+      return X;
+    }
   };
 
   typedef std::vector<AffineFlowMeasure> AffineFlowMeasures;
@@ -1155,22 +1166,45 @@ class ObjectSingulation
       cluster_centers.clear();
       return cluster_centers;
     }
-
+    // Cluster based on affine estimates
     // ROS_INFO_STREAM("Building samples");
-    // TODO: Cluster based on affine estimates
+
+#ifdef SCALE_AFFINE_DISTANCES
+    const int r_scale = color_img.cols / 2;
+#endif // SCALE_AFFINE_DISTANCES
+
+#ifdef CLUSTER_AFFINE_WITH_IMAGE_LOCS
+    int num_sample_elements = 8;
+#else // CLUSTER_AFFINE_WITH_IMAGE_LOCS
     int num_sample_elements = 6;
+#endif // CLUSTER_AFFINE_WITH_IMAGE_LOCS
+
     cv::Mat samples(num_samples, num_sample_elements, CV_32FC1);
     for (unsigned int i = 0; i < points.size(); ++i)
     {
       AffineFlowMeasure p = points[i];
-      samples.at<float>(i, 0) = atan2(p.u, p.v);
-      samples.at<float>(i, 1) = p.u;
-      samples.at<float>(i, 2) = p.v;
-      samples.at<float>(i, 3) = p.x;
-      samples.at<float>(i, 4) = p.y;
-      samples.at<float>(i, 5) = depth_img.at<float>(p.x, p.y);
+      // TODO: This could be done better by reshaping p.a and setting it to a
+      // submatrix of samples
+#ifdef SCALE_AFFINE_DISTANCES
+      samples.at<float>(i, 0) = p.a.at<float>(0,0)*r_scale;
+      samples.at<float>(i, 1) = p.a.at<float>(0,1)*r_scale;
+      samples.at<float>(i, 2) = p.a.at<float>(0,2);
+      samples.at<float>(i, 3) = p.a.at<float>(1,0)*r_scale;
+      samples.at<float>(i, 4) = p.a.at<float>(1,1)*r_scale;
+      samples.at<float>(i, 5) = p.a.at<float>(1,2);
+#else // SCALE_AFFINE_DISTANCES
+      samples.at<float>(i, 0) = p.a.at<float>(0,0);
+      samples.at<float>(i, 1) = p.a.at<float>(0,1);
+      samples.at<float>(i, 2) = p.a.at<float>(0,2);
+      samples.at<float>(i, 3) = p.a.at<float>(1,0);
+      samples.at<float>(i, 4) = p.a.at<float>(1,1);
+      samples.at<float>(i, 5) = p.a.at<float>(1,2);
+#endif // SCALE_AFFINE_DISTANCES
+#ifdef CLUSTER_AFFINE_WITH_IMAGE_LOCS
+      samples.at<float>(i, 6) = p.x;
+      samples.at<float>(i, 7) = p.y;
+#endif CLUSTER_AFFINE_WITH_IMAGE_LOCS
     }
-    // Perform kmeans clustering for a range of k values
     // ROS_INFO_STREAM("Performing kmeans");
     std::vector<cv::Mat> labels;
     std::vector<cv::Mat> centers;
@@ -1227,8 +1261,30 @@ class ObjectSingulation
       {
         new_center.x = new_center.x/num_members;
         new_center.y = new_center.y/num_members;
-        new_center.u = centers[best_k-1].at<float>(k,1);
-        new_center.v = centers[best_k-1].at<float>(k,2);
+
+        // Correctly set the affine estimate
+        // TODO: This could be done better by selecting a submatrix from centers
+        // and then reshaping it
+        new_center.a.create(2, 3, CV_32FC1);
+        new_center.a.at<float>(0,0) = centers[best_k-1].at<float>(k,0);
+        new_center.a.at<float>(0,1) = centers[best_k-1].at<float>(k,1);
+        new_center.a.at<float>(0,2) = centers[best_k-1].at<float>(k,2);
+        new_center.a.at<float>(1,0) = centers[best_k-1].at<float>(k,3);
+        new_center.a.at<float>(1,1) = centers[best_k-1].at<float>(k,4);
+        new_center.a.at<float>(1,2) = centers[best_k-1].at<float>(k,5);
+#ifdef SCALE_AFFINE_DISTANCES
+        new_center.a.at<float>(0,0) /= r_scale;
+        new_center.a.at<float>(0,1) /= r_scale;
+        new_center.a.at<float>(1,0) /= r_scale;
+        new_center.a.at<float>(1,1) /= r_scale;
+#endif // SCALE_AFFINE_DISTANCES
+
+        // Estimate 
+        cv::Mat V = new_center.a*new_center.X();
+        new_center.u = V.at<float>(0,0);
+        new_center.v = V.at<float>(1,0);
+        // new_center.u = 0;
+        // new_center.v = 0;
       }
       cluster_centers.push_back(new_center);
     }
