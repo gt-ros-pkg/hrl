@@ -109,14 +109,14 @@
 // #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_UV 1
-// #define DISPLAY_GRAPHCUT 1
+#define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS 1
 // #define DISPLAY_ARM_CIRCLES 1
 // #define DISPLAY_TABLE_DISTANCES 1
-// #define DISPLAY_FLOW_FIELD_CLUSTERING 1
+#define DISPLAY_FLOW_FIELD_CLUSTERING 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
@@ -125,7 +125,7 @@
 // Functional IFDEFS
 #define MEDIAN_FILTER_FLOW 1
 #define USE_WORKSPACE_MASK_FOR_ARM 1
-// #define AUTO_FLOW_CLUSTER 1
+#define AUTO_FLOW_CLUSTER 1
 // #define USE_TABLE_COLOR_ESTIMATE 1
 
 using tabletop_pushing::PushPose;
@@ -1129,7 +1129,7 @@ class ObjectSingulation
     // Setup the samples as the flow vectors for the segmented moving region
     AffineFlowMeasures points;
     points.clear();
-    ROS_INFO_STREAM("Estimating affine flow fields");
+    // ROS_INFO_STREAM("Estimating affine flow fields");
     for (int r = 0; r < mask.rows; ++r)
     {
       uchar* mask_row = mask.ptr<uchar>(r);
@@ -1156,7 +1156,7 @@ class ObjectSingulation
       return cluster_centers;
     }
 
-    ROS_INFO_STREAM("Building samples");
+    // ROS_INFO_STREAM("Building samples");
     // TODO: Cluster based on affine estimates
     int num_sample_elements = 6;
     cv::Mat samples(num_samples, num_sample_elements, CV_32FC1);
@@ -1171,7 +1171,7 @@ class ObjectSingulation
       samples.at<float>(i, 5) = depth_img.at<float>(p.x, p.y);
     }
     // Perform kmeans clustering for a range of k values
-    ROS_INFO_STREAM("Performing kmeans");
+    // ROS_INFO_STREAM("Performing kmeans");
     std::vector<cv::Mat> labels;
     std::vector<cv::Mat> centers;
     double compactness[max_k_];
@@ -1196,7 +1196,7 @@ class ObjectSingulation
     int best_k = max_k_;
 
     // Get the image location center matching the best fit flow clusters
-    ROS_INFO_STREAM("Getting cluster center image locations");
+    // ROS_INFO_STREAM("Getting cluster center image locations");
     AffineFlowMeasures cluster_centers;
     for (int k = 0; k < best_k; ++k)
     {
@@ -1214,25 +1214,29 @@ class ObjectSingulation
           ++num_members;
         }
       }
-      if (num_members > 0)
-      {
-        new_center.x = new_center.x/num_members;
-        new_center.y = new_center.y/num_members;
-      }
-      else
+
+      if (num_members <= 0 ||
+          centers[best_k-1].cols == 0 || centers[best_k-1].rows == 0)
       {
         new_center.x = 0;
         new_center.y = 0;
+        new_center.u = 0;
+        new_center.v = 0;
       }
-      new_center.u = centers[best_k-1].at<float>(k,1);
-      new_center.v = centers[best_k-1].at<float>(k,2);
+      else
+      {
+        new_center.x = new_center.x/num_members;
+        new_center.y = new_center.y/num_members;
+        new_center.u = centers[best_k-1].at<float>(k,1);
+        new_center.v = centers[best_k-1].at<float>(k,2);
+      }
       cluster_centers.push_back(new_center);
     }
-    ROS_INFO_STREAM("Displaying clusters");
+    // ROS_INFO_STREAM("Displaying clusters");
 #ifdef DISPLAY_FLOW_FIELD_CLUSTERING
     displayClusterCenters(cluster_centers, points, color_img);
 #endif // DISPLAY_FLOW_FIELD_CLUSTERING
-    ROS_INFO_STREAM("Displayed clusters");
+    // ROS_INFO_STREAM("Displayed clusters");
     return cluster_centers;
   }
 
@@ -1264,6 +1268,7 @@ class ObjectSingulation
     bool enough_points = true;
     AffineFlowMeasures cluster_centers;
     int k = 0;
+    AffineFlowMeasures working_set = points;
     while (enough_points)
     {
       AffineFlowMeasures inliers;
