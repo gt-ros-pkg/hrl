@@ -31,6 +31,9 @@
 # moved this to the top to get PyKDL from the ROS package for the Meka
 # modules as well.
 import roslib; roslib.load_manifest('hrl_cody_arms')
+roslib.load_manifest('force_torque') # Advait hack on Oct 25, 2011
+
+import force_torque.FTClient as ftc
 
 
 import m3.rt_proxy as m3p
@@ -90,7 +93,8 @@ class MekaArmSettings():
 
 
 class MekaArmServer():
-    def __init__(self, right_arm_settings=None, left_arm_settings=None):
+    def __init__(self, right_arm_settings=None,
+                 left_arm_settings=None, use_netft = False):
         self.arm_settings = {}  # dict is set in set_arm_settings
         self.initialize_joints(right_arm_settings, left_arm_settings)
 
@@ -117,6 +121,12 @@ class MekaArmServer():
 
         #----- ROS interface ---------
         rospy.init_node('arm_server', anonymous=False)
+
+        if use_netft:
+            self.ftclient = ftc.FTClient('force_torque_ft4', True)
+            #self.ftclient.bias()
+        else:
+            self.ftclient == None
 
         self.q_r_pub = rospy.Publisher('/r_arm/q', FloatArray)
         self.q_l_pub = rospy.Publisher('/l_arm/q', FloatArray)
@@ -428,6 +438,9 @@ class MekaArmServer():
     # 2010/2/5 Advait, Aaron King, Tiffany verified that coordinate frame 
     # from Meka is the left-hand coordinate frame.
     def get_wrist_force(self, arm):
+        if arm == 'right_arm' and self.ftclient != None:
+            return self.get_wrist_force_netft()
+
         m = []
         lc = self.fts[arm]
         m.append(lc.get_Fx_mN()/1000.)
@@ -451,11 +464,14 @@ class MekaArmServer():
 
         return np.row_stack((m1, m2))
 
-    def get_wrist_force_nano(self):
-        f = self.r_arm_ftc.read()[0:3, :]
-        f = tr.Rz(math.radians(-60.)) * f
+    def get_wrist_force_netft(self):
+        w = self.ftclient.read()
+        r = tr.Rz(math.radians(30.))
+        f = r * w[0:3]
+        t = r * w[0:3]
         f[1,0] = f[1,0] * -1
-        return f
+        t[1,0] = t[1,0] * -1
+        return np.row_stack((f,t))
 
     def get_wrist_torque(self, arm):
         m = []
@@ -541,12 +557,19 @@ class MekaArmServer():
 
 
 if __name__ == '__main__':
+    import optparse
+
+    p = optparse.OptionParser()
+    p.add_option('--enable_net_ft', action='store_true', dest='netft',
+                 help='use net ft for the right arm')
+    opt, args = p.parse_args()
+
     try:
         settings_r = MekaArmSettings(stiffness_list=[0.1939,0.6713,0.748,0.7272,0.75])
         #settings_r = None
         settings_l = MekaArmSettings(stiffness_list=[0.1939,0.6713,0.748,0.7272,0.75])
         #settings_l = None
-        cody_arms = MekaArmServer(settings_r, settings_l)
+        cody_arms = MekaArmServer(settings_r, settings_l, opt.netft)
 
 #        print 'hit a key to power up the arms.'
 #        k=m3t.get_keystroke()

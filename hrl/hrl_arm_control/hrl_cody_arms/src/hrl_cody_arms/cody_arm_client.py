@@ -254,8 +254,10 @@ if __name__ == '__main__':
 
     if True:
         while not rospy.is_shutdown():
-            jep = ac.get_ep()
-            print 'jep:', jep
+            #jep = ac.get_ep()
+            #print 'jep:', jep
+            q = ac.get_joint_angles()
+            print 'q:', np.degrees(q).tolist()[1]
             rospy.sleep(0.05)
 
     if False:
