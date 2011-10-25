@@ -98,6 +98,7 @@
 #include <fstream>
 #include <utility>
 #include <stdexcept>
+#include <float.h>
 #include <math.h>
 #include <time.h> // for srand(time(NULL))
 #include <cstdlib> // for MAX_RAND
@@ -128,7 +129,7 @@
 #define AUTO_FLOW_CLUSTER 1
 // #define USE_TABLE_COLOR_ESTIMATE 1
 #define SCALE_AFFINE_DISTANCES 1
-// #define CLUSTER_AFFINE_WITH_IMAGE_LOCS 1
+#define CLUSTER_AFFINE_WITH_IMAGE_LOCS 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -1069,12 +1070,10 @@ class ObjectSingulation
   class AffineFlowMeasure
   {
    public:
-    cv::Mat a;
-    float u;
-    float v;
-    float x;
-    float y;
-    int label;
+    AffineFlowMeasure(int x_ = 0, int y_ = 0, int u_ = 0, int v_= 0,
+                      int label_=-1) : x(x_), y(y_), u(u_), v(v_), label(label_)
+    {
+    }
 
     cv::Mat X()
     {
@@ -1084,9 +1083,28 @@ class ObjectSingulation
       X.at<float>(2,0) = 1.0;
       return X;
     }
+
+    bool operator==(AffineFlowMeasure b)
+    {
+      return (b.x == x && b.y == y);
+    }
+
+    float operator-(AffineFlowMeasure b) const
+    {
+      const float d_x = x-b.x;
+      const float d_y = y-b.y;
+      return std::sqrt(d_x*d_x+d_y*d_y);
+    }
+    // Members
+    float x;
+    float y;
+    float u;
+    float v;
+    int label;
+    cv::Mat a;
   };
 
-  typedef std::vector<AffineFlowMeasure> AffineFlowMeasures;
+  typedef std::deque<AffineFlowMeasure> AffineFlowMeasures;
 
  public:
   ObjectSingulation(int kmeans_max_iter=200, double kmeans_epsilon=0.5,
@@ -1140,7 +1158,6 @@ class ObjectSingulation
     // Setup the samples as the flow vectors for the segmented moving region
     AffineFlowMeasures points;
     points.clear();
-    // ROS_INFO_STREAM("Estimating affine flow fields");
     for (int r = 0; r < mask.rows; ++r)
     {
       uchar* mask_row = mask.ptr<uchar>(r);
@@ -1151,34 +1168,34 @@ class ObjectSingulation
           AffineFlowMeasure p;
           p.u = u.at<float>(r,c);
           p.v = v.at<float>(r,c);
-          p.x = c;
+           p.x = c;
           p.y = r;
           p.a = estimateAffineTransform(u, v, r, c, affine_estimate_radius_);
-          points.push_back(p);
+          if (std::sqrt(p.u*p.u+p.v*p.v) > 1.0 )
+            points.push_back(p);
         }
       }
     }
 
-    int num_samples = points.size();
+    const int num_samples = points.size();
     if (num_samples < 1)
     {
       AffineFlowMeasures cluster_centers;
       cluster_centers.clear();
       return cluster_centers;
     }
-    // Cluster based on affine estimates
-    // ROS_INFO_STREAM("Building samples");
 
 #ifdef SCALE_AFFINE_DISTANCES
     const int r_scale = color_img.cols / 2;
 #endif // SCALE_AFFINE_DISTANCES
 
 #ifdef CLUSTER_AFFINE_WITH_IMAGE_LOCS
-    int num_sample_elements = 8;
+    const int num_sample_elements = 8;
 #else // CLUSTER_AFFINE_WITH_IMAGE_LOCS
-    int num_sample_elements = 6;
+    const int num_sample_elements = 6;
 #endif // CLUSTER_AFFINE_WITH_IMAGE_LOCS
 
+    // Setup sample matrix for kmeans
     cv::Mat samples(num_samples, num_sample_elements, CV_32FC1);
     for (unsigned int i = 0; i < points.size(); ++i)
     {
@@ -1205,95 +1222,117 @@ class ObjectSingulation
       samples.at<float>(i, 7) = p.y;
 #endif CLUSTER_AFFINE_WITH_IMAGE_LOCS
     }
-    // ROS_INFO_STREAM("Performing kmeans");
+
     std::vector<cv::Mat> labels;
     std::vector<cv::Mat> centers;
     double compactness[max_k_];
     cv::TermCriteria term_crit(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER,
                                kmeans_max_iter_, kmeans_epsilon_);
-    for (int k = 1; k <= max_k_; ++k)
+
+    AffineFlowMeasures cluster_centers;
+    AffineFlowMeasures fewer_centers;
+    AffineFlowMeasures best_centers;
+    for (int K = 1; K <= max_k_; ++K)
     {
+      // Perform clustering with K centers
       cv::Mat labels_k;
       cv::Mat centers_k;
-      double slack = cv::kmeans(samples, k, labels_k, term_crit, kmeans_tries_,
-                                cv::KMEANS_PP_CENTERS, centers_k);
-      compactness[k-1] = slack;
+      double slack = cv::kmeans(samples, K, labels_k, term_crit,
+                                kmeans_tries_, cv::KMEANS_PP_CENTERS,
+                                centers_k);
+      compactness[K-1] = slack;
       labels.push_back(labels_k);
       centers.push_back(centers_k);
-    }
-
-    // TODO: Determine the best fitting clusters
-    // NOTE: The more cluster centers given should almost always fit with better
-    // confidence, thus we need to use some heuristic to determine if the flow
-    // centers have a significant angle between them comapred to the difference
-    // at fewer cluster centers
-    int best_k = max_k_;
-
-    // Get the image location center matching the best fit flow clusters
-    // ROS_INFO_STREAM("Getting cluster center image locations");
-    AffineFlowMeasures cluster_centers;
-    for (int k = 0; k < best_k; ++k)
-    {
-      AffineFlowMeasure new_center;
-      new_center.x = 0;
-      new_center.y = 0;
-      int num_members = 0;
-      for (int i = 0; i < num_samples; ++i)
+      cluster_centers.clear();
+      // Get descriptors for each cluster and compare them to the previous level
+      for (int c = 0; c < K; ++c)
       {
-        if (labels[best_k-1].at<uchar>(i,0) == k)
-        {
-          new_center.x += points[i].x;
-          new_center.y += points[i].y;
-          points[i].label = k;
-          ++num_members;
-        }
-      }
-
-      if (num_members <= 0 ||
-          centers[best_k-1].cols == 0 || centers[best_k-1].rows == 0)
-      {
+        AffineFlowMeasure new_center;
         new_center.x = 0;
         new_center.y = 0;
-        new_center.u = 0;
-        new_center.v = 0;
-      }
-      else
-      {
-        new_center.x = new_center.x/num_members;
-        new_center.y = new_center.y/num_members;
+        new_center.label = c;
+        int num_members = 0;
+        for (int i = 0; i < num_samples; ++i)
+        {
+          if (labels[K-1].at<uchar>(i,0) == c)
+          {
+            new_center.x += points[i].x;
+            new_center.y += points[i].y;
+            points[i].label = c;
+            ++num_members;
+          }
+        }
 
-        // Correctly set the affine estimate
-        // TODO: This could be done better by selecting a submatrix from centers
-        // and then reshaping it
-        new_center.a.create(2, 3, CV_32FC1);
-        new_center.a.at<float>(0,0) = centers[best_k-1].at<float>(k,0);
-        new_center.a.at<float>(0,1) = centers[best_k-1].at<float>(k,1);
-        new_center.a.at<float>(0,2) = centers[best_k-1].at<float>(k,2);
-        new_center.a.at<float>(1,0) = centers[best_k-1].at<float>(k,3);
-        new_center.a.at<float>(1,1) = centers[best_k-1].at<float>(k,4);
-        new_center.a.at<float>(1,2) = centers[best_k-1].at<float>(k,5);
+        if (num_members <= 0 ||
+            centers[K-1].cols == 0 || centers[K-1].rows == 0)
+        {
+          new_center.x = 0;
+          new_center.y = 0;
+          new_center.u = 0;
+          new_center.v = 0;
+        }
+        else
+        {
+          new_center.x = new_center.x/num_members;
+          new_center.y = new_center.y/num_members;
+
+          // Correctly set the affine estimate
+          // TODO: This could be done better by selecting a submatrix from centers
+          // and then reshaping it
+          new_center.a.create(2, 3, CV_32FC1);
+          new_center.a.at<float>(0,0) = centers[K-1].at<float>(c,0);
+          new_center.a.at<float>(0,1) = centers[K-1].at<float>(c,1);
+          new_center.a.at<float>(0,2) = centers[K-1].at<float>(c,2);
+          new_center.a.at<float>(1,0) = centers[K-1].at<float>(c,3);
+          new_center.a.at<float>(1,1) = centers[K-1].at<float>(c,4);
+          new_center.a.at<float>(1,2) = centers[K-1].at<float>(c,5);
 #ifdef SCALE_AFFINE_DISTANCES
-        new_center.a.at<float>(0,0) /= r_scale;
-        new_center.a.at<float>(0,1) /= r_scale;
-        new_center.a.at<float>(1,0) /= r_scale;
-        new_center.a.at<float>(1,1) /= r_scale;
+          new_center.a.at<float>(0,0) /= r_scale;
+          new_center.a.at<float>(0,1) /= r_scale;
+          new_center.a.at<float>(1,0) /= r_scale;
+          new_center.a.at<float>(1,1) /= r_scale;
 #endif // SCALE_AFFINE_DISTANCES
 
-        // Estimate 
-        cv::Mat V = new_center.a*new_center.X();
-        new_center.u = V.at<float>(0,0);
-        new_center.v = V.at<float>(1,0);
-        // new_center.u = 0;
-        // new_center.v = 0;
+          // Estimate flow of the cluster center using affine transform estimate
+          cv::Mat V = new_center.a*new_center.X();
+          new_center.u = V.at<float>(0,0);
+          new_center.v = V.at<float>(1,0);
+        }
+        cluster_centers.push_back(new_center);
       }
-      cluster_centers.push_back(new_center);
+      // Compare current K centers to centers of cardinality K-1
+      if (K > 1)
+      {
+        float farthest_nearest_neighbor = 0;
+        for (unsigned int i = 0; i < cluster_centers.size(); ++i)
+        {
+          float nn = FLT_MAX;
+          for (unsigned int j = 0; j < fewer_centers.size(); ++j)
+          {
+            float dist = cluster_centers[i] - fewer_centers[j];
+            if (dist < nn)
+              nn = dist;
+          }
+          if (nn > farthest_nearest_neighbor)
+            farthest_nearest_neighbor = nn;
+        }
+        // If no new clusters have center far enough from the current clusters,
+        // Then we choose the previous set as best
+        if (farthest_nearest_neighbor < minimum_new_cluster_separation_)
+        {
+          best_centers = fewer_centers;
+          break;
+        }
+      }
+      // Store current estimates for comparing in next iteration of K
+      fewer_centers = cluster_centers;
+      best_centers = cluster_centers;
     }
-    // ROS_INFO_STREAM("Displaying clusters");
+    ROS_INFO_STREAM("Chose " << best_centers.size() << " clusters");
 #ifdef DISPLAY_FLOW_FIELD_CLUSTERING
-    displayClusterCenters(cluster_centers, points, color_img);
+    displayClusterCenters(best_centers, points, color_img, 0);
 #endif // DISPLAY_FLOW_FIELD_CLUSTERING
-    // ROS_INFO_STREAM("Displayed clusters");
-    return cluster_centers;
+    return best_centers;
   }
 
   AffineFlowMeasures clusterFlowFieldsRANSAC(cv::Mat& color_img,
@@ -1314,38 +1353,89 @@ class ObjectSingulation
           p.v = v.at<float>(r,c);
           p.x = c;
           p.y = r;
-          points.push_back(p);
+          if (std::sqrt(p.u*p.u+p.v*p.v) > 1.0 )
+            points.push_back(p);
         }
       }
     }
 
+    if (points.size() < 1)
+    {
+      AffineFlowMeasures cluster_centers;
+      cluster_centers.clear();
+      return cluster_centers;
+    }
+
     // Perform RANSAC itteratively on the affine estimates to cluster a set of
     // affine movement regions
-    bool enough_points = true;
     AffineFlowMeasures cluster_centers;
     int k = 0;
-    AffineFlowMeasures working_set = points;
-    while (enough_points)
+    AffineFlowMeasures active_points = points;
+    while (active_points.size() > min_affine_point_set_size_ &&
+           k < max_k_)
     {
       AffineFlowMeasures inliers;
       inliers.clear();
-      cv::Mat new_estimate = affineRANSAC(points, inliers,
+      cv::Mat new_estimate = affineRANSAC(active_points, inliers,
                                           ransac_inlier_percent_est_,
-                                          ransac_epsilon_);
+                                          ransac_epsilon_, max_ransac_iters_);
       AffineFlowMeasure new_center;
+      new_center.a = new_estimate;
+      new_center.label = k;
+      new_center.x = 0;
+      new_center.y = 0;
       for (unsigned int i = 0; i < inliers.size(); ++i)
       {
-        new_center.a = new_estimate;
+        new_center.x += inliers[i].x;
+        new_center.y += inliers[i].y;
+
+        // Set labels for the removed points
+        for (unsigned int j = 0; j < points.size(); ++j)
+        {
+          if (points[j] == inliers[i])
+          {
+            points[j].label = k;
+          }
+        }
+        // Remove inliers from active points
+        for (unsigned int j = 0; j < active_points.size(); )
+        {
+          if (inliers[i] == active_points[j])
+          {
+            active_points.erase(active_points.begin()+j);
+          }
+          else
+          {
+            ++j;
+          }
+        }
+      }
+      if (inliers.size() > 0)
+      {
+        new_center.x /= inliers.size();
+        new_center.y /= inliers.size();
+        cv::Mat V = new_center.a*new_center.X();
+        new_center.u = V.at<float>(0,0);
+        new_center.v = V.at<float>(1,0);
+      }
+      else
+      {
+        new_center.x = 0;
+        new_center.y = 0;
+        new_center.u = 0;
+        new_center.v = 0;
       }
       cluster_centers.push_back(new_center);
-      // TODO: Remove inliers from point set for next iteration
-      // TODO: Set labels for the removed points
-      enough_points = (points.size() > min_affine_point_set_size_);
+      ROS_INFO_STREAM("Fit affine transform " << k << " with center ("
+                      << new_center.x << ", " << new_center.y << ")");
+      ROS_INFO_STREAM("Number of points remaining: " << active_points.size());
       ++k;
     }
 
 #ifdef DISPLAY_FLOW_FIELD_CLUSTERING
+    // ROS_INFO_STREAM("Displaying clusters");
     displayClusterCenters(cluster_centers, points, color_img);
+    // ROS_INFO_STREAM("Displayed clusters");
 #endif // DISPLAY_FLOW_FIELD_CLUSTERING
 
     return cluster_centers;
@@ -1360,9 +1450,11 @@ class ObjectSingulation
    */
   void displayClusterCenters(AffineFlowMeasures cluster_centers,
                              AffineFlowMeasures samples,
-                             cv::Mat& color_img)
+                             cv::Mat& color_img, int cur_max_k=0)
   {
+    // ROS_INFO_STREAM("Cloning image");
     cv::Mat flow_center_disp = color_img.clone();
+    // ROS_INFO_STREAM("Drawing flow centers");
     for (unsigned int i = 0; i < cluster_centers.size(); ++i)
     {
       cv::Point pt_a(cluster_centers[i].x, cluster_centers[i].y);
@@ -1371,7 +1463,12 @@ class ObjectSingulation
       cv::circle(flow_center_disp, pt_a, 20, cv::Scalar(0,255,0));
       cv::line(flow_center_disp, pt_a, pt_b, cv::Scalar(0,255,0));
     }
-    cv::imshow("Flow Cluster Centers", flow_center_disp);
+    // ROS_INFO_STREAM("Drew flow centers");
+    std::stringstream center_disp_name;
+    center_disp_name << "Flow Cluster Centers";
+    if (cur_max_k != 0) center_disp_name << " " << cur_max_k;
+    cv::imshow(center_disp_name.str(), flow_center_disp);
+    // ROS_INFO_STREAM("Displayed flow centers");
     cv::Mat flow_clusters_disp = color_img.clone();
     std::vector<cv::Scalar> colors;
     for (int k = 0; k < cluster_centers.size(); ++k)
@@ -1385,9 +1482,11 @@ class ObjectSingulation
                        static_cast<float>(RAND_MAX))*255;
       colors.push_back(rand_color);
     }
+    // ROS_INFO_STREAM("Generated random colors");
     for (unsigned int i = 0; i < samples.size(); ++i)
     {
       AffineFlowMeasure s = samples[i];
+      if (s.label < 0 || s.label > (cluster_centers.size()-1)) continue;
       if (std::sqrt(s.u*s.u+s.v*s.v) > 1.0)
       {
         cv::Scalar cur_color = colors[s.label];
@@ -1395,7 +1494,10 @@ class ObjectSingulation
                  cv::Point(s.x - s.u, s.y - s.v), cur_color);
       }
     }
-    cv::imshow("Flow Clusters", flow_clusters_disp);
+    std::stringstream cluster_disp_name;
+    cluster_disp_name << "Flow Clusters";
+    if (cur_max_k != 0) cluster_disp_name << " " << cur_max_k;
+    cv::imshow(cluster_disp_name.str(), flow_clusters_disp);
   }
 
   //
@@ -1597,6 +1699,8 @@ class ObjectSingulation
   int max_k_;
   int affine_estimate_radius_;
   int min_affine_point_set_size_;
+  int max_ransac_iters_;
+  double minimum_new_cluster_separation_;
 };
 
 class TabletopPushingPerceptionNode
@@ -1671,10 +1775,15 @@ class TabletopPushingPerceptionNode
     n_private_.param("flow_cluster_epsilon", os_.kmeans_epsilon_, 0.05);
     n_private_.param("flow_cluster_attempts", os_.kmeans_tries_, 5);
     n_private_.param("affine_estimate_radius", os_.affine_estimate_radius_, 5);
-    n_private_.param("affine_estimate_radius", os_.min_affine_point_set_size_, 30);
-    n_private_.param("affine_RANSAC_epsilon", os_.ransac_epsilon_, 0.05);
-    n_private_.param("affine_RANSAC_inlier_perct",
+    n_private_.param("min_affine_point_set_size", os_.min_affine_point_set_size_,
+                     100);
+    n_private_.param("max_ransac_iters", os_.max_ransac_iters_,
+                     150);
+    n_private_.param("affine_RANSAC_epsilon", os_.ransac_epsilon_, 1.0);
+    n_private_.param("affine_RANSAC_inlier_percent",
                      os_.ransac_inlier_percent_est_, 0.05);
+    n_private_.param("minimum_new_cluster_separation",
+                     os_.minimum_new_cluster_separation_, 5.0);
 
     n_private_.param("image_hist_size", image_hist_size_, 5);
 

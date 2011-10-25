@@ -51,9 +51,14 @@
     <param name="num_downsamples" value="1" type="int"/>
 
     <param name="arm_detection_theta" value="10.0" type="double"/>
-    <param name="max_flow_clusters" value="5" type="int"/>
+    <param name="max_flow_clusters" value="7" type="int"/>
     <param name="flow_cluster_max_iter" value="2000" type="int"/>
     <param name="flow_cluster_epsilon" value="0.1" type="double"/>
     <param name="flow_cluster_attempts" value="5" type="int"/>
+    <param name="affine_RANSAC_epsilon" value="2.0" type="double"/>
+    <param name="min_affine_point_set_size" value="200" type="int"/>
+    <param name="max_ransac_iters" value="200" type="int"/>
+    <param name="minimum_new_cluster_separation" value="5.0" type="double"/>
+
   </node>
 </launch>
