@@ -2,13 +2,54 @@
 import roslib
 roslib.load_manifest('hrl_trajectory_playback')
 import rospy
+import actionlib
 
+import trajectory_msgs.msg as tm
 import pr2_controllers_msgs.msg as pm
 import hrl_lib.util as hrl_util
-from hrl_pr2_lib.pr2 import PR2, Joint
+#from hrl_pr2_lib.pr2 import PR2, Joint
 from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
 
 import numpy as np, math
+
+##
+# This code was crudely grabbed from Hai's hrl_pr2_lib.pr2 because it's broken...
+class PR2(object):
+    def __init__(self):
+        self.right = PR2Arm('r')
+        self.left = PR2Arm('l')
+
+class PR2Arm(object):
+    def __init__(self, arm):
+        joint_controller_name = arm + '_arm_controller'
+        self.client = actionlib.SimpleActionClient('/%s/joint_trajectory_action' % joint_controller_name, pm.JointTrajectoryAction)
+        rospy.loginfo('pr2arm: waiting for server %s' % joint_controller_name)
+        self.client.wait_for_server()
+        self.joint_names = rospy.get_param('/%s/joints' % joint_controller_name)
+        self.zeros = [0 for j in range(len(self.joint_names))]
+
+    def create_trajectory(self, pos_mat, times, vel_mat=None):
+        #Make JointTrajectoryPoints
+        points = [tm.JointTrajectoryPoint() for i in range(pos_mat.shape[1])]
+        for i in range(pos_mat.shape[1]):
+            points[i].positions = pos_mat[:,i].A1.tolist()
+            points[i].accelerations = self.zeros
+            if vel_mat == None:
+                points[i].velocities = self.zeros
+            else:
+                points[i].velocities = vel_mat[:,i].A1.tolist()
+
+        for i in range(pos_mat.shape[1]):
+            points[i].time_from_start = rospy.Duration(times[i])
+
+        #Create JointTrajectory
+        jt = tm.JointTrajectory()
+        jt.joint_names = self.joint_names
+        jt.points = points
+        jt.header.stamp = rospy.get_rostime()
+        return jt
+
+##
 
 class TrajPlayback():
     def __init__( self, name, fname, arm = 'right' ):
@@ -62,9 +103,9 @@ class TrajPlayback():
             tt = self.t.copy()
 
         if self.arm == 'right':
-            joint_traj = self.pr2.right._create_trajectory( tq, tt, tvel )
+            joint_traj = self.pr2.right.create_trajectory( tq, tt, tvel )
         else:
-            joint_traj = self.pr2.left._create_trajectory( tq, tt, tvel )
+            joint_traj = self.pr2.left.create_trajectory( tq, tt, tvel )
             
         dur = rospy.Duration.from_sec( tt[-1] + 5 )
 

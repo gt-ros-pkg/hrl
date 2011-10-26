@@ -10,8 +10,9 @@ from collections import deque # fast appends
 import numpy as np, math
 
 # Hack (this code currently only supports the right arm!)
-r_jt_idx_lis = [17, 18, 16, 20, 19, 21, 22]
-l_jt_idx_lis = [29, 30, 28, 32, 31, 33, 34]
+JOINT_NAMES = ['%s_shoulder_pan_joint', '%s_shoulder_lift_joint', '%s_upper_arm_roll_joint',
+               '%s_elbow_flex_joint', '%s_forearm_roll_joint', '%s_elbow_flex_joint',
+               '%s_wrist_roll_joint']
 
 class Listener:
     def __init__(self, arm = 'right'):
@@ -22,6 +23,8 @@ class Listener:
         # self.ind = 0
         self.initialized = False
         self.starttime = rospy.Time(0)
+        self.r_jt_idx_lis = None
+        self.l_jt_idx_lis = None
 
     def callback( self, msg ):
         currtime = msg.header.stamp.to_sec()
@@ -30,15 +33,18 @@ class Listener:
             self.initialized = True
             self.starttime = currtime
             self.lasttime = currtime
+            self.r_jt_idx_lis = [msg.name.index(joint_name % 'r') for joint_name in JOINT_NAMES]
+            self.l_jt_idx_lis = [msg.name.index(joint_name % 'l') for joint_name in JOINT_NAMES]
             
         if currtime - self.lasttime > 1.0:
             self.lasttime = currtime
             print 'Still Capturing (%d sec)' % (currtime - self.starttime)
 
+
         if self.arm == 'right':
-            q_ja = [ msg.position[idx] for idx in r_jt_idx_lis ]
+            q_ja = [ msg.position[idx] for idx in self.r_jt_idx_lis ]
         else:
-            q_ja = [ msg.position[idx] for idx in l_jt_idx_lis ]
+            q_ja = [ msg.position[idx] for idx in self.l_jt_idx_lis ]
         self.q.append( q_ja )
         
         # for i,idx in enumerate( r_jt_idx_lis ):  # only dealing with right arm!
