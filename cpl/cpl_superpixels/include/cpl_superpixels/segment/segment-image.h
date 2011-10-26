@@ -24,7 +24,6 @@
 #include "misc.h"
 #include "filter.h"
 #include "segment-graph.h"
-#include <iostream>
 
 // random color
 rgb random_rgb(){
