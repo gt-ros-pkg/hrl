@@ -11,7 +11,7 @@ import numpy as np, math
 
 # Hack (this code currently only supports the right arm!)
 JOINT_NAMES = ['%s_shoulder_pan_joint', '%s_shoulder_lift_joint', '%s_upper_arm_roll_joint',
-               '%s_elbow_flex_joint', '%s_forearm_roll_joint', '%s_elbow_flex_joint',
+               '%s_elbow_flex_joint', '%s_forearm_roll_joint', '%s_wrist_flex_joint',
                '%s_wrist_roll_joint']
 
 class Listener:
