@@ -1500,6 +1500,16 @@ class ObjectSingulation
     cv::imshow(cluster_disp_name.str(), flow_clusters_disp);
   }
 
+
+  AffineFlowMeasures clusterSparseFlowRANSAC(cv::Mat& color_img,
+                                             cv::Mat& depth_img,
+                                             cv::Mat& u, cv::Mat& v,
+                                             cv::Mat& mask)
+  {
+    AffineFlowMeasures clusters;
+    return clusters;
+  }
+
   //
   // Core functions
   //
