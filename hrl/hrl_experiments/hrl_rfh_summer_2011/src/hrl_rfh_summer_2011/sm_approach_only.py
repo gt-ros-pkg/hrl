@@ -5,6 +5,7 @@ import numpy as np
 
 import roslib
 roslib.load_manifest('hrl_rfh_summer_2011')
+roslib.load_manifest('hrl_rfh_fall_2011')
 import rospy
 
 import smach
@@ -27,7 +28,7 @@ from pr2_approach_table.msg import ApproachAction, ApproachResult, ApproachGoal
 from rfid_behaviors.srv import FloatFloat_Int32 as RotateBackupSrv
 import hrl_rfh_summer_2011.util as util
 
-from pixel_2_3d.click_monitor import ClickMonitor
+from hrl_rfh_fall_2011.sm_topic_monitor import TopicMonitor
 
 class DetectForwardDistance(smach.State):
     def __init__(self, get_transform, distance):
@@ -208,10 +209,9 @@ class SMNavApproach(object):
             # wait for the user to click on the head so the robot can approach
             smach.StateMachine.add(
                 'WAIT_FOR_HEAD_CLICK',
-                ClickMonitor(),
-                transitions={'click' : 'PROCESS_NAV_POSE',
-                             'shutdown' : 'shutdown'},
-                remapping={'click_pose' : 'head_click_pose_global'}) # output (PoseStamped)
+                TopicMonitor('/head_nav_goal', PoseStamped),
+                transitions={'succeeded' : 'PROCESS_NAV_POSE'},
+                remapping={'output' : 'head_click_pose_global'})
 
             # prepare the navigation pose for move_base
             # gets a point aligned with the normal and a distance away (nav_approach_dist)

@@ -99,7 +99,7 @@ class SMEllipsoidRegistration(object):
                     # receive a message from pixel_2_3d
                     smach.StateMachine.add(
                         'INPUT_CHEEK_CLICK',
-                        TopicMonitor('/pixel3d', PoseStamped),
+                        TopicMonitor('/init_head', PoseStamped),
                         transitions={'succeeded' : 'REGISTER_HEAD'},
                         remapping={'output' : 'cheek_pose'})
 
