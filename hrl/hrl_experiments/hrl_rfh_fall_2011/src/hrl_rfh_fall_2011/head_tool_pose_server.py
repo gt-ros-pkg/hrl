@@ -87,7 +87,7 @@ class HeadToolPoseServer(object):
         arrows = MarkerArray()
         coords = []
         i = 0
-        color = ColorRGBA(1., 0., 0., 1.)
+        color = ColorRGBA(0., 1., 0., 1.)
         for name in head_poses:
             arrows.markers.append(create_arrow_marker(self.get_head_pose(name), i))
             i += 1

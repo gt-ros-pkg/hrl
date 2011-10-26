@@ -27,6 +27,8 @@ from pr2_approach_table.msg import ApproachAction, ApproachResult, ApproachGoal
 from rfid_behaviors.srv import FloatFloat_Int32 as RotateBackupSrv
 import hrl_rfh_summer_2011.util as util
 
+from pixel_2_3d.click_monitor import ClickMonitor
+
 class DetectForwardDistance(smach.State):
     def __init__(self, get_transform, distance):
         smach.State.__init__(self, output_keys=['nav_dist'],
@@ -98,25 +100,6 @@ class CheckHeading(smach.State):
             userdata.angular_error = 0.0
         return 'succeeded'
 
-class ClickMonitor(smach.State):
-    def __init__(self, appr_B_tool=np.eye(4)):
-        smach.State.__init__(self, outcomes=['click', 'shutdown'],
-                                   output_keys=['click_pose'])
-        self.appr_B_tool = appr_B_tool
-        self.cur_msg = None
-        rospy.Subscriber('/pixel3d', PoseStamped, self.click_cb)
-
-    def click_cb(self, msg):
-        self.cur_msg = msg
-
-    def execute(self, userdata):
-        self.cur_msg = None
-        while not rospy.is_shutdown():
-            if self.cur_msg is not None:
-                userdata.click_pose = self.cur_msg
-                return 'click'
-            rospy.sleep(0.01)
-        return 'shutdown'
         
         
 ##
@@ -215,7 +198,7 @@ class SMNavApproach(object):
 
         return sm_nav_approach_state
 
-    def get_nav_prep_sm(self):
+    def get_sm(self):
         nav_prep_sm = smach.StateMachine(outcomes=['succeeded','preempted','shutdown', 'aborted'])
         with nav_prep_sm:
 
@@ -295,7 +278,7 @@ def main():
     rospy.init_node('smach_sm_touch_face')
 
     smna = SMNavApproach()
-    sm = smna.get_nav_prep_sm()
+    sm = smna.get_sm()
     rospy.sleep(1)
 
     sis = IntrospectionServer('nav_prep', sm, '/SM_NAV_PREP')
