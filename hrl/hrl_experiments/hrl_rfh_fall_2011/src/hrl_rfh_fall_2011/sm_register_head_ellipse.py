@@ -11,6 +11,7 @@ roslib.load_manifest('pixel_2_3d')
 roslib.load_manifest('hrl_rfh_fall_2011')
 roslib.load_manifest('smach_ros')
 import rospy
+import tf
 
 import smach
 import tf.transformations as tf_trans
@@ -30,6 +31,7 @@ class SMEllipsoidRegistration(object):
         self.ep_pub = rospy.Publisher("/ell_params_cmd", EllipsoidParams)
         self.cheek_pub = rospy.Publisher("/cheek_pose", PoseStamped)
         self.ell_center_pub = rospy.Publisher("/ell_pose", PoseStamped)
+        self.tf_list = tf.TransformListener()
 
     def get_pub_head_registration(self):
         
@@ -37,10 +39,11 @@ class SMEllipsoidRegistration(object):
                             output_keys=[],
                             outcomes=['succeeded'])
         def pub_head_registration(ud):
+            cheek_pose_base_link = self.tf_list.transformPose("/base_link", ud.cheek_pose)
             # find the center of the ellipse given a cheek click
             cheek_transformation = np.mat(tf_trans.euler_matrix(2.6 * np.pi/6, 0, 0, 'szyx'))
             cheek_transformation[0:3, 3] = np.mat([-0.08, -0.04, 0]).T
-            cheek_pose = PoseConverter.to_homo_mat(ud.cheek_pose)
+            cheek_pose = PoseConverter.to_homo_mat(cheek_pose_base_link)
             #b_B_c[0:3,0:3] = np.eye(3)
             norm_xy = cheek_pose[0:2, 2] / np.linalg.norm(cheek_pose[0:2, 2])
             head_rot = np.arctan2(norm_xy[1], norm_xy[0])

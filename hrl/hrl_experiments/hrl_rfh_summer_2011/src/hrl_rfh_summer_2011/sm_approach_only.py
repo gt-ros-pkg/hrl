@@ -231,6 +231,7 @@ class SMNavApproach(object):
                                   goal_slots=['target_pose'], # PoseStamped
                                   outcomes=['succeeded','aborted','preempted']),
                 transitions = { 'succeeded' : 'CHECK_HEADING',
+                                'preempted' : 'WAIT_FOR_HEAD_CLICK',
                                 'aborted' : 'WAIT_FOR_HEAD_CLICK' },
                 remapping = {'target_pose':'nav_pose_ps_global'}) # input (PoseStamped)
 
@@ -256,21 +257,9 @@ class SMNavApproach(object):
             smach.StateMachine.add(
                 'MOVE_FORWARD_DIST',
                 self.get_nav_approach(),
-                transitions = {'succeeded' : 'TORSO_SETUP',
-                               'shutdown' : 'shutdown'},
+                transitions = {'succeeded' : 'succeeded',
+                               'shutdown' : 'succeeded'},
                 remapping={'nav_dist' : 'nav_dist_global'})
-
-            # move torso up
-            tgoal = SingleJointPositionGoal()
-            tgoal.position = 0.300  # all the way up is 0.300
-            tgoal.min_duration = rospy.Duration( 2.0 )
-            tgoal.max_velocity = 1.0
-            smach.StateMachine.add(
-                'TORSO_SETUP',
-                SimpleActionState( 'torso_controller/position_joint_action',
-                                   SingleJointPositionAction,
-                                   goal = tgoal),
-                transitions = { 'succeeded': 'succeeded' })
 
         return nav_prep_sm
 

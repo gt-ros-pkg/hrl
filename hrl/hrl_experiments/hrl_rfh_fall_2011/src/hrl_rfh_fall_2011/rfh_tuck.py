@@ -29,8 +29,8 @@ def main():
                      -1.9787189 , -2.84025541]
     l_joint_controller = EPArmController(l_arm, 0.1, "l_joint_ep_controller")
     r_joint_controller = EPArmController(r_arm, 0.1, "r_joint_ep_controller")
-    l_joint_controller.execute_interpolated_ep(l_tuck_angles, 30)
-    r_joint_controller.execute_interpolated_ep(r_tuck_angles, 30)
+    l_joint_controller.execute_interpolated_ep(l_tuck_angles, 10)
+    r_joint_controller.execute_interpolated_ep(r_tuck_angles, 10)
 
 if __name__ == "__main__":
     main()

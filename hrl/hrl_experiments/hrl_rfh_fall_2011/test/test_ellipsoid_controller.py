@@ -24,7 +24,7 @@ def main():
 
     setup_angles = [0, 0, np.pi/2, -np.pi/2, np.pi, -np.pi/2, -np.pi/2]
     joint_controller = EPArmController(joint_arm, 0.1, "joint_ep_controller")
-    joint_controller.execute_interpolated_ep(setup_angles, 5)
+    joint_controller.execute_interpolated_ep(setup_angles, 10)
 
     ctrl_switcher.carefree_switch('l', '%s_cart', None)
     rospy.sleep(1)

@@ -12,6 +12,8 @@ from smach_ros import SimpleActionState, ServiceState, IntrospectionServer
 
 from hrl_rfh_summer_2011.sm_approach_only import SMNavApproach
 from hrl_rfh_fall_2011.sm_register_head_ellipse import SMEllipsoidRegistration
+from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
+from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPositionGoal
 
 class SMRegistrationSetup(object):
     def __init__(self):
@@ -19,12 +21,33 @@ class SMRegistrationSetup(object):
         self.sm_ell_reg = SMEllipsoidRegistration()
 
     def get_sm(self):
-        sm = smach.StateMachine(outcomes=['succeeded','preempted','shutdown'])
+        sm = smach.StateMachine(outcomes=['succeeded','preempted','aborted'])
         
         with sm:
             smach.StateMachine.add('NAV_APPROACH',
                     self.sm_nav_approach.get_sm(),
-                    transitions={'succeeded' : 'HEAD_REG_ALL'})
+                    transitions={'succeeded' : 'TORSO_SETUP',
+                                 'shutdown' : 'aborted'})
+
+            # move torso up
+            tgoal = SingleJointPositionGoal()
+            tgoal.position = 0.300  # all the way up is 0.300
+            tgoal.min_duration = rospy.Duration( 2.0 )
+            tgoal.max_velocity = 1.0
+            smach.StateMachine.add(
+                'TORSO_SETUP',
+                SimpleActionState( 'torso_controller/position_joint_action',
+                                   SingleJointPositionAction,
+                                   goal = tgoal),
+                transitions = { 'succeeded': 'UNTUCK' })
+
+            # Untucks the arm
+            smach.StateMachine.add(
+                'UNTUCK',
+                ServiceState( 'traj_playback/untuck_l_arm',
+                              TrajPlaybackSrv,
+                              request = TrajPlaybackSrvRequest( False )), # if True, reverse trajectory
+                transitions = { 'succeeded' : 'HEAD_REG_ALL' })
 
             smach.StateMachine.add('HEAD_REG_ALL',
                     self.sm_ell_reg.get_sm())
