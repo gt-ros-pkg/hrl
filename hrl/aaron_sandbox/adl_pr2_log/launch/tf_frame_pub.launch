@@ -1,0 +1,8 @@
+<launch>
+    <arg name="bag" />
+    <node name="pub_frame_l_gripper_tool_frame" 
+		pkg="adl_pr2_log"
+		type="tf_frame_publisher.py"
+		args="_source:=l_gripper_tool_frame _target:=torso_lift_link"
+	        respawn="false" output="screen"/>
+</launch>
