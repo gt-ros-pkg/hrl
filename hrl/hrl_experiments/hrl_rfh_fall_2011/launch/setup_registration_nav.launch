@@ -1,0 +1,7 @@
+<launch>
+    <include file="$(find hrl_rfh_summer_2011)/launch/approach_only_setup.launch" />
+    <include file="$(find hrl_rfh_fall_2011)/launch/head_registration.launch" />
+    <node pkg="hrl_trajectory_playback" name="untuck_traj_playback" type="playback.py" 
+	  output="screen" respawn="false" 
+	  args="--pkl $(find hrl_rfh_fall_2011)/data/untuck_l_arm.pkl --name untuck_l_arm --left" />
+</launch>
