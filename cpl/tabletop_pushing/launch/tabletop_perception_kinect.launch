@@ -48,6 +48,7 @@
 
     <param name="lk_win_size" value="5" type="int"/>
     <param name="lk_num_levels" value="4" type="int"/>
+    <param name="lk_ratio_thresh" value="13.0" type="double"/>
     <param name="num_downsamples" value="1" type="int"/>
 
     <param name="arm_detection_theta" value="10.0" type="double"/>
@@ -56,6 +57,7 @@
     <param name="flow_cluster_epsilon" value="0.1" type="double"/>
     <param name="flow_cluster_attempts" value="5" type="int"/>
     <param name="affine_RANSAC_epsilon" value="2.0" type="double"/>
+    <param name="surf_hessian_thresh" value="50.0" type="double"/>
     <param name="min_affine_point_set_size" value="200" type="int"/>
     <param name="max_ransac_iters" value="200" type="int"/>
     <param name="minimum_new_cluster_separation" value="5.0" type="double"/>
