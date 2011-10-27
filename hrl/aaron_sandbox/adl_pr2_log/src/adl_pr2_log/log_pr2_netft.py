@@ -16,7 +16,7 @@ import hrl_lib.util as ut
 
 from tf.msg import tfMessage
 from geometry_msgs.msg import TransformStamped, WrenchStamped
-#from std_msgs.msg import Bool
+from std_msgs.msg import Bool
 from pr2_controllers_msgs.msg import JointTrajectoryControllerState
 
 
@@ -50,6 +50,10 @@ class PR2_tool_pose():
 		self.rot = np.matrix([0.,0.,0.]).T
 		self.init_rot = np.matrix([0.,0.,0.]).T
 		self.quat = [0.,0.,0.,0.]
+		self.jt_name = 0.
+		self.jt_pos = 0.
+		self.jt_vel = 0.
+		self.jt_time = 0.
 
 		self.time_data = []
 		self.pos_data = []
@@ -287,7 +291,7 @@ class ADL_PR2_log():
 
 		raw_input('press Enter to set origin')
 		self.tooltip.set_origin()
-#		self.ft.reset()
+#		self.ft.reset()		#rezero the ft sensor
 			
 		raw_input('press Enter to begin the test')
 		self.init_time = rospy.get_time()
@@ -322,7 +326,7 @@ class ADL_PR2_log():
 	def log_state(self):
 		self.tooltip.log(self.tooltip_log_file)
 		self.ft.log(self.ft_log_file)
-		print '\nTool_Pos\t\tForce:\t\t\tHead_rot',\
+		print '\nTool_Pos\t\tForce',\
 			'\nX: ', self.tooltip.delta_pos[0,0],'\t',\
 				self.ft.force[0,0],'\t',\
 			'\nY: ', self.tooltip.delta_pos[1,0],'\t',\
