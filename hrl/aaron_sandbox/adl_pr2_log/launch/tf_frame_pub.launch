@@ -1,13 +1,37 @@
 <launch>
-    <node name="pub_frame_l_gripper_tool_frame" 
+    <node name="pub_l_gripper_tool_frame" 
 		pkg="adl_pr2_log"
 		type="tf_frame_publisher.py"
 		args="-sl_gripper_tool_frame -ttorso_lift_link"
 	        respawn="false" output="screen"/>
 
-    <node name="pub_frame_torso_lift_link" 
+    <node name="pub_torso_lift_link" 
 		pkg="adl_pr2_log"
 		type="tf_frame_publisher.py"
 		args="-storso_lift_link -tbase_link"
+	        respawn="false" output="screen"/>
+
+    <node name="pub_l_gripper_shaver0_frame" 
+		pkg="adl_pr2_log"
+		type="tf_frame_publisher.py"
+		args="-sl_gripper_shaver0_frame -ttorso_lift_link"
+	        respawn="false" output="screen"/>
+
+    <node name="pub_l_gripper_shaver45_frame" 
+		pkg="adl_pr2_log"
+		type="tf_frame_publisher.py"
+		args="-sl_gripper_shaver45_frame -ttorso_lift_link"
+	        respawn="false" output="screen"/>
+
+    <node name="pub_l_gripper_shaver90_frame" 
+		pkg="adl_pr2_log"
+		type="tf_frame_publisher.py"
+		args="-sl_gripper_shaver90_frame -ttorso_lift_link"
+	        respawn="false" output="screen"/>
+
+    <node name="pub_ellipse_frame" 
+		pkg="adl_pr2_log"
+		type="tf_frame_publisher.py"
+		args="-sellipse_frame -ttorso_lift_link"
 	        respawn="false" output="screen"/>
 </launch>
