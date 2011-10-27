@@ -22,9 +22,9 @@ def log_parse():
 		and the target frame name')
 
 	parser.add_option("-s", "--source", action="store", type="string",\
-		dest="source_frame", default="/l_gripper_tool_frame")
+		dest="source_frame", default="l_gripper_tool_frame")
 	parser.add_option("-t", "--target" , action="store", type="string",\
-		dest="target_frame",default="/base_link")
+		dest="target_frame",default="base_link")
 	(options, args) = parser.parse_args()
 
 	return options.source_frame, options.target_frame
@@ -33,7 +33,7 @@ def log_parse():
 class tf_frame_publisher():
 	def __init__(self):
 		self.source_frame, self.target_frame = log_parse()
-		self.pub = rospy.Publisher('/frame'+self.source_frame,\
+		self.pub = rospy.Publisher('/frame/'+self.source_frame,\
 				TransformStamped)
 		rospy.init_node('pub_tf_'+self.source_frame)
 		self.tflistener = tf.TransformListener()
