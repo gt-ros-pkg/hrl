@@ -22,9 +22,9 @@ def log_parse():
 		and the target frame name')
 
 	parser.add_option("-s", "--source", action="store", type="string",\
-		dest="source_frame", default="l_gripper_tool_frame")
+		dest="source_frame", default="/l_gripper_tool_frame")
 	parser.add_option("-t", "--target" , action="store", type="string",\
-		dest="target_frame",default="base_link")
+		dest="target_frame",default="/base_link")
 	(options, args) = parser.parse_args()
 
 	return options.source_frame, options.target_frame
@@ -33,7 +33,7 @@ def log_parse():
 class tf_frame_publisher():
 	def __init__(self):
 		self.source_frame, self.target_frame = log_parse()
-		self.pub = rospy.Publisher('/frame_'+self.source_frame,\
+		self.pub = rospy.Publisher('/frame'+self.source_frame,\
 				TransformStamped)
 		rospy.init_node('pub_tf_'+self.source_frame)
 		self.tflistener = tf.TransformListener()
@@ -46,11 +46,11 @@ class tf_frame_publisher():
 
 	def listen_pub(self):
 		while not rospy.is_shutdown():
-			p, q = self.tflistener.lookupTransform('/'+self.target_frame,\
-					'/'+self.source_frame, rospy.Time(0))
-			self.tf.header.frame_id = '/'+self.target_frame
+			p, q = self.tflistener.lookupTransform(self.target_frame,\
+					self.source_frame, rospy.Time(0))
+			self.tf.header.frame_id = self.target_frame
 			self.tf.header.stamp = rospy.Time.now()
-			self.tf.child_frame_id = '/'+self.source_frame		
+			self.tf.child_frame_id = self.source_frame		
 			self.tf.transform.translation.x = p[0]
 			self.tf.transform.translation.y = p[1]
 			self.tf.transform.translation.z = p[2]
