@@ -20,6 +20,7 @@
 #include <pixel_2_3d/Pixel23d.h>
 
 #define DIST3(x1,y1,z1,x2,y2,z2) (std::sqrt((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2)))
+#define SQ(x) ((x) * (x))
 typedef pcl::PointXYZRGB PRGB;
 
 namespace pixel_2_3d {
@@ -37,7 +38,7 @@ namespace pixel_2_3d {
             double normal_search_radius;
             std::string output_frame;
             uint32_t img_width, img_height;
-            bool cam_called, pc_called;
+            bool cam_called, pc_called, use_closest_pixel;
 
             Pixel23dServer();
             void onInit();
@@ -57,6 +58,7 @@ namespace pixel_2_3d {
 
     void Pixel23dServer::onInit() {
         nh.param<double>("normal_radius", normal_search_radius, 0.03);
+        nh.param<bool>("use_closest_pixel", use_closest_pixel, false);
         nh.param<std::string>("output_frame", output_frame, "");
         camera_sub = img_trans.subscribeCamera<Pixel23dServer>
                                               ("/image", 1, 
@@ -109,14 +111,28 @@ namespace pixel_2_3d {
         geometry_msgs::PointStamped pt3d, pt3d_trans;
         pt3d_trans.header.frame_id = cur_pc->header.frame_id;
         pt3d_trans.header.stamp = ros::Time::now();
+        if(cur_pc->points[pc_ind].x != cur_pc->points[pc_ind].x) {
+            if(use_closest_pixel) {
+                // find the closest pixel that has a point in the PC
+                std::vector<double> dists(img_width * img_height, 1e30);
+                int64_t cur_pc_ind;
+                for(int64_t i=0;i<img_height;i++) {
+                    for(int64_t j=0;j<img_width;j++) {
+                        cur_pc_ind = j + i * img_width;
+                        if(cur_pc->points[cur_pc_ind].x == cur_pc->points[cur_pc_ind].x)
+                            dists[cur_pc_ind] = SQ(req.pixel_u - j) + SQ(req.pixel_v - i);
+                    }
+                }
+                pc_ind = std::min_element(dists.begin(), dists.end()) - dists.begin();
+            } else {
+                ROS_WARN("Point cloud not defined for this region.");
+                resp.error_flag = resp.OUTSIDE_POINT_CLOUD;
+                return true;
+            }
+        }
         pt3d_trans.point.x = cur_pc->points[pc_ind].x;
         pt3d_trans.point.y = cur_pc->points[pc_ind].y;
         pt3d_trans.point.z = cur_pc->points[pc_ind].z;
-        if(pt3d_trans.point.x != pt3d_trans.point.x) {
-            ROS_WARN("Point cloud not defined for this region.");
-            resp.error_flag = resp.OUTSIDE_POINT_CLOUD;
-            return true;
-        }
 
         // Filter to only points in small voxel range
         pcl::ConditionAnd<PRGB>::Ptr near_cond(new pcl::ConditionAnd<PRGB>());
