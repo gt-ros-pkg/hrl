@@ -44,7 +44,7 @@ class posearray_wrench_publisher():
 		self.pub = rospy.Publisher('/adl_wrench_posearray',\
 				WrenchPoseArrayStamped)
 		self.tflistener = tf.TransformListener()
-		self.force_sub = rospy.Subscriber(ft_topic, WrenchStamped, self.listen_cb)
+		self.force_sub = rospy.Subscriber(ft_topic, WrenchStamped, self.force_cb)
 		self.msg = WrenchPoseArrayStamped()
 		self.tool_pose = Pose()
 		self.head_pose = Pose()
@@ -58,47 +58,56 @@ class posearray_wrench_publisher():
 		self.torso_q = [0.,0.,0.,0.]
 
 
-	def listen_cb(self, f_msg):
-		self.tool_p, self.tool_q = self.tflistener.lookupTransform\
-			(self.torso_frame, self.tool_frame, rospy.Time(0))
-		self.head_p, self.head_q = self.tflistener.lookupTransform\
-			(self.torso_frame, self.head_frame, rospy.Time(0))
-		self.torso_p, self.head_q = self.tflistener.lookupTransform\
-			(self.base_frame, self.torso_frame, rospy.Time(0))
-		self.msg.header.stamp = rospy.Time.now()
-		self.msg.wrench = f_msg.wrench
+	def force_cb(self, f_msg):
+		self.msg.wrench = f_msg.wrench		
 
-#	poses[0] is the tool frame
-		self.tool_pose.position.x = self.tool_p[0]
-		self.tool_pose.position.y = self.tool_p[1]
-		self.tool_pose.position.z = self.tool_p[2]
-		self.tool_pose.orientation.x = self.tool_q[0]
-		self.tool_pose.orientation.y = self.tool_q[1]
-		self.tool_pose.orientation.z = self.tool_q[2]
-		self.tool_pose.orientation.w = self.tool_q[3]
-		self.msg.poses.append(self.tool_pose)
-#	poses[1] is the head frame
-		self.head_pose.position.x = self.head_p[0]
-		self.head_pose.position.y = self.head_p[1]
-		self.head_pose.position.z = self.head_p[2]
-		self.head_pose.orientation.x = self.head_q[0]
-		self.head_pose.orientation.y = self.head_q[1]
-		self.head_pose.orientation.z = self.head_q[2]
-		self.head_pose.orientation.w = self.head_q[3]
-		self.msg.poses.append(self.head_pose)
-#	poses[2] is the tool frame
-		self.torso_pose.position.x = self.torso_p[0]
-		self.torso_pose.position.y = self.torso_p[1]
-		self.torso_pose.position.z = self.torso_p[2]
-		self.torso_pose.orientation.x = self.torso_q[0]
-		self.torso_pose.orientation.y = self.torso_q[1]
-		self.torso_pose.orientation.z = self.torso_q[2]
-		self.torso_pose.orientation.w = self.torso_q[3]
-		self.msg.poses.append(self.torso_pose)
+
+	def pose_wrench_pub(self, f_msg):
+		while not rospy.is_shutdown():
+			self.tool_p, self.tool_q = self.tflistener.lookupTransform\
+				(self.torso_frame, self.tool_frame, rospy.Time(0))
+			self.head_p, self.head_q = self.tflistener.lookupTransform\
+				(self.torso_frame, self.head_frame, rospy.Time(0))
+			self.torso_p, self.head_q = self.tflistener.lookupTransform\
+				(self.base_frame, self.torso_frame, rospy.Time(0))
+			self.msg.header.stamp = rospy.Time.now()
+
+#		poses[0] is the tool frame
+			self.tool_pose.position.x = self.tool_p[0]
+			self.tool_pose.position.y = self.tool_p[1]
+			self.tool_pose.position.z = self.tool_p[2]
+			self.tool_pose.orientation.x = self.tool_q[0]
+			self.tool_pose.orientation.y = self.tool_q[1]
+			self.tool_pose.orientation.z = self.tool_q[2]
+			self.tool_pose.orientation.w = self.tool_q[3]
+			self.msg.poses.append(self.tool_pose)
+#		poses[1] is the head frame
+			self.head_pose.position.x = self.head_p[0]
+			self.head_pose.position.y = self.head_p[1]
+			self.head_pose.position.z = self.head_p[2]
+			self.head_pose.orientation.x = self.head_q[0]
+			self.head_pose.orientation.y = self.head_q[1]
+			self.head_pose.orientation.z = self.head_q[2]
+			self.head_pose.orientation.w = self.head_q[3]
+			self.msg.poses.append(self.head_pose)
+#		poses[2] is the tool frame
+			self.torso_pose.position.x = self.torso_p[0]
+			self.torso_pose.position.y = self.torso_p[1]
+			self.torso_pose.position.z = self.torso_p[2]
+			self.torso_pose.orientation.x = self.torso_q[0]
+			self.torso_pose.orientation.y = self.torso_q[1]
+			self.torso_pose.orientation.z = self.torso_q[2]
+			self.torso_pose.orientation.w = self.torso_q[3]
+			self.msg.poses.append(self.torso_pose)
+
+			self.pub.publish(self.msg)
+			rospy.sleep(1/100.)
+
 
 if __name__ == '__main__':
 	data = posearray_wrench_publisher()
 	rospy.sleep(1)
-	while not rospy.is_shutdown():
-		data.pub.publish(data.msg)
-		rospy.sleep(1/100.)
+	try:
+		data.pose_wrench_pub()
+	except rospy.ROSInterruptException: pass
+
