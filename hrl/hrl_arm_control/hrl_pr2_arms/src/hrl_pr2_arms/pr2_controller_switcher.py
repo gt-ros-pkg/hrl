@@ -67,6 +67,7 @@ class ControllerSwitcher:
         for i, controller in enumerate(resp.controllers):
             if controller in check_arm_controllers and resp.state[i] == 'running':
                 stop_controllers.append(controller)
+        self.load_controller(new_controller)
         resp = self.switch_controller_srv(start_controllers, stop_controllers, 1)
         return resp.ok
 
