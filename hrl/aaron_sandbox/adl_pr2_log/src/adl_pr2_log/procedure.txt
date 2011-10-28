@@ -1,0 +1,11 @@
+1. Make sure the following are running:
+	a) netft topic: /netft_gravity_zeroing/wrench_zeroed
+	b) l_gripper_shaver45_frame and ellipse_frame in tf
+
+2. roslaunch adl_pr2_log pos_wrench.launch tool:="/l_gripper_shaver45_frame"
+
+To record:
+3. roscd adl_pr2_log/src/adl_pr2_log
+    ./log_pr2_netft.py
+
+4. rosrun adl_pr2_log record_pr2_forces.sh $file_name$.bag

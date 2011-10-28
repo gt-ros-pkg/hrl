@@ -1,0 +1,10 @@
+<launch>
+    <arg name="tool" default="/l_gripper_tool_frame" />
+
+    <node name="pub_posearray_wrench" 
+		pkg="adl_pr2_log"
+		type="posearray_wrench_publisher.py"
+		args="--tool=$(arg tool)"
+	        respawn="false" output="screen"/>
+
+</launch>
