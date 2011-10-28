@@ -2761,13 +2761,13 @@
   </joint>
   <link name="l_gripper_shaver0_frame"/>
   <joint name="l_gripper_shaver45_joint" type="fixed">
-    <origin rpy="0 0 0.7854" xyz="0.08438 0.04738 0"/>
+    <origin rpy="0.0 0.0 -0.7854" xyz="0.08438 -0.04738 0"/>
     <parent link="l_gripper_tool_frame"/>
     <child link="l_gripper_shaver45_frame"/>
   </joint>
   <link name="l_gripper_shaver45_frame"/>
   <joint name="l_gripper_shaver90_joint" type="fixed">
-    <origin rpy="0 0 1.5708" xyz="0 0.08 0"/>
+    <origin rpy="0 0 -1.5708" xyz="0 0.08 0"/>
     <parent link="l_gripper_tool_frame"/>
     <child link="l_gripper_shaver90_frame"/>
   </joint>

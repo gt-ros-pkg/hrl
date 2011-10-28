@@ -23,7 +23,7 @@ class EllipsoidController(object):
     def __init__(self, arm):
         self.time_step = 1. / 20.
         self.ell_steps = [0.1, 0.1, 0.1] # TODO TUNE THESE
-        self.gripper_rot = 0.
+        self.gripper_rot = np.pi 
         self.arm = arm
         self.ell_traj_behavior = EPC("ellipsoid_traj")
         self.ell_space = EllipsoidSpace(1)
@@ -95,15 +95,22 @@ class EllipsoidController(object):
     def execute_trajectory(self, ell_f, duration=5.):
         num_samps = int(duration / self.time_step)
         t_vals = min_jerk_traj(num_samps)
+        self.reset_ell_ep()
+        #self.arm.reset_ep()
         ell_init = np.mat(self.ell_ep).T
         ell_final = np.mat(ell_f).T
         ell_traj = np.array(ell_init) + np.array(np.tile(ell_final - ell_init, (1, num_samps))) * np.array(t_vals)
         cur_time = rospy.Time.now()
         ell_pose_traj = [self.ellipsoidal_pose(*x) 
                          for x in np.vstack((ell_traj, [self.gripper_rot]*num_samps, [cur_time]*num_samps)).T.tolist()]
-        self.start_pub.publish(PoseConverter.to_pose_stamped_msg("/torso_lift_link", ell_pose_traj[0]))
-        self.end_pub.publish(PoseConverter.to_pose_stamped_msg("/torso_lift_link", ell_pose_traj[-1]))
-        ep_traj_control = EPTrajectoryControl(self.arm, ell_pose_traj)
+        # replace the rotation matricies with a simple cartesian slerp
+        cart_interp_traj = self.arm.interpolate_ep(self.arm.get_ep(), ell_pose_traj[-1], 
+                                                   min_jerk_traj(num_samps))
+        fixed_traj = [(ell_pose_traj[i][0], cart_interp_traj[i][1]) for i in range(num_samps)]
+
+        self.start_pub.publish(PoseConverter.to_pose_stamped_msg("/torso_lift_link", cart_interp_traj[0]))
+        self.end_pub.publish(PoseConverter.to_pose_stamped_msg("/torso_lift_link", cart_interp_traj[-1]))
+        ep_traj_control = EPTrajectoryControl(self.arm, cart_interp_traj)
         self.ell_traj_behavior.epc_motion(ep_traj_control, self.time_step)
         self.ell_ep = ell_f
 
