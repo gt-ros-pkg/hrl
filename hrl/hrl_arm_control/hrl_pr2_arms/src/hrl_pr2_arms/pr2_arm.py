@@ -89,7 +89,7 @@ def create_pr2_arm(arm, arm_type=PR2Arm, base_link="torso_lift_link",
     if "%s" in end_link:
         end_link = end_link % arm
     chain, joint_info = kdlp.chain_from_param(base_link, end_link, param=param)
-    kin = KDLArmKinematics(chain, joint_info)
+    kin = KDLArmKinematics(chain, joint_info, base_link, end_link)
     return arm_type(arm, kin)
 
 class PR2ArmJointTrajectory(PR2Arm):
@@ -195,7 +195,9 @@ class PR2ArmJTransposeTask(PR2ArmCartesianPostureBase):
         self.command_gains_pub = rospy.Publisher(self.controller_name + '/gains', CartesianGains)
         rospy.sleep(1)
 
-    def set_gains(self, p_gains, d_gains, frame='torso_lift_link'):
+    def set_gains(self, p_gains, d_gains, frame=None):
+        if frame is None:
+            frame = self.kinematics.end_link
         all_gains = list(p_gains) + list(d_gains)
         gains_msg = CartesianGains(Header(0, rospy.Time.now(), frame),
                                    all_gains, [])

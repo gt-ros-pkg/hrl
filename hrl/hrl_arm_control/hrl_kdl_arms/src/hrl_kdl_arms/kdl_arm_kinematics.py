@@ -41,10 +41,12 @@ import urdf_parser_python.urdf_parser as urdf
 from hrl_generic_arms.hrl_arm_template import HRLArmKinematics
 
 class KDLArmKinematics(HRLArmKinematics):
-    def __init__(self, chain, joint_info):
+    def __init__(self, chain, joint_info, base_link="", end_link=""):
         super(KDLArmKinematics, self).__init__(chain.getNrOfJoints())
         self.chain = chain
         self.joint_info = joint_info
+        self.base_link = base_link
+        self.end_link = end_link
 
         self.fk_kdl = kdl.ChainFkSolverPos_recursive(self.chain)
         self.ik_v_kdl = kdl.ChainIkSolverVel_pinv(self.chain)
