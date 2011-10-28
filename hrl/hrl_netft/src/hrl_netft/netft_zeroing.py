@@ -208,7 +208,6 @@ class NetFTZeroer:
         zeroing_wrench = force_grav + torque_grav + self.wrench_zero
         zeroed_wrench = self.react_mult * (cur_wrench - zeroing_wrench)
         
-        print force_grav, "-", cur_wrench
         if not self.got_zero:
             self.wrench_zero = (cur_wrench - (force_grav + torque_grav))
             self.got_zero = True
