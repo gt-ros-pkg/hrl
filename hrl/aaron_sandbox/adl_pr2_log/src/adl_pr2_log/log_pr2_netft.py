@@ -239,16 +239,16 @@ class ADL_PR2_log():
 					"\n0) gripper\n: ")
 			if num == '1':
 				self.tool_name = 'scratcher'
-				self.tool_frame_name = 'scratcher'
+				self.tool_frame_name = 'l_gripper_scratcher45_frame'
 			elif num == '2':
 				self.tool_name = 'shaver'
-				self.tool_frame_name = 'shaver'
+				self.tool_frame_name = 'l_gripper_shaver45_frame'
 			elif num == '3':
 				self.tool_name = 'wipe_finger'
 				self.tool_frame_name = 'wipe_finger'
 			elif num == '4':
 				self.tool_name = 'spoon'
-				self.tool_frame_name = 'spoon'
+				self.tool_frame_name = 'l_gripper_shaver45_frame'
 			elif num == '5':
 				self.tool_name = 'tooth_brush'
 				self.tool_frame_name = 'tooth_brush'
@@ -288,6 +288,10 @@ class ADL_PR2_log():
 		self.tooltip_log_file = open(self.file_name+'_tool.log','w')
 		self.gen_log_file = open(self.file_name+'_gen.log','w')
 		self.pkl = open(self.file_name+'.pkl','w')
+		head_p, head_q = self.tflistener.lookupTransform('/base_link',
+					'/ellipse_frame', rospy.Time(0))
+		torso_p, torso_q = self.tflistener.lookupTransform('/base_link',
+					'/torso_lift_link', rospy.Time(0))
 
 		raw_input('press Enter to set origin')
 		self.tooltip.set_origin()
@@ -320,7 +324,15 @@ class ADL_PR2_log():
 				self.ft.torque[2,0],\
 				self.ft.torque_raw [0,0],\
 				self.ft.torque_raw [1,0],\
-				self.ft.torque_raw [2,0]
+				self.ft.torque_raw [2,0],\
+			'\nhead_pos\n X Y Z\n',\
+				head_p[0],head_p[1],head_p[2],\
+			'\nhead_quat\n Qx Qy Qz Qw\n',\
+				head_q[0],head_q[1],head_q[2],head_q[3],\
+			'\ntorso_pos\n X Y Z\n',\
+				torso_p[0],torso_p[1],torso_p[2],\
+			'\ntorso_quat\n Qx Qy Qz Qw\n',\
+				torso_q[0],torso_q[1],torso_q[2],torso_q[3],\
 
 
 	def log_state(self):
