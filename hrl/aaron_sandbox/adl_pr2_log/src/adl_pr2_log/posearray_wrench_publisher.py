@@ -52,12 +52,14 @@ class posearray_wrench_publisher():
 	def pose_wrench_pub(self):
 		while not rospy.is_shutdown():
 			self.tool_p, self.tool_q = self.tflistener.lookupTransform\
-				(self.torso_frame, self.tool_frame, rospy.Time(0))
+				(self.base_frame, self.tool_frame, rospy.Time(0))
 			self.head_p, self.head_q = self.tflistener.lookupTransform\
-				(self.torso_frame, self.head_frame, rospy.Time(0))
+				(self.base_frame, self.head_frame, rospy.Time(0))
 			self.torso_p, self.torso_q = self.tflistener.lookupTransform\
 				(self.base_frame, self.torso_frame, rospy.Time(0))
 			self.msg.header.stamp = rospy.Time.now()
+			self.msg.header.frame_id = self.base_frame
+			self.msg.poses = []
 
 #		poses[0] is the tool frame
 			self.tool_pose.position.x = self.tool_p[0]
@@ -88,8 +90,8 @@ class posearray_wrench_publisher():
 			self.msg.poses.append(self.torso_pose)
 
 			self.pub.publish(self.msg)
-			print 'force: ', self.msg.wrench
-			print 'tool_pose: ', self.wrench.pose[0]
+			print '\nwrench:\n ', self.msg.wrench
+			print '\ntool_pose:\n ', self.msg.poses[0]
 			rospy.sleep(1/100.)
 
 
