@@ -16,6 +16,8 @@ import hrl_lib.util as ut
 from adl_pr2_log.msg import WrenchPoseArrayStamped
 from geometry_msgs.msg import TransformStamped
 from geometry_msgs.msg import WrenchStamped
+from geometry_msgs.msg import Pose
+
 
 
 def log_parse():
@@ -32,7 +34,8 @@ def log_parse():
 class posearray_wrench_publisher():
 	def __init__(self):
 		self.tool_frame = '/'+log_parse()
-		self.head_frame = '/ellipse_frame'
+#		self.head_frame = '/ellipse_frame'
+		self.head_frame = '/'+log_parse()
 		self.torso_frame = '/torso_lift_link'
 		self.base_frame = '/base_link'
 		ft_topic = '/netft_gravity_zeroing/wrench_zeroed'
@@ -43,6 +46,9 @@ class posearray_wrench_publisher():
 		self.tflistener = tf.TransformListener()
 		self.force_sub = rospy.Subscriber(ft_topic, WrenchStamped, self.listen_cb)
 		self.msg = WrenchPoseArrayStamped()
+		self.tool_pose = Pose()
+		self.head_pose = Pose()
+		self.torso_pose = Pose()
 
 		self.tool_p = [0.,0.,0.]
 		self.tool_q = [0.,0.,0.,0.]
@@ -59,35 +65,36 @@ class posearray_wrench_publisher():
 			(self.torso_frame, self.head_frame, rospy.Time(0))
 		self.torso_p, self.head_q = self.tflistener.lookupTransform\
 			(self.base_frame, self.torso_frame, rospy.Time(0))
-		self.msg.header.frame_id = '/'+self.target_frame
 		self.msg.header.stamp = rospy.Time.now()
 		self.msg.wrench = f_msg.wrench
 
 #	poses[0] is the tool frame
-		self.msg.poses[0].position.x = self.tool_p[0]
-		self.msg.poses[0].position.y = self.tool_p[1]
-		self.msg.poses[0].position.z = self.tool_p[2]
-		self.msg.poses[0].orientation.x = self.tool_q[0]
-		self.msg.poses[0].orientation.y = self.tool_q[1]
-		self.msg.poses[0].orientation.z = self.tool_q[2]
-		self.msg.poses[0].orientation.w = self.tool_q[3]
+		self.tool_pose.position.x = self.tool_p[0]
+		self.tool_pose.position.y = self.tool_p[1]
+		self.tool_pose.position.z = self.tool_p[2]
+		self.tool_pose.orientation.x = self.tool_q[0]
+		self.tool_pose.orientation.y = self.tool_q[1]
+		self.tool_pose.orientation.z = self.tool_q[2]
+		self.tool_pose.orientation.w = self.tool_q[3]
+		self.msg.poses.append(self.tool_pose)
 #	poses[1] is the head frame
-		self.msg.poses[0].position.x = self.head_p[0]
-		self.msg.poses[0].position.y = self.head_p[1]
-		self.msg.poses[0].position.z = self.head_p[2]
-		self.msg.poses[0].orientation.x = self.head_q[0]
-		self.msg.poses[0].orientation.y = self.head_q[1]
-		self.msg.poses[0].orientation.z = self.head_q[2]
-		self.msg.poses[0].orientation.w = self.head_q[3]
+		self.head_pose.position.x = self.head_p[0]
+		self.head_pose.position.y = self.head_p[1]
+		self.head_pose.position.z = self.head_p[2]
+		self.head_pose.orientation.x = self.head_q[0]
+		self.head_pose.orientation.y = self.head_q[1]
+		self.head_pose.orientation.z = self.head_q[2]
+		self.head_pose.orientation.w = self.head_q[3]
+		self.msg.poses.append(self.head_pose)
 #	poses[2] is the tool frame
-		self.msg.poses[0].position.x = self.torso_p[0]
-		self.msg.poses[0].position.y = self.torso_p[1]
-		self.msg.poses[0].position.z = self.torso_p[2]
-		self.msg.poses[0].orientation.x = self.torso_q[0]
-		self.msg.poses[0].orientation.y = self.torso_q[1]
-		self.msg.poses[0].orientation.z = self.torso_q[2]
-		self.msg.poses[0].orientation.w = self.torso_q[3]
-
+		self.torso_pose.position.x = self.torso_p[0]
+		self.torso_pose.position.y = self.torso_p[1]
+		self.torso_pose.position.z = self.torso_p[2]
+		self.torso_pose.orientation.x = self.torso_q[0]
+		self.torso_pose.orientation.y = self.torso_q[1]
+		self.torso_pose.orientation.z = self.torso_q[2]
+		self.torso_pose.orientation.w = self.torso_q[3]
+		self.msg.poses.append(self.torso_pose)
 
 if __name__ == '__main__':
 	data = posearray_wrench_publisher()
