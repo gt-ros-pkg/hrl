@@ -1,7 +1,15 @@
 Header header
-    uint32 seq
-    time stamp
-geometry_msgs/Wrench Wrench
+  uint32 seq
+  time stamp
+geometry_msgs/Wrench wrench
+  Vector3 force
+    float64 x
+    float64 y
+    float64 z
+  Vector3 torque
+    float64 x
+    float64 y
+    float64 z
 geometry_msgs/Pose[] poses
     geometry_msgs/Point position
         float64 x

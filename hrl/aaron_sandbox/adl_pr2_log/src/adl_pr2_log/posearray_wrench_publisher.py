@@ -3,6 +3,7 @@
 import roslib
 roslib.load_manifest('tf')
 roslib.load_manifest('rospy')
+roslib.load_manifest('adl_pr2_log')
 roslib.load_manifest('geometry_msgs')
 roslib.load_manifest('hrl_lib')
 import rospy, optparse, math, time

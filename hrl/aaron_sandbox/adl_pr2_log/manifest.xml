@@ -6,11 +6,9 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/adls</url>
-  <depend package="netft_rdt_driver"/>
-  <depend package="force_torque"/>
+  <depend package="tf"/>
   <depend package="hrl_lib"/>
   <depend package="rospy"/>
-  <depend package="ros_vrpn_client"/>
 </package>
 
 
