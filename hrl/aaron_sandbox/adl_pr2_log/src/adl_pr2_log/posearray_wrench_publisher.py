@@ -5,16 +5,10 @@ roslib.load_manifest('tf')
 roslib.load_manifest('rospy')
 roslib.load_manifest('adl_pr2_log')
 roslib.load_manifest('geometry_msgs')
-roslib.load_manifest('hrl_lib')
 import rospy, optparse, math, time
 import numpy as np
 import tf
-import tf.transformations as tr
-import cPickle as pkl
-import hrl_lib.transforms as hrl_tr
-import hrl_lib.util as ut
 from adl_pr2_log.msg import WrenchPoseArrayStamped
-from geometry_msgs.msg import TransformStamped
 from geometry_msgs.msg import WrenchStamped
 from geometry_msgs.msg import Pose
 
@@ -50,25 +44,18 @@ class posearray_wrench_publisher():
 		self.head_pose = Pose()
 		self.torso_pose = Pose()
 
-		self.tool_p = [0.,0.,0.]
-		self.tool_q = [0.,0.,0.,0.]
-		self.head_p = [0.,0.,0.]
-		self.head_q = [0.,0.,0.,0.]
-		self.torso_p = [0.,0.,0.]
-		self.torso_q = [0.,0.,0.,0.]
-
 
 	def force_cb(self, f_msg):
 		self.msg.wrench = f_msg.wrench		
 
 
-	def pose_wrench_pub(self, f_msg):
+	def pose_wrench_pub(self):
 		while not rospy.is_shutdown():
 			self.tool_p, self.tool_q = self.tflistener.lookupTransform\
 				(self.torso_frame, self.tool_frame, rospy.Time(0))
 			self.head_p, self.head_q = self.tflistener.lookupTransform\
 				(self.torso_frame, self.head_frame, rospy.Time(0))
-			self.torso_p, self.head_q = self.tflistener.lookupTransform\
+			self.torso_p, self.torso_q = self.tflistener.lookupTransform\
 				(self.base_frame, self.torso_frame, rospy.Time(0))
 			self.msg.header.stamp = rospy.Time.now()
 
@@ -101,6 +88,8 @@ class posearray_wrench_publisher():
 			self.msg.poses.append(self.torso_pose)
 
 			self.pub.publish(self.msg)
+			print 'force: ', self.msg.wrench
+			print 'tool_pose: ', self.wrench.pose[0]
 			rospy.sleep(1/100.)
 
 
