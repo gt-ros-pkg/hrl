@@ -1,0 +1,5 @@
+int16 change_latitude
+int16 change_longitude
+int16 change_height
+float32 duration
+---

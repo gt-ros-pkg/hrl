@@ -2,6 +2,7 @@
         
 import numpy as np
 import copy
+from threading import Lock
 
 import roslib
 roslib.load_manifest('hrl_generic_arms')
@@ -32,6 +33,8 @@ class EllipsoidController(object):
         self.ell_sub = rospy.Subscriber("/ellipsoid_params", EllipsoidParams, self.read_params)
         self.start_pub = rospy.Publisher("/start_pose", PoseStamped)
         self.end_pub = rospy.Publisher("/end_pose", PoseStamped)
+        self.ell_cmd_lock = Lock()
+        self.ell_cmd_srv = rospy.Service("/ellipsoid_command", EllipsoidCommand, self.ellipsoid_command_srv)
         while not rospy.is_shutdown() and not self.found_params:
             rospy.sleep(0.1)
 
@@ -91,6 +94,14 @@ class EllipsoidController(object):
             elif direction[i] < 0:
                 ell_f[i] -= self.ell_steps[i]
         self.execute_trajectory(ell_f, duration)
+
+    def ellipsoid_command_srv(self, req):
+        with self.ell_cmd_lock:
+            direction = [req.change_latitude, req.change_longitude, req.change_height]
+            if req.duration == 0:
+                self.command_move(direction)
+            else:
+                self.command_move(direction, req.duration)
 
     def execute_trajectory(self, ell_f, duration=5.):
         num_samps = int(duration / self.time_step)
