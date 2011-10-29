@@ -15,6 +15,17 @@ from hrl_rfh_fall_2011.sm_register_head_ellipse import SMEllipsoidRegistration
 from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
 from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPositionGoal
 
+class SetupTaskController(smach.State):
+        def __init__(self):
+            smach.State.__init__(self, output_keys=['nav_dist'],
+                                 outcomes=['success'])
+            self.arm = create_pr2_arm('l', PR2ArmJTransposeTask, end_link="%s_gripper_shaver45_frame")
+
+        def execute(self, userdata):
+            # TODO SETUP ARM TODO
+            # posture, gains, 
+            return 'success'
+
 class SMRegistrationSetup(object):
     def __init__(self):
         self.sm_nav_approach = SMNavApproach()
@@ -50,7 +61,12 @@ class SMRegistrationSetup(object):
                 transitions = { 'succeeded' : 'HEAD_REG_ALL' })
 
             smach.StateMachine.add('HEAD_REG_ALL',
-                    self.sm_ell_reg.get_sm())
+                    self.sm_ell_reg.get_sm(),
+                    transitions = { 'succeeded' : 'SETUP_TASK_CONTROLLER' })
+
+            smach.StateMachine.add(
+                'SETUP_TASK_CONTROLLER',
+                SetupTaskController())
 
         return sm
 
