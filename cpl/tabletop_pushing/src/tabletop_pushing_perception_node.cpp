@@ -107,18 +107,18 @@
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
-#define DISPLAY_OPTICAL_FLOW 1
+// #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
-#define DISPLAY_UV 1
+// #define DISPLAY_UV 1
 #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS 1
 // #define DISPLAY_ARM_CIRCLES 1
-// #define DISPLAY_TABLE_DISTANCES 1
+#define DISPLAY_TABLE_DISTANCES 1
 #define DISPLAY_FLOW_FIELD_CLUSTERING 1
-#define DISPLAY_TRACKER_OUTPUT 1
+// #define DISPLAY_TRACKER_OUTPUT 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
@@ -817,9 +817,16 @@ class FeatureTracker
     std::vector<float> raw_descriptors;
     try
     {
-      // TODO: Make this a switch
-      // TODO: Try other corner detectors, i.e. (STAR, FAST)
-      surf_(frame, mask, cur_keypoints_, raw_descriptors);
+      // if (use_fast_)
+      // {
+      //   cv::FAST(frame, cur_keypoints_, 9, true);
+      //   // TODO: Remove keypoints outside the mask
+      //   surf_(frame, mask, cur_keypoints_, raw_descriptors, true);
+      // }
+      // else
+      // {
+      surf_(frame, mask, cur_keypoints_, raw_descriptors, false);
+      // }
       for (unsigned int i = 0; i < raw_descriptors.size(); i += 128)
       {
         Descriptor d(raw_descriptors.begin() + i,
@@ -1546,9 +1553,6 @@ class ObjectSingulation
     double compactness[max_k_];
     cv::TermCriteria term_crit(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER,
                                kmeans_max_iter_, kmeans_epsilon_);
-    cv::Mat img_bw;
-    cv::cvtColor(color_img, img_bw, CV_BGR2GRAY);
-    // AffineFlowMeasures sparseFlow = ft_.updateTracks(img_bw, mask);
 
     AffineFlowMeasures cluster_centers;
     AffineFlowMeasures fewer_centers;
@@ -1829,8 +1833,11 @@ class ObjectSingulation
   {
     cv::Mat img_bw;
     cv::cvtColor(color_img, img_bw, CV_BGR2GRAY);
-    AffineFlowMeasures sparseFlow = ft_.updateTracks(img_bw);
-    // AffineFlowMeasures sparseFlow = ft_.updateTracksLK(img_bw);
+    AffineFlowMeasures sparseFlow = ft_.updateTracks(img_bw, mask);
+
+    // TODO: Perform some sort of clustering on the sparse flow examples
+    // and match the dense flow to each of these clusters as well as a null?
+    // TODO: Try and match geometric transforms to the observed visual transform
     AffineFlowMeasures clusters;
     return clusters;
   }
