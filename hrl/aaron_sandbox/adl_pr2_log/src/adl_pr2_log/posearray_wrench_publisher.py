@@ -8,7 +8,7 @@ roslib.load_manifest('geometry_msgs')
 import rospy, optparse, math, time
 import numpy as np
 import tf
-from adl_pr2_log.msg import WrenchPoseArrayStamped
+from hrl_lib.msg import WrenchPoseArrayStamped
 from geometry_msgs.msg import WrenchStamped
 from geometry_msgs.msg import Pose
 
