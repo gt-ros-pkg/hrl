@@ -1,11 +1,15 @@
 1. Make sure the following are running:
 	a) netft topic: /netft_gravity_zeroing/wrench_zeroed
 	b) l_gripper_shaver45_frame and ellipse_frame in tf
+		i) rosrun tf tf_echo /$source_frame /base_link
 
-2. roslaunch adl_pr2_log pos_wrench.launch tool:="/l_gripper_shaver45_frame"
+2. roslaunch adl_pr2_log pose_wrench.launch tool:="/l_gripper_shaver45_frame"
 
 To record:
 3. roscd adl_pr2_log/src/adl_pr2_log
     ./log_pr2_netft.py
+
+goto /robot1_data/robots_for_humanity/201110
+rosbag record /kinect_head/rgb/points -l 1 $file_name$.bag
 
 4. rosrun adl_pr2_log record_pr2_forces.sh $file_name$.bag

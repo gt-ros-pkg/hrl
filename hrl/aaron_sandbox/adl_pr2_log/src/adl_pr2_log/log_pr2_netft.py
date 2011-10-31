@@ -236,10 +236,10 @@ class ADL_PR2_log():
 			num=raw_input("Enter the number for the choice of tool:"+\
 					"\n1) scratcher\n2) shaver\n3) wipe"+\
 					"\n4) spoon\n5) tooth brush\n6) comb"+\
-					"\n0) gripper\n: ")
+					"\n7) brush\n0) gripper\n: ")
 			if num == '1':
 				self.tool_name = 'scratcher'
-				self.tool_frame_name = 'l_gripper_scratcher45_frame'
+				self.tool_frame_name = 'scratcher'
 			elif num == '2':
 				self.tool_name = 'shaver'
 				self.tool_frame_name = 'l_gripper_shaver45_frame'
@@ -248,13 +248,16 @@ class ADL_PR2_log():
 				self.tool_frame_name = 'wipe_finger'
 			elif num == '4':
 				self.tool_name = 'spoon'
-				self.tool_frame_name = 'l_gripper_shaver45_frame'
+				self.tool_frame_name = 'spoon'
 			elif num == '5':
 				self.tool_name = 'tooth_brush'
 				self.tool_frame_name = 'tooth_brush'
 			elif num == '6':
 				self.tool_name = 'comb'
 				self.tool_frame_name = 'comb'
+			elif num == '7':
+				self.tool_name = 'brush'
+				self.tool_frame_name = 'brush'
 			elif num == '0':
 				self.tool_name = 'gripper'
 				self.tool_frame_name = 'l_gripper_tool_frame'

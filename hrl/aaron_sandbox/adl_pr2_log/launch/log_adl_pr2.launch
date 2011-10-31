@@ -1,5 +1,6 @@
 <launch>
-    <arg name="tool" default="l_gripper_tool_frame" />
+    <include file="$(find adl_pr2_log)/launch/adl_pr2_tool_frame.launch" />
+    <arg name="tool" default="l_gripper_shaver45_frame" />
 
     <node name="pub_posearray_wrench" 
 		pkg="adl_pr2_log"

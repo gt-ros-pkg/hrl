@@ -28,8 +28,8 @@ def log_parse():
 class posearray_wrench_publisher():
 	def __init__(self):
 		self.tool_frame = '/'+log_parse()
-#		self.head_frame = '/ellipse_frame'
-		self.head_frame = '/'+log_parse()
+		self.head_frame = '/ellipse_frame'
+#		self.head_frame = '/'+log_parse()
 		self.torso_frame = '/torso_lift_link'
 		self.base_frame = '/base_link'
 		ft_topic = '/netft_gravity_zeroing/wrench_zeroed'
@@ -90,8 +90,8 @@ class posearray_wrench_publisher():
 			self.msg.poses.append(self.torso_pose)
 
 			self.pub.publish(self.msg)
-			print '\nwrench:\n ', self.msg.wrench
-			print '\ntool_pose:\n ', self.msg.poses[0]
+#			print '\nwrench:\n ', self.msg.wrench
+#			print '\ntool_pose:\n ', self.msg.poses[0]
 			rospy.sleep(1/100.)
 
 
