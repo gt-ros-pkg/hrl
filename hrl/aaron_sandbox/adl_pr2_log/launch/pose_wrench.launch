@@ -1,10 +1,28 @@
 <launch>
-    <arg name="tool" default="/l_gripper_tool_frame" />
+    <arg name="tool" default="l_gripper_tool_frame" />
 
     <node name="pub_posearray_wrench" 
 		pkg="adl_pr2_log"
 		type="posearray_wrench_publisher.py"
 		args="--tool=$(arg tool)"
+	        respawn="false" output="screen"/>
+
+    <node name="pub_ellipse_frame" 
+		pkg="adl_pr2_log"
+		type="tf_frame_publisher.py"
+		args="-sellipse_frame -tbase_link"
+	        respawn="false" output="screen"/>
+
+    <node name="pub_tool_frame" 
+		pkg="adl_pr2_log"
+		type="tf_frame_publisher.py"
+		args="--source=$(arg tool) --target=base_link"
+	        respawn="false" output="screen"/>
+
+    <node name="pub_torso_lift_link" 
+		pkg="adl_pr2_log"
+		type="tf_frame_publisher.py"
+		args="-storso_lift_link -tbase_link"
 	        respawn="false" output="screen"/>
 
 </launch>

@@ -1,16 +1,44 @@
 <launch>
-<!-- Confirm the offset distance!!! -->
-    <arg name="scratcher_dist" value="0.110"/>
-    <arg name="shaver_dist" value="0.100"/>
+    <arg name="tool_base" default="l_tool45_frame" />
 
-    <include file="$(find hrl_pr2_lib)/launch/netft.launch" />
+   <node name="l_tool45_frame"
+	pkg="tf" 
+	type="static_transform_publisher"  
+	args="0.0575 0 0 -0.7854 0 0 /l_gripper_tool_frame /l_tool45_frame 10" />
 
-   <node pkg="tf" type="static_transform_publisher" name="r_scratcher_tip_frame_adl" args="$(arg scratcher_dist) 0 0 0 0 0 /r_gripper_tool_frame /r_scratcher_tip_adl 10" />
+    <node name="scratcher"
+        pkg="tf" 
+        type="static_transform_publisher"  
+        args="0.065 0 0 0 0 0 /$(arg tool_base) /scratcher 10" />
 
-   <node pkg="tf" type="static_transform_publisher" name="l_scratcher_tip_frame_adl" args="$(arg scratcher_dist) 0 0 0 0 0 /l_gripper_tool_frame /l_scratcher_tip_adl 10" />
+    <node name="shaver"
+        pkg="tf" 
+        type="static_transform_publisher" 
+        args="0.060 0 0 0 0 0 /$(arg tool_base) /shaver 10" />
 
-   <node pkg="tf" type="static_transform_publisher" name="r_shaver_tip_frame_adl" args="$(arg shaver_dist) 0 0 0 0 0 /r_gripper_tool_frame /r_shaver_tip_adl 10" />
+   <node name="comb"
+        pkg="tf" 
+        type="static_transform_publisher" 
+        args="0.184 0 -0.02 0 0 0 /$(arg tool_base) /comb 10" />
 
-   <node pkg="tf" type="static_transform_publisher" name="l_shaver_tip_frame_adl" args="$(arg shaver_dist) 0 0 0 0 0 /l_gripper_tool_frame /l_shaver_tip_adl 10" />
+   <node name="brush"
+        pkg="tf" 
+        type="static_transform_publisher" 
+        args="0.184 0 -0.02 0 0 0 /$(arg tool_base) /brush 10" />
+
+   <node name="tooth_brush"
+        pkg="tf" 
+        type="static_transform_publisher" 
+        args="0.147 0 -0.01 0 0 0 /$(arg tool_base) /tooth_brush 10" />
+
+   <node name="wipe_finger"
+       	pkg="tf" 
+       	type="static_transform_publisher" 
+       	args="0.0785 0 0 0 0 0 /$(arg tool_base) /wipe_finger 10" />
+
+   <node name="spoon"
+        pkg="tf" 
+        type="static_transform_publisher" 
+        args="0.108 0 0 0 0 0 /$(arg tool_base) /spoon 10" />
 
 </launch>
