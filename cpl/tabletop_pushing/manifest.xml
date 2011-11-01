@@ -17,7 +17,7 @@
   <depend package="tf"/>
   <depend package="cpl_visual_features"/>
   <depend package="cpl_superpixels"/>
-  <depend package="opencv2"/>
+  <!-- <depend package="opencv2"/> -->
   <depend package="image_transport"/>
   <depend package="cv_bridge"/>
   <depend package="hrl_pr2_lib"/>
