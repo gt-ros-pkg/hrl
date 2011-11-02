@@ -5,7 +5,7 @@ bool get_singulation_vector
 ---
 # result
 geometry_msgs/PoseStamped end_pose
-geometry_msgs/Pose2D singulation_vector
+geometry_msgs/PoseStamped singulation_vector
 ---
 # feedback
 geometry_msgs/PoseStamped pose

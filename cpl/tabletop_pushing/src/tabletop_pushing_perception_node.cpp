@@ -66,6 +66,9 @@
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/kdtree/impl/kdtree_flann.hpp>
 #include <pcl/features/feature.h>
 #include <pcl/common/eigen.h>
 #include <pcl/filters/voxel_grid.h>
@@ -105,9 +108,9 @@
 
 // Debugging IFDEFS
 // #define DISPLAY_INPUT_COLOR 1
-// #define DISPLAY_INPUT_DEPTH 1
+#define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
-// #define DISPLAY_OPTICAL_FLOW 1
+#define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_UV 1
 #define DISPLAY_GRAPHCUT 1
@@ -116,8 +119,8 @@
 // #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS 1
 // #define DISPLAY_ARM_CIRCLES 1
-#define DISPLAY_TABLE_DISTANCES 1
-#define DISPLAY_FLOW_FIELD_CLUSTERING 1
+// #define DISPLAY_TABLE_DISTANCES 1
+// #define DISPLAY_FLOW_FIELD_CLUSTERING 1
 // #define DISPLAY_TRACKER_OUTPUT 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
@@ -142,6 +145,7 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
 typedef Graph<float, float, float> GraphType;
+typedef pcl::KdTree<pcl::PointXYZ>::Ptr KdTreePtr;
 
 inline float max(const float a, const double b)
 {
@@ -1440,11 +1444,11 @@ class ObjectSingulation
   {
   }
 
-  Pose2D getPushVector(cv::Mat& motion_mask, cv::Mat& arm_mask,
-                       cv::Mat& color_img, cv::Mat& depth_img,
-                       cv::Mat& u, cv::Mat& v)
+  PoseStamped getPushVector(cv::Mat& motion_mask, cv::Mat& arm_mask,
+                            cv::Mat& color_img, cv::Mat& depth_img,
+                            cv::Mat& u, cv::Mat& v)
   {
-    Pose2D push_dir;
+    PoseStamped push_dir;
     // cv::Mat boundary_img = getObjectBoundaryStrengths(motion_mask, arm_mask,
     //                                                   color_img, depth_img);
     cv::Mat stuff_mask = motion_mask-arm_mask;
@@ -1545,7 +1549,7 @@ class ObjectSingulation
 #ifdef CLUSTER_AFFINE_WITH_IMAGE_LOCS
       samples.at<float>(i, 6) = p.x;
       samples.at<float>(i, 7) = p.y;
-#endif CLUSTER_AFFINE_WITH_IMAGE_LOCS
+#endif // CLUSTER_AFFINE_WITH_IMAGE_LOCS
     }
 
     std::vector<cv::Mat> labels;
@@ -1796,7 +1800,7 @@ class ObjectSingulation
     // ROS_INFO_STREAM("Displayed flow centers");
     cv::Mat flow_clusters_disp = color_img.clone();
     std::vector<cv::Scalar> colors;
-    for (int k = 0; k < cluster_centers.size(); ++k)
+    for (unsigned int k = 0; k < cluster_centers.size(); ++k)
     {
       cv::Scalar rand_color;
       rand_color[0] = (static_cast<float>(rand()) /
@@ -2253,7 +2257,8 @@ class TabletopPushingPerceptionNode
   {
     if ( have_depth_data_ )
     {
-      res = findPushPose(cur_color_frame_, cur_depth_frame_, cur_point_cloud_);
+      res = findPushPose(cur_color_frame_, cur_depth_frame_, cur_point_cloud_,
+                         req.use_guided);
     }
     else
     {
@@ -2265,16 +2270,24 @@ class TabletopPushingPerceptionNode
 
   PushPose::Response findPushPose(cv::Mat visual_frame,
                                   cv::Mat depth_frame,
-                                  XYZPointCloud& cloud)
+                                  XYZPointCloud& cloud, bool use_guided)
   {
-
-    // TODO: Choose a patch based on some simple criterian
-    // TODO: Estimate the surface of the patch from the depth image
-    // TODO: Extract the push pose as point in the center of that surface
-    // TODO: Transform to be in the workspace_frame
     PushPose::Response res;
-    PoseStamped p;
-    res.push_pose = p;
+    if (use_guided)
+    {
+      // TODO: Change this to guided based on proto object boundaries
+      res.push_pose = os_.getPushVector(motion_mask_hist_.back(),
+                                        arm_mask_hist_.back(),
+                                        color_frame_hist_.back(),
+                                        depth_frame_hist_.back(),
+                                        flow_u_hist_.back(),
+                                        flow_v_hist_.back());
+
+    }
+    else
+    {
+      res.push_pose = findRandomPushPose(cloud);
+    }
     res.invalid_push_pose = false;
     return res;
   }
@@ -3013,6 +3026,112 @@ class TabletopPushingPerceptionNode
                     << p.pose.position.y << ", "
                     << p.pose.position.z << ")");
     drawTablePlaneOnImage(plane_cloud, p);
+    return p;
+  }
+
+  PoseStamped findRandomPushPose(XYZPointCloud& cloud)
+  {
+    XYZPointCloud cloud_filtered, cloud_z_filtered,
+        cloud_downsampled;
+
+    // Downsample using a voxel grid for faster performance
+    pcl::VoxelGrid<pcl::PointXYZ> downsample;
+    downsample.setInputCloud(
+        boost::make_shared<XYZPointCloud >(cloud));
+    downsample.setLeafSize(0.005, 0.005, 0.005);
+    downsample.filter(cloud_downsampled);
+    ROS_INFO_STREAM("Voxel Downsampled Cloud");
+
+    // Filter Cloud to be just table top height
+    pcl::PassThrough<pcl::PointXYZ> z_pass;
+    z_pass.setInputCloud(
+        boost::make_shared<XYZPointCloud >(cloud_downsampled));
+    z_pass.setFilterFieldName ("z");
+    z_pass.setFilterLimits (-1.0, 1.0);
+    z_pass.filter(cloud_z_filtered);
+    ROS_INFO_STREAM("Filtered z");
+
+    // Filter to be just in the  range in front of the robot
+    pcl::PassThrough<pcl::PointXYZ> x_pass;
+    x_pass.setInputCloud(
+        boost::make_shared<XYZPointCloud >(cloud_z_filtered));
+    x_pass.setFilterFieldName ("x");
+    x_pass.setFilterLimits (0.5, 1.5);
+    x_pass.filter(cloud_filtered);
+    ROS_INFO_STREAM("Filtered x");
+
+    // Segment the tabletop from the points using RANSAC plane fitting
+    pcl::ModelCoefficients coefficients;
+    pcl::PointIndices plane_inliers;
+    // Create the segmentation object
+    pcl::SACSegmentation<pcl::PointXYZ> plane_seg;
+    plane_seg.setOptimizeCoefficients (true);
+    plane_seg.setModelType (pcl::SACMODEL_PLANE);
+    plane_seg.setMethodType (pcl::SAC_RANSAC);
+    plane_seg.setDistanceThreshold (0.01);
+    plane_seg.setInputCloud (
+        boost::make_shared<XYZPointCloud >(cloud_filtered));
+    plane_seg.segment(plane_inliers, coefficients);
+
+    // Extract the plane members into their own point cloud and save them
+    // into a PCD file
+    XYZPointCloud plane_cloud;
+    pcl::copyPointCloud(cloud_filtered, plane_inliers, plane_cloud);
+
+    // Extract the outliers from the point clouds
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    XYZPointCloud objects_cloud;
+    pcl::PointIndices plane_outliers;
+    extract.setInputCloud (
+        boost::make_shared<XYZPointCloud > (cloud_filtered));
+    extract.setIndices (boost::make_shared<pcl::PointIndices> (plane_inliers));
+    extract.setNegative (true);
+    extract.filter(objects_cloud);
+
+    // TODO: This would be better if we first filter out points below the plane,
+    // so that only objects on top of the table are clustered
+
+    // Cluster the objects based on euclidean distance
+    std::vector<pcl::PointIndices> clusters;
+    pcl::EuclideanClusterExtraction<pcl::PointXYZ> pcl_cluster;
+    KdTreePtr clusters_tree =
+        boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZ> > ();
+    pcl_cluster.setClusterTolerance(0.025);
+    pcl_cluster.setMinClusterSize(100);
+    pcl_cluster.setSearchMethod(clusters_tree);
+    pcl_cluster.setInputCloud(
+        boost::make_shared<XYZPointCloud >(objects_cloud));
+    pcl_cluster.extract (clusters);
+    ROS_INFO_STREAM("Number of clusters found matching the given constraints: "
+                    << clusters.size());
+
+    // Choose a random cluster to push
+    int rand_idx = rand() % clusters.size();
+    XYZPointCloud obj_cloud;
+    pcl::copyPointCloud(objects_cloud, clusters[rand_idx], obj_cloud);
+    Eigen::Vector4f xyz_centroid;
+    pcl::compute3DCentroid(obj_cloud, xyz_centroid);
+
+    geometry_msgs::PoseStamped p;
+    if (clusters.size() < 1)
+    {
+      ROS_ERROR_STREAM("No object clusters found! Returning empty push_pose");
+      return p;
+    }
+
+    ROS_INFO_STREAM("Nearest centroid is at: (" << xyz_centroid[0] << ", "
+                    << xyz_centroid[1] << ", " << xyz_centroid[2] << ")");
+    p.pose.position.x = xyz_centroid[0];
+    p.pose.position.y = xyz_centroid[1];
+    p.pose.position.z = xyz_centroid[2];
+
+    // TODO: Find orientation from the centroid
+    p.pose.orientation.x = 0;
+    p.pose.orientation.y = 0;
+    p.pose.orientation.z = 0;
+    p.pose.orientation.w = 0;
+
+    p.header.frame_id = "torso_lift_link";
     return p;
   }
 
