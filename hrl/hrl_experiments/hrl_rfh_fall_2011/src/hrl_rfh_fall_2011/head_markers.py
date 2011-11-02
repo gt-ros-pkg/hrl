@@ -102,7 +102,7 @@ class HeadMarkers(object):
     def get_head_pose(self, ell_coords_rot, gripper_rot=0.):
         lat, lon, height = ell_coords_rot[0]
         roll, pitch, yaw = ell_coords_rot[1]
-        pos, rot = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
+        pos, rot = PoseConverter.to_pos_rot(self.ell_space.ellipsoidal_to_pose(lat, lon, height))
         rot = rot * tf_trans.euler_matrix(yaw, pitch, roll + gripper_rot, 'szyx')[:3, :3] 
         return pos, rot
 

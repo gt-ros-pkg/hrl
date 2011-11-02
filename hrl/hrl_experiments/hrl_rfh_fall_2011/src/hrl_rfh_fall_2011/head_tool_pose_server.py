@@ -96,7 +96,7 @@ class HeadToolPoseServer(object):
     def get_head_pose(self, name, gripper_rot=0.):
         lat, lon, height = head_poses[name][0]
         roll, pitch, yaw = head_poses[name][1]
-        pos, rot = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
+        pos, rot = PoseConverter.to_pos_rot(self.ell_space.ellipsoidal_to_pose(lat, lon, height))
         rot = rot * tf_trans.euler_matrix(yaw, pitch, roll + gripper_rot, 'rzyx')[:3, :3] 
         return pos, rot
 

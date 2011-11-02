@@ -25,8 +25,8 @@ def main():
 
     l_tuck_angles = [ 0.14228106,  1.29643293,  1.78480255, -1.56470338,  1.16505304,
                      -0.09788312,  0.23542476]
-    r_tuck_angles = [ 0.06931385,  1.11363734, -1.28006409, -2.12450397, -1.42562843,
-                     -1.9787189 , -2.84025541]
+    r_tuck_angles = [ 0.01289596,  1.02437885, -1.34551339, -1.78272859,  0.38331793,
+                     -1.28334274,  0.02605728]
     l_joint_controller = EPArmController(l_arm, 0.1, "l_joint_ep_controller")
     r_joint_controller = EPArmController(r_arm, 0.1, "r_joint_ep_controller")
     l_joint_controller.execute_interpolated_ep(l_tuck_angles, 10)

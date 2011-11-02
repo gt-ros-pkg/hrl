@@ -82,7 +82,6 @@ class SMEllipsoidRegistration(object):
             def child_term_cb(outcome_map):
                 print 'outcome_map', outcome_map
                 if outcome_map['REGISTRATION_CONFIRM'] == 'succeeded':
-                    print 'here'
                     return True
                 return False
             sm_reg = smach.Concurrence(outcomes=['succeeded', 'aborted'],

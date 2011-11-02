@@ -50,7 +50,7 @@ class EllipsoidSpace(object):
         y = self.a * np.sinh(height) * np.sin(lat) * np.cos(lon)
         z = 0.
         return self.rot * np.mat([x, y, z]).T
-    def ellipsoidal_to_pose(self, lat, lon, height, rot_gripper=0.):
+    def ellipsoidal_to_pose(self, lat, lon, height):
         pos = self.ellipsoidal_to_cart(lat, lon, height)
         df_du = self.partial_u(lat, lon, height)
         nx, ny, nz = df_du.T.A[0] / np.linalg.norm(df_du)
@@ -62,16 +62,17 @@ class EllipsoidSpace(object):
         _, norm_quat = PoseConverter.to_pos_quat(np.mat([0, 0, 0]).T, norm_rot)
         rot_angle = np.arctan(-norm_rot[2,1] / norm_rot[2,2])
         #print norm_rot
-        quat_ortho_rot = tf_trans.quaternion_from_euler(rot_angle + np.pi + rot_gripper, 0.0, 0.0)
+        quat_ortho_rot = tf_trans.quaternion_from_euler(rot_angle + np.pi, 0.0, 0.0)
         norm_quat_ortho = tf_trans.quaternion_multiply(norm_quat, quat_ortho_rot)
         norm_rot_ortho = np.mat(tf_trans.quaternion_matrix(norm_quat_ortho)[:3,:3])
-        if norm_rot_ortho[1, 1] > 0:
+        if norm_rot_ortho[2, 2] > 0:
             flip_axis_ang = 0
         else:
             flip_axis_ang = np.pi
         quat_flip = tf_trans.quaternion_from_euler(flip_axis_ang, 0.0, 0.0)
         norm_quat_ortho_flipped = tf_trans.quaternion_multiply(norm_quat_ortho, quat_flip)
-        return PoseConverter.to_pos_rot(pos, norm_quat_ortho_flipped)
+
+        return PoseConverter.to_pos_quat(pos, norm_quat_ortho_flipped)
 
     def pos_to_ellipsoidal(self, x, y, z):
         lon = np.arctan2(y, x)
