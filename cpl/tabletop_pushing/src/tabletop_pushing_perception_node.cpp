@@ -2103,6 +2103,10 @@ class TabletopPushingPerceptionNode
     n_private_.param("max_workspace_x", max_workspace_x_, 0.0);
     n_private_.param("max_workspace_y", max_workspace_y_, 0.0);
     n_private_.param("max_workspace_z", max_workspace_z_, 0.0);
+    n_private_.param("min_pushing_x", min_pushing_x_, 0.0);
+    n_private_.param("min_pushing_y", min_pushing_y_, 0.0);
+    n_private_.param("max_pushing_x", max_pushing_x_, 0.0);
+    n_private_.param("max_pushing_y", max_pushing_y_, 0.0);
     std::string default_workspace_frame = "/torso_lift_link";
     n_private_.param("workspace_frame", workspace_frame_,
                     default_workspace_frame);
@@ -2257,9 +2261,10 @@ class TabletopPushingPerceptionNode
     if ( have_depth_data_ )
     {
       res.table_centroid = getTablePlane(cur_point_cloud_);
-      if (res.table_centroid.pose.position.x == 0.0 &&
-          res.table_centroid.pose.position.y == 0.0 &&
-          res.table_centroid.pose.position.z == 0.0)
+      if ((res.table_centroid.pose.position.x == 0.0 &&
+           res.table_centroid.pose.position.y == 0.0 &&
+           res.table_centroid.pose.position.z == 0.0) ||
+          res.table_centroid.pose.position.x < 0.0)
       {
         ROS_ERROR_STREAM("No plane found, leaving");
         res.found_table = false;
@@ -3052,36 +3057,31 @@ class TabletopPushingPerceptionNode
     return p;
   }
 
-  PoseStamped findRandomPushPose(XYZPointCloud& cloud)
+  PoseStamped findRandomPushPose(XYZPointCloud& input_cloud)
   {
-    XYZPointCloud cloud_filtered, cloud_z_filtered,
-        cloud_downsampled;
-
-    // Downsample using a voxel grid for faster performance
-    pcl::VoxelGrid<pcl::PointXYZ> downsample;
-    downsample.setInputCloud(
-        boost::make_shared<XYZPointCloud >(cloud));
-    downsample.setLeafSize(0.005, 0.005, 0.005);
-    downsample.filter(cloud_downsampled);
-    ROS_INFO_STREAM("Voxel Downsampled Cloud");
+    XYZPointCloud cloud_filtered, cloud_z_filtered;
+    ROS_INFO_STREAM("input_cloud.size() " << input_cloud.size());
+    ROS_INFO_STREAM("input_cloud.header.frame_id() "
+                    << input_cloud.header.frame_id);
 
     // Filter Cloud to be just table top height
     pcl::PassThrough<pcl::PointXYZ> z_pass;
-    z_pass.setInputCloud(
-        boost::make_shared<XYZPointCloud >(cloud_downsampled));
+    z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(input_cloud));
     z_pass.setFilterFieldName ("z");
-    z_pass.setFilterLimits (-1.0, 1.0);
+    z_pass.setFilterLimits(min_table_z_, max_table_z_);
     z_pass.filter(cloud_z_filtered);
     ROS_INFO_STREAM("Filtered z");
+    ROS_INFO_STREAM("cloud_z_filtered.size() " << cloud_z_filtered.size());
 
-    // Filter to be just in the  range in front of the robot
+    // Filter to be just in the range in front of the robot
     pcl::PassThrough<pcl::PointXYZ> x_pass;
     x_pass.setInputCloud(
         boost::make_shared<XYZPointCloud >(cloud_z_filtered));
     x_pass.setFilterFieldName ("x");
-    x_pass.setFilterLimits (0.5, 1.5);
+    x_pass.setFilterLimits(min_workspace_x_, max_workspace_x_);
     x_pass.filter(cloud_filtered);
     ROS_INFO_STREAM("Filtered x");
+    ROS_INFO_STREAM("cloud_filtered.size() " << cloud_filtered.size());
 
     // Segment the tabletop from the points using RANSAC plane fitting
     pcl::ModelCoefficients coefficients;
@@ -3089,17 +3089,22 @@ class TabletopPushingPerceptionNode
     // Create the segmentation object
     pcl::SACSegmentation<pcl::PointXYZ> plane_seg;
     plane_seg.setOptimizeCoefficients (true);
-    plane_seg.setModelType (pcl::SACMODEL_PLANE);
-    plane_seg.setMethodType (pcl::SAC_RANSAC);
-    plane_seg.setDistanceThreshold (0.01);
-    plane_seg.setInputCloud (
-        boost::make_shared<XYZPointCloud >(cloud_filtered));
+    plane_seg.setModelType(pcl::SACMODEL_PLANE);
+    plane_seg.setMethodType(pcl::SAC_RANSAC);
+    plane_seg.setDistanceThreshold (table_ransac_thresh_);
+    plane_seg.setInputCloud(boost::make_shared<XYZPointCloud >(cloud_filtered));
     plane_seg.segment(plane_inliers, coefficients);
 
     // Extract the plane members into their own point cloud and save them
     // into a PCD file
     XYZPointCloud plane_cloud;
     pcl::copyPointCloud(cloud_filtered, plane_inliers, plane_cloud);
+    ROS_INFO_STREAM("plane_cloud.size() " << plane_cloud.size());
+    Eigen::Vector4f plane_xyz_centroid;
+    pcl::compute3DCentroid(plane_cloud, plane_xyz_centroid);
+    ROS_INFO_STREAM("Plane centroid is: (" << plane_xyz_centroid[0]
+                    << ", " << plane_xyz_centroid[1]
+                    << ", " << plane_xyz_centroid[2] << ")");
 
     // Extract the outliers from the point clouds
     pcl::ExtractIndices<pcl::PointXYZ> extract;
@@ -3128,25 +3133,38 @@ class TabletopPushingPerceptionNode
     ROS_INFO_STREAM("Number of clusters found matching the given constraints: "
                     << clusters.size());
 
-    // Choose a random cluster to push
-    int rand_idx = rand() % clusters.size();
-    XYZPointCloud obj_cloud;
-    pcl::copyPointCloud(objects_cloud, clusters[rand_idx], obj_cloud);
-    Eigen::Vector4f xyz_centroid;
-    pcl::compute3DCentroid(obj_cloud, xyz_centroid);
+    std::vector<Eigen::Vector4f> cluster_centroids;
+    for (unsigned int i = 0; i < clusters.size(); ++i)
+    {
+      // Choose a random cluster to push
+      Eigen::Vector4f obj_xyz_centroid;
+      XYZPointCloud obj_cloud;
+      pcl::copyPointCloud(objects_cloud, clusters[i], obj_cloud);
+      pcl::compute3DCentroid(obj_cloud, obj_xyz_centroid);
 
+      if (obj_xyz_centroid[0] > min_pushing_x_ &&
+          obj_xyz_centroid[0] < max_pushing_x_ &&
+          obj_xyz_centroid[1] > min_pushing_y_ &&
+          obj_xyz_centroid[1] < max_pushing_y_)
+      {
+        cluster_centroids.push_back(obj_xyz_centroid);
+      }
+    }
     geometry_msgs::PoseStamped p;
-    if (clusters.size() < 1)
+    if (cluster_centroids.size() < 1)
     {
       ROS_ERROR_STREAM("No object clusters found! Returning empty push_pose");
       return p;
     }
-
-    ROS_INFO_STREAM("Nearest centroid is at: (" << xyz_centroid[0] << ", "
-                    << xyz_centroid[1] << ", " << xyz_centroid[2] << ")");
-    p.pose.position.x = xyz_centroid[0];
-    p.pose.position.y = xyz_centroid[1];
-    p.pose.position.z = xyz_centroid[2];
+    ROS_INFO_STREAM("Found " << cluster_centroids.size() << " proto objects");
+    int rand_idx = rand() % cluster_centroids.size();
+    Eigen::Vector4f obj_xyz_centroid = cluster_centroids[rand_idx];
+    ROS_INFO_STREAM("Chosen centroid is at: (" << obj_xyz_centroid[0] << ", "
+                    << obj_xyz_centroid[1] << ", " << obj_xyz_centroid[2] << ")");
+    p.pose.position.x = obj_xyz_centroid[0];
+    p.pose.position.y = obj_xyz_centroid[1];
+    // Set z to be the table height
+    p.pose.position.z = plane_xyz_centroid[2];
 
     // TODO: Find orientation from the centroid
     p.pose.orientation.x = 0;
@@ -3218,6 +3236,10 @@ class TabletopPushingPerceptionNode
   double max_workspace_y_;
   double min_workspace_z_;
   double max_workspace_z_;
+  double min_pushing_x_;
+  double max_pushing_x_;
+  double min_pushing_y_;
+  double max_pushing_y_;
   double min_table_z_;
   double max_table_z_;
   double below_table_z_;

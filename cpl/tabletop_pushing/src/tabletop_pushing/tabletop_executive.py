@@ -67,7 +67,7 @@ class TabletopExecutive:
         self.sweep_y_offset = rospy.get_param('~gripper_sweep_start_y_offset',
                                               0.05)
         self.sweep_z_offset = rospy.get_param('~gripper_sweep_start_z_offset',
-                                              0.02)
+                                              0.01)
 
         self.overhead_push_dist = rospy.get_param('~overhead_push_dist',
                                                  0.25)
@@ -111,6 +111,8 @@ class TabletopExecutive:
 
         # Get table height and raise to that before anything else
         self.raise_and_look()
+
+        # TODO: Initialize arm poses if desired
 
         # Start tracking
         self.init_tracker()
@@ -194,7 +196,7 @@ class TabletopExecutive:
         self.tracker_client.send_goal(track_goal)
         rospy.loginfo('Waiting for tracker server')
         self.tracker_client.wait_for_result()
-        result = self.tracker.get_result()
+        result = self.tracker_client.get_result()
         return result.singulation_vector
 
     def gripper_push_object(self, push_dist, which_arm):
@@ -219,7 +221,13 @@ class TabletopExecutive:
                 # TODO: -z_offset+8
                 pose_res.push_pose.pose.position.z = -0.22
             else:
+                rospy.loginfo('Calling push pose proxy')
                 pose_res = self.push_pose_proxy(pose_req)
+                rospy.loginfo('Got push pose')
+                if pose_res.push_pose.pose.position.y < 0.0:
+                    which_arm = 'r'
+                else:
+                    which_arm = 'l'
         except rospy.ServiceException, e:
             rospy.logwarn("Service did not process request: %s"%str(e))
             return
@@ -229,14 +237,18 @@ class TabletopExecutive:
         push_req = GripperPushRequest()
         push_req.start_point.header = pose_res.push_pose.header
         push_req.start_point.point = pose_res.push_pose.pose.position
-        if self.push_count == 1:
-            push_req.arm_init = True
-        else:
-            push_req.arm_init = False
-        if self.push_count < self.num_total_pushes:
-            push_req.arm_reset = False
-        else:
-            push_req.arm_reset = True
+        # if self.push_count == 1:
+        #     push_req.arm_init = True
+        # else:
+        #     push_req.arm_init = False
+        # if self.push_count < self.num_total_pushes:
+        #     push_req.arm_reset = False
+        # else:
+        #     push_req.arm_reset = True
+
+        push_req.arm_init = True
+        push_req.arm_reset = True
+
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
         wrist_yaw = 0.0 # 0.5*pi # 0.25*pi # -0.25*pi
@@ -281,7 +293,14 @@ class TabletopExecutive:
                     pose_res.push_pose.pose.position.y = -0.15
                 pose_res.push_pose.pose.position.z = -0.25
             else:
+                rospy.loginfo('Calling push pose proxy')
                 pose_res = self.push_pose_proxy(pose_req)
+                rospy.loginfo('Got push pose')
+                if pose_res.push_pose.pose.position.y < 0.0:
+                    which_arm = 'r'
+                else:
+                    which_arm = 'l'
+                    # TODO: Set offset here
 
         except rospy.ServiceException, e:
             rospy.logwarn("Service did not process request: %s"%str(e))
@@ -289,8 +308,17 @@ class TabletopExecutive:
         self.sweep_count += 1
         # Convert pose response to correct push request format
         sweep_req = GripperPushRequest()
+        sweep_req.left_arm = (which_arm == 'l')
+        sweep_req.right_arm = not sweep_req.left_arm
+
+        if sweep_req.left_arm:
+            y_offset_dir = +1
+        else:
+            y_offset_dir = -1
         sweep_req.start_point.header = pose_res.push_pose.header
         sweep_req.start_point.point = pose_res.push_pose.pose.position
+        sweep_req.start_point.point.y += y_offset_dir*self.sweep_y_offset
+        sweep_req.start_point.point.z += self.sweep_z_offset
         if self.sweep_count == 1:
             sweep_req.arm_init = True
         else:
@@ -300,18 +328,13 @@ class TabletopExecutive:
         else:
             sweep_req.arm_reset = True
 
+        sweep_req.arm_init = True
+        sweep_req.arm_reset = True
+
         # rospy.loginfo('Push pose point:' + str(sweep_req.start_point.point))
 
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
-
-        sweep_req.left_arm = (which_arm == 'l')
-        sweep_req.right_arm = not sweep_req.left_arm
-
-        if sweep_req.left_arm:
-            y_offset_dir = +1
-        else:
-            y_offset_dir = -1
 
         wrist_yaw = 0.0 # 0.25*pi
         sweep_req.wrist_yaw = wrist_yaw
@@ -351,7 +374,14 @@ class TabletopExecutive:
                 pose_res.push_pose.pose.position.y = 0.0
                 pose_res.push_pose.pose.position.z = -0.25
             else:
+                rospy.loginfo('Calling push pose proxy')
                 pose_res = self.push_pose_proxy(pose_req)
+                rospy.loginfo('Got push pose')
+                if pose_res.push_pose.pose.position.y < 0.0:
+                    which_arm = 'r'
+                else:
+                    which_arm = 'l'
+
         except rospy.ServiceException, e:
             rospy.logwarn("Service did not process request: %s"%str(e))
             return
@@ -370,6 +400,9 @@ class TabletopExecutive:
             push_req.arm_reset = False
         else:
             push_req.arm_reset = True
+
+        push_req.arm_init = True
+        push_req.arm_reset = True
 
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
@@ -406,5 +439,5 @@ class TabletopExecutive:
         post_push_res = self.overhead_post_push_proxy(push_req)
 
 if __name__ == '__main__':
-    node = TabletopExecutive(True)
-    node.run(3, 0, 0, 0, 0, 0)
+    node = TabletopExecutive(False)
+    node.run(2, 2, 2, 0, 0, 0)

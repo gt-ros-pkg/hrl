@@ -28,6 +28,10 @@
     <param name="min_table_z" value="-1.0" type="double"/>
     <param name="max_table_z" value="1.0" type="double"/>
     <param name="table_ransac_thresh" value="0.001" type="double"/>
+    <param name="min_pushing_y" value="-0.5" type="double"/>
+    <param name="max_pushing_y" value="0.5" type="double"/>
+    <param name="min_pushing_x" value="0.0" type="double"/>
+    <param name="max_pushing_x" value="1.0" type="double"/>
 
     <param name="mgc_workspace_background_weight" value="0.95" type="double"/>
     <param name="mgc_min_weight" value="0.01" type="double"/>
