@@ -398,7 +398,7 @@ class FeatureTracker
     initialized_ = true;
   }
 
-  std::vector<Flow> updateTracksLK(cv::Mat& cur_frame, cv::Mat& prev_frame)
+  std::vector<Flow> updateTracksKLT(cv::Mat& cur_frame, cv::Mat& prev_frame)
   {
     std::vector<Flow> sparse_flow;
     std::vector<cv::Point2f> prev_points;
@@ -1123,8 +1123,8 @@ class RegionTrackingNode
     cv::Mat prev_bw_frame(prev_color_frame_.rows, prev_color_frame_.cols,
                           CV_8UC1);
     cv::cvtColor(prev_color_frame_, prev_bw_frame, CV_BGR2GRAY);
-    std::vector<Flow> sparse_flow = tracker_.updateTracksLK(bw_frame,
-                                                            prev_bw_frame);
+    std::vector<Flow> sparse_flow = tracker_.updateTracksKLT(bw_frame,
+                                                             prev_bw_frame);
     // std::vector<Flow> sparse_flow = imageDifferencing(color_frame, depth_frame,
     //                                                   prev_color_frame_,
     //                                                   prev_depth_frame_);

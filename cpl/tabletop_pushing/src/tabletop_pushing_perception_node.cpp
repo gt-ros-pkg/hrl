@@ -120,7 +120,7 @@
 // #define VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS 1
 // #define DISPLAY_ARM_CIRCLES 1
 // #define DISPLAY_TABLE_DISTANCES 1
-// #define DISPLAY_FLOW_FIELD_CLUSTERING 1
+#define DISPLAY_FLOW_FIELD_CLUSTERING 1
 // #define DISPLAY_TRACKER_OUTPUT 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
@@ -604,7 +604,7 @@ class FeatureTracker
     initialized_ = true;
   }
 
-  AffineFlowMeasures updateTracksLK(cv::Mat& cur_frame, cv::Mat& prev_frame)
+  AffineFlowMeasures updateTracksKLT(cv::Mat& cur_frame, cv::Mat& prev_frame)
   {
     AffineFlowMeasures sparse_flow;
     std::vector<cv::Point2f> prev_points;
@@ -627,7 +627,7 @@ class FeatureTracker
       int dy = prev_points[i].y - new_points[i].y;
       sparse_flow.push_back(AffineFlowMeasure(new_points[i].x, new_points[i].y,
                                               dx, dy));
-      if (sparse_flow[i].u + sparse_flow[i].v > min_flow_thresh_)
+      if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) > min_flow_thresh_)
         moving_points++;
     }
     ROS_INFO_STREAM(window_name_ << ": num moving points: " << moving_points);
@@ -637,7 +637,7 @@ class FeatureTracker
     cv::cvtColor(cur_frame, display_cur_frame, CV_GRAY2BGR);
     for (unsigned int i = 0; i < sparse_flow.size(); i++)
     {
-      if (sparse_flow[i].u + sparse_flow[i].v > min_flow_thresh_)
+      if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) > min_flow_thresh_)
       {
         ROS_DEBUG_STREAM("Point is moving (" << sparse_flow[i].u << ", "
                          << sparse_flow[i].v << ")");
@@ -685,7 +685,7 @@ class FeatureTracker
       sparse_flow.push_back(AffineFlowMeasure(
           cur_keypoints_[matches_cur[i]].pt.x,
           cur_keypoints_[matches_cur[i]].pt.y, dx, dy));
-      if (sparse_flow[i].u + sparse_flow[i].v > min_flow_thresh_)
+      if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) > min_flow_thresh_)
         moving_points++;
     }
     ROS_DEBUG_STREAM(window_name_ << ": num moving points: " << moving_points);
@@ -695,7 +695,7 @@ class FeatureTracker
     cv::cvtColor(frame, display_frame, CV_GRAY2BGR);
     for (unsigned int i = 0; i < matches_cur.size(); i++)
     {
-      if (sparse_flow[i].u + sparse_flow[i].v > min_flow_thresh_)
+      if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) > min_flow_thresh_)
       {
         ROS_DEBUG_STREAM("Point is moving (" << sparse_flow[i].u << ", "
                          << sparse_flow[i].v << ")");
@@ -1455,7 +1455,7 @@ class ObjectSingulation
     // Get flow clusters
     AffineFlowMeasures centers = clusterFlowFields(color_img, depth_img,
                                                    u, v, stuff_mask);
-    // Determine push_direction based on centers and their directions
+    // TODO: Determine push_direction based on centers and their directions
     return push_dir;
   }
 
@@ -1475,8 +1475,8 @@ class ObjectSingulation
   AffineFlowMeasures clusterFlowFields(cv::Mat& color_img, cv::Mat& depth_img,
                                        cv::Mat& u, cv::Mat& v, cv::Mat& mask)
   {
-    return clusterFlowFieldsKMeans(color_img, depth_img, u, v, mask);
-    // return clusterFlowFieldsRANSAC(color_img, depth_img, u, v, mask);
+    // return clusterFlowFieldsKMeans(color_img, depth_img, u, v, mask);
+    return clusterSparseFlowKMeans(color_img, depth_img, u, v, mask);
   }
 
   AffineFlowMeasures clusterFlowFieldsKMeans(cv::Mat& color_img,
@@ -1497,7 +1497,7 @@ class ObjectSingulation
           AffineFlowMeasure p;
           p.u = u.at<float>(r,c);
           p.v = v.at<float>(r,c);
-           p.x = c;
+          p.x = c;
           p.y = r;
           p.a = estimateAffineTransform(u, v, r, c, affine_estimate_radius_);
           if (std::sqrt(p.u*p.u+p.v*p.v) > 1.0 )
@@ -1506,14 +1506,164 @@ class ObjectSingulation
       }
     }
 
-    const int num_samples = points.size();
-    if (num_samples < 1)
+    if (points.size() < 1)
     {
       AffineFlowMeasures cluster_centers;
       cluster_centers.clear();
       return cluster_centers;
     }
+    AffineFlowMeasures cluster_centers = clusterAffineKMeans(color_img, u, v,
+                                                             points);
+    return cluster_centers;
+  }
 
+  AffineFlowMeasures clusterFlowFieldsRANSAC(cv::Mat& color_img,
+                                             cv::Mat& depth_img,
+                                             cv::Mat& u, cv::Mat& v,
+                                             cv::Mat& mask)
+  {
+    AffineFlowMeasures points;
+    for (int r = 0; r < mask.rows; ++r)
+    {
+      uchar* mask_row = mask.ptr<uchar>(r);
+      for (int c = 0; c < mask.cols; ++c)
+      {
+        if ( mask_row[c] != 0)
+        {
+          AffineFlowMeasure p;
+          p.u = u.at<float>(r,c);
+          p.v = v.at<float>(r,c);
+          p.x = c;
+          p.y = r;
+          if (std::sqrt(p.u*p.u+p.v*p.v) > 1.0 )
+            points.push_back(p);
+        }
+      }
+    }
+
+    AffineFlowMeasures cluster_centers;
+    if (points.size() < 1)
+    {
+      cluster_centers.clear();
+      return cluster_centers;
+    }
+
+    // Perform RANSAC itteratively on the affine estimates to cluster a set of
+    // affine movement regions
+    int k = 0;
+    AffineFlowMeasures active_points = points;
+    while (active_points.size() > min_affine_point_set_size_ &&
+           k < max_k_)
+    {
+      AffineFlowMeasures inliers;
+      inliers.clear();
+      cv::Mat new_estimate = affineRANSAC(active_points, inliers,
+                                          ransac_inlier_percent_est_,
+                                          ransac_epsilon_, max_ransac_iters_);
+      AffineFlowMeasure new_center;
+      new_center.a = new_estimate;
+      new_center.label = k;
+      new_center.x = 0;
+      new_center.y = 0;
+      for (unsigned int i = 0; i < inliers.size(); ++i)
+      {
+        new_center.x += inliers[i].x;
+        new_center.y += inliers[i].y;
+
+        // Set labels for the removed points
+        for (unsigned int j = 0; j < points.size(); ++j)
+        {
+          if (points[j] == inliers[i])
+          {
+            points[j].label = k;
+          }
+        }
+        // Remove inliers from active points
+        for (unsigned int j = 0; j < active_points.size(); )
+        {
+          if (inliers[i] == active_points[j])
+          {
+            active_points.erase(active_points.begin()+j);
+          }
+          else
+          {
+            ++j;
+          }
+        }
+      }
+      if (inliers.size() > 0)
+      {
+        new_center.x /= inliers.size();
+        new_center.y /= inliers.size();
+        cv::Mat V = new_center.a*new_center.X();
+        new_center.u = V.at<float>(0,0);
+        new_center.v = V.at<float>(1,0);
+      }
+      else
+      {
+        new_center.x = 0;
+        new_center.y = 0;
+        new_center.u = 0;
+        new_center.v = 0;
+      }
+      cluster_centers.push_back(new_center);
+      ROS_INFO_STREAM("Fit affine transform " << k << " with center ("
+                      << new_center.x << ", " << new_center.y << ")");
+      ROS_INFO_STREAM("Number of points remaining: " << active_points.size());
+      ++k;
+    }
+
+#ifdef DISPLAY_FLOW_FIELD_CLUSTERING
+    // ROS_INFO_STREAM("Displaying clusters");
+    displayClusterCenters(cluster_centers, points, color_img);
+    // ROS_INFO_STREAM("Displayed clusters");
+#endif // DISPLAY_FLOW_FIELD_CLUSTERING
+
+    return cluster_centers;
+  }
+
+  AffineFlowMeasures clusterSparseFlowKMeans(cv::Mat& color_img,
+                                             cv::Mat& depth_img,
+                                             cv::Mat& u, cv::Mat& v,
+                                             cv::Mat& mask)
+  {
+    cv::Mat img_bw;
+    cv::cvtColor(color_img, img_bw, CV_BGR2GRAY);
+    AffineFlowMeasures sparse_flow = ft_.updateTracks(img_bw, mask);
+    // TODO: Try add in geometric matching here to complement the sparse feature
+    // tracks
+    for (unsigned int i = 0; i < sparse_flow.size(); ++i)
+    {
+      sparse_flow[i].a = estimateAffineTransform(u, v, sparse_flow[i].y,
+                                                 sparse_flow[i].x,
+                                                 affine_estimate_radius_);
+    }
+    AffineFlowMeasures cluster_centers;
+    if (sparse_flow.size() < /*1*/ 2)
+    {
+      cluster_centers.clear();
+      return cluster_centers;
+    }
+    cluster_centers = clusterAffineKMeans(color_img, u, v, sparse_flow);
+    return cluster_centers;
+  }
+
+  AffineFlowMeasures clusterSparseFlowRANSAC(cv::Mat& color_img,
+                                             cv::Mat& depth_img,
+                                             cv::Mat& u, cv::Mat& v,
+                                             cv::Mat& mask)
+  {
+    return clusterSparseFlowKMeans(color_img, depth_img, u, v, mask);
+  }
+
+  //
+  // Core functions
+  //
+
+  AffineFlowMeasures clusterAffineKMeans(cv::Mat& color_img, cv::Mat& u,
+                                         cv::Mat& v, AffineFlowMeasures& points)
+  {
+    const int num_samples = points.size();
 #ifdef SCALE_AFFINE_DISTANCES
     const int r_scale = color_img.cols / 2;
 #endif // SCALE_AFFINE_DISTANCES
@@ -1561,7 +1711,7 @@ class ObjectSingulation
     AffineFlowMeasures cluster_centers;
     AffineFlowMeasures fewer_centers;
     AffineFlowMeasures best_centers;
-    for (int K = 1; K <= max_k_; ++K)
+    for (int K = 1; K <= min(max_k_, num_samples); ++K)
     {
       // Perform clustering with K centers
       cv::Mat labels_k;
@@ -1664,191 +1814,6 @@ class ObjectSingulation
     return best_centers;
   }
 
-  AffineFlowMeasures clusterFlowFieldsRANSAC(cv::Mat& color_img,
-                                             cv::Mat& depth_img,
-                                             cv::Mat& u, cv::Mat& v,
-                                             cv::Mat& mask)
-  {
-    AffineFlowMeasures points;
-    for (int r = 0; r < mask.rows; ++r)
-    {
-      uchar* mask_row = mask.ptr<uchar>(r);
-      for (int c = 0; c < mask.cols; ++c)
-      {
-        if ( mask_row[c] != 0)
-        {
-          AffineFlowMeasure p;
-          p.u = u.at<float>(r,c);
-          p.v = v.at<float>(r,c);
-          p.x = c;
-          p.y = r;
-          if (std::sqrt(p.u*p.u+p.v*p.v) > 1.0 )
-            points.push_back(p);
-        }
-      }
-    }
-
-    if (points.size() < 1)
-    {
-      AffineFlowMeasures cluster_centers;
-      cluster_centers.clear();
-      return cluster_centers;
-    }
-
-    // Perform RANSAC itteratively on the affine estimates to cluster a set of
-    // affine movement regions
-    AffineFlowMeasures cluster_centers;
-    int k = 0;
-    AffineFlowMeasures active_points = points;
-    while (active_points.size() > min_affine_point_set_size_ &&
-           k < max_k_)
-    {
-      AffineFlowMeasures inliers;
-      inliers.clear();
-      cv::Mat new_estimate = affineRANSAC(active_points, inliers,
-                                          ransac_inlier_percent_est_,
-                                          ransac_epsilon_, max_ransac_iters_);
-      AffineFlowMeasure new_center;
-      new_center.a = new_estimate;
-      new_center.label = k;
-      new_center.x = 0;
-      new_center.y = 0;
-      for (unsigned int i = 0; i < inliers.size(); ++i)
-      {
-        new_center.x += inliers[i].x;
-        new_center.y += inliers[i].y;
-
-        // Set labels for the removed points
-        for (unsigned int j = 0; j < points.size(); ++j)
-        {
-          if (points[j] == inliers[i])
-          {
-            points[j].label = k;
-          }
-        }
-        // Remove inliers from active points
-        for (unsigned int j = 0; j < active_points.size(); )
-        {
-          if (inliers[i] == active_points[j])
-          {
-            active_points.erase(active_points.begin()+j);
-          }
-          else
-          {
-            ++j;
-          }
-        }
-      }
-      if (inliers.size() > 0)
-      {
-        new_center.x /= inliers.size();
-        new_center.y /= inliers.size();
-        cv::Mat V = new_center.a*new_center.X();
-        new_center.u = V.at<float>(0,0);
-        new_center.v = V.at<float>(1,0);
-      }
-      else
-      {
-        new_center.x = 0;
-        new_center.y = 0;
-        new_center.u = 0;
-        new_center.v = 0;
-      }
-      cluster_centers.push_back(new_center);
-      ROS_INFO_STREAM("Fit affine transform " << k << " with center ("
-                      << new_center.x << ", " << new_center.y << ")");
-      ROS_INFO_STREAM("Number of points remaining: " << active_points.size());
-      ++k;
-    }
-
-#ifdef DISPLAY_FLOW_FIELD_CLUSTERING
-    // ROS_INFO_STREAM("Displaying clusters");
-    displayClusterCenters(cluster_centers, points, color_img);
-    // ROS_INFO_STREAM("Displayed clusters");
-#endif // DISPLAY_FLOW_FIELD_CLUSTERING
-
-    return cluster_centers;
-  }
-
-  /**
-   * Display the results for the segmentation.
-   *
-   * @param cluster_centers The estimated segmentation centers
-   * @param samples All points used in clustering
-   * @param color_img The color image associated with the estimate
-   */
-  void displayClusterCenters(AffineFlowMeasures cluster_centers,
-                             AffineFlowMeasures samples,
-                             cv::Mat& color_img, int cur_max_k=0)
-  {
-    // ROS_INFO_STREAM("Cloning image");
-    cv::Mat flow_center_disp = color_img.clone();
-    // ROS_INFO_STREAM("Drawing flow centers");
-    for (unsigned int i = 0; i < cluster_centers.size(); ++i)
-    {
-      cv::Point pt_a(cluster_centers[i].x, cluster_centers[i].y);
-      cv::Point pt_b(pt_a.x - cluster_centers[i].u,
-                     pt_a.y - cluster_centers[i].v);
-      cv::circle(flow_center_disp, pt_a, 20, cv::Scalar(0,255,0));
-      cv::line(flow_center_disp, pt_a, pt_b, cv::Scalar(0,255,0));
-    }
-    // ROS_INFO_STREAM("Drew flow centers");
-    std::stringstream center_disp_name;
-    center_disp_name << "Flow Cluster Centers";
-    if (cur_max_k != 0) center_disp_name << " " << cur_max_k;
-    cv::imshow(center_disp_name.str(), flow_center_disp);
-    // ROS_INFO_STREAM("Displayed flow centers");
-    cv::Mat flow_clusters_disp = color_img.clone();
-    std::vector<cv::Scalar> colors;
-    for (unsigned int k = 0; k < cluster_centers.size(); ++k)
-    {
-      cv::Scalar rand_color;
-      rand_color[0] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX))*255;
-      rand_color[1] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX))*255;
-      rand_color[2] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX))*255;
-      colors.push_back(rand_color);
-    }
-    // ROS_INFO_STREAM("Generated random colors");
-    for (unsigned int i = 0; i < samples.size(); ++i)
-    {
-      AffineFlowMeasure s = samples[i];
-      if (s.label < 0 || s.label > (cluster_centers.size()-1)) continue;
-      if (std::sqrt(s.u*s.u+s.v*s.v) > 1.0)
-      {
-        cv::Scalar cur_color = colors[s.label];
-        cv::line(flow_clusters_disp, cv::Point(s.x, s.y),
-                 cv::Point(s.x - s.u, s.y - s.v), cur_color);
-      }
-    }
-    std::stringstream cluster_disp_name;
-    cluster_disp_name << "Flow Clusters";
-    if (cur_max_k != 0) cluster_disp_name << " " << cur_max_k;
-    cv::imshow(cluster_disp_name.str(), flow_clusters_disp);
-  }
-
-
-  AffineFlowMeasures clusterSparseFlowRANSAC(cv::Mat& color_img,
-                                             cv::Mat& depth_img,
-                                             cv::Mat& u, cv::Mat& v,
-                                             cv::Mat& mask)
-  {
-    cv::Mat img_bw;
-    cv::cvtColor(color_img, img_bw, CV_BGR2GRAY);
-    AffineFlowMeasures sparseFlow = ft_.updateTracks(img_bw, mask);
-
-    // TODO: Perform some sort of clustering on the sparse flow examples
-    // and match the dense flow to each of these clusters as well as a null?
-    // TODO: Try and match geometric transforms to the observed visual transform
-    AffineFlowMeasures clusters;
-    return clusters;
-  }
-
-  //
-  // Core functions
-  //
   cv::Mat estimateAffineTransform(cv::Mat& u, cv::Mat& v,
                                   const int r, const int c, const int radius)
   {
@@ -2031,6 +1996,64 @@ class ObjectSingulation
     }
     inliers = best_inliers;
     return estimateAffineTransform(inliers);
+  }
+
+  //
+  // Helper Functions
+  //
+
+    /**
+   * Display the results for the segmentation.
+   *
+   * @param cluster_centers The estimated segmentation centers
+   * @param samples All points used in clustering
+   * @param color_img The color image associated with the estimate
+   */
+  void displayClusterCenters(AffineFlowMeasures& cluster_centers,
+                             AffineFlowMeasures& samples,
+                             cv::Mat& color_img, int cur_max_k=0)
+  {
+    cv::Mat flow_center_disp = color_img.clone();
+    for (unsigned int i = 0; i < cluster_centers.size(); ++i)
+    {
+      cv::Point pt_a(cluster_centers[i].x, cluster_centers[i].y);
+      cv::Point pt_b(pt_a.x - cluster_centers[i].u,
+                     pt_a.y - cluster_centers[i].v);
+      cv::circle(flow_center_disp, pt_a, 20, cv::Scalar(0,255,0));
+      cv::line(flow_center_disp, pt_a, pt_b, cv::Scalar(0,255,0));
+    }
+    std::stringstream center_disp_name;
+    center_disp_name << "Flow Cluster Centers";
+    if (cur_max_k != 0) center_disp_name << " " << cur_max_k;
+    cv::imshow(center_disp_name.str(), flow_center_disp);
+    cv::Mat flow_clusters_disp = color_img.clone();
+    std::vector<cv::Scalar> colors;
+    for (unsigned int k = 0; k < cluster_centers.size(); ++k)
+    {
+      cv::Scalar rand_color;
+      rand_color[0] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX))*255;
+      rand_color[1] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX))*255;
+      rand_color[2] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX))*255;
+      colors.push_back(rand_color);
+    }
+    for (unsigned int i = 0; i < samples.size(); ++i)
+    {
+      AffineFlowMeasure s = samples[i];
+      if (s.label < 0 || s.label > (cluster_centers.size()-1)) continue;
+      if (std::sqrt(s.u*s.u+s.v*s.v) > 1.0)
+      {
+        cv::Scalar cur_color = colors[s.label];
+        cv::line(flow_clusters_disp, cv::Point(s.x, s.y),
+                 cv::Point(s.x - s.u, s.y - s.v), cur_color);
+      }
+    }
+    std::stringstream cluster_disp_name;
+    cluster_disp_name << "Flow Clusters";
+    if (cur_max_k != 0) cluster_disp_name << " " << cur_max_k;
+    cv::imshow(cluster_disp_name.str(), flow_clusters_disp);
   }
 
   //
