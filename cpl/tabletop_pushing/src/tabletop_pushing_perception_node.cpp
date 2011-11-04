@@ -2162,6 +2162,8 @@ class TabletopPushingPerceptionNode
                      150.0);
 
     n_private_.param("image_hist_size", image_hist_size_, 5);
+    n_private_.param("pcl_cluster_tolerance", pcl_cluster_tolerance_, 0.25);
+    n_private_.param("pcl_min_cluster_size", pcl_min_cluster_size_, 100);
 
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
@@ -3124,8 +3126,8 @@ class TabletopPushingPerceptionNode
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> pcl_cluster;
     KdTreePtr clusters_tree =
         boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZ> > ();
-    pcl_cluster.setClusterTolerance(0.025);
-    pcl_cluster.setMinClusterSize(100);
+    pcl_cluster.setClusterTolerance(pcl_cluster_tolerance_);
+    pcl_cluster.setMinClusterSize(pcl_min_cluster_size_);
     pcl_cluster.setSearchMethod(clusters_tree);
     pcl_cluster.setInputCloud(
         boost::make_shared<XYZPointCloud >(objects_cloud));
@@ -3253,6 +3255,8 @@ class TabletopPushingPerceptionNode
   std::string base_output_path_;
   double table_ransac_thresh_;
   int image_hist_size_;
+  double pcl_cluster_tolerance_;
+  int pcl_min_cluster_size_;
 };
 
 int main(int argc, char ** argv)

@@ -65,6 +65,7 @@
     <param name="min_affine_point_set_size" value="200" type="int"/>
     <param name="max_ransac_iters" value="200" type="int"/>
     <param name="minimum_new_cluster_separation" value="5.0" type="double"/>
-
+    <param name="pcl_cluster_tolerance" value="0.25" type="double"/>
+    <param name="pcl_min_cluster_size" value="100" type="int"/>
   </node>
 </launch>
