@@ -49,7 +49,7 @@
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
 #include <tabletop_pushing/LocateTable.h>
-#include <tabletop_pushing/SegTrackAction.h>
+#include <tabletop_pushing/ObjectSingulationAction.h>
 
 // STL
 #include <vector>
@@ -1054,13 +1054,13 @@ class RegionTrackingNode
   // Region tracking methods
   //
 
-  void startTracker(const tabletop_pushing::SegTrackGoalConstPtr &goal)
+  void startTracker(const tabletop_pushing::ObjectSingulationGoalConstPtr &goal)
   {
     tracker_.stop();
     tracking_ = true;
 
   }
-  void stopTracker(const tabletop_pushing::SegTrackGoalConstPtr &goal)
+  void stopTracker(const tabletop_pushing::ObjectSingulationGoalConstPtr &goal)
   {
     tracker_.stop();
     tracking_ = false;
@@ -1438,7 +1438,7 @@ class RegionTrackingNode
   message_filters::Subscriber<sensor_msgs::Image> depth_sub_;
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
   message_filters::Synchronizer<MySyncPolicy> sync_;
-  actionlib::SimpleActionServer<tabletop_pushing::SegTrackAction> track_server_;
+  actionlib::SimpleActionServer<tabletop_pushing::ObjectSingulationAction> track_server_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
   ros::ServiceServer push_pose_server_;
