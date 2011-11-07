@@ -126,7 +126,7 @@ class MekaArmServer():
             self.ftclient = ftc.FTClient('force_torque_ft4', True)
             #self.ftclient.bias()
         else:
-            self.ftclient == None
+            self.ftclient = None
 
         self.q_r_pub = rospy.Publisher('/r_arm/q', FloatArray)
         self.q_l_pub = rospy.Publisher('/l_arm/q', FloatArray)
