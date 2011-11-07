@@ -14,7 +14,7 @@
     <param name="crop_max_y" value="480" type="int"/>
     <param name="image_hist_size" value="2" type="int"/>
     <param name="display_wait_ms" value="3" type="int"/>
-    <param name="autostart_tracking" value="false" type="bool"/>
+    <param name="autostart_tracking" value="true" type="bool"/>
 
     <param name="workspace_frame" value="/torso_lift_link" type="string"/>
     <param name="min_workspace_x" value="-1.0" type="double"/>
