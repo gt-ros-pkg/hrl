@@ -113,7 +113,7 @@
 // #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_UV 1
-// #define DISPLAY_GRAPHCUT 1
+#define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
@@ -1069,11 +1069,10 @@ class MotionGraphcut
    *
    * @return               Mask of the predicted arm in the image
    */
-  cv::Mat segmentArmFromMoving(cv::Mat& color_frame_in, cv::Mat& depth_frame_in,
-                               cv::Mat& workspace_mask_in, ArmModel& arms,
-                               int min_arm_x, int max_arm_x, int min_arm_y,
-                               int max_arm_y)
-
+  cv::Mat segmentRobotArm(cv::Mat& color_frame_in, cv::Mat& depth_frame_in,
+                          cv::Mat& workspace_mask_in, ArmModel& arms,
+                          int min_arm_x, int max_arm_x, int min_arm_y,
+                          int max_arm_y)
   {
     // NOTE: We examine only a subwindow in the image to avoid too make things
     // more efficient
@@ -2454,10 +2453,9 @@ class TabletopPushingPerceptionNode
     cv::Mat arm_cut(color_frame.size(), CV_8UC1, cv::Scalar(0));
     if (hands_and_arms[0].size() > 0 || hands_and_arms[1].size() > 0)
     {
-      arm_cut = mgc_.segmentArmFromMoving(color_frame_f, depth_frame,
-                                          cur_workspace_mask_, hands_and_arms,
-                                          min_arm_x, max_arm_x, min_arm_y,
-                                          max_arm_y);
+      arm_cut = mgc_.segmentRobotArm(color_frame_f, depth_frame,
+                                     cur_workspace_mask_, hands_and_arms,
+                                     min_arm_x, max_arm_x, min_arm_y, max_arm_y);
     }
 
     // Publish the moving region stuff
@@ -2498,6 +2496,11 @@ class TabletopPushingPerceptionNode
     // cv::Mat not_arm_move_color;
     // color_frame.copyTo(not_arm_move_color, not_arm_move);
 
+    // TODO: Get point cloud associated with the motion mask or label points
+    // that are supposedly moving
+    XYZPointCloud moving_cloud = getMaskedPointCloud(cloud, cut);
+    XYZPointCloud arm_cloud = getMaskedPointCloud(cloud, arm_cut);
+
     cv::Mat last_motion_mask;
     cv::Mat last_arm_mask;
     cv::Mat last_color_frame;
@@ -2528,9 +2531,6 @@ class TabletopPushingPerceptionNode
       flow_u_hist_.pop_front();
       flow_v_hist_.pop_front();
     }
-
-    // TODO: Get point cloud associated with the motion mask or label points
-    // that are supposedly moving
 
 #ifdef AUTO_FLOW_CLUSTER
     os_.getPushVector(last_motion_mask, last_arm_mask, last_color_frame,
@@ -2981,6 +2981,19 @@ class TabletopPushingPerceptionNode
     return out;
   }
 
+  cv::Mat upSample(cv::Mat data_in, int scales)
+  {
+    cv::Mat out = data_in.clone();
+    for (int i = 0; i < scales; ++i)
+    {
+      // NOTE: Currently assumes even cols, rows for data_in
+      cv::Size out_size(data_in.cols*2, data_in.rows*2);
+      cv::pyrUp(data_in, out, out_size);
+      data_in = out;
+    }
+    return out;
+  }
+
   cv::Mat getTableHeightDistances()
   {
     cv::Mat table_distances(cur_depth_frame_.size(), CV_32FC1, cv::Scalar(0.0));
@@ -3180,6 +3193,31 @@ class TabletopPushingPerceptionNode
 
     p.header.frame_id = "torso_lift_link";
     return p;
+  }
+
+  XYZPointCloud getMaskedPointCloud(XYZPointCloud& input_cloud, cv::Mat& mask_in)
+  {
+    // TODO: Assert that input_cloud is shaped
+    cv::Mat mask = upSample(mask_in, num_downsamples_);
+
+    // Select points from point cloud that are in the mask:
+    pcl::PointIndices mask_indices;
+    mask_indices.header = input_cloud.header;
+    for (int y = 0; y < mask.rows; ++y)
+    {
+      uchar* mask_row = mask.ptr<uchar>(y);
+      for (int x = 0; x < mask.cols; ++x)
+      {
+        if (mask_row[x] != 0)
+        {
+          mask_indices.indices.push_back(y*input_cloud.width + x);
+        }
+      }
+    }
+
+    XYZPointCloud masked_cloud;
+    pcl::copyPointCloud(input_cloud, mask_indices, masked_cloud);
+    return masked_cloud;
   }
 
   /**
