@@ -81,10 +81,12 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include <opencv2/features2d/features2d.hpp>
+// #include <opencv2/features2d/features2d.hpp>
 
 // cpl_visual_features
+#include <cpl_visual_features/motion/flow_types.h>
 #include <cpl_visual_features/motion/dense_lk.h>
+#include <cpl_visual_features/motion/feature_tracker.h>
 
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
@@ -125,7 +127,6 @@
 // #define DISPLAY_ARM_CIRCLES 1
 // #define DISPLAY_TABLE_DISTANCES 1
 #define DISPLAY_FLOW_FIELD_CLUSTERING 1
-// #define DISPLAY_TRACKER_OUTPUT 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
@@ -150,11 +151,12 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
 typedef Graph<float, float, float> GraphType;
 typedef pcl::KdTree<pcl::PointXYZ>::Ptr KdTreePtr;
-typedef std::vector<float> Descriptor;
 
 using cpl_visual_features::AffineFlowMeasure;
 using cpl_visual_features::AffineFlowMeasures;
 using cpl_visual_features::DenseLKFlow;
+using cpl_visual_features::FeatureTracker;
+using cpl_visual_features::Descriptor;
 
 inline float max(const float a, const double b)
 {
@@ -331,325 +333,6 @@ class ArmModel
   bool r_hand_on;
   bool l_arm_on;
   bool r_arm_on;
-};
-
-class FeatureTracker
-{
- public:
-  FeatureTracker(std::string name, double hessian_thresh=250, int num_octaves=4,
-                 int num_layers=2, bool extended=true, bool upright=false) :
-      surf_(hessian_thresh, num_octaves, num_layers, extended, upright),
-      initialized_(false), ratio_threshold_(0.5), window_name_(name),
-      min_flow_thresh_(0), max_corners_(500), klt_corner_thresh_(0.3),
-      klt_corner_min_dist_(2)
-  {
-    prev_keypoints_.clear();
-    cur_keypoints_.clear();
-    prev_descriptors_.clear();
-    cur_descriptors_.clear();
-  }
-
-  //
-  // Main tracking logic functions
-  //
-
-  void initTracks(cv::Mat& frame)
-  {
-    updateCurrentDescriptors(frame, cv::Mat());
-    prev_keypoints_ = cur_keypoints_;
-    prev_descriptors_ = cur_descriptors_;
-    initialized_ = true;
-  }
-
-  AffineFlowMeasures updateTracksKLT(cv::Mat& cur_frame, cv::Mat& prev_frame)
-  {
-    AffineFlowMeasures sparse_flow;
-    std::vector<cv::Point2f> prev_points;
-    std::vector<cv::Point2f> new_points;
-    ROS_INFO_STREAM("max_corners: " << max_corners_);
-    ROS_INFO_STREAM("quality_level: " << klt_corner_thresh_);
-    ROS_INFO_STREAM("min_distance: " << klt_corner_min_dist_);
-    cv::goodFeaturesToTrack(prev_frame, prev_points, max_corners_,
-                            klt_corner_thresh_, klt_corner_min_dist_);
-    ROS_INFO_STREAM("Found " << prev_points.size() << " corners.");
-    std::vector<uchar> status;
-    std::vector<float> err;
-    cv::calcOpticalFlowPyrLK(prev_frame, cur_frame, prev_points, new_points,
-                             status, err);
-    int moving_points = 0;
-    for (unsigned int i = 0; i < prev_points.size(); i++)
-    {
-      if (! status[i]) continue;
-      int dx = prev_points[i].x - new_points[i].x;
-      int dy = prev_points[i].y - new_points[i].y;
-      sparse_flow.push_back(AffineFlowMeasure(new_points[i].x, new_points[i].y,
-                                              dx, dy));
-      if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) > min_flow_thresh_)
-        moving_points++;
-    }
-    ROS_INFO_STREAM(window_name_ << ": num moving points: " << moving_points);
-
-#ifdef DISPLAY_TRACKER_OUTPUT
-    cv::Mat display_cur_frame(cur_frame.rows, cur_frame.cols, CV_8UC3);;
-    cv::cvtColor(cur_frame, display_cur_frame, CV_GRAY2BGR);
-    for (unsigned int i = 0; i < sparse_flow.size(); i++)
-    {
-      if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) > min_flow_thresh_)
-      {
-        ROS_DEBUG_STREAM("Point is moving (" << sparse_flow[i].u << ", "
-                         << sparse_flow[i].v << ")");
-        cv::line(display_cur_frame,
-                 cv::Point(sparse_flow[i].x, sparse_flow[i].y),
-                 cv::Point(sparse_flow[i].x + sparse_flow[i].u,
-                           sparse_flow[i].y + sparse_flow[i].v),
-                 cv::Scalar(0,0,255), 1);
-      }
-    }
-
-    cv::imshow(window_name_, display_cur_frame);
-#endif // DISPLAY_TRACKER_OUTPUT
-    return sparse_flow;
-  }
-
-  AffineFlowMeasures updateTracks(const cv::Mat& frame)
-  {
-    return updateTracks(frame, cv::Mat());
-  }
-
-  AffineFlowMeasures updateTracks(const cv::Mat& frame, const cv::Mat& mask)
-  {
-    cur_keypoints_.clear();
-    cur_descriptors_.clear();
-    updateCurrentDescriptors(frame, mask);
-
-    std::vector<int> matches_cur;
-    std::vector<int> matches_prev;
-    AffineFlowMeasures sparse_flow;
-    matches_cur.clear();
-    matches_prev.clear();
-
-    // Find nearest neighbors with previous descriptors
-    findMatches(cur_descriptors_, prev_descriptors_, matches_cur, matches_prev);
-    ROS_DEBUG_STREAM(window_name_ << ": num feature matches: "
-                     << matches_cur.size());
-    int moving_points = 0;
-    for (unsigned int i = 0; i < matches_cur.size(); i++)
-    {
-      int dx = prev_keypoints_[matches_prev[i]].pt.x -
-          cur_keypoints_[matches_cur[i]].pt.x;
-      int dy = prev_keypoints_[matches_prev[i]].pt.y -
-          cur_keypoints_[matches_cur[i]].pt.y;
-      sparse_flow.push_back(AffineFlowMeasure(
-          cur_keypoints_[matches_cur[i]].pt.x,
-          cur_keypoints_[matches_cur[i]].pt.y, dx, dy));
-      if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) > min_flow_thresh_)
-        moving_points++;
-    }
-    ROS_DEBUG_STREAM(window_name_ << ": num moving points: " << moving_points);
-
-#ifdef DISPLAY_TRACKER_OUTPUT
-    cv::Mat display_frame(frame.rows, frame.cols, CV_8UC3);;
-    cv::cvtColor(frame, display_frame, CV_GRAY2BGR);
-    for (unsigned int i = 0; i < matches_cur.size(); i++)
-    {
-      if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) > min_flow_thresh_)
-      {
-        ROS_DEBUG_STREAM("Point is moving (" << sparse_flow[i].u << ", "
-                         << sparse_flow[i].v << ")");
-        cv::line(display_frame,
-                 prev_keypoints_[matches_prev[i]].pt,
-                 cur_keypoints_[matches_cur[i]].pt,
-                 cv::Scalar(0,0,255), 1);
-      }
-    }
-
-    cv::imshow(window_name_, display_frame);
-#endif // DISPLAY_TRACKER_OUTPUT
-
-    prev_keypoints_ = cur_keypoints_;
-    prev_descriptors_ = cur_descriptors_;
-    return sparse_flow;
-  }
-
-  //
-  // Feature Matching Functions
-  //
-
-  /*
-   * SSD
-   *
-   * @short Computes the squareroot of squared differences
-   * @param a First descriptor
-   * @param b second descriptor
-   * @return value of squareroot of squared differences
-   */
-  double SSD(Descriptor& a, Descriptor& b)
-  {
-    double diff = 0;
-
-    for (unsigned int i = 0; i < a.size(); ++i) {
-      float delta = a[i] - b[i];
-      diff += delta*delta;
-    }
-
-    return diff;
-  }
-
-  /*
-   * ratioTest
-   *
-   * @short Computes the  ratio test described in Lowe 2004
-   * @param a Descriptor from the first image to compare
-   * @param bList List of descriptors from the second image
-   * @param threshold Threshold value for ratioTest comparison
-   *
-   * @return index of the best match, -1 if no match ratio is less than threshold
-   */
-  int ratioTest(Descriptor& a, std::vector<Descriptor>& bList, double threshold)
-  {
-    double bestScore = 1000000;
-    double secondBest = 1000000;
-    int bestIndex = -1;
-
-    for (unsigned int b = 0; b < bList.size(); ++b) {
-      double score = 0;
-      score = SSD(a, bList[b]);
-
-      if (score < bestScore) {
-        secondBest = bestScore;
-        bestScore = score;
-        bestIndex = b;
-      } else if (score < secondBest) {
-        secondBest = score;
-      }
-      if ( bestScore / secondBest > threshold) {
-        bestIndex = -1;
-      }
-
-    }
-
-    return bestIndex;
-  }
-
-  /**
-   * findMatches
-   *
-   * @param descriptors1 List of descriptors from image 1
-   * @param descriptors2 List of descriptors from image 2
-   * @param matches1 Indexes of matching points in image 1 (Returned)
-   * @param matches2 Indexes of matching points in image 2 (Returned)
-   */
-  void findMatches(std::vector<Descriptor>& descriptors1,
-                   std::vector<Descriptor>& descriptors2,
-                   std::vector<int>& matches1, std::vector<int>& matches2)
-  {
-    // Determine matches using the Ratio Test method from Lowe 2004
-    for (unsigned int a = 0; a < descriptors1.size(); ++a) {
-      const int bestIndex = ratioTest(descriptors1[a], descriptors2,
-                                      ratio_threshold_);
-      if (bestIndex != -1) {
-        matches1.push_back(a);
-        matches2.push_back(bestIndex);
-      }
-    }
-
-    // Check that the matches are unique going the other direction
-    for (unsigned int x = 0; x < matches2.size();) {
-      const int bestIndex = ratioTest(descriptors2[matches2[x]],
-                                      descriptors1, ratio_threshold_);
-      if (bestIndex != matches1[x]) {
-        matches1.erase(matches1.begin()+x);
-        matches2.erase(matches2.begin()+x);
-      } else {
-        x++;
-      }
-    }
-
-  }
-
- protected:
-
-  //
-  // Helper Functions
-  //
-
-  void updateCurrentDescriptors(const cv::Mat& frame, const cv::Mat& mask)
-  {
-    std::vector<float> raw_descriptors;
-    try
-    {
-      // if (use_fast_)
-      // {
-      //   cv::FAST(frame, cur_keypoints_, 9, true);
-      //   // TODO: Remove keypoints outside the mask
-      //   surf_(frame, mask, cur_keypoints_, raw_descriptors, true);
-      // }
-      // else
-      // {
-      surf_(frame, mask, cur_keypoints_, raw_descriptors, false);
-      // }
-      for (unsigned int i = 0; i < raw_descriptors.size(); i += 128)
-      {
-        Descriptor d(raw_descriptors.begin() + i,
-                     raw_descriptors.begin() + i + 128);
-        cur_descriptors_.push_back(d);
-      }
-    }
-    catch(cv::Exception e)
-    {
-      std::cerr << e.err << std::endl;
-    }
-  }
-
- public:
-
-  //
-  // Getters & Setters
-  //
-
-  bool isInitialized() const
-  {
-    return initialized_;
-  }
-
-  void setMinFlowThresh(int min_thresh)
-  {
-    min_flow_thresh_= min_thresh;
-  }
-
-  void setKLTCornerThresh(double corner_thresh)
-  {
-    klt_corner_thresh_ = corner_thresh;
-  }
-
-  void setKLTCornerMinDist(double min_dist)
-  {
-    klt_corner_min_dist_ = min_dist;
-  }
-
-  void setKLTMaxCorners(int max_corners)
-  {
-    max_corners_ = max_corners;
-  }
-
-  void stop()
-  {
-    initialized_ = false;
-  }
- public:
-  cv::SURF surf_;
- protected:
-  std::vector<cv::KeyPoint> prev_keypoints_;
-  std::vector<cv::KeyPoint> cur_keypoints_;
-  std::vector<Descriptor> prev_descriptors_;
-  std::vector<Descriptor> cur_descriptors_;
-  bool initialized_;
-  double ratio_threshold_;
-  std::string window_name_;
-  int min_flow_thresh_;
-  int max_corners_;
-  double klt_corner_thresh_;
-  double klt_corner_min_dist_;
 };
 
 class MotionGraphcut
