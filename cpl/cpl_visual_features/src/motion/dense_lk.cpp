@@ -33,6 +33,7 @@
  *********************************************************************/
 
 #include <cpl_visual_features/motion/dense_lk.h>
+#include <opencv2/imgproc/imgproc.hpp>
 
 namespace cpl_visual_features
 {

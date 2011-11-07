@@ -32,47 +32,52 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#ifndef dense_lk_h_DEFINED
-#define dense_lk_h_DEFINED
-
-// OpenCV
+#ifndef flow_types_h_DEFINED
+#define flow_types_h_DEFINED
 #include <opencv2/core/core.hpp>
-
-// STL
-#include <vector>
-#include <cpl_visual_features/motion/flow_types.h>
+#include <deque>
 
 namespace cpl_visual_features
 {
-class DenseLKFlow
+
+class AffineFlowMeasure
 {
  public:
-  DenseLKFlow(int win_size = 5, int num_levels = 4);
+  AffineFlowMeasure(int x_ = 0, int y_ = 0, int u_ = 0, int v_= 0,
+                    int label_=-1) : x(x_), y(y_), u(u_), v(v_), label(label_)
+  {
+  }
 
-  virtual ~DenseLKFlow();
+  cv::Mat X()
+  {
+    cv::Mat X(3, 1, CV_32FC1);
+    X.at<float>(0,0) = x;
+    X.at<float>(1,0) = y;
+    X.at<float>(2,0) = 1.0;
+    return X;
+  }
 
-  std::vector<cv::Mat> operator()(cv::Mat& cur_color_frame,
-                                  cv::Mat& prev_color_frame);
-  std::vector<cv::Mat> hierarchy(cv::Mat& f2, cv::Mat& f1);
-  std::vector<cv::Mat> baseLK(cv::Mat& cur_bw, cv::Mat& prev_bw);
-  cv::Mat reduce(cv::Mat& input);
-  cv::Mat expand(cv::Mat& input);
-  cv::Mat smooth(cv::Mat& input, int n=1);
-  cv::Mat warp(cv::Mat& i2, cv::Mat& vx, cv::Mat& vy);
-  //
-  // Getters and Setters
-  //
-  void setWinSize(int win_size);
+  bool operator==(AffineFlowMeasure b)
+  {
+    return (b.x == x && b.y == y);
+  }
 
-  void setNumLevels(int num_levels);
-  double r_thresh_;
- protected:
-  int win_size_;
-  int max_level_;
-  cv::Mat dx_kernel_;
-  cv::Mat dy_kernel_;
-  cv::Mat g_kernel_;
-  cv::Mat optic_g_kernel_;
+  float operator-(AffineFlowMeasure b) const
+  {
+    const float d_x = x-b.x;
+    const float d_y = y-b.y;
+    return std::sqrt(d_x*d_x+d_y*d_y);
+  }
+  // Members
+  float x;
+  float y;
+  float u;
+  float v;
+  int label;
+  cv::Mat a;
 };
+
+typedef std::deque<AffineFlowMeasure> AffineFlowMeasures;
 }
-#endif // dense_lk_h_DEFINED
+
+#endif // flow_types_h_DEFINED
