@@ -70,6 +70,7 @@
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/kdtree/impl/kdtree_flann.hpp>
 #include <pcl/features/feature.h>
+#include <pcl/features/normal_3d.h>
 #include <pcl/common/eigen.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
@@ -2163,6 +2164,7 @@ class TabletopPushingPerceptionNode
     n_private_.param("image_hist_size", image_hist_size_, 5);
     n_private_.param("pcl_cluster_tolerance", pcl_cluster_tolerance_, 0.25);
     n_private_.param("pcl_min_cluster_size", pcl_min_cluster_size_, 100);
+    n_private_.param("normal_estimate_search_radius", norm_est_radius_, 0.03);
 
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
@@ -2496,8 +2498,7 @@ class TabletopPushingPerceptionNode
     // cv::Mat not_arm_move_color;
     // color_frame.copyTo(not_arm_move_color, not_arm_move);
 
-    // TODO: Get point cloud associated with the motion mask or label points
-    // that are supposedly moving
+    // Get point cloud associateds with the motion mask and arm mask
     XYZPointCloud moving_cloud = getMaskedPointCloud(cloud, cut);
     XYZPointCloud arm_cloud = getMaskedPointCloud(cloud, arm_cut);
 
@@ -3153,7 +3154,7 @@ class TabletopPushingPerceptionNode
                     << clusters.size());
 
     std::vector<Eigen::Vector4f> cluster_centroids;
-    for (unsigned int i = 0; i < clusters.size(); ++i)
+    for (unsigned int i = 0; i < clusters.size(); /*++i*/)
     {
       // Choose a random cluster to push
       Eigen::Vector4f obj_xyz_centroid;
@@ -3167,6 +3168,12 @@ class TabletopPushingPerceptionNode
           obj_xyz_centroid[1] < max_pushing_y_)
       {
         cluster_centroids.push_back(obj_xyz_centroid);
+        ++i;
+      }
+      else
+      {
+        // Remove cluster at index i
+        clusters.erase(clusters.begin() + i);
       }
     }
     geometry_msgs::PoseStamped p;
@@ -3185,7 +3192,19 @@ class TabletopPushingPerceptionNode
     // Set z to be the table height
     p.pose.position.z = plane_xyz_centroid[2];
 
-    // TODO: Find orientation from the centroid
+    // TODO: Find pushing orientation for the centroid
+    // First compute normals of the object cloud
+    XYZPointCloud obj_cloud;
+    pcl::copyPointCloud(objects_cloud, clusters[rand_idx], obj_cloud);
+    KdTreePtr tree = boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZ> > ();
+    pcl::PointCloud<pcl::Normal>::Ptr obj_norms(new pcl::PointCloud<pcl::Normal>);
+    pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> norm_est;
+    norm_est.setInputCloud(boost::make_shared<XYZPointCloud>(obj_cloud));
+    norm_est.setSearchMethod(tree);
+    norm_est.setRadiusSearch(norm_est_radius_);
+    norm_est.compute(*obj_norms);
+    // TODO: Get the normal at the centroid
+    // TODO: Set orientation based on the normal
     p.pose.orientation.x = 0;
     p.pose.orientation.y = 0;
     p.pose.orientation.z = 0;
@@ -3299,6 +3318,7 @@ class TabletopPushingPerceptionNode
   int image_hist_size_;
   double pcl_cluster_tolerance_;
   int pcl_min_cluster_size_;
+  double norm_est_radius_;
 };
 
 int main(int argc, char ** argv)
