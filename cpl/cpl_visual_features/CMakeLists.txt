@@ -23,8 +23,9 @@ rosbuild_add_library(cpl_visual_features_base
   src/features/gabor_filter_bank.cpp
   src/features/lm_filter_bank.cpp)
 
-rosbuild_add_library(cpl_visual_features_saliency
-  src/saliency/center_surround.cpp)
+rosbuild_add_library(cpl_visual_features_saliency src/saliency/center_surround.cpp)
+
+rosbuild_add_library(cpl_visual_features_motion src/motion/dense_lk.cpp)
 
 # Build the executables
 rosbuild_add_executable(test_offline src/test_offline.cpp)
