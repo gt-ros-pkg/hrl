@@ -101,7 +101,7 @@ class TabletopExecutive:
                                                             RaiseAndLook)
         self.table_proxy = rospy.ServiceProxy('get_table_location', LocateTable)
         self.tracker_client = actionlib.SimpleActionClient("seg_track_action",
-                                                           SegTrackAction)
+                                                           ObjectSingulationAction)
         self.use_fake_push_pose = use_fake_push_pose
         self.push_count = 0
 
@@ -173,7 +173,7 @@ class TabletopExecutive:
         raise_res = self.raise_and_look_push_proxy(raise_req)
 
     def init_tracker(self):
-        track_goal = SegTrackGoal()
+        track_goal = ObjectSingulationGoal()
         track_goal.start = False
         track_goal.init = True
         self.tracker_client.send_goal(track_goal)
@@ -181,7 +181,7 @@ class TabletopExecutive:
         self.tracker_client.wait_for_server()
 
     def start_tracker(self):
-        track_goal = SegTrackGoal()
+        track_goal = ObjectSingulationGoal()
         track_goal.start = True
         track_goal.init = False
         self.tracker_client.send_goal(track_goal)
@@ -189,7 +189,7 @@ class TabletopExecutive:
         self.tracker_client.wait_for_server()
 
     def stop_tracker(self):
-        track_goal = SegTrackGoal()
+        track_goal = ObjectSingulationGoal()
         track_goal.start = False
         track_goal.init = False
         track_goal.get_singulation_vector = True

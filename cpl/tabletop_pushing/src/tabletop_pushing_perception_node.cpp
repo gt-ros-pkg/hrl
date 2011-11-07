@@ -85,7 +85,7 @@
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
 #include <tabletop_pushing/LocateTable.h>
-#include <tabletop_pushing/SegTrackAction.h>
+#include <tabletop_pushing/ObjectSingulationAction.h>
 
 #include <tabletop_pushing/extern/graphcut/graph.h>
 #include <tabletop_pushing/extern/graphcut/energy.h>
@@ -2326,13 +2326,14 @@ class TabletopPushingPerceptionNode
   // Region tracking methods
   //
 
-  void trackerGoalCallback(const tabletop_pushing::SegTrackGoalConstPtr &goal)
+  void trackerGoalCallback(
+      const tabletop_pushing::ObjectSingulationGoalConstPtr &goal)
   {
     if (goal->init)
     {
       ROS_INFO_STREAM("Initializing tracker.");
       initTracker();
-      tabletop_pushing::SegTrackResult result;
+      tabletop_pushing::ObjectSingulationResult result;
       track_server_.setSucceeded(result);
     }
 
@@ -2340,14 +2341,14 @@ class TabletopPushingPerceptionNode
     {
       ROS_INFO_STREAM("Starting tracker.");
       startTracker();
-      tabletop_pushing::SegTrackResult result;
+      tabletop_pushing::ObjectSingulationResult result;
       track_server_.setSucceeded(result);
     }
     else
     {
       ROS_INFO_STREAM("Stopping tracker.");
       stopTracker();
-      tabletop_pushing::SegTrackResult result;
+      tabletop_pushing::ObjectSingulationResult result;
       if (goal->get_singulation_vector)
       {
         result.singulation_vector = os_.getPushVector(motion_mask_hist_.back(),
@@ -2527,6 +2528,9 @@ class TabletopPushingPerceptionNode
       flow_u_hist_.pop_front();
       flow_v_hist_.pop_front();
     }
+
+    // TODO: Get point cloud associated with the motion mask or label points
+    // that are supposedly moving
 
 #ifdef AUTO_FLOW_CLUSTER
     os_.getPushVector(last_motion_mask, last_arm_mask, last_color_frame,
@@ -3202,7 +3206,7 @@ class TabletopPushingPerceptionNode
   image_transport::Publisher motion_mask_pub_;
   image_transport::Publisher arm_img_pub_;
   image_transport::Publisher arm_mask_pub_;
-  actionlib::SimpleActionServer<tabletop_pushing::SegTrackAction> track_server_;
+  actionlib::SimpleActionServer<tabletop_pushing::ObjectSingulationAction> track_server_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
   ros::ServiceServer push_pose_server_;
