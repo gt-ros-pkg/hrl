@@ -116,17 +116,17 @@
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
-#define DISPLAY_OPTICAL_FLOW 1
+// #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_UV 1
-#define DISPLAY_GRAPHCUT 1
+// #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS 1
 // #define DISPLAY_ARM_CIRCLES 1
 // #define DISPLAY_TABLE_DISTANCES 1
-#define DISPLAY_FLOW_FIELD_CLUSTERING 1
+// #define DISPLAY_FLOW_FIELD_CLUSTERING 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
@@ -135,7 +135,7 @@
 // Functional IFDEFS
 #define MEDIAN_FILTER_FLOW 1
 #define USE_WORKSPACE_MASK_FOR_ARM 1
-#define AUTO_FLOW_CLUSTER 1
+// #define AUTO_FLOW_CLUSTER 1
 // #define USE_TABLE_COLOR_ESTIMATE 1
 #define SCALE_AFFINE_DISTANCES 1
 #define CLUSTER_AFFINE_WITH_IMAGE_LOCS 1
@@ -2593,7 +2593,7 @@ class TabletopPushingPerceptionNode
                     << clusters.size());
 
     std::vector<Eigen::Vector4f> cluster_centroids;
-    for (unsigned int i = 0; i < clusters.size(); /*++i*/)
+    for (unsigned int i = 0; i < clusters.size(); )
     {
       // Choose a random cluster to push
       Eigen::Vector4f obj_xyz_centroid;
@@ -2631,7 +2631,6 @@ class TabletopPushingPerceptionNode
     // Set z to be the table height
     p.pose.position.z = plane_xyz_centroid[2];
 
-    // TODO: Find pushing orientation for the centroid
     // First compute normals of the object cloud
     XYZPointCloud obj_cloud;
     pcl::copyPointCloud(objects_cloud, clusters[rand_idx], obj_cloud);
