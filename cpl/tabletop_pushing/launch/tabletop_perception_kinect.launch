@@ -14,7 +14,7 @@
     <param name="crop_max_y" value="480" type="int"/>
     <param name="image_hist_size" value="2" type="int"/>
     <param name="display_wait_ms" value="3" type="int"/>
-    <param name="autostart_tracking" value="true" type="bool"/>
+    <param name="autostart_tracking" value="false" type="bool"/>
 
     <param name="workspace_frame" value="/torso_lift_link" type="string"/>
     <param name="min_workspace_x" value="-1.0" type="double"/>
@@ -67,5 +67,7 @@
     <param name="minimum_new_cluster_separation" value="5.0" type="double"/>
     <param name="pcl_cluster_tolerance" value="0.25" type="double"/>
     <param name="pcl_min_cluster_size" value="100" type="int"/>
+    <param name="pcl_voxel_downsample_res" value="0.005" type="double"/>
+    <param name="use_pcl_voxel_downsample" value="true" type="bool"/>
   </node>
 </launch>

@@ -1604,6 +1604,8 @@ class TabletopPushingPerceptionNode
     n_private_.param("pcl_cluster_tolerance", pcl_cluster_tolerance_, 0.25);
     n_private_.param("pcl_min_cluster_size", pcl_min_cluster_size_, 100);
     n_private_.param("normal_estimate_search_radius", norm_est_radius_, 0.03);
+    n_private_.param("pcl_voxel_downsample_res", voxel_down_res_, 0.005);
+    n_private_.param("use_pcl_voxel_downsample", use_voxel_down_, true);
 
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
@@ -2462,11 +2464,31 @@ class TabletopPushingPerceptionNode
 
   PoseStamped getTablePlane(XYZPointCloud& cloud)
   {
+    XYZPointCloud cloud_downsampled;
+    if (use_voxel_down_)
+    {
+      pcl::VoxelGrid<pcl::PointXYZ> downsample;
+      downsample.setInputCloud(
+          boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud));
+      downsample.setLeafSize(voxel_down_res_, voxel_down_res_, voxel_down_res_);
+      downsample.filter(cloud_downsampled);
+      ROS_INFO_STREAM("Voxel Downsampled Cloud");
+      ROS_INFO_STREAM("cloud_downsampled.size()" << cloud_downsampled.size());
+    }
+
     // Filter Cloud to not look for table planes on the ground
     XYZPointCloud cloud_z_filtered;
     pcl::PassThrough<pcl::PointXYZ> z_pass;
-    z_pass.setInputCloud(
-        boost::make_shared<XYZPointCloud>(cloud));
+    if (use_voxel_down_)
+    {
+      z_pass.setInputCloud(
+          boost::make_shared<XYZPointCloud>(cloud_downsampled));
+    }
+    else
+    {
+      z_pass.setInputCloud(
+          boost::make_shared<XYZPointCloud>(cloud));
+    }
     z_pass.setFilterFieldName ("z");
     z_pass.setFilterLimits(min_table_z_, max_table_z_);
     z_pass.filter(cloud_z_filtered);
@@ -2518,14 +2540,32 @@ class TabletopPushingPerceptionNode
 
   PoseStamped findRandomPushPose(XYZPointCloud& input_cloud)
   {
-    XYZPointCloud cloud_filtered, cloud_z_filtered;
+    XYZPointCloud cloud_filtered, cloud_z_filtered, cloud_downsampled;
     ROS_INFO_STREAM("input_cloud.size() " << input_cloud.size());
     ROS_INFO_STREAM("input_cloud.header.frame_id() "
                     << input_cloud.header.frame_id);
+    if (use_voxel_down_)
+    {
+
+      pcl::VoxelGrid<pcl::PointXYZ> downsample;
+      downsample.setInputCloud(
+          boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(input_cloud));
+      downsample.setLeafSize(voxel_down_res_, voxel_down_res_, voxel_down_res_);
+      downsample.filter(cloud_downsampled);
+      ROS_INFO_STREAM("Voxel Downsampled Cloud");
+      ROS_INFO_STREAM("cloud_downsampled.size()" << cloud_downsampled.size());
+    }
 
     // Filter Cloud to be just table top height
     pcl::PassThrough<pcl::PointXYZ> z_pass;
-    z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(input_cloud));
+    if (use_voxel_down_)
+    {
+      z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(cloud_downsampled));
+    }
+    else
+    {
+      z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(input_cloud));
+    }
     z_pass.setFilterFieldName ("z");
     z_pass.setFilterLimits(min_table_z_, max_table_z_);
     z_pass.filter(cloud_z_filtered);
@@ -2757,6 +2797,8 @@ class TabletopPushingPerceptionNode
   double pcl_cluster_tolerance_;
   int pcl_min_cluster_size_;
   double norm_est_radius_;
+  double voxel_down_res_;
+  bool use_voxel_down_;
 };
 
 int main(int argc, char ** argv)
