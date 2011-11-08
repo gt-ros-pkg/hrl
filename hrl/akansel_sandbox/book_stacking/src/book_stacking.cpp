@@ -4,21 +4,81 @@
 #include <arm_navigation_msgs/MoveArmAction.h>
 #include <arm_navigation_msgs/utils.h>
 
+#include <pcl_ros/filters/passthrough.h>
+
+#include <pr2_controllers_msgs/PointHeadAction.h>
+
+
+typedef actionlib::SimpleActionClient<pr2_controllers_msgs::PointHeadAction> PointHeadClient;
+
 
 class book_stacking
 {
 
 private:
-
-
+  PointHeadClient* point_head_client_;
+  ros::Subscriber pc_sub_;
 public:
 ros::NodeHandle nh;
+
 
 book_stacking():
 nh("~")
 {
+point_head_client_ = new PointHeadClient("/head_traj_controller/point_head_action", true);
+   while(!point_head_client_->waitForServer(ros::Duration(5.0))){
+      ROS_INFO("Waiting for the point_head_action server to come up");
+    }
 
+
+pc_sub_=nh.subscribe("/camera/depth/points",1,&book_stacking::KinectCallback,this);
+
+lookAt("base_link", 1.5, 0.0, 0.2);
+//TestArm();
+//shakeHead(2);
 }
+
+
+void lookAt(std::string frame_id, double x, double y, double z)
+  {
+    //the goal message we will be sending
+    pr2_controllers_msgs::PointHeadGoal goal;
+
+    //the target point, expressed in the requested frame
+    geometry_msgs::PointStamped point;
+    point.header.frame_id = frame_id;
+    point.point.x = x; point.point.y = y; point.point.z = z;
+    goal.target = point;
+
+    //we are pointing the high-def camera frame 
+    //(pointing_axis defaults to X-axis)
+    goal.pointing_frame = "high_def_frame";
+
+    //take at least 0.5 seconds to get there
+    goal.min_duration = ros::Duration(0.5);
+
+    //and go no faster than 1 rad/s
+    goal.max_velocity = 1.0;
+
+    //send the goal
+    point_head_client_->sendGoal(goal);
+
+    //wait for it to get there (abort after 2 secs to prevent getting stuck)
+    point_head_client_->waitForResult(ros::Duration(2));
+  }
+
+  void shakeHead(int n)
+  {
+    int count = 0;
+    while (ros::ok() && ++count <= n )
+    {
+      //Looks at a point forward (x=5m), slightly left (y=1m), and 1.2m up
+      lookAt("base_link", 5.0, 1.0, 1.2);
+
+      //Looks at a point forward (x=5m), slightly right (y=-1m), and 1.2m up
+      lookAt("base_link", 5.0, -1.0, 1.2);
+    }
+  }
 
 
 void TestArm()
@@ -81,6 +141,12 @@ ROS_INFO("BOOKSTACK Giving Goal");
 
 }
 
+void KinectCallback(const sensor_msgs::PointCloud2ConstPtr &msg)
+{
+//ROS_INFO("PT CLOUD");
+}
+
+
 };
 
 int main(int argc, char** argv)
@@ -88,7 +154,7 @@ int main(int argc, char** argv)
 ros::init(argc, argv, "BookStackingNode");
 //ROS_INFO("BOOK STACKING INIT");
 book_stacking bs;
-bs.TestArm();
+//bs.TestArm();
 ros::spin();
 
 }
