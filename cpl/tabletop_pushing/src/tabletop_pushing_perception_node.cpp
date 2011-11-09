@@ -1619,6 +1619,8 @@ class TabletopPushingPerceptionNode
     motion_img_pub_ = it_.advertise("motion_img", 15);
     arm_mask_pub_ = it_.advertise("arm_mask", 15);
     arm_img_pub_ = it_.advertise("arm_img", 15);
+    pcl_obj_seg_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
+        "separate_table_objs", 1000);
     track_server_.start();
   }
 
@@ -1861,13 +1863,13 @@ class TabletopPushingPerceptionNode
                              cv::Scalar(0));
       return empty_segments;
     }
-
     if (!tracking_)
     {
       cv::Mat empty_segments(color_frame.rows, color_frame.cols, CV_8UC1,
                              cv::Scalar(0));
       return empty_segments;
     }
+    // findRandomPushPose(cloud);
 
     // Convert frame to floating point HSV
     // TODO: Consolidate into a single function call ?
@@ -2469,11 +2471,9 @@ class TabletopPushingPerceptionNode
     {
       pcl::VoxelGrid<pcl::PointXYZ> downsample;
       downsample.setInputCloud(
-          boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud));
+          boost::make_shared<XYZPointCloud>(cloud));
       downsample.setLeafSize(voxel_down_res_, voxel_down_res_, voxel_down_res_);
       downsample.filter(cloud_downsampled);
-      ROS_INFO_STREAM("Voxel Downsampled Cloud");
-      ROS_INFO_STREAM("cloud_downsampled.size()" << cloud_downsampled.size());
     }
 
     // Filter Cloud to not look for table planes on the ground
@@ -2541,19 +2541,17 @@ class TabletopPushingPerceptionNode
   PoseStamped findRandomPushPose(XYZPointCloud& input_cloud)
   {
     XYZPointCloud cloud_filtered, cloud_z_filtered, cloud_downsampled;
-    ROS_INFO_STREAM("input_cloud.size() " << input_cloud.size());
-    ROS_INFO_STREAM("input_cloud.header.frame_id() "
-                    << input_cloud.header.frame_id);
+    ROS_DEBUG_STREAM("input_cloud.size() " << input_cloud.size());
     if (use_voxel_down_)
     {
 
       pcl::VoxelGrid<pcl::PointXYZ> downsample;
       downsample.setInputCloud(
-          boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(input_cloud));
+          boost::make_shared<XYZPointCloud>(input_cloud));
       downsample.setLeafSize(voxel_down_res_, voxel_down_res_, voxel_down_res_);
       downsample.filter(cloud_downsampled);
-      ROS_INFO_STREAM("Voxel Downsampled Cloud");
-      ROS_INFO_STREAM("cloud_downsampled.size()" << cloud_downsampled.size());
+      ROS_DEBUG_STREAM("Voxel Downsampled Cloud");
+      ROS_DEBUG_STREAM("cloud_downsampled.size(): " << cloud_downsampled.size());
     }
 
     // Filter Cloud to be just table top height
@@ -2569,8 +2567,8 @@ class TabletopPushingPerceptionNode
     z_pass.setFilterFieldName ("z");
     z_pass.setFilterLimits(min_table_z_, max_table_z_);
     z_pass.filter(cloud_z_filtered);
-    ROS_INFO_STREAM("Filtered z");
-    ROS_INFO_STREAM("cloud_z_filtered.size() " << cloud_z_filtered.size());
+    ROS_DEBUG_STREAM("Filtered z");
+    ROS_DEBUG_STREAM("cloud_z_filtered.size() " << cloud_z_filtered.size());
 
     // Filter to be just in the range in front of the robot
     pcl::PassThrough<pcl::PointXYZ> x_pass;
@@ -2579,8 +2577,8 @@ class TabletopPushingPerceptionNode
     x_pass.setFilterFieldName ("x");
     x_pass.setFilterLimits(min_workspace_x_, max_workspace_x_);
     x_pass.filter(cloud_filtered);
-    ROS_INFO_STREAM("Filtered x");
-    ROS_INFO_STREAM("cloud_filtered.size() " << cloud_filtered.size());
+    ROS_DEBUG_STREAM("Filtered x");
+    ROS_DEBUG_STREAM("cloud_filtered.size() " << cloud_filtered.size());
 
     // Segment the tabletop from the points using RANSAC plane fitting
     pcl::ModelCoefficients coefficients;
@@ -2598,12 +2596,12 @@ class TabletopPushingPerceptionNode
     // into a PCD file
     XYZPointCloud plane_cloud;
     pcl::copyPointCloud(cloud_filtered, plane_inliers, plane_cloud);
-    ROS_INFO_STREAM("plane_cloud.size() " << plane_cloud.size());
+    ROS_DEBUG_STREAM("plane_cloud.size() " << plane_cloud.size());
     Eigen::Vector4f plane_xyz_centroid;
     pcl::compute3DCentroid(plane_cloud, plane_xyz_centroid);
-    ROS_INFO_STREAM("Plane centroid is: (" << plane_xyz_centroid[0]
-                    << ", " << plane_xyz_centroid[1]
-                    << ", " << plane_xyz_centroid[2] << ")");
+    ROS_DEBUG_STREAM("Plane centroid is: (" << plane_xyz_centroid[0]
+                     << ", " << plane_xyz_centroid[1]
+                     << ", " << plane_xyz_centroid[2] << ")");
 
     // Extract the outliers from the point clouds
     pcl::ExtractIndices<pcl::PointXYZ> extract;
@@ -2615,9 +2613,19 @@ class TabletopPushingPerceptionNode
     extract.setNegative (true);
     extract.filter(objects_cloud);
 
-    // TODO: This would be better if we first filter out points below the plane,
-    // so that only objects on top of the table are clustered
+    // Remove points below the table plane and downsample before continuing
+    XYZPointCloud objects_z_filtered, objects_cloud_down;
+    z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(objects_cloud));
+    z_pass.setFilterLimits(plane_xyz_centroid[2]-0.05, max_table_z_);
+    z_pass.filter(objects_z_filtered);
+    pcl::VoxelGrid<pcl::PointXYZ> downsample_outliers;
+    downsample_outliers.setInputCloud(
+          boost::make_shared<XYZPointCloud>(objects_z_filtered));
+    downsample_outliers.setLeafSize(voxel_down_res_, voxel_down_res_,
+                                    voxel_down_res_);
+    downsample_outliers.filter(objects_cloud_down);
 
+    // TODO: Do this better... connected components?
     // Cluster the objects based on euclidean distance
     std::vector<pcl::PointIndices> clusters;
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> pcl_cluster;
@@ -2627,10 +2635,26 @@ class TabletopPushingPerceptionNode
     pcl_cluster.setMinClusterSize(pcl_min_cluster_size_);
     pcl_cluster.setSearchMethod(clusters_tree);
     pcl_cluster.setInputCloud(
-        boost::make_shared<XYZPointCloud >(objects_cloud));
-    pcl_cluster.extract (clusters);
-    ROS_INFO_STREAM("Number of clusters found matching the given constraints: "
-                    << clusters.size());
+        boost::make_shared<XYZPointCloud>(objects_cloud_down));
+    pcl_cluster.extract(clusters);
+    ROS_DEBUG_STREAM("Number of clusters found matching the given constraints: "
+                     << clusters.size());
+    // TODO: Supress noisy results...
+
+    pcl::PointCloud<pcl::PointXYZI> label_cloud;
+    pcl::copyPointCloud(objects_cloud_down, label_cloud);
+    // Label all object points by the correct cluster label
+    for (unsigned int i = 0; i < clusters.size(); ++i)
+    {
+      for (unsigned int j = 0; j < clusters[i].indices.size(); ++j)
+      {
+        // NOTE: Intensity 0 is the table; so use 1-based indexing
+        label_cloud.at(clusters[i].indices[j]).intensity = (i+1);
+      }
+    }
+    sensor_msgs::PointCloud2 label_cloud_msg;
+    pcl::toROSMsg(label_cloud, label_cloud_msg);
+    pcl_obj_seg_pub_.publish(label_cloud_msg);
 
     std::vector<Eigen::Vector4f> cluster_centroids;
     for (unsigned int i = 0; i < clusters.size(); )
@@ -2672,15 +2696,15 @@ class TabletopPushingPerceptionNode
     p.pose.position.z = plane_xyz_centroid[2];
 
     // First compute normals of the object cloud
-    XYZPointCloud obj_cloud;
-    pcl::copyPointCloud(objects_cloud, clusters[rand_idx], obj_cloud);
-    KdTreePtr tree = boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZ> > ();
-    pcl::PointCloud<pcl::Normal>::Ptr obj_norms(new pcl::PointCloud<pcl::Normal>);
-    pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> norm_est;
-    norm_est.setInputCloud(boost::make_shared<XYZPointCloud>(obj_cloud));
-    norm_est.setSearchMethod(tree);
-    norm_est.setRadiusSearch(norm_est_radius_);
-    norm_est.compute(*obj_norms);
+    // XYZPointCloud obj_cloud;
+    // pcl::copyPointCloud(objects_cloud, clusters[rand_idx], obj_cloud);
+    // KdTreePtr tree = boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZ> > ();
+    // pcl::PointCloud<pcl::Normal>::Ptr obj_norms(new pcl::PointCloud<pcl::Normal>);
+    // pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> norm_est;
+    // norm_est.setInputCloud(boost::make_shared<XYZPointCloud>(obj_cloud));
+    // norm_est.setSearchMethod(tree);
+    // norm_est.setRadiusSearch(norm_est_radius_);
+    // norm_est.compute(*obj_norms);
     // TODO: Get the normal at (near) the centroid
     // TODO: Set orientation based on the normal
     p.pose.orientation.x = 0;
@@ -2741,6 +2765,7 @@ class TabletopPushingPerceptionNode
   image_transport::Publisher motion_mask_pub_;
   image_transport::Publisher arm_img_pub_;
   image_transport::Publisher arm_mask_pub_;
+  ros::Publisher pcl_obj_seg_pub_;
   actionlib::SimpleActionServer<tabletop_pushing::ObjectSingulationAction> track_server_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;

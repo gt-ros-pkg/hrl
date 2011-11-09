@@ -27,7 +27,7 @@
 
     <param name="min_table_z" value="-1.0" type="double"/>
     <param name="max_table_z" value="1.0" type="double"/>
-    <param name="table_ransac_thresh" value="0.001" type="double"/>
+    <param name="table_ransac_thresh" value="0.015" type="double"/>
     <param name="min_pushing_y" value="-0.5" type="double"/>
     <param name="max_pushing_y" value="0.5" type="double"/>
     <param name="min_pushing_x" value="0.0" type="double"/>
@@ -65,9 +65,10 @@
     <param name="min_affine_point_set_size" value="200" type="int"/>
     <param name="max_ransac_iters" value="200" type="int"/>
     <param name="minimum_new_cluster_separation" value="5.0" type="double"/>
-    <param name="pcl_cluster_tolerance" value="0.25" type="double"/>
-    <param name="pcl_min_cluster_size" value="100" type="int"/>
-    <param name="pcl_voxel_downsample_res" value="0.005" type="double"/>
-    <param name="use_pcl_voxel_downsample" value="true" type="bool"/>
+
+    <param name="pcl_cluster_tolerance" value="0.01" type="double"/>
+    <param name="pcl_min_cluster_size" value="200" type="int"/>
+    <param name="pcl_voxel_downsample_res" value="0.01" type="double"/>
+    <param name="use_pcl_voxel_downsample" value="false" type="bool"/>
   </node>
 </launch>
