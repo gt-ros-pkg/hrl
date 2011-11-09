@@ -168,6 +168,7 @@ inline float min(const float a, const double b)
   return std::min(static_cast<double>(a), b);
 }
 
+// TODO: Move this to the cpl_visual_features library and make approraite changes
 void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow_u, cv::Mat& flow_v,
                         float mag_thresh)
 {
@@ -1603,6 +1604,7 @@ class TabletopPushingPerceptionNode
     n_private_.param("image_hist_size", image_hist_size_, 5);
     n_private_.param("pcl_cluster_tolerance", pcl_cluster_tolerance_, 0.25);
     n_private_.param("pcl_min_cluster_size", pcl_min_cluster_size_, 100);
+    n_private_.param("pcl_max_cluster_size", pcl_max_cluster_size_, 2500);
     n_private_.param("normal_estimate_search_radius", norm_est_radius_, 0.03);
     n_private_.param("pcl_voxel_downsample_res", voxel_down_res_, 0.005);
     n_private_.param("use_pcl_voxel_downsample", use_voxel_down_, true);
@@ -2616,7 +2618,7 @@ class TabletopPushingPerceptionNode
     // Remove points below the table plane and downsample before continuing
     XYZPointCloud objects_z_filtered, objects_cloud_down;
     z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(objects_cloud));
-    z_pass.setFilterLimits(plane_xyz_centroid[2]-0.05, max_table_z_);
+    z_pass.setFilterLimits(plane_xyz_centroid[2]/*-0.05*/, max_table_z_);
     z_pass.filter(objects_z_filtered);
     pcl::VoxelGrid<pcl::PointXYZ> downsample_outliers;
     downsample_outliers.setInputCloud(
@@ -2625,7 +2627,6 @@ class TabletopPushingPerceptionNode
                                     voxel_down_res_);
     downsample_outliers.filter(objects_cloud_down);
 
-    // TODO: Do this better... connected components?
     // Cluster the objects based on euclidean distance
     std::vector<pcl::PointIndices> clusters;
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> pcl_cluster;
@@ -2633,13 +2634,13 @@ class TabletopPushingPerceptionNode
         boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZ> > ();
     pcl_cluster.setClusterTolerance(pcl_cluster_tolerance_);
     pcl_cluster.setMinClusterSize(pcl_min_cluster_size_);
+    pcl_cluster.setMaxClusterSize(pcl_max_cluster_size_);
     pcl_cluster.setSearchMethod(clusters_tree);
     pcl_cluster.setInputCloud(
         boost::make_shared<XYZPointCloud>(objects_cloud_down));
     pcl_cluster.extract(clusters);
     ROS_DEBUG_STREAM("Number of clusters found matching the given constraints: "
                      << clusters.size());
-    // TODO: Supress noisy results...
 
     pcl::PointCloud<pcl::PointXYZI> label_cloud;
     pcl::copyPointCloud(objects_cloud_down, label_cloud);
@@ -2662,7 +2663,7 @@ class TabletopPushingPerceptionNode
       // Choose a random cluster to push
       Eigen::Vector4f obj_xyz_centroid;
       XYZPointCloud obj_cloud;
-      pcl::copyPointCloud(objects_cloud, clusters[i], obj_cloud);
+      pcl::copyPointCloud(objects_cloud_down, clusters[i], obj_cloud);
       pcl::compute3DCentroid(obj_cloud, obj_xyz_centroid);
 
       if (obj_xyz_centroid[0] > min_pushing_x_ &&
@@ -2821,6 +2822,7 @@ class TabletopPushingPerceptionNode
   int image_hist_size_;
   double pcl_cluster_tolerance_;
   int pcl_min_cluster_size_;
+  int pcl_max_cluster_size_;
   double norm_est_radius_;
   double voxel_down_res_;
   bool use_voxel_down_;
