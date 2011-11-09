@@ -21,6 +21,8 @@
   <depend package="trajectory_filter_server"/>
   <depend package="simple_Jtranspose_controller"/>
 
+  <depend package="pr2_gazebo"/>
+
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
 
