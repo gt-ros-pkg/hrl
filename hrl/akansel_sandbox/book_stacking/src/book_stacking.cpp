@@ -255,7 +255,32 @@ ROS_INFO("PT CLOUD");
 
  XYZPointCloud cloud;
  pcl::fromROSMsg(*cloud_msg,cloud);
- pcl_ros::transformPointCloud(workspace_frame,cloud,cloud,tf_listener);
+
+
+ //pcl_ros::transformPointCloud(workspace_frame,cloud,cloud,tf_listener); //didn't work.
+
+    //Transform it to base frame
+    tf::StampedTransform transf;
+    try{
+      tf_listener.waitForTransform(base_frame_tf, raw_cloud.header.frame_id,
+				   msg->header.stamp, ros::Duration(2.0));
+      tf_listener.lookupTransform(base_frame_tf, raw_cloud.header.frame_id,
+				  msg->header.stamp, transf);
+    }catch(tf::TransformException ex){
+      ROS_ERROR("Scene segmentation unable to put kinect data in ptu reference frame due to TF error:%s", ex.what());
+      return;
+    }
+    
+    tf::Vector3 v3 = transf.getOrigin();
+    tf::Quaternion quat = transf.getRotation();
+    Eigen::Quaternionf rot(quat.w(), quat.x(), quat.y(), quat.z());
+    Eigen::Vector3f offset(v3.x(), v3.y(), v3.z());
+    pcl::transformPointCloud(raw_cloud,cloud,offset,rot);
+    cloud.header = raw_cloud.header;
+    cloud.header.frame_id = base_frame_tf;
+   
+    
+
  book_stacking_msgs::PlaneInfo table_plane_info=getTablePlane(cloud);
 
  bool detect_objects=true;
