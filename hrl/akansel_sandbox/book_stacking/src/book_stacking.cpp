@@ -252,9 +252,9 @@ ROS_INFO("BOOKSTACK Giving Goal");
 void KinectCallback(const sensor_msgs::PointCloud2ConstPtr &cloud_msg)
 {
 ROS_INFO("PT CLOUD");
-
+ XYZPointCloud raw_cloud;
  XYZPointCloud cloud;
- pcl::fromROSMsg(*cloud_msg,cloud);
+ pcl::fromROSMsg(*cloud_msg,raw_cloud);
 
 
  //pcl_ros::transformPointCloud(workspace_frame,cloud,cloud,tf_listener); //didn't work.
