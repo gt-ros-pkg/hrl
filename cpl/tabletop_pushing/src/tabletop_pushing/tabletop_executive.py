@@ -97,11 +97,11 @@ class TabletopExecutive:
                                                       GripperPush)
         self.overhead_post_push_proxy = rospy.ServiceProxy('overhead_post_push',
                                                            GripperPush)
-        self.raise_and_look_push_proxy = rospy.ServiceProxy('raise_and_look',
-                                                            RaiseAndLook)
+        self.raise_and_look_proxy = rospy.ServiceProxy('raise_and_look',
+                                                       RaiseAndLook)
         self.table_proxy = rospy.ServiceProxy('get_table_location', LocateTable)
-        self.tracker_client = actionlib.SimpleActionClient("seg_track_action",
-                                                           ObjectSingulationAction)
+        self.singulation_client = actionlib.SimpleActionClient(
+            "singulation_action", ObjectSingulationAction)
         self.use_fake_push_pose = use_fake_push_pose
         self.push_count = 0
 
@@ -115,7 +115,7 @@ class TabletopExecutive:
         # TODO: Initialize arm poses if desired
 
         # Start tracking
-        self.init_tracker()
+        self.init_singulation()
 
         self.push_count = 0
         self.num_total_pushes = num_l_gripper_pushes
@@ -148,7 +148,7 @@ class TabletopExecutive:
             self.overhead_push_object(self.overhead_push_dist, 'r')
 
     def raise_and_look(self):
-        rospy.loginfo("Getting table pose")
+
         table_req = LocateTableRequest()
         table_req.recalculate = True
         raise_req = RaiseAndLookRequest()
@@ -156,8 +156,12 @@ class TabletopExecutive:
         raise_req.camera_frame = 'openni_rgb_frame'
         # First make sure the head is looking the correct way before estimating
         # the table centroid
-        raise_res = self.raise_and_look_push_proxy(raise_req)
+        # Also make sure the arms are out of the way
+        raise_req.init_arms = True
+        rospy.loginfo("Moving head and arms")
+        raise_res = self.raise_and_look_proxy(raise_req)
         try:
+            rospy.loginfo("Getting table pose")
             table_res = self.table_proxy(table_req);
         except rospy.ServiceException, e:
             rospy.logwarn("Service did not process request: %s"%str(e))
@@ -170,33 +174,34 @@ class TabletopExecutive:
 
         rospy.loginfo("Raising spine");
         raise_req.point_head_only = False
-        raise_res = self.raise_and_look_push_proxy(raise_req)
+        raise_req.init_arms = False
+        raise_res = self.raise_and_look_proxy(raise_req)
 
-    def init_tracker(self):
-        track_goal = ObjectSingulationGoal()
-        track_goal.start = False
-        track_goal.init = True
-        self.tracker_client.send_goal(track_goal)
-        rospy.loginfo('Waiting for tracker server')
-        self.tracker_client.wait_for_server()
+    def init_singulation(self):
+        singulation_goal = ObjectSingulationGoal()
+        singulation_goal.start = False
+        singulation_goal.init = True
+        self.singulation_client.send_goal(singulation_goal)
+        rospy.loginfo('Waiting for singulation server')
+        self.singulation_client.wait_for_server()
 
-    def start_tracker(self):
-        track_goal = ObjectSingulationGoal()
-        track_goal.start = True
-        track_goal.init = False
-        self.tracker_client.send_goal(track_goal)
-        rospy.loginfo('Waiting for tracker server')
-        self.tracker_client.wait_for_server()
+    def start_singulation(self):
+        singulation_goal = ObjectSingulationGoal()
+        singulation_goal.start = True
+        singulation_goal.init = False
+        self.singulation_client.send_goal(singulation_goal)
+        rospy.loginfo('Waiting for singulation server')
+        self.singulation_client.wait_for_server()
 
-    def stop_tracker(self):
-        track_goal = ObjectSingulationGoal()
-        track_goal.start = False
-        track_goal.init = False
-        track_goal.get_singulation_vector = True
-        self.tracker_client.send_goal(track_goal)
-        rospy.loginfo('Waiting for tracker server')
-        self.tracker_client.wait_for_result()
-        result = self.tracker_client.get_result()
+    def stop_singulation(self):
+        singulation_goal = ObjectSingulationGoal()
+        singulation_goal.start = False
+        singulation_goal.init = False
+        singulation_goal.get_singulation_vector = True
+        self.singulation_client.send_goal(singulation_goal)
+        rospy.loginfo('Waiting for singulation server')
+        self.singulation_client.wait_for_result()
+        result = self.singulation_client.get_result()
         return result.singulation_vector
 
     def gripper_push_object(self, push_dist, which_arm):
@@ -212,8 +217,9 @@ class TabletopExecutive:
         try:
             if self.use_fake_push_pose:
                 pose_res = PushPoseResponse()
-                pose_res.push_pose.header.frame_id = '/torso_lift_link'
                 pose_res.push_pose.pose.position.x = 0.5
+                pose_res.push_pose.header.frame_id = '/torso_lift_link'
+                pose_res.push_pose.header.stamp = rospy.Time(0)
                 if which_arm == 'l':
                     pose_res.push_pose.pose.position.y = 0.3 - self.push_count*0.15
                 else:
@@ -223,6 +229,11 @@ class TabletopExecutive:
             else:
                 rospy.loginfo('Calling push pose proxy')
                 pose_res = self.push_pose_proxy(pose_req)
+                if (pose_res.push_pose.pose.position.x == 0.0 and
+                    pose_res.push_pose.pose.position.y == 0.0 and
+                    pose_res.push_pose.pose.position.z == 0.0):
+                    rospy.logwarn('No push pose found.')
+                    return
                 rospy.loginfo('Got push pose')
                 if pose_res.push_pose.pose.position.y < 0.0:
                     which_arm = 'r'
@@ -267,11 +278,11 @@ class TabletopExecutive:
 
         rospy.loginfo("Calling gripper pre push service")
         pre_push_res = self.gripper_pre_push_proxy(push_req)
-        self.start_tracker()
+        self.start_singulation()
         rospy.loginfo("Calling gripper push service")
         push_res = self.gripper_push_proxy(push_req)
-        # TODO: Get push tracking response
-        track_res = self.stop_tracker()
+        # TODO: Get meaningful singulation response
+        singulation_res = self.stop_singulation()
         rospy.loginfo("Calling gripper post push service")
         post_push_res = self.gripper_post_push_proxy(push_req)
 
@@ -286,6 +297,7 @@ class TabletopExecutive:
             if self.use_fake_push_pose:
                 pose_res = PushPoseResponse()
                 pose_res.push_pose.header.frame_id = '/torso_lift_link'
+                pose_res.push_pose.header.stamp = rospy.Time(0)
                 pose_res.push_pose.pose.position.x = 0.75
                 if which_arm == 'l':
                     pose_res.push_pose.pose.position.y = 0.05
@@ -295,6 +307,12 @@ class TabletopExecutive:
             else:
                 rospy.loginfo('Calling push pose proxy')
                 pose_res = self.push_pose_proxy(pose_req)
+                if (pose_res.push_pose.pose.position.x == 0.0 and
+                    pose_res.push_pose.pose.position.y == 0.0 and
+                    pose_res.push_pose.pose.position.z == 0.0):
+                    rospy.logwarn('No push pose found.')
+                    return
+
                 rospy.loginfo('Got push pose')
                 if pose_res.push_pose.pose.position.y < 0.0:
                     which_arm = 'r'
@@ -352,10 +370,10 @@ class TabletopExecutive:
         # rospy.loginfo('Sweep start point:' + str(sweep_req.start_point.point))
         rospy.loginfo("Calling gripper pre sweep service")
         pre_sweep_res = self.gripper_pre_sweep_proxy(sweep_req)
-        self.start_tracker()
+        self.start_singulation()
         rospy.loginfo("Calling gripper sweep service")
         sweep_res = self.gripper_sweep_proxy(sweep_req)
-        self.stop_tracker()
+        self.stop_singulation()
         rospy.loginfo("Calling gripper post sweep service")
         post_sweep_res = self.gripper_post_sweep_proxy(sweep_req)
 
@@ -370,12 +388,19 @@ class TabletopExecutive:
             if self.use_fake_push_pose:
                 pose_res = PushPoseResponse()
                 pose_res.push_pose.header.frame_id = '/torso_lift_link'
+                pose_res.push_pose.header.stamp = rospy.Time(0)
                 pose_res.push_pose.pose.position.x = 0.7
                 pose_res.push_pose.pose.position.y = 0.0
                 pose_res.push_pose.pose.position.z = -0.25
             else:
                 rospy.loginfo('Calling push pose proxy')
                 pose_res = self.push_pose_proxy(pose_req)
+                if (pose_res.push_pose.pose.position.x == 0.0 and
+                    pose_res.push_pose.pose.position.y == 0.0 and
+                    pose_res.push_pose.pose.position.z == 0.0):
+                    rospy.logwarn('No push pose found.')
+                    return
+
                 rospy.loginfo('Got push pose')
                 if pose_res.push_pose.pose.position.y < 0.0:
                     which_arm = 'r'
@@ -431,10 +456,10 @@ class TabletopExecutive:
 
         rospy.loginfo("Calling pre overhead push service")
         pre_push_res = self.overhead_pre_push_proxy(push_req)
-        self.start_tracker()
+        self.start_singulation()
         rospy.loginfo("Calling overhead push service")
         push_res = self.overhead_push_proxy(push_req)
-        self.stop_tracker()
+        self.stop_singulation()
         rospy.loginfo("Calling post overhead push service")
         post_push_res = self.overhead_post_push_proxy(push_req)
 

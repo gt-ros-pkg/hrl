@@ -68,7 +68,7 @@ READY_POSE_MOVE_THRESH = 0.5
 
 class TabletopPushNode:
 
-    def __init__(self, no_arms = False):
+    def __init__(self):
         rospy.init_node('tabletop_push_node', log_level=rospy.DEBUG)
         self.torso_z_offset = rospy.get_param('~torso_z_offset', 0.15)
         self.look_pt_x = rospy.get_param('~look_point_x', 0.45)
@@ -89,18 +89,16 @@ class TabletopPushNode:
                                 prefix + "pr2_arm_controllers_push.yaml"))
 
         # Setup arms
-        self.no_arms = no_arms
-        if not no_arms:
-            rospy.loginfo('Creating pr2 object')
-            self.robot = pr2.PR2(self.tf_listener, arms=True, base=False)
-            rospy.loginfo('Setting up left arm move')
-            self.left_arm_move = lm.LinearReactiveMovement('l', self.robot,
-                                                           self.tf_listener,
-                                                           use_slip, use_slip)
-            rospy.loginfo('Setting up right arm move')
-            self.right_arm_move = lm.LinearReactiveMovement('r', self.robot,
-                                                            self.tf_listener,
-                                                            use_slip, use_slip)
+        rospy.loginfo('Creating pr2 object')
+        self.robot = pr2.PR2(self.tf_listener, arms=True, base=False)
+        rospy.loginfo('Setting up left arm move')
+        self.left_arm_move = lm.LinearReactiveMovement('l', self.robot,
+                                                       self.tf_listener,
+                                                       use_slip, use_slip)
+        rospy.loginfo('Setting up right arm move')
+        self.right_arm_move = lm.LinearReactiveMovement('r', self.robot,
+                                                        self.tf_listener,
+                                                        use_slip, use_slip)
 
 
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
@@ -700,6 +698,9 @@ class TabletopPushNode:
         Service callback to raise the spine to a specific height relative to the
         table height and tilt the head so that the Kinect views the table
         '''
+        if request.init_arms:
+            self.init_arms()
+
         if request.point_head_only:
             response = RaiseAndLookResponse()
             response.head_succeeded = self.init_head_pose(request.camera_frame)
@@ -802,6 +803,11 @@ class TabletopPushNode:
         new_torso_position = np.asarray(self.robot.torso.pose()).ravel()[0]
         rospy.loginfo('New spine height is ' + str(new_torso_position))
 
+    def init_arms(self):
+        self.init_arm_pose(True, which_arm='r')
+        self.init_arm_pose(True, which_arm='l')
+        rospy.loginfo('Done initializing arms')
+
     #
     # Main Control Loop
     #
@@ -811,12 +817,9 @@ class TabletopPushNode:
         '''
         self.init_spine_pose()
         self.init_head_pose(self.head_pose_cam_frame)
-        if not self.no_arms:
-            self.init_arm_pose(True, which_arm='r')
-            self.init_arm_pose(True, which_arm='l')
-            rospy.loginfo('Done initializing arms')
+        self.init_arms()
         rospy.spin()
 
 if __name__ == '__main__':
-    node = TabletopPushNode(no_arms=False)
+    node = TabletopPushNode()
     node.run()
