@@ -88,6 +88,7 @@
 <param name="use_downsample" value="true" type="bool"/>
 <param name="leaf_size" value="0.01" type="double"/>
 <param name="table_ransac_thresh_" value="0.01" type="double"/>
+<param name="workspace_frame" value="/base_link" type="string"/>
 </node>
 </launch>
 

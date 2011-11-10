@@ -12,6 +12,7 @@
   <depend package="sensor_msgs"/>
   <depend package="roscpp"/>
 
+  <depend package="arm_navigation_msgs"/>
   <depend package="pr2_arm_navigation_perception"/>
   <depend package="pr2_arm_navigation_planning"/>
   <depend package="pr2_arm_navigation_actions"/>
@@ -20,8 +21,10 @@
   <depend package="interpolated_ik_motion_planner"/>
   <depend package="trajectory_filter_server"/>
   <depend package="simple_Jtranspose_controller"/>
-
+  <depend package="book_stacking_msgs"/>
   <depend package="pr2_gazebo"/>
+
+  <depend package="visualization_msgs"/>
 
   <depend package="pcl"/>
   <depend package="pcl_ros"/>

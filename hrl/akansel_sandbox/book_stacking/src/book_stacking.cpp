@@ -1,7 +1,9 @@
+#define DEBUG_DRAW_TABLE_MARKERS
+#define DEBUG_DRAW_TABLETOP_OBJECTS
+
 //ROS
 #include <ros/ros.h>
 #include <actionlib/client/simple_action_client.h>
-
 #include <geometry_msgs/PoseStamped.h>
 #include <sensor_msgs/PointCloud2.h>
 
@@ -13,54 +15,134 @@
 #include <pcl/surface/convex_hull.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl_ros/transforms.h>
+#include <pcl/filters/statistical_outlier_removal.h>
+
+//TF
+#include <tf/transform_listener.h>
 
 //PR2
 #include <pr2_controllers_msgs/PointHeadAction.h>
 
+//Manipulation
 #include <arm_navigation_msgs/MoveArmAction.h>
 #include <arm_navigation_msgs/utils.h>
 
+//STL
+#include <string.h>
 
+//VISUALIZATION
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
+
+#include <plane_extractor.h>
 
 typedef actionlib::SimpleActionClient<pr2_controllers_msgs::PointHeadAction> PointHeadClient;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
-
+typedef pcl::PointXYZ Point;
+typedef pcl::KdTree<Point>::Ptr KdTreePtr;
 
 class book_stacking
 {
 
 private:
   PointHeadClient* point_head_client_;
-  ros::Subscriber pc_sub_;
+  ros::Subscriber point_cloud_sub_;
   double min_table_z_, max_table_z_,leaf_size;
   bool use_downsample;
   double table_ransac_thresh_;
-public:
-ros::NodeHandle nh;
+  tf::TransformListener tf_listener;
+  std::string workspace_frame;
 
+  bool filter_spatial;
+  double filter_spatial_xmin, filter_spatial_xmax;
+  double filter_spatial_ymin, filter_spatial_ymax;
+  double filter_spatial_zmin, filter_spatial_zmax;
+
+  bool filter_outliers;  
+  int filter_outliers_meank;
+  double filter_outliers_stddev_thresh;
+  bool downsample_cloud;
+  double downsample_grid_size_;
+
+  bool concave_hull_mode_;
+  bool use_normal_seg_;
+  int max_planes_;
+  bool use_omp_;
+  double plane_distance_thresh_;
+  double normal_search_radius_;
+  int min_plane_inliers_;
+  int max_sac_iterations_;
+  double sac_probability_;
+
+  std::string base_frame_tf;
+
+public:
+  ros::NodeHandle n_;
+  ros::Publisher filtered_cloud_pub_;
+  ros::Publisher plane_marker_pub_;
+  ros::Publisher obj_marker_pub_;
 
 book_stacking():
-nh("~")
+  n_("~")
 {
   point_head_client_ = new PointHeadClient("/head_traj_controller/point_head_action", true);
   while(!point_head_client_->waitForServer(ros::Duration(5.0)))
     {
       ROS_INFO("Waiting for the point_head_action server to come up");
     }
-pc_sub_=nh.subscribe("/camera/depth/points",1,&book_stacking::KinectCallback,this);
+point_cloud_sub_=n_.subscribe("/camera/depth/points",1,&book_stacking::KinectCallback,this);
+filtered_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud2>("filtered_cloud",1);
+ 
+//Visualization Publishers
+ plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("/visualization_marker_array",1);
+ obj_marker_pub_ = n_.advertise<visualization_msgs::Marker>("obj_markers",1);
 
  LoadParameters();
 
-lookAt("base_link", 1.5, 0.0, 0.2);
+ //lookAt("base_link", 1.5, 0.0, 0.2);
 //TestArm();
 //shakeHead(2);
 }
   void LoadParameters()
   {
-    nh.param("min_table_z", min_table_z_, -0.5);
-    nh.param("max_table_z", max_table_z_, 1.5);
-    nh.param("use_downsample", use_downsample, true);
-    nh.param("leaf_size", leaf_size, 0.01);
+    n_.param("min_table_z", min_table_z_, -0.5);
+    n_.param("max_table_z", max_table_z_, 1.5);
+    n_.param("use_downsample", use_downsample, true);
+    n_.param("leaf_size", leaf_size, 0.01); 
+    std::string default_workspace_frame="/base_link";
+    n_.param("workspace_frame", workspace_frame, default_workspace_frame);
+
+    //Spatial Filtering Params
+    n_.param("filter_spatial",filter_spatial,true);
+    n_.param("filter_spatial_zmax",filter_spatial_zmax,3.0);
+    n_.param("filter_spatial_zmin",filter_spatial_zmin,0.05);
+    n_.param("filter_spatial_ymax",filter_spatial_ymax,10.0);
+    n_.param("filter_spatial_ymin",filter_spatial_ymin,-10.0);
+    n_.param("filter_spatial_xmax",filter_spatial_xmax,10.0);
+    n_.param("filter_spatial_xmin",filter_spatial_xmin,-10.0);
+
+    //Outlier Filtering Params
+    n_.param("filter_outliers",filter_outliers,true);
+    n_.param("filter_outliers_meank",filter_outliers_meank,50);
+    n_.param("filter_outliers_stddev_thresh", filter_outliers_stddev_thresh,1.0);
+
+    //Downsampling Params
+    n_.param("downsample_cloud",downsample_cloud,true);
+    n_.param("downsample_grid_size",downsample_grid_size_,0.01);
+
+    //Plane Extraction Parameters
+    n_.param("max_planes",max_planes_,4);
+    n_.param("use_omp",use_omp_,false);
+    n_.param("plane_distance_thresh",plane_distance_thresh_,0.03);
+    n_.param("normal_search_radius",normal_search_radius_,0.1);
+    n_.param("min_plane_inliers",min_plane_inliers_,1000);
+    n_.param("max_sac_iterations",max_sac_iterations_,1000);
+    n_.param("sac_probability",sac_probability_,0.99);
+    n_.param("concave_hull_mode",concave_hull_mode_,false);
+    n_.param("use_normal_seg",use_normal_seg_,false);
+    n_.param("base_frame_tf", base_frame_tf,std::string("/base_link"));
+
   }
 
 void lookAt(std::string frame_id, double x, double y, double z)
@@ -143,7 +225,7 @@ ROS_INFO("In TestArm()");
 
 
 
-  if (nh.ok())
+  if (n_.ok())
   {
     bool finished_within_time = false;
 ROS_INFO("BOOKSTACK Giving Goal");
@@ -167,83 +249,88 @@ ROS_INFO("BOOKSTACK Giving Goal");
 
 }
 
-void KinectCallback(const sensor_msgs::PointCloud2ConstPtr &msg)
+void KinectCallback(const sensor_msgs::PointCloud2ConstPtr &cloud_msg)
 {
 ROS_INFO("PT CLOUD");
+
+ XYZPointCloud cloud;
+ pcl::fromROSMsg(*cloud_msg,cloud);
+ pcl_ros::transformPointCloud(workspace_frame,cloud,cloud,tf_listener);
+ book_stacking_msgs::PlaneInfo table_plane_info=getTablePlane(cloud);
+
+ bool detect_objects=true;
+    if(detect_objects)
+      {
+	ROS_INFO("Extracting objects...");
+	book_stacking_msgs::ObjectInfos objects = getObjectsOverPlane(table_plane_info,cloud);
+	  
+#ifdef DEBUG_DRAW_TABLETOP_OBJECTS
+	if(objects.objects.size() < 1)
+	  {
+	    ROS_WARN("No objects over this plane.");
+	  } 
+	else 
+	  {
+	    drawObjectPrisms(objects,obj_marker_pub_,table_plane_info,0.0f,1.0f,0.0f);
+	    //object_pub_.publish(objects);
+	  }	  
+      }
+#endif
+
+    
 }
 
-geometry_msgs::PoseStamped getTablePlane(XYZPointCloud& cloud)
+book_stacking_msgs::PlaneInfo getTablePlane(XYZPointCloud& cloud)
   {
-    XYZPointCloud cloud_downsampled;
-    if (use_downsample)
-    {
-      pcl::VoxelGrid<pcl::PointXYZ> downsample;
-      downsample.setInputCloud(
-          boost::make_shared<XYZPointCloud>(cloud));
-      downsample.setLeafSize(leaf_size,leaf_size,leaf_size);
-      downsample.filter(cloud_downsampled);
+    if(filter_spatial)
+      {
+	pcl::PassThrough<Point> pass;
+	pass.setInputCloud(boost::make_shared<pcl::PointCloud<Point> >(cloud));
+	pass.setFilterFieldName("z");
+	pass.setFilterLimits(filter_spatial_zmin,filter_spatial_zmax);
+	pass.filter(cloud);
+	pass.setInputCloud(boost::make_shared<pcl::PointCloud<Point> >(cloud));
+	pass.setFilterFieldName("x");
+	pass.setFilterLimits(filter_spatial_xmin,filter_spatial_xmax);
+	pass.filter(cloud);
+	pass.setInputCloud(boost::make_shared<pcl::PointCloud<Point> >(cloud));
+	pass.setFilterFieldName("y");
+	pass.setFilterLimits(filter_spatial_ymin,filter_spatial_ymax);
+	pass.filter(cloud);
+      }
+
+    //Filter Outliers
+    if(filter_outliers){
+      pcl::StatisticalOutlierRemoval<Point> sor_filter;
+      sor_filter.setInputCloud(boost::make_shared<pcl::PointCloud<Point> >(cloud));
+      sor_filter.setMeanK(filter_outliers_meank);//50
+      sor_filter.setStddevMulThresh(filter_outliers_stddev_thresh);
+      sor_filter.filter(cloud);
+    }
+    
+    //Downsample Cloud
+    if(downsample_cloud)
+      {
+      //downsample
+      pcl::VoxelGrid<Point> grid;
+      grid.setInputCloud(boost::make_shared<pcl::PointCloud<Point> >(cloud));
+      grid.setLeafSize(downsample_grid_size_,downsample_grid_size_,downsample_grid_size_);//0.05
+      grid.filter(cloud);
     }
 
-    // Filter Cloud to not look for table planes on the ground
-    XYZPointCloud cloud_z_filtered;
-    pcl::PassThrough<pcl::PointXYZ> z_pass;
-    if (use_downsample)
-    {
-      z_pass.setInputCloud(
-          boost::make_shared<XYZPointCloud>(cloud_downsampled));
-    }
-    else
-    {
-      z_pass.setInputCloud(
-          boost::make_shared<XYZPointCloud>(cloud));
-    }
-    z_pass.setFilterFieldName ("z");
-    z_pass.setFilterLimits(min_table_z_, max_table_z_);
-    z_pass.filter(cloud_z_filtered);
+    //Publish the filtered cloud
+    sensor_msgs::PointCloud2 filtered_msg;
+    pcl::toROSMsg(cloud,filtered_msg);
+    ROS_INFO("Publishing filtered cloud...");
+    filtered_cloud_pub_.publish(filtered_msg);
 
-    // Segment the tabletop from the points using RANSAC plane fitting
-    pcl::ModelCoefficients coefficients;
-    pcl::PointIndices plane_inliers;
-    // Create the segmentation object
-    pcl::SACSegmentation<pcl::PointXYZ> plane_seg;
-    plane_seg.setOptimizeCoefficients (true);
-    plane_seg.setModelType (pcl::SACMODEL_PLANE);
-    plane_seg.setMethodType (pcl::SAC_RANSAC);
-    plane_seg.setDistanceThreshold (table_ransac_thresh_);
-    plane_seg.setInputCloud (
-        boost::make_shared<XYZPointCloud>(cloud_z_filtered));
-    plane_seg.segment(plane_inliers, coefficients);
+    book_stacking_msgs::PlaneInfos plane_infos= getPlanesByNormals(cloud,1,true,concave_hull_mode_,use_omp_,plane_distance_thresh_,max_sac_iterations_,sac_probability_,min_plane_inliers_,normal_search_radius_,0.1);
+    plane_infos.header.stamp=cloud.header.stamp; 
+#ifdef DEBUG_DRAW_TABLE_MARKERS
+    drawPlaneMarkers(plane_infos,plane_marker_pub_,1.0,0.0,0.0);
+#endif  
+    return plane_infos.planes[0];
 
-    // Check size of plane_inliers
-    if (plane_inliers.indices.size() < 1)
-    {
-      ROS_WARN_STREAM("No points found by RANSAC plane fitting");
-      geometry_msgs::PoseStamped p;
-      p.pose.position.x = 0.0;
-      p.pose.position.y = 0.0;
-      p.pose.position.z = 0.0;
-      p.header = cloud.header;
-      return p;
-    }
-
-    // Extract the plane members into their own point cloud
-    XYZPointCloud plane_cloud;
-    pcl::copyPointCloud(cloud_z_filtered, plane_inliers, plane_cloud);
-
-    // Return plane centroid
-    Eigen::Vector4f xyz_centroid;
-    pcl::compute3DCentroid(plane_cloud, xyz_centroid);
-    geometry_msgs::PoseStamped p;
-    p.pose.position.x = xyz_centroid[0];
-    p.pose.position.y = xyz_centroid[1];
-    p.pose.position.z = xyz_centroid[2];
-    p.header = cloud.header;
-    ROS_INFO_STREAM("Table centroid is: ("
-                    << p.pose.position.x << ", "
-                    << p.pose.position.y << ", "
-                    << p.pose.position.z << ")");
-    //drawTablePlaneOnImage(plane_cloud, p);
-    return p;
   }
 
 
@@ -252,7 +339,6 @@ geometry_msgs::PoseStamped getTablePlane(XYZPointCloud& cloud)
 int main(int argc, char** argv)
 {
 ros::init(argc, argv, "BookStackingNode");
-//ROS_INFO("BOOK STACKING INIT");
 book_stacking bs;
 //bs.TestArm();
 ros::spin();
