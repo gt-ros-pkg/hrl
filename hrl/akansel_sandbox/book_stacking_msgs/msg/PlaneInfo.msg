@@ -1,0 +1,9 @@
+Header header
+sensor_msgs/PointCloud2 cloud
+sensor_msgs/PointCloud2 cloud_unprojected
+sensor_msgs/PointCloud2 hull
+pcl/ModelCoefficients model
+float32[4] normal
+pcl/PointIndices inliers
+int32 pose_index
+string label

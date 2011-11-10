@@ -1,0 +1,7 @@
+Header header
+geometry_msgs/Point32 centroid
+sensor_msgs/PointCloud2 cloud
+string label
+float32 grasp_width
+geometry_msgs/Point32 bbox_min
+geometry_msgs/Point32 bbox_max
