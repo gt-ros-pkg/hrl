@@ -76,6 +76,8 @@ class TabletopPushNode:
                                                    'openni_rgb_frame')
         self.default_torso_height = rospy.get_param('~default_torso_height',
                                                     0.2)
+        self.gripper_raise_dist = rospy.get_param('~graipper_post_pushraise_dist',
+                                                  0.02)
         use_slip = rospy.get_param('~use_slip_detection', 1)
 
         self.tf_listener = tf.TransformListener()
@@ -290,6 +292,12 @@ class TabletopPushNode:
             which_arm = 'r'
 
         # Retract in a straight line
+        rospy.loginfo('Moving gripper up')
+        push_arm.move_relative_gripper(
+            np.matrix([0.0, 0.0, self.gripper_raise_dist]).T,
+            stop='pressure', pressure=5000)
+        rospy.loginfo('Done moving up')
+
         rospy.loginfo('Moving gripper backwards')
         push_arm.move_relative_gripper(
             np.matrix([-push_dist, 0.0, 0.0]).T,
@@ -504,6 +512,11 @@ class TabletopPushNode:
             which_arm = 'r'
             wrist_pitch = -0.5*pi
 
+        rospy.loginfo('Moving gripper up')
+        push_arm.move_relative_gripper(
+            np.matrix([self.gripper_raise_dist, 0.0, 0.0]).T,
+            stop='pressure', pressure=5000)
+        rospy.loginfo('Done moving up')
         rospy.loginfo('Pushing reverse')
         push_arm.move_relative_gripper(
             np.matrix([0.0, 0.0, -push_dist]).T,

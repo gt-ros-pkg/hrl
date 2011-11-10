@@ -58,7 +58,7 @@
     <param name="minimum_new_cluster_separation" value="5.0" type="double"/>
 
     <param name="pcl_cluster_tolerance" value="0.02" type="double"/>
-    <param name="pcl_min_cluster_size" value="100" type="int"/>
+    <param name="pcl_min_cluster_size" value="50" type="int"/>
     <param name="pcl_max_cluster_size" value="2500" type="int"/>
     <param name="pcl_voxel_downsample_res" value="0.01" type="double"/>
     <param name="use_pcl_voxel_downsample" value="false" type="bool"/>

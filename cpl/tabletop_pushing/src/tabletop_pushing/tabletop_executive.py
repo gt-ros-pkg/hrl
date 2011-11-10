@@ -76,7 +76,7 @@ class TabletopExecutive:
         self.overhead_y_offset = rospy.get_param('~overhead_push_start_x_offset',
                                                  0.00)
         self.overhead_z_offset = rospy.get_param('~overhead_push_start_z_offset',
-                                                 0.02)
+                                                 0.01)
 
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
@@ -465,4 +465,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(False)
-    node.run(2, 2, 2, 0, 0, 0)
+    node.run(3, 3, 3, 0, 0, 0)
