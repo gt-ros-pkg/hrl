@@ -135,10 +135,7 @@
 // Functional IFDEFS
 #define MEDIAN_FILTER_FLOW 1
 #define USE_WORKSPACE_MASK_FOR_ARM 1
-// #define AUTO_FLOW_CLUSTER 1
 // #define USE_TABLE_COLOR_ESTIMATE 1
-#define SCALE_AFFINE_DISTANCES 1
-#define CLUSTER_AFFINE_WITH_IMAGE_LOCS 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -886,6 +883,9 @@ class MotionGraphcut
 class PointCloudSegmentation
 {
  public:
+  PointCloudSegmentation() : have_cur_cloud_(false)
+  {
+  }
 
   Eigen::Vector4f getTablePlane(XYZPointCloud& cloud)
   {
@@ -949,6 +949,7 @@ class PointCloudSegmentation
     // Extract the plane members into their own point cloud
     Eigen::Vector4f table_centroid;
     pcl::compute3DCentroid(cur_plane_cloud_, table_centroid);
+    have_cur_cloud_ = true;
     return table_centroid;
   }
 
@@ -999,7 +1000,6 @@ class PointCloudSegmentation
     sensor_msgs::PointCloud2 label_cloud_msg;
     pcl::toROSMsg(label_cloud, label_cloud_msg);
     pcl_obj_seg_pub_.publish(label_cloud_msg);
-    ROS_INFO_STREAM("Published something!.");
 
     ProtoObjects objs;
     for (unsigned int i = 0; i < clusters.size(); ++i)
@@ -1014,9 +1014,9 @@ class PointCloudSegmentation
   }
 
  protected:
-  // TODO: This is probably not helpful...
   XYZPointCloud cur_plane_cloud_;
   XYZPointCloud cur_objs_cloud_;
+  bool have_cur_cloud_;
 
  public:
   double min_table_z_;
@@ -1266,15 +1266,9 @@ class ObjectSingulation
                                          cv::Mat& v, AffineFlowMeasures& points)
   {
     const int num_samples = points.size();
-#ifdef SCALE_AFFINE_DISTANCES
     const int r_scale = color_img.cols / 2;
-#endif // SCALE_AFFINE_DISTANCES
 
-#ifdef CLUSTER_AFFINE_WITH_IMAGE_LOCS
     const int num_sample_elements = 8;
-#else // CLUSTER_AFFINE_WITH_IMAGE_LOCS
-    const int num_sample_elements = 6;
-#endif // CLUSTER_AFFINE_WITH_IMAGE_LOCS
 
     // Setup sample matrix for kmeans
     cv::Mat samples(num_samples, num_sample_elements, CV_32FC1);
@@ -1283,25 +1277,14 @@ class ObjectSingulation
       AffineFlowMeasure p = points[i];
       // TODO: This could be done better by reshaping p.a and setting it to a
       // submatrix of samples
-#ifdef SCALE_AFFINE_DISTANCES
       samples.at<float>(i, 0) = p.a.at<float>(0,0)*r_scale;
       samples.at<float>(i, 1) = p.a.at<float>(0,1)*r_scale;
       samples.at<float>(i, 2) = p.a.at<float>(0,2);
       samples.at<float>(i, 3) = p.a.at<float>(1,0)*r_scale;
       samples.at<float>(i, 4) = p.a.at<float>(1,1)*r_scale;
       samples.at<float>(i, 5) = p.a.at<float>(1,2);
-#else // SCALE_AFFINE_DISTANCES
-      samples.at<float>(i, 0) = p.a.at<float>(0,0);
-      samples.at<float>(i, 1) = p.a.at<float>(0,1);
-      samples.at<float>(i, 2) = p.a.at<float>(0,2);
-      samples.at<float>(i, 3) = p.a.at<float>(1,0);
-      samples.at<float>(i, 4) = p.a.at<float>(1,1);
-      samples.at<float>(i, 5) = p.a.at<float>(1,2);
-#endif // SCALE_AFFINE_DISTANCES
-#ifdef CLUSTER_AFFINE_WITH_IMAGE_LOCS
       samples.at<float>(i, 6) = p.x;
       samples.at<float>(i, 7) = p.y;
-#endif // CLUSTER_AFFINE_WITH_IMAGE_LOCS
     }
 
     std::vector<cv::Mat> labels;
@@ -1361,18 +1344,12 @@ class ObjectSingulation
           // TODO: This could be done better by selecting a submatrix from centers
           // and then reshaping it
           new_center.a.create(2, 3, CV_32FC1);
-          new_center.a.at<float>(0,0) = centers[K-1].at<float>(c,0);
-          new_center.a.at<float>(0,1) = centers[K-1].at<float>(c,1);
+          new_center.a.at<float>(0,0) = centers[K-1].at<float>(c,0) / r_scale;;
+          new_center.a.at<float>(0,1) = centers[K-1].at<float>(c,1) / r_scale;;
           new_center.a.at<float>(0,2) = centers[K-1].at<float>(c,2);
-          new_center.a.at<float>(1,0) = centers[K-1].at<float>(c,3);
-          new_center.a.at<float>(1,1) = centers[K-1].at<float>(c,4);
+          new_center.a.at<float>(1,0) = centers[K-1].at<float>(c,3) / r_scale;;
+          new_center.a.at<float>(1,1) = centers[K-1].at<float>(c,4) / r_scale;;
           new_center.a.at<float>(1,2) = centers[K-1].at<float>(c,5);
-#ifdef SCALE_AFFINE_DISTANCES
-          new_center.a.at<float>(0,0) /= r_scale;
-          new_center.a.at<float>(0,1) /= r_scale;
-          new_center.a.at<float>(1,0) /= r_scale;
-          new_center.a.at<float>(1,1) /= r_scale;
-#endif // SCALE_AFFINE_DISTANCES
 
           // Estimate flow of the cluster center using affine transform estimate
           cv::Mat V = new_center.a*new_center.X();
@@ -1719,6 +1696,10 @@ class TabletopPushingPerceptionNode
     pcl_segmenter_.max_workspace_x_ = max_workspace_x_;
 
     n_private_.param("autostart_tracking", tracking_, false);
+    n_private_.param("auto_flow_cluster", auto_flow_cluster_, false);
+    n_private_.param("autostart_pcl_segmentation", autorun_pcl_segmentation_,
+                     false);
+
     n_private_.param("num_downsamples", num_downsamples_, 2);
     std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
     n_private_.param("cam_info_topic", cam_info_topic_,
@@ -1868,6 +1849,9 @@ class TabletopPushingPerceptionNode
     cur_point_cloud_ = cloud;
     have_depth_data_ = true;
     cur_camera_header_ = img_msg->header;
+
+    // Debug stuff
+    if (autorun_pcl_segmentation_) findRandomPushPose(cloud);
 
     // Started via actionlib call
     cv::Mat seg_mask = segmentMovingStuff(cur_color_frame_, cur_depth_frame_,
@@ -2025,11 +2009,12 @@ class TabletopPushingPerceptionNode
         ROS_INFO_STREAM("Found plane");
       }
 
-#ifdef AUTO_FLOW_CLUSTER
-      cv::Mat bw_frame;
-      cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
-      os_.ft_.initTracks(bw_frame);
-#endif // AUTO_FLOW_CLUSTER
+      if (auto_flow_cluster_)
+      {
+        cv::Mat bw_frame;
+        cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
+        os_.ft_.initTracks(bw_frame);
+      }
 
       tracker_initialized_ = true;
       tracker_count_ = 0;
@@ -2043,7 +2028,6 @@ class TabletopPushingPerceptionNode
                              cv::Scalar(0));
       return empty_segments;
     }
-    findRandomPushPose(cloud);
 
     // Convert frame to floating point HSV
     // TODO: Consolidate into a single function call ?
@@ -2676,7 +2660,7 @@ class TabletopPushingPerceptionNode
     geometry_msgs::PoseStamped p;
     if (cluster_centroids.size() < 1)
     {
-      ROS_ERROR_STREAM("No object clusters found! Returning empty push_pose");
+      ROS_WARN_STREAM("No object clusters found! Returning empty push_pose");
       return p;
     }
     ROS_INFO_STREAM("Found " << cluster_centroids.size() << " proto objects");
@@ -2786,8 +2770,6 @@ class TabletopPushingPerceptionNode
   double max_pushing_x_;
   double min_pushing_y_;
   double max_pushing_y_;
-  // double min_table_z_;
-  // double max_table_z_;
   double below_table_z_;
   int num_downsamples_;
   std::string workspace_frame_;
@@ -2799,13 +2781,9 @@ class TabletopPushingPerceptionNode
   std::string base_output_path_;
   int image_hist_size_;
   PointCloudSegmentation pcl_segmenter_;
-  // double table_ransac_thresh_;
-  // double pcl_cluster_tolerance_;
-  // int pcl_min_cluster_size_;
-  // int pcl_max_cluster_size_;
   double norm_est_radius_;
-  // double voxel_down_res_;
-  // bool use_voxel_down_;
+  bool autorun_pcl_segmentation_;
+  bool auto_flow_cluster_;
 };
 
 int main(int argc, char ** argv)
