@@ -71,6 +71,6 @@ void drawPlaneMarkers(const std::vector<book_stacking_msgs::PlaneInfo>& planes, 
 void drawObjectPrisms(const book_stacking_msgs::ObjectInfos& objects, const ros::Publisher& object_pub, const book_stacking_msgs::PlaneInfo& plane, float r=0.0f, float g=0.0f, float b=1.0f);
 
 
-book_stacking_msgs::ObjectInfos getObjectsOverPlane(const book_stacking_msgs::PlaneInfo& plane, const pcl::PointCloud<Point>& cloud, double prism_min_height=0.05, double prism_max_height=2.0);
+book_stacking_msgs::ObjectInfos getObjectsOverPlane(const book_stacking_msgs::PlaneInfo& plane, const pcl::PointCloud<Point>& cloud, double prism_min_height=0.0, double prism_max_height=1.0);
 
 geometry_msgs::Point32 calcCentroid(const pcl::PointCloud<Point>& cloud);

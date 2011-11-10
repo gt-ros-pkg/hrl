@@ -6,8 +6,8 @@
   <arg name="do_preplan_scan" default="true" />
   <arg name="do_monitoring" default="true" />
  
- <arg name="use_real_robot" default="false"/>
- <env name="ROBOT" value="$(arg use_real_robot)"/>
+ <arg name="use_real_robot" default="true"/>
+ <!--<env name="ROBOT" value="$(arg use_real_robot)"/>-->
 
 
  <include unless="$(arg use_real_robot)" file="$(find pr2_gazebo)/pr2.launch"/>
@@ -83,12 +83,12 @@
   </include>
 
   <node pkg="book_stacking" type="book_stacking" name="book_stacking" output="screen">
-<param name="min_table_z" value="-1.0" type="double"/>
-<param name="max_table_z" value="1.0" type="double"/>
-<param name="use_downsample" value="true" type="bool"/>
-<param name="leaf_size" value="0.01" type="double"/>
-<param name="table_ransac_thresh_" value="0.01" type="double"/>
-<param name="workspace_frame" value="/base_link" type="string"/>
+<param name="filter_spatial_zmax" value="1.5" type="double"/>
+<param name="filter_spatial_zmin" value="0.5" type="double"/>
+<param name="filter_spatial_xmax" value="1.5" type="double"/>
+<param name="filter_spatial_xmin" value="0.2" type="double"/>
+<param name="filter_spatial_ymax" value="1.0" type="double"/>
+<param name="filter_spatial_ymin" value="-1.0" type="double"/>
 </node>
 </launch>
 

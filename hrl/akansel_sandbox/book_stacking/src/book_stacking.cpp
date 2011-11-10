@@ -95,23 +95,24 @@ point_cloud_sub_=n_.subscribe("/camera/depth/points",1,&book_stacking::KinectCal
 filtered_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud2>("filtered_cloud",1);
  
 //Visualization Publishers
- plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("/visualization_marker_array",1);
+ plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("akans_plane_marker_array",1);
  obj_marker_pub_ = n_.advertise<visualization_msgs::Marker>("obj_markers",1);
 
  LoadParameters();
 
- //lookAt("base_link", 1.5, 0.0, 0.2);
+ lookAt("base_link", 1.5, 0.0, 0.2);
 //TestArm();
 //shakeHead(2);
 }
   void LoadParameters()
   {
+/*
     n_.param("min_table_z", min_table_z_, -0.5);
     n_.param("max_table_z", max_table_z_, 1.5);
     n_.param("use_downsample", use_downsample, true);
     n_.param("leaf_size", leaf_size, 0.01); 
     std::string default_workspace_frame="/base_link";
-    n_.param("workspace_frame", workspace_frame, default_workspace_frame);
+    n_.param("workspace_frame", workspace_frame, default_workspace_frame);*/
 
     //Spatial Filtering Params
     n_.param("filter_spatial",filter_spatial,true);
@@ -263,9 +264,9 @@ ROS_INFO("PT CLOUD");
     tf::StampedTransform transf;
     try{
       tf_listener.waitForTransform(base_frame_tf, raw_cloud.header.frame_id,
-				   msg->header.stamp, ros::Duration(2.0));
+				   cloud_msg->header.stamp, ros::Duration(2.0));
       tf_listener.lookupTransform(base_frame_tf, raw_cloud.header.frame_id,
-				  msg->header.stamp, transf);
+				  cloud_msg->header.stamp, transf);
     }catch(tf::TransformException ex){
       ROS_ERROR("Scene segmentation unable to put kinect data in ptu reference frame due to TF error:%s", ex.what());
       return;
@@ -287,7 +288,7 @@ ROS_INFO("PT CLOUD");
     if(detect_objects)
       {
 	ROS_INFO("Extracting objects...");
-	book_stacking_msgs::ObjectInfos objects = getObjectsOverPlane(table_plane_info,cloud);
+	book_stacking_msgs::ObjectInfos objects = getObjectsOverPlane(table_plane_info,cloud,-2.0,2.0);
 	  
 #ifdef DEBUG_DRAW_TABLETOP_OBJECTS
 	if(objects.objects.size() < 1)
@@ -296,6 +297,7 @@ ROS_INFO("PT CLOUD");
 	  } 
 	else 
 	  {
+	ROS_INFO("# OF OBJS: %d",objects.objects.size());
 	    drawObjectPrisms(objects,obj_marker_pub_,table_plane_info,0.0f,1.0f,0.0f);
 	    //object_pub_.publish(objects);
 	  }	  
@@ -349,7 +351,7 @@ book_stacking_msgs::PlaneInfo getTablePlane(XYZPointCloud& cloud)
     ROS_INFO("Publishing filtered cloud...");
     filtered_cloud_pub_.publish(filtered_msg);
 
-    book_stacking_msgs::PlaneInfos plane_infos= getPlanesByNormals(cloud,1,true,concave_hull_mode_,use_omp_,plane_distance_thresh_,max_sac_iterations_,sac_probability_,min_plane_inliers_,normal_search_radius_,0.1);
+    book_stacking_msgs::PlaneInfos plane_infos= getPlanesByNormals(cloud,4,true,concave_hull_mode_,use_omp_,plane_distance_thresh_,max_sac_iterations_,sac_probability_,min_plane_inliers_,normal_search_radius_,0.1);
     plane_infos.header.stamp=cloud.header.stamp; 
 #ifdef DEBUG_DRAW_TABLE_MARKERS
     drawPlaneMarkers(plane_infos,plane_marker_pub_,1.0,0.0,0.0);
