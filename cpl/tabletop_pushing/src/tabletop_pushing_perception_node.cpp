@@ -336,6 +336,18 @@ class ArmModel
   bool r_arm_on;
 };
 
+class ProtoTabletopObject
+{
+ public:
+  XYZPointCloud cloud;
+  Eigen::Vector4f centroid;
+  Eigen::Vector4f table_centroid;
+  // TODO: Add normals?
+  int id;
+};
+
+typedef std::deque<ProtoTabletopObject> ProtoObjects;
+
 class MotionGraphcut
 {
  public:
@@ -869,6 +881,156 @@ class MotionGraphcut
   int arm_grow_radius_;
   int arm_search_radius_;
   std::vector<cv::Vec3f> table_stats_;
+};
+
+class PointCloudSegmentation
+{
+ public:
+
+  Eigen::Vector4f getTablePlane(XYZPointCloud& cloud)
+  {
+    XYZPointCloud cloud_downsampled;
+    if (use_voxel_down_)
+    {
+      pcl::VoxelGrid<pcl::PointXYZ> downsample;
+      downsample.setInputCloud(
+          boost::make_shared<XYZPointCloud>(cloud));
+      downsample.setLeafSize(voxel_down_res_, voxel_down_res_, voxel_down_res_);
+      downsample.filter(cloud_downsampled);
+    }
+
+    // Filter Cloud to not look for table planes on the ground
+    XYZPointCloud cloud_z_filtered, cloud_filtered;
+    pcl::PassThrough<pcl::PointXYZ> z_pass;
+    if (use_voxel_down_)
+    {
+      z_pass.setInputCloud(
+          boost::make_shared<XYZPointCloud>(cloud_downsampled));
+    }
+    else
+    {
+      z_pass.setInputCloud(
+          boost::make_shared<XYZPointCloud>(cloud));
+    }
+    z_pass.setFilterFieldName("z");
+    z_pass.setFilterLimits(min_table_z_, max_table_z_);
+    z_pass.filter(cloud_z_filtered);
+
+    // Filter to be just in the range in front of the robot
+    pcl::PassThrough<pcl::PointXYZ> x_pass;
+    x_pass.setInputCloud(
+        boost::make_shared<XYZPointCloud >(cloud_z_filtered));
+    x_pass.setFilterFieldName("x");
+    x_pass.setFilterLimits(min_workspace_x_, max_workspace_x_);
+    x_pass.filter(cloud_filtered);
+
+    // Segment the tabletop from the points using RANSAC plane fitting
+    pcl::ModelCoefficients coefficients;
+    pcl::PointIndices plane_inliers;
+    // Create the segmentation object
+    pcl::SACSegmentation<pcl::PointXYZ> plane_seg;
+    plane_seg.setOptimizeCoefficients (true);
+    plane_seg.setModelType (pcl::SACMODEL_PLANE);
+    plane_seg.setMethodType (pcl::SAC_RANSAC);
+    plane_seg.setDistanceThreshold (table_ransac_thresh_);
+    plane_seg.setInputCloud (
+        boost::make_shared<XYZPointCloud>(cloud_filtered));
+    plane_seg.segment(plane_inliers, coefficients);
+    pcl::copyPointCloud(cloud_filtered, plane_inliers, cur_plane_cloud_);
+    // Extract the outliers from the point clouds
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    XYZPointCloud objects_cloud;
+    pcl::PointIndices plane_outliers;
+    extract.setInputCloud (
+        boost::make_shared<XYZPointCloud > (cloud_filtered));
+    extract.setIndices (boost::make_shared<pcl::PointIndices> (plane_inliers));
+    extract.setNegative (true);
+    extract.filter(cur_objs_cloud_);
+    // Extract the plane members into their own point cloud
+    Eigen::Vector4f table_centroid;
+    pcl::compute3DCentroid(cur_plane_cloud_, table_centroid);
+    return table_centroid;
+  }
+
+  ProtoObjects findTabletopObjects(XYZPointCloud& input_cloud,
+                                   bool extract_table=true)
+  {
+    Eigen::Vector4f table_centroid = getTablePlane(input_cloud);
+    // Remove points below the table plane and downsample before continuing
+    XYZPointCloud objects_z_filtered, objects_cloud_down;
+
+    pcl::PassThrough<pcl::PointXYZ> z_pass;
+    z_pass.setFilterFieldName("z");
+    z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(cur_objs_cloud_));
+    z_pass.setFilterLimits(table_centroid[2], max_table_z_);
+    z_pass.filter(objects_z_filtered);
+    pcl::VoxelGrid<pcl::PointXYZ> downsample_outliers;
+    downsample_outliers.setInputCloud(
+        boost::make_shared<XYZPointCloud>(objects_z_filtered));
+    downsample_outliers.setLeafSize(voxel_down_res_, voxel_down_res_,
+                                    voxel_down_res_);
+    downsample_outliers.filter(objects_cloud_down);
+
+    // Cluster the objects based on euclidean distance
+    std::vector<pcl::PointIndices> clusters;
+    pcl::EuclideanClusterExtraction<pcl::PointXYZ> pcl_cluster;
+    KdTreePtr clusters_tree =
+        boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZ> > ();
+    pcl_cluster.setClusterTolerance(cluster_tolerance_);
+    pcl_cluster.setMinClusterSize(min_cluster_size_);
+    pcl_cluster.setMaxClusterSize(max_cluster_size_);
+    pcl_cluster.setSearchMethod(clusters_tree);
+    pcl_cluster.setInputCloud(
+        boost::make_shared<XYZPointCloud>(objects_cloud_down));
+    pcl_cluster.extract(clusters);
+    ROS_DEBUG_STREAM("Number of clusters found matching the given constraints: "
+                     << clusters.size());
+
+    pcl::PointCloud<pcl::PointXYZI> label_cloud;
+    pcl::copyPointCloud(objects_cloud_down, label_cloud);
+    for (unsigned int i = 0; i < clusters.size(); ++i)
+    {
+      for (unsigned int j = 0; j < clusters[i].indices.size(); ++j)
+      {
+        // NOTE: Intensity 0 is the table; so use 1-based indexing
+        label_cloud.at(clusters[i].indices[j]).intensity = (i+1);
+      }
+    }
+    sensor_msgs::PointCloud2 label_cloud_msg;
+    pcl::toROSMsg(label_cloud, label_cloud_msg);
+    pcl_obj_seg_pub_.publish(label_cloud_msg);
+    ROS_INFO_STREAM("Published something!.");
+
+    ProtoObjects objs;
+    for (unsigned int i = 0; i < clusters.size(); ++i)
+    {
+      // Create proto objects from the point cloud
+      ProtoTabletopObject po;
+      pcl::copyPointCloud(objects_cloud_down, clusters[i], po.cloud);
+      pcl::compute3DCentroid(po.cloud, po.centroid);
+      po.id = i;
+    }
+    return objs;
+  }
+
+ protected:
+  // TODO: This is probably not helpful...
+  XYZPointCloud cur_plane_cloud_;
+  XYZPointCloud cur_objs_cloud_;
+
+ public:
+  double min_table_z_;
+  double max_table_z_;
+  double min_workspace_x_;
+  double max_workspace_x_;
+  double table_ransac_thresh_;
+  double cluster_tolerance_;
+  int min_cluster_size_;
+  int max_cluster_size_;
+  double norm_est_radius_;
+  double voxel_down_res_;
+  bool use_voxel_down_;
+  ros::Publisher pcl_obj_seg_pub_;
 };
 
 class ObjectSingulation
@@ -1550,14 +1712,19 @@ class TabletopPushingPerceptionNode
     std::string default_workspace_frame = "/torso_lift_link";
     n_private_.param("workspace_frame", workspace_frame_,
                     default_workspace_frame);
-    n_private_.param("min_table_z", min_table_z_, -0.5);
-    n_private_.param("max_table_z", max_table_z_, 1.5);
+
+    n_private_.param("min_table_z", pcl_segmenter_.min_table_z_, -0.5);
+    n_private_.param("max_table_z", pcl_segmenter_.max_table_z_, 1.5);
+    pcl_segmenter_.min_workspace_x_ = min_workspace_x_;
+    pcl_segmenter_.max_workspace_x_ = max_workspace_x_;
+
     n_private_.param("autostart_tracking", tracking_, false);
     n_private_.param("num_downsamples", num_downsamples_, 2);
     std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
     n_private_.param("cam_info_topic", cam_info_topic_,
                     cam_info_topic_def);
-    n_private_.param("table_ransac_thresh", table_ransac_thresh_, 0.01);
+    n_private_.param("table_ransac_thresh", pcl_segmenter_.table_ransac_thresh_,
+                     0.01);
 
     base_output_path_ = "/home/thermans/sandbox/cut_out/";
     // Graphcut weights
@@ -1602,12 +1769,17 @@ class TabletopPushingPerceptionNode
                      150.0);
 
     n_private_.param("image_hist_size", image_hist_size_, 5);
-    n_private_.param("pcl_cluster_tolerance", pcl_cluster_tolerance_, 0.25);
-    n_private_.param("pcl_min_cluster_size", pcl_min_cluster_size_, 100);
-    n_private_.param("pcl_max_cluster_size", pcl_max_cluster_size_, 2500);
+    n_private_.param("pcl_cluster_tolerance", pcl_segmenter_.cluster_tolerance_,
+                     0.25);
+    n_private_.param("pcl_min_cluster_size", pcl_segmenter_.min_cluster_size_,
+                     100);
+    n_private_.param("pcl_max_cluster_size", pcl_segmenter_.max_cluster_size_,
+                     2500);
     n_private_.param("normal_estimate_search_radius", norm_est_radius_, 0.03);
-    n_private_.param("pcl_voxel_downsample_res", voxel_down_res_, 0.005);
-    n_private_.param("use_pcl_voxel_downsample", use_voxel_down_, true);
+    n_private_.param("pcl_voxel_downsample_res", pcl_segmenter_.voxel_down_res_,
+                     0.005);
+    n_private_.param("use_pcl_voxel_downsample", pcl_segmenter_.use_voxel_down_,
+                     true);
 
     // Setup ros node connections
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
@@ -1621,7 +1793,7 @@ class TabletopPushingPerceptionNode
     motion_img_pub_ = it_.advertise("motion_img", 15);
     arm_mask_pub_ = it_.advertise("arm_mask", 15);
     arm_img_pub_ = it_.advertise("arm_img", 15);
-    pcl_obj_seg_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
+    pcl_segmenter_.pcl_obj_seg_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
         "separate_table_objs", 1000);
     track_server_.start();
   }
@@ -1871,7 +2043,7 @@ class TabletopPushingPerceptionNode
                              cv::Scalar(0));
       return empty_segments;
     }
-    // findRandomPushPose(cloud);
+    findRandomPushPose(cloud);
 
     // Convert frame to floating point HSV
     // TODO: Consolidate into a single function call ?
@@ -2468,216 +2640,37 @@ class TabletopPushingPerceptionNode
 
   PoseStamped getTablePlane(XYZPointCloud& cloud)
   {
-    XYZPointCloud cloud_downsampled;
-    if (use_voxel_down_)
-    {
-      pcl::VoxelGrid<pcl::PointXYZ> downsample;
-      downsample.setInputCloud(
-          boost::make_shared<XYZPointCloud>(cloud));
-      downsample.setLeafSize(voxel_down_res_, voxel_down_res_, voxel_down_res_);
-      downsample.filter(cloud_downsampled);
-    }
-
-    // Filter Cloud to not look for table planes on the ground
-    XYZPointCloud cloud_z_filtered;
-    pcl::PassThrough<pcl::PointXYZ> z_pass;
-    if (use_voxel_down_)
-    {
-      z_pass.setInputCloud(
-          boost::make_shared<XYZPointCloud>(cloud_downsampled));
-    }
-    else
-    {
-      z_pass.setInputCloud(
-          boost::make_shared<XYZPointCloud>(cloud));
-    }
-    z_pass.setFilterFieldName ("z");
-    z_pass.setFilterLimits(min_table_z_, max_table_z_);
-    z_pass.filter(cloud_z_filtered);
-
-    // Segment the tabletop from the points using RANSAC plane fitting
-    pcl::ModelCoefficients coefficients;
-    pcl::PointIndices plane_inliers;
-    // Create the segmentation object
-    pcl::SACSegmentation<pcl::PointXYZ> plane_seg;
-    plane_seg.setOptimizeCoefficients (true);
-    plane_seg.setModelType (pcl::SACMODEL_PLANE);
-    plane_seg.setMethodType (pcl::SAC_RANSAC);
-    plane_seg.setDistanceThreshold (table_ransac_thresh_);
-    plane_seg.setInputCloud (
-        boost::make_shared<XYZPointCloud>(cloud_z_filtered));
-    plane_seg.segment(plane_inliers, coefficients);
-
-    // Check size of plane_inliers
-    if (plane_inliers.indices.size() < 1)
-    {
-      ROS_WARN_STREAM("No points found by RANSAC plane fitting");
-      PoseStamped p;
-      p.pose.position.x = 0.0;
-      p.pose.position.y = 0.0;
-      p.pose.position.z = 0.0;
-      p.header = cloud.header;
-      return p;
-    }
-
-    // Extract the plane members into their own point cloud
-    XYZPointCloud plane_cloud;
-    pcl::copyPointCloud(cloud_z_filtered, plane_inliers, plane_cloud);
-
-    // Return plane centroid
-    Eigen::Vector4f xyz_centroid;
-    pcl::compute3DCentroid(plane_cloud, xyz_centroid);
+    Eigen::Vector4f table_centroid = pcl_segmenter_.getTablePlane(cloud);
     PoseStamped p;
-    p.pose.position.x = xyz_centroid[0];
-    p.pose.position.y = xyz_centroid[1];
-    p.pose.position.z = xyz_centroid[2];
+    p.pose.position.x = table_centroid[0];
+    p.pose.position.y = table_centroid[1];
+    p.pose.position.z = table_centroid[2];
     p.header = cloud.header;
     ROS_INFO_STREAM("Table centroid is: ("
                     << p.pose.position.x << ", "
                     << p.pose.position.y << ", "
                     << p.pose.position.z << ")");
-    drawTablePlaneOnImage(plane_cloud, p);
+    // TODO: XYZPointCloud plane_cloud = pcl_segmenter_.getCurrentTablePoints()
+    // drawTablePlaneOnImage(plane_cloud, p);
     return p;
   }
 
   PoseStamped findRandomPushPose(XYZPointCloud& input_cloud)
   {
-    XYZPointCloud cloud_filtered, cloud_z_filtered, cloud_downsampled;
-    ROS_DEBUG_STREAM("input_cloud.size() " << input_cloud.size());
-    if (use_voxel_down_)
-    {
+    ProtoObjects objs = pcl_segmenter_.findTabletopObjects(input_cloud);
 
-      pcl::VoxelGrid<pcl::PointXYZ> downsample;
-      downsample.setInputCloud(
-          boost::make_shared<XYZPointCloud>(input_cloud));
-      downsample.setLeafSize(voxel_down_res_, voxel_down_res_, voxel_down_res_);
-      downsample.filter(cloud_downsampled);
-      ROS_DEBUG_STREAM("Voxel Downsampled Cloud");
-      ROS_DEBUG_STREAM("cloud_downsampled.size(): " << cloud_downsampled.size());
-    }
-
-    // Filter Cloud to be just table top height
-    pcl::PassThrough<pcl::PointXYZ> z_pass;
-    if (use_voxel_down_)
-    {
-      z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(cloud_downsampled));
-    }
-    else
-    {
-      z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(input_cloud));
-    }
-    z_pass.setFilterFieldName ("z");
-    z_pass.setFilterLimits(min_table_z_, max_table_z_);
-    z_pass.filter(cloud_z_filtered);
-    ROS_DEBUG_STREAM("Filtered z");
-    ROS_DEBUG_STREAM("cloud_z_filtered.size() " << cloud_z_filtered.size());
-
-    // Filter to be just in the range in front of the robot
-    pcl::PassThrough<pcl::PointXYZ> x_pass;
-    x_pass.setInputCloud(
-        boost::make_shared<XYZPointCloud >(cloud_z_filtered));
-    x_pass.setFilterFieldName ("x");
-    x_pass.setFilterLimits(min_workspace_x_, max_workspace_x_);
-    x_pass.filter(cloud_filtered);
-    ROS_DEBUG_STREAM("Filtered x");
-    ROS_DEBUG_STREAM("cloud_filtered.size() " << cloud_filtered.size());
-
-    // Segment the tabletop from the points using RANSAC plane fitting
-    pcl::ModelCoefficients coefficients;
-    pcl::PointIndices plane_inliers;
-    // Create the segmentation object
-    pcl::SACSegmentation<pcl::PointXYZ> plane_seg;
-    plane_seg.setOptimizeCoefficients (true);
-    plane_seg.setModelType(pcl::SACMODEL_PLANE);
-    plane_seg.setMethodType(pcl::SAC_RANSAC);
-    plane_seg.setDistanceThreshold (table_ransac_thresh_);
-    plane_seg.setInputCloud(boost::make_shared<XYZPointCloud >(cloud_filtered));
-    plane_seg.segment(plane_inliers, coefficients);
-
-    // Extract the plane members into their own point cloud and save them
-    // into a PCD file
-    XYZPointCloud plane_cloud;
-    pcl::copyPointCloud(cloud_filtered, plane_inliers, plane_cloud);
-    ROS_DEBUG_STREAM("plane_cloud.size() " << plane_cloud.size());
-    Eigen::Vector4f plane_xyz_centroid;
-    pcl::compute3DCentroid(plane_cloud, plane_xyz_centroid);
-    ROS_DEBUG_STREAM("Plane centroid is: (" << plane_xyz_centroid[0]
-                     << ", " << plane_xyz_centroid[1]
-                     << ", " << plane_xyz_centroid[2] << ")");
-
-    // Extract the outliers from the point clouds
-    pcl::ExtractIndices<pcl::PointXYZ> extract;
-    XYZPointCloud objects_cloud;
-    pcl::PointIndices plane_outliers;
-    extract.setInputCloud (
-        boost::make_shared<XYZPointCloud > (cloud_filtered));
-    extract.setIndices (boost::make_shared<pcl::PointIndices> (plane_inliers));
-    extract.setNegative (true);
-    extract.filter(objects_cloud);
-
-    // Remove points below the table plane and downsample before continuing
-    XYZPointCloud objects_z_filtered, objects_cloud_down;
-    z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(objects_cloud));
-    z_pass.setFilterLimits(plane_xyz_centroid[2]/*-0.05*/, max_table_z_);
-    z_pass.filter(objects_z_filtered);
-    pcl::VoxelGrid<pcl::PointXYZ> downsample_outliers;
-    downsample_outliers.setInputCloud(
-          boost::make_shared<XYZPointCloud>(objects_z_filtered));
-    downsample_outliers.setLeafSize(voxel_down_res_, voxel_down_res_,
-                                    voxel_down_res_);
-    downsample_outliers.filter(objects_cloud_down);
-
-    // Cluster the objects based on euclidean distance
-    std::vector<pcl::PointIndices> clusters;
-    pcl::EuclideanClusterExtraction<pcl::PointXYZ> pcl_cluster;
-    KdTreePtr clusters_tree =
-        boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZ> > ();
-    pcl_cluster.setClusterTolerance(pcl_cluster_tolerance_);
-    pcl_cluster.setMinClusterSize(pcl_min_cluster_size_);
-    pcl_cluster.setMaxClusterSize(pcl_max_cluster_size_);
-    pcl_cluster.setSearchMethod(clusters_tree);
-    pcl_cluster.setInputCloud(
-        boost::make_shared<XYZPointCloud>(objects_cloud_down));
-    pcl_cluster.extract(clusters);
-    ROS_DEBUG_STREAM("Number of clusters found matching the given constraints: "
-                     << clusters.size());
-
-    pcl::PointCloud<pcl::PointXYZI> label_cloud;
-    pcl::copyPointCloud(objects_cloud_down, label_cloud);
-    // Label all object points by the correct cluster label
-    for (unsigned int i = 0; i < clusters.size(); ++i)
-    {
-      for (unsigned int j = 0; j < clusters[i].indices.size(); ++j)
-      {
-        // NOTE: Intensity 0 is the table; so use 1-based indexing
-        label_cloud.at(clusters[i].indices[j]).intensity = (i+1);
-      }
-    }
-    sensor_msgs::PointCloud2 label_cloud_msg;
-    pcl::toROSMsg(label_cloud, label_cloud_msg);
-    pcl_obj_seg_pub_.publish(label_cloud_msg);
+    // TODO: publish a ros point cloud here for visualization
+    // TODO: Move the publisher out of the segmentation class
 
     std::vector<Eigen::Vector4f> cluster_centroids;
-    for (unsigned int i = 0; i < clusters.size(); )
+    for (unsigned int i = 0; i < objs.size(); ++i)
     {
-      // Choose a random cluster to push
-      Eigen::Vector4f obj_xyz_centroid;
-      XYZPointCloud obj_cloud;
-      pcl::copyPointCloud(objects_cloud_down, clusters[i], obj_cloud);
-      pcl::compute3DCentroid(obj_cloud, obj_xyz_centroid);
-
-      if (obj_xyz_centroid[0] > min_pushing_x_ &&
-          obj_xyz_centroid[0] < max_pushing_x_ &&
-          obj_xyz_centroid[1] > min_pushing_y_ &&
-          obj_xyz_centroid[1] < max_pushing_y_)
+      if (objs[i].centroid[0] > min_pushing_x_ &&
+          objs[i].centroid[0] < max_pushing_x_ &&
+          objs[i].centroid[1] > min_pushing_y_ &&
+          objs[i].centroid[1] < max_pushing_y_)
       {
-        cluster_centroids.push_back(obj_xyz_centroid);
-        ++i;
-      }
-      else
-      {
-        // Remove cluster at index i
-        clusters.erase(clusters.begin() + i);
+        cluster_centroids.push_back(objs[i].centroid);
       }
     }
     geometry_msgs::PoseStamped p;
@@ -2694,20 +2687,7 @@ class TabletopPushingPerceptionNode
     p.pose.position.x = obj_xyz_centroid[0];
     p.pose.position.y = obj_xyz_centroid[1];
     // Set z to be the table height
-    p.pose.position.z = plane_xyz_centroid[2];
-
-    // First compute normals of the object cloud
-    // XYZPointCloud obj_cloud;
-    // pcl::copyPointCloud(objects_cloud, clusters[rand_idx], obj_cloud);
-    // KdTreePtr tree = boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZ> > ();
-    // pcl::PointCloud<pcl::Normal>::Ptr obj_norms(new pcl::PointCloud<pcl::Normal>);
-    // pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> norm_est;
-    // norm_est.setInputCloud(boost::make_shared<XYZPointCloud>(obj_cloud));
-    // norm_est.setSearchMethod(tree);
-    // norm_est.setRadiusSearch(norm_est_radius_);
-    // norm_est.compute(*obj_norms);
-    // TODO: Get the normal at (near) the centroid
-    // TODO: Set orientation based on the normal
+    p.pose.position.z = objs[0].table_centroid[2];
     p.pose.orientation.x = 0;
     p.pose.orientation.y = 0;
     p.pose.orientation.z = 0;
@@ -2766,7 +2746,6 @@ class TabletopPushingPerceptionNode
   image_transport::Publisher motion_mask_pub_;
   image_transport::Publisher arm_img_pub_;
   image_transport::Publisher arm_mask_pub_;
-  ros::Publisher pcl_obj_seg_pub_;
   actionlib::SimpleActionServer<tabletop_pushing::ObjectSingulationAction> track_server_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
@@ -2807,8 +2786,8 @@ class TabletopPushingPerceptionNode
   double max_pushing_x_;
   double min_pushing_y_;
   double max_pushing_y_;
-  double min_table_z_;
-  double max_table_z_;
+  // double min_table_z_;
+  // double max_table_z_;
   double below_table_z_;
   int num_downsamples_;
   std::string workspace_frame_;
@@ -2818,14 +2797,15 @@ class TabletopPushingPerceptionNode
   std::string cam_info_topic_;
   int tracker_count_;
   std::string base_output_path_;
-  double table_ransac_thresh_;
   int image_hist_size_;
-  double pcl_cluster_tolerance_;
-  int pcl_min_cluster_size_;
-  int pcl_max_cluster_size_;
+  PointCloudSegmentation pcl_segmenter_;
+  // double table_ransac_thresh_;
+  // double pcl_cluster_tolerance_;
+  // int pcl_min_cluster_size_;
+  // int pcl_max_cluster_size_;
   double norm_est_radius_;
-  double voxel_down_res_;
-  bool use_voxel_down_;
+  // double voxel_down_res_;
+  // bool use_voxel_down_;
 };
 
 int main(int argc, char ** argv)
