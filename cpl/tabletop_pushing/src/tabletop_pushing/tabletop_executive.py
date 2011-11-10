@@ -44,10 +44,12 @@ from tabletop_pushing.srv import *
 from tabletop_pushing.msg import *
 from math import sin, cos, pi
 import sys
+import random
 
 class TabletopExecutive:
 
     def __init__(self, use_fake_push_pose=False):
+        random.seed()
         # TODO: Replace these parameters with learned / perceived values
         # The offsets should be removed and learned implicitly
         rospy.init_node('tabletop_executive_node',log_level=rospy.DEBUG)
@@ -105,6 +107,29 @@ class TabletopExecutive:
         self.use_fake_push_pose = use_fake_push_pose
         self.push_count = 0
 
+    def run_rand(self, num_pushes):
+        # Get table height and raise to that before anything else
+        self.raise_and_look()
+
+        # Setup perception system
+        self.init_singulation()
+        self.num_total_pushes = 0
+        for i in xrange(num_pushes):
+            opt = random.randint(0,num_pushes-1)
+            arm = random.randint(0,1)
+
+            if arm == 0:
+                which_arm='l'
+            else:
+                which_arm='r'
+            if opt == 0:
+                self.gripper_push_object(self.gripper_push_dist, which_arm)
+            if opt == 1:
+                self.sweep_object(self.gripper_push_dist, which_arm)
+            if opt == 2:
+                self.overhead_push_object(self.gripper_push_dist, which_arm)
+
+
     def run(self,
             num_l_gripper_pushes, num_l_sweeps, num_l_overhead_pushes,
             num_r_gripper_pushes, num_r_sweeps, num_r_overhead_pushes):
@@ -112,9 +137,7 @@ class TabletopExecutive:
         # Get table height and raise to that before anything else
         self.raise_and_look()
 
-        # TODO: Initialize arm poses if desired
-
-        # Start tracking
+        # Setup perception system
         self.init_singulation()
 
         self.push_count = 0
@@ -465,4 +488,5 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(False)
-    node.run(3, 3, 3, 0, 0, 0)
+    # node.run(3, 3, 0, 0, 0, 0)
+    node.run_rand(5)
