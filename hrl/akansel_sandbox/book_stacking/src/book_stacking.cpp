@@ -5,9 +5,11 @@
 #include <ros/ros.h>
 #include <actionlib/client/simple_action_client.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Vector3Stamped.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <pr2_controllers_msgs/SingleJointPositionAction.h>
 #include <pr2_controllers_msgs/PointHeadAction.h>
+#include <arm_navigation_msgs/CollisionOperation.h>
 
 //PCL
 #include <pcl_ros/filters/passthrough.h>
@@ -19,7 +21,7 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl_ros/transforms.h>
 #include <pcl/filters/statistical_outlier_removal.h>
-#include <pcl/visualization/common/shapes.h>
+//#include <pcl/visualization/common/shapes.h>
 
 //TF
 #include <tf/transform_listener.h>
@@ -42,6 +44,7 @@ typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef pcl::PointXYZ Point;
 typedef pcl::KdTree<Point>::Ptr KdTreePtr;
 typedef actionlib::SimpleActionClient<pr2_controllers_msgs::SingleJointPositionAction> TorsoClient;
+typedef actionlib::SimpleActionClient<arm_navigation_msgs::MoveArmAction> ArmActionClient;
 
 class book_stacking
 {
@@ -51,6 +54,8 @@ private:
   TorsoClient *torso_client_;
   ros::Subscriber point_cloud_sub_;
   tf::TransformListener tf_listener;
+  ArmActionClient *move_right_arm_client_;
+  ArmActionClient *move_left_arm_client_;
 
   std::string workspace_frame;
   std::string base_frame_tf;
@@ -88,7 +93,9 @@ book_stacking():
  robot_initialized=false; 
  LoadParameters();
  InitializeRobot();
- robot_initialized=true; 
+ 
+
+robot_initialized=true; 
 //TestArm();
 //shakeHead(2);
 }
@@ -102,18 +109,30 @@ book_stacking():
   torso_client_ = new TorsoClient("torso_controller/position_joint_action", true);
     while(!torso_client_->waitForServer(ros::Duration(5.0)))
     {
-      ROS_INFO("Waiting for the torso action server to come up");
+      //ROS_INFO("Waiting for the torso action server to come up");
     }
 
   point_head_client_ = new PointHeadClient("/head_traj_controller/point_head_action", true);
   while(!point_head_client_->waitForServer(ros::Duration(5.0)))
     {
-      ROS_INFO("Waiting for the point_head_action server to come up");
+      //ROS_INFO("Waiting for the point_head_action server to come up");
     }
 
+  move_right_arm_client_ = new ArmActionClient("move_right_arm",true);  
+  while(!move_right_arm_client_->waitForServer(ros::Duration(5.0)))
+    {
+      //ROS_INFO("Waiting for the point_head_action server to come up");
+    }
+
+  move_left_arm_client_ = new ArmActionClient("move_left_arm",true);
+  while(!move_left_arm_client_->waitForServer(ros::Duration(5.0)))
+    {
+      //ROS_INFO("Waiting for the point_head_action server to come up");
+    }
+  	
  moveTorsoToPosition(0.2);
  lookAt("base_link", 1.5, 0.0, 0.2);
-point_cloud_sub_=n_.subscribe("/camera/depth/points",1,&book_stacking::KinectCallback,this);
+ point_cloud_sub_=n_.subscribe("/camera/depth/points",1,&book_stacking::KinectCallback,this);
 }
  
 void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
@@ -203,14 +222,135 @@ void lookAt(std::string frame_id, double x, double y, double z)
   }
 
 
+bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3Stamped dir,double dist)
+{
+//determine start position, given the object
+/*
+  arm_navigation_msgs::SimplePoseConstraint start_pose;
+  start_pose.header.frame_id = "torso_lift_link";
+  start_pose.link_name = "r_wrist_roll_link";
+  start_pose.pose.position.x = 0.55;
+  start_pose.pose.position.y = -0.188;
+  start_pose.pose.position.z = 0;
+  start_pose.pose.orientation.x = 0.0;
+  start_pose.pose.orientation.y = 0.0;
+  start_pose.pose.orientation.z = 0.0;
+  start_pose.pose.orientation.w = 1.0;
+*/
+
+  arm_navigation_msgs::SimplePoseConstraint start_pose;
+  start_pose.header.frame_id = header.frame_id;
+  start_pose.link_name = "r_wrist_roll_link";
+
+  double pad_dist=0.2;  
+  
+  float32 startX=objInfo-dir.x*pad_dist;
+  float32 startY=objInfo-dir.y*pad_dist;
+  float32 startZ=objInfo-dir.z*pad_dist;
+
+/*
+  start_pose.pose.position.x = startX;
+  start_pose.pose.position.y = -0.188;
+  start_pose.pose.position.z = 0;
+*/
+  start_pose.pose.orientation.x = 0.0;
+  start_pose.pose.orientation.y = 0.0;
+  start_pose.pose.orientation.z = 0.0;
+  start_pose.pose.orientation.w = 1.0;
+
+//determine end position, given the dist and dir of the push
+/*
+  arm_navigation_msgs::SimplePoseConstraint end_pose;
+  end_pose.header.frame_id = "torso_lift_link";
+  end_pose.link_name = "r_wrist_roll_link";
+  end_pose.pose.position.x = 0.75;
+  end_pose.pose.position.y = -0.188;
+  end_pose.pose.position.z = 0.0;
+  end_pose.pose.orientation.x = 0.0;
+  end_pose.pose.orientation.y = 0.0;
+  end_pose.pose.orientation.z = 0.0;
+  end_pose.pose.orientation.w = 1.0;
+*/
+//move the base if necessary.
+
+//Move the arm to the start position.
+PlaceEndEffector(true,move_right_arm_client_,start_pose,false);
+
+//Move the arm to the end position.
+//PlaceEndEffector(true,move_right_arm_client_,end_pose,true);
+return true;
+}
+
+bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_navigation_msgs::SimplePoseConstraint desired_pose,bool disable_gripper)
+{
+  desired_pose.absolute_position_tolerance.x = 0.02;
+  desired_pose.absolute_position_tolerance.y = 0.02;
+  desired_pose.absolute_position_tolerance.z = 0.02;
+  desired_pose.absolute_roll_tolerance = 0.04;
+  desired_pose.absolute_pitch_tolerance = 0.04;
+  desired_pose.absolute_yaw_tolerance = 0.04;
+
+  arm_navigation_msgs::MoveArmGoal goalA;
+	if(use_right_arm)
+	{
+	  goalA.motion_plan_request.group_name = "right_arm";
+	}
+	else
+	{
+	  goalA.motion_plan_request.group_name = "left_arm";
+	}
+
+  goalA.motion_plan_request.num_planning_attempts = 2;
+  goalA.motion_plan_request.planner_id = std::string("");
+  goalA.planner_service_name = std::string("ompl_planning/plan_kinematic_path");
+  goalA.motion_plan_request.allowed_planning_time = ros::Duration(2.0);  
+  arm_navigation_msgs::addGoalConstraintToMoveArmGoal(desired_pose,goalA);
+
+
+  bool finished_within_time = false; 
+if(disable_gripper)
+{
+  motion_planning_msgs::CollisionOperation coll_disable_msg;
+	if(use_right_arm)
+	{
+	 coll_disable_msg.object1 = "r_end_effector";
+	}
+	else
+	{
+	 coll_disable_msg.object1 = "l_end_effector";
+	}
+ 
+  coll_disable_msg.object2 = motion_planning_msgs::CollisionOperation::COLLISION_SET_ALL;
+  coll_disable_msg.operation = motion_planning_msgs::CollisionOperation::DISABLE;
+  goalA.operations.collision_operations[0] = coll_disable_msg;
+}
+
+    arm_ac_client_->sendGoal(goalA);
+    finished_within_time = arm_ac_client_->waitForResult(ros::Duration(20.0));
+    if (!finished_within_time)
+    {
+      arm_ac_client_->cancelGoal();
+      ROS_INFO("Timed out achieving goal A");
+    }
+    else
+    {
+      actionlib::SimpleClientGoalState state = arm_ac_client_->getState();
+      bool success = (state == actionlib::SimpleClientGoalState::SUCCEEDED);
+      if(success)
+        ROS_INFO("Action finished: %s",state.toString().c_str());
+      else
+        ROS_INFO("Action failed: %s",state.toString().c_str());
+	return success;
+    }
+  return false;
+
+}
+
 void TestArm()
 {
 ROS_INFO("In TestArm()");
-  actionlib::SimpleActionClient<arm_navigation_msgs::MoveArmAction> move_arm("move_right_arm",true);
-  move_arm.waitForServer();
-  ROS_INFO("Connected to server");
-  arm_navigation_msgs::MoveArmGoal goalA;
 
+  arm_navigation_msgs::MoveArmGoal goalA;
   goalA.motion_plan_request.group_name = "right_arm";
   goalA.motion_plan_request.num_planning_attempts = 1;
   goalA.motion_plan_request.planner_id = std::string("");
@@ -239,22 +379,22 @@ ROS_INFO("In TestArm()");
   
   arm_navigation_msgs::addGoalConstraintToMoveArmGoal(desired_pose,goalA);
 
-
-
   if (n_.ok())
   {
-    bool finished_within_time = false;
-ROS_INFO("BOOKSTACK Giving Goal");
-    move_arm.sendGoal(goalA);
-    finished_within_time = move_arm.waitForResult(ros::Duration(200.0));
+    bool finished_within_time = false; 
+
+
+    //ROS_INFO("BOOKSTACK Giving Goal");
+      move_left_arm_client_->sendGoal(goalA);
+    finished_within_time =   move_left_arm_client_->waitForResult(ros::Duration(200.0));
     if (!finished_within_time)
     {
-      move_arm.cancelGoal();
+  move_left_arm_client_->cancelGoal();
       ROS_INFO("Timed out achieving goal A");
     }
     else
     {
-      actionlib::SimpleClientGoalState state = move_arm.getState();
+      actionlib::SimpleClientGoalState state =   move_left_arm_client_->getState();
       bool success = (state == actionlib::SimpleClientGoalState::SUCCEEDED);
       if(success)
         ROS_INFO("Action finished: %s",state.toString().c_str());
@@ -265,10 +405,7 @@ ROS_INFO("BOOKSTACK Giving Goal");
 
 }
 
-bool pushObject(book_stacking_msgs::ObjectInfo, double angle, double dist, std::string frame)
-{
 
-}
 
 void KinectCallback(const sensor_msgs::PointCloud2ConstPtr &cloud_msg)
 {
@@ -322,10 +459,24 @@ ROS_INFO("PT CLOUD");
 	ROS_INFO("# OF OBJS: %d",(int)(allObjectInfos.objects.size()));
 	    drawObjectPrisms(allObjectInfos,obj_marker_pub_,table_plane_info,0.0f,1.0f,0.0f);
 	    //object_pub_.publish(objects);
+
+	book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[0];
+	
+	geometry_msgs::Vector3Stamped pushVector;
+	pushVector.header.frame_id="/base_link";
+	pushVector.header.stamp=ros::Time::now();
+	pushVector.vector.x=0.0;
+	pushVector.vector.y=1.0;
+	pushVector.vector.z=0.0;
+
+	pushObject(pushedObjectInfo,pushVector, 0.3);
+	
+
+	robot_initialized=false;
+
+
 	for (unsigned int i=0; i<allObjectInfos.objects.size();i++)
 	{
-
-	pushObject(allObjectInfos.objects[0],
 /*
 	geometry_msgs::Point32 bbox_min=allObjectInfos.objects[i].bbox_min;
 	geometry_msgs::Point32 bbox_max=allObjectInfos.objects[i].bbox_max;
@@ -337,6 +488,7 @@ ROS_INFO("PT CLOUD");
          vtkSmartPointer<vtkDataSet> data = pcl::visualization::create2DCircle (circle_coeff, z);*/
 
 	}
+
 	  }	  
       }
 #endif
