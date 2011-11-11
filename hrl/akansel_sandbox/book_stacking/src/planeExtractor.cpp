@@ -15,7 +15,7 @@ geometry_msgs::Point32 calcCentroid(const pcl::PointCloud<Point>& cloud)
   
   centroid.x /= cloud.points.size();
   centroid.y /= cloud.points.size();
-  centroid.z /= cloud.points.size();
+  centroid.z /= cloud.points.size(); 
   
   return centroid;
 }

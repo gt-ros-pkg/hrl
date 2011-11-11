@@ -6,6 +6,8 @@
 #include <actionlib/client/simple_action_client.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <pr2_controllers_msgs/SingleJointPositionAction.h>
+#include <pr2_controllers_msgs/PointHeadAction.h>
 
 //PCL
 #include <pcl_ros/filters/passthrough.h>
@@ -17,12 +19,10 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl_ros/transforms.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/visualization/common/shapes.h>
 
 //TF
 #include <tf/transform_listener.h>
-
-//PR2
-#include <pr2_controllers_msgs/PointHeadAction.h>
 
 //Manipulation
 #include <arm_navigation_msgs/MoveArmAction.h>
@@ -41,30 +41,29 @@ typedef actionlib::SimpleActionClient<pr2_controllers_msgs::PointHeadAction> Poi
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef pcl::PointXYZ Point;
 typedef pcl::KdTree<Point>::Ptr KdTreePtr;
+typedef actionlib::SimpleActionClient<pr2_controllers_msgs::SingleJointPositionAction> TorsoClient;
 
 class book_stacking
 {
 
 private:
   PointHeadClient* point_head_client_;
+  TorsoClient *torso_client_;
   ros::Subscriber point_cloud_sub_;
-  double min_table_z_, max_table_z_,leaf_size;
-  bool use_downsample;
-  double table_ransac_thresh_;
   tf::TransformListener tf_listener;
+
   std::string workspace_frame;
+  std::string base_frame_tf;
 
   bool filter_spatial;
   double filter_spatial_xmin, filter_spatial_xmax;
   double filter_spatial_ymin, filter_spatial_ymax;
   double filter_spatial_zmin, filter_spatial_zmax;
-
   bool filter_outliers;  
   int filter_outliers_meank;
   double filter_outliers_stddev_thresh;
   bool downsample_cloud;
   double downsample_grid_size_;
-
   bool concave_hull_mode_;
   bool use_normal_seg_;
   int max_planes_;
@@ -74,8 +73,8 @@ private:
   int min_plane_inliers_;
   int max_sac_iterations_;
   double sac_probability_;
+  bool robot_initialized;
 
-  std::string base_frame_tf;
 
 public:
   ros::NodeHandle n_;
@@ -86,34 +85,50 @@ public:
 book_stacking():
   n_("~")
 {
+ robot_initialized=false; 
+ LoadParameters();
+ InitializeRobot();
+ robot_initialized=true; 
+//TestArm();
+//shakeHead(2);
+}
+
+ void InitializeRobot()
+{
+ filtered_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud2>("filtered_cloud",1);
+ plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("akans_plane_marker_array",1);
+ obj_marker_pub_ = n_.advertise<visualization_msgs::Marker>("obj_markers",1);
+
+  torso_client_ = new TorsoClient("torso_controller/position_joint_action", true);
+    while(!torso_client_->waitForServer(ros::Duration(5.0)))
+    {
+      ROS_INFO("Waiting for the torso action server to come up");
+    }
+
   point_head_client_ = new PointHeadClient("/head_traj_controller/point_head_action", true);
   while(!point_head_client_->waitForServer(ros::Duration(5.0)))
     {
       ROS_INFO("Waiting for the point_head_action server to come up");
     }
-point_cloud_sub_=n_.subscribe("/camera/depth/points",1,&book_stacking::KinectCallback,this);
-filtered_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud2>("filtered_cloud",1);
- 
-//Visualization Publishers
- plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("akans_plane_marker_array",1);
- obj_marker_pub_ = n_.advertise<visualization_msgs::Marker>("obj_markers",1);
 
- LoadParameters();
-
+ moveTorsoToPosition(0.2);
  lookAt("base_link", 1.5, 0.0, 0.2);
-//TestArm();
-//shakeHead(2);
+point_cloud_sub_=n_.subscribe("/camera/depth/points",1,&book_stacking::KinectCallback,this);
 }
+ 
+void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
+ {
+    pr2_controllers_msgs::SingleJointPositionGoal q;
+    q.position = d;  //all the way up is 0.2
+    q.min_duration = ros::Duration(2.0);
+    q.max_velocity = 1.0;
+    torso_client_->sendGoal(q);
+    torso_client_->waitForResult();
+  }
+
+
   void LoadParameters()
   {
-/*
-    n_.param("min_table_z", min_table_z_, -0.5);
-    n_.param("max_table_z", max_table_z_, 1.5);
-    n_.param("use_downsample", use_downsample, true);
-    n_.param("leaf_size", leaf_size, 0.01); 
-    std::string default_workspace_frame="/base_link";
-    n_.param("workspace_frame", workspace_frame, default_workspace_frame);*/
-
     //Spatial Filtering Params
     n_.param("filter_spatial",filter_spatial,true);
     n_.param("filter_spatial_zmax",filter_spatial_zmax,3.0);
@@ -250,8 +265,15 @@ ROS_INFO("BOOKSTACK Giving Goal");
 
 }
 
+bool pushObject(book_stacking_msgs::ObjectInfo, double angle, double dist, std::string frame)
+{
+
+}
+
 void KinectCallback(const sensor_msgs::PointCloud2ConstPtr &cloud_msg)
 {
+if(!robot_initialized)
+return;
 ROS_INFO("PT CLOUD");
  XYZPointCloud raw_cloud;
  XYZPointCloud cloud;
@@ -288,18 +310,33 @@ ROS_INFO("PT CLOUD");
     if(detect_objects)
       {
 	ROS_INFO("Extracting objects...");
-	book_stacking_msgs::ObjectInfos objects = getObjectsOverPlane(table_plane_info,cloud,-2.0,2.0);
+	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(table_plane_info,cloud,-1.01,-0.01);
 	  
 #ifdef DEBUG_DRAW_TABLETOP_OBJECTS
-	if(objects.objects.size() < 1)
+	if(allObjectInfos.objects.size() < 1)
 	  {
 	    ROS_WARN("No objects over this plane.");
 	  } 
 	else 
 	  {
-	ROS_INFO("# OF OBJS: %d",objects.objects.size());
-	    drawObjectPrisms(objects,obj_marker_pub_,table_plane_info,0.0f,1.0f,0.0f);
+	ROS_INFO("# OF OBJS: %d",(int)(allObjectInfos.objects.size()));
+	    drawObjectPrisms(allObjectInfos,obj_marker_pub_,table_plane_info,0.0f,1.0f,0.0f);
 	    //object_pub_.publish(objects);
+	for (unsigned int i=0; i<allObjectInfos.objects.size();i++)
+	{
+
+	pushObject(allObjectInfos.objects[0],
+/*
+	geometry_msgs::Point32 bbox_min=allObjectInfos.objects[i].bbox_min;
+	geometry_msgs::Point32 bbox_max=allObjectInfos.objects[i].bbox_max;
+	 pcl::ModelCoefficients circle_coeff;
+ 	 circle_coeff.values.resize (3);    // We need 3 values
+         circle_coeff.values[0] = 1.0;
+         circle_coeff.values[1] = 1.0;
+         circle_coeff.values[2] = 0.3;
+         vtkSmartPointer<vtkDataSet> data = pcl::visualization::create2DCircle (circle_coeff, z);*/
+
+	}
 	  }	  
       }
 #endif
@@ -367,7 +404,5 @@ int main(int argc, char** argv)
 {
 ros::init(argc, argv, "BookStackingNode");
 book_stacking bs;
-//bs.TestArm();
 ros::spin();
-
 }
