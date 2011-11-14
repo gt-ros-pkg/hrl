@@ -8,10 +8,12 @@
 #include <geometry_msgs/Vector3Stamped.h>
 #include <geometry_msgs/Quaternion.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/JointState.h>
 #include <pr2_controllers_msgs/SingleJointPositionAction.h>
 #include <pr2_controllers_msgs/PointHeadAction.h>
 #include <arm_navigation_msgs/CollisionOperation.h>
-
+#include <std_msgs/String.h>
+#include <kinematics_msgs/GetConstraintAwarePositionIK.h>
 //PCL
 #include <pcl_ros/filters/passthrough.h>
 #include <pcl/segmentation/sac_segmentation.h>
@@ -105,7 +107,7 @@ book_stacking():
  plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("akans_plane_marker_array",1);
  obj_marker_pub_ = n_.advertise<visualization_msgs::Marker>("obj_markers",1);
  vis_pub_ = n_.advertise<visualization_msgs::Marker>("visualization_marker",1);
-command_subscriber_=nh_.subscribe<std_msgs::String>("/command_generator_PR2_topic",1,&book_stacking::commandCallback, this);
+command_subscriber_=n_.subscribe<std_msgs::String>("/command_generator_PR2_topic",1,&book_stacking::commandCallback, this);
 
   torso_client_ = new TorsoClient("torso_controller/position_joint_action", true);
     while(!torso_client_->waitForServer(ros::Duration(5.0)))
@@ -157,7 +159,7 @@ command_subscriber_=nh_.subscribe<std_msgs::String>("/command_generator_PR2_topi
 
 void commandCallback  (const std_msgs::String::ConstPtr& msg)
 {
-	cout<<"Got command "<<msg->data<<endl;
+	std::cout<<"Command: "<<msg->data<<std::endl;
 	char key0 = msg->data.c_str()[0];
 
 	switch (key0)
@@ -170,7 +172,9 @@ void commandCallback  (const std_msgs::String::ConstPtr& msg)
 			switch (key2)
 			{
 			case 'd': //detect objects
-				break;
+				
+			robot_initialized=true;
+			break;
 			default:
 			  break;
 			}
@@ -304,6 +308,33 @@ bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3St
   //prepush_pose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(0.0,0.0,M_PI/2);
   prepush_pose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,M_PI/2,0.0);
 
+
+    geometry_msgs::PoseStamped tpose;
+    tpose.header=prepush_pose.header;
+    tpose.pose.position.x=prepush_pose.pose.position.x;
+    tpose.pose.position.y=prepush_pose.pose.position.y;
+    tpose.pose.position.z=prepush_pose.pose.position.z;
+    tpose.pose.orientation.x=prepush_pose.pose.orientation.x;
+    tpose.pose.orientation.y=prepush_pose.pose.orientation.y;
+    tpose.pose.orientation.z=prepush_pose.pose.orientation.z;
+    tpose.pose.orientation.w=prepush_pose.pose.orientation.w;
+    
+
+sensor_msgs::JointState solution;
+    std::string link_name=prepush_pose.header.frame_id;	
+    if (computeIK(tpose, 
+                  link_name, 
+                  solution))
+    {
+std::cout<<"AKANS IK: SUCCESS!"<<std::endl;
+    }
+else
+{
+std::cout<<"AKANS IK: FAIL!"<<std::endl;
+}
+
+
+
   visualization_msgs::Marker mr;
   mr.header.frame_id=prepush_pose.header.frame_id;
   mr.header.stamp=ros::Time::now();
@@ -342,6 +373,44 @@ PlaceEndEffector(true,move_right_arm_client_,prepush_pose,false);
 return true;
 }
 
+  bool computeIK(const geometry_msgs::PoseStamped &pose_stamped_msg,  
+                 const std::string &link_name, 
+                 sensor_msgs::JointState &solution)
+  {
+    kinematics_msgs::GetConstraintAwarePositionIK::Request request;
+    kinematics_msgs::GetConstraintAwarePositionIK::Response response;
+	    
+    request.ik_request.pose_stamped = pose_stamped_msg;
+    request.ik_request.robot_state = original_request_.motion_plan_request.start_state;
+    request.ik_request.ik_seed_state = request.ik_request.robot_state;
+    request.ik_request.ik_link_name = link_name;
+    request.timeout = ros::Duration(ik_allowed_time_);
+    request.constraints = original_request_.motion_plan_request.goal_constraints;
+    if (ik_client_.call(request, response))
+    {
+      move_arm_action_result_.error_code = response.error_code;
+      if(response.error_code.val != response.error_code.SUCCESS)
+      {
+        ROS_ERROR("IK Solution not found, IK returned with error_code: %d",response.error_code.val);
+        return false;
+      }         
+      solution = response.solution.joint_state;
+      if (solution.position.size() != group_joint_names_.size())
+      {
+        ROS_ERROR("Incorrect number of elements in IK output.");
+        return false;
+      }
+      for(unsigned int i = 0; i < solution.position.size() ; ++i)
+        ROS_DEBUG("IK[%d] = %f", (int)i, solution.position[i]);
+    }
+    else
+    {
+      ROS_ERROR("IK service failed");
+      return false;
+    }	    
+    return true;
+  }
+
 bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_navigation_msgs::SimplePoseConstraint &desired_pose,bool disable_gripper)
 {
   desired_pose.absolute_position_tolerance.x = 0.02;
@@ -367,8 +436,9 @@ bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_n
   goalA.motion_plan_request.allowed_planning_time = ros::Duration(2.0);  
   arm_navigation_msgs::addGoalConstraintToMoveArmGoal(desired_pose,goalA);
 
-
-  bool finished_within_time = false; 
+  //goalA.motion_plan_request.goal_constraints.position_constraints[0].link_name=
+  
+bool finished_within_time = false; 
 if(disable_gripper)
 {
   arm_navigation_msgs::CollisionOperation coll_disable_msg;
@@ -481,9 +551,6 @@ ROS_INFO("PT CLOUD");
  XYZPointCloud cloud;
  pcl::fromROSMsg(*cloud_msg,raw_cloud);
 
-
- //pcl_ros::transformPointCloud(workspace_frame,cloud,cloud,tf_listener); //didn't work.
-
     //Transform it to base frame
     tf::StampedTransform transf;
     try{
@@ -491,11 +558,12 @@ ROS_INFO("PT CLOUD");
 				   cloud_msg->header.stamp, ros::Duration(2.0));
       tf_listener.lookupTransform(base_frame_tf, raw_cloud.header.frame_id,
 				  cloud_msg->header.stamp, transf);
-    }catch(tf::TransformException ex){
+    }
+    catch(tf::TransformException ex)
+    {
       ROS_ERROR("Scene segmentation unable to put kinect data in ptu reference frame due to TF error:%s", ex.what());
       return;
-    }
-    
+    }    
     tf::Vector3 v3 = transf.getOrigin();
     tf::Quaternion quat = transf.getRotation();
     Eigen::Quaternionf rot(quat.w(), quat.x(), quat.y(), quat.z());
@@ -517,7 +585,6 @@ if(gotPlane)
 //lookAt(table_plane_info.header.frame_id,table_center.x,table_center.y,table_center.z);
 
  std::cout<<"Frame: "<<table_plane_info.header.frame_id<<" Center x: "<<table_center.x<<" Center y: "<<table_center.y<<" Center z: "<<table_center.z;
-
 */
 
  bool detect_objects=true;
@@ -525,8 +592,7 @@ if(gotPlane)
       {
 
 	ROS_INFO("Extracting objects...");
-	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(table_plane_info,cloud,-1.01,-0.015);
-	  
+	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(table_plane_info,cloud,-1.01,-0.015);	  
 
 	if(allObjectInfos.objects.size() < 1)
 	  {

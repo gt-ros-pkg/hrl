@@ -91,7 +91,8 @@
 <param name="filter_spatial_ymin" value="-1.0" type="double"/>
   </node>
 
-
+ <node pkg="command_generator_PR2" type="command_generator_PR2" name="command_generator_PR2" output="screen">
+ </node>
 
 </launch>
 

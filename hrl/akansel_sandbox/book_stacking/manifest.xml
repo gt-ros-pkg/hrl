@@ -23,7 +23,8 @@
   <depend package="simple_Jtranspose_controller"/>
   <depend package="book_stacking_msgs"/>
   <depend package="pr2_gazebo"/>
-
+  <depend package="command_generator_PR2"/>
+  <depend package="kinematics_msgs"/>
   <depend package="visualization_msgs"/>
 
   <depend package="robot_self_filter"/>
