@@ -159,7 +159,7 @@ class CodyArmClient(HRLArm):
         f_mat = f_mat[0:3,:] # ignoring the torques.
 
         if bias:
-            f_mat = f_mat - self.ft_bias['force']
+            f_mat = f_mat - self.fts_bias['force']  #Tiffany added an 's' to 'ft'
         
         if base_frame:
             q = self.get_joint_angles()
@@ -178,9 +178,9 @@ class CodyArmClient(HRLArm):
 
         f_b = np.mean(np.column_stack(f_list), 1)
         # torque is unimplemented.
-        t_b = self.get_wrist_torque(arm, bias=False)
+        t_b = self.get_wrist_torque(bias=False) #Tiffany Nov 8 2011 removed 'arm' arg
         self.fts_bias['force'] = f_b
-        self.fts_bias['torque'] = t_b
+        self.fts_bias['torque'] = t_b                
         rospy.loginfo('...done')
 
     # @return array-like of floats b/w 0 and 1.
@@ -222,7 +222,7 @@ class CodyArmClient(HRLArm):
         pass
 
     # leaving this unimplemented for now. Advait Nov 14, 2010.
-    def get_wrist_torque(self, arm, bias=True):
+    def get_wrist_torque(self, bias=True):  #Tiffany Nov 8 2011 removed 'arm' arg
         pass
 
 

@@ -94,7 +94,8 @@ class MekaArmSettings():
 
 class MekaArmServer():
     def __init__(self, right_arm_settings=None,
-                 left_arm_settings=None, use_netft = False):
+                 left_arm_settings=None, use_netft_r = False,
+                 use_netft_l = False):
         self.arm_settings = {}  # dict is set in set_arm_settings
         self.initialize_joints(right_arm_settings, left_arm_settings)
 
@@ -122,11 +123,17 @@ class MekaArmServer():
         #----- ROS interface ---------
         rospy.init_node('arm_server', anonymous=False)
 
-        if use_netft:
-            self.ftclient = ftc.FTClient('force_torque_ft4', True)
+        if use_netft_r:
+            self.ftclient_r = ftc.FTClient('force_torque_ft4', True)
             #self.ftclient.bias()
         else:
-            self.ftclient = None
+            self.ftclient_r = None
+
+        if use_netft_l:
+            self.ftclient_l = ftc.FTClient('force_torque_ft6', True)
+        else:
+            self.ftclient_l = None
+
 
         self.q_r_pub = rospy.Publisher('/r_arm/q', FloatArray)
         self.q_l_pub = rospy.Publisher('/l_arm/q', FloatArray)
@@ -438,8 +445,11 @@ class MekaArmServer():
     # 2010/2/5 Advait, Aaron King, Tiffany verified that coordinate frame 
     # from Meka is the left-hand coordinate frame.
     def get_wrist_force(self, arm):
-        if arm == 'right_arm' and self.ftclient != None:
-            return self.get_wrist_force_netft()
+        if arm == 'right_arm' and self.ftclient_r != None:
+            return self.get_wrist_force_netft('r')
+
+        if arm == 'left_arm' and self.ftclient_l != None:
+            return self.get_wrist_force_netft('l')
 
         m = []
         lc = self.fts[arm]
@@ -464,8 +474,12 @@ class MekaArmServer():
 
         return np.row_stack((m1, m2))
 
-    def get_wrist_force_netft(self):
-        w = self.ftclient.read()
+    def get_wrist_force_netft(self, arm):
+        if arm == 'r':
+            w = self.ftclient_r.read()
+        elif arm == 'l':
+            w = self.ftclient_l.read()
+
         r = tr.Rz(math.radians(30.))
         f = r * w[0:3]
         t = r * w[0:3]
@@ -560,8 +574,10 @@ if __name__ == '__main__':
     import optparse
 
     p = optparse.OptionParser()
-    p.add_option('--enable_net_ft', action='store_true', dest='netft',
+    p.add_option('--enable_net_ft_r', action='store_true', dest='netft_r',
                  help='use net ft for the right arm')
+    p.add_option('--enable_net_ft_l', action='store_true', dest='netft_l',
+                 help='use net ft for the left arm') #Tiffany 11/11/2011
     opt, args = p.parse_args()
 
     try:
@@ -569,7 +585,8 @@ if __name__ == '__main__':
         #settings_r = None
         settings_l = MekaArmSettings(stiffness_list=[0.1939,0.6713,0.748,0.7272,0.75])
         #settings_l = None
-        cody_arms = MekaArmServer(settings_r, settings_l, opt.netft)
+        cody_arms = MekaArmServer(settings_r, settings_l, opt.netft_r,
+                opt.netft_l)
 
 #        print 'hit a key to power up the arms.'
 #        k=m3t.get_keystroke()
