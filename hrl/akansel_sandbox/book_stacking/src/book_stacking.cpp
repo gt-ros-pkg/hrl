@@ -6,6 +6,7 @@
 #include <actionlib/client/simple_action_client.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Vector3Stamped.h>
+#include <geometry_msgs/Quaternion.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <pr2_controllers_msgs/SingleJointPositionAction.h>
 #include <pr2_controllers_msgs/PointHeadAction.h>
@@ -21,7 +22,6 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl_ros/transforms.h>
 #include <pcl/filters/statistical_outlier_removal.h>
-//#include <pcl/visualization/common/shapes.h>
 
 //TF
 #include <tf/transform_listener.h>
@@ -86,6 +86,7 @@ public:
   ros::Publisher filtered_cloud_pub_;
   ros::Publisher plane_marker_pub_;
   ros::Publisher obj_marker_pub_;
+  ros::Publisher vis_pub_;
 
 book_stacking():
   n_("~")
@@ -93,9 +94,7 @@ book_stacking():
  robot_initialized=false; 
  LoadParameters();
  InitializeRobot();
- 
-
-robot_initialized=true; 
+ robot_initialized=true; 
 //TestArm();
 //shakeHead(2);
 }
@@ -105,6 +104,7 @@ robot_initialized=true;
  filtered_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud2>("filtered_cloud",1);
  plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("akans_plane_marker_array",1);
  obj_marker_pub_ = n_.advertise<visualization_msgs::Marker>("obj_markers",1);
+ vis_pub_ = n_.advertise<visualization_msgs::Marker>("visualization_marker",1);
 
   torso_client_ = new TorsoClient("torso_controller/position_joint_action", true);
     while(!torso_client_->waitForServer(ros::Duration(5.0)))
@@ -130,9 +130,27 @@ robot_initialized=true;
       //ROS_INFO("Waiting for the point_head_action server to come up");
     }
   	
+  
  moveTorsoToPosition(0.2);
- lookAt("base_link", 1.5, 0.0, 0.2);
- point_cloud_sub_=n_.subscribe("/camera/depth/points",1,&book_stacking::KinectCallback,this);
+ lookAt("base_link", 1.0, 0.0, 0.0);
+ point_cloud_sub_=n_.subscribe("/camera/rgb/object_modeling_points_filtered",1,&book_stacking::KinectCallback,this);
+
+/*
+  visualization_msgs::Marker mr;
+  mr.header.frame_id=start_pose.header.frame_id;
+  mr.header.stamp=ros::Time::now();
+  mr.type=visualization_msgs::Marker::ARROW;
+  mr.action=visualization_msgs::Marker::ADD;
+  mr.pose=start_pose.pose;
+  mr.scale.x=0.1;
+  mr.scale.y=0.1;
+  mr.scale.z=0.1;
+  mr.color.a=1.0;
+  mr.color.r=0.0;
+  mr.color.g=1.0;
+  mr.color.b=1.0;
+  vis_pub_.publish(mr); */
+
 }
  
 void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
@@ -222,6 +240,7 @@ void lookAt(std::string frame_id, double x, double y, double z)
   }
 
 
+
 bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3Stamped dir,double dist)
 {
 //determine start position, given the object
@@ -238,25 +257,40 @@ bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3St
   start_pose.pose.orientation.w = 1.0;
 */
 
-  arm_navigation_msgs::SimplePoseConstraint start_pose;
-  start_pose.header.frame_id = header.frame_id;
-  start_pose.link_name = "r_wrist_roll_link";
+  arm_navigation_msgs::SimplePoseConstraint prepush_pose;
+  prepush_pose.header.frame_id = objInfo.header.frame_id;
 
-  double pad_dist=0.2;  
-  
-  float32 startX=objInfo-dir.x*pad_dist;
-  float32 startY=objInfo-dir.y*pad_dist;
-  float32 startZ=objInfo-dir.z*pad_dist;
+  std::cout<<"Object Frame ID: "<< objInfo.header.frame_id<<std::endl;
+  //start_pose.link_name = "r_gripper_tool_frame";
+  prepush_pose.link_name = "r_wrist_roll_link";
 
-/*
-  start_pose.pose.position.x = startX;
-  start_pose.pose.position.y = -0.188;
-  start_pose.pose.position.z = 0;
-*/
-  start_pose.pose.orientation.x = 0.0;
-  start_pose.pose.orientation.y = 0.0;
-  start_pose.pose.orientation.z = 0.0;
-  start_pose.pose.orientation.w = 1.0;
+  double pad_dist=0.08;
+  double gripper_offset=0.00;
+	
+
+  double startX=objInfo.centroid.x-dir.vector.x*(pad_dist+gripper_offset);
+  double startY=objInfo.centroid.y-dir.vector.y*(pad_dist+gripper_offset);
+  double startZ=objInfo.centroid.z-dir.vector.z*(pad_dist+gripper_offset)+0.05;
+  prepush_pose.pose.position.x = startX;
+  prepush_pose.pose.position.y = startY;
+  prepush_pose.pose.position.z = startZ;
+  //prepush_pose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(0.0,0.0,M_PI/2);
+  prepush_pose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,M_PI/2,0.0);
+
+  visualization_msgs::Marker mr;
+  mr.header.frame_id=prepush_pose.header.frame_id;
+  mr.header.stamp=ros::Time::now();
+  mr.type=visualization_msgs::Marker::ARROW;
+  mr.action=visualization_msgs::Marker::ADD;
+  mr.pose=prepush_pose.pose;
+  mr.scale.x=0.1;
+  mr.scale.y=0.1;
+  mr.scale.z=0.1;
+  mr.color.a=1.0;
+  mr.color.r=1.0;
+  mr.color.g=0.2;
+  mr.color.b=1.0;
+  vis_pub_.publish(mr); 
 
 //determine end position, given the dist and dir of the push
 /*
@@ -274,14 +308,14 @@ bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3St
 //move the base if necessary.
 
 //Move the arm to the start position.
-PlaceEndEffector(true,move_right_arm_client_,start_pose,false);
+PlaceEndEffector(true,move_right_arm_client_,prepush_pose,false);
 
 //Move the arm to the end position.
 //PlaceEndEffector(true,move_right_arm_client_,end_pose,true);
 return true;
 }
 
-bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_navigation_msgs::SimplePoseConstraint desired_pose,bool disable_gripper)
+bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_navigation_msgs::SimplePoseConstraint &desired_pose,bool disable_gripper)
 {
   desired_pose.absolute_position_tolerance.x = 0.02;
   desired_pose.absolute_position_tolerance.y = 0.02;
@@ -300,7 +334,7 @@ bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_n
 	  goalA.motion_plan_request.group_name = "left_arm";
 	}
 
-  goalA.motion_plan_request.num_planning_attempts = 2;
+  goalA.motion_plan_request.num_planning_attempts = 1;
   goalA.motion_plan_request.planner_id = std::string("");
   goalA.planner_service_name = std::string("ompl_planning/plan_kinematic_path");
   goalA.motion_plan_request.allowed_planning_time = ros::Duration(2.0);  
@@ -310,7 +344,7 @@ bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_n
   bool finished_within_time = false; 
 if(disable_gripper)
 {
-  motion_planning_msgs::CollisionOperation coll_disable_msg;
+  arm_navigation_msgs::CollisionOperation coll_disable_msg;
 	if(use_right_arm)
 	{
 	 coll_disable_msg.object1 = "r_end_effector";
@@ -320,11 +354,12 @@ if(disable_gripper)
 	 coll_disable_msg.object1 = "l_end_effector";
 	}
  
-  coll_disable_msg.object2 = motion_planning_msgs::CollisionOperation::COLLISION_SET_ALL;
-  coll_disable_msg.operation = motion_planning_msgs::CollisionOperation::DISABLE;
+  coll_disable_msg.object2 = arm_navigation_msgs::CollisionOperation::COLLISION_SET_ALL;
+  coll_disable_msg.operation = arm_navigation_msgs::CollisionOperation::DISABLE;
   goalA.operations.collision_operations[0] = coll_disable_msg;
 }
 
+//    std::cout<<"Object Frame ID: "<< goalA.<<std::endl;
     arm_ac_client_->sendGoal(goalA);
     finished_within_time = arm_ac_client_->waitForResult(ros::Duration(20.0));
     if (!finished_within_time)
@@ -360,9 +395,12 @@ ROS_INFO("In TestArm()");
   arm_navigation_msgs::SimplePoseConstraint desired_pose;
   desired_pose.header.frame_id = "torso_lift_link";
   desired_pose.link_name = "r_wrist_roll_link";
+  //desired_pose.link_name = "r_gripper_tool_frame";
+
   desired_pose.pose.position.x = 0.75;
   desired_pose.pose.position.y = -0.188;
   desired_pose.pose.position.z = 0;
+
 
   desired_pose.pose.orientation.x = 0.0;
   desired_pose.pose.orientation.y = 0.0;
@@ -385,16 +423,16 @@ ROS_INFO("In TestArm()");
 
 
     //ROS_INFO("BOOKSTACK Giving Goal");
-      move_left_arm_client_->sendGoal(goalA);
-    finished_within_time =   move_left_arm_client_->waitForResult(ros::Duration(200.0));
+     move_right_arm_client_->sendGoal(goalA);
+    finished_within_time =   move_right_arm_client_->waitForResult(ros::Duration(200.0));
     if (!finished_within_time)
     {
-  move_left_arm_client_->cancelGoal();
+      move_right_arm_client_->cancelGoal();
       ROS_INFO("Timed out achieving goal A");
     }
     else
     {
-      actionlib::SimpleClientGoalState state =   move_left_arm_client_->getState();
+      actionlib::SimpleClientGoalState state =   move_right_arm_client_->getState();
       bool success = (state == actionlib::SimpleClientGoalState::SUCCEEDED);
       if(success)
         ROS_INFO("Action finished: %s",state.toString().c_str());
@@ -440,16 +478,29 @@ ROS_INFO("PT CLOUD");
     cloud.header.frame_id = base_frame_tf;
    
     
+book_stacking_msgs::PlaneInfo table_plane_info;
+bool gotPlane=getTablePlane(cloud,table_plane_info);
 
- book_stacking_msgs::PlaneInfo table_plane_info=getTablePlane(cloud);
+if(gotPlane)
+{
+/*
+ pcl::PointCloud<Point> table_cloud;
+ pcl::toROSMsg(table_cloud,table_plane_info.hull);
+ geometry_msgs::Point32 table_center=calcCentroid(table_cloud);
+//lookAt(table_plane_info.header.frame_id,table_center.x,table_center.y,table_center.z);
+
+ std::cout<<"Frame: "<<table_plane_info.header.frame_id<<" Center x: "<<table_center.x<<" Center y: "<<table_center.y<<" Center z: "<<table_center.z;
+
+*/
 
  bool detect_objects=true;
     if(detect_objects)
       {
+
 	ROS_INFO("Extracting objects...");
-	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(table_plane_info,cloud,-1.01,-0.01);
+	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(table_plane_info,cloud,-1.01,-0.015);
 	  
-#ifdef DEBUG_DRAW_TABLETOP_OBJECTS
+
 	if(allObjectInfos.objects.size() < 1)
 	  {
 	    ROS_WARN("No objects over this plane.");
@@ -457,8 +508,11 @@ ROS_INFO("PT CLOUD");
 	else 
 	  {
 	ROS_INFO("# OF OBJS: %d",(int)(allObjectInfos.objects.size()));
+
+#ifdef DEBUG_DRAW_TABLETOP_OBJECTS
 	    drawObjectPrisms(allObjectInfos,obj_marker_pub_,table_plane_info,0.0f,1.0f,0.0f);
 	    //object_pub_.publish(objects);
+#endif
 
 	book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[0];
 	
@@ -469,9 +523,7 @@ ROS_INFO("PT CLOUD");
 	pushVector.vector.y=1.0;
 	pushVector.vector.z=0.0;
 
-	pushObject(pushedObjectInfo,pushVector, 0.3);
-	
-
+	pushObject(pushedObjectInfo,pushVector, 0.15);
 	robot_initialized=false;
 
 
@@ -491,12 +543,12 @@ ROS_INFO("PT CLOUD");
 
 	  }	  
       }
-#endif
+}
 
     
 }
 
-book_stacking_msgs::PlaneInfo getTablePlane(XYZPointCloud& cloud)
+bool getTablePlane(XYZPointCloud& cloud, book_stacking_msgs::PlaneInfo &pl_info)
   {
     if(filter_spatial)
       {
@@ -543,9 +595,20 @@ book_stacking_msgs::PlaneInfo getTablePlane(XYZPointCloud& cloud)
     book_stacking_msgs::PlaneInfos plane_infos= getPlanesByNormals(cloud,4,true,concave_hull_mode_,use_omp_,plane_distance_thresh_,max_sac_iterations_,sac_probability_,min_plane_inliers_,normal_search_radius_,0.1);
     plane_infos.header.stamp=cloud.header.stamp; 
 #ifdef DEBUG_DRAW_TABLE_MARKERS
+    if(plane_infos.planes.size()>0)
+    {
     drawPlaneMarkers(plane_infos,plane_marker_pub_,1.0,0.0,0.0);
-#endif  
-    return plane_infos.planes[0];
+    }
+#endif
+	if(plane_infos.planes.size()>0)
+	{
+	pl_info=plane_infos.planes[0];
+	return true;
+	}
+	else
+	{
+	return false;	
+	}
 
   }
 

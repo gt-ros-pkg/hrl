@@ -26,6 +26,8 @@
 
   <depend package="visualization_msgs"/>
 
+  <depend package="robot_self_filter"/>
+
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
 

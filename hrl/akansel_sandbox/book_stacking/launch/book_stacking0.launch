@@ -3,8 +3,8 @@
   <arg name="use_left_arm" default="true" />
   <arg name="stereo" default="false"/>
   <arg name="log_to_warehouse" default="false" />
-  <arg name="do_preplan_scan" default="true" />
-  <arg name="do_monitoring" default="true" />
+  <arg name="do_preplan_scan" default="false" />
+  <arg name="do_monitoring" default="false" />
  
  <arg name="use_real_robot" default="true"/>
  <!--<env name="ROBOT" value="$(arg use_real_robot)"/>-->
@@ -89,6 +89,9 @@
 <param name="filter_spatial_xmin" value="0.2" type="double"/>
 <param name="filter_spatial_ymax" value="1.0" type="double"/>
 <param name="filter_spatial_ymin" value="-1.0" type="double"/>
-</node>
+  </node>
+
+
+
 </launch>
 

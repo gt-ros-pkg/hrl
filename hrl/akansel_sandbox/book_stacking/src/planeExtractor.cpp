@@ -177,7 +177,7 @@ void drawPlaneMarkers(const std::vector<book_stacking_msgs::PlaneInfo>& planes, 
 }
 void drawPlaneMarkers(const book_stacking_msgs::PlaneInfos& planes, const ros::Publisher& plane_pub, float r, float g, float b)
 {
-ROS_INFO("# of planes: %d",(int)(planes.planes.size()));
+//ROS_INFO("# of planes: %d",(int)(planes.planes.size()));
 
   visualization_msgs::MarkerArray markers;
   for (size_t i = 0; i < planes.planes.size(); i++){
