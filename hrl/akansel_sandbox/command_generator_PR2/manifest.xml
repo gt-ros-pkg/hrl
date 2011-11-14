@@ -1,0 +1,16 @@
+<package>
+  <description brief="command_generator">
+
+     command_generator
+
+  </description>
+  <author>Akansel Cosgun</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/command_generator</url>
+  <depend package="roscpp"/>
+  <depend package="std_msgs"/>
+
+</package>
+
+

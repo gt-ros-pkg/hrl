@@ -87,7 +87,7 @@ public:
   ros::Publisher plane_marker_pub_;
   ros::Publisher obj_marker_pub_;
   ros::Publisher vis_pub_;
-
+  ros::Subscriber command_subscriber_;
 book_stacking():
   n_("~")
 {
@@ -105,6 +105,7 @@ book_stacking():
  plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("akans_plane_marker_array",1);
  obj_marker_pub_ = n_.advertise<visualization_msgs::Marker>("obj_markers",1);
  vis_pub_ = n_.advertise<visualization_msgs::Marker>("visualization_marker",1);
+command_subscriber_=nh_.subscribe<std_msgs::String>("/command_generator_PR2_topic",1,&book_stacking::commandCallback, this);
 
   torso_client_ = new TorsoClient("torso_controller/position_joint_action", true);
     while(!torso_client_->waitForServer(ros::Duration(5.0)))
@@ -151,6 +152,32 @@ book_stacking():
   mr.color.b=1.0;
   vis_pub_.publish(mr); */
 
+}
+
+
+void commandCallback  (const std_msgs::String::ConstPtr& msg)
+{
+	cout<<"Got command "<<msg->data<<endl;
+	char key0 = msg->data.c_str()[0];
+
+	switch (key0)
+	{
+	case 'b': //message is to follower module.
+
+		if(msg->data.length()>2)
+		{
+			char key2 = msg->data.c_str()[2];
+			switch (key2)
+			{
+			case 'd': //detect objects
+				break;
+			default:
+			  break;
+			}
+		}
+	default:
+	  break;
+	}
 }
  
 void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
