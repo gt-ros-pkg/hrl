@@ -421,23 +421,50 @@ bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_n
   desired_pose.absolute_yaw_tolerance = 0.04;
 
   arm_navigation_msgs::MoveArmGoal goalA;
-	if(use_right_arm)
-	{
-	  goalA.motion_plan_request.group_name = "right_arm";
-	}
-	else
-	{
-	  goalA.motion_plan_request.group_name = "left_arm";
-	}
-
+  if(use_right_arm)
+    {
+      goalA.motion_plan_request.group_name = "right_arm";
+    }
+  else
+    {
+      goalA.motion_plan_request.group_name = "left_arm";
+    }
   goalA.motion_plan_request.num_planning_attempts = 1;
   goalA.motion_plan_request.planner_id = std::string("");
   goalA.planner_service_name = std::string("ompl_planning/plan_kinematic_path");
-  goalA.motion_plan_request.allowed_planning_time = ros::Duration(2.0);  
-  arm_navigation_msgs::addGoalConstraintToMoveArmGoal(desired_pose,goalA);
+  goalA.motion_plan_request.allowed_planning_time = ros::Duration(5.0);  
+  goalA.motion_plan_request.goal_constraints.set_position_constraints_size(1);
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].header.stamp = ros::Time::now();
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].header.frame_id = desired_pose.header.frame_id;
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].link_name = desired_pose.link_name;
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].position.x = desired_pose.pose.position.x;
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].position.y = desired_pose.pose.position.y;
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].position.z =desired_pose.pose.position.z;
+goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_shape.type = arm_navigation_msgs::Shape::BOX;
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_shape.dimensions.push_back(0.02);
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_shape.dimensions.push_back(0.02);
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_shape.dimensions.push_back(0.02);
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_orientation.w = 1.0;
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].weight = 1.0;
 
-  //goalA.motion_plan_request.goal_constraints.position_constraints[0].link_name=
-  
+  goalA.motion_plan_request.goal_constraints.set_orientation_constraints_size(1);
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].header.stamp = ros::Time::now();
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].header.frame_id = desired_pose.frame_id;    
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].link_name = desired_pose.link_name;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.x = 0.0;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.y = 0.0;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.z = 0.0;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.w = 1.0;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_roll_tolerance = 0.04;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_pitch_tolerance = 0.04;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_yaw_tolerance = 0.04;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].weight = 1.0;
+
+
+
+ //arm_navigation_msgs::addGoalConstraintToMoveArmGoal(desired_pose,goalA);
+
+
 bool finished_within_time = false; 
 if(disable_gripper)
 {
