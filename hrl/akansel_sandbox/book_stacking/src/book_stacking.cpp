@@ -86,8 +86,8 @@ private:
   double sac_probability_;
   bool robot_initialized;
   ros::ServiceClient set_planning_scene_diff_client;
-  ros::ServiceClient ik_client;
-  ros::ServiceClient query_client;
+  //ros::ServiceClient ik_client;
+  //ros::ServiceClient query_client;
 
 public:
   ros::NodeHandle n_;
@@ -99,16 +99,26 @@ public:
 book_stacking():
   n_("~")
 {
- robot_initialized=false; 
+ robot_initialized=false;
  LoadParameters();
  InitializeRobot();
  robot_initialized=true; 
-//TestArm();
+ //TestArm();
 //shakeHead(2);
 }
 
  void InitializeRobot()
 {
+
+
+  //ros::service::waitForService("pr2_right_arm_kinematics/get_ik_solver_info");
+  //query_client = n_.serviceClient<kinematics_msgs::GetKinematicSolverInfo>("pr2_right_arm_kinematics/get_ik_solver_info");
+
+  //ros::service::waitForService("pr2_right_arm_kinematics/get_constraint_aware_ik");
+  //ik_client = n_.serviceClient<kinematics_msgs::GetConstraintAwarePositionIK>("pr2_right_arm_kinematics/get_constraint_aware_ik");
+  set_planning_scene_diff_client = n_.serviceClient<arm_navigation_msgs::SetPlanningSceneDiff>(SET_PLANNING_SCENE_DIFF_NAME);
+
+
  filtered_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud2>("filtered_cloud",1);
  plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("akans_plane_marker_array",1);
  obj_marker_pub_ = n_.advertise<visualization_msgs::Marker>("obj_markers",1);
@@ -139,14 +149,21 @@ command_subscriber_=n_.subscribe<std_msgs::String>("/command_generator_PR2_topic
       //ROS_INFO("Waiting for the point_head_action server to come up");
     }
   	
-  ros::service::waitForService("pr2_right_arm_kinematics/get_ik_solver_info");
-  ros::service::waitForService("pr2_right_arm_kinematics/get_constraint_aware_ik");
-  query_client = n_.serviceClient<kinematics_msgs::GetKinematicSolverInfo>("pr2_right_arm_kinematics/get_ik_solver_info");
-  ik_client = n_.serviceClient<kinematics_msgs::GetConstraintAwarePositionIK>("pr2_right_arm_kinematics/get_constraint_aware_ik");
-  set_planning_scene_diff_client = n_.serviceClient<arm_navigation_msgs::SetPlanningSceneDiff>(SET_PLANNING_SCENE_DIFF_NAME);
-
-
-  
+/*
+  kinematics_msgs::GetKinematicSolverInfo::Request request;
+  kinematics_msgs::GetKinematicSolverInfo::Response response;
+  if(query_client.call(request,response))
+  {
+    for(unsigned int i=0; i< response.kinematic_solver_info.joint_names.size(); i++)
+    {
+      ROS_INFO("Joint: %d %s",i,response.kinematic_solver_info.joint_names[i].c_str());
+    }
+  }
+  else
+  {
+    ROS_ERROR("Could not call query service");
+  }
+  */
  moveTorsoToPosition(0.2);
  lookAt("base_link", 1.0, 0.0, 0.0);
  point_cloud_sub_=n_.subscribe("/camera/rgb/object_modeling_points_filtered",1,&book_stacking::KinectCallback,this);
@@ -301,57 +318,80 @@ bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3St
   start_pose.pose.orientation.w = 1.0;
 */
 
-  arm_navigation_msgs::SimplePoseConstraint prepush_pose;
-  prepush_pose.header.frame_id = objInfo.header.frame_id;
-
-  std::cout<<"Object Frame ID: "<< objInfo.header.frame_id<<std::endl;
-  //start_pose.link_name = "r_gripper_tool_frame";
-  prepush_pose.link_name = "r_wrist_roll_link";
+  arm_navigation_msgs::SimplePoseConstraint prepush_constraints;
+  //prepush_pose.header.frame_id = objInfo.header.frame_id;
+  prepush_constraints.header.frame_id = "torso_lift_link";
+  prepush_constraints.link_name = "r_gripper_tool_frame";
+  //prepush_constraints.link_name = "r_wrist_roll_link";
 
   double pad_dist=0.08;
-  double gripper_offset=0.00;
-	
+  double gripper_offset=0.00;	
+  geometry_msgs::PointStamped input_point;
+  input_point.header.frame_id=objInfo.header.frame_id;
+  input_point.point.x=objInfo.centroid.x;
+  input_point.point.y=objInfo.centroid.y;
+  input_point.point.z=objInfo.centroid.z;
+  geometry_msgs::PointStamped output_point;
+  tf_listener.transformPoint("torso_lift_link", input_point, output_point);
+  double startX=output_point.point.x-dir.vector.x*(pad_dist+gripper_offset);
+  double startY=output_point.point.y-dir.vector.y*(pad_dist+gripper_offset);
+  double startZ=output_point.point.z-dir.vector.z*(pad_dist+gripper_offset);
 
-  double startX=objInfo.centroid.x-dir.vector.x*(pad_dist+gripper_offset);
-  double startY=objInfo.centroid.y-dir.vector.y*(pad_dist+gripper_offset);
-  double startZ=objInfo.centroid.z-dir.vector.z*(pad_dist+gripper_offset)+0.05;
-  prepush_pose.pose.position.x = startX;
-  prepush_pose.pose.position.y = startY;
-  prepush_pose.pose.position.z = startZ;
-  //prepush_pose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(0.0,0.0,M_PI/2);
-  prepush_pose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,M_PI/2,0.0);
+  prepush_constraints.pose.position.x = startX;
+  prepush_constraints.pose.position.y = startY;
+  prepush_constraints.pose.position.z = startZ;
+  prepush_constraints.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(0.0,M_PI/2,0.0);
+  //prepush_constraints.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,M_PI/2,0.0);
 
 
     geometry_msgs::PoseStamped tpose;
-    tpose.header=prepush_pose.header;
-    tpose.pose.position.x=prepush_pose.pose.position.x;
-    tpose.pose.position.y=prepush_pose.pose.position.y;
-    tpose.pose.position.z=prepush_pose.pose.position.z;
-    tpose.pose.orientation.x=prepush_pose.pose.orientation.x;
-    tpose.pose.orientation.y=prepush_pose.pose.orientation.y;
-    tpose.pose.orientation.z=prepush_pose.pose.orientation.z;
-    tpose.pose.orientation.w=prepush_pose.pose.orientation.w;
-    
+    tpose.header=prepush_constraints.header;
+    tpose.pose.orientation=prepush_constraints.pose.orientation;
+    tpose.pose.position=prepush_constraints.pose.position;
+/*  tpose.pose.position.x=prepush_constraints.pose.position.x;
+    tpose.pose.position.y=prepush_constraints.pose.position.y;
+    tpose.pose.position.z=prepush_constraints.pose.position.z;
+    tpose.pose.orientation.x=prepush_constraints.pose.orientation.x;
+    tpose.pose.orientation.y=prepush_constraints.pose.orientation.y;
+    tpose.pose.orientation.z=prepush_constraints.pose.orientation.z;
+    tpose.pose.orientation.w=prepush_constraints.pose.orientation.w;
+    */
 
-sensor_msgs::JointState solution;
-    std::string link_name=prepush_pose.header.frame_id;	
-    
 
-if (computeIK(tpose, link_name, solution))
+ sensor_msgs::JointState solution;
+ std::string link_name=prepush_constraints.header.frame_id;
+
+bool ik_sln_found=false;
+for (double zOff=0.05; zOff<0.11;zOff=zOff+0.01)
+{
+tpose.pose.position.z=startZ+zOff;
+for (double pitchOff=M_PI/2*1.2; pitchOff>M_PI/2*0.4;pitchOff=pitchOff-0.08)
+{
+tpose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(0.0,pitchOff,0.0);
+
+  if (computeIK(tpose, link_name, solution))
   {
-    std::cout<<"AKANS IK: SUCCESS!"<<std::endl;
+        
+	prepush_constraints.pose.orientation=tpose.pose.orientation;
+        prepush_constraints.pose.position=tpose.pose.position;
+        ik_sln_found=true;
+	break;
   }
- else
-   {
-     std::cout<<"AKANS IK: FAIL!"<<std::endl;
-   }
+  else
+  {
+  //std::cout<<"zOff: "<<zOff<<", pitch: "<<pitchOff<<" didn't work"<<std::endl;
+  }
+}
+if(ik_sln_found)
+break;
+}
 
   visualization_msgs::Marker mr;
-  mr.header.frame_id=prepush_pose.header.frame_id;
+  mr.header.frame_id=prepush_constraints.header.frame_id;
   mr.header.stamp=ros::Time::now();
   mr.type=visualization_msgs::Marker::ARROW;
   mr.action=visualization_msgs::Marker::ADD;
-  mr.pose=prepush_pose.pose;
+  mr.pose=prepush_constraints.pose;
   mr.scale.x=0.1;
   mr.scale.y=0.1;
   mr.scale.z=0.1;
@@ -377,14 +417,35 @@ if (computeIK(tpose, link_name, solution))
 //move the base if necessary.
 
 //Move the arm to the start position.
-PlaceEndEffector(true,move_right_arm_client_,prepush_pose,false);
+PlaceEndEffector(true,move_right_arm_client_,prepush_constraints,false);
 
 //Move the arm to the end position.
 //PlaceEndEffector(true,move_right_arm_client_,end_pose,true);
 return true;
 }
 
+/*
+void transformPoint(const tf::TransformListener& listener,std::string from, double fromX, double fromY, double fromZ, std::string to, geometry_msgs::PointStamped &outputPoint)
+{
+  geometry_msgs::PointStamped fromPt;
+  fromPt.header.frame_id = from;
+  fromPt.header.stamp = ros::Time();
+  fromPt.point.x = fromX;
+  fromPt.point.y = fromY;
+  fromPt.point.z = fromZ;
+  try
+  {
+    geometry_msgs::PointStamped base_point;
+    listener.transformPoint("base_link", laser_point, base_point);
+  }
+  catch(tf::TransformException& ex)
+  {
+    ROS_ERROR("Received an exception trying to transform a point from : %s", ex.what());
+  }
 
+
+}
+*/
 
 
   bool computeIK(const geometry_msgs::PoseStamped &tpose,  
@@ -398,6 +459,11 @@ return true;
       ROS_WARN("Can't get planning scene");
       return -1;
     }
+
+  ros::NodeHandle rh;
+  ros::service::waitForService("pr2_right_arm_kinematics/get_ik_solver_info");
+  ros::ServiceClient query_client = rh.serviceClient<kinematics_msgs::GetKinematicSolverInfo>("pr2_right_arm_kinematics/get_ik_solver_info");
+
     kinematics_msgs::GetKinematicSolverInfo::Request request;
     kinematics_msgs::GetKinematicSolverInfo::Response response;
 
@@ -411,14 +477,14 @@ return true;
     else
       {
 	ROS_ERROR("Could not call query service");
-	ros::shutdown();
-	exit(-1);
       }
+
   kinematics_msgs::GetConstraintAwarePositionIK::Request  gpik_req;
   kinematics_msgs::GetConstraintAwarePositionIK::Response gpik_res;
 
   gpik_req.timeout = ros::Duration(5.0);
-  gpik_req.ik_request.ik_link_name = "r_wrist_roll_link";
+  //gpik_req.ik_request.ik_link_name = "r_wrist_roll_link";
+  gpik_req.ik_request.ik_link_name = "r_gripper_tool_frame";
 
   /*  gpik_req.ik_request.pose_stamped.header.frame_id = "torso_lift_link";
   gpik_req.ik_request.pose_stamped.pose.position.x = 0.75;
@@ -430,7 +496,8 @@ return true;
   gpik_req.ik_request.pose_stamped.pose.orientation.w = 1.0;
   */
 
-  gpik_req.ik_request.pose_stamped.header.frame_id = "base_link";
+  gpik_req.ik_request.pose_stamped.header.frame_id = "torso_lift_link";
+  //gpik_req.ik_request.pose_stamped.header.frame_id = tpose.header.frame_id;
   gpik_req.ik_request.pose_stamped.pose.position.x = tpose.pose.position.x;
   gpik_req.ik_request.pose_stamped.pose.position.y = tpose.pose.position.y;
   gpik_req.ik_request.pose_stamped.pose.position.z = tpose.pose.position.z;
@@ -439,7 +506,22 @@ return true;
   gpik_req.ik_request.pose_stamped.pose.orientation.z = tpose.pose.orientation.z;
   gpik_req.ik_request.pose_stamped.pose.orientation.w = tpose.pose.orientation.w;
 
+  /*std::cout<<"Req IK position: "<<gpik_req.ik_request.pose_stamped.pose.position.x<<" "<<
+		             gpik_req.ik_request.pose_stamped.pose.position.y<<" "<<
+                             gpik_req.ik_request.pose_stamped.pose.position.z<<" "<<
+		             ". Orient: "<<
+gpik_req.ik_request.pose_stamped.pose.orientation.x<<" "<<
+gpik_req.ik_request.pose_stamped.pose.orientation.y<<" "<<
+gpik_req.ik_request.pose_stamped.pose.orientation.z<<" "<<std::endl;
+*/
+
   //tpose.header=prepush_pose.header;
+
+
+  ros::service::waitForService("pr2_right_arm_kinematics/get_constraint_aware_ik");
+  ros::ServiceClient ik_client = rh.serviceClient<kinematics_msgs::GetConstraintAwarePositionIK>("pr2_right_arm_kinematics/get_constraint_aware_ik");
+
+
 
   gpik_req.ik_request.ik_seed_state.joint_state.position.resize(response.kinematic_solver_info.joint_names.size());
   gpik_req.ik_request.ik_seed_state.joint_state.name = response.kinematic_solver_info.joint_names;
@@ -473,6 +555,18 @@ return true;
 
 bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_navigation_msgs::SimplePoseConstraint &desired_pose,bool disable_gripper)
 {
+
+
+  std::cout<<"Req IK position(PlaceEndEffector):" <<desired_pose.pose.position.x<<" "<<
+		             desired_pose.pose.position.y<<" "<<
+                             desired_pose.pose.position.z<<" "<<
+		             ". Orient: "<<
+desired_pose.pose.orientation.x<<" "<<
+desired_pose.pose.orientation.y<<" "<<
+desired_pose.pose.orientation.z<<" "<<std::endl;
+
+
+
   desired_pose.absolute_position_tolerance.x = 0.02;
   desired_pose.absolute_position_tolerance.y = 0.02;
   desired_pose.absolute_position_tolerance.z = 0.02;
@@ -495,9 +589,12 @@ bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_n
   goalA.motion_plan_request.allowed_planning_time = ros::Duration(5.0);  
   goalA.motion_plan_request.goal_constraints.set_position_constraints_size(1);
   goalA.motion_plan_request.goal_constraints.position_constraints[0].header.stamp = ros::Time::now();
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].header.frame_id = "torso_lift_link";
   //goalA.motion_plan_request.goal_constraints.position_constraints[0].header.frame_id = desired_pose.header.frame_id;
-goalA.motion_plan_request.goal_constraints.position_constraints[0].header.frame_id = "base_link";
-  goalA.motion_plan_request.goal_constraints.position_constraints[0].link_name = desired_pose.link_name;
+  //goalA.motion_plan_request.goal_constraints.position_constraints[0].link_name = desired_pose.link_name;
+  //goalA.motion_plan_request.goal_constraints.position_constraints[0].link_name = "r_wrist_roll_link";
+goalA.motion_plan_request.goal_constraints.position_constraints[0].link_name = "r_gripper_tool_frame";
+
   goalA.motion_plan_request.goal_constraints.position_constraints[0].position.x = desired_pose.pose.position.x;
   goalA.motion_plan_request.goal_constraints.position_constraints[0].position.y = desired_pose.pose.position.y;
   goalA.motion_plan_request.goal_constraints.position_constraints[0].position.z =desired_pose.pose.position.z;
@@ -510,20 +607,38 @@ goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_re
 
   goalA.motion_plan_request.goal_constraints.set_orientation_constraints_size(1);
   goalA.motion_plan_request.goal_constraints.orientation_constraints[0].header.stamp = ros::Time::now();
-  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].header.frame_id = desired_pose.header.frame_id;    
-  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].link_name = desired_pose.link_name;
-  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.x = 0.0;
-  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.y = 0.0;
-  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.z = 0.0;
-  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.w = 1.0;
-  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_roll_tolerance = 0.04;
-  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_pitch_tolerance = 0.04;
-  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_yaw_tolerance = M_PI;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].header.frame_id = "torso_lift_link";
+  //goalA.motion_plan_request.goal_constraints.orientation_constraints[0].header.frame_id = desired_pose.header.frame_id;
+//  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].link_name = "r_wrist_roll_link";
+
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].link_name = "r_gripper_tool_frame";
+
+  //goalA.motion_plan_request.goal_constraints.orientation_constraints[0].link_name = desired_pose.link_name;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.x = desired_pose.pose.orientation.x;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.y = desired_pose.pose.orientation.y;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.z = desired_pose.pose.orientation.z;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.w = desired_pose.pose.orientation.w;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_roll_tolerance = 0.05;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_pitch_tolerance = 0.05;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_yaw_tolerance = 0.05;
   goalA.motion_plan_request.goal_constraints.orientation_constraints[0].weight = 1.0;
 
-
-
- //arm_navigation_msgs::addGoalConstraintToMoveArmGoal(desired_pose,goalA);
+/*
+  motion_planning_msgs::PositionConstraint pc;
+  pc.header.stamp = ros::Time::now();
+  pc.header.frame_id = "torso_lift_link";    
+  pc.link_name = "r_elbow_flex_link";
+  pc.position.x = desired_pose.pose.orientation.x;
+  pc.position.y = desired_pose.pose.orientation.y;
+  pc.position.z = 2.5;    
+  pc.constraint_region_shape.type = geometric_shapes_msgs::Shape::BOX;
+  pc.constraint_region_shape.dimensions.push_back(10.0);
+  pc.constraint_region_shape.dimensions.push_back(10.0);
+  pc.constraint_region_shape.dimensions.push_back(10.0);
+  pc.constraint_region_orientation.w = 1.0;
+  pc.weight = 1.0;
+*/ 
+//arm_navigation_msgs::addGoalConstraintToMoveArmGoal(desired_pose,goalA);
 
 
 bool finished_within_time = false; 
@@ -698,7 +813,7 @@ if(gotPlane)
 	book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[0];
 	
 	geometry_msgs::Vector3Stamped pushVector;
-	pushVector.header.frame_id="/base_link";
+	pushVector.header.frame_id="torso_lift_link";
 	pushVector.header.stamp=ros::Time::now();
 	pushVector.vector.x=0.0;
 	pushVector.vector.y=1.0;

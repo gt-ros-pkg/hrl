@@ -5,6 +5,7 @@
   <arg name="log_to_warehouse" default="false" />
   <arg name="do_preplan_scan" default="false" />
   <arg name="do_monitoring" default="false" />
+  
  
  <arg name="use_real_robot" default="true"/>
  <!--<env name="ROBOT" value="$(arg use_real_robot)"/>-->
@@ -12,10 +13,17 @@
 
  <include unless="$(arg use_real_robot)" file="$(find pr2_gazebo)/pr2.launch"/>
 
+  <!-- load ik -->
+  <include if="$(arg use_right_arm)" file="$(find pr2_arm_navigation_kinematics)/launch/right_arm_collision_free_ik.launch"/>
+  <include if="$(arg use_left_arm)"  file="$(find pr2_arm_navigation_kinematics)/launch/left_arm_collision_free_ik.launch"/>
+  <param name="pr2_right_arm_kinematics/object_padd" value="0.04"/>
+  <param name="pr2_left_arm_kinematics/object_padd" value="0.04"/>
+
   <!-- load perception -->
   <!-- this launch file was moved inside this package in order to change laser settings -->
-  <include file="$(find pr2_object_manipulation_launch)/launch/laser+stereo-perception.launch">
+  <include file="$(find book_stacking)/launch/laser+stereo-perception.launch">
     <arg name="stereo" value="$(arg stereo)"/>
+    <arg name="use_camera_in_collider" default="true" />
   </include>
 
   <!-- load planning -->
@@ -40,13 +48,9 @@
 
   <!-- load controllers -->
   <include file="$(find pr2_arm_navigation_filtering)/launch/both_arms_filters.launch"/>
-  <param name="trajectory_filter/object_padd" value="0.04"/>
+  <param name="trajectory_filter/object_padd" value="0.01"/>
 
-  <!-- load ik -->
-  <include if="$(arg use_right_arm)" file="$(find pr2_arm_navigation_kinematics)/launch/right_arm_collision_free_ik.launch"/>
-  <include if="$(arg use_left_arm)"  file="$(find pr2_arm_navigation_kinematics)/launch/left_arm_collision_free_ik.launch"/>
-  <param name="pr2_right_arm_kinematics/object_padd" value="0.04"/>
-  <param name="pr2_left_arm_kinematics/object_padd" value="0.04"/>
+
 
   <!--trigger mode 3 is on, 4 is off, 5 is alternate projector-->
   <node if="$(arg stereo)"
@@ -91,7 +95,7 @@
 <param name="filter_spatial_ymin" value="-1.0" type="double"/>
   </node>
 
- <node pkg="command_generator_PR2" type="command_generator_PR2" name="command_generator_PR2" output="screen">
+ <node pkg="command_generator_PR2" type="command_generator" name="command_generator" output="screen">
  </node>
 
 </launch>
