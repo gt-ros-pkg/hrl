@@ -1,6 +1,8 @@
 #define DEBUG_DRAW_TABLE_MARKERS
 #define DEBUG_DRAW_TABLETOP_OBJECTS
 
+#include <plane_extractor.h>
+
 //ROS
 #include <ros/ros.h>
 #include <actionlib/client/simple_action_client.h>
@@ -11,9 +13,14 @@
 #include <sensor_msgs/JointState.h>
 #include <pr2_controllers_msgs/SingleJointPositionAction.h>
 #include <pr2_controllers_msgs/PointHeadAction.h>
-#include <arm_navigation_msgs/CollisionOperation.h>
 #include <std_msgs/String.h>
+#include <kinematics_msgs/GetKinematicSolverInfo.h>
 #include <kinematics_msgs/GetConstraintAwarePositionIK.h>
+#include <arm_navigation_msgs/SetPlanningSceneDiff.h>
+#include <arm_navigation_msgs/CollisionOperation.h>
+#include <arm_navigation_msgs/MoveArmAction.h>
+#include <arm_navigation_msgs/utils.h>
+
 //PCL
 #include <pcl_ros/filters/passthrough.h>
 #include <pcl/segmentation/sac_segmentation.h>
@@ -28,10 +35,6 @@
 //TF
 #include <tf/transform_listener.h>
 
-//Manipulation
-#include <arm_navigation_msgs/MoveArmAction.h>
-#include <arm_navigation_msgs/utils.h>
-
 //STL
 #include <string.h>
 
@@ -39,8 +42,9 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
-#include <plane_extractor.h>
 
+
+static const std::string SET_PLANNING_SCENE_DIFF_NAME = "/environment_server/set_planning_scene_diff";
 typedef actionlib::SimpleActionClient<pr2_controllers_msgs::PointHeadAction> PointHeadClient;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef pcl::PointXYZ Point;
@@ -81,7 +85,9 @@ private:
   int max_sac_iterations_;
   double sac_probability_;
   bool robot_initialized;
-
+  ros::ServiceClient set_planning_scene_diff_client;
+  ros::ServiceClient ik_client;
+  ros::ServiceClient query_client;
 
 public:
   ros::NodeHandle n_;
@@ -133,6 +139,13 @@ command_subscriber_=n_.subscribe<std_msgs::String>("/command_generator_PR2_topic
       //ROS_INFO("Waiting for the point_head_action server to come up");
     }
   	
+  ros::service::waitForService("pr2_right_arm_kinematics/get_ik_solver_info");
+  ros::service::waitForService("pr2_right_arm_kinematics/get_constraint_aware_ik");
+  query_client = n_.serviceClient<kinematics_msgs::GetKinematicSolverInfo>("pr2_right_arm_kinematics/get_ik_solver_info");
+  ik_client = n_.serviceClient<kinematics_msgs::GetConstraintAwarePositionIK>("pr2_right_arm_kinematics/get_constraint_aware_ik");
+  set_planning_scene_diff_client = n_.serviceClient<arm_navigation_msgs::SetPlanningSceneDiff>(SET_PLANNING_SCENE_DIFF_NAME);
+
+
   
  moveTorsoToPosition(0.2);
  lookAt("base_link", 1.0, 0.0, 0.0);
@@ -323,19 +336,15 @@ bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3St
 sensor_msgs::JointState solution;
     std::string link_name=prepush_pose.header.frame_id;	
     
-/*
-if (computeIK(tpose, 
-                  link_name, 
-                  solution))
-    {
-std::cout<<"AKANS IK: SUCCESS!"<<std::endl;
-    }
-else
-{
-std::cout<<"AKANS IK: FAIL!"<<std::endl;
-}
-*/
 
+if (computeIK(tpose, link_name, solution))
+  {
+    std::cout<<"AKANS IK: SUCCESS!"<<std::endl;
+  }
+ else
+   {
+     std::cout<<"AKANS IK: FAIL!"<<std::endl;
+   }
 
   visualization_msgs::Marker mr;
   mr.header.frame_id=prepush_pose.header.frame_id;
@@ -377,44 +386,90 @@ return true;
 
 
 
-/*
-  bool computeIK(const geometry_msgs::PoseStamped &pose_stamped_msg,  
+
+  bool computeIK(const geometry_msgs::PoseStamped &tpose,  
                  const std::string &link_name, 
                  sensor_msgs::JointState &solution)
   {
-    kinematics_msgs::GetConstraintAwarePositionIK::Request request;
-    kinematics_msgs::GetConstraintAwarePositionIK::Response response;
-	    
-    request.ik_request.pose_stamped = pose_stamped_msg;
-    request.ik_request.robot_state = original_request_.motion_plan_request.start_state;
-    request.ik_request.ik_seed_state = request.ik_request.robot_state;
-    request.ik_request.ik_link_name = link_name;
-    request.timeout = ros::Duration(ik_allowed_time_);
-    request.constraints = original_request_.motion_plan_request.goal_constraints;
-    if (ik_client_.call(request, response))
-    {
-      move_arm_action_result_.error_code = response.error_code;
-      if(response.error_code.val != response.error_code.SUCCESS)
+    arm_navigation_msgs::SetPlanningSceneDiff::Request planning_scene_req;
+    arm_navigation_msgs::SetPlanningSceneDiff::Response planning_scene_res;
+    
+    if(!set_planning_scene_diff_client.call(planning_scene_req, planning_scene_res)) {
+      ROS_WARN("Can't get planning scene");
+      return -1;
+    }
+    kinematics_msgs::GetKinematicSolverInfo::Request request;
+    kinematics_msgs::GetKinematicSolverInfo::Response response;
+
+    if(query_client.call(request,response))
       {
-        ROS_ERROR("IK Solution not found, IK returned with error_code: %d",response.error_code.val);
-        return false;
-      }         
-      solution = response.solution.joint_state;
-      if (solution.position.size() != group_joint_names_.size())
-      {
-        ROS_ERROR("Incorrect number of elements in IK output.");
-        return false;
+	for(unsigned int i=0; i< response.kinematic_solver_info.joint_names.size(); i++)
+	  {
+	    ROS_DEBUG("Joint: %d %s",i,response.kinematic_solver_info.joint_names[i].c_str());
+	  }
       }
-      for(unsigned int i = 0; i < solution.position.size() ; ++i)
-        ROS_DEBUG("IK[%d] = %f", (int)i, solution.position[i]);
+    else
+      {
+	ROS_ERROR("Could not call query service");
+	ros::shutdown();
+	exit(-1);
+      }
+  kinematics_msgs::GetConstraintAwarePositionIK::Request  gpik_req;
+  kinematics_msgs::GetConstraintAwarePositionIK::Response gpik_res;
+
+  gpik_req.timeout = ros::Duration(5.0);
+  gpik_req.ik_request.ik_link_name = "r_wrist_roll_link";
+
+  /*  gpik_req.ik_request.pose_stamped.header.frame_id = "torso_lift_link";
+  gpik_req.ik_request.pose_stamped.pose.position.x = 0.75;
+  gpik_req.ik_request.pose_stamped.pose.position.y = -0.188;
+  gpik_req.ik_request.pose_stamped.pose.position.z = 0.0;
+  gpik_req.ik_request.pose_stamped.pose.orientation.x = 0.0;
+  gpik_req.ik_request.pose_stamped.pose.orientation.y = 0.0;
+  gpik_req.ik_request.pose_stamped.pose.orientation.z = 0.0;
+  gpik_req.ik_request.pose_stamped.pose.orientation.w = 1.0;
+  */
+
+  gpik_req.ik_request.pose_stamped.header.frame_id = "base_link";
+  gpik_req.ik_request.pose_stamped.pose.position.x = tpose.pose.position.x;
+  gpik_req.ik_request.pose_stamped.pose.position.y = tpose.pose.position.y;
+  gpik_req.ik_request.pose_stamped.pose.position.z = tpose.pose.position.z;
+  gpik_req.ik_request.pose_stamped.pose.orientation.x = tpose.pose.orientation.x;
+  gpik_req.ik_request.pose_stamped.pose.orientation.y = tpose.pose.orientation.y;
+  gpik_req.ik_request.pose_stamped.pose.orientation.z = tpose.pose.orientation.z;
+  gpik_req.ik_request.pose_stamped.pose.orientation.w = tpose.pose.orientation.w;
+
+  //tpose.header=prepush_pose.header;
+
+  gpik_req.ik_request.ik_seed_state.joint_state.position.resize(response.kinematic_solver_info.joint_names.size());
+  gpik_req.ik_request.ik_seed_state.joint_state.name = response.kinematic_solver_info.joint_names;
+  for(unsigned int i=0; i< response.kinematic_solver_info.joint_names.size(); i++)
+  {    gpik_req.ik_request.ik_seed_state.joint_state.position[i] = (response.kinematic_solver_info.limits[i
+].min_position + response.kinematic_solver_info.limits[i].max_position)/2.0;
+  }
+  if(ik_client.call(gpik_req, gpik_res))
+  {
+    if(gpik_res.error_code.val == gpik_res.error_code.SUCCESS)
+    {
+      for(unsigned int i=0; i < gpik_res.solution.joint_state.name.size(); i ++)
+      {        ROS_INFO("Joint: %s %f",gpik_res.solution.joint_state.name[i].c_str(),gpik_res.solution.joint_state.position[i]);
+      }
+      return true;
     }
     else
     {
-      ROS_ERROR("IK service failed");
+      ROS_ERROR("Inverse kinematics failed");
       return false;
-    }	    
-    return true;
-  }*/
+    }
+  }
+  else
+  {
+    ROS_ERROR("Inverse kinematics service call failed");
+    return false;
+  }
+
+
+  }
 
 bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_navigation_msgs::SimplePoseConstraint &desired_pose,bool disable_gripper)
 {
