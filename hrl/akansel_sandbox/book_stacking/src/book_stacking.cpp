@@ -322,7 +322,9 @@ bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3St
 
 sensor_msgs::JointState solution;
     std::string link_name=prepush_pose.header.frame_id;	
-    if (computeIK(tpose, 
+    
+/*
+if (computeIK(tpose, 
                   link_name, 
                   solution))
     {
@@ -332,7 +334,7 @@ else
 {
 std::cout<<"AKANS IK: FAIL!"<<std::endl;
 }
-
+*/
 
 
   visualization_msgs::Marker mr;
@@ -373,6 +375,9 @@ PlaceEndEffector(true,move_right_arm_client_,prepush_pose,false);
 return true;
 }
 
+
+
+/*
   bool computeIK(const geometry_msgs::PoseStamped &pose_stamped_msg,  
                  const std::string &link_name, 
                  sensor_msgs::JointState &solution)
@@ -409,7 +414,7 @@ return true;
       return false;
     }	    
     return true;
-  }
+  }*/
 
 bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_navigation_msgs::SimplePoseConstraint &desired_pose,bool disable_gripper)
 {
@@ -435,21 +440,22 @@ bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_n
   goalA.motion_plan_request.allowed_planning_time = ros::Duration(5.0);  
   goalA.motion_plan_request.goal_constraints.set_position_constraints_size(1);
   goalA.motion_plan_request.goal_constraints.position_constraints[0].header.stamp = ros::Time::now();
-  goalA.motion_plan_request.goal_constraints.position_constraints[0].header.frame_id = desired_pose.header.frame_id;
+  //goalA.motion_plan_request.goal_constraints.position_constraints[0].header.frame_id = desired_pose.header.frame_id;
+goalA.motion_plan_request.goal_constraints.position_constraints[0].header.frame_id = "base_link";
   goalA.motion_plan_request.goal_constraints.position_constraints[0].link_name = desired_pose.link_name;
   goalA.motion_plan_request.goal_constraints.position_constraints[0].position.x = desired_pose.pose.position.x;
   goalA.motion_plan_request.goal_constraints.position_constraints[0].position.y = desired_pose.pose.position.y;
   goalA.motion_plan_request.goal_constraints.position_constraints[0].position.z =desired_pose.pose.position.z;
 goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_shape.type = arm_navigation_msgs::Shape::BOX;
-  goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_shape.dimensions.push_back(0.02);
-  goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_shape.dimensions.push_back(0.02);
-  goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_shape.dimensions.push_back(0.02);
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_shape.dimensions.push_back(0.05);
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_shape.dimensions.push_back(0.05);
+  goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_shape.dimensions.push_back(0.05);
   goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_region_orientation.w = 1.0;
   goalA.motion_plan_request.goal_constraints.position_constraints[0].weight = 1.0;
 
   goalA.motion_plan_request.goal_constraints.set_orientation_constraints_size(1);
   goalA.motion_plan_request.goal_constraints.orientation_constraints[0].header.stamp = ros::Time::now();
-  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].header.frame_id = desired_pose.frame_id;    
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].header.frame_id = desired_pose.header.frame_id;    
   goalA.motion_plan_request.goal_constraints.orientation_constraints[0].link_name = desired_pose.link_name;
   goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.x = 0.0;
   goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.y = 0.0;
@@ -457,7 +463,7 @@ goalA.motion_plan_request.goal_constraints.position_constraints[0].constraint_re
   goalA.motion_plan_request.goal_constraints.orientation_constraints[0].orientation.w = 1.0;
   goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_roll_tolerance = 0.04;
   goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_pitch_tolerance = 0.04;
-  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_yaw_tolerance = 0.04;
+  goalA.motion_plan_request.goal_constraints.orientation_constraints[0].absolute_yaw_tolerance = M_PI;
   goalA.motion_plan_request.goal_constraints.orientation_constraints[0].weight = 1.0;
 
 
