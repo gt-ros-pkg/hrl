@@ -5,50 +5,53 @@
   <arg name="log_to_warehouse" default="false" />
   <arg name="do_preplan_scan" default="false" />
   <arg name="do_monitoring" default="false" />
-  
- 
  <arg name="use_real_robot" default="true"/>
  <!--<env name="ROBOT" value="$(arg use_real_robot)"/>-->
 
-
  <include unless="$(arg use_real_robot)" file="$(find pr2_gazebo)/pr2.launch"/>
 
-  <!-- load ik -->
-  <include if="$(arg use_right_arm)" file="$(find pr2_arm_navigation_kinematics)/launch/right_arm_collision_free_ik.launch"/>
-  <include if="$(arg use_left_arm)"  file="$(find pr2_arm_navigation_kinematics)/launch/left_arm_collision_free_ik.launch"/>
-  <param name="pr2_right_arm_kinematics/object_padd" value="0.04"/>
-  <param name="pr2_left_arm_kinematics/object_padd" value="0.04"/>
+   <node machine="c2" pkg="pr2_arm_kinematics_constraint_aware" type="pr2_arm_kinematics_constraint_aware" name="pr2_right_arm_kinematics" output="screen">    
+      <!-- IK parameters -->
+      <param name="tip_name" value="r_wrist_roll_link" />     
+      <param name="root_name" value="torso_lift_link" />  
+      <param name="group" type="string" value="right_arm" />
+   </node>
 
-  <!-- load perception -->
-  <!-- this launch file was moved inside this package in order to change laser settings -->
+   <node machine="c2" pkg="pr2_arm_kinematics_constraint_aware" type="pr2_arm_kinematics_constraint_aware" name="pr2_left_arm_kinematics" output="screen">    
+   	 <!-- IK parameters -->
+   	 <param name="tip_name" value="l_wrist_roll_link" />     
+   	 <param name="root_name" value="torso_lift_link" />  
+   	 <param name="group" type="string" value="left_arm" />
+  </node>
+
   <include file="$(find book_stacking)/launch/laser+stereo-perception.launch">
     <arg name="stereo" value="$(arg stereo)"/>
     <arg name="use_camera_in_collider" default="true" />
   </include>
 
-  <!-- load planning -->
   <include file="$(find pr2_arm_navigation_planning)/launch/ompl_planning.launch"/>
 
-  <!-- load move_arm -->
   <include file="$(find pr2_arm_navigation_actions)/launch/head_monitor.launch">
     <arg name="do_preplan_scan" value="$(arg do_preplan_scan)" />
     <arg name="do_monitoring" value="$(arg do_monitoring)" />
   </include>
 
-  <include if="$(arg use_right_arm)" file="$(find pr2_arm_navigation_actions)/launch/move_right_arm_warehouse.launch">
-    <arg name="log_to_warehouse" value="$(arg log_to_warehouse)" />
+
+  <include if="$(arg use_right_arm)" file="$(find pr2_arm_navigation_actions)/launch/move_right_arm.launch">
+    <!--<arg name="log_to_warehouse" value="$(arg log_to_warehouse)" />-->
   </include>
 
-  <include if="$(arg use_left_arm)" file="$(find pr2_arm_navigation_actions)/launch/move_left_arm_warehouse.launch">
-    <arg name="log_to_warehouse" value="$(arg log_to_warehouse)" />
+  <include if="$(arg use_left_arm)" file="$(find pr2_arm_navigation_actions)/launch/move_left_arm.launch">
+    <!--<arg name="log_to_warehouse" value="$(arg log_to_warehouse)" />-->
   </include>
 
-  <!-- load planning_environment -->
+
+
+  <!--<include file="$(find pr2_arm_navigation_actions)/launch/environment_server.launch"/>-->
   <include file="$(find planning_environment)/launch/environment_server.launch"/>
 
-  <!-- load controllers -->
   <include file="$(find pr2_arm_navigation_filtering)/launch/both_arms_filters.launch"/>
-  <param name="trajectory_filter/object_padd" value="0.01"/>
+  <param name="trajectory_filter/object_padd" value="0.03"/>
 
 
 
@@ -61,21 +64,19 @@
 	name="projector_off" pkg="dynamic_reconfigure" type="dynparam"
 	args="set camera_synchronizer_node projector_mode 1"/>
   
-  <!--
-  --> 
-  <node name="change_narrow_stereo_params" pkg="dynamic_reconfigure" type="dynparam"
-    args="set /narrow_stereo_textured/narrow_stereo_textured_proc '{'min_disparity': 16, 'speckle_size': 500}'" />
 
-  <!-- change controller gains -->
-  <!--
-  <node name="change_controller_gains" pkg="pr2_object_manipulation_launch" type="change_joint_controller_gains.py" />
-  -->
+  <!--<node name="change_narrow_stereo_params" pkg="dynamic_reconfigure" type="dynparam"
+    args="set /narrow_stereo_textured/narrow_stereo_textured_proc '{'min_disparity': 16, 'speckle_size': 500}'" />-->
+
+  <!-- change controller gains -->  
+  <!--<node name="change_controller_gains" pkg="pr2_object_manipulation_launch" type="change_joint_controller_gains.py" />-->
+  
 
   <!-- interpolated IK -->
-  <node  if="$(arg use_right_arm)" name="interpolated_ik_node_right" pkg="interpolated_ik_motion_planner" 
-    type="interpolated_ik_motion_planner.py" args="r" respawn="false" machine="c2"/>
-  <node if="$(arg use_left_arm)" name="interpolated_ik_node_left" pkg="interpolated_ik_motion_planner" 
-    type="interpolated_ik_motion_planner.py" args="l" respawn="false" machine="c2"/>
+  <!--<node  if="$(arg use_right_arm)" name="interpolated_ik_node_right" pkg="interpolated_ik_motion_planner" 
+    type="interpolated_ik_motion_planner.py" args="r" respawn="false" machine="c2"/>-->
+  <!--<node if="$(arg use_left_arm)" name="interpolated_ik_node_left" pkg="interpolated_ik_motion_planner" 
+    type="interpolated_ik_motion_planner.py" args="l" respawn="false" machine="c2"/>-->
 
   <!-- joint trajectory normalization -->
   <include file="$(find trajectory_filter_server)/launch/trajectory_unnormalize.launch"/>
