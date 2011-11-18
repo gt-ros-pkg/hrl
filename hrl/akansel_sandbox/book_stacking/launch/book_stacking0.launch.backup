@@ -1,0 +1,101 @@
+<launch>
+  <arg name="use_right_arm" default="true" />
+  <arg name="use_left_arm" default="true" />
+  <arg name="stereo" default="false"/>
+  <arg name="log_to_warehouse" default="false" />
+  <arg name="do_preplan_scan" default="false" />
+  <arg name="do_monitoring" default="false" />
+  
+ 
+ <arg name="use_real_robot" default="true"/>
+ <!--<env name="ROBOT" value="$(arg use_real_robot)"/>-->
+
+ <include unless="$(arg use_real_robot)" file="$(find pr2_gazebo)/pr2.launch"/>
+
+  <!-- load ik -->
+  <include if="$(arg use_right_arm)" file="$(find pr2_arm_navigation_kinematics)/launch/right_arm_collision_free_ik.launch"/>
+  <include if="$(arg use_left_arm)"  file="$(find pr2_arm_navigation_kinematics)/launch/left_arm_collision_free_ik.launch"/>
+  <!--<param name="pr2_right_arm_kinematics/object_padd" value="0.04"/>-->
+  <!--<param name="pr2_left_arm_kinematics/object_padd" value="0.04"/>-->
+
+  <!-- load perception -->
+  <!-- this launch file was moved inside this package in order to change laser settings -->
+  <include file="$(find book_stacking)/launch/laser+stereo-perception.launch">
+    <arg name="stereo" value="$(arg stereo)"/>
+    <arg name="use_camera_in_collider" default="true" />
+  </include>
+
+  <!-- load planning -->
+  <include file="$(find pr2_arm_navigation_planning)/launch/ompl_planning.launch"/>
+
+  <!-- load move_arm -->
+  <include file="$(find pr2_arm_navigation_actions)/launch/head_monitor.launch">
+    <arg name="do_preplan_scan" value="$(arg do_preplan_scan)" />
+    <arg name="do_monitoring" value="$(arg do_monitoring)" />
+  </include>
+
+  <include if="$(arg use_right_arm)" file="$(find pr2_arm_navigation_actions)/launch/move_right_arm_warehouse.launch">
+    <arg name="log_to_warehouse" value="$(arg log_to_warehouse)" />
+  </include>
+
+  <include if="$(arg use_left_arm)" file="$(find pr2_arm_navigation_actions)/launch/move_left_arm_warehouse.launch">
+    <arg name="log_to_warehouse" value="$(arg log_to_warehouse)" />
+  </include>
+
+  <!-- load planning_environment -->
+  <include file="$(find planning_environment)/launch/environment_server.launch"/>
+
+  <!-- load controllers -->
+  <include file="$(find pr2_arm_navigation_filtering)/launch/both_arms_filters.launch"/>
+  <param name="trajectory_filter/object_padd" value="0.01"/>
+
+
+
+  <!--trigger mode 3 is on, 4 is off, 5 is alternate projector-->
+  <node if="$(arg stereo)"
+	name="dynamic_reconfigure_stereo" pkg="dynamic_reconfigure" type="dynparam"
+	args="set camera_synchronizer_node '{'projector_mode': 3, 'narrow_stereo_trig_mode': 5, 'wide_stereo_trig_mode': 4}' "/>
+  
+  <node unless="$(arg stereo)"
+	name="projector_off" pkg="dynamic_reconfigure" type="dynparam"
+	args="set camera_synchronizer_node projector_mode 1"/>
+  
+  <!--
+  --> 
+  <node name="change_narrow_stereo_params" pkg="dynamic_reconfigure" type="dynparam"
+    args="set /narrow_stereo_textured/narrow_stereo_textured_proc '{'min_disparity': 16, 'speckle_size': 500}'" />
+
+  <!-- change controller gains -->
+  <!--
+  <node name="change_controller_gains" pkg="pr2_object_manipulation_launch" type="change_joint_controller_gains.py" />
+  -->
+
+  <!-- interpolated IK -->
+  <!--<node  if="$(arg use_right_arm)" name="interpolated_ik_node_right" pkg="interpolated_ik_motion_planner" 
+    type="interpolated_ik_motion_planner.py" args="r" respawn="false" machine="c2"/>-->
+  <!--<node if="$(arg use_left_arm)" name="interpolated_ik_node_left" pkg="interpolated_ik_motion_planner" 
+    type="interpolated_ik_motion_planner.py" args="l" respawn="false" machine="c2"/>-->
+
+  <!-- joint trajectory normalization -->
+  <include file="$(find trajectory_filter_server)/launch/trajectory_unnormalize.launch"/>
+
+  <!-- node used to check if current state is in collision or not-->
+  <include file="$(find current_state_validator)/launch/current_state_validator.launch">
+    <arg if="$(arg use_right_arm)" name="group_name_1" value="right_arm"/>
+    <arg if="$(arg use_left_arm)" name="group_name_2" value="left_arm"/>
+  </include>
+
+  <node pkg="book_stacking" type="book_stacking" name="book_stacking" output="screen">
+<param name="filter_spatial_zmax" value="1.5" type="double"/>
+<param name="filter_spatial_zmin" value="0.5" type="double"/>
+<param name="filter_spatial_xmax" value="1.5" type="double"/>
+<param name="filter_spatial_xmin" value="0.2" type="double"/>
+<param name="filter_spatial_ymax" value="1.0" type="double"/>
+<param name="filter_spatial_ymin" value="-1.0" type="double"/>
+  </node>
+
+ <node pkg="command_generator_PR2" type="command_generator" name="command_generator" output="screen">
+ </node>
+
+</launch>
+
