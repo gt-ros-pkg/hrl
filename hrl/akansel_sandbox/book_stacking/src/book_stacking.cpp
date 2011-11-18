@@ -252,6 +252,38 @@ command_subscriber_=n_.subscribe<std_msgs::String>("/command_generator_PR2_topic
 ROS_INFO("Subs/Pubs Initialized..");
 }
  
+
+pr2_controllers_msgs::JointTrajectoryGoal createRightArmTrajectoryFromAngles(double angles[7], double t)
+{
+    pr2_controllers_msgs::JointTrajectoryGoal goal;
+    goal.trajectory.joint_names.push_back("r_shoulder_pan_joint");
+    goal.trajectory.joint_names.push_back("r_shoulder_lift_joint");
+    goal.trajectory.joint_names.push_back("r_upper_arm_roll_joint");
+    goal.trajectory.joint_names.push_back("r_elbow_flex_joint");
+    goal.trajectory.joint_names.push_back("r_forearm_roll_joint");
+    goal.trajectory.joint_names.push_back("r_wrist_flex_joint");
+    goal.trajectory.joint_names.push_back("r_wrist_roll_joint");
+    goal.trajectory.points.resize(2);
+
+    int ind = 0;
+    // trajectory point 1
+    goal.trajectory.points[ind].positions.resize(7);
+    goal.trajectory.points[ind].positions[0] =angles[0];
+    goal.trajectory.points[ind].positions[1] =angles[1];
+    goal.trajectory.points[ind].positions[2] =angles[2];
+    goal.trajectory.points[ind].positions[3] =angles[3];
+    goal.trajectory.points[ind].positions[4] =angles[4];
+    goal.trajectory.points[ind].positions[5] =angles[5];
+    goal.trajectory.points[ind].positions[6] =angles[6];
+    goal.trajectory.points[ind].velocities.resize(7);
+    for (size_t j = 0; j < 7; ++j)
+    {
+      goal.trajectory.points[ind].velocities[j] = 0.0;
+    }
+    goal.trajectory.points[ind].time_from_start = ros::Duration(t);
+    return goal;
+}
+
 pr2_controllers_msgs::JointTrajectoryGoal createRightArmHomingTrajectory()
 {
     pr2_controllers_msgs::JointTrajectoryGoal goal;
@@ -433,55 +465,63 @@ return true;
 
 
 
-void TestLinearPush()
+double MoveEndEffectorLinear(double dx,double dy,double dz, double speed, bool move_as_much_you_can)
 {
-static bool go_right=false;
-
-    double current_angles[7];
-    double solution_angles[7];
-    get_current_joint_angles(current_angles);
+  double current_angles[7];
+  double solution_angles[7];
+  get_current_joint_angles(current_angles);
 /*
 std::cout<<"Current Joint Angles: ";
 for(int i=0;i<7;i++)
-{
-std::cout<<current_angles[i]<<" ";
-}
+{ std::cout<<current_angles[i]<<" "; }
 std::cout<<std::endl;
 */
-    geometry_msgs::PoseStamped current_pose;
-    run_fk(current_angles,current_pose,fk_solver_info);
+  geometry_msgs::PoseStamped current_pose;
+  run_fk(current_angles,current_pose,fk_solver_info);
+  geometry_msgs::PoseStamped target_pose=current_pose;
+  target_pose.pose.x=current_pose.pose.x+dx;
+  target_pose.pose.y=current_pose.pose.y+dy;
+  target_pose.pose.z=current_pose.pose.z+dz;
+  std::string link_name="r_wrist_roll_link";
+  bool ik_result=run_ik(target_pose,current_angles,solution_angles,link_name,ik_solver_info);
+  double path_distance=0.0;
+  if(!ik_result)
+    {
+      if(!move_as_much_you_can)
+	{
+	  return 0.0;
+	}
+      const int num_inter_checks=10;
+      for(int i=num_inter_checks-1;i>0;i--)
+	{
+	  double path_ratio=i/num_inter_checks;
+	  target_pose.pose.x=current_pose.pose.x+dx*path_ratio;
+	  target_pose.pose.y=current_pose.pose.y+dy*path_ratio;
+	  target_pose.pose.z=current_pose.pose.z+dz*path_ratio;
+	  ik_result=run_ik(target_pose,current_angles,solution_angles,link_name,ik_solver_info)
+	    if(ik_result) 
+	      {
+		path_distance=(dx+dy+dz)*path_ratio;
+		break;
+	      }
+	}
+    }
+  else
+    {
+      path_distance=dx+dy+dz;
+    }
 
-    geometry_msgs::Vector3Stamped push_vec;
-    push_vec.header.frame_id="torso_lift_link";
-    push_vec.header.stamp=ros::Time::now();
-    push_vec.vector.x=0.0;
-    if(go_right)
-{
-    push_vec.vector.y=-0.1;
-go_right=false;
-}
-else
-{
-    push_vec.vector.y=0.1;
-    go_right=true;
-}    
-    push_vec.vector.z=0.0;
-    
+  if(ik_result)    
+    {           
+      pr2_controllers_msgs::JointTrajectoryGoal traj createRightArmTrajectoryFromAngles(solution_angles,);
+      traj_right_arm_client_->sendGoal(traj);
+      traj_right_arm_client_->waitForResult();
+    }
+
+  
 
 
-geometry_msgs::PoseStamped target_pose=current_pose;
-target_pose.pose.x+=push_vec.vector.x;
-target_pose.pose.y+=push_vec.vector.y;
-target_pose.pose.z+=push_vec.vector.z;
-    std::string link_name="r_wrist_roll_link";
-    bool ik_result=run_ik(target_pose,current_angles,solution_angles,link_name,ik_solver_info);
-
-    if(ik_result)
-{
-
-}
-
-/*
+  /*
     geometry_msgs::PoseStamped pose;
     pose.header.stamp=ros::Time::now();
     pose.header.frame_id="torso_lift_link";
@@ -491,7 +531,7 @@ target_pose.pose.z+=push_vec.vector.z;
     pose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(0.0,0.0,M_PI/2);    
     std::string link_name="r_wrist_roll_link";
     bool ik_result=run_ik(pose,current_angles,solution_angles,link_name,ik_solver_info);
-*/
+  */
 
 
 }
@@ -531,7 +571,7 @@ void commandCallback  (const std_msgs::String::ConstPtr& msg)
                         traj_right_arm_client_->waitForResult();
 			break;
 			case 'f':
-	                TestLinearPush();
+			  MoveEndEffectorLinear(0.0,0.1,0.0,true);
 			break;
 			default:
 			  break;
