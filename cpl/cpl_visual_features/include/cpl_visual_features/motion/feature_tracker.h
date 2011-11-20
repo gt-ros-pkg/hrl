@@ -52,7 +52,8 @@ class FeatureTracker
 {
  public:
   FeatureTracker(std::string name, double hessian_thresh=250, int num_octaves=4,
-                 int num_layers=2, bool extended=true, bool upright=false);
+                 int num_layers=2, bool extended=true, bool upright=false,
+                 bool use_fast=false);
 
   //
   // Main tracking logic functions
@@ -135,11 +136,17 @@ class FeatureTracker
     klt_corner_min_dist_ = min_dist;
   }
 
-  void setKLTMaxCorners(int max_corners) {
+  void setKLTMaxCorners(int max_corners)
+  {
     max_corners_ = max_corners;
   }
 
+  void setUseFast(bool use_fast)
+  {
+    use_fast_ = use_fast;
+  }
   void stop() { initialized_ = false; }
+
  public:
   cv::SURF surf_;
  protected:
@@ -154,6 +161,7 @@ class FeatureTracker
   int max_corners_;
   double klt_corner_thresh_;
   double klt_corner_min_dist_;
+  bool use_fast_;
 };
 }
 #endif // feature_tracker_h_DEFINED

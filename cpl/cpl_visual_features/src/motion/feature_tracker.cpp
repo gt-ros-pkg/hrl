@@ -45,11 +45,11 @@ namespace cpl_visual_features
 
 FeatureTracker::FeatureTracker(std::string name, double hessian_thresh,
                                int num_octaves, int num_layers, bool extended,
-                               bool upright) :
+                               bool upright, bool use_fast) :
     surf_(hessian_thresh, num_octaves, num_layers, extended, upright),
     initialized_(false), ratio_threshold_(0.5), window_name_(name),
     min_flow_thresh_(0), max_corners_(500), klt_corner_thresh_(0.3),
-    klt_corner_min_dist_(2)
+    klt_corner_min_dist_(2), use_fast_(false)
 {
   prev_keypoints_.clear();
   cur_keypoints_.clear();
@@ -289,16 +289,16 @@ void FeatureTracker::updateCurrentDescriptors(const cv::Mat& frame,
   std::vector<float> raw_descriptors;
   try
   {
-    // if (use_fast_)
-    // {
-    //   cv::FAST(frame, cur_keypoints_, 9, true);
-    //   // TODO: Remove keypoints outside the mask
-    //   surf_(frame, mask, cur_keypoints_, raw_descriptors, true);
-    // }
-    // else
-    // {
-    surf_(frame, mask, cur_keypoints_, raw_descriptors, false);
-    // }
+    if (use_fast_)
+    {
+      cv::FAST(frame, cur_keypoints_, 9, true);
+      // TODO: Remove keypoints outside the mask
+      surf_(frame, mask, cur_keypoints_, raw_descriptors, true);
+    }
+    else
+    {
+      surf_(frame, mask, cur_keypoints_, raw_descriptors, false);
+    }
     for (unsigned int i = 0; i < raw_descriptors.size(); i += 128)
     {
       Descriptor d(raw_descriptors.begin() + i,
@@ -312,5 +312,4 @@ void FeatureTracker::updateCurrentDescriptors(const cv::Mat& frame,
     // std::cerr << e.err << std::endl;
   }
 }
-
 }
