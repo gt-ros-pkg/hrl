@@ -1,0 +1,17 @@
+<package>
+  <description brief="simple_occupancy_grid">
+
+     simple_occupancy_grid
+
+  </description>
+  <author>Advait Jain</author>
+  <license>New BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/simple_occupancy_grid</url>
+
+  <depend package="rospy"/>
+  <depend package="roscpp"/>
+
+</package>
+
+
