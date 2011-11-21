@@ -115,11 +115,11 @@
 // Debugging IFDEFS
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
-// #define DISPLAY_WORKSPACE_MASK 1
-// #define DISPLAY_OPTICAL_FLOW 1
+#define DISPLAY_WORKSPACE_MASK 1
+#define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_UV 1
-// #define DISPLAY_GRAPHCUT 1
+#define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
@@ -127,6 +127,7 @@
 // #define DISPLAY_ARM_CIRCLES 1
 // #define DISPLAY_TABLE_DISTANCES 1
 // #define DISPLAY_FLOW_FIELD_CLUSTERING 1
+#define DISPLAY_OBJECT_BOUNDARIES 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
@@ -340,6 +341,7 @@ class ProtoTabletopObject
   Eigen::Vector4f centroid;
   Eigen::Vector4f table_centroid;
   // TODO: Add normals?
+  // TODO: Add tracking features
   int id;
 };
 
@@ -1022,6 +1024,53 @@ class PointCloudSegmentation
     return objs;
   }
 
+  void matchObjects(ProtoObjects& prev_objs, ProtoObjects& cur_objs)
+  {
+    // New object / object split
+    if (cur_objs.size() > prev_objs.size())
+    {
+      matchObjectsSplit(prev_objs, cur_objs);
+    }
+    else if (cur_objs.size() < prev_objs.size())
+    {
+      matchObjectsMerge(prev_objs, cur_objs);
+    }
+    else
+    {
+      matchObjectsOneToOne(prev_objs, cur_objs);
+    }
+  }
+
+  void matchObjectsOneToOne(ProtoObjects& prev_objs, ProtoObjects& cur_objs)
+  {
+    for (unsigned int i = 0; i < prev_objs.size(); ++i)
+    {
+      for (unsigned int j = 0; j < cur_objs.size(); ++j)
+      {
+      }
+    }
+  }
+
+  void matchObjectsMerge(ProtoObjects& prev_objs, ProtoObjects& cur_objs)
+  {
+    for (unsigned int i = 0; i < prev_objs.size(); ++i)
+    {
+      for (unsigned int j = 0; j < cur_objs.size(); ++j)
+      {
+      }
+    }
+  }
+
+  void matchObjectsSplit(ProtoObjects& prev_objs, ProtoObjects& cur_objs)
+  {
+    for (unsigned int i = 0; i < prev_objs.size(); ++i)
+    {
+      for (unsigned int j = 0; j < cur_objs.size(); ++j)
+      {
+      }
+    }
+  }
+
  protected:
   XYZPointCloud cur_plane_cloud_;
   XYZPointCloud cur_objs_cloud_;
@@ -1053,19 +1102,26 @@ class ObjectSingulation
       affine_estimate_radius_(affine_estimate_radius),
       ft_("obj singulation", surf_hessian)
   {
+    // Create derivative kernels for flow calculation
+    cv::getDerivKernels(dy_kernel_, dx_kernel_, 1, 0, CV_SCHARR, true, CV_32F);
+    cv::flip(dy_kernel_, dy_kernel_, -1);
+    cv::transpose(dy_kernel_, dx_kernel_);
   }
 
   PoseStamped getPushVector(cv::Mat& motion_mask, cv::Mat& arm_mask,
-                            cv::Mat& color_img, cv::Mat& depth_img,
-                            cv::Mat& u, cv::Mat& v)
+                            cv::Mat& workspace_mask, cv::Mat& color_img,
+                            cv::Mat& depth_img, cv::Mat& u, cv::Mat& v)
   {
     PoseStamped push_dir;
-    // cv::Mat boundary_img = getObjectBoundaryStrengths(motion_mask, arm_mask,
-    //                                                   color_img, depth_img);
+    cv::Mat boundary_img = getObjectBoundaryStrengths(motion_mask,
+                                                      workspace_mask,
+                                                      color_img, depth_img);
+    // NOTE: Currently just make sure the value is positive to use as mask loc
+    // cv::Mat stuff_mask = cv::max(motion_mask-arm_mask,0);
     cv::Mat stuff_mask = motion_mask-arm_mask;
     // Get flow clusters
-    AffineFlowMeasures centers = clusterFlowFields(color_img, depth_img,
-                                                   u, v, stuff_mask);
+    // AffineFlowMeasures centers = clusterFlowFields(color_img, depth_img,
+    //                                                u, v, stuff_mask);
     // TODO: Determine push_direction based on centers and their directions
     return push_dir;
   }
@@ -1076,11 +1132,63 @@ class ObjectSingulation
     return push_pose;
   }
 
-  cv::Mat getObjectBoundaryStrengths(cv::Mat& motion_mask, cv::Mat& arm_mask,
+  cv::Mat getObjectBoundaryStrengths(cv::Mat& motion_mask,
+                                     cv::Mat& workspace_mask,
                                      cv::Mat& color_img, cv::Mat& depth_img)
   {
-    cv::Mat boundary_img(color_img.size(), CV_32FC1);
-    return boundary_img;
+
+    cv::Mat tmp_bw(color_img.size(), CV_8UC1);
+    cv::Mat bw_img(color_img.size(), CV_32FC1);
+    cv::Mat Ix(bw_img.size(), CV_32FC1);
+    cv::Mat Iy(bw_img.size(), CV_32FC1);
+    cv::Mat Ix_d(bw_img.size(), CV_32FC1);
+    cv::Mat Iy_d(bw_img.size(), CV_32FC1);
+    cv::Mat edge_img(color_img.size(), CV_32FC1);
+    cv::Mat depth_edge_img(color_img.size(), CV_32FC1);
+
+    // Convert to grayscale
+    cv::cvtColor(color_img, tmp_bw, CV_BGR2GRAY);
+    tmp_bw.convertTo(bw_img, CV_32FC1, 1.0/255, 0);
+
+    // Get image derivatives
+    cv::filter2D(bw_img, Ix, CV_32F, dx_kernel_);
+    cv::filter2D(bw_img, Iy, CV_32F, dy_kernel_);
+    cv::filter2D(depth_img, Ix_d, CV_32F, dx_kernel_);
+    cv::filter2D(depth_img, Iy_d, CV_32F, dy_kernel_);
+
+    // Create magintude image
+    for (int r = 0; r < edge_img.rows; ++r)
+    {
+      float* mag_row = edge_img.ptr<float>(r);
+      float* Ix_row = Ix.ptr<float>(r);
+      float* Iy_row = Iy.ptr<float>(r);
+      for (int c = 0; c < edge_img.cols; ++c)
+      {
+        mag_row[c] = sqrt(Ix_row[c]*Ix_row[c] + Iy_row[c]*Iy_row[c]);
+      }
+    }
+    for (int r = 0; r < depth_edge_img.rows; ++r)
+    {
+      float* mag_row = depth_edge_img.ptr<float>(r);
+      float* Ix_row = Ix_d.ptr<float>(r);
+      float* Iy_row = Iy_d.ptr<float>(r);
+      for (int c = 0; c < depth_edge_img.cols; ++c)
+      {
+        mag_row[c] = sqrt(Ix_row[c]*Ix_row[c] + Iy_row[c]*Iy_row[c]);
+      }
+    }
+    // Remove stuff out of the image
+#ifdef DISPLAY_OBJECT_BOUNDARIES
+    cv::imshow("boundary_strengths", edge_img);
+    cv::Mat edge_img_masked(edge_img.size(), CV_32FC1, cv::Scalar(0.0));
+    edge_img.copyTo(edge_img_masked, workspace_mask);
+    cv::Mat depth_edge_img_masked(edge_img.size(), CV_32FC1, cv::Scalar(0.0));
+    depth_edge_img.copyTo(depth_edge_img_masked, workspace_mask);
+    cv::imshow("boundary_strengths_masked", edge_img_masked);
+    cv::imshow("depth_boundary_strengths", depth_edge_img);
+    cv::imshow("depth_boundary_strengths_masked", depth_edge_img_masked);
+#endif // DISPLAY_OBJECT_BOUNDARIES
+    return edge_img;
   }
 
   AffineFlowMeasures clusterFlowFields(cv::Mat& color_img, cv::Mat& depth_img,
@@ -1103,7 +1211,7 @@ class ObjectSingulation
       uchar* mask_row = mask.ptr<uchar>(r);
       for (int c = 0; c < mask.cols; ++c)
       {
-        if ( mask_row[c] != 0)
+        if ( mask_row[c] > 0)
         {
           AffineFlowMeasure p;
           p.u = u.at<float>(r,c);
@@ -1139,7 +1247,7 @@ class ObjectSingulation
       uchar* mask_row = mask.ptr<uchar>(r);
       for (int c = 0; c < mask.cols; ++c)
       {
-        if ( mask_row[c] != 0)
+        if ( mask_row[c] > 0)
         {
           AffineFlowMeasure p;
           p.u = u.at<float>(r,c);
@@ -1647,7 +1755,11 @@ class ObjectSingulation
   //
   // Class member variables
   //
-
+ protected:
+  cv::Mat dx_kernel_;
+  cv::Mat dy_kernel_;
+  cv::Mat g_kernel_;
+ public:
   int kmeans_max_iter_;
   double kmeans_epsilon_;
   double ransac_epsilon_;
@@ -1922,6 +2034,7 @@ class TabletopPushingPerceptionNode
       // TODO: Change this to guided based on proto object boundaries
       res.push_pose = os_.getPushVector(motion_mask_hist_.back(),
                                         arm_mask_hist_.back(),
+                                        workspace_mask_hist_.back(),
                                         color_frame_hist_.back(),
                                         depth_frame_hist_.back(),
                                         flow_u_hist_.back(),
@@ -1965,8 +2078,10 @@ class TabletopPushingPerceptionNode
       tabletop_pushing::ObjectSingulationResult result;
       if (goal->get_singulation_vector)
       {
+        // TODO: Store workspace masks?
         result.singulation_vector = os_.getPushVector(motion_mask_hist_.back(),
                                                       arm_mask_hist_.back(),
+                                                      workspace_mask_hist_.back(),
                                                       color_frame_hist_.back(),
                                                       depth_frame_hist_.back(),
                                                       flow_u_hist_.back(),
@@ -2117,6 +2232,7 @@ class TabletopPushingPerceptionNode
 
     cv::Mat last_motion_mask;
     cv::Mat last_arm_mask;
+    cv::Mat last_workspace_mask;
     cv::Mat last_color_frame;
     cv::Mat last_depth_frame;
     cv::Mat last_flow_u;
@@ -2124,6 +2240,7 @@ class TabletopPushingPerceptionNode
 
     cut.copyTo(last_motion_mask);
     arm_cut.copyTo(last_arm_mask);
+    cur_workspace_mask_.copyTo(last_workspace_mask);
     color_frame.copyTo(last_color_frame);
     depth_frame.copyTo(last_depth_frame);
     flow_outs[0].copyTo(last_flow_u);
@@ -2131,6 +2248,7 @@ class TabletopPushingPerceptionNode
 
     motion_mask_hist_.push_back(last_motion_mask);
     arm_mask_hist_.push_back(last_arm_mask);
+    workspace_mask_hist_.push_back(last_workspace_mask);
     color_frame_hist_.push_back(last_color_frame);
     depth_frame_hist_.push_back(last_depth_frame);
     flow_u_hist_.push_back(last_flow_u);
@@ -2140,16 +2258,19 @@ class TabletopPushingPerceptionNode
     {
       motion_mask_hist_.pop_front();
       arm_mask_hist_.pop_front();
+      workspace_mask_hist_.pop_front();
       color_frame_hist_.pop_front();
       depth_frame_hist_.pop_front();
       flow_u_hist_.pop_front();
       flow_v_hist_.pop_front();
     }
 
-#ifdef AUTO_FLOW_CLUSTER
-    os_.getPushVector(last_motion_mask, last_arm_mask, last_color_frame,
-                      last_depth_frame, last_flow_u, last_flow_v);
-#endif // AUTO_FLOW_CLUSTER
+    if (auto_flow_cluster_)
+    {
+      os_.getPushVector(last_motion_mask, last_arm_mask, last_workspace_mask,
+                        last_color_frame, last_depth_frame,
+                        last_flow_u, last_flow_v);
+    }
 
 #ifdef WRITE_INPUT_TO_DISK
     std::stringstream input_out_name;
@@ -2654,6 +2775,9 @@ class TabletopPushingPerceptionNode
   PoseStamped findRandomPushPose(XYZPointCloud& input_cloud)
   {
     ProtoObjects objs = pcl_segmenter_.findTabletopObjects(input_cloud);
+    prev_proto_objs_ = cur_proto_objs_;
+    cur_proto_objs_ = objs;
+
     ROS_INFO_STREAM("Found " << objs.size() << " objects.");
 
     // TODO: publish a ros point cloud here for visualization
@@ -2762,6 +2886,7 @@ class TabletopPushingPerceptionNode
   cv::Mat prev_seg_mask_;
   std::deque<cv::Mat> motion_mask_hist_;
   std::deque<cv::Mat> arm_mask_hist_;
+  std::deque<cv::Mat> workspace_mask_hist_;
   std::deque<cv::Mat> color_frame_hist_;
   std::deque<cv::Mat> depth_frame_hist_;
   std::deque<cv::Mat> flow_u_hist_;
@@ -2802,6 +2927,8 @@ class TabletopPushingPerceptionNode
   double norm_est_radius_;
   bool autorun_pcl_segmentation_;
   bool auto_flow_cluster_;
+  ProtoObjects prev_proto_objs_;
+  ProtoObjects cur_proto_objs_;
 };
 
 int main(int argc, char ** argv)
