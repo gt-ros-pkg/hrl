@@ -28,6 +28,7 @@
 #include <pr2_controllers_msgs/JointTrajectoryAction.h>
 #include <pr2_controllers_msgs/JointTrajectoryControllerState.h>
 #include <pr2_msgs/PressureState.h>
+#include <laser_assembler/AssembleScans.h>
 
 //PCL
 #include <pcl_ros/filters/passthrough.h>
@@ -71,58 +72,54 @@ private:
   ros::NodeHandle root_handle_;
   ros::ServiceClient ik_client_right;
   ros::ServiceClient fk_client_right;
-  kinematics_msgs::GetKinematicSolverInfo::Response ik_solver_info;
-  kinematics_msgs::GetKinematicSolverInfo::Response fk_solver_info;
-  PointHeadClient* point_head_client_;
-  TorsoClient *torso_client_;
+  ros::ServiceClient laser_assembler_client;
   ros::Subscriber point_cloud_sub_;
   ros::Subscriber r_fingertip_sub_;
   ros::Subscriber l_fingertip_sub_;
-  tf::TransformListener tf_listener;
+  ros::Publisher tilting_pt_cloud_pub_;
+  PointHeadClient* point_head_client_;
+  TorsoClient *torso_client_;
+  TrajClient *traj_right_arm_client_;
   ArmActionClient *move_right_arm_client_;
   ArmActionClient *move_left_arm_client_;
-  TrajClient *traj_right_arm_client_;
+  tf::TransformListener tf_listener;
 
 
-  std::string workspace_frame;
-  std::string base_frame_tf;
 
+  int filter_outliers_meank;
+  int min_plane_inliers_;
+  int max_sac_iterations_;
+  int max_planes_;
+  bool filter_outliers; 
+  bool downsample_cloud;
+  bool concave_hull_mode_;
+  bool use_normal_seg_;
+  bool use_omp_;
   bool filter_spatial;
+  double plane_distance_thresh_;
+  double normal_search_radius_;
+  double downsample_grid_size_;
+  double sac_probability_;
+  double filter_outliers_stddev_thresh;
   double filter_spatial_xmin, filter_spatial_xmax;
   double filter_spatial_ymin, filter_spatial_ymax;
   double filter_spatial_zmin, filter_spatial_zmax;
-  bool filter_outliers;  
-  int filter_outliers_meank;
-  double filter_outliers_stddev_thresh;
-  bool downsample_cloud;
-  double downsample_grid_size_;
-  bool concave_hull_mode_;
-  bool use_normal_seg_;
-  int max_planes_;
-  bool use_omp_;
-  double plane_distance_thresh_;
-  double normal_search_radius_;
-  int min_plane_inliers_;
-  int max_sac_iterations_;
-  double sac_probability_;
-  bool robot_initialized;
 
+
+  kinematics_msgs::GetKinematicSolverInfo::Response ik_solver_info;
+  kinematics_msgs::GetKinematicSolverInfo::Response fk_solver_info;
+  pr2_controllers_msgs::JointTrajectoryGoal rightArmHomingTrajectory;
+  std::vector<short int> right_arm_l_finger_tip_nominals;
+  std::vector<short int> right_arm_r_finger_tip_nominals;
+  std::string workspace_frame;
+  std::string base_frame_tf;
   bool left_arm_fingertips_sensing;
   bool right_arm_fingertips_sensing;
   bool right_arm_fingertips_contacted;
   bool right_arm_fingertips_nominals;
   bool right_arm_end_eff_goal_resulted;
-
-  pr2_controllers_msgs::JointTrajectoryGoal rightArmHomingTrajectory;
-  std::vector<short int> right_arm_l_finger_tip_nominals;
-  std::vector<short int> right_arm_r_finger_tip_nominals;
-
-/*
-  ros::ServiceClient set_planning_scene_diff_client;
-  ros::ServiceClient ik_client;
-  ros::ServiceClient query_client;
-*/
-
+  bool robot_initialized;
+  double hist_interval;
 public:
   ros::NodeHandle n_;
   ros::Publisher filtered_cloud_pub_;
@@ -136,18 +133,79 @@ book_stacking():
   n_("~")
 {
  robot_initialized=false;
+ ROS_INFO("before LoadParamteres");
  LoadParameters();
+ ROS_INFO("before InitializeRobot");
  InitializeRobot();
 
+/*
   TestArm();
   TestArm2();
   traj_right_arm_client_->sendGoal(rightArmHomingTrajectory);
   traj_right_arm_client_->waitForResult();
- 
+ */
+
 //robot_initialized=true; 
 
 //move_right_gripper(0.75,-0.188,0,-M_PI/2,0,0,1);
 //shakeHead(2);
+}
+
+void commandCallback  (const std_msgs::String::ConstPtr& msg)
+{
+	std::cout<<"Command: "<<msg->data<<std::endl;
+	char key0 = msg->data.c_str()[0];   kinematics_msgs::GetKinematicSolverInfo::Response response;
+	switch (key0)
+	{
+	case 'b': //message is to follower module.
+
+		if(msg->data.length()>2)
+		{
+			char key2 = msg->data.c_str()[2];
+			switch (key2)
+			{
+                        case 'a':
+                        TestArm();
+			break;
+                        case 'b':
+                        TestArm2();
+			break;
+                        case 'c':
+                        TestArm3();
+			break;		
+			case 'l': //detect objects
+                        robot_initialized=true;
+			GetTiltingPointCloud(true);
+			break;
+			case 'e':
+  			traj_right_arm_client_->sendGoal(rightArmHomingTrajectory);
+                        traj_right_arm_client_->waitForResult();
+			break;
+			case 'f':
+			  MoveEndEffectorLinear(0.0,0.15,0.0,0.15,true);
+			break;
+			case 'g':
+			  MoveEndEffectorLinear(0.0,-0.15,0.0,0.15,true);
+			break;
+			case 'h':
+			  MoveEndEffectorLinear(0.15,0.0,0.0,0.15,true);
+			break;
+			case 'i':
+			  MoveEndEffectorLinear(-0.15,0.0,0.0,0.15,true);
+			break;
+			case 'j':
+			  MoveEndEffectorLinear(0.0,0.0,0.15,0.15,true);
+			break;
+			case 'k':
+			  MoveEndEffectorLinear(0.0,0.0,-0.15,0.15,true);
+			break;
+			default:
+			  break;
+			}
+		}
+	default:
+	  break;
+	}
 }
 
 bool callQueryFK(kinematics_msgs::GetKinematicSolverInfo::Response &response)
@@ -203,11 +261,17 @@ bool callQueryIK(kinematics_msgs::GetKinematicSolverInfo::Response &response)
 {
     ik_client_right = root_handle_.serviceClient<kinematics_msgs::GetConstraintAwarePositionIK>(RIGHT_ARM_IK_NAME);
     fk_client_right = root_handle_.serviceClient<kinematics_msgs::GetPositionFK>(RIGHT_ARM_FK_NAME);
+
+//ROS_INFO("IK service clients init");
+
+//ros::service::waitForService("assemble_scans");
 /*
   set_planning_scene_diff_client = n_.serviceClient<arm_navigation_msgs::SetPlanningSceneDiff>(SET_PLANNING_SCENE_DIFF_NAME);
 */
 
- point_cloud_sub_=n_.subscribe("/camera/rgb/object_modeling_points_filtered",1,&book_stacking::KinectCallback,this);
+
+//ROS_INFO("Before subscriptions");
+ point_cloud_sub_=n_.subscribe("/assembled_pt_cloud2_self_filtered",1,&book_stacking::KinectCallback,this);
  filtered_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud2>("filtered_cloud",1);
  plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("akans_plane_marker_array",1);
  obj_marker_pub_ = n_.advertise<visualization_msgs::Marker>("obj_markers",1);
@@ -216,39 +280,48 @@ command_subscriber_=n_.subscribe<std_msgs::String>("/command_generator_PR2_topic
 r_fingertip_sub_=n_.subscribe("/pressure/r_gripper_motor",1,&book_stacking::FingertipRightCallback,this);
 l_fingertip_sub_=n_.subscribe("/pressure/l_gripper_motor",1,&book_stacking::FingertipLeftCallback,this);
 
+
+ROS_INFO("Before service clients");
   traj_right_arm_client_=new TrajClient("r_arm_controller/joint_trajectory_action", true);
  while(!traj_right_arm_client_->waitForServer(ros::Duration(5.0)))
     {
-      //ROS_INFO("Waiting for the joint_trajectory_action server");
+      ROS_INFO("Waiting for the joint_trajectory_action server");
     }
   torso_client_ = new TorsoClient("torso_controller/position_joint_action", true);
     while(!torso_client_->waitForServer(ros::Duration(5.0)))
     {
-      //ROS_INFO("Waiting for the torso action server to come up");
+      ROS_INFO("Waiting for the torso action server to come up");
     }
 
   point_head_client_ = new PointHeadClient("/head_traj_controller/point_head_action", true);
   while(!point_head_client_->waitForServer(ros::Duration(5.0)))
     {
-      //ROS_INFO("Waiting for the point_head_action server to come up");
+      ROS_INFO("Waiting for the point_head_action server to come up");
     }
 
   move_right_arm_client_ = new ArmActionClient("move_right_arm",true);  
   while(!move_right_arm_client_->waitForServer(ros::Duration(5.0)))
     {
-      //ROS_INFO("Waiting for the point_head_action server to come up");
+      ROS_INFO("Waiting for the point_head_action server to come up");
     }
 
   move_left_arm_client_ = new ArmActionClient("move_left_arm",true);
   while(!move_left_arm_client_->waitForServer(ros::Duration(5.0)))
     {
-      //ROS_INFO("Waiting for the point_head_action server to come up");
+      ROS_INFO("Waiting for the point_head_action server to come up");
     }
 
+    laser_assembler_client = root_handle_.serviceClient<laser_assembler::AssembleScans>("assemble_scans");
+    tilting_pt_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud> ("/assembled_pt_cloud_raw", 5);
+
+
+//ROS_INFO("Before CallQuery");
  callQueryIK(ik_solver_info);
  callQueryFK(fk_solver_info);
   	
- moveTorsoToPosition(0.1);//0.3
+
+//ROS_INFO("Before moveTorso");
+ moveTorsoToPosition(0.2);//0.3
  lookAt("base_link", 1.0, 0.0, 0.0);
   rightArmHomingTrajectory=createRightArmHomingTrajectory();
 
@@ -625,62 +698,27 @@ void FingertipRightCallback(const pr2_msgs::PressureState::ConstPtr& msg)
 	}
 }
 
-void commandCallback  (const std_msgs::String::ConstPtr& msg)
+void GetTiltingPointCloud(bool refreshScan)
 {
-	std::cout<<"Command: "<<msg->data<<std::endl;
-	char key0 = msg->data.c_str()[0];   kinematics_msgs::GetKinematicSolverInfo::Response response;
-	switch (key0)
-	{
-	case 'b': //message is to follower module.
-
-		if(msg->data.length()>2)
-		{
-			char key2 = msg->data.c_str()[2];
-			switch (key2)
-			{
-                        case 'a':
-                        TestArm();
-			break;
-                        case 'b':
-                        TestArm2();
-			break;
-                        case 'c':
-                        TestArm3();
-			break;
-			case 'd': //detect objects				
-			robot_initialized=true;
-			break;
-			case 'e':
-  			traj_right_arm_client_->sendGoal(rightArmHomingTrajectory);
-                        traj_right_arm_client_->waitForResult();
-			break;
-			case 'f':
-			  MoveEndEffectorLinear(0.0,0.15,0.0,0.15,true);
-			break;
-			case 'g':
-			  MoveEndEffectorLinear(0.0,-0.15,0.0,0.15,true);
-			break;
-			case 'h':
-			  MoveEndEffectorLinear(0.15,0.0,0.0,0.15,true);
-			break;
-			case 'i':
-			  MoveEndEffectorLinear(-0.15,0.0,0.0,0.15,true);
-			break;
-			case 'j':
-			  MoveEndEffectorLinear(0.0,0.0,0.15,0.15,true);
-			break;
-			case 'k':
-			  MoveEndEffectorLinear(0.0,0.0,-0.15,0.15,true);
-			break;
-
-			default:
-			  break;
-			}
-		}
-	default:
-	  break;
-	}
+if(refreshScan)
+{
+ros::Duration(hist_interval).sleep();
 }
+
+laser_assembler::AssembleScans srv;
+			  srv.request.begin = ros::Time::now()-ros::Duration(hist_interval);
+			  srv.request.end   = ros::Time::now();
+			  if (laser_assembler_client.call(srv))
+			  {
+			    printf("Got cloud with %u points\n", srv.response.cloud.points.size());
+			    tilting_pt_cloud_pub_.publish(srv.response.cloud);
+			  }
+			  else
+			    printf("Service call failed\n");
+}
+
+
+
  
 void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
  {
@@ -724,6 +762,7 @@ void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
     n_.param("concave_hull_mode",concave_hull_mode_,false);
     n_.param("use_normal_seg",use_normal_seg_,false);
     n_.param("base_frame_tf", base_frame_tf,std::string("/base_link"));
+    n_.param("hist_interval", hist_interval, 8.0);
 
   }
 
@@ -773,23 +812,9 @@ void lookAt(std::string frame_id, double x, double y, double z)
 bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3Stamped dir,double dist)
 {
 //determine start position, given the object
-/*
-  arm_navigation_msgs::SimplePoseConstraint start_pose;
-  start_pose.header.frame_id = "torso_lift_link";
-  start_pose.link_name = "r_wrist_roll_link";
-  start_pose.pose.position.x = 0.55;
-  start_pose.pose.position.y = -0.188;
-  start_pose.pose.position.z = 0;
-  start_pose.pose.orientation.x = 0.0;
-  start_pose.pose.orientation.y = 0.0;
-  start_pose.pose.orientation.z = 0.0;
-  start_pose.pose.orientation.w = 1.0;
-*/
-
   arm_navigation_msgs::SimplePoseConstraint prepush_constraints;
   //prepush_pose.header.frame_id = objInfo.header.frame_id;
   prepush_constraints.header.frame_id = "torso_lift_link";
-  //prepush_constraints.link_name = "r_gripper_tool_frame";
   prepush_constraints.link_name = "r_wrist_roll_link";
 
   double pad_dist=0.08;
@@ -816,47 +841,21 @@ bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3St
     tpose.header=prepush_constraints.header;
     tpose.pose.orientation=prepush_constraints.pose.orientation;
     tpose.pose.position=prepush_constraints.pose.position;
-/*  tpose.pose.position.x=prepush_constraints.pose.position.x;
-    tpose.pose.position.y=prepush_constraints.pose.position.y;
-    tpose.pose.position.z=prepush_constraints.pose.position.z;
-    tpose.pose.orientation.x=prepush_constraints.pose.orientation.x;
-    tpose.pose.orientation.y=prepush_constraints.pose.orientation.y;
-    tpose.pose.orientation.z=prepush_constraints.pose.orientation.z;
-    tpose.pose.orientation.w=prepush_constraints.pose.orientation.w;
-    */
 
 
-//move_right_gripper(prepush_constraints.pose.position.x,prepush_constraints.pose.position.y,prepush_constraints.pose.position.z,prepush_constraints.pose.orientation.x,prepush_constraints.pose.orientation.y,prepush_constraints.pose.orientation.z,prepush_constraints.pose.orientation.w);
-
-/*
-   sensor_msgs::JointState tempsolution;
-  if (computeIK(tpose, link_name, tempsolution,response))
-  {
-	prepush_constraints.pose.orientation=tpose.pose.orientation;
-        prepush_constraints.pose.position=tpose.pose.position;
-        ik_sln_found=true;
-	break;
-  }
-  else
-  {
-  //std::cout<<"zOff: "<<zOff<<", pitch: "<<pitchOff<<" didn't work"<<std::endl;
-  }
-*/
-
-
- sensor_msgs::JointState solution;
- std::string link_name="r_wrist_roll_link";
-
-kinematics_msgs::GetKinematicSolverInfo::Response response;
-callQueryIK(response);
 bool ik_sln_found=false;
-for (double zOff=0.04; zOff<0.11;zOff=zOff+0.005)
+  double current_angles[7];
+  double solution_angles[7];
+  get_current_joint_angles(current_angles);
+std::string link_name="r_wrist_roll_link";
+
+
+for (double zOff=0.04; zOff<0.11;zOff=zOff+0.01)
 {
 tpose.pose.position.z=startZ+zOff;
-for (double pitchOff=M_PI/2*1.3; pitchOff>M_PI/2*0.6;pitchOff=pitchOff-0.05)
+for (double pitchOff=M_PI/2; pitchOff>M_PI/2*0.85;pitchOff=pitchOff-0.025)
 {
 tpose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,pitchOff,0.0);
-
   visualization_msgs::Marker mr;
   mr.header.frame_id=tpose.header.frame_id;
   mr.header.stamp=ros::Time::now();
@@ -872,13 +871,7 @@ tpose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,pitchOff,0
   mr.color.b=1.0;
   vis_pub_.publish(mr); 
 
-
-
-tpose.pose.position.x=0.75;
-tpose.pose.position.y=-0.188;
-tpose.pose.position.z=0.0;
-
-  if (computeIK(tpose, link_name, solution,response))
+  if (run_ik(tpose,current_angles,solution_angles,link_name,ik_solver_info))
   {
 	prepush_constraints.pose.orientation=tpose.pose.orientation;
         prepush_constraints.pose.position=tpose.pose.position;
@@ -894,34 +887,9 @@ if(ik_sln_found)
 break;
 }
 
-  visualization_msgs::Marker mr;
-  mr.header.frame_id=prepush_constraints.header.frame_id;
-  mr.header.stamp=ros::Time::now();
-  mr.type=visualization_msgs::Marker::ARROW;
-  mr.action=visualization_msgs::Marker::ADD;
-  mr.pose=prepush_constraints.pose;
-  mr.scale.x=0.1;
-  mr.scale.y=0.1;
-  mr.scale.z=0.1;
-  mr.color.a=1.0;
-  mr.color.r=1.0;
-  mr.color.g=0.2;
-  mr.color.b=1.0;
-  vis_pub_.publish(mr); 
 
 //determine end position, given the dist and dir of the push
-/*
-  arm_navigation_msgs::SimplePoseConstraint end_pose;
-  end_pose.header.frame_id = "torso_lift_link";
-  end_pose.link_name = "r_wrist_roll_link";
-  end_pose.pose.position.x = 0.75;
-  end_pose.pose.position.y = -0.188;
-  end_pose.pose.position.z = 0.0;
-  end_pose.pose.orientation.x = 0.0;
-  end_pose.pose.orientation.y = 0.0;
-  end_pose.pose.orientation.z = 0.0;
-  end_pose.pose.orientation.w = 1.0;
-*/
+
 //move the base if necessary.
 
 //Move the arm to the start position.
@@ -930,100 +898,14 @@ if(ik_sln_found)
 PlaceEndEffector(true,move_right_arm_client_,prepush_constraints,false);
 }
 //Move the arm to the end position.
+
 //PlaceEndEffector(true,move_right_arm_client_,end_pose,true);
 return true;
 }
 
 
 
-  bool computeIK(const geometry_msgs::PoseStamped &tpose,  
-                 const std::string &link_name, 
-                 sensor_msgs::JointState &solution, kinematics_msgs::GetKinematicSolverInfo::Response response)
-  {
-  
-    ros::NodeHandle rh;
-    arm_navigation_msgs::SetPlanningSceneDiff::Request planning_scene_req;
-    arm_navigation_msgs::SetPlanningSceneDiff::Response planning_scene_res;
-    
-    ros::ServiceClient set_planning_scene_diff_client = rh.serviceClient<arm_navigation_msgs::SetPlanningSceneDiff>(SET_PLANNING_SCENE_DIFF_NAME);
-    if(!set_planning_scene_diff_client.call(planning_scene_req, planning_scene_res)) {
-      ROS_WARN("Can't get planning scene");
-      return -1;
-    }
-
-  kinematics_msgs::GetConstraintAwarePositionIK::Request  gpik_req;
-  kinematics_msgs::GetConstraintAwarePositionIK::Response gpik_res;
-
-  gpik_req.timeout = ros::Duration(5.0);
-  gpik_req.ik_request.ik_link_name = "r_wrist_roll_link";
-
-  /*  gpik_req.ik_request.pose_stamped.header.frame_id = "torso_lift_link";
-  gpik_req.ik_request.pose_stamped.pose.position.x = 0.75;
-  gpik_req.ik_request.pose_stamped.pose.position.y = -0.188;
-  gpik_req.ik_request.pose_stamped.pose.position.z = 0.0;
-  gpik_req.ik_request.pose_stamped.pose.orientation.x = 0.0;
-  gpik_req.ik_request.pose_stamped.pose.orientation.y = 0.0;
-  gpik_req.ik_request.pose_stamped.pose.orientation.z = 0.0;
-  gpik_req.ik_request.pose_stamped.pose.orientation.w = 1.0;
-  */
-
-  //gpik_req.ik_request.pose_stamped.header.frame_id = "torso_lift_link";
-  gpik_req.ik_request.pose_stamped.header.frame_id = tpose.header.frame_id;
-  gpik_req.ik_request.pose_stamped.pose.position.x = tpose.pose.position.x;
-  gpik_req.ik_request.pose_stamped.pose.position.y = tpose.pose.position.y;
-  gpik_req.ik_request.pose_stamped.pose.position.z = tpose.pose.position.z;
-  gpik_req.ik_request.pose_stamped.pose.orientation.x = tpose.pose.orientation.x;
-  gpik_req.ik_request.pose_stamped.pose.orientation.y = tpose.pose.orientation.y;
-  gpik_req.ik_request.pose_stamped.pose.orientation.z = tpose.pose.orientation.z;
-  gpik_req.ik_request.pose_stamped.pose.orientation.w = tpose.pose.orientation.w;
-
-  /*std::cout<<"Req IK position: "<<gpik_req.ik_request.pose_stamped.pose.position.x<<" "<<
-		             gpik_req.ik_request.pose_stamped.pose.position.y<<" "<<
-                             gpik_req.ik_request.pose_stamped.pose.position.z<<" "<<
-		             ". Orient: "<<
-gpik_req.ik_request.pose_stamped.pose.orientation.x<<" "<<
-gpik_req.ik_request.pose_stamped.pose.orientation.y<<" "<<
-gpik_req.ik_request.pose_stamped.pose.orientation.z<<" "<<std::endl;
-*/
-
-  //tpose.header=prepush_pose.header;
-
-
-
-  ros::service::waitForService("pr2_right_arm_kinematics/get_constraint_aware_ik");
-  ros::ServiceClient ik_client = rh.serviceClient<kinematics_msgs::GetConstraintAwarePositionIK>("pr2_right_arm_kinematics/get_constraint_aware_ik");
-
-
-  gpik_req.ik_request.ik_seed_state.joint_state.position.resize(response.kinematic_solver_info.joint_names.size());
-  gpik_req.ik_request.ik_seed_state.joint_state.name = response.kinematic_solver_info.joint_names;
-  for(unsigned int i=0; i< response.kinematic_solver_info.joint_names.size(); i++)
-  {    gpik_req.ik_request.ik_seed_state.joint_state.position[i] = (response.kinematic_solver_info.limits[i
-].min_position + response.kinematic_solver_info.limits[i].max_position)/2.0;
-  }
-  if(ik_client.call(gpik_req, gpik_res))
-  {
-    if(gpik_res.error_code.val == gpik_res.error_code.SUCCESS)
-    {
-      for(unsigned int i=0; i < gpik_res.solution.joint_state.name.size(); i ++)
-      {        ROS_INFO("Joint: %s %f",gpik_res.solution.joint_state.name[i].c_str(),gpik_res.solution.joint_state.position[i]);
-      }
-      return true;
-    }
-    else
-    {
-      ROS_ERROR("Inverse kinematics failed");
-      return false;
-    }
-  }
-  else
-  {
-    ROS_ERROR("Inverse kinematics service call failed");
-    return false;
-  }
-
-
-  }
-
+ 
 bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_navigation_msgs::SimplePoseConstraint &desired_pose,bool disable_gripper)
 {
 

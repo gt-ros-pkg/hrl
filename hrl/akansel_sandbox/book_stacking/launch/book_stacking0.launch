@@ -25,7 +25,6 @@
   </node>
 
   <include file="$(find book_stacking)/launch/laser+stereo-perception.launch">
-    <arg name="stereo" value="$(arg stereo)"/>
     <arg name="use_camera_in_collider" default="true" />
   </include>
 
@@ -46,7 +45,7 @@
   </include>
 
 
-
+ 
   <!--<include file="$(find pr2_arm_navigation_actions)/launch/environment_server.launch"/>-->
   <include file="$(find planning_environment)/launch/environment_server.launch"/>
 
@@ -87,15 +86,15 @@
     <arg if="$(arg use_left_arm)" name="group_name_2" value="left_arm"/>
   </include>
 
-  <node pkg="book_stacking" type="book_stacking" name="book_stacking" output="screen">
+     <node pkg="book_stacking" type="book_stacking" name="book_stacking" output="screen">
 <param name="filter_spatial_zmax" value="1.5" type="double"/>
 <param name="filter_spatial_zmin" value="0.5" type="double"/>
 <param name="filter_spatial_xmax" value="1.5" type="double"/>
 <param name="filter_spatial_xmin" value="0.2" type="double"/>
 <param name="filter_spatial_ymax" value="1.0" type="double"/>
 <param name="filter_spatial_ymin" value="-1.0" type="double"/>
+<param name="hist_interval" value="12.0" type="double"/>
   </node>
-
  <node pkg="command_generator_PR2" type="command_generator" name="command_generator" output="screen">
  </node>
 
