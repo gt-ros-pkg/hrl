@@ -51,8 +51,8 @@ class DenseLKFlow
 
   virtual ~DenseLKFlow();
 
-  std::vector<cv::Mat> operator()(cv::Mat& cur_color_frame,
-                                  cv::Mat& prev_color_frame);
+  std::vector<cv::Mat> operator()(cv::Mat& cur_frame, cv::Mat& prev_frame,
+                                  bool color_in=true);
   std::vector<cv::Mat> hierarchy(cv::Mat& f2, cv::Mat& f1);
   std::vector<cv::Mat> baseLK(cv::Mat& cur_bw, cv::Mat& prev_bw);
   cv::Mat reduce(cv::Mat& input);

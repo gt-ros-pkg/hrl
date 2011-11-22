@@ -53,18 +53,26 @@ DenseLKFlow::~DenseLKFlow()
 {
 }
 
-std::vector<cv::Mat> DenseLKFlow::operator()(cv::Mat& cur_color_frame,
-                                             cv::Mat& prev_color_frame)
+std::vector<cv::Mat> DenseLKFlow::operator()(cv::Mat& cur_frame,
+                                             cv::Mat& prev_frame,
+                                             bool color_in)
 {
   // Convert to grayscale
-  cv::Mat tmp_bw(cur_color_frame.size(), CV_8UC1);
-  cv::Mat cur_bw(cur_color_frame.size(), CV_32FC1);
-  cv::Mat prev_bw(prev_color_frame.size(), CV_32FC1);
-  cv::cvtColor(cur_color_frame, tmp_bw, CV_BGR2GRAY);
-  tmp_bw.convertTo(cur_bw, CV_32FC1, 1.0/255, 0);
-  cv::cvtColor(prev_color_frame, tmp_bw, CV_BGR2GRAY);
-  tmp_bw.convertTo(prev_bw, CV_32FC1, 1.0/255, 0);
-  return hierarchy(cur_bw, prev_bw);
+  if (color_in)
+  {
+    cv::Mat tmp_bw(cur_frame.size(), CV_8UC1);
+    cv::Mat cur_bw(cur_frame.size(), CV_32FC1);
+    cv::Mat prev_bw(prev_frame.size(), CV_32FC1);
+    cv::cvtColor(cur_frame, tmp_bw, CV_BGR2GRAY);
+    tmp_bw.convertTo(cur_bw, CV_32FC1, 1.0/255, 0);
+    cv::cvtColor(prev_frame, tmp_bw, CV_BGR2GRAY);
+    tmp_bw.convertTo(prev_bw, CV_32FC1, 1.0/255, 0);
+    return hierarchy(cur_bw, prev_bw);
+  }
+  else
+  {
+    return hierarchy(cur_frame, prev_frame);
+  }
 }
 
 std::vector<cv::Mat> DenseLKFlow::hierarchy(cv::Mat& f2, cv::Mat& f1)
