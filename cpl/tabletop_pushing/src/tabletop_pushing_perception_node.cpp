@@ -81,7 +81,6 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
-// #include <opencv2/features2d/features2d.hpp>
 
 // cpl_visual_features
 #include <cpl_visual_features/motion/flow_types.h>
@@ -116,10 +115,10 @@
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 #define DISPLAY_WORKSPACE_MASK 1
-#define DISPLAY_OPTICAL_FLOW 1
+// #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_UV 1
-#define DISPLAY_GRAPHCUT 1
+// #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
 // #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
@@ -127,7 +126,7 @@
 // #define DISPLAY_ARM_CIRCLES 1
 // #define DISPLAY_TABLE_DISTANCES 1
 // #define DISPLAY_FLOW_FIELD_CLUSTERING 1
-#define DISPLAY_OBJECT_BOUNDARIES 1
+// #define DISPLAY_OBJECT_BOUNDARIES 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
@@ -885,7 +884,7 @@ class MotionGraphcut
 class PointCloudSegmentation
 {
  public:
-  PointCloudSegmentation() : have_cur_cloud_(false)
+  PointCloudSegmentation(FeatureTracker* ft) : have_cur_cloud_(false), ft_(ft)
   {
   }
 
@@ -1043,6 +1042,9 @@ class PointCloudSegmentation
 
   void matchObjectsOneToOne(ProtoObjects& prev_objs, ProtoObjects& cur_objs)
   {
+    AffineFlowMeasures sparse_flow = ft_->getMostRecentFlow();
+    cpl_visual_features::KeyPoints keypoints = ft_->getMostRecentKeyPoints();
+    cpl_visual_features::Descriptors descriptors = ft_->getMostRecentDescriptors();
     for (unsigned int i = 0; i < prev_objs.size(); ++i)
     {
       for (unsigned int j = 0; j < cur_objs.size(); ++j)
@@ -1075,6 +1077,7 @@ class PointCloudSegmentation
   XYZPointCloud cur_plane_cloud_;
   XYZPointCloud cur_objs_cloud_;
   bool have_cur_cloud_;
+  FeatureTracker* ft_;
 
  public:
   double min_table_z_;
@@ -1094,13 +1097,14 @@ class PointCloudSegmentation
 class ObjectSingulation
 {
  public:
-  ObjectSingulation(int kmeans_max_iter=200, double kmeans_epsilon=0.5,
+  ObjectSingulation(FeatureTracker* ft,
+                    int kmeans_max_iter=200, double kmeans_epsilon=0.5,
                     int kmeans_tries=5, int affine_estimate_radius=5,
                     double surf_hessian=100) :
+      ft_(ft),
       kmeans_max_iter_(kmeans_max_iter), kmeans_epsilon_(kmeans_epsilon),
       kmeans_tries_(kmeans_tries),
-      affine_estimate_radius_(affine_estimate_radius),
-      ft_("obj singulation", surf_hessian)
+      affine_estimate_radius_(affine_estimate_radius)
   {
     // Create derivative kernels for flow calculation
     cv::getDerivKernels(dy_kernel_, dx_kernel_, 1, 0, CV_SCHARR, true, CV_32F);
@@ -1120,8 +1124,8 @@ class ObjectSingulation
     // cv::Mat stuff_mask = cv::max(motion_mask-arm_mask,0);
     cv::Mat stuff_mask = motion_mask-arm_mask;
     // Get flow clusters
-    // AffineFlowMeasures centers = clusterFlowFields(color_img, depth_img,
-    //                                                u, v, stuff_mask);
+    AffineFlowMeasures centers = clusterFlowFields(color_img, depth_img,
+                                                   u, v, stuff_mask);
     // TODO: Determine push_direction based on centers and their directions
     return push_dir;
   }
@@ -1350,7 +1354,10 @@ class ObjectSingulation
   {
     cv::Mat img_bw;
     cv::cvtColor(color_img, img_bw, CV_BGR2GRAY);
-    AffineFlowMeasures sparse_flow = ft_.updateTracks(img_bw, mask);
+    // AffineFlowMeasures sparse_flow = ft_->updateTracks(img_bw, mask);
+    AffineFlowMeasures sparse_flow = ft_->getMostRecentFlow();
+    // TODO: Apply the mask to sparse_flow results
+
     // TODO: Try add in geometric matching here to complement the sparse feature
     // tracks
     for (unsigned int i = 0; i < sparse_flow.size(); ++i)
@@ -1761,6 +1768,7 @@ class ObjectSingulation
   cv::Mat dx_kernel_;
   cv::Mat dy_kernel_;
   cv::Mat g_kernel_;
+  FeatureTracker* ft_;
  public:
   int kmeans_max_iter_;
   double kmeans_epsilon_;
@@ -1772,7 +1780,6 @@ class ObjectSingulation
   int min_affine_point_set_size_;
   int max_ransac_iters_;
   double minimum_new_cluster_separation_;
-  FeatureTracker ft_;
 };
 
 class TabletopPushingPerceptionNode
@@ -1789,7 +1796,8 @@ class TabletopPushingPerceptionNode
                     boost::bind(&TabletopPushingPerceptionNode::trackerGoalCallback,
                                 this, _1),
                     false),
-      tf_(), have_depth_data_(false), tracking_(false),
+      tf_(), ft_("pushing_perception"), os_(&ft_), pcl_segmenter_(&ft_),
+      have_depth_data_(false), tracking_(false),
       tracker_initialized_(false), tracker_count_(0)
   {
     // Get parameters from the server
@@ -1818,6 +1826,8 @@ class TabletopPushingPerceptionNode
     pcl_segmenter_.min_workspace_x_ = min_workspace_x_;
     pcl_segmenter_.max_workspace_x_ = max_workspace_x_;
 
+    n_private_.param("segmenting_moving_stuff", segmenting_moving_stuff_,
+                     false);
     n_private_.param("autostart_tracking", tracking_, false);
     n_private_.param("auto_flow_cluster", auto_flow_cluster_, false);
     n_private_.param("autostart_pcl_segmentation", autorun_pcl_segmentation_,
@@ -1869,9 +1879,11 @@ class TabletopPushingPerceptionNode
                      os_.ransac_inlier_percent_est_, 0.05);
     n_private_.param("minimum_new_cluster_separation",
                      os_.minimum_new_cluster_separation_, 5.0);
-    n_private_.param("surf_hessian_thresh", os_.ft_.surf_.hessianThreshold,
+    n_private_.param("surf_hessian_thresh", ft_.surf_.hessianThreshold,
                      150.0);
-
+    bool use_fast;
+    n_private_.param("use_fast_corners", use_fast, false);
+    ft_.setUseFast(use_fast);
     n_private_.param("image_hist_size", image_hist_size_, 5);
     n_private_.param("pcl_cluster_tolerance", pcl_segmenter_.cluster_tolerance_,
                      0.25);
@@ -1916,7 +1928,6 @@ class TabletopPushingPerceptionNode
     // Transform point cloud into the correct frame and convert to PCL struct
     XYZPointCloud cloud;
     pcl::fromROSMsg(*cloud_msg, cloud);
-    // TODO: Make this not erupt with ERROR messages
     tf_.waitForTransform(workspace_frame_, cloud.header.frame_id,
                          cloud.header.stamp, ros::Duration(0.5));
     pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, tf_);
@@ -1980,10 +1991,23 @@ class TabletopPushingPerceptionNode
     if (autorun_pcl_segmentation_) findRandomPushPose(cloud);
 
     // Started via actionlib call
-    cv::Mat seg_mask = segmentMovingStuff(cur_color_frame_, cur_depth_frame_,
-                                          prev_color_frame_, prev_depth_frame_,
-                                          cur_point_cloud_);
-    prev_seg_mask_ = seg_mask.clone();
+    updateTracks(cur_color_frame_, cur_depth_frame_, prev_color_frame_,
+                 prev_depth_frame_, cur_point_cloud_);
+    if (segmenting_moving_stuff_)
+    {
+      cv::Mat seg_mask = segmentMovingStuff(cur_color_frame_, cur_depth_frame_,
+                                            prev_color_frame_, prev_depth_frame_,
+                                            cur_point_cloud_);
+      prev_seg_mask_ = seg_mask.clone();
+    }
+
+    // Display junk
+#ifdef DISPLAY_WORKSPACE_MASK
+    cv::imshow("workspace_mask", cur_workspace_mask_);
+#endif // DISPLAY_WORKSPACE_MASK
+#if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS || defined VISUALIZE_ARM_GRAPH_WEIGHTS || defined DISPLAY_ARM_CIRCLES || defined DISPLAY_FLOW_FIELD_CLUSTERING
+    cv::waitKey(display_wait_ms_);
+#endif // Any display defined
   }
 
   bool getTableLocation(LocateTable::Request& req, LocateTable::Response& res)
@@ -2080,7 +2104,6 @@ class TabletopPushingPerceptionNode
       tabletop_pushing::ObjectSingulationResult result;
       if (goal->get_singulation_vector)
       {
-        // TODO: Store workspace masks?
         result.singulation_vector = os_.getPushVector(motion_mask_hist_.back(),
                                                       arm_mask_hist_.back(),
                                                       workspace_mask_hist_.back(),
@@ -2112,13 +2135,14 @@ class TabletopPushingPerceptionNode
     tracking_ = false;
   }
 
-  //
-  // Core method for calculation
-  //
-  cv::Mat segmentMovingStuff(cv::Mat& color_frame, cv::Mat& depth_frame,
-                             cv::Mat& prev_color_frame, cv::Mat& prev_depth_frame,
-                             XYZPointCloud& cloud)
+  void updateTracks(cv::Mat& color_frame, cv::Mat& depth_frame,
+                    cv::Mat& prev_color_frame, cv::Mat& prev_depth_frame,
+                    XYZPointCloud& cloud)
   {
+    // Get a grayscale image as well
+    cv::Mat gray_frame;
+    cv::cvtColor(color_frame, gray_frame, CV_BGR2GRAY);
+
     if (!tracker_initialized_)
     {
       cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(
@@ -2138,28 +2162,37 @@ class TabletopPushingPerceptionNode
         ROS_DEBUG_STREAM("Found plane");
       }
 
-      if (auto_flow_cluster_)
-      {
-        cv::Mat bw_frame;
-        cv::cvtColor(color_frame, bw_frame, CV_BGR2GRAY);
-        os_.ft_.initTracks(bw_frame);
-      }
+      ft_.initTracks(gray_frame);
 
       tracker_initialized_ = true;
       tracker_count_ = 0;
-      cv::Mat empty_segments(color_frame.rows, color_frame.cols, CV_8UC1,
-                             cv::Scalar(0));
-      return empty_segments;
+      return;
     }
     if (!tracking_)
+    {
+      return;
+    }
+    // Get sparse flow
+    AffineFlowMeasures sparse_flow = ft_.updateTracks(gray_frame,
+                                                      cur_workspace_mask_);
+  }
+
+  //
+  // Core method for calculation
+  //
+  cv::Mat segmentMovingStuff(cv::Mat& color_frame, cv::Mat& depth_frame,
+                             cv::Mat& prev_color_frame,
+                             cv::Mat& prev_depth_frame, XYZPointCloud& cloud)
+  {
+    if (!tracking_ || !tracker_initialized_)
     {
       cv::Mat empty_segments(color_frame.rows, color_frame.cols, CV_8UC1,
                              cv::Scalar(0));
       return empty_segments;
     }
 
-    // Convert frame to floating point HSV
     // TODO: Consolidate into a single function call ?
+    // Convert frame to floating point HSV
     cv::Mat color_frame_hsv(color_frame.size(), color_frame.type());
     cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
     cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
@@ -2167,6 +2200,7 @@ class TabletopPushingPerceptionNode
 
     // Get optical flow
     std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
+
     // Project locations of the arms and hands into the image
     int min_arm_x = 0;
     int max_arm_x = 0;
@@ -2354,18 +2388,12 @@ class TabletopPushingPerceptionNode
     }
     cv::imshow("arms", arms_img);
 #endif
-#ifdef DISPLAY_WORKSPACE_MASK
-    cv::imshow("workspace_mask", cur_workspace_mask_);
-#endif // DISPLAY_WORKSPACE_MASK
 #ifdef DISPLAY_GRAPHCUT
     cv::imshow("moving_regions", moving_regions_img);
     cv::imshow("arm_cut", arm_regions_img);
     // cv::imshow("not_arm_move", not_arm_move_color);
 #endif // DISPLAY_GRAPHCUT
 
-#if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS || defined VISUALIZE_ARM_GRAPH_WEIGHTS || defined DISPLAY_ARM_CIRCLES || defined DISPLAY_FLOW_FIELD_CLUSTERING
-    cv::waitKey(display_wait_ms_);
-#endif // Any display defined
     ++tracker_count_;
     return cut;
   }
@@ -2897,7 +2925,9 @@ class TabletopPushingPerceptionNode
   std_msgs::Header prev_camera_header_;
   XYZPointCloud cur_point_cloud_;
   DenseLKFlow lkflow_;
+  FeatureTracker ft_;
   MotionGraphcut mgc_;
+  PointCloudSegmentation pcl_segmenter_;
   ObjectSingulation os_;
   bool have_depth_data_;
   int crop_min_x_;
@@ -2925,10 +2955,10 @@ class TabletopPushingPerceptionNode
   int tracker_count_;
   std::string base_output_path_;
   int image_hist_size_;
-  PointCloudSegmentation pcl_segmenter_;
   double norm_est_radius_;
   bool autorun_pcl_segmentation_;
   bool auto_flow_cluster_;
+  bool segmenting_moving_stuff_;
   ProtoObjects prev_proto_objs_;
   ProtoObjects cur_proto_objs_;
 };

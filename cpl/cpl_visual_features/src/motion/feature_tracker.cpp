@@ -38,8 +38,10 @@
 #include <opencv2/video/video.hpp>
 #include <ros/ros.h>
 
-// #define DISPLAY_TRACKER_OUTPUT 1
-
+#define DISPLAY_TRACKER_OUTPUT 1
+#ifdef DISPLAY_TRACKER_OUTPUT
+#include <opencv2/highgui/highgui.hpp>
+#endif // DISPLAY_TRACKER_OUTPUT
 namespace cpl_visual_features
 {
 
@@ -139,7 +141,8 @@ AffineFlowMeasures FeatureTracker::updateTracks(const cv::Mat& frame,
   matches_prev.clear();
 
   // Find nearest neighbors with previous descriptors
-  findMatches(cur_descriptors_, prev_descriptors_, matches_cur, matches_prev);
+  findMatches(cur_descriptors_, prev_descriptors_, matches_cur, matches_prev,
+              cur_scores_);
   ROS_DEBUG_STREAM(window_name_ << ": num feature matches: "
                    << matches_cur.size());
   int moving_points = 0;
@@ -152,7 +155,7 @@ AffineFlowMeasures FeatureTracker::updateTracks(const cv::Mat& frame,
     sparse_flow.push_back(AffineFlowMeasure(
         cur_keypoints_[matches_cur[i]].pt.x,
         cur_keypoints_[matches_cur[i]].pt.y, dx, dy));
-    if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) > min_flow_thresh_)
+    if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) >= min_flow_thresh_)
       moving_points++;
   }
   ROS_DEBUG_STREAM(window_name_ << ": num moving points: " << moving_points);
@@ -162,7 +165,7 @@ AffineFlowMeasures FeatureTracker::updateTracks(const cv::Mat& frame,
   cv::cvtColor(frame, display_frame, CV_GRAY2BGR);
   for (unsigned int i = 0; i < matches_cur.size(); i++)
   {
-    if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) > min_flow_thresh_)
+    if (abs(sparse_flow[i].u) + abs(sparse_flow[i].v) >= min_flow_thresh_)
     {
       ROS_DEBUG_STREAM("Point is moving (" << sparse_flow[i].u << ", "
                        << sparse_flow[i].v << ")");
@@ -178,6 +181,7 @@ AffineFlowMeasures FeatureTracker::updateTracks(const cv::Mat& frame,
 
   prev_keypoints_ = cur_keypoints_;
   prev_descriptors_ = cur_descriptors_;
+  cur_flow_ = sparse_flow;
   return sparse_flow;
 }
 
@@ -215,31 +219,32 @@ double FeatureTracker::SSD(Descriptor& a, Descriptor& b)
  *
  * @return index of the best match, -1 if no match ratio is less than threshold
  */
-int FeatureTracker::ratioTest(Descriptor& a, std::vector<Descriptor>& bList,
-                              double threshold)
+std::pair<int, float> FeatureTracker::ratioTest(Descriptor& a,
+                                                Descriptors& bList,
+                                                double threshold)
 {
-  double bestScore = 1000000;
-  double secondBest = 1000000;
-  int bestIndex = -1;
+  double best_score = 1000000;
+  double second_best = 1000000;
+  int best_index = -1;
 
   for (unsigned int b = 0; b < bList.size(); ++b) {
     double score = 0;
     score = SSD(a, bList[b]);
 
-    if (score < bestScore) {
-      secondBest = bestScore;
-      bestScore = score;
-      bestIndex = b;
-    } else if (score < secondBest) {
-      secondBest = score;
+    if (score < best_score) {
+      second_best = best_score;
+      best_score = score;
+      best_index = b;
+    } else if (score < second_best) {
+      second_best = score;
     }
-    if ( bestScore / secondBest > threshold) {
-      bestIndex = -1;
+    if ( best_score / second_best > threshold) {
+      best_index = -1;
     }
 
   }
 
-  return bestIndex;
+  return std::pair<int, float>(best_index, best_score);
 }
 
 /**
@@ -250,33 +255,41 @@ int FeatureTracker::ratioTest(Descriptor& a, std::vector<Descriptor>& bList,
  * @param matches1 Indexes of matching points in image 1 (Returned)
  * @param matches2 Indexes of matching points in image 2 (Returned)
  */
-void FeatureTracker::findMatches(std::vector<Descriptor>& descriptors1,
-                                 std::vector<Descriptor>& descriptors2,
+void FeatureTracker::findMatches(Descriptors& descriptors1,
+                                 Descriptors& descriptors2,
                                  std::vector<int>& matches1,
-                                 std::vector<int>& matches2)
+                                 std::vector<int>& matches2,
+                                 std::vector<float>& scores)
 {
   // Determine matches using the Ratio Test method from Lowe 2004
   for (unsigned int a = 0; a < descriptors1.size(); ++a) {
-    const int bestIndex = ratioTest(descriptors1[a], descriptors2,
-                                    ratio_threshold_);
-    if (bestIndex != -1) {
+    const std::pair<int,float> best_match = ratioTest(descriptors1[a],
+                                                      descriptors2,
+                                                      ratio_threshold_);
+    const int best_index = best_match.first;
+    const int best_score = best_match.second;
+    if (best_index != -1) {
       matches1.push_back(a);
-      matches2.push_back(bestIndex);
+      matches2.push_back(best_index);
+      scores.push_back(best_score);
     }
   }
 
   // Check that the matches are unique going the other direction
   for (unsigned int x = 0; x < matches2.size();) {
-    const int bestIndex = ratioTest(descriptors2[matches2[x]],
-                                    descriptors1, ratio_threshold_);
-    if (bestIndex != matches1[x]) {
+    const std::pair<int,float> best_match = ratioTest(descriptors2[matches2[x]],
+                                                      descriptors1,
+                                                      ratio_threshold_);
+    const int best_index = best_match.first;
+    const int best_score = best_match.second;
+    if (best_index != matches1[x]) {
       matches1.erase(matches1.begin()+x);
       matches2.erase(matches2.begin()+x);
+      scores.erase(scores.begin()+x);
     } else {
       x++;
     }
   }
-
 }
 
 //
@@ -291,7 +304,9 @@ void FeatureTracker::updateCurrentDescriptors(const cv::Mat& frame,
   {
     if (use_fast_)
     {
-      cv::FAST(frame, cur_keypoints_, 9, true);
+      cv::Mat masked_frame(frame.size(), frame.type(), cv::Scalar(0));
+      frame.copyTo(masked_frame, mask);
+      cv::FAST(masked_frame, cur_keypoints_, 9, true);
       // TODO: Remove keypoints outside the mask
       surf_(frame, mask, cur_keypoints_, raw_descriptors, true);
     }

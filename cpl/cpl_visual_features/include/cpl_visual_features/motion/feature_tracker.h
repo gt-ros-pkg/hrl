@@ -42,11 +42,14 @@
 #include <vector>
 #include <deque>
 #include <cpl_visual_features/motion/flow_types.h>
+#include <utility>
 
 namespace cpl_visual_features
 {
 
 typedef std::vector<float> Descriptor;
+typedef std::vector<Descriptor> Descriptors;
+typedef std::vector<cv::KeyPoint> KeyPoints;
 
 class FeatureTracker
 {
@@ -91,7 +94,8 @@ class FeatureTracker
    *
    * @return index of the best match, -1 if no match ratio is less than threshold
    */
-  int ratioTest(Descriptor& a, std::vector<Descriptor>& bList, double threshold);
+  std::pair<int, float> ratioTest(Descriptor& a, std::vector<Descriptor>& bList,
+                                  double threshold);
 
   /**
    * findMatches
@@ -101,9 +105,9 @@ class FeatureTracker
    * @param matches1 Indexes of matching points in image 1 (Returned)
    * @param matches2 Indexes of matching points in image 2 (Returned)
    */
-  void findMatches(std::vector<Descriptor>& descriptors1,
-                   std::vector<Descriptor>& descriptors2,
-                   std::vector<int>& matches1, std::vector<int>& matches2);
+  void findMatches(Descriptors& descriptors1, Descriptors& descriptors2,
+                   std::vector<int>& matches1, std::vector<int>& matches2,
+                   std::vector<float>& scores);
 
   //
   // Helper Functions
@@ -147,13 +151,35 @@ class FeatureTracker
   }
   void stop() { initialized_ = false; }
 
+  AffineFlowMeasures getMostRecentFlow() const
+  {
+    return cur_flow_;
+  }
+
+  Descriptors getMostRecentDescriptors() const
+  {
+    return cur_descriptors_;
+  }
+
+  KeyPoints getMostRecentKeyPoints() const
+  {
+    return cur_keypoints_;
+  }
+
+  std::vector<float> getMostRecentScores() const
+  {
+    return cur_scores_;
+  }
+
  public:
   cv::SURF surf_;
  protected:
-  std::vector<cv::KeyPoint> prev_keypoints_;
-  std::vector<cv::KeyPoint> cur_keypoints_;
-  std::vector<Descriptor> prev_descriptors_;
-  std::vector<Descriptor> cur_descriptors_;
+  KeyPoints prev_keypoints_;
+  KeyPoints cur_keypoints_;
+  Descriptors prev_descriptors_;
+  Descriptors cur_descriptors_;
+  AffineFlowMeasures cur_flow_;
+  std::vector<float> cur_scores_;
   bool initialized_;
   double ratio_threshold_;
   std::string window_name_;

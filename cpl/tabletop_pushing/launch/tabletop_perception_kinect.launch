@@ -5,9 +5,10 @@
     <remap from="point_cloud_topic" to="/kinect_head/depth/points"/>
 
     <param name="display_wait_ms" value="3" type="int"/>
+    <param name="segmenting_moving_stuff" value="false" type="bool"/>
     <param name="autostart_tracking" value="true" type="bool"/>
-    <param name="auto_flow_cluster" value="true" type="bool"/>
-    <param name="autostart_pcl_segmentation" value="true" type="bool"/>
+    <param name="auto_flow_cluster" value="false" type="bool"/>
+    <param name="autostart_pcl_segmentation" value="false" type="bool"/>
 
     <param name="crop_min_x" value="22" type="int"/>
     <param name="crop_max_x" value="600" type="int"/>
@@ -53,6 +54,7 @@
     <param name="flow_cluster_attempts" value="5" type="int"/>
     <param name="affine_RANSAC_epsilon" value="2.0" type="double"/>
     <param name="surf_hessian_thresh" value="50.0" type="double"/>
+    <param name="use_fast_corners" value="true" type="bool"/>
     <param name="min_affine_point_set_size" value="200" type="int"/>
     <param name="max_ransac_iters" value="200" type="int"/>
     <param name="minimum_new_cluster_separation" value="5.0" type="double"/>
