@@ -1145,6 +1145,8 @@ class ObjectSingulation
     cv::Mat Iy_d(bw_img.size(), CV_32FC1);
     cv::Mat edge_img(color_img.size(), CV_32FC1);
     cv::Mat depth_edge_img(color_img.size(), CV_32FC1);
+    cv::Mat edge_img_masked(edge_img.size(), CV_32FC1, cv::Scalar(0.0));
+    cv::Mat depth_edge_img_masked(edge_img.size(), CV_32FC1, cv::Scalar(0.0));
 
     // Convert to grayscale
     cv::cvtColor(color_img, tmp_bw, CV_BGR2GRAY);
@@ -1177,13 +1179,13 @@ class ObjectSingulation
         mag_row[c] = sqrt(Ix_row[c]*Ix_row[c] + Iy_row[c]*Iy_row[c]);
       }
     }
+
     // Remove stuff out of the image
+    edge_img.copyTo(edge_img_masked, workspace_mask);
+    depth_edge_img.copyTo(depth_edge_img_masked, workspace_mask);
+
 #ifdef DISPLAY_OBJECT_BOUNDARIES
     cv::imshow("boundary_strengths", edge_img);
-    cv::Mat edge_img_masked(edge_img.size(), CV_32FC1, cv::Scalar(0.0));
-    edge_img.copyTo(edge_img_masked, workspace_mask);
-    cv::Mat depth_edge_img_masked(edge_img.size(), CV_32FC1, cv::Scalar(0.0));
-    depth_edge_img.copyTo(depth_edge_img_masked, workspace_mask);
     cv::imshow("boundary_strengths_masked", edge_img_masked);
     cv::imshow("depth_boundary_strengths", depth_edge_img);
     cv::imshow("depth_boundary_strengths_masked", depth_edge_img_masked);
