@@ -4,9 +4,18 @@
 
 #include <stdint.h>
 
+#include <ros/ros.h>
+#include <ros/console.h>
+
+#include "hrl_msgs/FloatArrayBare.h"
+
+
 /**
  * @class OccupancyGrid
  * @brief A 3D grid sturcture that stores points as a 3D array.
+ * I am going to assume that this class will always be used with ROS.
+ * So am writing the visualization code (which uses rviz) within the
+ * same class.
  */
 namespace occupancy_grid
 {
@@ -19,28 +28,42 @@ namespace occupancy_grid
              * @param size_{x,y,z} size of VOI (in meters)
              * @param res_{x,y,z} resolution along the three directions
              */
-            OccupancyGrid(float center_x, float center_y, float center_z,
+            OccupancyGrid(ros::NodeHandle& nh,
+                          float center_x, float center_y, float center_z,
                           float size_x, float size_y, float size_z,
                           float res_x, float res_y, float res_z);
 
             ~OccupancyGrid();
 
-//            void fillOccupancyGrid(const sensor_msgs::PointCloud cloud);
-//
-//            sensor_msgs::PointCloud gridToPoints();
-
             unsigned int nX();
             unsigned int nY();
             unsigned int nZ();
 
-            uint32_t* getData();
+            // return flattened array with the occupancy count for
+            // each cell of the occupancy grid.
+            uint32_t* getOccupancyCountArray();
+
+            /**
+             * @brief add list of points to the occupancy grid. Not worrying about timestamps for now.
+             * length of  pt_list is 3N for N points.
+             */
+            void addPointsUnstamped(const hrl_msgs::FloatArrayBare pt_list);
+
+            /**
+             * @brief cube markers for cells that have occupancy count >=1
+             */
+            void publishMarkerArray_simple();
+
 
         private:
             unsigned int nx_, ny_, nz_;
             float size_x_, size_y_, size_z_;
             float center_x_, center_y_, center_z_;
             float res_x_, res_y_, res_z_;
-            uint32_t *data_;
+            uint32_t *occupancy_count_array_;
+
+            // ROS stuff
+            ros::Publisher marker_pub_;
     };
 };
 

@@ -11,6 +11,10 @@
 
   <depend package="rospy"/>
   <depend package="roscpp"/>
+  <depend package="hrl_msgs"/>
+  <depend package="visualization_msgs"/>
+  <depend package="geometry_msgs"/>
+  <depend package="std_msgs"/>
 
 </package>
 
