@@ -7,6 +7,8 @@
 #include <geometry_msgs/Point.h>
 #include <std_msgs/ColorRGBA.h>
 
+#include <stdio.h>
+
 namespace occupancy_grid
 {
     OccupancyGrid::OccupancyGrid(ros::NodeHandle& nh,
@@ -101,7 +103,8 @@ namespace occupancy_grid
         cube_list_marker.id = 0;
         cube_list_marker.action = visualization_msgs::Marker::ADD;
         cube_list_marker.lifetime = ros::Duration();
-        
+        cube_list_marker.type = visualization_msgs::Marker::CUBE_LIST;
+
         cube_list_marker.scale.x = res_x_;
         cube_list_marker.scale.y = res_y_;
         cube_list_marker.scale.z = res_z_;
@@ -110,7 +113,8 @@ namespace occupancy_grid
         c.r = 0.;
         c.g = 1.;
         c.b = 1.;
-        c.a = 0.5;
+        // for some reason, alpha is common for all the cubes.
+        cube_list_marker.color.a = 0.2;
 
         for(unsigned int x_idx=0; x_idx<nx_; x_idx++)
             for(unsigned int y_idx=0; y_idx<ny_; y_idx++)
