@@ -82,26 +82,6 @@ class occupancy_grid_3d():
         return labeled_arr, n_labels
 
 
-## subtract occupancy grids. og1 = abs(og1-og2)
-# @param og1 - occupancy_grid_3d object.
-# @param og2 - occupancy_grid_3d object.
-#
-# will position og2 at an appropriate location within og1 (hopefully)
-# will copy points in og2 but not in og1 into og1
-#
-#UNTESTED:
-#    * subtracting grids of different sizes.
-def subtract(og1, og2):
-    if np.all(og1.resolution == og2.resolution) == False:
-        print 'occupancy_grid_3d.subtract: The resolution of the two grids is not the same.'
-        print 'res1, res2:', og1.resolution.A1.tolist(), og2.resolution.A1.tolist()
-        return
-
-    if np.any(og1.grid_shape!=og2.grid_shape):
-        print 'Grid Sizes:', og1.grid_shape.A1, og2.grid_shape.A1
-        raise RuntimeError('grids are of different sizes')
-
-    og1.grid = np.abs(og1.grid - og2.grid)
 
 
 if __name__ == '__main__':
