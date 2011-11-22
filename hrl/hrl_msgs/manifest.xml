@@ -1,0 +1,13 @@
+<package>
+  <description brief="hrl_msgs">
+    ROS messages that the Healthcare Robotics Lab, Georgia Tech often
+    uses.
+  </description>
+  <author>Advait Jain</author>
+  <license>New BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_msgs</url>
+
+</package>
+
+
