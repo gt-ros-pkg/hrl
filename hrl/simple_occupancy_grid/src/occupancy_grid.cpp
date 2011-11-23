@@ -11,10 +11,12 @@
 
 namespace occupancy_grid
 {
-    OccupancyGrid::OccupancyGrid(ros::NodeHandle& nh,
-                                 float center_x, float center_y, float center_z,
+    //----------- Public Functions ----------------
+
+    OccupancyGrid::OccupancyGrid(float center_x, float center_y, float center_z,
                                  float size_x, float size_y, float size_z,
-                                 float res_x, float res_y, float res_z)
+                                 float res_x, float res_y, float res_z) :
+                                 nh_ ("~")
     {
         nx_ = int (size_x / res_x + 0.5);
         ny_ = int (size_y / res_y + 0.5);
@@ -36,35 +38,13 @@ namespace occupancy_grid
         for(unsigned int i = 0; i < nx_ * ny_ *nz_; i++)
             occupancy_count_array_[i] = 0;
 
-        marker_pub_ = nh.advertise<visualization_msgs::Marker>("viz", 5);
+        marker_pub_ = nh_.advertise<visualization_msgs::Marker>("viz", 5);
 
+        // publish to this ROS topic to visualize occupancy grid in rviz
+        sub_cmd_viz_simple_ = nh_.subscribe("cmd/viz_simple", 5,
+                                    &OccupancyGrid::publishMarkerArray_simple_cb,
+                                    this);
     }
-
-    OccupancyGrid::~OccupancyGrid()
-    {
-        delete [] occupancy_count_array_;
-    }
-
-    unsigned int OccupancyGrid::nX()
-    {
-        return nx_;
-    }
-
-    unsigned int OccupancyGrid::nY()
-    {
-        return ny_;
-    }
-
-    unsigned int OccupancyGrid::nZ()
-    {
-        return nz_;
-    }
-
-    uint32_t* OccupancyGrid::getOccupancyCountArray()
-    {
-        return occupancy_count_array_;
-    }
-
 
     void OccupancyGrid::addPointsUnstamped(const hrl_msgs::FloatArrayBare pt_list)
     {
@@ -131,7 +111,54 @@ namespace occupancy_grid
 
         marker_pub_.publish(cube_list_marker);
     }
-    
+
+
+    //----------- Private Functions ----------------
+
+    void OccupancyGrid::publishMarkerArray_simple_cb(const std_msgs::Empty::ConstPtr& msg)
+    {
+        publishMarkerArray_simple();
+    }
+
+    //------------------ Simple Accessor Functions -----------------
+
+    OccupancyGrid::~OccupancyGrid()
+    {
+        delete [] occupancy_count_array_;
+    }
+
+    unsigned int OccupancyGrid::nX()
+    {
+        return nx_;
+    }
+
+    unsigned int OccupancyGrid::nY()
+    {
+        return ny_;
+    }
+
+    unsigned int OccupancyGrid::nZ()
+    {
+        return nz_;
+    }
+
+    uint32_t* OccupancyGrid::getOccupancyCountArray()
+    {
+        return occupancy_count_array_;
+    }
+
+
+};
+
+
+
+
+
+
+
+
+
+
 /*
     void OccupancyGrid::fillOccupancyGrid(const sensor_msgs::PointCloud cloud)
     {
@@ -177,6 +204,13 @@ namespace occupancy_grid
     }
 */
 
-};
+
+
+
+
+
+
+
+
 
 

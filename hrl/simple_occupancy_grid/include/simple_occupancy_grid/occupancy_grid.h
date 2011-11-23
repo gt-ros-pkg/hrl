@@ -6,6 +6,7 @@
 
 #include <ros/ros.h>
 #include <ros/console.h>
+#include <std_msgs/Empty.h>
 
 #include "hrl_msgs/FloatArrayBare.h"
 
@@ -28,8 +29,7 @@ namespace occupancy_grid
              * @param size_{x,y,z} size of VOI (in meters)
              * @param res_{x,y,z} resolution along the three directions
              */
-            OccupancyGrid(ros::NodeHandle& nh,
-                          float center_x, float center_y, float center_z,
+            OccupancyGrid(float center_x, float center_y, float center_z,
                           float size_x, float size_y, float size_z,
                           float res_x, float res_y, float res_z);
 
@@ -54,6 +54,8 @@ namespace occupancy_grid
              */
             void publishMarkerArray_simple();
 
+            //--------------- ROS interface ------------------
+
 
         private:
             unsigned int nx_, ny_, nz_;
@@ -63,7 +65,11 @@ namespace occupancy_grid
             uint32_t *occupancy_count_array_;
 
             // ROS stuff
+            ros::NodeHandle nh_;
+            ros::Subscriber sub_cmd_viz_simple_;
             ros::Publisher marker_pub_;
+
+            void publishMarkerArray_simple_cb(const std_msgs::Empty::ConstPtr& msg);
     };
 };
 
