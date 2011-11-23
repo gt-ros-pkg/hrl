@@ -36,7 +36,7 @@ import roslib
 roslib.load_manifest('zenither')
 import zenither_config as zc
 import rospy
-from hrl_lib.srv import Float_Int
+from hrl_srvs.msg import Float_Int
 from hrl_msgs.msg import FloatArray
 
 
