@@ -6,7 +6,7 @@ import force_torque.FTClient as ftc
 import math, numpy as np
 
 from rviz_marker_test import *
-from hrl_lib.msg import FloatArray
+from hrl_msgs.msg import FloatArray
 
 if __name__ == '__main__':
     ft_client = ftc.FTClient('force_torque_ft2')

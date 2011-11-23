@@ -41,7 +41,7 @@ import rospy
 
 import hrl_lib.viz as hv
 
-from hrl_lib.msg import FloatArray
+from hrl_msgs.msg import FloatArray
 from std_msgs.msg import Header, Bool, Empty
 
 from std_srvs.srv import Empty as Empty_srv

@@ -27,7 +27,7 @@
 
 import roslib; roslib.load_manifest('zenither')
 import rospy
-from hrl_lib.msg import FloatArray
+from hrl_msgs.msg import FloatArray
 from threading import RLock
 
 class ZenitherClient():

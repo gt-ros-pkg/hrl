@@ -7,7 +7,7 @@ from threading import RLock
 import roslib; roslib.load_manifest('hrl_pr2_door_opening')
 import rospy
 
-from hrl_lib.msg import FloatArray
+from hrl_msgs.msg import FloatArray
 from geometry_msgs.msg import Twist
 
 def ft_cb(data):

@@ -1,7 +1,7 @@
 import roslib; roslib.load_manifest('hrl_lib')
 import rospy
 import std_srvs.srv as srv
-from hrl_lib.msg import FloatArray
+from hrl_msgs.msg import FloatArray
 
 import time
 

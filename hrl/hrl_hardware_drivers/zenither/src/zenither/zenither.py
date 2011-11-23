@@ -37,7 +37,7 @@ import threading
 
 import roslib; roslib.load_manifest('zenither')
 import rospy
-from hrl_lib.msg import FloatArray
+from hrl_msgs.msg import FloatArray
 import hrl_lib.rutils as ru
 import hrl_lib.util as ut
 

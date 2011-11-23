@@ -57,7 +57,7 @@ if __name__ == '__main__':
     import roslib; roslib.load_manifest('force_torque')
     import rospy
     from force_torque.srv import *
-    from hrl_lib.msg import FloatArray as FloatArray
+    from hrl_msgs.msg import FloatArray as FloatArray
     import hrl_lib.rutils as ru
     import time
     import force_torque.FTSensor as ftc

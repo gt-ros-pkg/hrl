@@ -54,7 +54,7 @@ from threading import RLock
 import rospy
 
 import hrl_lib.transforms as tr
-from hrl_lib.msg import FloatArray
+from hrl_msgs.msg import FloatArray
 from std_msgs.msg import Header, Bool, Empty
 
 from sensor_msgs.msg import JointState

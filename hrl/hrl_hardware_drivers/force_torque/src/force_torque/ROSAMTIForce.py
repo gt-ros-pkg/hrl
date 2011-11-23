@@ -32,7 +32,7 @@
 
 import roslib; roslib.load_manifest('force_torque')
 import rospy
-from hrl_lib.msg import FloatArray
+from hrl_msgs.msg import FloatArray
 #import hrl_lib.rutils as ru
 
 import AMTIForce2 as af

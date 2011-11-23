@@ -33,7 +33,7 @@ import roslib; roslib.load_manifest('force_torque')
 import rospy
 import hrl_lib.rutils as ru
 import hrl_lib.util as ut
-from hrl_lib.msg import FloatArray
+from hrl_msgs.msg import FloatArray
 from geometry_msgs.msg import Wrench
 import numpy as np
 

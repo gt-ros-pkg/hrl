@@ -42,7 +42,7 @@ from cody_arm_kinematics import CodyArmKinematics
 from equilibrium_point_control.hrl_arm import HRLArm
 import hrl_lib.viz as hv
 
-from hrl_lib.msg import FloatArray
+from hrl_msgs.msg import FloatArray
 from std_msgs.msg import Header, Bool, Empty
 
 from visualization_msgs.msg import Marker

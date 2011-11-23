@@ -38,7 +38,7 @@ import rospy
 import tf.broadcaster as tfb
 import hrl_lib.transforms as tr
 
-from hrl_lib.msg import FloatArray
+from hrl_msgs.msg import FloatArray
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
 
