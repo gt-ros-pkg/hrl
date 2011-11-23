@@ -54,8 +54,6 @@ namespace occupancy_grid
              */
             void publishMarkerArray_simple();
 
-            //--------------- ROS interface ------------------
-
 
         private:
             unsigned int nx_, ny_, nz_;
