@@ -9,6 +9,7 @@
 #include <std_msgs/Empty.h>
 
 #include "hrl_msgs/FloatArrayBare.h"
+#include "hrl_srvs/FloatArray_None.h"
 
 
 /**
@@ -44,10 +45,19 @@ namespace occupancy_grid
             uint32_t* getOccupancyCountArray();
 
             /**
-             * @brief add list of points to the occupancy grid. Not worrying about timestamps for now.
-             * length of  pt_list is 3N for N points.
+             * @brief add list of points (in a ROS FloatArrayBare
+             * structure) to the occupancy grid. Not worrying about
+             * timestamps for now.  length of  pts_fab is 3N for N
+             * points.
              */
-            void addPointsUnstamped(const hrl_msgs::FloatArrayBare pt_list);
+            void addPointsUnstamped(const hrl_msgs::FloatArrayBare pts_fab);
+
+            /**
+             * @brief add list of points (in a std vector of doubles)
+             * to the occupancy grid. Not worrying about timestamps
+             * for now.  length of  pts_vec is 3N for N points.
+             */
+            void addPointsUnstamped(const std::vector<double> pts_vec);
 
             /**
              * @brief cube markers for cells that have occupancy count >=1
@@ -68,6 +78,9 @@ namespace occupancy_grid
             ros::Publisher marker_pub_;
 
             void publishMarkerArray_simple_cb(const std_msgs::Empty::ConstPtr& msg);
+
+            bool addPointsUnstamped_srv(hrl_srvs::FloatArray_None::Request &req,
+                                        hrl_srvs::FloatArray_None::Response &res);
     };
 };
 

@@ -44,9 +44,18 @@ namespace occupancy_grid
         sub_cmd_viz_simple_ = nh_.subscribe("cmd/viz_simple", 5,
                                     &OccupancyGrid::publishMarkerArray_simple_cb,
                                     this);
+        // ROS service to add points to the occupancy grid.
+        nh_.advertiseService("add_points_unstamped",
+                             &OccupancyGrid::addPointsUnstamped_srv,
+                             this);
     }
 
-    void OccupancyGrid::addPointsUnstamped(const hrl_msgs::FloatArrayBare pt_list)
+    void OccupancyGrid::addPointsUnstamped(const hrl_msgs::FloatArrayBare pts_fab)
+    {
+        addPointsUnstamped(pts_fab.data);
+    }
+
+    void OccupancyGrid::addPointsUnstamped(const std::vector<double> pts_vec)
     {
         float x, y, z;
         int idx_x, idx_y, idx_z;
@@ -54,11 +63,11 @@ namespace occupancy_grid
         float min_y = center_y_ - size_y_ / 2;
         float min_z = center_z_ - size_z_ / 2;
 
-        for (size_t i = 0; i < pt_list.data.size(); i=i+3)
+        for (size_t i = 0; i < pts_vec.size(); i=i+3)
         {
-            x = pt_list.data[i];
-            y = pt_list.data[i+1];
-            z = pt_list.data[i+2];
+            x = pts_vec[i];
+            y = pts_vec[i+1];
+            z = pts_vec[i+2];
 
             idx_x = int( (x - min_x) / res_x_ + 0.5);
             idx_y = int( (y - min_y) / res_y_ + 0.5);
@@ -119,6 +128,14 @@ namespace occupancy_grid
     {
         publishMarkerArray_simple();
     }
+
+    bool OccupancyGrid::addPointsUnstamped_srv(hrl_srvs::FloatArray_None::Request &req,
+                                               hrl_srvs::FloatArray_None::Response &res)
+    {
+        addPointsUnstamped(req.val);
+        return true;
+    }
+
 
     //------------------ Simple Accessor Functions -----------------
 
