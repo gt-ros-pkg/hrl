@@ -75,6 +75,7 @@ namespace occupancy_grid
             // ROS stuff
             ros::NodeHandle nh_;
             ros::Subscriber sub_cmd_viz_simple_;
+            ros::ServiceServer srv_add_points_unstamped_;
             ros::Publisher marker_pub_;
 
             void publishMarkerArray_simple_cb(const std_msgs::Empty::ConstPtr& msg);

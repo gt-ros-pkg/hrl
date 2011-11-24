@@ -45,9 +45,9 @@ namespace occupancy_grid
                                     &OccupancyGrid::publishMarkerArray_simple_cb,
                                     this);
         // ROS service to add points to the occupancy grid.
-        nh_.advertiseService("add_points_unstamped",
-                             &OccupancyGrid::addPointsUnstamped_srv,
-                             this);
+        srv_add_points_unstamped_ = nh_.advertiseService("srv/add_points_unstamped",
+                                             &OccupancyGrid::addPointsUnstamped_srv,
+                                             this);
     }
 
     void OccupancyGrid::addPointsUnstamped(const hrl_msgs::FloatArrayBare pts_fab)

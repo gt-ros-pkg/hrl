@@ -17,29 +17,29 @@ int main (int argc, char *argv[])
     fa.data.push_back(0.);
     fa.data.push_back(1.);
 
-    fa.data.push_back(0.6);
-    fa.data.push_back(0.);
-    fa.data.push_back(1.);
-
-    fa.data.push_back(0.4);
-    fa.data.push_back(0.);
-    fa.data.push_back(1.);
-
-    fa.data.push_back(0.5);
-    fa.data.push_back(0.1);
-    fa.data.push_back(1.);
-
-    fa.data.push_back(0.5);
-    fa.data.push_back(-0.1);
-    fa.data.push_back(1.);
-
-    fa.data.push_back(0.5);
-    fa.data.push_back(0.);
-    fa.data.push_back(1.1);
-
-    fa.data.push_back(0.5);
-    fa.data.push_back(0.);
-    fa.data.push_back(0.9);
+//    fa.data.push_back(0.6);
+//    fa.data.push_back(0.);
+//    fa.data.push_back(1.);
+//
+//    fa.data.push_back(0.4);
+//    fa.data.push_back(0.);
+//    fa.data.push_back(1.);
+//
+//    fa.data.push_back(0.5);
+//    fa.data.push_back(0.1);
+//    fa.data.push_back(1.);
+//
+//    fa.data.push_back(0.5);
+//    fa.data.push_back(-0.1);
+//    fa.data.push_back(1.);
+//
+//    fa.data.push_back(0.5);
+//    fa.data.push_back(0.);
+//    fa.data.push_back(1.1);
+//
+//    fa.data.push_back(0.5);
+//    fa.data.push_back(0.);
+//    fa.data.push_back(0.9);
 
     og.addPointsUnstamped(fa);
 
