@@ -52,11 +52,12 @@ def legend(loc='best',display_mode='normal', draw_frame = True,
     params = {'legend.fontsize': 10}
     pl.rcParams.update(params)
     if display_mode == 'normal':
-        leg = pl.legend(loc=loc, markerscale=0.)
+        leg = pl.legend(loc=loc)
+        leg.draw_frame(draw_frame)
     elif display_mode == 'less_space':
         leg = pl.legend(loc=loc,handletextpad=0.7,handlelength=handlelength,labelspacing=0.01,
-                markerscale=0.)
-    leg.draw_frame(draw_frame)
+                        markerscale=0.5)
+        leg.draw_frame(draw_frame)
 
 ##
 # generate a random color.
