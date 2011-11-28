@@ -1,0 +1,8 @@
+cloud_sources:
+- name: /camera/rgb/object_modeling_points_filtered
+frame_subsample: 1
+point_subsample: 1
+sensor_frame: openni_rgb_optical_frame
+dynamic_publish: false
+static_publish: true
+dynamic_until_static_publish: true
