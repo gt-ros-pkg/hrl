@@ -1,7 +1,8 @@
 #define DEBUG_DRAW_TABLE_MARKERS
 #define DEBUG_DRAW_TABLETOP_OBJECTS
 
-#define FINGERTIP_CONTACT_THRESHOLD 150
+
+#define END_EFFECTOR_OFFSET 0.175
 
 #include <plane_extractor.h>
 
@@ -120,6 +121,7 @@ private:
   bool right_arm_end_eff_goal_resulted;
   bool robot_initialized;
   double hist_interval;
+  double FINGERTIP_CONTACT_THRESHOLD;
 public:
   ros::NodeHandle n_;
   ros::Publisher filtered_cloud_pub_;
@@ -138,12 +140,12 @@ book_stacking():
  ROS_INFO("before InitializeRobot");
  InitializeRobot();
 
-/*
+
   TestArm();
   TestArm2();
   traj_right_arm_client_->sendGoal(rightArmHomingTrajectory);
   traj_right_arm_client_->waitForResult();
- */
+
 
 //robot_initialized=true; 
 
@@ -182,22 +184,22 @@ void commandCallback  (const std_msgs::String::ConstPtr& msg)
                         traj_right_arm_client_->waitForResult();
 			break;
 			case 'f':
-			  MoveEndEffectorLinear(0.0,0.15,0.0,0.15,true);
+			  MoveEndEffectorLinear(0.0,0.15,0.0,true,0.15,true);
 			break;
 			case 'g':
-			  MoveEndEffectorLinear(0.0,-0.15,0.0,0.15,true);
+			  MoveEndEffectorLinear(0.0,-0.15,0.0,true,0.15,true);
 			break;
 			case 'h':
-			  MoveEndEffectorLinear(0.15,0.0,0.0,0.15,true);
+			  MoveEndEffectorLinear(0.15,0.0,0.0,true,0.15,true);
 			break;
 			case 'i':
-			  MoveEndEffectorLinear(-0.15,0.0,0.0,0.15,true);
+			  MoveEndEffectorLinear(-0.15,0.0,0.0,true,0.15,true);
 			break;
 			case 'j':
-			  MoveEndEffectorLinear(0.0,0.0,0.15,0.15,true);
+			  MoveEndEffectorLinear(0.0,0.0,0.15,true,0.15,true);
 			break;
 			case 'k':
-			  MoveEndEffectorLinear(0.0,0.0,-0.15,0.15,true);
+			  MoveEndEffectorLinear(0.0,0.0,-0.15,true,0.15,true);
 			break;
 			default:
 			  break;
@@ -331,7 +333,7 @@ right_arm_fingertips_nominals=true;
 right_arm_fingertips_contacted=false;
 right_arm_end_eff_goal_resulted=false;
 left_arm_fingertips_sensing=false;
-
+FINGERTIP_CONTACT_THRESHOLD=150.0;
 
 ROS_INFO("Subs/Pubs Initialized..");
 }
@@ -530,7 +532,7 @@ return true;
 
 
 
-double MoveEndEffectorLinear(double dx,double dy,double dz, double speed, bool move_as_much_you_can)
+double MoveEndEffectorLinear(double dx,double dy,double dz, bool stop_when_contact, double speed, bool move_as_much_you_can)
 {
   double current_angles[7];
   double solution_angles[7];
@@ -596,7 +598,7 @@ std::cout<<std::endl;
 
       double t=path_distance/speed;
       pr2_controllers_msgs::JointTrajectoryGoal traj=createRightArmTrajectoryFromAngles(solution_angles,t);
-      SendRightEndEffectorTrajectory(traj,true);
+      SendRightEndEffectorTrajectory(traj,stop_when_contact);
       return path_distance;
     }
 else
@@ -807,7 +809,94 @@ void lookAt(std::string frame_id, double x, double y, double z)
     }
   }
 
+bool dragObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3Stamped dir,double dist)
+{
+    XYZPointCloud obj_cloud_wrt_torso_lift_link;
+    XYZPointCloud raw_cloud;
+    pcl::fromROSMsg(objInfo.cloud,raw_cloud);
 
+    //Transform it to torso_lift_link
+    tf::StampedTransform transf;
+    try{
+      tf_listener.waitForTransform("torso_lift_link", raw_cloud.header.frame_id,
+				   objInfo.cloud.header.stamp, ros::Duration(2.0));
+      tf_listener.lookupTransform("torso_lift_link", raw_cloud.header.frame_id,
+				  objInfo.cloud.header.stamp, transf);
+    }
+    catch(tf::TransformException ex)
+    {
+      ROS_ERROR("can't transform to torso_lift_link:%s", ex.what());
+      return false;
+    }    
+    tf::Vector3 v3 = transf.getOrigin();
+    tf::Quaternion quat = transf.getRotation();
+    Eigen::Quaternionf rot(quat.w(), quat.x(), quat.y(), quat.z());
+    Eigen::Vector3f offset(v3.x(), v3.y(), v3.z());
+    pcl::transformPointCloud(raw_cloud,obj_cloud_wrt_torso_lift_link,offset,rot);
+    obj_cloud_wrt_torso_lift_link.header = raw_cloud.header;
+    obj_cloud_wrt_torso_lift_link.header.frame_id = "torso_lift_link";
+
+
+
+  geometry_msgs::PointStamped input_point;
+  geometry_msgs::PointStamped obj_centroid_wrt_torso_lift_link;
+  input_point.header.frame_id=objInfo.header.frame_id;
+  input_point.point.x=objInfo.centroid.x;
+  input_point.point.y=objInfo.centroid.y;
+  input_point.point.z=objInfo.centroid.z;
+  tf_listener.transformPoint("torso_lift_link", input_point, obj_centroid_wrt_torso_lift_link);
+
+
+
+
+    geometry_msgs::PoseStamped tpose;
+    tpose.header.frame_id="torso_lift_link";
+    tpose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,M_PI/2,0.0);
+    tpose.pose.position.x=obj_centroid_wrt_torso_lift_link.point.x;
+    tpose.pose.position.y=obj_centroid_wrt_torso_lift_link.point.y;
+    tpose.pose.position.z=obj_centroid_wrt_torso_lift_link.point.z+END_EFFECTOR_OFFSET;
+
+bool ik_sln_found=false;
+  double current_angles[7];
+  double solution_angles[7];
+  get_current_joint_angles(current_angles);
+std::string link_name="r_wrist_roll_link";
+
+  visualization_msgs::Marker mr;
+  mr.header.frame_id=tpose.header.frame_id;
+  mr.header.stamp=ros::Time::now();
+  mr.type=visualization_msgs::Marker::ARROW;
+  mr.action=visualization_msgs::Marker::ADD;
+  mr.pose=tpose.pose;
+  mr.scale.x=0.06;
+  mr.scale.y=0.06;
+  mr.scale.z=0.06;
+  mr.color.a=1.0;
+  mr.color.r=1.0;
+  mr.color.g=0.3;
+  mr.color.b=1.0;
+  vis_pub_.publish(mr); 
+  if (run_ik(tpose,current_angles,solution_angles,link_name,ik_solver_info))
+  {
+   ik_sln_found=true;
+  }
+
+if(ik_sln_found)
+{
+      pr2_controllers_msgs::JointTrajectoryGoal traj=createRightArmTrajectoryFromAngles(solution_angles,5.0);
+      if(SendRightEndEffectorTrajectory(traj,true))
+	{
+    	FINGERTIP_CONTACT_THRESHOLD=500.0;
+	MoveEndEffectorLinear(0.0,0.0,-0.10,true,0.15,true);
+	FINGERTIP_CONTACT_THRESHOLD=150.0;
+	MoveEndEffectorLinear(dist*dir.vector.x,dist*dir.vector.y,dist*dir.vector.z,false,0.15,true);
+	}
+}
+
+
+
+return false;
+}
 
 bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3Stamped dir,double dist)
 {
@@ -1262,6 +1351,11 @@ ROS_INFO("PT CLOUD");
     
 book_stacking_msgs::PlaneInfo table_plane_info;
 bool gotPlane=getTablePlane(cloud,table_plane_info);
+if(!gotPlane)
+{
+ROS_INFO("No table found");
+return;
+}
 
 if(gotPlane)
 {
@@ -1302,8 +1396,11 @@ if(gotPlane)
 	pushVector.vector.x=0.0;
 	pushVector.vector.y=1.0;
 	pushVector.vector.z=0.0;
+	double pushDistance=0.15;
 
-	pushObject(pushedObjectInfo,pushVector, 0.15);
+	//pushObject(pushedObjectInfo,pushVector, pushDistance);
+
+	dragObject(pushedObjectInfo,pushVector,pushDistance);
 	robot_initialized=false;
 
 
