@@ -16,8 +16,10 @@ namespace occupancy_grid
     OccupancyGrid::OccupancyGrid(float center_x, float center_y, float center_z,
                                  float size_x, float size_y, float size_z,
                                  float res_x, float res_y, float res_z) :
-                                 nh_ ("~")
+                                 nh_("~")
     {
+//        nh_ = nh;
+
         nx_ = int (size_x / res_x + 0.5);
         ny_ = int (size_y / res_y + 0.5);
         nz_ = int (size_z / res_z + 0.5);
