@@ -69,11 +69,11 @@ if __name__ == '__main__':
     path = sys.argv[1]
     print "path is :", path
 
-    for i in xrange(1):
+    for i in xrange(9):
         j = 0
         dist_dict = {}
         f_hand = open(path+'/object'+str(i).zfill(3)+'_gripper_dist.pkl', 'w')
-        while j < 2: #os.path.isfile(path + '/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'.bag') == True: #j < 999:
+        while os.path.isfile(path + '/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'.bag') == True: #j < 999:
             f_path = path + '/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'.bag'
             os.system('rosbag play '+ f_path + ' &')
             dist_ls, time_ls = get_data(listener, rate)
