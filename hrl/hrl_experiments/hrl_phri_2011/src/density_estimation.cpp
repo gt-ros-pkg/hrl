@@ -59,6 +59,7 @@ int main(int argc, char **argv)
     head_pc = pc_list[0];
     head_kd_tree.setInputCloud(head_pc);
 
+    // Read in all of the data sets for each user
     for(int i=2;i<argc-1;i++) {
         pc_list.clear();
         readBagTopic<PCRGB>(argv[i], pc_list, "/data_cloud");
@@ -78,7 +79,11 @@ int main(int argc, char **argv)
     double exp_val;
     double force_var, cur_force_err;
     PRGB pt;
+    /**
+      TODO - Break this down into mulitple functions. Screw optimization - Kelsey
+    **/
     for(size_t i=0;i<head_pc->size();i++) {
+        // for each point in the visualization cloud
         joint_kern_val = 0;
         pos_kern_val = 0;
         exp_val = 0;
@@ -87,16 +92,35 @@ int main(int argc, char **argv)
         pt.y = head_pc->points[i].y;
         pt.z = head_pc->points[i].z;
         for(size_t k=0;k<data_kd_trees.size();k++) {
+            // for each user's data set
+
             data_kd_trees[k]->radiusSearch(*head_pc, i, pilot_ph * 3, inds, dists);
+            // find all data points in this user's data set near the test point
+            // dists contains distances squared to the nearest points
+
             if(dists.size() != 0) {
+                // there are data points nearby
+
                 double user_joint_kern_val = 0, user_pos_kern_val = 0, user_exp_val = 0, user_force_var = 0;
                 for(size_t j=0;j<dists.size();j++) {
-                    cur_force = data_pcs[k]->points[inds[j]].rgb;
+                    // for every point in this user's data set near the test point
+
+                    cur_force = data_pcs[k]->points[inds[j]].rgb; // current y_i
+                    
                     joint_cur_dist = dists[j] / SQ(pilot_ph) + 
                                SQ(target_force - cur_force) / SQ(pilot_fh);
+                    // joint probability distance = p^2 / ph^2 + f^2 / fh^2
+
                     pos_cur_dist = dists[j] / SQ(pilot_ph);
+                    // position distance = p^2 / ph^2
+
                     user_joint_kern_val += exp(- 0.5 * joint_cur_dist) / (SQ(pilot_ph) * pilot_ph * pilot_fh);
+                    // kernel value for joint distribution
+                    // there is one h in the denominator for each dimension in the numerator (4)
+
                     cur_pos_kern_val = exp(- 0.5 * pos_cur_dist) / (SQ(pilot_ph) * pilot_ph);
+                    // kernel value for the position distribution
+
                     user_pos_kern_val += cur_pos_kern_val;
                     user_exp_val += cur_pos_kern_val * cur_force;
                 }
