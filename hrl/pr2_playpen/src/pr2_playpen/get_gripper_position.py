@@ -75,7 +75,7 @@ if __name__ == '__main__':
         f_hand = open(path+'/object'+str(i).zfill(3)+'_gripper_dist.pkl', 'w')
         while os.path.isfile(path + '/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'.bag') == True: #j < 999:
             f_path = path + '/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'.bag'
-            os.system('rosbag play '+ f_path + ' &')
+            os.system('rosbag play -r 2 '+ f_path + ' &')
             dist_ls, time_ls = get_data(listener, rate)
             dist_dict['try'+str(j).zfill(3)] = {'dist':dist_ls, 'time':time_ls}                
             j = j+1
