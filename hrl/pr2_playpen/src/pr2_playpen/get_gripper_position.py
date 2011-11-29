@@ -26,7 +26,7 @@ def get_data(listener, rate):
     dist_ls = []
     time_ls = []
 
-    while is_topic_pub('/tf') == False:
+    while is_topic_pub('/r_overhead_grasp/feedback') == False and is_topic_pub('/l_overhead_grasp/feedback') == False:
         print "waiting for bag file"
         rate.sleep()
 
