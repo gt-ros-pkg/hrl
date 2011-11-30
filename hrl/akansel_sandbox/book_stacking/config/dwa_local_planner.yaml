@@ -1,0 +1,11 @@
+max_vel_x: 0.45
+min_vel_x: 0.0
+
+max_trans_vel: 0.45
+min_trans_vel: 0.05
+
+max_rot_vel: 1.0
+min_rot_vel: 0.25
+
+xy_goal_tolerance: 0.08
+yaw_goal_tolerance: 0.02
