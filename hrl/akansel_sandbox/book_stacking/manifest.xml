@@ -18,6 +18,9 @@
   <depend package="pr2_arm_navigation_actions"/>
   <depend package="pr2_arm_navigation_filtering"/>
   <depend package="pr2_arm_navigation_kinematics"/>
+  <depend package="pr2_machine"/>
+  <depend package="pr2_navigation_config"/>
+  <depend package="pr2_move_base"/>
   <depend package="pr2_controllers_msgs"/>
   <depend package="pr2_msgs"/>
   <depend package="pr2_gazebo"/>
@@ -33,7 +36,8 @@
   <depend package="robot_self_filter"/>
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
-
+  <depend package="move_base"/>
+  <depend package="topic_tools"/>
 </package>
 
 

@@ -8,6 +8,7 @@
  <arg name="use_real_robot" default="true"/>
  <!--<env name="ROBOT" value="$(arg use_real_robot)"/>-->
 
+ <include file="$(find pr2_machine)/$(env ROBOT).machine" />
  <include unless="$(arg use_real_robot)" file="$(find pr2_gazebo)/pr2.launch"/>
 
    <node machine="c2" pkg="pr2_arm_kinematics_constraint_aware" type="pr2_arm_kinematics_constraint_aware" name="pr2_right_arm_kinematics" output="screen">    
@@ -87,6 +88,9 @@
     <param name="use_monitor" type="bool" value="true"/>
     <param name="use_collision_map" type="bool" value="true"/>
   </include>
+
+  <include file="$(find book_stacking)/config/move_base_local.xml" />
+
 
      <node pkg="book_stacking" type="book_stacking" name="book_stacking" output="screen">
 <param name="filter_spatial_zmax" value="1.5" type="double"/>

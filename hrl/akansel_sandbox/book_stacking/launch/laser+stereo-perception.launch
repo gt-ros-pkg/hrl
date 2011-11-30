@@ -1,7 +1,7 @@
 <launch>
     <arg name="use_camera_in_collider" default="true" />
 
-  <include file="$(find pr2_machine)/$(env ROBOT).machine" />
+
   
   <include file="$(find rgbd_assembler)/launch/openni_node.launch"/>
   
