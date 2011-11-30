@@ -160,12 +160,12 @@ book_stacking():
  ROS_INFO("before InitializeRobot");
  InitializeRobot();
 
-
+/*
   TestArm();
-  //TestArm2();
+  TestArm2();
   traj_right_arm_client_->sendGoal(rightArmHomingTrajectory);
   traj_right_arm_client_->waitForResult();
-
+*/
 
 //robot_initialized=true; 
 
@@ -262,28 +262,28 @@ switch (key0)
 			case 'l':
 			  goal.target_pose.header.frame_id="base_link";
 			  goal.target_pose.header.stamp=ros::Time::now();
-			  goal.target_pose.pose.position.x = 0.1;
+			  goal.target_pose.pose.position.x = 0.25;
 			  goal.target_pose.pose.orientation.w = 1.0;
 			  MoveBasePosition(goal);
 			  break;
 			case 'm':
 			  goal.target_pose.header.frame_id="base_link";
 			  goal.target_pose.header.stamp=ros::Time::now();
-			  goal.target_pose.pose.position.x = -0.1;
+			  goal.target_pose.pose.position.x = -0.25;
 			  goal.target_pose.pose.orientation.w = 1.0;
 			  MoveBasePosition(goal);
 			  break;
 			case 'n':
 			  goal.target_pose.header.frame_id="base_link";
 			  goal.target_pose.header.stamp=ros::Time::now();
-			  goal.target_pose.pose.position.y = 0.1;
+			  goal.target_pose.pose.position.y = 0.25;
 			  goal.target_pose.pose.orientation.w = 1.0;
 			  MoveBasePosition(goal);
 			  break;
 			case 'o':
 			  goal.target_pose.header.frame_id="base_link";
 			  goal.target_pose.header.stamp=ros::Time::now();
-			  goal.target_pose.pose.position.y = -0.1;
+			  goal.target_pose.pose.position.y = -0.25;
 			  goal.target_pose.pose.orientation.w = 1.0;
 			  MoveBasePosition(goal);
 			  break;
@@ -302,7 +302,7 @@ switch (key0)
   {
     ROS_INFO("Sending move_base goal");
     move_base_client_->sendGoal(goal);
-    move_base_client_->waitForResult();
+    move_base_client_->waitForResult(ros::Duration(3.0));
     if(move_base_client_->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
       return true;
     else
@@ -317,14 +317,15 @@ switch (key0)
     arm_config_7DOF q_seed=GetCurrentRightArmJointAngles();
     arm_config_7DOF q_solution;
     geometry_msgs::PoseStamped target_pose;
-    double x_res=0.1;
-    double y_res=0.1;
-    double z_res=0.1;
+    double x_res=0.02;
+    double y_res=0.02;
+    double z_res=0.02;
     for(double ix=0.2;ix<1.2;ix=ix+x_res)
       {
+		std::cout<<(double)ix<<std::endl;
 	for(double iy=-1.2;iy<0.3;iy=iy+y_res)
 	  {
-	    for(double iz=-0.5;iz<0.5;iz=iz+z_res)
+	    for(double iz=-0.8;iz<0.5;iz=iz+z_res)
 	      {
 		geometry_msgs::PoseStamped tpose;
 		tpose.header.frame_id=TORSO_LIFT_LINK_STR;
@@ -338,6 +339,7 @@ switch (key0)
 	  }
       }
     logFile.close();
+    ROS_INFO("Log IK finished");
   }
 
 
@@ -642,7 +644,7 @@ return true;
   ik_request.ik_request.ik_seed_state.joint_state.position[i] = q_seed.angles[i];
   }
 
-    ROS_INFO("request pose: %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f", pose.pose.position.x, pose.pose.position.y, pose.pose.position.z, pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
+    //ROS_INFO("request pose: %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f", pose.pose.position.x, pose.pose.position.y, pose.pose.position.z, pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
 
     bool ik_service_call = ik_client_right.call(ik_request,ik_response);
     if(!ik_service_call)
@@ -656,15 +658,16 @@ return true;
 	{
         q_solution.angles[i] = ik_response.solution.joint_state.position[i];
         }
-      ROS_INFO("solution angles: %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f", 
+      /*ROS_INFO("solution angles: %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f", 
              q_solution.angles[0],q_solution.angles[1], q_solution.angles[2],q_solution.angles[3],
-             q_solution.angles[4],q_solution.angles[5], q_solution.angles[6]);
+             q_solution.angles[4],q_solution.angles[5], q_solution.angles[6]);*/
+
       //ROS_INFO("IK service call succeeded");
       return true;
     }
    else
     {
-      ROS_ERROR("run_ik no solution");
+      //ROS_ERROR("run_ik no solution");
       return false;
     }
 return true;

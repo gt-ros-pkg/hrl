@@ -1,6 +1,6 @@
 <launch>
     <!-- Bring up the tilt_laser aware version of move_base -->
-  <!--<node pkg="pr2_move_base" name="pr2_move_base_node" type="pr2_move_base.py" machine="c2" output="screen">
+<!--<node pkg="pr2_move_base" name="pr2_move_base_node" type="pr2_move_base.py" machine="c2" output="screen">
     <remap from="move_base/goal" to="move_base_local/goal" />
     <remap from="move_base/result" to="move_base_local/result" />
     <remap from="move_base/feedback" to="move_base_local/feedback" />
@@ -27,17 +27,29 @@
     <!-- Use the dwa local planner for the PR2 -->
     <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS" />
 
-    <!-- Load common configuration files -->
+
+    <rosparam file="$(find book_stacking)/config/move_base_params.yaml" command="load" />
+    <rosparam file="$(find book_stacking)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find book_stacking)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find book_stacking)/config/dwa_local_planner.yaml" command="load" ns="DWAPlannerROS" />
+    <rosparam file="$(find book_stacking)/config/recovery_behaviors.yaml" command="load" />
+    <rosparam file="$(find book_stacking)/config/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find book_stacking)/config/local_costmap_params.yaml" command="load"  />
+
+
+<!--
     <rosparam file="$(find pr2_navigation_config)/move_base/move_base_params.yaml" command="load" />
     <rosparam file="$(find pr2_navigation_config)/move_base/costmap_common_params.yaml" command="load" ns="global_costmap" />
     <rosparam file="$(find pr2_navigation_config)/move_base/costmap_common_params.yaml" command="load" ns="local_costmap" />
     <rosparam file="$(find pr2_navigation_config)/move_base/dwa_local_planner.yaml" command="load" ns="DWAPlannerROS" />
     <rosparam file="$(find pr2_navigation_config)/move_base/recovery_behaviors.yaml" command="load" />
 
-    <!-- Load local navigation specific parameters -->
-    <rosparam file="$(find book_stacking)/config/move_base_params.yaml" command="load" />
-    <rosparam file="$(find book_stacking)/config/global_costmap_params.yaml" command="load" />
-    <rosparam file="$(find book_stacking)/config/local_costmap_params.yaml" command="load"  />
-    <rosparam file="$(find book_stacking)/config/dwa_local_planner.yaml" command="load"  ns="DWAPlannerROS" />
+    <rosparam file="$(find pr2_navigation_local)/config/move_base_params.yaml" command="load" />
+    <rosparam file="$(find pr2_navigation_local)/config/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find pr2_navigation_local)/config/local_costmap_params.yaml" command="load"  />
+    <rosparam file="$(find pr2_navigation_local)/config/dwa_local_planner.yaml" command="load"  ns="DWAPlannerROS" />-->
+
+
+
   </node>
 </launch>

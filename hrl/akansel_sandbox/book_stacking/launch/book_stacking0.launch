@@ -89,10 +89,13 @@
     <param name="use_collision_map" type="bool" value="true"/>
   </include>
 
+  <include file="$(find pr2_navigation_teleop)/teleop.xml" />
+  <include file="$(find pr2_navigation_perception)/lasers_and_filters.xml" />
+  <include file="$(find pr2_navigation_perception)/ground_plane.xml" />
   <include file="$(find book_stacking)/config/move_base_local.xml" />
 
 
-     <node pkg="book_stacking" type="book_stacking" name="book_stacking" output="screen">
+   <node pkg="book_stacking" type="book_stacking" name="book_stacking" output="screen">
 <param name="filter_spatial_zmax" value="1.5" type="double"/>
 <param name="filter_spatial_zmin" value="0.5" type="double"/>
 <param name="filter_spatial_xmax" value="1.5" type="double"/>
