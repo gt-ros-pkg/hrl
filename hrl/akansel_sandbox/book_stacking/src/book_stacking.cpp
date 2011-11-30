@@ -444,7 +444,7 @@ ROS_INFO("Before service clients");
       ROS_INFO("Waiting for the move_left_arm server to come up");
     }
 
- move_base_client_ = new MoveBaseClient("move_base",true);  
+ move_base_client_ = new MoveBaseClient("move_base_local",true);  
   while(!move_base_client_->waitForServer(ros::Duration(5.0)))
     {
       ROS_INFO("Waiting for the move_base server to come up");
