@@ -94,6 +94,10 @@
   <include file="$(find pr2_navigation_perception)/ground_plane.xml" />
   <include file="$(find book_stacking)/config/move_base_local.xml" />
 
+	<node pkg="omnix" type="move_omni_base" name="omnix_node" output="screen">
+	      <remap from="move_base" to="move_omni_base" />
+	      <remap from="cmd_vel" to="/navigation/cmd_vel" />
+	</node>
 
    <node pkg="book_stacking" type="book_stacking" name="book_stacking" output="screen">
 <param name="filter_spatial_zmax" value="1.5" type="double"/>

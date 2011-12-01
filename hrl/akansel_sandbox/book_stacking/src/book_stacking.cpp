@@ -5,6 +5,8 @@
 #define END_EFFECTOR_OFFSET 0.175
 
 #include <plane_extractor.h>
+//#include <omnix/move_omni_base.h>
+#include "/u/akansel/gt-ros-pkg/akansel_sandbox/omnix/include/omnix/move_omni_base.h"
 
 //ROS
 #include <ros/ros.h>
@@ -102,6 +104,7 @@ private:
   ArmActionClient *move_right_arm_client_;
   ArmActionClient *move_left_arm_client_;
   MoveBaseClient *move_base_client_;
+  MoveBaseClient *omnix_move_base_client_;
   tf::TransformListener tf_listener;
 
 
@@ -155,9 +158,7 @@ book_stacking():
   n_("~")
 {
  robot_initialized=false;
- ROS_INFO("before LoadParamteres");
  LoadParameters();
- ROS_INFO("before InitializeRobot");
  InitializeRobot();
 
 /*
@@ -260,32 +261,52 @@ switch (key0)
 			  SendRightEndEffectorTrajectory(output_traj,stop_when_contact);
 			  break;
 			case 'l':
-			  goal.target_pose.header.frame_id="base_link";
-			  goal.target_pose.header.stamp=ros::Time::now();
+			  goal.target_pose.header.frame_id="base_link";			  
 			  goal.target_pose.pose.position.x = 0.25;
+			  goal.target_pose.pose.position.y = 0.0;
+			  goal.target_pose.pose.position.z = 0.0;
+			  goal.target_pose.pose.orientation.x = 0.0;
+			  goal.target_pose.pose.orientation.y = 0.0;
+			  goal.target_pose.pose.orientation.z = 0.0;
 			  goal.target_pose.pose.orientation.w = 1.0;
-			  MoveBasePosition(goal);
+			  goal.target_pose.header.stamp=ros::Time::now();
+			  OmnixMoveBasePosition(goal);				
 			  break;
 			case 'm':
-			  goal.target_pose.header.frame_id="base_link";
-			  goal.target_pose.header.stamp=ros::Time::now();
+			  goal.target_pose.header.frame_id="base_link";			  
 			  goal.target_pose.pose.position.x = -0.25;
+			  goal.target_pose.pose.position.y = 0.0;
+			  goal.target_pose.pose.position.z = 0.0;
+			  goal.target_pose.pose.orientation.x = 0.0;
+			  goal.target_pose.pose.orientation.y = 0.0;
+			  goal.target_pose.pose.orientation.z = 0.0;
 			  goal.target_pose.pose.orientation.w = 1.0;
-			  MoveBasePosition(goal);
+			  goal.target_pose.header.stamp=ros::Time::now();
+			  OmnixMoveBasePosition(goal);
 			  break;
 			case 'n':
-			  goal.target_pose.header.frame_id="base_link";
-			  goal.target_pose.header.stamp=ros::Time::now();
+			  goal.target_pose.header.frame_id="base_link";			  
+			  goal.target_pose.pose.position.x = 0.0;
 			  goal.target_pose.pose.position.y = 0.25;
+			  goal.target_pose.pose.position.z = 0.0;
+			  goal.target_pose.pose.orientation.x = 0.0;
+			  goal.target_pose.pose.orientation.y = 0.0;
+			  goal.target_pose.pose.orientation.z = 0.0;
 			  goal.target_pose.pose.orientation.w = 1.0;
-			  MoveBasePosition(goal);
+			  goal.target_pose.header.stamp=ros::Time::now();
+			  OmnixMoveBasePosition(goal);
 			  break;
 			case 'o':
-			  goal.target_pose.header.frame_id="base_link";
-			  goal.target_pose.header.stamp=ros::Time::now();
+			  goal.target_pose.header.frame_id="base_link";			  
+			  goal.target_pose.pose.position.x = 0.0;
 			  goal.target_pose.pose.position.y = -0.25;
+			  goal.target_pose.pose.position.z = 0.0;
+			  goal.target_pose.pose.orientation.x = 0.0;
+			  goal.target_pose.pose.orientation.y = 0.0;
+			  goal.target_pose.pose.orientation.z = 0.0;
 			  goal.target_pose.pose.orientation.w = 1.0;
-			  MoveBasePosition(goal);
+			  goal.target_pose.header.stamp=ros::Time::now();
+			  OmnixMoveBasePosition(goal);
 			  break;
 			case 'p':
 			  log_IK();
@@ -309,6 +330,42 @@ switch (key0)
       return false;
   }
 
+bool OmnixMoveBasePosition(move_base_msgs::MoveBaseGoal goal) //goal is in base_link. Converting to /odom_combined
+  {
+  move_base_msgs::MoveBaseGoal output_goal;  
+  geometry_msgs::PoseStamped output_pose_stamped;  
+  
+    //Transform it to torso_lift_link
+    tf::StampedTransform transf;
+    try{
+      tf_listener.waitForTransform("odom_combined", goal.target_pose.header.frame_id,
+				   goal.target_pose.header.stamp, ros::Duration(2.0));
+      tf_listener.lookupTransform("odom_combined", goal.target_pose.header.frame_id,
+				  goal.target_pose.header.stamp, transf);
+    }
+    catch(tf::TransformException ex)
+    {
+      ROS_ERROR("can't transform to torso_lift_link:%s", ex.what());
+      return false;
+    }
+
+tf_listener.transformPose("odom_combined", goal.target_pose, output_pose_stamped);
+    output_goal.target_pose=output_pose_stamped;
+
+    //ROS_INFO("Sending omnix_move_base goal");
+    omnix_move_base_client_->sendGoal(output_goal);
+    omnix_move_base_client_->waitForResult(ros::Duration(30.0));
+    if(omnix_move_base_client_->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
+      {
+			ROS_INFO("Omni move_base Goal Succeeded");
+			return true;
+			}
+    else
+		{
+			ROS_INFO("Omni move_base Goal Aborted");
+      return false;
+		}
+  }
 
   void log_IK()
   {
@@ -405,7 +462,7 @@ bool callQueryIK(kinematics_msgs::GetKinematicSolverInfo::Response &response)
 */
 
 
-//ROS_INFO("Before subscriptions");
+
  point_cloud_sub_=n_.subscribe("/assembled_pt_cloud2_self_filtered",1,&book_stacking::KinectCallback,this);
  filtered_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud2>("filtered_cloud",1);
  plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("akans_plane_marker_array",1);
@@ -415,8 +472,6 @@ command_subscriber_=n_.subscribe<std_msgs::String>("/command_generator_PR2_topic
 r_fingertip_sub_=n_.subscribe("/pressure/r_gripper_motor",1,&book_stacking::FingertipRightCallback,this);
 l_fingertip_sub_=n_.subscribe("/pressure/l_gripper_motor",1,&book_stacking::FingertipLeftCallback,this);
 
-
-ROS_INFO("Before service clients");
   traj_right_arm_client_=new TrajClient("r_arm_controller/joint_trajectory_action", true);
  while(!traj_right_arm_client_->waitForServer(ros::Duration(5.0)))
     {
@@ -452,19 +507,22 @@ ROS_INFO("Before service clients");
       ROS_INFO("Waiting for the move_base server to come up");
     }
 
+ omnix_move_base_client_ = new MoveBaseClient("move_omni_base",true);  
+  while(!move_base_client_->waitForServer(ros::Duration(5.0)))
+    {
+      ROS_INFO("Waiting for the move_omni_base server to come up");
+    }
+
     laser_assembler_client = root_handle_.serviceClient<laser_assembler::AssembleScans>("assemble_scans");
     tilting_pt_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud> ("/assembled_pt_cloud_raw", 5);
 
-
-//ROS_INFO("Before CallQuery");
  callQueryIK(ik_solver_info);
  callQueryFK(fk_solver_info);
   	
 
-//ROS_INFO("Before moveTorso");
  moveTorsoToPosition(0.2);//0.3
  lookAt("base_link", 1.0, 0.0, 0.0);
-  rightArmHomingTrajectory=createRightArmHomingTrajectory();
+ rightArmHomingTrajectory=createRightArmHomingTrajectory();
 
  
 
