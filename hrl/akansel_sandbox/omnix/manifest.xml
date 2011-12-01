@@ -1,0 +1,23 @@
+<package>
+  <description brief="omnix">
+
+     omnix
+
+  </description>
+  <author>Alexander J Trevor</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/omnix</url>
+  <depend package="roscpp"/>
+  <depend package="geometry_msgs"/>
+  <depend package="tf"/>
+  <depend package="joy"/>
+  <depend package="sensor_msgs"/>
+  <depend package="nav_msgs"/>
+  <depend package="message_filters"/>
+  <depend package="actionlib"/>
+  <depend package="move_base_msgs"/>
+  <depend package="laser_geometry"/>
+</package>
+
+

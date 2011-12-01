@@ -1,0 +1,16 @@
+<launch>
+
+	<node pkg="omnix" type="omnix_node" name="omnix_node" output="screen">
+	      
+	</node>
+
+  	<node pkg="ps3joy" type="ps3_joy_node" name="ps3_joy" output="screen" >
+    	      <param name="dev" type="string" value="/dev/input/js0" />
+    	      <param name="deadzone" value="0.12" />
+  	</node>
+
+	<node pkg="omnix" type="omnix_ps3joy" name="omnix_ps3joy" output="screen">
+	</node>
+
+
+</launch>

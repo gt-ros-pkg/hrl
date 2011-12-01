@@ -1,0 +1,6 @@
+<launch>
+	<node pkg="omnix" type="move_omni_base" name="omnix_node" output="screen">
+	 <remap from="move_base" to="move_omni_base" />   
+	</node>
+
+</launch>
