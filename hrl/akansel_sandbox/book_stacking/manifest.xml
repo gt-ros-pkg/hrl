@@ -33,11 +33,13 @@
   <depend package="kinematics_msgs"/>
   <depend package="laser_assembler"/>
   <depend package="visualization_msgs"/>
+  <depend package="object_manipulation_msgs"/>
   <depend package="robot_self_filter"/>
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
   <depend package="move_base"/>
   <depend package="topic_tools"/>
+  <depend package="tabletop_collision_map_processing"/>
 </package>
 
 

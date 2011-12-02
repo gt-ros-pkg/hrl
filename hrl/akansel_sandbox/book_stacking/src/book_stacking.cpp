@@ -33,6 +33,9 @@
 #include <pr2_msgs/PressureState.h>
 #include <laser_assembler/AssembleScans.h>
 #include <move_base_msgs/MoveBaseAction.h>
+#include <tabletop_collision_map_processing/TabletopCollisionMapProcessing.h>
+#include <object_manipulation_msgs/PickupAction.h>
+#include <object_manipulation_msgs/PlaceAction.h>
 
 
 //PCL
@@ -72,6 +75,9 @@ struct DragActionTemplate
   double dist;
 };
 
+static const std::string COLLISION_PROCESSING_SERVICE_NAME = "/tabletop_collision_map_processing/tabletop_collision_map_processing";
+static const std::string PICKUP_ACTION_NAME = "/object_manipulator/object_manipulator_pickup";
+static const std::string PLACE_ACTION_NAME = "/object_manipulator/object_manipulator_place";
 static const std::string TORSO_LIFT_LINK_STR = "torso_lift_link";
 static const std::string R_WRIST_ROLL_LINK_STR = "r_wrist_roll_link";
 static const std::string RIGHT_ARM_IK_NAME = "pr2_right_arm_kinematics/get_constraint_aware_ik";
@@ -85,6 +91,7 @@ typedef pcl::KdTree<Point>::Ptr KdTreePtr;
 typedef actionlib::SimpleActionClient<pr2_controllers_msgs::SingleJointPositionAction> TorsoClient;
 typedef actionlib::SimpleActionClient<arm_navigation_msgs::MoveArmAction> ArmActionClient;
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
+typedef actionlib::SimpleActionClient<object_manipulation_msgs::PickupAction> PickupClient;
 
 class book_stacking
 {
@@ -94,6 +101,7 @@ private:
   ros::ServiceClient ik_client_right;
   ros::ServiceClient fk_client_right;
   ros::ServiceClient laser_assembler_client;
+  ros::ServiceClient collision_processing_srv;
   ros::Subscriber point_cloud_sub_;
   ros::Subscriber r_fingertip_sub_;
   ros::Subscriber l_fingertip_sub_;
@@ -105,6 +113,7 @@ private:
   ArmActionClient *move_left_arm_client_;
   MoveBaseClient *move_base_client_;
   MoveBaseClient *omnix_move_base_client_;
+	PickupClient *pickup_client_;
   tf::TransformListener tf_listener;
 
 
@@ -455,11 +464,12 @@ bool callQueryIK(kinematics_msgs::GetKinematicSolverInfo::Response &response)
     ik_client_right = root_handle_.serviceClient<kinematics_msgs::GetConstraintAwarePositionIK>(RIGHT_ARM_IK_NAME);
     fk_client_right = root_handle_.serviceClient<kinematics_msgs::GetPositionFK>(RIGHT_ARM_FK_NAME);
 
-//ROS_INFO("IK service clients init");
-//ros::service::waitForService("assemble_scans");
-/*
-  set_planning_scene_diff_client = n_.serviceClient<arm_navigation_msgs::SetPlanningSceneDiff>(SET_PLANNING_SCENE_DIFF_NAME);
-*/
+  while (!ros::service::waitForService(COLLISION_PROCESSING_SERVICE_NAME, ros::Duration(5.0)) && root_handle_.ok() ) 
+  {
+    ROS_INFO("Waiting for collision processing service to come up");
+  }
+  collision_processing_srv = root_handle_.serviceClient<tabletop_collision_map_processing::TabletopCollisionMapProcessing>
+    (COLLISION_PROCESSING_SERVICE_NAME, true);
 
 
 
@@ -512,12 +522,22 @@ l_fingertip_sub_=n_.subscribe("/pressure/l_gripper_motor",1,&book_stacking::Fing
     {
       ROS_INFO("Waiting for the move_omni_base server to come up");
     }
+pickup_client_=new PickupClient("/object_manipulator/object_manipulator_pickup", true);
+  while(!pickup_client_->waitForServer(ros::Duration(5.0)))
+    {
+      ROS_INFO("Waiting for the PickupClient server to come up");
+    }
+
+
+
 
     laser_assembler_client = root_handle_.serviceClient<laser_assembler::AssembleScans>("assemble_scans");
     tilting_pt_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud> ("/assembled_pt_cloud_raw", 5);
 
  callQueryIK(ik_solver_info);
  callQueryFK(fk_solver_info);
+
+
   	
 
  moveTorsoToPosition(0.2);//0.3
