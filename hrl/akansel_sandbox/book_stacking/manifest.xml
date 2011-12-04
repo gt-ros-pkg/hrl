@@ -18,6 +18,7 @@
   <depend package="pr2_arm_navigation_actions"/>
   <depend package="pr2_arm_navigation_filtering"/>
   <depend package="pr2_arm_navigation_kinematics"/>
+  <depend package="pr2_grasp_adjust"/>
   <depend package="pr2_machine"/>
   <depend package="pr2_navigation_config"/>
   <depend package="pr2_move_base"/>
@@ -40,6 +41,8 @@
   <depend package="move_base"/>
   <depend package="topic_tools"/>
   <depend package="tabletop_collision_map_processing"/>
+  <depend package="object_manipulator"/>
+  <depend package="household_objects_database"/>
 </package>
 
 

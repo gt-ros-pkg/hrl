@@ -7,6 +7,7 @@
 #include <plane_extractor.h>
 //#include <omnix/move_omni_base.h>
 #include "/u/akansel/gt-ros-pkg/akansel_sandbox/omnix/include/omnix/move_omni_base.h"
+#include <book_stacking_msgs/DragRequest.h>
 
 //ROS
 #include <ros/ros.h>
@@ -136,8 +137,11 @@ private:
   double filter_spatial_xmin, filter_spatial_xmax;
   double filter_spatial_ymin, filter_spatial_ymax;
   double filter_spatial_zmin, filter_spatial_zmax;
-
-
+	double table_obj_detector_upper_z,table_obj_detector_lower_z;
+	double optimal_workspace_wrt_torso_x, optimal_workspace_wrt_torso_y, optimal_workspace_wrt_torso_z;
+	double init_torso_position;
+	double predrag_dist;	
+	
   kinematics_msgs::GetKinematicSolverInfo::Response ik_solver_info;
   kinematics_msgs::GetKinematicSolverInfo::Response fk_solver_info;
   pr2_controllers_msgs::JointTrajectoryGoal rightArmHomingTrajectory;
@@ -151,8 +155,10 @@ private:
   bool right_arm_fingertips_nominals;
   bool right_arm_end_eff_goal_resulted;
   bool robot_initialized;
+	bool test_arms;
   double hist_interval;
   double FINGERTIP_CONTACT_THRESHOLD;
+
   std::ofstream logFile;
 public:
   ros::NodeHandle n_;
@@ -170,12 +176,13 @@ book_stacking():
  LoadParameters();
  InitializeRobot();
 
-/*
+if(test_arms)
+{
   TestArm();
   TestArm2();
   traj_right_arm_client_->sendGoal(rightArmHomingTrajectory);
   traj_right_arm_client_->waitForResult();
-*/
+}
 
 //robot_initialized=true; 
 
@@ -195,6 +202,7 @@ void commandCallback  (const std_msgs::String::ConstPtr& msg)
   std::vector<arm_config_7DOF> qs;
   std::vector<double> ts;
   move_base_msgs::MoveBaseGoal goal;
+	arm_config_7DOF q_current;
 switch (key0)
   {
 	case 'b': //message is to follower module.
@@ -215,7 +223,7 @@ switch (key0)
 			break;		
 			case 'd': //detect objects
                         robot_initialized=true;
-			GetTiltingPointCloud(true);
+			GetTiltingPointCloud(false);
 			break;
 			case 'e':
   			traj_right_arm_client_->sendGoal(rightArmHomingTrajectory);
@@ -319,6 +327,13 @@ switch (key0)
 			  break;
 			case 'p':
 			  log_IK();
+			break;
+			case 'r':
+			q_current=GetCurrentRightArmJointAngles();
+			for(unsigned int i=0;i<7;i++)
+			{
+			std::cout<<"angles["<<i<<"]: "<<q_current.angles[i]<<std::endl;
+			}
 			default:
 			  break;
 			}
@@ -338,6 +353,32 @@ switch (key0)
     else
       return false;
   }
+
+bool OmnixAdjustBaseForOptimalWorkspace(geometry_msgs::PoseStamped queried_pose_wrt_torso_lift_link)
+{
+	geometry_msgs::Vector3 optimal_offset;
+	optimal_offset.x=-optimal_workspace_wrt_torso_x+queried_pose_wrt_torso_lift_link.pose.position.x;
+	optimal_offset.y=-optimal_workspace_wrt_torso_y+queried_pose_wrt_torso_lift_link.pose.position.y;
+	optimal_offset.z=-optimal_workspace_wrt_torso_z+queried_pose_wrt_torso_lift_link.pose.position.z;
+	
+	std::cout<<"optimal_offset.x: "<<optimal_offset.x<<std::endl;
+	std::cout<<"optimal_offset.y: "<<optimal_offset.y<<std::endl;
+	std::cout<<"optimal_offset.z: "<<optimal_offset.z<<std::endl;
+
+	move_base_msgs::MoveBaseGoal goal;
+	goal.target_pose.header.frame_id=TORSO_LIFT_LINK_STR;			  
+	goal.target_pose.pose.position.x = optimal_offset.x;
+	goal.target_pose.pose.position.y = optimal_offset.y;
+	goal.target_pose.pose.position.z = 0.0;
+	goal.target_pose.pose.orientation.x = 0.0;
+	goal.target_pose.pose.orientation.y = 0.0;
+	goal.target_pose.pose.orientation.z = 0.0;
+	goal.target_pose.pose.orientation.w = 1.0;
+	goal.target_pose.header.stamp=ros::Time::now();
+	OmnixMoveBasePosition(goal);
+	return true;
+}
+
 
 bool OmnixMoveBasePosition(move_base_msgs::MoveBaseGoal goal) //goal is in base_link. Converting to /odom_combined
   {
@@ -540,7 +581,7 @@ pickup_client_=new PickupClient("/object_manipulator/object_manipulator_pickup",
 
   	
 
- moveTorsoToPosition(0.2);//0.3
+ moveTorsoToPosition(init_torso_position);//0.3
  lookAt("base_link", 1.0, 0.0, 0.0);
  rightArmHomingTrajectory=createRightArmHomingTrajectory();
 
@@ -642,6 +683,18 @@ pr2_controllers_msgs::JointTrajectoryGoal createRightArmHomingTrajectory()
 }
 
 
+arm_config_7DOF GetExampleRightArmJointAngles()
+{
+arm_config_7DOF q_example;
+q_example.angles[0]=-0.328993;
+q_example.angles[1]=-0.0377065;
+q_example.angles[2]=-1.66532;
+q_example.angles[3]=-0.860194;
+q_example.angles[4]=-6.16558;
+q_example.angles[5]=-1.0438;
+q_example.angles[6]=-11.0498;
+return q_example;
+}
 
 arm_config_7DOF GetCurrentRightArmJointAngles()
 {
@@ -680,7 +733,7 @@ bool run_fk(arm_config_7DOF q, geometry_msgs::PoseStamped &solution, kinematics_
     if(fk_response.error_code.val == fk_response.error_code.SUCCESS)
     {
      
-        ROS_INFO_STREAM("Link    : " << fk_response.fk_link_names[0].c_str());
+        /*ROS_INFO_STREAM("Link    : " << fk_response.fk_link_names[0].c_str());
         ROS_INFO_STREAM("Position: " << 
           fk_response.pose_stamped[0].pose.position.x << "," <<  
           fk_response.pose_stamped[0].pose.position.y << "," << 
@@ -690,7 +743,7 @@ bool run_fk(arm_config_7DOF q, geometry_msgs::PoseStamped &solution, kinematics_
           fk_response.pose_stamped[0].pose.orientation.y,
           fk_response.pose_stamped[0].pose.orientation.z,
           fk_response.pose_stamped[0].pose.orientation.w);
-
+*/
       solution=fk_response.pose_stamped[0];
        
     }
@@ -960,6 +1013,17 @@ void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
     n_.param("base_frame_tf", base_frame_tf,std::string("/base_link"));
     n_.param("hist_interval", hist_interval, 8.0);
 
+		n_.param("table_obj_detector_lower_z",table_obj_detector_lower_z,-1.01);
+		n_.param("table_obj_detector_upper_z",table_obj_detector_upper_z,-0.015);
+    n_.param("test_arms",test_arms,true);
+
+		n_.param("optimal_workspace_wrt_torso_x",optimal_workspace_wrt_torso_x,0.6);
+		n_.param("optimal_workspace_wrt_torso_y",optimal_workspace_wrt_torso_y,-0.188);
+		n_.param("optimal_workspace_wrt_torso_z",optimal_workspace_wrt_torso_z,-0.28);
+		n_.param("init_torso_position",init_torso_position,0.3);
+		n_.param("predrag_dist",predrag_dist,0.07);
+
+
   }
 
 void lookAt(std::string frame_id, double x, double y, double z)
@@ -1005,7 +1069,7 @@ void lookAt(std::string frame_id, double x, double y, double z)
 
 bool ExecuteDragAction(geometry_msgs::Vector3Stamped desired_dir,double desired_dist,DragActionTemplate drag_act)
 {
-  double speed=0.15;
+  double speed=0.12;
   std::vector<arm_config_7DOF> qs;
   std::vector<double> ts;
   qs.push_back(drag_act.q_0);
@@ -1016,7 +1080,7 @@ bool ExecuteDragAction(geometry_msgs::Vector3Stamped desired_dir,double desired_
     {
       double path_distance;
       arm_config_7DOF q_1,q_2;
-      ExploreLinearMoveAction(0.0,0.0,-0.1,GetCurrentRightArmJointAngles(),true,path_distance,q_1);
+      ExploreLinearMoveAction(0.0,0.0,-(predrag_dist+0.06),GetCurrentRightArmJointAngles(),true,path_distance,q_1);
       qs.clear();
       ts.clear();
       ts.push_back(1.0);
@@ -1026,14 +1090,14 @@ bool ExecuteDragAction(geometry_msgs::Vector3Stamped desired_dir,double desired_
       SendRightEndEffectorTrajectory(traj1,true);
       FINGERTIP_CONTACT_THRESHOLD=150.0;
 
-      if(ExploreLinearMoveAction(desired_dir.vector.x*desired_dist,desired_dir.vector.y*desired_dist,desired_dir.vector.z*desired_dist,GetCurrentRightArmJointAngles(),true,path_distance,q_2))
+      if(ExploreLinearMoveAction(desired_dir.vector.x*desired_dist ,desired_dir.vector.y*desired_dist ,desired_dir.vector.z*desired_dist,GetCurrentRightArmJointAngles(),true, path_distance,q_2))
 	{
 	  qs.clear();
 	  ts.clear();
-	  ts.push_back(path_distance/speed);
-	  qs.push_back(q_1);
-	  pr2_controllers_msgs::JointTrajectoryGoal traj1=createRightArmTrajectoryFromAngles(qs,ts);
-	  SendRightEndEffectorTrajectory(traj1,true);
+	  ts.push_back(1.0);
+	  qs.push_back(q_2);
+	  pr2_controllers_msgs::JointTrajectoryGoal traj2=createRightArmTrajectoryFromAngles(qs,ts);
+	  SendRightEndEffectorTrajectory(traj2,true);
 	}
 
 
@@ -1047,7 +1111,7 @@ bool ExecuteDragAction(geometry_msgs::Vector3Stamped desired_dir,double desired_
   return true;
 }
 
-bool ExploreDragAction(book_stacking_msgs::ObjectInfo objInfo,geometry_msgs::Vector3Stamped desired_dir,double desired_dist, double &output_dist,DragActionTemplate &drag_act) //desired dir is in torso lift link
+bool ExploreDragAction(book_stacking_msgs::ObjectInfo objInfo,geometry_msgs::Vector3Stamped desired_dir,double desired_dist, double &output_dist,DragActionTemplate &drag_act, geometry_msgs::PoseStamped &queried_pose_wrt_torso_lift_link) //desired dir is in torso lift link
 {
   geometry_msgs::PointStamped input_point;
   geometry_msgs::PointStamped obj_centroid_wrt_torso_lift_link;
@@ -1064,26 +1128,28 @@ bool ExploreDragAction(book_stacking_msgs::ObjectInfo objInfo,geometry_msgs::Vec
   tpose.pose.position.y=obj_centroid_wrt_torso_lift_link.point.y;
   tpose.pose.position.z=obj_centroid_wrt_torso_lift_link.point.z+END_EFFECTOR_OFFSET;
   
+	queried_pose_wrt_torso_lift_link=tpose;
+
   arm_config_7DOF q_1;
-  if (run_ik(tpose,GetCurrentRightArmJointAngles(),q_1,R_WRIST_ROLL_LINK_STR,ik_solver_info))
+  if (run_ik(tpose,GetExampleRightArmJointAngles(),q_1,R_WRIST_ROLL_LINK_STR,ik_solver_info))
     {
       arm_config_7DOF q_2;
       ExploreLinearMoveAction(desired_dir.vector.x*desired_dist,desired_dir.vector.y*desired_dist,desired_dir.vector.z*desired_dist,q_1,true,output_dist,q_2);
 
-      tpose.pose.position.z=obj_centroid_wrt_torso_lift_link.point.z+(END_EFFECTOR_OFFSET-0.02);
+      tpose.pose.position.z=obj_centroid_wrt_torso_lift_link.point.z+(END_EFFECTOR_OFFSET+predrag_dist);
       arm_config_7DOF q_0;
-      if(run_ik(tpose,GetCurrentRightArmJointAngles(),q_0,R_WRIST_ROLL_LINK_STR,ik_solver_info))
-	{
-	  drag_act.q_0=q_0;
-	  drag_act.q_1=q_1;
-	  drag_act.q_2=q_2;
-	  drag_act.dist=output_dist;
-	  return true;
-	}
+			if(run_ik(tpose,GetExampleRightArmJointAngles(),q_0,R_WRIST_ROLL_LINK_STR,ik_solver_info))
+			{
+				drag_act.q_0=q_0;
+				drag_act.q_1=q_1;
+				drag_act.q_2=q_2;
+				drag_act.dist=output_dist;
+				return true;
+			}
       else
-	{
-	  return false;
-	}
+			{
+				return false;
+			}
 
     }
   else
@@ -1092,90 +1158,55 @@ bool ExploreDragAction(book_stacking_msgs::ObjectInfo objInfo,geometry_msgs::Vec
     }
 }
 
-bool dragObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3Stamped dir,double dist)
+bool dragObject(book_stacking_msgs::DragRequest drag_req, double &output_dist)
 {
-    XYZPointCloud obj_cloud_wrt_torso_lift_link;
-    XYZPointCloud raw_cloud;
-    pcl::fromROSMsg(objInfo.cloud,raw_cloud);
+	DragActionTemplate output_drag_act={};	
+	bool explore_drag_success=false;
+	geometry_msgs::PoseStamped queried_pose_wrt_torso_lift_link;
 
-    //Transform it to torso_lift_link
-    tf::StampedTransform transf;
-    try{
-      tf_listener.waitForTransform("torso_lift_link", raw_cloud.header.frame_id,
-				   objInfo.cloud.header.stamp, ros::Duration(2.0));
-      tf_listener.lookupTransform("torso_lift_link", raw_cloud.header.frame_id,
-				  objInfo.cloud.header.stamp, transf);
-    }
-    catch(tf::TransformException ex)
-    {
-      ROS_ERROR("can't transform to torso_lift_link:%s", ex.what());
-      return false;
-    }    
-    tf::Vector3 v3 = transf.getOrigin();
-    tf::Quaternion quat = transf.getRotation();
-    Eigen::Quaternionf rot(quat.w(), quat.x(), quat.y(), quat.z());
-    Eigen::Vector3f offset(v3.x(), v3.y(), v3.z());
-    pcl::transformPointCloud(raw_cloud,obj_cloud_wrt_torso_lift_link,offset,rot);
-    obj_cloud_wrt_torso_lift_link.header = raw_cloud.header;
-    obj_cloud_wrt_torso_lift_link.header.frame_id = "torso_lift_link";
-
-
-
-  geometry_msgs::PointStamped input_point;
-  geometry_msgs::PointStamped obj_centroid_wrt_torso_lift_link;
-  input_point.header.frame_id=objInfo.header.frame_id;
-  input_point.point.x=objInfo.centroid.x;
-  input_point.point.y=objInfo.centroid.y;
-  input_point.point.z=objInfo.centroid.z;
-  tf_listener.transformPoint("torso_lift_link", input_point, obj_centroid_wrt_torso_lift_link);
-
-
-
-
-    geometry_msgs::PoseStamped tpose;
-    tpose.header.frame_id="torso_lift_link";
-    tpose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,M_PI/2,0.0);
-    tpose.pose.position.x=obj_centroid_wrt_torso_lift_link.point.x;
-    tpose.pose.position.y=obj_centroid_wrt_torso_lift_link.point.y;
-    tpose.pose.position.z=obj_centroid_wrt_torso_lift_link.point.z+END_EFFECTOR_OFFSET;
-
-    bool ik_sln_found=false;
-    arm_config_7DOF q_current=GetCurrentRightArmJointAngles();
-    arm_config_7DOF q_solution;
-    std::string link_name="r_wrist_roll_link";
-
-    visualization_msgs::Marker mr;
-    mr.header.frame_id=tpose.header.frame_id;
-    mr.header.stamp=ros::Time::now();
-    mr.type=visualization_msgs::Marker::ARROW;
-    mr.action=visualization_msgs::Marker::ADD;
-    mr.pose=tpose.pose;
-    mr.scale.x=0.06;
-    mr.scale.y=0.06;
-    mr.scale.z=0.06;
-    mr.color.a=1.0;
-    mr.color.r=1.0;
-    mr.color.g=0.3;
-    mr.color.b=1.0;
-    vis_pub_.publish(mr); 
-    if (run_ik(tpose,q_current,q_solution,link_name,ik_solver_info))
-      {
-	ik_sln_found=true;
-      }
-    
-    if(ik_sln_found)
-      {/*
-	pr2_controllers_msgs::JointTrajectoryGoal traj=createRightArmTrajectoryFromAngles(q_solution,5.0);
-	if(SendRightEndEffectorTrajectory(traj,true))
+explore_drag_success=ExploreDragAction(drag_req.object, drag_req.dir, drag_req.dist, output_dist, output_drag_act,queried_pose_wrt_torso_lift_link);
+	if(explore_drag_success)
 	  {
-	    FINGERTIP_CONTACT_THRESHOLD=500.0;
-	    MoveEndEffectorLinear(0.0,0.0,-0.10,true,0.15,true);
-	    FINGERTIP_CONTACT_THRESHOLD=150.0;
-	    MoveEndEffectorLinear(dist*dir.vector.x,dist*dir.vector.y,dist*dir.vector.z,false,0.15,true);
-	   
-	  }*/
-      }
-    
+	    ROS_INFO("Drag Action Feasible");
+	    if(ExecuteDragAction(drag_req.dir,drag_req.dist,output_drag_act))
+	      {
+				ROS_INFO("Drag Action Executed Successfully");
+				return true;
+	      }
+	    else
+	      {
+				ROS_INFO("Drag Action Execution wasn't successful");
+				return false;
+	      }
+	  }
+	else
+	  {
+	    ROS_INFO("Drag Action Not Feasible. Move the base to optimal location");
+		  OmnixAdjustBaseForOptimalWorkspace(queried_pose_wrt_torso_lift_link);
+
+			explore_drag_success=ExploreDragAction(drag_req.object, drag_req.dir, drag_req.dist, output_dist,output_drag_act,queried_pose_wrt_torso_lift_link);
+				if(explore_drag_success)
+					{
+						ROS_INFO("2.Drag Action Feasible");
+						if(ExecuteDragAction(drag_req.dir,drag_req.dist,output_drag_act))
+							{
+							ROS_INFO("2. Drag Action Executed Successfully");
+							return true;
+							}
+						else
+							{
+							ROS_INFO("2. Drag Action Execution wasn't successful");
+							return false;
+							}
+					}
+				else
+					{
+						ROS_INFO("2. Drag Action Not Feasible.");
+						return false;
+					//bool move_arm_success= SetMoveArmGoal(queried_pose_wrt_torso_lift_link.pose.position.x, queried_pose_wrt_torso_lift_link.pose.position.y, queried_pose_wrt_torso_lift_link.pose.position.z);
+					}
+	  }
+
    return false;
 }
 
@@ -1416,6 +1447,54 @@ if(disable_gripper)
   return false;
 
 }
+
+bool SetMoveArmGoal(double x,double y,double z)
+{
+  arm_navigation_msgs::MoveArmGoal goalA;
+  goalA.motion_plan_request.group_name = "right_arm";
+  goalA.motion_plan_request.num_planning_attempts = 3;
+  goalA.motion_plan_request.planner_id = std::string("");
+  goalA.planner_service_name = std::string("ompl_planning/plan_kinematic_path");
+  goalA.motion_plan_request.allowed_planning_time = ros::Duration(5.0);  
+  arm_navigation_msgs::SimplePoseConstraint desired_pose;
+  desired_pose.header.frame_id = "torso_lift_link";
+  desired_pose.link_name = "r_wrist_roll_link";
+  desired_pose.pose.position.x = x;
+  desired_pose.pose.position.y = y;
+  desired_pose.pose.position.z = z;
+	desired_pose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,M_PI/2,0.0);
+  desired_pose.absolute_position_tolerance.x = 0.02;
+  desired_pose.absolute_position_tolerance.y = 0.02;
+  desired_pose.absolute_position_tolerance.z = 0.04;
+  desired_pose.absolute_roll_tolerance = 0.04;
+  desired_pose.absolute_pitch_tolerance = 0.04;
+  desired_pose.absolute_yaw_tolerance = 0.04;
+  arm_navigation_msgs::addGoalConstraintToMoveArmGoal(desired_pose,goalA);
+  if (n_.ok())
+  {
+    bool finished_within_time = false; 
+     move_right_arm_client_->sendGoal(goalA);
+    finished_within_time =   move_right_arm_client_->waitForResult(ros::Duration(10.0));
+    if (!finished_within_time)
+    {
+      move_right_arm_client_->cancelGoal();
+      ROS_INFO("Timed out achieving goal A");
+    }
+    else
+    {
+      actionlib::SimpleClientGoalState state =   move_right_arm_client_->getState();
+      bool success = (state == actionlib::SimpleClientGoalState::SUCCEEDED);
+      if(success)
+        ROS_INFO("Action finished: %s",state.toString().c_str());
+      else
+        ROS_INFO("Action failed: %s",state.toString().c_str());
+			return success;
+    }
+	
+  }
+return false;
+}
+
 void TestArm()
 {
 ROS_INFO("In TestArm()");
@@ -1606,6 +1685,9 @@ ROS_INFO("PT CLOUD");
  XYZPointCloud cloud;
  pcl::fromROSMsg(*cloud_msg,raw_cloud);
 
+	std::cout<<"Original frame_id: "<<raw_cloud.header.frame_id<<std::endl;
+	std::cout<<"Target frame_id: "<<base_frame_tf<<std::endl;
+
     //Transform it to base frame
     tf::StampedTransform transf;
     try{
@@ -1627,7 +1709,8 @@ ROS_INFO("PT CLOUD");
     cloud.header = raw_cloud.header;
     cloud.header.frame_id = base_frame_tf;
    
-    
+    ROS_INFO("Pt cloud transform succeeded");
+
 book_stacking_msgs::PlaneInfo table_plane_info;
 bool gotPlane=getTablePlane(cloud,table_plane_info);
 if(!gotPlane)
@@ -1652,12 +1735,12 @@ if(gotPlane)
       {
 
 	ROS_INFO("Extracting objects...");
-	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(table_plane_info,cloud,-1.01,-0.015);	  
+	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(table_plane_info,cloud,table_obj_detector_lower_z,table_obj_detector_upper_z);	  
 
 	if(allObjectInfos.objects.size() < 1)
 	  {
 	    ROS_WARN("No objects over this plane.");
-	  } 
+	  }
 	else 
 	  {
 	ROS_INFO("# OF OBJS: %d",(int)(allObjectInfos.objects.size()));
@@ -1669,37 +1752,23 @@ if(gotPlane)
 
 	book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[0];
 	
-	geometry_msgs::Vector3Stamped pushVector;
-	pushVector.header.frame_id="torso_lift_link";
-	pushVector.header.stamp=ros::Time::now();
-	pushVector.vector.x=0.0;
-	pushVector.vector.y=1.0;
-	pushVector.vector.z=0.0;
-	double pushDistance=0.15;
-
+	if(test_arms)
+	{
 	//pushObject(pushedObjectInfo,pushVector, pushDistance);
+  //dragObject(pushedObjectInfo,pushVector,pushDistance);
+	book_stacking_msgs::DragRequest drag_req;
+	drag_req.object=pushedObjectInfo;
+	drag_req.dir.header.frame_id="torso_lift_link";
+	drag_req.dir.header.stamp=ros::Time::now();
+	drag_req.dir.vector.x=0.0;
+	drag_req.dir.vector.y=1.0;
+	drag_req.dir.vector.z=0.0;
+	drag_req.dist=0.15;
 	double output_dist;
-	DragActionTemplate output_drag_act={};
-	bool explore_drag=ExploreDragAction(pushedObjectInfo,pushVector,pushDistance,output_dist,output_drag_act);
-	if(explore_drag)
-	  {
-	    ROS_INFO("Drag Action Feasible");
-	    if(ExecuteDragAction(pushVector,pushDistance,output_drag_act))
-	      {
-		ROS_INFO("Drag Action Executed Successfully");
-	      }
-	    else
-	      {
-		ROS_INFO("Drag Action Execution wasn't successful");
-	      }
-	  }
-	else
-	  {
-	    ROS_INFO("Drag Action Not Feasible");
-	  }
+	bool success=dragObject(drag_req,output_dist);
+	}
 
-
-	//dragObject(pushedObjectInfo,pushVector,pushDistance);
+	
 	robot_initialized=false;
 
 
