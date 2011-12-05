@@ -49,8 +49,14 @@ book_stacking_msgs::ObjectInfos getObjectsOverPlane(const book_stacking_msgs::Pl
 
   //cluster the resulting points from the plane's prism
   pcl::EuclideanClusterExtraction<Point> clusterer;
-  clusterer.setClusterTolerance(0.1);
-  clusterer.setMinClusterSize(20);
+  clusterer.setClusterTolerance(0.03);
+  clusterer.setMinClusterSize(150);
+  clusterer.setMaxClusterSize(8000);
+/*
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
+  tree->setInputCloud (boost::make_shared<pcl::PointCloud<Point> >(prism_cloud));
+	clusterer.setSearchMethod (tree);
+*/
   std::vector<pcl::PointIndices> clusters;
   clusterer.setInputCloud(boost::make_shared<pcl::PointCloud<Point> >(prism_cloud));
   clusterer.extract(clusters);
@@ -204,7 +210,7 @@ void drawPlaneMarkers(const book_stacking_msgs::PlaneInfos& planes, const ros::P
       marker.pose.orientation.y = 0.0;
       marker.pose.orientation.z = 0.0;
       marker.pose.orientation.w = 1.0;
-      marker.lifetime = ros::Duration(3.0);
+      marker.lifetime = ros::Duration(60.0*30.0);
 
       for(size_t j = 0; j < hull_pts.points.size(); j++){
           geometry_msgs::Point pt;
@@ -236,7 +242,7 @@ book_stacking_msgs::PlaneInfos getPlanesByNormals(const pcl::PointCloud<Point>& 
 					   double cluster_tolerance)
 {
   //int min_inliers = 1000;
-  ROS_INFO("Extracting planes from cloud with %u points",(unsigned int)cloud.points.size());
+  //ROS_INFO("Extracting planes from cloud with %u points",(unsigned int)cloud.points.size());
   book_stacking_msgs::PlaneInfos all_planes;
   pcl::toROSMsg(cloud,all_planes.full_cloud);
 
@@ -267,7 +273,7 @@ book_stacking_msgs::PlaneInfos getPlanesByNormals(const pcl::PointCloud<Point>& 
   pcl::PointCloud<pcl::Normal> remaining_normals = normals;
   
   while(more_planes && (all_planes.planes.size() < max_planes) && (remaining_cloud.points.size() > min_inliers)){
-    ROS_INFO("Remaining cloud: %u", (unsigned int) remaining_cloud.points.size());
+    //ROS_INFO("Remaining cloud: %u", (unsigned int) remaining_cloud.points.size());
     
     pcl::PointIndices plane_inliers;
     pcl::ModelCoefficients plane_coefficients;
@@ -378,7 +384,7 @@ book_stacking_msgs::PlaneInfos getPlanesByNormals(const pcl::PointCloud<Point>& 
 	extract_normal_indices.filter(plane_removed_normals);
 	remaining_normals = plane_removed_normals;
 	
-	ROS_INFO("remaining cloud now has: %u", (unsigned int) remaining_cloud.points.size());
+	//ROS_INFO("remaining cloud now has: %u", (unsigned int) remaining_cloud.points.size());
 
       }
       

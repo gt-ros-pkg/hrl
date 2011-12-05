@@ -32,6 +32,7 @@
 #include <pr2_controllers_msgs/JointTrajectoryAction.h>
 #include <pr2_controllers_msgs/JointTrajectoryControllerState.h>
 #include <pr2_msgs/PressureState.h>
+#include <pr2_msgs/LaserScannerSignal.h>
 #include <laser_assembler/AssembleScans.h>
 #include <move_base_msgs/MoveBaseAction.h>
 #include <tabletop_collision_map_processing/TabletopCollisionMapProcessing.h>
@@ -106,6 +107,7 @@ private:
   ros::Subscriber point_cloud_sub_;
   ros::Subscriber r_fingertip_sub_;
   ros::Subscriber l_fingertip_sub_;
+	ros::Subscriber tilt_timing_sub_;
   ros::Publisher tilting_pt_cloud_pub_;
   PointHeadClient* point_head_client_;
   TorsoClient *torso_client_;
@@ -141,7 +143,8 @@ private:
 	double optimal_workspace_wrt_torso_x, optimal_workspace_wrt_torso_y, optimal_workspace_wrt_torso_z;
 	double init_torso_position;
 	double predrag_dist;	
-	
+	double diff_drag_force;
+
   kinematics_msgs::GetKinematicSolverInfo::Response ik_solver_info;
   kinematics_msgs::GetKinematicSolverInfo::Response fk_solver_info;
   pr2_controllers_msgs::JointTrajectoryGoal rightArmHomingTrajectory;
@@ -155,11 +158,19 @@ private:
   bool right_arm_fingertips_nominals;
   bool right_arm_end_eff_goal_resulted;
   bool robot_initialized;
+	bool latest_pt_cloud_ready;
 	bool test_arms;
-  double hist_interval;
+	bool got_init_table;
+	XYZPointCloud latest_cloud;
+  double tilt_period;
   double FINGERTIP_CONTACT_THRESHOLD;
-
+	pr2_msgs::LaserScannerSignal tilt_minima_msg, tilt_maxima_msg;
   std::ofstream logFile;
+
+	book_stacking_msgs::PlaneInfo init_table_plane_info; //in odom_combined
+  pcl::PointCloud<Point> init_table_hull; //in odom_combined
+	geometry_msgs::Point32 init_table_centroid; //in odom_combined
+
 public:
   ros::NodeHandle n_;
   ros::Publisher filtered_cloud_pub_;
@@ -184,7 +195,7 @@ if(test_arms)
   traj_right_arm_client_->waitForResult();
 }
 
-//robot_initialized=true; 
+robot_initialized=true; 
 
 //move_right_gripper(0.75,-0.188,0,-M_PI/2,0,0,1);
 //shakeHead(2);
@@ -219,11 +230,10 @@ switch (key0)
                         TestArm2();
 			break;
                         case 'c':
-                        TestArm3();
+                        got_init_table=getInitTable();
 			break;		
-			case 'd': //detect objects
-                        robot_initialized=true;
-			GetTiltingPointCloud(false);
+			case 'd':
+			plan0();
 			break;
 			case 'e':
   			traj_right_arm_client_->sendGoal(rightArmHomingTrajectory);
@@ -342,6 +352,130 @@ switch (key0)
 	  break;
 	}
 }
+
+
+
+
+
+bool getInitTable()
+{
+	ros::Rate loop_rate(10);
+	latest_pt_cloud_ready=false;
+	GetTiltingPointCloud(false);
+	while (!latest_pt_cloud_ready)
+	{		
+			ros::spinOnce();
+		  loop_rate.sleep();
+	}
+	if(getTablePlane(latest_cloud,init_table_plane_info,true))
+	{
+	std::cout<<"frame_id: "<<init_table_plane_info.header.frame_id<<std::endl;
+	std::cout<<"hull frame_id: "<<init_table_plane_info.hull.header.frame_id<<std::endl;
+	
+	XYZPointCloud table_hull_wrt_base_link;
+	pcl::fromROSMsg(init_table_plane_info.hull,table_hull_wrt_base_link);
+    tf::StampedTransform transf;
+    try{
+      tf_listener.waitForTransform("odom_combined", init_table_plane_info.header.frame_id,
+				  init_table_plane_info.hull.header.stamp, ros::Duration(2.0));
+      tf_listener.lookupTransform("odom_combined", init_table_plane_info.header.frame_id,
+				  init_table_plane_info.hull.header.stamp, transf);
+    }
+    catch(tf::TransformException ex)
+    {
+      ROS_ERROR("getInitTable TF error:%s", ex.what());
+      return false;
+    }    
+    tf::Vector3 v3 = transf.getOrigin();
+    tf::Quaternion quat = transf.getRotation();
+    Eigen::Quaternionf rot(quat.w(), quat.x(), quat.y(), quat.z());
+    Eigen::Vector3f offset(v3.x(), v3.y(), v3.z());
+    pcl::transformPointCloud(table_hull_wrt_base_link,init_table_hull,offset,rot);
+    init_table_hull.header = table_hull_wrt_base_link.header;
+    init_table_hull.header.frame_id = "odom_combined";
+
+		for(unsigned int i=0;i<init_table_hull.points.size();i++) //calculate Centroid
+		{
+          geometry_msgs::Point pt;
+          pt.x = init_table_hull.points[i].x;
+          pt.y = init_table_hull.points[i].y;
+          pt.z = init_table_hull.points[i].z;
+		std::cout<<"Pt "<<i<<" | x: "<<pt.x<<" y: "<<pt.y<< " z: "<<pt.z<<std::endl;		
+		}
+		init_table_centroid = calcCentroid(init_table_hull);
+		std::cout<<"CENTROID | x: "<<init_table_centroid.x<<" y: "<<init_table_centroid.y<< " z: "<<init_table_centroid.z<<std::endl;
+	
+	return true;
+	}
+
+}
+	
+	bool plan0()
+	{
+		if(!got_init_table)
+		{
+		ROS_WARN("No initial table!");
+		return false;
+		}
+		ros::Rate loop_rate(10);
+	latest_pt_cloud_ready=false;
+	GetTiltingPointCloud(false);
+	while (!latest_pt_cloud_ready)
+	{
+	ros::spinOnce();		
+	loop_rate.sleep();
+	}
+	
+	book_stacking_msgs::PlaneInfo latest_table_plane_info;
+	bool got_current_table=getTablePlane(latest_cloud,latest_table_plane_info,false);
+	if(got_current_table)
+	{
+	ROS_INFO("Extracting objects...");
+	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(latest_table_plane_info, latest_cloud, table_obj_detector_lower_z, table_obj_detector_upper_z);	  
+		if(allObjectInfos.objects.size() < 1)
+			{
+			  ROS_WARN("No objects over this plane.");
+			}
+		else 
+			{
+			ROS_INFO("# OF OBJS: %d",(int)(allObjectInfos.objects.size()));
+				for(unsigned int i=0; i<allObjectInfos.objects.size();i++)
+				{
+				int cloud_size=allObjectInfos.objects[i].cloud.data.size();
+				std::cout<<"OBJ "<<i<<" : "<<cloud_size<<" pts"<<std::endl;
+				}
+			#ifdef DEBUG_DRAW_TABLETOP_OBJECTS
+			drawObjectPrisms(allObjectInfos,obj_marker_pub_,latest_table_plane_info,0.0f,1.0f,0.0f);
+			#endif
+
+			book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[0];	
+			if(test_arms)
+			{
+			//pushObject(pushedObjectInfo,pushVector, pushDistance);
+			//dragObject(pushedObjectInfo,pushVector,pushDistance);
+			book_stacking_msgs::DragRequest drag_req;
+			drag_req.object=pushedObjectInfo;
+			drag_req.dir.header.frame_id="torso_lift_link";
+			drag_req.dir.header.stamp=ros::Time::now();
+			drag_req.dir.vector.x=0.0;
+			drag_req.dir.vector.y=1.0;
+			drag_req.dir.vector.z=0.0;
+			drag_req.dist=0.15;
+			double output_dist;
+			bool success=dragObject(drag_req,output_dist);
+			if(success)
+			{
+
+			}
+
+			}
+		}	 
+
+	}		
+	
+	return false;
+
+	}
 
   bool MoveBasePosition(move_base_msgs::MoveBaseGoal goal)
   {
@@ -520,9 +654,9 @@ bool callQueryIK(kinematics_msgs::GetKinematicSolverInfo::Response &response)
  obj_marker_pub_ = n_.advertise<visualization_msgs::Marker>("obj_markers",1);
  vis_pub_ = n_.advertise<visualization_msgs::Marker>("visualization_marker",1);
 command_subscriber_=n_.subscribe<std_msgs::String>("/command_generator_PR2_topic",1,&book_stacking::commandCallback, this);
-r_fingertip_sub_=n_.subscribe("/pressure/r_gripper_motor",1,&book_stacking::FingertipRightCallback,this);
-l_fingertip_sub_=n_.subscribe("/pressure/l_gripper_motor",1,&book_stacking::FingertipLeftCallback,this);
-
+r_fingertip_sub_=n_.subscribe("/pressure/r_gripper_motor",1, &book_stacking::FingertipRightCallback,this);
+l_fingertip_sub_=n_.subscribe("/pressure/l_gripper_motor",1, &book_stacking::FingertipLeftCallback,this);
+tilt_timing_sub_=n_.subscribe("/laser_tilt_controller/laser_scanner_signal",2, &book_stacking::TiltTimingCallback,this);
   traj_right_arm_client_=new TrajClient("r_arm_controller/joint_trajectory_action", true);
  while(!traj_right_arm_client_->waitForServer(ros::Duration(5.0)))
     {
@@ -585,14 +719,14 @@ pickup_client_=new PickupClient("/object_manipulator/object_manipulator_pickup",
  lookAt("base_link", 1.0, 0.0, 0.0);
  rightArmHomingTrajectory=createRightArmHomingTrajectory();
 
- 
 
-right_arm_fingertips_sensing=true;
-right_arm_fingertips_nominals=true;
-right_arm_fingertips_contacted=false;
-right_arm_end_eff_goal_resulted=false;
-left_arm_fingertips_sensing=false;
-FINGERTIP_CONTACT_THRESHOLD=150.0;
+	got_init_table=false;
+	right_arm_fingertips_sensing=true;
+	right_arm_fingertips_nominals=true;
+	right_arm_fingertips_contacted=false;
+	right_arm_end_eff_goal_resulted=false;
+	left_arm_fingertips_sensing=false;
+	FINGERTIP_CONTACT_THRESHOLD=150.0;
 
 ROS_INFO("Subs/Pubs Initialized..");
 }
@@ -905,6 +1039,19 @@ bool SendRightEndEffectorTrajectory(pr2_controllers_msgs::JointTrajectoryGoal tr
 }  
 
 
+void TiltTimingCallback(const pr2_msgs::LaserScannerSignal::ConstPtr& msg)
+{
+	if(msg->signal==1) //Tilt at minima
+	{
+	tilt_minima_msg=*msg;
+	}
+	else //Tilt at maxima
+	{
+	tilt_maxima_msg=*msg;
+	}
+	return;
+}
+
 void FingertipLeftCallback(const pr2_msgs::PressureState::ConstPtr& msg)
 {
 
@@ -950,23 +1097,59 @@ void FingertipRightCallback(const pr2_msgs::PressureState::ConstPtr& msg)
 	}
 }
 
-void GetTiltingPointCloud(bool refreshScan)
+bool GetTiltingPointCloud(bool refreshScan)
 {
+ros::Time t_minima=tilt_minima_msg.header.stamp;
+ros::Time t_maxima=tilt_maxima_msg.header.stamp;
 if(refreshScan)
 {
-ros::Duration(hist_interval).sleep();
+ros::Duration dt_latest_msg;
+
+if(t_minima>t_maxima)
+{
+dt_latest_msg=ros::Time::now()-t_minima;
+}
+else
+{
+dt_latest_msg=ros::Time::now()-t_maxima;
+}
+ros::Duration wait_sec=ros::Duration(tilt_period)-dt_latest_msg+ros::Duration(0.5);
+if(wait_sec.toSec()>ros::Duration(tilt_period).toSec())
+{
+wait_sec=ros::Duration(tilt_period);
+}
+std::cout<<"Waiting for "<<wait_sec.toSec()<<" s."<<std::endl;
+wait_sec.sleep();
 }
 
+/*
+if(&tilt_minima_msg=!NULL && &tilt_minima_msg=!NULL)
+{
+ROS_WARN("Tilt timing messages not received yet");
+return false;
+}*/
+
 laser_assembler::AssembleScans srv;
- srv.request.begin = ros::Time::now()-ros::Duration(hist_interval);
- srv.request.end   = ros::Time::now();
+if(t_minima>t_maxima)
+{
+srv.request.begin=t_maxima;
+srv.request.end =t_minima;
+}
+else
+{
+srv.request.begin=t_minima;
+srv.request.end=t_maxima;
+}
+
  if (laser_assembler_client.call(srv))
    {
-     printf("Got cloud with %u points\n", srv.response.cloud.points.size());
+     printf("Assembled cloud: %u points\n", srv.response.cloud.points.size());
      tilting_pt_cloud_pub_.publish(srv.response.cloud);
    }
  else
    printf("Service call failed\n");
+
+return true;
 }
  
 void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
@@ -1011,9 +1194,9 @@ void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
     n_.param("concave_hull_mode",concave_hull_mode_,false);
     n_.param("use_normal_seg",use_normal_seg_,false);
     n_.param("base_frame_tf", base_frame_tf,std::string("/base_link"));
-    n_.param("hist_interval", hist_interval, 8.0);
+    n_.param("tilt_period", tilt_period, 8.0);
 
-		n_.param("table_obj_detector_lower_z",table_obj_detector_lower_z,-1.01);
+		n_.param("table_obj_detector_lower_z",table_obj_detector_lower_z,-0.2);
 		n_.param("table_obj_detector_upper_z",table_obj_detector_upper_z,-0.015);
     n_.param("test_arms",test_arms,true);
 
@@ -1022,6 +1205,7 @@ void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
 		n_.param("optimal_workspace_wrt_torso_z",optimal_workspace_wrt_torso_z,-0.28);
 		n_.param("init_torso_position",init_torso_position,0.3);
 		n_.param("predrag_dist",predrag_dist,0.07);
+		n_.param("diff_drag_force",diff_drag_force,600.0);
 
 
   }
@@ -1083,10 +1267,10 @@ bool ExecuteDragAction(geometry_msgs::Vector3Stamped desired_dir,double desired_
       ExploreLinearMoveAction(0.0,0.0,-(predrag_dist+0.06),GetCurrentRightArmJointAngles(),true,path_distance,q_1);
       qs.clear();
       ts.clear();
-      ts.push_back(1.0);
+      ts.push_back(2.0);
       qs.push_back(q_1);
       pr2_controllers_msgs::JointTrajectoryGoal traj1=createRightArmTrajectoryFromAngles(qs,ts);
-      FINGERTIP_CONTACT_THRESHOLD=500.0;     
+      FINGERTIP_CONTACT_THRESHOLD=diff_drag_force;     
       SendRightEndEffectorTrajectory(traj1,true);
       FINGERTIP_CONTACT_THRESHOLD=150.0;
 
@@ -1675,12 +1859,12 @@ ROS_INFO("In TestArm3()");
 }
 
 void KinectCallback(const sensor_msgs::PointCloud2ConstPtr &cloud_msg)
-{
-if(!robot_initialized)
+{/*
+if(!robot_initialized )
 {
 return;
-}
-ROS_INFO("PT CLOUD");
+}*/
+ ROS_INFO("PT CLOUD");
  XYZPointCloud raw_cloud;
  XYZPointCloud cloud;
  pcl::fromROSMsg(*cloud_msg,raw_cloud);
@@ -1707,93 +1891,59 @@ ROS_INFO("PT CLOUD");
     Eigen::Vector3f offset(v3.x(), v3.y(), v3.z());
     pcl::transformPointCloud(raw_cloud,cloud,offset,rot);
     cloud.header = raw_cloud.header;
-    cloud.header.frame_id = base_frame_tf;
-   
-    ROS_INFO("Pt cloud transform succeeded");
+    cloud.header.frame_id = base_frame_tf;   
 
-book_stacking_msgs::PlaneInfo table_plane_info;
-bool gotPlane=getTablePlane(cloud,table_plane_info);
-if(!gotPlane)
-{
-ROS_INFO("No table found");
-return;
-}
+		latest_cloud=cloud;
+    ROS_INFO("Pt cloud transform succeeded");			
+		latest_pt_cloud_ready=true;
+		return;
 
-if(gotPlane)
-{
+
 /*
- pcl::PointCloud<Point> table_cloud;
- pcl::toROSMsg(table_cloud,table_plane_info.hull);
- geometry_msgs::Point32 table_center=calcCentroid(table_cloud);
-//lookAt(table_plane_info.header.frame_id,table_center.x,table_center.y,table_center.z);
+	bool got_current_table=getTablePlane(cloud,init_table_plane_info);
+	if(got_current_table)
+	{
 
- std::cout<<"Frame: "<<table_plane_info.header.frame_id<<" Center x: "<<table_center.x<<" Center y: "<<table_center.y<<" Center z: "<<table_center.z;
-*/
-
- bool detect_objects=true;
-    if(detect_objects)
-      {
-
+	}		
 	ROS_INFO("Extracting objects...");
-	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(table_plane_info,cloud,table_obj_detector_lower_z,table_obj_detector_upper_z);	  
-
+	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(init_table_plane_info, cloud, table_obj_detector_lower_z, table_obj_detector_upper_z);	  
 	if(allObjectInfos.objects.size() < 1)
 	  {
 	    ROS_WARN("No objects over this plane.");
 	  }
 	else 
 	  {
-	ROS_INFO("# OF OBJS: %d",(int)(allObjectInfos.objects.size()));
+		ROS_INFO("# OF OBJS: %d",(int)(allObjectInfos.objects.size()));
+			for(unsigned int i=0; i<allObjectInfos.objects.size();i++)
+			{
+			int cloud_size=allObjectInfos.objects[i].cloud.data.size();
+			std::cout<<"OBJ "<<i<<" : "<<cloud_size<<" pts"<<std::endl;
+			}
+		#ifdef DEBUG_DRAW_TABLETOP_OBJECTS
+	  drawObjectPrisms(allObjectInfos,obj_marker_pub_,table_plane_info,0.0f,1.0f,0.0f);
+		#endif
 
-#ifdef DEBUG_DRAW_TABLETOP_OBJECTS
-	    drawObjectPrisms(allObjectInfos,obj_marker_pub_,table_plane_info,0.0f,1.0f,0.0f);
-	    //object_pub_.publish(objects);
-#endif
-
-	book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[0];
-	
-	if(test_arms)
-	{
-	//pushObject(pushedObjectInfo,pushVector, pushDistance);
-  //dragObject(pushedObjectInfo,pushVector,pushDistance);
-	book_stacking_msgs::DragRequest drag_req;
-	drag_req.object=pushedObjectInfo;
-	drag_req.dir.header.frame_id="torso_lift_link";
-	drag_req.dir.header.stamp=ros::Time::now();
-	drag_req.dir.vector.x=0.0;
-	drag_req.dir.vector.y=1.0;
-	drag_req.dir.vector.z=0.0;
-	drag_req.dist=0.15;
-	double output_dist;
-	bool success=dragObject(drag_req,output_dist);
-	}
-
-	
-	robot_initialized=false;
-
-
-	for (unsigned int i=0; i<allObjectInfos.objects.size();i++)
-	{
-/*
-	geometry_msgs::Point32 bbox_min=allObjectInfos.objects[i].bbox_min;
-	geometry_msgs::Point32 bbox_max=allObjectInfos.objects[i].bbox_max;
-	 pcl::ModelCoefficients circle_coeff;
- 	 circle_coeff.values.resize (3);    // We need 3 values
-         circle_coeff.values[0] = 1.0;
-         circle_coeff.values[1] = 1.0;
-         circle_coeff.values[2] = 0.3;
-         vtkSmartPointer<vtkDataSet> data = pcl::visualization::create2DCircle (circle_coeff, z);*/
-
-	}
-
-	  }	  
-      }
+		book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[0];	
+		if(test_arms)
+		{
+		//pushObject(pushedObjectInfo,pushVector, pushDistance);
+		//dragObject(pushedObjectInfo,pushVector,pushDistance);
+		book_stacking_msgs::DragRequest drag_req;
+		drag_req.object=pushedObjectInfo;
+		drag_req.dir.header.frame_id="torso_lift_link";
+		drag_req.dir.header.stamp=ros::Time::now();
+		drag_req.dir.vector.x=0.0;
+		drag_req.dir.vector.y=1.0;
+		drag_req.dir.vector.z=0.0;
+		drag_req.dist=0.15;
+		double output_dist;
+		bool success=dragObject(drag_req,output_dist);
+		}
+	}	  
+*/
 }
 
-    
-}
-
-bool getTablePlane(XYZPointCloud& cloud, book_stacking_msgs::PlaneInfo &pl_info)
+bool getTablePlane(XYZPointCloud& cloud, book_stacking_msgs::PlaneInfo &pl_info, bool draw_marker)
   {
     if(filter_spatial)
       {
@@ -1839,12 +1989,12 @@ bool getTablePlane(XYZPointCloud& cloud, book_stacking_msgs::PlaneInfo &pl_info)
 
     book_stacking_msgs::PlaneInfos plane_infos= getPlanesByNormals(cloud,4,true,concave_hull_mode_,use_omp_,plane_distance_thresh_,max_sac_iterations_,sac_probability_,min_plane_inliers_,normal_search_radius_,0.1);
     plane_infos.header.stamp=cloud.header.stamp; 
-#ifdef DEBUG_DRAW_TABLE_MARKERS
-    if(plane_infos.planes.size()>0)
+
+    if(draw_marker && plane_infos.planes.size()>0)
     {
     drawPlaneMarkers(plane_infos,plane_marker_pub_,1.0,0.0,0.0);
     }
-#endif
+
 	if(plane_infos.planes.size()>0)
 	{
 	pl_info=plane_infos.planes[0];
