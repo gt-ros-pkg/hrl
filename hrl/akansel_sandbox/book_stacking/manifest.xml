@@ -37,6 +37,7 @@
   <depend package="object_manipulation_msgs"/>
   <depend package="robot_self_filter"/>
   <depend package="pcl"/>
+  <depend package="omnix"/>
   <depend package="pcl_ros"/>
   <depend package="move_base"/>
   <depend package="topic_tools"/>

@@ -3,10 +3,11 @@
 
 
 #define END_EFFECTOR_OFFSET 0.175
+#define NAV_WAYPOINT_OFFSET 0.8
 
 #include <plane_extractor.h>
-//#include <omnix/move_omni_base.h>
-#include "/u/akansel/gt-ros-pkg/akansel_sandbox/omnix/include/omnix/move_omni_base.h"
+#include <move_omni_base.h>
+//#include "/u/akansel/gt-ros-pkg/akansel_sandbox/omnix/include/omnix/move_omni_base.h"
 #include <book_stacking_msgs/DragRequest.h>
 
 //ROS
@@ -60,6 +61,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <stdio.h>
 
 //VISUALIZATION
 #include <visualization_msgs/Marker.h>
@@ -167,10 +169,10 @@ private:
 	pr2_msgs::LaserScannerSignal tilt_minima_msg, tilt_maxima_msg;
   std::ofstream logFile;
 
-	book_stacking_msgs::PlaneInfo init_table_plane_info; //in odom_combined
+  book_stacking_msgs::PlaneInfo init_table_plane_info; //in odom_combined
   pcl::PointCloud<Point> init_table_hull; //in odom_combined
-	geometry_msgs::Point32 init_table_centroid; //in odom_combined
-
+  geometry_msgs::Point32 init_table_centroid; //in odom_combined
+  pcl::PointCloud<Point> nav_waypoints; //in odom_combined
 public:
   ros::NodeHandle n_;
   ros::Publisher filtered_cloud_pub_;
@@ -213,7 +215,9 @@ void commandCallback  (const std_msgs::String::ConstPtr& msg)
   std::vector<arm_config_7DOF> qs;
   std::vector<double> ts;
   move_base_msgs::MoveBaseGoal goal;
-	arm_config_7DOF q_current;
+  arm_config_7DOF q_current;
+  double odom_x,odom_y,yaw;
+
 switch (key0)
   {
 	case 'b': //message is to follower module.
@@ -344,6 +348,9 @@ switch (key0)
 			{
 			std::cout<<"angles["<<i<<"]: "<<q_current.angles[i]<<std::endl;
 			}
+			case 's':
+			  getOdomPose(odom_x,odom_y,yaw,ros::Time::now());
+			  break;
 			default:
 			  break;
 			}
@@ -355,7 +362,51 @@ switch (key0)
 
 
 
+void drawHull(pcl::PointCloud<Point> hull_pts,const ros::Publisher& plane_pub, float r, float g, float b)
+{
+  visualization_msgs::MarkerArray markers;
+      visualization_msgs::Marker marker;
+      marker.header.frame_id="odom_combined";
+      marker.header.stamp=ros::Time::now();
+      marker.ns = "nav_waypoints";
+      marker.id =5;
+      marker.type = visualization_msgs::Marker::LINE_STRIP;//SPHERE_LIST;//LINE_STRIP;
+      marker.action = visualization_msgs::Marker::ADD;
+      marker.color.r = r;
+      marker.color.g = g;
+      marker.color.b = b;
+      marker.color.a = 0.5;
+      marker.scale.x = 0.05;
+      marker.scale.y = 0.05;
+      marker.scale.z = 0.05;
+      marker.pose.position.x = 0.0;
+      marker.pose.position.y = 0.0;
+      marker.pose.position.z = 0.0;
+      marker.pose.orientation.x = 0.0;
+      marker.pose.orientation.y = 0.0;
+      marker.pose.orientation.z = 0.0;
+      marker.pose.orientation.w = 1.0;
+      marker.lifetime = ros::Duration(60.0*30.0);
 
+      for(size_t j = 0; j < hull_pts.points.size(); j++)
+	{
+          geometry_msgs::Point pt;
+          pt.x = hull_pts.points[j].x;
+          pt.y = hull_pts.points[j].y;
+          pt.z = hull_pts.points[j].z;
+          marker.points.push_back(pt);
+      }
+
+      geometry_msgs::Point pt;
+      pt.x = hull_pts.points[0].x;
+      pt.y = hull_pts.points[0].y;
+      pt.z = hull_pts.points[0].z;
+      marker.points.push_back(pt);
+      
+      markers.markers.push_back(marker);
+      plane_pub.publish(markers);
+  return;
+}
 
 bool getInitTable()
 {
@@ -393,23 +444,81 @@ bool getInitTable()
     pcl::transformPointCloud(table_hull_wrt_base_link,init_table_hull,offset,rot);
     init_table_hull.header = table_hull_wrt_base_link.header;
     init_table_hull.header.frame_id = "odom_combined";
+   
+    init_table_centroid = calcCentroid(init_table_hull);
+    std::cout<<"CENTROID | x: "<<init_table_centroid.x<<" y: "<<init_table_centroid.y<< " z: "<<init_table_centroid.z<<std::endl; 
+    for(unsigned int i=0;i<init_table_hull.points.size();i++) //calculate Centroid
+      {
+	geometry_msgs::Point32 p;
+	p.x = init_table_hull.points[i].x;
+	p.y = init_table_hull.points[i].y;
+	p.z = init_table_hull.points[i].z;
+	//std::cout<<"P "<<i<<" | x: "<<p.x<<" y: "<<p.y<< " z: "<<p.z<<std::endl;		
+	geometry_msgs::Point32 v;
+	v.x=p.x-init_table_centroid.x;
+	v.y=p.y-init_table_centroid.y;
+	double angle=atan2(v.y,v.x);
+	Point p_new;
+	p_new.x=p.x+NAV_WAYPOINT_OFFSET*cos(angle);
+	p_new.y=p.y+NAV_WAYPOINT_OFFSET*sin(angle);
+	p_new.z=p.z;
+	nav_waypoints.push_back(p_new);
+      }
+    drawHull(nav_waypoints,plane_marker_pub_,0.0,0.0,1.0);
+    
 
-		for(unsigned int i=0;i<init_table_hull.points.size();i++) //calculate Centroid
-		{
-          geometry_msgs::Point pt;
-          pt.x = init_table_hull.points[i].x;
-          pt.y = init_table_hull.points[i].y;
-          pt.z = init_table_hull.points[i].z;
-		std::cout<<"Pt "<<i<<" | x: "<<pt.x<<" y: "<<pt.y<< " z: "<<pt.z<<std::endl;		
-		}
-		init_table_centroid = calcCentroid(init_table_hull);
-		std::cout<<"CENTROID | x: "<<init_table_centroid.x<<" y: "<<init_table_centroid.y<< " z: "<<init_table_centroid.z<<std::endl;
-	
-	return true;
+    return true;
 	}
-
+	else
+	  {
+	    return false;
+	  }	
 }
-	
+
+double calculateHowMuchToPush (book_stacking_msgs::ObjectInfo objInfo)
+{
+
+  return 0.1;
+}
+
+bool navToObject(geometry_msgs::Point32 p_obj)
+{
+  double odom_x,odom_y,yaw;
+  getOdomPose(odom_x,odom_y,yaw,ros::Time::now());
+
+  //find closest waypoint
+  //search two paths
+  return true;
+}
+
+bool getOdomPose(double &x,double &y,double &yaw, const ros::Time& t)
+{
+  tf_listener.waitForTransform("odom_combined", "base_link", ros::Time::now(), ros::Duration(2.0));
+
+  // Get the robot's pose
+  tf::Stamped<tf::Pose> ident (btTransform(tf::createQuaternionFromRPY(0,0,0),
+                                           btVector3(0,0,0)), t, "base_link");
+  tf::Stamped<btTransform> odom_pose;
+  try
+  {
+    tf_listener.transformPose("odom_combined", ident, odom_pose);
+  }
+  catch(tf::TransformException e)
+  {
+    ROS_WARN("Failed to compute odom pose, skipping scan (%s)", e.what());
+    return false;
+  }
+  yaw = tf::getYaw(odom_pose.getRotation());
+  x=odom_pose.getOrigin().x();
+  y=odom_pose.getOrigin().y();
+  std::cout<<"Odom Pose| x:  "<<x<<" y: "<<y<<" yaw: "<<yaw<<std::endl;
+    
+    return true;
+}
+
+
+
+
 	bool plan0()
 	{
 		if(!got_init_table)
@@ -558,13 +667,13 @@ tf_listener.transformPose("odom_combined", goal.target_pose, output_pose_stamped
     arm_config_7DOF q_seed=GetCurrentRightArmJointAngles();
     arm_config_7DOF q_solution;
     geometry_msgs::PoseStamped target_pose;
-    double x_res=0.02;
-    double y_res=0.02;
-    double z_res=0.02;
-    for(double ix=0.2;ix<1.2;ix=ix+x_res)
+    double x_res=0.04;
+    double y_res=0.04;
+    double z_res=0.04;
+    for(double ix=0.1;ix<0.9;ix=ix+x_res)
       {
 		std::cout<<(double)ix<<std::endl;
-	for(double iy=-1.2;iy<0.3;iy=iy+y_res)
+	for(double iy=-1.0;iy<0.5;iy=iy+y_res)
 	  {
 	    for(double iz=-0.8;iz<0.5;iz=iz+z_res)
 	      {
