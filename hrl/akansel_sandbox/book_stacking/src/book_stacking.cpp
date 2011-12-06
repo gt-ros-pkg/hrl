@@ -3,13 +3,12 @@
 
 
 #define END_EFFECTOR_OFFSET 0.175
-#define NAV_WAYPOINT_OFFSET 0.8
 
 #include <plane_extractor.h>
 #include <move_omni_base.h>
 //#include "/u/akansel/gt-ros-pkg/akansel_sandbox/omnix/include/omnix/move_omni_base.h"
 #include <book_stacking_msgs/DragRequest.h>
-
+#include <book_stacking_msgs/NavWaypoints.h>
 //ROS
 #include <ros/ros.h>
 #include <actionlib/client/simple_action_client.h>
@@ -166,6 +165,7 @@ private:
 	XYZPointCloud latest_cloud;
   double tilt_period;
   double FINGERTIP_CONTACT_THRESHOLD;
+	double nav_waypoint_offset;
 	pr2_msgs::LaserScannerSignal tilt_minima_msg, tilt_maxima_msg;
   std::ofstream logFile;
 
@@ -173,6 +173,7 @@ private:
   pcl::PointCloud<Point> init_table_hull; //in odom_combined
   geometry_msgs::Point32 init_table_centroid; //in odom_combined
   pcl::PointCloud<Point> nav_waypoints; //in odom_combined
+	book_stacking_msgs::NavWaypoints nav_waypoint_goals;
 public:
   ros::NodeHandle n_;
   ros::Publisher filtered_cloud_pub_;
@@ -459,13 +460,23 @@ bool getInitTable()
 	v.y=p.y-init_table_centroid.y;
 	double angle=atan2(v.y,v.x);
 	Point p_new;
-	p_new.x=p.x+NAV_WAYPOINT_OFFSET*cos(angle);
-	p_new.y=p.y+NAV_WAYPOINT_OFFSET*sin(angle);
+	p_new.x=p.x+nav_waypoint_offset*cos(angle);
+	p_new.y=p.y+nav_waypoint_offset*sin(angle);
 	p_new.z=p.z;
 	nav_waypoints.push_back(p_new);
+
+	move_base_msgs::MoveBaseGoal goal;
+			  goal.target_pose.header.frame_id="odom_combined";			  
+			  goal.target_pose.pose.position.x = p_new.x;
+			  goal.target_pose.pose.position.y = p_new.y;
+			  goal.target_pose.pose.position.z = 0.0;
+				geometry_msgs::Quaternion quat=tf::createQuaternionMsgFromYaw(atan2(-v.y,-v.x));
+			  goal.target_pose.pose.orientation = quat;
+			  goal.target_pose.header.stamp=ros::Time::now();
+    nav_waypoint_goals.nav_goals.push_back(goal);
       }
     drawHull(nav_waypoints,plane_marker_pub_,0.0,0.0,1.0);
-    
+
 
     return true;
 	}
@@ -475,19 +486,141 @@ bool getInitTable()
 	  }	
 }
 
+
+
 double calculateHowMuchToPush (book_stacking_msgs::ObjectInfo objInfo)
 {
-
+	
   return 0.1;
 }
 
-bool navToObject(geometry_msgs::Point32 p_obj)
+double getEuclidianDist(double x1, double y1, double x2, double y2)
 {
-  double odom_x,odom_y,yaw;
+double result=sqrt((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2));
+//std::cout<<"d: "<<result<<std::endl;
+return result;
+}
+
+void ExecuteNavWaypoints(book_stacking_msgs::NavWaypoints goals)
+{
+	for(unsigned int i=0;i<goals.nav_goals.size();i++)
+	{	std::cout<<"-Goal #"<<i<<std::endl;
+		std::cout<<"x: "<<goals.nav_goals[i].target_pose.pose.position.x<<std::endl;
+		std::cout<<"y: "<<goals.nav_goals[i].target_pose.pose.position.y<<std::endl;
+		OmnixMoveBasePosition(goals.nav_goals[i]);			
+	}
+}
+
+bool NavigateToObject(book_stacking_msgs::ObjectInfo objInfo)
+{
+  geometry_msgs::PointStamped input_point;
+  geometry_msgs::PointStamped obj_centroid_wrt_odom_combined;
+  input_point.header.frame_id=objInfo.header.frame_id;
+  input_point.point.x=objInfo.centroid.x;
+  input_point.point.y=objInfo.centroid.y;
+  input_point.point.z=objInfo.centroid.z;
+  tf_listener.transformPoint("odom_combined", input_point, obj_centroid_wrt_odom_combined);
+
+	double odom_x,odom_y,yaw;
   getOdomPose(odom_x,odom_y,yaw,ros::Time::now());
 
-  //find closest waypoint
-  //search two paths
+	double d_robot_min=999.0;
+	double d_object_min=999.0;
+	unsigned int min_robot_index=0;
+	unsigned int min_object_index=0;
+
+	for(unsigned int i=0;i<nav_waypoint_goals.nav_goals.size();i++) //find q_start and q_end
+	{
+	double d_robot=getEuclidianDist(nav_waypoint_goals.nav_goals[i].target_pose.pose.position.x, nav_waypoint_goals.nav_goals[i].target_pose.pose.position.y, odom_x,odom_y);
+	double d_object=getEuclidianDist(nav_waypoint_goals.nav_goals[i].target_pose.pose.position.x, nav_waypoint_goals.nav_goals[i].target_pose.pose.position.y ,obj_centroid_wrt_odom_combined.point.x, obj_centroid_wrt_odom_combined.point.y);
+		if(d_robot<d_robot_min)
+		{
+		d_robot_min=d_robot;
+		min_robot_index=i;
+		}
+		if(d_object<d_object_min)
+		{
+		d_object_min=d_object;
+		min_object_index=i;
+		}
+	}
+
+	std::cout<<"Closest_robot| x: "<<nav_waypoint_goals.nav_goals[min_robot_index].target_pose.pose.position.x <<
+" y: "<< nav_waypoint_goals.nav_goals[min_robot_index].target_pose.pose.position.y <<std::endl;
+  std::cout<<"min_robot_index: "<<min_robot_index<<std::endl;
+
+	std::cout<<"Closest_object| x: "<<nav_waypoint_goals.nav_goals[min_object_index].target_pose.pose.position.x <<
+" y: "<< nav_waypoint_goals.nav_goals[min_object_index].target_pose.pose.position.y  <<std::endl;
+  std::cout<<"min_object_index: "<<min_object_index<<std::endl;
+
+	book_stacking_msgs::NavWaypoints clockwise_goals;
+	book_stacking_msgs::NavWaypoints c_clockwise_goals;
+
+	int waypoint_size=nav_waypoint_goals.nav_goals.size();
+	std::cout<<"Waypoint_size: "<<waypoint_size<<std::endl;
+
+bool	clockwise_found=false;
+bool	c_clockwise_found=false;
+int clockwise_index;
+int c_clockwise_index;
+	for(int i=0;i<waypoint_size;i++)
+	{
+
+		if(!clockwise_found)
+		{
+				clockwise_index=min_robot_index+i;
+				if(clockwise_index>=waypoint_size)
+				{
+				clockwise_index=clockwise_index-waypoint_size;
+				}
+				else if(clockwise_index<0)
+				{
+				clockwise_index=clockwise_index+waypoint_size;
+				}
+				clockwise_goals.nav_goals.push_back(nav_waypoint_goals.nav_goals[clockwise_index]);	
+				if(clockwise_index==min_object_index)
+				{
+				clockwise_found=true;
+				}
+		}
+
+		if(!c_clockwise_found)
+		{
+				c_clockwise_index=min_robot_index-i;
+				if(c_clockwise_index>=waypoint_size)
+				{
+				c_clockwise_index=c_clockwise_index-waypoint_size;
+				}
+				else if(c_clockwise_index<0)
+				{
+				c_clockwise_index=c_clockwise_index+waypoint_size;
+				}
+				c_clockwise_goals.nav_goals.push_back(nav_waypoint_goals.nav_goals[c_clockwise_index]);
+				if(c_clockwise_index==min_object_index)
+				{
+				c_clockwise_found=true;
+				}
+		}
+
+		std::cout<<"i: "<<i<<std::endl;
+		std::cout<<"clockwise_index: "<<clockwise_index<<std::endl;
+		std::cout<<"c_clockwise_index: "<<c_clockwise_index<<std::endl;
+
+		if(clockwise_found && c_clockwise_found)
+		break;		
+	}
+
+std::cout<<"clockwise_goals size: "<<clockwise_goals.nav_goals.size()<<std::endl;
+std::cout<<"c_clockwise_goals size: "<<c_clockwise_goals.nav_goals.size()<<std::endl;
+	
+if(clockwise_goals.nav_goals.size()<c_clockwise_goals.nav_goals.size())
+{
+ExecuteNavWaypoints(clockwise_goals);
+}
+else
+{
+ExecuteNavWaypoints(c_clockwise_goals);
+}	
   return true;
 }
 
@@ -536,7 +669,7 @@ bool getOdomPose(double &x,double &y,double &yaw, const ros::Time& t)
 	}
 	
 	book_stacking_msgs::PlaneInfo latest_table_plane_info;
-	bool got_current_table=getTablePlane(latest_cloud,latest_table_plane_info,false);
+	bool got_current_table=getTablePlane(latest_cloud,latest_table_plane_info,true);
 	if(got_current_table)
 	{
 	ROS_INFO("Extracting objects...");
@@ -558,26 +691,29 @@ bool getOdomPose(double &x,double &y,double &yaw, const ros::Time& t)
 			#endif
 
 			book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[0];	
+			NavigateToObject(pushedObjectInfo);
+
 			if(test_arms)
 			{
-			//pushObject(pushedObjectInfo,pushVector, pushDistance);
-			//dragObject(pushedObjectInfo,pushVector,pushDistance);
-			book_stacking_msgs::DragRequest drag_req;
-			drag_req.object=pushedObjectInfo;
-			drag_req.dir.header.frame_id="torso_lift_link";
-			drag_req.dir.header.stamp=ros::Time::now();
-			drag_req.dir.vector.x=0.0;
-			drag_req.dir.vector.y=1.0;
-			drag_req.dir.vector.z=0.0;
-			drag_req.dist=0.15;
-			double output_dist;
-			bool success=dragObject(drag_req,output_dist);
-			if(success)
-			{
+				//pushObject(pushedObjectInfo,pushVector, pushDistance);
+				//dragObject(pushedObjectInfo,pushVector,pushDistance);
+				book_stacking_msgs::DragRequest drag_req;
+				drag_req.object=pushedObjectInfo;
+				drag_req.dir.header.frame_id="torso_lift_link";
+				drag_req.dir.header.stamp=ros::Time::now();
+				drag_req.dir.vector.x=0.0;
+				drag_req.dir.vector.y=1.0;
+				drag_req.dir.vector.z=0.0;
+				drag_req.dist=0.15;
+				double output_dist;
+				bool success=dragObject(drag_req,output_dist);
+				if(success)
+				{
 
+				}
 			}
 
-			}
+
 		}	 
 
 	}		
@@ -628,7 +764,13 @@ bool OmnixMoveBasePosition(move_base_msgs::MoveBaseGoal goal) //goal is in base_
   move_base_msgs::MoveBaseGoal output_goal;  
   geometry_msgs::PoseStamped output_pose_stamped;  
   
-    //Transform it to torso_lift_link
+	 if (goal.target_pose.header.frame_id.compare("odom_combined") == 0) //already in odom_combined
+	{
+	omnix_move_base_client_->sendGoal(goal);
+	}
+	else
+	{
+    //Transform it to odom_combined
     tf::StampedTransform transf;
     try{
       tf_listener.waitForTransform("odom_combined", goal.target_pose.header.frame_id,
@@ -642,12 +784,14 @@ bool OmnixMoveBasePosition(move_base_msgs::MoveBaseGoal goal) //goal is in base_
       return false;
     }
 
-tf_listener.transformPose("odom_combined", goal.target_pose, output_pose_stamped);
+		tf_listener.transformPose("odom_combined", goal.target_pose, output_pose_stamped);
     output_goal.target_pose=output_pose_stamped;
 
     //ROS_INFO("Sending omnix_move_base goal");
     omnix_move_base_client_->sendGoal(output_goal);
-    omnix_move_base_client_->waitForResult(ros::Duration(30.0));
+	}
+
+    omnix_move_base_client_->waitForResult(ros::Duration(20.0));
     if(omnix_move_base_client_->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
       {
 			ROS_INFO("Omni move_base Goal Succeeded");
@@ -1315,6 +1459,7 @@ void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
 		n_.param("init_torso_position",init_torso_position,0.3);
 		n_.param("predrag_dist",predrag_dist,0.07);
 		n_.param("diff_drag_force",diff_drag_force,600.0);
+		n_.param("nav_waypoint_offset",nav_waypoint_offset,0.75);
 
 
   }
@@ -2006,50 +2151,6 @@ return;
     ROS_INFO("Pt cloud transform succeeded");			
 		latest_pt_cloud_ready=true;
 		return;
-
-
-/*
-	bool got_current_table=getTablePlane(cloud,init_table_plane_info);
-	if(got_current_table)
-	{
-
-	}		
-	ROS_INFO("Extracting objects...");
-	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(init_table_plane_info, cloud, table_obj_detector_lower_z, table_obj_detector_upper_z);	  
-	if(allObjectInfos.objects.size() < 1)
-	  {
-	    ROS_WARN("No objects over this plane.");
-	  }
-	else 
-	  {
-		ROS_INFO("# OF OBJS: %d",(int)(allObjectInfos.objects.size()));
-			for(unsigned int i=0; i<allObjectInfos.objects.size();i++)
-			{
-			int cloud_size=allObjectInfos.objects[i].cloud.data.size();
-			std::cout<<"OBJ "<<i<<" : "<<cloud_size<<" pts"<<std::endl;
-			}
-		#ifdef DEBUG_DRAW_TABLETOP_OBJECTS
-	  drawObjectPrisms(allObjectInfos,obj_marker_pub_,table_plane_info,0.0f,1.0f,0.0f);
-		#endif
-
-		book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[0];	
-		if(test_arms)
-		{
-		//pushObject(pushedObjectInfo,pushVector, pushDistance);
-		//dragObject(pushedObjectInfo,pushVector,pushDistance);
-		book_stacking_msgs::DragRequest drag_req;
-		drag_req.object=pushedObjectInfo;
-		drag_req.dir.header.frame_id="torso_lift_link";
-		drag_req.dir.header.stamp=ros::Time::now();
-		drag_req.dir.vector.x=0.0;
-		drag_req.dir.vector.y=1.0;
-		drag_req.dir.vector.z=0.0;
-		drag_req.dist=0.15;
-		double output_dist;
-		bool success=dragObject(drag_req,output_dist);
-		}
-	}	  
-*/
 }
 
 bool getTablePlane(XYZPointCloud& cloud, book_stacking_msgs::PlaneInfo &pl_info, bool draw_marker)

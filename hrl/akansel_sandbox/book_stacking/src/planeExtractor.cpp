@@ -49,8 +49,8 @@ book_stacking_msgs::ObjectInfos getObjectsOverPlane(const book_stacking_msgs::Pl
 
   //cluster the resulting points from the plane's prism
   pcl::EuclideanClusterExtraction<Point> clusterer;
-  clusterer.setClusterTolerance(0.03);
-  clusterer.setMinClusterSize(150);
+  clusterer.setClusterTolerance(0.05);
+  clusterer.setMinClusterSize(100);
   clusterer.setMaxClusterSize(8000);
 /*
   pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
@@ -210,7 +210,7 @@ void drawPlaneMarkers(const book_stacking_msgs::PlaneInfos& planes, const ros::P
       marker.pose.orientation.y = 0.0;
       marker.pose.orientation.z = 0.0;
       marker.pose.orientation.w = 1.0;
-      marker.lifetime = ros::Duration(60.0*30.0);
+      marker.lifetime = ros::Duration(60.0*10.0);
 
       for(size_t j = 0; j < hull_pts.points.size(); j++){
           geometry_msgs::Point pt;

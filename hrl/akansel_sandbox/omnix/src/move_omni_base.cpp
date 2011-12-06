@@ -1,4 +1,6 @@
 #include <omnix/move_omni_base.h>
+#include <iostream>
+#include <stdio.h>
 
 MoveOmniBase::MoveOmniBase(std::string name, tf::TransformListener& tf) :
   tf_(tf),
@@ -95,31 +97,48 @@ void MoveOmniBase::executeCb(const move_base_msgs::MoveBaseGoalConstPtr& move_ba
   //ROS_INFO("in executeCB");
   bool at_goal = false;
 	bool coll=false;
-  double goal_tolerance = 0.04;//meters
-  double goal_tolerance_rot = 0.174;
-  double xy_scale = 0.08;
-  double rot_scale = 0.1;
+  double goal_tolerance = 0.03;//meters
+  double goal_tolerance_rot = 0.11;
+  double xy_scale = 0.17;
+  double rot_scale = 1.2; //0.1
   ros::Rate r(30);
-
+	
+	double min_rot_vel=0.1;
+	
   geometry_msgs::PoseStamped base = geometry_msgs::PoseStamped();
   enableLaser=true;
   
   while(!(as_->isPreemptRequested()) && (ros::ok()) && (!at_goal)){
     //Get the goal location in the base frame
-    geometry_msgs::PoseStamped goal = goalToLocalFrame(move_base_goal->target_pose);
+    
+		geometry_msgs::PoseStamped goal = goalToLocalFrame(move_base_goal->target_pose);
     double goal_yaw = tf::getYaw(goal.pose.orientation);
     
     //Check if we're close enough
-    if((distance(goal,base) <= goal_tolerance) && (fabs(goal_yaw) < goal_tolerance_rot))
+	std::cout<<"(distance(goal,base): "<<distance(goal,base)<<std::endl;
+	std::cout<<"fabs(goal_yaw): "<<fabs(goal_yaw)<<std::endl;
+
+bool yaw_satisfied;
+if(fabs(goal_yaw) < goal_tolerance_rot)
+yaw_satisfied=true;
+else
+yaw_satisfied=false;
+
+bool pos_satisfied;
+if(distance(goal,base) <= goal_tolerance)
+pos_satisfied=true;
+else
+pos_satisfied=false;
+	
+	if(yaw_satisfied && pos_satisfied)
     {
       at_goal = true;
       break;
     } 
     else 
-    {
-      
+    {      
       //Calculate a velocity
-      double xvel, yvel, rotvel = 0.0;
+      double xvel, yvel = 0.0;
       tf::Vector3 vel_vec = tf::Vector3(goal.pose.position.x,
 					goal.pose.position.y,
 					0.0);
@@ -130,11 +149,42 @@ void MoveOmniBase::executeCb(const move_base_msgs::MoveBaseGoalConstPtr& move_ba
       //ROS_INFO("Goal yaw: %lf",goal_yaw);
       
       geometry_msgs::Twist cmd_vel;
+			if(pos_satisfied)
+			{
+			cmd_vel.linear.x =0.0;
+			cmd_vel.linear.y =0.0;
+			}
+			else
+			{
       cmd_vel.linear.x = xvel * xy_scale;
       cmd_vel.linear.y = yvel * xy_scale;
+			}
+		if(yaw_satisfied)
+		{
+		cmd_vel.angular.z=0;
+		}
+		else
+		{
       double rot_vel =  (goal_yaw / M_PI) * rot_scale;
-      cmd_vel.angular.z = rot_vel;      
+
+			if(rot_vel<0.0) //rot_vel negative
+			{
+				if(rot_vel>-min_rot_vel)
+				{
+					rot_vel=-min_rot_vel;
+				}
+			}
+			else //rot_vel positive
+			{
+				if(rot_vel<min_rot_vel)
+				{
+				rot_vel=min_rot_vel;
+				}
+			}
 			
+      cmd_vel.angular.z = rot_vel;      
+		}
+		
 		if(cmd_vel.linear.x>0.001 && front_collision)
 		{
 		coll=true;
