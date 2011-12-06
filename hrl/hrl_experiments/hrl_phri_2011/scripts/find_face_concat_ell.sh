@@ -3,10 +3,10 @@ pkg=`rospack find hrl_phri_2011`
 source $pkg/scripts/variables.sh
 args=("$@")
 ccargs=""
-study_users=("4" "5" "7" "8" "9" "10" "11" "13")
+study_users=("1" "2" "4" "5" "6" "7" "8" "10")
 num_users=${#study_users[@]}
-#multipliers=( "0.6050" "0.4263" "0.2705" "0.3242" "0.2679" "0.8833" "0.3389" "0.5271" )
-multipliers=( "1" "1" "1" "1" "1" "1" "1" "1" )
+multipliers=( "0.6050" "0.4263" "0.2705" "0.3242" "0.2679" "0.8833" "0.3389" "0.5271" )
+#multipliers=( "1" "1" "1" "1" "1" "1" "1" "1" )
 set -x
 for (( i=0; i<${num_users}; i++ ));
 do
