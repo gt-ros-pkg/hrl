@@ -2,13 +2,16 @@
 #define DEBUG_DRAW_TABLETOP_OBJECTS
 
 
-#define END_EFFECTOR_OFFSET 0.175
+#define END_EFFECTOR_OFFSET 0.193
 
 #include <plane_extractor.h>
 #include <move_omni_base.h>
 //#include "/u/akansel/gt-ros-pkg/akansel_sandbox/omnix/include/omnix/move_omni_base.h"
 #include <book_stacking_msgs/DragRequest.h>
 #include <book_stacking_msgs/NavWaypoints.h>
+#include <book_stacking_msgs/ObjectInfos.h>
+#include <book_stacking_msgs/ObjectInfo.h>
+
 //ROS
 #include <ros/ros.h>
 #include <actionlib/client/simple_action_client.h>
@@ -19,6 +22,7 @@
 #include <sensor_msgs/JointState.h>
 #include <pr2_controllers_msgs/SingleJointPositionAction.h>
 #include <pr2_controllers_msgs/PointHeadAction.h>
+#include <pr2_controllers_msgs/Pr2GripperCommandAction.h>
 #include <std_msgs/String.h>
 #include <kinematics_msgs/GetKinematicSolverInfo.h>
 #include <kinematics_msgs/GetPositionFK.h>
@@ -95,6 +99,7 @@ typedef actionlib::SimpleActionClient<pr2_controllers_msgs::SingleJointPositionA
 typedef actionlib::SimpleActionClient<arm_navigation_msgs::MoveArmAction> ArmActionClient;
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 typedef actionlib::SimpleActionClient<object_manipulation_msgs::PickupAction> PickupClient;
+typedef actionlib::SimpleActionClient<pr2_controllers_msgs::Pr2GripperCommandAction> GripperClient;
 
 class book_stacking
 {
@@ -118,6 +123,7 @@ private:
   MoveBaseClient *move_base_client_;
   MoveBaseClient *omnix_move_base_client_;
 	PickupClient *pickup_client_;
+	GripperClient *right_gripper_client_; 
   tf::TransformListener tf_listener;
 
 
@@ -174,6 +180,9 @@ private:
   geometry_msgs::Point32 init_table_centroid; //in odom_combined
   pcl::PointCloud<Point> nav_waypoints; //in odom_combined
 	book_stacking_msgs::NavWaypoints nav_waypoint_goals;
+	book_stacking_msgs::ObjectInfos all_objects_wrt_odom_combined;
+std::vector<double> all_objects_x_wrt_odom_combined;
+std::vector<double> all_objects_y_wrt_odom_combined;
 public:
   ros::NodeHandle n_;
   ros::Publisher filtered_cloud_pub_;
@@ -193,7 +202,7 @@ book_stacking():
 if(test_arms)
 {
   TestArm();
-  TestArm2();
+  //TestArm2();
   traj_right_arm_client_->sendGoal(rightArmHomingTrajectory);
   traj_right_arm_client_->waitForResult();
 }
@@ -352,6 +361,12 @@ switch (key0)
 			case 's':
 			  getOdomPose(odom_x,odom_y,yaw,ros::Time::now());
 			  break;
+			case 't':
+			OpenRightGripper();
+			break;
+			case 'u':
+			CloseRightGripper();
+			break;
 			default:
 			  break;
 			}
@@ -654,69 +669,97 @@ bool getOdomPose(double &x,double &y,double &yaw, const ros::Time& t)
 
 	bool plan0()
 	{
-		if(!got_init_table)
-		{
-		ROS_WARN("No initial table!");
-		return false;
-		}
-		ros::Rate loop_rate(10);
-	latest_pt_cloud_ready=false;
-	GetTiltingPointCloud(false);
-	while (!latest_pt_cloud_ready)
+
+	if(!got_init_table)
 	{
-	ros::spinOnce();		
-	loop_rate.sleep();
+	ROS_WARN("No initial table!");
+	return false;
 	}
 	
+	ros::Rate rate10(10);
 	book_stacking_msgs::PlaneInfo latest_table_plane_info;
-	bool got_current_table=getTablePlane(latest_cloud,latest_table_plane_info,true);
-	if(got_current_table)
+
+	while(true)
 	{
+	latest_pt_cloud_ready=false;
+	GetTiltingPointCloud(false);
+		while (!latest_pt_cloud_ready)
+		{
+		ros::spinOnce();
+		rate10.sleep();
+		}
+
+	bool got_current_table=getTablePlane(latest_cloud,latest_table_plane_info,false);
+	if(got_current_table)
+	break;
+	}
+
 	ROS_INFO("Extracting objects...");
-	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(latest_table_plane_info, latest_cloud, table_obj_detector_lower_z, table_obj_detector_upper_z);	  
+	book_stacking_msgs::ObjectInfos allObjectInfos = getObjectsOverPlane(latest_table_plane_info, latest_cloud, table_obj_detector_lower_z, table_obj_detector_upper_z);
 		if(allObjectInfos.objects.size() < 1)
 			{
 			  ROS_WARN("No objects over this plane.");
+				return false;
 			}
-		else 
-			{
-			ROS_INFO("# OF OBJS: %d",(int)(allObjectInfos.objects.size()));
-				for(unsigned int i=0; i<allObjectInfos.objects.size();i++)
+		
+		ROS_INFO("# OF OBJS: %d",(int)(allObjectInfos.objects.size()));
+
+		all_objects_x_wrt_odom_combined.clear();
+		all_objects_y_wrt_odom_combined.clear();
+
+				for(unsigned int i=0; i<allObjectInfos.objects.size();i++) //save objs in odom_combined frame
 				{
 				int cloud_size=allObjectInfos.objects[i].cloud.data.size();
 				std::cout<<"OBJ "<<i<<" : "<<cloud_size<<" pts"<<std::endl;
+
+				geometry_msgs::PointStamped input_point;
+				geometry_msgs::PointStamped obj_centroid_wrt_odom_combined;
+				input_point.header.frame_id=allObjectInfos.objects[i].header.frame_id;
+				input_point.point.x=allObjectInfos.objects[i].centroid.x;
+				input_point.point.y=allObjectInfos.objects[i].centroid.y;
+				input_point.point.z=allObjectInfos.objects[i].centroid.z;
+			  tf_listener.transformPoint("odom_combined", input_point, obj_centroid_wrt_odom_combined);
+				all_objects_x_wrt_odom_combined.push_back(obj_centroid_wrt_odom_combined.point.x);
+				all_objects_y_wrt_odom_combined.push_back(obj_centroid_wrt_odom_combined.point.y);
 				}
+
 			#ifdef DEBUG_DRAW_TABLETOP_OBJECTS
 			drawObjectPrisms(allObjectInfos,obj_marker_pub_,latest_table_plane_info,0.0f,1.0f,0.0f);
 			#endif
 
-			book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[0];	
-			NavigateToObject(pushedObjectInfo);
+			int target_object_index=0;
+			book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[target_object_index];	
+			pushedObjectInfo.header.frame_id="odom_combined";
+			pushedObjectInfo.centroid.x=all_objects_x_wrt_odom_combined[target_object_index];
+			pushedObjectInfo.centroid.y=all_objects_y_wrt_odom_combined[target_object_index];
+
+			
+			//determine drag vector.
+			//try dragObject
+			
+			//NavigateToObject(pushedObjectInfo); //if can't be reached, navigate to object
+
 
 			if(test_arms)
 			{
 				//pushObject(pushedObjectInfo,pushVector, pushDistance);
-				//dragObject(pushedObjectInfo,pushVector,pushDistance);
+
 				book_stacking_msgs::DragRequest drag_req;
 				drag_req.object=pushedObjectInfo;
 				drag_req.dir.header.frame_id="torso_lift_link";
 				drag_req.dir.header.stamp=ros::Time::now();
-				drag_req.dir.vector.x=0.0;
-				drag_req.dir.vector.y=1.0;
+				drag_req.dir.vector.x=-1.0;
+				drag_req.dir.vector.y=0.0;
 				drag_req.dir.vector.z=0.0;
-				drag_req.dist=0.15;
+				drag_req.dist=0.20;
 				double output_dist;
 				bool success=dragObject(drag_req,output_dist);
 				if(success)
 				{
-
+				traj_right_arm_client_->sendGoal(rightArmHomingTrajectory);
+				traj_right_arm_client_->waitForResult();
 				}
 			}
-
-
-		}	 
-
-	}		
 	
 	return false;
 
@@ -900,7 +943,6 @@ bool callQueryIK(kinematics_msgs::GetKinematicSolverInfo::Response &response)
     (COLLISION_PROCESSING_SERVICE_NAME, true);
 
 
-
  point_cloud_sub_=n_.subscribe("/assembled_pt_cloud2_self_filtered",1,&book_stacking::KinectCallback,this);
  filtered_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud2>("filtered_cloud",1);
  plane_marker_pub_ = n_.advertise<visualization_msgs::MarkerArray>("akans_plane_marker_array",1);
@@ -955,9 +997,11 @@ pickup_client_=new PickupClient("/object_manipulator/object_manipulator_pickup",
     {
       ROS_INFO("Waiting for the PickupClient server to come up");
     }
-
-
-
+right_gripper_client_=new GripperClient("r_gripper_controller/gripper_action", true);
+    while(!right_gripper_client_->waitForServer(ros::Duration(5.0)))
+		{
+      ROS_INFO("Waiting for the r_gripper_controller/gripper_action action server to come up");
+    }
 
     laser_assembler_client = root_handle_.serviceClient<laser_assembler::AssembleScans>("assemble_scans");
     tilting_pt_cloud_pub_ = n_.advertise<sensor_msgs::PointCloud> ("/assembled_pt_cloud_raw", 5);
@@ -965,14 +1009,11 @@ pickup_client_=new PickupClient("/object_manipulator/object_manipulator_pickup",
  callQueryIK(ik_solver_info);
  callQueryFK(fk_solver_info);
 
-
-  	
-
  moveTorsoToPosition(init_torso_position);//0.3
  lookAt("base_link", 1.0, 0.0, 0.0);
- rightArmHomingTrajectory=createRightArmHomingTrajectory();
-
-
+ OpenRightGripper();
+ 
+	rightArmHomingTrajectory=createRightArmHomingTrajectory();
 	got_init_table=false;
 	right_arm_fingertips_sensing=true;
 	right_arm_fingertips_nominals=true;
@@ -1033,13 +1074,23 @@ pr2_controllers_msgs::JointTrajectoryGoal createRightArmHomingTrajectory()
 
     // trajectory point 1
     goal.trajectory.points[ind].positions.resize(7);
+/*
     goal.trajectory.points[ind].positions[0] = -0.165998663278225;
-    goal.trajectory.points[ind].positions[1] = -0.42760446970174038;
+    goal.trajectory.points[ind].positions[1] = -0.42760446970174038;`
     goal.trajectory.points[ind].positions[2] = -1.6653232834640597;
     goal.trajectory.points[ind].positions[3] = -1.189691671368649;
     goal.trajectory.points[ind].positions[4] = -20.00850591;
     goal.trajectory.points[ind].positions[5] = -1.61968241508;
     goal.trajectory.points[ind].positions[6] = 12.0600056906631;
+*/
+   	goal.trajectory.points[ind].positions[0] = -0.66;
+    goal.trajectory.points[ind].positions[1] = -0.173;
+    goal.trajectory.points[ind].positions[2] = -0.70;
+    goal.trajectory.points[ind].positions[3] = -1.52;
+    goal.trajectory.points[ind].positions[4] = 4.64;
+    goal.trajectory.points[ind].positions[5] = -1.52;
+    goal.trajectory.points[ind].positions[6] = -9.32;
+
     goal.trajectory.points[ind].velocities.resize(7);
     for (size_t j = 0; j < 7; ++j)
     {
@@ -1052,6 +1103,7 @@ pr2_controllers_msgs::JointTrajectoryGoal createRightArmHomingTrajectory()
     // trajectory point 2
     ind += 1;
     goal.trajectory.points[ind].positions.resize(7);
+/*
     goal.trajectory.points[ind].positions[0] = -1.0622191969072416;
     goal.trajectory.points[ind].positions[1] = -0.42760446970174038;
     goal.trajectory.points[ind].positions[2] = -1.6653232834640597;
@@ -1059,12 +1111,20 @@ pr2_controllers_msgs::JointTrajectoryGoal createRightArmHomingTrajectory()
     goal.trajectory.points[ind].positions[4] = -20.00850591;
     goal.trajectory.points[ind].positions[5] = -1.61968241508;
     goal.trajectory.points[ind].positions[6] = 11.00822105617;
+*/
+   	goal.trajectory.points[ind].positions[0] = -1.367;
+    goal.trajectory.points[ind].positions[1] = -0.173;
+    goal.trajectory.points[ind].positions[2] = 0.0;
+    goal.trajectory.points[ind].positions[3] = -1.52;
+    goal.trajectory.points[ind].positions[4] = 4.64;
+    goal.trajectory.points[ind].positions[5] = -1.52;
+    goal.trajectory.points[ind].positions[6] = -9.32;
     goal.trajectory.points[ind].velocities.resize(7);
     for (size_t j = 0; j < 7; ++j)
     {
       goal.trajectory.points[ind].velocities[j] = 0.0;
     }
-    goal.trajectory.points[ind].time_from_start = ros::Duration(2.5);
+    goal.trajectory.points[ind].time_from_start = ros::Duration(4.5);
 
     return goal;
 }
@@ -1072,6 +1132,8 @@ pr2_controllers_msgs::JointTrajectoryGoal createRightArmHomingTrajectory()
 
 arm_config_7DOF GetExampleRightArmJointAngles()
 {
+return (GetCurrentRightArmJointAngles());
+/*
 arm_config_7DOF q_example;
 q_example.angles[0]=-0.328993;
 q_example.angles[1]=-0.0377065;
@@ -1080,7 +1142,7 @@ q_example.angles[3]=-0.860194;
 q_example.angles[4]=-6.16558;
 q_example.angles[5]=-1.0438;
 q_example.angles[6]=-11.0498;
-return q_example;
+return q_example;*/
 }
 
 arm_config_7DOF GetCurrentRightArmJointAngles()
@@ -1092,11 +1154,19 @@ arm_config_7DOF GetCurrentRightArmJointAngles()
     ros::topic::waitForMessage<pr2_controllers_msgs::JointTrajectoryControllerState>
     ("r_arm_controller/state");
   
-  //extract the joint angles from it
+
+/*
   for(i=0; i<7; i++)
     {
       q_current.angles[i] = state_msg->actual.positions[i];
     }
+*/
+  for(i=0; i<7; i++)
+    {
+      q_current.angles[i] = (ik_solver_info.kinematic_solver_info.limits[i].min_position + ik_solver_info.kinematic_solver_info.limits[i].max_position)/2.0;
+    }
+
+
   return q_current;
 }
 
@@ -1162,7 +1232,7 @@ return true;
   ik_request.ik_request.ik_seed_state.joint_state.position[i] = q_seed.angles[i];
   }
 
-    //ROS_INFO("request pose: %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f", pose.pose.position.x, pose.pose.position.y, pose.pose.position.z, pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
+    //ROS_INFO("IK request: %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f %0.3f", pose.pose.position.x, pose.pose.position.y, pose.pose.position.z, pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
 
     bool ik_service_call = ik_client_right.call(ik_request,ik_response);
     if(!ik_service_call)
@@ -1215,7 +1285,7 @@ bool ExploreLinearMoveAction(double dx,double dy,double dz, arm_config_7DOF q_se
 	{
 	  return false;
 	}
-      const int num_inter_checks=10;
+      const int num_inter_checks=5;
       for(int i=num_inter_checks-1;i>0;i--)
 	{
 	  double path_ratio=((double)(i))/num_inter_checks;
@@ -1258,6 +1328,7 @@ bool SendRightEndEffectorTrajectory(pr2_controllers_msgs::JointTrajectoryGoal tr
 		{
 	 		if(right_arm_fingertips_contacted)
 			{
+			std::cout<<"R FINGER CONTACT!"<<std::endl;
 			right_arm_fingertips_contacted=false;
 			traj_right_arm_client_->cancelAllGoals();
 			right_arm_fingertips_sensing=false;			
@@ -1305,6 +1376,30 @@ void TiltTimingCallback(const pr2_msgs::LaserScannerSignal::ConstPtr& msg)
 	return;
 }
 
+void SendRightGripperCommand(double pos, double effort) //if -1, don't limit. 50.0 for gentle
+{
+pr2_controllers_msgs::Pr2GripperCommandGoal open;
+    open.command.position = pos;
+    open.command.max_effort = effort;  // Do not limit effort (negative)
+right_gripper_client_->sendGoal(open);
+    right_gripper_client_->waitForResult();
+    if(right_gripper_client_->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
+      ROS_INFO("The gripper command succeeded!");
+    else
+      ROS_INFO("The gripper failed to open.");
+}
+
+void OpenRightGripper()
+{
+SendRightGripperCommand(0.08,-1.0);
+}
+
+void CloseRightGripper()
+{
+SendRightGripperCommand(0.0,50.0);
+}
+
+
 void FingertipLeftCallback(const pr2_msgs::PressureState::ConstPtr& msg)
 {
 
@@ -1333,16 +1428,26 @@ void FingertipRightCallback(const pr2_msgs::PressureState::ConstPtr& msg)
 		std::vector<short int> l_finger_tip_arr=msg->l_finger_tip;
 		std::vector<short int> r_finger_tip_arr=msg->r_finger_tip;
 		
+		int counter=0;
 		for(unsigned int i=0;i<l_finger_tip_arr.size();i++)
 		{
 		int diff_l=l_finger_tip_arr[i]-right_arm_l_finger_tip_nominals[i];
 		int diff_r=r_finger_tip_arr[i]-right_arm_r_finger_tip_nominals[i];
 
 //std::cout<<"diff_l: "<<diff_l<< " diff_r: "<<diff_r<<std::endl;			
-			if(diff_r>FINGERTIP_CONTACT_THRESHOLD || diff_l>FINGERTIP_CONTACT_THRESHOLD)
+			if(diff_r>FINGERTIP_CONTACT_THRESHOLD)
 			{
-			right_arm_fingertips_contacted=true;
+			counter++;
 			}	
+			if(diff_l>FINGERTIP_CONTACT_THRESHOLD)
+			{
+			counter++;
+			}
+		if(counter>2)
+		{
+			right_arm_fingertips_contacted=true;
+		}
+
 		}
 
 		}
@@ -1511,41 +1616,61 @@ bool ExecuteDragAction(geometry_msgs::Vector3Stamped desired_dir,double desired_
   std::vector<arm_config_7DOF> qs;
   std::vector<double> ts;
   qs.push_back(drag_act.q_0);
-  ts.push_back(2.5);
+  ts.push_back(3.0);
    
   pr2_controllers_msgs::JointTrajectoryGoal traj0=createRightArmTrajectoryFromAngles(qs,ts);
-  if(SendRightEndEffectorTrajectory(traj0,false))
-    {
+  SendRightEndEffectorTrajectory(traj0,false); //moving to pre-drag
+
       double path_distance;
       arm_config_7DOF q_1,q_2;
-      ExploreLinearMoveAction(0.0,0.0,-(predrag_dist+0.06),GetCurrentRightArmJointAngles(),true,path_distance,q_1);
+      //ExploreLinearMoveAction(0.0,0.0,-(predrag_dist),GetCurrentRightArmJointAngles(),true,path_distance,q_1);
+ExploreLinearMoveAction(0.0,0.0,-(0.2),GetCurrentRightArmJointAngles(),true,path_distance,q_1);
       qs.clear();
       ts.clear();
-      ts.push_back(2.0);
+      ts.push_back(5.0);
       qs.push_back(q_1);
       pr2_controllers_msgs::JointTrajectoryGoal traj1=createRightArmTrajectoryFromAngles(qs,ts);
       FINGERTIP_CONTACT_THRESHOLD=diff_drag_force;     
-      SendRightEndEffectorTrajectory(traj1,true);
+      SendRightEndEffectorTrajectory(traj1,true); //move down
       FINGERTIP_CONTACT_THRESHOLD=150.0;
 
-      if(ExploreLinearMoveAction(desired_dir.vector.x*desired_dist ,desired_dir.vector.y*desired_dist ,desired_dir.vector.z*desired_dist,GetCurrentRightArmJointAngles(),true, path_distance,q_2))
+
+				move_base_msgs::MoveBaseGoal goal;
+			  goal.target_pose.header.frame_id="base_link";			  
+			  goal.target_pose.pose.position.x = desired_dir.vector.x*desired_dist;
+			  goal.target_pose.pose.position.y = desired_dir.vector.y*desired_dist;
+			  goal.target_pose.pose.position.z = 0.0;
+			  goal.target_pose.pose.orientation.x = 0.0;
+			  goal.target_pose.pose.orientation.y = 0.0;
+			  goal.target_pose.pose.orientation.z = 0.0;
+			  goal.target_pose.pose.orientation.w = 1.0;
+			  goal.target_pose.header.stamp=ros::Time::now();
+			  OmnixMoveBasePosition(goal);				
+/*
+      if(ExploreLinearMoveAction(desired_dir.vector.x*desired_dist ,desired_dir.vector.y*desired_dist ,desired_dir.vector.z*desired_dist,GetCurrentRightArmJointAngles(),true, path_distance,q_2)) //drag
 	{
 	  qs.clear();
 	  ts.clear();
 	  ts.push_back(1.0);
 	  qs.push_back(q_2);
 	  pr2_controllers_msgs::JointTrajectoryGoal traj2=createRightArmTrajectoryFromAngles(qs,ts);
-	  SendRightEndEffectorTrajectory(traj2,true);
+	  SendRightEndEffectorTrajectory(traj2,false);
 	}
+*/
 
 
-      /*      dt=path_distance/speed;
-      FINGERTIP_CONTACT_THRESHOLD=500.0;
-      MoveEndEffectorLinear(0.0,0.0,-0.10,true,0.15,true);
-      FINGERTIP_CONTACT_THRESHOLD=150.0;
-      MoveEndEffectorLinear(dist*dir.vector.x,dist*dir.vector.y,dist*dir.vector.z,false,0.15,true);
-      */    
-    }
+/*
+		 arm_config_7DOF q_3;
+     if(ExploreLinearMoveAction(0.0,0.0,0.03,GetCurrentRightArmJointAngles(),true, path_distance,q_3)) //move up
+			{
+			qs.clear();
+			ts.clear();
+			ts.push_back(1.0);
+			qs.push_back(q_3);
+			pr2_controllers_msgs::JointTrajectoryGoal traj3=createRightArmTrajectoryFromAngles(qs,ts);
+			SendRightEndEffectorTrajectory(traj3,false);
+			}
+*/	    
   return true;
 }
 
@@ -1616,9 +1741,11 @@ explore_drag_success=ExploreDragAction(drag_req.object, drag_req.dir, drag_req.d
 				ROS_INFO("Drag Action Execution wasn't successful");
 				return false;
 	      }
+			
 	  }
 	else
 	  {
+
 	    ROS_INFO("Drag Action Not Feasible. Move the base to optimal location");
 		  OmnixAdjustBaseForOptimalWorkspace(queried_pose_wrt_torso_lift_link);
 
@@ -1626,6 +1753,7 @@ explore_drag_success=ExploreDragAction(drag_req.object, drag_req.dir, drag_req.d
 				if(explore_drag_success)
 					{
 						ROS_INFO("2.Drag Action Feasible");
+						
 						if(ExecuteDragAction(drag_req.dir,drag_req.dist,output_drag_act))
 							{
 							ROS_INFO("2. Drag Action Executed Successfully");
@@ -1641,107 +1769,12 @@ explore_drag_success=ExploreDragAction(drag_req.object, drag_req.dir, drag_req.d
 					{
 						ROS_INFO("2. Drag Action Not Feasible.");
 						return false;
-					//bool move_arm_success= SetMoveArmGoal(queried_pose_wrt_torso_lift_link.pose.position.x, queried_pose_wrt_torso_lift_link.pose.position.y, queried_pose_wrt_torso_lift_link.pose.position.z);
 					}
+
 	  }
 
    return false;
 }
-
-bool pushObject(book_stacking_msgs::ObjectInfo objInfo, geometry_msgs::Vector3Stamped dir,double dist)
-{
-//determine start position, given the object
-  arm_navigation_msgs::SimplePoseConstraint prepush_constraints;
-  //prepush_pose.header.frame_id = objInfo.header.frame_id;
-  prepush_constraints.header.frame_id = "torso_lift_link";
-  prepush_constraints.link_name = "r_wrist_roll_link";
-
-  double pad_dist=0.08;
-  double gripper_offset=0.00;	
-  geometry_msgs::PointStamped input_point;
-  input_point.header.frame_id=objInfo.header.frame_id;
-  input_point.point.x=objInfo.centroid.x;
-  input_point.point.y=objInfo.centroid.y;
-  input_point.point.z=objInfo.centroid.z;
-  geometry_msgs::PointStamped output_point;
-  tf_listener.transformPoint("torso_lift_link", input_point, output_point);
-  double startX=output_point.point.x-dir.vector.x*(pad_dist+gripper_offset);
-  double startY=output_point.point.y-dir.vector.y*(pad_dist+gripper_offset);
-  double startZ=output_point.point.z-dir.vector.z*(pad_dist+gripper_offset);
-
-  prepush_constraints.pose.position.x = startX;
-  prepush_constraints.pose.position.y = startY;
-  prepush_constraints.pose.position.z = startZ;
-  prepush_constraints.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,M_PI/2,0.0);
-  //prepush_constraints.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,M_PI/2,0.0);
-
-
-    geometry_msgs::PoseStamped tpose;
-    tpose.header=prepush_constraints.header;
-    tpose.pose.orientation=prepush_constraints.pose.orientation;
-    tpose.pose.position=prepush_constraints.pose.position;
-
-
-    bool ik_sln_found=false;
-    arm_config_7DOF q_current=GetCurrentRightArmJointAngles();
-    arm_config_7DOF q_solution;
-    std::string link_name="r_wrist_roll_link";
-
-for (double zOff=0.04; zOff<0.11;zOff=zOff+0.01)
-{
-tpose.pose.position.z=startZ+zOff;
-for (double pitchOff=M_PI/2; pitchOff>M_PI/2*0.85;pitchOff=pitchOff-0.025)
-{
-tpose.pose.orientation=tf::createQuaternionMsgFromRollPitchYaw(M_PI/2,pitchOff,0.0);
-  visualization_msgs::Marker mr;
-  mr.header.frame_id=tpose.header.frame_id;
-  mr.header.stamp=ros::Time::now();
-  mr.type=visualization_msgs::Marker::ARROW;
-  mr.action=visualization_msgs::Marker::ADD;
-  mr.pose=tpose.pose;
-  mr.scale.x=0.06;
-  mr.scale.y=0.06;
-  mr.scale.z=0.06;
-  mr.color.a=1.0;
-  mr.color.r=1.0;
-  mr.color.g=0.3;
-  mr.color.b=1.0;
-  vis_pub_.publish(mr); 
-
-  if (run_ik(tpose,q_current,q_solution,link_name,ik_solver_info))
-  {
-	prepush_constraints.pose.orientation=tpose.pose.orientation;
-        prepush_constraints.pose.position=tpose.pose.position;
-        ik_sln_found=true;
-	break;
-  }
-  else
-  {
-  //std::cout<<"zOff: "<<zOff<<", pitch: "<<pitchOff<<" didn't work"<<std::endl;
-  }
-}
-if(ik_sln_found)
-break;
-}
-
-
-//determine end position, given the dist and dir of the push
-
-//move the base if necessary.
-
-//Move the arm to the start position.
-if(ik_sln_found)
-{
-PlaceEndEffector(true,move_right_arm_client_,prepush_constraints,false);
-}
-//Move the arm to the end position.
-
-//PlaceEndEffector(true,move_right_arm_client_,end_pose,true);
-return true;
-}
-
-
-
  
 bool PlaceEndEffector(bool use_right_arm, ArmActionClient *arm_ac_client_, arm_navigation_msgs::SimplePoseConstraint &desired_pose,bool disable_gripper)
 {
@@ -2148,7 +2181,7 @@ return;
     cloud.header.frame_id = base_frame_tf;   
 
 		latest_cloud=cloud;
-    ROS_INFO("Pt cloud transform succeeded");			
+    //ROS_INFO("Pt cloud transform succeeded");			
 		latest_pt_cloud_ready=true;
 		return;
 }
@@ -2194,7 +2227,7 @@ bool getTablePlane(XYZPointCloud& cloud, book_stacking_msgs::PlaneInfo &pl_info,
     //Publish the filtered cloud
     sensor_msgs::PointCloud2 filtered_msg;
     pcl::toROSMsg(cloud,filtered_msg);
-    ROS_INFO("Publishing filtered cloud...");
+    //ROS_INFO("Publishing filtered cloud...");
     filtered_cloud_pub_.publish(filtered_msg);
 
     book_stacking_msgs::PlaneInfos plane_infos= getPlanesByNormals(cloud,4,true,concave_hull_mode_,use_omp_,plane_distance_thresh_,max_sac_iterations_,sac_probability_,min_plane_inliers_,normal_search_radius_,0.1);

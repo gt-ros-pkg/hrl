@@ -112,7 +112,7 @@ void drawObjectPrisms(const book_stacking_msgs::ObjectInfos& objects, const ros:
   marker.color.b = b;
   marker.color.a = 0.5;
   marker.scale.x = 0.02;
-  marker.lifetime = ros::Duration(0.0);
+  marker.lifetime = ros::Duration(60.0);
 
   for(size_t i = 0; i < objects.objects.size(); i++){
     pcl::PointCloud<Point> object_cloud;
