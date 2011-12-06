@@ -115,8 +115,8 @@ void MoveOmniBase::executeCb(const move_base_msgs::MoveBaseGoalConstPtr& move_ba
     double goal_yaw = tf::getYaw(goal.pose.orientation);
     
     //Check if we're close enough
-	std::cout<<"(distance(goal,base): "<<distance(goal,base)<<std::endl;
-	std::cout<<"fabs(goal_yaw): "<<fabs(goal_yaw)<<std::endl;
+	//std::cout<<"(distance(goal,base): "<<distance(goal,base)<<std::endl;
+	//std::cout<<"fabs(goal_yaw): "<<fabs(goal_yaw)<<std::endl;
 
 bool yaw_satisfied;
 if(fabs(goal_yaw) < goal_tolerance_rot)
