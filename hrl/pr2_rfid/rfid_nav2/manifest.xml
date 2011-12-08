@@ -4,7 +4,7 @@
      rfid_nav2: A snapshot of rfid_nav used for RFID experiments.
 
   </description>
-  <author>Travis</author>
+  <author>Travis Deyle</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/rfid_nav</url>
