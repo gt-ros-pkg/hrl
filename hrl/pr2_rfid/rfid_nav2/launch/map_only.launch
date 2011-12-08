@@ -1,0 +1,6 @@
+<launch>
+     <node name="$(anon mapserver)" pkg="map_server" type="map_server"
+        args="$(find rfid_nav)/launch/maps/hsi_conf_room.yaml" />
+	<!-- args="$(find rfid_nav)/launch/maps/aware_home.yaml" /> -->
+	<!-- args="$(find rfid_nav)/launch/maps/hsi.yaml" /> -->
+</launch>

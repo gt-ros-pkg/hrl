@@ -1,0 +1,21 @@
+<launch>
+  <!-- Throttle the voxel grid that is being published for rviz -->
+  <node ns="move_base_sbpl/local_costmap" name="voxel_grid_throttle" pkg="topic_tools" type="throttle" args="messages voxel_grid 3.0 voxel_grid_throttled" />
+  <include file="$(find pr2_machine)/$(env ROBOT).machine" />
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base_sbpl" output="screen" machine="c2">
+    <remap from="odom" to="base_odometry/odom" />
+    <remap from="cmd_vel" to="navigation/cmd_vel" />
+    <remap from="move_base_simple/goal" to="move_base_sbpl/goal" />
+    <param name="footprint_padding" value="0.10" />
+    <param name="controller_frequency" value="10.0" />
+    <param name="controller_patience" value="100.0" />
+    <param name="base_global_planner" value="SBPLLatticePlanner" />
+    <param name="SBPLLatticePlanner/primitive_filename" value="$(find sbpl)/matlab/mprim/pr2.mprim" />
+    <rosparam file="$(find rfid_nav)/launch/params/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find rfid_nav)/launch/params/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find rfid_nav)/launch/params/local_costmap_params_close.yaml" command="load" />
+    <rosparam file="$(find rfid_nav)/launch/params/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find rfid_nav)/launch/params/sbpl_global_params.yaml" command="load" />
+    <rosparam file="$(find rfid_nav)/launch/params/base_local_planner_params_close.yaml" command="load"/>
+  </node>
+</launch>
