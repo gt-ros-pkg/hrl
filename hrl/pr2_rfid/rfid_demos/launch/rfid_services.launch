@@ -1,0 +1,49 @@
+<launch>
+
+  <!-- Servoing (latest methods) -->
+
+  <include file="$(find rfid_servoing)/launch/servo_tilting.launch" />
+
+
+  <!-- rfid_behaviors / pr2_people_follow_new modified to use sm -->
+
+  <!-- Demo Service Node  -->
+
+  <node pkg="rfid_demos" name="rfid_demo_node" 
+	type="demo_node.py" output="screen" respawn="false" />
+
+
+  <!-- Rotate / Backup Node  -->
+
+  <node pkg="rfid_behaviors" name="rotate_backup_node" 
+	type="rotate_backup_node.py" output="screen" respawn="false">
+    <!-- Outputs to /navigation/cmd_vel and /move_base_simple/goal -->
+  </node>
+
+
+  <!-- Handoff Object Nodes  -->
+
+  <node pkg="rfid_behaviors" name="handoff_node" type="handoff_node.py" 
+	output="screen" respawn="false" />
+
+  <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch" />
+
+
+  <!-- RFID Orient-Toward-Tag Node  -->
+
+  <node pkg="rfid_behaviors" name="rfid_orient_node" type="orient_node.py" 
+	output="screen" respawn="false">
+    <!-- Uses Rotate / Backup services -->
+  </node>
+
+  <!-- EarsFlapper  -->
+
+  <node pkg="rfid_behaviors" name="rfid_flapper_node" type="flapper.py" 
+	output="screen" respawn="false" />
+
+  <!-- RFID Recorder  -->
+
+  <node pkg="rfid_behaviors" name="rfid_recorder_node" type="recorder.py" 
+	output="screen" respawn="false" />
+
+</launch>

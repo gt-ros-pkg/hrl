@@ -1,0 +1,80 @@
+aware_home:
+  position: 
+    x: 0.0
+    y: -2.25
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: 0.369
+    w: 0.929
+  width: 3.5
+  length: 8.0
+  #length: 11.0
+
+
+hrl:
+  position: 
+    x: -1.255
+    y: -2.240
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: -0.05374590842
+    w: 0.998554644137
+  width: 3.5
+  length: 4.5
+  #length: 11.0
+
+hrl_full:
+  position: 
+    x: -5.19012403488
+    y: -1.89508247375
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: -0.0555230589999
+    w: 0.99845740516
+  width: 3.5
+  length: 17.0
+
+sim:
+   position: 
+      x: 3.501892566867
+      y: -6.36647748947
+      z: 0.0
+   orientation: 
+      x: 0.0
+      y: 0.0
+      z: 0.709932602587
+      w: 0.704269621511
+   width: 8.0
+   length: 9.5
+
+testing:
+  position: 
+    x: -0.515
+    y: -0.421
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: -0.043
+    w: 0.999
+  width: 3.5
+  length: 4.5
+
+conf_room:
+  position: 
+    x: 3.581
+    y: 5.938
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: 1.0
+    w: 0.0
+  width: 5.00
+  length: 3.25

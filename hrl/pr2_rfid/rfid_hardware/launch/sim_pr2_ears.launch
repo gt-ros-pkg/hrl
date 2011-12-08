@@ -1,0 +1,78 @@
+<launch>
+
+  <!-- Note: need to comment out tag pose if actually using rfid simulator for different tag pose  -->
+
+  <include file="gt_vert_sim.launch" />
+
+  <!-- Map -->
+
+  <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/hsi_conf_room.yaml">
+    <rosparam param="frame_id">odom_combined</rosparam>
+  </node>
+
+  <!-- Move the head into "home" position -->
+
+  <node name="move_head_node" pkg="rfid_people_following" 
+	type="move_head.py" output="screen" respawn="false" />
+
+  <!-- Robotis-related -->
+
+  <node name="robotis_ears_servos" pkg="rfid_hardware"
+    	type="pr2_ears_server.py" output="screen" respawn="true">
+    <env name="PYTHONPATH" value="$(env PYTHONPATH)" /> <!-- Hack to get access to stuff... -->
+  </node>
+  <node name="stow_ears" pkg="rfid_hardware"
+    	type="pr2_ears_stow.py" output="screen" respawn="false" />
+
+  <!-- No localization being used in simulation.  Use odom_combined instead. -->
+
+  <node name="static_tf_map" pkg="tf" type="static_transform_publisher"
+        args="0.0 0.0 0.0 0.0 0.0 0.0 map odom_combined 100"
+        respawn="true" output="screen"/>
+
+  <!-- RFID-related -->
+
+<!-- FOLDED INTO pr2_ears_server -->
+<!--   <node name="rfid_reader" pkg="hrl_rfid" type="ros_M5e.py" -->
+<!-- 	output="screen" respawn="true" args="-d ears" /> -->
+
+  <!-- Right Static transforms -->
+
+  <node name="static_tf_plate_right" pkg="tf" type="static_transform_publisher"
+        args="0.055 -0.215 0.165 0.0 0.0 0.0 torso_lift_link plate_right_base 100"
+        respawn="true" output="screen"/>
+
+  <node name="static_tf_antenna_right" pkg="tf" type="static_transform_publisher"
+        args="0.0250 -0.0381 0.0 0.0 0.0 0.0 ear_tilt_right ear_antenna_right 100"
+        respawn="true" output="screen"/>
+
+  <!-- Left Static transforms -->
+
+  <node name="static_tf_plate_left" pkg="tf" type="static_transform_publisher"
+        args="0.055 +0.215 0.165 0.0 0.0 0.0 torso_lift_link plate_left_base 100"
+        respawn="true" output="screen"/>
+
+  <node name="static_tf_antenna_left" pkg="tf" type="static_transform_publisher"
+        args="0.0250 0.0381 0.0 0.0 0.0 0.0 ear_tilt_left ear_antenna_left 100"
+        respawn="true" output="screen"/>
+
+  <!-- Center of rotation static transforms (for RSSI imaging purposes) -->
+
+  <node name="right_rotation_center" pkg="tf" type="static_transform_publisher"
+        args="-0.0655 -0.0510 0.0675 0.0 0.0 0.0 plate_right_base right_rotation_center 100"
+        respawn="true" output="screen"/>
+
+  <node name="left_rotation_center" pkg="tf" type="static_transform_publisher"
+        args="-0.0655 0.0510 0.0675 0.0 0.0 0.0 plate_left_base left_rotation_center 100"
+        respawn="true" output="screen"/>
+
+  <!-- Dynamic Transforms -->
+
+  <node pkg="rfid_people_following" name="update_ear_transforms"
+	type="update_ear_transforms.py"	output="screen" respawn="true">
+
+  </node>
+
+
+</launch>
+

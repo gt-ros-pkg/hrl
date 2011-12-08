@@ -1,0 +1,9 @@
+<launch>
+  <!-- AR Toolkit upclose detection -->
+
+  <include file="$(find rfid_artoolkit)/launch/ar_tag.launch" />
+
+  <node pkg="rfid_artoolkit" type="upclose_detector.py" name="rfid_artoolkit_node" 
+	output="screen" respawn="false" />
+
+</launch>

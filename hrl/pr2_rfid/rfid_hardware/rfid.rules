@@ -1,0 +1,4 @@
+BUS=="usb", KERNEL=="ttyUSB*", SYSFS{idVendor}=="0403", SYSFS{idProduct}=="6001", SYSFS{serial}=="A6003SIh", SYMLINK+="robot/RFIDreader"
+BUS=="usb", KERNEL=="ttyUSB*", SYSFS{idVendor}=="0403", SYSFS{idProduct}=="6001", SYSFS{serial}=="A9007DJ3", SYMLINK+="robot/servo1"
+BUS=="usb", KERNEL=="ttyUSB*", SYSFS{idVendor}=="0403", SYSFS{idProduct}=="6001", SYSFS{serial}=="A9007DWL", SYMLINK+="robot/servo0"
+

@@ -1,0 +1,13 @@
+<launch>
+  <param name="/use_sim_time" value="True"/>
+
+  <!-- Since TF in Python sucks for bag playbacks... -->
+
+  <!-- Yaw, pitch, roll -->
+  <!-- For the simulation, we're using odom_combined as fixed frame rather than map -->
+  <node name="gt_vert_gt" pkg="tf" type="static_transform_publisher"
+        args="6.729 2.999 1.047 3.14159 0.0 0.0 odom_combined tag_gt 100"
+        respawn="true" output="screen"/>
+
+</launch>
+

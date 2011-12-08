@@ -1,0 +1,23 @@
+<package>
+  <description brief="rfid_demos">
+
+    rfid_demos
+
+  </description>
+  <author>Travis</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/rfid_demos</url>
+  <depend package="rfid_hardware"/>
+  <depend package="rfid_servoing"/>
+  <depend package="rfid_behaviors"/>
+  <depend package="rfid_artoolkit"/>
+  <depend package="approach_table"/>
+  <depend package="explore_hrl"/>
+  <depend package="smach"/>
+  <depend package="smach_ros"/>
+  <depend package="tf"/>
+  <depend package="move_base_msgs"/>
+</package>
+
+

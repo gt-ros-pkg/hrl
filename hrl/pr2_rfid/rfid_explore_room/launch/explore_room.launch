@@ -1,0 +1,4 @@
+<launch>
+  <node pkg="rfid_explore_room" type="room_explore.py" name="py_room_explore" output="screen" 
+	args="--yaml $(find rfid_explore_room)/launch/rooms.yaml --room aware_home" />
+</launch>

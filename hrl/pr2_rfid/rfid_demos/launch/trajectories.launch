@@ -1,0 +1,13 @@
+<launch>
+  <include file="$(find hrl_trajectory_playback)/launch/trajectory_playback.launch"/>
+
+  <!-- UNFOLD: rosservice call /traj_playback/unfold 0 -->
+  <node pkg="hrl_trajectory_playback" name="unfold_traj_playback" type="playback.py" 
+	output="screen" respawn="false" 
+	args="--pkl $(find rfid_demos)/launch/unfold_trajectory.pkl --name unfold" />
+
+  <!-- STOW: rosservice call /traj_playback/stow 0 -->
+  <node pkg="hrl_trajectory_playback" name="stow_traj_playback" type="playback.py"
+  	output="screen" respawn="false"
+  	args="--pkl $(find rfid_demos)/launch/stow_trajectory.pkl --name stow" />
+</launch>
