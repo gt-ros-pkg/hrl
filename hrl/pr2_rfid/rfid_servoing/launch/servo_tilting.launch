@@ -1,0 +1,13 @@
+<launch>
+  <!-- Checks a vx,vy,vtheta and returns the planner/costmap score -->
+  <!-- Currently using base laser scanner only. Takes place of old hacky assisted_teleop method -->
+  <node pkg="costmap_services" name="costmap_services" type="costmap_services" respawn="false" output="screen">
+    <rosparam file="$(find rfid_servoing)/launch/costmap.yaml" command="load" />
+  </node>
+
+  <!-- Actual Servoing node -->
+  <node pkg="rfid_servoing" name="servo_node_latest" type="servo.py" output="screen" respawn="false">
+    <remap from="rfid_cmd_vel" to="/navigation/cmd_vel" />
+  </node>
+  
+</launch>

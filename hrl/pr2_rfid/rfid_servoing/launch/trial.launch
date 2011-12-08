@@ -1,0 +1,8 @@
+<launch>
+  <!-- Used to test the various calling methods of servo.py.
+       Ultimately, this goes in servo.launch, as we'll use the service
+       or actionlib. -->
+  <node pkg="rfid_servoing" name="servo_node" type="servo.py" output="screen" respawn="false">
+    <remap from="rfid_cmd_vel" to="/navigation/cmd_vel" />
+  </node>
+</launch>

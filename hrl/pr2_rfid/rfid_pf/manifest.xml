@@ -1,0 +1,16 @@
+<package>
+  <description brief="rfid_pf">
+
+     rfid_pf
+
+  </description>
+  <author>Travis Deyle</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/rfid_pf</url>
+  <depend package="rfid_demos"/>
+  <depend package="tf"/>
+
+</package>
+
+

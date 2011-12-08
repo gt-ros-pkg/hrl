@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="costmap_services" name="costmap_services" type="costmap_services" respawn="false" output="screen">
+    <rosparam file="$(find rfid_pf)/launch/aware_home_cap.yaml" command="load" />
+  </node>
+</launch>

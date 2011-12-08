@@ -1,0 +1,2 @@
+use_combined: '/home/travis/svn/robot1/src/projects/rfid_pf/src/rfid_pf/pencil_beam.pkl'
+# This is just a dummy file that tells rfid_model.py to use pencil_beam_MODEL.pkl

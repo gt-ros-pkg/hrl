@@ -1,0 +1,8 @@
+<launch>
+     <node name="$(anon mapserver)" pkg="map_server" type="map_server"
+	args="$(find rfid_nav)/launch/maps/aware_home.yaml" />
+
+     <node name="clock_pub" pkg="rfid_pf" type="pub_clock.py" />
+        <!-- args="$(find rfid_nav)/launch/maps/hsi_conf_room.yaml" /> -->
+	<!-- args="$(find rfid_nav)/launch/maps/hsi.yaml" /> -->
+</launch>

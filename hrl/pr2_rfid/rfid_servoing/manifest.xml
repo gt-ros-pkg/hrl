@@ -1,0 +1,18 @@
+<package>
+  <description brief="rfid_servoing">
+
+     rfid_servoing
+
+  </description>
+  <author>Travis</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/rfid_servoing</url>
+  <depend package="rfid_hardware"/>
+  <depend package="costmap_services"/>
+  <depend package="geometry_msgs"/>
+  <depend package="actionlib"/>
+  <depend package="actionlib_msgs"/>
+</package>
+
+
