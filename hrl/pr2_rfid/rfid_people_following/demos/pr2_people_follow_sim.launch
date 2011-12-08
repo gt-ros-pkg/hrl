@@ -1,0 +1,58 @@
+<launch>
+  
+  <include file="$(find pr2_machine)/sim.machine" />
+<!--   <include file="$(find pr2_navigation_global)/amcl_node.xml" /> -->
+  <include file="$(find pr2_navigation_teleop)/teleop.xml" />
+  <include file="$(find pr2_navigation_perception)/lasers_and_filters.xml" />
+  <include file="$(find pr2_navigation_perception)/ground_plane.xml" />
+  <include file="$(find gt_pr2)/navigation/move_base.xml" />
+
+  <!-- Demo Service Node  -->
+
+  <node pkg="rfid_people_following" name="rfid_demo_node" 
+	type="demo_node.py" output="screen" respawn="false" />
+
+
+  <!-- Rotate / Backup Node  -->
+
+  <node pkg="rfid_people_following" name="rotate_backup_node" 
+	type="rotate_backup_node.py" output="screen" respawn="false">
+    <!-- Outputs to /navigation/cmd_vel and /move_base_simple/goal -->
+  </node>
+
+
+  <!-- Handoff Object Nodes  -->
+
+  <node pkg="rfid_people_following" name="handoff_node" type="handoff_node.py" 
+	output="screen" respawn="false" />
+
+  <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch" />
+
+
+  <!-- RFID Orient-Toward-Tag Node  -->
+
+  <node pkg="rfid_people_following" name="rfid_orient_node" type="orient_node.py" 
+	output="screen" respawn="false">
+    <!-- Uses Rotate / Backup services -->
+  </node>
+
+
+  <!-- RFID Servo-Toward-Tag (Follow) Node  -->
+
+  <node pkg="rfid_people_following" name="servo_node" type="new_servo_node.py" 
+	output="screen" respawn="false">
+    <remap from="rfid_cmd_vel" to="/navigation/cmd_vel" />
+<!--     <remap from="rfid_cmd_vel" to="/base_controller/command" /> -->
+  </node>
+
+  <node pkg="assisted_teleop" name="assisted_teleop" 
+	type="assisted_teleop" respawn="false" output="screen">
+    <!-- Obstacle Avoidance Using Assisted Teleop - base laser only! -->
+    <remap from="cmd_vel" to="assisted_teleop_cmd_vel" />
+    <remap from="teleop_cmd_vel" to="assisted_teleop_check" />
+    <remap from="cmd_score" to="assisted_teleop_score" />
+    <rosparam file="$(find rfid_people_following)/demos/assisted_teleop_rfid_baseonly.yaml" command="load" />
+  </node>
+
+</launch>
+

@@ -1,0 +1,15 @@
+<launch>
+  <include file="$(find hrl_pr2_lib)/launch/openni_kinect.launch" />  
+
+  <node name="reconfig_kinect" pkg="dynamic_reconfigure" type="dynparam" args="load kinect_head $(find rfid_people_following)/launch/kinect_params.yaml" />
+
+  <node name="ar_kinect" pkg="ar_kinect" type="ar_kinect" respawn="true" output="screen">
+    <remap from="/camera/rgb/image_color" to="/kinect_head/rgb/image_color" />
+    <remap from="/camera/rgb/camera_info" to="/kinect_head/rgb/camera_info" />
+    <remap from="/camera/depth/points2" to="/kinect_head/depth/points2" />
+    <remap from="ar_pose_markers" to="artag_marker_handoff" />
+    <param name="marker_pattern_list" type="string" value="$(find rfid_people_following)/launch/objects_kinect"/>
+    <param name="marker_data_directory" type="string" value="$(find ar_pose)"/>
+    <param name="threshold" type="int" value="100"/>
+  </node>
+</launch>

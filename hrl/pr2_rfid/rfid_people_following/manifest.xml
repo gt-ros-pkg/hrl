@@ -1,0 +1,11 @@
+<package>
+  <description brief="rfid_people_following">
+    RFID people following
+  </description>
+  <author>Travis Deyle (Healthcare Robotics Lab, Georgia Tech)</author>
+  <license>new BSD</license>
+  <depend package="gt_pr2" />  
+  <depend package="hrl_rfid" />  
+  <depend package="robotis" />  
+</package>
+

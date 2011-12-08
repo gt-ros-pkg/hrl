@@ -1,0 +1,22 @@
+<launch>
+  <!-- Launch the assisted Teleop with own yaml -->
+
+  <node pkg="assisted_teleop" name="assisted_teleop" 
+	type="assisted_teleop" respawn="false" output="screen">
+    <remap from="cmd_vel" to="assisted_teleop_response" />
+    <remap from="teleop_cmd_vel" to="rfid_cmd_vel_check" />
+
+    <rosparam file="$(find rfid_people_following)/demos/assisted_teleop_rfid_baseonly.yaml" command="load" />
+
+<!--     <remap from="teleop_cmd_vel" to="rfid_cmd_vel" /> -->
+<!--     <remap from="cmd_vel" to="cmd_vel_tmp" /> -->
+<!--     <remap from="cmd_vel" to="base_controller/command" /> -->
+
+<!--     <remap from="~/costmap" to="/move_base_node/local_costmap" /> -->
+<!--     <remap from="~/footprint" to="/move_base_node/footprint" /> -->
+<!--     <remap from="~/footprint_padding" to="/move_base_node/footprint_padding" /> -->
+<!--     <remap from="~/planner" to="/move_base_node/TrajectoryPlannerROS" /> -->
+
+  </node>
+
+</launch>

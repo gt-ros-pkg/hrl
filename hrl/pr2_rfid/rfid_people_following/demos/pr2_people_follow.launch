@@ -1,0 +1,28 @@
+<launch>
+  
+  <!-- Servo Node  -->
+
+  <node pkg="rfid_people_following" name="servo_node" type="servo_node.py" 
+	output="screen" respawn="false">
+    <remap from="rfid_cmd_vel" to="/navigation/cmd_vel" />
+  </node>
+
+  <!-- Obstacle Avoidance Using Assisted Teleop - base laser only! -->
+
+  <node pkg="assisted_teleop" name="assisted_teleop" 
+	type="assisted_teleop" respawn="false" output="screen">
+    <remap from="cmd_vel" to="assisted_teleop_response" />
+    <remap from="teleop_cmd_vel" to="rfid_cmd_vel_check" />
+    <rosparam file="$(find rfid_people_following)/demos/assisted_teleop_rfid_baseonly.yaml" command="load" />
+  </node>
+
+  <!-- Teleop MUX: Lets joystick subsume control.  See /opt/ros/cturtle/stacks/pr2_navigation/pr2_navigation_teleop/teleop.xml for details. -->
+
+<!--   <node pkg="topic_tools" type="mux" name="cmd_vel_mux_rfid" respawn="true"  -->
+<!-- 	args="base_controller/command /rfid_cmd_vel /teleop/cmd_vel"> -->
+<!--     <remap from="mux" to="cmd_vel_mux" /> -->
+<!--   </node> -->
+
+
+</launch>
+

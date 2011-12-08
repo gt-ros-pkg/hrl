@@ -1,0 +1,32 @@
+<launch>
+  
+  <!-- Similar to pr2_ears.launch, but without the stowing -->
+
+<!--   <node name="robotis_ear_servos" pkg="rfid_people_following" -->
+<!--     	type="pr2_ears_server.py" output="screen" respawn="true" /> -->
+
+<!--   <node name="rfid_reader" pkg="hrl_rfid" type="ros_M5e.py" -->
+<!-- 	output="screen" respawn="true" args="-d ears" /> -->
+
+  <!-- Launch the assisted Teleop with own yaml -->
+
+<!--   <node pkg="assisted_teleop" name="assisted_teleop"  -->
+<!-- 	type="assisted_teleop" respawn="false" output="screen"> -->
+<!--     <remap from="cmd_vel" to="base_controller/command" /> -->
+<!--     <rosparam file="$(find rfid_people_following)/demos/assisted_teleop_rfid.yaml" command="load" /> -->
+<!--   </node> -->
+
+  <!-- Use gt_pr2 : 2dnav for tilting laser rangefinder + costmap  -->
+
+<!--   <include file="$(find gt_pr2)/hsi_2dnav.launch"/> -->
+
+  <!-- Servo Node  -->
+
+  <node pkg="rfid_people_following" name="servo_node" type="servo_node.py" 
+	output="screen" respawn="false">
+    <remap from="rfid_cmd_vel" to="base_controller/command" />
+  </node>
+
+
+</launch>
+
