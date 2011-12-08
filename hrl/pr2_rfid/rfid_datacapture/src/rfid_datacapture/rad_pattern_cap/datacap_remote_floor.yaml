@@ -1,0 +1,28 @@
+rad_cap:
+  notes: 'Capturing the radiation pattern for several different tags and tilt angles!'
+  tagids: 
+    'TravisTVremo':
+      x: 7.082 # <x,y,z> = <7.082, 2.907, 0.001> 
+      y: 2.907
+      z: 0.001
+      ro: 0.0 # theta = 90-deg, phi = 45-deg
+      pi: 0.0
+      ya: 0.0
+      tilts: 
+        - [0.0]
+        - [0.6] # this is tilted down ~35-deg.
+  bagfile_path: '/u/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/rad_pattern_cap/rad_cap_remote_floor/'
+  bagfile_topics: '/tf /rfid/ears_reader /rfid/ears_reader_arr'
+  captures:
+    - [   6.5,    3.0,    0.0]
+    - [   6.5,    3.0,   90.0]
+    - [   6.5,    3.0,  180.0]
+    - [   6.5,    3.0,  270.0]
+    - [   6.0,    3.0,    0.0]
+    - [   6.0,    3.0,   90.0]
+    - [   6.0,    3.0,  180.0]
+    - [   6.0,    3.0,  270.0]
+    - [   6.0,    2.0,    0.0]
+    - [   6.0,    2.0,   90.0]
+    - [   6.0,    2.0,  180.0]
+    - [   6.0,    2.0,  270.0]

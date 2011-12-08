@@ -1,0 +1,82 @@
+<launch>
+
+  <!-- RFID HARDWARE -->
+  <include file="$(find rfid_hardware)/launch/pr2_ears.launch" />
+
+  <!-- Machine Definitions -->
+    <include file="$(find pr2_machine)/$(env ROBOT).machine" />
+
+  <!-- NAVIGATION --> 
+    <include file="$(find rfid_nav)/launch/pr2_2dnav_navfn.launch"/>
+
+  <!-- AR_TAG -->
+    <include file="$(find rfid_demos)/launch/ar_tag.launch"/>
+
+  <!-- RFID SERVICES -->
+    <!-- Servoing (latest methods) -->
+    <include file="$(find rfid_servoing)/launch/servo_tilting.launch" />
+    <!-- Demo Service Node  -->
+    <node pkg="rfid_demos" name="rfid_demo_node" 
+	  type="demo_node.py" output="screen" respawn="false" />
+    <!-- Rotate / Backup Node  -->
+    <node pkg="rfid_behaviors" name="rotate_backup_node" 
+	  type="rotate_backup_node.py" output="screen" respawn="false">
+    </node>
+    <!-- Handoff Object Nodes  -->
+    <node pkg="rfid_behaviors" name="handoff_node" type="handoff_node.py" 
+	  output="screen" respawn="false" />
+    <!-- RFID Orient-Toward-Tag Node  -->
+    <node pkg="rfid_behaviors" name="rfid_orient_node" type="orient_node.py" 
+	  output="screen" respawn="false">
+      <!-- Uses Rotate / Backup services -->
+    </node>
+    <!-- EarsFlapper  -->
+    <node pkg="rfid_behaviors" name="rfid_flapper_node" type="flapper.py" 
+	  output="screen" respawn="false" />
+    <!-- Rfid Recorder  -->
+    <node pkg="rfid_behaviors" name="rfid_recorder_node" type="recorder.py" 
+	  output="screen" respawn="false" />
+
+
+  <!-- UNFOLD: rosservice call /traj_playback/unfold 0 -->
+    <!-- The IK are already listed in rfid_services.launch -->
+    <node pkg="hrl_trajectory_playback" name="unfold_traj_playback" type="playback.py" 
+	  output="screen" respawn="false" 
+	  args="--pkl $(find rfid_demos)/launch/unfold_trajectory.pkl --name unfold" />
+
+  <!-- APPROACH TABLE -->
+    <!-- Checks a vx,vy,vtheta and returns the planner/costmap score -->
+    <node pkg="costmap_services" name="costmap_services" type="costmap_services" 
+	  ns="approach_table" respawn="false" output="screen">
+      <rosparam file="$(find approach_table)/launch/costmap.yaml" command="load" />
+    </node>
+    <!-- Performs approach -->
+    <node pkg="approach_table" name="approach_services" type="approach_services.py" 
+	  args="--ns /approach_table" respawn="false" output="screen">
+      <remap from="approach_cmd_vel" to="/navigation/cmd_vel" />
+    </node>
+
+  <!-- OVERHEAD_GRASP -->
+    <include file="$(find pr2_overhead_grasping)/launch/overhead_grasping_server.launch"/>
+
+  <!-- TABLE_PERCEPTION -->
+    <!-- <include file="$(find hrl_pr2_lib)/launch/openni_kinect.launch"/> -->
+    <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch"/>
+    <!-- <include file="$(find hrl_object_fetching)/launch/tabletop_detect.launch"/> -->
+    <include file="$(find hrl_table_detect)/launch/tabletop_detect_service.launch"/>
+    <include file="$(find hrl_table_detect)/launch/tabletop_segmentation_service.launch"/>
+
+  <!-- Kinect Visualization -->
+  <node ns="/kinect_head/rgb" name="kinect_pts_throttle" pkg="topic_tools" 
+	type="throttle" args="messages points 0.5 points_throttled" />
+  <node ns="/kinect_head/rgb" name="kinect_cam_throttle" pkg="topic_tools" 
+	type="throttle" args="messages image_color 0.5 image_color_throttled" />
+
+  <!-- EXPLORE -->
+  <node name="rfid_exploration" pkg="rfid_explore_room" type="snaking_room_explore.py" 
+	args="--yaml $(find rfid_explore_room)/launch/rooms.yaml --room hrl_full" />
+
+  <node name="bag_capture_node" pkg="rfid_datacapture" type="utils.py" />
+
+</launch>
+

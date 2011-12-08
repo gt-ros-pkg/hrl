@@ -1,0 +1,15 @@
+glob_files: ['/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/rad_pattern_cap/rad_cap/*.pkl']
+use_combined: '/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/rad_pattern_cap/intermed_results/rad_plot_shoulder_table_both_OrangeMedBot.pkl'
+filters:
+  antennas: ['EleLeftEar','EleRightEar']
+  tags: ['OrangeMedBot']
+outimage: '/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/rad_pattern_cap/intermed_results/shoulder_table_both_OrangeMedBot'
+rad_histbins: 
+  xbins: 80
+  xmin: -8.0
+  xmax: 8.0
+  ybins: 80
+  ymin: -8.0
+  ymax: 8.0
+points_per_loc: 3
+rssi_points_per_loc: 1

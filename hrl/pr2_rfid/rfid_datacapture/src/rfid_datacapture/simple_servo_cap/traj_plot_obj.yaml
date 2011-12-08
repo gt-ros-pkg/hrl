@@ -1,0 +1,6 @@
+glob_files: ['/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/simple_servo_cap/datacap_obj/*friis.pkl']
+use_combined: '/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/simple_servo_cap/intermed_results/traj_plot_obj.pkl'
+filters:
+  antennas: ['EleLeftEar','EleRightEar']
+  tags: ['OrangeMedBot']
+outimage: '/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/simple_servo_cap/intermed_results/vert'

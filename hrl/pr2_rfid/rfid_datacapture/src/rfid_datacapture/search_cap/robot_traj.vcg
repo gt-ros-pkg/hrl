@@ -1,0 +1,72 @@
+Background\ ColorR=0
+Background\ ColorG=0
+Background\ ColorB=0
+Fixed\ Frame=/map
+Target\ Frame=<Fixed Frame>
+Map.Alpha=0.7
+Map.Draw\ Behind=0
+Map.Enabled=1
+Map.Topic=/map
+Markers.Enabled=0
+Markers.Marker\ Topic=/visarr
+Markers2.=1
+Markers2.Enabled=1
+Markers2.Marker\ Topic=/tag_poses
+Point\ Cloud.Alpha=0.3
+Point\ Cloud.Billboard\ Size=0.01
+Point\ Cloud.Color\ Transformer=Flat Color
+Point\ Cloud.Decay\ Time=0
+Point\ Cloud.Enabled=1
+Point\ Cloud.Position\ Transformer=XYZ
+Point\ Cloud.Selectable=1
+Point\ Cloud.Style=0
+Point\ Cloud.Topic=/robot_traj
+Point\ Cloud..AxisAutocompute\ Value\ Bounds=1
+Point\ Cloud..AxisAxis=2
+Point\ Cloud..AxisMax\ Value=0.0605177
+Point\ Cloud..AxisMin\ Value=0.0494569
+Point\ Cloud..AxisUse\ Fixed\ Frame=1
+Point\ Cloud..Flat\ ColorColorR=0.368627
+Point\ Cloud..Flat\ ColorColorG=0.364706
+Point\ Cloud..Flat\ ColorColorB=0.572549
+Point\ Cloud..IntensityAutocompute\ Intensity\ Bounds=1
+Point\ Cloud..IntensityMax\ ColorR=1
+Point\ Cloud..IntensityMax\ ColorG=1
+Point\ Cloud..IntensityMax\ ColorB=1
+Point\ Cloud..IntensityMax\ Intensity=4096
+Point\ Cloud..IntensityMin\ ColorR=0
+Point\ Cloud..IntensityMin\ ColorG=0
+Point\ Cloud..IntensityMin\ ColorB=0
+Point\ Cloud..IntensityMin\ Intensity=0
+Robot\ Model.Alpha=1
+Robot\ Model.Collision\ Enabled=0
+Robot\ Model.Enabled=0
+Robot\ Model.Robot\ Description=robot_description
+Robot\ Model.TF\ Prefix=
+Robot\ Model.Update\ Interval=0
+Robot\ Model.Visual\ Enabled=1
+Tool\ 2D\ Nav\ GoalTopic=goal
+Tool\ 2D\ Pose\ EstimateTopic=initialpose
+Camera\ Type=rviz::FixedOrientationOrthoViewController
+Camera\ Config=110.318 -2.24779 10.0283 -1.51382 -0.277506 0.650377 0.650377 0.277506
+Property\ Grid\ State=selection=Robot Model.Enabled;expanded=.Global Options,Markers.Enabled.Markers.Namespaces,Point Cloud.Enabled,Markers2.Enabled,Markers2.Enabled.Markers2.Namespaces;scrollpos=0,0;splitterpos=150,301;ispageselected=1
+[Display0]
+Name=Map
+Package=rviz
+ClassName=rviz::MapDisplay
+[Display1]
+Name=Robot Model
+Package=rviz
+ClassName=rviz::RobotModelDisplay
+[Display2]
+Name=Markers
+Package=rviz
+ClassName=rviz::MarkerDisplay
+[Display3]
+Name=Point Cloud
+Package=rviz
+ClassName=rviz::PointCloudDisplay
+[Display4]
+Name=Markers2
+Package=rviz
+ClassName=rviz::MarkerDisplay

@@ -1,0 +1,29 @@
+<launch>
+
+  <!-- RFID HARDWARE -->
+  <node name="rfid_pr2_head" pkg="hrl_rfid" type="ros_M5e.py"
+	args="-d head -p 3000" />
+
+  <!-- Static TFs -->
+    <!-- Takes us to top plate -->
+    <node name="static_tf_plate_head" pkg="tf" type="static_transform_publisher"
+          args="0.0 0.0 0.100 0.0 0.0 0.0 head_plate_frame head_top_plate 100"
+          respawn="true" output="screen"/>
+    <!-- Takes us to center of antenna -->
+    <node name="static_tf_rfid_head" pkg="tf" type="static_transform_publisher"
+          args="0.020 0.0 0.100 0.0 0.0 0.0 head_top_plate head_rfid 100"
+          respawn="true" output="screen"/>
+
+  <!-- Machine Definitions -->
+    <include file="$(find pr2_machine)/$(env ROBOT).machine" />
+
+  <!-- NAVIGATION --> 
+    <include file="$(find rfid_nav)/launch/pr2_2dnav_navfn.launch"/>
+
+  <!-- Audio voice -->
+  <node name="sound_player" pkg="sound_play" type="soundplay_node.py" />
+
+  <node name="bag_capture_node" pkg="rfid_datacapture" type="utils.py" />
+
+</launch>
+

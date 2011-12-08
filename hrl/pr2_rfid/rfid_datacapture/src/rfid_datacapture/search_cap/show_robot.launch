@@ -1,0 +1,3 @@
+<launch>
+  <param name="robot_description" command="cat $(find rfid_datacapture)/src/rfid_datacapture/search_cap/pr2_urdf.xml" />
+</launch>

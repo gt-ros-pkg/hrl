@@ -1,0 +1,25 @@
+rfid_arr_topic: '/rfid/ears_reader_arr'
+glob_files: ['/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/simple_servo_cap/datacap_obj/*.bag']
+antennas:
+  EleLeftEar: '/ear_antenna_left'
+  EleRightEar: '/ear_antenna_right'
+  PR2_Head: '/head_rfid'
+rotframes:
+  EleLeftEar: '/ear_pan_left'
+  EleRightEar: '/ear_pan_right'
+  PR2_Head: '/head_pan_link'
+staticrotframes:
+  EleLeftEar: '/left_rotation_center'
+  EleRightEar: '/right_rotation_center'
+  PR2_Head: '/torso_lift_link'
+tags:  # see datacap_head -- where the groundtruth was recorded.
+  'OrangeMedBot':
+    child_frame: '/OrangeMedBot'
+    parent_frame: '/map'
+    x_pos: 6.945
+    y_pos: 3.019
+    z_pos: 0.860
+    x_orient: 0.0 # It's a SPIRAL, not dipole!
+    y_orient: 0.0
+    z_orient: 0.0
+    w_orient: 1.0

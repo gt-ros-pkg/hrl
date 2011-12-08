@@ -1,0 +1,25 @@
+rfid_arr_topic: '/rfid/ears_reader_arr'
+glob_files: ['/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/simple_servo_cap/datacap_vert_data/*.bag']
+antennas:
+  EleLeftEar: '/ear_antenna_left'
+  EleRightEar: '/ear_antenna_right'
+  PR2_Head: '/head_rfid'
+rotframes:
+  EleLeftEar: '/ear_pan_left'
+  EleRightEar: '/ear_pan_right'
+  PR2_Head: '/head_pan_link'
+staticrotframes:
+  EleLeftEar: '/left_rotation_center'
+  EleRightEar: '/right_rotation_center'
+  PR2_Head: '/torso_lift_link'
+tags:  # see datacap_head -- where the groundtruth was recorded.
+  'datacap     ':
+    child_frame: '/datacap'
+    parent_frame: '/map'
+    x_pos: 6.748
+    y_pos: 2.969
+    z_pos: 1.013
+    x_orient: 0.0 # theta = 0-deg, phi = 0-deg
+    y_orient: 0.0
+    z_orient: 0.0
+    w_orient: 1.0

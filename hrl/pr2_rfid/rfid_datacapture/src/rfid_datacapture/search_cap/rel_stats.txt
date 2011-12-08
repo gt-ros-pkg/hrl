@@ -1,0 +1,2616 @@
+Trial 0 with Object 0 (OrangeMedBot) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 0, Trial 0
+	SEARCH ONLY
+	Pos Reads:      22
+	Tot Reads:      2978
+	Percent Reads:  0.7
+	Estimate Loc:   <3.913, 4.179>
+	Estimate Theta: 76.7 (deg)
+	Dist Err (m):   1.845
+	Ang Err (deg):  -18.2
+
+
+
+
+Trial 0 with Object 0 (OrangeMedBot) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 0, Trial 0
+	SEARCH plus SERVO
+	Pos Reads:      22
+	Tot Reads:      3144
+	Percent Reads:  0.7
+	Estimate Loc:   <3.928, 4.230>
+	Estimate Theta: 84.4 (deg)
+	Dist Err (m):   1.795
+	Ang Err (deg):  -11.1
+
+
+
+
+Trial 0 with Object 1 (TravisTVremo) at Position 1 (FireplaceMantle)
+	 No results for this instance.
+RESULTS
+
+Location 1, Object 1, Trial 0
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      2978
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 0 with Object 1 (TravisTVremo) at Position 1 (FireplaceMantle)
+	 No results for this instance.
+RESULTS
+
+Location 1, Object 1, Trial 0
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      2978
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 0 with Object 2 (RedBottle   ) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 2, Trial 0
+	SEARCH ONLY
+	Pos Reads:      136
+	Tot Reads:      2978
+	Percent Reads:  4.6
+	Estimate Loc:   <3.559, 4.116>
+	Estimate Theta: -29.1 (deg)
+	Dist Err (m):   2.230
+	Ang Err (deg):  5.3
+
+
+
+
+Trial 0 with Object 2 (RedBottle   ) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 2, Trial 0
+	SEARCH plus SERVO
+	Pos Reads:      368
+	Tot Reads:      3348
+	Percent Reads:  11.0
+	Estimate Loc:   <4.200, 3.595>
+	Estimate Theta: -34.0 (deg)
+	Dist Err (m):   1.408
+	Ang Err (deg):  -2.4
+
+
+
+
+Trial 0 with Object 3 (OnMetalKeys ) at Position 3 (Couch)
+	 No results for this instance.
+RESULTS
+
+Location 3, Object 3, Trial 0
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      2978
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 0 with Object 3 (OnMetalKeys ) at Position 3 (Couch)
+	 No results for this instance.
+RESULTS
+
+Location 3, Object 3, Trial 0
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      2978
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 0 with Object 4 (WhiteMedsBot) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 4, Trial 0
+	SEARCH ONLY
+	Pos Reads:      266
+	Tot Reads:      2978
+	Percent Reads:  8.9
+	Estimate Loc:   <2.090, 0.190>
+	Estimate Theta: 47.3 (deg)
+	Dist Err (m):   1.421
+	Ang Err (deg):  15.8
+
+
+
+
+Trial 0 with Object 4 (WhiteMedsBot) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 4, Trial 0
+	SEARCH plus SERVO
+	Pos Reads:      543
+	Tot Reads:      3336
+	Percent Reads:  16.3
+	Estimate Loc:   <2.761, 0.542>
+	Estimate Theta: 27.3 (deg)
+	Dist Err (m):   0.667
+	Ang Err (deg):  -8.5
+
+
+
+
+Trial 0 with Object 5 (BlueMedsBox ) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 5, Trial 0
+	SEARCH ONLY
+	Pos Reads:      363
+	Tot Reads:      2978
+	Percent Reads:  12.2
+	Estimate Loc:   <1.165, 0.711>
+	Estimate Theta: -109.0 (deg)
+	Dist Err (m):   3.450
+	Ang Err (deg):  6.9
+
+
+
+
+Trial 0 with Object 5 (BlueMedsBox ) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 5, Trial 0
+	SEARCH plus SERVO
+	Pos Reads:      638
+	Tot Reads:      3408
+	Percent Reads:  18.7
+	Estimate Loc:   <0.779, -0.399>
+	Estimate Theta: -129.0 (deg)
+	Dist Err (m):   2.286
+	Ang Err (deg):  -9.8
+
+
+
+
+Trial 0 with Object 6 (TeddyBearToy) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 6, Trial 0
+	SEARCH ONLY
+	Pos Reads:      251
+	Tot Reads:      2978
+	Percent Reads:  8.4
+	Estimate Loc:   <-1.143, -0.083>
+	Estimate Theta: -142.2 (deg)
+	Dist Err (m):   1.085
+	Ang Err (deg):  -6.1
+
+
+
+
+Trial 0 with Object 6 (TeddyBearToy) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 6, Trial 0
+	SEARCH plus SERVO
+	Pos Reads:      416
+	Tot Reads:      3274
+	Percent Reads:  12.7
+	Estimate Loc:   <-1.383, -0.239>
+	Estimate Theta: -147.5 (deg)
+	Dist Err (m):   0.806
+	Ang Err (deg):  -15.2
+
+
+
+
+Trial 0 with Object 7 (CordlessPhon) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 7, Trial 0
+	SEARCH ONLY
+	Pos Reads:      14
+	Tot Reads:      2978
+	Percent Reads:  0.5
+	Estimate Loc:   <-1.128, 0.685>
+	Estimate Theta: -158.5 (deg)
+	Dist Err (m):   2.214
+	Ang Err (deg):  37.5
+
+
+
+
+Trial 0 with Object 7 (CordlessPhon) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 7, Trial 0
+	SEARCH plus SERVO
+	Pos Reads:      32
+	Tot Reads:      3286
+	Percent Reads:  1.0
+	Estimate Loc:   <-1.953, 0.358>
+	Estimate Theta: -158.1 (deg)
+	Dist Err (m):   1.605
+	Ang Err (deg):  57.6
+
+
+
+
+Trial 0 with Object 8 (BlueHairBrus) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 8, Trial 0
+	SEARCH ONLY
+	Pos Reads:      37
+	Tot Reads:      2978
+	Percent Reads:  1.2
+	Estimate Loc:   <0.887, 2.556>
+	Estimate Theta: -135.9 (deg)
+	Dist Err (m):   0.996
+	Ang Err (deg):  31.1
+
+
+
+
+Trial 0 with Object 8 (BlueHairBrus) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 8, Trial 0
+	SEARCH plus SERVO
+	Pos Reads:      40
+	Tot Reads:      3125
+	Percent Reads:  1.3
+	Estimate Loc:   <0.843, 2.533>
+	Estimate Theta: -114.5 (deg)
+	Dist Err (m):   0.948
+	Ang Err (deg):  53.3
+
+
+
+
+Trial 1 with Object 0 (OrangeMedBot) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 0, Trial 1
+	SEARCH ONLY
+	Pos Reads:      21
+	Tot Reads:      3247
+	Percent Reads:  0.6
+	Estimate Loc:   <3.437, 2.664>
+	Estimate Theta: 22.6 (deg)
+	Dist Err (m):   2.282
+	Ang Err (deg):  -20.9
+
+
+
+
+Trial 1 with Object 0 (OrangeMedBot) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 0, Trial 1
+	SEARCH plus SERVO
+	Pos Reads:      103
+	Tot Reads:      3626
+	Percent Reads:  2.8
+	Estimate Loc:   <4.220, 3.590>
+	Estimate Theta: 48.5 (deg)
+	Dist Err (m):   1.085
+	Ang Err (deg):  11.8
+
+
+
+
+Trial 1 with Object 1 (TravisTVremo) at Position 2 (CircleEndTable)
+	 No results for this instance.
+RESULTS
+
+Location 2, Object 1, Trial 1
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      3247
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 1 with Object 1 (TravisTVremo) at Position 2 (CircleEndTable)
+	 No results for this instance.
+RESULTS
+
+Location 2, Object 1, Trial 1
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      3247
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 1 with Object 2 (RedBottle   ) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 2, Trial 1
+	SEARCH ONLY
+	Pos Reads:      155
+	Tot Reads:      3247
+	Percent Reads:  4.8
+	Estimate Loc:   <3.259, 2.684>
+	Estimate Theta: -51.0 (deg)
+	Dist Err (m):   1.433
+	Ang Err (deg):  10.5
+
+
+
+
+Trial 1 with Object 2 (RedBottle   ) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 2, Trial 1
+	SEARCH plus SERVO
+	Pos Reads:      195
+	Tot Reads:      3450
+	Percent Reads:  5.7
+	Estimate Loc:   <3.400, 2.423>
+	Estimate Theta: -64.2 (deg)
+	Dist Err (m):   1.137
+	Ang Err (deg):  -2.8
+
+
+
+
+Trial 1 with Object 3 (OnMetalKeys ) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 3, Trial 1
+	SEARCH ONLY
+	Pos Reads:      41
+	Tot Reads:      3247
+	Percent Reads:  1.3
+	Estimate Loc:   <1.761, 0.406>
+	Estimate Theta: -3.5 (deg)
+	Dist Err (m):   1.629
+	Ang Err (deg):  -22.4
+
+
+
+
+Trial 1 with Object 3 (OnMetalKeys ) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 3, Trial 1
+	SEARCH plus SERVO
+	Pos Reads:      248
+	Tot Reads:      3667
+	Percent Reads:  6.8
+	Estimate Loc:   <2.526, 0.930>
+	Estimate Theta: 58.3 (deg)
+	Dist Err (m):   0.776
+	Ang Err (deg):  58.1
+
+
+
+
+Trial 1 with Object 4 (WhiteMedsBot) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 4, Trial 1
+	SEARCH ONLY
+	Pos Reads:      58
+	Tot Reads:      3247
+	Percent Reads:  1.8
+	Estimate Loc:   <-1.162, -0.243>
+	Estimate Theta: -63.7 (deg)
+	Dist Err (m):   2.302
+	Ang Err (deg):  5.3
+
+
+
+
+Trial 1 with Object 4 (WhiteMedsBot) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 4, Trial 1
+	SEARCH plus SERVO
+	Pos Reads:      95
+	Tot Reads:      3446
+	Percent Reads:  2.8
+	Estimate Loc:   <-1.142, -0.499>
+	Estimate Theta: -87.4 (deg)
+	Dist Err (m):   2.057
+	Ang Err (deg):  -20.4
+
+
+
+
+Trial 1 with Object 5 (BlueMedsBox ) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 5, Trial 1
+	SEARCH ONLY
+	Pos Reads:      284
+	Tot Reads:      3247
+	Percent Reads:  8.7
+	Estimate Loc:   <-1.245, -0.045>
+	Estimate Theta: -146.5 (deg)
+	Dist Err (m):   1.043
+	Ang Err (deg):  -15.8
+
+
+
+
+Trial 1 with Object 5 (BlueMedsBox ) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 5, Trial 1
+	SEARCH plus SERVO
+	Pos Reads:      446
+	Tot Reads:      3556
+	Percent Reads:  12.5
+	Estimate Loc:   <-1.484, -0.122>
+	Estimate Theta: -154.4 (deg)
+	Dist Err (m):   0.839
+	Ang Err (deg):  -32.6
+
+
+
+
+Trial 1 with Object 6 (TeddyBearToy) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 6, Trial 1
+	SEARCH ONLY
+	Pos Reads:      300
+	Tot Reads:      3247
+	Percent Reads:  9.2
+	Estimate Loc:   <-1.203, 0.725>
+	Estimate Theta: 174.8 (deg)
+	Dist Err (m):   2.132
+	Ang Err (deg):  10.2
+
+
+
+
+Trial 1 with Object 6 (TeddyBearToy) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 6, Trial 1
+	SEARCH plus SERVO
+	Pos Reads:      657
+	Tot Reads:      3707
+	Percent Reads:  17.7
+	Estimate Loc:   <-2.189, 1.002>
+	Estimate Theta: 170.9 (deg)
+	Dist Err (m):   1.107
+	Ang Err (deg):  6.2
+
+
+
+
+Trial 1 with Object 7 (CordlessPhon) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 7, Trial 1
+	SEARCH ONLY
+	Pos Reads:      52
+	Tot Reads:      3247
+	Percent Reads:  1.6
+	Estimate Loc:   <0.814, 2.610>
+	Estimate Theta: -160.2 (deg)
+	Dist Err (m):   0.939
+	Ang Err (deg):  2.6
+
+
+
+
+Trial 1 with Object 7 (CordlessPhon) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 7, Trial 1
+	SEARCH plus SERVO
+	Pos Reads:      102
+	Tot Reads:      3409
+	Percent Reads:  3.0
+	Estimate Loc:   <0.810, 2.599>
+	Estimate Theta: -170.0 (deg)
+	Dist Err (m):   0.932
+	Ang Err (deg):  -6.6
+
+
+
+
+Trial 1 with Object 8 (BlueHairBrus) at Position 0 (BehindTree)
+	 No results for this instance.
+RESULTS
+
+Location 0, Object 8, Trial 1
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      3247
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 1 with Object 8 (BlueHairBrus) at Position 0 (BehindTree)
+	 No results for this instance.
+RESULTS
+
+Location 0, Object 8, Trial 1
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      3247
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 2 with Object 0 (OrangeMedBot) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 0, Trial 2
+	SEARCH ONLY
+	Pos Reads:      283
+	Tot Reads:      3119
+	Percent Reads:  9.1
+	Estimate Loc:   <3.446, 3.182>
+	Estimate Theta: -5.0 (deg)
+	Dist Err (m):   1.980
+	Ang Err (deg):  4.4
+
+
+
+
+Trial 2 with Object 0 (OrangeMedBot) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 0, Trial 2
+	SEARCH plus SERVO
+	Pos Reads:      598
+	Tot Reads:      3506
+	Percent Reads:  17.1
+	Estimate Loc:   <4.254, 3.142>
+	Estimate Theta: 1.7 (deg)
+	Dist Err (m):   1.180
+	Ang Err (deg):  15.6
+
+
+
+
+Trial 2 with Object 1 (TravisTVremo) at Position 3 (Couch)
+	 No results for this instance.
+RESULTS
+
+Location 3, Object 1, Trial 2
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      3119
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 2 with Object 1 (TravisTVremo) at Position 3 (Couch)
+	 No results for this instance.
+RESULTS
+
+Location 3, Object 1, Trial 2
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      3119
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 2 with Object 2 (RedBottle   ) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 2, Trial 2
+	SEARCH ONLY
+	Pos Reads:      437
+	Tot Reads:      3119
+	Percent Reads:  14.0
+	Estimate Loc:   <1.940, 0.627>
+	Estimate Theta: 18.1 (deg)
+	Dist Err (m):   1.395
+	Ang Err (deg):  5.4
+
+
+
+
+Trial 2 with Object 2 (RedBottle   ) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 2, Trial 2
+	SEARCH plus SERVO
+	Pos Reads:      705
+	Tot Reads:      3443
+	Percent Reads:  20.5
+	Estimate Loc:   <2.559, 0.667>
+	Estimate Theta: 16.3 (deg)
+	Dist Err (m):   0.789
+	Ang Err (deg):  -3.4
+
+
+
+
+Trial 2 with Object 3 (OnMetalKeys ) at Position 5 (BehindKitchenTable)
+	 No results for this instance.
+RESULTS
+
+Location 5, Object 3, Trial 2
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      3119
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 2 with Object 3 (OnMetalKeys ) at Position 5 (BehindKitchenTable)
+	 No results for this instance.
+RESULTS
+
+Location 5, Object 3, Trial 2
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      3119
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 2 with Object 4 (WhiteMedsBot) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 4, Trial 2
+	SEARCH ONLY
+	Pos Reads:      304
+	Tot Reads:      3119
+	Percent Reads:  9.7
+	Estimate Loc:   <-1.192, -0.403>
+	Estimate Theta: -122.9 (deg)
+	Dist Err (m):   0.852
+	Ang Err (deg):  26.6
+
+
+
+
+Trial 2 with Object 4 (WhiteMedsBot) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 4, Trial 2
+	SEARCH plus SERVO
+	Pos Reads:      430
+	Tot Reads:      3351
+	Percent Reads:  12.8
+	Estimate Loc:   <-1.281, -0.426>
+	Estimate Theta: -144.5 (deg)
+	Dist Err (m):   0.764
+	Ang Err (deg):  3.1
+
+
+
+
+Trial 2 with Object 5 (BlueMedsBox ) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 5, Trial 2
+	SEARCH ONLY
+	Pos Reads:      335
+	Tot Reads:      3119
+	Percent Reads:  10.7
+	Estimate Loc:   <-1.212, 0.725>
+	Estimate Theta: 152.2 (deg)
+	Dist Err (m):   2.123
+	Ang Err (deg):  -12.3
+
+
+
+
+Trial 2 with Object 5 (BlueMedsBox ) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 5, Trial 2
+	SEARCH plus SERVO
+	Pos Reads:      717
+	Tot Reads:      3580
+	Percent Reads:  20.0
+	Estimate Loc:   <-2.165, 0.979>
+	Estimate Theta: 166.3 (deg)
+	Dist Err (m):   1.137
+	Ang Err (deg):  2.4
+
+
+
+
+Trial 2 with Object 6 (TeddyBearToy) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 6, Trial 2
+	SEARCH ONLY
+	Pos Reads:      337
+	Tot Reads:      3119
+	Percent Reads:  10.8
+	Estimate Loc:   <0.847, 2.746>
+	Estimate Theta: 143.2 (deg)
+	Dist Err (m):   1.018
+	Ang Err (deg):  -60.8
+
+
+
+
+Trial 2 with Object 6 (TeddyBearToy) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 6, Trial 2
+	SEARCH plus SERVO
+	Pos Reads:      426
+	Tot Reads:      3327
+	Percent Reads:  12.8
+	Estimate Loc:   <0.804, 2.753>
+	Estimate Theta: -177.0 (deg)
+	Dist Err (m):   0.982
+	Ang Err (deg):  -22.4
+
+
+
+
+Trial 2 with Object 7 (CordlessPhon) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 7, Trial 2
+	SEARCH ONLY
+	Pos Reads:      9
+	Tot Reads:      3119
+	Percent Reads:  0.3
+	Estimate Loc:   <3.310, 4.263>
+	Estimate Theta: 59.9 (deg)
+	Dist Err (m):   1.810
+	Ang Err (deg):  -15.8
+
+
+
+
+Trial 2 with Object 7 (CordlessPhon) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 7, Trial 2
+	SEARCH plus SERVO
+	Pos Reads:      12
+	Tot Reads:      3263
+	Percent Reads:  0.4
+	Estimate Loc:   <3.314, 4.266>
+	Estimate Theta: 95.3 (deg)
+	Dist Err (m):   1.806
+	Ang Err (deg):  19.5
+
+
+
+
+Trial 2 with Object 8 (BlueHairBrus) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 8, Trial 2
+	SEARCH ONLY
+	Pos Reads:      32
+	Tot Reads:      3119
+	Percent Reads:  1.0
+	Estimate Loc:   <4.138, 4.064>
+	Estimate Theta: 50.1 (deg)
+	Dist Err (m):   0.968
+	Ang Err (deg):  39.7
+
+
+
+
+Trial 2 with Object 8 (BlueHairBrus) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 8, Trial 2
+	SEARCH plus SERVO
+	Pos Reads:      59
+	Tot Reads:      3290
+	Percent Reads:  1.8
+	Estimate Loc:   <4.190, 4.058>
+	Estimate Theta: 26.9 (deg)
+	Dist Err (m):   0.918
+	Ang Err (deg):  15.6
+
+
+
+
+Trial 3 with Object 0 (OrangeMedBot) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 0, Trial 3
+	SEARCH ONLY
+	Pos Reads:      41
+	Tot Reads:      2984
+	Percent Reads:  1.4
+	Estimate Loc:   <3.516, 2.717>
+	Estimate Theta: -25.7 (deg)
+	Dist Err (m):   1.361
+	Ang Err (deg):  45.9
+
+
+
+
+Trial 3 with Object 0 (OrangeMedBot) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 0, Trial 3
+	SEARCH plus SERVO
+	Pos Reads:      137
+	Tot Reads:      3170
+	Percent Reads:  4.3
+	Estimate Loc:   <3.594, 2.582>
+	Estimate Theta: -46.1 (deg)
+	Dist Err (m):   1.209
+	Ang Err (deg):  27.1
+
+
+
+
+Trial 3 with Object 1 (TravisTVremo) at Position 4 (RectEndTable)
+	 No results for this instance.
+RESULTS
+
+Location 4, Object 1, Trial 3
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      2984
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 3 with Object 1 (TravisTVremo) at Position 4 (RectEndTable)
+	 No results for this instance.
+RESULTS
+
+Location 4, Object 1, Trial 3
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      2984
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 3 with Object 2 (RedBottle   ) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 2, Trial 3
+	SEARCH ONLY
+	Pos Reads:      30
+	Tot Reads:      2984
+	Percent Reads:  1.0
+	Estimate Loc:   <-0.981, -0.294>
+	Estimate Theta: -65.6 (deg)
+	Dist Err (m):   2.195
+	Ang Err (deg):  7.4
+
+
+
+
+Trial 3 with Object 2 (RedBottle   ) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 2, Trial 3
+	SEARCH plus SERVO
+	Pos Reads:      132
+	Tot Reads:      3233
+	Percent Reads:  4.1
+	Estimate Loc:   <-0.828, -0.660>
+	Estimate Theta: -85.4 (deg)
+	Dist Err (m):   1.801
+	Ang Err (deg):  -11.2
+
+
+
+
+Trial 3 with Object 3 (OnMetalKeys ) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 3, Trial 3
+	SEARCH ONLY
+	Pos Reads:      60
+	Tot Reads:      2984
+	Percent Reads:  2.0
+	Estimate Loc:   <-1.222, -0.128>
+	Estimate Theta: -163.7 (deg)
+	Dist Err (m):   0.998
+	Ang Err (deg):  -28.8
+
+
+
+
+Trial 3 with Object 3 (OnMetalKeys ) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 3, Trial 3
+	SEARCH plus SERVO
+	Pos Reads:      107
+	Tot Reads:      3188
+	Percent Reads:  3.4
+	Estimate Loc:   <-1.416, -0.185>
+	Estimate Theta: -136.2 (deg)
+	Dist Err (m):   0.826
+	Ang Err (deg):  -8.1
+
+
+
+
+Trial 3 with Object 4 (WhiteMedsBot) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 4, Trial 3
+	SEARCH ONLY
+	Pos Reads:      137
+	Tot Reads:      2984
+	Percent Reads:  4.6
+	Estimate Loc:   <-1.159, 0.822>
+	Estimate Theta: 124.6 (deg)
+	Dist Err (m):   2.150
+	Ang Err (deg):  -42.8
+
+
+
+
+Trial 3 with Object 4 (WhiteMedsBot) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 4, Trial 3
+	SEARCH plus SERVO
+	Pos Reads:      452
+	Tot Reads:      3366
+	Percent Reads:  13.4
+	Estimate Loc:   <-2.139, 1.047>
+	Estimate Theta: 170.3 (deg)
+	Dist Err (m):   1.145
+	Ang Err (deg):  2.7
+
+
+
+
+Trial 3 with Object 5 (BlueMedsBox ) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 5, Trial 3
+	SEARCH ONLY
+	Pos Reads:      368
+	Tot Reads:      2984
+	Percent Reads:  12.3
+	Estimate Loc:   <0.833, 2.705>
+	Estimate Theta: -165.4 (deg)
+	Dist Err (m):   0.989
+	Ang Err (deg):  -7.5
+
+
+
+
+Trial 3 with Object 5 (BlueMedsBox ) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 5, Trial 3
+	SEARCH plus SERVO
+	Pos Reads:      454
+	Tot Reads:      3154
+	Percent Reads:  14.4
+	Estimate Loc:   <0.777, 2.740>
+	Estimate Theta: -168.0 (deg)
+	Dist Err (m):   0.952
+	Ang Err (deg):  -13.4
+
+
+
+
+Trial 3 with Object 6 (TeddyBearToy) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 6, Trial 3
+	SEARCH ONLY
+	Pos Reads:      122
+	Tot Reads:      2984
+	Percent Reads:  4.1
+	Estimate Loc:   <4.008, 4.313>
+	Estimate Theta: 118.0 (deg)
+	Dist Err (m):   1.722
+	Ang Err (deg):  19.6
+
+
+
+
+Trial 3 with Object 6 (TeddyBearToy) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 6, Trial 3
+	SEARCH plus SERVO
+	Pos Reads:      169
+	Tot Reads:      3125
+	Percent Reads:  5.4
+	Estimate Loc:   <4.004, 4.323>
+	Estimate Theta: 107.7 (deg)
+	Dist Err (m):   1.712
+	Ang Err (deg):  9.4
+
+
+
+
+Trial 3 with Object 7 (CordlessPhon) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 7, Trial 3
+	SEARCH ONLY
+	Pos Reads:      20
+	Tot Reads:      2984
+	Percent Reads:  0.7
+	Estimate Loc:   <3.575, 3.912>
+	Estimate Theta: 31.3 (deg)
+	Dist Err (m):   1.550
+	Ang Err (deg):  19.1
+
+
+
+
+Trial 3 with Object 7 (CordlessPhon) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 7, Trial 3
+	SEARCH plus SERVO
+	Pos Reads:      29
+	Tot Reads:      3272
+	Percent Reads:  0.9
+	Estimate Loc:   <4.238, 4.313>
+	Estimate Theta: 32.7 (deg)
+	Dist Err (m):   0.855
+	Ang Err (deg):  37.7
+
+
+
+
+Trial 3 with Object 8 (BlueHairBrus) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 8, Trial 3
+	SEARCH ONLY
+	Pos Reads:      3
+	Tot Reads:      2984
+	Percent Reads:  0.1
+	Estimate Loc:   <2.046, 1.861>
+	Estimate Theta: 40.8 (deg)
+	Dist Err (m):   3.498
+	Ang Err (deg):  24.3
+
+
+
+
+Trial 3 with Object 8 (BlueHairBrus) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 8, Trial 3
+	SEARCH plus SERVO
+	Pos Reads:      68
+	Tot Reads:      3615
+	Percent Reads:  1.9
+	Estimate Loc:   <4.321, 3.326>
+	Estimate Theta: 30.0 (deg)
+	Dist Err (m):   1.176
+	Ang Err (deg):  53.5
+
+
+
+
+Trial 4 with Object 0 (OrangeMedBot) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 0, Trial 4
+	SEARCH ONLY
+	Pos Reads:      149
+	Tot Reads:      2193
+	Percent Reads:  6.8
+	Estimate Loc:   <2.622, 1.815>
+	Estimate Theta: -59.0 (deg)
+	Dist Err (m):   1.115
+	Ang Err (deg):  -6.6
+
+
+
+
+Trial 4 with Object 0 (OrangeMedBot) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 0, Trial 4
+	SEARCH plus SERVO
+	Pos Reads:      204
+	Tot Reads:      2367
+	Percent Reads:  8.6
+	Estimate Loc:   <2.694, 1.576>
+	Estimate Theta: -66.3 (deg)
+	Dist Err (m):   0.886
+	Ang Err (deg):  -19.6
+
+
+
+
+Trial 4 with Object 1 (TravisTVremo) at Position 5 (BehindKitchenTable)
+	 No results for this instance.
+RESULTS
+
+Location 5, Object 1, Trial 4
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      2193
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 4 with Object 1 (TravisTVremo) at Position 5 (BehindKitchenTable)
+	 No results for this instance.
+RESULTS
+
+Location 5, Object 1, Trial 4
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      2193
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 4 with Object 2 (RedBottle   ) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 2, Trial 4
+	SEARCH ONLY
+	Pos Reads:      224
+	Tot Reads:      2193
+	Percent Reads:  10.2
+	Estimate Loc:   <-1.399, -0.121>
+	Estimate Theta: -115.8 (deg)
+	Dist Err (m):   0.888
+	Ang Err (deg):  10.6
+
+
+
+
+Trial 4 with Object 2 (RedBottle   ) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 2, Trial 4
+	SEARCH plus SERVO
+	Pos Reads:      325
+	Tot Reads:      2370
+	Percent Reads:  13.7
+	Estimate Loc:   <-1.416, -0.239>
+	Estimate Theta: -103.9 (deg)
+	Dist Err (m):   0.784
+	Ang Err (deg):  26.7
+
+
+
+
+Trial 4 with Object 3 (OnMetalKeys ) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 3, Trial 4
+	SEARCH ONLY
+	Pos Reads:      2
+	Tot Reads:      2193
+	Percent Reads:  0.1
+	Estimate Loc:   <-1.170, 0.579>
+	Estimate Theta: 172.9 (deg)
+	Dist Err (m):   2.206
+	Ang Err (deg):  11.8
+
+
+
+
+Trial 4 with Object 3 (OnMetalKeys ) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 3, Trial 4
+	SEARCH plus SERVO
+	Pos Reads:      64
+	Tot Reads:      2513
+	Percent Reads:  2.5
+	Estimate Loc:   <-1.868, 1.285>
+	Estimate Theta: -177.1 (deg)
+	Dist Err (m):   1.389
+	Ang Err (deg):  3.3
+
+
+
+
+Trial 4 with Object 4 (WhiteMedsBot) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 4, Trial 4
+	SEARCH ONLY
+	Pos Reads:      200
+	Tot Reads:      2193
+	Percent Reads:  9.1
+	Estimate Loc:   <0.815, 2.783>
+	Estimate Theta: -153.1 (deg)
+	Dist Err (m):   1.005
+	Ang Err (deg):  0.3
+
+
+
+
+Trial 4 with Object 4 (WhiteMedsBot) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 4, Trial 4
+	SEARCH plus SERVO
+	Pos Reads:      260
+	Tot Reads:      2354
+	Percent Reads:  11.0
+	Estimate Loc:   <0.770, 2.762>
+	Estimate Theta: -170.6 (deg)
+	Dist Err (m):   0.955
+	Ang Err (deg):  -17.4
+
+
+
+
+Trial 4 with Object 5 (BlueMedsBox ) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 5, Trial 4
+	SEARCH ONLY
+	Pos Reads:      36
+	Tot Reads:      2193
+	Percent Reads:  1.6
+	Estimate Loc:   <3.373, 4.199>
+	Estimate Theta: 63.9 (deg)
+	Dist Err (m):   1.859
+	Ang Err (deg):  -14.2
+
+
+
+
+Trial 4 with Object 5 (BlueMedsBox ) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 5, Trial 4
+	SEARCH plus SERVO
+	Pos Reads:      76
+	Tot Reads:      2343
+	Percent Reads:  3.2
+	Estimate Loc:   <3.423, 4.217>
+	Estimate Theta: 64.9 (deg)
+	Dist Err (m):   1.831
+	Ang Err (deg):  -14.6
+
+
+
+
+Trial 4 with Object 6 (TeddyBearToy) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 6, Trial 4
+	SEARCH ONLY
+	Pos Reads:      271
+	Tot Reads:      2193
+	Percent Reads:  12.4
+	Estimate Loc:   <3.974, 3.624>
+	Estimate Theta: 60.6 (deg)
+	Dist Err (m):   1.273
+	Ang Err (deg):  31.7
+
+
+
+
+Trial 4 with Object 6 (TeddyBearToy) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 6, Trial 4
+	SEARCH plus SERVO
+	Pos Reads:      408
+	Tot Reads:      2399
+	Percent Reads:  17.0
+	Estimate Loc:   <4.158, 3.830>
+	Estimate Theta: 43.8 (deg)
+	Dist Err (m):   1.017
+	Ang Err (deg):  20.1
+
+
+
+
+Trial 4 with Object 7 (CordlessPhon) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 7, Trial 4
+	SEARCH ONLY
+	Pos Reads:      2
+	Tot Reads:      2193
+	Percent Reads:  0.1
+	Estimate Loc:   <4.169, 3.556>
+	Estimate Theta: -52.8 (deg)
+	Dist Err (m):   1.415
+	Ang Err (deg):  -23.2
+
+
+
+
+Trial 4 with Object 7 (CordlessPhon) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 7, Trial 4
+	SEARCH plus SERVO
+	Pos Reads:      2
+	Tot Reads:      2399
+	Percent Reads:  0.1
+	Estimate Loc:   <4.350, 3.257>
+	Estimate Theta: -55.3 (deg)
+	Dist Err (m):   1.123
+	Ang Err (deg):  -34.4
+
+
+
+
+Trial 4 with Object 8 (BlueHairBrus) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 8, Trial 4
+	SEARCH ONLY
+	Pos Reads:      72
+	Tot Reads:      2193
+	Percent Reads:  3.3
+	Estimate Loc:   <4.107, 3.587>
+	Estimate Theta: -112.8 (deg)
+	Dist Err (m):   2.168
+	Ang Err (deg):  -18.5
+
+
+
+
+Trial 4 with Object 8 (BlueHairBrus) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 8, Trial 4
+	SEARCH plus SERVO
+	Pos Reads:      184
+	Tot Reads:      2498
+	Percent Reads:  7.4
+	Estimate Loc:   <3.931, 2.893>
+	Estimate Theta: -97.1 (deg)
+	Dist Err (m):   1.468
+	Ang Err (deg):  -7.6
+
+
+
+
+Trial 5 with Object 0 (OrangeMedBot) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 0, Trial 5
+	SEARCH ONLY
+	Pos Reads:      10
+	Tot Reads:      2668
+	Percent Reads:  0.4
+	Estimate Loc:   <-0.957, -0.599>
+	Estimate Theta: -73.6 (deg)
+	Dist Err (m):   1.897
+	Ang Err (deg):  -2.6
+
+
+
+
+Trial 5 with Object 0 (OrangeMedBot) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 0, Trial 5
+	SEARCH plus SERVO
+	Pos Reads:      52
+	Tot Reads:      2822
+	Percent Reads:  1.8
+	Estimate Loc:   <-0.966, -0.757>
+	Estimate Theta: -88.5 (deg)
+	Dist Err (m):   1.752
+	Ang Err (deg):  -19.5
+
+
+
+
+Trial 5 with Object 1 (TravisTVremo) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 1, Trial 5
+	SEARCH ONLY
+	Pos Reads:      16
+	Tot Reads:      2668
+	Percent Reads:  0.6
+	Estimate Loc:   <-1.164, -0.353>
+	Estimate Theta: -174.4 (deg)
+	Dist Err (m):   0.902
+	Ang Err (deg):  -26.7
+
+
+
+
+Trial 5 with Object 1 (TravisTVremo) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 1, Trial 5
+	SEARCH plus SERVO
+	Pos Reads:      40
+	Tot Reads:      2793
+	Percent Reads:  1.4
+	Estimate Loc:   <-1.215, -0.402>
+	Estimate Theta: -139.9 (deg)
+	Dist Err (m):   0.832
+	Ang Err (deg):  8.7
+
+
+
+
+Trial 5 with Object 2 (RedBottle   ) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 2, Trial 5
+	SEARCH ONLY
+	Pos Reads:      55
+	Tot Reads:      2668
+	Percent Reads:  2.1
+	Estimate Loc:   <-1.111, -0.226>
+	Estimate Theta: 144.6 (deg)
+	Dist Err (m):   2.630
+	Ang Err (deg):  -0.1
+
+
+
+
+Trial 5 with Object 2 (RedBottle   ) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 2, Trial 5
+	SEARCH plus SERVO
+	Pos Reads:      405
+	Tot Reads:      3145
+	Percent Reads:  12.9
+	Estimate Loc:   <-2.090, 0.443>
+	Estimate Theta: 154.0 (deg)
+	Dist Err (m):   1.444
+	Ang Err (deg):  10.1
+
+
+
+
+Trial 5 with Object 3 (OnMetalKeys ) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 3, Trial 5
+	SEARCH ONLY
+	Pos Reads:      27
+	Tot Reads:      2668
+	Percent Reads:  1.0
+	Estimate Loc:   <0.942, 2.502>
+	Estimate Theta: 145.8 (deg)
+	Dist Err (m):   1.039
+	Ang Err (deg):  -43.6
+
+
+
+
+Trial 5 with Object 3 (OnMetalKeys ) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 3, Trial 5
+	SEARCH plus SERVO
+	Pos Reads:      75
+	Tot Reads:      2822
+	Percent Reads:  2.7
+	Estimate Loc:   <0.843, 2.472>
+	Estimate Theta: -124.1 (deg)
+	Dist Err (m):   0.937
+	Ang Err (deg):  47.3
+
+
+
+
+Trial 5 with Object 4 (WhiteMedsBot) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 4, Trial 5
+	SEARCH ONLY
+	Pos Reads:      3
+	Tot Reads:      2668
+	Percent Reads:  0.1
+	Estimate Loc:   <1.778, 3.619>
+	Estimate Theta: 69.6 (deg)
+	Dist Err (m):   3.110
+	Ang Err (deg):  19.2
+
+
+
+
+Trial 5 with Object 4 (WhiteMedsBot) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 4, Trial 5
+	SEARCH plus SERVO
+	Pos Reads:      3
+	Tot Reads:      2965
+	Percent Reads:  0.1
+	Estimate Loc:   <1.784, 4.395>
+	Estimate Theta: 86.2 (deg)
+	Dist Err (m):   2.554
+	Ang Err (deg):  46.7
+
+
+
+
+Trial 5 with Object 5 (BlueMedsBox ) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 5, Trial 5
+	SEARCH ONLY
+	Pos Reads:      138
+	Tot Reads:      2668
+	Percent Reads:  5.2
+	Estimate Loc:   <4.108, 4.153>
+	Estimate Theta: -7.9 (deg)
+	Dist Err (m):   0.985
+	Ang Err (deg):  -12.9
+
+
+
+
+Trial 5 with Object 5 (BlueMedsBox ) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 5, Trial 5
+	SEARCH plus SERVO
+	Pos Reads:      181
+	Tot Reads:      2844
+	Percent Reads:  6.4
+	Estimate Loc:   <4.198, 4.031>
+	Estimate Theta: -5.7 (deg)
+	Dist Err (m):   0.916
+	Ang Err (deg):  -18.7
+
+
+
+
+Trial 5 with Object 6 (TeddyBearToy) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 6, Trial 5
+	SEARCH ONLY
+	Pos Reads:      69
+	Tot Reads:      2668
+	Percent Reads:  2.6
+	Estimate Loc:   <1.962, 1.974>
+	Estimate Theta: -20.7 (deg)
+	Dist Err (m):   3.549
+	Ang Err (deg):  -35.1
+
+
+
+
+Trial 5 with Object 6 (TeddyBearToy) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 6, Trial 5
+	SEARCH plus SERVO
+	Pos Reads:      143
+	Tot Reads:      2979
+	Percent Reads:  4.8
+	Estimate Loc:   <2.822, 1.659>
+	Estimate Theta: -19.8 (deg)
+	Dist Err (m):   2.842
+	Ang Err (deg):  -44.7
+
+
+
+
+Trial 5 with Object 7 (CordlessPhon) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 7, Trial 5
+	SEARCH ONLY
+	Pos Reads:      10
+	Tot Reads:      2668
+	Percent Reads:  0.4
+	Estimate Loc:   <1.915, 2.010>
+	Estimate Theta: -28.4 (deg)
+	Dist Err (m):   2.112
+	Ang Err (deg):  -12.4
+
+
+
+
+Trial 5 with Object 7 (CordlessPhon) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 7, Trial 5
+	SEARCH plus SERVO
+	Pos Reads:      73
+	Tot Reads:      2997
+	Percent Reads:  2.4
+	Estimate Loc:   <2.599, 1.434>
+	Estimate Theta: -38.4 (deg)
+	Dist Err (m):   1.345
+	Ang Err (deg):  -38.1
+
+
+
+
+Trial 5 with Object 8 (BlueHairBrus) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 8, Trial 5
+	SEARCH ONLY
+	Pos Reads:      8
+	Tot Reads:      2668
+	Percent Reads:  0.3
+	Estimate Loc:   <2.083, 1.867>
+	Estimate Theta: 2.0 (deg)
+	Dist Err (m):   1.536
+	Ang Err (deg):  39.5
+
+
+
+
+Trial 5 with Object 8 (BlueHairBrus) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 8, Trial 5
+	SEARCH plus SERVO
+	Pos Reads:      15
+	Tot Reads:      2963
+	Percent Reads:  0.5
+	Estimate Loc:   <2.927, 1.847>
+	Estimate Theta: -1.5 (deg)
+	Dist Err (m):   0.989
+	Ang Err (deg):  66.2
+
+
+
+
+Trial 6 with Object 0 (OrangeMedBot) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 0, Trial 6
+	SEARCH ONLY
+	Pos Reads:      110
+	Tot Reads:      3155
+	Percent Reads:  3.5
+	Estimate Loc:   <-1.160, -0.381>
+	Estimate Theta: -178.3 (deg)
+	Dist Err (m):   0.890
+	Ang Err (deg):  -29.0
+
+
+
+
+Trial 6 with Object 0 (OrangeMedBot) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 0, Trial 6
+	SEARCH plus SERVO
+	Pos Reads:      137
+	Tot Reads:      3305
+	Percent Reads:  4.1
+	Estimate Loc:   <-1.251, -0.385>
+	Estimate Theta: 179.7 (deg)
+	Dist Err (m):   0.811
+	Ang Err (deg):  -34.0
+
+
+
+
+Trial 6 with Object 1 (TravisTVremo) at Position 7 (InCupboard)
+	 No results for this instance.
+RESULTS
+
+Location 7, Object 1, Trial 6
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      3155
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 6 with Object 1 (TravisTVremo) at Position 7 (InCupboard)
+	 No results for this instance.
+RESULTS
+
+Location 7, Object 1, Trial 6
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      3155
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 6 with Object 2 (RedBottle   ) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 2, Trial 6
+	SEARCH ONLY
+	Pos Reads:      107
+	Tot Reads:      3155
+	Percent Reads:  3.4
+	Estimate Loc:   <0.773, 2.769>
+	Estimate Theta: -141.1 (deg)
+	Dist Err (m):   0.960
+	Ang Err (deg):  11.9
+
+
+
+
+Trial 6 with Object 2 (RedBottle   ) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 2, Trial 6
+	SEARCH plus SERVO
+	Pos Reads:      133
+	Tot Reads:      3301
+	Percent Reads:  4.0
+	Estimate Loc:   <0.724, 2.752>
+	Estimate Theta: -147.5 (deg)
+	Dist Err (m):   0.910
+	Ang Err (deg):  5.0
+
+
+
+
+Trial 6 with Object 3 (OnMetalKeys ) at Position 0 (BehindTree)
+	 No results for this instance.
+RESULTS
+
+Location 0, Object 3, Trial 6
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      3155
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 6 with Object 3 (OnMetalKeys ) at Position 0 (BehindTree)
+	 No results for this instance.
+RESULTS
+
+Location 0, Object 3, Trial 6
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      3155
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 6 with Object 4 (WhiteMedsBot) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 4, Trial 6
+	SEARCH ONLY
+	Pos Reads:      251
+	Tot Reads:      3155
+	Percent Reads:  8.0
+	Estimate Loc:   <3.571, 2.960>
+	Estimate Theta: 89.3 (deg)
+	Dist Err (m):   1.985
+	Ang Err (deg):  49.2
+
+
+
+
+Trial 6 with Object 4 (WhiteMedsBot) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 4, Trial 6
+	SEARCH plus SERVO
+	Pos Reads:      500
+	Tot Reads:      3535
+	Percent Reads:  14.1
+	Estimate Loc:   <4.248, 3.549>
+	Estimate Theta: 32.3 (deg)
+	Dist Err (m):   1.088
+	Ang Err (deg):  -7.0
+
+
+
+
+Trial 6 with Object 5 (BlueMedsBox ) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 5, Trial 6
+	SEARCH ONLY
+	Pos Reads:      447
+	Tot Reads:      3155
+	Percent Reads:  14.2
+	Estimate Loc:   <3.611, 4.228>
+	Estimate Theta: -15.5 (deg)
+	Dist Err (m):   2.253
+	Ang Err (deg):  21.9
+
+
+
+
+Trial 6 with Object 5 (BlueMedsBox ) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 5, Trial 6
+	SEARCH plus SERVO
+	Pos Reads:      688
+	Tot Reads:      3524
+	Percent Reads:  19.5
+	Estimate Loc:   <4.250, 4.339>
+	Estimate Theta: 3.4 (deg)
+	Dist Err (m):   1.875
+	Ang Err (deg):  55.7
+
+
+
+
+Trial 6 with Object 6 (TeddyBearToy) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 6, Trial 6
+	SEARCH ONLY
+	Pos Reads:      570
+	Tot Reads:      3155
+	Percent Reads:  18.1
+	Estimate Loc:   <2.926, 1.861>
+	Estimate Theta: 33.7 (deg)
+	Dist Err (m):   1.107
+	Ang Err (deg):  56.9
+
+
+
+
+Trial 6 with Object 6 (TeddyBearToy) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 6, Trial 6
+	SEARCH plus SERVO
+	Pos Reads:      637
+	Tot Reads:      3318
+	Percent Reads:  19.2
+	Estimate Loc:   <2.948, 1.887>
+	Estimate Theta: -3.3 (deg)
+	Dist Err (m):   1.098
+	Ang Err (deg):  21.6
+
+
+
+
+Trial 6 with Object 7 (CordlessPhon) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 7, Trial 6
+	SEARCH ONLY
+	Pos Reads:      7
+	Tot Reads:      3155
+	Percent Reads:  0.2
+	Estimate Loc:   <2.000, 0.284>
+	Estimate Theta: 20.3 (deg)
+	Dist Err (m):   1.454
+	Ang Err (deg):  -6.1
+
+
+
+
+Trial 6 with Object 7 (CordlessPhon) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 7, Trial 6
+	SEARCH plus SERVO
+	Pos Reads:      24
+	Tot Reads:      3421
+	Percent Reads:  0.7
+	Estimate Loc:   <2.477, 0.891>
+	Estimate Theta: 52.0 (deg)
+	Dist Err (m):   0.826
+	Ang Err (deg):  49.1
+
+
+
+
+Trial 6 with Object 8 (BlueHairBrus) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 8, Trial 6
+	SEARCH ONLY
+	Pos Reads:      30
+	Tot Reads:      3155
+	Percent Reads:  1.0
+	Estimate Loc:   <-0.966, -0.179>
+	Estimate Theta: -87.2 (deg)
+	Dist Err (m):   2.301
+	Ang Err (deg):  -13.0
+
+
+
+
+Trial 6 with Object 8 (BlueHairBrus) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 8, Trial 6
+	SEARCH plus SERVO
+	Pos Reads:      65
+	Tot Reads:      3400
+	Percent Reads:  1.9
+	Estimate Loc:   <-0.938, -0.750>
+	Estimate Theta: -88.1 (deg)
+	Dist Err (m):   1.749
+	Ang Err (deg):  -18.1
+
+
+
+
+Trial 7 with Object 0 (OrangeMedBot) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 0, Trial 7
+	SEARCH ONLY
+	Pos Reads:      21
+	Tot Reads:      2491
+	Percent Reads:  0.8
+	Estimate Loc:   <-0.755, -0.563>
+	Estimate Theta: 102.9 (deg)
+	Dist Err (m):   3.116
+	Ang Err (deg):  -40.5
+
+
+
+
+Trial 7 with Object 0 (OrangeMedBot) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 0, Trial 7
+	SEARCH plus SERVO
+	Pos Reads:      127
+	Tot Reads:      2858
+	Percent Reads:  4.4
+	Estimate Loc:   <-1.919, 0.187>
+	Estimate Theta: 145.1 (deg)
+	Dist Err (m):   1.737
+	Ang Err (deg):  4.7
+
+
+
+
+Trial 7 with Object 1 (TravisTVremo) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 1, Trial 7
+	SEARCH ONLY
+	Pos Reads:      30
+	Tot Reads:      2491
+	Percent Reads:  1.2
+	Estimate Loc:   <0.948, 2.489>
+	Estimate Theta: 139.2 (deg)
+	Dist Err (m):   1.043
+	Ang Err (deg):  -49.5
+
+
+
+
+Trial 7 with Object 1 (TravisTVremo) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 1, Trial 7
+	SEARCH plus SERVO
+	Pos Reads:      78
+	Tot Reads:      2649
+	Percent Reads:  2.9
+	Estimate Loc:   <0.863, 2.528>
+	Estimate Theta: -170.2 (deg)
+	Dist Err (m):   0.966
+	Ang Err (deg):  -1.9
+
+
+
+
+Trial 7 with Object 2 (RedBottle   ) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 2, Trial 7
+	SEARCH ONLY
+	Pos Reads:      19
+	Tot Reads:      2491
+	Percent Reads:  0.8
+	Estimate Loc:   <3.566, 4.288>
+	Estimate Theta: 69.2 (deg)
+	Dist Err (m):   1.739
+	Ang Err (deg):  -14.5
+
+
+
+
+Trial 7 with Object 2 (RedBottle   ) at Position 0 (BehindTree)
+RESULTS
+
+Location 0, Object 2, Trial 7
+	SEARCH plus SERVO
+	Pos Reads:      19
+	Tot Reads:      2621
+	Percent Reads:  0.7
+	Estimate Loc:   <3.546, 4.297>
+	Estimate Theta: 67.2 (deg)
+	Dist Err (m):   1.733
+	Ang Err (deg):  -15.9
+
+
+
+
+Trial 7 with Object 3 (OnMetalKeys ) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 3, Trial 7
+	SEARCH ONLY
+	Pos Reads:      2
+	Tot Reads:      2491
+	Percent Reads:  0.1
+	Estimate Loc:   <3.650, 4.116>
+	Estimate Theta: -12.3 (deg)
+	Dist Err (m):   1.446
+	Ang Err (deg):  -17.2
+
+
+
+
+Trial 7 with Object 3 (OnMetalKeys ) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 3, Trial 7
+	SEARCH plus SERVO
+	Pos Reads:      19
+	Tot Reads:      2755
+	Percent Reads:  0.7
+	Estimate Loc:   <4.252, 4.123>
+	Estimate Theta: 14.5 (deg)
+	Dist Err (m):   0.846
+	Ang Err (deg):  6.7
+
+
+
+
+Trial 7 with Object 4 (WhiteMedsBot) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 4, Trial 7
+	SEARCH ONLY
+	Pos Reads:      125
+	Tot Reads:      2491
+	Percent Reads:  5.0
+	Estimate Loc:   <3.544, 2.932>
+	Estimate Theta: 22.3 (deg)
+	Dist Err (m):   1.857
+	Ang Err (deg):  24.6
+
+
+
+
+Trial 7 with Object 4 (WhiteMedsBot) at Position 2 (CircleEndTable)
+RESULTS
+
+Location 2, Object 4, Trial 7
+	SEARCH plus SERVO
+	Pos Reads:      234
+	Tot Reads:      2680
+	Percent Reads:  8.7
+	Estimate Loc:   <3.831, 2.847>
+	Estimate Theta: -19.9 (deg)
+	Dist Err (m):   1.568
+	Ang Err (deg):  -20.3
+
+
+
+
+Trial 7 with Object 5 (BlueMedsBox ) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 5, Trial 7
+	SEARCH ONLY
+	Pos Reads:      401
+	Tot Reads:      2491
+	Percent Reads:  16.1
+	Estimate Loc:   <3.458, 2.719>
+	Estimate Theta: -49.7 (deg)
+	Dist Err (m):   1.382
+	Ang Err (deg):  19.8
+
+
+
+
+Trial 7 with Object 5 (BlueMedsBox ) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 5, Trial 7
+	SEARCH plus SERVO
+	Pos Reads:      519
+	Tot Reads:      2692
+	Percent Reads:  19.3
+	Estimate Loc:   <3.417, 2.423>
+	Estimate Theta: -104.0 (deg)
+	Dist Err (m):   1.129
+	Ang Err (deg):  -41.8
+
+
+
+
+Trial 7 with Object 6 (TeddyBearToy) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 6, Trial 7
+	SEARCH ONLY
+	Pos Reads:      95
+	Tot Reads:      2491
+	Percent Reads:  3.8
+	Estimate Loc:   <1.396, 0.684>
+	Estimate Theta: -32.1 (deg)
+	Dist Err (m):   1.922
+	Ang Err (deg):  -39.5
+
+
+
+
+Trial 7 with Object 6 (TeddyBearToy) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 6, Trial 7
+	SEARCH plus SERVO
+	Pos Reads:      299
+	Tot Reads:      2940
+	Percent Reads:  10.2
+	Estimate Loc:   <2.676, 0.320>
+	Estimate Theta: 6.4 (deg)
+	Dist Err (m):   0.875
+	Ang Err (deg):  -38.0
+
+
+
+
+Trial 7 with Object 7 (CordlessPhon) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 7, Trial 7
+	SEARCH ONLY
+	Pos Reads:      6
+	Tot Reads:      2491
+	Percent Reads:  0.2
+	Estimate Loc:   <-0.950, -0.721>
+	Estimate Theta: -76.5 (deg)
+	Dist Err (m):   1.781
+	Ang Err (deg):  -6.6
+
+
+
+
+Trial 7 with Object 7 (CordlessPhon) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 7, Trial 7
+	SEARCH plus SERVO
+	Pos Reads:      6
+	Tot Reads:      2643
+	Percent Reads:  0.2
+	Estimate Loc:   <-0.873, -0.827>
+	Estimate Theta: -79.7 (deg)
+	Dist Err (m):   1.655
+	Ang Err (deg):  -8.5
+
+
+
+
+Trial 7 with Object 8 (BlueHairBrus) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 8, Trial 7
+	SEARCH ONLY
+	Pos Reads:      84
+	Tot Reads:      2491
+	Percent Reads:  3.4
+	Estimate Loc:   <-1.093, -0.582>
+	Estimate Theta: 149.1 (deg)
+	Dist Err (m):   0.870
+	Ang Err (deg):  -47.9
+
+
+
+
+Trial 7 with Object 8 (BlueHairBrus) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 8, Trial 7
+	SEARCH plus SERVO
+	Pos Reads:      152
+	Tot Reads:      2688
+	Percent Reads:  5.7
+	Estimate Loc:   <-1.210, -0.486>
+	Estimate Theta: 153.0 (deg)
+	Dist Err (m):   0.797
+	Ang Err (deg):  -52.9
+
+
+
+
+Trial 8 with Object 0 (OrangeMedBot) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 0, Trial 8
+	SEARCH ONLY
+	Pos Reads:      102
+	Tot Reads:      2454
+	Percent Reads:  4.2
+	Estimate Loc:   <0.867, 2.536>
+	Estimate Theta: -164.3 (deg)
+	Dist Err (m):   0.972
+	Ang Err (deg):  3.6
+
+
+
+
+Trial 8 with Object 0 (OrangeMedBot) at Position 8 (OnFilingCabinet)
+RESULTS
+
+Location 8, Object 0, Trial 8
+	SEARCH plus SERVO
+	Pos Reads:      125
+	Tot Reads:      2603
+	Percent Reads:  4.8
+	Estimate Loc:   <0.861, 2.522>
+	Estimate Theta: -145.0 (deg)
+	Dist Err (m):   0.963
+	Ang Err (deg):  23.7
+
+
+
+
+Trial 8 with Object 1 (TravisTVremo) at Position 0 (BehindTree)
+	 No results for this instance.
+RESULTS
+
+Location 0, Object 1, Trial 8
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      2454
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 8 with Object 1 (TravisTVremo) at Position 0 (BehindTree)
+	 No results for this instance.
+RESULTS
+
+Location 0, Object 1, Trial 8
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      2454
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 8 with Object 2 (RedBottle   ) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 2, Trial 8
+	SEARCH ONLY
+	Pos Reads:      146
+	Tot Reads:      2454
+	Percent Reads:  5.9
+	Estimate Loc:   <4.074, 4.103>
+	Estimate Theta: -8.5 (deg)
+	Dist Err (m):   1.025
+	Ang Err (deg):  -16.1
+
+
+
+
+Trial 8 with Object 2 (RedBottle   ) at Position 1 (FireplaceMantle)
+RESULTS
+
+Location 1, Object 2, Trial 8
+	SEARCH plus SERVO
+	Pos Reads:      240
+	Tot Reads:      2668
+	Percent Reads:  9.0
+	Estimate Loc:   <4.274, 4.186>
+	Estimate Theta: 12.2 (deg)
+	Dist Err (m):   0.818
+	Ang Err (deg):  8.6
+
+
+
+
+Trial 8 with Object 3 (OnMetalKeys ) at Position 2 (CircleEndTable)
+	 No results for this instance.
+RESULTS
+
+Location 2, Object 3, Trial 8
+	SEARCH ONLY
+	Pos Reads:      0
+	Tot Reads:      2454
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 8 with Object 3 (OnMetalKeys ) at Position 2 (CircleEndTable)
+	 No results for this instance.
+RESULTS
+
+Location 2, Object 3, Trial 8
+	SEARCH plus SERVO
+	Pos Reads:      0
+	Tot Reads:      2454
+	Percent Reads:  0.0
+	Estimate Loc:   --
+	Estimate Theta: --
+	Dist Err (m):   --
+	Ang Err (deg):  --
+
+
+
+
+Trial 8 with Object 4 (WhiteMedsBot) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 4, Trial 8
+	SEARCH ONLY
+	Pos Reads:      202
+	Tot Reads:      2454
+	Percent Reads:  8.2
+	Estimate Loc:   <1.618, 2.130>
+	Estimate Theta: -51.3 (deg)
+	Dist Err (m):   2.430
+	Ang Err (deg):  -34.4
+
+
+
+
+Trial 8 with Object 4 (WhiteMedsBot) at Position 3 (Couch)
+RESULTS
+
+Location 3, Object 4, Trial 8
+	SEARCH plus SERVO
+	Pos Reads:      479
+	Tot Reads:      2925
+	Percent Reads:  16.4
+	Estimate Loc:   <2.811, 1.711>
+	Estimate Theta: -13.1 (deg)
+	Dist Err (m):   1.169
+	Ang Err (deg):  1.0
+
+
+
+
+Trial 8 with Object 5 (BlueMedsBox ) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 5, Trial 8
+	SEARCH ONLY
+	Pos Reads:      281
+	Tot Reads:      2454
+	Percent Reads:  11.5
+	Estimate Loc:   <2.031, 1.871>
+	Estimate Theta: 4.7 (deg)
+	Dist Err (m):   1.580
+	Ang Err (deg):  41.1
+
+
+
+
+Trial 8 with Object 5 (BlueMedsBox ) at Position 4 (RectEndTable)
+RESULTS
+
+Location 4, Object 5, Trial 8
+	SEARCH plus SERVO
+	Pos Reads:      608
+	Tot Reads:      2882
+	Percent Reads:  21.1
+	Estimate Loc:   <2.837, 1.703>
+	Estimate Theta: -25.6 (deg)
+	Dist Err (m):   0.900
+	Ang Err (deg):  33.3
+
+
+
+
+Trial 8 with Object 6 (TeddyBearToy) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 6, Trial 8
+	SEARCH ONLY
+	Pos Reads:      5
+	Tot Reads:      2454
+	Percent Reads:  0.2
+	Estimate Loc:   <1.037, -0.423>
+	Estimate Theta: 160.3 (deg)
+	Dist Err (m):   2.403
+	Ang Err (deg):  -74.7
+
+
+
+
+Trial 8 with Object 6 (TeddyBearToy) at Position 5 (BehindKitchenTable)
+RESULTS
+
+Location 5, Object 6, Trial 8
+	SEARCH plus SERVO
+	Pos Reads:      5
+	Tot Reads:      2706
+	Percent Reads:  0.2
+	Estimate Loc:   <0.443, -0.260>
+	Estimate Theta: 161.9 (deg)
+	Dist Err (m):   2.272
+	Ang Err (deg):  -87.9
+
+
+
+
+Trial 8 with Object 7 (CordlessPhon) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 7, Trial 8
+	SEARCH ONLY
+	Pos Reads:      8
+	Tot Reads:      2454
+	Percent Reads:  0.3
+	Estimate Loc:   <-1.219, -0.484>
+	Estimate Theta: 148.0 (deg)
+	Dist Err (m):   0.789
+	Ang Err (deg):  -58.5
+
+
+
+
+Trial 8 with Object 7 (CordlessPhon) at Position 6 (NearDishwaser)
+RESULTS
+
+Location 6, Object 7, Trial 8
+	SEARCH plus SERVO
+	Pos Reads:      53
+	Tot Reads:      2595
+	Percent Reads:  2.0
+	Estimate Loc:   <-1.212, -0.443>
+	Estimate Theta: 177.7 (deg)
+	Dist Err (m):   0.815
+	Ang Err (deg):  -31.1
+
+
+
+
+Trial 8 with Object 8 (BlueHairBrus) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 8, Trial 8
+	SEARCH ONLY
+	Pos Reads:      40
+	Tot Reads:      2454
+	Percent Reads:  1.6
+	Estimate Loc:   <-1.194, -0.375>
+	Estimate Theta: 143.5 (deg)
+	Dist Err (m):   2.653
+	Ang Err (deg):  2.4
+
+
+
+
+Trial 8 with Object 8 (BlueHairBrus) at Position 7 (InCupboard)
+RESULTS
+
+Location 7, Object 8, Trial 8
+	SEARCH plus SERVO
+	Pos Reads:      41
+	Tot Reads:      2601
+	Percent Reads:  1.6
+	Estimate Loc:   <-1.272, -0.339>
+	Estimate Theta: -173.0 (deg)
+	Dist Err (m):   2.570
+	Ang Err (deg):  46.5
+
+
+
+

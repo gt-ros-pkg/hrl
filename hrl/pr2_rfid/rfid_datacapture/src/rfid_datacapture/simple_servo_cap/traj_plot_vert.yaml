@@ -1,0 +1,6 @@
+glob_files: ['/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/simple_servo_cap/datacap_vert_data/*friis.pkl']
+use_combined: '/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/simple_servo_cap/intermed_results/traj_plot_vert.pkl'
+filters:
+  antennas: ['EleLeftEar','EleRightEar']
+  tags: ['datacap     ']
+outimage: '/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/simple_servo_cap/intermed_results/vert'

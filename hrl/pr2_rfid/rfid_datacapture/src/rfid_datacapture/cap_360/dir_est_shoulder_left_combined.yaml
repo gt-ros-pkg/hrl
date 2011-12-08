@@ -1,0 +1,5 @@
+glob_files: ['/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/cap_360/shoulder_datacap/datacap_*.pkl','/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/cap_360/shoulder_datacap/datacap2_*.pkl']
+filters:
+  antennas: ['EleLeftEar']
+  tags: ['datacap     ','datacap2    ']
+outimage: '/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/cap_360/est/dir_shoulder_left_combined_'

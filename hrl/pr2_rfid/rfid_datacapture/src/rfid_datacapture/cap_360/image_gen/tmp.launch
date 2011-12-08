@@ -1,0 +1,9 @@
+<launch>
+  <!-- Note, the URDF generated using: rosrun xacro xacro.py `rospack find pr2_description`/robots/pr2.urdf.xacro -o pr2_urdf.xml -->
+  <param name="robot_description" command="cat $(find rfid_datacapture)/src/rfid_datacapture/cap_360/image_gen/pr2_urdf.xml" />
+
+  <include file="$(find rfid_nav)/launch/map_only.launch" />
+
+  <!-- Note: run the friis_process on the included yaml simultaneously -->
+  <!-- ../../process_bags_friis.py yaml friis_process.yaml -->
+</launch>

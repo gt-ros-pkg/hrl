@@ -1,0 +1,3 @@
+string tagid
+---
+geometry_msgs/PoseStamped best_vantage

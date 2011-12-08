@@ -1,0 +1,1477 @@
+Trial 0 with Object 0 (OrangeMedBot) at Position 0 (BehindTree)
+	 Positive Reads: 22 of 2978 (0.74)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.845
+		 Tag-Robot orient err (deg): -18.163
+		 Debug Stats 76.6949619582 94.8580667793 [ 3.91321029  4.17908127  0.05260824] [ 3.757  6.017  0.036]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.795
+		 Tag-Robot orient err (deg): -11.069
+		 Debug Stats 84.3966832228 95.4660530214 [ 3.928  4.23   0.056] [ 3.757  6.017  0.036]
+	 Done.
+
+
+Trial 0 with Object 1 (TravisTVremo) at Position 1 (FireplaceMantle)
+	 Positive Reads: 0 of 2978 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 0 with Object 2 (RedBottle   ) at Position 2 (CircleEndTable)
+	 Positive Reads: 136 of 2978 (4.57)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.298
+		 Tag-Robot orient err (deg): 5.300
+		 Debug Stats -29.0786793848 -34.3787160653 [ 3.55855644  4.11617405  0.0514461 ] [ 5.399  2.857  0.607]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.514
+		 Tag-Robot orient err (deg): -2.421
+		 Debug Stats -34.0336930308 -31.6128343182 [ 4.2    3.595  0.051] [ 5.399  2.857  0.607]
+	 Done.
+
+
+Trial 0 with Object 3 (OnMetalKeys ) at Position 3 (Couch)
+	 Positive Reads: 0 of 2978 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 0 with Object 4 (WhiteMedsBot) at Position 4 (RectEndTable)
+	 Positive Reads: 266 of 2978 (8.93)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.500
+		 Tag-Robot orient err (deg): 15.798
+		 Debug Stats 47.2732920042 31.4755479634 [ 2.09018627  0.19011078  0.0530317 ] [ 3.302  0.932  0.534]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 0.822
+		 Tag-Robot orient err (deg): -8.457
+		 Debug Stats 27.3300868277 35.7873527826 [ 2.761  0.542  0.054] [ 3.302  0.932  0.534]
+	 Done.
+
+
+Trial 0 with Object 5 (BlueMedsBox ) at Position 5 (BehindKitchenTable)
+	 Positive Reads: 363 of 2978 (12.19)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 3.528
+		 Tag-Robot orient err (deg): 6.873
+		 Debug Stats -108.980094422 -115.853509649 [ 1.16524497  0.71127816  0.05322701] [-0.339 -2.393  0.793]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 2.403
+		 Tag-Robot orient err (deg): -9.752
+		 Debug Stats -129.030095463 -119.278566746 [ 0.779 -0.399  0.052] [-0.339 -2.393  0.793]
+	 Done.
+
+
+Trial 0 with Object 6 (TeddyBearToy) at Position 6 (NearDishwaser)
+	 Positive Reads: 251 of 2978 (8.43)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.407
+		 Tag-Robot orient err (deg): -6.069
+		 Debug Stats -142.248956984 -136.179657521 [-1.14283951 -0.08344215  0.0506365 ] [-1.926 -0.835  0.946]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.205
+		 Tag-Robot orient err (deg): -15.201
+		 Debug Stats -147.536632246 -132.33583191 [-1.383 -0.239  0.051] [-1.926 -0.835  0.946]
+	 Done.
+
+
+Trial 0 with Object 7 (CordlessPhon) at Position 7 (InCupboard)
+	 Positive Reads: 14 of 2978 (0.47)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.590
+		 Tag-Robot orient err (deg): 37.477
+		 Debug Stats -158.494222606 164.029268846 [-1.12841816  0.68481557  0.05240736] [-3.257  1.294  1.397]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 2.094
+		 Tag-Robot orient err (deg): 57.591
+		 Debug Stats -158.079055677 144.329539643 [-1.953  0.358  0.052] [-3.257  1.294  1.397]
+	 Done.
+
+
+Trial 0 with Object 8 (BlueHairBrus) at Position 8 (OnFilingCabinet)
+	 Positive Reads: 37 of 2978 (1.24)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.169
+		 Tag-Robot orient err (deg): 31.101
+		 Debug Stats -135.886986825 -166.988297099 [ 0.88743487  2.55625133  0.05748505] [-0.083  2.332  0.67 ]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.131
+		 Tag-Robot orient err (deg): 53.276
+		 Debug Stats -114.476967467 -167.753209075 [ 0.843  2.533  0.053] [-0.083  2.332  0.67 ]
+	 Done.
+
+
+Trial 1 with Object 0 (OrangeMedBot) at Position 1 (FireplaceMantle)
+	 Positive Reads: 21 of 3247 (0.65)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.710
+		 Tag-Robot orient err (deg): -20.945
+		 Debug Stats 22.6474713216 43.5921391273 [ 3.43690938  2.66421549  0.05252443] [ 5.09   4.238  1.514]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.821
+		 Tag-Robot orient err (deg): 11.850
+		 Debug Stats 48.5295252476 36.6797574826 [ 4.22   3.59   0.051] [ 5.09   4.238  1.514]
+	 Done.
+
+
+Trial 1 with Object 1 (TravisTVremo) at Position 2 (CircleEndTable)
+	 Positive Reads: 0 of 3247 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 1 with Object 2 (RedBottle   ) at Position 3 (Couch)
+	 Positive Reads: 155 of 3247 (4.77)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.509
+		 Tag-Robot orient err (deg): 10.485
+		 Debug Stats -50.9724444034 -61.4572107282 [ 3.25924522  2.68391844  0.05292974] [ 3.944  1.425  0.527]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.232
+		 Tag-Robot orient err (deg): -2.766
+		 Debug Stats -64.1712730547 -61.4056323936 [ 3.4    2.423  0.052] [ 3.944  1.425  0.527]
+	 Done.
+
+
+Trial 1 with Object 3 (OnMetalKeys ) at Position 4 (RectEndTable)
+	 Positive Reads: 41 of 3247 (1.26)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.699
+		 Tag-Robot orient err (deg): -22.355
+		 Debug Stats -3.49740636905 18.8577052042 [ 1.76077933  0.40559297  0.05147521] [ 3.302  0.932  0.534]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 0.914
+		 Tag-Robot orient err (deg): 58.122
+		 Debug Stats 58.2698077648 0.14766920786 [ 2.526  0.93   0.052] [ 3.302  0.932  0.534]
+	 Done.
+
+
+Trial 1 with Object 4 (WhiteMedsBot) at Position 5 (BehindKitchenTable)
+	 Positive Reads: 58 of 3247 (1.79)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.419
+		 Tag-Robot orient err (deg): 5.344
+		 Debug Stats -63.7148634272 -69.058584411 [-1.16174062 -0.24311956  0.05099459] [-0.339 -2.393  0.793]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 2.186
+		 Tag-Robot orient err (deg): -20.409
+		 Debug Stats -87.433359537 -67.024491435 [-1.142 -0.499  0.053] [-0.339 -2.393  0.793]
+	 Done.
+
+
+Trial 1 with Object 5 (BlueMedsBox ) at Position 6 (NearDishwaser)
+	 Positive Reads: 284 of 3247 (8.75)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.374
+		 Tag-Robot orient err (deg): -15.799
+		 Debug Stats -146.541736988 -130.742789878 [-1.24516894 -0.04465556  0.05103005] [-1.926 -0.835  0.946]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.226
+		 Tag-Robot orient err (deg): -32.617
+		 Debug Stats -154.412125788 -121.795429939 [-1.484 -0.122  0.052] [-1.926 -0.835  0.946]
+	 Done.
+
+
+Trial 1 with Object 6 (TeddyBearToy) at Position 7 (InCupboard)
+	 Positive Reads: 300 of 3247 (9.24)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.519
+		 Tag-Robot orient err (deg): 10.250
+		 Debug Stats 174.754948998 164.505301969 [-1.20273296  0.72450604  0.05461843] [-3.257  1.294  1.397]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.739
+		 Tag-Robot orient err (deg): 6.205
+		 Debug Stats 170.913310288 164.708572189 [-2.189  1.002  0.056] [-3.257  1.294  1.397]
+	 Done.
+
+
+Trial 1 with Object 7 (CordlessPhon) at Position 8 (OnFilingCabinet)
+	 Positive Reads: 52 of 3247 (1.60)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.124
+		 Tag-Robot orient err (deg): 2.593
+		 Debug Stats -160.167750368 -162.760542503 [ 0.8141879   2.61040326  0.05303713] [-0.083  2.332  0.67 ]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.119
+		 Tag-Robot orient err (deg): -6.643
+		 Debug Stats -169.996577815 -163.353747429 [ 0.81   2.599  0.051] [-0.083  2.332  0.67 ]
+	 Done.
+
+
+Trial 1 with Object 8 (BlueHairBrus) at Position 0 (BehindTree)
+	 Positive Reads: 0 of 3247 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 2 with Object 0 (OrangeMedBot) at Position 2 (CircleEndTable)
+	 Positive Reads: 283 of 3119 (9.07)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.056
+		 Tag-Robot orient err (deg): 4.431
+		 Debug Stats -5.00370640319 -9.43455657344 [ 3.44591854  3.1815409   0.05222321] [ 5.399  2.857  0.607]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.304
+		 Tag-Robot orient err (deg): 15.639
+		 Debug Stats 1.66157760588 -13.9773577954 [ 4.254  3.142  0.052] [ 5.399  2.857  0.607]
+	 Done.
+
+
+Trial 2 with Object 1 (TravisTVremo) at Position 3 (Couch)
+	 Positive Reads: 0 of 3119 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 2 with Object 2 (RedBottle   ) at Position 4 (RectEndTable)
+	 Positive Reads: 437 of 3119 (14.01)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.476
+		 Tag-Robot orient err (deg): 5.442
+		 Debug Stats 18.0669802725 12.6251863481 [ 1.9403525   0.6270072   0.05179856] [ 3.302  0.932  0.534]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 0.923
+		 Tag-Robot orient err (deg): -3.357
+		 Debug Stats 16.2720013817 19.6293950583 [ 2.559  0.667  0.055] [ 3.302  0.932  0.534]
+	 Done.
+
+
+Trial 2 with Object 3 (OnMetalKeys ) at Position 5 (BehindKitchenTable)
+	 Positive Reads: 0 of 3119 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 2 with Object 4 (WhiteMedsBot) at Position 6 (NearDishwaser)
+	 Positive Reads: 304 of 3119 (9.75)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.235
+		 Tag-Robot orient err (deg): 26.585
+		 Debug Stats -122.9444681 -149.529396047 [-1.19194325 -0.40311467  0.05147324] [-1.926 -0.835  0.946]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.175
+		 Tag-Robot orient err (deg): 3.121
+		 Debug Stats -144.499955932 -147.620867529 [-1.281 -0.426  0.053] [-1.926 -0.835  0.946]
+	 Done.
+
+
+Trial 2 with Object 5 (BlueMedsBox ) at Position 7 (InCupboard)
+	 Positive Reads: 335 of 3119 (10.74)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.512
+		 Tag-Robot orient err (deg): -12.297
+		 Debug Stats 152.150532271 164.448016892 [-1.21175827  0.72480545  0.05397378] [-3.257  1.294  1.397]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.759
+		 Tag-Robot orient err (deg): 2.363
+		 Debug Stats 166.272352147 163.909183651 [-2.165  0.979  0.055] [-3.257  1.294  1.397]
+	 Done.
+
+
+Trial 2 with Object 6 (TeddyBearToy) at Position 8 (OnFilingCabinet)
+	 Positive Reads: 337 of 3119 (10.80)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.192
+		 Tag-Robot orient err (deg): -60.779
+		 Debug Stats 143.219715205 -156.00151331 [ 0.84721877  2.74613064  0.05047297] [-0.083  2.332  0.67 ]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.161
+		 Tag-Robot orient err (deg): -22.377
+		 Debug Stats -176.986662916 -154.609413037 [ 0.804  2.753  0.051] [-0.083  2.332  0.67 ]
+	 Done.
+
+
+Trial 2 with Object 7 (CordlessPhon) at Position 0 (BehindTree)
+	 Positive Reads: 9 of 3119 (0.29)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.810
+		 Tag-Robot orient err (deg): -15.804
+		 Debug Stats 59.9119905541 75.7159786388 [ 3.31049269  4.26323873  0.05274074] [ 3.757  6.017  0.036]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.806
+		 Tag-Robot orient err (deg): 19.538
+		 Debug Stats 95.3401771098 75.8021870168 [ 3.314  4.266  0.051] [ 3.757  6.017  0.036]
+	 Done.
+
+
+Trial 2 with Object 8 (BlueHairBrus) at Position 1 (FireplaceMantle)
+	 Positive Reads: 32 of 3119 (1.03)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.753
+		 Tag-Robot orient err (deg): 39.694
+		 Debug Stats 50.0554531335 10.361735589 [ 4.13795242  4.06392372  0.05220713] [ 5.09   4.238  1.514]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.725
+		 Tag-Robot orient err (deg): 15.619
+		 Debug Stats 26.9290163711 11.309932474 [ 4.19   4.058  0.053] [ 5.09   4.238  1.514]
+	 Done.
+
+
+Trial 3 with Object 0 (OrangeMedBot) at Position 3 (Couch)
+	 Positive Reads: 41 of 2984 (1.37)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.441
+		 Tag-Robot orient err (deg): 45.939
+		 Debug Stats -25.7202735487 -71.6595341627 [ 3.51579849  2.71670085  0.0526218 ] [ 3.944  1.425  0.527]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.299
+		 Tag-Robot orient err (deg): 27.103
+		 Debug Stats -46.0658067285 -73.1690937469 [ 3.594  2.582  0.051] [ 3.944  1.425  0.527]
+	 Done.
+
+
+Trial 3 with Object 1 (TravisTVremo) at Position 4 (RectEndTable)
+	 Positive Reads: 0 of 2984 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 3 with Object 2 (RedBottle   ) at Position 5 (BehindKitchenTable)
+	 Positive Reads: 30 of 2984 (1.01)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.316
+		 Tag-Robot orient err (deg): 7.433
+		 Debug Stats -65.5625771368 -72.9955716623 [-0.9807966  -0.29435807  0.05150099] [-0.339 -2.393  0.793]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.947
+		 Tag-Robot orient err (deg): -11.185
+		 Debug Stats -85.428007254 -74.2425444212 [-0.828 -0.66   0.053] [-0.339 -2.393  0.793]
+	 Done.
+
+
+Trial 3 with Object 3 (OnMetalKeys ) at Position 6 (NearDishwaser)
+	 Positive Reads: 60 of 2984 (2.01)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.340
+		 Tag-Robot orient err (deg): -28.820
+		 Debug Stats -163.714240068 -134.894289274 [-1.22165906 -0.12805524  0.05110469] [-1.926 -0.835  0.946]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.217
+		 Tag-Robot orient err (deg): -8.131
+		 Debug Stats -136.249363682 -128.118276369 [-1.416 -0.185  0.053] [-1.926 -0.835  0.946]
+	 Done.
+
+
+Trial 3 with Object 4 (WhiteMedsBot) at Position 7 (InCupboard)
+	 Positive Reads: 137 of 2984 (4.59)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.535
+		 Tag-Robot orient err (deg): -42.753
+		 Debug Stats 124.5670491 167.320534363 [-1.15920609  0.82203168  0.05409793] [-3.257  1.294  1.397]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.765
+		 Tag-Robot orient err (deg): 2.741
+		 Debug Stats 170.283056713 167.54175356 [-2.139  1.047  0.054] [-3.257  1.294  1.397]
+	 Done.
+
+
+Trial 3 with Object 5 (BlueMedsBox ) at Position 8 (OnFilingCabinet)
+	 Positive Reads: 368 of 2984 (12.33)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.167
+		 Tag-Robot orient err (deg): -7.513
+		 Debug Stats -165.383125783 -157.870455663 [ 0.83332166  2.70463016  0.0507848 ] [-0.083  2.332  0.67 ]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.132
+		 Tag-Robot orient err (deg): -13.372
+		 Debug Stats -167.991225532 -154.619467209 [ 0.777  2.74   0.058] [-0.083  2.332  0.67 ]
+	 Done.
+
+
+Trial 3 with Object 6 (TeddyBearToy) at Position 0 (BehindTree)
+	 Positive Reads: 122 of 2984 (4.09)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.722
+		 Tag-Robot orient err (deg): 19.561
+		 Debug Stats 117.951059153 98.3901978203 [ 4.00828384  4.31329234  0.05209668] [ 3.757  6.017  0.036]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.712
+		 Tag-Robot orient err (deg): 9.363
+		 Debug Stats 107.658769705 98.2957650303 [ 4.004  4.323  0.053] [ 3.757  6.017  0.036]
+	 Done.
+
+
+Trial 3 with Object 7 (CordlessPhon) at Position 1 (FireplaceMantle)
+	 Positive Reads: 20 of 2984 (0.67)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.131
+		 Tag-Robot orient err (deg): 19.132
+		 Debug Stats 31.2785558251 12.1470140775 [ 3.57502434  3.91191688  0.05102182] [ 5.09   4.238  1.514]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.695
+		 Tag-Robot orient err (deg): 37.747
+		 Debug Stats 32.715890102 -5.03067514096 [ 4.238  4.313  0.051] [ 5.09   4.238  1.514]
+	 Done.
+
+
+Trial 3 with Object 8 (BlueHairBrus) at Position 2 (CircleEndTable)
+	 Positive Reads: 3 of 2984 (0.10)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 3.541
+		 Tag-Robot orient err (deg): 24.290
+		 Debug Stats 40.8365826081 16.5467690409 [ 2.0461096   1.86085088  0.05323318] [ 5.399  2.857  0.607]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.299
+		 Tag-Robot orient err (deg): 53.535
+		 Debug Stats 30.0229884649 -23.5121686623 [ 4.321  3.326  0.055] [ 5.399  2.857  0.607]
+	 Done.
+
+
+Trial 4 with Object 0 (OrangeMedBot) at Position 4 (RectEndTable)
+	 Positive Reads: 149 of 2193 (6.79)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.214
+		 Tag-Robot orient err (deg): -6.597
+		 Debug Stats -59.0140823797 -52.4174366393 [ 2.62225109  1.81522784  0.05274146] [ 3.302  0.932  0.534]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.006
+		 Tag-Robot orient err (deg): -19.644
+		 Debug Stats -66.2912168966 -46.6470286613 [ 2.694  1.576  0.056] [ 3.302  0.932  0.534]
+	 Done.
+
+
+Trial 4 with Object 1 (TravisTVremo) at Position 5 (BehindKitchenTable)
+	 Positive Reads: 0 of 2193 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 4 with Object 2 (RedBottle   ) at Position 6 (NearDishwaser)
+	 Positive Reads: 224 of 2193 (10.21)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.261
+		 Tag-Robot orient err (deg): 10.602
+		 Debug Stats -115.848346683 -126.449902002 [-1.39852768 -0.120857    0.05098027] [-1.926 -0.835  0.946]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.190
+		 Tag-Robot orient err (deg): 26.677
+		 Debug Stats -103.877248257 -130.553759441 [-1.416 -0.239  0.051] [-1.926 -0.835  0.946]
+	 Done.
+
+
+Trial 4 with Object 3 (OnMetalKeys ) at Position 7 (InCupboard)
+	 Positive Reads: 2 of 2193 (0.09)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.583
+		 Tag-Robot orient err (deg): 11.834
+		 Debug Stats 172.920274177 161.086524869 [-1.17033898  0.57902793  0.05201617] [-3.257  1.294  1.397]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.933
+		 Tag-Robot orient err (deg): 3.270
+		 Debug Stats -177.101254475 179.628758244 [-1.868  1.285  0.053] [-3.257  1.294  1.397]
+	 Done.
+
+
+Trial 4 with Object 4 (WhiteMedsBot) at Position 8 (OnFilingCabinet)
+	 Positive Reads: 200 of 2193 (9.12)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.181
+		 Tag-Robot orient err (deg): 0.290
+		 Debug Stats -153.064545324 -153.355004109 [ 0.81546625  2.78280126  0.05047831] [-0.083  2.332  0.67 ]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.138
+		 Tag-Robot orient err (deg): -17.380
+		 Debug Stats -170.62683139 -153.247182427 [ 0.77   2.762  0.051] [-0.083  2.332  0.67 ]
+	 Done.
+
+
+Trial 4 with Object 5 (BlueMedsBox ) at Position 0 (BehindTree)
+	 Positive Reads: 36 of 2193 (1.64)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.859
+		 Tag-Robot orient err (deg): -14.205
+		 Debug Stats 63.8605370913 78.0652173462 [ 3.37266477  4.19867014  0.05220208] [ 3.757  6.017  0.036]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.831
+		 Tag-Robot orient err (deg): -14.629
+		 Debug Stats 64.8588224088 79.4880072927 [ 3.423  4.217  0.051] [ 3.757  6.017  0.036]
+	 Done.
+
+
+Trial 4 with Object 6 (TeddyBearToy) at Position 1 (FireplaceMantle)
+	 Positive Reads: 271 of 2193 (12.36)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.937
+		 Tag-Robot orient err (deg): 31.745
+		 Debug Stats 60.5746617051 28.8292453038 [ 3.97448496  3.62399873  0.05406207] [ 5.09   4.238  1.514]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.781
+		 Tag-Robot orient err (deg): 20.132
+		 Debug Stats 43.773975548 23.6422763751 [ 4.158  3.83   0.052] [ 5.09   4.238  1.514]
+	 Done.
+
+
+Trial 4 with Object 7 (CordlessPhon) at Position 2 (CircleEndTable)
+	 Positive Reads: 2 of 2193 (0.09)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.520
+		 Tag-Robot orient err (deg): -23.188
+		 Debug Stats -52.7973388987 -29.6090680995 [ 4.1691751   3.55589526  0.05040752] [ 5.399  2.857  0.607]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.251
+		 Tag-Robot orient err (deg): -34.418
+		 Debug Stats -55.2904272301 -20.8726262674 [ 4.35   3.257  0.055] [ 5.399  2.857  0.607]
+	 Done.
+
+
+Trial 4 with Object 8 (BlueHairBrus) at Position 3 (Couch)
+	 Positive Reads: 72 of 2193 (3.28)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.219
+		 Tag-Robot orient err (deg): -18.509
+		 Debug Stats -112.831237921 -94.321872242 [ 4.10735963  3.58657678  0.05096593] [ 3.944  1.425  0.527]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.543
+		 Tag-Robot orient err (deg): -7.566
+		 Debug Stats -97.0590504952 -89.4926255695 [ 3.931  2.893  0.052] [ 3.944  1.425  0.527]
+	 Done.
+
+
+Trial 5 with Object 0 (OrangeMedBot) at Position 5 (BehindKitchenTable)
+	 Positive Reads: 10 of 2668 (0.37)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.037
+		 Tag-Robot orient err (deg): -2.618
+		 Debug Stats -73.6203235088 -71.002432372 [-0.95667487 -0.59889449  0.05232174] [-0.339 -2.393  0.793]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.903
+		 Tag-Robot orient err (deg): -19.491
+		 Debug Stats -88.5219793477 -69.0305780138 [-0.966 -0.757  0.051] [-0.339 -2.393  0.793]
+	 Done.
+
+
+Trial 5 with Object 1 (TravisTVremo) at Position 6 (NearDishwaser)
+	 Positive Reads: 16 of 2668 (0.60)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.271
+		 Tag-Robot orient err (deg): -26.745
+		 Debug Stats -174.416683063 -147.671746687 [-1.16363863 -0.35252882  0.05012086] [-1.926 -0.835  0.946]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.222
+		 Tag-Robot orient err (deg): 8.742
+		 Debug Stats -139.916293571 -148.658526454 [-1.215 -0.402  0.051] [-1.926 -0.835  0.946]
+	 Done.
+
+
+Trial 5 with Object 2 (RedBottle   ) at Position 7 (InCupboard)
+	 Positive Reads: 55 of 2668 (2.06)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.954
+		 Tag-Robot orient err (deg): -0.062
+		 Debug Stats 144.632539537 144.694258751 [-1.11110835 -0.22569883  0.05098922] [-3.257  1.294  1.397]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.975
+		 Tag-Robot orient err (deg): 10.111
+		 Debug Stats 154.011055331 143.899712707 [-2.09   0.443  0.05 ] [-3.257  1.294  1.397]
+	 Done.
+
+
+Trial 5 with Object 3 (OnMetalKeys ) at Position 8 (OnFilingCabinet)
+	 Positive Reads: 27 of 2668 (1.01)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.209
+		 Tag-Robot orient err (deg): -43.631
+		 Debug Stats 145.783195814 -170.586086415 [ 0.94176148  2.50190384  0.05084026] [-0.083  2.332  0.67 ]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.123
+		 Tag-Robot orient err (deg): 47.300
+		 Debug Stats -124.102658425 -171.402681772 [ 0.843  2.472  0.051] [-0.083  2.332  0.67 ]
+	 Done.
+
+
+Trial 5 with Object 4 (WhiteMedsBot) at Position 0 (BehindTree)
+	 Positive Reads: 3 of 2668 (0.11)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 3.110
+		 Tag-Robot orient err (deg): 19.180
+		 Debug Stats 69.6488457465 50.4684011605 [ 1.77765682  3.61856095  0.05188362] [ 3.757  6.017  0.036]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 2.554
+		 Tag-Robot orient err (deg): 46.749
+		 Debug Stats 86.1728523877 39.4235665925 [ 1.784  4.395  0.05 ] [ 3.757  6.017  0.036]
+	 Done.
+
+
+Trial 5 with Object 5 (BlueMedsBox ) at Position 1 (FireplaceMantle)
+	 Positive Reads: 138 of 2668 (5.17)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.762
+		 Tag-Robot orient err (deg): -12.880
+		 Debug Stats -7.94648251922 4.93324147344 [ 4.10849463  4.15328165  0.05329281] [ 5.09   4.238  1.514]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.724
+		 Tag-Robot orient err (deg): -18.737
+		 Debug Stats -5.6722821718 13.0649643618 [ 4.198  4.031  0.053] [ 5.09   4.238  1.514]
+	 Done.
+
+
+Trial 5 with Object 6 (TeddyBearToy) at Position 2 (CircleEndTable)
+	 Positive Reads: 69 of 2668 (2.59)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 3.592
+		 Tag-Robot orient err (deg): -35.113
+		 Debug Stats -20.7002983901 14.4125580051 [ 1.96195531  1.97371388  0.05183985] [ 5.399  2.857  0.607]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 2.896
+		 Tag-Robot orient err (deg): -44.700
+		 Debug Stats -19.767043932 24.9328517708 [ 2.822  1.659  0.051] [ 5.399  2.857  0.607]
+	 Done.
+
+
+Trial 5 with Object 7 (CordlessPhon) at Position 3 (Couch)
+	 Positive Reads: 10 of 2668 (0.37)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.164
+		 Tag-Robot orient err (deg): -12.373
+		 Debug Stats -28.4462724234 -16.073195808 [ 1.91490071  2.00964122  0.05469007] [ 3.944  1.425  0.527]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.427
+		 Tag-Robot orient err (deg): -38.062
+		 Debug Stats -38.4454680533 -0.38338611114 [ 2.599  1.434  0.05 ] [ 3.944  1.425  0.527]
+	 Done.
+
+
+Trial 5 with Object 8 (BlueHairBrus) at Position 4 (RectEndTable)
+	 Positive Reads: 8 of 2668 (0.30)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.609
+		 Tag-Robot orient err (deg): 39.480
+		 Debug Stats 1.97104808807 -37.5091795665 [ 2.08330153  1.86745048  0.05479208] [ 3.302  0.932  0.534]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.101
+		 Tag-Robot orient err (deg): 66.167
+		 Debug Stats -1.54698604685 -67.7144123532 [ 2.927  1.847  0.051] [ 3.302  0.932  0.534]
+	 Done.
+
+
+Trial 6 with Object 0 (OrangeMedBot) at Position 6 (NearDishwaser)
+	 Positive Reads: 110 of 3155 (3.49)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.263
+		 Tag-Robot orient err (deg): -28.964
+		 Debug Stats -178.290150911 -149.326151375 [-1.16026843 -0.38081445  0.05043407] [-1.926 -0.835  0.946]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.208
+		 Tag-Robot orient err (deg): -33.953
+		 Debug Stats 179.736860333 -146.309932474 [-1.251 -0.385  0.051] [-1.926 -0.835  0.946]
+	 Done.
+
+
+Trial 6 with Object 1 (TravisTVremo) at Position 7 (InCupboard)
+	 Positive Reads: 0 of 3155 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 6 with Object 2 (RedBottle   ) at Position 8 (OnFilingCabinet)
+	 Positive Reads: 107 of 3155 (3.39)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.142
+		 Tag-Robot orient err (deg): 11.898
+		 Debug Stats -141.068927866 -152.966507384 [ 0.77253395  2.76854645  0.05143203] [-0.083  2.332  0.67 ]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.100
+		 Tag-Robot orient err (deg): 5.026
+		 Debug Stats -147.479336467 -152.505452829 [ 0.724  2.752  0.051] [-0.083  2.332  0.67 ]
+	 Done.
+
+
+Trial 6 with Object 3 (OnMetalKeys ) at Position 0 (BehindTree)
+	 Positive Reads: 0 of 3155 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 6 with Object 4 (WhiteMedsBot) at Position 1 (FireplaceMantle)
+	 Positive Reads: 251 of 3155 (7.96)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.466
+		 Tag-Robot orient err (deg): 49.205
+		 Debug Stats 89.2710983905 40.066460341 [ 3.57051375  2.95999321  0.05146118] [ 5.09   4.238  1.514]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.823
+		 Tag-Robot orient err (deg): -6.978
+		 Debug Stats 32.3148196454 39.2931122094 [ 4.248  3.549  0.051] [ 5.09   4.238  1.514]
+	 Done.
+
+
+Trial 6 with Object 5 (BlueMedsBox ) at Position 2 (CircleEndTable)
+	 Positive Reads: 447 of 3155 (14.17)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.321
+		 Tag-Robot orient err (deg): 21.932
+		 Debug Stats -15.548654166 -37.4805895242 [ 3.61100546  4.22801434  0.05098694] [ 5.399  2.857  0.607]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.956
+		 Tag-Robot orient err (deg): 55.651
+		 Debug Stats 3.43774677078 -52.2134480978 [ 4.25   4.339  0.051] [ 5.399  2.857  0.607]
+	 Done.
+
+
+Trial 6 with Object 6 (TeddyBearToy) at Position 3 (Couch)
+	 Positive Reads: 570 of 3155 (18.07)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.205
+		 Tag-Robot orient err (deg): 56.909
+		 Debug Stats 33.7149222481 -23.1941958532 [ 2.92634351  1.86104611  0.05074348] [ 3.944  1.425  0.527]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.197
+		 Tag-Robot orient err (deg): 21.561
+		 Debug Stats -3.32315521176 -24.8844835268 [ 2.948  1.887  0.051] [ 3.944  1.425  0.527]
+	 Done.
+
+
+Trial 6 with Object 7 (CordlessPhon) at Position 4 (RectEndTable)
+	 Positive Reads: 7 of 3155 (0.22)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.532
+		 Tag-Robot orient err (deg): -6.147
+		 Debug Stats 20.3067362217 26.4534499089 [ 2.00004083  0.28418729  0.05255302] [ 3.302  0.932  0.534]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 0.957
+		 Tag-Robot orient err (deg): 49.122
+		 Debug Stats 51.9672720184 2.8450859051 [ 2.477  0.891  0.05 ] [ 3.302  0.932  0.534]
+	 Done.
+
+
+Trial 6 with Object 8 (BlueHairBrus) at Position 5 (BehindKitchenTable)
+	 Positive Reads: 30 of 3155 (0.95)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.418
+		 Tag-Robot orient err (deg): -12.984
+		 Debug Stats -87.1817919096 -74.1977921032 [-0.96568307 -0.17867469  0.05115997] [-0.339 -2.393  0.793]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.900
+		 Tag-Robot orient err (deg): -18.094
+		 Debug Stats -88.0636131116 -69.9693079572 [-0.938 -0.75   0.049] [-0.339 -2.393  0.793]
+	 Done.
+
+
+Trial 7 with Object 0 (OrangeMedBot) at Position 7 (InCupboard)
+	 Positive Reads: 21 of 2491 (0.84)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 3.394
+		 Tag-Robot orient err (deg): -40.502
+		 Debug Stats 102.912146029 143.414094221 [-0.75466704 -0.56344158  0.05178197] [-3.257  1.294  1.397]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 2.197
+		 Tag-Robot orient err (deg): 4.676
+		 Debug Stats 145.072913727 140.397200119 [-1.919  0.187  0.051] [-3.257  1.294  1.397]
+	 Done.
+
+
+Trial 7 with Object 1 (TravisTVremo) at Position 8 (OnFilingCabinet)
+	 Positive Reads: 30 of 2491 (1.20)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.213
+		 Tag-Robot orient err (deg): -49.450
+		 Debug Stats 139.227626296 -171.322098791 [ 0.94807406  2.48936953  0.05113747] [-0.083  2.332  0.67 ]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.147
+		 Tag-Robot orient err (deg): -1.931
+		 Debug Stats -170.225760933 -168.294609635 [ 0.863  2.528  0.051] [-0.083  2.332  0.67 ]
+	 Done.
+
+
+Trial 7 with Object 2 (RedBottle   ) at Position 0 (BehindTree)
+	 Positive Reads: 19 of 2491 (0.76)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.739
+		 Tag-Robot orient err (deg): -14.517
+		 Debug Stats 69.1622170815 83.6794612331 [ 3.56551894  4.28826801  0.05115407] [ 3.757  6.017  0.036]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.733
+		 Tag-Robot orient err (deg): -15.856
+		 Debug Stats 67.1506535893 83.0062170444 [ 3.546  4.297  0.055] [ 3.757  6.017  0.036]
+	 Done.
+
+
+Trial 7 with Object 3 (OnMetalKeys ) at Position 1 (FireplaceMantle)
+	 Positive Reads: 2 of 2491 (0.08)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.056
+		 Tag-Robot orient err (deg): -17.154
+		 Debug Stats -12.3185871346 4.83558754158 [ 3.64952638  4.11613899  0.05179899] [ 5.09   4.238  1.514]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.691
+		 Tag-Robot orient err (deg): 6.682
+		 Debug Stats 14.4958322168 7.81397770313 [ 4.252  4.123  0.05 ] [ 5.09   4.238  1.514]
+	 Done.
+
+
+Trial 7 with Object 4 (WhiteMedsBot) at Position 2 (CircleEndTable)
+	 Positive Reads: 125 of 2491 (5.02)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.938
+		 Tag-Robot orient err (deg): 24.608
+		 Debug Stats 22.2943343614 -2.31405606506 [ 3.54378069  2.93196917  0.05221503] [ 5.399  2.857  0.607]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.664
+		 Tag-Robot orient err (deg): -20.304
+		 Debug Stats -19.9389312706 0.365401803138 [ 3.831  2.847  0.051] [ 5.399  2.857  0.607]
+	 Done.
+
+
+Trial 7 with Object 5 (BlueMedsBox ) at Position 3 (Couch)
+	 Positive Reads: 401 of 2491 (16.10)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.462
+		 Tag-Robot orient err (deg): 19.771
+		 Debug Stats -49.6559905793 -69.4272046695 [ 3.45836497  2.71887609  0.05155544] [ 3.944  1.425  0.527]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.225
+		 Tag-Robot orient err (deg): -41.828
+		 Debug Stats -103.991839816 -62.1634320155 [ 3.417  2.423  0.051] [ 3.944  1.425  0.527]
+	 Done.
+
+
+Trial 7 with Object 6 (TeddyBearToy) at Position 4 (RectEndTable)
+	 Positive Reads: 95 of 2491 (3.81)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.981
+		 Tag-Robot orient err (deg): -39.466
+		 Debug Stats -32.0611803194 7.40497363344 [ 1.39561073  0.68423498  0.05466348] [ 3.302  0.932  0.534]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.000
+		 Tag-Robot orient err (deg): -37.992
+		 Debug Stats 6.35983152595 44.3520947316 [ 2.676  0.32   0.05 ] [ 3.302  0.932  0.534]
+	 Done.
+
+
+Trial 7 with Object 7 (CordlessPhon) at Position 5 (BehindKitchenTable)
+	 Positive Reads: 6 of 2491 (0.24)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.929
+		 Tag-Robot orient err (deg): -6.559
+		 Debug Stats -76.4753025913 -69.9159344712 [-0.9504859  -0.72059522  0.05212007] [-0.339 -2.393  0.793]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.814
+		 Tag-Robot orient err (deg): -8.528
+		 Debug Stats -79.6984293027 -71.1708203836 [-0.873 -0.827  0.05 ] [-0.339 -2.393  0.793]
+	 Done.
+
+
+Trial 7 with Object 8 (BlueHairBrus) at Position 6 (NearDishwaser)
+	 Positive Reads: 84 of 2491 (3.37)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.243
+		 Tag-Robot orient err (deg): -47.855
+		 Debug Stats 149.06490427 -163.080006987 [-1.09333762 -0.58170042  0.05808383] [-1.926 -0.835  0.946]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.198
+		 Tag-Robot orient err (deg): -52.949
+		 Debug Stats 153.037027079 -154.013999311 [-1.21  -0.486  0.051] [-1.926 -0.835  0.946]
+	 Done.
+
+
+Trial 8 with Object 0 (OrangeMedBot) at Position 8 (OnFilingCabinet)
+	 Positive Reads: 102 of 2454 (4.16)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.151
+		 Tag-Robot orient err (deg): 3.619
+		 Debug Stats -164.276765273 -167.895420242 [ 0.86738847  2.53582509  0.05313234] [-0.083  2.332  0.67 ]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.143
+		 Tag-Robot orient err (deg): 23.662
+		 Debug Stats -144.958322168 -168.620052352 [ 0.861  2.522  0.054] [-0.083  2.332  0.67 ]
+	 Done.
+
+
+Trial 8 with Object 1 (TravisTVremo) at Position 0 (BehindTree)
+	 Positive Reads: 0 of 2454 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 8 with Object 2 (RedBottle   ) at Position 1 (FireplaceMantle)
+	 Positive Reads: 146 of 2454 (5.95)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.785
+		 Tag-Robot orient err (deg): -16.071
+		 Debug Stats -8.50461778441 7.5664124925 [ 4.07403601  4.10304759  0.05217495] [ 5.09   4.238  1.514]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.677
+		 Tag-Robot orient err (deg): 8.558
+		 Debug Stats 12.2040010363 3.64627120876 [ 4.274  4.186  0.05 ] [ 5.09   4.238  1.514]
+	 Done.
+
+
+Trial 8 with Object 3 (OnMetalKeys ) at Position 2 (CircleEndTable)
+	 Positive Reads: 0 of 2454 (0.00)
+	 No results for this instance.
+	 No results for this instance.
+	 Done.
+
+
+Trial 8 with Object 4 (WhiteMedsBot) at Position 3 (Couch)
+	 Positive Reads: 202 of 2454 (8.23)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.476
+		 Tag-Robot orient err (deg): -34.437
+		 Debug Stats -51.3035780717 -16.8666093738 [ 1.61836662  2.13010128  0.05214312] [ 3.944  1.425  0.527]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.262
+		 Tag-Robot orient err (deg): 1.046
+		 Debug Stats -13.1207335085 -14.1670555226 [ 2.811  1.711  0.051] [ 3.944  1.425  0.527]
+	 Done.
+
+
+Trial 8 with Object 5 (BlueMedsBox ) at Position 4 (RectEndTable)
+	 Positive Reads: 281 of 2454 (11.45)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.651
+		 Tag-Robot orient err (deg): 41.121
+		 Debug Stats 4.67041593416 -36.4502311302 [ 2.03132708  1.87054151  0.0526452 ] [ 3.302  0.932  0.534]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.022
+		 Tag-Robot orient err (deg): 33.294
+		 Debug Stats -25.6112134423 -58.9052819143 [ 2.837  1.703  0.051] [ 3.302  0.932  0.534]
+	 Done.
+
+
+Trial 8 with Object 6 (TeddyBearToy) at Position 5 (BehindKitchenTable)
+	 Positive Reads: 5 of 2454 (0.20)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.515
+		 Tag-Robot orient err (deg): -74.750
+		 Debug Stats 160.31627548 -124.933829306 [ 1.03718035 -0.4227718   0.05289298] [-0.339 -2.393  0.793]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 2.390
+		 Tag-Robot orient err (deg): -87.948
+		 Debug Stats 161.917872904 -110.133935573 [ 0.443 -0.26   0.05 ] [-0.339 -2.393  0.793]
+	 Done.
+
+
+Trial 8 with Object 7 (CordlessPhon) at Position 6 (NearDishwaser)
+	 Positive Reads: 8 of 2454 (0.33)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 1.193
+		 Tag-Robot orient err (deg): -58.455
+		 Debug Stats 147.966203691 -153.578562922 [-1.21910146 -0.4837628   0.05081166] [-1.926 -0.835  0.946]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 1.212
+		 Tag-Robot orient err (deg): -31.093
+		 Debug Stats 177.67421227 -151.232350661 [-1.212 -0.443  0.048] [-1.926 -0.835  0.946]
+	 Done.
+
+
+Trial 8 with Object 8 (BlueHairBrus) at Position 7 (InCupboard)
+	 Positive Reads: 40 of 2454 (1.63)
+	 Post-Search Stats:
+		 Tag-Robot distance err (m): 2.975
+		 Tag-Robot orient err (deg): 2.442
+		 Debug Stats 143.47312063 141.030679325 [-1.19396518 -0.37478441  0.05187504] [-3.257  1.294  1.397]
+	 Post-Servo Stats:
+		 Tag-Robot distance err (m): 2.901
+		 Tag-Robot orient err (deg): 46.467
+		 Debug Stats -172.97595835 140.556893014 [-1.272 -0.339  0.051] [-3.257  1.294  1.397]
+	 Done.
+
+
+
+
+RESULTS SORTED
+
+
+Location 0, Object 0, Trial 0
+	Pos Reads:      22
+	Tot Reads:      2978
+	Percent Reads:  0.739
+	Dist Err (m):   1.795
+	Ang Err (deg):  -11.069
+Location 0, Object 1, Trial 8
+	Pos Reads:      0
+	Tot Reads:      2454
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 0, Object 2, Trial 7
+	Pos Reads:      19
+	Tot Reads:      2491
+	Percent Reads:  0.763
+	Dist Err (m):   1.733
+	Ang Err (deg):  -15.856
+Location 0, Object 3, Trial 6
+	Pos Reads:      0
+	Tot Reads:      3155
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 0, Object 4, Trial 5
+	Pos Reads:      3
+	Tot Reads:      2668
+	Percent Reads:  0.112
+	Dist Err (m):   2.554
+	Ang Err (deg):  46.749
+Location 0, Object 5, Trial 4
+	Pos Reads:      36
+	Tot Reads:      2193
+	Percent Reads:  1.642
+	Dist Err (m):   1.831
+	Ang Err (deg):  -14.629
+Location 0, Object 6, Trial 3
+	Pos Reads:      122
+	Tot Reads:      2984
+	Percent Reads:  4.088
+	Dist Err (m):   1.712
+	Ang Err (deg):  9.363
+Location 0, Object 7, Trial 2
+	Pos Reads:      9
+	Tot Reads:      3119
+	Percent Reads:  0.289
+	Dist Err (m):   1.806
+	Ang Err (deg):  19.538
+Location 0, Object 8, Trial 1
+	Pos Reads:      0
+	Tot Reads:      3247
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 1, Object 0, Trial 1
+	Pos Reads:      21
+	Tot Reads:      3247
+	Percent Reads:  0.647
+	Dist Err (m):   1.821
+	Ang Err (deg):  11.850
+Location 1, Object 1, Trial 0
+	Pos Reads:      0
+	Tot Reads:      2978
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 1, Object 2, Trial 8
+	Pos Reads:      146
+	Tot Reads:      2454
+	Percent Reads:  5.949
+	Dist Err (m):   1.677
+	Ang Err (deg):  8.558
+Location 1, Object 3, Trial 7
+	Pos Reads:      2
+	Tot Reads:      2491
+	Percent Reads:  0.080
+	Dist Err (m):   1.691
+	Ang Err (deg):  6.682
+Location 1, Object 4, Trial 6
+	Pos Reads:      251
+	Tot Reads:      3155
+	Percent Reads:  7.956
+	Dist Err (m):   1.823
+	Ang Err (deg):  -6.978
+Location 1, Object 5, Trial 5
+	Pos Reads:      138
+	Tot Reads:      2668
+	Percent Reads:  5.172
+	Dist Err (m):   1.724
+	Ang Err (deg):  -18.737
+Location 1, Object 6, Trial 4
+	Pos Reads:      271
+	Tot Reads:      2193
+	Percent Reads:  12.358
+	Dist Err (m):   1.781
+	Ang Err (deg):  20.132
+Location 1, Object 7, Trial 3
+	Pos Reads:      20
+	Tot Reads:      2984
+	Percent Reads:  0.670
+	Dist Err (m):   1.695
+	Ang Err (deg):  37.747
+Location 1, Object 8, Trial 2
+	Pos Reads:      32
+	Tot Reads:      3119
+	Percent Reads:  1.026
+	Dist Err (m):   1.725
+	Ang Err (deg):  15.619
+Location 2, Object 0, Trial 2
+	Pos Reads:      283
+	Tot Reads:      3119
+	Percent Reads:  9.073
+	Dist Err (m):   1.304
+	Ang Err (deg):  15.639
+Location 2, Object 1, Trial 1
+	Pos Reads:      0
+	Tot Reads:      3247
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 2, Object 2, Trial 0
+	Pos Reads:      136
+	Tot Reads:      2978
+	Percent Reads:  4.567
+	Dist Err (m):   1.514
+	Ang Err (deg):  -2.421
+Location 2, Object 3, Trial 8
+	Pos Reads:      0
+	Tot Reads:      2454
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 2, Object 4, Trial 7
+	Pos Reads:      125
+	Tot Reads:      2491
+	Percent Reads:  5.018
+	Dist Err (m):   1.664
+	Ang Err (deg):  -20.304
+Location 2, Object 5, Trial 6
+	Pos Reads:      447
+	Tot Reads:      3155
+	Percent Reads:  14.168
+	Dist Err (m):   1.956
+	Ang Err (deg):  55.651
+Location 2, Object 6, Trial 5
+	Pos Reads:      69
+	Tot Reads:      2668
+	Percent Reads:  2.586
+	Dist Err (m):   2.896
+	Ang Err (deg):  -44.700
+Location 2, Object 7, Trial 4
+	Pos Reads:      2
+	Tot Reads:      2193
+	Percent Reads:  0.091
+	Dist Err (m):   1.251
+	Ang Err (deg):  -34.418
+Location 2, Object 8, Trial 3
+	Pos Reads:      3
+	Tot Reads:      2984
+	Percent Reads:  0.101
+	Dist Err (m):   1.299
+	Ang Err (deg):  53.535
+Location 3, Object 0, Trial 3
+	Pos Reads:      41
+	Tot Reads:      2984
+	Percent Reads:  1.374
+	Dist Err (m):   1.299
+	Ang Err (deg):  27.103
+Location 3, Object 1, Trial 2
+	Pos Reads:      0
+	Tot Reads:      3119
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 3, Object 2, Trial 1
+	Pos Reads:      155
+	Tot Reads:      3247
+	Percent Reads:  4.774
+	Dist Err (m):   1.232
+	Ang Err (deg):  -2.766
+Location 3, Object 3, Trial 0
+	Pos Reads:      0
+	Tot Reads:      2978
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 3, Object 4, Trial 8
+	Pos Reads:      202
+	Tot Reads:      2454
+	Percent Reads:  8.231
+	Dist Err (m):   1.262
+	Ang Err (deg):  1.046
+Location 3, Object 5, Trial 7
+	Pos Reads:      401
+	Tot Reads:      2491
+	Percent Reads:  16.098
+	Dist Err (m):   1.225
+	Ang Err (deg):  -41.828
+Location 3, Object 6, Trial 6
+	Pos Reads:      570
+	Tot Reads:      3155
+	Percent Reads:  18.067
+	Dist Err (m):   1.197
+	Ang Err (deg):  21.561
+Location 3, Object 7, Trial 5
+	Pos Reads:      10
+	Tot Reads:      2668
+	Percent Reads:  0.375
+	Dist Err (m):   1.427
+	Ang Err (deg):  -38.062
+Location 3, Object 8, Trial 4
+	Pos Reads:      72
+	Tot Reads:      2193
+	Percent Reads:  3.283
+	Dist Err (m):   1.543
+	Ang Err (deg):  -7.566
+Location 4, Object 0, Trial 4
+	Pos Reads:      149
+	Tot Reads:      2193
+	Percent Reads:  6.794
+	Dist Err (m):   1.006
+	Ang Err (deg):  -19.644
+Location 4, Object 1, Trial 3
+	Pos Reads:      0
+	Tot Reads:      2984
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 4, Object 2, Trial 2
+	Pos Reads:      437
+	Tot Reads:      3119
+	Percent Reads:  14.011
+	Dist Err (m):   0.923
+	Ang Err (deg):  -3.357
+Location 4, Object 3, Trial 1
+	Pos Reads:      41
+	Tot Reads:      3247
+	Percent Reads:  1.263
+	Dist Err (m):   0.914
+	Ang Err (deg):  58.122
+Location 4, Object 4, Trial 0
+	Pos Reads:      266
+	Tot Reads:      2978
+	Percent Reads:  8.932
+	Dist Err (m):   0.822
+	Ang Err (deg):  -8.457
+Location 4, Object 5, Trial 8
+	Pos Reads:      281
+	Tot Reads:      2454
+	Percent Reads:  11.451
+	Dist Err (m):   1.022
+	Ang Err (deg):  33.294
+Location 4, Object 6, Trial 7
+	Pos Reads:      95
+	Tot Reads:      2491
+	Percent Reads:  3.814
+	Dist Err (m):   1.000
+	Ang Err (deg):  -37.992
+Location 4, Object 7, Trial 6
+	Pos Reads:      7
+	Tot Reads:      3155
+	Percent Reads:  0.222
+	Dist Err (m):   0.957
+	Ang Err (deg):  49.122
+Location 4, Object 8, Trial 5
+	Pos Reads:      8
+	Tot Reads:      2668
+	Percent Reads:  0.300
+	Dist Err (m):   1.101
+	Ang Err (deg):  66.167
+Location 5, Object 0, Trial 5
+	Pos Reads:      10
+	Tot Reads:      2668
+	Percent Reads:  0.375
+	Dist Err (m):   1.903
+	Ang Err (deg):  -19.491
+Location 5, Object 1, Trial 4
+	Pos Reads:      0
+	Tot Reads:      2193
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 5, Object 2, Trial 3
+	Pos Reads:      30
+	Tot Reads:      2984
+	Percent Reads:  1.005
+	Dist Err (m):   1.947
+	Ang Err (deg):  -11.185
+Location 5, Object 3, Trial 2
+	Pos Reads:      0
+	Tot Reads:      3119
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 5, Object 4, Trial 1
+	Pos Reads:      58
+	Tot Reads:      3247
+	Percent Reads:  1.786
+	Dist Err (m):   2.186
+	Ang Err (deg):  -20.409
+Location 5, Object 5, Trial 0
+	Pos Reads:      363
+	Tot Reads:      2978
+	Percent Reads:  12.189
+	Dist Err (m):   2.403
+	Ang Err (deg):  -9.752
+Location 5, Object 6, Trial 8
+	Pos Reads:      5
+	Tot Reads:      2454
+	Percent Reads:  0.204
+	Dist Err (m):   2.390
+	Ang Err (deg):  -87.948
+Location 5, Object 7, Trial 7
+	Pos Reads:      6
+	Tot Reads:      2491
+	Percent Reads:  0.241
+	Dist Err (m):   1.814
+	Ang Err (deg):  -8.528
+Location 5, Object 8, Trial 6
+	Pos Reads:      30
+	Tot Reads:      3155
+	Percent Reads:  0.951
+	Dist Err (m):   1.900
+	Ang Err (deg):  -18.094
+Location 6, Object 0, Trial 6
+	Pos Reads:      110
+	Tot Reads:      3155
+	Percent Reads:  3.487
+	Dist Err (m):   1.208
+	Ang Err (deg):  -33.953
+Location 6, Object 1, Trial 5
+	Pos Reads:      16
+	Tot Reads:      2668
+	Percent Reads:  0.600
+	Dist Err (m):   1.222
+	Ang Err (deg):  8.742
+Location 6, Object 2, Trial 4
+	Pos Reads:      224
+	Tot Reads:      2193
+	Percent Reads:  10.214
+	Dist Err (m):   1.190
+	Ang Err (deg):  26.677
+Location 6, Object 3, Trial 3
+	Pos Reads:      60
+	Tot Reads:      2984
+	Percent Reads:  2.011
+	Dist Err (m):   1.217
+	Ang Err (deg):  -8.131
+Location 6, Object 4, Trial 2
+	Pos Reads:      304
+	Tot Reads:      3119
+	Percent Reads:  9.747
+	Dist Err (m):   1.175
+	Ang Err (deg):  3.121
+Location 6, Object 5, Trial 1
+	Pos Reads:      284
+	Tot Reads:      3247
+	Percent Reads:  8.747
+	Dist Err (m):   1.226
+	Ang Err (deg):  -32.617
+Location 6, Object 6, Trial 0
+	Pos Reads:      251
+	Tot Reads:      2978
+	Percent Reads:  8.428
+	Dist Err (m):   1.205
+	Ang Err (deg):  -15.201
+Location 6, Object 7, Trial 8
+	Pos Reads:      8
+	Tot Reads:      2454
+	Percent Reads:  0.326
+	Dist Err (m):   1.212
+	Ang Err (deg):  -31.093
+Location 6, Object 8, Trial 7
+	Pos Reads:      84
+	Tot Reads:      2491
+	Percent Reads:  3.372
+	Dist Err (m):   1.198
+	Ang Err (deg):  -52.949
+Location 7, Object 0, Trial 7
+	Pos Reads:      21
+	Tot Reads:      2491
+	Percent Reads:  0.843
+	Dist Err (m):   2.197
+	Ang Err (deg):  4.676
+Location 7, Object 1, Trial 6
+	Pos Reads:      0
+	Tot Reads:      3155
+	Percent Reads:  0.000
+	Dist Err (m):   ----
+	Ang Err (deg):  ----
+Location 7, Object 2, Trial 5
+	Pos Reads:      55
+	Tot Reads:      2668
+	Percent Reads:  2.061
+	Dist Err (m):   1.975
+	Ang Err (deg):  10.111
+Location 7, Object 3, Trial 4
+	Pos Reads:      2
+	Tot Reads:      2193
+	Percent Reads:  0.091
+	Dist Err (m):   1.933
+	Ang Err (deg):  3.270
+Location 7, Object 4, Trial 3
+	Pos Reads:      137
+	Tot Reads:      2984
+	Percent Reads:  4.591
+	Dist Err (m):   1.765
+	Ang Err (deg):  2.741
+Location 7, Object 5, Trial 2
+	Pos Reads:      335
+	Tot Reads:      3119
+	Percent Reads:  10.741
+	Dist Err (m):   1.759
+	Ang Err (deg):  2.363
+Location 7, Object 6, Trial 1
+	Pos Reads:      300
+	Tot Reads:      3247
+	Percent Reads:  9.239
+	Dist Err (m):   1.739
+	Ang Err (deg):  6.205
+Location 7, Object 7, Trial 0
+	Pos Reads:      14
+	Tot Reads:      2978
+	Percent Reads:  0.470
+	Dist Err (m):   2.094
+	Ang Err (deg):  57.591
+Location 7, Object 8, Trial 8
+	Pos Reads:      40
+	Tot Reads:      2454
+	Percent Reads:  1.630
+	Dist Err (m):   2.901
+	Ang Err (deg):  46.467
+Location 8, Object 0, Trial 8
+	Pos Reads:      102
+	Tot Reads:      2454
+	Percent Reads:  4.156
+	Dist Err (m):   1.143
+	Ang Err (deg):  23.662
+Location 8, Object 1, Trial 7
+	Pos Reads:      30
+	Tot Reads:      2491
+	Percent Reads:  1.204
+	Dist Err (m):   1.147
+	Ang Err (deg):  -1.931
+Location 8, Object 2, Trial 6
+	Pos Reads:      107
+	Tot Reads:      3155
+	Percent Reads:  3.391
+	Dist Err (m):   1.100
+	Ang Err (deg):  5.026
+Location 8, Object 3, Trial 5
+	Pos Reads:      27
+	Tot Reads:      2668
+	Percent Reads:  1.012
+	Dist Err (m):   1.123
+	Ang Err (deg):  47.300
+Location 8, Object 4, Trial 4
+	Pos Reads:      200
+	Tot Reads:      2193
+	Percent Reads:  9.120
+	Dist Err (m):   1.138
+	Ang Err (deg):  -17.380
+Location 8, Object 5, Trial 3
+	Pos Reads:      368
+	Tot Reads:      2984
+	Percent Reads:  12.332
+	Dist Err (m):   1.132
+	Ang Err (deg):  -13.372
+Location 8, Object 6, Trial 2
+	Pos Reads:      337
+	Tot Reads:      3119
+	Percent Reads:  10.805
+	Dist Err (m):   1.161
+	Ang Err (deg):  -22.377
+Location 8, Object 7, Trial 1
+	Pos Reads:      52
+	Tot Reads:      3247
+	Percent Reads:  1.601
+	Dist Err (m):   1.119
+	Ang Err (deg):  -6.643
+Location 8, Object 8, Trial 0
+	Pos Reads:      37
+	Tot Reads:      2978
+	Percent Reads:  1.242
+	Dist Err (m):   1.131
+	Ang Err (deg):  53.276
+
+
+#########  OUTPUTTING TEX TABLES from template.py #########
+
+

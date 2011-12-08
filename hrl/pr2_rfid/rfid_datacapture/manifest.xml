@@ -1,0 +1,20 @@
+<package>
+  <description brief="rfid_datacapture">
+
+     rfid_datacapture
+
+  </description>
+  <author>Travis</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/rfid_datacapture</url>
+  <depend package="rfid_demos"/>
+  <depend package="rfid_behaviors"/>
+  <depend package="costmap_services"/>
+  <depend package="rfid_servoing"/>
+  <depend package="rfid_nav"/>
+  <depend package="rfid_hardware"/>
+
+</package>
+
+

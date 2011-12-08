@@ -1,0 +1,66 @@
+rfid_arr_topic: '/rfid/ears_reader_arr'
+glob_files: ['/home/travis/svn/robot1/src/projects/rfid_datacapture/src/rfid_datacapture/rad_pattern_cap/rad_cap/*.bag']
+antennas:
+  EleLeftEar: '/ear_antenna_left'
+  EleRightEar: '/ear_antenna_right'
+  PR2_Head: '/head_rfid'
+rotframes:
+  EleLeftEar: '/ear_pan_left'
+  EleRightEar: '/ear_pan_right'
+  PR2_Head: '/head_pan_link'
+staticrotframes:
+  EleLeftEar: '/left_rotation_center'
+  EleRightEar: '/right_rotation_center'
+  PR2_Head: '/torso_lift_link'
+tags: # This is for the tags on the table.  See datacap.yaml for ground-truth positions.
+  'OrangeMedBot':
+    child_frame: '/OrangeMedBot'
+    parent_frame: '/map'
+    x_pos: 6.463
+    y_pos: 2.855
+    z_pos: 0.803
+    x_orient: 0.0 # SPIRAL tag -- no orientation.
+    y_orient: 0.0
+    z_orient: 0.0
+    w_orient: 1.0
+  'SpectrMedBot':
+    child_frame: '/SpectrMedBot'
+    parent_frame: '/map'
+    x_pos: 6.458
+    y_pos: 2.741
+    z_pos: 0.829
+    x_orient: 0.0 # SPIRAL tag -- no orientation.
+    y_orient: 0.0
+    z_orient: 0.0
+    w_orient: 1.0
+  'OnMetalKeys ':
+    child_frame: '/OnMetalKeys'
+    parent_frame: '/map'
+    x_pos: 6.364
+    y_pos: 2.808
+    z_pos: 0.790
+    x_orient: -0.1663 # theta = 80-deg, phi = 30-deg => 
+    y_orient: 0.6209 #    tft.quaternion_from_euler( 0.0, math.radians( 80 ), math.radians( 30 ) )
+    z_orient: 0.1983
+    w_orient: 0.7399
+  'TravisTVremo':
+    child_frame: '/TravisTVremo'
+    parent_frame: '/map'
+    x_pos: 6.348
+    y_pos: 2.726
+    z_pos: 0.787
+    x_orient: -0.2706 # theta = 90-deg, phi = 45-deg => 
+    y_orient: 0.6533 #    tft.quaternion_from_euler( 0.0, math.radians( 90 ), math.radians( 45 ) )
+    z_orient: 0.2706
+    w_orient: 0.6533
+  'Red Mug     ':
+    child_frame: '/RedMug'
+    parent_frame: '/map'
+    x_pos: 6.367
+    y_pos: 2.910
+    z_pos: 0.862
+    x_orient: 0.0 # Dipole vertically oriented.
+    y_orient: 0.0
+    z_orient: 0.0
+    w_orient: 1.0
+    

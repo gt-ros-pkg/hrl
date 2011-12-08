@@ -1,0 +1,20 @@
+<package>
+  <description brief="rfid_artoolkit">
+
+     rfid_artoolkit
+
+  </description>
+  <author>Travis</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/rfid_artoolkit</url>
+  <depend package="rfid_servoing"/>
+  <depend package="ar_kinect"/>
+  <depend package="actionlib"/>
+  <depend package="actionlib_msgs"/>
+  <depend package="pr2_controllers_msgs"/>
+  <depend package="geometry_msgs"/>
+  <depend package="ar_pose"/>
+</package>
+
+

@@ -1,0 +1,53 @@
+<launch>
+
+  <!-- RFID HARDWARE -->
+  <include file="$(find rfid_hardware)/launch/pr2_ears.launch" />
+
+  <!-- Machine Definitions -->
+    <include file="$(find pr2_machine)/$(env ROBOT).machine" />
+
+  <!-- NAVIGATION --> 
+    <include file="$(find rfid_nav)/launch/pr2_2dnav_navfn.launch"/>
+
+  <!-- AR_TAG -->
+    <!-- <include file="$(find rfid_demos)/launch/ar_tag.launch"/> -->
+
+  <!-- RFID SERVICES -->
+    <!-- Servoing (latest methods) -->
+    <include file="$(find rfid_servoing)/launch/servo_tilting.launch" />
+    <!-- Demo Service Node  -->
+    <node pkg="rfid_demos" name="rfid_demo_node" 
+	  type="demo_node.py" output="screen" respawn="false" />
+    <!-- Rotate / Backup Node  -->
+    <node pkg="rfid_behaviors" name="rotate_backup_node" 
+	  type="rotate_backup_node.py" output="screen" respawn="false">
+    </node>
+    <!-- Handoff Object Nodes  -->
+    <node pkg="rfid_behaviors" name="handoff_node" type="handoff_node.py" 
+	  output="screen" respawn="false" />
+    <!-- RFID Orient-Toward-Tag Node  -->
+    <node pkg="rfid_behaviors" name="rfid_orient_node" type="orient_node.py" 
+	  output="screen" respawn="false">
+      <!-- Uses Rotate / Backup services -->
+    </node>
+    <!-- EarsFlapper  -->
+    <node pkg="rfid_behaviors" name="rfid_flapper_node" type="flapper.py" 
+	  output="screen" respawn="false" />
+    <!-- Rfid Recorder  -->
+    <node pkg="rfid_behaviors" name="rfid_recorder_node" type="recorder.py" 
+	  output="screen" respawn="false" />
+
+
+
+
+  <!-- EXPLORE -->
+  <node name="rfid_exploration" pkg="rfid_explore_room" type="snaking_room_explore.py" 
+	args="--yaml $(find rfid_explore_room)/launch/rooms.yaml --room conf_room" />
+
+  <!-- Audio voice -->
+  <node name="sound_player" pkg="sound_play" type="soundplay_node.py" />
+
+  <node name="bag_capture_node" pkg="rfid_datacapture" type="utils.py" />
+
+</launch>
+

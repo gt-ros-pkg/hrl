@@ -1,0 +1,5 @@
+NOTE:
+
+To use ar_tag.launch, you will need to put a symlink in ar_pose:
+
+ln -s `rospack find rfid_artoolkit`/launch/objects_kinect `rospack find ar_pose`/data/objects_rfid

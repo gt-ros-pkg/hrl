@@ -1,0 +1,47 @@
+
+\begin{landscape}
+\begin{table}[p]
+  \newcolumntype{x}[1]{>{\centering\hspace{0pt}}p{#1}}
+  \newcolumntype{y}[1]{>{\raggedleft\hspace{0pt}}p{#1}}
+  \centering
+  \begin{tabular}{ | y{2cm} | c | c | c | c | r }
+    \toprule
+    \textbf{\Large Object:} & Orange Meds & TV Remote & Red Bottle & Keys & \multirow{4}{1.0cm}{\LARGE ...} \\
+    \midrule
+    \midrule
+    \textbf{Reads}             & 21 / 3247 (0.6\%) & 0 / 2978 (0.0\%) & 146 / 2454 (5.9\%) & 2 / 2491 (0.1\%)  & \\
+    \textbf{$\Delta xy$}      & 1.821 m & $--$ & 1.677 m & 1.691 m  & \\
+    \textbf{$\Delta \Theta$} & 11.8$^o$ & $--$ & 8.6$^o$ & 6.7$^o$  & \\
+    \bottomrule
+  \end{tabular}
+
+  \vskip 30pt
+
+  \begin{tabular}{ c | c | c | c | c | c | }
+    \toprule
+    \multirow{4}{0.5cm}{\LARGE ...} & Med Bottle & Med Box & Teddy Bear & Cordless Phone & Hair Brush \\
+    \midrule
+    \midrule
+    & 251 / 3155 (8.0\%) & 138 / 2668 (5.2\%) & 271 / 2193 (12.4\%) & 20 / 2984 (0.7\%) & 32 / 3119 (1.0\%) \\
+    & 1.823 m & 1.724 m & 1.781 m & 1.695 m & 1.725 m \\
+    & -7.0$^o$ & -18.7$^o$ & 20.1$^o$ & 37.7$^o$ & 15.6$^o$ \\
+    \bottomrule
+  \end{tabular}
+
+  \vskip 30pt
+
+  \begin{tabular}{r r@{ = }l r@{ = }l}
+    \toprule
+    \multicolumn{5}{c}{\textbf{\Large OVERALL FOR LOCATION \#1}}\\
+    \midrule
+    \midrule
+    \textbf{Reads:} & $\mu$ & 97.9 & $\sigma$ & 101.3 \\
+    \textbf{$\Delta xy$} & $\mu$ & 1.7 m & $\sigma$ & 0.1 m \\
+    \textbf{$|\Delta \Theta|$} & $\mu$ & 15.8$^o$ & $\sigma$ & 9.6$^o$ \\
+    \bottomrule
+  \end{tabular}
+
+  \caption{ RFID Search Performance for Tagged Objects at Location \#1 }
+  \label{tab:search-results-1}
+\end{table}
+\end{landscape}

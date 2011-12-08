@@ -1,0 +1,9 @@
+#goal definition
+string tagid
+---
+#result definition
+bool success
+string status
+geometry_msgs/PointStamped ps
+---
+#feedback

@@ -1,0 +1,9 @@
+<launch>
+  <node name="ar_pose" pkg="ar_pose" type="ar_multi" respawn="false" output="screen">
+    <remap from="/usb_cam/image_raw" to="/wide_stereo/left/image_rect_color"/>
+    <remap from="/usb_cam/camera_info" to="/wide_stereo/left/camera_info"/>
+    <!-- Curious... docs say "ar_pose_markers", but it seems to publish singular name -->
+    <remap from="ar_pose_marker" to="artag_marker_handoff" />
+    <param name="marker_pattern_list" type="string" value="data/objects_rfid"/>
+  </node>
+</launch>

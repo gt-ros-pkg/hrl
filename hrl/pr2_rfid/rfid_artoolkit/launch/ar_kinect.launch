@@ -1,0 +1,20 @@
+<launch>
+  <!-- Launch Kinect -->
+  <include file="$(find openni_camera)/launch/openni_kinect.launch" />
+
+  <!-- Configure settings that are more ammenable to ar_kinect detection (lower resolution!) -->
+  <node name="reconfig_kinect" pkg="dynamic_reconfigure" type="dynparam" args="load openni_camera $(find rfid_artoolkit)/launch/kinect_params.yaml" />
+
+  <!-- Launch ARKinect -->
+  <node name="ar_kinect" pkg="ar_kinect" type="ar_kinect" respawn="true" output="screen">
+    <!-- <remap from="/camera/rgb/image_color" to="/kinect_head/rgb/image_color" /> -->
+    <!-- <remap from="/camera/rgb/camera_info" to="/kinect_head/rgb/camera_info" /> -->
+    <!-- <remap from="/camera/depth/points2" to="/kinect_head/depth/points2" /> -->
+    <remap from="ar_pose_markers" to="artag_marker_handoff" />
+    <param name="marker_pattern_list" type="string" value="$(find rfid_artoolkit)/launch/objects_kinect"/>
+    <param name="marker_data_directory" type="string" value="$(find ar_pose)"/>
+    <!-- <param name="threshold" type="int" value="100"/> -->
+    <param name="threshold" type="int" value="120"/>
+  </node>
+
+</launch>

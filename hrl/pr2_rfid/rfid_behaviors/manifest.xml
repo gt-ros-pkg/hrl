@@ -1,0 +1,15 @@
+<package>
+  <description brief="rfid_behaviors">
+
+     rfid_behaviors
+
+  </description>
+  <author>Travis</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/rfid_behaviors</url>
+  <depend package="rfid_hardware"/>
+
+</package>
+
+
