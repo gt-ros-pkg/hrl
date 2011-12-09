@@ -99,11 +99,11 @@ void MoveOmniBase::executeCb(const move_base_msgs::MoveBaseGoalConstPtr& move_ba
 	bool coll=false;
   double goal_tolerance = 0.03;//meters
   double goal_tolerance_rot = 0.11;
-  double xy_scale = 0.17;
-  double rot_scale = 1.2; //0.1
+  double xy_scale = 0.2;
+  double rot_scale = 1.4; //0.1
   ros::Rate r(30);
 	
-	double min_rot_vel=0.1;
+	double min_rot_vel=0.12;
 	
   geometry_msgs::PoseStamped base = geometry_msgs::PoseStamped();
   enableLaser=true;

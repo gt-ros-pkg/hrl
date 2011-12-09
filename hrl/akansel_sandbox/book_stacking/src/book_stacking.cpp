@@ -248,7 +248,7 @@ switch (key0)
                         HomeRightArm();
 			break;
                         case 'c':
-                        got_init_table=getInitTable();
+                        got_init_table=getInitTable(false);
 			break;		
 			case 'd':
 			plan0();
@@ -377,7 +377,10 @@ switch (key0)
 			CloseLeftGripper();
 			break;
 			case 'v':
-			TestCollision();
+			if(checkIfRightGripperHoldsObject())
+			std::cout<<"HAND FULL"<<std::endl;
+			else
+			std::cout<<"HAND EMPTY"<<std::endl;			
 			break;
 			case'y':
 			GetTiltingPointCloud(true);
@@ -439,11 +442,11 @@ void drawHull(pcl::PointCloud<Point> hull_pts,const ros::Publisher& plane_pub, f
   return;
 }
 
-bool getInitTable()
+bool getInitTable(bool refreshScan)
 {
 	ros::Rate loop_rate(10);
 	latest_pt_cloud_ready=false;
-	GetTiltingPointCloud(false);
+	GetTiltingPointCloud(refreshScan);
 	while (!latest_pt_cloud_ready)
 	{		
 			ros::spinOnce();
@@ -481,34 +484,62 @@ bool getInitTable()
 	nav_waypoints.clear();
     for(unsigned int i=0;i<init_table_hull.points.size();i++) //calculate Centroid
       {
-	geometry_msgs::Point32 p;
-	p.x = init_table_hull.points[i].x;
-	p.y = init_table_hull.points[i].y;
-	p.z = init_table_hull.points[i].z;
-	//std::cout<<"P "<<i<<" | x: "<<p.x<<" y: "<<p.y<< " z: "<<p.z<<std::endl;		
-	geometry_msgs::Point32 v;
-	v.x=p.x-init_table_centroid.x;
-	v.y=p.y-init_table_centroid.y;
-	double angle=atan2(v.y,v.x);
-	Point p_new;
-	p_new.x=p.x+nav_waypoint_offset*cos(angle);
-	p_new.y=p.y+nav_waypoint_offset*sin(angle);
-	p_new.z=0.0;
-	nav_waypoints.push_back(p_new);
+			geometry_msgs::Point32 p;
+			p.x = init_table_hull.points[i].x;
+			p.y = init_table_hull.points[i].y;
+			p.z = init_table_hull.points[i].z;
+			//std::cout<<"P "<<i<<" | x: "<<p.x<<" y: "<<p.y<< " z: "<<p.z<<std::endl;		
+			geometry_msgs::Point32 v;
+			v.x=p.x-init_table_centroid.x;
+			v.y=p.y-init_table_centroid.y;
+			double angle=atan2(v.y,v.x);
+			Point p_new;
+			p_new.x=p.x+nav_waypoint_offset*cos(angle);
+			p_new.y=p.y+nav_waypoint_offset*sin(angle);
+			p_new.z=0.0;
+			nav_waypoints.push_back(p_new);	
+
+
 	
-	move_base_msgs::MoveBaseGoal goal;
-	goal.target_pose.header.frame_id="odom_combined";			  
-	goal.target_pose.pose.position.x = p_new.x;
-	goal.target_pose.pose.position.y = p_new.y;
-	goal.target_pose.pose.position.z = 0.0;
-	geometry_msgs::Quaternion quat=tf::createQuaternionMsgFromYaw(atan2(-v.y,-v.x));
-	goal.target_pose.pose.orientation = quat;
-	goal.target_pose.header.stamp=ros::Time::now();
-	nav_waypoint_goals.nav_goals.push_back(goal);
+			move_base_msgs::MoveBaseGoal goal;
+			goal.target_pose.header.frame_id="odom_combined";			  
+			goal.target_pose.pose.position.x = p_new.x;
+			goal.target_pose.pose.position.y = p_new.y;
+			goal.target_pose.pose.position.z = 0.0;
+			geometry_msgs::Quaternion quat=tf::createQuaternionMsgFromYaw(atan2(-v.y,-v.x));
+			goal.target_pose.pose.orientation = quat;
+			goal.target_pose.header.stamp=ros::Time::now();
+			nav_waypoint_goals.nav_goals.push_back(goal);
+
+
+/*
+			if(i>0)
+			{
+			Point p_previous=nav_waypoints[nav_waypoints.size()-1];
+			Point p_med;
+			p_med.x=(p_new.x+p_previous.x)/2;
+			p_med.y=(p_new.y+p_previous.y)/2;
+			p_med.z=(p_new.z+p_previous.z)/2;
+			nav_waypoints.push_back(p_med);			
+
+			move_base_msgs::MoveBaseGoal goal_mid;
+			goal_mid.target_pose.header.frame_id="odom_combined";			  
+			goal_mid.target_pose.pose.position.x = p_med.x;
+			goal_mid.target_pose.pose.position.y = p_med.y;
+			goal_mid.target_pose.pose.position.z = 0.0;
+			geometry_msgs::Quaternion quat_mid=tf::createQuaternionMsgFromYaw(atan2(-v.y,-v.x));
+			goal_mid.target_pose.pose.orientation = quat_mid;
+			goal_mid.target_pose.header.stamp=ros::Time::now();
+			nav_waypoint_goals.nav_goals.push_back(goal_mid);
+			}
+*/
+			
+			
+
       }
-    drawHull(nav_waypoints,plane_marker_pub_,0.0,0.0,1.0);
+    	drawHull(nav_waypoints,plane_marker_pub_,0.0,0.0,1.0);
 
-
+		std::cout<<"NAV_WAYPOInts size: "<<nav_waypoints.size()<<std::endl;
     return true;
 	}
 	else
@@ -597,12 +628,13 @@ double DetermineDragDistance(book_stacking_msgs::ObjectInfo objInfo)
   Point p_robot(odom_x,odom_y,0.0);
   Point p_obj(obj_centroid_wrt_odom_combined.point.x,obj_centroid_wrt_odom_combined.point.y,0.0);
   double d_robot_obj=getEuclidianDist(p_robot.x,p_robot.y,p_obj.x,p_obj.y);  
-  double res=0.01;
+  double res=0.01;	
+
   geometry_msgs::Point32 v;
   v.x=p_robot.x-p_obj.x;
   v.y=p_robot.y-p_obj.y;
-  double angle=atan2(v.y,v.x);
-   
+  //double angle=atan2(v.y,v.x);
+  double angle=yaw+M_PI;
 	/*
 	std::cout<<"p_robot| x: "<<p_robot.x<<" y: "<<p_robot.y<<" z: "<<p_robot.z<<std::endl;
 	std::cout<<"p_obj| x: "<<p_obj.x<<" y: "<<p_obj.y<<" z: "<<p_obj.z<<std::endl;
@@ -892,17 +924,34 @@ bool PickUpBook(int object_index)
 	if(enable_nav)
 	{
   NavigateToObject(book_info); //if can't be reached, navigate to object
+	//getInitTable(true);	
 	}
+
   double drag_dist=DetermineDragDistance(book_info);
   std::cout<<"drag_dist: "<<drag_dist<<std::endl;
 
-    if(drag_dist<0.03 && drag_dist>=0.0) //check if we are done dragging.
+    if(drag_dist<0.11 && drag_dist>=0.0) //check if we are done dragging.
     {
       std::cout<<"Book is on the edge!"<<std::endl;
+			drag_overall_success=true;
     }
 
-  if(test_arms)
+
+
+	bool partial_success=false;
+  if(test_arms && !drag_overall_success)
     {
+		double effective_desired_dist;
+	
+			if(drag_dist>0.055)
+			{
+			effective_desired_dist=drag_dist-0.055;
+			}
+			else
+			{
+			effective_desired_dist=drag_dist-0.02;
+			}
+
       book_stacking_msgs::DragRequest drag_req;
       //drag_req.object=pushedObjectInfo;
       drag_req.object=book_info;
@@ -911,24 +960,24 @@ bool PickUpBook(int object_index)
       drag_req.dir.vector.x=-1.0;
       drag_req.dir.vector.y=0.0;
       drag_req.dir.vector.z=0.0;
-      drag_req.dist=drag_dist;
+      drag_req.dist=effective_desired_dist;
       double output_dist;
-      bool partial_success=DragObject(drag_req,output_dist);
+      partial_success=DragObject(drag_req,output_dist);
       if(partial_success)
 			{
 				HomeRightArm();
-				drag_overall_success=true;
+				//drag_overall_success=true;
 			}
 		}
 
-		while(true)
+		while(!drag_overall_success)
 		{
 	  unsigned int object_count=ScanAndGetTableAndObjects(latest_table_plane_info, allObjectInfos,true);
 			if(object_count > 0)
 			{
 			double max_tracking_dist;
-			if(drag_overall_success)
-			max_tracking_dist=0.6;
+			if(partial_success)
+			max_tracking_dist=0.5;
 			else
 			max_tracking_dist=0.2;
 
@@ -951,11 +1000,11 @@ bool PickUpBook(int object_index)
 		double output_dist;
 			if(GraspObject(object_index, allObjectInfos,output_dist))
 			{
-			grasp_overall_success=true;
-			}
-			if(grasp_overall_success)
-			{
 			HomeRightArm();
+				if(checkIfRightGripperHoldsObject())
+				{			
+				grasp_overall_success=true;
+				}
 			}
 
 			if(!grasp_overall_success)
@@ -965,7 +1014,7 @@ bool PickUpBook(int object_index)
 				unsigned int object_count=ScanAndGetTableAndObjects(latest_table_plane_info, allObjectInfos,true);
 					if(object_count > 0)
 					{
-					double max_tracking_dist=0.2;
+					double max_tracking_dist=0.22;
 					if(TrackObject(object_index,allObjectInfos,max_tracking_dist))
 					break;
 					}
@@ -986,6 +1035,7 @@ bool PickUpBook(int object_index)
 
 bool plan0()
 {
+got_init_table=getInitTable(false);
   if(!got_init_table)
     {
       ROS_WARN("No initial table!");
@@ -999,15 +1049,16 @@ bool plan0()
     return false;
 
   SaveAllObjectsInOdomCombined(allObjectInfos);
-	       
+	  //int target_object_index=getShortestObjectIndex(allObjectInfos);
   int target_object_index=0;
  
   //book_stacking_msgs::ObjectInfo pushedObjectInfo=allObjectInfos.objects[target_object_index];
 
   PickUpBook(target_object_index);
 	
-	double output_dist;
 
+
+	double output_dist;
 	bool place_overall_success=false;	
 	while(!place_overall_success)
 	{
@@ -1019,11 +1070,13 @@ bool plan0()
 			{
 			break;
 			}
-	}
+		}
 	SaveAllObjectsInOdomCombined(allObjectInfos);
-	int host_object_index=0;
+	
+	//int host_object_index=0;
+	int host_object_index=getTallestObjectIndex(allObjectInfos);
 	place_overall_success=PlaceObject(host_object_index,output_dist);
-}
+	}
 
 
 	std::cout<<"PLAN SUCCEEDED!"<<std::endl;
@@ -1035,6 +1088,64 @@ bool plan0()
   //release gripper
   return false;
 	
+}
+
+int getTallestObjectIndex(book_stacking_msgs::ObjectInfos allObjectInfos)
+{
+	double max_height=-999.0;
+	int max_height_index=0;
+  for(unsigned int i=0; i<allObjectInfos.objects.size();i++)
+    {
+      geometry_msgs::PointStamped input_point;
+      geometry_msgs::PointStamped obj_centroid_wrt_odom_combined;
+      input_point.header.frame_id=allObjectInfos.objects[i].header.frame_id;
+      input_point.point.x=allObjectInfos.objects[i].centroid.x;
+      input_point.point.y=allObjectInfos.objects[i].centroid.y;
+      input_point.point.z=allObjectInfos.objects[i].centroid.z;
+      tf_listener.transformPoint("odom_combined", input_point, obj_centroid_wrt_odom_combined);
+			double h=obj_centroid_wrt_odom_combined.point.z;
+			if(h>max_height)
+			{
+			max_height=h;
+			max_height_index=i;
+			}
+	}
+	return max_height_index;
+}
+
+
+int getShortestObjectIndex(book_stacking_msgs::ObjectInfos allObjectInfos)
+{
+	double min_height=999.0;
+	int min_height_index=0;
+	double diff_with_second=0.0;
+
+  for(unsigned int i=0; i<allObjectInfos.objects.size();i++)
+    {
+      geometry_msgs::PointStamped input_point;
+      geometry_msgs::PointStamped obj_centroid_wrt_odom_combined;
+      input_point.header.frame_id=allObjectInfos.objects[i].header.frame_id;
+      input_point.point.x=allObjectInfos.objects[i].centroid.x;
+      input_point.point.y=allObjectInfos.objects[i].centroid.y;
+      input_point.point.z=allObjectInfos.objects[i].centroid.z;
+      tf_listener.transformPoint("odom_combined", input_point, obj_centroid_wrt_odom_combined);
+			double h=obj_centroid_wrt_odom_combined.point.z;
+			if(h<min_height)
+			{
+			min_height=h;
+			min_height_index=i;
+			diff_with_second=min_height-h;
+			}
+	}
+
+	if(diff_with_second<0.01)
+	{
+	return 0;
+	}
+	else
+	{
+	return min_height_index;
+	}
 }
 
 
@@ -1404,7 +1515,7 @@ pr2_controllers_msgs::JointTrajectoryGoal createRightArmHomingTrajectory()
     {
       goal.trajectory.points[ind].velocities[j] = 0.0;
     }
-    goal.trajectory.points[ind].time_from_start = ros::Duration(2.5);
+    goal.trajectory.points[ind].time_from_start = ros::Duration(3.0);
 
 
 
@@ -1423,7 +1534,7 @@ pr2_controllers_msgs::JointTrajectoryGoal createRightArmHomingTrajectory()
     {
       goal.trajectory.points[ind].velocities[j] = 0.0;
     }
-    goal.trajectory.points[ind].time_from_start = ros::Duration(4.5);
+    goal.trajectory.points[ind].time_from_start = ros::Duration(5.5);
 
     return goal;
 }
@@ -1556,6 +1667,31 @@ return true;
 return true;
 }
 
+bool checkIfRightGripperHoldsObject()
+{
+	FINGERTIP_CONTACT_THRESHOLD=600;     
+	right_arm_fingertips_sensing=true;
+
+	
+	ros::Rate loop_rate(5);
+	ros::spinOnce();
+	loop_rate.sleep();
+	ros::spinOnce();
+	 		if(right_arm_fingertips_contacted)
+			{
+			right_arm_fingertips_contacted=false;			
+			right_arm_fingertips_sensing=false;		
+			FINGERTIP_CONTACT_THRESHOLD=150.0;     
+			return true;	
+			}
+			else
+			{
+			right_arm_fingertips_sensing=false;
+			FINGERTIP_CONTACT_THRESHOLD=150.0;     		
+			return false;	
+			}
+		
+}
 
 bool ExploreLinearMoveAction(double dx,double dy,double dz, arm_config_7DOF q_seed, bool move_as_much_you_can, double &path_distance, arm_config_7DOF &q_solution)
 {
@@ -1798,7 +1934,7 @@ std::cout<<"Waiting for "<<wait_sec.toSec()<<" s."<<std::endl;
 //wait_sec.sleep();
 
 	ros::Rate loop_rate(10);
-	int counter_max=(int)(wait_sec.toSec()*10)+3;
+	int counter_max=(int)(wait_sec.toSec()*10)+2;
 	int counter=0;
 	while (counter<counter_max)
 	{		
@@ -1886,7 +2022,7 @@ void moveTorsoToPosition(double d) //0.2 is max up, 0.0 is min.
     n_.param("concave_hull_mode",concave_hull_mode_,false);
     n_.param("use_normal_seg",use_normal_seg_,false);
     n_.param("base_frame_tf", base_frame_tf,std::string("/base_link"));
-    n_.param("tilt_period", tilt_period, 8.0);
+    n_.param("tilt_period", tilt_period, 15.0);
 
 		n_.param("table_obj_detector_lower_z",table_obj_detector_lower_z,-0.2);
 		n_.param("table_obj_detector_upper_z",table_obj_detector_upper_z,-0.015);
@@ -1954,6 +2090,8 @@ void lookAt(std::string frame_id, double x, double y, double z)
 
 bool ExecuteDragAction(geometry_msgs::Vector3Stamped desired_dir,double desired_dist,DragActionTemplate drag_act)
 {
+	OpenRightGripper();
+
   double speed=0.12;
   std::vector<arm_config_7DOF> qs;
   std::vector<double> ts;
@@ -1977,21 +2115,11 @@ bool ExecuteDragAction(geometry_msgs::Vector3Stamped desired_dir,double desired_
   SendRightEndEffectorTrajectory(traj1,true); //move down
   FINGERTIP_CONTACT_THRESHOLD=150.0;
 
-
-		double effective_desired_dist;
-		if(desired_dist>0.055)
-		{
-		effective_desired_dist=desired_dist-0.055;
-		}
-		else
-		{
-		effective_desired_dist=desired_dist-0.02;
-		}
-
+/*
 				move_base_msgs::MoveBaseGoal goal;
 			  goal.target_pose.header.frame_id="base_link";			  
-			  goal.target_pose.pose.position.x = desired_dir.vector.x*effective_desired_dist;
-			  goal.target_pose.pose.position.y = desired_dir.vector.y*effective_desired_dist;
+			  goal.target_pose.pose.position.x = desired_dir.vector.x*desired_dist;
+			  goal.target_pose.pose.position.y = desired_dir.vector.y*desired_dist;
 			  goal.target_pose.pose.position.z = 0.0;
 			  goal.target_pose.pose.orientation.x = 0.0;
 			  goal.target_pose.pose.orientation.y = 0.0;
@@ -1999,16 +2127,16 @@ bool ExecuteDragAction(geometry_msgs::Vector3Stamped desired_dir,double desired_
 			  goal.target_pose.pose.orientation.w = 1.0;
 			  goal.target_pose.header.stamp=ros::Time::now();
 			  OmnixMoveBasePosition(goal);		
-
+*/
 		
-/*
+
 	  qs.clear();
 	  ts.clear();
 	  ts.push_back(3.0);
 	  qs.push_back(drag_act.q_2);
 	  pr2_controllers_msgs::JointTrajectoryGoal traj2=createRightArmTrajectoryFromAngles(qs,ts);
 	  SendRightEndEffectorTrajectory(traj2,false); //drag
-*/
+
 /*
       if(ExploreLinearMoveAction(desired_dir.vector.x*desired_dist ,desired_dir.vector.y*desired_dist ,desired_dir.vector.z*desired_dist,GetCurrentRightArmJointAngles(),true, path_distance,q_2)) //drag
 	{
@@ -2100,26 +2228,26 @@ bool ExecutePlaceAction(DragActionTemplate drag_act)
   double path_distance;
   arm_config_7DOF q_1,q_2;
 
-
+/*
   qs.clear();
   ts.clear();
   ts.push_back(3.0);
   qs.push_back(drag_act.q_1);
 	pr2_controllers_msgs::JointTrajectoryGoal traj1=createRightArmTrajectoryFromAngles(qs,ts);  
-  SendRightEndEffectorTrajectory(traj1,false); //move in +x, towards grasp
-
+  SendRightEndEffectorTrajectory(traj1,false); 
+*/
 	OpenRightGripper();
 
   qs.clear();
   ts.clear();
-  ts.push_back(0.2);
+  ts.push_back(0.5);
   qs.push_back(drag_act.q_2);
 	pr2_controllers_msgs::JointTrajectoryGoal traj2=createRightArmTrajectoryFromAngles(qs,ts);  
-  SendRightEndEffectorTrajectory(traj2,false); //move in +x, towards grasp
+  SendRightEndEffectorTrajectory(traj2,false); 
 
 				move_base_msgs::MoveBaseGoal goal;
 			  goal.target_pose.header.frame_id="base_link";			  
-			  goal.target_pose.pose.position.x = -0.3;
+			  goal.target_pose.pose.position.x = -0.1;
 			  goal.target_pose.pose.position.y = 0.0;
 			  goal.target_pose.pose.position.z = 0.0;
 			  goal.target_pose.pose.orientation.x = 0.0;
@@ -2148,7 +2276,7 @@ OpenRightGripper();
   double path_distance;
   arm_config_7DOF q_1,q_2;
 
-/*
+
   qs.clear();
   ts.clear();
   ts.push_back(3.0);
@@ -2158,10 +2286,10 @@ OpenRightGripper();
 	FINGERTIP_CONTACT_THRESHOLD=100.0;     
   SendRightEndEffectorTrajectory(traj1,true); //move in +x, towards grasp
   FINGERTIP_CONTACT_THRESHOLD=150.0;
-*/
 
 
 
+/*
 				move_base_msgs::MoveBaseGoal goal;
 			  goal.target_pose.header.frame_id="base_link";			  
 			  goal.target_pose.pose.position.x = pregrasp_dist-0.02;
@@ -2173,10 +2301,18 @@ OpenRightGripper();
 			  goal.target_pose.pose.orientation.w = 1.0;
 			  goal.target_pose.header.stamp=ros::Time::now();
 			  OmnixMoveBasePosition(goal);		
-
-		
+*/
+	
 	SendRightGripperCommand(0.02,50.0);
-		
+/*	  arm_config_7DOF q_solution;
+	pr2_controllers_msgs::JointTrajectoryGoal output_traj;
+			  ExploreLinearMoveAction(0.0,0.0,pregrasp_dist_vertical,GetCurrentRightArmJointAngles(),true,path_distance,q_solution);
+			  qs.push_back(q_solution);
+			  ts.push_back(3.0);
+			  output_traj=createRightArmTrajectoryFromAngles(qs,ts);
+			  SendRightEndEffectorTrajectory(output_traj,false);//go up!
+*/
+
 
 	  qs.clear();
 	  ts.clear();
@@ -2311,41 +2447,41 @@ bool PlaceObject(int object_index,double &output_dist)
 	
 	if(explore_grasp_success)
 	  {
-	    ROS_INFO("Grasp Action Feasible");
+	    ROS_INFO("place Action Feasible");
 	    if(ExecutePlaceAction(output_grasp_act))
 	      {
-				ROS_INFO("Grasp Action Executed Successfully");
+				ROS_INFO("place Action Executed Successfully");
 				return true;
 	      }
 	    else
 	      {
-				ROS_INFO("Grasp Action Execution wasn't successful");
+				ROS_INFO("place Action Execution wasn't successful");
 				return false;
 	      }
 	  }
 	else
 	  {
-	    ROS_INFO("Grasp Action Not Feasible. Move the base to optimal location");
+	    ROS_INFO("place Action Not Feasible. Move the base to optimal location");
 		  OmnixAdjustBaseForOptimalWorkspace(queried_pose_wrt_torso_lift_link);
 			explore_grasp_success=ExplorePlaceAction(book_info, output_dist, output_grasp_act, queried_pose_wrt_torso_lift_link);
 				if(explore_grasp_success)
 					{
-						ROS_INFO("2.Grasp Action Feasible");
+						ROS_INFO("2.place Action Feasible");
 						
 						if(ExecutePlaceAction(output_grasp_act))
 							{
-							ROS_INFO("2. Grasp Action Executed Successfully");
+							ROS_INFO("2. place Action Executed Successfully");
 							return true;
 							}
 						else
 							{
-							ROS_INFO("2. Grasp Action Execution wasn't successful");
+							ROS_INFO("2. place Action Execution wasn't successful");
 							return false;
 							}
 					}
 				else
 					{
-						ROS_INFO("2. Drag Action Not Feasible.");
+						ROS_INFO("2. place Action Not Feasible.");
 						return false;
 					}
 	  }
@@ -2377,7 +2513,7 @@ bool GraspObject(int object_index, book_stacking_msgs::ObjectInfos allObjectInfo
 	    ROS_INFO("Grasp Action Feasible");
 	    if(ExecuteGraspAction(output_grasp_act))
 	      {
-				ROS_INFO("Grasp Action Executed Successfully");
+				ROS_INFO("Grasp Action Executed.");
 				return true;
 	      }
 	    else
@@ -2426,7 +2562,7 @@ bool DragObject(book_stacking_msgs::DragRequest drag_req, double &output_dist)
 	geometry_msgs::PoseStamped queried_pose_wrt_torso_lift_link;
 
 	explore_drag_success=ExploreDragAction(drag_req.object, drag_req.dir, drag_req.dist, output_dist, output_drag_act,queried_pose_wrt_torso_lift_link);
-	if(explore_drag_success)
+	/*if(explore_drag_success)
 	  {
 	    ROS_INFO("Drag Action Feasible");
 	    if(ExecuteDragAction(drag_req.dir,drag_req.dist,output_drag_act))
@@ -2443,6 +2579,7 @@ bool DragObject(book_stacking_msgs::DragRequest drag_req, double &output_dist)
 	else
 	  {
 	    ROS_INFO("Drag Action Not Feasible. Move the base to optimal location");
+*/
 		  OmnixAdjustBaseForOptimalWorkspace(queried_pose_wrt_torso_lift_link);
 
 			explore_drag_success=ExploreDragAction(drag_req.object, drag_req.dir, drag_req.dist, output_dist,output_drag_act,queried_pose_wrt_torso_lift_link);
@@ -2467,7 +2604,7 @@ bool DragObject(book_stacking_msgs::DragRequest drag_req, double &output_dist)
 						return false;
 					}
 
-	  }
+	  //}
 
    return false;
 }
