@@ -1,0 +1,3 @@
+<launch>
+    <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" />
+</launch>

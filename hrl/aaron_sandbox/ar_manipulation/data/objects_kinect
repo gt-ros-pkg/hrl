@@ -1,0 +1,14 @@
+#the number of patterns to be recognized
+2
+
+#pattern 1
+shaver_tool_ar
+data/4x4/4x4_9.patt
+80.0
+0.0 0.0
+
+#pattern 2
+scatcher_tool_ar
+data/4x4/4x4_14.patt
+80.0
+0.0 0.0
