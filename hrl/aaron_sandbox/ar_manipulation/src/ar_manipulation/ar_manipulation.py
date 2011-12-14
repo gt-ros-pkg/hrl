@@ -5,6 +5,7 @@ roslib.load_manifest("hrl_pr2_arms")
 roslib.load_manifest("hrl_generic_arms")
 roslib.load_manifest("hrl_lib")
 roslib.load_manifest("pr2_controllers_msgs")
+roslib.load_manifest("std_msgs")
 #roslib.load_manifest("actionlib")
 
 import math, time, copy
@@ -15,7 +16,9 @@ import hrl_pr2_arms.pr2_arm as pr2arm
 import hrl_generic_arms.ep_trajectory_controller as eptc
 #import actionlib.simple_action_client as sac
 from pr2_controllers_msgs.msg import SingleJointPositionActionGoal
-from ar_pose import ARMarkers
+from ar_pose.msg import ARMarkers
+from std_msgs.msg import String
+
 
 class torso():
 	def __init__(self):
@@ -35,8 +38,11 @@ class torso():
 class ar_manipulation():
 	def __init__(self):
 		rospy.init_node("ar_manipulation")
-		rospy.Subscriber("/ar_pose_markers", ARMarkers, self.read_markers_cb)
+#		rospy.Subscriber("/ar_pose_markers", ARMarkers, self.read_markers_cb)
+		rospy.Subscriber("/adl_tool", String, self.marker_lookup_cb)
 
+		self.pub_rate = rospy.Rate(10)
+		self.marker_frame = 'N/A'
 		self.torso = torso()
         self.tf_listener = tf.TransformListener()
 		self.cs = pr2cs.ControllerSwitcher()
@@ -57,8 +63,17 @@ class ar_manipulation():
 		self.epc = eptc.EPC('linear_move')
 		self.time_step = 1/20.
 
-	def read_markers_cb(self,msg):
-		len(msg.markers)
+#	def read_markers_cb(self,msg):
+#		len(msg.markers)
+
+
+	def marker_lookup_cb(self,msg):
+		if msg == 'shaver' or msg == 'scratcher':
+			self.marker_frame = msg+'_ar_marker'
+		else:
+			print 'no valid marker found'
+			self.marker_frame = 'N/A'
+
 
 
 	def get_angles(self):
@@ -87,10 +102,15 @@ class ar_manipulation():
 		self.epc.epc_motion(r_tc, self.time_step)
 
 		
-	def read_artag(self,tool_frame='shaver_tool_ar'):
-		(pos, rot) = self.tf_listener.lookupTransform("l_gripper_tool_frame",
-                "/"+tool_frame,rospy.Time(0))
-		print pplist(pos), pplist(rot)
+#	def read_artag(self,marker_frame='shaver_ar_marker'):
+	def read_artag(self):
+		if self.marker_frame != 'N/A':
+			(pos, rot) = self.tf_listener.lookupTransform("l_gripper_tool_frame",
+                	self.marker_frame,rospy.Time(0))
+			self.pub_rate.sleep()
+			print pplist(pos), pplist(rot)		
+		else:
+			print 'no tag is read or selected'
 
 
 def pplist(list):
@@ -100,5 +120,10 @@ def pplist(list):
 if __name__ == "__main__":
 	tg = ar_manipulation()
 	tg.move_arm_away()
+	raw_input("press a key to continue")
 	tg.read_artag()
+
+#    while not rospy.is_shutdown():
+
+
 
