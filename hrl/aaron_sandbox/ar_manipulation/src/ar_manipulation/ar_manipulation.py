@@ -121,7 +121,7 @@ def pplist(list):
 
 if __name__ == "__main__":
 	tg = ar_manipulation()
-	tg.move_arm_away()
+#	tg.move_arm_away()
 	raw_input("press a key to continue")
 	tg.read_artag()
 
