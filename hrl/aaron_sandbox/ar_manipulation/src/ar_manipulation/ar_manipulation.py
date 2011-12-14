@@ -6,6 +6,7 @@ roslib.load_manifest("hrl_generic_arms")
 roslib.load_manifest("hrl_lib")
 roslib.load_manifest("pr2_controllers_msgs")
 roslib.load_manifest("std_msgs")
+roslib.load_manifest("ar_pose")
 #roslib.load_manifest("actionlib")
 
 import math, time, copy
