@@ -70,6 +70,7 @@ class ar_manipulation():
 	def marker_lookup_cb(self,msg):
 		if msg == 'shaver' or msg == 'scratcher':
 			self.marker_frame = msg+'_ar_marker'
+			print self.marker_frame
 		else:
 			print 'no valid marker found'
 			self.marker_frame = 'N/A'
