@@ -15,21 +15,30 @@ import hrl_pr2_arms.pr2_arm as pr2arm
 import hrl_generic_arms.ep_trajectory_controller as eptc
 #import actionlib.simple_action_client as sac
 from pr2_controllers_msgs.msg import SingleJointPositionActionGoal
+from ar_pose import ARMarkers
 
-
-class ToolGrab():
+class torso():
 	def __init__(self):
-		rospy.init_node("ar_manipulation")
-        self.tf_listener = tf.TransformListener()
-		self.torso = rospy.Publisher('/torso_controller/position_joint_action/goal',
+		self.pub = rospy.Publisher('/torso_controller/position_joint_action/goal',
 			SingleJointPositionActionGoal)
-		#self.torso = sac.SimpleActionClient(SingleJointPositionAction)
+
+	def down(self):
 		self.down = SingleJointPositionActionGoal()
 		self.down.goal_id.id = 'torso_zero'
 		self.down.goal.position = 0.
 		self.down.goal.min_duration = 2.		
 		self.down.goal.max_velocity = 1.
+		print 'moving torso...'
+		self.pub.publish(self.down)
 
+
+class ar_manipulation():
+	def __init__(self):
+		rospy.init_node("ar_manipulation")
+		rospy.Subscriber("/ar_pose_markers", ARMarkers, self.read_markers_cb)
+
+		self.torso = torso()
+        self.tf_listener = tf.TransformListener()
 		self.cs = pr2cs.ControllerSwitcher()
 #	Load JTcontroller
 		self.cs.carefree_switch('r', '%s_cart', 
@@ -48,6 +57,9 @@ class ToolGrab():
 		self.epc = eptc.EPC('linear_move')
 		self.time_step = 1/20.
 
+	def read_markers_cb(self,msg):
+		len(msg.markers)
+
 
 	def get_angles(self):
 		self.r_arm.reset_ep()
@@ -58,8 +70,7 @@ class ToolGrab():
 
 
 	def move_arm_away(self,duration=5.):
-		print 'moving torso...'
-		self.torso.publish(self.down)
+		self.torso.down()
 		self.get_angles()
 		self.t_vals = eptc.min_jerk_traj(duration/self.time_step)
 		self.r_ep =np.array([-1.96938757, 1.04533946, -1.87194269,
@@ -76,12 +87,18 @@ class ToolGrab():
 		self.epc.epc_motion(r_tc, self.time_step)
 
 		
-	def get_artag(self,tool_frame='shaver_tool_ar'):
+	def read_artag(self,tool_frame='shaver_tool_ar'):
 		(pos, rot) = self.tf_listener.lookupTransform("l_gripper_tool_frame",
                 "/"+tool_frame,rospy.Time(0))
-	
+		print pplist(pos), pplist(rot)
+
+
+def pplist(list):
+    return ' '.join(['%2.3f'%x for x in list])
+
 
 if __name__ == "__main__":
-	tg = ToolGrab()
-	print 'test'
+	tg = ar_manipulation()
 	tg.move_arm_away()
+	tg.read_artag()
+
