@@ -44,7 +44,7 @@ class ar_manipulation():
 		self.pub_rate = rospy.Rate(10)
 		self.marker_frame = 'N/A'
 		self.torso = torso()
-        self.tf_listener = tf.TransformListener()
+		self.tf_listener = tf.TransformListener()
 		self.cs = pr2cs.ControllerSwitcher()
 #	Load JTcontroller
 		self.cs.carefree_switch('r', '%s_cart', 
