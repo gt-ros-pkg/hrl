@@ -17,7 +17,7 @@ import hrl_pr2_arms.pr2_arm as pr2arm
 import hrl_generic_arms.ep_trajectory_controller as eptc
 
 #import actionlib.simple_action_client as sac
-from pr2_controllers_msgs.msg import SingleJointPositionActionGoal,
+from pr2_controllers_msgs.msg import SingleJointPositionActionGoal,\
 		PointHeadAction, PointHeadGoal
 from ar_pose.msg import ARMarkers
 from std_msgs.msg import String
@@ -41,7 +41,7 @@ class torso():
 class ar_manipulation():
 	def __init__(self):
 		rospy.init_node("ar_manipulation")
-		rospy.Subscriber("/ar_pose_markers", ARMarkers, self.read_markers_cb)
+		rospy.Subscriber("/ar_pose_markers", ARMarkers, self.detect_markers_cb)
 		rospy.Subscriber("/adl_tool", String, self.marker_lookup_cb)
 
 		self.pub_rate = rospy.Rate(10)
@@ -67,6 +67,9 @@ class ar_manipulation():
 		self.time_step = 1/20.
 
 
+	def detect_markers_cb(self, msg):
+		if msg.markers !=[]:
+			 
 
 
 	def marker_lookup_cb(self,msg):
