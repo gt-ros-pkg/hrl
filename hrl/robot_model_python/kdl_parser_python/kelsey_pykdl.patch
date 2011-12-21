@@ -1,0 +1,174 @@
+diff --git python_orocos_kdl/PyKDL/PyKDL.sip python_orocos_kdl/PyKDL/PyKDL.sip
+index 36feed9..a909378 100644
+--- python_orocos_kdl/PyKDL/PyKDL.sip
++++ python_orocos_kdl/PyKDL/PyKDL.sip
+@@ -27,3 +27,5 @@
+ %Include frames.sip
+ %Include kinfam.sip
+ %Include framevel.sip
++
++%Include dynamics.sip
+diff --git python_orocos_kdl/PyKDL/dynamics.sip python_orocos_kdl/PyKDL/dynamics.sip
+new file mode 100644
+index 0000000..1d8f5c6
+--- /dev/null
++++ python_orocos_kdl/PyKDL/dynamics.sip
+@@ -0,0 +1,98 @@
++%Include std_string.sip
++class Tree {
++%TypeHeaderCode
++#include <kdl/tree.hpp>
++using namespace KDL;
++%End
++public:
++    Tree(const std::string& root_name="root");
++    bool addSegment(const Segment& segment, const std::string& hook_name);
++    unsigned int getNrOfJoints()const;
++    unsigned int getNrOfSegments()const;
++    Chain* getChain(const std::string& chain_root, const std::string& chain_tip)const;
++%MethodCode
++    Chain* chain = new Chain();
++    sipCpp->getChain(*a0, *a1, *chain);
++    sipRes = chain;
++%End
++};
++
++class RotationalInertia {
++%TypeHeaderCode
++#include <kdl/rotationalinertia.hpp>
++using namespace KDL;
++%End
++public:
++    RotationalInertia(double Ixx=0,double Iyy=0,double Izz=0,double Ixy=0,double Ixz=0,double Iyz=0);
++    RotationalInertia Zero();
++};
++
++class RigidBodyInertia {
++%TypeHeaderCode
++#include <kdl/rigidbodyinertia.hpp>
++using namespace KDL;
++%End
++public:
++    RigidBodyInertia(double m=0, const Vector& oc=Vector::Zero(), const RotationalInertia& Ic=RotationalInertia::Zero());
++    RigidBodyInertia RefPoint(const Vector& p);
++
++    RigidBodyInertia rot_mult(const Rotation& R);
++%MethodCode
++        RigidBodyInertia *rbi = new RigidBodyInertia(operator*(*a0, *sipCpp));
++        sipRes= rbi;
++%End
++};
++
++
++class JntSpaceInertiaMatrix {
++%TypeHeaderCode
++#include <kdl/jntspaceinertiamatrix.hpp>
++using namespace KDL;
++%End
++public:
++    JntSpaceInertiaMatrix();
++    JntSpaceInertiaMatrix(int size);
++    JntSpaceInertiaMatrix(const JntSpaceInertiaMatrix& arg);
++    void resize(unsigned int newSize);
++    unsigned int rows()const;
++    unsigned int columns()const;
++    //JntSpaceInertiaMatrix& operator = ( const JntSpaceInertiaMatrix& arg);
++    double __getitem__(SIP_PYTUPLE);
++%MethodCode
++    int i,j;
++    PyArg_ParseTuple(a0,"ii",&i,&j);
++    if (i < 0 || j < 0 || i > sipCpp->rows() || j >= sipCpp->columns()) {
++        PyErr_SetString(PyExc_IndexError, "Inertia index out of range");
++        return NULL;
++    }
++    sipRes=(*sipCpp)(i,j);
++%End
++    //double operator()(unsigned int i,unsigned int j)const;
++    //double& operator()(unsigned int i,unsigned int j);
++    //bool operator==(const JntSpaceInertiaMatrix& src1,const JntSpaceInertiaMatrix& src2);
++    //bool operator!=(const JntSpaceInertiaMatrix& src1,const JntSpaceInertiaMatrix& src2);
++
++};
++void Add(const JntSpaceInertiaMatrix& src1,const JntSpaceInertiaMatrix& src2,JntSpaceInertiaMatrix& dest);
++void Subtract(const JntSpaceInertiaMatrix& src1,const JntSpaceInertiaMatrix& src2,JntSpaceInertiaMatrix& dest);
++void Multiply(const JntSpaceInertiaMatrix& src,const double& factor,JntSpaceInertiaMatrix& dest);
++void Divide(const JntSpaceInertiaMatrix& src,const double& factor,JntSpaceInertiaMatrix& dest);
++void Multiply(const JntSpaceInertiaMatrix& src, const JntArray& vec, JntArray& dest);
++void SetToZero(JntSpaceInertiaMatrix& matrix);
++bool Equal(const JntSpaceInertiaMatrix& src1,const JntSpaceInertiaMatrix& src2,double eps=epsilon);
++bool operator==(const JntSpaceInertiaMatrix& src1,const JntSpaceInertiaMatrix& src2);
++
++class ChainDynParam {
++    
++%TypeHeaderCode
++#include <kdl/chaindynparam.hpp>
++using namespace KDL;
++%End
++
++public:
++    ChainDynParam(const Chain& chain, Vector _grav);
++
++    int JntToCoriolis(const JntArray &q, const JntArray &q_dot, JntArray &coriolis);
++	int JntToMass(const JntArray &q, JntSpaceInertiaMatrix& H);
++	int JntToGravity(const JntArray &q,JntArray &gravity);
++};
+diff --git python_orocos_kdl/PyKDL/kinfam.sip python_orocos_kdl/PyKDL/kinfam.sip
+index e72a73d..aaba457 100644
+--- python_orocos_kdl/PyKDL/kinfam.sip
++++ python_orocos_kdl/PyKDL/kinfam.sip
+@@ -29,9 +29,14 @@ using namespace KDL;
+ 
+ 
+ public:
+-    enum JointType {RotX,RotY,RotZ,TransX,TransY,TransZ,None};
++    enum JointType {RotAxis,RotX,RotY,RotZ,TransAxis,TransX,TransY,TransZ,None};
++    Joint(const std::string& name, const Vector& _origin, const Vector& _axis, 
++          JointType type=None,double scale=1,double offset=0,
++          double inertia=0,const double damping=0,double stiffness=0);
+     Joint(JointType type=None,double scale=1,double offset=0,
+           double inertia=0,const double damping=0,double stiffness=0);
++    Joint(const std::string& name, JointType type=None,double scale=1,double offset=0,
++          double inertia=0,const double damping=0,double stiffness=0);
+     Joint(const Joint& in);
+     
+     Frame pose(const double& q)const /Factory/ ;
+@@ -45,6 +50,10 @@ public:
+ %MethodCode
+     sipRes=sipCpp->getTypeName().data();
+ %End
++    const char* getName() const;
++%MethodCode
++    sipRes=sipCpp->getName().data();
++%End
+ };
+ 
+ class Segment
+@@ -56,6 +65,7 @@ class Segment
+ using namespace KDL;
+ %End
+ public:
++    Segment(const std::string& name, const Joint& joint=Joint(Joint::None), const Frame& f_from_parent=Frame::Identity(),const RigidBodyInertia& I = RigidBodyInertia::Zero());
+     Segment(const Joint& joint=Joint(Joint::None), const Frame& f_from_parent=Frame::Identity());
+     Segment(const Segment& in);
+ 
+@@ -298,6 +308,20 @@ public:
+     virtual int CartToJnt(const JntArray& q_init , const Frame& p_in ,JntArray& q_out);
+ };
+ 
++class ChainIkSolverPos_NR_JL : ChainIkSolverPos
++{
++%TypeHeaderCode
++#include <kdl/chainiksolverpos_nr_jl.hpp>
++using namespace KDL;
++%End
++public:
++    ChainIkSolverPos_NR_JL(const Chain& chain,const JntArray &q_min,const JntArray &q_max, 
++                        ChainFkSolverPos& fksolver,ChainIkSolverVel& iksolver,
++                        unsigned int maxiter=100,double eps=epsilon);
++    
++    virtual int CartToJnt(const JntArray& q_init , const Frame& p_in ,JntArray& q_out);
++};
++
+ class ChainIkSolverVel_pinv : ChainIkSolverVel
+ {
+ %TypeHeaderCode
