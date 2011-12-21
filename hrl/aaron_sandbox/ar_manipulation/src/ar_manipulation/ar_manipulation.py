@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import roslib
 roslib.load_manifest("hrl_pr2_arms")
 roslib.load_manifest("hrl_generic_arms")
@@ -7,7 +8,7 @@ roslib.load_manifest("ar_pose")
 import math, time, copy
 import numpy as np
 import tf, rospy, actionlib
-import hrl_lib 
+import hrl_lib.transforms as hrl_tr
 import hrl_pr2_arms.pr2_controller_switcher as pr2cs
 import hrl_pr2_arms.pr2_arm as pr2arm
 import hrl_generic_arms.ep_trajectory_controller as eptc
@@ -159,6 +160,10 @@ class ar_manipulation():
 		self.r_ep =np.array([-1.397, 0.375, -1.740, -2.122, -1.966, -1.680, -2.491])
 		self.l_ep =np.array([1.397, 0.375, 1.740, -2.122, 1.966, -1.680, -3.926])
 
+#		self.r_ep =np.array([-1.397, 0.375, -1.740, -2.122, -1.966, -1.680, .651])
+#		self.l_ep =np.array([1.397, 0.375, 1.740, -2.122, 1.966, -1.680, -.784])
+
+
 		self.cs.carefree_switch('r', '%s_arm_controller')
 		self.cs.carefree_switch('l', '%s_arm_controller')
 		self.epc_move_arm(self.r_arm, self.r_angle, self.r_ep, duration)
@@ -170,12 +175,19 @@ class ar_manipulation():
 		try:
 			rospy.logout("Finding the AR tag..")
 			self.pub_rate.sleep()
-#			(self.ar_pos, self.ar_rot) = self.tf_listener.lookupTransform("l_gripper_tool_frame",
-			(self.ar_pos, self.ar_rot) = self.tf_listener.lookupTransform("/torso_lift_link",
+			(self.ar_pos, rot) = self.tf_listener.lookupTransform("/torso_lift_link",
                 	self.marker_frame, rospy.Time(0))
 			self.pub_rate.sleep()
+			(pos, gripper_rot) = self.tf_listener.lookupTransform("/torso_lift_link",
+                	"/l_gripper_tool_frame", rospy.Time(0))
+
+			self.ar_rot = hrl_tr.quaternion_to_matrix(rot)*hrl_tr.quaternion_to_matrix(gripper_rot)
+
 			print "Found tag at Position: ",pplist(self.ar_pos),\
-				"\nRotation: ",pplist(self.ar_rot)	
+				"\nRotation: ",pplist(rot)
+			self.ar_ep = []
+			self.ar_ep.append(np.matrix(self.ar_pos).T)
+			self.ar_ep.append(self.ar_rot)
 #			rospy.logout("Found tag at \nPosition: ",self.ar_pos,"\nRotation: ",self.ar_rot)
 			self.found_tag = True
 		except:
@@ -183,31 +195,42 @@ class ar_manipulation():
 			return False
 
 
-	def fetch_tool(self, duration=5.):
+	def fetch_tool(self, arm='left_arm', duration=5.):
 		rospy.logout("Moving the arm to fetch the object")
-		self.cs.carefree_switch('l', '%s_cart', 
+		if arm == 'left_arm':
+			side = 'l'
+			arm_controller = self.l_arm_cart
+		elif arm == 'right_arm':
+			side = 'r'
+			arm_controller = self.r_arm_cart	
+
+		self.cs.carefree_switch(side, side+'_cart', 
 #			"$(find hrl_pr2_arms)/params/j_transpose_params_low.yaml")
 			"$(find hrl_pr2_arms)/params/j_transpose_params_high.yaml")
-		self.l_arm_cart.reset_ep()	
-		ep_cur = self.l_arm_cart.get_ep()
-		ep1 = copy.deepcopy(ep_cur)
-		ep1[0][0]=self.ar_pos[0]
-		ep1[0][1]=self.ar_pos[1]
+		arm_controller.reset_ep()
+		ep_cur = arm_controller.get_ep()
+		ep1 = copy.deepcopy(self.ar_ep)
 		ep1[0][2]=ep_cur[0][2]+.1
-		self.epc_move_arm(self.l_arm_cart, ep_cur, ep1, duration)
+
+		self.epc_move_arm(arm_controller, ep_cur, ep1, duration)
 		self.gripper.Open()
 		time.sleep(2.)
 		
-		self.l_arm_cart.reset_ep()
-		ep_cur = self.l_arm_cart.get_ep()
-		self.tool_ep = copy.deepcopy(ep_cur)
+#		arm_controller.reset_ep()
+#		ep_cur = arm_controller.get_ep()
+#		self.tool_ep = copy.deepcopy(ep_cur)
+
+		self.tool_ep = copy.deepcopy(self.ar_ep)
 		self.tool_ep[0][0]=self.ar_pos[0]-.05
-		self.tool_ep[0][1]=self.ar_pos[1]
-#		self.tool_ep[0][2]=self.ar_pos[2]-.03
-		self.tool_ep[0][2]=self.ar_pos[2]-.06
-		self.epc_move_arm(self.l_arm_cart, ep_cur, self.tool_ep, duration)
+#		self.tool_ep[0][1]=self.ar_pos[1]
+		self.tool_ep[0][2]=self.ar_pos[2]-.03
+#		self.tool_ep[0][2]=self.ar_pos[2]-.05
+
+#		self.epc_move_arm(arm_controller, ep_cur, self.tool_ep, duration)
+		self.epc_move_arm(arm_controller, ep1, self.tool_ep, duration)
 		self.gripper.Close()
-		self.epc_move_arm(self.l_arm_cart, self.tool_ep, ep_cur, duration)
+		time.sleep(2.)
+		self.epc_move_arm(arm_controller, self.tool_ep, ep1, duration)
 
 		self.found_tag = False
 		self.search_tag = False
