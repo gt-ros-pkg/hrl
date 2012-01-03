@@ -2198,9 +2198,6 @@ class TabletopPushingPerceptionNode
   {
     if (!tracking_ || !tracker_initialized_ || tracker_count_ < 1)
     {
-      ROS_INFO_STREAM("tracking: " << tracking_);
-      ROS_INFO_STREAM("tracker_initialized: " << tracker_initialized_);
-      ROS_INFO_STREAM("tracker_count: " << tracker_count_);
       cv::Mat empty_segments(color_frame.rows, color_frame.cols, CV_8UC1,
                              cv::Scalar(0));
       return empty_segments;
