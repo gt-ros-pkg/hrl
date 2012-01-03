@@ -114,10 +114,9 @@
 // Debugging IFDEFS
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
-// #define DISPLAY_WORKSPACE_MASK 1
+#define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
-// #define DISPLAY_UV 1
 // #define DISPLAY_GRAPHCUT 1
 // #define VISUALIZE_GRAPH_WEIGHTS 1
 // #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
@@ -126,7 +125,7 @@
 // #define DISPLAY_ARM_CIRCLES 1
 // #define DISPLAY_TABLE_DISTANCES 1
 // #define DISPLAY_FLOW_FIELD_CLUSTERING 1
-// #define DISPLAY_OBJECT_BOUNDARIES 1
+#define DISPLAY_OBJECT_BOUNDARIES 1
 // #define WRITE_INPUT_TO_DISK 1
 // #define WRITE_CUTS_TO_DISK 1
 // #define WRITE_FLOWS_TO_DISK 1
@@ -163,33 +162,6 @@ inline float max(const float a, const double b)
 inline float min(const float a, const double b)
 {
   return std::min(static_cast<double>(a), b);
-}
-
-// TODO: Move this to the cpl_visual_features library and make approraite changes
-void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow_u, cv::Mat& flow_v,
-                        float mag_thresh)
-{
-  cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
-  flow_thresh_disp_img = color_frame.clone();
-  for (int r = 0; r < flow_thresh_disp_img.rows; ++r)
-  {
-    for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
-    {
-      float u = flow_u.at<float>(r,c);
-      float v = flow_u.at<float>(r,c);
-      if (std::sqrt(u*u+v*v) > mag_thresh)
-      {
-        cv::line(flow_thresh_disp_img, cv::Point(c,r), cv::Point(c-u, r-v),
-                 cv::Scalar(0,255,0));
-      }
-    }
-  }
-  std::vector<cv::Mat> flows;
-  cv::imshow("flow_disp", flow_thresh_disp_img);
-#ifdef DISPLAY_UV
-  cv::imshow("u", flow_u);
-  cv::imshow("v", flow_v);
-#endif // DISPLAY_UV
 }
 
 class ArmModel
@@ -1114,27 +1086,36 @@ class ObjectSingulation
     cv::transpose(dy_kernel_, dx_kernel_);
   }
 
+  // TODO: trim down the parameters
   PoseStamped getPushVector(cv::Mat& motion_mask, cv::Mat& arm_mask,
                             cv::Mat& workspace_mask, cv::Mat& color_img,
-                            cv::Mat& depth_img, cv::Mat& u, cv::Mat& v)
+                            cv::Mat& depth_img, cv::Mat& u, cv::Mat& v,
+                            ProtoObjects objs)
   {
     PoseStamped push_dir;
     cv::Mat boundary_img = getObjectBoundaryStrengths(motion_mask,
                                                       workspace_mask,
                                                       color_img, depth_img);
-    // NOTE: Currently just make sure the value is positive to use as mask loc
-    // cv::Mat stuff_mask = cv::max(motion_mask-arm_mask,0);
-    cv::Mat stuff_mask = motion_mask-arm_mask;
-    // Get flow clusters
-    AffineFlowMeasures centers = clusterFlowFields(color_img, depth_img,
-                                                   u, v, stuff_mask);
-    // TODO: Determine push_direction based on centers and their directions
-    return push_dir;
+    cv::Mat push_pose_img = determineImgPushPoses(boundary_img, objs, arm_mask);
+    return determinePushVector(push_pose_img);
   }
 
-  Pose2D determinePushVector(std::vector<cv::Vec2f> centers)
+  cv::Mat determineImgPushPoses(cv::Mat& boundary_img, ProtoObjects objs,
+                                cv::Mat& arm_mask)
   {
-    Pose2D push_pose;
+    cv::Mat push_pose_img;
+    // TODO: Project objs into an image
+    // TODO: For each object determine internal boundaries above some threshold
+    // as locations for boundaries to exist
+    // TODO: Determine pushing locations related to these possible boundaries
+    // TODO: Determine seperation direction in the image from boundary (up, down, left, right)
+    return push_pose_img;
+  }
+
+  // TODO: Determine 3D push_pose given a image location and direction
+  PoseStamped determinePushVector(cv::Mat push_pose_img)
+  {
+    PoseStamped push_pose;
     return push_pose;
   }
 
@@ -1186,15 +1167,17 @@ class ObjectSingulation
       }
     }
 
+    // TODO: Replace with a learned function from a combination of cues
+
     // Remove stuff out of the image
     edge_img.copyTo(edge_img_masked, workspace_mask);
     depth_edge_img.copyTo(depth_edge_img_masked, workspace_mask);
+    cv::Mat combined_edges = cv::max(edge_img_masked, depth_edge_img_masked);
 
 #ifdef DISPLAY_OBJECT_BOUNDARIES
-    cv::imshow("boundary_strengths", edge_img);
-    cv::imshow("boundary_strengths_masked", edge_img_masked);
-    cv::imshow("depth_boundary_strengths", depth_edge_img);
-    cv::imshow("depth_boundary_strengths_masked", depth_edge_img_masked);
+    cv::imshow("boundary_strengths", edge_img_masked);
+    cv::imshow("depth_boundary_strengths", depth_edge_img_masked);
+    cv::imshow("combined_boundary_strengths", combined_edges);
 #endif // DISPLAY_OBJECT_BOUNDARIES
     return edge_img;
   }
@@ -2001,6 +1984,7 @@ class TabletopPushingPerceptionNode
                                             prev_color_frame_, prev_depth_frame_,
                                             cur_point_cloud_);
       prev_seg_mask_ = seg_mask.clone();
+      getPushVector();
     }
     // Display junk
 #ifdef DISPLAY_INPUT_COLOR
@@ -2061,6 +2045,24 @@ class TabletopPushingPerceptionNode
     return true;
   }
 
+  PoseStamped getPushVector()
+  {
+    if (tracker_count_ > 1)
+    {
+      ProtoObjects objs = pcl_segmenter_.findTabletopObjects(cur_point_cloud_);
+      // TODO: trim down what gets sent here
+      return os_.getPushVector(motion_mask_hist_.back(),
+                               arm_mask_hist_.back(),
+                               workspace_mask_hist_.back(),
+                               color_frame_hist_.back(),
+                               depth_frame_hist_.back(),
+                               flow_u_hist_.back(),
+                               flow_v_hist_.back(), objs);
+    }
+    PoseStamped empty;
+    return empty;
+  }
+
   PushPose::Response findPushPose(cv::Mat visual_frame,
                                   cv::Mat depth_frame,
                                   XYZPointCloud& cloud, bool use_guided)
@@ -2068,15 +2070,7 @@ class TabletopPushingPerceptionNode
     PushPose::Response res;
     if (use_guided)
     {
-      // TODO: Change this to guided based on proto object boundaries
-      res.push_pose = os_.getPushVector(motion_mask_hist_.back(),
-                                        arm_mask_hist_.back(),
-                                        workspace_mask_hist_.back(),
-                                        color_frame_hist_.back(),
-                                        depth_frame_hist_.back(),
-                                        flow_u_hist_.back(),
-                                        flow_v_hist_.back());
-
+      res.push_pose = getPushVector();
     }
     else
     {
@@ -2115,13 +2109,7 @@ class TabletopPushingPerceptionNode
       tabletop_pushing::ObjectSingulationResult result;
       if (goal->get_singulation_vector)
       {
-        result.singulation_vector = os_.getPushVector(motion_mask_hist_.back(),
-                                                      arm_mask_hist_.back(),
-                                                      workspace_mask_hist_.back(),
-                                                      color_frame_hist_.back(),
-                                                      depth_frame_hist_.back(),
-                                                      flow_u_hist_.back(),
-                                                      flow_v_hist_.back());
+        result.singulation_vector = getPushVector();
       }
       singulation_server_.setSucceeded(result);
       // singulation_server_.setPreempted();
@@ -2313,12 +2301,13 @@ class TabletopPushingPerceptionNode
       flow_v_hist_.pop_front();
     }
 
-    if (auto_flow_cluster_)
-    {
-      os_.getPushVector(last_motion_mask, last_arm_mask, last_workspace_mask,
-                        last_color_frame, last_depth_frame,
-                        last_flow_u, last_flow_v);
-    }
+    // if (auto_flow_cluster_)
+    // {
+    //   ProtoObjects objs = pcl_segmenter_.findTabletopObjects(cloud);
+    //   os_.getPushVector(last_motion_mask, last_arm_mask, last_workspace_mask,
+    //                     last_color_frame, last_depth_frame,
+    //                     last_flow_u, last_flow_v, objs);
+    // }
 
 #ifdef WRITE_INPUT_TO_DISK
     std::stringstream input_out_name;
@@ -2361,8 +2350,9 @@ class TabletopPushingPerceptionNode
     // cv::imwrite(not_arm_move_out_name.str(), not_arm_move_color);
 #endif // WRITE_ARM_CUT_TO_DISK
 #ifdef DISPLAY_OPTICAL_FLOW
-    displayOpticalFlow(color_frame, flow_outs[0], flow_outs[1],
-                       mgc_.magnitude_thresh_);
+    cpl_visual_features::displayOpticalFlow(color_frame, flow_outs[0],
+                                            flow_outs[1],
+                                            mgc_.magnitude_thresh_);
 #endif // DISPLAY_OPTICAL_FLOW
 #ifdef DISPLAY_ARM_CIRCLES
     cv::Mat arms_img(color_frame.size(), CV_8UC3);
