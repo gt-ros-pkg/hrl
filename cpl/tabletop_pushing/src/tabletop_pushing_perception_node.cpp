@@ -114,7 +114,7 @@
 // Debugging IFDEFS
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
-#define DISPLAY_WORKSPACE_MASK 1
+// #define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_UV 1
@@ -1040,6 +1040,7 @@ class PointCloudSegmentation
     }
   }
 
+  // TODO: Perform frame to frame object association
   void matchObjectsOneToOne(ProtoObjects& prev_objs, ProtoObjects& cur_objs)
   {
     AffineFlowMeasures sparse_flow = ft_->getMostRecentFlow();
@@ -1049,6 +1050,7 @@ class PointCloudSegmentation
     {
       for (unsigned int j = 0; j < cur_objs.size(); ++j)
       {
+        
       }
     }
   }
@@ -2000,8 +2002,17 @@ class TabletopPushingPerceptionNode
                                             cur_point_cloud_);
       prev_seg_mask_ = seg_mask.clone();
     }
-
     // Display junk
+#ifdef DISPLAY_INPUT_COLOR
+    cv::imshow("color", cur_color_frame_);
+#endif // DISPLAY_INPUT_COLOR
+#ifdef DISPLAY_INPUT_DEPTH
+    double depth_max = 1.0;
+    cv::minMaxLoc(cur_depth_frame_, NULL, &depth_max);
+    cv::Mat depth_display = cur_depth_frame_.clone();
+    depth_display /= depth_max;
+    cv::imshow("input_depth", depth_display);
+#endif // DISPLAY_INPUT_DEPTH
 #ifdef DISPLAY_WORKSPACE_MASK
     cv::imshow("workspace_mask", cur_workspace_mask_);
 #endif // DISPLAY_WORKSPACE_MASK
@@ -2135,7 +2146,7 @@ class TabletopPushingPerceptionNode
     tracking_ = false;
   }
 
-  void updateTracks(cv::Mat& color_frame, cv::Mat& depth_frame,
+  void updateTracks(cv::Mat color_frame, cv::Mat& depth_frame,
                     cv::Mat& prev_color_frame, cv::Mat& prev_depth_frame,
                     XYZPointCloud& cloud)
   {
@@ -2175,6 +2186,7 @@ class TabletopPushingPerceptionNode
     // Get sparse flow
     AffineFlowMeasures sparse_flow = ft_.updateTracks(gray_frame,
                                                       cur_workspace_mask_);
+    ++tracker_count_;
   }
 
   //
@@ -2184,8 +2196,11 @@ class TabletopPushingPerceptionNode
                              cv::Mat& prev_color_frame,
                              cv::Mat& prev_depth_frame, XYZPointCloud& cloud)
   {
-    if (!tracking_ || !tracker_initialized_)
+    if (!tracking_ || !tracker_initialized_ || tracker_count_ < 1)
     {
+      ROS_INFO_STREAM("tracking: " << tracking_);
+      ROS_INFO_STREAM("tracker_initialized: " << tracker_initialized_);
+      ROS_INFO_STREAM("tracker_count: " << tracker_count_);
       cv::Mat empty_segments(color_frame.rows, color_frame.cols, CV_8UC1,
                              cv::Scalar(0));
       return empty_segments;
@@ -2348,21 +2363,6 @@ class TabletopPushingPerceptionNode
     //                      << ".tiff";
     // cv::imwrite(not_arm_move_out_name.str(), not_arm_move_color);
 #endif // WRITE_ARM_CUT_TO_DISK
-#ifdef DISPLAY_INPUT_COLOR
-    std::vector<cv::Mat> hsv;
-    cv::split(color_frame_f, hsv);
-    cv::imshow("hue", hsv[0]);
-    cv::imshow("saturation", hsv[1]);
-    // cv::imshow("intensity", hsv[2]);
-    // cv::imshow("input_color", color_frame);
-#endif // DISPLAY_INPUT_COLOR
-#ifdef DISPLAY_INPUT_DEPTH
-    double depth_max = 1.0;
-    cv::minMaxLoc(depth_frame, NULL, &depth_max);
-    cv::Mat depth_display = depth_frame.clone();
-    depth_display /= depth_max;
-    cv::imshow("input_depth", depth_display);
-#endif // DISPLAY_INPUT_DEPTH
 #ifdef DISPLAY_OPTICAL_FLOW
     displayOpticalFlow(color_frame, flow_outs[0], flow_outs[1],
                        mgc_.magnitude_thresh_);
@@ -2393,8 +2393,6 @@ class TabletopPushingPerceptionNode
     cv::imshow("arm_cut", arm_regions_img);
     // cv::imshow("not_arm_move", not_arm_move_color);
 #endif // DISPLAY_GRAPHCUT
-
-    ++tracker_count_;
     return cut;
   }
 
