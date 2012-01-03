@@ -37,6 +37,7 @@
 
 // OpenCV
 #include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 // STL
 #include <vector>
@@ -74,5 +75,33 @@ class DenseLKFlow
   cv::Mat g_kernel_;
   cv::Mat optic_g_kernel_;
 };
+
+void displayOpticalFlow(cv::Mat& color_frame, cv::Mat& flow_u, cv::Mat& flow_v,
+                        float mag_thresh, bool display_uv=false)
+{
+  cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
+  flow_thresh_disp_img = color_frame.clone();
+  for (int r = 0; r < flow_thresh_disp_img.rows; ++r)
+  {
+    for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
+    {
+      float u = flow_u.at<float>(r,c);
+      float v = flow_u.at<float>(r,c);
+      if (std::sqrt(u*u+v*v) > mag_thresh)
+      {
+        cv::line(flow_thresh_disp_img, cv::Point(c,r), cv::Point(c-u, r-v),
+                 cv::Scalar(0,255,0));
+      }
+    }
+  }
+  std::vector<cv::Mat> flows;
+  cv::imshow("flow_disp", flow_thresh_disp_img);
+  if (display_uv)
+  {
+    cv::imshow("u", flow_u);
+    cv::imshow("v", flow_v);
+  }
+}
+
 }
 #endif // dense_lk_h_DEFINED
