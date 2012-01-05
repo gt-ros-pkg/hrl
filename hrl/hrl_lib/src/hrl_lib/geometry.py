@@ -146,9 +146,9 @@ def fit_line_low_slope(x, y):
 if __name__ == '__main__':
     import matplotlib.pyplot as pp
 
-    test_project_point_on_line = False
+    test_project_point_on_line = True
     test_convex_hull_flag = False
-    test_distance_from_curve_flag = True
+    test_distance_from_curve_flag = False
 
     if test_project_point_on_line:
         p1 = np.matrix([2,3.]).T

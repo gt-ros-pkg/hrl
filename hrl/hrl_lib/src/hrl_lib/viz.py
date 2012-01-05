@@ -109,6 +109,9 @@ def circle_marker(center, radius, scale, color, mframe, z=.03, duration=10.0, m_
 
 ##
 # Create a visualization_msgs.Marker message given a point
+# @param point - 3x1 np matrix
+# @param orientation - 4x1 np matrix (quaternion)
+# @param mtype - string (see the function create_mdict)
 def single_marker(point, orientation, mtype, mframe, scale=[.2,.2,.2], color=[1.0, 0, 0,.5], duration=10.0, m_id=0):
     m = vm.Marker()
     m.header.frame_id = mframe
