@@ -252,7 +252,8 @@ if __name__ == '__main__':
             print 'f:', f.A1
             rospy.sleep(0.05)
 
-    if True:
+    # print joint angles.
+    if False:
         while not rospy.is_shutdown():
             #jep = ac.get_ep()
             #print 'jep:', jep
@@ -260,12 +261,21 @@ if __name__ == '__main__':
             print 'q:', np.degrees(q).tolist()[1]
             rospy.sleep(0.05)
 
+    # publish end effector marker. useful to verify set_tooltip.
+    if True:
+        ac.kinematics.set_tooltip(np.matrix([0.,0.,-0.04]).T) # stub with mini45
+        while not rospy.is_shutdown():
+            ac.publish_rviz_markers()
+            rospy.sleep(0.05)
+
+    # print joint velocities
     if False:
         while not rospy.is_shutdown():
             qdot = ac.get_joint_velocities()
             print 'qdot:', np.degrees(qdot)
             rospy.sleep(0.05)
 
+    # testing changing the impedance
     if False:
         rospy.sleep(1.)
         isc =  ac.get_impedance_scale()
@@ -278,164 +288,6 @@ if __name__ == '__main__':
 
 
 
-
-#=== Functions that should be in equilibrium_point_control samples ===
-
-#    ##
-#    #Function that commands the arm(s) to incrementally move to a jep
-#    #@param speed the max angular speed (in radians per second)
-#    #@return 'reach'
-#    def go_jep(self, arm, q, stopping_function=None, speed=math.radians(30)):
-#        if speed>math.radians(90.):
-#            speed = math.radians(90.)
-#
-#        qs_list,qe_list,ns_list,qstep_list = [],[],[],[]
-#        done_list = []
-#        time_between_cmds = 0.025
-#        
-#        #qs = np.matrix(self.get_joint_angles(arm))
-#        qs = np.matrix(self.get_jep(arm))
-#        qe = np.matrix(q)
-#        max_change = np.max(np.abs(qe-qs))
-#
-#        total_time = max_change/speed
-#        n_steps = int(total_time/time_between_cmds+0.5)
-#
-#        qstep = (qe-qs)/n_steps
-#
-#        if stopping_function != None:
-#            done = stopping_function()
-#        else:
-#            done = False
-#
-#        step_number = 0
-#        t0 = rospy.Time.now().to_time()
-#        t_end = t0
-#        while done==False:
-#            t_end += time_between_cmds
-#            t1 = rospy.Time.now().to_time()
-#
-#            if stopping_function != None:
-#                done = stopping_function()
-#            if step_number < n_steps and done == False:
-#                q = (qs + step_number*qstep).A1.tolist()
-#                self.set_jep(arm, q)
-#            else:
-#                done = True
-#
-#            while t1 < t_end:
-#                if stopping_function != None:
-#                    done = done or stopping_function()
-#                rospy.sleep(time_between_cmds/5)
-#                t1 = rospy.Time.now().to_time()
-#            step_number += 1
-#
-#        rospy.sleep(time_between_cmds)
-#        return 'reach'
-#
-#    def go_cep(self, arm, p, rot, speed = 0.10,
-#                     stopping_function = None, q_guess = None):
-#        q = self.arms.IK(arm, p, rot, q_guess)
-#        if q == None:
-#            print 'IK soln NOT found.'
-#            print 'trying to reach p= ', p
-#            return 'fail'
-#        else:
-#            q_start = np.matrix(self.get_joint_angles(arm))
-#            p_start = self.arms.FK(arm, q_start.A1.tolist())
-#            q_end = np.matrix(q)
-#    
-#            dist = np.linalg.norm(p-p_start)
-#            total_time = dist/speed
-#            max_change = np.max(np.abs(q_end-q_start))
-#            ang_speed = max_change/total_time
-#            return self.go_jep(arm, q, stopping_function, speed=ang_speed)
-#
-#    ##
-#    # linearly interpolates the commanded cep.
-#    # @param arm - 'left_arm' or 'right_arm'
-#    # @param p - 3x1 np matrix
-#    # @param rot - rotation matrix
-#    # @param speed - linear speed (m/s)
-#    # @param stopping_function - returns True or False
-#    # @return string (reason for stopping)
-#    def go_cep_interpolate(self, arm, p, rot=None, speed=0.10,
-#                                 stopping_function=None):
-#        rot = None # Rotational interpolation not implemented right now.
-#        time_between_cmds = 0.025
-#
-#        q_guess = self.get_jep(arm)
-#        cep = self.arms.FK(arm, q_guess)
-#        if rot == None:
-#            rot = self.arms.FK_rot(arm, q_guess)
-#
-#        vec = p-cep
-#        dist = np.linalg.norm(vec)
-#        total_time = dist/speed
-#        n_steps = int(total_time/time_between_cmds + 0.5)
-#        vec = vec/dist
-#        vec = vec * speed * time_between_cmds
-#        
-#        pt = cep
-#        all_done = False
-#        i = 0 
-#        t0 = rospy.Time.now().to_time()
-#        t_end = t0
-#        while all_done==False:
-#            t_end += time_between_cmds
-#            t1 = rospy.Time.now().to_time()
-#            pt = pt + vec
-#            q = self.arms.IK(arm, pt, rot, q_guess)
-#
-#            if q == None:
-#                all_done = True
-#                stop = 'IK fail'
-#                continue
-#            self.set_jep(arm, q)
-#            q_guess = q
-#            while t1<t_end:
-#                if stopping_function != None:
-#                    all_done = stopping_function()
-#                if all_done:
-#                    stop = 'Stopping Condition'
-#                    break
-#                rospy.sleep(time_between_cmds/5)
-#                t1 = rospy.Time.now().to_time()
-#
-#            i+=1
-#            if i == n_steps:
-#                all_done = True
-#                stop = ''
-#        return stop
-#
-#    ##  
-#    # @param vec - displacement vector (base frame)
-#    # @param q_guess - previous JEP?
-#    # @return string
-#    def move_till_hit(self, arm, vec=np.matrix([0.3,0.,0.]).T, force_threshold=3.0,
-#                      speed=0.1, bias_FT=True):
-#        unit_vec =  vec/np.linalg.norm(vec)
-#        def stopping_function():
-#            force = self.get_wrist_force(arm, base_frame = True)
-#            force_projection = force.T*unit_vec *-1 # projection in direction opposite to motion.
-#            if force_projection>force_threshold:
-#                return True
-#            elif np.linalg.norm(force)>45.:
-#                return True
-#            else:
-#                return False
-#
-#        jep = self.get_jep(arm)
-#        cep, rot = self.arms.FK_all(arm, jep)
-#
-#        if bias_FT:
-#            self.bias_wrist_ft(arm)
-#        rospy.sleep(0.5)
-#
-#        p = cep + vec
-#        return self.go_cep_interpolate(arm, p, rot, speed,
-#                                       stopping_function)
-#
 
 
 
