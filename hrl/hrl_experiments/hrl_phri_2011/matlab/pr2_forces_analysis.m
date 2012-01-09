@@ -1,12 +1,12 @@
 
-tool = 'wipe_finger';
+pr2_tool = 'wipe_finger';
 
 rfc_errs = NaN * zeros([num_subs, 4]);
 rfc_err_times = NaN * zeros([num_subs, 4]);
 
 subj_ind = 1;
 for subj_id = pr2_subjs
-    file = sprintf('sub%d_%s_pr2_treatment_train.mat', subj_id, tool);
+    file = sprintf('sub%d_%s_pr2_treatment_train.mat', subj_id, pr2_tool);
     load(file);
     f_sens_mag = sqrt(f_sens_x.^2 + f_sens_y.^2 + f_sens_z.^2);
     fsx = f_sens_x(f_sens_mag > 0.5);
@@ -22,7 +22,7 @@ for subj_id = pr2_subjs
     
     rfx_mags{subj_ind} = NaN * zeros([4, 6000]);
     for j=1:4
-        file = sprintf('sub%d_%s_pr2_treatment_%d.mat', subj_id, tool, j);
+        file = sprintf('sub%d_%s_pr2_treatment_%d.mat', subj_id, pr2_tool, j);
         load(file);
         f_sens_mag = sqrt(f_sens_x.^2 + f_sens_y.^2 + f_sens_z.^2);
         fsx = f_sens_x(f_sens_mag > 0.5);

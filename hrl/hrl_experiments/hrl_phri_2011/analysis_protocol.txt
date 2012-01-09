@@ -14,7 +14,10 @@ cheek  nose  chin  all
 Shavers:
 1 3 6 8
 
+<user> <tool> <place>
+
 Bag fix:
+# use RAWs!
 ./scripts/fix_frame.sh 4 0 0
 ./scripts/playback_fix_bag.sh <user> 0 0 # in window 1
 ./scripts/record_fix_bag.sh 4 0 0 # in window 2
@@ -54,6 +57,10 @@ Regisistered Displaying:
 ./scripts/color_combo_cloud.sh 0 0 0
 ----------------------- OR ----------------------
 ./scripts/find_concat_ell.sh <tool> <place> <function>
+----------------------- NO! USE THIS: ---------------------- 
+./scripts/find_face_concat_ell.sh <tool> <place> <function>
+
+
 
 ./bin/pub_head /home/kelsey/svn/gt-ros-pkg/hrl/hrl_experiments/hrl_phri_2011/data/wipe_finger_cheek_force_magnitude_concat_ell_clouds_colored.bag
 

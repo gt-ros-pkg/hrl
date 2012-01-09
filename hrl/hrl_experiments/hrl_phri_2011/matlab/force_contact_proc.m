@@ -2,8 +2,8 @@
 
 
 n_contact = 0;
-force_contacts = NaN * zeros([length(force_mag), length(force_mag)]);
-force_contacts_all = NaN * zeros(length(force_mag));
+force_contacts = NaN * zeros([1000, length(force_mag)]);
+force_contacts_all = NaN * zeros(1, length(force_mag));
 j = -1;
 fca_ind = 1;
 for i=1:length(force_mag)
@@ -44,5 +44,5 @@ fcsa_arr{subj_num} = force_contacts_all;
 nfcs_arr{subj_num} = normize_fcs;
 
 sf_ptiles(subj_num, :) = prctile(force_contacts_all, [25, 50, 75, 95]);
-sf_ptiles_dense(subj_num, :) = prctile(force_contacts_all, [1:0.01:100]);
+sf_ptiles_dense(subj_num, :) = prctile(force_contacts_all, [1:1:100]);
 
