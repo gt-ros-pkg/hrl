@@ -1,7 +1,7 @@
-class ObjectSingulation
+class FlowClustering
 {
  public:
-  ObjectSingulation(FeatureTracker* ft,
+  FlowClustering(FeatureTracker* ft,
                     int kmeans_max_iter=200, double kmeans_epsilon=0.5,
                     int kmeans_tries=5, int affine_estimate_radius=5,
                     double surf_hessian=100) :
@@ -14,116 +14,6 @@ class ObjectSingulation
     cv::getDerivKernels(dy_kernel_, dx_kernel_, 1, 0, CV_SCHARR, true, CV_32F);
     cv::flip(dy_kernel_, dy_kernel_, -1);
     cv::transpose(dy_kernel_, dx_kernel_);
-  }
-
-  // TODO: trim down the parameters
-  /**
-   * Determine the pushing pose and direction to verify separate objects
-   *
-   * @param motion_mask 
-   * @param arm_mask 
-   * @param workspace_mask 
-   * @param color_img 
-   * @param depth_img 
-   * @param u 
-   * @param v 
-   * @param objs 
-   *
-   * @return 
-   */
-  PoseStamped getPushVector(cv::Mat& motion_mask, cv::Mat& arm_mask,
-                            cv::Mat& workspace_mask, cv::Mat& color_img,
-                            cv::Mat& depth_img, cv::Mat& u, cv::Mat& v,
-                            ProtoObjects objs)
-  {
-    PoseStamped push_dir;
-    cv::Mat boundary_img = getObjectBoundaryStrengths(motion_mask,
-                                                      workspace_mask,
-                                                      color_img, depth_img);
-    cv::Mat push_pose_img = determineImgPushPoses(boundary_img, objs, arm_mask);
-    return determinePushVector(push_pose_img);
-  }
-
-  cv::Mat determineImgPushPoses(cv::Mat& boundary_img, ProtoObjects objs,
-                                cv::Mat& arm_mask)
-  {
-    cv::Mat push_pose_img;
-    // TODO: Project objs into an image
-    // TODO: For each object determine internal boundaries above some threshold
-    // as locations for boundaries to exist
-    // TODO: Determine pushing locations related to these possible boundaries
-    // TODO: Determine seperation direction in the image from boundary (up, down, left, right)
-    return push_pose_img;
-  }
-
-  // TODO: Determine 3D push_pose given a image location and direction
-  PoseStamped determinePushVector(cv::Mat push_pose_img)
-  {
-    PoseStamped push_pose;
-    return push_pose;
-  }
-
-  cv::Mat getObjectBoundaryStrengths(cv::Mat& motion_mask,
-                                     cv::Mat& workspace_mask,
-                                     cv::Mat& color_img, cv::Mat& depth_img)
-  {
-
-    cv::Mat tmp_bw(color_img.size(), CV_8UC1);
-    cv::Mat bw_img(color_img.size(), CV_32FC1);
-    cv::Mat Ix(bw_img.size(), CV_32FC1);
-    cv::Mat Iy(bw_img.size(), CV_32FC1);
-    cv::Mat Ix_d(bw_img.size(), CV_32FC1);
-    cv::Mat Iy_d(bw_img.size(), CV_32FC1);
-    cv::Mat edge_img(color_img.size(), CV_32FC1);
-    cv::Mat depth_edge_img(color_img.size(), CV_32FC1);
-    cv::Mat edge_img_masked(edge_img.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat depth_edge_img_masked(edge_img.size(), CV_32FC1, cv::Scalar(0.0));
-
-    // Convert to grayscale
-    cv::cvtColor(color_img, tmp_bw, CV_BGR2GRAY);
-    tmp_bw.convertTo(bw_img, CV_32FC1, 1.0/255, 0);
-
-    // Get image derivatives
-    cv::filter2D(bw_img, Ix, CV_32F, dx_kernel_);
-    cv::filter2D(bw_img, Iy, CV_32F, dy_kernel_);
-    cv::filter2D(depth_img, Ix_d, CV_32F, dx_kernel_);
-    cv::filter2D(depth_img, Iy_d, CV_32F, dy_kernel_);
-
-    // Create magintude image
-    for (int r = 0; r < edge_img.rows; ++r)
-    {
-      float* mag_row = edge_img.ptr<float>(r);
-      float* Ix_row = Ix.ptr<float>(r);
-      float* Iy_row = Iy.ptr<float>(r);
-      for (int c = 0; c < edge_img.cols; ++c)
-      {
-        mag_row[c] = sqrt(Ix_row[c]*Ix_row[c] + Iy_row[c]*Iy_row[c]);
-      }
-    }
-    for (int r = 0; r < depth_edge_img.rows; ++r)
-    {
-      float* mag_row = depth_edge_img.ptr<float>(r);
-      float* Ix_row = Ix_d.ptr<float>(r);
-      float* Iy_row = Iy_d.ptr<float>(r);
-      for (int c = 0; c < depth_edge_img.cols; ++c)
-      {
-        mag_row[c] = sqrt(Ix_row[c]*Ix_row[c] + Iy_row[c]*Iy_row[c]);
-      }
-    }
-
-    // TODO: Replace with a learned function from a combination of cues
-
-    // Remove stuff out of the image
-    edge_img.copyTo(edge_img_masked, workspace_mask);
-    depth_edge_img.copyTo(depth_edge_img_masked, workspace_mask);
-    cv::Mat combined_edges = cv::max(edge_img_masked, depth_edge_img_masked);
-
-#ifdef DISPLAY_OBJECT_BOUNDARIES
-    cv::imshow("boundary_strengths", edge_img_masked);
-    cv::imshow("depth_boundary_strengths", depth_edge_img_masked);
-    cv::imshow("combined_boundary_strengths", combined_edges);
-#endif // DISPLAY_OBJECT_BOUNDARIES
-    return edge_img;
   }
 
   AffineFlowMeasures clusterFlowFields(cv::Mat& color_img, cv::Mat& depth_img,
