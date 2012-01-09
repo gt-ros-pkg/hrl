@@ -67,6 +67,7 @@
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
+#include <pcl/segmentation/segment_differences.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/kdtree/impl/kdtree_flann.hpp>
 #include <pcl/features/feature.h>
@@ -318,541 +319,6 @@ class ProtoTabletopObject
 
 typedef std::deque<ProtoTabletopObject> ProtoObjects;
 
-class MotionGraphcut
-{
- public:
-  MotionGraphcut(double workspace_background_weight = 1.0f,
-                 double min_weight = 0.01, double magnitude_thresh=0.1,
-                 double flow_gain = 0.3, int arm_grow_radius=2) :
-      workspace_background_weight_(workspace_background_weight),
-      min_weight_(min_weight), magnitude_thresh_(magnitude_thresh),
-      flow_gain_(flow_gain), arm_grow_radius_(arm_grow_radius)
-  {
-  }
-
-  virtual ~MotionGraphcut()
-  {
-  }
-
-  /**
-   * Segment moving stuff from static stuff using graphcut
-   *
-   * @param color_frame    The current color image to segment
-   * @param depth_frame    The current depth image to segment
-   * @param u              Flow dx/dt
-   * @param v              Flow dy/dt
-   * @param eigen_scores    Scores corresponding to texture at the point
-   * @param workspace_mask Binary image where white is valid locations for things
-   *                       to be moving at
-   * @param arm_locs Image locations of projected arm kinematics
-   *
-   * @return A binary image where white is the foreground (moving) regions and
-   *         black is the background (static) regions
-   */
-  cv::Mat operator()(cv::Mat& color_frame, cv::Mat& depth_frame,
-                     cv::Mat& u, cv::Mat& v, cv::Mat& workspace_mask,
-                     cv::Mat& table_heights, ArmModel arm_locs)
-  {
-    const int R = color_frame.rows;
-    const int C = color_frame.cols;
-    int num_nodes = R*C;
-    int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
-    GraphType *g;
-    g = new GraphType(num_nodes, num_edges);
-
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-    cv::Mat fg_weights(color_frame.size(), CV_32FC1);
-    cv::Mat bg_weights(color_frame.size(), CV_32FC1);
-    cv::Mat table_weights(color_frame.size(), CV_32FC1);
-#endif // VISUALIZE_GRAPH_WEIGHTS
-#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
-    cv::Mat left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat up_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat up_left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
-
-    for (int r = 0; r < R; ++r)
-    {
-      for (int c = 0; c < C; ++c)
-      {
-        g->add_node();
-        float magnitude = std::sqrt(u.at<float>(r,c)*u.at<float>(r,c) +
-                                    v.at<float>(r,c)*v.at<float>(r,c));
-        // Check if we are hardcoding this spot to background
-        if (workspace_mask.at<uchar>(r,c) == 0)
-        {
-          g->add_tweights(r*C+c, min_weight_, workspace_background_weight_);
-
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-          fg_weights.at<float>(r,c) = min_weight_;
-          bg_weights.at<float>(r,c) = workspace_background_weight_;
-          table_weights.at<float>(r,c) = min_weight_;
-#endif // VISUALIZE_GRAPH_WEIGHTS
-          continue;
-        }
-        const float mag_score = max(getFlowFGScore(magnitude), min_weight_);
-        const float table_score = max(getTableScore(color_frame.at<cv::Vec3f>(r,c),
-            fabs(table_heights.at<float>(r,c))), min_weight_);
-        const float not_mag_score = max(1.0 - mag_score, min_weight_);
-        const float bg_score = not_mag_score + table_score;
-        g->add_tweights(r*C+c, mag_score, bg_score);
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-        fg_weights.at<float>(r,c) = mag_score;
-        bg_weights.at<float>(r,c) = bg_score;
-        table_weights.at<float>(r,c) = table_score;
-#endif // VISUALIZE_GRAPH_WEIGHTS
-      }
-    }
-    for (int r = 0; r < R; ++r)
-    {
-      for (int c = 0; c < C; ++c)
-      {
-        // Connect node to previous ones
-        if (c > 0)
-        {
-          // Add left-link
-          float w_l = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                    depth_frame.at<float>(r,c),
-                                    color_frame.at<cv::Vec3f>(r,c-1),
-                                    depth_frame.at<float>(r,c-1));
-          g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
-#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
-          left_weights.at<float>(r,c) = w_l;
-#endif // VISUALIZE_EDGE_GRAPH_WEIGHTS
-        }
-        if (r > 0)
-        {
-          // Add up-link
-          float w_u = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                    depth_frame.at<float>(r,c),
-                                    color_frame.at<cv::Vec3f>(r-1,c),
-                                    depth_frame.at<float>(r-1,c));
-          g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
-#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
-          up_weights.at<float>(r,c) = w_u;
-#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
-          // Add up-left-link
-          if (c > 0)
-          {
-            float w_ul = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                       depth_frame.at<float>(r,c),
-                                       color_frame.at<cv::Vec3f>(r-1,c-1),
-                                       depth_frame.at<float>(r-1,c-1));
-            g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
-#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
-          up_left_weights.at<float>(r,c) = w_ul;
-#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
-          }
-        }
-      }
-    }
-
-#ifdef VISUALIZE_GRAPH_WEIGHTS
-    cv::imshow("fg_weights", fg_weights);
-    cv::imshow("bg_weights", bg_weights);
-    // double table_max=0;
-    // cv::minMaxLoc(table_weights, NULL, &table_max);
-    // table_weights /= table_max;
-    cv::imshow("table_weights", table_weights);
-#endif // VISUALIZE_GRAPH_WEIGHTS
-#ifdef VISUALIZE_GRAPH_EDGE_WEIGHTS
-    double up_max = 1.0;
-    cv::minMaxLoc(up_weights, NULL, &up_max);
-    up_weights /= up_max;
-
-    cv::imshow("up_weights", up_weights);
-    double left_max = 1.0;
-    cv::minMaxLoc(left_weights, NULL, &left_max);
-    left_weights /= left_max;
-    cv::imshow("left_weights", left_weights);
-    double up_left_max = 1.0;
-    cv::minMaxLoc(up_left_weights, NULL, &up_left_max);
-    up_left_weights /= up_max;
-    cv::imshow("up_left_weights", up_left_weights);
-#endif // VISUALIZE_GRAPH_EDGE_WEIGHTS
-
-    // int flow = g->maxflow(false);
-    g->maxflow(false);
-
-    // Convert output into image
-    cv::Mat segs = convertFlowResultsToCvMat(g, R, C);
-    delete g;
-    return segs;
-  }
-
-  /**
-   * Method to segment the arm from the rest of the stuff moving in the scene
-   *
-   * @param color_frame    Current color frame
-   * @param depth_frame    Current depth frame
-   * @param moving_mask    Binary image representing where the moving stuff is
-   * @param workspace_mask Binary image where white is valid locations for things
-   *                       to be moving at
-   * @param arms           Position of the arm projected into the image frame
-   *
-   * @return               Mask of the predicted arm in the image
-   */
-  cv::Mat segmentRobotArm(cv::Mat& color_frame_in, cv::Mat& depth_frame_in,
-                          cv::Mat& workspace_mask_in, ArmModel& arms,
-                          int min_arm_x, int max_arm_x, int min_arm_y,
-                          int max_arm_y)
-  {
-    // NOTE: We examine only a subwindow in the image to avoid too make things
-    // more efficient
-    const int crop_min_x = max(0, min_arm_x - arm_search_radius_);
-    const int crop_max_x = min(color_frame_in.cols,
-                                    max_arm_x + arm_search_radius_);
-    const int crop_min_y = max(0, min_arm_y - arm_search_radius_);
-    const int crop_max_y = min(color_frame_in.rows,
-                                    max_arm_y + arm_search_radius_);
-    cv::Rect roi(crop_min_x, crop_min_y, crop_max_x-crop_min_x,
-                 crop_max_y-crop_min_y);
-    cv::Mat color_frame = color_frame_in(roi);
-    cv::Mat depth_frame = depth_frame_in(roi);
-    cv::Mat workspace_mask = workspace_mask_in(roi);
-
-    const int R = color_frame.rows;
-    const int C = color_frame.cols;
-
-    int num_nodes = R*C;
-    int num_edges = ((C-1)*3+1)*(R-1)+(C-1);
-    GraphType *g;
-    g = new GraphType(num_nodes, num_edges);
-
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-    cv::Mat fg_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat bg_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat dist_img(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-#endif // VISUALIZE_GRAPH_WEIGHTS
-#ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
-    cv::Mat left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat up_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-    cv::Mat up_left_weights(color_frame.size(), CV_32FC1, cv::Scalar(0.0));
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-
-    // One gaussian estimated from wrist to elbow, elbow to forearm and a
-    // separate one is estimated from the gripper tip to wrist
-    if (arms[0].size() == 0)
-    {
-      ROS_WARN_STREAM("No hands!");
-    }
-    if (arms[1].size() == 0)
-    {
-      ROS_WARN_STREAM("No arms!");
-    }
-    std::vector<cv::Vec3f> hand_stats = getImagePointGaussian(color_frame,
-                                                              arms[0],
-                                                              crop_min_x,
-                                                              crop_min_y);
-    std::vector<cv::Vec3f> arm_stats = getImagePointGaussian(color_frame,
-                                                             arms[1],
-                                                             crop_min_x,
-                                                             crop_min_y);
-    // Tie weights to fg / bg
-    for (int r = 0; r < R; ++r)
-    {
-      for (int c = 0; c < C; ++c)
-      {
-        g->add_node();
-#ifdef USE_WORKSPACE_MASK_FOR_ARM
-        if (workspace_mask.at<uchar>(r,c) == 0)
-        {
-          g->add_tweights(r*C+c, min_weight_, workspace_background_weight_);
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-          fg_weights.at<float>(r,c) = min_weight_;
-          bg_weights.at<float>(r,c) = workspace_background_weight_;
-          dist_img.at<float>(r,c) = min_weight_;
-#endif // VISUALIZE_GRAPH_WEIGHTS
-          continue;
-        }
-#endif // USE_WORKSPACE_MASK_FOR_ARM
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-        const float me_score = max(getArmFGScore(color_frame, depth_frame, r, c,
-                                                 arm_stats, hand_stats, arms,
-                                                 roi, dist_img), min_weight_);
-#else // VISUALIZE_ARM_GRAPH_WEIGHTS
-        const float me_score = max(getArmFGScore(color_frame, depth_frame, r, c,
-                                                 arm_stats, hand_stats, arms,
-                                                 roi), min_weight_);
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-        const float not_me_score = max(1.0 - me_score, min_weight_);
-        g->add_tweights(r*C+c, me_score, not_me_score);
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-        fg_weights.at<float>(r,c) = me_score;
-        bg_weights.at<float>(r,c) = not_me_score;
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-      }
-    }
-    // Add edge weights
-    for (int r = 0; r < R; ++r)
-    {
-      for (int c = 0; c < C; ++c)
-      {
-        // Connect node to previous ones
-        if (c > 0)
-        {
-          // Add left-link
-          float w_l = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                    depth_frame.at<float>(r,c),
-                                    color_frame.at<cv::Vec3f>(r,c-1),
-                                    depth_frame.at<float>(r,c-1));
-          g->add_edge(r*C+c, r*C+c-1, /*capacities*/ w_l, w_l);
-#ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
-          left_weights.at<float>(r,c) = w_l;
-#endif // VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
-        }
-        if (r > 0)
-        {
-          // Add up-link
-          float w_u = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                    depth_frame.at<float>(r,c),
-                                    color_frame.at<cv::Vec3f>(r-1,c),
-                                    depth_frame.at<float>(r-1,c));
-          g->add_edge(r*C+c, (r-1)*C+c, /*capacities*/ w_u, w_u);
-#ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
-          up_weights.at<float>(r,c) = w_u;
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-
-          // Add up-left-link
-          if (c > 0)
-          {
-            float w_ul = getEdgeWeight(color_frame.at<cv::Vec3f>(r,c),
-                                       depth_frame.at<float>(r,c),
-                                       color_frame.at<cv::Vec3f>(r-1,c-1),
-                                       depth_frame.at<float>(r-1,c-1));
-            g->add_edge(r*C+c, (r-1)*C+c-1, /*capacities*/ w_ul, w_ul);
-#ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
-            up_left_weights.at<float>(r,c) = w_ul;
-#endif // VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
-
-          }
-        }
-      }
-    }
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-    cv::imshow("fg_weights_arm", fg_weights);
-    cv::imshow("bg_weights_arm", bg_weights);
-    cv::imshow("arm_dist_scores", dist_img);
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-#ifdef VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
-    double up_max = 1.0;
-    cv::minMaxLoc(up_weights, NULL, &up_max);
-    up_weights /= up_max;
-    double left_max = 1.0;
-    cv::minMaxLoc(left_weights, NULL, &left_max);
-    left_weights /= left_max;
-    double up_left_max = 1.0;
-    cv::minMaxLoc(up_left_weights, NULL, &up_left_max);
-    up_left_weights /= up_max;
-    cv::imshow("up_weights_arm", up_weights);
-    cv::imshow("left_weights_arm", left_weights);
-    cv::imshow("up_left_weights_arm", up_left_weights);
-#endif // VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS
-
-    // int flow = g->maxflow(false);
-    g->maxflow(false);
-
-    // Convert output into image
-    cv::Mat segs = convertFlowResultsToCvMat(g, R, C, roi,
-                                             color_frame_in.size());
-    delete g;
-    return segs;
-  }
-
-  float getFlowFGScore(float magnitude)
-  {
-    return min(1.0, max(flow_gain_*exp(magnitude), 0.0));
-  }
-
-  float getTableScore(cv::Vec3f cur_c, float height_from_table)
-  {
-    const float dist_score = exp(-height_from_table/table_height_var_);
-#ifndef USE_TABLE_COLOR_ESTIMATE
-    return min(1.0, max(dist_score, 0.0));
-#else // USE_TABLE_COLOR_ESTIMATE
-    const float h_score = 1.0-fabs(cur_c[0] - table_stats_[0][0])/(
-        table_stats_[1][0] + arm_color_var_add_);
-    const float s_score = 1.0-fabs(cur_c[1] - table_stats_[0][1])/(
-        table_stats_[1][1] + arm_color_var_add_);
-    const float table_score = (h_score + s_score)/2.0+0.5*dist_score;
-    return table_score;
-#endif // USE_TABLE_COLOR_ESTIMATE
-  }
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-  float getArmFGScore(cv::Mat& color_frame, cv::Mat& depth_frame, int r, int c,
-                      std::vector<cv::Vec3f>& arm_stats,
-                      std::vector<cv::Vec3f>& hand_stats, ArmModel& arms,
-                      cv::Rect& roi, cv::Mat& dist_img)
-#else // VISUALIZE_ARM_GRAPH_WEIGHTS
-  float getArmFGScore(cv::Mat& color_frame, cv::Mat& depth_frame, int r, int c,
-                      std::vector<cv::Vec3f>& arm_stats,
-                      std::vector<cv::Vec3f>& hand_stats, ArmModel& arms,
-                      cv::Rect& roi)
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-  {
-    const float dist_score = exp(-arms.distanceToArm(
-        cv::Point2f(c+roi.x,r+roi.y), depth_frame)/arm_dist_var_);
-#ifdef VISUALIZE_ARM_GRAPH_WEIGHTS
-    dist_img.at<float>(r,c) = dist_score;
-#endif // VISUALIZE_ARM_GRAPH_WEIGHTS
-    cv::Vec3f cur_c = color_frame.at<cv::Vec3f>(r,c);
-    const float arm_h_score = 1.0-fabs(cur_c[0] - arm_stats[0][0])/(
-        arm_stats[1][0] + arm_color_var_add_);
-    const float arm_s_score = 1.0-fabs(cur_c[1] - arm_stats[0][1])/(
-        arm_stats[1][1] + arm_color_var_add_);
-    const float arm_v_score = 1.0-fabs(cur_c[2] - arm_stats[0][2])/(
-        arm_stats[1][2] + arm_color_var_add_);
-    const float arm_score = (arm_alpha_*(arm_h_score + arm_s_score +
-                                         arm_v_score)/3.0 +
-                             arm_beta_*dist_score);
-    const float hand_h_score = 1.0-fabs(cur_c[0] - hand_stats[0][0])/(
-        hand_stats[1][0] + arm_color_var_add_);
-    const float hand_s_score = 1.0-fabs(cur_c[1] - hand_stats[0][1])/(
-        hand_stats[1][1] + arm_color_var_add_);
-    const float hand_v_score = 1.0-fabs(cur_c[2] - hand_stats[0][2])/(
-        hand_stats[1][2] + arm_color_var_add_);
-    const float hand_score = (arm_alpha_*(hand_h_score + hand_s_score +
-                                          hand_v_score) / 3.0 +
-                              arm_beta_*dist_score);
-    return max(hand_score, arm_score);
-  }
-
-  std::vector<cv::Vec3f> getImagePointGaussian(cv::Mat& color_frame,
-                                               std::vector<cv::Point> points,
-                                               int min_x=0, int min_y=0)
-  {
-    // Calculate color means and variances
-    const int C = color_frame.cols;
-    const int R = color_frame.rows;
-    int pixel_count = 0;
-    cv::Vec3f means;
-    means[0] = 0.0;
-    means[1] = 0.0;
-    means[2] = 0.0;
-    for (unsigned int i = 0; i < points.size(); ++i)
-    {
-      for (int r = max(0, points[i].y - min_y - arm_grow_radius_);
-           r < min(points[i].y - min_y + arm_grow_radius_, R); ++r)
-      {
-        for (int c = max(0, points[i].x - min_x - arm_grow_radius_);
-             c < min(points[i].x - min_x + arm_grow_radius_, C); ++c)
-        {
-          cv::Vec3f cur_color = color_frame.at<cv::Vec3f>(r,c);
-          means += cur_color;
-          ++pixel_count;
-        }
-      }
-    }
-    if (pixel_count > 0)
-    {
-      means[0] /= pixel_count;
-      means[1] /= pixel_count;
-      means[2] /= pixel_count;
-    }
-    else
-    {
-      ROS_WARN_STREAM("Calculating stats for 0 pixels");
-    }
-    cv::Vec3f vars;
-    vars[0] = 0.0;
-    vars[1] = 0.0;
-    vars[2] = 0.0;
-    for (unsigned int i = 0; i < points.size(); ++i)
-    {
-      for (int r = max(0, points[i].y - min_y -arm_grow_radius_);
-           r < min(points[i].y - min_y + arm_grow_radius_, R); ++r)
-      {
-        for (int c = max(0, points[i].x - min_x - arm_grow_radius_);
-             c < min(points[i].x - min_x + arm_grow_radius_, C); ++c)
-        {
-          cv::Vec3f diff = color_frame.at<cv::Vec3f>(r,c);
-          diff = diff.mul(diff);
-          vars += diff;
-        }
-      }
-    }
-    vars[0] /=  (pixel_count+1.0);
-    vars[1] /=  (pixel_count+1.0);
-    vars[2] /=  (pixel_count+1.0);
-    std::vector<cv::Vec3f> stats;
-    stats.push_back(means);
-    stats.push_back(vars);
-    return stats;
-  }
-
-  void setTableColorStats(cv::Mat& color_frame, std::vector<cv::Point>& pts)
-  {
-    cv::Mat color_frame_hsv(color_frame.size(), color_frame.type());
-    cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
-    cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
-    color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
-    table_stats_ = getImagePointGaussian(color_frame_f, pts);
-  }
-
-  cv::Mat convertFlowResultsToCvMat(GraphType *g, int R, int C)
-  {
-    cv::Mat segs(R, C, CV_8UC1, cv::Scalar(0));
-    for (int r = 0; r < R; ++r)
-    {
-      uchar* seg_row = segs.ptr<uchar>(r);
-      for (int c = 0; c < C; ++c)
-      {
-        int label = (g->what_segment(r*C+c) == GraphType::SOURCE);
-        seg_row[c] = label*255;
-      }
-    }
-    return segs;
-  }
-
-  cv::Mat convertFlowResultsToCvMat(GraphType *g, int R, int C,
-                                    cv::Rect roi, cv::Size out_size)
-  {
-    cv::Mat segs(out_size, CV_8UC1, cv::Scalar(0));
-    for (int r = 0; r < R; ++r)
-    {
-      for (int c = 0; c < C; ++c)
-      {
-        int label = (g->what_segment(r*C+c) == GraphType::SOURCE);
-        segs.at<uchar>(r+roi.y, c+roi.x) = label*255;
-      }
-    }
-    return segs;
-  }
-
-  float getEdgeWeight(cv::Vec3f c0, float d0, cv::Vec3f c1, float d1)
-  {
-    cv::Vec3f c_d = c0-c1;
-    float w_d = d0-d1;
-    float w_c = w_c_alpha_*exp(fabs(c_d[0])) + w_c_beta_*exp(fabs(c_d[1])) +
-        /*w_c_beta_*exp(fabs(c_d[2])) +*/ w_c_gamma_*exp(fabs(w_d));
-    return w_c;
-  }
-
-  enum SegLabels
-  {
-    MOVING,
-    ARM,
-    TABLE,
-    BG
-  };
-
-  double workspace_background_weight_;
-  double min_weight_;
-  double w_c_alpha_;
-  double w_c_beta_;
-  double w_c_gamma_;
-  double magnitude_thresh_;
-  double flow_gain_;
-  double table_height_var_;
-  double arm_dist_var_;
-  double arm_color_var_add_;
-  double arm_alpha_;
-  double arm_beta_;
-  int arm_grow_radius_;
-  int arm_search_radius_;
-  std::vector<cv::Vec3f> table_stats_;
-};
-
 class PointCloudSegmentation
 {
  public:
@@ -860,6 +326,13 @@ class PointCloudSegmentation
   {
   }
 
+  /**
+   * Function to determine the table plane in a point cloud
+   *
+   * @param cloud The cloud with the table as dominant plane.
+   *
+   * @return The centroid of the points belonging to the table plane.
+   */
   Eigen::Vector4f getTablePlane(XYZPointCloud& cloud)
   {
     XYZPointCloud cloud_downsampled;
@@ -926,22 +399,37 @@ class PointCloudSegmentation
     return table_centroid;
   }
 
+  /**
+   * Function to segment independent spatial regions from a supporting plane
+   *
+   * @param input_cloud The point cloud to operate on.
+   * @param extract_table True if the table plane should be extracted
+   *
+   * @return The object clusters.
+   */
   ProtoObjects findTabletopObjects(XYZPointCloud& input_cloud,
                                    bool extract_table=true)
   {
-    Eigen::Vector4f table_centroid = getTablePlane(input_cloud);
+    // Get table plane
+    if (extract_table)
+    {
+      table_centroid_ = getTablePlane(input_cloud);
+    }
+
+    // TODO: Move downsampling into its own function
+    // XYZPointCloud objects_cloud_down = downsampleCloud(input_cloud);
+
     // Remove points below the table plane and downsample before continuing
     XYZPointCloud objects_z_filtered, objects_cloud_down;
-
     pcl::PassThrough<pcl::PointXYZ> z_pass;
     z_pass.setFilterFieldName("z");
-    ROS_INFO_STREAM("Number of points in cur_objs_cloud_ is: " <<
-                    cur_objs_cloud_.size());
+    ROS_DEBUG_STREAM("Number of points in cur_objs_cloud_ is: " <<
+                     cur_objs_cloud_.size());
     z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(cur_objs_cloud_));
-    z_pass.setFilterLimits(table_centroid[2], max_table_z_);
+    z_pass.setFilterLimits(table_centroid_[2], max_table_z_);
     z_pass.filter(objects_z_filtered);
-    ROS_INFO_STREAM("Number of points in objs_z_filtered is: " <<
-                    objects_z_filtered.size());
+    ROS_DEBUG_STREAM("Number of points in objs_z_filtered is: " <<
+                     objects_z_filtered.size());
 
     pcl::VoxelGrid<pcl::PointXYZ> downsample_outliers;
     downsample_outliers.setInputCloud(
@@ -949,10 +437,27 @@ class PointCloudSegmentation
     downsample_outliers.setLeafSize(voxel_down_res_, voxel_down_res_,
                                     voxel_down_res_);
     downsample_outliers.filter(objects_cloud_down);
-    ROS_INFO_STREAM("Number of points in objs_downsampled: " <<
-                    objects_cloud_down.size());
+    ROS_DEBUG_STREAM("Number of points in objs_downsampled: " <<
+                     objects_cloud_down.size());
 
-    // Cluster the objects based on euclidean distance
+    // Find independent regions
+    // NOTE: Currently not printing the objects here, but in differencing
+    ProtoObjects objs = clusterProtoObjects(objects_cloud_down, true);
+    updatePreviousCloud(objects_cloud_down);
+    return objs;
+  }
+
+  /**
+   * Function to segment point cloud regions using euclidean clustering
+   *
+   * @param objects_cloud The cloud of objects to cluster
+   * @param pub_cloud True if the resulting segmentation should be published
+   *
+   * @return The independent clusters
+   */
+  ProtoObjects clusterProtoObjects(XYZPointCloud& objects_cloud,
+                                   bool pub_cloud = false)
+  {
     std::vector<pcl::PointIndices> clusters;
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> pcl_cluster;
     KdTreePtr clusters_tree =
@@ -962,96 +467,114 @@ class PointCloudSegmentation
     pcl_cluster.setMaxClusterSize(max_cluster_size_);
     pcl_cluster.setSearchMethod(clusters_tree);
     pcl_cluster.setInputCloud(
-        boost::make_shared<XYZPointCloud>(objects_cloud_down));
+        boost::make_shared<XYZPointCloud>(objects_cloud));
     pcl_cluster.extract(clusters);
     ROS_DEBUG_STREAM("Number of clusters found matching the given constraints: "
                      << clusters.size());
 
-    pcl::PointCloud<pcl::PointXYZI> label_cloud;
-    pcl::copyPointCloud(objects_cloud_down, label_cloud);
-    for (unsigned int i = 0; i < clusters.size(); ++i)
+    if (pub_cloud)
     {
-      for (unsigned int j = 0; j < clusters[i].indices.size(); ++j)
+      pcl::PointCloud<pcl::PointXYZI> label_cloud;
+      pcl::copyPointCloud(objects_cloud, label_cloud);
+      for (unsigned int i = 0; i < clusters.size(); ++i)
       {
-        // NOTE: Intensity 0 is the table; so use 1-based indexing
-        label_cloud.at(clusters[i].indices[j]).intensity = (i+1);
+        for (unsigned int j = 0; j < clusters[i].indices.size(); ++j)
+        {
+          // NOTE: Intensity 0 is the table; so use 1-based indexing
+          label_cloud.at(clusters[i].indices[j]).intensity = (i+1);
+        }
       }
+      sensor_msgs::PointCloud2 label_cloud_msg;
+      pcl::toROSMsg(label_cloud, label_cloud_msg);
+      pcl_obj_seg_pub_.publish(label_cloud_msg);
     }
-    sensor_msgs::PointCloud2 label_cloud_msg;
-    pcl::toROSMsg(label_cloud, label_cloud_msg);
-    pcl_obj_seg_pub_.publish(label_cloud_msg);
 
     ProtoObjects objs;
     for (unsigned int i = 0; i < clusters.size(); ++i)
     {
       // Create proto objects from the point cloud
       ProtoTabletopObject po;
-      pcl::copyPointCloud(objects_cloud_down, clusters[i], po.cloud);
+      pcl::copyPointCloud(objects_cloud, clusters[i], po.cloud);
       pcl::compute3DCentroid(po.cloud, po.centroid);
       po.id = i;
-      po.table_centroid = table_centroid;
+      po.table_centroid = table_centroid_;
       objs.push_back(po);
     }
     return objs;
   }
 
-  void matchObjects(ProtoObjects& prev_objs, ProtoObjects& cur_objs)
+  ProtoObjects pointCloudDifference(XYZPointCloud& prev_cloud,
+                                    XYZPointCloud& cur_cloud)
   {
-    // New object / object split
-    if (cur_objs.size() > prev_objs.size())
-    {
-      matchObjectsSplit(prev_objs, cur_objs);
-    }
-    else if (cur_objs.size() < prev_objs.size())
-    {
-      matchObjectsMerge(prev_objs, cur_objs);
-    }
-    else
-    {
-      matchObjectsOneToOne(prev_objs, cur_objs);
-    }
+    // TODO: Make sure point clouds are downsampled
+    pcl::SegmentDifferences<pcl::PointXYZ> pcl_diff;
+    pcl_diff.setDistanceThreshold(cloud_diff_thresh_);
+    pcl_diff.setInputCloud(boost::make_shared<XYZPointCloud>(prev_cloud));
+    pcl_diff.setTargetCloud(boost::make_shared<XYZPointCloud>(cur_cloud));
+    XYZPointCloud cloud_out;
+    ROS_INFO_STREAM("Differencing clouds.");
+    pcl_diff.segment(cloud_out);
+    ROS_INFO_STREAM("Differenced clouds.");
+    ROS_INFO_STREAM("cloud_out.size(): " << cloud_out.size());
+    // TODO: Debug / display these output regions
+    ROS_INFO_STREAM("Clustering proto objs.");
+    ProtoObjects moved = clusterProtoObjects(cloud_out, true);
+    ROS_INFO_STREAM("moved.size(): " << moved.size());
+    ROS_INFO_STREAM("Clustered proto objs.");
+    return moved;
   }
 
-  // TODO: Perform frame to frame object association
-  void matchObjectsOneToOne(ProtoObjects& prev_objs, ProtoObjects& cur_objs)
+  XYZPointCloud downsampleCloud(XYZPointCloud& cloud_in)
   {
-    AffineFlowMeasures sparse_flow = ft_->getMostRecentFlow();
-    cpl_visual_features::KeyPoints keypoints = ft_->getMostRecentKeyPoints();
-    cpl_visual_features::Descriptors descriptors = ft_->getMostRecentDescriptors();
-    for (unsigned int i = 0; i < prev_objs.size(); ++i)
-    {
-      for (unsigned int j = 0; j < cur_objs.size(); ++j)
-      {
-        
-      }
-    }
+    XYZPointCloud cloud_z_filtered, cloud_down;
+    pcl::PassThrough<pcl::PointXYZ> z_pass;
+    z_pass.setFilterFieldName("z");
+    ROS_DEBUG_STREAM("Number of points in cloud_in is: " <<
+                     cloud_in.size());
+    z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(cloud_in));
+    z_pass.setFilterLimits(table_centroid_[2], max_table_z_);
+    z_pass.filter(cloud_z_filtered);
+    ROS_DEBUG_STREAM("Number of points in cloud_z_filtered is: " <<
+                     cloud_z_filtered.size());
+
+    pcl::VoxelGrid<pcl::PointXYZ> downsample_outliers;
+    downsample_outliers.setInputCloud(
+        boost::make_shared<XYZPointCloud>(cloud_z_filtered));
+    downsample_outliers.setLeafSize(voxel_down_res_, voxel_down_res_,
+                                    voxel_down_res_);
+    downsample_outliers.filter(cloud_down);
+    ROS_DEBUG_STREAM("Number of points in objs_downsampled: " <<
+                     cloud_down.size());
+    return cloud_down;
   }
 
-  void matchObjectsMerge(ProtoObjects& prev_objs, ProtoObjects& cur_objs)
+  void updatePreviousCloud(XYZPointCloud& cur_update)
   {
-    for (unsigned int i = 0; i < prev_objs.size(); ++i)
-    {
-      for (unsigned int j = 0; j < cur_objs.size(); ++j)
-      {
-      }
-    }
+    XYZPointCloud to_prev(cur_update);
+    prev_objs_cloud_ = to_prev;
+    ROS_INFO_STREAM("Updated previous cloud.");
   }
 
-  void matchObjectsSplit(ProtoObjects& prev_objs, ProtoObjects& cur_objs)
+  ProtoObjects updateObjects(XYZPointCloud& cur_cloud)
   {
-    for (unsigned int i = 0; i < prev_objs.size(); ++i)
-    {
-      for (unsigned int j = 0; j < cur_objs.size(); ++j)
-      {
-      }
-    }
+    // TODO: Downsample cloud
+    ROS_INFO_STREAM("Dowsampling cur_cloud.");
+    XYZPointCloud cur_down_cloud = downsampleCloud(cur_cloud);
+    ROS_INFO_STREAM("Differencing clouds.");
+    ProtoObjects moved = pointCloudDifference(prev_objs_cloud_,
+                                              cur_down_cloud);
+    // TODO: Get object differences
+    ROS_INFO_STREAM("Updating previous cloud.");
+    updatePreviousCloud(cur_down_cloud);
   }
 
  protected:
   XYZPointCloud cur_plane_cloud_;
   XYZPointCloud cur_objs_cloud_;
+  XYZPointCloud prev_objs_cloud_;
   bool have_cur_cloud_;
   FeatureTracker* ft_;
+  Eigen::Vector4f table_centroid_;
 
  public:
   double min_table_z_;
@@ -1060,6 +583,7 @@ class PointCloudSegmentation
   double max_workspace_x_;
   double table_ransac_thresh_;
   double cluster_tolerance_;
+  double cloud_diff_thresh_;
   int min_cluster_size_;
   int max_cluster_size_;
   double norm_est_radius_;
@@ -1087,6 +611,20 @@ class ObjectSingulation
   }
 
   // TODO: trim down the parameters
+  /**
+   * Determine the pushing pose and direction to verify separate objects
+   *
+   * @param motion_mask 
+   * @param arm_mask 
+   * @param workspace_mask 
+   * @param color_img 
+   * @param depth_img 
+   * @param u 
+   * @param v 
+   * @param objs 
+   *
+   * @return 
+   */
   PoseStamped getPushVector(cv::Mat& motion_mask, cv::Mat& arm_mask,
                             cv::Mat& workspace_mask, cv::Mat& color_img,
                             cv::Mat& depth_img, cv::Mat& u, cv::Mat& v,
@@ -1182,570 +720,6 @@ class ObjectSingulation
     return edge_img;
   }
 
-  AffineFlowMeasures clusterFlowFields(cv::Mat& color_img, cv::Mat& depth_img,
-                                       cv::Mat& u, cv::Mat& v, cv::Mat& mask)
-  {
-    // return clusterFlowFieldsKMeans(color_img, depth_img, u, v, mask);
-    return clusterSparseFlowKMeans(color_img, depth_img, u, v, mask);
-  }
-
-  AffineFlowMeasures clusterFlowFieldsKMeans(cv::Mat& color_img,
-                                             cv::Mat& depth_img,
-                                             cv::Mat& u, cv::Mat& v,
-                                             cv::Mat& mask)
-  {
-    // Setup the samples as the flow vectors for the segmented moving region
-    AffineFlowMeasures points;
-    points.clear();
-    for (int r = 0; r < mask.rows; ++r)
-    {
-      uchar* mask_row = mask.ptr<uchar>(r);
-      for (int c = 0; c < mask.cols; ++c)
-      {
-        if ( mask_row[c] > 0)
-        {
-          AffineFlowMeasure p;
-          p.u = u.at<float>(r,c);
-          p.v = v.at<float>(r,c);
-          p.x = c;
-          p.y = r;
-          p.a = estimateAffineTransform(u, v, r, c, affine_estimate_radius_);
-          if (std::sqrt(p.u*p.u+p.v*p.v) > 1.0 )
-            points.push_back(p);
-        }
-      }
-    }
-
-    if (points.size() < 1)
-    {
-      AffineFlowMeasures cluster_centers;
-      cluster_centers.clear();
-      return cluster_centers;
-    }
-    AffineFlowMeasures cluster_centers = clusterAffineKMeans(color_img, u, v,
-                                                             points);
-    return cluster_centers;
-  }
-
-  AffineFlowMeasures clusterFlowFieldsRANSAC(cv::Mat& color_img,
-                                             cv::Mat& depth_img,
-                                             cv::Mat& u, cv::Mat& v,
-                                             cv::Mat& mask)
-  {
-    AffineFlowMeasures points;
-    for (int r = 0; r < mask.rows; ++r)
-    {
-      uchar* mask_row = mask.ptr<uchar>(r);
-      for (int c = 0; c < mask.cols; ++c)
-      {
-        if ( mask_row[c] > 0)
-        {
-          AffineFlowMeasure p;
-          p.u = u.at<float>(r,c);
-          p.v = v.at<float>(r,c);
-          p.x = c;
-          p.y = r;
-          if (std::sqrt(p.u*p.u+p.v*p.v) > 1.0 )
-            points.push_back(p);
-        }
-      }
-    }
-
-    AffineFlowMeasures cluster_centers;
-    if (points.size() < 1)
-    {
-      cluster_centers.clear();
-      return cluster_centers;
-    }
-
-    // Perform RANSAC itteratively on the affine estimates to cluster a set of
-    // affine movement regions
-    int k = 0;
-    AffineFlowMeasures active_points = points;
-    while (active_points.size() > min_affine_point_set_size_ &&
-           k < max_k_)
-    {
-      AffineFlowMeasures inliers;
-      inliers.clear();
-      cv::Mat new_estimate = affineRANSAC(active_points, inliers,
-                                          ransac_inlier_percent_est_,
-                                          ransac_epsilon_, max_ransac_iters_);
-      AffineFlowMeasure new_center;
-      new_center.a = new_estimate;
-      new_center.label = k;
-      new_center.x = 0;
-      new_center.y = 0;
-      for (unsigned int i = 0; i < inliers.size(); ++i)
-      {
-        new_center.x += inliers[i].x;
-        new_center.y += inliers[i].y;
-
-        // Set labels for the removed points
-        for (unsigned int j = 0; j < points.size(); ++j)
-        {
-          if (points[j] == inliers[i])
-          {
-            points[j].label = k;
-          }
-        }
-        // Remove inliers from active points
-        for (unsigned int j = 0; j < active_points.size(); )
-        {
-          if (inliers[i] == active_points[j])
-          {
-            active_points.erase(active_points.begin()+j);
-          }
-          else
-          {
-            ++j;
-          }
-        }
-      }
-      if (inliers.size() > 0)
-      {
-        new_center.x /= inliers.size();
-        new_center.y /= inliers.size();
-        cv::Mat V = new_center.a*new_center.X();
-        new_center.u = V.at<float>(0,0);
-        new_center.v = V.at<float>(1,0);
-      }
-      else
-      {
-        new_center.x = 0;
-        new_center.y = 0;
-        new_center.u = 0;
-        new_center.v = 0;
-      }
-      cluster_centers.push_back(new_center);
-      ROS_INFO_STREAM("Fit affine transform " << k << " with center ("
-                      << new_center.x << ", " << new_center.y << ")");
-      ROS_INFO_STREAM("Number of points remaining: " << active_points.size());
-      ++k;
-    }
-
-#ifdef DISPLAY_FLOW_FIELD_CLUSTERING
-    // ROS_INFO_STREAM("Displaying clusters");
-    displayClusterCenters(cluster_centers, points, color_img);
-    // ROS_INFO_STREAM("Displayed clusters");
-#endif // DISPLAY_FLOW_FIELD_CLUSTERING
-
-    return cluster_centers;
-  }
-
-  AffineFlowMeasures clusterSparseFlowKMeans(cv::Mat& color_img,
-                                             cv::Mat& depth_img,
-                                             cv::Mat& u, cv::Mat& v,
-                                             cv::Mat& mask)
-  {
-    cv::Mat img_bw;
-    cv::cvtColor(color_img, img_bw, CV_BGR2GRAY);
-    // AffineFlowMeasures sparse_flow = ft_->updateTracks(img_bw, mask);
-    AffineFlowMeasures sparse_flow = ft_->getMostRecentFlow();
-    // TODO: Apply the mask to sparse_flow results
-
-    // TODO: Try add in geometric matching here to complement the sparse feature
-    // tracks
-    for (unsigned int i = 0; i < sparse_flow.size(); ++i)
-    {
-      sparse_flow[i].a = estimateAffineTransform(u, v, sparse_flow[i].y,
-                                                 sparse_flow[i].x,
-                                                 affine_estimate_radius_);
-    }
-    AffineFlowMeasures cluster_centers;
-    if (sparse_flow.size() < /*1*/ 2)
-    {
-      cluster_centers.clear();
-      return cluster_centers;
-    }
-    cluster_centers = clusterAffineKMeans(color_img, u, v, sparse_flow);
-    return cluster_centers;
-  }
-
-  AffineFlowMeasures clusterSparseFlowRANSAC(cv::Mat& color_img,
-                                             cv::Mat& depth_img,
-                                             cv::Mat& u, cv::Mat& v,
-                                             cv::Mat& mask)
-  {
-    return clusterSparseFlowKMeans(color_img, depth_img, u, v, mask);
-  }
-
-  //
-  // Core functions
-  //
-
-  AffineFlowMeasures clusterAffineKMeans(cv::Mat& color_img, cv::Mat& u,
-                                         cv::Mat& v, AffineFlowMeasures& points)
-  {
-    const int num_samples = points.size();
-    const int r_scale = color_img.cols / 2;
-
-    const int num_sample_elements = 8;
-
-    // Setup sample matrix for kmeans
-    cv::Mat samples(num_samples, num_sample_elements, CV_32FC1);
-    for (unsigned int i = 0; i < points.size(); ++i)
-    {
-      AffineFlowMeasure p = points[i];
-      // TODO: This could be done better by reshaping p.a and setting it to a
-      // submatrix of samples
-      samples.at<float>(i, 0) = p.a.at<float>(0,0)*r_scale;
-      samples.at<float>(i, 1) = p.a.at<float>(0,1)*r_scale;
-      samples.at<float>(i, 2) = p.a.at<float>(0,2);
-      samples.at<float>(i, 3) = p.a.at<float>(1,0)*r_scale;
-      samples.at<float>(i, 4) = p.a.at<float>(1,1)*r_scale;
-      samples.at<float>(i, 5) = p.a.at<float>(1,2);
-      samples.at<float>(i, 6) = p.x;
-      samples.at<float>(i, 7) = p.y;
-    }
-
-    std::vector<cv::Mat> labels;
-    std::vector<cv::Mat> centers;
-    double compactness[max_k_];
-    cv::TermCriteria term_crit(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER,
-                               kmeans_max_iter_, kmeans_epsilon_);
-
-    AffineFlowMeasures cluster_centers;
-    AffineFlowMeasures fewer_centers;
-    AffineFlowMeasures best_centers;
-    for (int K = 1; K <= min(max_k_, num_samples); ++K)
-    {
-      // Perform clustering with K centers
-      cv::Mat labels_k;
-      cv::Mat centers_k;
-      double slack = cv::kmeans(samples, K, labels_k, term_crit,
-                                kmeans_tries_, cv::KMEANS_PP_CENTERS,
-                                centers_k);
-      compactness[K-1] = slack;
-      labels.push_back(labels_k);
-      centers.push_back(centers_k);
-      cluster_centers.clear();
-      // Get descriptors for each cluster and compare them to the previous level
-      for (int c = 0; c < K; ++c)
-      {
-        AffineFlowMeasure new_center;
-        new_center.x = 0;
-        new_center.y = 0;
-        new_center.label = c;
-        int num_members = 0;
-        for (int i = 0; i < num_samples; ++i)
-        {
-          if (labels[K-1].at<uchar>(i,0) == c)
-          {
-            new_center.x += points[i].x;
-            new_center.y += points[i].y;
-            points[i].label = c;
-            ++num_members;
-          }
-        }
-
-        if (num_members <= 0 ||
-            centers[K-1].cols == 0 || centers[K-1].rows == 0)
-        {
-          new_center.x = 0;
-          new_center.y = 0;
-          new_center.u = 0;
-          new_center.v = 0;
-        }
-        else
-        {
-          new_center.x = new_center.x/num_members;
-          new_center.y = new_center.y/num_members;
-
-          // Correctly set the affine estimate
-          // TODO: This could be done better by selecting a submatrix from centers
-          // and then reshaping it
-          new_center.a.create(2, 3, CV_32FC1);
-          new_center.a.at<float>(0,0) = centers[K-1].at<float>(c,0) / r_scale;;
-          new_center.a.at<float>(0,1) = centers[K-1].at<float>(c,1) / r_scale;;
-          new_center.a.at<float>(0,2) = centers[K-1].at<float>(c,2);
-          new_center.a.at<float>(1,0) = centers[K-1].at<float>(c,3) / r_scale;;
-          new_center.a.at<float>(1,1) = centers[K-1].at<float>(c,4) / r_scale;;
-          new_center.a.at<float>(1,2) = centers[K-1].at<float>(c,5);
-
-          // Estimate flow of the cluster center using affine transform estimate
-          cv::Mat V = new_center.a*new_center.X();
-          new_center.u = V.at<float>(0,0);
-          new_center.v = V.at<float>(1,0);
-        }
-        cluster_centers.push_back(new_center);
-      }
-      // Compare current K centers to centers of cardinality K-1
-      if (K > 1)
-      {
-        float farthest_nearest_neighbor = 0;
-        for (unsigned int i = 0; i < cluster_centers.size(); ++i)
-        {
-          float nn = FLT_MAX;
-          for (unsigned int j = 0; j < fewer_centers.size(); ++j)
-          {
-            float dist = cluster_centers[i] - fewer_centers[j];
-            if (dist < nn)
-              nn = dist;
-          }
-          if (nn > farthest_nearest_neighbor)
-            farthest_nearest_neighbor = nn;
-        }
-        // If no new clusters have center far enough from the current clusters,
-        // Then we choose the previous set as best
-        if (farthest_nearest_neighbor < minimum_new_cluster_separation_)
-        {
-          best_centers = fewer_centers;
-          break;
-        }
-      }
-      // Store current estimates for comparing in next iteration of K
-      fewer_centers = cluster_centers;
-      best_centers = cluster_centers;
-    }
-    ROS_INFO_STREAM("Chose " << best_centers.size() << " clusters");
-#ifdef DISPLAY_FLOW_FIELD_CLUSTERING
-    displayClusterCenters(best_centers, points, color_img, 0);
-#endif // DISPLAY_FLOW_FIELD_CLUSTERING
-    return best_centers;
-  }
-
-  cv::Mat estimateAffineTransform(cv::Mat& u, cv::Mat& v,
-                                  const int r, const int c, const int radius)
-  {
-    const int r_min = max(r - radius, 0);
-    const int r_max = min(r + radius, u.rows-1);
-    const int c_min = max(c - radius, 0);
-    const int c_max = min(c + radius, u.cols-1);
-    const int r_range = r_max-r_min+1;
-    const int c_range = c_max-c_min+1;
-    const int num_eqs = r_range*c_range*2;
-    cv::Mat a(6, 1, CV_32FC1, cv::Scalar(1.0));
-    if (num_eqs < 6)
-    {
-      ROS_WARN_STREAM("Too few equations; num equations is: " << num_eqs);
-      cv::Mat A = a.reshape(1, 2);
-      return A;
-    }
-    cv::Mat phi(num_eqs, 6, CV_32FC1, cv::Scalar(0.0));
-    cv::Mat V(num_eqs, 1, CV_32FC1, cv::Scalar(0.0));
-    for (int r = r_min, out_row = 0; r <= r_max; ++r)
-    {
-      for (int c = c_min; c <= c_max; ++c, ++out_row)
-      {
-        phi.at<float>(out_row, 0) = r;
-        phi.at<float>(out_row, 1) = c;
-        phi.at<float>(out_row, 2) = 1.0;
-        V.at<float>(out_row, 0) = u.at<float>(r,c);
-        ++out_row;
-        phi.at<float>(out_row, 3) = r;
-        phi.at<float>(out_row, 4) = c;
-        phi.at<float>(out_row, 5) = 1.0;
-        V.at<float>(out_row, 0) = v.at<float>(r,c);
-      }
-    }
-    try
-    {
-      cv::solve(phi, V, a, cv::DECOMP_SVD);
-    }
-    catch (cv::Exception cve)
-    {
-      ROS_ERROR_STREAM(cve.what());
-    }
-    cv::Mat A = a.reshape(1, 2);
-    return A;
-  }
-
-  cv::Mat estimateAffineTransform(AffineFlowMeasures& points)
-  {
-    const int num_eqs = points.size()*2;
-    cv::Mat phi(num_eqs, 6, CV_32FC1, cv::Scalar(0.0));
-    cv::Mat V(num_eqs, 1, CV_32FC1, cv::Scalar(0.0));
-    cv::Mat a(6, 1, CV_32FC1, cv::Scalar(1.0));
-    if (num_eqs < 6)
-    {
-      ROS_WARN_STREAM("Too few equations; num equations is: " << num_eqs);
-      cv::Mat A = a.reshape(1, 2);
-      return A;
-    }
-    for (unsigned int i = 0, out_row = 0; i < points.size(); ++i, ++out_row)
-    {
-      AffineFlowMeasure p = points[i];
-      phi.at<float>(out_row, 0) = p.y;
-      phi.at<float>(out_row, 1) = p.x;
-      phi.at<float>(out_row, 2) = 1.0;
-      V.at<float>(out_row, 0) = p.u;
-      ++out_row;
-      phi.at<float>(out_row, 3) = p.y;
-      phi.at<float>(out_row, 4) = p.x;
-      phi.at<float>(out_row, 5) = 1.0;
-      V.at<float>(out_row, 0) = p.v;
-    }
-    cv::solve(phi, V, a, cv::DECOMP_SVD);
-    cv::Mat A = a.reshape(1, 2);
-    return A;
-  }
-
-  /**
-   * See how closely the current affine estimate matches the estimated flow
-   *
-   * @param f The flow estimate
-   * @param A The affine region estimate
-   *
-   * @return Distortion score SSD between V and V_hat
-   */
-  float getAffineDistortion(AffineFlowMeasure f, cv::Mat A)
-  {
-    cv::Mat X(3, 1, CV_32FC1, cv::Scalar(1.0));
-    X.at<float>(0,0) = f.x;
-    X.at<float>(1,0) = f.y;
-
-    cv::Mat V(2, 1, CV_32FC1, cv::Scalar(1.0));
-    V.at<float>(0,0) = f.u;
-    V.at<float>(0,0) = f.v;
-
-    cv::Mat d = V - A*X;
-    return d.at<float>(0,0)*d.at<float>(0,0)+d.at<float>(1,0)*d.at<float>(1,0);
-  }
-
-  /**
-   * Determine the set of inliers for the current affine estimate
-   *
-   * @param points The set of all points given to RANSAC
-   * @param cur_transform The current transform estimate
-   * @param epsilon The threshold for acceptance as an inlier
-   *
-   * @return The set of points which score less than epsilon
-   */
-  AffineFlowMeasures getAffineConsensus(AffineFlowMeasures points,
-                                        cv::Mat cur_transform, float epsilon)
-  {
-    AffineFlowMeasures inliers;
-    for (unsigned int i = 0; i < points.size(); ++i)
-    {
-      float score = getAffineDistortion(points[i], cur_transform);
-      if (score < epsilon)
-      {
-        inliers.push_back(points[i]);
-      }
-    }
-    return inliers;
-  }
-
-  /**
-   * Method fits an affine motion estimate to a set of image points using RANSAC
-   *
-   * @param points The set of individual flow estimates
-   * @param inliers Returns the set of points determined to be inliers
-   * @param inlier_percent_est the estimated percent of inliers in points
-   * @param epsilon the threshold for being an inlier
-   * @param max_iterations The maximum number of sample iterations to execute
-   * @param min_iterations The minimum number of sample iterations to execute
-   *
-   * @return The best fit affine estimate
-   */
-  cv::Mat affineRANSAC(AffineFlowMeasures& points, AffineFlowMeasures& inliers,
-                       float inlier_percent_est, float epsilon,
-                       int max_iterations=0, int min_iterations = 2)
-  {
-    AffineFlowMeasures sample_points;
-    AffineFlowMeasures cur_inliers;
-    AffineFlowMeasures best_inliers;
-    best_inliers.clear();
-    bool done;
-    int iter = 0;
-
-    // Compute max_iterations as function of inlier percetage
-    if (max_iterations == 0)
-    {
-      // Percent certainty
-      const float p = 0.99;
-      // Number of model parameters
-      const float s = 3.0f;
-      max_iterations = log(1 - p) / log(1-pow(inlier_percent_est, s));
-    }
-
-    while ( !done )
-    {
-      // Randomly select 3 points
-      sample_points.clear();
-      for (int i = 0; i < 3; ++i)
-      {
-        int r_idx = (rand() % (points.size()+1));
-        sample_points.push_back(points[r_idx]);
-      }
-      // Estimate affine flow from them
-      cv::Mat cur_transform = estimateAffineTransform(sample_points);
-      cur_inliers = getAffineConsensus(points, cur_transform, epsilon);
-      // Update best estimate if we have more points
-      if ( best_inliers.size() < cur_inliers.size() )
-      {
-        best_inliers = cur_inliers;
-      }
-      // Check if sampling should stop
-      iter++;
-      done = ((iter > min_iterations &&
-               (static_cast<float>(best_inliers.size())/points.size() >
-                inlier_percent_est ||
-                best_inliers.size() > inlier_percent_est*points.size() )) ||
-               iter > max_iterations);
-    }
-    inliers = best_inliers;
-    return estimateAffineTransform(inliers);
-  }
-
-  //
-  // Helper Functions
-  //
-
-    /**
-   * Display the results for the segmentation.
-   *
-   * @param cluster_centers The estimated segmentation centers
-   * @param samples All points used in clustering
-   * @param color_img The color image associated with the estimate
-   */
-  void displayClusterCenters(AffineFlowMeasures& cluster_centers,
-                             AffineFlowMeasures& samples,
-                             cv::Mat& color_img, int cur_max_k=0)
-  {
-    cv::Mat flow_center_disp = color_img.clone();
-    for (unsigned int i = 0; i < cluster_centers.size(); ++i)
-    {
-      cv::Point pt_a(cluster_centers[i].x, cluster_centers[i].y);
-      cv::Point pt_b(pt_a.x - cluster_centers[i].u,
-                     pt_a.y - cluster_centers[i].v);
-      cv::circle(flow_center_disp, pt_a, 20, cv::Scalar(0,255,0));
-      cv::line(flow_center_disp, pt_a, pt_b, cv::Scalar(0,255,0));
-    }
-    std::stringstream center_disp_name;
-    center_disp_name << "Flow Cluster Centers";
-    if (cur_max_k != 0) center_disp_name << " " << cur_max_k;
-    cv::imshow(center_disp_name.str(), flow_center_disp);
-    cv::Mat flow_clusters_disp = color_img.clone();
-    std::vector<cv::Scalar> colors;
-    for (unsigned int k = 0; k < cluster_centers.size(); ++k)
-    {
-      cv::Scalar rand_color;
-      rand_color[0] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX))*255;
-      rand_color[1] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX))*255;
-      rand_color[2] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX))*255;
-      colors.push_back(rand_color);
-    }
-    for (unsigned int i = 0; i < samples.size(); ++i)
-    {
-      AffineFlowMeasure s = samples[i];
-      if (s.label < 0 || s.label > (cluster_centers.size()-1)) continue;
-      if (std::sqrt(s.u*s.u+s.v*s.v) > 1.0)
-      {
-        cv::Scalar cur_color = colors[s.label];
-        cv::line(flow_clusters_disp, cv::Point(s.x, s.y),
-                 cv::Point(s.x - s.u, s.y - s.v), cur_color);
-      }
-    }
-    std::stringstream cluster_disp_name;
-    cluster_disp_name << "Flow Clusters";
-    if (cur_max_k != 0) cluster_disp_name << " " << cur_max_k;
-    cv::imshow(cluster_disp_name.str(), flow_clusters_disp);
-  }
-
   //
   // Class member variables
   //
@@ -1827,22 +801,22 @@ class TabletopPushingPerceptionNode
 
     base_output_path_ = "/home/thermans/sandbox/cut_out/";
     // Graphcut weights
-    n_private_.param("mgc_workspace_bg_weight",
-                    mgc_.workspace_background_weight_, 1.0);
-    n_private_.param("mgc_min_weight", mgc_.min_weight_, 0.01);
-    n_private_.param("mgc_w_c_alpha", mgc_.w_c_alpha_, 0.1);
-    n_private_.param("mgc_w_c_beta",  mgc_.w_c_beta_, 0.1);
-    n_private_.param("mgc_w_c_gamma", mgc_.w_c_gamma_, 0.1);
-    n_private_.param("mgc_arm_grow_radius", mgc_.arm_grow_radius_, 2);
-    n_private_.param("mgc_arm_search_radius", mgc_.arm_search_radius_, 50);
-    // Lucas Kanade params
-    n_private_.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
-    n_private_.param("mgc_flow_gain", mgc_.flow_gain_, 0.3);
-    n_private_.param("mgc_table_var", mgc_.table_height_var_, 0.03);
-    n_private_.param("mgc_arm_dist_var", mgc_.arm_dist_var_, 20.0);
-    n_private_.param("mgc_arm_color_var_add", mgc_.arm_color_var_add_, 0.1);
-    n_private_.param("mgc_arm_color_weight", mgc_.arm_alpha_, 0.5);
-    n_private_.param("mgc_arm_dist_weight", mgc_.arm_beta_, 0.5);
+    // n_private_.param("mgc_workspace_bg_weight",
+    //                 mgc_.workspace_background_weight_, 1.0);
+    // n_private_.param("mgc_min_weight", mgc_.min_weight_, 0.01);
+    // n_private_.param("mgc_w_c_alpha", mgc_.w_c_alpha_, 0.1);
+    // n_private_.param("mgc_w_c_beta",  mgc_.w_c_beta_, 0.1);
+    // n_private_.param("mgc_w_c_gamma", mgc_.w_c_gamma_, 0.1);
+    // n_private_.param("mgc_arm_grow_radius", mgc_.arm_grow_radius_, 2);
+    // n_private_.param("mgc_arm_search_radius", mgc_.arm_search_radius_, 50);
+    // // Lucas Kanade params
+    // n_private_.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
+    // n_private_.param("mgc_flow_gain", mgc_.flow_gain_, 0.3);
+    // n_private_.param("mgc_table_var", mgc_.table_height_var_, 0.03);
+    // n_private_.param("mgc_arm_dist_var", mgc_.arm_dist_var_, 20.0);
+    // n_private_.param("mgc_arm_color_var_add", mgc_.arm_color_var_add_, 0.1);
+    // n_private_.param("mgc_arm_color_weight", mgc_.arm_alpha_, 0.5);
+    // n_private_.param("mgc_arm_dist_weight", mgc_.arm_beta_, 0.5);
     int win_size = 5;
     n_private_.param("lk_win_size", win_size, 5);
     lkflow_.setWinSize(win_size);
@@ -1872,6 +846,8 @@ class TabletopPushingPerceptionNode
     n_private_.param("image_hist_size", image_hist_size_, 5);
     n_private_.param("pcl_cluster_tolerance", pcl_segmenter_.cluster_tolerance_,
                      0.25);
+    n_private_.param("pcl_difference_thresh", pcl_segmenter_.cloud_diff_thresh_,
+                     0.01);
     n_private_.param("pcl_min_cluster_size", pcl_segmenter_.min_cluster_size_,
                      100);
     n_private_.param("pcl_max_cluster_size", pcl_segmenter_.max_cluster_size_,
@@ -1973,19 +949,20 @@ class TabletopPushingPerceptionNode
     cur_camera_header_ = img_msg->header;
 
     // Debug stuff
-    if (autorun_pcl_segmentation_) findRandomPushPose(cloud);
+    if (autorun_pcl_segmentation_) getPushVector();// findRandomPushPose(cloud);
 
     // Started via actionlib call
     updateTracks(cur_color_frame_, cur_depth_frame_, prev_color_frame_,
                  prev_depth_frame_, cur_point_cloud_);
-    if (segmenting_moving_stuff_)
-    {
-      cv::Mat seg_mask = segmentMovingStuff(cur_color_frame_, cur_depth_frame_,
-                                            prev_color_frame_, prev_depth_frame_,
-                                            cur_point_cloud_);
-      prev_seg_mask_ = seg_mask.clone();
-      getPushVector();
-    }
+    // if (segmenting_moving_stuff_)
+    // {
+    //   cv::Mat seg_mask = segmentMovingStuff(cur_color_frame_, cur_depth_frame_,
+    //                                         prev_color_frame_, prev_depth_frame_,
+    //                                         cur_point_cloud_);
+    //   prev_seg_mask_ = seg_mask.clone();
+    //   getPushVector();
+    // }
+
     // Display junk
 #ifdef DISPLAY_INPUT_COLOR
     cv::imshow("color", cur_color_frame_);
@@ -2047,9 +1024,17 @@ class TabletopPushingPerceptionNode
 
   PoseStamped getPushVector()
   {
-    if (tracker_count_ > 1)
+    if (tracker_count_ == 1)
     {
+      ROS_INFO_STREAM("Finding tabletop objects. tracker_count_ == 1");
       ProtoObjects objs = pcl_segmenter_.findTabletopObjects(cur_point_cloud_);
+    }
+    else if (tracker_count_ > 1)
+    {
+      ROS_INFO_STREAM("Updating tabletop objects. tracker_count_ > 1");
+      // TODO: Store downsampled versions of these internal to pcl_segmenter
+      // or object singulation...
+      ProtoObjects objs = pcl_segmenter_.updateObjects(cur_point_cloud_);
       // TODO: trim down what gets sent here
       return os_.getPushVector(motion_mask_hist_.back(),
                                arm_mask_hist_.back(),
@@ -2180,208 +1165,200 @@ class TabletopPushingPerceptionNode
   //
   // Core method for calculation
   //
-  cv::Mat segmentMovingStuff(cv::Mat& color_frame, cv::Mat& depth_frame,
-                             cv::Mat& prev_color_frame,
-                             cv::Mat& prev_depth_frame, XYZPointCloud& cloud)
-  {
-    if (!tracking_ || !tracker_initialized_ || tracker_count_ < 1)
-    {
-      cv::Mat empty_segments(color_frame.rows, color_frame.cols, CV_8UC1,
-                             cv::Scalar(0));
-      return empty_segments;
-    }
+//   cv::Mat segmentMovingStuff(cv::Mat& color_frame, cv::Mat& depth_frame,
+//                              cv::Mat& prev_color_frame,
+//                              cv::Mat& prev_depth_frame, XYZPointCloud& cloud)
+//   {
+//     if (!tracking_ || !tracker_initialized_ || tracker_count_ < 1)
+//     {
+//       cv::Mat empty_segments(color_frame.rows, color_frame.cols, CV_8UC1,
+//                              cv::Scalar(0));
+//       return empty_segments;
+//     }
 
-    // TODO: Consolidate into a single function call ?
-    // Convert frame to floating point HSV
-    cv::Mat color_frame_hsv(color_frame.size(), color_frame.type());
-    cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
-    cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
-    color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
+//     // TODO: Consolidate into a single function call ?
+//     // Convert frame to floating point HSV
+//     cv::Mat color_frame_hsv(color_frame.size(), color_frame.type());
+//     cv::cvtColor(color_frame, color_frame_hsv, CV_BGR2HSV);
+//     cv::Mat color_frame_f(color_frame_hsv.size(), CV_32FC3);
+//     color_frame_hsv.convertTo(color_frame_f, CV_32FC3, 1.0/255, 0);
 
-    // Get optical flow
-    std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
+//     // Get optical flow
+//     std::vector<cv::Mat> flow_outs = lkflow_(color_frame, prev_color_frame);
 
-    // Project locations of the arms and hands into the image
-    int min_arm_x = 0;
-    int max_arm_x = 0;
-    int min_arm_y = 0;
-    int max_arm_y = 0;
-    ArmModel hands_and_arms = projectArmPoses(cur_camera_header_,
-                                              color_frame.size(), min_arm_x,
-                                              max_arm_x, min_arm_y, max_arm_y);
-    // Get pixel heights above the table
-    cv::Mat heights_above_table = getTableHeightDistances();
-    // Perform graphcut for motion detection
-    cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
-                       cur_workspace_mask_, heights_above_table,
-                       hands_and_arms);
-    // Perform graphcut for arm localization
-    cv::Mat arm_cut(color_frame.size(), CV_8UC1, cv::Scalar(0));
-    if (hands_and_arms[0].size() > 0 || hands_and_arms[1].size() > 0)
-    {
-      arm_cut = mgc_.segmentRobotArm(color_frame_f, depth_frame,
-                                     cur_workspace_mask_, hands_and_arms,
-                                     min_arm_x, max_arm_x, min_arm_y, max_arm_y);
-    }
+//     // Project locations of the arms and hands into the image
+//     int min_arm_x = 0;
+//     int max_arm_x = 0;
+//     int min_arm_y = 0;
+//     int max_arm_y = 0;
+//     ArmModel hands_and_arms = projectArmPoses(cur_camera_header_,
+//                                               color_frame.size(), min_arm_x,
+//                                               max_arm_x, min_arm_y, max_arm_y);
+//     // Get pixel heights above the table
+//     cv::Mat heights_above_table = getTableHeightDistances();
+//     // Perform graphcut for motion detection
+//     cv::Mat cut = mgc_(color_frame_f, depth_frame, flow_outs[0], flow_outs[1],
+//                        cur_workspace_mask_, heights_above_table,
+//                        hands_and_arms);
+//     // Perform graphcut for arm localization
+//     cv::Mat arm_cut(color_frame.size(), CV_8UC1, cv::Scalar(0));
+//     if (hands_and_arms[0].size() > 0 || hands_and_arms[1].size() > 0)
+//     {
+//       arm_cut = mgc_.segmentRobotArm(color_frame_f, depth_frame,
+//                                      cur_workspace_mask_, hands_and_arms,
+//                                      min_arm_x, max_arm_x, min_arm_y, max_arm_y);
+//     }
 
-    // Publish the moving region stuff
-    cv_bridge::CvImage motion_mask_msg;
-    motion_mask_msg.image = cut;
-    motion_mask_msg.header = cur_camera_header_;
-    motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
-    motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
+//     // Publish the moving region stuff
+//     cv_bridge::CvImage motion_mask_msg;
+//     motion_mask_msg.image = cut;
+//     motion_mask_msg.header = cur_camera_header_;
+//     motion_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
+//     motion_mask_pub_.publish(motion_mask_msg.toImageMsg());
 
-    // Publish arm stuff
-    cv_bridge::CvImage arm_mask_msg;
-    arm_mask_msg.image = arm_cut;
-    arm_mask_msg.header = cur_camera_header_;
-    arm_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
-    arm_mask_pub_.publish(arm_mask_msg.toImageMsg());
+//     // Publish arm stuff
+//     cv_bridge::CvImage arm_mask_msg;
+//     arm_mask_msg.image = arm_cut;
+//     arm_mask_msg.header = cur_camera_header_;
+//     arm_mask_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
+//     arm_mask_pub_.publish(arm_mask_msg.toImageMsg());
 
-    // Also publish color versions
-    cv::Mat moving_regions_img;
-    color_frame.copyTo(moving_regions_img, cut);
-    cv_bridge::CvImage motion_img_msg;
-    cv::Mat motion_img_send(cut.size(), CV_8UC3);
-    moving_regions_img.convertTo(motion_img_send, CV_8UC3, 1.0, 0);
-    motion_img_msg.image = motion_img_send;
-    motion_img_msg.header = cur_camera_header_;
-    motion_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
-    motion_img_pub_.publish(motion_img_msg.toImageMsg());
+//     // Also publish color versions
+//     cv::Mat moving_regions_img;
+//     color_frame.copyTo(moving_regions_img, cut);
+//     cv_bridge::CvImage motion_img_msg;
+//     cv::Mat motion_img_send(cut.size(), CV_8UC3);
+//     moving_regions_img.convertTo(motion_img_send, CV_8UC3, 1.0, 0);
+//     motion_img_msg.image = motion_img_send;
+//     motion_img_msg.header = cur_camera_header_;
+//     motion_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
+//     motion_img_pub_.publish(motion_img_msg.toImageMsg());
 
-    cv::Mat arm_regions_img;
-    color_frame.copyTo(arm_regions_img, arm_cut);
-    cv_bridge::CvImage arm_img_msg;
-    cv::Mat arm_img_send(arm_regions_img.size(), CV_8UC3);
-    arm_regions_img.convertTo(arm_img_send, CV_8UC3, 1.0, 0);
-    arm_img_msg.image = arm_img_send;
-    arm_img_msg.header = cur_camera_header_;
-    arm_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
-    arm_img_pub_.publish(arm_img_msg.toImageMsg());
-    // cv::Mat not_arm_move = cut - arm_cut;
-    // cv::Mat not_arm_move_color;
-    // color_frame.copyTo(not_arm_move_color, not_arm_move);
+//     cv::Mat arm_regions_img;
+//     color_frame.copyTo(arm_regions_img, arm_cut);
+//     cv_bridge::CvImage arm_img_msg;
+//     cv::Mat arm_img_send(arm_regions_img.size(), CV_8UC3);
+//     arm_regions_img.convertTo(arm_img_send, CV_8UC3, 1.0, 0);
+//     arm_img_msg.image = arm_img_send;
+//     arm_img_msg.header = cur_camera_header_;
+//     arm_img_msg.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
+//     arm_img_pub_.publish(arm_img_msg.toImageMsg());
+//     // cv::Mat not_arm_move = cut - arm_cut;
+//     // cv::Mat not_arm_move_color;
+//     // color_frame.copyTo(not_arm_move_color, not_arm_move);
 
-    // Get point cloud associateds with the motion mask and arm mask
-    // XYZPointCloud moving_cloud = getMaskedPointCloud(cloud, cut);
-    // XYZPointCloud arm_cloud = getMaskedPointCloud(cloud, arm_cut);
+//     // Get point cloud associateds with the motion mask and arm mask
+//     // XYZPointCloud moving_cloud = getMaskedPointCloud(cloud, cut);
+//     // XYZPointCloud arm_cloud = getMaskedPointCloud(cloud, arm_cut);
 
-    cv::Mat last_motion_mask;
-    cv::Mat last_arm_mask;
-    cv::Mat last_workspace_mask;
-    cv::Mat last_color_frame;
-    cv::Mat last_depth_frame;
-    cv::Mat last_flow_u;
-    cv::Mat last_flow_v;
+//     cv::Mat last_motion_mask;
+//     cv::Mat last_arm_mask;
+//     cv::Mat last_workspace_mask;
+//     cv::Mat last_color_frame;
+//     cv::Mat last_depth_frame;
+//     cv::Mat last_flow_u;
+//     cv::Mat last_flow_v;
 
-    cut.copyTo(last_motion_mask);
-    arm_cut.copyTo(last_arm_mask);
-    cur_workspace_mask_.copyTo(last_workspace_mask);
-    color_frame.copyTo(last_color_frame);
-    depth_frame.copyTo(last_depth_frame);
-    flow_outs[0].copyTo(last_flow_u);
-    flow_outs[1].copyTo(last_flow_v);
+//     cut.copyTo(last_motion_mask);
+//     arm_cut.copyTo(last_arm_mask);
+//     cur_workspace_mask_.copyTo(last_workspace_mask);
+//     color_frame.copyTo(last_color_frame);
+//     depth_frame.copyTo(last_depth_frame);
+//     flow_outs[0].copyTo(last_flow_u);
+//     flow_outs[1].copyTo(last_flow_v);
 
-    motion_mask_hist_.push_back(last_motion_mask);
-    arm_mask_hist_.push_back(last_arm_mask);
-    workspace_mask_hist_.push_back(last_workspace_mask);
-    color_frame_hist_.push_back(last_color_frame);
-    depth_frame_hist_.push_back(last_depth_frame);
-    flow_u_hist_.push_back(last_flow_u);
-    flow_v_hist_.push_back(last_flow_v);
+//     motion_mask_hist_.push_back(last_motion_mask);
+//     arm_mask_hist_.push_back(last_arm_mask);
+//     workspace_mask_hist_.push_back(last_workspace_mask);
+//     color_frame_hist_.push_back(last_color_frame);
+//     depth_frame_hist_.push_back(last_depth_frame);
+//     flow_u_hist_.push_back(last_flow_u);
+//     flow_v_hist_.push_back(last_flow_v);
 
-    if (motion_mask_hist_.size() > image_hist_size_)
-    {
-      motion_mask_hist_.pop_front();
-      arm_mask_hist_.pop_front();
-      workspace_mask_hist_.pop_front();
-      color_frame_hist_.pop_front();
-      depth_frame_hist_.pop_front();
-      flow_u_hist_.pop_front();
-      flow_v_hist_.pop_front();
-    }
+//     if (motion_mask_hist_.size() > image_hist_size_)
+//     {
+//       motion_mask_hist_.pop_front();
+//       arm_mask_hist_.pop_front();
+//       workspace_mask_hist_.pop_front();
+//       color_frame_hist_.pop_front();
+//       depth_frame_hist_.pop_front();
+//       flow_u_hist_.pop_front();
+//       flow_v_hist_.pop_front();
+//     }
 
-    // if (auto_flow_cluster_)
-    // {
-    //   ProtoObjects objs = pcl_segmenter_.findTabletopObjects(cloud);
-    //   os_.getPushVector(last_motion_mask, last_arm_mask, last_workspace_mask,
-    //                     last_color_frame, last_depth_frame,
-    //                     last_flow_u, last_flow_v, objs);
-    // }
+// #ifdef WRITE_INPUT_TO_DISK
+//     std::stringstream input_out_name;
+//     input_out_name << base_output_path_ << "input" << tracker_count_ << ".tiff";
+//     cv::imwrite(input_out_name.str(), color_frame);
+// #endif // WRITE_INPUT_TO_DISK
+// #ifdef WRITE_FLOWS_TO_DISK
+//     cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
+//     flow_thresh_disp_img = color_frame.clone();
+//     for (int r = 0; r < flow_thresh_disp_img.rows; ++r)
+//     {
+//       for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
+//       {
+//         float u = flow_outs[0].at<float>(r,c);
+//         float v = flow_outs[1].at<float>(r,c);
+//         if (std::sqrt(u*u+v*v) > mgc_.magnitude_thresh_)
+//         {
+//           cv::line(flow_thresh_disp_img, cv::Point(c,r),
+//                    cv::Point(c-u, r-v), cv::Scalar(0,255,0));
+//         }
+//       }
+//     }
 
-#ifdef WRITE_INPUT_TO_DISK
-    std::stringstream input_out_name;
-    input_out_name << base_output_path_ << "input" << tracker_count_ << ".tiff";
-    cv::imwrite(input_out_name.str(), color_frame);
-#endif // WRITE_INPUT_TO_DISK
-#ifdef WRITE_FLOWS_TO_DISK
-    cv::Mat flow_thresh_disp_img(color_frame.size(), CV_8UC3);
-    flow_thresh_disp_img = color_frame.clone();
-    for (int r = 0; r < flow_thresh_disp_img.rows; ++r)
-    {
-      for (int c = 0; c < flow_thresh_disp_img.cols; ++c)
-      {
-        float u = flow_outs[0].at<float>(r,c);
-        float v = flow_outs[1].at<float>(r,c);
-        if (std::sqrt(u*u+v*v) > mgc_.magnitude_thresh_)
-        {
-          cv::line(flow_thresh_disp_img, cv::Point(c,r),
-                   cv::Point(c-u, r-v), cv::Scalar(0,255,0));
-        }
-      }
-    }
-
-    std::stringstream flow_out_name;
-    flow_out_name << base_output_path_ << "flow" << tracker_count_ << ".tiff";
-    cv::imwrite(flow_out_name.str(), flow_thresh_disp_img);
-#endif // WRITE_FLOWS_TO_DISK
-#ifdef WRITE_CUTS_TO_DISK
-    std::stringstream cut_out_name;
-    cut_out_name << base_output_path_ << "cut" << tracker_count_ << ".tiff";
-    cv::imwrite(cut_out_name.str(), moving_regions_img);
-#endif // WRITE_CUTS_TO_DISK
-#ifdef WRITE_ARM_CUT_TO_DISK
-    std::stringstream arm_cut_out_name;
-    arm_cut_out_name << base_output_path_ << "arm_cut" << tracker_count_ << ".tiff";
-    cv::imwrite(arm_cut_out_name.str(), arm_regions_img);
-    // std::stringstream not_arm_move_out_name;
-    // not_arm_move_out_name << base_output_path_ << "not_arm_move" << tracker_count_
-    //                      << ".tiff";
-    // cv::imwrite(not_arm_move_out_name.str(), not_arm_move_color);
-#endif // WRITE_ARM_CUT_TO_DISK
-#ifdef DISPLAY_OPTICAL_FLOW
-    cpl_visual_features::displayOpticalFlow(color_frame, flow_outs[0],
-                                            flow_outs[1],
-                                            mgc_.magnitude_thresh_);
-#endif // DISPLAY_OPTICAL_FLOW
-#ifdef DISPLAY_ARM_CIRCLES
-    cv::Mat arms_img(color_frame.size(), CV_8UC3);
-    arms_img = color_frame.clone();
-    for (unsigned int i = 0; i < hands_and_arms.size(); ++i)
-    {
-      for (unsigned int j = 0; j < hands_and_arms[i].size(); ++j)
-      {
-        cv::Scalar color;
-        if (i%2 == 0)
-        {
-          color = cv::Scalar(0,0,255);
-        }
-        else
-        {
-          color = cv::Scalar(0,255,0);
-        }
-        cv::circle(arms_img, hands_and_arms[i][j], 2, color);
-      }
-    }
-    cv::imshow("arms", arms_img);
-#endif
-#ifdef DISPLAY_GRAPHCUT
-    cv::imshow("moving_regions", moving_regions_img);
-    cv::imshow("arm_cut", arm_regions_img);
-    // cv::imshow("not_arm_move", not_arm_move_color);
-#endif // DISPLAY_GRAPHCUT
-    return cut;
-  }
+//     std::stringstream flow_out_name;
+//     flow_out_name << base_output_path_ << "flow" << tracker_count_ << ".tiff";
+//     cv::imwrite(flow_out_name.str(), flow_thresh_disp_img);
+// #endif // WRITE_FLOWS_TO_DISK
+// #ifdef WRITE_CUTS_TO_DISK
+//     std::stringstream cut_out_name;
+//     cut_out_name << base_output_path_ << "cut" << tracker_count_ << ".tiff";
+//     cv::imwrite(cut_out_name.str(), moving_regions_img);
+// #endif // WRITE_CUTS_TO_DISK
+// #ifdef WRITE_ARM_CUT_TO_DISK
+//     std::stringstream arm_cut_out_name;
+//     arm_cut_out_name << base_output_path_ << "arm_cut" << tracker_count_ << ".tiff";
+//     cv::imwrite(arm_cut_out_name.str(), arm_regions_img);
+//     // std::stringstream not_arm_move_out_name;
+//     // not_arm_move_out_name << base_output_path_ << "not_arm_move" << tracker_count_
+//     //                      << ".tiff";
+//     // cv::imwrite(not_arm_move_out_name.str(), not_arm_move_color);
+// #endif // WRITE_ARM_CUT_TO_DISK
+// #ifdef DISPLAY_OPTICAL_FLOW
+//     cpl_visual_features::displayOpticalFlow(color_frame, flow_outs[0],
+//                                             flow_outs[1],
+//                                             mgc_.magnitude_thresh_);
+// #endif // DISPLAY_OPTICAL_FLOW
+// #ifdef DISPLAY_ARM_CIRCLES
+//     cv::Mat arms_img(color_frame.size(), CV_8UC3);
+//     arms_img = color_frame.clone();
+//     for (unsigned int i = 0; i < hands_and_arms.size(); ++i)
+//     {
+//       for (unsigned int j = 0; j < hands_and_arms[i].size(); ++j)
+//       {
+//         cv::Scalar color;
+//         if (i%2 == 0)
+//         {
+//           color = cv::Scalar(0,0,255);
+//         }
+//         else
+//         {
+//           color = cv::Scalar(0,255,0);
+//         }
+//         cv::circle(arms_img, hands_and_arms[i][j], 2, color);
+//       }
+//     }
+//     cv::imshow("arms", arms_img);
+// #endif
+// #ifdef DISPLAY_GRAPHCUT
+//     cv::imshow("moving_regions", moving_regions_img);
+//     cv::imshow("arm_cut", arm_regions_img);
+//     // cv::imshow("not_arm_move", not_arm_move_color);
+// #endif // DISPLAY_GRAPHCUT
+//     return cut;
+//   }
 
   //
   // Arm detection methods
@@ -2911,7 +1888,7 @@ class TabletopPushingPerceptionNode
   XYZPointCloud cur_point_cloud_;
   DenseLKFlow lkflow_;
   FeatureTracker ft_;
-  MotionGraphcut mgc_;
+  // MotionGraphcut mgc_;
   PointCloudSegmentation pcl_segmenter_;
   ObjectSingulation os_;
   bool have_depth_data_;
