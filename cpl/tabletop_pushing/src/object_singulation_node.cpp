@@ -247,31 +247,9 @@ class PointCloudSegmentation
       // TODO: Deal with not having to extract the tabletop each time
     }
 
-    // TODO: Move downsampling into its own function
-    // XYZPointCloud objects_cloud_down = downsampleCloud(objs_cloud);
-
-    // Remove points below the table plane and downsample before continuing
-    XYZPointCloud objects_z_filtered, objects_cloud_down;
-    pcl::PassThrough<pcl::PointXYZ> z_pass;
-    z_pass.setFilterFieldName("z");
-    ROS_DEBUG_STREAM("Number of points in objs_cloud is: " << objs_cloud.size());
-    z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(objs_cloud));
-    z_pass.setFilterLimits(table_centroid_[2], max_table_z_);
-    z_pass.filter(objects_z_filtered);
-    ROS_DEBUG_STREAM("Number of points in objs_z_filtered is: " <<
-                     objects_z_filtered.size());
-
-    pcl::VoxelGrid<pcl::PointXYZ> downsample_outliers;
-    downsample_outliers.setInputCloud(
-        boost::make_shared<XYZPointCloud>(objects_z_filtered));
-    downsample_outliers.setLeafSize(voxel_down_res_, voxel_down_res_,
-                                    voxel_down_res_);
-    downsample_outliers.filter(objects_cloud_down);
-    ROS_DEBUG_STREAM("Number of points in objs_downsampled: " <<
-                     objects_cloud_down.size());
+    XYZPointCloud objects_cloud_down = downsampleCloud(objs_cloud);
 
     // Find independent regions
-    // NOTE: Currently not printing the objects here, but in differencing
     ProtoObjects objs = clusterProtoObjects(objects_cloud_down, true);
     return objs;
   }
@@ -335,21 +313,13 @@ class PointCloudSegmentation
   ProtoObjects pointCloudDifference(XYZPointCloud& prev_cloud,
                                     XYZPointCloud& cur_cloud)
   {
-    // TODO: Make sure point clouds are downsampled
     pcl::SegmentDifferences<pcl::PointXYZ> pcl_diff;
     pcl_diff.setDistanceThreshold(cloud_diff_thresh_);
     pcl_diff.setInputCloud(boost::make_shared<XYZPointCloud>(prev_cloud));
     pcl_diff.setTargetCloud(boost::make_shared<XYZPointCloud>(cur_cloud));
     XYZPointCloud cloud_out;
-    ROS_INFO_STREAM("Differencing clouds.");
     pcl_diff.segment(cloud_out);
-    ROS_INFO_STREAM("Differenced clouds.");
-    ROS_INFO_STREAM("cloud_out.size(): " << cloud_out.size());
-    // TODO: Debug / display these output regions
-    ROS_INFO_STREAM("Clustering proto objs.");
     ProtoObjects moved = clusterProtoObjects(cloud_out, true);
-    ROS_INFO_STREAM("moved.size(): " << moved.size());
-    ROS_INFO_STREAM("Clustered proto objs.");
     return moved;
   }
 
