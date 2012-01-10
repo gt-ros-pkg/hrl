@@ -1,0 +1,47 @@
+<html>
+<head>
+  <title>ROSBRIDGE TEST</title>
+    
+    <script type="text/javascript" src="ros.js"></script>
+
+<script type="text/javascript">
+function nop(){};
+function log(message){ document.getElementById('console').innerHTML = message.toString();  };
+
+
+var count = 0;
+
+function start(){
+	log('starting');
+	node = new ros.Connection('ws://eagle.cc.gatech.edu:9090');
+	node.setOnClose(function(e) {
+          log("Disconnected or Can't Connect.")
+    	});
+    	node.setOnError(function(e) {
+          log("Unknown error!")
+    	});
+      	node.setOnOpen(function(e) {   
+	  log("Connected");
+	
+//		node.addHandler('/wide_stereo_right/parameter_descriptions', function(msg){log(msg.max.ints[0].value)});
+//		node.addHandler('/head_traj_controller/state', function(msg){log(msg.header.stamp.secs)});
+		//node.addHandler('/r_gripper_controller/state', function(msg){log(msg.header.stamp.secs)});
+		node.addHandler('/rosbridge_source', function(msg){count+=1; log(msg.data.toString()+ count.toString())});
+//		node.addHandler('/pr2_etherCAT/motors_halted', function(msg){count+=1; log(msg.data.toString()+count.toString())});
+//		node.addHandler('/base_scan', function(msg){log(msg.header.stamp.secs)});
+		log('added handler')
+//		node.callService('/rosjs/subscribe', '["/wide_stereo_right/parameter_descriptions",0]', nop);
+//		node.callService('/rosjs/subscribe', '["/head_traj_controller/state",0]', nop);
+		//node.callService('/rosjs/subscribe', '["/r_gripper_controller/state",0]', nop);
+		node.callService('/rosjs/subscribe', '["/rosbridge_source",0]', nop);
+//		node.callService('/rosjs/subscribe', '["/pr2_etherCAT/motors_halted",0]', nop);
+//		node.callService('/rosjs/subscribe', '["/base_scan",0]', nop);
+		log ('listening');
+	});
+};
+</script>
+</head>
+  <body onload="start()">
+    <div id='console'><div/>
+  </body>
+</html>

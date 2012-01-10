@@ -1,0 +1,31 @@
+<package>
+  <description brief="web_teleop_trunk">
+
+     Development Trunk for Assistive_teleop
+
+  </description>
+  <author>Phillip M. Grice</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/web_teleop</url>
+  <depend package="rospy"/>
+  <depend package="tf"/>
+  <depend package="std_msgs"/>
+  <depend package="geometry_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="actionlib"/>
+  <depend package="arm_navigation_msgs"/>
+  <depend package="kinematics_msgs"/>
+  <depend package="pr2_msgs"/>
+  <depend package="pr2_controllers_msgs"/>
+  <depend package="control_msgs"/>
+  <depend package="pr2_common_action_msgs"/>
+  <depend package="hrl_pr2_lib"/>
+  <depend package="visualization_msgs"/>
+  <depend package="pixel_2_3d"/>
+  <depend package="hrl_rfh_fall_2011"/>
+  <depend package="hrl_pr2_arms"/>
+
+</package>
+
+
