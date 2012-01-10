@@ -11,6 +11,7 @@ import tf
 import tf.transformations as tf_trans
 
 from hrl_generic_arms.pose_converter import PoseConverter
+from hrl_generic_arms.controllers import PIDController
 from ar_pose.msg import ARMarker
 
 class ServoKalmanFilter(object):
@@ -80,6 +81,7 @@ class PR2VisualServoAR(object):
         kf_x = ServoKalmanFilter(delta_t=1./rate)
         kf_y = ServoKalmanFilter(delta_t=1./rate)
         kf_r = ServoKalmanFilter(delta_t=1./rate)
+        pid_x = PIDController(k_p=10., k_i=10., k_d=10., i_max=10., rate=10., saturation=10., name=None)
         r = rospy.Rate(rate)
         while not rospy.is_shutdown():
             if self.cur_ar_pose is not None:
