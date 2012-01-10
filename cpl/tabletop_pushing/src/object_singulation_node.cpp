@@ -224,6 +224,13 @@ class PointCloudSegmentation
     return table_centroid;
   }
 
+  ProtoObjects findTabletopObjects(XYZPointCloud& input_cloud,
+                                   bool extract_table=true)
+  {
+    XYZPointCloud objs_cloud;
+    return findTabletopObjects(input_cloud, objs_cloud, extract_table);
+  }
+
   /**
    * Function to segment independent spatial regions from a supporting plane
    *
@@ -233,14 +240,16 @@ class PointCloudSegmentation
    * @return The object clusters.
    */
   ProtoObjects findTabletopObjects(XYZPointCloud& input_cloud,
+                                   XYZPointCloud& objs_cloud,
                                    bool extract_table=true)
   {
-    XYZPointCloud objs_cloud;
+    // XYZPointCloud objs_cloud;
     XYZPointCloud plane_cloud;
     // Get table plane
     if (extract_table)
     {
       table_centroid_ = getTablePlane(input_cloud, objs_cloud, plane_cloud);
+      min_workspace_z_ = table_centroid_[2];
     }
     else
     {
@@ -250,7 +259,7 @@ class PointCloudSegmentation
     XYZPointCloud objects_cloud_down = downsampleCloud(objs_cloud);
 
     // Find independent regions
-    ProtoObjects objs = clusterProtoObjects(objects_cloud_down, true);
+    ProtoObjects objs = clusterProtoObjects(objects_cloud_down, false);
     return objs;
   }
 
@@ -294,6 +303,7 @@ class PointCloudSegmentation
       sensor_msgs::PointCloud2 label_cloud_msg;
       pcl::toROSMsg(label_cloud, label_cloud_msg);
       pcl_obj_seg_pub_.publish(label_cloud_msg);
+      ROS_INFO_STREAM("Published label cloud.");
     }
 
     ProtoObjects objs;
@@ -310,8 +320,16 @@ class PointCloudSegmentation
     return objs;
   }
 
-  ProtoObjects pointCloudDifference(XYZPointCloud& prev_cloud,
-                                    XYZPointCloud& cur_cloud)
+  /**
+   * Get the objects that have moved between two point clouds
+   *
+   * @param prev_cloud The first cloud to use in differencing
+   * @param cur_cloud The second cloud to use
+   *
+   * @return The new set of objects that have moved in the second cloud
+   */
+  ProtoObjects getMovedObjects(XYZPointCloud& prev_cloud,
+                               XYZPointCloud& cur_cloud)
   {
     pcl::SegmentDifferences<pcl::PointXYZ> pcl_diff;
     pcl_diff.setDistanceThreshold(cloud_diff_thresh_);
@@ -320,31 +338,46 @@ class PointCloudSegmentation
     XYZPointCloud cloud_out;
     pcl_diff.segment(cloud_out);
     ProtoObjects moved = clusterProtoObjects(cloud_out, true);
+    // TODO: Get the tabletop objects from the current cloud and match them to
+    // the moved objects
     return moved;
   }
 
-  XYZPointCloud downsampleCloud(XYZPointCloud& cloud_in)
+  XYZPointCloud downsampleCloud(XYZPointCloud& cloud_in, bool pub_cloud=false)
   {
-    XYZPointCloud cloud_z_filtered, cloud_down;
+    XYZPointCloud cloud_z_filtered, cloud_x_filtered, cloud_down;
     pcl::PassThrough<pcl::PointXYZ> z_pass;
     z_pass.setFilterFieldName("z");
     ROS_DEBUG_STREAM("Number of points in cloud_in is: " <<
                      cloud_in.size());
     z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(cloud_in));
-    z_pass.setFilterLimits(table_centroid_[2], max_table_z_);
+    z_pass.setFilterLimits(min_workspace_z_, max_workspace_z_);
     z_pass.filter(cloud_z_filtered);
     ROS_DEBUG_STREAM("Number of points in cloud_z_filtered is: " <<
                      cloud_z_filtered.size());
 
-    // TODO: Filter in x
+    // TODO: Filter in x?
+    pcl::PassThrough<pcl::PointXYZ> x_pass;
+    x_pass.setInputCloud(
+        boost::make_shared<XYZPointCloud >(cloud_z_filtered));
+    x_pass.setFilterFieldName("x");
+    x_pass.setFilterLimits(min_workspace_x_, max_workspace_x_);
+    x_pass.filter(cloud_x_filtered);
+
     pcl::VoxelGrid<pcl::PointXYZ> downsample_outliers;
     downsample_outliers.setInputCloud(
-        boost::make_shared<XYZPointCloud>(cloud_z_filtered));
+        boost::make_shared<XYZPointCloud>(cloud_x_filtered));
     downsample_outliers.setLeafSize(voxel_down_res_, voxel_down_res_,
                                     voxel_down_res_);
     downsample_outliers.filter(cloud_down);
     ROS_DEBUG_STREAM("Number of points in objs_downsampled: " <<
                      cloud_down.size());
+    if (pub_cloud)
+    {
+      sensor_msgs::PointCloud2 cloud_down_msg;
+      pcl::toROSMsg(cloud_down, cloud_down_msg);
+      pcl_down_pub_.publish(cloud_down_msg);
+    }
     return cloud_down;
   }
 
@@ -357,6 +390,8 @@ class PointCloudSegmentation
   double max_table_z_;
   double min_workspace_x_;
   double max_workspace_x_;
+  double min_workspace_z_;
+  double max_workspace_z_;
   double table_ransac_thresh_;
   double cluster_tolerance_;
   double cloud_diff_thresh_;
@@ -365,6 +400,7 @@ class PointCloudSegmentation
   double voxel_down_res_;
   bool use_voxel_down_;
   ros::Publisher pcl_obj_seg_pub_;
+  ros::Publisher pcl_down_pub_;
 };
 
 class ObjectSingulation
@@ -398,6 +434,7 @@ class ObjectSingulation
                                                       workspace_mask);
     cv::Mat push_pose_img = determineImgPushPoses(boundary_img, objs);
     PoseStamped push_vector = determinePushVector(push_pose_img);
+    // ROS_INFO_STREAM("Callback count: " << callback_count_);
     ++callback_count_;
     return push_vector;
   }
@@ -455,26 +492,20 @@ class ObjectSingulation
  protected:
   ProtoObjects calcProtoObjects(XYZPointCloud& cloud)
   {
-    ProtoObjects objs;
-    ROS_INFO_STREAM("Dowsampling cur_cloud.");
-    XYZPointCloud cur_cloud_down = pcl_segmenter_->downsampleCloud(cloud);
-    if (callback_count_ == 0)
+    XYZPointCloud objs_cloud;
+    ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cloud, objs_cloud);
+    XYZPointCloud cur_objs_down = pcl_segmenter_->downsampleCloud(objs_cloud,
+                                                                  true);
+    if (callback_count_ > 1)
     {
-      ROS_INFO_STREAM("Finding tabletop objects. callback_count_ == 0");
-      objs = pcl_segmenter_->findTabletopObjects(cloud);
-    }
-    else
-    {
-      // Downsample cloud
-      ROS_INFO_STREAM("Differencing clouds.");
-      ProtoObjects moved = pcl_segmenter_->pointCloudDifference(prev_cloud_down_,
-                                                                cur_cloud_down);
-      // TODO: Get differences in the current protoobjects
-      ROS_INFO_STREAM("Updating tabletop objects. calback_count_ >= 1");
+      ProtoObjects moved = pcl_segmenter_->getMovedObjects(prev_objs_down_,
+                                                           cur_objs_down);
+      // TODO: Get differences in the current protoobjects not just the moved
+      // regions
+      ROS_INFO_STREAM("Found " << moved.size() << " moved object regions.");
       objs = moved;
     }
-    ROS_INFO_STREAM("Updating previous cloud.");
-    prev_cloud_down_ = cur_cloud_down;
+    prev_objs_down_ = cur_objs_down;
     return objs;
   }
 
@@ -568,6 +599,7 @@ class ObjectSingulation
   FeatureTracker* ft_;
   PointCloudSegmentation* pcl_segmenter_;
   XYZPointCloud prev_cloud_down_;
+  XYZPointCloud prev_objs_down_;
   ProtoObjects prev_proto_objs_;
   ProtoObjects cur_proto_objs_;
   int callback_count_;
@@ -618,6 +650,8 @@ class ObjectSingulationNode
     n_private_.param("max_table_z", pcl_segmenter_.max_table_z_, 1.5);
     pcl_segmenter_.min_workspace_x_ = min_workspace_x_;
     pcl_segmenter_.max_workspace_x_ = max_workspace_x_;
+    pcl_segmenter_.min_workspace_z_ = min_workspace_z_;
+    pcl_segmenter_.max_workspace_z_ = max_workspace_z_;
 
     n_private_.param("autostart_tracking", tracking_, false);
     n_private_.param("autostart_pcl_segmentation", autorun_pcl_segmentation_,
@@ -659,6 +693,8 @@ class ObjectSingulationNode
         this);
     pcl_segmenter_.pcl_obj_seg_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
         "separate_table_objs", 1000);
+    pcl_segmenter_.pcl_down_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
+        "downsampled_objs", 1000);
   }
 
   void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
