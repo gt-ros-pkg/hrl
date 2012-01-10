@@ -34,7 +34,6 @@
 // ROS
 #include <ros/ros.h>
 #include <ros/package.h>
-#include <actionlib/server/simple_action_server.h>
 
 #include <std_msgs/Header.h>
 #include <geometry_msgs/PointStamped.h>
@@ -91,11 +90,6 @@
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
 #include <tabletop_pushing/LocateTable.h>
-#include <tabletop_pushing/ObjectSingulationAction.h>
-
-#include <tabletop_pushing/extern/graphcut/graph.h>
-#include <tabletop_pushing/extern/graphcut/energy.h>
-#include <tabletop_pushing/extern/graphcut/GCoptimization.h>
 
 // STL
 #include <vector>
@@ -116,26 +110,10 @@
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 #define DISPLAY_WORKSPACE_MASK 1
-// #define DISPLAY_OPTICAL_FLOW 1
 // #define DISPLAY_PLANE_ESTIMATE 1
-// #define DISPLAY_GRAPHCUT 1
-// #define VISUALIZE_GRAPH_WEIGHTS 1
-// #define VISUALIZE_GRAPH_EDGE_WEIGHTS 1
-// #define VISUALIZE_ARM_GRAPH_WEIGHTS 1
-// #define VISUALIZE_ARM_GRAPH_EDGE_WEIGHTS 1
-// #define DISPLAY_ARM_CIRCLES 1
 // #define DISPLAY_TABLE_DISTANCES 1
-// #define DISPLAY_FLOW_FIELD_CLUSTERING 1
 #define DISPLAY_OBJECT_BOUNDARIES 1
-// #define WRITE_INPUT_TO_DISK 1
-// #define WRITE_CUTS_TO_DISK 1
-// #define WRITE_FLOWS_TO_DISK 1
-// #define WRITE_ARM_CUT_TO_DISK 1
-
-// Functional IFDEFS
-#define MEDIAN_FILTER_FLOW 1
-#define USE_WORKSPACE_MASK_FOR_ARM 1
-// #define USE_TABLE_COLOR_ESTIMATE 1
+#define DISPLAY_WAIT 1
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -146,12 +124,10 @@ typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
-typedef Graph<float, float, float> GraphType;
 typedef pcl::KdTree<pcl::PointXYZ>::Ptr KdTreePtr;
 
 using cpl_visual_features::AffineFlowMeasure;
 using cpl_visual_features::AffineFlowMeasures;
-using cpl_visual_features::DenseLKFlow;
 using cpl_visual_features::FeatureTracker;
 using cpl_visual_features::Descriptor;
 
@@ -171,7 +147,7 @@ typedef std::deque<ProtoTabletopObject> ProtoObjects;
 class PointCloudSegmentation
 {
  public:
-  PointCloudSegmentation(FeatureTracker* ft) : have_cur_cloud_(false), ft_(ft)
+  PointCloudSegmentation(FeatureTracker* ft) : ft_(ft)
   {
   }
 
@@ -182,7 +158,8 @@ class PointCloudSegmentation
    *
    * @return The centroid of the points belonging to the table plane.
    */
-  Eigen::Vector4f getTablePlane(XYZPointCloud& cloud)
+  Eigen::Vector4f getTablePlane(XYZPointCloud& cloud, XYZPointCloud& objs_cloud,
+                                XYZPointCloud& plane_cloud)
   {
     XYZPointCloud cloud_downsampled;
     if (use_voxel_down_)
@@ -231,7 +208,7 @@ class PointCloudSegmentation
     plane_seg.setInputCloud(
         boost::make_shared<XYZPointCloud>(cloud_filtered));
     plane_seg.segment(plane_inliers, coefficients);
-    pcl::copyPointCloud(cloud_filtered, plane_inliers, cur_plane_cloud_);
+    pcl::copyPointCloud(cloud_filtered, plane_inliers, plane_cloud);
     // Extract the outliers from the point clouds
     pcl::ExtractIndices<pcl::PointXYZ> extract;
     XYZPointCloud objects_cloud;
@@ -240,11 +217,10 @@ class PointCloudSegmentation
         boost::make_shared<XYZPointCloud > (cloud_filtered));
     extract.setIndices(boost::make_shared<pcl::PointIndices> (plane_inliers));
     extract.setNegative(true);
-    extract.filter(cur_objs_cloud_);
+    extract.filter(objs_cloud);
     // Extract the plane members into their own point cloud
     Eigen::Vector4f table_centroid;
-    pcl::compute3DCentroid(cur_plane_cloud_, table_centroid);
-    have_cur_cloud_ = true;
+    pcl::compute3DCentroid(plane_cloud, table_centroid);
     return table_centroid;
   }
 
@@ -259,22 +235,27 @@ class PointCloudSegmentation
   ProtoObjects findTabletopObjects(XYZPointCloud& input_cloud,
                                    bool extract_table=true)
   {
+    XYZPointCloud objs_cloud;
+    XYZPointCloud plane_cloud;
     // Get table plane
     if (extract_table)
     {
-      table_centroid_ = getTablePlane(input_cloud);
+      table_centroid_ = getTablePlane(input_cloud, objs_cloud, plane_cloud);
+    }
+    else
+    {
+      // TODO: Deal with not having to extract the tabletop each time
     }
 
     // TODO: Move downsampling into its own function
-    // XYZPointCloud objects_cloud_down = downsampleCloud(input_cloud);
+    // XYZPointCloud objects_cloud_down = downsampleCloud(objs_cloud);
 
     // Remove points below the table plane and downsample before continuing
     XYZPointCloud objects_z_filtered, objects_cloud_down;
     pcl::PassThrough<pcl::PointXYZ> z_pass;
     z_pass.setFilterFieldName("z");
-    ROS_DEBUG_STREAM("Number of points in cur_objs_cloud_ is: " <<
-                     cur_objs_cloud_.size());
-    z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(cur_objs_cloud_));
+    ROS_DEBUG_STREAM("Number of points in objs_cloud is: " << objs_cloud.size());
+    z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(objs_cloud));
     z_pass.setFilterLimits(table_centroid_[2], max_table_z_);
     z_pass.filter(objects_z_filtered);
     ROS_DEBUG_STREAM("Number of points in objs_z_filtered is: " <<
@@ -292,7 +273,6 @@ class PointCloudSegmentation
     // Find independent regions
     // NOTE: Currently not printing the objects here, but in differencing
     ProtoObjects objs = clusterProtoObjects(objects_cloud_down, true);
-    updatePreviousCloud(objects_cloud_down);
     return objs;
   }
 
@@ -386,6 +366,7 @@ class PointCloudSegmentation
     ROS_DEBUG_STREAM("Number of points in cloud_z_filtered is: " <<
                      cloud_z_filtered.size());
 
+    // TODO: Filter in x
     pcl::VoxelGrid<pcl::PointXYZ> downsample_outliers;
     downsample_outliers.setInputCloud(
         boost::make_shared<XYZPointCloud>(cloud_z_filtered));
@@ -397,31 +378,7 @@ class PointCloudSegmentation
     return cloud_down;
   }
 
-  void updatePreviousCloud(XYZPointCloud& cur_update)
-  {
-    XYZPointCloud to_prev(cur_update);
-    prev_objs_cloud_ = to_prev;
-    ROS_INFO_STREAM("Updated previous cloud.");
-  }
-
-  ProtoObjects updateObjects(XYZPointCloud& cur_cloud)
-  {
-    // TODO: Downsample cloud
-    ROS_INFO_STREAM("Dowsampling cur_cloud.");
-    XYZPointCloud cur_down_cloud = downsampleCloud(cur_cloud);
-    ROS_INFO_STREAM("Differencing clouds.");
-    ProtoObjects moved = pointCloudDifference(prev_objs_cloud_,
-                                              cur_down_cloud);
-    // TODO: Get object differences
-    ROS_INFO_STREAM("Updating previous cloud.");
-    updatePreviousCloud(cur_down_cloud);
-  }
-
  protected:
-  XYZPointCloud cur_plane_cloud_;
-  XYZPointCloud cur_objs_cloud_;
-  XYZPointCloud prev_objs_cloud_;
-  bool have_cur_cloud_;
   FeatureTracker* ft_;
   Eigen::Vector4f table_centroid_;
 
@@ -435,7 +392,6 @@ class PointCloudSegmentation
   double cloud_diff_thresh_;
   int min_cluster_size_;
   int max_cluster_size_;
-  double norm_est_radius_;
   double voxel_down_res_;
   bool use_voxel_down_;
   ros::Publisher pcl_obj_seg_pub_;
@@ -444,51 +400,115 @@ class PointCloudSegmentation
 class ObjectSingulation
 {
  public:
-  ObjectSingulation(FeatureTracker* ft,
-                    int kmeans_max_iter=200, double kmeans_epsilon=0.5,
-                    int kmeans_tries=5, int affine_estimate_radius=5,
-                    double surf_hessian=100) :
-      ft_(ft),
-      kmeans_max_iter_(kmeans_max_iter), kmeans_epsilon_(kmeans_epsilon),
-      kmeans_tries_(kmeans_tries),
-      affine_estimate_radius_(affine_estimate_radius)
+  ObjectSingulation(FeatureTracker* ft, PointCloudSegmentation* pcl_segmenter) :
+      ft_(ft), pcl_segmenter_(pcl_segmenter), callback_count_(0)
   {
-    // Create derivative kernels for flow calculation
+    // Create derivative kernels for edge calculation
     cv::getDerivKernels(dy_kernel_, dx_kernel_, 1, 0, CV_SCHARR, true, CV_32F);
     cv::flip(dy_kernel_, dy_kernel_, -1);
     cv::transpose(dy_kernel_, dx_kernel_);
   }
 
-  // TODO: trim down the parameters
   /**
    * Determine the pushing pose and direction to verify separate objects
    *
-   * @param motion_mask 
-   * @param arm_mask 
-   * @param workspace_mask 
-   * @param color_img 
-   * @param depth_img 
-   * @param u 
-   * @param v 
-   * @param objs 
+   * @param color_img The current color image
+   * @param depth_img The current depth image
+   * @param cloud     The current point cloud
+   * @param workspace_mask The current workspace mask
    *
-   * @return 
+   * @return The location and orientation to push
    */
-  PoseStamped getPushVector(cv::Mat& motion_mask, cv::Mat& arm_mask,
-                            cv::Mat& workspace_mask, cv::Mat& color_img,
-                            cv::Mat& depth_img, cv::Mat& u, cv::Mat& v,
-                            ProtoObjects objs)
+  PoseStamped getPushVector(cv::Mat& color_img, cv::Mat& depth_img,
+                            XYZPointCloud& cloud, cv::Mat& workspace_mask)
   {
+    ProtoObjects objs = calcProtoObjects(cloud);
     PoseStamped push_dir;
-    cv::Mat boundary_img = getObjectBoundaryStrengths(motion_mask,
-                                                      workspace_mask,
-                                                      color_img, depth_img);
-    cv::Mat push_pose_img = determineImgPushPoses(boundary_img, objs, arm_mask);
-    return determinePushVector(push_pose_img);
+    cv::Mat boundary_img = getObjectBoundaryStrengths(color_img, depth_img,
+                                                      workspace_mask);
+    cv::Mat push_pose_img = determineImgPushPoses(boundary_img, objs);
+    PoseStamped push_vector = determinePushVector(push_pose_img);
+    ++callback_count_;
+    return push_vector;
   }
 
-  cv::Mat determineImgPushPoses(cv::Mat& boundary_img, ProtoObjects objs,
-                                cv::Mat& arm_mask)
+  PoseStamped findRandomPushPose(XYZPointCloud& input_cloud)
+  {
+    ProtoObjects objs = pcl_segmenter_->findTabletopObjects(input_cloud);
+    prev_proto_objs_ = cur_proto_objs_;
+    cur_proto_objs_ = objs;
+
+    ROS_INFO_STREAM("Found " << objs.size() << " objects.");
+
+    // TODO: publish a ros point cloud here for visualization
+    // TODO: Move the publisher out of the segmentation class
+
+    std::vector<Eigen::Vector4f> cluster_centroids;
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      if (objs[i].centroid[0] > min_pushing_x_ &&
+          objs[i].centroid[0] < max_pushing_x_ &&
+          objs[i].centroid[1] > min_pushing_y_ &&
+          objs[i].centroid[1] < max_pushing_y_)
+      {
+        cluster_centroids.push_back(objs[i].centroid);
+      }
+    }
+    geometry_msgs::PoseStamped p;
+
+    if (cluster_centroids.size() < 1)
+    {
+      ROS_WARN_STREAM("No object clusters found! Returning empty push_pose");
+      p.header.frame_id = "/torso_lift_link";
+      return p;
+    }
+    ROS_INFO_STREAM("Found " << cluster_centroids.size() << " proto objects");
+    int rand_idx = rand() % cluster_centroids.size();
+    Eigen::Vector4f obj_xyz_centroid = cluster_centroids[rand_idx];
+    p.pose.position.x = obj_xyz_centroid[0];
+    p.pose.position.y = obj_xyz_centroid[1];
+    // Set z to be the table height
+    p.pose.position.z = objs[0].table_centroid[2];
+    ROS_INFO_STREAM("Chosen push pose is at: (" << obj_xyz_centroid[0] << ", "
+                    << obj_xyz_centroid[1] << ", " << objs[0].table_centroid[2]
+                    << ")");
+
+    p.pose.orientation.x = 0;
+    p.pose.orientation.y = 0;
+    p.pose.orientation.z = 0;
+    p.pose.orientation.w = 0;
+
+    p.header.frame_id = "/torso_lift_link";
+    return p;
+  }
+
+ protected:
+  ProtoObjects calcProtoObjects(XYZPointCloud& cloud)
+  {
+    ProtoObjects objs;
+    ROS_INFO_STREAM("Dowsampling cur_cloud.");
+    XYZPointCloud cur_cloud_down = pcl_segmenter_->downsampleCloud(cloud);
+    if (callback_count_ == 0)
+    {
+      ROS_INFO_STREAM("Finding tabletop objects. callback_count_ == 0");
+      objs = pcl_segmenter_->findTabletopObjects(cloud);
+    }
+    else
+    {
+      // Downsample cloud
+      ROS_INFO_STREAM("Differencing clouds.");
+      ProtoObjects moved = pcl_segmenter_->pointCloudDifference(prev_cloud_down_,
+                                                                cur_cloud_down);
+      // TODO: Get differences in the current protoobjects
+      ROS_INFO_STREAM("Updating tabletop objects. calback_count_ >= 1");
+      objs = moved;
+    }
+    ROS_INFO_STREAM("Updating previous cloud.");
+    prev_cloud_down_ = cur_cloud_down;
+    return objs;
+  }
+
+  cv::Mat determineImgPushPoses(cv::Mat& boundary_img, ProtoObjects objs)
   {
     cv::Mat push_pose_img;
     // TODO: Project objs into an image
@@ -506,9 +526,8 @@ class ObjectSingulation
     return push_pose;
   }
 
-  cv::Mat getObjectBoundaryStrengths(cv::Mat& motion_mask,
-                                     cv::Mat& workspace_mask,
-                                     cv::Mat& color_img, cv::Mat& depth_img)
+  cv::Mat getObjectBoundaryStrengths(cv::Mat& color_img, cv::Mat& depth_img,
+                                     cv::Mat& workspace_mask)
   {
 
     cv::Mat tmp_bw(color_img.size(), CV_8UC1);
@@ -577,17 +596,17 @@ class ObjectSingulation
   cv::Mat dy_kernel_;
   cv::Mat g_kernel_;
   FeatureTracker* ft_;
+  PointCloudSegmentation* pcl_segmenter_;
+  XYZPointCloud prev_cloud_down_;
+  ProtoObjects prev_proto_objs_;
+  ProtoObjects cur_proto_objs_;
+  int callback_count_;
+
  public:
-  int kmeans_max_iter_;
-  double kmeans_epsilon_;
-  double ransac_epsilon_;
-  double ransac_inlier_percent_est_;
-  int kmeans_tries_;
-  int max_k_;
-  int affine_estimate_radius_;
-  int min_affine_point_set_size_;
-  int max_ransac_iters_;
-  double minimum_new_cluster_separation_;
+  double min_pushing_x_;
+  double max_pushing_x_;
+  double min_pushing_y_;
+  double max_pushing_y_;
 };
 
 class ObjectSingulationNode
@@ -599,12 +618,9 @@ class ObjectSingulationNode
       depth_sub_(n, "depth_image_topic", 1),
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
-      it_(n),
-      singulation_server_(n, "singulation_action",
-                    boost::bind(&ObjectSingulationNode::trackerGoalCallback,
-                                this, _1),
-                    false),
-      tf_(), ft_("pushing_perception"), os_(&ft_), pcl_segmenter_(&ft_),
+      it_(n), tf_(), ft_("pushing_perception"),
+      pcl_segmenter_(&ft_),
+      os_(&ft_, &pcl_segmenter_),
       have_depth_data_(false), tracking_(false),
       tracker_initialized_(false), tracker_count_(0)
   {
@@ -617,14 +633,13 @@ class ObjectSingulationNode
     n_private_.param("min_workspace_x", min_workspace_x_, 0.0);
     n_private_.param("min_workspace_y", min_workspace_y_, 0.0);
     n_private_.param("min_workspace_z", min_workspace_z_, 0.0);
-    n_private_.param("below_table_z", below_table_z_, 0.1);
     n_private_.param("max_workspace_x", max_workspace_x_, 0.0);
     n_private_.param("max_workspace_y", max_workspace_y_, 0.0);
     n_private_.param("max_workspace_z", max_workspace_z_, 0.0);
-    n_private_.param("min_pushing_x", min_pushing_x_, 0.0);
-    n_private_.param("min_pushing_y", min_pushing_y_, 0.0);
-    n_private_.param("max_pushing_x", max_pushing_x_, 0.0);
-    n_private_.param("max_pushing_y", max_pushing_y_, 0.0);
+    n_private_.param("min_pushing_x", os_.min_pushing_x_, 0.0);
+    n_private_.param("min_pushing_y", os_.min_pushing_y_, 0.0);
+    n_private_.param("max_pushing_x", os_.max_pushing_x_, 0.0);
+    n_private_.param("max_pushing_y", os_.max_pushing_y_, 0.0);
     std::string default_workspace_frame = "/torso_lift_link";
     n_private_.param("workspace_frame", workspace_frame_,
                     default_workspace_frame);
@@ -634,12 +649,10 @@ class ObjectSingulationNode
     pcl_segmenter_.min_workspace_x_ = min_workspace_x_;
     pcl_segmenter_.max_workspace_x_ = max_workspace_x_;
 
-    n_private_.param("segmenting_moving_stuff", segmenting_moving_stuff_,
-                     false);
     n_private_.param("autostart_tracking", tracking_, false);
-    n_private_.param("auto_flow_cluster", auto_flow_cluster_, false);
     n_private_.param("autostart_pcl_segmentation", autorun_pcl_segmentation_,
                      false);
+    n_private_.param("use_guided_pushes", use_guided_pushes_, true);
 
     n_private_.param("num_downsamples", num_downsamples_, 2);
     std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
@@ -648,51 +661,11 @@ class ObjectSingulationNode
     n_private_.param("table_ransac_thresh", pcl_segmenter_.table_ransac_thresh_,
                      0.01);
 
-    base_output_path_ = "/home/thermans/sandbox/cut_out/";
-    // Graphcut weights
-    // n_private_.param("mgc_workspace_bg_weight",
-    //                 mgc_.workspace_background_weight_, 1.0);
-    // n_private_.param("mgc_min_weight", mgc_.min_weight_, 0.01);
-    // n_private_.param("mgc_w_c_alpha", mgc_.w_c_alpha_, 0.1);
-    // n_private_.param("mgc_w_c_beta",  mgc_.w_c_beta_, 0.1);
-    // n_private_.param("mgc_w_c_gamma", mgc_.w_c_gamma_, 0.1);
-    // n_private_.param("mgc_arm_grow_radius", mgc_.arm_grow_radius_, 2);
-    // n_private_.param("mgc_arm_search_radius", mgc_.arm_search_radius_, 50);
-    // // Lucas Kanade params
-    // n_private_.param("mgc_magnitude_thresh", mgc_.magnitude_thresh_, 0.1);
-    // n_private_.param("mgc_flow_gain", mgc_.flow_gain_, 0.3);
-    // n_private_.param("mgc_table_var", mgc_.table_height_var_, 0.03);
-    // n_private_.param("mgc_arm_dist_var", mgc_.arm_dist_var_, 20.0);
-    // n_private_.param("mgc_arm_color_var_add", mgc_.arm_color_var_add_, 0.1);
-    // n_private_.param("mgc_arm_color_weight", mgc_.arm_alpha_, 0.5);
-    // n_private_.param("mgc_arm_dist_weight", mgc_.arm_beta_, 0.5);
-    int win_size = 5;
-    n_private_.param("lk_win_size", win_size, 5);
-    lkflow_.setWinSize(win_size);
-    int num_levels = 4;
-    n_private_.param("lk_num_levels", num_levels, 4);
-    lkflow_.setNumLevels(num_levels);
-    n_private_.param("lk_ratio_thresh", lkflow_.r_thresh_, 30.0);
-    n_private_.param("max_flow_clusters", os_.max_k_, 2);
-    n_private_.param("flow_cluster_max_iter", os_.kmeans_max_iter_, 200);
-    n_private_.param("flow_cluster_epsilon", os_.kmeans_epsilon_, 0.05);
-    n_private_.param("flow_cluster_attempts", os_.kmeans_tries_, 5);
-    n_private_.param("affine_estimate_radius", os_.affine_estimate_radius_, 5);
-    n_private_.param("min_affine_point_set_size", os_.min_affine_point_set_size_,
-                     100);
-    n_private_.param("max_ransac_iters", os_.max_ransac_iters_,
-                     150);
-    n_private_.param("affine_RANSAC_epsilon", os_.ransac_epsilon_, 1.0);
-    n_private_.param("affine_RANSAC_inlier_percent",
-                     os_.ransac_inlier_percent_est_, 0.05);
-    n_private_.param("minimum_new_cluster_separation",
-                     os_.minimum_new_cluster_separation_, 5.0);
     n_private_.param("surf_hessian_thresh", ft_.surf_.hessianThreshold,
                      150.0);
     bool use_fast;
     n_private_.param("use_fast_corners", use_fast, false);
     ft_.setUseFast(use_fast);
-    n_private_.param("image_hist_size", image_hist_size_, 5);
     n_private_.param("pcl_cluster_tolerance", pcl_segmenter_.cluster_tolerance_,
                      0.25);
     n_private_.param("pcl_difference_thresh", pcl_segmenter_.cloud_diff_thresh_,
@@ -701,7 +674,6 @@ class ObjectSingulationNode
                      100);
     n_private_.param("pcl_max_cluster_size", pcl_segmenter_.max_cluster_size_,
                      2500);
-    n_private_.param("normal_estimate_search_radius", norm_est_radius_, 0.03);
     n_private_.param("pcl_voxel_downsample_res", pcl_segmenter_.voxel_down_res_,
                      0.005);
     n_private_.param("use_pcl_voxel_downsample", pcl_segmenter_.use_voxel_down_,
@@ -715,13 +687,8 @@ class ObjectSingulationNode
     table_location_server_ = n_.advertiseService(
         "get_table_location", &ObjectSingulationNode::getTableLocation,
         this);
-    motion_mask_pub_ = it_.advertise("motion_mask", 15);
-    motion_img_pub_ = it_.advertise("motion_img", 15);
-    arm_mask_pub_ = it_.advertise("arm_mask", 15);
-    arm_img_pub_ = it_.advertise("arm_img", 15);
     pcl_segmenter_.pcl_obj_seg_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
         "separate_table_objs", 1000);
-    singulation_server_.start();
   }
 
   void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
@@ -798,19 +765,7 @@ class ObjectSingulationNode
     cur_camera_header_ = img_msg->header;
 
     // Debug stuff
-    if (autorun_pcl_segmentation_) getPushVector();// findRandomPushPose(cloud);
-
-    // Started via actionlib call
-    updateTracks(cur_color_frame_, cur_depth_frame_, prev_color_frame_,
-                 prev_depth_frame_, cur_point_cloud_);
-    // if (segmenting_moving_stuff_)
-    // {
-    //   cv::Mat seg_mask = segmentMovingStuff(cur_color_frame_, cur_depth_frame_,
-    //                                         prev_color_frame_, prev_depth_frame_,
-    //                                         cur_point_cloud_);
-    //   prev_seg_mask_ = seg_mask.clone();
-    //   getPushVector();
-    // }
+    if (autorun_pcl_segmentation_) getPushPose();
 
     // Display junk
 #ifdef DISPLAY_INPUT_COLOR
@@ -826,9 +781,38 @@ class ObjectSingulationNode
 #ifdef DISPLAY_WORKSPACE_MASK
     cv::imshow("workspace_mask", cur_workspace_mask_);
 #endif // DISPLAY_WORKSPACE_MASK
-#if defined DISPLAY_INPUT_COLOR || defined DISPLAY_INPUT_DEPTH || defined DISPLAY_OPTICAL_FLOW || defined DISPLAY_GRAPHCUT || defined DISPLAY_WORKSPACE_MASK || defined DISPLAY_OPT_FLOW_INTERNALS || defined DISPLAY_GRAPHCUT || defined VISUALIZE_GRAPH_WEIGHTS || defined VISUALIZE_ARM_GRAPH_WEIGHTS || defined DISPLAY_ARM_CIRCLES || defined DISPLAY_FLOW_FIELD_CLUSTERING
+#ifdef DISPLAY_WAIT
     cv::waitKey(display_wait_ms_);
-#endif // Any display defined
+#endif // DISPLAY_WAIT
+  }
+
+  bool getPushPose(PushPose::Request& req, PushPose::Response& res)
+  {
+    if ( have_depth_data_ )
+    {
+      res.push_pose = getPushPose(req.use_guided);
+      res.invalid_push_pose = false;
+    }
+    else
+    {
+      ROS_ERROR_STREAM("Calling getPushPose prior to receiving sensor data.");
+      res.invalid_push_pose = true;
+      return false;
+    }
+    return true;
+  }
+
+  PoseStamped getPushPose(bool use_guided=true)
+  {
+    if (!use_guided)
+    {
+      return os_.findRandomPushPose(cur_point_cloud_);
+    }
+    else
+    {
+      return os_.getPushVector(cur_color_frame_, cur_depth_frame_,
+                               cur_point_cloud_, cur_workspace_mask_);
+    }
   }
 
   bool getTableLocation(LocateTable::Request& req, LocateTable::Response& res)
@@ -856,159 +840,22 @@ class ObjectSingulationNode
     return true;
   }
 
-  bool getPushPose(PushPose::Request& req, PushPose::Response& res)
+  PoseStamped getTablePlane(XYZPointCloud& cloud)
   {
-    if ( have_depth_data_ )
-    {
-      res = findPushPose(cur_color_frame_, cur_depth_frame_, cur_point_cloud_,
-                         req.use_guided);
-    }
-    else
-    {
-      ROS_ERROR_STREAM("Calling getPushPose prior to receiving sensor data.");
-      return false;
-    }
-    return true;
-  }
-
-  PoseStamped getPushVector()
-  {
-    if (tracker_count_ == 1)
-    {
-      ROS_INFO_STREAM("Finding tabletop objects. tracker_count_ == 1");
-      ProtoObjects objs = pcl_segmenter_.findTabletopObjects(cur_point_cloud_);
-    }
-    else if (tracker_count_ > 1)
-    {
-      ROS_INFO_STREAM("Updating tabletop objects. tracker_count_ > 1");
-      // TODO: Store downsampled versions of these internal to pcl_segmenter
-      // or object singulation...
-      ProtoObjects objs = pcl_segmenter_.updateObjects(cur_point_cloud_);
-      // TODO: trim down what gets sent here
-      return os_.getPushVector(motion_mask_hist_.back(),
-                               arm_mask_hist_.back(),
-                               workspace_mask_hist_.back(),
-                               color_frame_hist_.back(),
-                               depth_frame_hist_.back(),
-                               flow_u_hist_.back(),
-                               flow_v_hist_.back(), objs);
-    }
-    PoseStamped empty;
-    return empty;
-  }
-
-  PushPose::Response findPushPose(cv::Mat visual_frame,
-                                  cv::Mat depth_frame,
-                                  XYZPointCloud& cloud, bool use_guided)
-  {
-    PushPose::Response res;
-    if (use_guided)
-    {
-      res.push_pose = getPushVector();
-    }
-    else
-    {
-      res.push_pose = findRandomPushPose(cloud);
-    }
-    res.invalid_push_pose = false;
-    return res;
-  }
-
-  //
-  // Region tracking methods
-  //
-
-  void trackerGoalCallback(
-      const tabletop_pushing::ObjectSingulationGoalConstPtr &goal)
-  {
-    if (goal->init)
-    {
-      ROS_INFO_STREAM("Initializing tracker.");
-      initTracker();
-      tabletop_pushing::ObjectSingulationResult result;
-      singulation_server_.setSucceeded(result);
-    }
-
-    if (goal->start)
-    {
-      ROS_INFO_STREAM("Starting tracker.");
-      startTracker();
-      tabletop_pushing::ObjectSingulationResult result;
-      singulation_server_.setSucceeded(result);
-    }
-    else
-    {
-      ROS_INFO_STREAM("Stopping tracker.");
-      stopTracker();
-      tabletop_pushing::ObjectSingulationResult result;
-      if (goal->get_singulation_vector)
-      {
-        result.singulation_vector = getPushVector();
-      }
-      singulation_server_.setSucceeded(result);
-      // singulation_server_.setPreempted();
-    }
-  }
-
-  void initTracker()
-  {
-    tracker_initialized_ = false;
-    tracking_ = false;
-  }
-
-  void startTracker()
-  {
-    // tracker_initialized_ = true;
-    tracking_ = true;
-  }
-
-  void stopTracker()
-  {
-    // tracker_initialized_ = false;
-    tracking_ = false;
-  }
-
-  void updateTracks(cv::Mat color_frame, cv::Mat& depth_frame,
-                    cv::Mat& prev_color_frame, cv::Mat& prev_depth_frame,
-                    XYZPointCloud& cloud)
-  {
-    // Get a grayscale image as well
-    cv::Mat gray_frame;
-    cv::cvtColor(color_frame, gray_frame, CV_BGR2GRAY);
-
-    if (!tracker_initialized_)
-    {
-      cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(
-          cam_info_topic_, n_, ros::Duration(5.0));
-
-      table_centroid_ = getTablePlane(cloud);
-      if (table_centroid_.pose.position.x == 0.0 &&
-          table_centroid_.pose.position.y == 0.0 &&
-          table_centroid_.pose.position.z == 0.0)
-      {
-        ROS_DEBUG_STREAM("No plane found!");
-      }
-      else
-      {
-        min_workspace_z_ = table_centroid_.pose.position.z - below_table_z_;
-        n_private_.setParam("min_workspace_z", min_workspace_z_);
-        ROS_DEBUG_STREAM("Found plane");
-      }
-
-      ft_.initTracks(gray_frame);
-
-      tracker_initialized_ = true;
-      tracker_count_ = 0;
-      return;
-    }
-    if (!tracking_)
-    {
-      return;
-    }
-    // Get sparse flow
-    AffineFlowMeasures sparse_flow = ft_.updateTracks(gray_frame,
-                                                      cur_workspace_mask_);
-    ++tracker_count_;
+    XYZPointCloud obj_cloud, table_cloud;
+    Eigen::Vector4f table_centroid = pcl_segmenter_.getTablePlane(cloud,
+                                                                  obj_cloud,
+                                                                  table_cloud);
+    PoseStamped p;
+    p.pose.position.x = table_centroid[0];
+    p.pose.position.y = table_centroid[1];
+    p.pose.position.z = table_centroid[2];
+    p.header = cloud.header;
+    ROS_INFO_STREAM("Table centroid is: ("
+                    << p.pose.position.x << ", "
+                    << p.pose.position.y << ", "
+                    << p.pose.position.z << ")");
+    return p;
   }
 
   //
@@ -1036,97 +883,6 @@ class ObjectSingulationNode
       data_in = out;
     }
     return out;
-  }
-
-  cv::Mat getTableHeightDistances()
-  {
-    cv::Mat table_distances(cur_depth_frame_.size(), CV_32FC1, cv::Scalar(0.0));
-    const float table_height = table_centroid_.pose.position.z;
-    for (int r = 0; r < table_distances.rows; ++r)
-    {
-      for (int c = 0; c < table_distances.cols; ++c)
-      {
-        pcl::PointXYZ cur_pt = cur_point_cloud_.at(2*c, 2*r);
-        if (isnan(cur_pt.x) || isnan(cur_pt.y) || isnan(cur_pt.z))
-        {
-          // 3 meters is sufficiently far away
-          table_distances.at<float>(r,c) = 3.0;
-        }
-        else
-        {
-          table_distances.at<float>(r,c) = cur_pt.z - table_height;
-        }
-      }
-    }
-#ifdef DISPLAY_TABLE_DISTANCES
-    cv::imshow("table_distances_raw", table_distances);
-#endif // DISPLAY_TABLE_DISTANCES
-    return table_distances;
-  }
-
-  PoseStamped getTablePlane(XYZPointCloud& cloud)
-  {
-    Eigen::Vector4f table_centroid = pcl_segmenter_.getTablePlane(cloud);
-    PoseStamped p;
-    p.pose.position.x = table_centroid[0];
-    p.pose.position.y = table_centroid[1];
-    p.pose.position.z = table_centroid[2];
-    p.header = cloud.header;
-    ROS_INFO_STREAM("Table centroid is: ("
-                    << p.pose.position.x << ", "
-                    << p.pose.position.y << ", "
-                    << p.pose.position.z << ")");
-    return p;
-  }
-
-  PoseStamped findRandomPushPose(XYZPointCloud& input_cloud)
-  {
-    ProtoObjects objs = pcl_segmenter_.findTabletopObjects(input_cloud);
-    prev_proto_objs_ = cur_proto_objs_;
-    cur_proto_objs_ = objs;
-
-    ROS_INFO_STREAM("Found " << objs.size() << " objects.");
-
-    // TODO: publish a ros point cloud here for visualization
-    // TODO: Move the publisher out of the segmentation class
-
-    std::vector<Eigen::Vector4f> cluster_centroids;
-    for (unsigned int i = 0; i < objs.size(); ++i)
-    {
-      if (objs[i].centroid[0] > min_pushing_x_ &&
-          objs[i].centroid[0] < max_pushing_x_ &&
-          objs[i].centroid[1] > min_pushing_y_ &&
-          objs[i].centroid[1] < max_pushing_y_)
-      {
-        cluster_centroids.push_back(objs[i].centroid);
-      }
-    }
-    geometry_msgs::PoseStamped p;
-
-    if (cluster_centroids.size() < 1)
-    {
-      ROS_WARN_STREAM("No object clusters found! Returning empty push_pose");
-      p.header.frame_id = "/torso_lift_link";
-      return p;
-    }
-    ROS_INFO_STREAM("Found " << cluster_centroids.size() << " proto objects");
-    int rand_idx = rand() % cluster_centroids.size();
-    Eigen::Vector4f obj_xyz_centroid = cluster_centroids[rand_idx];
-    p.pose.position.x = obj_xyz_centroid[0];
-    p.pose.position.y = obj_xyz_centroid[1];
-    // Set z to be the table height
-    p.pose.position.z = objs[0].table_centroid[2];
-    ROS_INFO_STREAM("Chosen push pose is at: (" << obj_xyz_centroid[0] << ", "
-                    << obj_xyz_centroid[1] << ", " << objs[0].table_centroid[2]
-                    << ")");
-
-    p.pose.orientation.x = 0;
-    p.pose.orientation.y = 0;
-    p.pose.orientation.z = 0;
-    p.pose.orientation.w = 0;
-
-    p.header.frame_id = "/torso_lift_link";
-    return p;
   }
 
   XYZPointCloud getMaskedPointCloud(XYZPointCloud& input_cloud, cv::Mat& mask_in)
@@ -1174,12 +930,6 @@ class ObjectSingulationNode
   message_filters::Synchronizer<MySyncPolicy> sync_;
   image_transport::ImageTransport it_;
   sensor_msgs::CameraInfo cam_info_;
-  image_transport::Publisher motion_img_pub_;
-  image_transport::Publisher motion_mask_pub_;
-  image_transport::Publisher arm_img_pub_;
-  image_transport::Publisher arm_mask_pub_;
-  actionlib::SimpleActionServer<tabletop_pushing::
-                                ObjectSingulationAction> singulation_server_;
   sensor_msgs::CvBridge bridge_;
   tf::TransformListener tf_;
   ros::ServiceServer push_pose_server_;
@@ -1190,20 +940,10 @@ class ObjectSingulationNode
   cv::Mat prev_color_frame_;
   cv::Mat prev_depth_frame_;
   cv::Mat prev_workspace_mask_;
-  cv::Mat prev_seg_mask_;
-  std::deque<cv::Mat> motion_mask_hist_;
-  std::deque<cv::Mat> arm_mask_hist_;
-  std::deque<cv::Mat> workspace_mask_hist_;
-  std::deque<cv::Mat> color_frame_hist_;
-  std::deque<cv::Mat> depth_frame_hist_;
-  std::deque<cv::Mat> flow_u_hist_;
-  std::deque<cv::Mat> flow_v_hist_;
   std_msgs::Header cur_camera_header_;
   std_msgs::Header prev_camera_header_;
   XYZPointCloud cur_point_cloud_;
-  DenseLKFlow lkflow_;
   FeatureTracker ft_;
-  // MotionGraphcut mgc_;
   PointCloudSegmentation pcl_segmenter_;
   ObjectSingulation os_;
   bool have_depth_data_;
@@ -1218,11 +958,6 @@ class ObjectSingulationNode
   double max_workspace_y_;
   double min_workspace_z_;
   double max_workspace_z_;
-  double min_pushing_x_;
-  double max_pushing_x_;
-  double min_pushing_y_;
-  double max_pushing_y_;
-  double below_table_z_;
   int num_downsamples_;
   std::string workspace_frame_;
   PoseStamped table_centroid_;
@@ -1230,14 +965,8 @@ class ObjectSingulationNode
   bool tracker_initialized_;
   std::string cam_info_topic_;
   int tracker_count_;
-  std::string base_output_path_;
-  int image_hist_size_;
-  double norm_est_radius_;
   bool autorun_pcl_segmentation_;
-  bool auto_flow_cluster_;
-  bool segmenting_moving_stuff_;
-  ProtoObjects prev_proto_objs_;
-  ProtoObjects cur_proto_objs_;
+  bool use_guided_pushes_;
 };
 
 int main(int argc, char ** argv)
