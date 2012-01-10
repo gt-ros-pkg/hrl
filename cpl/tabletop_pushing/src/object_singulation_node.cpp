@@ -76,6 +76,7 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/surface/convex_hull.h>
+#include <pcl/common/norms.h>
 
 // OpenCV
 #include <opencv2/core/core.hpp>
@@ -137,9 +138,8 @@ class ProtoTabletopObject
   XYZPointCloud cloud;
   Eigen::Vector4f centroid;
   Eigen::Vector4f table_centroid;
-  // TODO: Add normals?
-  // TODO: Add tracking features
   int id;
+  bool moved;
 };
 
 typedef std::deque<ProtoTabletopObject> ProtoObjects;
@@ -224,12 +224,6 @@ class PointCloudSegmentation
     return table_centroid;
   }
 
-  ProtoObjects findTabletopObjects(XYZPointCloud& input_cloud,
-                                   bool extract_table=true)
-  {
-    XYZPointCloud objs_cloud;
-    return findTabletopObjects(input_cloud, objs_cloud, extract_table);
-  }
 
   /**
    * Function to segment independent spatial regions from a supporting plane
@@ -240,26 +234,54 @@ class PointCloudSegmentation
    * @return The object clusters.
    */
   ProtoObjects findTabletopObjects(XYZPointCloud& input_cloud,
-                                   XYZPointCloud& objs_cloud,
-                                   bool extract_table=true)
+                                   bool publish_cloud=true)
   {
-    // XYZPointCloud objs_cloud;
-    XYZPointCloud plane_cloud;
+    XYZPointCloud objs_cloud;
+    return findTabletopObjects(input_cloud, objs_cloud, publish_cloud);
+  }
+
+  /**
+   * Function to segment independent spatial regions from a supporting plane
+   *
+   * @param input_cloud The point cloud to operate on.
+   * @param objs_cloud  The point cloud containing the object points.
+   * @param extract_table True if the table plane should be extracted
+   *
+   * @return The object clusters.
+   */
+  ProtoObjects findTabletopObjects(XYZPointCloud& input_cloud,
+                                   XYZPointCloud& objs_cloud,
+                                   bool publish_cloud=false)
+  {
+    XYZPointCloud table_cloud;
+    return findTabletopObjects(input_cloud, objs_cloud, table_cloud,
+                               publish_cloud);
+
+  }
+
+  /**
+   * Function to segment independent spatial regions from a supporting plane
+   *
+   * @param input_cloud The point cloud to operate on.
+   * @param objs_cloud  The point cloud containing the object points.
+   * @param plane_cloud  The point cloud containing the table plane points.
+   * @param extract_table True if the table plane should be extracted
+   *
+   * @return The object clusters.
+   */
+  ProtoObjects findTabletopObjects(XYZPointCloud& input_cloud,
+                                   XYZPointCloud& objs_cloud,
+                                   XYZPointCloud& plane_cloud,
+                                   bool publish_cloud=false)
+  {
     // Get table plane
-    if (extract_table)
-    {
-      table_centroid_ = getTablePlane(input_cloud, objs_cloud, plane_cloud);
-      min_workspace_z_ = table_centroid_[2];
-    }
-    else
-    {
-      // TODO: Deal with not having to extract the tabletop each time
-    }
+    table_centroid_ = getTablePlane(input_cloud, objs_cloud, plane_cloud);
+    min_workspace_z_ = table_centroid_[2];
 
     XYZPointCloud objects_cloud_down = downsampleCloud(objs_cloud);
 
     // Find independent regions
-    ProtoObjects objs = clusterProtoObjects(objects_cloud_down, false);
+    ProtoObjects objs = clusterProtoObjects(objects_cloud_down, publish_cloud);
     return objs;
   }
 
@@ -303,7 +325,6 @@ class PointCloudSegmentation
       sensor_msgs::PointCloud2 label_cloud_msg;
       pcl::toROSMsg(label_cloud, label_cloud_msg);
       pcl_obj_seg_pub_.publish(label_cloud_msg);
-      ROS_INFO_STREAM("Published label cloud.");
     }
 
     ProtoObjects objs;
@@ -315,20 +336,21 @@ class PointCloudSegmentation
       pcl::compute3DCentroid(po.cloud, po.centroid);
       po.id = i;
       po.table_centroid = table_centroid_;
+      po.moved = false;
       objs.push_back(po);
     }
     return objs;
   }
 
   /**
-   * Get the objects that have moved between two point clouds
+   * Find the regions that have moved between two point clouds
    *
    * @param prev_cloud The first cloud to use in differencing
    * @param cur_cloud The second cloud to use
    *
    * @return The new set of objects that have moved in the second cloud
    */
-  ProtoObjects getMovedObjects(XYZPointCloud& prev_cloud,
+  ProtoObjects getMovedRegions(XYZPointCloud& prev_cloud,
                                XYZPointCloud& cur_cloud)
   {
     pcl::SegmentDifferences<pcl::PointXYZ> pcl_diff;
@@ -338,9 +360,68 @@ class PointCloudSegmentation
     XYZPointCloud cloud_out;
     pcl_diff.segment(cloud_out);
     ProtoObjects moved = clusterProtoObjects(cloud_out, true);
-    // TODO: Get the tabletop objects from the current cloud and match them to
-    // the moved objects
     return moved;
+  }
+
+  /**
+   * Match moved regions to previously extracted protoobjects
+   *
+   * @param objs The previously extracted objects
+   * @param moved_regions The regions that have been detected as having moved
+   *
+   * @return The objects which have moved
+   */
+  ProtoObjects matchMovedRegions(ProtoObjects& objs,
+                                 ProtoObjects& moved_regions)
+  {
+    ProtoObjects moved_objs;
+    for (unsigned int i = 0; i < moved_regions.size(); ++i)
+    {
+      for (unsigned int j = 0; j < objs.size(); ++j)
+      {
+        if(cloudsIntersect(objs[j].cloud, moved_regions[i].cloud))
+        {
+          objs[j].moved = true;
+        }
+      }
+    }
+
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      if (objs[i].moved) moved_objs.push_back(objs[i]);
+    }
+    ROS_INFO_STREAM("Num moved objects: " << moved_objs.size());
+    return moved_objs;
+  }
+
+  ProtoObjects updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
+                               ProtoObjects& moved_objs)
+  {
+    // TODO: Match the moved objects to their new locations
+    // TODO: Update object IDs to be persistent with previous proto IDs
+    return cur_objs;
+  }
+
+  double dist(pcl::PointXYZ a, pcl::PointXYZ b)
+  {
+    double dx = a.x-b.x;
+    double dy = a.y-b.y;
+    double dz = a.z-b.z;
+    return std::sqrt(dx*dx+dy*dy+dz*dz);
+  }
+
+  bool cloudsIntersect(XYZPointCloud cloud0, XYZPointCloud cloud1)
+  {
+    for (unsigned int i = 0; i < cloud0.size(); ++i)
+    {
+      pcl::PointXYZ pt0 = cloud0.at(i);
+      for (unsigned int j = 0; j < cloud1.size(); ++j)
+      {
+        pcl::PointXYZ pt1 = cloud1.at(j);
+        if (dist(pt0, pt1) < voxel_down_res_) return true;
+      }
+    }
+    return false;
   }
 
   XYZPointCloud downsampleCloud(XYZPointCloud& cloud_in, bool pub_cloud=false)
@@ -356,7 +437,6 @@ class PointCloudSegmentation
     ROS_DEBUG_STREAM("Number of points in cloud_z_filtered is: " <<
                      cloud_z_filtered.size());
 
-    // TODO: Filter in x?
     pcl::PassThrough<pcl::PointXYZ> x_pass;
     x_pass.setInputCloud(
         boost::make_shared<XYZPointCloud >(cloud_z_filtered));
@@ -429,16 +509,26 @@ class ObjectSingulation
                             XYZPointCloud& cloud, cv::Mat& workspace_mask)
   {
     ProtoObjects objs = calcProtoObjects(cloud);
+    prev_proto_objs_ = cur_proto_objs_;
+    cur_proto_objs_ = objs;
+
     PoseStamped push_dir;
     cv::Mat boundary_img = getObjectBoundaryStrengths(color_img, depth_img,
                                                       workspace_mask);
     cv::Mat push_pose_img = determineImgPushPoses(boundary_img, objs);
     PoseStamped push_vector = determinePushVector(push_pose_img);
-    // ROS_INFO_STREAM("Callback count: " << callback_count_);
     ++callback_count_;
     return push_vector;
   }
 
+  /**
+   * Randomly choose an object to push that is within reach.
+   * Chooses a random direction to push from.
+   *
+   * @param input_cloud Point cloud containing the tabletop scene to push in
+   *
+   * @return The location and direction to push.
+   */
   PoseStamped findRandomPushPose(XYZPointCloud& input_cloud)
   {
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(input_cloud);
@@ -447,10 +537,7 @@ class ObjectSingulation
 
     ROS_INFO_STREAM("Found " << objs.size() << " objects.");
 
-    // TODO: publish a ros point cloud here for visualization
-    // TODO: Move the publisher out of the segmentation class
-
-    std::vector<Eigen::Vector4f> cluster_centroids;
+    std::vector<int> pushable_obj_idx;
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       if (objs[i].centroid[0] > min_pushing_x_ &&
@@ -458,20 +545,21 @@ class ObjectSingulation
           objs[i].centroid[1] > min_pushing_y_ &&
           objs[i].centroid[1] < max_pushing_y_)
       {
-        cluster_centroids.push_back(objs[i].centroid);
+        pushable_obj_idx.push_back(i);
       }
     }
     geometry_msgs::PoseStamped p;
+    p.header.frame_id = workspace_frame_;
 
-    if (cluster_centroids.size() < 1)
+    if (pushable_obj_idx.size() < 1)
     {
       ROS_WARN_STREAM("No object clusters found! Returning empty push_pose");
-      p.header.frame_id = "/torso_lift_link";
       return p;
     }
-    ROS_INFO_STREAM("Found " << cluster_centroids.size() << " proto objects");
-    int rand_idx = rand() % cluster_centroids.size();
-    Eigen::Vector4f obj_xyz_centroid = cluster_centroids[rand_idx];
+    ROS_INFO_STREAM("Found " << pushable_obj_idx.size()
+                    << " pushable proto objects");
+    int rand_idx = pushable_obj_idx[rand() % pushable_obj_idx.size()];
+    Eigen::Vector4f obj_xyz_centroid = objs[rand_idx].centroid;
     p.pose.position.x = obj_xyz_centroid[0];
     p.pose.position.y = obj_xyz_centroid[1];
     // Set z to be the table height
@@ -480,12 +568,16 @@ class ObjectSingulation
                     << obj_xyz_centroid[1] << ", " << objs[0].table_centroid[2]
                     << ")");
 
+    sensor_msgs::PointCloud2 obj_push_msg;
+    pcl::toROSMsg(objs[rand_idx].cloud, obj_push_msg);
+    obj_push_pub_.publish(obj_push_msg);
+
+    // TODO: Choose a random orientation
     p.pose.orientation.x = 0;
     p.pose.orientation.y = 0;
     p.pose.orientation.z = 0;
     p.pose.orientation.w = 0;
 
-    p.header.frame_id = "/torso_lift_link";
     return p;
   }
 
@@ -494,19 +586,37 @@ class ObjectSingulation
   {
     XYZPointCloud objs_cloud;
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cloud, objs_cloud);
-    XYZPointCloud cur_objs_down = pcl_segmenter_->downsampleCloud(objs_cloud,
-                                                                  true);
+    XYZPointCloud cur_objs_down = pcl_segmenter_->downsampleCloud(objs_cloud);
     if (callback_count_ > 1)
     {
-      ProtoObjects moved = pcl_segmenter_->getMovedObjects(prev_objs_down_,
-                                                           cur_objs_down);
-      // TODO: Get differences in the current protoobjects not just the moved
-      // regions
-      ROS_INFO_STREAM("Found " << moved.size() << " moved object regions.");
-      objs = moved;
+      // Determine where stuff has moved
+      ProtoObjects moved_regions = pcl_segmenter_->getMovedRegions(
+          prev_objs_down_, cur_objs_down);
+      // Match these moved regions to the previous objects
+      ProtoObjects moved_protos = pcl_segmenter_->matchMovedRegions(
+          prev_proto_objs_, moved_regions);
+      publishObjects(moved_protos);
+      // Match the moved objects to their new locations
+      ProtoObjects cur_objs = pcl_segmenter_->updateMovedObjs(objs,
+                                                              prev_proto_objs_,
+                                                              moved_protos);
+      objs = cur_objs;
     }
     prev_objs_down_ = cur_objs_down;
     return objs;
+  }
+
+  void publishObjects(ProtoObjects& objs)
+  {
+    if (objs.size() == 0) return;
+    XYZPointCloud objs_cloud = objs[0].cloud;
+    for (unsigned int i = 1; i < objs.size(); ++i)
+    {
+      objs_cloud += objs[i].cloud;
+    }
+    sensor_msgs::PointCloud2 obj_msg;
+    pcl::toROSMsg(objs_cloud, obj_msg);
+    obj_push_pub_.publish(obj_msg);
   }
 
   cv::Mat determineImgPushPoses(cv::Mat& boundary_img, ProtoObjects objs)
@@ -609,6 +719,8 @@ class ObjectSingulation
   double max_pushing_x_;
   double min_pushing_y_;
   double max_pushing_y_;
+  std::string workspace_frame_;
+  ros::Publisher obj_push_pub_;
 };
 
 class ObjectSingulationNode
@@ -644,7 +756,8 @@ class ObjectSingulationNode
     n_private_.param("max_pushing_y", os_.max_pushing_y_, 0.0);
     std::string default_workspace_frame = "/torso_lift_link";
     n_private_.param("workspace_frame", workspace_frame_,
-                    default_workspace_frame);
+                     default_workspace_frame);
+    os_.workspace_frame_ = workspace_frame_;
 
     n_private_.param("min_table_z", pcl_segmenter_.min_table_z_, -0.5);
     n_private_.param("max_table_z", pcl_segmenter_.max_table_z_, 1.5);
@@ -661,7 +774,7 @@ class ObjectSingulationNode
     n_private_.param("num_downsamples", num_downsamples_, 2);
     std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
     n_private_.param("cam_info_topic", cam_info_topic_,
-                    cam_info_topic_def);
+                     cam_info_topic_def);
     n_private_.param("table_ransac_thresh", pcl_segmenter_.table_ransac_thresh_,
                      0.01);
 
@@ -695,6 +808,8 @@ class ObjectSingulationNode
         "separate_table_objs", 1000);
     pcl_segmenter_.pcl_down_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
         "downsampled_objs", 1000);
+    os_.obj_push_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
+        "object_to_push", 1000);
   }
 
   void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
@@ -771,7 +886,7 @@ class ObjectSingulationNode
     cur_camera_header_ = img_msg->header;
 
     // Debug stuff
-    if (autorun_pcl_segmentation_) getPushPose();
+    if (autorun_pcl_segmentation_) getPushPose(use_guided_pushes_);
 
     // Display junk
 #ifdef DISPLAY_INPUT_COLOR
