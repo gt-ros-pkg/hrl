@@ -8,12 +8,13 @@ from std_msgs.msg import Float64
 # Classic PID controller with maximum integral thresholding to
 # prevent windup.
 class PIDController(object):
-    def __init__(self, k_p, k_i, k_d, i_max, rate, name=None):
+    def __init__(self, k_p, k_i, k_d, i_max, rate, saturation=None, name=None):
         self.k_p = k_p
         self.k_i = k_i
         self.k_d = k_d
         self.i_max = i_max
         self.rate = rate
+        self.saturation = saturation
         self.err_last = None
         self.integral = 0
         if name is not None:
@@ -31,6 +32,10 @@ class PIDController(object):
              self.k_d * (err - self.err_last) * self.rate +
              self.k_i * self.integral)
         self.err_last = err
+        if saturation is not None:
+            self.y = np.clip(self.y, -self.saturation, self.saturation)
+            if self.y in [-self.saturation, self.saturation]:
+                self.integral = 0.
         self.err_pub.publish(err)
         self.out_pub.publish(y)
         return y
