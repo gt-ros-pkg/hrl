@@ -22,6 +22,8 @@ if __name__ == '__main__':
     raw_input('Hit ENTER to add points')
 
     pts = [0.6, 0., 1., 0.4, 0., 1., 0.5, 0.1, 1.]
+    #pts = [0.27, -0.23, 0.]
+    #pts = [0.4, 0., 0.]
     add_pts_srv(pts)
 
 
