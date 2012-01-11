@@ -1,7 +1,7 @@
 <package>
   <description brief="assistive_teleop">
 
-     Development Trunk for Assistive_teleop
+     Electric Release of assistive_teleop
 
   </description>
   <author>Phillip M. Grice</author>
@@ -14,15 +14,17 @@
   <depend package="geometry_msgs"/>
   <depend package="sensor_msgs"/>
   <depend package="actionlib"/>
+  <depend package="visualization_msgs"/>
   <depend package="arm_navigation_msgs"/>
   <depend package="kinematics_msgs"/>
+  <depend package="pixel_2_3d"/>
   <depend package="pr2_msgs"/>
   <depend package="pr2_controllers_msgs"/>
   <depend package="control_msgs"/>
   <depend package="pr2_common_action_msgs"/>
+  <depend package="topic_tools"/>
+  <depend package="hrl_clickable_display"/>
   <depend package="hrl_pr2_lib"/>
-  <depend package="visualization_msgs"/>
-  <depend package="pixel_2_3d"/>
   <depend package="hrl_rfh_fall_2011"/>
   <depend package="hrl_pr2_arms"/>
 

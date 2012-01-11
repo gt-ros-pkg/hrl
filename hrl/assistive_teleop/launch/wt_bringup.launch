@@ -23,7 +23,7 @@
     <!-- Shaving Manager Node
     <node 
         name="shaving_manager"
-        pkg="web_teleop_trunk"
+        pkg="assistive_teleop"
         type="shaving.py"
         output="screen"
         machine="c2"/>
@@ -34,27 +34,27 @@
     -->
  
     <!-- JTTask Controller load
-    <include file="$(find web_teleop_trunk)/launch/c_jtask_mod.launch" />
+    <include file="$(find assistive_teleop)/launch/c_jtask_mod.launch" />
     -->
 
     <!-- Cart Move Servers
     <node
         ns="r_cart"
         name="ft_move_action_server"
-        pkg="web_teleop_trunk"
+        pkg="assistive_teleop"
         type="ft_move_action_server.py"
         output="screen"
         machine="c2"/>
     <node
         ns="l_cart"
         name="ft_move_action_server"
-        pkg="web_teleop_trunk"
+        pkg="assistive_teleop"
         type="ft_move_action_server.py"
         output="screen"
         machine="c2"/>
     <node
         name="ft_hold_server"
-        pkg="web_teleop_trunk"
+        pkg="assistive_teleop"
         type="ft_hold_action_server.py"
         output="screen"
         machine="c2"/>
@@ -80,7 +80,7 @@
         machine="c2"/>
     <node
         name="tuck_arm_intermediary" 
-        pkg="web_teleop_trunk" 
+        pkg="assistive_teleop" 
         type="tuck_arms_intermediary.py" 
         output="screen" 
         machine="c2" />
@@ -89,12 +89,12 @@
     <!-- Bring up intermediary for handling arm movements, one for each arm -->
     <node
         name="wt_left_arm"
-        pkg="web_teleop_trunk"
+        pkg="assistive_teleop"
         type="arm_intermediary.py"
         args="left" output="screen"/>
     <node
         name="wt_right_arm"
-        pkg="web_teleop_trunk"
+        pkg="assistive_teleop"
         type="arm_intermediary.py"
         args="right" output="screen"/>
 
@@ -126,12 +126,13 @@
 
     <!-- Speech node.  Replaces soundplay_node, speech using a good voice -->
     <node 
-        pkg ="web_teleop_trunk"
+        pkg ="assistive_teleop"
         type="speech_node.py"
         name="sound_play"/>
 
     <!-- Launch Kinect with GT launch files (gt-ros-pkg)-->
     <!--<include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" /> -->
+    
     <!-- in-hand object modeling
     <include file="$(find pr2_create_object_model)/launch/create_object_model_server.launch">
         <arg name="stereo" value="$(arg stereo)"/>
