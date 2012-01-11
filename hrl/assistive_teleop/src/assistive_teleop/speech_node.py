@@ -11,7 +11,7 @@ class Speaker:
         rospy.Subscriber('/text_to_say', String, self.say)
 
     def say(self,msg):
-        print "Speaking: %s" %msg
+        print "Speaking: %s" %msg.data
         os.system('echo '+str(msg.data)+'| festival --tts')
 
 if __name__ == '__main__':
