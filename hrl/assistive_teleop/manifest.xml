@@ -6,7 +6,7 @@
     This package is a direct product of the Robots for Humanity effort, a collaboration between Willow Garage and the <a href="http://www.healthcare-robotics.com"> Healthcare Robotics Lab</a> at Georgia Tech.
 
   </description>
-  <author>Phillip M. Grice, Advisor: Prof. Charlie Kemp, Lab: The Healthcare Robotoics Lab at Georgia Tech</author>
+  <author>Phillip M. Grice, Advisor: Prof. Charlie Kemp, Lab: The Healthcare Robotoics Lab at Georgia Tech.</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/assistive_teleop</url>
@@ -20,17 +20,25 @@
   <depend package="arm_navigation_msgs"/>
   <depend package="kinematics_msgs"/>
   <depend package="image_rotate"/>
-  <depend package="pixel_2_3d"/>
   <depend package="pr2_msgs"/>
   <depend package="pr2_controllers_msgs"/>
   <depend package="pr2_tabletop_manipulation_launch"/>
   <depend package="control_msgs"/>
   <depend package="pr2_common_action_msgs"/>
   <depend package="topic_tools"/>
+  
+  <!--gt-ros-pkg-->
+  <depend package="pixel_2_3d"/>
   <depend package="hrl_clickable_display"/>
   <depend package="hrl_pr2_lib"/>
-  <depend package="hrl_rfh_fall_2011"/>
-  <depend package="hrl_pr2_arms"/>
+  
+  <!--External: brown-ros-pkg, bosch-ros-pkg -->
+  <depend package="rosbridge"/>
+  <depend package="mjpeg_server"/>
+
+  <!--Used for shaving code/demos -->
+    <!--<depend package="hrl_rfh_fall_2011"/>-->
+    <!--<depend package="hrl_pr2_arms"/>-->
 
 </package>
 
