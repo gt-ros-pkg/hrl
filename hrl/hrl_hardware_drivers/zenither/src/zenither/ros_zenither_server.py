@@ -33,7 +33,7 @@
 import roslib
 roslib.load_manifest('zenither')
 import rospy
-from hrl_srvs.msg import Float_Int
+from hrl_srvs.srv import Float_Int
 
 import time
 import sys
