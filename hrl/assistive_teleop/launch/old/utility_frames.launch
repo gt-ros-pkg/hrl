@@ -1,9 +1,0 @@
-<launch>
-    
-    <machine name="c1" address="c1" ros-root="$(env ROS_ROOT)" ros-package-path="$(env ROS_PACKAGE_PATH)" />
-    <machine name="c2" address="c2" ros-root="$(env ROS_ROOT)" ros-package-path="$(env ROS_PACKAGE_PATH)" />
-
-    <node name="r_utility_frame_source" pkg="web_teleop_trunk" type="r_utility_frame.py" output="screen" machine="c2" />
-    <node name="l_utility_frame_source" pkg="web_teleop_trunk" type="l_utility_frame.py" output="screen" machine="c2" />
-
-</launch>
