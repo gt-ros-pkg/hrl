@@ -1,4 +1,11 @@
 
+
+#
+# Steps:
+#   1. Run  bin/og_node
+#   2. run rviz with the fixed frame = /occupancy_grid_frame
+#   3. Run this node.
+
 import roslib; roslib.load_manifest('simple_occupancy_grid')
 import rospy
 
@@ -12,11 +19,7 @@ if __name__ == '__main__':
 
     add_pts_srv = rospy.ServiceProxy('/occupancy_grid_node/srv/add_points_unstamped', FloatArray_None)
 
-    raw_input('Hit ENTER to visualize')
-    viz_cmd_pub.publish(Empty())
-
-
-    raw_input('Hit ENTER to send additional points')
+    raw_input('Hit ENTER to add points')
 
     pts = [0.6, 0., 1., 0.4, 0., 1., 0.5, 0.1, 1.]
     add_pts_srv(pts)
