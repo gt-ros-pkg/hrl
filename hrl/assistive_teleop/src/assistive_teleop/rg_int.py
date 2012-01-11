@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import roslib; roslib.load_manifest('web_teleop_trunk')
+import roslib; roslib.load_manifest('assistive_teleop')
 import rospy
 from geometry_msgs.msg  import PoseStamped
 from std_msgs.msg import Float32, String

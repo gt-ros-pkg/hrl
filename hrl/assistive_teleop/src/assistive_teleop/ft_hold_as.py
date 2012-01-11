@@ -2,11 +2,11 @@
 
 import math
 
-import roslib; roslib.load_manifest('web_teleop_trunk')
+import roslib; roslib.load_manifest('assistive_teleop')
 import rospy
 import actionlib
 from geometry_msgs.msg import WrenchStamped
-from web_teleop_trunk.msg import FtHoldAction, FtHoldFeedback, FtHoldResult
+from assistive_teleop.msg import FtHoldAction, FtHoldFeedback, FtHoldResult
 
 
 class FtHolder:

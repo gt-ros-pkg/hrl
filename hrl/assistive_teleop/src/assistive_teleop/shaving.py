@@ -2,7 +2,7 @@
 
 import math 
 
-import roslib; roslib.load_manifest('web_teleop_trunk')
+import roslib; roslib.load_manifest('assistive_teleop')
 import rospy
 from geometry_msgs.msg import PoseStamped, WrenchStamped, Point, Quaternion
 from std_msgs.msg import String, Int8, Bool
@@ -10,7 +10,7 @@ from tf import TransformListener
 import actionlib
 
 import jttask_utils
-from web_teleop_trunk.msg import FtMoveAction, FtMoveGoal, FtHoldAction, FtHoldGoal
+from assistive_teleop.msg import FtMoveAction, FtMoveGoal, FtHoldAction, FtHoldGoal
 from hrl_rfh_fall_2011.srv import GetHeadPose, GetHeadPoseRequest, EllipsoidCommand, EllipsoidCommandRequest
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 

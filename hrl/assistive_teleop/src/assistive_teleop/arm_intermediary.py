@@ -3,7 +3,7 @@ import sys
 import math
 import numpy as np
 
-import roslib; roslib.load_manifest('web_teleop_trunk')
+import roslib; roslib.load_manifest('assistive_teleop')
 import rospy
 import actionlib
 from geometry_msgs.msg  import PoseStamped, Point

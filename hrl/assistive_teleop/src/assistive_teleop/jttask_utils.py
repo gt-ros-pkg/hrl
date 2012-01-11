@@ -4,15 +4,15 @@ import numpy as np
 from copy import deepcopy
 import math
 
-import roslib; roslib.load_manifest('web_teleop_trunk')
+import roslib; roslib.load_manifest('assistive_teleop')
 import rospy
 import actionlib
 from geometry_msgs.msg import PoseStamped, Point, Quaternion, WrenchStamped
 from std_msgs.msg import Float64MultiArray
 from tf import transformations, TransformListener
 
-from web_teleop_trunk.srv import FrameUpdate, FrameUpdateRequest
-from web_teleop_trunk.msg import FtMoveAction, FtMoveGoal, FtHoldAction, FtHoldGoal
+from assistive_teleop.srv import FrameUpdate, FrameUpdateRequest
+from assistive_teleop.msg import FtMoveAction, FtMoveGoal, FtHoldAction, FtHoldGoal
 
 TEST = True
 

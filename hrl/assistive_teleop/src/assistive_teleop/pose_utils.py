@@ -1,5 +1,4 @@
 #!/usr/bin/python
-
 import numpy as np
 import math
 from copy import deepcopy
