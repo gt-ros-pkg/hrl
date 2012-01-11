@@ -27,7 +27,7 @@
     <param name="surf_hessian_thresh" value="50.0" type="double"/>
     <param name="use_fast_corners" value="true" type="bool"/>
 
-    <param name="pcl_cluster_tolerance" value="0.05" type="double"/>
+    <param name="pcl_cluster_tolerance" value="0.03" type="double"/>
     <param name="pcl_min_cluster_size" value="50" type="int"/>
     <param name="pcl_max_cluster_size" value="25000" type="int"/>
     <param name="pcl_voxel_downsample_res" value="0.005" type="double"/>

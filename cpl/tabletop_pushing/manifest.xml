@@ -15,6 +15,7 @@
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
   <depend package="tf"/>
+  <depend package="tf_conversions"/>
   <depend package="cpl_visual_features"/>
   <depend package="cpl_superpixels"/>
   <!-- <depend package="opencv2"/> -->

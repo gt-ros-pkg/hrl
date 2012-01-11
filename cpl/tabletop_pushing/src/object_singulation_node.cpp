@@ -57,9 +57,11 @@
 #include <tf/transform_datatypes.h>
 
 // PCL
-#include <pcl/ros/conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/common/eigen.h>
+#include <pcl/common/norms.h>
+#include <pcl/ros/conversions.h>
 #include <pcl_ros/transforms.h>
 #include <pcl/ModelCoefficients.h>
 #include <pcl/sample_consensus/method_types.h>
@@ -71,12 +73,11 @@
 #include <pcl/kdtree/impl/kdtree_flann.hpp>
 #include <pcl/features/feature.h>
 #include <pcl/features/normal_3d.h>
-#include <pcl/common/eigen.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/surface/convex_hull.h>
-#include <pcl/common/norms.h>
+#include <pcl/registration/icp.h>
 
 // OpenCV
 #include <opencv2/core/core.hpp>
@@ -165,8 +166,7 @@ class PointCloudSegmentation
     if (use_voxel_down_)
     {
       pcl::VoxelGrid<pcl::PointXYZ> downsample;
-      downsample.setInputCloud(
-          boost::make_shared<XYZPointCloud>(cloud));
+      downsample.setInputCloud(cloud.makeShared());
       downsample.setLeafSize(voxel_down_res_, voxel_down_res_, voxel_down_res_);
       downsample.filter(cloud_downsampled);
     }
@@ -176,13 +176,11 @@ class PointCloudSegmentation
     pcl::PassThrough<pcl::PointXYZ> z_pass;
     if (use_voxel_down_)
     {
-      z_pass.setInputCloud(
-          boost::make_shared<XYZPointCloud>(cloud_downsampled));
+      z_pass.setInputCloud(cloud_downsampled.makeShared());
     }
     else
     {
-      z_pass.setInputCloud(
-          boost::make_shared<XYZPointCloud>(cloud));
+      z_pass.setInputCloud(cloud.makeShared());
     }
     z_pass.setFilterFieldName("z");
     z_pass.setFilterLimits(min_table_z_, max_table_z_);
@@ -190,8 +188,7 @@ class PointCloudSegmentation
 
     // Filter to be just in the range in front of the robot
     pcl::PassThrough<pcl::PointXYZ> x_pass;
-    x_pass.setInputCloud(
-        boost::make_shared<XYZPointCloud >(cloud_z_filtered));
+    x_pass.setInputCloud(cloud_z_filtered.makeShared());
     x_pass.setFilterFieldName("x");
     x_pass.setFilterLimits(min_workspace_x_, max_workspace_x_);
     x_pass.filter(cloud_filtered);
@@ -205,17 +202,15 @@ class PointCloudSegmentation
     plane_seg.setModelType(pcl::SACMODEL_PLANE);
     plane_seg.setMethodType(pcl::SAC_RANSAC);
     plane_seg.setDistanceThreshold (table_ransac_thresh_);
-    plane_seg.setInputCloud(
-        boost::make_shared<XYZPointCloud>(cloud_filtered));
+    plane_seg.setInputCloud(cloud_filtered.makeShared());
     plane_seg.segment(plane_inliers, coefficients);
     pcl::copyPointCloud(cloud_filtered, plane_inliers, plane_cloud);
     // Extract the outliers from the point clouds
     pcl::ExtractIndices<pcl::PointXYZ> extract;
     XYZPointCloud objects_cloud;
     pcl::PointIndices plane_outliers;
-    extract.setInputCloud(
-        boost::make_shared<XYZPointCloud > (cloud_filtered));
-    extract.setIndices(boost::make_shared<pcl::PointIndices> (plane_inliers));
+    extract.setInputCloud(cloud_filtered.makeShared());
+    extract.setIndices(boost::make_shared<pcl::PointIndices>(plane_inliers));
     extract.setNegative(true);
     extract.filter(objs_cloud);
     // Extract the plane members into their own point cloud
@@ -304,8 +299,7 @@ class PointCloudSegmentation
     pcl_cluster.setMinClusterSize(min_cluster_size_);
     pcl_cluster.setMaxClusterSize(max_cluster_size_);
     pcl_cluster.setSearchMethod(clusters_tree);
-    pcl_cluster.setInputCloud(
-        boost::make_shared<XYZPointCloud>(objects_cloud));
+    pcl_cluster.setInputCloud(objects_cloud.makeShared());
     pcl_cluster.extract(clusters);
     ROS_DEBUG_STREAM("Number of clusters found matching the given constraints: "
                      << clusters.size());
@@ -343,6 +337,28 @@ class PointCloudSegmentation
   }
 
   /**
+   * Perform Iterated Closest Point between two proto objects.
+   *
+   * @param a The first object
+   * @param b The second object
+   *
+   * @return The ICP fitness score of the match
+   */
+  double ICPProtoObjects(ProtoTabletopObject a, ProtoTabletopObject b)
+  {
+    pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+    icp.setInputCloud(a.cloud.makeShared());
+    icp.setInputTarget(b.cloud.makeShared());
+    XYZPointCloud aligned;
+    icp.align(aligned);
+    double score = icp.getFitnessScore();
+    ROS_INFO_STREAM("has converged: " << icp.hasConverged() << " score: " <<
+                    icp.getFitnessScore());
+    return score;
+  }
+
+
+  /**
    * Find the regions that have moved between two point clouds
    *
    * @param prev_cloud The first cloud to use in differencing
@@ -355,8 +371,8 @@ class PointCloudSegmentation
   {
     pcl::SegmentDifferences<pcl::PointXYZ> pcl_diff;
     pcl_diff.setDistanceThreshold(cloud_diff_thresh_);
-    pcl_diff.setInputCloud(boost::make_shared<XYZPointCloud>(prev_cloud));
-    pcl_diff.setTargetCloud(boost::make_shared<XYZPointCloud>(cur_cloud));
+    pcl_diff.setInputCloud(prev_cloud.makeShared());
+    pcl_diff.setTargetCloud(cur_cloud.makeShared());
     XYZPointCloud cloud_out;
     pcl_diff.segment(cloud_out);
     ProtoObjects moved = clusterProtoObjects(cloud_out, true);
@@ -397,8 +413,31 @@ class PointCloudSegmentation
   ProtoObjects updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
                                ProtoObjects& moved_objs)
   {
-    // TODO: Match the moved objects to their new locations
-    // TODO: Update object IDs to be persistent with previous proto IDs
+    ProtoObjects updated_cur_objs;
+    for (unsigned int i = 0; i < prev_objs.size(); ++i)
+    {
+      if (prev_objs[i].moved)
+      {
+        double min_score = FLT_MAX;
+        unsigned int min_idx = cur_objs.size();
+        // TODO: Match the moved objects to their new locations
+        for (unsigned int j = 0; j < cur_objs.size(); ++j)
+        {
+          // Run ICP to match between frames
+          double cur_score = ICPProtoObjects(prev_objs[i], cur_objs[j]);
+          if (cur_score < min_score)
+          {
+            min_score = cur_score;
+            min_idx = j;
+          }
+        }
+        // TODO: Deal with the best match
+      }
+      else
+      {
+        // TODO: Update the ID in cur_objs of the closest centroid
+      }
+    }
     return cur_objs;
   }
 
@@ -431,22 +470,20 @@ class PointCloudSegmentation
     z_pass.setFilterFieldName("z");
     ROS_DEBUG_STREAM("Number of points in cloud_in is: " <<
                      cloud_in.size());
-    z_pass.setInputCloud(boost::make_shared<XYZPointCloud>(cloud_in));
+    z_pass.setInputCloud(cloud_in.makeShared());
     z_pass.setFilterLimits(min_workspace_z_, max_workspace_z_);
     z_pass.filter(cloud_z_filtered);
     ROS_DEBUG_STREAM("Number of points in cloud_z_filtered is: " <<
                      cloud_z_filtered.size());
 
     pcl::PassThrough<pcl::PointXYZ> x_pass;
-    x_pass.setInputCloud(
-        boost::make_shared<XYZPointCloud >(cloud_z_filtered));
+    x_pass.setInputCloud(cloud_z_filtered.makeShared());
     x_pass.setFilterFieldName("x");
     x_pass.setFilterLimits(min_workspace_x_, max_workspace_x_);
     x_pass.filter(cloud_x_filtered);
 
     pcl::VoxelGrid<pcl::PointXYZ> downsample_outliers;
-    downsample_outliers.setInputCloud(
-        boost::make_shared<XYZPointCloud>(cloud_x_filtered));
+    downsample_outliers.setInputCloud(cloud_x_filtered.makeShared());
     downsample_outliers.setLeafSize(voxel_down_res_, voxel_down_res_,
                                     voxel_down_res_);
     downsample_outliers.filter(cloud_down);
@@ -564,19 +601,21 @@ class ObjectSingulation
     p.pose.position.y = obj_xyz_centroid[1];
     // Set z to be the table height
     p.pose.position.z = objs[0].table_centroid[2];
-    ROS_INFO_STREAM("Chosen push pose is at: (" << obj_xyz_centroid[0] << ", "
-                    << obj_xyz_centroid[1] << ", " << objs[0].table_centroid[2]
-                    << ")");
 
     sensor_msgs::PointCloud2 obj_push_msg;
     pcl::toROSMsg(objs[rand_idx].cloud, obj_push_msg);
     obj_push_pub_.publish(obj_push_msg);
 
-    // TODO: Choose a random orientation
-    p.pose.orientation.x = 0;
-    p.pose.orientation.y = 0;
-    p.pose.orientation.z = 0;
-    p.pose.orientation.w = 0;
+    // Choose a random orientation
+    // TODO: Make the minimum and maximum angle class variables accessible via
+    // the parameter server
+    double rand_orientation = (static_cast<double>(rand())/
+                               static_cast<double>(RAND_MAX))*M_PI-M_PI*0.5;
+    ROS_INFO_STREAM("Chosen push pose is at: (" << obj_xyz_centroid[0] << ", "
+                    << obj_xyz_centroid[1] << ", " << objs[0].table_centroid[2]
+                    << ") with orientation of: " << rand_orientation);
+    // Transform to quaternion
+    p.pose.orientation = tf::createQuaternionMsgFromYaw(rand_orientation);
 
     return p;
   }
@@ -586,7 +625,9 @@ class ObjectSingulation
   {
     XYZPointCloud objs_cloud;
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cloud, objs_cloud);
-    XYZPointCloud cur_objs_down = pcl_segmenter_->downsampleCloud(objs_cloud);
+    XYZPointCloud cur_objs_down = pcl_segmenter_->downsampleCloud(objs_cloud,
+                                                                  true);
+    ProtoObjects cur_objs;
     if (callback_count_ > 1)
     {
       // Determine where stuff has moved
@@ -597,13 +638,15 @@ class ObjectSingulation
           prev_proto_objs_, moved_regions);
       publishObjects(moved_protos);
       // Match the moved objects to their new locations
-      ProtoObjects cur_objs = pcl_segmenter_->updateMovedObjs(objs,
-                                                              prev_proto_objs_,
-                                                              moved_protos);
-      objs = cur_objs;
+      cur_objs = pcl_segmenter_->updateMovedObjs(objs, prev_proto_objs_,
+                                                 moved_protos);
+    }
+    else
+    {
+      cur_objs = objs;
     }
     prev_objs_down_ = cur_objs_down;
-    return objs;
+    return cur_objs;
   }
 
   void publishObjects(ProtoObjects& objs)
@@ -630,13 +673,22 @@ class ObjectSingulation
     return push_pose_img;
   }
 
-  // TODO: Determine 3D push_pose given a image location and direction
+  // TODO: Determine 3D push pose given an image location and direction
   PoseStamped determinePushVector(cv::Mat push_pose_img)
   {
     PoseStamped push_pose;
     return push_pose;
   }
 
+  /**
+   * Determine the strength of object boundaries in an RGB-D image
+   *
+   * @param color_img The color image
+   * @param depth_img The depth image
+   * @param workspace_mask A mask depicting locations of interest
+   *
+   * @return The image with boundary strengths 1.0 is highest, 0.0 least
+   */
   cv::Mat getObjectBoundaryStrengths(cv::Mat& color_img, cv::Mat& depth_img,
                                      cv::Mat& workspace_mask)
   {
@@ -907,6 +959,15 @@ class ObjectSingulationNode
 #endif // DISPLAY_WAIT
   }
 
+  /**
+   * Service request callback method to return a location and orientation for
+   * the robot to push.
+   *
+   * @param req The service request
+   * @param res The service response
+   *
+   * @return true if successfull, false otherwise
+   */
   bool getPushPose(PushPose::Request& req, PushPose::Response& res)
   {
     if ( have_depth_data_ )
@@ -923,6 +984,14 @@ class ObjectSingulationNode
     return true;
   }
 
+  /**
+   * Wrapper method to call the push pose from the ObjectSingulation class
+   *
+   * @param use_guided find a random pose if false, otherwise calculate using
+   *                   the ObjectSingulation method
+   *
+   * @return The PushPose
+   */
   PoseStamped getPushPose(bool use_guided=true)
   {
     if (!use_guided)
@@ -936,6 +1005,15 @@ class ObjectSingulationNode
     }
   }
 
+  /**
+   * ROS Service callback method for determining the location of a table in the
+   * scene
+   *
+   * @param req The service request
+   * @param res The service response
+   *
+   * @return true if successfull, false otherwise
+   */
   bool getTableLocation(LocateTable::Request& req, LocateTable::Response& res)
   {
     if ( have_depth_data_ )
@@ -961,6 +1039,13 @@ class ObjectSingulationNode
     return true;
   }
 
+  /**
+   * Calculate the location of the dominant plane (table) in a point cloud
+   *
+   * @param cloud The point cloud containing a table
+   *
+   * @return The estimated 3D centroid of the table
+   */
   PoseStamped getTablePlane(XYZPointCloud& cloud)
   {
     XYZPointCloud obj_cloud, table_cloud;
