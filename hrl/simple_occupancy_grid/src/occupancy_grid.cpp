@@ -71,9 +71,9 @@ namespace occupancy_grid
             y = pts_vec[i+1];
             z = pts_vec[i+2];
 
-            idx_x = int( (x - min_x) / res_x_ + 0.5);
-            idx_y = int( (y - min_y) / res_y_ + 0.5);
-            idx_z = int( (z - min_z) / res_z_ + 0.5);
+            idx_x = int( (x - min_x) / res_x_);
+            idx_y = int( (y - min_y) / res_y_);
+            idx_z = int( (z - min_z) / res_z_);
 
             if (idx_x >= 0 and idx_x < (int)nx_ and idx_y >= 0 and \
                     idx_y < (int)ny_ and idx_z >= 0 and idx_z < (int)nz_)
@@ -107,15 +107,15 @@ namespace occupancy_grid
         // for some reason, alpha is common for all the cubes.
         cube_list_marker.color.a = 0.2;
 
-        for(unsigned int x_idx=0; x_idx<nx_; x_idx++)
-            for(unsigned int y_idx=0; y_idx<ny_; y_idx++)
-                for(unsigned int z_idx=0; z_idx<nz_; z_idx++)
+        for(unsigned int x_idx=0; x_idx < nx_; x_idx++)
+            for(unsigned int y_idx=0; y_idx < ny_; y_idx++)
+                for(unsigned int z_idx=0; z_idx < nz_; z_idx++)
                     if (occupancy_count_array_[x_idx * nz_ * ny_ + y_idx * nz_ + z_idx] > 0)
                     {
                         geometry_msgs::Point pt;
-                        pt.x = x_idx*res_x_ + center_x_ - size_x_/2;
-                        pt.y = y_idx*res_y_ + center_y_ - size_y_/2;
-                        pt.z = z_idx*res_z_ + center_z_ - size_z_/2;
+                        pt.x = x_idx*res_x_ + center_x_ - size_x_/2 + res_x_/2;
+                        pt.y = y_idx*res_y_ + center_y_ - size_y_/2 + res_y_/2;
+                        pt.z = z_idx*res_z_ + center_z_ - size_z_/2 + res_z_/2;
                         cube_list_marker.points.push_back(pt);
                         cube_list_marker.colors.push_back(c);
                     }
