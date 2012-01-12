@@ -347,13 +347,11 @@ class PointCloudSegmentation
   double ICPProtoObjects(ProtoTabletopObject a, ProtoTabletopObject b)
   {
     pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
-    icp.setInputCloud(a.cloud.makeShared());
-    icp.setInputTarget(b.cloud.makeShared());
+    icp.setInputCloud(boost::make_shared<XYZPointCloud>(a.cloud));
+    icp.setInputTarget(boost::make_shared<XYZPointCloud>(b.cloud));
     XYZPointCloud aligned;
     icp.align(aligned);
     double score = icp.getFitnessScore();
-    ROS_INFO_STREAM("has converged: " << icp.hasConverged() << " score: " <<
-                    icp.getFitnessScore());
     return score;
   }
 
@@ -418,17 +416,19 @@ class PointCloudSegmentation
     {
       if (prev_objs[i].moved)
       {
-        double min_score = FLT_MAX;
-        unsigned int min_idx = cur_objs.size();
+        double max_score = 0;
+        unsigned int max_idx = cur_objs.size();
         // TODO: Match the moved objects to their new locations
+        ROS_DEBUG_STREAM("Finding match for object : " << prev_objs[i].id);
         for (unsigned int j = 0; j < cur_objs.size(); ++j)
         {
           // Run ICP to match between frames
+          ROS_DEBUG_STREAM("Comparing to object : " << cur_objs[j].id);
           double cur_score = ICPProtoObjects(prev_objs[i], cur_objs[j]);
-          if (cur_score < min_score)
+          if (cur_score > max_score)
           {
-            min_score = cur_score;
-            min_idx = j;
+            max_score = cur_score;
+            max_idx = j;
           }
         }
         // TODO: Deal with the best match
@@ -649,6 +649,11 @@ class ObjectSingulation
     return cur_objs;
   }
 
+  /**
+   * Helper method to publish a set of proto objects for display purposes.
+   *
+   * @param objs The objects to publish
+   */
   void publishObjects(ProtoObjects& objs)
   {
     if (objs.size() == 0) return;
@@ -657,8 +662,27 @@ class ObjectSingulation
     {
       objs_cloud += objs[i].cloud;
     }
+
+    // TODO: Add an intensity channel with the label IDs
+    pcl::PointCloud<pcl::PointXYZI> label_cloud;
+    label_cloud.header.frame_id = objs_cloud.header.frame_id;
+    label_cloud.height = objs_cloud.height;
+    label_cloud.width = objs_cloud.width;
+    label_cloud.resize(label_cloud.height*label_cloud.width);
+    for (unsigned int i = 1, j=0; i < objs.size(); ++i)
+    {
+      for (unsigned int k=0; k < objs[i].cloud.size(); ++k, ++j)
+      {
+        label_cloud.at(j).x = objs_cloud.at(j).x;
+        label_cloud.at(j).y = objs_cloud.at(j).y;
+        label_cloud.at(j).z = objs_cloud.at(j).z;
+        label_cloud.at(j).intensity = objs[i].id;
+      }
+    }
+
     sensor_msgs::PointCloud2 obj_msg;
-    pcl::toROSMsg(objs_cloud, obj_msg);
+    pcl::toROSMsg(label_cloud, obj_msg);
+    // pcl::toROSMsg(objs_cloud, obj_msg);
     obj_push_pub_.publish(obj_msg);
   }
 
