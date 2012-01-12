@@ -846,11 +846,11 @@ width:100px;
 <div id="console"></div>
 </td><td colspan='2'> <!-- Gross Formating-->
 <tr><td colspan='4'>
-  <button id="stop" type="button" style="color:red;background-color:gray;font:bold;height:auto;border-style:none;height:30px;width:100%;" onclick="toggle_motors('halt'); $(':button:not(#reset)').fadeTo(1,0.4); $('#reset').show(); log('YOU\'VE STOPPED THE ROBOT! Please click \'REACTIVATE\' to reset.')">STOP ROBOT! </button> 
+  <button id="stop" type="button" style="color:red;background-color:gray;font:bold;height:auto;border-style:none;height:30px;width:100%;" onclick="toggle_motors('halt'); $(':button:visible:not(#reset)').fadeTo(1,0.4); $('#reset').show(); log('YOU\'VE STOPPED THE ROBOT! Please click \'REACTIVATE\' to reset.')">STOP ROBOT! </button> 
   </td>
 </tr><tr>
   <td colspan='4'>
-    <button id="reset" type="button" style="color:white;background-color:green;font:bold;height:30px;width:100%" onclick="toggle_motors('reset'); $(':button').fadeTo(1,1); $(this).hide(); log('Operation Resumed.');">REACTIVATE</button>
+    <button id="reset" type="button" style="color:white;background-color:green;font:bold;height:30px;width:100%" onclick="toggle_motors('reset'); $(':button:visible').fadeTo(1,1); $(this).hide(); log('Operation Resumed.');">REACTIVATE</button>
  </td>
 </tr></table> <!--END Gross Formating-->
 </body>
