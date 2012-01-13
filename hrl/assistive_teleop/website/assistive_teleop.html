@@ -249,12 +249,14 @@ function control_arm(x,y,z){
     goal.y = y;
     goal.z = z;
     log('Sending command to '+window.arm().toUpperCase()+' arm');
-    node.publish('wt_'+window.arm()+'_arm_pose_commands', 'geometry_msgs/Point', json(goal));
+    node.publish('wt_'+window.arm()+'_arm_pose_commands',
+                 'geometry_msgs/Point', json(goal));
 };
 
 function pub_gripper(arm,grpos) {
-	node.publish(arm + '_gripper_controller/gripper_action/goal', 'pr2_controllers_msgs/Pr2GripperCommandActionGoal', json(
-		{    'goal':{'command':{'position': grpos ,'max_effort':-1}}}));
+	node.publish('wt_'+arm+'_gripper_commands',
+                 'pr2_controllers_msgs/Pr2GripperCommand',
+                 json({'position': grpos ,'max_effort':-1}));
 };
 
 function teleop_arm() {
