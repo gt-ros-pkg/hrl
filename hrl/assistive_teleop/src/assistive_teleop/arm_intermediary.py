@@ -10,9 +10,11 @@ from geometry_msgs.msg  import PoseStamped, Point
 from trajectory_msgs.msg import JointTrajectoryPoint
 from std_msgs.msg import String, Float32
 from tf import TransformListener, transformations
+from pr2_controllers_msgs.msg import Pr2GripperCommand
 
 from pixel_2_3d.srv import Pixel23d
 from pr2_arms import PR2Arm
+from pr2_reactive_grippers import PR2Gripper
 import pose_utils as pu
 
 class ArmIntermediary():
@@ -20,6 +22,7 @@ class ArmIntermediary():
         self.arm = arm
         self.tfl = TransformListener()
         self.pr2_arm = PR2Arm(self.arm, self.tfl)
+        self.pr2_gripper = PR2Gripper(self.arm)
 
         rospy.loginfo('Waiting for Pixel_2_3d Service')
         try:
@@ -47,7 +50,9 @@ class ArmIntermediary():
                         self.prep_surf_wipe)
         rospy.Subscriber("wt_poke_"+self.arm+"_point", PoseStamped, self.poke)
         rospy.Subscriber(rospy.get_name()+"/log_out", String, self.repub_log)
-        
+        rospy.Subscriber("wt_"+self.arm[0]+"_gripper_commands",
+                        Pr2GripperCommand, self.gripper_pos)
+
         self.wt_log_out = rospy.Publisher("wt_log_out", String)
 
         self.wipe_started = False
@@ -56,6 +61,9 @@ class ArmIntermediary():
 
     def repub_log(self, msg):
         self.wt_log_out.publish(msg)
+
+    def gripper_pos(self, msg):
+        self.pr2_gripper.gripper_action(msg.position, msg.max_effort)
 
     def torso_frame_move(self, msg):
         """Do linear motion relative to torso frame."""
