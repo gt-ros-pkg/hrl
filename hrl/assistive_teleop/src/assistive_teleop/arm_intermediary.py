@@ -8,7 +8,7 @@ import rospy
 import actionlib
 from geometry_msgs.msg  import PoseStamped, Point
 from trajectory_msgs.msg import JointTrajectoryPoint
-from std_msgs.msg import String, Float32
+from std_msgs.msg import String, Float32, Bool
 from tf import TransformListener, transformations
 from pr2_controllers_msgs.msg import Pr2GripperCommand
 
@@ -52,6 +52,10 @@ class ArmIntermediary():
         rospy.Subscriber(rospy.get_name()+"/log_out", String, self.repub_log)
         rospy.Subscriber("wt_"+self.arm[0]+"_gripper_commands",
                         Pr2GripperCommand, self.gripper_pos)
+        rospy.Subscriber("wt_"+self.arm[0]+"_gripper_grab_commands",
+                        Bool, self.gripper_grab)
+        rospy.Subscriber("wt_"+self.arm[0]+"_gripper_release_commands",
+                        Bool, self.gripper_release)
 
         self.wt_log_out = rospy.Publisher("wt_log_out", String)
 
@@ -64,6 +68,12 @@ class ArmIntermediary():
 
     def gripper_pos(self, msg):
         self.pr2_gripper.gripper_action(msg.position, msg.max_effort)
+
+    def gripper_grab(self, msg):
+        self.pr2_gripper.grab()
+
+    def gripper_release(self, msg):
+        self.pr2_gripper.release()
 
     def torso_frame_move(self, msg):
         """Do linear motion relative to torso frame."""
