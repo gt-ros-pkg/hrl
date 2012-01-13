@@ -365,7 +365,7 @@ class PointCloudSegmentation
    * @return The new set of objects that have moved in the second cloud
    */
   ProtoObjects getMovedRegions(XYZPointCloud& prev_cloud,
-                               XYZPointCloud& cur_cloud)
+                               XYZPointCloud& cur_cloud, bool pub_cloud=false)
   {
     pcl::SegmentDifferences<pcl::PointXYZ> pcl_diff;
     pcl_diff.setDistanceThreshold(cloud_diff_thresh_);
@@ -373,7 +373,7 @@ class PointCloudSegmentation
     pcl_diff.setTargetCloud(cur_cloud.makeShared());
     XYZPointCloud cloud_out;
     pcl_diff.segment(cloud_out);
-    ProtoObjects moved = clusterProtoObjects(cloud_out, true);
+    ProtoObjects moved = clusterProtoObjects(cloud_out, pub_cloud);
     return moved;
   }
 
@@ -407,23 +407,56 @@ class PointCloudSegmentation
     ROS_INFO_STREAM("Num moved objects: " << moved_objs.size());
     return moved_objs;
   }
-
   ProtoObjects updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
                                ProtoObjects& moved_objs)
   {
     ProtoObjects updated_cur_objs;
+    std::vector<bool> matched(cur_objs.size(), false);
+    for (unsigned int i = 0; i < prev_objs.size(); ++i)
+    {
+      if (prev_objs[i].moved)
+      {
+        continue;
+      }
+      else
+      {
+        double min_score = FLT_MAX;
+        unsigned int min_idx = cur_objs.size();
+        // Update the ID in cur_objs of the closest centroid in previous objects
+        for (unsigned int j = 0; j < cur_objs.size(); ++j)
+        {
+          double score = dist(prev_objs[i].centroid, cur_objs[j].centroid);
+          if (score < min_score)
+          {
+            min_idx = j;
+            min_score = score;
+          }
+        }
+        if (min_idx < cur_objs.size())
+        {
+          // TODO: Ensure uniquness
+          ROS_INFO_STREAM("Matched unmoved current object: "
+                          << min_idx << " to previous object "
+                          << prev_objs[i].id);
+          cur_objs[min_idx].id = prev_objs[i].id;
+          if (matched[min_idx]) ROS_WARN_STREAM("Already matched to this one.");
+          matched[min_idx] = true;
+        }
+      }
+    }
     for (unsigned int i = 0; i < prev_objs.size(); ++i)
     {
       if (prev_objs[i].moved)
       {
         double max_score = 0;
         unsigned int max_idx = cur_objs.size();
-        // TODO: Match the moved objects to their new locations
-        ROS_DEBUG_STREAM("Finding match for object : " << prev_objs[i].id);
+        // Match the moved objects to their new locations
+        ROS_INFO_STREAM("Finding match for object : " << prev_objs[i].id);
         for (unsigned int j = 0; j < cur_objs.size(); ++j)
         {
+          if (matched[j]) continue;
           // Run ICP to match between frames
-          ROS_DEBUG_STREAM("Comparing to object : " << cur_objs[j].id);
+          ROS_INFO_STREAM("Comparing to object : " << cur_objs[j].id);
           double cur_score = ICPProtoObjects(prev_objs[i], cur_objs[j]);
           if (cur_score > max_score)
           {
@@ -431,13 +464,25 @@ class PointCloudSegmentation
             max_idx = j;
           }
         }
-        // TODO: Deal with the best match
-      }
-      else
-      {
-        // TODO: Update the ID in cur_objs of the closest centroid
+        if (max_idx < cur_objs.size())
+        {
+          // TODO: If score is too bad ignore
+          ROS_INFO_STREAM("Matched moved current object: "
+                          << max_idx << " to previous object "
+                          << prev_objs[i].id);
+          cur_objs[max_idx].id = prev_objs[i].id;
+          if (matched[max_idx]) ROS_WARN_STREAM("Already matched to this one.");
+          // TODO: Not the right way. We need to find the best match
+          matched[max_idx] = true;
+        }
+        else
+        {
+          ROS_WARN_STREAM("No match for moved previus object: "
+                          << prev_objs[i].id);
+        }
       }
     }
+
     return cur_objs;
   }
 
@@ -446,6 +491,14 @@ class PointCloudSegmentation
     double dx = a.x-b.x;
     double dy = a.y-b.y;
     double dz = a.z-b.z;
+    return std::sqrt(dx*dx+dy*dy+dz*dz);
+  }
+
+  double dist(Eigen::Vector4f a, Eigen::Vector4f b)
+  {
+    double dx = a[0]-b[0];
+    double dy = a[1]-b[1];
+    double dz = a[2]-b[2];
     return std::sqrt(dx*dx+dy*dy+dz*dz);
   }
 
@@ -463,6 +516,15 @@ class PointCloudSegmentation
     return false;
   }
 
+  /**
+   * Filter a point cloud to only be above the estimated table and within the
+   * workspace in x, then downsample the voxels.
+   *
+   * @param cloud_in The cloud to filter and downsample
+   * @param pub_cloud Publish a cloud of the result if true
+   *
+   * @return The downsampled cloud
+   */
   XYZPointCloud downsampleCloud(XYZPointCloud& cloud_in, bool pub_cloud=false)
   {
     XYZPointCloud cloud_z_filtered, cloud_x_filtered, cloud_down;
@@ -621,10 +683,20 @@ class ObjectSingulation
   }
 
  protected:
+  /**
+   * Find the current object estimates in the current cloud, dependent on the
+   * previous cloud
+   *
+   * @param cloud The cloud to find the objects in.
+   *
+   * @return The current estimate of the objects
+   */
   ProtoObjects calcProtoObjects(XYZPointCloud& cloud)
   {
     XYZPointCloud objs_cloud;
-    ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cloud, objs_cloud);
+    ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cloud, objs_cloud,
+                                                            true);
+    publishObjects(objs);
     XYZPointCloud cur_objs_down = pcl_segmenter_->downsampleCloud(objs_cloud,
                                                                   true);
     ProtoObjects cur_objs;
@@ -632,11 +704,10 @@ class ObjectSingulation
     {
       // Determine where stuff has moved
       ProtoObjects moved_regions = pcl_segmenter_->getMovedRegions(
-          prev_objs_down_, cur_objs_down);
+          prev_objs_down_, cur_objs_down/*, true*/);
       // Match these moved regions to the previous objects
       ProtoObjects moved_protos = pcl_segmenter_->matchMovedRegions(
           prev_proto_objs_, moved_regions);
-      publishObjects(moved_protos);
       // Match the moved objects to their new locations
       cur_objs = pcl_segmenter_->updateMovedObjs(objs, prev_proto_objs_,
                                                  moved_protos);
@@ -663,7 +734,6 @@ class ObjectSingulation
       objs_cloud += objs[i].cloud;
     }
 
-    // TODO: Add an intensity channel with the label IDs
     pcl::PointCloud<pcl::PointXYZI> label_cloud;
     label_cloud.header.frame_id = objs_cloud.header.frame_id;
     label_cloud.height = objs_cloud.height;
@@ -673,6 +743,7 @@ class ObjectSingulation
     {
       for (unsigned int k=0; k < objs[i].cloud.size(); ++k, ++j)
       {
+        // TODO: This is not working
         label_cloud.at(j).x = objs_cloud.at(j).x;
         label_cloud.at(j).y = objs_cloud.at(j).y;
         label_cloud.at(j).z = objs_cloud.at(j).z;
@@ -682,7 +753,6 @@ class ObjectSingulation
 
     sensor_msgs::PointCloud2 obj_msg;
     pcl::toROSMsg(label_cloud, obj_msg);
-    // pcl::toROSMsg(objs_cloud, obj_msg);
     obj_push_pub_.publish(obj_msg);
   }
 
@@ -885,7 +955,7 @@ class ObjectSingulationNode
     pcl_segmenter_.pcl_down_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
         "downsampled_objs", 1000);
     os_.obj_push_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
-        "object_to_push", 1000);
+        "object_singulation_cloud", 1000);
   }
 
   void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,
