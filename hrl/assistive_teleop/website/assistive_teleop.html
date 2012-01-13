@@ -43,9 +43,9 @@ $(function(){
                                                             pub_gripper('l',$('#lg_slider').slider("value"));
                                                             log("Opening/Closing Left Gripper");
                                                             });	
-	$('#torso_slider').slider({min:0.005,max:0.3,step:0.01,orientation:'vertical'});
+	$('#torso_slider').slider({min:0.0,max:0.3,step:0.01,orientation:'vertical'});
 	$('#torso_slider').unbind("slidestop").bind("slidestop", function(event,ui){
-                                                            pub_spine($('#torso_slider').slider("value"));
+                                                            pub_torso($('#torso_slider').slider("value"));
                                                             log("Raising/Lowering Spine");
                                                             });	
 	$('#submit_text').click(function(e){speak($('#txt2say').val())});
@@ -259,6 +259,16 @@ function pub_gripper(arm,grpos) {
                  json({'position': grpos ,'max_effort':-1}));
 };
 
+function gripper_grab(arm){
+    node.publish('wt_'+arm+'_gripper_grab_commands', 'std_msgs/Bool',
+                json({'data':true}));
+};
+
+function gripper_release(arm){
+    node.publish('wt_'+arm+'_gripper_release_commands', 'std_msgs/Bool',
+                json({'data':true}));
+};
+
 function teleop_arm() {
 	var x,y,z,b9txt,b7txt;
 	if (plane == 'xy'){
@@ -385,7 +395,7 @@ function teleop_wrist() {
     });
 };
 
-function pub_spine(tz){
+function pub_torso(tz){
 	node.publish('torso_controller/position_joint_action/goal',
                  'pr2_controllers_msgs/SingleJointPositionActionGoal',
                  json({'goal':{'position':tz}})
@@ -833,16 +843,43 @@ width:100px;
 </td><td>
      <img id="tp" src=touchpad.jpg title="Click here for 2D Control of the selected robot part" style="border-style:solid; border-width:3px height:201px; width:201px;">
 </td>
-<td> <!-- Gross Formatting-->
+<td rowspan='4'> <!-- Gross Formatting-->
+<div id='gripper_controls'>
   <table border='1'>
-    <th colspan='2'> Grippers </th><th>Torso</th>
-    <tr><td>Left</td><td>Right</td><td>U/D</td></tr>
+    <th colspan='2' align='center'> Grippers </th>
+    <th align='center'>Torso</th>
     <tr>
-      <td rowspan="2" align='center'><div style="margin:5px;height:150px" id="lg_slider"></div></td>
-      <td rowspan="2" align='center'><div style="margin:5px;height:150px" id="rg_slider"></div></td>
-      <td><div style="margin: 5 auto; height:150px" id="torso_slider"></div></td>
+      <td align='center'>Left</td>
+      <td align='center'>Right</td>
+      <td align='center'>U/D</td>
+    </tr>
+    <tr>
+      <td>
+        <button id='lg_release' onclick='gripper_release("l");'>Place</button>
+      </td><td>
+        <button id='rg_release' onclick='gripper_release("r");'>Place</button>
+      </td><td>
+        <button id='torso_max' onclick='pub_torso(0.3);'>Max</button>
+      </td>
+    </tr>
+    <tr>
+      <td rowspan="1" align='center'><div style="margin:5px;height:150px" id="lg_slider"></div></td>
+      <td rowspan="1" align='center'><div style="margin:5px;height:150px" id="rg_slider"></div></td>
+      <td rowspan="1" align='center'>
+        <div style="margin: 5 auto; height:150px" id="torso_slider"></div>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <button id='lg_grab' onclick='gripper_grab("l");'>Grab</button>
+      </td><td>
+        <button id='rg_grab' onclick='gripper_grab("r");'>Grab</button>
+      </td><td>
+        <button id='torso_min' onclick='pub_torso(0);'>Min</button>
+      </td>
     </tr>
   </table>
+</div>
 </tr>
 <tr><td colspan='4'> <!-- Gross Formating-->
 <div id="console"></div>
