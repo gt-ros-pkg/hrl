@@ -87,7 +87,8 @@ class KDLArmKinematics(HRLArmKinematics):
         q_kdl = kdl.JntArray(self.n_jts)
         q_guess_kdl = joint_list_to_kdl(q_guess)
         if self.ik_p_kdl.CartToJnt(q_guess_kdl, frame_kdl, q_kdl) >= 0:
-            return self.normalize_angles(joint_kdl_to_list(q_kdl))
+            #return self.normalize_angles(joint_kdl_to_list(q_kdl))
+            return np.array(joint_kdl_to_list(q_kdl))
         else:
             return None
 
@@ -134,7 +135,7 @@ class KDLArmKinematics(HRLArmKinematics):
         min_lims = np.where(contins, -np.pi, min_lims)
         max_lims = np.where(contins, np.pi, max_lims)
         zip_lims = zip(min_lims, max_lims)
-        return [np.random.uniform(min_lim, max_lim) for min_lim, max_lim in zip_lims]
+        return np.array([np.random.uniform(min_lim, max_lim) for min_lim, max_lim in zip_lims])
 
     def IK_search(self, pos, rot, timeout=1.):
         st_time = rospy.get_time()
@@ -200,7 +201,7 @@ def joint_kdl_to_list(q):
 def joint_list_to_kdl(q):
     if q is None:
         return None
-    if type(q) == np.core.matrix and q.shape[1] == 0:
+    if type(q) == np.matrix and q.shape[1] == 0:
         q = q.T.tolist()[0]
     q_kdl = kdl.JntArray(len(q))
     for i, q_i in enumerate(q):

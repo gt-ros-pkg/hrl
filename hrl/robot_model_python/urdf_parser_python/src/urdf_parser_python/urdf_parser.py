@@ -3,6 +3,7 @@ import roslib
 roslib.load_manifest("rospy")
 roslib.load_manifest("tf")
 import rospy
+import roslib.substitution_args
 
 import re
 import xml.dom.minidom as minidom
@@ -315,7 +316,7 @@ def create_model_from_dom(dom):
     return model
 
 def create_model_from_file(filename):
-    dom = minidom.parse(filename)
+    dom = minidom.parse(roslib.substitution_args.resolve_args(filename))
     return create_model_from_dom(dom)
 
 def create_model_from_string(string):

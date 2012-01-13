@@ -92,6 +92,17 @@ def create_pr2_arm(arm, arm_type=PR2Arm, base_link="torso_lift_link",
     kin = KDLArmKinematics(chain, joint_info, base_link, end_link)
     return arm_type(arm, kin)
 
+def create_pr2_arm_from_file(arm, arm_type=PR2Arm, base_link="torso_lift_link",  
+                             end_link="%s_gripper_tool_frame", 
+                             filename="$(find hrl_pr2_arms)/params/pr2_robot_uncalibrated_1.6.0.xml"):
+    if "%s" in base_link:
+        base_link = base_link % arm
+    if "%s" in end_link:
+        end_link = end_link % arm
+    chain, joint_info = kdlp.chain_from_file(base_link, end_link, filename)
+    kin = KDLArmKinematics(chain, joint_info, base_link, end_link)
+    return arm_type(arm, kin)
+
 class PR2ArmJointTrajectory(PR2Arm):
     def __init__(self, arm, kinematics, controller_name='/%s_arm_controller'):
         super(PR2ArmJointTrajectory, self).__init__(arm, kinematics, controller_name)

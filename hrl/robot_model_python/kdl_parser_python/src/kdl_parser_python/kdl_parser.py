@@ -83,13 +83,14 @@ def tree_from_param(param="/robot_description"):
     return tree_from_urdf_model(robot_model)
 
 def chain_from_file(base_link, end_link, filename):
-    tree = tree_from_file(filename)
-    chain = tree.getChain(base_link, end_link)
-    joint_info = joint_info_from_model(chain, robot_model)
-    return chain, joint_info
+    robot_model = urdf.create_model_from_file(filename)
+    return chain_from_urdf_model(robot_model, base_link, end_link)
 
 def chain_from_param(base_link, end_link, param="/robot_description"):
     robot_model = urdf.create_model_from_param(param)
+    return chain_from_urdf_model(robot_model, base_link, end_link)
+
+def chain_from_urdf_model(robot_model, base_link, end_link):
     tree = tree_from_urdf_model(robot_model)
     chain = tree.getChain(base_link, end_link)
     joint_info = joint_info_from_model(chain, robot_model)
