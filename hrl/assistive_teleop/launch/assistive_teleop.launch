@@ -29,9 +29,15 @@
         machine="c2"/>
     -->
 
-    <!-- NetFt Sensor
-    <include file="$(find hrl_netft)/launch/tool_razor_inline_zeroed.launch" />
-    -->
+    <!-- NetFt Sensor-->
+        <!-- Launch sensor 
+        <include file="$(find hrl_netft)/launch/tool_razor_inline_zeroed.launch" />-->
+        <!-- Throttle feedback to interface -->
+        <node
+            name="throttle_wt_force_out"
+            pkg="topic_tools"
+            type="throttle"
+            args="messages /netft_gravity_zeroing/wrench_zeroed 8 /wt_force_out_throttle" />
  
     <!-- JTTask Controller load
     <include file="$(find assistive_teleop)/launch/c_jtask_mod.launch" />
@@ -91,12 +97,16 @@
         name="wt_left_arm"
         pkg="assistive_teleop"
         type="arm_intermediary.py"
-        args="left" output="screen"/>
+        args="left"
+        output="screen"
+        machine="c2"/>
     <node
         name="wt_right_arm"
         pkg="assistive_teleop"
         type="arm_intermediary.py"
-        args="right" output="screen"/>
+        args="right"
+        output="screen"
+        machine="c2"/>
 
     <!-- Launch Image Rotation Nodes for forearm cameras-->
     <node
@@ -211,12 +221,12 @@
         name="throttle_r_gripper_controller_state" 
         pkg="topic_tools" 
         type="throttle"
-        args="messages /r_gripper_controller/state 1 /r_gripper_controller_state_throttle" />
+        args="messages /r_gripper_sensor_controller/state 1 /r_gripper_controller_state_throttle" />
     <node
         name="throttle_l_gripper_controller_state" 
         pkg="topic_tools" 
         type="throttle" 
-        args="messages /l_gripper_controller/state 1 /l_gripper_controller_state_throttle" />
+        args="messages /l_gripper_sensor_controller/state 1 /l_gripper_controller_state_throttle" />
     <node 
         name="throttle_r_arm_joints_state" 
         pkg="topic_tools" 
@@ -227,16 +237,6 @@
         pkg="topic_tools" 
         type="throttle" 
         args="messages /l_arm_controller/state 8 /l_arm_controller_state_throttle" />
-    <!--<node 
-        name="throttle_wt_force_out"
-        pkg="topic_tools"
-        type="throttle"
-        args="messages /wt_force_out 8 /wt_force_out_throttle" />-->
-    <node
-        name="throttle_wt_force_out"
-        pkg="topic_tools"
-        type="throttle"
-        args=" messages /netft_gravity_zeroing/wrench_zeroed 8 /wt_force_out_throttle" />
 
     <!-- Launch mjpeg server, used for sending image streams -->
     <node 
