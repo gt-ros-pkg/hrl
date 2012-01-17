@@ -407,6 +407,16 @@ class PointCloudSegmentation
     ROS_INFO_STREAM("Num moved objects: " << moved_objs.size());
     return moved_objs;
   }
+
+  /**
+   * Method to update the IDs and of moved proto objects
+   *
+   * @param cur_objs The current set of proto objects
+   * @param prev_objs The previous set of proto objects
+   * @param moved_objs Moved proto objects
+   *
+   * @return 
+   */
   ProtoObjects updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
                                ProtoObjects& moved_objs)
   {
@@ -425,7 +435,7 @@ class PointCloudSegmentation
         // Update the ID in cur_objs of the closest centroid in previous objects
         for (unsigned int j = 0; j < cur_objs.size(); ++j)
         {
-          double score = dist(prev_objs[i].centroid, cur_objs[j].centroid);
+          double score = sqrDist(prev_objs[i].centroid, cur_objs[j].centroid);
           if (score < min_score)
           {
             min_idx = j;
@@ -494,14 +504,24 @@ class PointCloudSegmentation
     return std::sqrt(dx*dx+dy*dy+dz*dz);
   }
 
-  double dist(Eigen::Vector4f a, Eigen::Vector4f b)
+  double sqrDist(Eigen::Vector4f a, Eigen::Vector4f b)
   {
     double dx = a[0]-b[0];
     double dy = a[1]-b[1];
     double dz = a[2]-b[2];
-    return std::sqrt(dx*dx+dy*dy+dz*dz);
+    return dx*dx+dy*dy+dz*dz;
   }
 
+  /**
+   * Naively determine if two point clouds intersect based on distance threshold
+   * between points.
+   *
+   * @param cloud0 First cloud for interesection test
+   * @param cloud1 Second cloud for interesection test
+   *
+   * @return true if any points from cloud0 and cloud1 have distance less than
+   * voxel_down_res_
+   */
   bool cloudsIntersect(XYZPointCloud cloud0, XYZPointCloud cloud1)
   {
     for (unsigned int i = 0; i < cloud0.size(); ++i)
@@ -835,7 +855,33 @@ class ObjectSingulation
     // Remove stuff out of the image
     edge_img.copyTo(edge_img_masked, workspace_mask);
     depth_edge_img.copyTo(depth_edge_img_masked, workspace_mask);
-    cv::Mat combined_edges = cv::max(edge_img_masked, depth_edge_img_masked);
+    cv::Mat combined_edges;
+    if (use_weighted_edges_)
+    {
+      cv::Mat bin_depth_edges;
+      cv::threshold(depth_edge_img_masked, bin_depth_edges,
+                    depth_edge_weight_thresh_, depth_edge_weight_,
+                    cv::THRESH_BINARY);
+      cv::Mat bin_img_edges;
+      cv::threshold(edge_img_masked, bin_img_edges, edge_weight_thresh_,
+                    (1.0-depth_edge_weight_), cv::THRESH_BINARY);
+      combined_edges = bin_depth_edges + bin_img_edges;
+      double edge_max = 1.0;
+      double edge_min = 1.0;
+      cv::minMaxLoc(edge_img_masked, &edge_min, &edge_max);
+      double depth_max = 1.0;
+      double depth_min = 1.0;
+      cv::minMaxLoc(depth_edge_img_masked, &depth_min, &depth_max);
+
+#ifdef DISPLAY_OBJECT_BOUNDARIES
+      cv::imshow("binary depth edges", bin_depth_edges);
+      cv::imshow("binary img edges", bin_img_edges);
+#endif // DISPLAY_OBJECT_BOUNDARIES
+    }
+    else
+    {
+      combined_edges = cv::max(edge_img_masked, depth_edge_img_masked);
+    }
 
 #ifdef DISPLAY_OBJECT_BOUNDARIES
     cv::imshow("boundary_strengths", edge_img_masked);
@@ -867,6 +913,10 @@ class ObjectSingulation
   double max_pushing_y_;
   std::string workspace_frame_;
   ros::Publisher obj_push_pub_;
+  bool use_weighted_edges_;
+  double depth_edge_weight_;
+  double edge_weight_thresh_;
+  double depth_edge_weight_thresh_;
 };
 
 class ObjectSingulationNode
@@ -904,6 +954,12 @@ class ObjectSingulationNode
     n_private_.param("workspace_frame", workspace_frame_,
                      default_workspace_frame);
     os_.workspace_frame_ = workspace_frame_;
+
+    n_private_.param("use_weighted_edges", os_.use_weighted_edges_, false);
+    n_private_.param("edge_weight_thresh", os_.edge_weight_thresh_, 0.5);
+    n_private_.param("depth_edge_weight_thresh", os_.depth_edge_weight_thresh_,
+                     0.5);
+    n_private_.param("depth_edge_weight", os_.depth_edge_weight_, 0.75);
 
     n_private_.param("min_table_z", pcl_segmenter_.min_table_z_, -0.5);
     n_private_.param("max_table_z", pcl_segmenter_.max_table_z_, 1.5);
