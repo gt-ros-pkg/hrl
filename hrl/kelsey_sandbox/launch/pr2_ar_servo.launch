@@ -11,4 +11,8 @@
         <remap from="/ar_pose_marker" to="/pr2_test_ar_pose_marker" />
 	</node>
 	
+    <node pkg="costmap_services" name="costmap_services" type="costmap_services" 
+          respawn="true" output="screen">
+      <rosparam file="$(find kelsey_sandbox)/launch/laser_baseonly.yaml" command="load" />
+    </node>
 </launch>

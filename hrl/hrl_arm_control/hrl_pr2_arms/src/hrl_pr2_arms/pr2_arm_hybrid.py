@@ -14,8 +14,8 @@ from hrl_pr2_arms.pr2_arm import PR2ArmCartesianPostureBase
 from hrl_netft.msg import HybridCartesianGains
 
 class PR2ArmHybridForce(PR2ArmCartesianPostureBase):
-    def __init__(self, arm, kinematics, controller_name='/%s_cart'):
-        super(PR2ArmHybridForce, self).__init__(arm, kinematics, controller_name)
+    def __init__(self, arm, kinematics, controller_name='/%s_cart', js_timeout=5.):
+        super(PR2ArmHybridForce, self).__init__(arm, kinematics, controller_name, js_timeout)
         controller_name = self.controller_name
         self.auto_update = False
         self.command_gains_pub = rospy.Publisher(controller_name + '/gains', HybridCartesianGains)

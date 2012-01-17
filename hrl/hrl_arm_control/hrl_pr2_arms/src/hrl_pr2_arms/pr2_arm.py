@@ -31,7 +31,7 @@ class PR2Arm(HRLArm):
     ##
     # Initializes subscribers
     # @param arm 'r' for right, 'l' for left
-    def __init__(self, arm, kinematics, controller_name):
+    def __init__(self, arm, kinematics, controller_name, js_timeout):
         super(PR2Arm, self).__init__(kinematics)
         self.arm = arm
         if '%s' in controller_name:
@@ -45,6 +45,11 @@ class PR2Arm(HRLArm):
             self.joint_names_list.append(arm + s)
         self.joint_state_inds = None
         self.joint_angles = None
+        self.joint_efforts = None
+        if js_timeout > 0:
+            self.wait_for_joint_angles(js_timeout)
+            self.reset_ep()
+            
 
     ##
     # Joint angles listener callback
@@ -53,6 +58,7 @@ class PR2Arm(HRLArm):
             if self.joint_state_inds is None:
                 self.joint_state_inds = [msg.name.index(joint_name) for joint_name in self.joint_names_list]
             self.joint_angles = [msg.position[i] for i in self.joint_state_inds]
+            self.joint_efforts = [msg.effort[i] for i in self.joint_state_inds]
 
     ##
     # Returns the current joint angle positions
@@ -61,12 +67,36 @@ class PR2Arm(HRLArm):
     def get_joint_angles(self, wrapped=False):
         with self.lock:
             if self.joint_angles is None:
-                rospy.logerr("[pr2_arm_base] Joint angles haven't been filled yet")
+                rospy.logwarn("[pr2_arm_base] Joint angles haven't been filled yet")
                 return None
             if wrapped:
                 return self.wrap_angles(self.joint_angles)
             else:
                 return np.array(self.joint_angles)
+
+    ##
+    # Wait until we have found the current joint angles.
+    # @param timeout Time at which we break if we haven't recieved the angles.
+    def wait_for_joint_angles(self, timeout=5.):
+        start_time = rospy.get_time()
+        r = rospy.Rate(20)
+        while not rospy.is_shutdown() and rospy.get_time() - start_time < timeout:
+            with self.lock:
+                if self.joint_angles is not None:
+                    return True
+            r.sleep()
+        if not rospy.is_shutdown():
+            rospy.logwarn("[pr2_arm_base] Cannot read joint angles, timing out.")
+        return False
+            
+    ##
+    # Returns the current joint efforts (similar to torques)
+    def get_joint_efforts(self):
+        with self.lock:
+            if self.joint_efforts is None:
+                rospy.logwarn("[pr2_arm_base] Joint efforts haven't been filled yet")
+                return None
+            return np.array(self.joint_efforts)
 
     ##
     # Returns the same angles with the forearm and wrist roll wrapped to the 
@@ -83,34 +113,40 @@ class PR2Arm(HRLArm):
         return np.array(ret_q)
 
 def create_pr2_arm(arm, arm_type=PR2Arm, base_link="torso_lift_link",  
-                   end_link="%s_gripper_tool_frame", param="/robot_description"):
+                   end_link="%s_gripper_tool_frame", param="/robot_description",
+                   controller_name=None, js_timeout=5.):
     if "%s" in base_link:
         base_link = base_link % arm
     if "%s" in end_link:
         end_link = end_link % arm
     chain, joint_info = kdlp.chain_from_param(base_link, end_link, param=param)
     kin = KDLArmKinematics(chain, joint_info, base_link, end_link)
-    return arm_type(arm, kin)
+    if controller_name is None:
+        return arm_type(arm, kin)
+    else:
+        return arm_type(arm, kin, controller_name=controller_name)
 
 def create_pr2_arm_from_file(arm, arm_type=PR2Arm, base_link="torso_lift_link",  
                              end_link="%s_gripper_tool_frame", 
-                             filename="$(find hrl_pr2_arms)/params/pr2_robot_uncalibrated_1.6.0.xml"):
+                             filename="$(find hrl_pr2_arms)/params/pr2_robot_uncalibrated_1.6.0.xml",
+                             controller_name=None, js_timeout=0.):
     if "%s" in base_link:
         base_link = base_link % arm
     if "%s" in end_link:
         end_link = end_link % arm
     chain, joint_info = kdlp.chain_from_file(base_link, end_link, filename)
     kin = KDLArmKinematics(chain, joint_info, base_link, end_link)
-    return arm_type(arm, kin)
+    if controller_name is None:
+        return arm_type(arm, kin, js_timeout=js_timeout)
+    else:
+        return arm_type(arm, kin, js_timeout=js_timeout, controller_name=controller_name)
 
 class PR2ArmJointTrajectory(PR2Arm):
-    def __init__(self, arm, kinematics, controller_name='/%s_arm_controller'):
-        super(PR2ArmJointTrajectory, self).__init__(arm, kinematics, controller_name)
+    def __init__(self, arm, kinematics, controller_name='/%s_arm_controller', js_timeout=5.):
+        super(PR2ArmJointTrajectory, self).__init__(arm, kinematics, controller_name, js_timeout)
         self.joint_action_client = actionlib.SimpleActionClient(
                                        self.controller_name + '/joint_trajectory_action',
                                        JointTrajectoryAction)
-        rospy.sleep(1)
-        self.reset_ep()
 
     ##
     # Commands joint angles to a single position
@@ -138,11 +174,9 @@ class PR2ArmJointTrajectory(PR2Arm):
         self.ep = self.get_joint_angles(False)
 
 class PR2ArmCartesianBase(PR2Arm):
-    def __init__(self, arm, kinematics, controller_name='/%s_cart'):
-        super(PR2ArmCartesianBase, self).__init__(arm, kinematics, controller_name)
+    def __init__(self, arm, kinematics, controller_name='/%s_cart', js_timeout=5.):
+        super(PR2ArmCartesianBase, self).__init__(arm, kinematics, controller_name, js_timeout)
         self.command_pose_pub = rospy.Publisher(self.controller_name + '/command_pose', PoseStamped)
-        rospy.sleep(1)
-        self.reset_ep()
 
     def set_ep(self, cep, duration, delay=0.0):
         cep_pose_stmp = PoseConverter.to_pose_stamped_msg('torso_lift_link', cep)
@@ -183,8 +217,8 @@ class PR2ArmCartesianBase(PR2Arm):
         return err
 
 class PR2ArmCartesianPostureBase(PR2ArmCartesianBase):
-    def __init__(self, arm, kinematics, controller_name='/%s_cart'):
-        super(PR2ArmCartesianPostureBase, self).__init__(arm, kinematics, controller_name)
+    def __init__(self, arm, kinematics, controller_name='/%s_cart', js_timeout=5.):
+        super(PR2ArmCartesianPostureBase, self).__init__(arm, kinematics, controller_name, js_timeout)
         self.command_posture_pub = rospy.Publisher(self.controller_name + '/command_posture', 
                                                    Float64MultiArray)
 
@@ -201,10 +235,9 @@ class PR2ArmJInverse(PR2ArmCartesianPostureBase):
     pass
 
 class PR2ArmJTransposeTask(PR2ArmCartesianPostureBase):
-    def __init__(self, arm, kinematics, controller_name='/%s_cart'):
-        super(PR2ArmJTransposeTask, self).__init__(arm, kinematics, controller_name)
+    def __init__(self, arm, kinematics, controller_name='/%s_cart', js_timeout=5.):
+        super(PR2ArmJTransposeTask, self).__init__(arm, kinematics, controller_name, js_timeout)
         self.command_gains_pub = rospy.Publisher(self.controller_name + '/gains', CartesianGains)
-        rospy.sleep(1)
 
     def set_gains(self, p_gains, d_gains, frame=None):
         if frame is None:

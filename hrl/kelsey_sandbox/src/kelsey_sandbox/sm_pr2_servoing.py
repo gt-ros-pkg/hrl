@@ -8,6 +8,7 @@ roslib.load_manifest('costmap_services')
 import rospy
 import smach
 import smach_ros
+from std_msgs.msg import Bool
 
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJointTrajectory
 from costmap_services.python_client import CostmapServices
@@ -101,10 +102,26 @@ def build_cc_servoing():
 class UIState(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=outcomes_spa)
+        self.ui_list = rospy.Subscriber("servo_continue", Bool, self.ui_cb)
+        self.got_msg = False
+        self.should_continue = None
     
+    def ui_cb(self, msg):
+        self.should_continue = msg.data
+        self.got_msg = True
+
     def execute(self, userdata):
         r = Rate(20)
         while not rospy.is_shutdown():
+            if self.got_msg:
+                if self.should_continue:
+                    return "succeeded"
+                else:
+                    return "aborted"
+                self.got_msg = False
+            if self.preempt_requested():
+                self.service_preempt()
+                return 'preempted'
             r.sleep()
         return 'aborted'
 
@@ -117,7 +134,7 @@ def build_sm():
                                             'tag_missing' : 'USER_INPUT_WAIT'})
 
         smach.StateMachine.add('USER_INPUT_WAIT',
-                               ui_state,# TODO
+                               UIState(),
                                transitions={'succeeded' : 'VALIDATE_AR'}
 
         smach.StateMachine.add('CC_SERVOING', 
