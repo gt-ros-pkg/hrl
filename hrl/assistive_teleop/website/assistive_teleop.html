@@ -59,7 +59,13 @@ $(function(){
 	$('#reset, #bpd2, #shave_end, #shave_select').hide(); 
 });
 
-function init (){
+function init(){
+    init_subscribers();
+    init_msgs();
+    init_publishers();
+};
+
+function init_msgs (){
     log("Beginning Initialization");
 	if (!window.point_2d){
         log("Looking for Pixel_2_3d service");
@@ -84,7 +90,7 @@ function init (){
 	};
 };
 
-function sub_state() {
+function init_subscribers() {
 	node.subscribe('/head_traj_controller_state_throttle',
                     function(msg){
                         window.head = msg.actual;
@@ -118,8 +124,69 @@ function sub_state() {
                    });
 };//END sub_state
 
+function init_publishers() {
+	//Gripper Publishers
+    node.publish('wt_r_gripper_commands','pr2_controllers_msgs/Pr2GripperCommand',json({}));
+	node.publish('wt_l_gripper_commands','pr2_controllers_msgs/Pr2GripperCommand',json({}));
+    node.publish('wt_r_gripper_release_commands', 'std_msgs/Bool', json({}));
+    node.publish('wt_l_gripper_release_commands', 'std_msgs/Bool', json({}));
+    node.publish('wt_r_gripper_grab_commands', 'std_msgs/Bool',json({}));
+    node.publish('wt_l_gripper_grab_commands', 'std_msgs/Bool',json({}));
+
+    //Arm Publishers
+    node.publish('wt_right_arm_pose_commands','geometry_msgs/Point', json({}));
+    node.publish('wt_left_arm_pose_commands','geometry_msgs/Point', json({}));
+    node.publish('wt_right_arm_angle_commands', 'trajectory_msgs/JointTrajectoryPoint', json({}))
+    node.publish('wt_left_arm_angle_commands', 'trajectory_msgs/JointTrajectoryPoint', json({}))
+    node.publish('wt_lin_move_right','std_msgs/Float32', json({}));
+    node.publish('wt_lin_move_left','std_msgs/Float32', json({}));
+    //node.publish('/wt_tuck_arms', 'std_msgs/String', json({}));
+   
+    //Image-Click Publishers
+    node.publish('norm_approach_right', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('norm_approach_left', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_contact_approach_right', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_contact_approach_left', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_poke_right_point', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_poke_left_point', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_swipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_swipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_wipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_wipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_rg_right_goal', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_rg_left_goal', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_grasp_right_goal', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('/wt_grasp_left_goal', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_surf_wipe_r_points', 'geometry_msgs/Point', json({}));
+    node.publish('wt_surf_wipe_l_points', 'geometry_msgs/Point', json({}));
+   
+    //Wrist Publishers
+    node.publish('wt_adjust_elbow_right','std_msgs/Float32', json({}));
+    node.publish('wt_adjust_elbow_left','std_msgs/Float32', json({}));
+
+    //Head Publishers
+    node.publish('/head_nav_goal', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('head_traj_controller/joint_trajectory_action/goal','pr2_controllers_msgs/JointTrajectoryActionGoal', json({}));
+	node.publish('head_traj_controller/point_head_action/goal', 'pr2_controllers_msgs/PointHeadActionGoal', json({}));
+    
+    //Assorted Publishers
+    node.publish('/base_controller/command', 'geometry_msgs/Twist',json({}));
+    node.publish('/text_to_say', 'std_msgs/String', json({}));
+	node.publish('torso_controller/position_joint_action/goal','pr2_controllers_msgs/SingleJointPositionActionGoal',json({}))
+    node.publish('/wt_ft_goal', 'std_msgs/Float32', json({}))
+    
+    //Shaving Publishers
+    node.publish('/wt_disc_shaving_step', 'std_msgs/Int8', json({}));
+    node.publish('/wt_cont_shaving_step', 'geometry_msgs/Point', json({}));
+    node.publish('wt_shave_location', 'std_msgs/Int8', json({}));
+    node.publish('/reg_confirm', 'std_msgs/Bool', json({}))
+    node.publish('/ros_switch', 'std_msgs/Bool', json({}));
+    node.publish('/init_head', 'geometry_msgs/PoseStamped', json({}));
+
+};
+
 function pub_ft_goal(thresh) {
-    node.publish('/wt_ft_goal', 'std_msgs/Float32', json({'data':thresh}))
+    node.publish('wt_ft_goal', 'std_msgs/Float32', json({}));
 };
 
 function click_position(e) {
@@ -599,7 +666,6 @@ function start(){
     	});
       	node.setOnOpen(function(e) {   
 	  log("Connected to " + node.url + ".");
-	  sub_state();
 	  init();
 	  });
 };
