@@ -84,6 +84,10 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
+// Boost
+// TODO: Use these instead of passing pointers about
+#include <boost/shared_ptr.hpp>
+
 // cpl_visual_features
 #include <cpl_visual_features/motion/flow_types.h>
 #include <cpl_visual_features/motion/dense_lk.h>
@@ -111,10 +115,11 @@
 // Debugging IFDEFS
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
-#define DISPLAY_WORKSPACE_MASK 1
+// #define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_TABLE_DISTANCES 1
 #define DISPLAY_OBJECT_BOUNDARIES 1
+#define DISPLAY_PROJECTED_OBJECTS 1
 #define DISPLAY_WAIT 1
 
 using tabletop_pushing::PushPose;
@@ -148,7 +153,8 @@ typedef std::deque<ProtoTabletopObject> ProtoObjects;
 class PointCloudSegmentation
 {
  public:
-  PointCloudSegmentation(FeatureTracker* ft) : ft_(ft)
+  PointCloudSegmentation(FeatureTracker* ft, tf::TransformListener * tf) :
+      ft_(ft), tf_(tf)
   {
   }
 
@@ -580,8 +586,73 @@ class PointCloudSegmentation
     return cloud_down;
   }
 
+  cv::Mat projectProtoObjectsIntoImage(ProtoObjects objs, cv::Mat& img_in,
+                                       std::string target_frame)
+  {
+    cv::Mat obj_img(img_in.size(), CV_8UC1, cv::Scalar(0));
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      projectPointCloudIntoImage(objs[i].cloud, obj_img,
+                                 cur_camera_header_.frame_id, i+1);
+                                 /*objs[i].id);*/
+    }
+    return obj_img;
+  }
+
+ protected:
+  void projectPointCloudIntoImage(XYZPointCloud& cloud, cv::Mat& img,
+                                  std::string target_frame, unsigned int id=1)
+  {
+    for (unsigned int i = 0; i < cloud.size(); ++i)
+    {
+      cv::Point img_idx = projectPointIntoImage(cloud.at(i),
+                                                cloud.header.frame_id,
+                                                target_frame);
+      img.at<uchar>(img_idx.y, img_idx.x) = id;
+    }
+  }
+
+  cv::Point projectPointIntoImage(pcl::PointXYZ cur_point_pcl,
+                                  std::string point_frame,
+                                  std::string target_frame)
+  {
+    cv::Point img_loc;
+    try
+    {
+      // Transform point into the camera frame
+      PointStamped image_frame_loc_m;
+      PointStamped cur_point;
+      cur_point.header.frame_id = point_frame;
+      cur_point.point.x = cur_point_pcl.x;
+      cur_point.point.y = cur_point_pcl.y;
+      cur_point.point.z = cur_point_pcl.z;
+      tf_->transformPoint(target_frame, cur_point, image_frame_loc_m);
+
+      // Project point onto the image
+      img_loc.x = static_cast<int>((cam_info_.K[0]*image_frame_loc_m.point.x +
+                                    cam_info_.K[2]*image_frame_loc_m.point.z) /
+                                   image_frame_loc_m.point.z);
+      img_loc.y = static_cast<int>((cam_info_.K[4]*image_frame_loc_m.point.y +
+                                    cam_info_.K[5]*image_frame_loc_m.point.z) /
+                                   image_frame_loc_m.point.z);
+
+      // Downsample poses if the image is downsampled
+      for (int i = 0; i < num_downsamples_; ++i)
+      {
+        img_loc.x /= 2;
+        img_loc.y /= 2;
+      }
+    }
+    catch (tf::TransformException e)
+    {
+      // ROS_ERROR_STREAM(e.what());
+    }
+    return img_loc;
+  }
+
  protected:
   FeatureTracker* ft_;
+  tf::TransformListener* tf_;
   Eigen::Vector4f table_centroid_;
 
  public:
@@ -600,6 +671,9 @@ class PointCloudSegmentation
   bool use_voxel_down_;
   ros::Publisher pcl_obj_seg_pub_;
   ros::Publisher pcl_down_pub_;
+  int num_downsamples_;
+  sensor_msgs::CameraInfo cam_info_;
+  std_msgs::Header cur_camera_header_;
 };
 
 class ObjectSingulation
@@ -630,12 +704,9 @@ class ObjectSingulation
     ProtoObjects objs = calcProtoObjects(cloud);
     prev_proto_objs_ = cur_proto_objs_;
     cur_proto_objs_ = objs;
-
-    PoseStamped push_dir;
     cv::Mat boundary_img = getObjectBoundaryStrengths(color_img, depth_img,
                                                       workspace_mask);
-    cv::Mat push_pose_img = determineImgPushPoses(boundary_img, objs);
-    PoseStamped push_vector = determinePushVector(push_pose_img);
+    PoseStamped push_vector = determinePushPose(boundary_img, objs);
     ++callback_count_;
     return push_vector;
   }
@@ -689,10 +760,10 @@ class ObjectSingulation
     obj_push_pub_.publish(obj_push_msg);
 
     // Choose a random orientation
-    // TODO: Make the minimum and maximum angle class variables accessible via
-    // the parameter server
-    double rand_orientation = (static_cast<double>(rand())/
-                               static_cast<double>(RAND_MAX))*M_PI-M_PI*0.5;
+    double rand_orientation = ((static_cast<double>(rand())/
+                                static_cast<double>(RAND_MAX))*
+                               (max_push_angle_- min_push_angle_) +
+                               min_push_angle_);
     ROS_INFO_STREAM("Chosen push pose is at: (" << obj_xyz_centroid[0] << ", "
                     << obj_xyz_centroid[1] << ", " << objs[0].table_centroid[2]
                     << ") with orientation of: " << rand_orientation);
@@ -740,56 +811,22 @@ class ObjectSingulation
     return cur_objs;
   }
 
-  /**
-   * Helper method to publish a set of proto objects for display purposes.
-   *
-   * @param objs The objects to publish
-   */
-  void publishObjects(ProtoObjects& objs)
+ PoseStamped determinePushPose(cv::Mat& boundary_img, ProtoObjects& objs)
   {
-    if (objs.size() == 0) return;
-    XYZPointCloud objs_cloud = objs[0].cloud;
-    for (unsigned int i = 1; i < objs.size(); ++i)
+    cv::Mat obj_img = pcl_segmenter_->projectProtoObjectsIntoImage(
+        objs, boundary_img, workspace_frame_);
+
+#ifdef DISPLAY_PROJECTED_OBJECTS
+    displayObjectImage(obj_img, objs);
+#endif // DISPLAY_PROJECTED_OBJECTS
+
+    // TODO: Choose push to perform given the current boundary hypothesis
+    for (unsigned int i = 0; i < objs.size(); ++i)
     {
-      objs_cloud += objs[i].cloud;
+      cv::Mat obj_bound_img = associateInternalObjectBoundaries(boundary_img,
+                                                                obj_img, i);
     }
 
-    pcl::PointCloud<pcl::PointXYZI> label_cloud;
-    label_cloud.header.frame_id = objs_cloud.header.frame_id;
-    label_cloud.height = objs_cloud.height;
-    label_cloud.width = objs_cloud.width;
-    label_cloud.resize(label_cloud.height*label_cloud.width);
-    for (unsigned int i = 1, j=0; i < objs.size(); ++i)
-    {
-      for (unsigned int k=0; k < objs[i].cloud.size(); ++k, ++j)
-      {
-        // TODO: This is not working
-        label_cloud.at(j).x = objs_cloud.at(j).x;
-        label_cloud.at(j).y = objs_cloud.at(j).y;
-        label_cloud.at(j).z = objs_cloud.at(j).z;
-        label_cloud.at(j).intensity = objs[i].id;
-      }
-    }
-
-    sensor_msgs::PointCloud2 obj_msg;
-    pcl::toROSMsg(label_cloud, obj_msg);
-    obj_push_pub_.publish(obj_msg);
-  }
-
-  cv::Mat determineImgPushPoses(cv::Mat& boundary_img, ProtoObjects objs)
-  {
-    cv::Mat push_pose_img;
-    // TODO: Project objs into an image
-    // TODO: For each object determine internal boundaries above some threshold
-    // as locations for boundaries to exist
-    // TODO: Determine pushing locations related to these possible boundaries
-    // TODO: Determine seperation direction in the image from boundary (up, down, left, right)
-    return push_pose_img;
-  }
-
-  // TODO: Determine 3D push pose given an image location and direction
-  PoseStamped determinePushVector(cv::Mat push_pose_img)
-  {
     PoseStamped push_pose;
     return push_pose;
   }
@@ -891,6 +928,111 @@ class ObjectSingulation
     return edge_img;
   }
 
+  /**
+   * Determine which boundary scores are located within a specific proto object
+   * cluster.
+   *
+   * @param boundary_img The image of boundary scores
+   * @param obj_img The image containing the projected proto objects
+   * @param i The index of the object of interest used in creating obj_img
+   *
+   * @return The boundary image for object i
+   */
+  cv::Mat associateInternalObjectBoundaries(cv::Mat& boundary_img,
+                                            cv::Mat& obj_img, unsigned int i)
+  {
+    cv::Mat obj_mask_dirty = obj_img == (i+1);
+    cv::Mat obj_mask;
+    // Fill in the gaps in obj_mask using a 3x3 box close
+    cv::morphologyEx(obj_mask_dirty, obj_mask, cv::MORPH_CLOSE, cv::Mat());
+    cv::Mat object_boundaries;
+    boundary_img.copyTo(object_boundaries, obj_mask);
+
+#ifdef DISPLAY_PROJECTED_OBJECTS
+    // std::stringstream img_name;
+    // img_name << "object mask_" << (i+1);
+    // cv::imshow(img_name.str(), obj_mask);
+    // std::stringstream edge_img_name;
+    // edge_img_name << "object edges_" << (i+1);
+    // cv::imshow(edge_img_name.str(), object_boundaries);
+#endif // DISPLAY_PROJECTED_OBJECTS
+
+    return object_boundaries;
+  }
+
+  // TODO: Determine 3D push pose given an image location and direction
+  PoseStamped determinePushVector(cv::Mat push_pose_img)
+  {
+    PoseStamped push_pose;
+    return push_pose;
+  }
+
+
+  void displayObjectImage(cv::Mat& obj_img, ProtoObjects& objs)
+  {
+    cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    std::vector<cv::Vec3f> colors;
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      cv::Vec3f rand_color;
+      rand_color[0] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX));
+      rand_color[1] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX));
+      rand_color[2] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX));
+      colors.push_back(rand_color);
+    }
+    for (int r = 0; r < obj_img.rows; ++r)
+    {
+      for (int c = 0; c < obj_img.cols; ++c)
+      {
+        unsigned int id = obj_img.at<uchar>(r,c);
+        if (id > 0)
+        {
+          obj_disp_img.at<cv::Vec3f>(r,c) = colors[id-1];
+        }
+      }
+    }
+    cv::imshow("projected objects", obj_disp_img);
+  }
+
+  /**
+   * Helper method to publish a set of proto objects for display purposes.
+   *
+   * @param objs The objects to publish
+   */
+  void publishObjects(ProtoObjects& objs)
+  {
+    if (objs.size() == 0) return;
+    XYZPointCloud objs_cloud = objs[0].cloud;
+    for (unsigned int i = 1; i < objs.size(); ++i)
+    {
+      objs_cloud += objs[i].cloud;
+    }
+
+    pcl::PointCloud<pcl::PointXYZI> label_cloud;
+    label_cloud.header.frame_id = objs_cloud.header.frame_id;
+    label_cloud.height = objs_cloud.height;
+    label_cloud.width = objs_cloud.width;
+    label_cloud.resize(label_cloud.height*label_cloud.width);
+    for (unsigned int i = 1, j=0; i < objs.size(); ++i)
+    {
+      for (unsigned int k=0; k < objs[i].cloud.size(); ++k, ++j)
+      {
+        // TODO: This is not working
+        label_cloud.at(j).x = objs_cloud.at(j).x;
+        label_cloud.at(j).y = objs_cloud.at(j).y;
+        label_cloud.at(j).z = objs_cloud.at(j).z;
+        label_cloud.at(j).intensity = objs[i].id;
+      }
+    }
+
+    sensor_msgs::PointCloud2 obj_msg;
+    pcl::toROSMsg(label_cloud, obj_msg);
+    obj_push_pub_.publish(obj_msg);
+  }
+
   //
   // Class member variables
   //
@@ -917,6 +1059,9 @@ class ObjectSingulation
   double depth_edge_weight_;
   double edge_weight_thresh_;
   double depth_edge_weight_thresh_;
+  double max_push_angle_;
+  double min_push_angle_;
+
 };
 
 class ObjectSingulationNode
@@ -929,7 +1074,7 @@ class ObjectSingulationNode
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
       it_(n), tf_(), ft_("pushing_perception"),
-      pcl_segmenter_(&ft_),
+      pcl_segmenter_(&ft_, &tf_),
       os_(&ft_, &pcl_segmenter_),
       have_depth_data_(false), tracking_(false),
       tracker_initialized_(false), tracker_count_(0)
@@ -960,6 +1105,8 @@ class ObjectSingulationNode
     n_private_.param("depth_edge_weight_thresh", os_.depth_edge_weight_thresh_,
                      0.5);
     n_private_.param("depth_edge_weight", os_.depth_edge_weight_, 0.75);
+    n_private_.param("max_pushing_angle", os_.max_push_angle_, M_PI*0.5);
+    n_private_.param("min_pushing_angle", os_.min_push_angle_, -M_PI*0.5);
 
     n_private_.param("min_table_z", pcl_segmenter_.min_table_z_, -0.5);
     n_private_.param("max_table_z", pcl_segmenter_.max_table_z_, 1.5);
@@ -974,6 +1121,7 @@ class ObjectSingulationNode
     n_private_.param("use_guided_pushes", use_guided_pushes_, true);
 
     n_private_.param("num_downsamples", num_downsamples_, 2);
+    pcl_segmenter_.num_downsamples_ = num_downsamples_;
     std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
     n_private_.param("cam_info_topic", cam_info_topic_,
                      cam_info_topic_def);
@@ -1018,6 +1166,13 @@ class ObjectSingulationNode
                       const sensor_msgs::ImageConstPtr& depth_msg,
                       const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   {
+    if (!camera_initialized_)
+    {
+      cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(
+          cam_info_topic_, n_, ros::Duration(5.0));
+      camera_initialized_ = true;
+      pcl_segmenter_.cam_info_ = cam_info_;
+    }
     // Convert images to OpenCV format
     cv::Mat color_frame(bridge_.imgMsgToCv(img_msg));
     cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
@@ -1086,6 +1241,7 @@ class ObjectSingulationNode
     cur_point_cloud_ = cloud;
     have_depth_data_ = true;
     cur_camera_header_ = img_msg->header;
+    pcl_segmenter_.cur_camera_header_ = cur_camera_header_;
 
     // Debug stuff
     if (autorun_pcl_segmentation_) getPushPose(use_guided_pushes_);
@@ -1319,6 +1475,7 @@ class ObjectSingulationNode
   PoseStamped table_centroid_;
   bool tracking_;
   bool tracker_initialized_;
+  bool camera_initialized_;
   std::string cam_info_topic_;
   int tracker_count_;
   bool autorun_pcl_segmentation_;
