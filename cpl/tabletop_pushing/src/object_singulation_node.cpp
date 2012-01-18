@@ -149,6 +149,7 @@ class ProtoTabletopObject
 };
 
 typedef std::deque<ProtoTabletopObject> ProtoObjects;
+typedef std::vector<cv::Point> Boundary;
 
 class PointCloudSegmentation
 {
@@ -833,13 +834,13 @@ class ObjectSingulation
     // Choose a (best?) hypothesis given the current boundary hypotheses
     double max_score = 0.0;
     unsigned int max_idx = objs.size();
-    std::vector<cv::Mat> boundaries;
+    std::vector<Boundary> boundaries;
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       cv::Mat obj_bound_img = associateInternalObjectBoundaries(boundary_img,
                                                                 obj_img, i);
       double score = 0.0;
-      cv::Mat test_boundary = determineTestBoundary(obj_bound_img, score);
+      Boundary test_boundary = determineTestBoundary(obj_bound_img, score);
       boundaries.push_back(test_boundary);
       if (score > max_score)
       {
@@ -848,13 +849,12 @@ class ObjectSingulation
       }
     }
 
-    // TODO: Choose push behavior given the boundary hypothesis
     if (max_idx == objs.size())
     {
       PoseStamped push_pose;
       return push_pose;
     }
-    return determinePushVector(boundaries[max_idx], objs, obj_img);
+    return determinePushVector(boundaries[max_idx], objs, obj_img, max_idx);
   }
 
   /**
@@ -1004,14 +1004,14 @@ class ObjectSingulation
    *
    * @return An image with the test boundary pixels equal 1 and 0 elsewhere
    */
-  cv::Mat determineTestBoundary(cv::Mat& obj_bound_img, double& score)
+  Boundary determineTestBoundary(cv::Mat& obj_bound_img, double& score)
   {
     // Find max location and associated boundary
     // TODO: Find linked edges with highest associated boundary score
     double max_val = 0.0;
     cv::Point max_loc;
     cv::minMaxLoc(obj_bound_img, NULL, &max_val, NULL, &max_loc);
-    std::vector<cv::Point> boundary_locs;
+    Boundary boundary_locs;
     boundary_locs.push_back(max_loc);
     // HACK: Check up-down score, left-right score, nw-se score and sw-ne score
     // for best edge
@@ -1019,6 +1019,7 @@ class ObjectSingulation
     std::vector<double> scores;
     double ud_score = (obj_bound_img.at<float>(max_loc.y-1, max_loc.x) +
                        obj_bound_img.at<float>(max_loc.y+1, max_loc.x));
+    scores.push_back(ud_score);
     double lr_score = (obj_bound_img.at<float>(max_loc.y, max_loc.x-1) +
                        obj_bound_img.at<float>(max_loc.y, max_loc.x+1));
     scores.push_back(lr_score);
@@ -1038,6 +1039,7 @@ class ObjectSingulation
         max_idx = i;
       }
     }
+    score = max_score;
     cv::Point up(max_loc.x, max_loc.y-1);
     cv::Point down(max_loc.x, max_loc.y+1);
     cv::Point left(max_loc.x-1, max_loc.y);
@@ -1065,18 +1067,14 @@ class ObjectSingulation
         boundary_locs.push_back(ne);
         break;
       case 4:
-        ROS_INFO_STREAM("No non-zero score found");
       default:
+        ROS_INFO_STREAM("No non-zero score found");
         break;
     }
-    // Create the test boundary image containing the chosen boundary
-    cv::Mat test_boundary(obj_bound_img.size(), CV_8UC1, cv::Scalar(0));
-    for (unsigned int i = 0; i < boundary_locs.size(); ++i)
-    {
-      test_boundary.at<uchar>(boundary_locs[i].y, boundary_locs[i].x) = 1;
-    }
-    score = max_score;
-    return test_boundary;
+    // displayBoundaryImage(obj_bound_img, boundary_locs, "boundary to push",
+    //                      false);
+    // cv::waitKey();
+    return boundary_locs;
   }
 
   /**
@@ -1089,12 +1087,39 @@ class ObjectSingulation
    *
    * @return The push command
    */
-  PoseStamped determinePushVector(cv::Mat& boundary_img, ProtoObjects& objs,
-                                  cv::Mat& obj_img)
+  PoseStamped determinePushVector(Boundary& boundary, ProtoObjects& objs,
+                                  cv::Mat& obj_img, unsigned int id)
   {
-    // TODO: Figure out how to do this
+    // TODO: Split point cloud at location of the boundary
+    // TODO: Determin which point cloud and direction to push based on
+    // neighboring clouds
+#ifdef DISPLAY_PROJECTED_OBJECTS
+    displayBoundaryImage(obj_img, boundary, "chosen", true);
+#endif // DISPLAY_PROJECTED_OBJECTS
     PoseStamped push_pose;
     return push_pose;
+  }
+
+  void displayBoundaryImage(cv::Mat& obj_img, Boundary& boundary,
+                            std::string title, bool u8=true)
+  {
+    cv::Mat obj_disp_img(obj_img.size(), CV_32FC3);
+    if (u8)
+    {
+      cv::Mat obj_img_f;
+      obj_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
+      cv::cvtColor(obj_img_f, obj_disp_img, CV_GRAY2BGR);
+    }
+    else
+      cv::cvtColor(obj_img, obj_disp_img, CV_GRAY2BGR);
+    cv::Vec3f green(0.0f, 1.0f, 0.0f);
+    for (unsigned int i = 0; i < boundary.size(); ++i)
+    {
+        obj_disp_img.at<cv::Vec3f>(boundary[i].y, boundary[i].x) = green;
+        // ROS_INFO_STREAM("Boundary loc is (" << boundary[i].x << ", "
+        //                 << boundary[i].y << ")");
+    }
+    cv::imshow(title, obj_disp_img);
   }
 
   /**
