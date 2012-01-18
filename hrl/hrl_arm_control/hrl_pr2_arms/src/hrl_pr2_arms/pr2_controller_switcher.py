@@ -19,6 +19,11 @@ class ControllerSwitcher:
                                                         SwitchController)
         self.list_controllers_srv = rospy.ServiceProxy('pr2_controller_manager/list_controllers', 
                                                        ListControllers)
+        self.load_controller.wait_for_service()
+        self.unload_controller.wait_for_service()
+        self.switch_controller_srv.wait_for_service()
+        self.list_controllers_srv.wait_for_service()
+        rospy.loginfo("[pr2_controller_switcher] ControllerSwitcher ready.")
 
     ##
     # Switches controller.
@@ -68,6 +73,8 @@ class ControllerSwitcher:
             if controller in check_arm_controllers and resp.state[i] == 'running':
                 stop_controllers.append(controller)
         self.load_controller(new_controller)
+        rospy.loginfo("[pr2_controller_switcher] Starting controller %s" % (start_controllers[0]) +
+                      " and stopping controllers: [" + ",".join(stop_controllers) + "]")
         resp = self.switch_controller_srv(start_controllers, stop_controllers, 1)
         return resp.ok
 

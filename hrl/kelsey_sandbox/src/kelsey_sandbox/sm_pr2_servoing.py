@@ -12,6 +12,7 @@ from std_msgs.msg import Bool
 
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJointTrajectory
 from costmap_services.python_client import CostmapServices
+from kelsey_sandbox.pr2_viz_servo import PR2VisualServoAR
 
 outcomes_spa = ['succeeded','preempted','aborted']
 
@@ -72,72 +73,155 @@ class LaserCollisionDetection(smach.State):
             r.sleep()
         return 'aborted'
 
-def build_cc_servoing():
+def build_cc_servoing(viz_servo):
     def term_cb(outcome_map):
         return True
     def out_cb(outcome_map):
-        if outcome_map['ARM_COLLISION_DETECTION'] == 'collision' or
-           outcome_map['LASER_COLLISION_DETECTION'] == 'collision':
-            return 'collision'
+        if outcome_map['ARM_COLLISION_DETECTION'] == 'collision':
+            return 'arm_collision'
+        if outcome_map['LASER_COLLISION_DETECTION'] == 'collision':
+            return 'laser_collision'
+        if outcome_map['USER_PREEMPT_DETECTION'] == 'true':
+            return 'user_preempted'
+        if outcome_map['USER_PREEMPT_DETECTION'] == 'false':
+            return 'aborted'
         return outcome_map['SERVOING']
 
     cc_servoing = smach.Concurrence(
-                            outcomes=outcomes_spa+['collision', 'lost_tag'],
+                            outcomes=outcomes_spa+
+                            ['arm_collision', 'laser_collision', 'lost_tag', 'user_preempted'],
                             default_outcome='aborted',
                             child_termination_cb=term_cb,
                             outcome_cb=out_cb)
     
     with cc_servoing:
         Concurrence.add('SERVOING',
-                        ,)# TODO
+                        ServoARTagState(viz_servo))
 
         Concurrence.add('ARM_COLLISION_DETECTION',
                         ArmCollisionDetection())
 
         Concurrence.add('LASER_COLLISION_DETECTION',
                         LaserCollisionDetection())
+
+        Concurrence.add('USER_PREEMPT_DETECTION',
+                        BoolTopicState("servo_preempt"))
                               
     return cc_servoing
 
-class UIState(smach.State):
-    def __init__(self):
-        smach.State.__init__(self, outcomes=outcomes_spa)
-        self.ui_list = rospy.Subscriber("servo_continue", Bool, self.ui_cb)
-        self.got_msg = False
-        self.should_continue = None
+class BoolTopicState(smach.State):
+    def __init__(self, topic, rate=20):
+        smach.State.__init__(self, outcomes=['true', 'false', 'preempted', 'aborted'])
+        self.rate = rate
+        self.ui_list = rospy.Subscriber(topic, Bool, self.ui_cb)
     
     def ui_cb(self, msg):
-        self.should_continue = msg.data
+        self.bool_msg = msg.data
         self.got_msg = True
 
     def execute(self, userdata):
-        r = Rate(20)
+        self.got_msg = False
+        r = Rate(self.rate)
         while not rospy.is_shutdown():
-            if self.got_msg:
-                if self.should_continue:
-                    return "succeeded"
-                else:
-                    return "aborted"
-                self.got_msg = False
+            if self.bool_msg:
+                return 'true'
+            else:
+                return 'false'
             if self.preempt_requested():
                 self.service_preempt()
                 return 'preempted'
             r.sleep()
         return 'aborted'
 
-def build_sm():
+class FindARTagState(smach.State):
+    def __init__(self, viz_servo, timeout=6.):
+        smach.State.__init__(self, 
+                             outcomes=['found_tag', 'tag_missing', 'preempted', 'aborted'],
+                             output_keys=['initial_ar_pose'])
+        self.viz_servo = viz_servo
+        self.timeout = timeout
+
+    def execute(self, userdata):
+        def check_preempt(event):
+            if self.preempt_requested():
+                self.service_preempt()
+                self.viz_servo.request_preempt()
+                
+        preempt_timer = rospy.Timer(rospy.Duration(0.1), check_preempt)
+        mean_ar, outcome = self.viz_servo.find_ar_tag(self.timeout)
+        preempt_timer.shutdown()
+        userdata['initial_ar_pose'] = mean_ar
+        return outcome
+
+class ServoARTagState(smach.State):
+    def __init__(self, viz_servo):
+        smach.State.__init__(self, 
+                             outcomes=['lost_tag'] + outcomes_spa,
+                             input_keys=['goal_ar_pose', 'initial_ar_pose'])
+        self.viz_servo = viz_servo
+
+    def execute(self, userdata):
+        if 'initial_ar_pose' in userdata:
+            initial_ar_pose = userdata.initial_ar_pose
+        else:
+            rospy.logerr("Initial AR pose should be in userdata")
+            initial_ar_pose = None
+
+        def check_preempt(event):
+            if self.preempt_requested():
+                self.service_preempt()
+                self.viz_servo.request_preempt()
+                
+        preempt_timer = rospy.Timer(rospy.Duration(0.1), check_preempt)
+        outcome = self.viz_servo.servo_to_tag(pose_goal=userdata.goal_ar_pose,
+                                              initial_ar_pose=initial_ar_pose)
+        preempt_timer.shutdown()
+        return outcome
+
+def build_full_sm():
+
+    viz_servo = PR2VisualServoAR()
+
     sm_pr2_servoing = smach.StateMachine(outcomes=outcomes_spa)
     with sm_pr2_servoing:
+
         smach.StateMachine.add('VALIDATE_AR',
-                               ,# TODO
+                               FindARTagState(),
                                transitions={'found_tag' : 'CC_SERVOING',
                                             'tag_missing' : 'USER_INPUT_WAIT'})
 
         smach.StateMachine.add('USER_INPUT_WAIT',
-                               UIState(),
-                               transitions={'succeeded' : 'VALIDATE_AR'}
+                               BoolTopicState("servo_continue"),
+                               transitions={'true' : 'VALIDATE_AR',
+                                            'false' : 'aborted'})
 
         smach.StateMachine.add('CC_SERVOING', 
-                               build_cc_servoing(),
+                               build_cc_servoing(viz_servo),
                                transitions={'collision' : 'USER_INPUT_WAIT',
                                             'lost_tag' : 'VALIDATE_AR'})
+
+    return sm_pr2_servoing
+
+def build_test_sm():
+    viz_servo = PR2VisualServoAR()
+    
+    sm_only_servo = smach.StateMachine(outcomes=['lost_tag'] + outcomes_spa)
+    with sm_only_servo:
+        smach.StateMachine.add('ONLY_SERVO',
+                               ServoARTagState(viz_servo))
+    return sm_only_servo
+
+def main():
+    rospy.init_node("sm_pr2_servoing")
+    userdata = smach.user_data.UserData()
+    userdata['goal_ar_pose'] = [0.55, -0.29, 1.57]
+
+    if False:
+        sm_pr2_servoing = build_sm()
+        sm_pr2_servoing.execute(userdata)
+    else:
+        sm_test = build_test_sm()
+        sm_test.execute(userdata)
+
+if __name__ == "__main__":
+    main()

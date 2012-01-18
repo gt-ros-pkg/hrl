@@ -3,6 +3,8 @@ import numpy as np
 
 import roslib
 roslib.load_manifest('hrl_generic_arms')
+import rospy
+
 from equilibrium_point_control.ep_control import EPGenerator, EPC, EPStopConditions
 
 ##
@@ -48,8 +50,13 @@ class EPArmController(EPC):
         self.arm = arm
         self.time_step = time_step
 
-    def execute_interpolated_ep(self, end_ep, duration):
+    def execute_interpolated_ep(self, end_ep, duration, blocking=True):
         num_samps = duration / self.time_step
         joint_traj = self.arm.interpolate_ep(self.arm.get_ep(), end_ep, min_jerk_traj(num_samps))
         ep_traj_control = EPTrajectoryControl(self.arm, joint_traj, self.time_step)
-        self.epc_motion(ep_traj_control, self.time_step)
+        def exec_motion(event):
+            self.epc_motion(ep_traj_control, self.time_step)
+        if blocking:
+            exec_motion(None)
+        else:
+            rospy.Timer(rospy.Duration(0.01), exec_motion, oneshot=True)

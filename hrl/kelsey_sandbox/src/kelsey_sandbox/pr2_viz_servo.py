@@ -21,6 +21,7 @@ from visualization_msgs.msg import Marker
 from std_msgs.msg import ColorRGBA
 
 class ServoKalmanFilter(object):
+    # TODO tune these parameters properly
     def __init__(self, delta_t, sigma_z=0.02*0.01, P_init=[0.0, 0.0], sigma_a=0.02):
         self.P_init = P_init
         self.delta_t = delta_t
@@ -80,7 +81,8 @@ class ServoKalmanFilter(object):
         # find the unreli level
         # this value [0, 1] is a record of the values which have been determined to be unreli
         # in the pase few seconds filtered with linear weights
-        # a value of 0 means there is no unreli, 1 means there is no reliable state estimate
+        # a value of 0 means there are no unreliable estimates, 
+        # 1 means there is no reliable state estimate
         if len(self.unreli_queue) == self.unreli_q_len:
             unreli_level = np.sum(self.unreli_weights * self.unreli_queue) / self.unreli_q_len
         else:
@@ -118,6 +120,7 @@ class PR2VisualServoAR(object):
         self.tf_list = tf.TransformListener()
         self.ar_pose_updated = False
         self.base_pub = rospy.Publisher("/base_controller/command", Twist)
+        self.preempt_requested = False
 
     def ar_sub(self, msg):
         cur_ar_ps = PoseConverter.to_pose_stamped_msg(msg.header.frame_id, msg.pose.pose)
@@ -128,6 +131,9 @@ class PR2VisualServoAR(object):
             return
         self.cur_ar_pose = PoseConverter.to_homo_mat(cur_ar_in_base)
         self.ar_pose_updated = True
+
+    def request_preempt(self):
+        self.preempt_requested = True
 
     def save_ar_goal(self):
         r = rospy.Rate(10)
@@ -158,10 +164,15 @@ class PR2VisualServoAR(object):
         ar_2d_queue = deque()
         new_obs_queue = deque()
         start_time = rospy.get_time()
-        while not rospy.is_shutdown():
+        while True:
             if timeout is not None and rospy.get_time() - start_time > timeout:
-                # we have timed out
-                break
+                return None, 'timeout'
+            if self.preempt_requested:
+                self.preempt_requested = False
+                return None, 'preempted'
+            if rospy.is_shutdown():
+                return None, 'aborted'
+
             if self.cur_ar_pose is not None:
                 # make sure we have a new observation
                 new_obs = self.ar_pose_updated
@@ -183,17 +194,16 @@ class PR2VisualServoAR(object):
                     no_mean = np.mean(new_obs_queue, 0)
                     print ar_sigma, no_mean
                     if np.all(ar_sigma < sigma_thresh) and no_mean >= no_mean_thresh:
-                        return np.mean(ar_2d_queue, 0)
+                        return np.mean(ar_2d_queue, 0), 'found_tag'
             r.sleep()
-        return None
 
-    def servoing_loop(self, pose_goal):
+    def servo_to_tag(self, pose_goal, goal_error=[0.03, 0.03, 0.1], initial_ar_pose=None):
 
         # TODO REMOVE
         err_pub = rospy.Publisher("servo_err", Float32MultiArray)
         if False:
             self.test_move()
-            return
+            return "aborted"
         #######################
 
         goal_ar_pose = homo_mat_from_2d(*pose_goal)
@@ -201,11 +211,24 @@ class PR2VisualServoAR(object):
         kf_x = ServoKalmanFilter(delta_t=1./rate)
         kf_y = ServoKalmanFilter(delta_t=1./rate)
         kf_r = ServoKalmanFilter(delta_t=1./rate)
+        if initial_ar_pose is not None:
+            ar_err = homo_mat_to_2d(homo_mat_from_2d(initial_ar_pose) * goal_ar_pose**-1)
+            kf_x.update(ar_err[0], new_obs=new_obs)
+            kf_y.update(ar_err[1], new_obs=new_obs)
+            kf_r.update(ar_err[2], new_obs=new_obs)
+            
         pid_x = PIDController(k_p=0.3, rate=rate, saturation=0.10)
         pid_y = PIDController(k_p=0.3, rate=rate, saturation=0.10)
         pid_r = PIDController(k_p=0.5, rate=rate, saturation=0.20)
         r = rospy.Rate(rate)
-        while not rospy.is_shutdown():
+        while True:
+            if rospy.is_shutdown():
+                self.base_pub.publish(Twist())
+                return 'aborted'
+            if self.preempt_requested:
+                self.preempt_requested = False
+                self.base_pub.publish(Twist())
+                return 'preempted'
             goal_mkr = create_base_marker(goal_ar_pose, 0, (0., 1., 0.))
             self.mkr_pub.publish(goal_mkr)
             if self.cur_ar_pose is not None:
@@ -224,6 +247,10 @@ class PR2VisualServoAR(object):
                 y_filt_err, y_filt_cov, y_unreli = kf_y.update(ar_err[1], new_obs=new_obs)
                 r_filt_err, r_filt_cov, r_unreli = kf_r.update(ar_err[2], new_obs=new_obs)
 
+                if np.any(np.array([x_unreli, y_unreli, r_unreli]) > [lost_tag_thresh]*3):
+                    self.base_pub.publish(Twist())
+                    return 'lost_tag'
+
                 print "Noise:", x_unreli, y_unreli, r_unreli
                 # TODO REMOVE
                 ma = Float32MultiArray()
@@ -241,14 +268,18 @@ class PR2VisualServoAR(object):
                 base_twist.linear.x = x_ctrl
                 base_twist.linear.y = y_ctrl
                 base_twist.angular.z = r_ctrl
+                cur_filt_err = np.array([x_filt_err[0,0], y_filt_err[0,0], r_filt_err[0,0]])
                 print "err", ar_err
-                print "Err filt", x_filt_err[0,0], y_filt_err[0,0], r_filt_err[0,0] 
+                print "Err filt", cur_filt_err 
                 print "Twist:", base_twist
+                if np.all(np.fabs(cur_filt_err) < goal_error):
+                    self.base_pub.publish(Twist())
+                    return 'succeeded'
+
+# TODO PUT THIS BACK IN
 #self.base_pub.publish(base_twist)
+
             r.sleep()
-        self.base_pub.publish(Twist())
-
-
 
 def main():
     rospy.init_node("pr2_viz_servo")
@@ -256,7 +287,7 @@ def main():
     if False:
         viz_servo.save_ar_goal()
     elif False:
-        viz_servo.servoing_loop((0.55761498778404717, -0.28816809195738824, 1.5722787397126308))
+        viz_servo.servo_to_tag((0.55761498778404717, -0.28816809195738824, 1.5722787397126308))
     else:
         print viz_servo.find_ar_tag(5)
 
