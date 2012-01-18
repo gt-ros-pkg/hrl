@@ -43,6 +43,7 @@
     <param name="max_pushing_x" value="2.0" type="double"/>
 
     <param name="use_weighted_edges" value="false" type="bool"/>
+    <param name="threshold_edges" value="false" type="bool"/>
     <param name="edge_weight_thresh" value="0.1" type="double"/>
     <param name="depth_edge_weight_thresh" value="0.05" type="double"/>
     <param name="depth_edge_weight" value="0.75" type="double"/>

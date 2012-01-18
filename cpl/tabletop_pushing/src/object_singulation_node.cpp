@@ -120,7 +120,7 @@
 // #define DISPLAY_TABLE_DISTANCES 1
 #define DISPLAY_OBJECT_BOUNDARIES 1
 #define DISPLAY_PROJECTED_OBJECTS 1
-#define DISPLAY_WAIT 1
+#define DISPLAY_WAIT 3
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -811,7 +811,15 @@ class ObjectSingulation
     return cur_objs;
   }
 
- PoseStamped determinePushPose(cv::Mat& boundary_img, ProtoObjects& objs)
+  /**
+   * Determine what push to make given the current object and boundary estimates
+   *
+   * @param boundary_img The image of the estimated boundary strengths
+   * @param objs The estimated set of proto objects
+   *
+   * @return A push for the robot to make to singulate objects
+   */
+  PoseStamped determinePushPose(cv::Mat& boundary_img, ProtoObjects& objs)
   {
     cv::Mat obj_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         objs, boundary_img, workspace_frame_);
@@ -820,15 +828,33 @@ class ObjectSingulation
     displayObjectImage(obj_img, objs);
 #endif // DISPLAY_PROJECTED_OBJECTS
 
-    // TODO: Choose push to perform given the current boundary hypothesis
+    // TODO: Move this section into its own method for easier abstraction
+    // TODO: Ensure some method of getting diverse push options?
+    // Choose a (best?) hypothesis given the current boundary hypotheses
+    double max_score = 0.0;
+    unsigned int max_idx = objs.size();
+    std::vector<cv::Mat> boundaries;
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       cv::Mat obj_bound_img = associateInternalObjectBoundaries(boundary_img,
                                                                 obj_img, i);
+      double score = 0.0;
+      cv::Mat test_boundary = determineTestBoundary(obj_bound_img, score);
+      boundaries.push_back(test_boundary);
+      if (score > max_score)
+      {
+        max_score = score;
+        max_idx = i;
+      }
     }
 
-    PoseStamped push_pose;
-    return push_pose;
+    // TODO: Choose push behavior given the boundary hypothesis
+    if (max_idx == objs.size())
+    {
+      PoseStamped push_pose;
+      return push_pose;
+    }
+    return determinePushVector(boundaries[max_idx], objs, obj_img);
   }
 
   /**
@@ -839,6 +865,7 @@ class ObjectSingulation
    * @param workspace_mask A mask depicting locations of interest
    *
    * @return The image with boundary strengths 1.0 is highest, 0.0 least
+   * (scoring not currently 0.0 to 1.0)
    */
   cv::Mat getObjectBoundaryStrengths(cv::Mat& color_img, cv::Mat& depth_img,
                                      cv::Mat& workspace_mask)
@@ -889,11 +916,13 @@ class ObjectSingulation
 
     // TODO: Replace with a learned function from a combination of cues
 
-    // Remove stuff out of the image
+    // TODO: Link edges into object boundary hypotheses
+
+    // Remove stuff from the image
     edge_img.copyTo(edge_img_masked, workspace_mask);
     depth_edge_img.copyTo(depth_edge_img_masked, workspace_mask);
     cv::Mat combined_edges;
-    if (use_weighted_edges_)
+    if (threshold_edges_)
     {
       cv::Mat bin_depth_edges;
       cv::threshold(depth_edge_img_masked, bin_depth_edges,
@@ -917,7 +946,15 @@ class ObjectSingulation
     }
     else
     {
-      combined_edges = cv::max(edge_img_masked, depth_edge_img_masked);
+      if (use_weighted_edges_)
+      {
+        combined_edges = (edge_img_masked*(1.0-depth_edge_weight_) +
+                          depth_edge_weight_*depth_edge_img_masked);
+      }
+      else
+      {
+        combined_edges = cv::max(edge_img_masked, depth_edge_img_masked);
+      }
     }
 
 #ifdef DISPLAY_OBJECT_BOUNDARIES
@@ -925,7 +962,7 @@ class ObjectSingulation
     cv::imshow("depth_boundary_strengths", depth_edge_img_masked);
     cv::imshow("combined_boundary_strengths", combined_edges);
 #endif // DISPLAY_OBJECT_BOUNDARIES
-    return edge_img;
+    return combined_edges;
   }
 
   /**
@@ -960,14 +997,112 @@ class ObjectSingulation
     return object_boundaries;
   }
 
-  // TODO: Determine 3D push pose given an image location and direction
-  PoseStamped determinePushVector(cv::Mat push_pose_img)
+  /**
+   * Determine the location of the highest score hypothesized object boundary
+   *
+   * @param obj_bound_img The boundary hypothesis associated with the object
+   *
+   * @return An image with the test boundary pixels equal 1 and 0 elsewhere
+   */
+  cv::Mat determineTestBoundary(cv::Mat& obj_bound_img, double& score)
   {
+    // Find max location and associated boundary
+    // TODO: Find linked edges with highest associated boundary score
+    double max_val = 0.0;
+    cv::Point max_loc;
+    cv::minMaxLoc(obj_bound_img, NULL, &max_val, NULL, &max_loc);
+    std::vector<cv::Point> boundary_locs;
+    boundary_locs.push_back(max_loc);
+    // HACK: Check up-down score, left-right score, nw-se score and sw-ne score
+    // for best edge
+    // NOTE: Assumes not on image edge
+    std::vector<double> scores;
+    double ud_score = (obj_bound_img.at<float>(max_loc.y-1, max_loc.x) +
+                       obj_bound_img.at<float>(max_loc.y+1, max_loc.x));
+    double lr_score = (obj_bound_img.at<float>(max_loc.y, max_loc.x-1) +
+                       obj_bound_img.at<float>(max_loc.y, max_loc.x+1));
+    scores.push_back(lr_score);
+    double nwse_score = (obj_bound_img.at<float>(max_loc.y-1, max_loc.x-1) +
+                         obj_bound_img.at<float>(max_loc.y+1, max_loc.x+1));
+    scores.push_back(nwse_score);
+    double swne_score = (obj_bound_img.at<float>(max_loc.y-1, max_loc.x+1) +
+                         obj_bound_img.at<float>(max_loc.y+1, max_loc.x-1));
+    scores.push_back(swne_score);
+    double max_score = 0;
+    unsigned int max_idx = scores.size();
+    for (unsigned int i = 0; i < scores.size(); ++i)
+    {
+      if (scores[i] > max_score)
+      {
+        max_score = scores[i];
+        max_idx = i;
+      }
+    }
+    cv::Point up(max_loc.x, max_loc.y-1);
+    cv::Point down(max_loc.x, max_loc.y+1);
+    cv::Point left(max_loc.x-1, max_loc.y);
+    cv::Point right(max_loc.x+1, max_loc.y);
+    cv::Point nw(max_loc.x-1, max_loc.y-1);
+    cv::Point se(max_loc.x+1, max_loc.y+1);
+    cv::Point sw(max_loc.x-1, max_loc.y+1);
+    cv::Point ne(max_loc.x+1, max_loc.y-1);
+    switch (max_idx)
+    {
+      case 0: // Add up down
+        boundary_locs.push_back(up);
+        boundary_locs.push_back(down);
+        break;
+      case 1:
+        boundary_locs.push_back(left);
+        boundary_locs.push_back(right);
+        break;
+      case 2:
+        boundary_locs.push_back(nw);
+        boundary_locs.push_back(se);
+        break;
+      case 3:
+        boundary_locs.push_back(sw);
+        boundary_locs.push_back(ne);
+        break;
+      case 4:
+        ROS_INFO_STREAM("No non-zero score found");
+      default:
+        break;
+    }
+    // Create the test boundary image containing the chosen boundary
+    cv::Mat test_boundary(obj_bound_img.size(), CV_8UC1, cv::Scalar(0));
+    for (unsigned int i = 0; i < boundary_locs.size(); ++i)
+    {
+      test_boundary.at<uchar>(boundary_locs[i].y, boundary_locs[i].x) = 1;
+    }
+    score = max_score;
+    return test_boundary;
+  }
+
+  /**
+   * Determine how the robot should push to disambiguate the given boundary
+   * hypotheses
+   *
+   * @param hypo_img The image containing the boundary hypothesis
+   * @param objs The set of objects
+   * @param obj_img The objects projected into the image frame
+   *
+   * @return The push command
+   */
+  PoseStamped determinePushVector(cv::Mat& boundary_img, ProtoObjects& objs,
+                                  cv::Mat& obj_img)
+  {
+    // TODO: Figure out how to do this
     PoseStamped push_pose;
     return push_pose;
   }
 
-
+  /**
+   * Visualization function of proto objects projected into an image
+   *
+   * @param obj_img The projected objects image
+   * @param objs The set of proto objects
+   */
   void displayObjectImage(cv::Mat& obj_img, ProtoObjects& objs)
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
@@ -1056,12 +1191,12 @@ class ObjectSingulation
   std::string workspace_frame_;
   ros::Publisher obj_push_pub_;
   bool use_weighted_edges_;
+  bool threshold_edges_;
   double depth_edge_weight_;
   double edge_weight_thresh_;
   double depth_edge_weight_thresh_;
   double max_push_angle_;
   double min_push_angle_;
-
 };
 
 class ObjectSingulationNode
@@ -1101,6 +1236,7 @@ class ObjectSingulationNode
     os_.workspace_frame_ = workspace_frame_;
 
     n_private_.param("use_weighted_edges", os_.use_weighted_edges_, false);
+    n_private_.param("threshold_edges", os_.threshold_edges_, false);
     n_private_.param("edge_weight_thresh", os_.edge_weight_thresh_, 0.5);
     n_private_.param("depth_edge_weight_thresh", os_.depth_edge_weight_thresh_,
                      0.5);
