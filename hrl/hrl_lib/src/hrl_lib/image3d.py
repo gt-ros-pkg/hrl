@@ -4,6 +4,7 @@ import cv
 import numpy as np
 import hrl_lib.tf_utils as tfu
 import hrl_opencv.blob as blob
+import copy
 import pdb
 
 ##
@@ -54,17 +55,38 @@ def local_window(location, bw_image, winsize, resize_to=None, flatten=True):
         return None
     else:
         #pdb.set_trace()
+        #subrect_cpy = np.zeros((subrect.shape[0], subrect.shape[1], subrect.shape[2]), dtype='uint8')
+        #cv.Copy(cv.fromarray(subrect), cv.fromarray(subrect_cpy))
         subrect = bw_image[r.y:r.y+r.height, r.x:r.x+r.width, :]
+        #subrect_cpy = np.array(copy.copy(subrect.tolist()), dtype='uint8')
+        #subrect = subrect_cpy
+
         if resize_to != None:
            rescaled = np.zeros((resize_to*2+1, resize_to*2+1, subrect.shape[2]), dtype='uint8')
-           cv.Resize(subrect, rescaled, cv.CV_INTER_LINEAR)
+           cv.Resize(cv.fromarray(subrect), cv.fromarray(rescaled), cv.CV_INTER_LINEAR)
            subrect = rescaled
+
         if flatten:
-            #pdb.set_trace()
-            intensity = np.matrix(np.reshape(subrect, (subrect.shape[0]*subrect.shape[1]*subrect.shape[2], 1))) / 255.
+            #try:
+            #    subrect = np.array(subrect.tolist(), copy=True, order='C')
+            #except TypeError, e:
+            #    print 'typeerror:', e
+            #    pdb.set_trace()
+            #    print 'error'
+            try:
+                intensity = np.matrix(np.reshape(subrect, (subrect.shape[0]*subrect.shape[1]*subrect.shape[2], 1))) / 255.
+            except TypeError, e:
+                #print 'TypeError:', e, 'retrying anyway?'
+                intensity = np.matrix(np.reshape(subrect, (subrect.shape[0]*subrect.shape[1]*subrect.shape[2], 1))) / 255.
+                #print intensity.shape
+            #try:
+            #    intensity = np.matrix(subrect.flatten()) / 255.
+            #except TypeError, e:
+            #    print 'TypeError:', e, '!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+            #    return None
         else:
             intensity = subrect
-            #intensity = np.matrix(subrect)
+
         return intensity
 
 
