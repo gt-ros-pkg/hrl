@@ -101,6 +101,7 @@
 #include <vector>
 #include <deque>
 #include <queue>
+#include <map>
 #include <string>
 #include <sstream>
 #include <iostream>
@@ -587,29 +588,86 @@ class PointCloudSegmentation
     return cloud_down;
   }
 
-  cv::Mat projectProtoObjectsIntoImage(ProtoObjects objs, cv::Mat& img_in,
-                                       std::string target_frame)
+  /**
+   * Method to project the current proto objects into an image
+   *
+   * @param objs The set of objects
+   * @param img_in An image of correct size for the projection
+   * @param target_frame The frame of the associated image
+   *
+   * @return Image containing the projected objects
+   */
+  cv::Mat projectProtoObjectsIntoImage(ProtoObjects& objs, cv::Mat& img_in,
+                                       std::string target_frame,
+                                       cv::Mat& coord_img)
   {
     cv::Mat obj_img(img_in.size(), CV_8UC1, cv::Scalar(0));
+    coord_img.create(img_in.size(), CV_32FC3);
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       projectPointCloudIntoImage(objs[i].cloud, obj_img,
-                                 cur_camera_header_.frame_id, i+1);
+                                 cur_camera_header_.frame_id, coord_img, i+1);
                                  /*objs[i].id);*/
     }
+
+#ifdef DISPLAY_PROJECTED_OBJECTS
+    displayObjectImage(obj_img, objs);
+#endif // DISPLAY_PROJECTED_OBJECTS
+
     return obj_img;
   }
 
+  /**
+   * Visualization function of proto objects projected into an image
+   *
+   * @param obj_img The projected objects image
+   * @param objs The set of proto objects
+   */
+  void displayObjectImage(cv::Mat& obj_img, ProtoObjects& objs)
+  {
+    cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    std::vector<cv::Vec3f> colors;
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      cv::Vec3f rand_color;
+      rand_color[0] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX));
+      rand_color[1] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX));
+      rand_color[2] = (static_cast<float>(rand()) /
+                       static_cast<float>(RAND_MAX));
+      colors.push_back(rand_color);
+    }
+    for (int r = 0; r < obj_img.rows; ++r)
+    {
+      for (int c = 0; c < obj_img.cols; ++c)
+      {
+        unsigned int id = obj_img.at<uchar>(r,c);
+        if (id > 0)
+        {
+          obj_disp_img.at<cv::Vec3f>(r,c) = colors[id-1];
+        }
+      }
+    }
+    cv::imshow("projected objects", obj_disp_img);
+  }
+
  protected:
-  void projectPointCloudIntoImage(XYZPointCloud& cloud, cv::Mat& img,
-                                  std::string target_frame, unsigned int id=1)
+  void projectPointCloudIntoImage(XYZPointCloud& cloud, cv::Mat& lbl_img,
+                                  std::string target_frame, cv::Mat& coord_img,
+                                  unsigned int id=1)
   {
     for (unsigned int i = 0; i < cloud.size(); ++i)
     {
       cv::Point img_idx = projectPointIntoImage(cloud.at(i),
                                                 cloud.header.frame_id,
                                                 target_frame);
-      img.at<uchar>(img_idx.y, img_idx.x) = id;
+      lbl_img.at<uchar>(img_idx.y, img_idx.x) = id;
+      cv::Vec3f coord;
+      coord[0] = cloud.at(i).x;
+      coord[1] = cloud.at(i).y;
+      coord[2] = cloud.at(i).z;
+      coord_img.at<cv::Vec3f>(img_idx.y, img_idx.x) = coord;
     }
   }
 
@@ -822,39 +880,20 @@ class ObjectSingulation
    */
   PoseStamped determinePushPose(cv::Mat& boundary_img, ProtoObjects& objs)
   {
-    cv::Mat obj_img = pcl_segmenter_->projectProtoObjectsIntoImage(
-        objs, boundary_img, workspace_frame_);
+    cv::Mat obj_coords;
+    cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
+        objs, boundary_img, workspace_frame_, obj_coords);
 
-#ifdef DISPLAY_PROJECTED_OBJECTS
-    displayObjectImage(obj_img, objs);
-#endif // DISPLAY_PROJECTED_OBJECTS
-
-    // TODO: Move this section into its own method for easier abstraction
-    // TODO: Ensure some method of getting diverse push options?
-    // Choose a (best?) hypothesis given the current boundary hypotheses
-    double max_score = 0.0;
-    unsigned int max_idx = objs.size();
-    std::vector<Boundary> boundaries;
-    for (unsigned int i = 0; i < objs.size(); ++i)
-    {
-      cv::Mat obj_bound_img = associateInternalObjectBoundaries(boundary_img,
-                                                                obj_img, i);
-      double score = 0.0;
-      Boundary test_boundary = determineTestBoundary(obj_bound_img, score);
-      boundaries.push_back(test_boundary);
-      if (score > max_score)
-      {
-        max_score = score;
-        max_idx = i;
-      }
-    }
-
-    if (max_idx == objs.size())
+    unsigned int test_idx = objs.size();
+    Boundary test_boundary = getTestBoundary(boundary_img, obj_lbl_img, objs,
+                                             test_idx);
+    if (test_idx == objs.size())
     {
       PoseStamped push_pose;
       return push_pose;
     }
-    return determinePushVector(boundaries[max_idx], objs, obj_img, max_idx);
+    return determinePushVector(test_boundary, objs, obj_lbl_img, obj_coords,
+                               test_idx);
   }
 
   /**
@@ -1008,6 +1047,7 @@ class ObjectSingulation
   {
     // Find max location and associated boundary
     // TODO: Find linked edges with highest associated boundary score
+    // TODO: Ensure some method of getting diverse push options? Biased sampling
     double max_val = 0.0;
     cv::Point max_loc;
     cv::minMaxLoc(obj_bound_img, NULL, &max_val, NULL, &max_loc);
@@ -1078,6 +1118,42 @@ class ObjectSingulation
   }
 
   /**
+   * Method to choose the boundary to test
+   *
+   * @param boundary_img The image of object boundaries
+   * @param obj_img The image of object locations
+   * @param objs The set of objects
+   * @param test_idx The index of the selected object to push (returned)
+   *
+   * @return The boundary to test
+   */
+  Boundary getTestBoundary(cv::Mat& boundary_img, cv::Mat& obj_img,
+                           ProtoObjects objs, unsigned int& test_idx)
+  {
+    double max_score = 0.0;
+    std::vector<Boundary> boundaries;
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      cv::Mat obj_bound_img = associateInternalObjectBoundaries(boundary_img,
+                                                                obj_img, i);
+      double score = 0.0;
+      Boundary test_boundary = determineTestBoundary(obj_bound_img, score);
+      boundaries.push_back(test_boundary);
+      if (score > max_score)
+      {
+        max_score = score;
+        test_idx = i;
+      }
+    }
+    if (test_idx == objs.size())
+    {
+      Boundary no_boundary;
+      return no_boundary;
+    }
+    return boundaries[test_idx];
+  }
+
+  /**
    * Determine how the robot should push to disambiguate the given boundary
    * hypotheses
    *
@@ -1088,13 +1164,17 @@ class ObjectSingulation
    * @return The push command
    */
   PoseStamped determinePushVector(Boundary& boundary, ProtoObjects& objs,
-                                  cv::Mat& obj_img, unsigned int id)
+                                  cv::Mat& obj_lbl_img, cv::Mat& obj_coords,
+                                  unsigned int id)
   {
-    // TODO: Split point cloud at location of the boundary
-    // TODO: Determin which point cloud and direction to push based on
+    // 1 Split point cloud at location of the boundary
+    ProtoObjects split_objs = splitObject(obj_lbl_img, boundary, obj_coords, id);
+
+    // TODO: 2 Determine which sub-point cloud and direction to push based on
     // neighboring clouds
+
 #ifdef DISPLAY_PROJECTED_OBJECTS
-    displayBoundaryImage(obj_img, boundary, "chosen", true);
+    displayBoundaryImage(obj_lbl_img, boundary, "chosen", true);
 #endif // DISPLAY_PROJECTED_OBJECTS
     PoseStamped push_pose;
     return push_pose;
@@ -1116,45 +1196,145 @@ class ObjectSingulation
     for (unsigned int i = 0; i < boundary.size(); ++i)
     {
         obj_disp_img.at<cv::Vec3f>(boundary[i].y, boundary[i].x) = green;
-        // ROS_INFO_STREAM("Boundary loc is (" << boundary[i].x << ", "
-        //                 << boundary[i].y << ")");
     }
     cv::imshow(title, obj_disp_img);
   }
 
   /**
-   * Visualization function of proto objects projected into an image
+   * Splits an object into two new objects based on the passed in boundary.
    *
-   * @param obj_img The projected objects image
-   * @param objs The set of proto objects
+   * @param obj_lbl_img Image of object labels
+   * @param boundary The boundary on which to split
+   * @param obj_coords The image of object 3D-coordinates
+   * @param id The image id
+   *
+   * @return The two new objects after the split
    */
-  void displayObjectImage(cv::Mat& obj_img, ProtoObjects& objs)
+  ProtoObjects splitObject(cv::Mat& obj_lbl_img, Boundary& boundary,
+                           cv::Mat& obj_coords, unsigned int id)
   {
-    cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
-    std::vector<cv::Vec3f> colors;
-    for (unsigned int i = 0; i < objs.size(); ++i)
+    cv::Mat split_img = splitObjectImage(obj_lbl_img, boundary, id);
+    cv::imshow("split_objs", split_img*60);
+
+    ProtoObjects split;
+    ProtoTabletopObject po1;
+    ProtoTabletopObject po2;
+    int po1_count = 0;
+    int po2_count = 0;
+    for (int r = 0; r < split_img.rows; ++r)
     {
-      cv::Vec3f rand_color;
-      rand_color[0] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX));
-      rand_color[1] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX));
-      rand_color[2] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX));
-      colors.push_back(rand_color);
-    }
-    for (int r = 0; r < obj_img.rows; ++r)
-    {
-      for (int c = 0; c < obj_img.cols; ++c)
+      for (int c = 0; c < split_img.cols; ++c)
       {
-        unsigned int id = obj_img.at<uchar>(r,c);
-        if (id > 0)
+        if (split_img.at<uchar>(r,c) == 1) ++po1_count;
+        else if (split_img.at<uchar>(r,c) == 2) ++po2_count;
+      }
+    }
+    po1.cloud.resize(po1_count);
+    po2.cloud.resize(po2_count);
+    po1_count = 0;
+    po2_count = 0;
+    for (int r = 0; r < split_img.rows; ++r)
+    {
+      for (int c = 0; c < split_img.cols; ++c)
+      {
+        if (split_img.at<uchar>(r,c) == 1)
         {
-          obj_disp_img.at<cv::Vec3f>(r,c) = colors[id-1];
+          pcl::PointXYZ p;
+          cv::Vec3f p_i = obj_coords.at<cv::Vec3f>(r,c);
+          p.x = p_i[0];
+          p.y = p_i[1];
+          p.z = p_i[2];
+          po1.cloud.at(po1_count++) = p;
+        }
+        else if (split_img.at<uchar>(r,c) == 2)
+        {
+          pcl::PointXYZ p;
+          cv::Vec3f p_i = obj_coords.at<cv::Vec3f>(r,c);
+          p.x = p_i[0];
+          p.y = p_i[1];
+          p.z = p_i[2];
+          po2.cloud.at(po2_count++) = p;
         }
       }
     }
-    cv::imshow("projected objects", obj_disp_img);
+    split.push_back(po1);
+    split.push_back(po2);
+
+    for (unsigned int i = 0; i < split.size(); ++i)
+    {
+      pcl::compute3DCentroid(split[i].cloud, split[i].centroid);
+      // ROS_INFO_STREAM("po" << (i+1) << " centroid: ("
+      //                 << split[i].centroid[0] << ", "
+      //                 << split[i].centroid[1] << ", "
+      //                 << split[i].centroid[2] << ")");
+      // ROS_INFO_STREAM("cloud " << i+1 << " size is " << split[i].cloud.size());
+    }
+
+    return split;
+  }
+  /**
+   * Function creates an image holding the correct points on each side of the
+   * given boundary extended to hit the image edges
+   *
+   * @param obj_img The image of objects projected into view
+   * @param boundary The boundary location to test
+   * @param objs The set of objects
+   * @param id The id of the object to test
+   *
+   * @return The image containing pixels labeled on the two sides of the boundary
+   */
+  cv::Mat splitObjectImage(cv::Mat& obj_img, Boundary& boundary,
+                           unsigned int id)
+  {
+    cv::Mat sides_img = splitOnLine(boundary, obj_img.size());
+    cv::Mat split_objects(sides_img.size(), CV_8UC1, cv::Scalar(0));
+    // TODO: Better way of doing this
+    // TODO: Fix id to be consistent...
+    for (int r = 0; r < split_objects.rows; ++r)
+    {
+      for (int c = 0; c < split_objects.cols; ++c)
+      {
+        if (obj_img.at<uchar>(r,c) == id+1)
+        {
+          if (sides_img.at<uchar>(r,c) == 1)
+          {
+            split_objects.at<uchar>(r,c) = 1;
+          }
+          else if (sides_img.at<uchar>(r,c) == 2)
+          {
+            split_objects.at<uchar>(r,c) = 2;
+          }
+        }
+      }
+    }
+    return split_objects;
+  }
+
+  int cdfBinarySearch(std::vector<float>& scores, float cdf_goal)
+  {
+    int min_idx = 0;
+    int max_idx = scores.size();
+    int cur_idx = min_idx + max_idx / 2;
+    // NOTE: Assumse scores is sorted in decresaing order
+    while (min_idx != max_idx)
+    {
+      cur_idx = (min_idx + max_idx)/2;
+      float cur_val = scores[cur_idx];
+      if (cur_val == cdf_goal || (cur_val > cdf_goal &&
+                                  scores[cur_idx+1] < cdf_goal))
+      {
+        return cur_idx;
+      }
+      else if (cur_val > cdf_goal)
+      {
+        min_idx = cur_idx;
+      }
+      else
+      {
+        max_idx = cur_idx;
+      }
+    }
+    return cur_idx;
   }
 
   /**
@@ -1191,6 +1371,285 @@ class ObjectSingulation
     sensor_msgs::PointCloud2 obj_msg;
     pcl::toROSMsg(label_cloud, obj_msg);
     obj_push_pub_.publish(obj_msg);
+  }
+
+  /**
+   * Creates an image with two regions split by the given boundary
+   *
+   * @param boundary The boundary on which to split
+   * @param img_size The image size to use in spliting the image
+   *
+   * @return The split image
+   */
+  cv::Mat splitOnLine(Boundary& boundary, cv::Size img_size)
+  {
+    Boundary lb = extendBoundary(boundary, img_size);
+    std::map<int, int> bmap;
+    int min_y = img_size.height;
+    int max_y = 0;
+    int x_at_min_y = 0;
+    int x_at_max_y = 0;
+    for (unsigned int i = 0; i < lb.size(); ++i)
+    {
+      bmap[lb[i].y] = lb[i].x;
+      if (lb[i].y < min_y)
+      {
+        min_y = lb[i].y;
+        x_at_min_y = lb[i].x;
+      }
+      if (lb[i].y > max_y)
+      {
+        max_y = lb[i].y;
+        x_at_max_y = lb[i].x;
+      }
+    }
+
+    cv::Mat side_img(img_size, CV_8UC1, cv::Scalar(0));
+
+    const bool horizontal = boundary[0].y == boundary[2].y;
+    const bool vertical = boundary[0].x == boundary[2].x;
+    if (horizontal)
+    {
+      for (int r = 0; r < side_img.rows; ++r)
+      {
+        if (r == boundary[0].y) continue;
+        uchar* row = side_img.ptr<uchar>(r);
+        for (int c = 0; c < side_img.cols; ++c)
+        {
+          if (r < boundary[0].y)
+          {
+            row[c] = 1;
+          }
+          else
+          {
+            row[c] = 2;
+          }
+        }
+      }
+    }
+    else if (vertical)
+    {
+      for (int r = 0; r < side_img.rows; ++r)
+      {
+        uchar* row = side_img.ptr<uchar>(r);
+        for (int c = 0; c < side_img.cols; ++c)
+        {
+          if (c < boundary[0].x)
+          {
+            row[c] = 1;
+          }
+          else if (c > boundary[0].x)
+          {
+            row[c] = 2;
+          }
+        }
+      }
+    }
+    else
+    {
+      const bool pos_slope = ((min_y-max_y)/(x_at_min_y-x_at_max_y) > 0);
+      for (int r = 0; r < side_img.rows; ++r)
+      {
+        uchar* row = side_img.ptr<uchar>(r);
+        const int line_x = bmap[r];
+        for (int c = 0; c < side_img.cols; ++c)
+        {
+          // NOTE: Deal with clipped lines
+          if (r < min_y)
+          {
+            if (pos_slope)
+            {
+              row[c] = 2;
+            }
+            else
+            {
+              row[c] = 1;
+            }
+          }
+          else if (r > max_y)
+          {
+            if (pos_slope)
+            {
+              row[c] = 1;
+            }
+            else
+            {
+              row[c] = 2;
+            }
+          }
+          // Regular case
+          else if (c < line_x)
+          {
+            row[c] = 1;
+          }
+          else if (c > line_x)
+          {
+            row[c] = 2;
+          }
+        }
+      }
+    }
+    return side_img;
+  }
+
+  /**
+   * Method to extend a boundary to the edges of an image
+   *
+   * @param boundary The line to extend
+   * @param img_size Size of the image the line extends in
+   *
+   * @return The extended line
+   */
+  Boundary extendBoundary(Boundary& boundary, cv::Size img_size)
+  {
+    const int x_max = img_size.width - 1;
+    const int y_max = img_size.height - 1;
+    if (boundary[0].x == boundary[1].x)
+    {
+      cv::Point p1;
+      cv::Point p2;
+      p1.x = boundary[0].x;
+      p1.y = 0;
+      p2.x = boundary[0].x;
+      p2.y = y_max;
+      return getLineValues(p1, p2, img_size);
+    }
+    else if (boundary[0].y == boundary[1].y)
+    {
+      cv::Point p1;
+      cv::Point p2;
+      p1.x = 0;
+      p1.y = boundary[0].y;
+      p2.x = x_max;
+      p2.y = boundary[0].y;
+      return getLineValues(p1, p2, img_size);
+    }
+    else
+    {
+      cv::Point p1;
+      p1.x = boundary[0].x;
+      p1.y = boundary[0].y;
+      cv::Point p2;
+      p2.x = boundary[2].x;
+      p2.y = boundary[2].y;
+      float m = (p1.y - p2.y) / (p1.x - p2.x);
+      cv::Point left;
+      cv::Point right;
+      cv::Point top;
+      cv::Point bottom;
+      left.x = 0;
+      right.x = x_max;
+      top.y = 0;
+      bottom.y = y_max;
+      left.y = static_cast<int>(m*(left.x - p1.x) + p1.y);
+      right.y = static_cast<int>(m*(right.x - p1.x) + p1.y);
+      top.x = static_cast<int>((top.y - p1.y)/m + p1.x);
+      bottom.x = static_cast<int>((bottom.y - p1.y)/m + p1.x);
+      if (top.x > 0 && top.x < x_max)
+      {
+        if (bottom.x >= 0 && bottom.x <= x_max)
+        {
+          return getLineValues(top, bottom, img_size);
+        }
+        else if (left.y >=0 && left.y <= y_max)
+        {
+          return getLineValues(top, left, img_size);
+        }
+        else if (right.y >=0 && right.y <= y_max)
+        {
+          return getLineValues(top, right, img_size);
+        }
+      }
+      else if (bottom.x >= 0 && bottom.x <= x_max)
+      {
+        if (left.y >=0 && left.y <= y_max)
+        {
+          return getLineValues(bottom, left, img_size);
+        }
+        else if (right.y >=0 && right.y <= y_max)
+        {
+          return getLineValues(bottom, right, img_size);
+        }
+      }
+      else
+      {
+        return getLineValues(left, right, img_size);
+      }
+    }
+  }
+
+  Boundary getLineValues(cv::Point p1, cv::Point p2, cv::Size frame_size)
+  {
+    Boundary line;
+    bool steep = (abs(p1.y - p2.y) > abs(p1.x - p2.x));
+    if (steep)
+    {
+      // Swap x and y
+      cv::Point tmp(p1.y, p1.x);
+      p1.x = tmp.x;
+      p1.y = tmp.y;
+      tmp.y = p2.x;
+      tmp.x = p2.y;
+      p2.x = tmp.x;
+      p2.y = tmp.y;
+    }
+    if (p1.x > p2.x)
+    {
+      // Swap p1 and p2
+      cv::Point tmp(p1.x, p1.y);
+      p1.x = p2.x;
+      p1.y = p2.y;
+      p2.x = tmp.x;
+      p2.y = tmp.y;
+    }
+    int dx = p2.x - p1.x;
+    int dy = abs(p2.y - p1.y);
+    int error = dx / 2;
+    int ystep = 0;
+    if (p1.y < p2.y)
+    {
+      ystep = 1;
+    }
+    else if (p1.y > p2.y)
+    {
+      ystep = -1;
+    }
+    for(int x = p1.x, y = p1.y; x <= p2.x; ++x)
+    {
+      if (steep)
+      {
+        cv::Point p_new(y,x);
+        // Test that p_new is in the image
+        if (x < 0 || y < 0 || x >= frame_size.height || y >= frame_size.width ||
+            (x == 0 && y == 0))
+        {
+        }
+        else
+        {
+          line.push_back(p_new);
+        }
+      }
+      else
+      {
+        cv::Point p_new(x,y);
+        // Test that p_new is in the image
+        if (x < 0 || y < 0 || x >= frame_size.width || y >= frame_size.height ||
+            (x == 0 && y == 0))
+        {
+        }
+        else
+        {
+          line.push_back(p_new);
+        }
+      }
+      error -= dy;
+      if (error < 0)
+      {
+        y += ystep;
+        error += dx;
+      }
+    }
+    return line;
   }
 
   //
