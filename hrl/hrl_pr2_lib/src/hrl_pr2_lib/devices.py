@@ -1,6 +1,6 @@
 
 import sensor_msgs.msg as sm
-import pr2_laser_snapshotter.srv as snp
+import pr2_arm_navigation_perception.srv as snp
 #import tf
 #import tf.msg
 import rospy

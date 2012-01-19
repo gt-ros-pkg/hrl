@@ -22,9 +22,11 @@ import numpy as np
 import math
 import time
 import hrl_pr2_lib.msg as hm
-from sound_play.libsoundplay import SoundClient
+#from sound_play.libsoundplay import SoundClient
 #from interpolated_ik_motion_planner import ik_utilities as iku
 import pr2_kinematics as pr2k
+import os
+import os.path as pt
 import pdb
 
 
@@ -447,7 +449,22 @@ class ControllerManager:
         return resp.ok
 
 
+class SoundPlay:
+
+    def __init__(self):
+        self.ros_home = pt.join(os.getenv("HOME"), '.ros')
+
+    def say(self, phrase):
+        wav_file_name = pt.join(self.ros_home, 'soundplay_temp.wav')
+        os.system("text2wave %s -o %s" % (phrase, wav_file_name))
+        os.system("aplay %s" % (wav_file_name))
+
+    def play(self, filename):
+        os.system("aplay %s" % filename)
+
+
 class PR2:
+
     def __init__(self, tf_listener=None, arms=True, base=False, grippers=True):
         try:
             rospy.init_node('pr2', anonymous=True)
@@ -475,9 +492,9 @@ class PR2:
             self.base = PR2Base(self.tf_listener)
         self.torso = PR2Torso(self.joint_provider)
         self.controller_manager = ControllerManager()
-        self.sound = SoundClient()
+        self.sound = SoundPlay()
+        #SoundClient()
         self.projector = StructuredLightProjector()
-
 
     def pose(self):
         s = self.joint_provider()

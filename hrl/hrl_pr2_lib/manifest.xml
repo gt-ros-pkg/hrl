@@ -24,7 +24,7 @@
   <depend package="pr2_mechanism_msgs"/>
   <depend package="std_msgs"/>
   <depend package="geometry_msgs"/>
-  <depend package="sound_play"/>
+  <!--<depend package="sound_play"/>-->
 
   <depend package="kinematics_msgs"/>
   <depend package="geometry_msgs"/>
@@ -41,6 +41,7 @@
   <depend package="object_manipulator"/>
   <depend package="pr2_gripper_sensor_msgs"/>
   <depend package="arm_navigation_msgs"/>
+  <depend package="pr2_arm_navigation_perception"/>
 
 </package>
 
