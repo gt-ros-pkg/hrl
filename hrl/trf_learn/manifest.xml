@@ -23,6 +23,7 @@
   <depend package="opencv2"/>
   <depend package="hrl_camera"/>
   <depend package="hrl_pr2_lib"/>
+  <depend package="hrl_opencv"/>
   <depend package="dynamic_reconfigure"/>
 
 </package>
