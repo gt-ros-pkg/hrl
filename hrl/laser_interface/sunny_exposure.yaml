@@ -19,7 +19,6 @@ gain: 27
 gain_alternate: 32
 height: 480
 horizontal_binning: 1
-horizontal_offset: 0
 imager_rate: 30.303030303030301
 max_exposure: 0.014000000000000002
 mirror_x: False
@@ -30,6 +29,5 @@ rotate_180: True
 trig_rate: 29.411764705882351
 trig_timestamp_topic: head_camera_trigger/trigger
 vertical_binning: 1
-vertical_offset: 0
 width: 640
 

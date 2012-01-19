@@ -1,4 +1,4 @@
-from sound_play.libsoundplay import SoundClient
+#from sound_play.libsoundplay import SoundClient
 import hrl_lib.tf_utils as tfu
 from std_msgs.msg import String
 import rospy
@@ -7,6 +7,7 @@ import tf
 import subprocess as sb
 import numpy as np
 import geometry_msgs.msg as gms
+import os
 
 class LaserPointerClient:
 
@@ -16,7 +17,7 @@ class LaserPointerClient:
         self.target_frame = target_frame
         self.laser_point_base = None
         self.base_sound_path = (sb.Popen(["rospack", "find", "laser_interface"], stdout=sb.PIPE).communicate()[0]).strip()
-        self.sound = SoundClient()
+        #self.sound = SoundClient()
 
         if tf_listener == None:
             self.tf_listener = tf.TransformListener()
@@ -25,7 +26,9 @@ class LaserPointerClient:
 
         rospy.Subscriber('cursor3d', gms.PointStamped, self.laser_point_handler)
         self.double_click = rospy.Subscriber('mouse_left_double_click', String, self.double_click_cb)
-        self.sound.waveSound(self.base_sound_path + '/sounds/beep.wav').play()
+        os.system("aplay %s" % (self.base_sound_path + '/sounds/beep_beep.wav'))
+        #self.sound.waveSound().play()
+
 
     def transform_point(self, point_stamped):
         point_head = point_stamped.point
@@ -37,14 +40,16 @@ class LaserPointerClient:
         return np.matrix(t_base).T
         
     def laser_point_handler(self, point_stamped):
-        self.sound.waveSound(self.base_sound_path + '/sounds/blow.wav').play()
+        #self.sound.waveSound(self.base_sound_path + '/sounds/blow.wav').play()
+        #os.system("aplay %s" % (self.base_sound_path + '/sounds/beeeeeep.wav'))
         self.laser_point_base = self.transform_point(point_stamped)
         for f in self.point_cbs:
             f(self.laser_point_base)
 
     def double_click_cb(self, a_str):
         rospy.loginfo('Double CLICKED')
-        self.sound.waveSound(self.base_sound_path + '/sounds/beep.wav').play()
+        #self.sound.waveSound(self.base_sound_path + '/sounds/beep.wav').play()
+        os.system("aplay %s" % (self.base_sound_path + '/sounds/beep_beep.wav'))
         #if self.laser_point_base != None:
         for f in self.dclick_cbs:
             f(self.laser_point_base)
