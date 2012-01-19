@@ -40,7 +40,7 @@ import hrl_camera.ros_camera as rc
 import hrl_lib.rutils as ru
 import hrl_lib.tf_utils as tfu
 import hrl_lib.util as ut
-import hrl_lib.image3d as i3d
+import hrl_opencv.image3d as i3d
 import hrl_pr2_lib.pr2 as pr2
 import hrl_pr2_lib.linear_move as lm
 import hrl_pr2_lib.linear_move as lm

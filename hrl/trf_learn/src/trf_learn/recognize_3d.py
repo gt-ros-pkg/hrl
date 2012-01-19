@@ -49,7 +49,7 @@ import ml_lib.dataset as ds
 import ml_lib.dimreduce as dr
 
 #import hrl_opencv.blob as blob
-import hrl_lib.image3d as i3d
+import hrl_opencv.image3d as i3d
 import hrl_lib.util as ut
 #import hrl_lib.viz as viz
 import hrl_lib.rutils as ru

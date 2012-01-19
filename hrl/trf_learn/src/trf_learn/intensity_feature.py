@@ -30,7 +30,7 @@ import rospy
 import cv
 import numpy as np
 import feature_extractor_fpfh.srv as fsrv
-import hrl_lib.image3d as i3d
+import hrl_opencv.image3d as i3d
 import hrl_lib.rutils as ru
 import hrl_lib.prob as pr
 import hrl_lib.tf_utils as tfu
