@@ -197,7 +197,7 @@ class ApplicationBehaviorsDB:
                         #move_back_distance=np.matrix([-.0075,0,0]).T,
                         press_pressure=6000,
                         press_distance=np.matrix([0.01,0,-.15]).T,
-                        visual_change_thres=.025)
+                        visual_change_thres=.023)
 
         elif task_type == 'light_switch_up':
             return ft.partial(self.light_switch, 
@@ -207,7 +207,7 @@ class ApplicationBehaviorsDB:
                         #move_back_distance=np.matrix([-.0075,0,0]).T,
                         press_pressure=6000,
                         press_distance=np.matrix([0.01,0,.15]).T,
-                        visual_change_thres=.025)
+                        visual_change_thres=.023)
 
         elif task_type == 'light_rocker_up':
             return ft.partial(self.light_rocker_push,
@@ -346,8 +346,11 @@ class ApplicationBehaviorsDB:
         self.behaviors.movement.gripper_open()
 
     def look_at(self, point_bl, block=True):
-        self.robot.head.look_at(point_bl-np.matrix([0,0,.15]).T, pointing_frame=self.optical_frame, 
-                pointing_axis=np.matrix([1,0,0.]).T, wait=block)
+        #self.robot.head.look_at(point_bl-np.matrix([0,0,.15]).T, pointing_frame=self.optical_frame, 
+        #                        pointing_axis=np.matrix([1,0,0.]).T, wait=block)
+        print 'LOOKING AT POINT', point_bl.T, self.optical_frame
+        #self.robot.head.look_at(point_bl, pointing_frame=self.optical_frame, pointing_axis=np.matrix([1, 0, 0.]).T, wait=block)
+        self.robot.head.look_at(point_bl, wait=block)
 
     #######################################################################################
     #Mobility Behaviors

@@ -1,7 +1,7 @@
 <launch>
-    <arg name="aware_home" default="false"/>
+    <arg name="aware_home" default="true"/>
     <arg name="wg" default="false"/>
-    <arg name="hrl" default="true"/>
+    <arg name="hrl" default="false"/>
 
     <include file="$(find pr2_machine)/$(env ROBOT).machine" />
     <include file="$(find pr2_2dnav)/pr2_2dnav.launch"/>
@@ -32,4 +32,25 @@
 
     <!-- Move Base -->
     <!-- <node pkg="hrl_pr2_lib" type="move_base_server.py" name="move_base_server"/> -->
+
+    <node pkg="collider" type="collider_node" name="collider_node" respawn="true" output="screen">
+       <param name="fixed_frame" type="string" value="base_link" />
+       <param name="resolution" type="double" value="0.025" />
+       <param name="max_range" type="double" value="2.5" />
+       <param name="publish_static_over_dynamic_map" value="true" />
+       <param name="sensor_model_hit" value= "0.8" />
+       <param name="sensor_model_miss" value= "0.31" />
+       <param name="sensor_model_min" value= "0.12" />
+       <param name="sensor_model_max" value= "0.95" />
+
+       <remap from="collision_map_out" to="collision_map_occ" />
+       <remap from="point_cloud_out" to="octomap_point_cloud" />
+
+       <rosparam command="load"
+         file="$(find pr2_arm_navigation_perception)/config/collision_map_sources_laser+stereo.yaml"/>
+
+       <!-- self filtering links -->
+       <rosparam command="load" file="$(find pr2_arm_navigation_perception)/config/self_filter_right_left.yaml" />
+    </node>
+
 </launch>

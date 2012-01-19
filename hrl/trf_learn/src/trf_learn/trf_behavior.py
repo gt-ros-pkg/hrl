@@ -93,6 +93,7 @@ class TaskRelevantLearningBehaviors:
     def run(self, mode, save, user_study):
         r = rospy.Rate(10)
         rospy.loginfo('Ready.')
+        #self.init_task(np.matrix([[ 0.94070742, -0.23445448,  1.14915097]]).T)
         while not rospy.is_shutdown():
             r.sleep()
             if mode == 'practice':
@@ -245,10 +246,9 @@ class TaskRelevantLearningBehaviors:
     #######################################################################################
     # Learning Manipulation Behaviors
     #######################################################################################
-    ##
     # The behavior can make service calls to a GUI asking users to label
     def practice(self, task_id, ctask_id, point3d_bl, stop_fun=None, params=None, 
-            negative_cut_off=.5, resolution=.01, max_samples=5):
+                 negative_cut_off=.5, resolution=.01, max_samples=5):
         if params == None:
             params = r3d.Recognize3DParam()
             params.uncertainty_x = 1.
@@ -836,6 +836,7 @@ class TaskRelevantLearningBehaviors:
     # @param point_bl 3x1 in base_link
     def init_task(self, point_bl):
         #If that location is new:
+        #pdb.set_trace()
         self.look_at(point_bl, False)
         map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
         point_map = tfu.transform_points(map_T_base_link, point_bl)
@@ -1303,6 +1304,7 @@ def test_display():
 
 def launch():
     import optparse
+
     p = optparse.OptionParser()
     p.add_option("-d", "--display", action="store_true", default=False)
     p.add_option("-p", "--practice", action="store_true", default=False)
