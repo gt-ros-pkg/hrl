@@ -34,7 +34,7 @@ import rospy
 import hrl_lib.rutils as ru
 import hrl_lib.util as ut
 from hrl_msgs.msg import FloatArray
-from geometry_msgs.msg import Wrench
+from geometry_msgs.msg import WrenchStamped
 import numpy as np
 
 ##
@@ -43,11 +43,11 @@ class FTClient(ru.GenericListener):
     def __init__(self, topic_name, netft=False):
         if netft:
             def msg_converter(msg):
-                fx, fy, fz = msg.force.x, msg.force.y, msg.force.z
-                tx, ty, tz = msg.torque.x, msg.torque.y, msg.torque.z
+                fx, fy, fz = msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z
+                tx, ty, tz = msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z
                 msg_time = rospy.get_time()
                 return -np.matrix([fx, fy, fz, tx, ty, tz]).T, msg_time
-            msg_type=Wrench
+            msg_type=WrenchStamped
         else:
             def msg_converter(msg):
                 m = np.matrix(msg.data, 'f').T
