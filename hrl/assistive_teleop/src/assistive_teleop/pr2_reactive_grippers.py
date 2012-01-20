@@ -54,7 +54,7 @@ class PR2Gripper():
         if blocking:
             return self.grab_ac.wait_for_result(rospy.Duration(block_timeout))
 
-    def release(self, event=0, acc_thresh=5, slip_thresh=0.01,
+    def release(self, event=0, acc_thresh=3, slip_thresh=0.005,
                 blocking=False, block_timeout=20):
         print "Performing Gripper Release"
         release_event=PR2GripperEventDetectorCommand()

@@ -405,36 +405,33 @@ class PR2Arm():
             #Return false: Not achievable, even for best case
             rospy.loginfo("Goal cannot be reached, even using spine movement")
             return [False, request.ik_request.pose_stamped]
-        else:
-            #Achievable: Find a reasonable solution, move torso, return true
-            rospy.loginfo("Goal can be reached by moving spine")
-            self.log_out.publish(data="Goal can be reached by moving spine")
-            if abs(streach_goal)<0.05:
-                #If close, go to best position
-                self.move_torso(torso_pos + streach_goal)
+        
+        #Achievable: Find a reasonable solution, move torso, return true
+        rospy.loginfo("Goal can be reached by moving spine")
+        self.log_out.publish(data="Goal can be reached by moving spine")
+        if abs(Streach_goal)<0.001:
+            #Already at best position, dont try more (avoid moving to noise)
+            return[False, request.ik_request.pose_stamped]
+        if abs(streach_goal)<0.05:
+            #If close, go to best position
+            self.move_torso(torso_pos + streach_goal)
+            return [True, request.ik_request.pose_stamped]
+        #If not, move to a functional position (but not all
+        #the way to the best position)
+        trials = np.linspace(0,streach_goal,round(abs(streach_goal)/0.05))
+        trials.append(streach_goal)
+        for trial in trials:
+            request.ik_request.pose_stamped.pose.position.z -= trial
+            ik_goal = self.ik_pose_proxy(request)
+            if ik_goal.error_code.val == 1:
+                self.log_out.publish(data="Using torso to reach goal")
+                rospy.loginfo("Using Torso to reach goal")
+                streached = self.move_torso(torso_pos + trial)
                 return [True, request.ik_request.pose_stamped]
-            else:
-                #If not, move to a functional position (but not all
-                #the way to the best position)
-                trial = 1
-                while True:
-                    request.ik_request.pose_stamped.pose.position.z = \
-                                        (goal_z-0.05*trial*np.sign(streach_goal))
-                    ik_goal = self.ik_pose_proxy(request)
-                    if ik_goal.error_code.val == 1:
-                        self.log_out.publish(data="Using torso to reach goal")
-                        rospy.loginfo("Using Torso to reach goal")
-                        streached = self.move_torso(torso_pos + 
-                                                   0.05*trial*np.sign(streach_goal))
-                        return [True, request.ik_request.pose_stamped]
-                    else:
-                        if trial < 6:
-                            trial += 1
-                        else:
-                            self.log_out.publish(data="Attempted torso \
-                                                        reach but failed")
-                            rospy.loginfo("Attempted torso reach but failed")
-                            return [False, request.ik_request.pose_stamped]
+        #Broke through somehow, catch error
+        self.log_out.publish(data="Torso adjust: Reported Possible but Failed!")
+        rospy.logerr("Torso adjust: Reported Possible but Failed!")
+        return [False, request.ik_request.pose_stamped]
    
     def fast_move(self, ps, time=0.):
         ik_goal = self.ik_pose_proxy(self.form_ik_request(ps))
@@ -452,57 +449,59 @@ class PR2Arm():
                                    duration)
 
     def full_ik_check(self, ps):
+        #Check goal as given, if reachable, return true
         req = self.form_ik_request(ps)
         ik_goal = self.ik_pose_proxy(req)
         if ik_goal.error_code.val == 1:
             self.dist = pu.calc_dist(self.curr_pose(), ps)
             return (True, ik_goal)
-        else:
+        #Check goal with vertical torso movement, if works, return true 
+        (torso_succeeded, pos) = self.check_torso(req)
+        if torso_succeeded:
+            self.dist = pu.calc_dist(self.curr_pose(), pos)
+            # From pose, get request, get ik
+            ik_goal = self.ik_pose_proxy(self.form_ik_request(pos))
+            return (True, ik_goal)
+        #Check goal incrementally retreating hand pose, if works, return true
+        rospy.loginfo("Incrementing Reach")
+        percent = 0.9
+        while percent > 0.01:
+            print "Percent: %s" %percent
+            goal_pos = req.ik_request.pose_stamped.pose.position
+            curr_pos = self.curr_pose()
+            curr_pos = curr_pos.pose.position
+            req.ik_request.pose_stamped.pose.position.x = (
+                        curr_pos.x + percent*(goal_pos.x-curr_pos.x))
+            req.ik_request.pose_stamped.pose.position.y = (
+                        curr_pos.y + percent*(goal_pos.y-curr_pos.y))
+            req.ik_request.pose_stamped.pose.position.z = (
+                        curr_pos.z + percent*(goal_pos.z-curr_pos.z))
             (torso_succeeded, pos) = self.check_torso(req)
             if torso_succeeded:
-                self.dist = pu.calc_dist(self.curr_pose(), pos)
+                print "Successful with Torso, sending new position"
+                self.dist = pu.calc_dist(self.curr_pose(),pos)
                 # From pose, get request, get ik
                 ik_goal = self.ik_pose_proxy(self.form_ik_request(pos))
                 return (True, ik_goal)
             else:
-                rospy.loginfo("Incrementing Reach")
-                percent = 0.9
-                while percent > 0.01:
-                    print "Percent: %s" %percent
-                    goal_pos = req.ik_request.pose_stamped.pose.position
-                    curr_pos = self.curr_pose()
-                    curr_pos = curr_pos.pose.position
-                    req.ik_request.pose_stamped.pose.position.x = (
-                                curr_pos.x + percent*(goal_pos.x-curr_pos.x))
-                    req.ik_request.pose_stamped.pose.position.y = (
-                                curr_pos.y + percent*(goal_pos.y-curr_pos.y))
-                    req.ik_request.pose_stamped.pose.position.z = (
-                                curr_pos.z + percent*(goal_pos.z-curr_pos.z))
-                    (torso_succeeded, pos) = self.check_torso(req)
-                    if torso_succeeded:
-                        print "Successful with Torso, sending new position"
-                        self.dist = pu.calc_dist(self.curr_pose(),pos)
-                        # From pose, get request, get ik
-                        ik_goal = self.ik_pose_proxy(self.form_ik_request(pos))
-                        return (True, ik_goal)
-                    else:
-                        rospy.loginfo("Torso Could not reach goal")
-                        ik_goal = self.ik_pose_proxy(req)
-                        if ik_goal.error_code.val == 1:
-                            rospy.loginfo("Initial Goal Out of Reach, \
-                                            Moving as Far as Possible")
-                            self.log_out.publish(data="Initial Goal Out of \
-                                              Reach, Moving as Far as Possible")
-                            self.dist = pu.calc_dist(self.curr_pose(),
-                                                req.ik_request.pose_stamped)
-                            return (True, ik_goal)
-                        else:
-                            percent -= 0.1
-                rospy.loginfo("IK Failed: Error Code %s"
-                                %str(ik_goal.error_code))
-                self.log_out.publish(data="Inverse Kinematics Failed: \
-                                                Goal Out of Reach.")    
-                return (False, ik_goal)
+                rospy.loginfo("Torso Could not reach goal")
+                ik_goal = self.ik_pose_proxy(req)
+                if ik_goal.error_code.val == 1:
+                    rospy.loginfo("Initial Goal Out of Reach,\
+                                    Moving as Far as Possible")
+                    self.log_out.publish(data="Initial Goal Out of\
+                                      Reach, Moving as Far as Possible")
+                    self.dist = pu.calc_dist(self.curr_pose(),
+                                        req.ik_request.pose_stamped)
+                    return (True, ik_goal)
+                else:
+                    percent -= 0.1
+        #Nothing worked, report failure, return false
+        rospy.loginfo("IK Failed: Error Code %s"
+                        %str(ik_goal.error_code))
+        self.log_out.publish(data="Inverse Kinematics Failed:\
+                                        Goal Out of Reach.")    
+        return (False, ik_goal)
 
     def form_ik_request(self, ps):
         #print "forming IK request for :%s" %ps
@@ -547,10 +546,10 @@ class PR2Arm():
 
         goal_out = MoveArmGoal()
         goal_out.motion_plan_request.group_name = self.arm+"_arm"
-        goal_out.motion_plan_request.num_planning_attempts = 5 
+        goal_out.motion_plan_request.num_planning_attempts = 10 
         goal_out.motion_plan_request.planner_id = ""
         goal_out.planner_service_name = "ompl_planning/plan_kinematic_path"
-        goal_out.motion_plan_request.allowed_planning_time = rospy.Duration(10.0)
+        goal_out.motion_plan_request.allowed_planning_time = rospy.Duration(1.0)
         
         pos = PositionConstraint()
         pos.header.frame_id = goal_in.header.frame_id 
