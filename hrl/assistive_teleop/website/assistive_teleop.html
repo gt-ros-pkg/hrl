@@ -23,6 +23,8 @@ var img_act = 'looking'
 var norm_appr_left = norm_appr_right = driving = tool_state = false;
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 var plane = 'xy';
+var head_state;
+var torso_state;
 
 $(function(){
 	$('#slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
@@ -44,9 +46,8 @@ $(function(){
                                                             log("Opening/Closing Left Gripper");
                                                             });	
 	$('#torso_slider').slider({min:0.0,max:0.3,step:0.01,orientation:'vertical'});
-	$('#torso_slider').unbind("slidestop").bind("slidestop", function(event,ui){
-                                                            pub_torso($('#torso_slider').slider("value"));
-                                                            log("Raising/Lowering Spine");
+	$('#torso_slider').unbind("slidestop").bind("slidestop",function(event,ui){
+                                                            pub_torso($('#torso_slider').slider("value"))
                                                             });	
 	$('#submit_text').click(function(e){speak($('#txt2say').val())});
 	$("body").find('*').mouseup(function(e){window.bx=0; window.by=0; window.bz=0});
@@ -93,11 +94,11 @@ function init_msgs (){
 function init_subscribers() {
 	node.subscribe('/head_traj_controller_state_throttle',
                     function(msg){
-                        window.head = msg.actual;
+                        window.head_state = msg.actual;
                         window.head_joints = msg.joint_names;
                         document.getElementById('head_pos_out').innerHTML='Head Position: Left/Right:\ \ ' + 
-                            Math.round(-window.head.positions[0]*180/Math.PI) + '\ deg.\ \ Up/Down:' + 
-                            Math.round(-window.head.positions[1]*180/Math.PI) + '\ deg.'
+                            Math.round(-window.head_state.positions[0]*180/Math.PI) + '\ deg.\ \ Up/Down:' + 
+                            Math.round(-window.head_state.positions[1]*180/Math.PI) + '\ deg.'
 			        });
 	node.subscribe('/r_gripper_controller_state_throttle',
                     function(msg){
@@ -109,6 +110,7 @@ function init_subscribers() {
                     });
 	node.subscribe('/torso_state_throttle',
                     function(msg){
+                        window.torso_state = msg.actual.positions[0];
                         $('#torso_slider').show().slider("option", "value", msg.actual.positions[0])
                     });
 	node.subscribe('/wt_log_out', function(msg){log(msg.data.toString())});
@@ -140,23 +142,23 @@ function init_publishers() {
     node.publish('wt_left_arm_angle_commands', 'trajectory_msgs/JointTrajectoryPoint', json({}))
     node.publish('wt_lin_move_right','std_msgs/Float32', json({}));
     node.publish('wt_lin_move_left','std_msgs/Float32', json({}));
-    //node.publish('/wt_tuck_arms', 'std_msgs/String', json({}));
+    //node.publish('wt_tuck_arms', 'std_msgs/String', json({}));
    
     //Image-Click Publishers
     node.publish('norm_approach_right', 'geometry_msgs/PoseStamped', json({}));
     node.publish('norm_approach_left', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_contact_approach_right', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_contact_approach_left', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_poke_right_point', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_poke_left_point', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_swipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_swipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_wipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_wipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_rg_right_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_rg_left_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_grasp_right_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('/wt_grasp_left_goal', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_contact_approach_right', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_contact_approach_left', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_poke_right_point', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_poke_left_point', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_swipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_swipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_wipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_wipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_rg_right_goal', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_rg_left_goal', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_grasp_right_goal', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('wt_grasp_left_goal', 'geometry_msgs/PoseStamped', json({}));
     node.publish('wt_surf_wipe_r_points', 'geometry_msgs/Point', json({}));
     node.publish('wt_surf_wipe_l_points', 'geometry_msgs/Point', json({}));
    
@@ -165,23 +167,23 @@ function init_publishers() {
     node.publish('wt_adjust_elbow_left','std_msgs/Float32', json({}));
 
     //Head Publishers
-    node.publish('/head_nav_goal', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('head_nav_goal', 'geometry_msgs/PoseStamped', json({}));
     node.publish('head_traj_controller/joint_trajectory_action/goal','pr2_controllers_msgs/JointTrajectoryActionGoal', json({}));
 	node.publish('head_traj_controller/point_head_action/goal', 'pr2_controllers_msgs/PointHeadActionGoal', json({}));
     
     //Assorted Publishers
-    node.publish('/base_controller/command', 'geometry_msgs/Twist',json({}));
-    node.publish('/text_to_say', 'std_msgs/String', json({}));
+    node.publish('base_controller/command', 'geometry_msgs/Twist',json({}));
+    node.publish('text_to_say', 'std_msgs/String', json({}));
 	node.publish('torso_controller/position_joint_action/goal','pr2_controllers_msgs/SingleJointPositionActionGoal',json({}))
-    node.publish('/wt_ft_goal', 'std_msgs/Float32', json({}))
+    node.publish('wt_ft_goal', 'std_msgs/Float32', json({}))
     
     //Shaving Publishers
-    node.publish('/wt_disc_shaving_step', 'std_msgs/Int8', json({}));
-    node.publish('/wt_cont_shaving_step', 'geometry_msgs/Point', json({}));
+    node.publish('wt_disc_shaving_step', 'std_msgs/Int8', json({}));
+    node.publish('wt_cont_shaving_step', 'geometry_msgs/Point', json({}));
     node.publish('wt_shave_location', 'std_msgs/Int8', json({}));
-    node.publish('/reg_confirm', 'std_msgs/Bool', json({}))
-    node.publish('/ros_switch', 'std_msgs/Bool', json({}));
-    node.publish('/init_head', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('reg_confirm', 'std_msgs/Bool', json({}))
+    node.publish('ros_switch', 'std_msgs/Bool', json({}));
+    node.publish('init_head', 'geometry_msgs/PoseStamped', json({}));
 
 };
 
@@ -258,11 +260,11 @@ function determine_p23d_response(point_3d){
             break
         case 'head_nav_goal':
                 log("Sending navigation seed position");
-                node.publish('/head_nav_goal', 'geometry_msgs/PoseStamped', json(point_3d));
+                node.publish('head_nav_goal', 'geometry_msgs/PoseStamped', json(point_3d));
                 break
         case 'init_head_cloud':
                 log("Sending Initial Position for Head Model");
-                node.publish('/init_head', 'geometry_msgs/PoseStamped', json(point_3d));
+                node.publish('init_head', 'geometry_msgs/PoseStamped', json(point_3d));
                 break
         case 'norm_approach':
             log('Sending '+window.arm().toUpperCase()+ ' Arm Normal Approach Command')
@@ -270,14 +272,14 @@ function determine_p23d_response(point_3d){
             break
         case 'grasp':
             log('Sending command to attempt to grasp object with '+window.arm().toUpperCase()+' arm')
-            node.publish('/wt_grasp_'+window.arm()+'_goal', 'geometry_msgs/PoseStamped', json(point_3d));
+            node.publish('wt_grasp_'+window.arm()+'_goal', 'geometry_msgs/PoseStamped', json(point_3d));
             break
         case 'reactive_grasp':
             log('Sending command to grasp object with reactive grasping with '+window.arm().toUpperCase()+' arm');
-            node.publish('/wt_rg_'+window.arm()+'_goal', 'geometry_msgs/PoseStamped', json(point_3d));
+            node.publish('wt_rg_'+window.arm()+'_goal', 'geometry_msgs/PoseStamped', json(point_3d));
             break
         case 'wipe':
-            node.publish('/wt_wipe_'+window.arm()+'_goals', 'geometry_msgs/PoseStamped', json(point_3d));
+            node.publish('wt_wipe_'+window.arm()+'_goals', 'geometry_msgs/PoseStamped', json(point_3d));
             if (window.force_wipe_count == 0) {
                 window.force_wipe_count = 1;
                 log('Sending start position for force-sensitive wiping')
@@ -288,15 +290,15 @@ function determine_p23d_response(point_3d){
             break
         case 'swipe':
             log('Sending command to swipe from start to finish with '+window.arm().toUpperCase+' arm')
-            node.publish('/wt_swipe_'+window.arm()+'_goals', 'geometry_msgs/PoseStamped', json(point_3d));
+            node.publish('wt_swipe_'+window.arm()+'_goals', 'geometry_msgs/PoseStamped', json(point_3d));
             break
         case 'poke':
             log('Sending command to poke point with '+window.arm().toUpperCase()+' arm')
-            node.publish('/wt_poke_'+window.arm()+'_point', 'geometry_msgs/PoseStamped', json(point_3d));
+            node.publish('wt_poke_'+window.arm()+'_point', 'geometry_msgs/PoseStamped', json(point_3d));
             break
         case 'contact_approach':
             log('Sending command to approaching point by moving until contact with '+window.arm().toUpperCase()+' arm')
-            node.publish('/wt_contact_approach_'+window.arm(), 'geometry_msgs/PoseStamped', json(point_3d));
+            node.publish('wt_contact_approach_'+window.arm(), 'geometry_msgs/PoseStamped', json(point_3d));
         };
         if (window.force_wipe_count == 0){
             $('#img_act_select').val('looking');
@@ -463,6 +465,8 @@ function teleop_wrist() {
 };
 
 function pub_torso(tz){
+    var dir = (tz < window.torso_state) ? 'Lowering' : 'Raising';
+    log(dir+" Torso");
 	node.publish('torso_controller/position_joint_action/goal',
                  'pr2_controllers_msgs/SingleJointPositionActionGoal',
                  json({'goal':{'position':tz}})
@@ -503,7 +507,7 @@ function teleop_head() {
 		x = (e.pageX - Math.round(this.width/2) - this.x)/200;
 		y = (e.pageY - Math.round(this.height/2) - this.y)/200;
    		head_traj_goal = JTAGoal;
-		head_traj_goal.goal.trajectory.points[0] = window.head;
+		head_traj_goal.goal.trajectory.points[0] = window.head_state;
 		head_traj_goal.goal.trajectory.points[0].positions[0] -= x;
 		head_traj_goal.goal.trajectory.points[0].positions[1] += y;
                 pub_head_traj(head_traj_goal, Math.sqrt(x*x+y*y));
@@ -514,7 +518,7 @@ function teleop_head() {
 	$('#b8').show().text("^").click(function(e){//head up 
 		window.head_pub = window.clearInterval(head_pub);
    		head_traj_goal = JTAGoal;
-		head_traj_goal.goal.trajectory.points[0] = window.head;
+		head_traj_goal.goal.trajectory.points[0] = window.head_state;
 		head_traj_goal.goal.trajectory.points[0].positions[1] -= scales.head/150;
                 pub_head_traj(head_traj_goal, scales.head/150);
 	});
@@ -522,22 +526,18 @@ function teleop_head() {
 	$('#b6').show().text(">").click(function(e){ //head right
 		window.head_pub = window.clearInterval(head_pub);
    		head_traj_goal = JTAGoal;
-		head_traj_goal.goal.trajectory.points[0] = window.head;
+		head_traj_goal.goal.trajectory.points[0] = window.head_state;
 		head_traj_goal.goal.trajectory.points[0].positions[0] -= scales.head/150;
                 pub_head_traj(head_traj_goal, scales.head/150);
 	});
 	$('#b5').show().text("_|_").click(function(e){ //center head to (0,0)
 		window.head_pub = window.clearInterval(head_pub);
         pub_head_goal(0.8, 0.0, -0.25, '/base_footprint');
-   		//head_traj_goal = JTAGoal;
-		//head_traj_goal.goal.trajectory.points[0] = window.head;
-		//head_traj_goal.goal.trajectory.points[0].positions = [0,0];
-                //pub_head_traj(head_traj_goal);
 	});
 	$('#b4').show().text("<").click(function(e){ //head left
 		window.head_pub = window.clearInterval(head_pub);
    		head_traj_goal = JTAGoal;
-		head_traj_goal.goal.trajectory.points[0] = window.head;
+		head_traj_goal.goal.trajectory.points[0] = window.head_state;
 		head_traj_goal.goal.trajectory.points[0].positions[0] += scales.head/150;
                 pub_head_traj(head_traj_goal, scales.head/150);
 	});
@@ -548,7 +548,7 @@ function teleop_head() {
   	$('#b2').show().text("v").click(function(e){ //head down
 		window.head_pub = window.clearInterval(head_pub);
    		head_traj_goal = JTAGoal;
-		head_traj_goal.goal.trajectory.points[0] = window.head;
+		head_traj_goal.goal.trajectory.points[0] = window.head_state;
 		head_traj_goal.goal.trajectory.points[0].positions[1] += scales.head/150;
                 pub_head_traj(head_traj_goal, scales.head/150);
 	});
@@ -559,7 +559,7 @@ function teleop_head() {
 };
 
 function pub_Twist(bx,by,bz) {
-          node.publish('/base_controller/command', 'geometry_msgs/Twist',
+          node.publish('base_controller/command', 'geometry_msgs/Twist',
                     '{"linear":{"x":' + bx + ',"y":' + by + ',"z":0}, "angular":{"x":0,"y":0,"z":' + bz + '}}');
 };
 
@@ -608,20 +608,20 @@ function teleop_base() {
 };
 
 function speak(text){
-		node.publish('/text_to_say', 'std_msgs/String', json({'data':text}));
+		node.publish('text_to_say', 'std_msgs/String', json({'data':text}));
 		log('\"' + text +'\"'); 
 };
 
 //funnction tuck_arms(arm){
 //      if (arm == 'r'){
 //          log('Sending Tuck Right Arm');
-//          node.publish('/wt_tuck_arms', 'std_msgs/String', json({'data':'right'}));
+//          node.publish('wt_tuck_arms', 'std_msgs/String', json({'data':'right'}));
 //      } else if (arm == 'l') {
 //          log('Sending Tuck Left Arm');
-//          node.publish('/wt_tuck_arms', 'std_msgs/String', json({'data':'left'}));
+//          node.publish('wt_tuck_arms', 'std_msgs/String', json({'data':'left'}));
 //      } else {
 //          log('Sending Tuck Both Arms')
-//          node.publish('/wt_tuck_arms', 'std_msgs/String', json({'data':'both'}));
+//          node.publish('wt_tuck_arms', 'std_msgs/String', json({'data':'both'}));
 //      };
 //};
 
@@ -632,13 +632,13 @@ function toggle_motors(command) { //command = 'halt' or 'reset'
 function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+':8080/?topic=/'+cam+'?width=640?height=480'
 };
 
-function shave(dir) {node.publish('/wt_disc_shaving_step', 'std_msgs/Int8', json({'data':dir}));
+function shave(dir) {node.publish('wt_disc_shaving_step', 'std_msgs/Int8', json({'data':dir}));
                     log("Sending Next Shaving Position");
 };
 
 function shave_step(x,y,z) {points = window.gm_point;
                         points.x = x; points.y = y; points.z = z;
-                        node.publish('/wt_cont_shaving_step', 'geometry_msgs/Point', json(points));
+                        node.publish('wt_cont_shaving_step', 'geometry_msgs/Point', json(points));
                         log("Sending Adjustment to Shaving Position");
 };
 
@@ -646,13 +646,13 @@ function send_shave_location(num) {node.publish('wt_shave_location', 'std_msgs/I
                                  log("Sending New Shave Position: "+num.toString());
 };
 
-function freeze_cloud() {node.publish('/reg_confirm', 'std_msgs/Bool', json({'data':true}))
+function freeze_cloud() {node.publish('reg_confirm', 'std_msgs/Bool', json({'data':true}))
                         log("Sending command to freeze head pointcloud")
 };
 
 function toggle_tool_power() {
     state = !window.tool_state;
-    node.publish('/ros_switch', 'std_msgs/Bool', json({'data':state}));
+    node.publish('ros_switch', 'std_msgs/Bool', json({'data':state}));
     log("Sending Tool Power Toggle");
 };
 
