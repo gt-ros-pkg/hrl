@@ -52,8 +52,6 @@ import trf_learn.recognize_3d as r3d
 import trf_learn.application_behaviors as ab
 import trf_learn.locations_manager as lcm
 
-
-
 class TaskRelevantLearningBehaviors:
 
     def __init__(self, app_behaviors, tf_listener, optical_frame):
