@@ -116,14 +116,19 @@ function init_subscribers() {
 	node.subscribe('/wt_log_out', function(msg){log(msg.data.toString())});
 	
 		//Move Arm Pose State
-	node.subscribe('/r_arm_controller_state_throttle', function(msg){window.arm_joints.right = msg.actual});
-	node.subscribe('/l_arm_controller_state_throttle', function(msg){window.arm_joints.left = msg.actual});
-	node.subscribe('/wt_force_out_throttle', function(ws){$('#force_view').slider("option", "value",
-                    Math.sqrt(Math.pow(ws.wrench.force.x,2) + Math.pow(ws.wrench.force.y,2) + Math.pow(ws.wrench.force.z,2)))
-                   });
-	node.subscribe('/ros_switch_state', function(msg){
-                    window.tool_state=msg.data;
-                   });
+	node.subscribe('/r_arm_controller_state_throttle', function(msg){
+                                        window.arm_joints.right = msg.actual});
+	node.subscribe('/l_arm_controller_state_throttle', function(msg){
+                                        window.arm_joints.left = msg.actual});
+//	node.subscribe('/wt_force_out_throttle',
+//                    function(ws){$('#force_view').slider("option", "value",
+//                    Math.sqrt(Math.pow(ws.wrench.force.x,2) + 
+//                    Math.pow(ws.wrench.force.y,2) + 
+//                    Math.pow(ws.wrench.force.z,2)))
+//                   });
+	//node.subscribe('/ros_switch_state', function(msg){
+    //                window.tool_state=msg.data;
+    //              });
 };//END sub_state
 
 function init_publishers() {
