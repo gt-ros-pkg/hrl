@@ -34,8 +34,8 @@ class PR2Arm():
 
     move_arm_error_dict = {
          -1 : "PLANNING_FAILED: Could not plan a clear path to goal.", 
-          0 : "Move Arm Action Aborted on Internal Failure.", 
-          1 : "SUCCEEDED", 
+          0 : "Succeeded [0]", 
+          1 : "Succeeded [1]", 
          -2 : "TIMED_OUT",
          -3 : "START_STATE_IN_COLLISION: Try freeing the arms manually.",
          -4 : "START_STATE_VIOLATES_PATH_CONSTRAINTS",
@@ -359,80 +359,7 @@ class PR2Arm():
         goal_out.position = pos
         self.torso_client.send_goal(goal_out)
         return True
-        
-       # finished_within_time = self.torso_client.wait_for_result(
-       #                                             rospy.Duration(45))
-       # if not (finished_within_time):
-       #     self.torso_client.cancel_goal()
-       #     self.log_out.publish(data="Timed out moving torso")
-       #     rospy.loginfo("Timed out moving torso")
-       #     return False
-       # else:
-       #     state = self.torso_client.get_state()
-       #     result = self.torso_client.get_result()
-       #     if (state == 3): #3 == SUCCEEDED
-       #         rospy.loginfo("Torso Action Succeeded")
-       #         self.log_out.publish(data="Move Torso Succeeded")
-       #         return True
-       #     else:
-       #         rospy.loginfo("Move Torso Failed")
-       #         rospy.loginfo("Failure Result: %s" %result)
-       #         self.log_out.publish(data="Move Torso Failed")
-       #         return False
 
-    def check_torso(self, request):
-        goal_z = request.ik_request.pose_stamped.pose.position.z
-        torso_pos = self.torso_state.actual.positions[0]
-        spine_range = [self.torso_min - torso_pos, self.torso_max - torso_pos]
-       
-        #Find best possible case: shoulder @ goal height, max up, or max down. 
-        if goal_z >= spine_range[0] and goal_z <= spine_range[1]: 
-            rospy.loginfo("Goal within spine movement range")
-            request.ik_request.pose_stamped.pose.position.z = 0;
-            streach_goal = goal_z
-        elif goal_z > spine_range[1]:#Goal is above possible shoulder height
-            rospy.loginfo("Goal above spine movement range")
-            request.ik_request.pose_stamped.pose.position.z -= spine_range[1]
-            streach_goal = spine_range[1]
-        else:#Goal is below possible shoulder height
-            rospy.loginfo("Goal below spine movement range")
-            request.ik_request.pose_stamped.pose.position.z -= spine_range[0]
-            streach_goal = spine_range[0]
-        
-        #Check best possible case   
-        ik_goal = self.ik_pose_proxy(request)
-        if ik_goal.error_code.val != 1:
-            #Return false: Not achievable, even for best case
-            rospy.loginfo("Goal cannot be reached, even using spine movement")
-            return [False, request.ik_request.pose_stamped]
-        
-        #Achievable: Find a reasonable solution, move torso, return true
-        rospy.loginfo("Goal can be reached by moving spine")
-        self.log_out.publish(data="Goal can be reached by moving spine")
-        if abs(Streach_goal)<0.001:
-            #Already at best position, dont try more (avoid moving to noise)
-            return[False, request.ik_request.pose_stamped]
-        if abs(streach_goal)<0.05:
-            #If close, go to best position
-            self.move_torso(torso_pos + streach_goal)
-            return [True, request.ik_request.pose_stamped]
-        #If not, move to a functional position (but not all
-        #the way to the best position)
-        trials = np.linspace(0,streach_goal,round(abs(streach_goal)/0.05))
-        trials.append(streach_goal)
-        for trial in trials:
-            request.ik_request.pose_stamped.pose.position.z -= trial
-            ik_goal = self.ik_pose_proxy(request)
-            if ik_goal.error_code.val == 1:
-                self.log_out.publish(data="Using torso to reach goal")
-                rospy.loginfo("Using Torso to reach goal")
-                streached = self.move_torso(torso_pos + trial)
-                return [True, request.ik_request.pose_stamped]
-        #Broke through somehow, catch error
-        self.log_out.publish(data="Torso adjust: Reported Possible but Failed!")
-        rospy.logerr("Torso adjust: Reported Possible but Failed!")
-        return [False, request.ik_request.pose_stamped]
-   
     def fast_move(self, ps, time=0.):
         ik_goal = self.ik_pose_proxy(self.form_ik_request(ps))
         if ik_goal.error_code.val == 1:
@@ -443,10 +370,66 @@ class PR2Arm():
             rospy.logerr("FAST MOVE IK FAILED!")
 
     def blind_move(self, ps, duration = None):
-        (reachable, ik_goal) = self.full_ik_check(ps)
+        (reachable, ik_goal, duration) = self.full_ik_check(ps)
         if reachable:
             self.send_joint_angles(ik_goal.solution.joint_state.position,
                                    duration)
+
+    def check_torso(self, request):
+        """
+        For unreachable goals, check to see if moving the torso can solve
+        the problem.  If yes, return True, and torso adjustment needed.
+        If no, return False, and best possible Torso adjustment.
+        """
+        goal_z = request.ik_request.pose_stamped.pose.position.z
+        torso_pos = self.torso_state.actual.positions[0]
+        spine_range = [self.torso_min - torso_pos, self.torso_max - torso_pos]
+       
+        if abs(goal_z)<0.005:
+            #Already at best position, dont try more (avoid moving to noise)
+            rospy.loginfo("Torso Already at best possible position")
+            return[False, 0]
+        #Find best possible case: shoulder @ goal height, max up, or max down. 
+        if goal_z >= spine_range[0] and goal_z <= spine_range[1]: 
+            rospy.loginfo("Goal within spine movement range")
+            request.ik_request.pose_stamped.pose.position.z = 0;
+            opt_tor_move = goal_z
+        elif goal_z > spine_range[1]:#Goal is above possible shoulder height
+            rospy.loginfo("Goal above spine movement range")
+            request.ik_request.pose_stamped.pose.position.z -= spine_range[1]
+            opt_tor_move = spine_range[1]
+        else:#Goal is below possible shoulder height
+            rospy.loginfo("Goal below spine movement range")
+            request.ik_request.pose_stamped.pose.position.z -= spine_range[0]
+            opt_tor_move = spine_range[0]
+        #Check best possible case
+        print "Optimal Torso move: ", opt_tor_move
+        ik_goal = self.ik_pose_proxy(request)
+        if ik_goal.error_code.val != 1:
+            #Return false: Not achievable, even for best case
+            rospy.loginfo("Original goal cannot be reached")
+            self.log_out.publish(data="Original goal cannot be reached")
+            return [False, opt_tor_move]
+        opt_ik_goal = ik_goal
+        
+        #Achievable: Find a reasonable solution, move torso, return true
+        rospy.loginfo("Goal can be reached by moving spine")
+        self.log_out.publish(data="Goal can be reached by moving spine")
+        trials = np.linspace(0,opt_tor_move,round(abs(opt_tor_move)/0.05))
+        np.append(trials,opt_tor_move)
+        rospy.loginfo("Torso far from best position, finding closer sol.")
+        print "Trials: ", trials
+        for trial in trials:
+            request.ik_request.pose_stamped.pose.position.z = goal_z + trial
+            print "Trying goal @ ", goal_z + trial
+            ik_goal = self.ik_pose_proxy(request)
+            if ik_goal.error_code.val == 1:
+                rospy.loginfo("Tried: %s, Succeeded" %trial)
+                return [True, trial]
+            rospy.loginfo("Tried: %s, Failed" %trial)
+        #Broke through somehow, catch error
+        return [True, opt_tor_move]
+   
 
     def full_ik_check(self, ps):
         #Check goal as given, if reachable, return true
@@ -454,54 +437,39 @@ class PR2Arm():
         ik_goal = self.ik_pose_proxy(req)
         if ik_goal.error_code.val == 1:
             self.dist = pu.calc_dist(self.curr_pose(), ps)
-            return (True, ik_goal)
+            return (True, ik_goal, None)
         #Check goal with vertical torso movement, if works, return true 
-        (torso_succeeded, pos) = self.check_torso(req)
+        (torso_succeeded, torso_move) = self.check_torso(req)
+        self.move_torso(self.torso_state.actual.positions[0]+torso_move)
+        duration = max(4,85*abs(torso_move))
         if torso_succeeded:
-            self.dist = pu.calc_dist(self.curr_pose(), pos)
-            # From pose, get request, get ik
-            ik_goal = self.ik_pose_proxy(self.form_ik_request(pos))
-            return (True, ik_goal)
-        #Check goal incrementally retreating hand pose, if works, return true
-        rospy.loginfo("Incrementing Reach")
-        percent = 0.9
-        while percent > 0.01:
-            print "Percent: %s" %percent
-            goal_pos = req.ik_request.pose_stamped.pose.position
-            curr_pos = self.curr_pose()
-            curr_pos = curr_pos.pose.position
-            req.ik_request.pose_stamped.pose.position.x = (
-                        curr_pos.x + percent*(goal_pos.x-curr_pos.x))
-            req.ik_request.pose_stamped.pose.position.y = (
-                        curr_pos.y + percent*(goal_pos.y-curr_pos.y))
-            req.ik_request.pose_stamped.pose.position.z = (
-                        curr_pos.z + percent*(goal_pos.z-curr_pos.z))
-            (torso_succeeded, pos) = self.check_torso(req)
-            if torso_succeeded:
-                print "Successful with Torso, sending new position"
-                self.dist = pu.calc_dist(self.curr_pose(),pos)
-                # From pose, get request, get ik
-                ik_goal = self.ik_pose_proxy(self.form_ik_request(pos))
-                return (True, ik_goal)
+            ik_goal = self.ik_pose_proxy(req)
+            self.dist = pu.calc_dist(self.curr_pose(), ps)
+            if ik_goal.error_code.val ==1:
+                return (True, ik_goal, duration)
             else:
-                rospy.loginfo("Torso Could not reach goal")
-                ik_goal = self.ik_pose_proxy(req)
-                if ik_goal.error_code.val == 1:
-                    rospy.loginfo("Initial Goal Out of Reach,\
-                                    Moving as Far as Possible")
-                    self.log_out.publish(data="Initial Goal Out of\
-                                      Reach, Moving as Far as Possible")
-                    self.dist = pu.calc_dist(self.curr_pose(),
-                                        req.ik_request.pose_stamped)
-                    return (True, ik_goal)
-                else:
-                    percent -= 0.1
+                print "Reported Succeeded, then really failed: \r\n", ik_goal
+        
+        #Check goal incrementally retreating hand pose, if works, return true
+        pct = 0.98
+        curr_pos = self.curr_pose().pose.position
+        dx = req.ik_request.pose_stamped.pose.position.x - curr_pos.x
+        dy = req.ik_request.pose_stamped.pose.position.y - curr_pos.y
+        while pct > 0.01:
+            #print "Percent: %s" %pct
+            req.ik_request.pose_stamped.pose.position.x = curr_pos.x + pct*dx
+            req.ik_request.pose_stamped.pose.position.y = curr_pos.y + pct*dy
+            ik_goal = self.ik_pose_proxy(req)
+            if ik_goal.error_code.val == 1:
+                rospy.loginfo("Succeeded PARTIALLY (%s) with torso" %pct)
+                return (True, ik_goal, duration)
+            else:
+                pct -= 0.02
         #Nothing worked, report failure, return false
-        rospy.loginfo("IK Failed: Error Code %s"
-                        %str(ik_goal.error_code))
-        self.log_out.publish(data="Inverse Kinematics Failed:\
-                                        Goal Out of Reach.")    
-        return (False, ik_goal)
+        rospy.loginfo("IK Failed: Error Code %s" %str(ik_goal.error_code))
+        rospy.loginfo("Reached as far as possible")
+        self.log_out.publish(data="Cannot reach farther in this direction.")    
+        return (False, ik_goal, duration)
 
     def form_ik_request(self, ps):
         #print "forming IK request for :%s" %ps
@@ -522,28 +490,25 @@ class PR2Arm():
         self.send_traj_point(point, duration)
 
     def send_traj_point(self, point, time=None):
-	print "Sending Traj Point:"
-	print point
         if time is None: 
             point.time_from_start = rospy.Duration(max(20*self.dist, 4))
         else:
             point.time_from_start = rospy.Duration(time)
-        
         joint_traj = JointTrajectory()
         joint_traj.header.stamp = rospy.Time.now()
         joint_traj.header.frame_id = '/torso_lift_link'
         joint_traj.joint_names = self.ik_info.kinematic_solver_info.joint_names
         joint_traj.points.append(point)
         joint_traj.points[0].velocities = [0,0,0,0,0,0,0]
-        #print joint_traj
-        
         arm_goal = JointTrajectoryGoal()
         arm_goal.trajectory = joint_traj
         self.arm_traj_client.send_goal(arm_goal)
 
     def move_arm_to(self, goal_in):
+        (reachable, ik_goal, duration) = self.full_ik_check(goal_in)
+        rospy.sleep(duration)
+        
         rospy.loginfo("Composing move_"+self.arm+"_arm goal")
-
         goal_out = MoveArmGoal()
         goal_out.motion_plan_request.group_name = self.arm+"_arm"
         goal_out.motion_plan_request.num_planning_attempts = 10 
