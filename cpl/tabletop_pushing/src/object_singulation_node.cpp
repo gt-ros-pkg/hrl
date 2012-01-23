@@ -124,6 +124,8 @@
 // #define DISPLAY_OBJECT_SPLITS 1
 // #define DISPLAY_WAIT 3
 
+#define randf() static_cast<float>(rand())/RAND_MAX
+
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
 using geometry_msgs::PoseStamped;
@@ -631,12 +633,9 @@ class PointCloudSegmentation
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       cv::Vec3f rand_color;
-      rand_color[0] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX));
-      rand_color[1] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX));
-      rand_color[2] = (static_cast<float>(rand()) /
-                       static_cast<float>(RAND_MAX));
+      rand_color[0] = randf();
+      rand_color[1] = randf();
+      rand_color[2] = randf();
       colors.push_back(rand_color);
     }
     for (int r = 0; r < obj_img.rows; ++r)
@@ -753,7 +752,6 @@ class PushOpt
 
   Eigen::Vector4f getMovedCentroid()
   {
-    // TODO: fix 4f / 3f stuff
     Eigen::Vector4f new_cent;
     new_cent[0] = obj.centroid[0] + push_unit_vec[0]*push_dist;
     new_cent[1] = obj.centroid[1] + push_unit_vec[1]*push_dist;
@@ -763,6 +761,49 @@ class PushOpt
   }
 };
 
+
+class PushSample
+{
+ public:
+  cv::Point loc;
+  double weight;
+  double cdf_weight;
+
+  static bool compareSamples(PushSample a, PushSample b)
+  {
+    return a.weight > b.weight;
+  }
+
+  static int cdfBinarySearch(std::vector<PushSample>& scores, float cdf_goal)
+  {
+    int min_idx = 0;
+    int max_idx = scores.size();
+    int cur_idx = min_idx + max_idx / 2;
+    // NOTE: Assumse scores is sorted in decresaing order
+    while (min_idx != max_idx)
+    {
+      cur_idx = (min_idx + max_idx)/2;
+      float cur_val = scores[cur_idx].cdf_weight;
+      if (cur_val == cdf_goal || (cur_val > cdf_goal &&
+                                  scores[cur_idx+1].cdf_weight < cdf_goal))
+      {
+        return cur_idx;
+      }
+      else if (cur_val > cdf_goal)
+      {
+        min_idx = cur_idx;
+      }
+      else
+      {
+        max_idx = cur_idx;
+      }
+    }
+    return cur_idx;
+  }
+
+};
+
+typedef std::vector<PushSample> SampleList;
 
 class ObjectSingulation
 {
@@ -848,8 +889,7 @@ class ObjectSingulation
     obj_push_pub_.publish(obj_push_msg);
 
     // Choose a random orientation
-    double rand_orientation = ((static_cast<double>(rand())/
-                                static_cast<double>(RAND_MAX))*
+    double rand_orientation = (randf()*
                                (max_push_angle_- min_push_angle_) +
                                min_push_angle_);
     ROS_INFO_STREAM("Chosen push pose is at: (" << obj_xyz_centroid[0] << ", "
@@ -1077,26 +1117,29 @@ class ObjectSingulation
     // Find max location and associated boundary
     // TODO: Find linked edges with highest associated boundary score
     // TODO: Ensure some method of getting diverse push options? Biased sampling
+    // TODO: convolve with different edge structures and rank the results
     double max_val = 0.0;
-    cv::Point max_loc;
-    cv::minMaxLoc(obj_bound_img, NULL, &max_val, NULL, &max_loc);
+    cv::Point push_loc = samplePushLoc(obj_bound_img);
+    // cv::minMaxLoc(obj_bound_img, NULL, &max_val, NULL, &push_loc);
+
     Boundary boundary_locs;
-    boundary_locs.push_back(max_loc);
+    boundary_locs.push_back(push_loc);
+
     // HACK: Check up-down score, left-right score, nw-se score and sw-ne score
     // for best edge
     // NOTE: Assumes not on image edge
     std::vector<double> scores;
-    double ud_score = (obj_bound_img.at<float>(max_loc.y-1, max_loc.x) +
-                       obj_bound_img.at<float>(max_loc.y+1, max_loc.x));
+    double ud_score = (obj_bound_img.at<float>(push_loc.y-1, push_loc.x) +
+                       obj_bound_img.at<float>(push_loc.y+1, push_loc.x));
     scores.push_back(ud_score);
-    double lr_score = (obj_bound_img.at<float>(max_loc.y, max_loc.x-1) +
-                       obj_bound_img.at<float>(max_loc.y, max_loc.x+1));
+    double lr_score = (obj_bound_img.at<float>(push_loc.y, push_loc.x-1) +
+                       obj_bound_img.at<float>(push_loc.y, push_loc.x+1));
     scores.push_back(lr_score);
-    double nwse_score = (obj_bound_img.at<float>(max_loc.y-1, max_loc.x-1) +
-                         obj_bound_img.at<float>(max_loc.y+1, max_loc.x+1));
+    double nwse_score = (obj_bound_img.at<float>(push_loc.y-1, push_loc.x-1) +
+                         obj_bound_img.at<float>(push_loc.y+1, push_loc.x+1));
     scores.push_back(nwse_score);
-    double swne_score = (obj_bound_img.at<float>(max_loc.y-1, max_loc.x+1) +
-                         obj_bound_img.at<float>(max_loc.y+1, max_loc.x-1));
+    double swne_score = (obj_bound_img.at<float>(push_loc.y-1, push_loc.x+1) +
+                         obj_bound_img.at<float>(push_loc.y+1, push_loc.x-1));
     scores.push_back(swne_score);
     double max_score = 0;
     unsigned int max_idx = scores.size();
@@ -1109,14 +1152,14 @@ class ObjectSingulation
       }
     }
     score = max_score;
-    cv::Point up(max_loc.x, max_loc.y-1);
-    cv::Point down(max_loc.x, max_loc.y+1);
-    cv::Point left(max_loc.x-1, max_loc.y);
-    cv::Point right(max_loc.x+1, max_loc.y);
-    cv::Point nw(max_loc.x-1, max_loc.y-1);
-    cv::Point se(max_loc.x+1, max_loc.y+1);
-    cv::Point sw(max_loc.x-1, max_loc.y+1);
-    cv::Point ne(max_loc.x+1, max_loc.y-1);
+    cv::Point up(push_loc.x, push_loc.y-1);
+    cv::Point down(push_loc.x, push_loc.y+1);
+    cv::Point left(push_loc.x-1, push_loc.y);
+    cv::Point right(push_loc.x+1, push_loc.y);
+    cv::Point nw(push_loc.x-1, push_loc.y-1);
+    cv::Point se(push_loc.x+1, push_loc.y+1);
+    cv::Point sw(push_loc.x-1, push_loc.y+1);
+    cv::Point ne(push_loc.x+1, push_loc.y-1);
     switch (max_idx)
     {
       case 0: // Add up down
@@ -1144,6 +1187,47 @@ class ObjectSingulation
     //                      false);
     // cv::waitKey();
     return boundary_locs;
+  }
+
+  cv::Point samplePushLoc(cv::Mat& score_img)
+  {
+    SampleList samples;
+    for (int r = 0; r < score_img.rows; ++r)
+    {
+      for (int c = 0; c < score_img.cols; ++c)
+      {
+        if (score_img.at<float>(r,c) > 0)
+        {
+          PushSample p;
+          p.loc = cv::Point(c,r);
+          p.weight = score_img.at<float>(r,c);
+          samples.push_back(p);
+        }
+      }
+    }
+    std::sort(samples.begin(), samples.end(), PushSample::compareSamples);
+
+    double running_cdf = 0.0;
+    // Calculate cdf_weight for each sample
+    for (int i = samples.size() - 1; i >= 0; --i)
+    {
+      running_cdf += samples[i].weight;
+      samples[i].cdf_weight = running_cdf;
+    }
+    for (unsigned int i = 0; i < samples.size(); ++i)
+    {
+      samples[i].cdf_weight /= running_cdf;
+      // samples[i].weight /= running_cdf;
+    }
+
+    float cdf_goal = randf();
+    int idx = PushSample::cdfBinarySearch(samples, cdf_goal);
+    cv::Point sample = samples[idx].loc;
+    // ROS_INFO_STREAM("Chose push location (" << sample.x << ", " << sample.y
+    //                 << ") with score " << samples[idx].weight);
+    // ROS_INFO_STREAM("CDF score is: " << samples[idx].cdf_weight
+    //                 << " for random score of " << cdf_goal);
+    return sample;
   }
 
   /**
@@ -1724,33 +1808,6 @@ class ObjectSingulation
     sensor_msgs::PointCloud2 obj_msg;
     pcl::toROSMsg(label_cloud, obj_msg);
     obj_push_pub_.publish(obj_msg);
-  }
-
-  int cdfBinarySearch(std::vector<float>& scores, float cdf_goal)
-  {
-    int min_idx = 0;
-    int max_idx = scores.size();
-    int cur_idx = min_idx + max_idx / 2;
-    // NOTE: Assumse scores is sorted in decresaing order
-    while (min_idx != max_idx)
-    {
-      cur_idx = (min_idx + max_idx)/2;
-      float cur_val = scores[cur_idx];
-      if (cur_val == cdf_goal || (cur_val > cdf_goal &&
-                                  scores[cur_idx+1] < cdf_goal))
-      {
-        return cur_idx;
-      }
-      else if (cur_val > cdf_goal)
-      {
-        min_idx = cur_idx;
-      }
-      else
-      {
-        max_idx = cur_idx;
-      }
-    }
-    return cur_idx;
   }
 
   //
