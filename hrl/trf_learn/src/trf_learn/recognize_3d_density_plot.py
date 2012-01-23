@@ -37,6 +37,9 @@ def density_plot(pickle_file_name):
     w, h = img_obj.size
     pb.imshow(img_obj, origin='lower')
 
+    data_dict['neg_pred'][1,:] = h - data_dict['neg_pred'][1,:]  
+    data_dict['pos_pred'][1,:] = h - data_dict['pos_pred'][1,:]
+
     all_pts = np.column_stack((data_dict['neg_pred'], data_dict['pos_pred']))
     Hall, xedges, yedges = np.histogram2d(all_pts[0,:].A1, all_pts[1,:].A1, 
                                           bins=num_bins(all_pts, BIN_SIZE))
@@ -44,15 +47,27 @@ def density_plot(pickle_file_name):
                                           bins=[xedges, yedges])
 
     extent = [xedges[0], xedges[-1], yedges[-1], yedges[0]]
-    pb.imshow((Hall-Hneg).T, extent=extent, 
-            interpolation='spline36', origin='upper', alpha = .7)
+    Himage = (Hall-Hneg).T
+    max_val, min_val = np.max(Himage), np.min(Himage)
+    Hrgba = np.zeros((Himage.shape[0], Himage.shape[1], 4), dtype='uint8')
+    Hrgba[:,:,0] = 0
+    Hrgba[:,:,1] = 255 #Himage*80
+    Hrgba[:,:,2] = 0
+    Hrgba[:,:,3] = 255
+    r,c = np.where(Himage == 0)
+    Hrgba[r,c,3] = 0
+
+    print 'max', max_val, 'min', min_val
+    pb.imshow(Hrgba, extent=extent, interpolation='spline36', origin='upper', alpha = .7)
+    #pdb.set_trace()
     #pb.plot(data_dict['neg_pred'][0,:].A1, data_dict['neg_pred'][1,:].A1, 'rx')
-    pb.plot(data_dict['pos_pred'][0,:].A1, data_dict['pos_pred'][1,:].A1, 'x')
+    #pb.plot(data_dict['pos_pred'][0,:].A1, data_dict['pos_pred'][1,:].A1, 'x')
     min_x, max_x, min_y, max_y = minmax(all_pts)
-    #pb.axis([min_x, max_x, min_y, max_y])
+    pb.axis([max(min_x-100,0), min(max_x+100,w), max(min_y-100, 0), min(max_y+100, h)])
+    #pb.axis([0, w, 0, h])
     name, extension = pt.splitext(img_name)
     pb.savefig(pt.join(orig_pickle_folder, name + '_plot.png'))
-    pb.show()
+    #pb.show()
 
 if __name__ == '__main__':
     import sys
