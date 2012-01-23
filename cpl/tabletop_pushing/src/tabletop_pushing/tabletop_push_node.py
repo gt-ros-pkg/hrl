@@ -242,6 +242,7 @@ class TabletopPushNode:
     def gripper_pre_push_action(self, request):
         response = GripperPushResponse()
         push_frame = request.start_point.header.frame_id
+        rospy.loginfo('Have a request frame of: ' + str(push_frame));
         start_point = request.start_point.point
         wrist_yaw = request.wrist_yaw
         push_dist = request.desired_push_dist

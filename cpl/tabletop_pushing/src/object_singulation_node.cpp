@@ -116,13 +116,13 @@
 // Debugging IFDEFS
 // #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
-// #define DISPLAY_WORKSPACE_MASK 1
+#define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_TABLE_DISTANCES 1
-// #define DISPLAY_OBJECT_BOUNDARIES 1
-// #define DISPLAY_PROJECTED_OBJECTS 1
-// #define DISPLAY_OBJECT_SPLITS 1
-// #define DISPLAY_WAIT 3
+#define DISPLAY_OBJECT_BOUNDARIES 1
+#define DISPLAY_PROJECTED_OBJECTS 1
+#define DISPLAY_OBJECT_SPLITS 1
+#define DISPLAY_WAIT 3
 
 #define randf() static_cast<float>(rand())/RAND_MAX
 
@@ -1291,6 +1291,7 @@ class ObjectSingulation
     // TODO: Generalize to more than 2 object splits
     PoseStamped push_pose = getPushDirection(split_objs[0], split_objs[1], objs,
                                              id);
+    push_pose.header.frame_id = workspace_frame_;
     return push_pose;
   }
 
@@ -1356,7 +1357,8 @@ class ObjectSingulation
     push.pose.position.x = split_opts[max_id].obj.centroid[0];
     push.pose.position.y = split_opts[max_id].obj.centroid[1];
     push.pose.position.z = split_opts[max_id].obj.centroid[2];
-    push.pose.orientation.y = split_opts[max_id].push_angle;
+    push.pose.orientation = tf::createQuaternionMsgFromYaw(
+        split_opts[max_id].push_angle);
     return push;
   }
 
