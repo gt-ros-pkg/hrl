@@ -119,9 +119,10 @@
 // #define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_TABLE_DISTANCES 1
-#define DISPLAY_OBJECT_BOUNDARIES 1
-#define DISPLAY_PROJECTED_OBJECTS 1
-#define DISPLAY_WAIT 3
+// #define DISPLAY_OBJECT_BOUNDARIES 1
+// #define DISPLAY_PROJECTED_OBJECTS 1
+// #define DISPLAY_OBJECT_SPLITS 1
+// #define DISPLAY_WAIT 3
 
 using tabletop_pushing::PushPose;
 using tabletop_pushing::LocateTable;
@@ -735,6 +736,34 @@ class PointCloudSegmentation
   std_msgs::Header cur_camera_header_;
 };
 
+class PushOpt
+{
+ public:
+  PushOpt(ProtoTabletopObject& _obj, double _push_angle,
+          Eigen::Vector3f _push_vec, unsigned int _id, double _push_dist=0.01) :
+      obj(_obj), push_angle(_push_angle), push_unit_vec(_push_vec), id(_id),
+      push_dist(_push_dist)
+  {
+  }
+  ProtoTabletopObject obj;
+  double push_angle;
+  Eigen::Vector3f push_unit_vec;
+  unsigned int id;
+  double push_dist;
+
+  Eigen::Vector4f getMovedCentroid()
+  {
+    // TODO: fix 4f / 3f stuff
+    Eigen::Vector4f new_cent;
+    new_cent[0] = obj.centroid[0] + push_unit_vec[0]*push_dist;
+    new_cent[1] = obj.centroid[1] + push_unit_vec[1]*push_dist;
+    new_cent[2] = obj.centroid[2] + push_unit_vec[2]*push_dist;
+    new_cent[3] = 1.0f;
+    return new_cent;
+  }
+};
+
+
 class ObjectSingulation
 {
  public:
@@ -1167,38 +1196,113 @@ class ObjectSingulation
                                   cv::Mat& obj_lbl_img, cv::Mat& obj_coords,
                                   unsigned int id)
   {
-    // 1 Split point cloud at location of the boundary
-    ProtoObjects split_objs = splitObject(obj_lbl_img, boundary, obj_coords, id);
-
-    // TODO: 2 Determine which sub-point cloud and direction to push based on
-    // neighboring clouds
-
 #ifdef DISPLAY_PROJECTED_OBJECTS
     displayBoundaryImage(obj_lbl_img, boundary, "chosen", true);
 #endif // DISPLAY_PROJECTED_OBJECTS
-    PoseStamped push_pose;
+
+    // Split point cloud at location of the boundary
+    ProtoObjects split_objs = splitObject(obj_lbl_img, boundary, obj_coords,
+                                          id);
+
+    // TODO: Generalize to more than 2 object splits
+    PoseStamped push_pose = getPushDirection(split_objs[0], split_objs[1], objs,
+                                             id);
     return push_pose;
   }
 
-  void displayBoundaryImage(cv::Mat& obj_img, Boundary& boundary,
-                            std::string title, bool u8=true)
+
+  /**
+   * Determine the best direction to push given the current set of objects and
+   * the hypothesized splits.
+   *
+   * @param split0 The first hypothesized object split
+   * @param split1 The second hypothesized object split
+   * @param objs The current set of object estimates
+   * @param id The ID of the object that is trying to the splits
+   *
+   * @return The push to make
+   */
+  PoseStamped getPushDirection(ProtoTabletopObject& split0,
+                               ProtoTabletopObject& split1,
+                               ProtoObjects& objs, unsigned int id)
   {
-    cv::Mat obj_disp_img(obj_img.size(), CV_32FC3);
-    if (u8)
+    // Get vector between the two split object centroids and find the normal to
+    // the vertical plane running through this vector
+    const Eigen::Vector4f split_diff = split0.centroid - split1.centroid;
+    const Eigen::Vector3f split_diff3(split_diff[0], split_diff[1],
+                                      split_diff[2]);
+    const Eigen::Vector3f z_axis(0, 0, 1);
+    const Eigen::Vector3f x_axis(1, 0, 0);
+    const Eigen::Vector3f split_norm = split_diff3.cross(z_axis);
+    const Eigen::Vector3f push_vec_pos = split_norm/split_norm.norm();
+    const Eigen::Vector3f push_vec_neg = split_norm/split_norm.norm();
+    const double push_angle_pos = std::acos(x_axis.dot(push_vec_pos));
+    const double push_angle_neg = push_angle_pos - M_PI;
+    // Find the highest clearance push from the four possible combinations of
+    // split object and angles
+    // TODO: Angles should be restricted based on robot capabilities
+    std::vector<PushOpt> split_opts;
+    split_opts.push_back(PushOpt(split0, push_angle_pos, push_vec_pos, id));
+    split_opts.push_back(PushOpt(split0, push_angle_neg, push_vec_neg, id));
+    split_opts.push_back(PushOpt(split1, push_angle_pos, push_vec_pos, id));
+    split_opts.push_back(PushOpt(split1, push_angle_neg, push_vec_neg, id));
+    double max_clearance = 0.0;
+    unsigned int max_id = split_opts.size();
+    for (unsigned int i = 0; i < split_opts.size(); ++i)
     {
-      cv::Mat obj_img_f;
-      obj_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
-      cv::cvtColor(obj_img_f, obj_disp_img, CV_GRAY2BGR);
+      const double clearance = getSplitPushClearance(split_opts[i], objs);
+      if (clearance > max_clearance)
+      {
+        max_clearance = clearance;
+        max_id = i;
+      }
     }
-    else
-      cv::cvtColor(obj_img, obj_disp_img, CV_GRAY2BGR);
-    cv::Vec3f green(0.0f, 1.0f, 0.0f);
-    for (unsigned int i = 0; i < boundary.size(); ++i)
+    if (max_id == split_opts.size())
     {
-        obj_disp_img.at<cv::Vec3f>(boundary[i].y, boundary[i].x) = green;
+      // NOTE: Nothing found
+      PoseStamped push;
+      push.pose.position.x = 0.0;
+      push.pose.position.y = 0.0;
+      push.pose.position.z = 0.0;
+      push.pose.orientation.y = 0.0;
+      return push;
     }
-    cv::imshow(title, obj_disp_img);
+    // TODO: Set push to centroid of split and normal
+    PoseStamped push;
+    push.pose.position.x = split_opts[max_id].obj.centroid[0];
+    push.pose.position.y = split_opts[max_id].obj.centroid[1];
+    push.pose.position.z = split_opts[max_id].obj.centroid[2];
+    push.pose.orientation.y = split_opts[max_id].push_angle;
+    return push;
   }
+
+  /**
+   * Aproximate the amount of clearance between objects after performing the push
+   *
+   * @param split The split object to push
+   * @param objs The current set of object estimates
+   *
+   * @return The clearance in meters
+   */
+  double getSplitPushClearance(PushOpt& split, ProtoObjects& objs)
+  {
+    double min_clearance = FLT_MAX;
+    const Eigen::Vector4f moved_cent = split.getMovedCentroid();
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      // Don't compare object to itself
+      if (i == split.id) continue;
+
+      const double clearance = (moved_cent - objs[i].centroid).norm();
+
+      if (clearance < min_clearance)
+      {
+        min_clearance = clearance;
+      }
+    }
+    return min_clearance;
+  }
+
 
   /**
    * Splits an object into two new objects based on the passed in boundary.
@@ -1214,8 +1318,9 @@ class ObjectSingulation
                            cv::Mat& obj_coords, unsigned int id)
   {
     cv::Mat split_img = splitObjectImage(obj_lbl_img, boundary, id);
+#ifdef DISPLAY_OBJECT_SPLITS
     cv::imshow("split_objs", split_img*60);
-
+#endif // DISPLAY_OBJECT_SPLITS
     ProtoObjects split;
     ProtoTabletopObject po1;
     ProtoTabletopObject po2;
@@ -1263,15 +1368,11 @@ class ObjectSingulation
     for (unsigned int i = 0; i < split.size(); ++i)
     {
       pcl::compute3DCentroid(split[i].cloud, split[i].centroid);
-      // ROS_INFO_STREAM("po" << (i+1) << " centroid: ("
-      //                 << split[i].centroid[0] << ", "
-      //                 << split[i].centroid[1] << ", "
-      //                 << split[i].centroid[2] << ")");
-      // ROS_INFO_STREAM("cloud " << i+1 << " size is " << split[i].cloud.size());
     }
 
     return split;
   }
+
   /**
    * Function creates an image holding the correct points on each side of the
    * given boundary extended to hit the image edges
@@ -1308,69 +1409,6 @@ class ObjectSingulation
       }
     }
     return split_objects;
-  }
-
-  int cdfBinarySearch(std::vector<float>& scores, float cdf_goal)
-  {
-    int min_idx = 0;
-    int max_idx = scores.size();
-    int cur_idx = min_idx + max_idx / 2;
-    // NOTE: Assumse scores is sorted in decresaing order
-    while (min_idx != max_idx)
-    {
-      cur_idx = (min_idx + max_idx)/2;
-      float cur_val = scores[cur_idx];
-      if (cur_val == cdf_goal || (cur_val > cdf_goal &&
-                                  scores[cur_idx+1] < cdf_goal))
-      {
-        return cur_idx;
-      }
-      else if (cur_val > cdf_goal)
-      {
-        min_idx = cur_idx;
-      }
-      else
-      {
-        max_idx = cur_idx;
-      }
-    }
-    return cur_idx;
-  }
-
-  /**
-   * Helper method to publish a set of proto objects for display purposes.
-   *
-   * @param objs The objects to publish
-   */
-  void publishObjects(ProtoObjects& objs)
-  {
-    if (objs.size() == 0) return;
-    XYZPointCloud objs_cloud = objs[0].cloud;
-    for (unsigned int i = 1; i < objs.size(); ++i)
-    {
-      objs_cloud += objs[i].cloud;
-    }
-
-    pcl::PointCloud<pcl::PointXYZI> label_cloud;
-    label_cloud.header.frame_id = objs_cloud.header.frame_id;
-    label_cloud.height = objs_cloud.height;
-    label_cloud.width = objs_cloud.width;
-    label_cloud.resize(label_cloud.height*label_cloud.width);
-    for (unsigned int i = 1, j=0; i < objs.size(); ++i)
-    {
-      for (unsigned int k=0; k < objs[i].cloud.size(); ++k, ++j)
-      {
-        // TODO: This is not working
-        label_cloud.at(j).x = objs_cloud.at(j).x;
-        label_cloud.at(j).y = objs_cloud.at(j).y;
-        label_cloud.at(j).z = objs_cloud.at(j).z;
-        label_cloud.at(j).intensity = objs[i].id;
-      }
-    }
-
-    sensor_msgs::PointCloud2 obj_msg;
-    pcl::toROSMsg(label_cloud, obj_msg);
-    obj_push_pub_.publish(obj_msg);
   }
 
   /**
@@ -1650,6 +1688,92 @@ class ObjectSingulation
       }
     }
     return line;
+  }
+
+  /**
+   * Helper method to publish a set of proto objects for display purposes.
+   *
+   * @param objs The objects to publish
+   */
+  void publishObjects(ProtoObjects& objs)
+  {
+    if (objs.size() == 0) return;
+    XYZPointCloud objs_cloud = objs[0].cloud;
+    for (unsigned int i = 1; i < objs.size(); ++i)
+    {
+      objs_cloud += objs[i].cloud;
+    }
+
+    pcl::PointCloud<pcl::PointXYZI> label_cloud;
+    label_cloud.header.frame_id = objs_cloud.header.frame_id;
+    label_cloud.height = objs_cloud.height;
+    label_cloud.width = objs_cloud.width;
+    label_cloud.resize(label_cloud.height*label_cloud.width);
+    for (unsigned int i = 1, j=0; i < objs.size(); ++i)
+    {
+      for (unsigned int k=0; k < objs[i].cloud.size(); ++k, ++j)
+      {
+        // TODO: This is not working
+        label_cloud.at(j).x = objs_cloud.at(j).x;
+        label_cloud.at(j).y = objs_cloud.at(j).y;
+        label_cloud.at(j).z = objs_cloud.at(j).z;
+        label_cloud.at(j).intensity = objs[i].id;
+      }
+    }
+
+    sensor_msgs::PointCloud2 obj_msg;
+    pcl::toROSMsg(label_cloud, obj_msg);
+    obj_push_pub_.publish(obj_msg);
+  }
+
+  int cdfBinarySearch(std::vector<float>& scores, float cdf_goal)
+  {
+    int min_idx = 0;
+    int max_idx = scores.size();
+    int cur_idx = min_idx + max_idx / 2;
+    // NOTE: Assumse scores is sorted in decresaing order
+    while (min_idx != max_idx)
+    {
+      cur_idx = (min_idx + max_idx)/2;
+      float cur_val = scores[cur_idx];
+      if (cur_val == cdf_goal || (cur_val > cdf_goal &&
+                                  scores[cur_idx+1] < cdf_goal))
+      {
+        return cur_idx;
+      }
+      else if (cur_val > cdf_goal)
+      {
+        min_idx = cur_idx;
+      }
+      else
+      {
+        max_idx = cur_idx;
+      }
+    }
+    return cur_idx;
+  }
+
+  //
+  // I/O Methods
+  //
+  void displayBoundaryImage(cv::Mat& obj_img, Boundary& boundary,
+                            std::string title, bool u8=true)
+  {
+    cv::Mat obj_disp_img(obj_img.size(), CV_32FC3);
+    if (u8)
+    {
+      cv::Mat obj_img_f;
+      obj_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
+      cv::cvtColor(obj_img_f, obj_disp_img, CV_GRAY2BGR);
+    }
+    else
+      cv::cvtColor(obj_img, obj_disp_img, CV_GRAY2BGR);
+    cv::Vec3f green(0.0f, 1.0f, 0.0f);
+    for (unsigned int i = 0; i < boundary.size(); ++i)
+    {
+      obj_disp_img.at<cv::Vec3f>(boundary[i].y, boundary[i].x) = green;
+    }
+    cv::imshow(title, obj_disp_img);
   }
 
   //

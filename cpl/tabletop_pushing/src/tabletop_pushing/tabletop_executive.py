@@ -283,9 +283,8 @@ class TabletopExecutive:
         push_req.arm_init = True
         push_req.arm_reset = True
 
-        # TODO: Correctly set the wrist yaw
-        # orientation = pose_res.push_pose.pose.orientation
-        wrist_yaw = 0.0 # 0.5*pi # 0.25*pi # -0.25*pi
+        # wrist_yaw = 0.0 # 0.5*pi # 0.25*pi # -0.25*pi
+        wrist_yaw = pose_res.push_pose.pose.orientation.y
         push_req.wrist_yaw = wrist_yaw
         push_req.desired_push_dist = push_dist
 
