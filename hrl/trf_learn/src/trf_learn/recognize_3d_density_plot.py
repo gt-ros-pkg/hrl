@@ -26,12 +26,13 @@ def num_bins(points, bin_size):
 #   ['neg_pred', 'image', 'pos_pred', 'tried', 'center']
 def density_plot(pickle_file_name):
     BIN_SIZE = 20
-    PICKLE_FOLDER = 'pickle_files'
+    #PICKLE_FOLDER = 'pickle_files'
 
     data_dict = ut.load_pickle(pickle_file_name)
+    #pdb.set_trace()
     orig_pickle_folder, _ = pt.split(pickle_file_name)
     folder_name, img_name = pt.split(data_dict['image'])
-    nimg_path = pt.join(PICKLE_FOLDER, img_name)
+    nimg_path = pt.join(orig_pickle_folder, img_name)
     img_obj = Image.open(nimg_path)
     w, h = img_obj.size
     pb.imshow(img_obj, origin='lower')
@@ -46,11 +47,12 @@ def density_plot(pickle_file_name):
     pb.imshow((Hall-Hneg).T, extent=extent, 
             interpolation='spline36', origin='upper', alpha = .7)
     #pb.plot(data_dict['neg_pred'][0,:].A1, data_dict['neg_pred'][1,:].A1, 'rx')
-    #pb.plot(data_dict['pos_pred'][0,:].A1, data_dict['pos_pred'][1,:].A1, 'x')
+    pb.plot(data_dict['pos_pred'][0,:].A1, data_dict['pos_pred'][1,:].A1, 'x')
     min_x, max_x, min_y, max_y = minmax(all_pts)
-    pb.axis([min_x, max_x, min_y, max_y])
+    #pb.axis([min_x, max_x, min_y, max_y])
     name, extension = pt.splitext(img_name)
     pb.savefig(pt.join(orig_pickle_folder, name + '_plot.png'))
+    pb.show()
 
 if __name__ == '__main__':
     import sys
