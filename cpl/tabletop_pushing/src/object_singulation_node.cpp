@@ -136,7 +136,7 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
 typedef pcl::KdTree<pcl::PointXYZ>::Ptr KdTreePtr;
-
+typedef PushPose::Response PushVector;
 using cpl_visual_features::AffineFlowMeasure;
 using cpl_visual_features::AffineFlowMeasures;
 using cpl_visual_features::FeatureTracker;
@@ -827,7 +827,7 @@ class ObjectSingulation
    *
    * @return The location and orientation to push
    */
-  PoseStamped getPushVector(cv::Mat& color_img, cv::Mat& depth_img,
+  PushVector getPushVector(cv::Mat& color_img, cv::Mat& depth_img,
                             XYZPointCloud& cloud, cv::Mat& workspace_mask)
   {
     ProtoObjects objs = calcProtoObjects(cloud);
@@ -835,8 +835,9 @@ class ObjectSingulation
     cur_proto_objs_ = objs;
     cv::Mat boundary_img = getObjectBoundaryStrengths(color_img, depth_img,
                                                       workspace_mask);
-    PoseStamped push_vector = determinePushPose(boundary_img, objs);
+    PushVector push_vector = determinePushPose(boundary_img, objs);
     ++callback_count_;
+    push_vector.num_objects = cur_proto_objs_.size();
     return push_vector;
   }
 
@@ -848,7 +849,7 @@ class ObjectSingulation
    *
    * @return The location and direction to push.
    */
-  PoseStamped findRandomPushPose(XYZPointCloud& input_cloud)
+  PushVector findRandomPushPose(XYZPointCloud& input_cloud)
   {
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(input_cloud);
     prev_proto_objs_ = cur_proto_objs_;
@@ -867,7 +868,7 @@ class ObjectSingulation
         pushable_obj_idx.push_back(i);
       }
     }
-    geometry_msgs::PoseStamped p;
+    PushVector p;
     p.header.frame_id = workspace_frame_;
 
     if (pushable_obj_idx.size() < 1)
@@ -879,10 +880,10 @@ class ObjectSingulation
                     << " pushable proto objects");
     int rand_idx = pushable_obj_idx[rand() % pushable_obj_idx.size()];
     Eigen::Vector4f obj_xyz_centroid = objs[rand_idx].centroid;
-    p.pose.position.x = obj_xyz_centroid[0];
-    p.pose.position.y = obj_xyz_centroid[1];
+    p.start_point.x = obj_xyz_centroid[0];
+    p.start_point.y = obj_xyz_centroid[1];
     // Set z to be the table height
-    p.pose.position.z = objs[0].table_centroid[2];
+    p.start_point.z = objs[0].table_centroid[2];
 
     sensor_msgs::PointCloud2 obj_push_msg;
     pcl::toROSMsg(objs[rand_idx].cloud, obj_push_msg);
@@ -895,9 +896,7 @@ class ObjectSingulation
     ROS_INFO_STREAM("Chosen push pose is at: (" << obj_xyz_centroid[0] << ", "
                     << obj_xyz_centroid[1] << ", " << objs[0].table_centroid[2]
                     << ") with orientation of: " << rand_orientation);
-    // Transform to quaternion
-    p.pose.orientation = tf::createQuaternionMsgFromYaw(rand_orientation);
-
+    p.push_angle = rand_orientation;
     return p;
   }
 
@@ -947,7 +946,7 @@ class ObjectSingulation
    *
    * @return A push for the robot to make to singulate objects
    */
-  PoseStamped determinePushPose(cv::Mat& boundary_img, ProtoObjects& objs)
+  PushVector determinePushPose(cv::Mat& boundary_img, ProtoObjects& objs)
   {
     cv::Mat obj_coords;
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
@@ -958,7 +957,7 @@ class ObjectSingulation
                                              test_idx);
     if (test_idx == objs.size())
     {
-      PoseStamped push_pose;
+      PushVector push_pose;
       return push_pose;
     }
     return determinePushVector(test_boundary, objs, obj_lbl_img, obj_coords,
@@ -1276,7 +1275,7 @@ class ObjectSingulation
    *
    * @return The push command
    */
-  PoseStamped determinePushVector(Boundary& boundary, ProtoObjects& objs,
+  PushVector determinePushVector(Boundary& boundary, ProtoObjects& objs,
                                   cv::Mat& obj_lbl_img, cv::Mat& obj_coords,
                                   unsigned int id)
   {
@@ -1289,7 +1288,7 @@ class ObjectSingulation
                                           id);
 
     // TODO: Generalize to more than 2 object splits
-    PoseStamped push_pose = getPushDirection(split_objs[0], split_objs[1], objs,
+    PushVector push_pose = getPushDirection(split_objs[0], split_objs[1], objs,
                                              id);
     push_pose.header.frame_id = workspace_frame_;
     return push_pose;
@@ -1307,7 +1306,7 @@ class ObjectSingulation
    *
    * @return The push to make
    */
-  PoseStamped getPushDirection(ProtoTabletopObject& split0,
+  PushVector getPushDirection(ProtoTabletopObject& split0,
                                ProtoTabletopObject& split1,
                                ProtoObjects& objs, unsigned int id)
   {
@@ -1345,20 +1344,18 @@ class ObjectSingulation
     if (max_id == split_opts.size())
     {
       // NOTE: Nothing found
-      PoseStamped push;
-      push.pose.position.x = 0.0;
-      push.pose.position.y = 0.0;
-      push.pose.position.z = 0.0;
-      push.pose.orientation.y = 0.0;
+      PushVector push;
+      push.start_point.x = 0.0;
+      push.start_point.y = 0.0;
+      push.start_point.z = 0.0;
+      push.push_angle = 0.0;
       return push;
     }
-    // TODO: Set push to centroid of split and normal
-    PoseStamped push;
-    push.pose.position.x = split_opts[max_id].obj.centroid[0];
-    push.pose.position.y = split_opts[max_id].obj.centroid[1];
-    push.pose.position.z = split_opts[max_id].obj.centroid[2];
-    push.pose.orientation = tf::createQuaternionMsgFromYaw(
-        split_opts[max_id].push_angle);
+    PushVector push;
+    push.start_point.x = split_opts[max_id].obj.centroid[0];
+    push.start_point.y = split_opts[max_id].obj.centroid[1];
+    push.start_point.z = split_opts[max_id].obj.centroid[2];
+    push.push_angle = split_opts[max_id].push_angle;
     return push;
   }
 
@@ -2081,13 +2078,11 @@ class ObjectSingulationNode
   {
     if ( have_depth_data_ )
     {
-      res.push_pose = getPushPose(req.use_guided);
-      res.invalid_push_pose = false;
+      res = getPushPose(req.use_guided);
     }
     else
     {
       ROS_ERROR_STREAM("Calling getPushPose prior to receiving sensor data.");
-      res.invalid_push_pose = true;
       return false;
     }
     return true;
@@ -2101,7 +2096,7 @@ class ObjectSingulationNode
    *
    * @return The PushPose
    */
-  PoseStamped getPushPose(bool use_guided=true)
+  PushVector getPushPose(bool use_guided=true)
   {
     if (!use_guided)
     {

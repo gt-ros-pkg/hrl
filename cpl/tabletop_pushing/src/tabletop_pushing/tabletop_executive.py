@@ -117,7 +117,7 @@ class TabletopExecutive:
             pose_res = self.request_singulation_push(use_guided)
             # TODO: Decide push based on the orientation returned
             opt = 0
-            if pose_res.push_pose.pose.position.y < 0:
+            if pose_res.start_point.y < 0:
                 which_arm = 'r'
             else:
                 which_arm = 'l'
@@ -139,12 +139,13 @@ class TabletopExecutive:
         rospy.loginfo("Calling push pose service")
         try:
             pose_res = self.push_pose_proxy(pose_req)
-            if (pose_res.push_pose.pose.position.x == 0.0 and
-                pose_res.push_pose.pose.position.y == 0.0 and
-                pose_res.push_pose.pose.position.z == 0.0):
+            if (pose_res.start_point.x == 0.0 and
+                pose_res.start_point.y == 0.0 and
+                pose_res.start_point.z == 0.0):
                 rospy.logwarn('No push pose found.')
             else:
                 rospy.loginfo('Got push pose')
+            pose_res.start_point.z = -0.22
             return pose_res
         except rospy.ServiceException, e:
             rospy.logwarn("Service did not process request: %s"%str(e))
@@ -154,29 +155,29 @@ class TabletopExecutive:
         pose_res = PushPoseResponse()
         if gripper_push:
             pose_res = PushPoseResponse()
-            pose_res.push_pose.pose.position.x = 0.5
-            pose_res.push_pose.header.frame_id = '/torso_lift_link'
-            pose_res.push_pose.header.stamp = rospy.Time(0)
+            pose_res.start_point.x = 0.5
+            pose_res.header.frame_id = '/torso_lift_link'
+            pose_res.header.stamp = rospy.Time(0)
             if which_arm == 'l':
-                pose_res.push_pose.pose.position.y = 0.3 - self.push_count*0.15
+                pose_res.start_point.y = 0.3 - self.push_count*0.15
             else:
-                pose_res.push_pose.pose.position.y = -0.3 + self.push_count*0.15
-            pose_res.push_pose.pose.position.z = -0.22
+                pose_res.start_point.y = -0.3 + self.push_count*0.15
+            pose_res.start_point.z = -0.22
         elif sweep:
-            pose_res.push_pose.header.frame_id = '/torso_lift_link'
-            pose_res.push_pose.header.stamp = rospy.Time(0)
-            pose_res.push_pose.pose.position.x = 0.75
+            pose_res.header.frame_id = '/torso_lift_link'
+            pose_res.header.stamp = rospy.Time(0)
+            pose_res.start_point.x = 0.75
             if which_arm == 'l':
-                pose_res.push_pose.pose.position.y = 0.05
+                pose_res.start_point.y = 0.05
             else:
-                pose_res.push_pose.pose.position.y = -0.15
-            pose_res.push_pose.pose.position.z = -0.25
+                pose_res.start_point.y = -0.15
+            pose_res.start_point.z = -0.25
         elif overhead:
-            pose_res.push_pose.header.frame_id = '/torso_lift_link'
-            pose_res.push_pose.header.stamp = rospy.Time(0)
-            pose_res.push_pose.pose.position.x = 0.7
-            pose_res.push_pose.pose.position.y = 0.0
-            pose_res.push_pose.pose.position.z = -0.25
+            pose_res.header.frame_id = '/torso_lift_link'
+            pose_res.header.stamp = rospy.Time(0)
+            pose_res.start_point.x = 0.7
+            pose_res.start_point.y = 0.0
+            pose_res.start_point.z = -0.25
         return pose_res
 
     def raise_and_look(self):
@@ -211,14 +212,14 @@ class TabletopExecutive:
     def gripper_push_object(self, push_dist, which_arm, pose_res):
         # Convert pose response to correct push request format
         push_req = GripperPushRequest()
-        push_req.start_point.header = pose_res.push_pose.header
-        push_req.start_point.point = pose_res.push_pose.pose.position
+        push_req.start_point.header = pose_res.header
+        push_req.start_point.point = pose_res.start_point
         push_req.arm_init = True
         push_req.arm_reset = True
 
         # TODO: Use the sent wrist yaw
-        wrist_yaw = 0.0 # 0.5*pi # 0.25*pi # -0.25*pi
-        # wrist_yaw = pose_res.push_pose.pose.orientation.y
+        # wrist_yaw = 0.0 # 0.5*pi # 0.25*pi # -0.25*pi
+        wrist_yaw = pose_res.push_angle
         push_req.wrist_yaw = wrist_yaw
         push_req.desired_push_dist = push_dist
 
@@ -249,8 +250,8 @@ class TabletopExecutive:
             y_offset_dir = +1
         else:
             y_offset_dir = -1
-        sweep_req.start_point.header = pose_res.push_pose.header
-        sweep_req.start_point.point = pose_res.push_pose.pose.position
+        sweep_req.start_point.header = pose_res.header
+        sweep_req.start_point.point = pose_res.start_point
         sweep_req.start_point.point.y += y_offset_dir*self.sweep_y_offset
         sweep_req.start_point.point.z += self.sweep_z_offset
         sweep_req.arm_init = True
@@ -260,7 +261,8 @@ class TabletopExecutive:
 
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
-        wrist_yaw = 0.0 # 0.25*pi
+        # wrist_yaw = 0.0 # 0.25*pi
+        wrist_yaw = pose_res.push_angle
         sweep_req.wrist_yaw = wrist_yaw
         sweep_req.desired_push_dist = -y_offset_dir*push_dist
 
@@ -283,14 +285,15 @@ class TabletopExecutive:
     def overhead_push_object(self, push_dist, which_arm, pose_res):
         # Convert pose response to correct push request format
         push_req = GripperPushRequest()
-        push_req.start_point.header = pose_res.push_pose.header
-        push_req.start_point.point = pose_res.push_pose.pose.position
+        push_req.start_point.header = pose_res.header
+        push_req.start_point.point = pose_res.start_point
         push_req.arm_init = True
         push_req.arm_reset = True
 
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
-        wrist_yaw = 0.0 # -0.25*pi
+        # wrist_yaw = 0.0 # -0.25*pi
+        wrist_yaw = pose_res.push_angle
         push_req.wrist_yaw = wrist_yaw
         push_req.desired_push_dist = push_dist
 
