@@ -827,15 +827,16 @@ class ObjectSingulation
    *
    * @return The location and orientation to push
    */
-  PushVector getPushVector(cv::Mat& color_img, cv::Mat& depth_img,
-                            XYZPointCloud& cloud, cv::Mat& workspace_mask)
+  PushVector getPushVector(double push_dist,
+                           cv::Mat& color_img, cv::Mat& depth_img,
+                           XYZPointCloud& cloud, cv::Mat& workspace_mask)
   {
     ProtoObjects objs = calcProtoObjects(cloud);
     prev_proto_objs_ = cur_proto_objs_;
     cur_proto_objs_ = objs;
     cv::Mat boundary_img = getObjectBoundaryStrengths(color_img, depth_img,
                                                       workspace_mask);
-    PushVector push_vector = determinePushPose(boundary_img, objs);
+    PushVector push_vector = determinePushPose(push_dist, boundary_img, objs);
     ++callback_count_;
     push_vector.num_objects = cur_proto_objs_.size();
     return push_vector;
@@ -946,7 +947,8 @@ class ObjectSingulation
    *
    * @return A push for the robot to make to singulate objects
    */
-  PushVector determinePushPose(cv::Mat& boundary_img, ProtoObjects& objs)
+  PushVector determinePushPose(double push_dist, cv::Mat& boundary_img,
+                               ProtoObjects& objs)
   {
     cv::Mat obj_coords;
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
@@ -960,8 +962,8 @@ class ObjectSingulation
       PushVector push_pose;
       return push_pose;
     }
-    return determinePushVector(test_boundary, objs, obj_lbl_img, obj_coords,
-                               test_idx);
+    return determinePushVector(push_dist, test_boundary, objs, obj_lbl_img,
+                               obj_coords, test_idx);
   }
 
   /**
@@ -1275,9 +1277,9 @@ class ObjectSingulation
    *
    * @return The push command
    */
-  PushVector determinePushVector(Boundary& boundary, ProtoObjects& objs,
-                                  cv::Mat& obj_lbl_img, cv::Mat& obj_coords,
-                                  unsigned int id)
+  PushVector determinePushVector(double push_dist, Boundary& boundary,
+                                 ProtoObjects& objs, cv::Mat& obj_lbl_img,
+                                 cv::Mat& obj_coords, unsigned int id)
   {
 #ifdef DISPLAY_PROJECTED_OBJECTS
     displayBoundaryImage(obj_lbl_img, boundary, "chosen", true);
@@ -1288,8 +1290,8 @@ class ObjectSingulation
                                           id);
 
     // TODO: Generalize to more than 2 object splits
-    PushVector push_pose = getPushDirection(split_objs[0], split_objs[1], objs,
-                                             id);
+    PushVector push_pose = getPushDirection(push_dist, split_objs[0],
+                                            split_objs[1], objs, id);
     push_pose.header.frame_id = workspace_frame_;
     return push_pose;
   }
@@ -1306,9 +1308,10 @@ class ObjectSingulation
    *
    * @return The push to make
    */
-  PushVector getPushDirection(ProtoTabletopObject& split0,
-                               ProtoTabletopObject& split1,
-                               ProtoObjects& objs, unsigned int id)
+  PushVector getPushDirection(double push_dist,
+                              ProtoTabletopObject& split0,
+                              ProtoTabletopObject& split1,
+                              ProtoObjects& objs, unsigned int id)
   {
     // Get vector between the two split object centroids and find the normal to
     // the vertical plane running through this vector
@@ -2078,7 +2081,7 @@ class ObjectSingulationNode
   {
     if ( have_depth_data_ )
     {
-      res = getPushPose(req.use_guided);
+      res = getPushPose(req.push_dist, req.use_guided);
     }
     else
     {
@@ -2096,7 +2099,7 @@ class ObjectSingulationNode
    *
    * @return The PushPose
    */
-  PushVector getPushPose(bool use_guided=true)
+  PushVector getPushPose(double push_dist=0.10, bool use_guided=true)
   {
     if (!use_guided)
     {
@@ -2104,7 +2107,8 @@ class ObjectSingulationNode
     }
     else
     {
-      return os_.getPushVector(cur_color_frame_, cur_depth_frame_,
+      return os_.getPushVector(push_dist,
+                               cur_color_frame_, cur_depth_frame_,
                                cur_point_cloud_, cur_workspace_mask_);
     }
   }

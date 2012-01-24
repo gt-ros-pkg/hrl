@@ -71,8 +71,6 @@ class TabletopExecutive:
         self.sweep_z_offset = rospy.get_param('~gripper_sweep_start_z_offset',
                                               0.01)
 
-        self.overhead_push_dist = rospy.get_param('~overhead_push_dist',
-                                                 0.25)
         self.overhead_x_offset = rospy.get_param('~overhead_push_start_x_offset',
                                                  0.00)
         self.overhead_y_offset = rospy.get_param('~overhead_push_start_x_offset',
@@ -115,6 +113,8 @@ class TabletopExecutive:
         # TODO: Switch to use singulation feedback
         for i in xrange(num_pushes):
             pose_res = self.request_singulation_push(use_guided)
+            if pose_res is None:
+                continue
             # TODO: Decide push based on the orientation returned
             opt = 0
             if pose_res.start_point.y < 0:
@@ -122,20 +122,29 @@ class TabletopExecutive:
             else:
                 which_arm = 'l'
             if opt == 0:
+                # TODO: Make this a parameter
+                pose_res.start_point.z = -0.22
                 self.gripper_push_object(self.gripper_push_dist, which_arm,
                                          pose_res)
             if opt == 1:
+                # TODO: Make this a parameter
+                pose_res.start_point.z = -0.25
                 self.sweep_object(self.gripper_push_dist, which_arm, pose_res)
             if opt == 2:
+                # TODO: Make this a parameter
+                pose_res.start_point.z = -0.25
                 self.overhead_push_object(self.gripper_push_dist, which_arm,
                                           pose_res)
+        pose_res = self.request_singulation_push(use_guided)
+        rospy.loginfo('Final estimate of: ' + str(pose_res.num_objects) +
+                      ' objects')
 
     def request_singulation_push(self, use_guided=True, which_arm='l'):
         if (self.use_fake_push_pose):
             return request_fake_singulation_push(which_arm)
         pose_req = PushPoseRequest()
         pose_req.use_guided = use_guided
-
+        pose_req.push_dist = self.gripper_push_dist
         rospy.loginfo("Calling push pose service")
         try:
             pose_res = self.push_pose_proxy(pose_req)
@@ -143,9 +152,9 @@ class TabletopExecutive:
                 pose_res.start_point.y == 0.0 and
                 pose_res.start_point.z == 0.0):
                 rospy.logwarn('No push pose found.')
+                return None
             else:
                 rospy.loginfo('Got push pose')
-            pose_res.start_point.z = -0.22
             return pose_res
         except rospy.ServiceException, e:
             rospy.logwarn("Service did not process request: %s"%str(e))

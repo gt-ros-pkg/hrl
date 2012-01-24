@@ -76,8 +76,8 @@ class TabletopPushNode:
                                                    'openni_rgb_frame')
         self.default_torso_height = rospy.get_param('~default_torso_height',
                                                     0.2)
-        self.gripper_raise_dist = rospy.get_param('~graipper_post_pushraise_dist',
-                                                  0.02)
+        self.gripper_raise_dist = rospy.get_param('~graipper_post_push_raise_dist',
+                                                  0.05)
         use_slip = rospy.get_param('~use_slip_detection', 1)
 
         self.tf_listener = tf.TransformListener()
