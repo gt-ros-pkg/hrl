@@ -515,7 +515,7 @@ class TabletopPushNode:
 
         rospy.loginfo('Moving gripper up')
         push_arm.move_relative_gripper(
-            np.matrix([self.gripper_raise_dist, 0.0, 0.0]).T,
+            np.matrix([-self.gripper_raise_dist, 0.0, 0.0]).T,
             stop='pressure', pressure=5000)
         rospy.loginfo('Done moving up')
         rospy.loginfo('Pushing reverse')
