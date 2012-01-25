@@ -142,6 +142,7 @@ using cpl_visual_features::AffineFlowMeasures;
 using cpl_visual_features::FeatureTracker;
 using cpl_visual_features::Descriptor;
 
+//typedef std::vector<cv::Point> Boundary;
 class Boundary : public std::vector<cv::Point>
 {
  public:
@@ -154,6 +155,7 @@ class ProtoTabletopObject
  public:
   XYZPointCloud cloud;
   Eigen::Vector4f centroid;
+  Eigen::Vector4f table_centroid;
   std::vector<Boundary> boundaries;
   int id;
   bool moved;
@@ -266,9 +268,8 @@ class PointCloudSegmentation
                                    bool publish_cloud=false)
   {
     XYZPointCloud table_cloud;
-    Eigen::Vector4f table_centroid;
     return findTabletopObjects(input_cloud, objs_cloud, table_cloud,
-                               table_centroid, publish_cloud);
+                               publish_cloud);
 
   }
 
@@ -285,12 +286,11 @@ class PointCloudSegmentation
   ProtoObjects findTabletopObjects(XYZPointCloud& input_cloud,
                                    XYZPointCloud& objs_cloud,
                                    XYZPointCloud& plane_cloud,
-                                   Eigen::Vector4f& table_centroid,
                                    bool publish_cloud=false)
   {
     // Get table plane
-    table_centroid = getTablePlane(input_cloud, objs_cloud, plane_cloud);
-    min_workspace_z_ = table_centroid[2];
+    table_centroid_ = getTablePlane(input_cloud, objs_cloud, plane_cloud);
+    min_workspace_z_ = table_centroid_[2];
 
     XYZPointCloud objects_cloud_down = downsampleCloud(objs_cloud);
 
@@ -348,6 +348,7 @@ class PointCloudSegmentation
       pcl::copyPointCloud(objects_cloud, clusters[i], po.cloud);
       pcl::compute3DCentroid(po.cloud, po.centroid);
       po.id = i;
+      po.table_centroid = table_centroid_;
       po.moved = false;
       objs.push_back(po);
     }
@@ -719,6 +720,7 @@ class PointCloudSegmentation
  protected:
   FeatureTracker* ft_;
   tf::TransformListener* tf_;
+  Eigen::Vector4f table_centroid_;
 
  public:
   double min_table_z_;
@@ -745,7 +747,7 @@ class PushOpt
 {
  public:
   PushOpt(ProtoTabletopObject& _obj, double _push_angle,
-          Eigen::Vector3f _push_vec, unsigned int _id, double _push_dist=0.2) :
+          Eigen::Vector3f _push_vec, unsigned int _id, double _push_dist=0.1) :
       obj(_obj), push_angle(_push_angle), push_unit_vec(_push_vec), id(_id),
       push_dist(_push_dist)
   {
@@ -766,6 +768,7 @@ class PushOpt
     return new_cent;
   }
 };
+
 
 class PushSample
 {
@@ -832,9 +835,9 @@ class ObjectSingulation
    *
    * @return The location and orientation to push
    */
-  PushVector getPushVector(double push_dist, cv::Mat& color_img,
-                           cv::Mat& depth_img, XYZPointCloud& cloud,
-                           cv::Mat& workspace_mask)
+  PushVector getPushVector(double push_dist,
+                           cv::Mat& color_img, cv::Mat& depth_img,
+                           XYZPointCloud& cloud, cv::Mat& workspace_mask)
   {
     ProtoObjects objs = calcProtoObjects(cloud);
     prev_proto_objs_ = cur_proto_objs_;
@@ -888,7 +891,8 @@ class ObjectSingulation
     Eigen::Vector4f obj_xyz_centroid = objs[rand_idx].centroid;
     p.start_point.x = obj_xyz_centroid[0];
     p.start_point.y = obj_xyz_centroid[1];
-    p.start_point.z = obj_xyz_centroid[2];
+    // Set z to be the table height
+    p.start_point.z = objs[0].table_centroid[2];
 
     sensor_msgs::PointCloud2 obj_push_msg;
     pcl::toROSMsg(objs[rand_idx].cloud, obj_push_msg);
@@ -898,8 +902,8 @@ class ObjectSingulation
     double rand_orientation = (randf()*
                                (max_push_angle_- min_push_angle_) +
                                min_push_angle_);
-    ROS_INFO_STREAM("Chosen push pose is at: (" << p.start_point.x << ", "
-                    << p.start_point.y << ", " << p.start_point.z
+    ROS_INFO_STREAM("Chosen push pose is at: (" << obj_xyz_centroid[0] << ", "
+                    << obj_xyz_centroid[1] << ", " << objs[0].table_centroid[2]
                     << ") with orientation of: " << rand_orientation);
     p.push_angle = rand_orientation;
     return p;
@@ -917,13 +921,8 @@ class ObjectSingulation
   ProtoObjects calcProtoObjects(XYZPointCloud& cloud)
   {
     XYZPointCloud objs_cloud;
-    XYZPointCloud table_cloud;
-    Eigen::Vector4f table_centroid;
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cloud, objs_cloud,
-                                                            table_cloud,
-                                                            table_centroid,
                                                             true);
-    table_centroid_ = table_centroid;
     publishObjects(objs);
     XYZPointCloud cur_objs_down = pcl_segmenter_->downsampleCloud(objs_cloud,
                                                                   true);
@@ -932,7 +931,7 @@ class ObjectSingulation
     {
       // Determine where stuff has moved
       ProtoObjects moved_regions = pcl_segmenter_->getMovedRegions(
-          prev_objs_down_, cur_objs_down);
+          prev_objs_down_, cur_objs_down/*, true*/);
       // Match these moved regions to the previous objects
       ProtoObjects moved_protos = pcl_segmenter_->matchMovedRegions(
           prev_proto_objs_, moved_regions);
@@ -1301,6 +1300,7 @@ class ObjectSingulation
     // TODO: Generalize to more than 2 object splits
     PushVector push_pose = getPushDirection(push_dist, split_objs[0],
                                             split_objs[1], objs, id);
+    // TODO: Display resulting vector on an image
     push_pose.header.frame_id = workspace_frame_;
     return push_pose;
   }
@@ -1317,9 +1317,10 @@ class ObjectSingulation
    *
    * @return The push to make
    */
-  PushVector getPushDirection(double push_dist, ProtoTabletopObject& split0,
-                              ProtoTabletopObject& split1, ProtoObjects& objs,
-                              unsigned int id)
+  PushVector getPushDirection(double push_dist,
+                              ProtoTabletopObject& split0,
+                              ProtoTabletopObject& split1,
+                              ProtoObjects& objs, unsigned int id)
   {
     // Get vector between the two split object centroids and find the normal to
     // the vertical plane running through this vector
@@ -1861,7 +1862,6 @@ class ObjectSingulation
   ProtoObjects prev_proto_objs_;
   ProtoObjects cur_proto_objs_;
   int callback_count_;
-  Eigen::Vector4f table_centroid_;
 
  public:
   double min_pushing_x_;
@@ -2112,7 +2112,7 @@ class ObjectSingulationNode
    *
    * @return The PushPose
    */
-  PushVector getPushPose(double push_dist=0.2, bool use_guided=true)
+  PushVector getPushPose(double push_dist=0.1, bool use_guided=true)
   {
     if (!use_guided)
     {
@@ -2120,7 +2120,8 @@ class ObjectSingulationNode
     }
     else
     {
-      return os_.getPushVector(push_dist, cur_color_frame_, cur_depth_frame_,
+      return os_.getPushVector(push_dist,
+                               cur_color_frame_, cur_depth_frame_,
                                cur_point_cloud_, cur_workspace_mask_);
     }
   }
@@ -2286,7 +2287,7 @@ class ObjectSingulationNode
   double max_workspace_z_;
   int num_downsamples_;
   std::string workspace_frame_;
-  // PoseStamped table_centroid_;
+  PoseStamped table_centroid_;
   bool tracking_;
   bool tracker_initialized_;
   bool camera_initialized_;
