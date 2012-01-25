@@ -660,7 +660,6 @@ class PointCloudSegmentation
     cv::imshow("projected objects", obj_disp_img);
   }
 
- protected:
   void projectPointCloudIntoImage(XYZPointCloud& cloud, cv::Mat& lbl_img,
                                   std::string target_frame, cv::Mat& coord_img,
                                   unsigned int id=1)
@@ -683,16 +682,27 @@ class PointCloudSegmentation
                                   std::string point_frame,
                                   std::string target_frame)
   {
+    PointStamped cur_point;
+    cur_point.header.frame_id = point_frame;
+    cur_point.point.x = cur_point_pcl.x;
+    cur_point.point.y = cur_point_pcl.y;
+    cur_point.point.z = cur_point_pcl.z;
+    return projectPointIntoImage(cur_point, target_frame);
+  }
+
+  cv::Point projectPointIntoImage(PointStamped cur_point)
+  {
+    return projectPointIntoImage(cur_point, cur_camera_header_.frame_id);
+  }
+
+  cv::Point projectPointIntoImage(PointStamped cur_point,
+                                  std::string target_frame)
+  {
     cv::Point img_loc;
     try
     {
       // Transform point into the camera frame
       PointStamped image_frame_loc_m;
-      PointStamped cur_point;
-      cur_point.header.frame_id = point_frame;
-      cur_point.point.x = cur_point_pcl.x;
-      cur_point.point.y = cur_point_pcl.y;
-      cur_point.point.z = cur_point_pcl.z;
       tf_->transformPoint(target_frame, cur_point, image_frame_loc_m);
 
       // Project point onto the image
@@ -1123,14 +1133,13 @@ class ObjectSingulation
    */
   Boundary determineTestBoundary(cv::Mat& obj_bound_img, double& score)
   {
+    // TODO: Save this method as a backup baseline
     // Find max location and associated boundary
     // TODO: Find linked edges with highest associated boundary score
-    // TODO: Ensure some method of getting diverse push options? Biased sampling
-    // TODO: convolve with different edge structures and rank the results
-    double max_val = 0.0;
+    // TODO: Score not based on individual locations, but on rankings
     cv::Point push_loc = samplePushLoc(obj_bound_img);
-    // cv::minMaxLoc(obj_bound_img, NULL, &max_val, NULL, &push_loc);
 
+    // TODO: Replace direction hack with the current boundary estimate
     Boundary boundary_locs;
     boundary_locs.push_back(push_loc);
 
@@ -1299,7 +1308,8 @@ class ObjectSingulation
 
     // TODO: Generalize to more than 2 object splits
     PushVector push_pose = getPushDirection(push_dist, split_objs[0],
-                                            split_objs[1], objs, id);
+                                            split_objs[1], objs, id,
+                                            obj_lbl_img);
     // TODO: Display resulting vector on an image
     push_pose.header.frame_id = workspace_frame_;
     return push_pose;
@@ -1320,7 +1330,8 @@ class ObjectSingulation
   PushVector getPushDirection(double push_dist,
                               ProtoTabletopObject& split0,
                               ProtoTabletopObject& split1,
-                              ProtoObjects& objs, unsigned int id)
+                              ProtoObjects& objs, unsigned int id,
+                              cv::Mat& lbl_img)
   {
     // Get vector between the two split object centroids and find the normal to
     // the vertical plane running through this vector
@@ -1372,6 +1383,29 @@ class ObjectSingulation
     push.start_point.y = split_opts[max_id].obj.centroid[1];
     push.start_point.z = split_opts[max_id].obj.centroid[2];
     push.push_angle = split_opts[max_id].push_angle;
+
+#ifdef DISPLAY_PROJECTED_OBJECTS
+
+    const Eigen::Vector4f moved_cent = split_opts[max_id].getMovedCentroid();
+    PointStamped start_point;
+    start_point.point = push.start_point;
+    start_point.header.frame_id = workspace_frame_;
+    PointStamped end_point;
+    end_point.point.x = moved_cent[0];
+    end_point.point.y = moved_cent[1];
+    end_point.point.z = moved_cent[2];
+    end_point.header.frame_id = workspace_frame_;
+
+    cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(start_point);
+    cv::Point img_end_point = pcl_segmenter_->projectPointIntoImage(end_point);
+    cv::Mat obj_img_f;
+    cv::Mat disp_img(lbl_img.size(), CV_32FC3);
+    lbl_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
+    cv::cvtColor(obj_img_f, disp_img, CV_GRAY2BGR);
+    cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,0,1.0));
+    cv::imshow("push_vector", disp_img);
+#endif // DISPLAY_PROJECTED_OBJECTS
+
     return push;
   }
 
