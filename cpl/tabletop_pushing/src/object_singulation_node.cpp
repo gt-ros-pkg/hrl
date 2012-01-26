@@ -823,6 +823,101 @@ class PushSample
 
 typedef std::vector<PushSample> SampleList;
 
+class LinkEdges
+{
+ public:
+  static std::vector<Boundary> edgeLink(cv::Mat& edge_img_raw, int min_length=1)
+  {
+    // binarize image
+    cv::Mat edge_img(edge_img_raw.size(), CV_8UC1, cv::Scalar(0));
+    for (int r = 0; r < edge_img.rows; ++r)
+    {
+      for (int c = 0; c < edge_img.cols; ++c)
+      {
+        if (edge_img_raw.at<float>(r,c) != 0.0)
+        {
+          edge_img.at<uchar>(r,c) = 1;
+        }
+      }
+    }
+
+    // remove isolated pixels
+    cv::imshow("binary edges", 128*edge_img);
+    removeIsolatedPixels(edge_img);
+    cv::imshow("cleaned1", 128*edge_img);
+    // TODO: thin edges
+    thinEdges(edge_img);
+    cv::imshow("thined binary edges", 128*edge_img);
+    cv::waitKey();
+
+    std::vector<cv::Point> ends;
+    // TODO: need to make junctions random access
+    std::vector<cv::Point> junctions;
+    findEndsJunctions(edge_img, ends, junctions);
+
+    std::vector<Boundary> edges;
+    int edge_count = 0;
+    for (int r = 0; r < edge_img.rows; ++r)
+    {
+      for (int c = 0; c < edge_img.cols; ++c)
+      {
+        if (edge_img.at<uchar>(r,c) == 1)
+        {
+          Boundary b = trackEdge(edge_img, r,c, edge_count++, junctions);
+          edges.push_back(b);
+        }
+      }
+    }
+
+    // TODO: Remove short edges
+
+    return edges;
+  }
+
+ protected:
+  static void removeIsolatedPixels(cv::Mat& img)
+  {
+    // Find single pixel locations
+    cv::Mat singles(img.size(), CV_8UC1, cv::Scalar(0));
+    cv::Mat point_finder_filter(3, 3, CV_8UC1, cv::Scalar(1));
+    cv::filter2D(img, singles, singles.depth(), point_finder_filter);
+
+    // Remove pixels with filter score 1
+    int one_count = 0;
+    int zero_count = 0;
+    int more_count = 0;
+    for (int r = 0; r < img.rows; ++r)
+    {
+      for (int c = 0; c < img.cols; ++c)
+      {
+        if (singles.at<uchar>(r,c) == 1)
+        {
+          img.at<uchar>(r,c) = 0;
+        }
+      }
+    }
+  }
+
+  static void thinEdges(cv::Mat& img)
+  {
+  }
+
+  static void findEndsJunctions(cv::Mat& edge_img, std::vector<cv::Point>& ends,
+                         std::vector<cv::Point>& junctions)
+  {
+  }
+
+  static Boundary trackEdge(cv::Mat& edge_img, int r, int c, int edge_id,
+                     std::vector<cv::Point>& junctions)
+  {
+    Boundary b;
+    return b;
+  }
+
+  // TODO: nextPoint()
+
+};
+
 class ObjectSingulation
 {
  public:
@@ -1082,13 +1177,16 @@ class ObjectSingulation
       {
         combined_edges = cv::max(edge_img_masked, depth_edge_img_masked);
       }
+#ifdef DISPLAY_OBJECT_BOUNDARIES
+      cv::imshow("boundary_strengths", edge_img_masked);
+      cv::imshow("depth_boundary_strengths", depth_edge_img_masked);
+#endif // DISPLAY_OBJECT_BOUNDARIES
     }
 
 #ifdef DISPLAY_OBJECT_BOUNDARIES
-    cv::imshow("boundary_strengths", edge_img_masked);
-    cv::imshow("depth_boundary_strengths", depth_edge_img_masked);
     cv::imshow("combined_boundary_strengths", combined_edges);
 #endif // DISPLAY_OBJECT_BOUNDARIES
+    // LinkEdges::edgeLink(combined_edges);
     return combined_edges;
   }
 
