@@ -22,7 +22,7 @@ from std_msgs.msg import ColorRGBA
 
 class ServoKalmanFilter(object):
     # TODO tune these parameters properly
-    def __init__(self, delta_t, sigma_z=0.02*0.01, P_init=[0.0, 0.0], sigma_a=0.02):
+    def __init__(self, delta_t, sigma_z=0.02*0.001, P_init=[0.0, 0.0], sigma_a=0.02):
         self.P_init = P_init
         self.delta_t = delta_t
         self.F = np.mat([[1, delta_t], [0, 1]])
@@ -112,7 +112,7 @@ def create_base_marker(pose, id, color):
     return marker
 
 class PR2VisualServoAR(object):
-    def __init__(self, ar_topic="/pr2_test_ar_pose_marker"):
+    def __init__(self, ar_topic):
         self.ar_sub = rospy.Subscriber(ar_topic, ARMarker, self.ar_sub)
         self.mkr_pub = rospy.Publisher("visualization_marker", Marker)
 
@@ -158,7 +158,7 @@ class PR2VisualServoAR(object):
     def find_ar_tag(self, timeout=None):
         rate = 20.
         ar_2d_q_len = 10
-        sigma_thresh = [0.001, 0.001, 0.01]
+        sigma_thresh = [0.005, 0.001, 0.01]
         no_mean_thresh = 0.5
         r = rospy.Rate(rate)
         ar_2d_queue = deque()
@@ -166,6 +166,10 @@ class PR2VisualServoAR(object):
         start_time = rospy.get_time()
         while True:
             if timeout is not None and rospy.get_time() - start_time > timeout:
+                rospy.logwarn("[pr2_viz_servo] find_ar_tag timed out, current ar_sigma: " + 
+                              str(np.std(ar_2d_queue, 0)) +
+                              " sigma_thresh: " +
+                              str(sigma_thresh))
                 return None, 'timeout'
             if self.preempt_requested:
                 self.preempt_requested = False
@@ -198,6 +202,7 @@ class PR2VisualServoAR(object):
             r.sleep()
 
     def servo_to_tag(self, pose_goal, goal_error=[0.03, 0.03, 0.1], initial_ar_pose=None):
+        lost_tag_thresh = 1.0 #0.4
 
         # TODO REMOVE
         err_pub = rospy.Publisher("servo_err", Float32MultiArray)
@@ -212,14 +217,14 @@ class PR2VisualServoAR(object):
         kf_y = ServoKalmanFilter(delta_t=1./rate)
         kf_r = ServoKalmanFilter(delta_t=1./rate)
         if initial_ar_pose is not None:
-            ar_err = homo_mat_to_2d(homo_mat_from_2d(initial_ar_pose) * goal_ar_pose**-1)
-            kf_x.update(ar_err[0], new_obs=new_obs)
-            kf_y.update(ar_err[1], new_obs=new_obs)
-            kf_r.update(ar_err[2], new_obs=new_obs)
+            ar_err = homo_mat_to_2d(homo_mat_from_2d(*initial_ar_pose) * goal_ar_pose**-1)
+            kf_x.update(ar_err[0])
+            kf_y.update(ar_err[1])
+            kf_r.update(ar_err[2])
             
-        pid_x = PIDController(k_p=0.3, rate=rate, saturation=0.10)
-        pid_y = PIDController(k_p=0.3, rate=rate, saturation=0.10)
-        pid_r = PIDController(k_p=0.5, rate=rate, saturation=0.20)
+        pid_x = PIDController(k_p=0.5, rate=rate, saturation=0.06)
+        pid_y = PIDController(k_p=0.5, rate=rate, saturation=0.06)
+        pid_r = PIDController(k_p=0.5, rate=rate, saturation=0.08)
         r = rospy.Rate(rate)
         while True:
             if rospy.is_shutdown():
@@ -276,14 +281,13 @@ class PR2VisualServoAR(object):
                     self.base_pub.publish(Twist())
                     return 'succeeded'
 
-# TODO PUT THIS BACK IN
-#self.base_pub.publish(base_twist)
+                self.base_pub.publish(base_twist)
 
             r.sleep()
 
 def main():
     rospy.init_node("pr2_viz_servo")
-    viz_servo = PR2VisualServoAR()
+    viz_servo = PR2VisualServoAR("/pr2_test_ar_pose_marker")
     if False:
         viz_servo.save_ar_goal()
     elif False:
