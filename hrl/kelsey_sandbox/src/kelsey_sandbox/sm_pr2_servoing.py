@@ -108,7 +108,7 @@ def build_cc_servoing(viz_servo):
                               LaserCollisionDetection())
 
         smach.Concurrence.add('USER_PREEMPT_DETECTION',
-                              BoolTopicState("servo_preempt"))
+                              BoolTopicState("/pr2_ar_servo/preempt"))
                               
     return cc_servoing
 
@@ -191,22 +191,27 @@ def build_full_sm():
                                          input_keys=['goal_ar_pose', 'initial_ar_pose'])
     with sm_pr2_servoing:
 
-        smach.StateMachine.add('VALIDATE_AR',
-                               FindARTagState(viz_servo, timeout=find_tag_timeout),
-                               transitions={'found_tag' : 'CC_SERVOING',
-                                            'timeout' : 'USER_INPUT_WAIT'})
-
-        smach.StateMachine.add('USER_INPUT_WAIT',
-                               BoolTopicState("servo_continue"),
-                               transitions={'true' : 'VALIDATE_AR',
+        smach.StateMachine.add('UI_FIND_TAG_WAIT',
+                               BoolTopicState("/pr2_ar_servo/find_tag"),
+                               transitions={'true' : 'FIND_AR_TAG',
                                             'false' : 'aborted'})
+
+        smach.StateMachine.add('FIND_AR_TAG',
+                               FindARTagState(viz_servo, timeout=find_tag_timeout),
+                               transitions={'found_tag' : 'UI_SERVO_WAIT',
+                                            'timeout' : 'UI_FIND_TAG_WAIT'})
+
+        smach.StateMachine.add('UI_SERVO_WAIT',
+                               BoolTopicState("/pr2_ar_servo/tag_confirm"),
+                               transitions={'true' : 'CC_SERVOING',
+                                            'false' : 'UI_FIND_TAG_WAIT'})
 
         smach.StateMachine.add('CC_SERVOING', 
                                build_cc_servoing(viz_servo),
-                               transitions={'arm_collision' : 'USER_INPUT_WAIT',
-                                            'laser_collision' : 'USER_INPUT_WAIT',
-                                            'user_preempted' : 'USER_INPUT_WAIT',
-                                            'lost_tag' : 'VALIDATE_AR'})
+                               transitions={'arm_collision' : 'UI_FIND_TAG_WAIT',
+                                            'laser_collision' : 'UI_FIND_TAG_WAIT',
+                                            'user_preempted' : 'UI_FIND_TAG_WAIT',
+                                            'lost_tag' : 'UI_FIND_TAG_WAIT'})
 
     return sm_pr2_servoing
 
