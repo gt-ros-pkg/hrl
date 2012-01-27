@@ -1,15 +1,6 @@
 <launch>
 
-    <machine
-        name="c1"
-        address="c1"
-        ros-root="$(env ROS_ROOT)"
-        ros-package-path="$(env ROS_PACKAGE_PATH)"/>
-    <machine
-        name="c2"
-        address="c2"
-        ros-root="$(env ROS_ROOT)"
-        ros-package-path="$(env ROS_PACKAGE_PATH)"/>
+    <include file="$(find pr2_machine)/$(env ROBOT).machine" />
 
     <!-- Arduino Control Board for powering Shaver 
     <node
@@ -67,7 +58,7 @@
     -->
 
     <!--Tabletop Manipulation Content, i.e. Arm Navigation etc -->
-    <!--<group><remap from="camera" to="kinect_head"/>-->
+    <group><remap from="camera" to="kinect_head"/>
         <include file="$(find pr2_tabletop_manipulation_launch)/launch/pr2_tabletop_manipulation.launch">
             <arg name="stereo" value="false"/>
             <arg name="use_slip_controllers" value="true"/>
@@ -75,7 +66,7 @@
             <arg name="use_left_arm" value="true"/>
             <arg name="use_task_cartesian" default="false"/>
         </include>
-    <!--</group>-->
+    </group>
 
     <!-- Start Tuck Arm Action Server and Intermediary
     <node
