@@ -613,7 +613,7 @@ function teleop_base() {
 };
 
 function speak(text){
-		node.publish('text_to_say', 'std_msgs/String', json({'data':text}));
+		node.publish('wt_speech', 'std_msgs/String', json({'data':text}));
 		log('\"' + text +'\"'); 
 };
 
@@ -845,14 +845,14 @@ width:100px;
 		<option value="Yes">Yes</option>
 		<option value="No">No</option>
 		<option value="Maybe">Maybe</option>
-		<option value="O K">Ok</option>
+		<option value="OK">Ok</option>
 		<option value="k">k</option>
 		<option value="Board Please">Board Please</option>
-		<option value="I don\'t know">I Don't Know</option>
-		<option value="I don\'t care">I Don't Care</option>
+		<option value="I don't know">I Don't Know</option>
+		<option value="I don't care">I Don't Care</option>
 		<option value="One Moment">One Moment</option>
 		<option value="Please">Please</option>
-		<option value="ThankYou">Thank You</option>
+		<option value="Thank You">Thank You</option>
 		<option value="I agree">I agree</option>
 		<option value="I disagree">I disagree</option>
 		<option value="A lot">A lot</option>
