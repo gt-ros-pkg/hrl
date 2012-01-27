@@ -26,6 +26,7 @@
   <depend package="control_msgs"/>
   <depend package="pr2_common_action_msgs"/>
   <depend package="topic_tools"/>
+  <depend package="sound_play"/>
   
   <!--gt-ros-pkg-->
   <depend package="pixel_2_3d"/>
