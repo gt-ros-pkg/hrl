@@ -53,7 +53,8 @@ class torso():
 		self.pos = SingleJointPositionGoal()
 
 	def down(self):
-		self.pos.position = 0.01
+#		self.pos.position = 0.01
+		self.pos.position = 0.15
 		self.pos.min_duration = rospy.Duration(2.)
 		self.pos.max_velocity = 1.
 		rospy.logout('Sending torso down')
@@ -144,7 +145,7 @@ class ar_manipulation():
 		self.tool = msg.data[0]
 		if self.tool == 'shaver' or self.tool == 'scratcher':
 			rospy.logout('Receive request to find tag for '+self.tool)
-			self.marker_frame = '/'+self.tool+'_ar_marker'
+			self.marker_frame = '/ar_'+self.tool
 			self.arm = msg.data[1]
 			self.search_tag = True
 		else:
@@ -153,6 +154,7 @@ class ar_manipulation():
 
 	def put_back_tool_cb(self,msg):
 		duration=5.
+		self.arm = msg.data
 		self.switch_arm()
 
 		if self.grasp_object:
@@ -247,11 +249,13 @@ class ar_manipulation():
 		time.sleep(2.)
 
 		self.tool_ep = copy.deepcopy(self.ar_ep)
-		#Offset due to possible Kinect calibration error on Monty
+
+		# Kinect on Monty has not been calibrated!
+		#Offset due to Kinect error
 		self.tool_ep[0][0]-= .05
-#		self.tool_ep[0][1]-= 0.
-		self.tool_ep[0][2]-= .03
-#		self.tool_ep[0][2]-= .05
+#		self.tool_ep[0][1]-= .01
+#		self.tool_ep[0][2]-= .03
+		self.tool_ep[0][2]-= .04
 
 		self.epc_move_arm(self.arm_controller, ep1, self.tool_ep, duration)
 		self.gripper.Close(self.arm)

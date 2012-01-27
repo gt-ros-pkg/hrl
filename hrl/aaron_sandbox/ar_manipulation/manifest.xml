@@ -9,10 +9,12 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/ar_manipulation</url>
   <depend package="tf"/>
+  <depend package="actionlib"/>
   <depend package="ar_kinect"/>
   <depend package="hrl_pr2_arms"/>
   <depend package="hrl_generic_arms"/>
   <depend package="hrl_lib"/>
+  <depend package="hrl_msgs"/>
 </package>
 
 

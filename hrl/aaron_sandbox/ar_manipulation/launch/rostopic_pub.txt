@@ -1,0 +1,3 @@
+rostopic pub /ar_object_name hrl_msgs/StringArray ['shaver','left_arm']
+
+rostopic pub /put_back_tool std_msgs/String 'left_arm'
