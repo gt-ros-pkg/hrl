@@ -134,11 +134,15 @@
             to="/l_forearm_cam/image_color_rotated"/>
     </node>
 
-    <!-- Speech node.  Replaces soundplay_node, speech using a good voice -->
+    <!-- Speech node -->
     <node 
         pkg ="assistive_teleop"
-        type="speech_node.py"
-        name="sound_play"/>
+        type="speech_intermediary.py"
+        name="wt_speech_intermediary">
+        <param 
+            name="voice" 
+            value="voice_nitech_us_rms_arctic_hts"/>
+    </node>
 
     <!-- Launch Kinect with GT launch files (gt-ros-pkg)-->
     <!--<include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" /> -->
