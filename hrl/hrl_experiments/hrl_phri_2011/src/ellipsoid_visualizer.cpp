@@ -123,7 +123,7 @@ int main(int argc, char **argv)
     PCRGB pc_head;
     Ellipsoid ell;
     loadRegisteredHead(argv[1], argv[2], pc_head, ell);
-    EllispoidVisualizer ev(pc_head, "/ellipsoid", true);
+    EllispoidVisualizer ev(pc_head, "/ellipsoid", false);
     ros::spin();
     /*
     ros::NodeHandle nh;
