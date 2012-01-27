@@ -1368,11 +1368,6 @@ class ObjectSingulation
       double depth_max = 1.0;
       double depth_min = 1.0;
       cv::minMaxLoc(depth_edge_img_masked, &depth_min, &depth_max);
-
-#ifdef DISPLAY_OBJECT_BOUNDARIES
-      cv::imshow("binary depth edges", bin_depth_edges);
-      cv::imshow("binary img edges", bin_img_edges);
-#endif // DISPLAY_OBJECT_BOUNDARIES
     }
     else
     {
@@ -1385,20 +1380,16 @@ class ObjectSingulation
       {
         combined_edges = cv::max(edge_img_masked, depth_edge_img_masked);
       }
-#ifdef DISPLAY_OBJECT_BOUNDARIES
-      cv::imshow("boundary_strengths", edge_img_masked);
-      cv::imshow("depth_boundary_strengths", depth_edge_img_masked);
-#endif // DISPLAY_OBJECT_BOUNDARIES
     }
-
-#ifdef DISPLAY_OBJECT_BOUNDARIES
-    cv::imshow("combined_boundary_strengths", combined_edges);
-#endif // DISPLAY_OBJECT_BOUNDARIES
 
     // Link edges into object boundary hypotheses
     std::vector<Boundary> boundaries = LinkEdges::edgeLink(combined_edges);
     // TODO: Hypothesize boundary likelihoods with learned function from a
     // combination of cues
+#ifdef DISPLAY_OBJECT_BOUNDARIES
+    cv::imshow("Edge estimates", combined_edges);
+#endif // DISPLAY_OBJECT_BOUNDARIES
+
     return boundaries;
   }
 
