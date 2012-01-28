@@ -1,7 +1,7 @@
 
 import numpy as np, math
 import copy
-import roslib; roslib.load_manifest('epc_core')
+import roslib; roslib.load_manifest('equilibrium_point_control')
 import rospy
 from std_msgs.msg import Bool
 
