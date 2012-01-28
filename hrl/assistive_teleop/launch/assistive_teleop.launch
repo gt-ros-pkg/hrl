@@ -57,7 +57,7 @@
         machine="c2"/>
     -->
 
-    <!--Tabletop Manipulation Content, i.e. Arm Navigation etc -->
+    <!--Tabletop Manipulation Content, i.e. Arm Navigation etc
     <group><remap from="camera" to="kinect_head"/>
         <include file="$(find pr2_tabletop_manipulation_launch)/launch/pr2_tabletop_manipulation.launch">
             <arg name="stereo" value="false"/>
@@ -67,7 +67,7 @@
             <arg name="use_task_cartesian" default="false"/>
         </include>
     </group>
-
+    -->
     <!-- Start Tuck Arm Action Server and Intermediary
     <node
         name="tuck_arm_node"
