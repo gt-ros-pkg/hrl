@@ -22,8 +22,8 @@
   <widget class="QPushButton" name="start_button">
    <property name="geometry">
     <rect>
-     <x>10</x>
-     <y>50</y>
+     <x>20</x>
+     <y>20</y>
      <width>161</width>
      <height>181</height>
     </rect>
@@ -39,8 +39,8 @@ background-color: rgb(120, 255, 96);</string>
   <widget class="QPushButton" name="kill_button">
    <property name="geometry">
     <rect>
-     <x>200</x>
-     <y>50</y>
+     <x>210</x>
+     <y>20</y>
      <width>161</width>
      <height>181</height>
     </rect>
@@ -51,6 +51,19 @@ font: 16pt &quot;AlArabiya&quot;;</string>
    </property>
    <property name="text">
     <string>Kill</string>
+   </property>
+  </widget>
+  <widget class="QComboBox" name="controller_combo">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>230</y>
+     <width>351</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="editable">
+    <bool>true</bool>
    </property>
   </widget>
  </widget>
