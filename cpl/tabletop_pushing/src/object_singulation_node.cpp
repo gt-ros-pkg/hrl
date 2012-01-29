@@ -148,6 +148,7 @@ class Boundary : public std::vector<cv::Point>
  public:
   double external_prob;
   double internal_prob;
+  std::vector<pcl::PointXYZ> points3D;
 };
 
 class ProtoTabletopObject
@@ -613,7 +614,6 @@ class PointCloudSegmentation
                                        cv::Mat& coord_img)
   {
     cv::Mat obj_img(img_in.size(), CV_8UC1, cv::Scalar(0));
-    coord_img.create(img_in.size(), CV_32FC3);
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       projectPointCloudIntoImage(objs[i].cloud, obj_img,
@@ -1048,7 +1048,7 @@ class LinkEdges
   static PtStatus nextPoint(cv::Mat& edge_img, int& r_start, int& c_start,
                             int edge_no, cv::Mat& junctions)
   {
-    // TODO: Check if any neighbors are junction locations with other lines
+    // Check if any neighbors are junction locations with other lines
     for (int r = std::max(0, r_start-1); r <= std::min(r_start+1, edge_img.rows-1); ++r)
     {
       for (int c = std::max(0, c_start-1); c <= std::min(c_start+1, edge_img.cols-1); ++c)
@@ -1160,7 +1160,8 @@ class ObjectSingulation
     cv::Mat boundary_img;
     std::vector<Boundary> boundaries = getObjectBoundaryStrengths(
         color_img, depth_img, workspace_mask, boundary_img);
-    PushVector push_vector = determinePushPose(push_dist, boundary_img, objs);
+    PushVector push_vector = determinePushPose(push_dist, boundary_img, objs,
+                                               boundaries);
     ++callback_count_;
     push_vector.num_objects = cur_proto_objs_.size();
     return push_vector;
@@ -1272,11 +1273,14 @@ class ObjectSingulation
    * @return A push for the robot to make to singulate objects
    */
   PushVector determinePushPose(double push_dist, cv::Mat& boundary_img,
-                               ProtoObjects& objs)
+                               ProtoObjects& objs,
+                               std::vector<Boundary>& boundaries)
   {
-    cv::Mat obj_coords;
+    cv::Mat obj_coords(boundary_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         objs, boundary_img, workspace_frame_, obj_coords);
+    get3DBoundaries(boundaries, obj_coords);
+    // draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
 
     unsigned int test_idx = objs.size();
     Boundary test_boundary = getTestBoundary(boundary_img, obj_lbl_img, objs,
@@ -1393,6 +1397,32 @@ class ObjectSingulation
     return boundaries;
   }
 
+  void get3DBoundaries(std::vector<Boundary>& boundaries, cv::Mat& obj_coords)
+  {
+    for (unsigned int b = 0; b <boundaries.size(); ++b)
+    {
+      get3DBoundary(boundaries[b], obj_coords);
+    }
+  }
+
+  void get3DBoundary(Boundary& b, cv::Mat& obj_coords)
+  {
+    b.points3D.clear();
+    for (unsigned int i = 0; i < b.size();++i)
+    {
+      cv::Vec3f p = obj_coords.at<cv::Vec3f>(b[i].y, b[i].x);
+      // Don't add empty points
+      if (p[0] == 0.0 && p[1] == 0.0 && p[2] == 0.0) continue;
+      b.points3D.push_back(pcl::PointXYZ(p[0], p[1], p[2]));
+    }
+  }
+
+  // TODO: Get plane containing line
+  void planeRANSAC(Boundary& b)
+  {
+    
+  }
+
   /**
    * Determine which boundary scores are located within a specific proto object
    * cluster.
@@ -1436,7 +1466,6 @@ class ObjectSingulation
   {
     // TODO: Save this method as a backup baseline
     // Find max location and associated boundary
-    // TODO: Find linked edges with highest associated boundary score
     // TODO: Score not based on individual locations, but on rankings
     cv::Point push_loc = samplePushLoc(obj_bound_img);
 
@@ -1610,7 +1639,6 @@ class ObjectSingulation
     PushVector push_pose = getPushDirection(push_dist, split_objs[0],
                                             split_objs[1], objs, id,
                                             obj_lbl_img);
-    // TODO: Display resulting vector on an image
     push_pose.header.frame_id = workspace_frame_;
     return push_pose;
   }
@@ -1647,7 +1675,6 @@ class ObjectSingulation
     const double push_angle_neg = push_angle_pos - M_PI;
     // Find the highest clearance push from the four possible combinations of
     // split object and angles
-    // TODO: Angles should be restricted based on robot capabilities
     std::vector<PushOpt> split_opts;
     split_opts.push_back(PushOpt(split0, push_angle_pos, push_vec_pos, id,
                                  push_dist));
@@ -1735,6 +1762,13 @@ class ObjectSingulation
     }
     return min_clearance;
   }
+
+  // TODO: Find the plane containing the most boundary points and split based on
+  // that
+  // ProtoObjects splitObject3D(cv::Mat& obj_lbl_img, Boundary& boundary,
+  //                            cv::Mat& obj_coords, unsigned int id)
+  // {
+  // }
 
 
   /**
@@ -2180,6 +2214,48 @@ class ObjectSingulation
       obj_disp_img.at<cv::Vec3f>(boundary[i].y, boundary[i].x) = green;
     }
     cv::imshow(title, obj_disp_img);
+  }
+
+  void draw3DBoundaries(std::vector<Boundary> boundaries, cv::Mat& obj_img,
+                       int objs_size)
+  {
+    cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    std::vector<cv::Vec3f> colors;
+    for (unsigned int i = 0; i < objs_size; ++i)
+    {
+      cv::Vec3f rand_color;
+      rand_color[0] = randf();
+      rand_color[1] = randf();
+      rand_color[2] = randf();
+      colors.push_back(rand_color);
+    }
+    for (int r = 0; r < obj_img.rows; ++r)
+    {
+      for (int c = 0; c < obj_img.cols; ++c)
+      {
+        unsigned int id = obj_img.at<uchar>(r,c);
+        if (id > 0)
+        {
+          obj_disp_img.at<cv::Vec3f>(r,c) = colors[id-1];
+        }
+      }
+    }
+    cv::Vec3f green(0.0, 1.0, 0.0);
+    cv::Vec3f red(0.0, 0.0, 1.0);
+    for (unsigned int b = 0; b < boundaries.size(); ++b)
+    {
+      cv::Vec3f color;
+      if( boundaries[b].points3D.size() > 0)
+        color = green;
+      else
+        color = red;
+      for (unsigned int i = 0; i < boundaries[b].size(); ++i)
+      {
+        obj_disp_img.at<cv::Vec3f>(boundaries[b][i].y,
+                                   boundaries[b][i].x) = color;
+      }
+    }
+    cv::imshow("projected 3D boundaries", obj_disp_img);
   }
 
   //
