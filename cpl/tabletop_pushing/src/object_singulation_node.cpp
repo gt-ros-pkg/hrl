@@ -114,7 +114,7 @@
 #include <cstdlib> // for MAX_RAND
 
 // Debugging IFDEFS
-// #define DISPLAY_INPUT_COLOR 1
+#define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
 #define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_PLANE_ESTIMATE 1
@@ -149,6 +149,7 @@ class Boundary : public std::vector<cv::Point>
   double external_prob;
   double internal_prob;
   std::vector<pcl::PointXYZ> points3D;
+  int object_id;
 };
 
 class ProtoTabletopObject
@@ -1281,15 +1282,18 @@ class ObjectSingulation
         objs, boundary_img, workspace_frame_, obj_coords);
     get3DBoundaries(boundaries, obj_coords);
     // draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
+    associate3DBoundaries(boundaries, objs, obj_lbl_img);
 
+    // TODO: Get this to use the new types of boundaries
     unsigned int test_idx = objs.size();
-    Boundary test_boundary = getTestBoundary(boundary_img, obj_lbl_img, objs,
-                                             test_idx);
+    Boundary test_boundary = chooseTestBoundary(boundary_img, obj_lbl_img, objs,
+                                                test_idx, boundaries);
     if (test_idx == objs.size())
     {
       PushVector push_pose;
       return push_pose;
     }
+    // TODO: Get this to use the new types of boundaries (for splitting)
     return determinePushVector(push_dist, test_boundary, objs, obj_lbl_img,
                                obj_coords, test_idx);
   }
@@ -1417,10 +1421,52 @@ class ObjectSingulation
     }
   }
 
-  // TODO: Get plane containing line
-  void planeRANSAC(Boundary& b)
+  // TODO: Determine which boundaries belong to which objects
+  // TODO: Need to match previous and current boundaries
+  void associate3DBoundaries(std::vector<Boundary> boundaries,
+                             ProtoObjects& objs, cv::Mat& obj_lbl_img)
   {
-    
+    int no_overlap_count = 0;
+    for (unsigned int b = 0; b < boundaries.size(); ++b)
+    {
+      std::vector<int> obj_overlaps(objs.size(), 0);
+      for (unsigned int i = 0; i < boundaries[b].size(); ++i)
+      {
+        unsigned int id = obj_lbl_img.at<uchar>(boundaries[b][i].y,
+                                                boundaries[b][i].x);
+        if (id > 0)
+        {
+          obj_overlaps[id-1]++;
+        }
+      }
+      int max_overlap = 0;
+      int max_id = objs.size();
+      for (unsigned int o = 0; o < objs.size(); ++o)
+      {
+        if (obj_overlaps[o] > max_overlap)
+        {
+          max_overlap = obj_overlaps[o];
+          max_id = o;
+        }
+      }
+      if (max_id == objs.size())
+      {
+        ROS_DEBUG_STREAM("No overlap for boundary: " << b);
+        no_overlap_count++;
+      }
+      else
+      {
+        boundaries[b].object_id = max_id;
+        objs[max_id].boundaries.push_back(boundaries[b]);
+      }
+    }
+  }
+
+  // TODO: Get plane best containing the 3D curve
+  Eigen::Vector3f planeRANSAC(Boundary& b)
+  {
+    Eigen::Vector3f unit_norm;
+    return unit_norm;
   }
 
   /**
@@ -1587,8 +1633,9 @@ class ObjectSingulation
    *
    * @return The boundary to test
    */
-  Boundary getTestBoundary(cv::Mat& boundary_img, cv::Mat& obj_img,
-                           ProtoObjects objs, unsigned int& test_idx)
+  Boundary chooseTestBoundary(cv::Mat& boundary_img, cv::Mat& obj_img,
+                              ProtoObjects objs, unsigned int& test_idx,
+                              std::vector<Boundary>& boundaries)
   {
     double max_score = 0.0;
     std::vector<Boundary> boundaries;
