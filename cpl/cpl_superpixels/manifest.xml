@@ -17,7 +17,7 @@
   <depend package="pcl"/>
   <depend package="sensor_msgs"/>
   <export>
-    <cpp cflags="-I${prefix}/include -I${prefix}/src" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lcpl_superpixels_base" />
+    <cpp cflags="-I${prefix}/include" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lcpl_superpixels_base" />
   </export>
 
 </package>
