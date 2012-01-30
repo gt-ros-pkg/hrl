@@ -1438,7 +1438,7 @@ class ObjectSingulation
                                                            min_edge_length_);
     // TODO: Hypothesize boundary likelihoods with learned function from a
     // combination of cues
-    // cv::imshow("depth edges", depth_edge_img_masked);
+    cv::imshow("depth edges", depth_edge_img_masked);
 
     return boundaries;
   }
@@ -2283,7 +2283,6 @@ class ObjectSingulation
                                    boundaries[b][i].x) = color;
       }
     }
-    cv::imshow("projected 3D boundaries", obj_disp_img);
   }
 
   //

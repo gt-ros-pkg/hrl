@@ -5,11 +5,11 @@
     <remap from="point_cloud_topic" to="/kinect_head/depth/points"/>
 
     <param name="display_wait_ms" value="3" type="int"/>
-    <param name="autostart_pcl_segmentation" value="true" type="bool"/>
+    <param name="autostart_pcl_segmentation" value="false" type="bool"/>
     <param name="use_guided_pushes" value="true" type="bool"/>
 
     <param name="crop_min_x" value="22" type="int"/>
-    <param name="crop_max_x" value="600" type="int"/>
+    <param name="crop_max_x" value="593" type="int"/>
     <param name="crop_min_y" value="32" type="int"/>
     <param name="crop_max_y" value="469" type="int"/>
 
