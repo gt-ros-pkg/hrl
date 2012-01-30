@@ -115,8 +115,8 @@
 
 // Debugging IFDEFS
 #define DISPLAY_INPUT_COLOR 1
-// #define DISPLAY_INPUT_DEPTH 1
-#define DISPLAY_WORKSPACE_MASK 1
+#define DISPLAY_INPUT_DEPTH 1
+// #define DISPLAY_WORKSPACE_MASK 1
 // #define DISPLAY_PLANE_ESTIMATE 1
 // #define DISPLAY_TABLE_DISTANCES 1
 #define DISPLAY_OBJECT_BOUNDARIES 1
@@ -221,11 +221,14 @@ class PointCloudSegmentation
     // Create the segmentation object
     pcl::SACSegmentation<pcl::PointXYZ> plane_seg;
     plane_seg.setOptimizeCoefficients (true);
-    plane_seg.setModelType(pcl::SACMODEL_PLANE);
+    plane_seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
     plane_seg.setMethodType(pcl::SAC_RANSAC);
     plane_seg.setDistanceThreshold (table_ransac_thresh_);
     plane_seg.setInputCloud(cloud_filtered.makeShared());
     plane_seg.segment(plane_inliers, coefficients);
+    Eigen::Vector3f v(1.0,1.0,0.0);
+    plane_seg.setAxis(v);
+    plane_seg.setEpsAngle(table_ransac_angle_thresh_);
     pcl::copyPointCloud(cloud_filtered, plane_inliers, plane_cloud);
     // Extract the outliers from the point clouds
     pcl::ExtractIndices<pcl::PointXYZ> extract;
@@ -739,6 +742,7 @@ class PointCloudSegmentation
   double min_workspace_z_;
   double max_workspace_z_;
   double table_ransac_thresh_;
+  double table_ransac_angle_thresh_;
   double cluster_tolerance_;
   double cloud_diff_thresh_;
   int min_cluster_size_;
@@ -782,7 +786,7 @@ class PushOpt
 class PushSample
 {
  public:
-  cv::Point loc;
+  unsigned int id;
   double weight;
   double cdf_weight;
 
@@ -1295,6 +1299,7 @@ class ObjectSingulation
 
     if (test_boundary.object_id == objs.size())
     {
+      ROS_WARN_STREAM("Boundary has no ID!");
       PushVector push_pose;
       return push_pose;
     }
@@ -1429,9 +1434,11 @@ class ObjectSingulation
     }
 
     // Link edges into object boundary hypotheses
-    std::vector<Boundary> boundaries = LinkEdges::edgeLink(combined_edges);
+    std::vector<Boundary> boundaries = LinkEdges::edgeLink(combined_edges,
+                                                           min_edge_length_);
     // TODO: Hypothesize boundary likelihoods with learned function from a
     // combination of cues
+    // cv::imshow("depth edges", depth_edge_img_masked);
 
     return boundaries;
   }
@@ -1456,7 +1463,6 @@ class ObjectSingulation
     }
   }
 
-  // TODO: Determine which boundaries belong to which objects
   // TODO: Need to match previous and current boundaries
   void associate3DBoundaries(std::vector<Boundary>& boundaries,
                              ProtoObjects& objs, cv::Mat& obj_lbl_img)
@@ -1509,13 +1515,12 @@ class ObjectSingulation
     {
       cloud.at(i) = b.points3D[i];
     }
-    if (b.points3D.size() <= 3)
+    if (b.points3D.size() < 4)
     {
       Eigen::Vector4f unit_norm;
       ROS_WARN_STREAM("Plane has 3 or fewer points.");
       if (b.points3D.size() == 3)
       {
-        // TODO: Get exact plane from points
         ROS_WARN_STREAM("Plane has exactly 3 points.");
       }
       if (b.points3D.size() == 2)
@@ -1554,219 +1559,34 @@ class ObjectSingulation
     return hessian;
   }
 
-  /**
-   * Determine which boundary scores are located within a specific proto object
-   * cluster.
-   *
-   * @param boundary_img The image of boundary scores
-   * @param obj_img The image containing the projected proto objects
-   * @param i The index of the object of interest used in creating obj_img
-   *
-   * @return The boundary image for object i
-   */
-  cv::Mat associateInternalObjectBoundaries(cv::Mat& boundary_img,
-                                            cv::Mat& obj_img, unsigned int i)
-  {
-    cv::Mat obj_mask_dirty = obj_img == (i+1);
-    cv::Mat obj_mask;
-    // Fill in the gaps in obj_mask using a 3x3 box close
-    cv::morphologyEx(obj_mask_dirty, obj_mask, cv::MORPH_CLOSE, cv::Mat());
-    cv::Mat object_boundaries;
-    boundary_img.copyTo(object_boundaries, obj_mask);
 
-#ifdef DISPLAY_PROJECTED_OBJECTS
-    // std::stringstream img_name;
-    // img_name << "object mask_" << (i+1);
-    // cv::imshow(img_name.str(), obj_mask);
-    // std::stringstream edge_img_name;
-    // edge_img_name << "object edges_" << (i+1);
-    // cv::imshow(edge_img_name.str(), object_boundaries);
-#endif // DISPLAY_PROJECTED_OBJECTS
-
-    return object_boundaries;
-  }
-
-  /**
-   * Determine the location of the highest score hypothesized object boundary
-   *
-   * @param obj_bound_img The boundary hypothesis associated with the object
-   *
-   * @return An image with the test boundary pixels equal 1 and 0 elsewhere
-   */
-  Boundary determineTestBoundary(cv::Mat& obj_bound_img, double& score)
-  {
-    // TODO: Save this method as a backup baseline
-    // Find max location and associated boundary
-    // TODO: Score not based on individual locations, but on rankings
-    cv::Point push_loc = samplePushLoc(obj_bound_img);
-
-    // TODO: Replace direction hack with the current boundary estimate
-    Boundary boundary_locs;
-    boundary_locs.push_back(push_loc);
-
-    // HACK: Check up-down score, left-right score, nw-se score and sw-ne score
-    // for best edge
-    // NOTE: Assumes not on image edge
-    std::vector<double> scores;
-    double ud_score = (obj_bound_img.at<float>(push_loc.y-1, push_loc.x) +
-                       obj_bound_img.at<float>(push_loc.y+1, push_loc.x));
-    scores.push_back(ud_score);
-    double lr_score = (obj_bound_img.at<float>(push_loc.y, push_loc.x-1) +
-                       obj_bound_img.at<float>(push_loc.y, push_loc.x+1));
-    scores.push_back(lr_score);
-    double nwse_score = (obj_bound_img.at<float>(push_loc.y-1, push_loc.x-1) +
-                         obj_bound_img.at<float>(push_loc.y+1, push_loc.x+1));
-    scores.push_back(nwse_score);
-    double swne_score = (obj_bound_img.at<float>(push_loc.y-1, push_loc.x+1) +
-                         obj_bound_img.at<float>(push_loc.y+1, push_loc.x-1));
-    scores.push_back(swne_score);
-    double max_score = 0;
-    unsigned int max_idx = scores.size();
-    for (unsigned int i = 0; i < scores.size(); ++i)
-    {
-      if (scores[i] > max_score)
-      {
-        max_score = scores[i];
-        max_idx = i;
-      }
-    }
-    score = max_score;
-    cv::Point up(push_loc.x, push_loc.y-1);
-    cv::Point down(push_loc.x, push_loc.y+1);
-    cv::Point left(push_loc.x-1, push_loc.y);
-    cv::Point right(push_loc.x+1, push_loc.y);
-    cv::Point nw(push_loc.x-1, push_loc.y-1);
-    cv::Point se(push_loc.x+1, push_loc.y+1);
-    cv::Point sw(push_loc.x-1, push_loc.y+1);
-    cv::Point ne(push_loc.x+1, push_loc.y-1);
-    switch (max_idx)
-    {
-      case 0: // Add up down
-        boundary_locs.push_back(up);
-        boundary_locs.push_back(down);
-        break;
-      case 1:
-        boundary_locs.push_back(left);
-        boundary_locs.push_back(right);
-        break;
-      case 2:
-        boundary_locs.push_back(nw);
-        boundary_locs.push_back(se);
-        break;
-      case 3:
-        boundary_locs.push_back(sw);
-        boundary_locs.push_back(ne);
-        break;
-      case 4:
-      default:
-        ROS_INFO_STREAM("No non-zero score found");
-        break;
-    }
-    // displayBoundaryImage(obj_bound_img, boundary_locs, "boundary to push",
-    //                      false);
-    return boundary_locs;
-  }
-
-  cv::Point samplePushLoc(cv::Mat& score_img)
-  {
-    SampleList samples;
-    for (int r = 0; r < score_img.rows; ++r)
-    {
-      for (int c = 0; c < score_img.cols; ++c)
-      {
-        if (score_img.at<float>(r,c) > 0)
-        {
-          PushSample p;
-          p.loc = cv::Point(c,r);
-          p.weight = score_img.at<float>(r,c);
-          samples.push_back(p);
-        }
-      }
-    }
-    std::sort(samples.begin(), samples.end(), PushSample::compareSamples);
-
-    double running_cdf = 0.0;
-    // Calculate cdf_weight for each sample
-    for (int i = samples.size() - 1; i >= 0; --i)
-    {
-      running_cdf += samples[i].weight;
-      samples[i].cdf_weight = running_cdf;
-    }
-    for (unsigned int i = 0; i < samples.size(); ++i)
-    {
-      samples[i].cdf_weight /= running_cdf;
-      // samples[i].weight /= running_cdf;
-    }
-
-    float cdf_goal = randf();
-    int idx = PushSample::cdfBinarySearch(samples, cdf_goal);
-    cv::Point sample = samples[idx].loc;
-    // ROS_INFO_STREAM("Chose push location (" << sample.x << ", " << sample.y
-    //                 << ") with score " << samples[idx].weight);
-    // ROS_INFO_STREAM("CDF score is: " << samples[idx].cdf_weight
-    //                 << " for random score of " << cdf_goal);
-    return sample;
-  }
-
-  /**
-   * Method to choose the boundary to test
-   *
-   * @param boundary_img The image of object boundaries
-   * @param obj_img The image of object locations
-   * @param objs The set of objects
-   *
-   * @return The boundary to test
-   */
-  Boundary chooseTestBoundary(cv::Mat& boundary_img, cv::Mat& obj_img,
-                              ProtoObjects& objs,
-                              std::vector<Boundary>& boundaries)
-  {
-    // TODO: Choose from the passed in boundaries, not the newly found ones
-    unsigned int test_idx = objs.size();
-    double max_score = 0.0;
-    std::vector<Boundary> fake_boundaries;
-    for (unsigned int i = 0; i < objs.size(); ++i)
-    {
-      cv::Mat obj_bound_img = associateInternalObjectBoundaries(boundary_img,
-                                                                obj_img, i);
-      double score = 0.0;
-      Boundary test_boundary = determineTestBoundary(obj_bound_img, score);
-      test_boundary.object_id = i;
-      fake_boundaries.push_back(test_boundary);
-      if (score > max_score)
-      {
-        max_score = score;
-        test_idx = i;
-      }
-    }
-    if (test_idx == objs.size())
-    {
-      Boundary no_boundary;
-      no_boundary.object_id = test_idx;
-      return no_boundary;
-    }
-    return fake_boundaries[test_idx];
-  }
-
-  // TODO: Setup 3D boundary stuff, use actual cues and what not
   Boundary chooseTestBoundary(std::vector<Boundary>& boundaries,
                               ProtoObjects& objs, cv::Mat& obj_img)
   {
-    unsigned int max_length = 0;
-    unsigned int max_id = boundaries.size();
+    std::vector<double> scores(boundaries.size(), 0.0f);
     for (unsigned int i = 0; i < boundaries.size(); ++i)
     {
-      if (boundaries[i].object_id >= objs.size())
+      if (boundaries[i].object_id >= objs.size() ||
+          boundaries[i].points3D.size() < 4)
       {
         continue;
       }
-      if (boundaries[i].points3D.size() > max_length)
-      {
-        max_length = boundaries[i].points3D.size();
-        max_id = i;
-      }
+      // TODO: Currently choose on ratio of sizes
+      // TODO: Should use estimated internal and external likelihoods
+      ProtoObjects split = splitObject3D(boundaries[i],
+                                         objs[boundaries[i].object_id]);
+      double s0 = split[0].cloud.size();
+      double s1 = split[1].cloud.size();
+      if (s0 == 0) scores[i] = 0;
+      else if (s1 == 0) scores[i] = 0;
+      else if (s0 > s1) scores[i] = s1/s0;
+      else scores[i] = s0/s1;
     }
-    return boundaries[max_id];
+    unsigned int chosen_id = sampleScore(scores);
+    ROS_INFO_STREAM("chose id: " << chosen_id << " has objet_id: " <<
+                    boundaries[chosen_id].object_id << " and " <<
+                    boundaries[chosen_id].points3D.size() << " 3D points.");
+    return boundaries[chosen_id];
   }
 
   /**
@@ -1921,8 +1741,8 @@ class ObjectSingulation
         p2.indices.push_back(i);
       }
     }
-    ROS_INFO_STREAM("split3D: P1 has " << p1.indices.size() << " points");
-    ROS_INFO_STREAM("split3D: P2 has " << p2.indices.size() << " points");
+    ROS_DEBUG_STREAM("split3D: P1 has " << p1.indices.size() << " points");
+    ROS_DEBUG_STREAM("split3D: P2 has " << p2.indices.size() << " points");
     // Extract indices
     ProtoObjects split;
     ProtoTabletopObject po1;
@@ -2367,6 +2187,40 @@ class ObjectSingulation
     obj_push_pub_.publish(obj_msg);
   }
 
+  unsigned int sampleScore(std::vector<double>& scores)
+  {
+    SampleList samples;
+    for (unsigned int i = 0; i < scores.size(); ++i)
+    {
+      if (scores[i] > 0.0)
+      {
+        PushSample p;
+        p.id = i;
+        p.weight = scores[i];
+        samples.push_back(p);
+      }
+    }
+    ROS_INFO_STREAM("Sampling from list of size: " << samples.size());
+
+    std::sort(samples.begin(), samples.end(), PushSample::compareSamples);
+
+    double running_cdf = 0.0;
+    for (int i = samples.size() - 1; i >= 0; --i)
+    {
+      running_cdf += samples[i].weight;
+      samples[i].cdf_weight = running_cdf;
+    }
+    for (unsigned int i = 0; i < samples.size(); ++i)
+    {
+      samples[i].cdf_weight /= running_cdf;
+      samples[i].weight /= running_cdf;
+    }
+
+    float cdf_goal = randf();
+    unsigned int idx = PushSample::cdfBinarySearch(samples, cdf_goal);
+    return samples[idx].id;
+  }
+
   //
   // I/O Methods
   //
@@ -2462,6 +2316,7 @@ class ObjectSingulation
   double max_push_angle_;
   double min_push_angle_;
   double boundary_ransac_thresh_;
+  int min_edge_length_;
 };
 
 class ObjectSingulationNode
@@ -2510,6 +2365,7 @@ class ObjectSingulationNode
     n_private_.param("min_pushing_angle", os_.min_push_angle_, -M_PI*0.5);
     n_private_.param("boundary_ransac_thresh", os_.boundary_ransac_thresh_,
                      0.01);
+    n_private_.param("min_edge_length", os_.min_edge_length_, 3);
 
     n_private_.param("min_table_z", pcl_segmenter_.min_table_z_, -0.5);
     n_private_.param("max_table_z", pcl_segmenter_.max_table_z_, 1.5);
@@ -2530,6 +2386,8 @@ class ObjectSingulationNode
                      cam_info_topic_def);
     n_private_.param("table_ransac_thresh", pcl_segmenter_.table_ransac_thresh_,
                      0.01);
+    n_private_.param("table_ransac_angle_thresh",
+                     pcl_segmenter_.table_ransac_angle_thresh_, 30.0);
 
     n_private_.param("surf_hessian_thresh", ft_.surf_.hessianThreshold,
                      150.0);

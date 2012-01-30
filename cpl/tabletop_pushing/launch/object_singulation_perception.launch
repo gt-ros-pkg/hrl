@@ -5,7 +5,7 @@
     <remap from="point_cloud_topic" to="/kinect_head/depth/points"/>
 
     <param name="display_wait_ms" value="3" type="int"/>
-    <param name="autostart_pcl_segmentation" value="false" type="bool"/>
+    <param name="autostart_pcl_segmentation" value="true" type="bool"/>
     <param name="use_guided_pushes" value="true" type="bool"/>
 
     <param name="crop_min_x" value="22" type="int"/>
@@ -33,6 +33,7 @@
     <param name="pcl_voxel_downsample_res" value="0.005" type="double"/>
     <param name="use_pcl_voxel_downsample" value="false" type="bool"/>
     <param name="table_ransac_thresh" value="0.015" type="double"/>
+    <param name="table_ransac_angle_thresh" value="5.0" type="double"/>
     <param name="pcl_difference_thresh" value="0.001" type="double"/>
 
     <param name="min_table_z" value="-1.0" type="double"/>
@@ -49,6 +50,7 @@
     <param name="depth_edge_weight" value="0.75" type="double"/>
 
     <param name="boundary_ransac_thresh" value="0.05" type="double"/>
+    <param name="min_edge_length" value="4" type="int"/>
 
     <!-- <param name="min_pushing_angle" value="-0.3" type="double"/> -->
     <!-- <param name="max_pushing_angle" value="0.3" type="double"/> -->
