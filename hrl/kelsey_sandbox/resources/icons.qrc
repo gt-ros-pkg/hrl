@@ -1,0 +1,21 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>arm_right_on.png</file>
+    <file>arm_right_off.png</file>
+    <file>arm_left_on.png</file>
+    <file>arm_left_off.png</file>
+    <file>roate_x_pos.png</file>
+    <file>roate_x_neg.png</file>
+    <file>translate_up.png</file>
+    <file>translate_right.png</file>
+    <file>translate_out.png</file>
+    <file>translate_left.png</file>
+    <file>translate_in.png</file>
+    <file>translate_down.png</file>
+    <file>rotate_y_neg.png</file>
+    <file>rotate_z_pos.png</file>
+    <file>rotate_z_neg.png</file>
+    <file>rotate_y_pos.png</file>
+    <file>empty.png</file>
+  </qresource>
+</RCC>
