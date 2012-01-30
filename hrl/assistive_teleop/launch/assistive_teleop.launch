@@ -138,12 +138,6 @@
     <!-- Launch Kinect with GT launch files (gt-ros-pkg)-->
     <!--<include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" /> -->
     
-    <!-- in-hand object modeling
-    <include file="$(find pr2_create_object_model)/launch/create_object_model_server.launch">
-        <arg name="stereo" value="$(arg stereo)"/>
-    </include>
-    -->
-
     <!--3d point from Pixel Node-->
     <node 
         pkg="pixel_2_3d"
