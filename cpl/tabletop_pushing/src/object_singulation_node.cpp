@@ -150,7 +150,7 @@ class Boundary : public std::vector<cv::Point>
   double external_prob;
   double internal_prob;
   std::vector<pcl::PointXYZ> points3D;
-  int object_id;
+  unsigned int object_id;
 };
 
 class ProtoTabletopObject
@@ -611,21 +611,17 @@ class PointCloudSegmentation
    *
    * @return Image containing the projected objects
    */
-  cv::Mat projectProtoObjectsIntoImage(ProtoObjects& objs, cv::Mat& img_in,
+  cv::Mat projectProtoObjectsIntoImage(ProtoObjects& objs, cv::Size img_size,
                                        std::string target_frame,
                                        cv::Mat& coord_img)
   {
-    cv::Mat obj_img(img_in.size(), CV_8UC1, cv::Scalar(0));
+    cv::Mat obj_img(img_size, CV_8UC1, cv::Scalar(0));
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       projectPointCloudIntoImage(objs[i].cloud, obj_img,
                                  cur_camera_header_.frame_id, coord_img, i+1);
                                  /*objs[i].id);*/
     }
-
-#ifdef DISPLAY_PROJECTED_OBJECTS
-    displayObjectImage(obj_img, objs);
-#endif // DISPLAY_PROJECTED_OBJECTS
 
     return obj_img;
   }
@@ -636,7 +632,8 @@ class PointCloudSegmentation
    * @param obj_img The projected objects image
    * @param objs The set of proto objects
    */
-  void displayObjectImage(cv::Mat& obj_img, ProtoObjects& objs)
+  void displayObjectImage(cv::Mat& obj_img, ProtoObjects& objs,
+                          std::string win_name="projected objects")
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     std::vector<cv::Vec3f> colors;
@@ -659,7 +656,7 @@ class PointCloudSegmentation
         }
       }
     }
-    cv::imshow("projected objects", obj_disp_img);
+    cv::imshow(win_name, obj_disp_img);
   }
 
   void projectPointCloudIntoImage(XYZPointCloud& cloud, cv::Mat& lbl_img,
@@ -828,7 +825,8 @@ typedef std::vector<PushSample> SampleList;
 class LinkEdges
 {
  public:
-  static std::vector<Boundary> edgeLink(cv::Mat& edge_img_raw, int min_length=1)
+  static std::vector<Boundary> edgeLink(cv::Mat& edge_img_raw,
+                                        unsigned int min_length=1)
   {
     // binarize image
     cv::Mat edge_img(edge_img_raw.size(), CV_8UC1, cv::Scalar(0));
@@ -1152,9 +1150,9 @@ class ObjectSingulation
    *
    * @return The location and orientation to push
    */
-  PushVector getPushVector(double push_dist,
-                           cv::Mat& color_img, cv::Mat& depth_img,
-                           XYZPointCloud& cloud, cv::Mat& workspace_mask)
+  PushVector getPushVector(double push_dist, cv::Mat& color_img,
+                           cv::Mat& depth_img, XYZPointCloud& cloud,
+                           cv::Mat& workspace_mask)
   {
     ProtoObjects objs = calcProtoObjects(cloud);
     prev_proto_objs_ = cur_proto_objs_;
@@ -1280,13 +1278,21 @@ class ObjectSingulation
   {
     cv::Mat obj_coords(boundary_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
-        objs, boundary_img, workspace_frame_, obj_coords);
+        objs, boundary_img.size(), workspace_frame_, obj_coords);
+#ifdef DISPLAY_PROJECTED_OBJECTS
+    pcl_segmenter_->displayObjectImage(obj_lbl_img, objs);
+#endif // DISPLAY_PROJECTED_OBJECTS
+
     get3DBoundaries(boundaries, obj_coords);
-    // draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
+
+#ifdef DISPLAY_LINKED_EDGES
+    draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
+#endif // DISPLAY_LINKED_EDGES
+
     associate3DBoundaries(boundaries, objs, obj_lbl_img);
 
-    Boundary test_boundary = chooseTestBoundary(boundary_img, obj_lbl_img, objs,
-                                                boundaries);
+    Boundary test_boundary = chooseTestBoundary(boundaries, objs, obj_lbl_img);
+
     if (test_boundary.object_id == objs.size())
     {
       PushVector push_pose;
@@ -1294,6 +1300,40 @@ class ObjectSingulation
     }
     return determinePushVector(push_dist, test_boundary, objs, obj_lbl_img,
                                obj_coords);
+  }
+
+  /**
+   * Determine how the robot should push to disambiguate the given boundary
+   * hypotheses
+   *
+   * @param hypo_img The image containing the boundary hypothesis
+   * @param objs The set of objects
+   * @param obj_img The objects projected into the image frame
+   *
+   * @return The push command
+   */
+  PushVector determinePushVector(double push_dist, Boundary& boundary,
+                                 ProtoObjects& objs, cv::Mat& obj_lbl_img,
+                                 cv::Mat& obj_coords)
+  {
+#ifdef DISPLAY_PROJECTED_OBJECTS
+    displayBoundaryImage(obj_lbl_img, boundary, "chosen", true);
+#endif // DISPLAY_PROJECTED_OBJECTS
+
+    // Split point cloud at location of the boundary
+    ProtoObjects split_objs3D = splitObject3D(boundary, objs[boundary.
+                                                             object_id]);
+    cv::Mat split_img = pcl_segmenter_->projectProtoObjectsIntoImage(
+        split_objs3D, obj_lbl_img.size(), workspace_frame_, obj_coords);
+    pcl_segmenter_->displayObjectImage(split_img, split_objs3D, "3D Split");
+
+    // TODO: Generalize to more than 2 object splits
+    PushVector push_pose = getPushDirection(push_dist, split_objs3D[0],
+                                            split_objs3D[1], objs,
+                                            boundary.object_id,
+                                            obj_lbl_img);
+    push_pose.header.frame_id = workspace_frame_;
+    return push_pose;
   }
 
   /**
@@ -1418,7 +1458,7 @@ class ObjectSingulation
 
   // TODO: Determine which boundaries belong to which objects
   // TODO: Need to match previous and current boundaries
-  void associate3DBoundaries(std::vector<Boundary> boundaries,
+  void associate3DBoundaries(std::vector<Boundary>& boundaries,
                              ProtoObjects& objs, cv::Mat& obj_lbl_img)
   {
     int no_overlap_count = 0;
@@ -1435,7 +1475,7 @@ class ObjectSingulation
         }
       }
       int max_overlap = 0;
-      int max_id = objs.size();
+      unsigned int max_id = objs.size();
       for (unsigned int o = 0; o < objs.size(); ++o)
       {
         if (obj_overlaps[o] > max_overlap)
@@ -1447,6 +1487,7 @@ class ObjectSingulation
       if (max_id == objs.size())
       {
         ROS_DEBUG_STREAM("No overlap for boundary: " << b);
+        boundaries[b].object_id = objs.size();
         no_overlap_count++;
       }
       else
@@ -1455,13 +1496,62 @@ class ObjectSingulation
         objs[max_id].boundaries.push_back(boundaries[b]);
       }
     }
+    ROS_DEBUG_STREAM("No overlap for: " << no_overlap_count << " of " <<
+                     boundaries.size() << " boundaries");
   }
 
-  // TODO: Get plane best containing the 3D curve
-  Eigen::Vector3f planeRANSAC(Boundary& b)
+  // Get plane best containing the 3D curve
+  Eigen::Vector4f planeRANSAC(Boundary& b)
   {
-    Eigen::Vector3f unit_norm;
-    return unit_norm;
+    XYZPointCloud cloud;
+    cloud.resize(b.points3D.size());
+    for (unsigned int i = 0; i < b.points3D.size(); ++i)
+    {
+      cloud.at(i) = b.points3D[i];
+    }
+    if (b.points3D.size() <= 3)
+    {
+      Eigen::Vector4f unit_norm;
+      ROS_WARN_STREAM("Plane has 3 or fewer points.");
+      if (b.points3D.size() == 3)
+      {
+        // TODO: Get exact plane from points
+        ROS_WARN_STREAM("Plane has exactly 3 points.");
+      }
+      if (b.points3D.size() == 2)
+      {
+        ROS_WARN_STREAM("Will get plane running through line and origin.");
+      } else if (b.points3D.size() > 0)
+      {
+        ROS_WARN_STREAM("Will get plane running through point and z-axis.");
+      }
+      else
+      {
+        ROS_WARN_STREAM("No 3D points");
+      }
+      return unit_norm;
+    }
+
+    pcl::ModelCoefficients coefficients;
+    pcl::PointIndices plane_inliers;
+    pcl::SACSegmentation<pcl::PointXYZ> plane_seg;
+    plane_seg.setOptimizeCoefficients (true);
+    plane_seg.setModelType(pcl::SACMODEL_PLANE);
+    plane_seg.setMethodType(pcl::SAC_RANSAC);
+    plane_seg.setDistanceThreshold(boundary_ransac_thresh_);
+    plane_seg.setInputCloud(cloud.makeShared());
+    plane_seg.segment(plane_inliers, coefficients);
+    ROS_DEBUG_STREAM("Plane Hessian Normal Form: (" << coefficients.values[0] <<
+                     ", " << coefficients.values[1] << ", " <<
+                     coefficients.values[2] << ", " << coefficients.values[3] <<
+                     ")");
+
+    Eigen::Vector4f hessian;
+    hessian[0] = coefficients.values[0];
+    hessian[1] = coefficients.values[1];
+    hessian[2] = coefficients.values[2];
+    hessian[3] = coefficients.values[3];
+    return hessian;
   }
 
   /**
@@ -1632,7 +1722,7 @@ class ObjectSingulation
                               std::vector<Boundary>& boundaries)
   {
     // TODO: Choose from the passed in boundaries, not the newly found ones
-    int test_idx = objs.size();
+    unsigned int test_idx = objs.size();
     double max_score = 0.0;
     std::vector<Boundary> fake_boundaries;
     for (unsigned int i = 0; i < objs.size(); ++i)
@@ -1658,38 +1748,26 @@ class ObjectSingulation
     return fake_boundaries[test_idx];
   }
 
-  /**
-   * Determine how the robot should push to disambiguate the given boundary
-   * hypotheses
-   *
-   * @param hypo_img The image containing the boundary hypothesis
-   * @param objs The set of objects
-   * @param obj_img The objects projected into the image frame
-   *
-   * @return The push command
-   */
-  PushVector determinePushVector(double push_dist, Boundary& boundary,
-                                 ProtoObjects& objs, cv::Mat& obj_lbl_img,
-                                 cv::Mat& obj_coords)
+  // TODO: Setup 3D boundary stuff, use actual cues and what not
+  Boundary chooseTestBoundary(std::vector<Boundary>& boundaries,
+                              ProtoObjects& objs, cv::Mat& obj_img)
   {
-#ifdef DISPLAY_PROJECTED_OBJECTS
-    displayBoundaryImage(obj_lbl_img, boundary, "chosen", true);
-#endif // DISPLAY_PROJECTED_OBJECTS
-
-    // TODO: Get this to use the boundary 3D information
-    // Split point cloud at location of the boundary
-    ProtoObjects split_objs = splitObject(obj_lbl_img, boundary, obj_coords,
-                                          boundary.object_id);
-
-    // TODO: Generalize to more than 2 object splits
-    PushVector push_pose = getPushDirection(push_dist, split_objs[0],
-                                            split_objs[1], objs,
-                                            boundary.object_id,
-                                            obj_lbl_img);
-    push_pose.header.frame_id = workspace_frame_;
-    return push_pose;
+    unsigned int max_length = 0;
+    unsigned int max_id = boundaries.size();
+    for (unsigned int i = 0; i < boundaries.size(); ++i)
+    {
+      if (boundaries[i].object_id >= objs.size())
+      {
+        continue;
+      }
+      if (boundaries[i].points3D.size() > max_length)
+      {
+        max_length = boundaries[i].points3D.size();
+        max_id = i;
+      }
+    }
+    return boundaries[max_id];
   }
-
 
   /**
    * Determine the best direction to push given the current set of objects and
@@ -1810,16 +1888,59 @@ class ObjectSingulation
     return min_clearance;
   }
 
-  // TODO: Find the plane containing the most boundary points and split based on
-  // that
   ProtoObjects splitObject3D(Boundary& boundary, ProtoTabletopObject& to_split)
   {
     // Get plane containing the boundary
-    Eigen::Vector3f norm = planeRANSAC(boundary);
-    // TODO: Split the point clouds based on the plane normal
+    Eigen::Vector4f hessian = planeRANSAC(boundary);
+    // Split based on the plane
+    return splitObject3D(hessian, to_split);
+  }
+
+  ProtoObjects splitObject3D(Eigen::Vector4f& hessian,
+                             ProtoTabletopObject& to_split)
+  {
+    const float denom = std::sqrt(hessian[0]*hessian[0] + hessian[1]*hessian[1]
+                                  + hessian[2]*hessian[2]);
+    const Eigen::Vector3f norm(hessian[0]/denom, hessian[1]/denom,
+                               hessian[2]/denom);
+    const float p = hessian[3]/denom;
+
+    // Split the point clouds based on the half plane distance test
+    pcl::PointIndices p1;
+    pcl::PointIndices p2;
+    for (int i = 0; i < to_split.cloud.size(); ++i)
+    {
+      const pcl::PointXYZ x = to_split.cloud.at(i);
+      const float d = norm[0]*x.x + norm[1]*x.y + norm[2]*x.z + p;
+      if (d > 0)
+      {
+        p1.indices.push_back(i);
+      }
+      else
+      {
+        p2.indices.push_back(i);
+      }
+    }
+    ROS_INFO_STREAM("split3D: P1 has " << p1.indices.size() << " points");
+    ROS_INFO_STREAM("split3D: P2 has " << p2.indices.size() << " points");
+    // Extract indices
     ProtoObjects split;
     ProtoTabletopObject po1;
     ProtoTabletopObject po2;
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    pcl::PointIndices plane_outliers;
+    extract.setInputCloud(to_split.cloud.makeShared());
+    extract.setIndices(boost::make_shared<pcl::PointIndices>(p1));
+    extract.filter(po1.cloud);
+    extract.setNegative(true);
+    extract.filter(po2.cloud);
+    split.push_back(po1);
+    split.push_back(po2);
+    for (unsigned int i = 0; i < split.size(); ++i)
+    {
+      pcl::compute3DCentroid(split[i].cloud, split[i].centroid);
+    }
+
     return split;
   }
 
@@ -2340,6 +2461,7 @@ class ObjectSingulation
   double depth_edge_weight_thresh_;
   double max_push_angle_;
   double min_push_angle_;
+  double boundary_ransac_thresh_;
 };
 
 class ObjectSingulationNode
@@ -2386,6 +2508,8 @@ class ObjectSingulationNode
     n_private_.param("depth_edge_weight", os_.depth_edge_weight_, 0.75);
     n_private_.param("max_pushing_angle", os_.max_push_angle_, M_PI*0.5);
     n_private_.param("min_pushing_angle", os_.min_push_angle_, -M_PI*0.5);
+    n_private_.param("boundary_ransac_thresh", os_.boundary_ransac_thresh_,
+                     0.01);
 
     n_private_.param("min_table_z", pcl_segmenter_.min_table_z_, -0.5);
     n_private_.param("max_table_z", pcl_segmenter_.max_table_z_, 1.5);
