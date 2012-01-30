@@ -122,6 +122,7 @@
 #define DISPLAY_OBJECT_BOUNDARIES 1
 #define DISPLAY_PROJECTED_OBJECTS 1
 #define DISPLAY_OBJECT_SPLITS 1
+#define DISPLAY_LINKED_EDGES 1
 #define DISPLAY_WAIT 3
 
 #define randf() static_cast<float>(rand())/RAND_MAX
@@ -874,7 +875,7 @@ class LinkEdges
     edge_img_f = -1*edge_img_f;
 
 #ifdef DISPLAY_LINKED_EDGES
-    ROS_INFO_STREAM("Found " << edges.size() << " edges ");
+    ROS_DEBUG_STREAM("Found " << edges.size() << " edges ");
     cv::Mat edge_disp_img(edge_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     for (unsigned int i = 0; i < edges.size(); ++i)
     {
@@ -1284,18 +1285,15 @@ class ObjectSingulation
     // draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
     associate3DBoundaries(boundaries, objs, obj_lbl_img);
 
-    // TODO: Get this to use the new types of boundaries
-    unsigned int test_idx = objs.size();
     Boundary test_boundary = chooseTestBoundary(boundary_img, obj_lbl_img, objs,
-                                                test_idx, boundaries);
-    if (test_idx == objs.size())
+                                                boundaries);
+    if (test_boundary.object_id == objs.size())
     {
       PushVector push_pose;
       return push_pose;
     }
-    // TODO: Get this to use the new types of boundaries (for splitting)
     return determinePushVector(push_dist, test_boundary, objs, obj_lbl_img,
-                               obj_coords, test_idx);
+                               obj_coords);
   }
 
   /**
@@ -1394,9 +1392,6 @@ class ObjectSingulation
     std::vector<Boundary> boundaries = LinkEdges::edgeLink(combined_edges);
     // TODO: Hypothesize boundary likelihoods with learned function from a
     // combination of cues
-#ifdef DISPLAY_OBJECT_BOUNDARIES
-    cv::imshow("Edge estimates", combined_edges);
-#endif // DISPLAY_OBJECT_BOUNDARIES
 
     return boundaries;
   }
@@ -1629,23 +1624,25 @@ class ObjectSingulation
    * @param boundary_img The image of object boundaries
    * @param obj_img The image of object locations
    * @param objs The set of objects
-   * @param test_idx The index of the selected object to push (returned)
    *
    * @return The boundary to test
    */
   Boundary chooseTestBoundary(cv::Mat& boundary_img, cv::Mat& obj_img,
-                              ProtoObjects objs, unsigned int& test_idx,
+                              ProtoObjects& objs,
                               std::vector<Boundary>& boundaries)
   {
+    // TODO: Choose from the passed in boundaries, not the newly found ones
+    int test_idx = objs.size();
     double max_score = 0.0;
-    std::vector<Boundary> boundaries;
+    std::vector<Boundary> fake_boundaries;
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       cv::Mat obj_bound_img = associateInternalObjectBoundaries(boundary_img,
                                                                 obj_img, i);
       double score = 0.0;
       Boundary test_boundary = determineTestBoundary(obj_bound_img, score);
-      boundaries.push_back(test_boundary);
+      test_boundary.object_id = i;
+      fake_boundaries.push_back(test_boundary);
       if (score > max_score)
       {
         max_score = score;
@@ -1655,9 +1652,10 @@ class ObjectSingulation
     if (test_idx == objs.size())
     {
       Boundary no_boundary;
+      no_boundary.object_id = test_idx;
       return no_boundary;
     }
-    return boundaries[test_idx];
+    return fake_boundaries[test_idx];
   }
 
   /**
@@ -1672,19 +1670,21 @@ class ObjectSingulation
    */
   PushVector determinePushVector(double push_dist, Boundary& boundary,
                                  ProtoObjects& objs, cv::Mat& obj_lbl_img,
-                                 cv::Mat& obj_coords, unsigned int id)
+                                 cv::Mat& obj_coords)
   {
 #ifdef DISPLAY_PROJECTED_OBJECTS
     displayBoundaryImage(obj_lbl_img, boundary, "chosen", true);
 #endif // DISPLAY_PROJECTED_OBJECTS
 
+    // TODO: Get this to use the boundary 3D information
     // Split point cloud at location of the boundary
     ProtoObjects split_objs = splitObject(obj_lbl_img, boundary, obj_coords,
-                                          id);
+                                          boundary.object_id);
 
     // TODO: Generalize to more than 2 object splits
     PushVector push_pose = getPushDirection(push_dist, split_objs[0],
-                                            split_objs[1], objs, id,
+                                            split_objs[1], objs,
+                                            boundary.object_id,
                                             obj_lbl_img);
     push_pose.header.frame_id = workspace_frame_;
     return push_pose;
@@ -1812,10 +1812,16 @@ class ObjectSingulation
 
   // TODO: Find the plane containing the most boundary points and split based on
   // that
-  // ProtoObjects splitObject3D(cv::Mat& obj_lbl_img, Boundary& boundary,
-  //                            cv::Mat& obj_coords, unsigned int id)
-  // {
-  // }
+  ProtoObjects splitObject3D(Boundary& boundary, ProtoTabletopObject& to_split)
+  {
+    // Get plane containing the boundary
+    Eigen::Vector3f norm = planeRANSAC(boundary);
+    // TODO: Split the point clouds based on the plane normal
+    ProtoObjects split;
+    ProtoTabletopObject po1;
+    ProtoTabletopObject po2;
+    return split;
+  }
 
 
   /**
