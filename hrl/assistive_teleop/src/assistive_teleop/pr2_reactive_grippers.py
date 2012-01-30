@@ -25,7 +25,7 @@ class PR2Gripper():
                                 self.arm[0]+'_gripper_sensor_controller/grab',
                                 PR2GripperGrabAction)
         rospy.loginfo("Waiting for "+self.arm+" gripper grab server")
-        if self.grab_ac.wait_for_server(rospy.Duration(30)):
+        if self.grab_ac.wait_for_server(rospy.Duration(1)):
             rospy.loginfo("Found " + self.arm + " gripper grab  server")
         else:
             rospy.logwarn("Cannot find " + self.arm + " gripper grab server")
@@ -36,7 +36,7 @@ class PR2Gripper():
                             self.arm[0]+'_gripper_sensor_controller/release',
                             PR2GripperReleaseAction)
         rospy.loginfo("Waiting for "+self.arm+" gripper release server")
-        if self.grab_ac.wait_for_server(rospy.Duration(30)):
+        if self.release_ac.wait_for_server(rospy.Duration(1)):
             rospy.loginfo("Found "+self.arm+" gripper release server")
         else:
             rospy.logwarn("Cannot find "+self.arm+" gripper release server")
@@ -47,7 +47,7 @@ class PR2Gripper():
                                 '_gripper_sensor_controller/gripper_action',
                                 Pr2GripperCommandAction)
         rospy.loginfo("Waiting for "+self.arm+" gripper action server")
-        if self.gripper_action_ac.wait_for_server(rospy.Duration(30)):
+        if self.gripper_action_ac.wait_for_server(rospy.Duration(1)):
             rospy.loginfo("Found "+self.arm+" gripper action server")
         else:
             rospy.logwarn("Cannot find "+self.arm+" gripper action server")
@@ -55,7 +55,7 @@ class PR2Gripper():
 
         if not (self.grab_ac and self.release_ac and self.gripper_action_ac):
             self.def_gripper_ac = actionlib.SimpleActionClient(
-                             self.arm[0]+"_gripper_controller/gripper_action/",
+                             self.arm[0]+"_gripper_controller/gripper_action",
                              Pr2GripperCommandAction)
             if self.def_gripper_ac.wait_for_server(rospy.Duration(30)):
                 rospy.loginfo("Found default "+self.arm+"_gripper action")
@@ -92,7 +92,8 @@ class PR2Gripper():
                 return self.release_ac.wait_for_result(
                                                 rospy.Duration(block_timeout))
         else:
-            self.def_gripper_ac.send_goal(Pr2GripperCommand(0.09, -1.0))
+            self.def_gripper_ac.send_goal(Pr2GripperCommandGoal(
+                                            Pr2GripperCommand(0.09, -1.0)))
             if blocking:
                 return self.def_gripper_ac.wait_for_result(
                                                 rospy.Duration(block_timeout))
@@ -103,10 +104,10 @@ class PR2Gripper():
         print "Performing Gripper Action"
         if self.gripper_action_ac:    
             command = Pr2GripperCommand(position, max_effort)
-             goal = Pr2GripperCommandGoal(command)
-             self.gripper_action_ac.send_goal(goal)
-             if blocking:
-                 return self.gripper_action_ac.wait_for_result(
+            goal = Pr2GripperCommandGoal(command)
+            self.gripper_action_ac.send_goal(goal)
+            if blocking:
+                return self.gripper_action_ac.wait_for_result(
                                                 rospy.Duration(block_timeout))
         else:
             self.def_gripper_ac.send_goal(Pr2GripperCommand(position,
