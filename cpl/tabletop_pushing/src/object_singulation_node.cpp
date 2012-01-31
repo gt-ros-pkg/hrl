@@ -172,6 +172,14 @@ class PointCloudSegmentation
   PointCloudSegmentation(FeatureTracker* ft, tf::TransformListener * tf) :
       ft_(ft), tf_(tf)
   {
+    for (int i = 0; i < 200; ++i)
+    {
+      cv::Vec3f rand_color;
+      rand_color[0] = randf();
+      rand_color[1] = randf();
+      rand_color[2] = randf();
+      colors_.push_back(rand_color);
+    }
   }
 
   /**
@@ -639,15 +647,6 @@ class PointCloudSegmentation
                           std::string win_name="projected objects")
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
-    std::vector<cv::Vec3f> colors;
-    for (unsigned int i = 0; i < objs.size(); ++i)
-    {
-      cv::Vec3f rand_color;
-      rand_color[0] = randf();
-      rand_color[1] = randf();
-      rand_color[2] = randf();
-      colors.push_back(rand_color);
-    }
     for (int r = 0; r < obj_img.rows; ++r)
     {
       for (int c = 0; c < obj_img.cols; ++c)
@@ -655,7 +654,7 @@ class PointCloudSegmentation
         unsigned int id = obj_img.at<uchar>(r,c);
         if (id > 0)
         {
-          obj_disp_img.at<cv::Vec3f>(r,c) = colors[id-1];
+          obj_disp_img.at<cv::Vec3f>(r,c) = colors_[id-1];
         }
       }
     }
@@ -733,6 +732,7 @@ class PointCloudSegmentation
   FeatureTracker* ft_;
   tf::TransformListener* tf_;
   Eigen::Vector4f table_centroid_;
+  std::vector<cv::Vec3f> colors_;
 
  public:
   double min_table_z_;
@@ -1570,7 +1570,7 @@ class ObjectSingulation
       {
         continue;
       }
-      // TODO: Currently choose on ratio of sizes
+      // NOTE: Currently choose on ratio of split object sizes
       // TODO: Should use estimated internal and external likelihoods
       ProtoObjects split = splitObject3D(boundaries[i],
                                          objs[boundaries[i].object_id]);
@@ -2248,7 +2248,7 @@ class ObjectSingulation
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     std::vector<cv::Vec3f> colors;
-    for (unsigned int i = 0; i < objs_size; ++i)
+    for (int i = 0; i < objs_size; ++i)
     {
       cv::Vec3f rand_color;
       rand_color[0] = randf();
@@ -2256,6 +2256,7 @@ class ObjectSingulation
       rand_color[2] = randf();
       colors.push_back(rand_color);
     }
+
     for (int r = 0; r < obj_img.rows; ++r)
     {
       for (int c = 0; c < obj_img.cols; ++c)
