@@ -1,10 +1,23 @@
 #! /usr/bin/python
 
+# TODO TODO TODO
+# Saving an internal equilibrium point is dangerous.  If another application
+# uses the controller, the internal state of this controller will not be updated
+# causing potentially high velocity actions since this controller does not know
+# where the EP actually is.  Every low-level controller should publish its current
+# EP.  The JT controller does and this code has been modified to that effect.
+# The joint trajectory controller does not and this is a significant issue.
+#
+# Um, never mind...
+
 import copy
 import numpy as np
+from threading import Lock
+
 import roslib
 roslib.load_manifest('hrl_pr2_arms')
 roslib.load_manifest('object_manipulation_msgs')
+
 import rospy
 import actionlib
 
@@ -38,25 +51,30 @@ class PR2Arm(HRLArm):
             controller_name = controller_name % arm
         self.controller_name = controller_name
 
-        rospy.Subscriber('joint_states', JointState, self.joint_state_cb)
-
         self.joint_names_list = []
         for s in JOINT_NAMES_LIST:
             self.joint_names_list.append(arm + s)
         self.joint_state_inds = None
         self.joint_angles = None
         self.joint_efforts = None
-        if js_timeout > 0:
-            self.wait_for_joint_angles(js_timeout)
-            self.reset_ep()
-            
+
+        self.ctrl_state_lock = Lock()
+        self.ctrl_state_dict = None
+
+        rospy.Subscriber('joint_states', JointState, self._joint_state_cb)
+
+        # TODO Remove timeout stuff.
+        #if js_timeout > 0:
+        #    self.wait_for_joint_angles(js_timeout)
+        #    self.reset_ep()
 
     ##
     # Joint angles listener callback
-    def joint_state_cb(self, msg):
+    def _joint_state_cb(self, msg):
         with self.lock:
             if self.joint_state_inds is None:
-                self.joint_state_inds = [msg.name.index(joint_name) for joint_name in self.joint_names_list]
+                self.joint_state_inds = [msg.name.index(joint_name) for 
+                                         joint_name in self.joint_names_list]
             self.joint_angles = [msg.position[i] for i in self.joint_state_inds]
             self.joint_efforts = [msg.effort[i] for i in self.joint_state_inds]
 
@@ -73,6 +91,14 @@ class PR2Arm(HRLArm):
                 return self.wrap_angles(self.joint_angles)
             else:
                 return np.array(self.joint_angles)
+
+    def get_controller_state(self):
+        with self.ctrl_state_lock:
+            if self.ctrl_state_dict is None:
+                rospy.logerror("[pr2_arm_base] get_controller_state NOT IMPLEMENTED!")
+            elif len(self.ctrl_state_dict) == 0:
+                rospy.logwarn("[pr2_arm_base] Controller state not yet published.")
+            return self.ctrl_state_dict
 
     ##
     # Wait until we have found the current joint angles.
@@ -145,9 +171,28 @@ class PR2ArmJointTrajectory(PR2Arm):
     def __init__(self, arm, kinematics, controller_name='/%s_arm_controller', js_timeout=5.):
         super(PR2ArmJointTrajectory, self).__init__(arm, kinematics, controller_name, js_timeout)
         self.joint_action_client = actionlib.SimpleActionClient(
-                                       self.controller_name + '/joint_trajectory_action',
+                                       controller_name + '/joint_trajectory_action',
                                        JointTrajectoryAction)
 
+        self.ctrl_state_dict = {}
+        rospy.Subscriber(controller_name + '/state', JointTrajectoryControllerState, 
+                         self._ctrl_state_cb)
+
+    def _ctrl_state_cb(self, ctrl_state):
+        with self.lock:
+            self.ep = np.array(ctrl_state.desired.positions)
+        with self.ctrl_state_lock:
+            self.ctrl_state_dict["frame"] = ctrl_state.header.frame_id
+            self.ctrl_state_dict["x_desi"] = np.array(ctrl_state.desired.positions)
+            self.ctrl_state_dict["xd_desi"] = np.array(ctrl_state.desired.velocities)
+            self.ctrl_state_dict["xdd_desi"] = np.array(ctrl_state.desired.accelerations)
+            self.ctrl_state_dict["x_act"] = np.array(ctrl_state.actual.positions)
+            self.ctrl_state_dict["xd_act"] = np.array(ctrl_state.actual.velocities)
+            self.ctrl_state_dict["xdd_act"] = np.array(ctrl_state.actual.accelerations)
+            self.ctrl_state_dict["x_err"] = np.array(ctrl_state.error.positions)
+            self.ctrl_state_dict["xd_err"] = np.array(ctrl_state.error.velocities)
+            self.ctrl_state_dict["xdd_err"] = np.array(ctrl_state.error.accelerations)
+            
     ##
     # Commands joint angles to a single position
     # @param jep List of 7 joint params to command the the arm to reach
@@ -164,25 +209,51 @@ class PR2ArmJointTrajectory(PR2Arm):
         jtp.time_from_start = rospy.Duration(duration)
         jtg.trajectory.points.append(jtp)
         self.joint_action_client.send_goal(jtg)
-        self.ep = copy.copy(jep)
 
     def interpolate_ep(self, ep_a, ep_b, t_vals):
         linspace_list = [[ep_a[i] + (ep_b[i] - ep_a[i]) * t for t in t_vals] for i in range(len(ep_a))]
         return np.dstack(linspace_list)[0]
 
     def reset_ep(self):
-        self.ep = self.get_joint_angles(False)
+        pass
+        #self.ep = self.get_joint_angles(False)
 
 class PR2ArmCartesianBase(PR2Arm):
     def __init__(self, arm, kinematics, controller_name='/%s_cart', js_timeout=5.):
         super(PR2ArmCartesianBase, self).__init__(arm, kinematics, controller_name, js_timeout)
         self.command_pose_pub = rospy.Publisher(self.controller_name + '/command_pose', PoseStamped)
 
+        self.ctrl_state_dict = {}
+        rospy.Subscriber(controller_name + '/state', JointTrajectoryControllerState, 
+                         self._ctrl_state_cb)
+
+    def _ctrl_state_cb(self, ctrl_state):
+        with self.lock:
+            self.ep = PoseConverter.to_pos_rot(ctrl_state.x_desi_filtered)
+        with self.ctrl_state_lock:
+            self.ctrl_state_dict["frame"] = ctrl_state.header.frame_id
+            self.ctrl_state_dict["x_desi"] = PoseConverter.to_pos_rot(ctrl_state.x_desi)
+            self.ctrl_state_dict["xd_desi"] = PoseConverter.to_pos_rot(ctrl_state.xd_desi)
+            self.ctrl_state_dict["x_act"] = PoseConverter.to_pos_rot(ctrl_state.x)
+            self.ctrl_state_dict["xd_act"] = PoseConverter.to_pos_rot(ctrl_state.xd)
+            self.ctrl_state_dict["x_desi_filt"] = PoseConverter.to_pos_rot(
+                                                                ctrl_state.x_desi_filtered)
+            self.ctrl_state_dict["x_err"] = PoseConverter.to_pos_rot(ctrl_state.x_err)
+            self.ctrl_state_dict["tau_pose"] = np.array(ctrl_state.tau_pose)
+            self.ctrl_state_dict["tau_posture"] = np.array(ctrl_state.tau_posture)
+            self.ctrl_state_dict["tau"] = np.array(ctrl_state.tau)
+            self.ctrl_state_dict["F"] = np.array([ctrl_state.F.force.x, 
+                                                  ctrl_state.F.force.y,
+                                                  ctrl_state.F.force.z,
+                                                  ctrl_state.F.torque.x,
+                                                  ctrl_state.F.torque.y,
+                                                  ctrl_state.F.torque.z]
+
     def set_ep(self, cep, duration, delay=0.0):
         cep_pose_stmp = PoseConverter.to_pose_stamped_msg('torso_lift_link', cep)
         cep_pose_stmp.header.stamp = rospy.Time.now()
         self.command_pose_pub.publish(cep_pose_stmp)
-        self.ep = copy.deepcopy(cep)
+        #self.ep = copy.deepcopy(cep)
 
     ##
     # Returns pairs of positions and rotations linearly interpolated between
@@ -206,7 +277,8 @@ class PR2ArmCartesianBase(PR2Arm):
         return zip(pos_waypoints, rot_waypoints)
 
     def reset_ep(self):
-        self.ep = self.kinematics.FK(self.get_joint_angles(False))
+        pass
+        #self.ep = self.kinematics.FK(self.get_joint_angles(False))
 
     def ep_error(self, ep_actual, ep_desired):
         pos_act, rot_act = ep_actual
