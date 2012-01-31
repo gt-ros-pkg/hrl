@@ -76,7 +76,7 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
-#include <pcl/surface/convex_hull.h>
+#include <pcl/surface/concave_hull.h>
 #include <pcl/registration/icp.h>
 
 // OpenCV
@@ -190,7 +190,8 @@ class PointCloudSegmentation
    * @return The centroid of the points belonging to the table plane.
    */
   Eigen::Vector4f getTablePlane(XYZPointCloud& cloud, XYZPointCloud& objs_cloud,
-                                XYZPointCloud& plane_cloud)
+                                XYZPointCloud& plane_cloud,
+                                bool find_concave_hull=false)
   {
     XYZPointCloud cloud_downsampled;
     if (use_voxel_down_)
@@ -226,26 +227,43 @@ class PointCloudSegmentation
     // Segment the tabletop from the points using RANSAC plane fitting
     pcl::ModelCoefficients coefficients;
     pcl::PointIndices plane_inliers;
+
     // Create the segmentation object
     pcl::SACSegmentation<pcl::PointXYZ> plane_seg;
-    plane_seg.setOptimizeCoefficients (true);
+    plane_seg.setOptimizeCoefficients(true);
     plane_seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
     plane_seg.setMethodType(pcl::SAC_RANSAC);
-    plane_seg.setDistanceThreshold (table_ransac_thresh_);
+    plane_seg.setDistanceThreshold(table_ransac_thresh_);
     plane_seg.setInputCloud(cloud_filtered.makeShared());
     plane_seg.segment(plane_inliers, coefficients);
     Eigen::Vector3f v(1.0,1.0,0.0);
     plane_seg.setAxis(v);
     plane_seg.setEpsAngle(table_ransac_angle_thresh_);
     pcl::copyPointCloud(cloud_filtered, plane_inliers, plane_cloud);
+
     // Extract the outliers from the point clouds
     pcl::ExtractIndices<pcl::PointXYZ> extract;
-    XYZPointCloud objects_cloud;
     pcl::PointIndices plane_outliers;
     extract.setInputCloud(cloud_filtered.makeShared());
     extract.setIndices(boost::make_shared<pcl::PointIndices>(plane_inliers));
     extract.setNegative(true);
     extract.filter(objs_cloud);
+
+    // Estimate hull from the inlier points
+    if (find_concave_hull)
+    {
+      ROS_INFO_STREAM("finding concave hull. Plane size: " <<
+                      plane_cloud.size());
+      XYZPointCloud hull_cloud;
+      pcl::ConcaveHull<pcl::PointXYZ> hull;
+      hull.setInputCloud(plane_cloud.makeShared());
+      hull.setAlpha(hull_alpha_);
+      hull.reconstruct(hull_cloud);
+      ROS_INFO_STREAM("hull_cloud.size() " << hull_cloud.size());
+      // TODO: Return the hull_cloud
+      // TODO: Figure out if stuff is inside the hull
+    }
+
     // Extract the plane members into their own point cloud
     Eigen::Vector4f table_centroid;
     pcl::compute3DCentroid(plane_cloud, table_centroid);
@@ -303,7 +321,8 @@ class PointCloudSegmentation
                                    bool publish_cloud=false)
   {
     // Get table plane
-    table_centroid_ = getTablePlane(input_cloud, objs_cloud, plane_cloud);
+    table_centroid_ = getTablePlane(input_cloud, objs_cloud, plane_cloud,
+                                    false);
     min_workspace_z_ = table_centroid_[2];
 
     XYZPointCloud objects_cloud_down = downsampleCloud(objs_cloud);
@@ -748,12 +767,14 @@ class PointCloudSegmentation
   int min_cluster_size_;
   int max_cluster_size_;
   double voxel_down_res_;
+  double hull_alpha_;
   bool use_voxel_down_;
   ros::Publisher pcl_obj_seg_pub_;
   ros::Publisher pcl_down_pub_;
   int num_downsamples_;
   sensor_msgs::CameraInfo cam_info_;
   std_msgs::Header cur_camera_header_;
+  // XYZPointCloud concave_hull_;
 };
 
 class PushOpt
@@ -1614,9 +1635,9 @@ class ObjectSingulation
     const Eigen::Vector3f x_axis(1, 0, 0);
     const Eigen::Vector3f split_norm = split_diff3.cross(z_axis);
     const Eigen::Vector3f push_vec_pos = split_norm/split_norm.norm();
-    const Eigen::Vector3f push_vec_neg = split_norm/split_norm.norm();
-    const double push_angle_pos = std::acos(x_axis.dot(push_vec_pos));
-    const double push_angle_neg = push_angle_pos - M_PI;
+    const Eigen::Vector3f push_vec_neg = -split_norm/split_norm.norm();
+    const double push_angle_pos = std::atan2(push_vec_pos[1], push_vec_pos[0]);
+    const double push_angle_neg = std::atan2(push_vec_neg[1], push_vec_neg[0]);
     // Find the highest clearance push from the four possible combinations of
     // split object and angles
     std::vector<PushOpt> split_opts;
@@ -1632,6 +1653,8 @@ class ObjectSingulation
     unsigned int max_id = split_opts.size();
     for (unsigned int i = 0; i < split_opts.size(); ++i)
     {
+      if (split_opts[i].push_angle < min_push_angle_ ||
+          split_opts[i].push_angle > max_push_angle_) continue;
       const double clearance = getSplitPushClearance(split_opts[i], objs);
       if (clearance > max_clearance)
       {
@@ -1642,6 +1665,7 @@ class ObjectSingulation
     if (max_id == split_opts.size())
     {
       // NOTE: Nothing found
+      ROS_WARN_STREAM("No object push found!");
       PushVector push;
       push.start_point.x = 0.0;
       push.start_point.y = 0.0;
@@ -1654,6 +1678,10 @@ class ObjectSingulation
     push.start_point.y = split_opts[max_id].obj.centroid[1];
     push.start_point.z = split_opts[max_id].obj.centroid[2];
     push.push_angle = split_opts[max_id].push_angle;
+    ROS_INFO_STREAM("Determined push angle is: " <<
+                    split_opts[max_id].push_angle);
+    ROS_INFO_STREAM("Push limist are: (" << min_push_angle_ << ", " <<
+                    max_push_angle_ << ")");
 
 #ifdef DISPLAY_PROJECTED_OBJECTS
 
@@ -1665,6 +1693,9 @@ class ObjectSingulation
     end_point.point.x = moved_cent[0];
     end_point.point.y = moved_cent[1];
     end_point.point.z = moved_cent[2];
+    // end_point.point.x = push.start_point.x - 0.1;
+    // end_point.point.y = push.start_point.y;
+    // end_point.point.z = push.start_point.z;
     end_point.header.frame_id = workspace_frame_;
 
     cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(start_point);
@@ -1674,6 +1705,7 @@ class ObjectSingulation
     lbl_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
     cv::cvtColor(obj_img_f, disp_img, CV_GRAY2BGR);
     cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,0,1.0));
+    cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,1.0,0));
     cv::imshow("push_vector", disp_img);
 #endif // DISPLAY_PROJECTED_OBJECTS
 
@@ -1690,6 +1722,7 @@ class ObjectSingulation
    */
   double getSplitPushClearance(PushOpt& split, ProtoObjects& objs)
   {
+    // TODO: Check angle stuff
     double min_clearance = FLT_MAX;
     const Eigen::Vector4f moved_cent = split.getMovedCentroid();
     for (unsigned int i = 0; i < objs.size(); ++i)
@@ -2403,8 +2436,11 @@ class ObjectSingulationNode
                      2500);
     n_private_.param("pcl_voxel_downsample_res", pcl_segmenter_.voxel_down_res_,
                      0.005);
+    n_private_.param("pcl_concave_hull_alpha", pcl_segmenter_.hull_alpha_,
+                     0.1);
     n_private_.param("use_pcl_voxel_downsample", pcl_segmenter_.use_voxel_down_,
                      true);
+    n_private_.param("default_push_dist", default_push_dist_, 0.1);
 
     // Setup ros node connections
     sync_.registerCallback(&ObjectSingulationNode::sensorCallback,
@@ -2504,7 +2540,8 @@ class ObjectSingulationNode
     pcl_segmenter_.cur_camera_header_ = cur_camera_header_;
 
     // Debug stuff
-    if (autorun_pcl_segmentation_) getPushPose(use_guided_pushes_);
+    if (autorun_pcl_segmentation_) getPushPose(default_push_dist_,
+                                               use_guided_pushes_);
 
     // Display junk
 #ifdef DISPLAY_INPUT_COLOR
@@ -2614,9 +2651,11 @@ class ObjectSingulationNode
   PoseStamped getTablePlane(XYZPointCloud& cloud)
   {
     XYZPointCloud obj_cloud, table_cloud;
+    // TODO: Comptue the hull on the first call
     Eigen::Vector4f table_centroid = pcl_segmenter_.getTablePlane(cloud,
                                                                   obj_cloud,
-                                                                  table_cloud);
+                                                                  table_cloud/*,
+                                                                  true*/);
     PoseStamped p;
     p.pose.position.x = table_centroid[0];
     p.pose.position.y = table_centroid[1];
@@ -2739,6 +2778,7 @@ class ObjectSingulationNode
   int tracker_count_;
   bool autorun_pcl_segmentation_;
   bool use_guided_pushes_;
+  double default_push_dist_;
 };
 
 int main(int argc, char ** argv)
