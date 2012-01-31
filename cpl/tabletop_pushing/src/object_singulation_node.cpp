@@ -123,7 +123,8 @@
 #define DISPLAY_PROJECTED_OBJECTS 1
 #define DISPLAY_OBJECT_SPLITS 1
 #define DISPLAY_LINKED_EDGES 1
-#define DISPLAY_WAIT 3
+#define DISPLAY_CLOUD_DIFF 1
+#define DISPLAY_WAIT 1
 
 #define randf() static_cast<float>(rand())/RAND_MAX
 
@@ -143,7 +144,6 @@ using cpl_visual_features::AffineFlowMeasures;
 using cpl_visual_features::FeatureTracker;
 using cpl_visual_features::Descriptor;
 
-//typedef std::vector<cv::Point> Boundary;
 class Boundary : public std::vector<cv::Point>
 {
  public:
@@ -162,6 +162,7 @@ class ProtoTabletopObject
   std::vector<Boundary> boundaries;
   int id;
   bool moved;
+  int push_count;
 };
 
 typedef std::deque<ProtoTabletopObject> ProtoObjects;
@@ -417,8 +418,10 @@ class PointCloudSegmentation
    * @return The new set of objects that have moved in the second cloud
    */
   ProtoObjects getMovedRegions(XYZPointCloud& prev_cloud,
-                               XYZPointCloud& cur_cloud, bool pub_cloud=false)
+                               XYZPointCloud& cur_cloud, std::string suf="",
+                               bool pub_cloud=false)
   {
+    // cloud_out = prev_cloud - cur_cloud
     pcl::SegmentDifferences<pcl::PointXYZ> pcl_diff;
     pcl_diff.setDistanceThreshold(cloud_diff_thresh_);
     pcl_diff.setInputCloud(prev_cloud.makeShared());
@@ -426,6 +429,23 @@ class PointCloudSegmentation
     XYZPointCloud cloud_out;
     pcl_diff.segment(cloud_out);
     ProtoObjects moved = clusterProtoObjects(cloud_out, pub_cloud);
+
+#ifdef DISPLAY_CLOUD_DIFF
+    cv::Size img_size(320, 240);
+    cv::Mat coord_img(img_size, CV_32FC3, cv::Scalar(0,0,0));
+    // cv::Mat obj_img(img_size, CV_8UC1, cv::Scalar(0));
+    // projectPointCloudIntoImage(cloud_out, obj_img, cur_camera_header_.frame_id,
+    //                            coord_img, 128);
+    // std::stringstream diff_title;
+    // diff_title << "cloud_diff" << suf;
+    // cv::imshow(diff_title.str(), obj_img);
+    cv::Mat moved_img = projectProtoObjectsIntoImage(moved, img_size,
+                                                     prev_cloud.header.frame_id,
+                                                     coord_img);
+    std::stringstream cluster_title;
+    cluster_title << "moved clusters" << suf;
+    displayObjectImage(moved_img, cluster_title.str());
+#endif // DISPLAY_CLOUD_DIFF
     return moved;
   }
 
@@ -435,29 +455,23 @@ class PointCloudSegmentation
    * @param objs The previously extracted objects
    * @param moved_regions The regions that have been detected as having moved
    *
-   * @return The objects which have moved
    */
-  ProtoObjects matchMovedRegions(ProtoObjects& objs,
-                                 ProtoObjects& moved_regions)
+  void matchMovedRegions(ProtoObjects& objs, ProtoObjects& moved_regions)
   {
-    ProtoObjects moved_objs;
+    // Determining which previous objects have moved
+    int moved_count = 0;
     for (unsigned int i = 0; i < moved_regions.size(); ++i)
     {
       for (unsigned int j = 0; j < objs.size(); ++j)
       {
         if(cloudsIntersect(objs[j].cloud, moved_regions[i].cloud))
         {
+          if (!objs[j].moved) ++moved_count;
           objs[j].moved = true;
         }
       }
     }
-
-    for (unsigned int i = 0; i < objs.size(); ++i)
-    {
-      if (objs[i].moved) moved_objs.push_back(objs[i]);
-    }
-    ROS_INFO_STREAM("Num moved objects: " << moved_objs.size());
-    return moved_objs;
+    ROS_DEBUG_STREAM("Num moved objects: " << moved_count);
   }
 
   /**
@@ -469,11 +483,19 @@ class PointCloudSegmentation
    *
    * @return
    */
-  ProtoObjects updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
-                               ProtoObjects& moved_objs)
+  void updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs)
   {
-    ProtoObjects updated_cur_objs;
     std::vector<bool> matched(cur_objs.size(), false);
+    if (cur_objs.size()  < prev_objs.size())
+    {
+      ROS_WARN_STREAM("Objects merged!");
+    }
+    else if (cur_objs.size() > prev_objs.size())
+    {
+      ROS_WARN_STREAM("Objects split!");
+    }
+
+    // First match the unmoved objects
     for (unsigned int i = 0; i < prev_objs.size(); ++i)
     {
       if (prev_objs[i].moved)
@@ -510,8 +532,8 @@ class PointCloudSegmentation
     {
       if (prev_objs[i].moved)
       {
-        double max_score = 0;
-        unsigned int max_idx = cur_objs.size();
+        double min_score = std::numeric_limits<double>::max();
+        unsigned int min_idx = cur_objs.size();
         // Match the moved objects to their new locations
         ROS_INFO_STREAM("Finding match for object : " << prev_objs[i].id);
         for (unsigned int j = 0; j < cur_objs.size(); ++j)
@@ -520,22 +542,24 @@ class PointCloudSegmentation
           // Run ICP to match between frames
           ROS_INFO_STREAM("Comparing to object : " << cur_objs[j].id);
           double cur_score = ICPProtoObjects(prev_objs[i], cur_objs[j]);
-          if (cur_score > max_score)
+          if (cur_score < min_score)
           {
-            max_score = cur_score;
-            max_idx = j;
+            ROS_INFO_STREAM("Updating min_score from: " << min_score <<
+                            " to " << cur_score);
+            min_score = cur_score;
+            min_idx = j;
           }
         }
-        if (max_idx < cur_objs.size())
+        if (min_idx < cur_objs.size())
         {
           // TODO: If score is too bad ignore
           ROS_INFO_STREAM("Matched moved current object: "
-                          << max_idx << " to previous object "
+                          << min_idx << " to previous object "
                           << prev_objs[i].id);
-          cur_objs[max_idx].id = prev_objs[i].id;
-          if (matched[max_idx]) ROS_WARN_STREAM("Already matched to this one.");
+          cur_objs[min_idx].id = prev_objs[i].id;
+          if (matched[min_idx]) ROS_WARN_STREAM("Already matched to this one.");
           // TODO: Not the right way. We need to find the best match
-          matched[max_idx] = true;
+          matched[min_idx] = true;
         }
         else
         {
@@ -544,8 +568,6 @@ class PointCloudSegmentation
         }
       }
     }
-
-    return cur_objs;
   }
 
   double dist(pcl::PointXYZ a, pcl::PointXYZ b)
@@ -582,7 +604,7 @@ class PointCloudSegmentation
       for (unsigned int j = 0; j < cloud1.size(); ++j)
       {
         pcl::PointXYZ pt1 = cloud1.at(j);
-        if (dist(pt0, pt1) < voxel_down_res_) return true;
+        if (dist(pt0, pt1) < cloud_intersect_thresh_) return true;
       }
     }
     return false;
@@ -662,8 +684,9 @@ class PointCloudSegmentation
    * @param obj_img The projected objects image
    * @param objs The set of proto objects
    */
-  void displayObjectImage(cv::Mat& obj_img, ProtoObjects& objs,
-                          std::string win_name="projected objects")
+  void displayObjectImage(cv::Mat& obj_img,
+                          std::string win_name="projected objects",
+                          bool only_moved=false)
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     for (int r = 0; r < obj_img.rows; ++r)
@@ -678,6 +701,19 @@ class PointCloudSegmentation
       }
     }
     cv::imshow(win_name, obj_disp_img);
+  }
+
+  void displayColors()
+  {
+    cv::Mat color_img(250, 200, CV_32FC3);
+    for (int r = 0; r < color_img.rows; ++r)
+    {
+      for (int c = 0; c < color_img.cols; ++c)
+      {
+        color_img.at<cv::Vec3f>(r,c) = colors_[r/25];
+      }
+    }
+    cv::imshow("color ids", color_img);
   }
 
   void projectPointCloudIntoImage(XYZPointCloud& cloud, cv::Mat& lbl_img,
@@ -767,6 +803,7 @@ class PointCloudSegmentation
   int min_cluster_size_;
   int max_cluster_size_;
   double voxel_down_res_;
+  double cloud_intersect_thresh_;
   double hull_alpha_;
   bool use_voxel_down_;
   ros::Publisher pcl_obj_seg_pub_;
@@ -1262,6 +1299,7 @@ class ObjectSingulation
    */
   ProtoObjects calcProtoObjects(XYZPointCloud& cloud)
   {
+    // pcl_segmenter_->displayColors();
     XYZPointCloud objs_cloud;
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cloud, objs_cloud,
                                                             true);
@@ -1273,20 +1311,14 @@ class ObjectSingulation
     {
       // Determine where stuff has moved
       ProtoObjects moved_regions = pcl_segmenter_->getMovedRegions(
-          prev_objs_down_, cur_objs_down/*, true*/);
+          prev_objs_down_, cur_objs_down);
       // Match these moved regions to the previous objects
-      ProtoObjects moved_protos = pcl_segmenter_->matchMovedRegions(
-          prev_proto_objs_, moved_regions);
+      pcl_segmenter_->matchMovedRegions(prev_proto_objs_, moved_regions);
       // Match the moved objects to their new locations
-      cur_objs = pcl_segmenter_->updateMovedObjs(objs, prev_proto_objs_,
-                                                 moved_protos);
-    }
-    else
-    {
-      cur_objs = objs;
+      pcl_segmenter_->updateMovedObjs(objs, prev_proto_objs_);
     }
     prev_objs_down_ = cur_objs_down;
-    return cur_objs;
+    return objs;
   }
 
   /**
@@ -1305,7 +1337,7 @@ class ObjectSingulation
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         objs, boundary_img.size(), workspace_frame_, obj_coords);
 #ifdef DISPLAY_PROJECTED_OBJECTS
-    pcl_segmenter_->displayObjectImage(obj_lbl_img, objs);
+    pcl_segmenter_->displayObjectImage(obj_lbl_img);
 #endif // DISPLAY_PROJECTED_OBJECTS
 
     get3DBoundaries(boundaries, obj_coords);
@@ -1351,7 +1383,7 @@ class ObjectSingulation
                                                              object_id]);
     cv::Mat split_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         split_objs3D, obj_lbl_img.size(), workspace_frame_, obj_coords);
-    pcl_segmenter_->displayObjectImage(split_img, split_objs3D, "3D Split");
+    pcl_segmenter_->displayObjectImage(split_img, "3D Split");
 
     // TODO: Generalize to more than 2 object splits
     PushVector push_pose = getPushDirection(push_dist, split_objs3D[0],
@@ -1603,9 +1635,9 @@ class ObjectSingulation
       else scores[i] = s0/s1;
     }
     unsigned int chosen_id = sampleScore(scores);
-    ROS_INFO_STREAM("chose id: " << chosen_id << " has objet_id: " <<
-                    boundaries[chosen_id].object_id << " and " <<
-                    boundaries[chosen_id].points3D.size() << " 3D points.");
+    ROS_DEBUG_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
+                     boundaries[chosen_id].object_id << " and " <<
+                     boundaries[chosen_id].points3D.size() << " 3D points.");
     return boundaries[chosen_id];
   }
 
@@ -1678,10 +1710,6 @@ class ObjectSingulation
     push.start_point.y = split_opts[max_id].obj.centroid[1];
     push.start_point.z = split_opts[max_id].obj.centroid[2];
     push.push_angle = split_opts[max_id].push_angle;
-    ROS_INFO_STREAM("Determined push angle is: " <<
-                    split_opts[max_id].push_angle);
-    ROS_INFO_STREAM("Push limist are: (" << min_push_angle_ << ", " <<
-                    max_push_angle_ << ")");
 
 #ifdef DISPLAY_PROJECTED_OBJECTS
 
@@ -1693,9 +1721,6 @@ class ObjectSingulation
     end_point.point.x = moved_cent[0];
     end_point.point.y = moved_cent[1];
     end_point.point.z = moved_cent[2];
-    // end_point.point.x = push.start_point.x - 0.1;
-    // end_point.point.y = push.start_point.y;
-    // end_point.point.z = push.start_point.z;
     end_point.header.frame_id = workspace_frame_;
 
     cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(start_point);
@@ -1760,7 +1785,7 @@ class ObjectSingulation
     // Split the point clouds based on the half plane distance test
     pcl::PointIndices p1;
     pcl::PointIndices p2;
-    for (int i = 0; i < to_split.cloud.size(); ++i)
+    for (unsigned int i = 0; i < to_split.cloud.size(); ++i)
     {
       const pcl::PointXYZ x = to_split.cloud.at(i);
       const float d = norm[0]*x.x + norm[1]*x.y + norm[2]*x.z + p;
@@ -2232,7 +2257,7 @@ class ObjectSingulation
         samples.push_back(p);
       }
     }
-    ROS_INFO_STREAM("Sampling from list of size: " << samples.size());
+    ROS_DEBUG_STREAM("Sampling from list of size: " << samples.size());
 
     std::sort(samples.begin(), samples.end(), PushSample::compareSamples);
 
@@ -2436,6 +2461,8 @@ class ObjectSingulationNode
                      2500);
     n_private_.param("pcl_voxel_downsample_res", pcl_segmenter_.voxel_down_res_,
                      0.005);
+    n_private_.param("pcl_cloud_intersect_thresh",
+                     pcl_segmenter_.cloud_intersect_thresh_, 0.005);
     n_private_.param("pcl_concave_hull_alpha", pcl_segmenter_.hull_alpha_,
                      0.1);
     n_private_.param("use_pcl_voxel_downsample", pcl_segmenter_.use_voxel_down_,
