@@ -44,7 +44,7 @@ class PR2Arm(HRLArm):
     ##
     # Initializes subscribers
     # @param arm 'r' for right, 'l' for left
-    def __init__(self, arm, kinematics, controller_name, js_timeout):
+    def __init__(self, arm, kinematics, controller_name, timeout):
         super(PR2Arm, self).__init__(kinematics)
         self.arm = arm
         if '%s' in controller_name:
@@ -63,10 +63,9 @@ class PR2Arm(HRLArm):
 
         rospy.Subscriber('joint_states', JointState, self._joint_state_cb)
 
-        # TODO Remove timeout stuff.
-        #if js_timeout > 0:
-        #    self.wait_for_joint_angles(js_timeout)
-        #    self.reset_ep()
+        if timeout > 0:
+            self.wait_for_joint_angles(timeout)
+            #self.reset_ep()
 
     ##
     # Joint angles listener callback
@@ -114,6 +113,21 @@ class PR2Arm(HRLArm):
         if not rospy.is_shutdown():
             rospy.logwarn("[pr2_arm_base] Cannot read joint angles, timing out.")
         return False
+
+    ##
+    # Wait until we have the ep from the controller
+    # @param timeout Time at which we break if we haven't recieved the EP.
+    def wait_for_ep(self, timeout=5.):
+        start_time = rospy.get_time()
+        r = rospy.Rate(20)
+        while not rospy.is_shutdown() and rospy.get_time() - start_time < timeout:
+            with self.lock:
+                if self.ep is not None:
+                    return True
+            r.sleep()
+        if not rospy.is_shutdown():
+            rospy.logwarn("[pr2_arm_base] Cannot read controller state, timing out.")
+        return False
             
     ##
     # Returns the current joint efforts (similar to torques)
@@ -140,7 +154,7 @@ class PR2Arm(HRLArm):
 
 def create_pr2_arm(arm, arm_type=PR2Arm, base_link="torso_lift_link",  
                    end_link="%s_gripper_tool_frame", param="/robot_description",
-                   controller_name=None, js_timeout=5.):
+                   controller_name=None, timeout=5.):
     if "%s" in base_link:
         base_link = base_link % arm
     if "%s" in end_link:
@@ -155,7 +169,7 @@ def create_pr2_arm(arm, arm_type=PR2Arm, base_link="torso_lift_link",
 def create_pr2_arm_from_file(arm, arm_type=PR2Arm, base_link="torso_lift_link",  
                              end_link="%s_gripper_tool_frame", 
                              filename="$(find hrl_pr2_arms)/params/pr2_robot_uncalibrated_1.6.0.xml",
-                             controller_name=None, js_timeout=0.):
+                             controller_name=None, timeout=0.):
     if "%s" in base_link:
         base_link = base_link % arm
     if "%s" in end_link:
@@ -163,13 +177,13 @@ def create_pr2_arm_from_file(arm, arm_type=PR2Arm, base_link="torso_lift_link",
     chain, joint_info = kdlp.chain_from_file(base_link, end_link, filename)
     kin = KDLArmKinematics(chain, joint_info, base_link, end_link)
     if controller_name is None:
-        return arm_type(arm, kin, js_timeout=js_timeout)
+        return arm_type(arm, kin, timeout=timeout)
     else:
-        return arm_type(arm, kin, js_timeout=js_timeout, controller_name=controller_name)
+        return arm_type(arm, kin, timeout=timeout, controller_name=controller_name)
 
 class PR2ArmJointTrajectory(PR2Arm):
-    def __init__(self, arm, kinematics, controller_name='/%s_arm_controller', js_timeout=5.):
-        super(PR2ArmJointTrajectory, self).__init__(arm, kinematics, controller_name, js_timeout)
+    def __init__(self, arm, kinematics, controller_name='/%s_arm_controller', timeout=5.):
+        super(PR2ArmJointTrajectory, self).__init__(arm, kinematics, controller_name, timeout)
         self.joint_action_client = actionlib.SimpleActionClient(
                                        controller_name + '/joint_trajectory_action',
                                        JointTrajectoryAction)
@@ -177,6 +191,7 @@ class PR2ArmJointTrajectory(PR2Arm):
         self.ctrl_state_dict = {}
         rospy.Subscriber(controller_name + '/state', JointTrajectoryControllerState, 
                          self._ctrl_state_cb)
+        self.wait_for_ep(timeout)
 
     def _ctrl_state_cb(self, ctrl_state):
         with self.lock:
@@ -219,13 +234,14 @@ class PR2ArmJointTrajectory(PR2Arm):
         #self.ep = self.get_joint_angles(False)
 
 class PR2ArmCartesianBase(PR2Arm):
-    def __init__(self, arm, kinematics, controller_name='/%s_cart', js_timeout=5.):
-        super(PR2ArmCartesianBase, self).__init__(arm, kinematics, controller_name, js_timeout)
+    def __init__(self, arm, kinematics, controller_name='/%s_cart', timeout=5.):
+        super(PR2ArmCartesianBase, self).__init__(arm, kinematics, controller_name, timeout)
         self.command_pose_pub = rospy.Publisher(self.controller_name + '/command_pose', PoseStamped)
 
         self.ctrl_state_dict = {}
         rospy.Subscriber(controller_name + '/state', JointTrajectoryControllerState, 
                          self._ctrl_state_cb)
+        self.wait_for_ep(timeout)
 
     def _ctrl_state_cb(self, ctrl_state):
         with self.lock:
@@ -289,8 +305,8 @@ class PR2ArmCartesianBase(PR2Arm):
         return err
 
 class PR2ArmCartesianPostureBase(PR2ArmCartesianBase):
-    def __init__(self, arm, kinematics, controller_name='/%s_cart', js_timeout=5.):
-        super(PR2ArmCartesianPostureBase, self).__init__(arm, kinematics, controller_name, js_timeout)
+    def __init__(self, arm, kinematics, controller_name='/%s_cart', timeout=5.):
+        super(PR2ArmCartesianPostureBase, self).__init__(arm, kinematics, controller_name, timeout)
         self.command_posture_pub = rospy.Publisher(self.controller_name + '/command_posture', 
                                                    Float64MultiArray)
 
@@ -307,8 +323,8 @@ class PR2ArmJInverse(PR2ArmCartesianPostureBase):
     pass
 
 class PR2ArmJTransposeTask(PR2ArmCartesianPostureBase):
-    def __init__(self, arm, kinematics, controller_name='/%s_cart', js_timeout=5.):
-        super(PR2ArmJTransposeTask, self).__init__(arm, kinematics, controller_name, js_timeout)
+    def __init__(self, arm, kinematics, controller_name='/%s_cart', timeout=5.):
+        super(PR2ArmJTransposeTask, self).__init__(arm, kinematics, controller_name, timeout)
         self.command_gains_pub = rospy.Publisher(self.controller_name + '/gains', CartesianGains)
 
     def set_gains(self, p_gains, d_gains, frame=None):
