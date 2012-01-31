@@ -247,7 +247,7 @@ class PR2ArmCartesianBase(PR2Arm):
                                                   ctrl_state.F.force.z,
                                                   ctrl_state.F.torque.x,
                                                   ctrl_state.F.torque.y,
-                                                  ctrl_state.F.torque.z]
+                                                  ctrl_state.F.torque.z])
 
     def set_ep(self, cep, duration, delay=0.0):
         cep_pose_stmp = PoseConverter.to_pose_stamped_msg('torso_lift_link', cep)

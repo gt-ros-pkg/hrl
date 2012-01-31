@@ -71,12 +71,12 @@ class PoseConverter:
                         rot_arg = rot_arg.tolist()[0]
                         if len(rot_arg) == 3:
                             # Euler angles rotation
-                            homo_mat = np.mat(tf_trans.euler_matrix(rot_arg))
-                            quat = tf_trans.quaternion_from_euler(rot_arg)
+                            homo_mat = np.mat(tf_trans.euler_matrix(*rot_arg))
+                            quat = tf_trans.quaternion_from_euler(*rot_arg)
                             rot_euler = rot_arg
                         elif len(rot_arg) == 4:
                             # quaternion rotation
-                            homo_mat = np.mat(tf_trans.quaternion_matrix(rot_arg)
+                            homo_mat = np.mat(tf_trans.quaternion_matrix(rot_arg))
                             quat = rot_arg
                             rot_euler = tf_trans.euler_from_quaternion(quat)
                         else:
@@ -86,7 +86,8 @@ class PoseConverter:
                 return None, homo_mat, np.array(quat), rot_euler
 
         elif len(args) == 2:
-            header, homo_mat, rot_quat, rot_euler = PoseConverter._make_generic((args[0], args[1]))
+            header, homo_mat, rot_quat, rot_euler = PoseConverter._make_generic(
+                                                                  ((args[0], args[1]),))
             if homo_mat is not None:
                 return header, homo_mat, rot_quat, rot_euler
 
