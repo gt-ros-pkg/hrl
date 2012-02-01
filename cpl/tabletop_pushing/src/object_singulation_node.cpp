@@ -122,8 +122,10 @@
 #define DISPLAY_OBJECT_BOUNDARIES 1
 #define DISPLAY_PROJECTED_OBJECTS 1
 #define DISPLAY_OBJECT_SPLITS 1
-#define DISPLAY_LINKED_EDGES 1
+// #define DISPLAY_LINKED_EDGES 1
+// #define DISPLAY_CHOSEN_BOUNDARY 1
 #define DISPLAY_CLOUD_DIFF 1
+#define DISPLAY_3D_BOUNDARIES 1
 #define DISPLAY_WAIT 1
 
 #define randf() static_cast<float>(rand())/RAND_MAX
@@ -397,7 +399,7 @@ class PointCloudSegmentation
    *
    * @return The ICP fitness score of the match
    */
-  double ICPProtoObjects(ProtoTabletopObject a, ProtoTabletopObject b)
+  double ICPProtoObjects(ProtoTabletopObject& a, ProtoTabletopObject& b)
   {
     pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
     icp.setInputCloud(boost::make_shared<XYZPointCloud>(a.cloud));
@@ -486,23 +488,28 @@ class PointCloudSegmentation
   void updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs)
   {
     std::vector<bool> matched(cur_objs.size(), false);
-    if (cur_objs.size()  < prev_objs.size())
+    const bool merged = cur_objs.size()  < prev_objs.size();
+    const bool split = cur_objs.size()  > prev_objs.size();
+    if (merged)
     {
       ROS_WARN_STREAM("Objects merged!");
     }
-    else if (cur_objs.size() > prev_objs.size())
+    else if (split)
     {
       ROS_WARN_STREAM("Objects split!");
     }
+    else
+    {
+      ROS_INFO_STREAM("Same number of objects.");
+    }
+
+    // TODO: Something different for merging
+    // TODO: Deal with adding new object ids for splitting
 
     // First match the unmoved objects
     for (unsigned int i = 0; i < prev_objs.size(); ++i)
     {
-      if (prev_objs[i].moved)
-      {
-        continue;
-      }
-      else
+      if (!prev_objs[i].moved)
       {
         double min_score = FLT_MAX;
         unsigned int min_idx = cur_objs.size();
@@ -519,9 +526,8 @@ class PointCloudSegmentation
         if (min_idx < cur_objs.size())
         {
           // TODO: Ensure uniquness
-          ROS_INFO_STREAM("Matched unmoved current object: "
-                          << min_idx << " to previous object "
-                          << prev_objs[i].id);
+          ROS_INFO_STREAM("Cur unmoved obj: " << min_idx << " maps to prev "
+                          << prev_objs[i].id << " : " << min_score);
           cur_objs[min_idx].id = prev_objs[i].id;
           if (matched[min_idx]) ROS_WARN_STREAM("Already matched to this one.");
           matched[min_idx] = true;
@@ -535,27 +541,25 @@ class PointCloudSegmentation
         double min_score = std::numeric_limits<double>::max();
         unsigned int min_idx = cur_objs.size();
         // Match the moved objects to their new locations
-        ROS_INFO_STREAM("Finding match for object : " << prev_objs[i].id);
+        ROS_DEBUG_STREAM("Finding match for object : " << prev_objs[i].id);
         for (unsigned int j = 0; j < cur_objs.size(); ++j)
         {
-          if (matched[j]) continue;
-          // Run ICP to match between frames
-          ROS_INFO_STREAM("Comparing to object : " << cur_objs[j].id);
-          double cur_score = ICPProtoObjects(prev_objs[i], cur_objs[j]);
-          if (cur_score < min_score)
+          if (!matched[j])
           {
-            ROS_INFO_STREAM("Updating min_score from: " << min_score <<
-                            " to " << cur_score);
-            min_score = cur_score;
-            min_idx = j;
+            // Run ICP to match between frames
+            double cur_score = ICPProtoObjects(prev_objs[i], cur_objs[j]);
+            if (cur_score < min_score)
+            {
+              min_score = cur_score;
+              min_idx = j;
+            }
           }
         }
         if (min_idx < cur_objs.size())
         {
           // TODO: If score is too bad ignore
-          ROS_INFO_STREAM("Matched moved current object: "
-                          << min_idx << " to previous object "
-                          << prev_objs[i].id);
+          ROS_INFO_STREAM("Cur moved obj: " << min_idx << " maps to prev "
+                          << prev_objs[i].id << " : " << min_score;);
           cur_objs[min_idx].id = prev_objs[i].id;
           if (matched[min_idx]) ROS_WARN_STREAM("Already matched to this one.");
           // TODO: Not the right way. We need to find the best match
@@ -672,7 +676,6 @@ class PointCloudSegmentation
     {
       projectPointCloudIntoImage(objs[i].cloud, obj_img,
                                  cur_camera_header_.frame_id, coord_img, i+1);
-                                 /*objs[i].id);*/
     }
 
     return obj_img;
@@ -1316,6 +1319,14 @@ class ObjectSingulation
       pcl_segmenter_->matchMovedRegions(prev_proto_objs_, moved_regions);
       // Match the moved objects to their new locations
       pcl_segmenter_->updateMovedObjs(objs, prev_proto_objs_);
+
+#ifdef DISPLAY_PROJECTED_OBJECTS
+      cv::Mat prev_obj_coords(cv::Size(320,240), CV_32FC3, cv::Scalar(0,0,0));
+      cv::Mat prev_obj_img = pcl_segmenter_->projectProtoObjectsIntoImage(
+          prev_proto_objs_, prev_obj_coords.size(), workspace_frame_,
+          prev_obj_coords);
+      pcl_segmenter_->displayObjectImage(prev_obj_img, "prev objects");
+#endif // DISPLAY_PROJECTED_OBJECTS
     }
     prev_objs_down_ = cur_objs_down;
     return objs;
@@ -1336,17 +1347,16 @@ class ObjectSingulation
     cv::Mat obj_coords(boundary_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         objs, boundary_img.size(), workspace_frame_, obj_coords);
+
+    get3DBoundaries(boundaries, obj_coords);
+    associate3DBoundaries(boundaries, objs, obj_lbl_img);
+
 #ifdef DISPLAY_PROJECTED_OBJECTS
     pcl_segmenter_->displayObjectImage(obj_lbl_img);
 #endif // DISPLAY_PROJECTED_OBJECTS
-
-    get3DBoundaries(boundaries, obj_coords);
-
-#ifdef DISPLAY_LINKED_EDGES
+#ifdef DISPLAY_3D_BOUNDARIES
     draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
-#endif // DISPLAY_LINKED_EDGES
-
-    associate3DBoundaries(boundaries, objs, obj_lbl_img);
+#endif // DISPLAY_3D_BOUNDARIES
 
     Boundary test_boundary = chooseTestBoundary(boundaries, objs, obj_lbl_img);
 
@@ -1374,9 +1384,9 @@ class ObjectSingulation
                                  ProtoObjects& objs, cv::Mat& obj_lbl_img,
                                  cv::Mat& obj_coords)
   {
-#ifdef DISPLAY_PROJECTED_OBJECTS
+#ifdef DISPLAY_CHOSEN_BOUNDARY
     displayBoundaryImage(obj_lbl_img, boundary, "chosen", true);
-#endif // DISPLAY_PROJECTED_OBJECTS
+#endif // DISPLAY_CHOSEN_BOUNDARY
 
     // Split point cloud at location of the boundary
     ProtoObjects split_objs3D = splitObject3D(boundary, objs[boundary.
@@ -1551,6 +1561,7 @@ class ObjectSingulation
       else
       {
         boundaries[b].object_id = max_id;
+        // TODO: Here is a place the ID depends on the image id
         objs[max_id].boundaries.push_back(boundaries[b]);
       }
     }
@@ -1804,6 +1815,9 @@ class ObjectSingulation
     ProtoObjects split;
     ProtoTabletopObject po1;
     ProtoTabletopObject po2;
+    // TODO: Fix ID stuff
+    // po1.id = to_split.id;
+    // po2.id = to_split.id;
     pcl::ExtractIndices<pcl::PointXYZ> extract;
     pcl::PointIndices plane_outliers;
     extract.setInputCloud(to_split.cloud.makeShared());
@@ -2341,6 +2355,7 @@ class ObjectSingulation
                                    boundaries[b][i].x) = color;
       }
     }
+    cv::imshow("3D boundaries", obj_disp_img);
   }
 
   //
