@@ -121,6 +121,7 @@
 // #define DISPLAY_TABLE_DISTANCES 1
 #define DISPLAY_OBJECT_BOUNDARIES 1
 #define DISPLAY_PROJECTED_OBJECTS 1
+#define DISPLAY_PREV_PROJECTED_OBJECTS 1
 #define DISPLAY_OBJECT_SPLITS 1
 // #define DISPLAY_LINKED_EDGES 1
 // #define DISPLAY_CHOSEN_BOUNDARY 1
@@ -160,6 +161,7 @@ class ProtoTabletopObject
  public:
   XYZPointCloud cloud;
   Eigen::Vector4f centroid;
+  Eigen::Vector4f delta_c;
   Eigen::Vector4f table_centroid;
   std::vector<Boundary> boundaries;
   int id;
@@ -473,121 +475,6 @@ class PointCloudSegmentation
       }
     }
     ROS_DEBUG_STREAM("Num moved objects: " << moved_count);
-  }
-
-  /**
-   * Method to update the IDs and of moved proto objects
-   *
-   * @param cur_objs The current set of proto objects
-   * @param prev_objs The previous set of proto objects
-   * @param moved_objs Moved proto objects
-   *
-   * @return
-   */
-  void updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs)
-  {
-    const bool merged = cur_objs.size()  < prev_objs.size();
-    const bool split = cur_objs.size()  > prev_objs.size();
-    if (merged)
-    {
-      ROS_WARN_STREAM("Objects merged from " << prev_objs.size() << " to " <<
-                      cur_objs.size());
-      // TODO: Something different for merging, check which moved objects
-      // combined with which unmoved objects
-    }
-    else if (split)
-    {
-      ROS_WARN_STREAM("Objects split from " << prev_objs.size() << " to " <<
-                      cur_objs.size());
-      // TODO: Deal with adding new object ids for splitting, create a
-      // static / global id generator method?
-    }
-    else
-    {
-      ROS_INFO_STREAM("Same number of objects: " << prev_objs.size());
-    }
-
-    std::vector<bool> matched = matchUnmoved(cur_objs, prev_objs);
-    matchMoved(cur_objs, prev_objs, matched);
-  }
-
-  std::vector<bool> matchUnmoved(ProtoObjects& cur_objs,
-                                 ProtoObjects& prev_objs)
-  {
-    std::vector<bool> matched(cur_objs.size(), false);
-    // First match the unmoved objects
-    for (unsigned int i = 0; i < prev_objs.size(); ++i)
-    {
-      if (!prev_objs[i].moved)
-      {
-        double min_score = FLT_MAX;
-        unsigned int min_idx = cur_objs.size();
-        // Update the ID in cur_objs of the closest centroid in previous objects
-        for (unsigned int j = 0; j < cur_objs.size(); ++j)
-        {
-          double score = sqrDist(prev_objs[i].centroid, cur_objs[j].centroid);
-          if (score < min_score)
-          {
-            min_idx = j;
-            min_score = score;
-          }
-        }
-        if (min_idx < cur_objs.size())
-        {
-          // TODO: Ensure uniquness
-          ROS_INFO_STREAM("Prev unmoved obj: " << prev_objs[i].id << ", " << i
-                          << " maps to cur " << min_idx << " : " << min_score);
-          if (matched[min_idx]) ROS_WARN_STREAM("Already matched to this one.");
-          else cur_objs[min_idx].id = prev_objs[i].id;
-          matched[min_idx] = true;
-        }
-      }
-    }
-    return matched;
-  }
-
-  void matchMoved(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
-                  std::vector<bool> matched)
-  {
-    for (unsigned int i = 0; i < prev_objs.size(); ++i)
-    {
-      if (prev_objs[i].moved)
-      {
-        double min_score = std::numeric_limits<double>::max();
-        unsigned int min_idx = cur_objs.size();
-        // Match the moved objects to their new locations
-        ROS_DEBUG_STREAM("Finding match for object : " << prev_objs[i].id);
-        for (unsigned int j = 0; j < cur_objs.size(); ++j)
-        {
-          // if (!matched[j])
-          // {
-          // Run ICP to match between frames
-          double cur_score = ICPProtoObjects(prev_objs[i], cur_objs[j]);
-          if (cur_score < min_score)
-          {
-            min_score = cur_score;
-            min_idx = j;
-          }
-          // }
-        }
-        if (min_idx < cur_objs.size())
-        {
-          // TODO: If score is too bad ignore
-          ROS_INFO_STREAM("Prev moved obj: " << prev_objs[i].id  << ", " << i
-                          << " maps to cur " << min_idx << " : " << min_score);
-          if (matched[min_idx]) ROS_WARN_STREAM("Already matched to this one.");
-          else cur_objs[min_idx].id = prev_objs[i].id;
-          // TODO: Not the right way. We need to find the best match
-          matched[min_idx] = true;
-        }
-        else
-        {
-          ROS_WARN_STREAM("No match for moved previus object: "
-                          << prev_objs[i].id);
-        }
-      }
-    }
-    // TODO: Store centroid change vector
   }
 
   double dist(pcl::PointXYZ a, pcl::PointXYZ b)
@@ -1213,7 +1100,7 @@ class ObjectSingulation
 {
  public:
   ObjectSingulation(FeatureTracker* ft, PointCloudSegmentation* pcl_segmenter) :
-      ft_(ft), pcl_segmenter_(pcl_segmenter), callback_count_(0)
+      ft_(ft), pcl_segmenter_(pcl_segmenter), callback_count_(0), next_id_(0)
   {
     // Create derivative kernels for edge calculation
     cv::getDerivKernels(dy_kernel_, dx_kernel_, 1, 0, CV_SCHARR, true, CV_32F);
@@ -1334,19 +1221,154 @@ class ObjectSingulation
       // Match these moved regions to the previous objects
       pcl_segmenter_->matchMovedRegions(prev_proto_objs_, moved_regions);
       // Match the moved objects to their new locations
-      pcl_segmenter_->updateMovedObjs(objs, prev_proto_objs_);
+      updateMovedObjs(objs, prev_proto_objs_);
 
-#ifdef DISPLAY_PROJECTED_OBJECTS
+#ifdef DISPLAY_PREV_PROJECTED_OBJECTS
       cv::Mat prev_obj_coords(cv::Size(320,240), CV_32FC3, cv::Scalar(0,0,0));
       cv::Mat prev_obj_img = pcl_segmenter_->projectProtoObjectsIntoImage(
           prev_proto_objs_, prev_obj_coords.size(), workspace_frame_,
           prev_obj_coords);
       pcl_segmenter_->displayObjectImage(prev_obj_img, "prev objects");
-#endif // DISPLAY_PROJECTED_OBJECTS
+#endif // DISPLAY_PREV_PROJECTED_OBJECTS
+    }
+    else
+    {
+      // Initialize IDs
+      for (unsigned int i = 0; i < objs.size(); ++i)
+      {
+        objs[i].id = getNextID();
+      }
     }
     prev_objs_down_ = cur_objs_down;
     return objs;
   }
+
+    /**
+   * Method to update the IDs and of moved proto objects
+   *
+   * @param cur_objs The current set of proto objects
+   * @param prev_objs The previous set of proto objects
+   * @param moved_objs Moved proto objects
+   *
+   * @return
+   */
+  void updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs)
+  {
+    const bool merged = cur_objs.size()  < prev_objs.size();
+    const bool split = cur_objs.size()  > prev_objs.size();
+    if (merged)
+    {
+      ROS_WARN_STREAM("Objects merged from " << prev_objs.size() << " to " <<
+                      cur_objs.size());
+      // TODO: Something different for merging, check which moved objects
+      // combined with which unmoved objects
+    }
+    else if (split)
+    {
+      ROS_WARN_STREAM("Objects split from " << prev_objs.size() << " to " <<
+                      cur_objs.size());
+      // TODO: Deal with adding new object ids for splitting, create a
+      // static / global id generator method?
+    }
+    else
+    {
+      ROS_INFO_STREAM("Same number of objects: " << prev_objs.size());
+    }
+
+    std::vector<bool> matched = matchUnmoved(cur_objs, prev_objs);
+    matchMoved(cur_objs, prev_objs, matched);
+  }
+
+  std::vector<bool> matchUnmoved(ProtoObjects& cur_objs,
+                                 ProtoObjects& prev_objs)
+  {
+    std::vector<bool> matched(cur_objs.size(), false);
+    // First match the unmoved objects
+    for (unsigned int i = 0; i < prev_objs.size(); ++i)
+    {
+      if (!prev_objs[i].moved)
+      {
+        double min_score = FLT_MAX;
+        unsigned int min_idx = cur_objs.size();
+        // Update the ID in cur_objs of the closest centroid in previous objects
+        for (unsigned int j = 0; j < cur_objs.size(); ++j)
+        {
+          double score = pcl_segmenter_->sqrDist(prev_objs[i].centroid,
+                                                 cur_objs[j].centroid);
+          if (score < min_score)
+          {
+            min_idx = j;
+            min_score = score;
+          }
+        }
+        if (min_idx < cur_objs.size())
+        {
+          // TODO: Ensure uniquness
+          ROS_INFO_STREAM("Prev unmoved obj: " << prev_objs[i].id << ", " << i
+                          << " maps to cur " << min_idx << " : " << min_score);
+          cur_objs[min_idx].id = prev_objs[i].id;
+          matched[min_idx] = true;
+        }
+      }
+    }
+    return matched;
+  }
+
+  void matchMoved(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
+                  std::vector<bool> matched)
+  {
+    for (unsigned int i = 0; i < prev_objs.size(); ++i)
+    {
+      if (prev_objs[i].moved)
+      {
+        double min_score = std::numeric_limits<double>::max();
+        unsigned int min_idx = cur_objs.size();
+        // Match the moved objects to their new locations
+        ROS_DEBUG_STREAM("Finding match for object : " << prev_objs[i].id);
+        for (unsigned int j = 0; j < cur_objs.size(); ++j)
+        {
+          if (!matched[j])
+          {
+            // Run ICP to match between frames
+            double cur_score = pcl_segmenter_->ICPProtoObjects(prev_objs[i],
+                                                               cur_objs[j]);
+            if (cur_score < min_score)
+            {
+              min_score = cur_score;
+              min_idx = j;
+            }
+          }
+        }
+        if (min_idx < cur_objs.size())
+        {
+          // TODO: If score is too bad ignore
+          ROS_INFO_STREAM("Prev moved obj: " << prev_objs[i].id  << ", " << i
+                          << " maps to cur " << min_idx << " : " << min_score);
+          if (matched[min_idx])
+          {
+          }
+          else
+          {
+            cur_objs[min_idx].id = prev_objs[i].id;
+            cur_objs[min_idx].delta_c = (cur_objs[min_idx].centroid -
+                                         prev_objs[i].centroid);
+            matched[min_idx] = true;
+          }
+
+        }
+        else
+        {
+          ROS_WARN_STREAM("No match for moved previus object: "
+                          << prev_objs[i].id);
+        }
+      }
+      for (unsigned int i = 0; i < matched.size(); ++i)
+      {
+        if (!matched[i]) cur_objs[i].id = getNextID();
+      }
+    }
+  }
+
 
   /**
    * Determine what push to make given the current object and boundary estimates
@@ -2374,6 +2396,10 @@ class ObjectSingulation
     cv::imshow("3D boundaries", obj_disp_img);
   }
 
+  int getNextID()
+  {
+    return next_id_++;
+  }
   //
   // Class member variables
   //
@@ -2388,6 +2414,7 @@ class ObjectSingulation
   ProtoObjects prev_proto_objs_;
   ProtoObjects cur_proto_objs_;
   int callback_count_;
+  int next_id_;
 
  public:
   double min_pushing_x_;
