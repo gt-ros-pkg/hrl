@@ -410,7 +410,6 @@ class PointCloudSegmentation
     return score;
   }
 
-
   /**
    * Find the regions that have moved between two point clouds
    *
@@ -487,25 +486,35 @@ class PointCloudSegmentation
    */
   void updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs)
   {
-    std::vector<bool> matched(cur_objs.size(), false);
     const bool merged = cur_objs.size()  < prev_objs.size();
     const bool split = cur_objs.size()  > prev_objs.size();
     if (merged)
     {
-      ROS_WARN_STREAM("Objects merged!");
+      ROS_WARN_STREAM("Objects merged from " << prev_objs.size() << " to " <<
+                      cur_objs.size());
+      // TODO: Something different for merging, check which moved objects
+      // combined with which unmoved objects
     }
     else if (split)
     {
-      ROS_WARN_STREAM("Objects split!");
+      ROS_WARN_STREAM("Objects split from " << prev_objs.size() << " to " <<
+                      cur_objs.size());
+      // TODO: Deal with adding new object ids for splitting, create a
+      // static / global id generator method?
     }
     else
     {
-      ROS_INFO_STREAM("Same number of objects.");
+      ROS_INFO_STREAM("Same number of objects: " << prev_objs.size());
     }
 
-    // TODO: Something different for merging
-    // TODO: Deal with adding new object ids for splitting
+    std::vector<bool> matched = matchUnmoved(cur_objs, prev_objs);
+    matchMoved(cur_objs, prev_objs, matched);
+  }
 
+  std::vector<bool> matchUnmoved(ProtoObjects& cur_objs,
+                                 ProtoObjects& prev_objs)
+  {
+    std::vector<bool> matched(cur_objs.size(), false);
     // First match the unmoved objects
     for (unsigned int i = 0; i < prev_objs.size(); ++i)
     {
@@ -526,14 +535,20 @@ class PointCloudSegmentation
         if (min_idx < cur_objs.size())
         {
           // TODO: Ensure uniquness
-          ROS_INFO_STREAM("Cur unmoved obj: " << min_idx << " maps to prev "
-                          << prev_objs[i].id << " : " << min_score);
-          cur_objs[min_idx].id = prev_objs[i].id;
+          ROS_INFO_STREAM("Prev unmoved obj: " << prev_objs[i].id << ", " << i
+                          << " maps to cur " << min_idx << " : " << min_score);
           if (matched[min_idx]) ROS_WARN_STREAM("Already matched to this one.");
+          else cur_objs[min_idx].id = prev_objs[i].id;
           matched[min_idx] = true;
         }
       }
     }
+    return matched;
+  }
+
+  void matchMoved(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
+                  std::vector<bool> matched)
+  {
     for (unsigned int i = 0; i < prev_objs.size(); ++i)
     {
       if (prev_objs[i].moved)
@@ -544,24 +559,24 @@ class PointCloudSegmentation
         ROS_DEBUG_STREAM("Finding match for object : " << prev_objs[i].id);
         for (unsigned int j = 0; j < cur_objs.size(); ++j)
         {
-          if (!matched[j])
+          // if (!matched[j])
+          // {
+          // Run ICP to match between frames
+          double cur_score = ICPProtoObjects(prev_objs[i], cur_objs[j]);
+          if (cur_score < min_score)
           {
-            // Run ICP to match between frames
-            double cur_score = ICPProtoObjects(prev_objs[i], cur_objs[j]);
-            if (cur_score < min_score)
-            {
-              min_score = cur_score;
-              min_idx = j;
-            }
+            min_score = cur_score;
+            min_idx = j;
           }
+          // }
         }
         if (min_idx < cur_objs.size())
         {
           // TODO: If score is too bad ignore
-          ROS_INFO_STREAM("Cur moved obj: " << min_idx << " maps to prev "
-                          << prev_objs[i].id << " : " << min_score;);
-          cur_objs[min_idx].id = prev_objs[i].id;
+          ROS_INFO_STREAM("Prev moved obj: " << prev_objs[i].id  << ", " << i
+                          << " maps to cur " << min_idx << " : " << min_score);
           if (matched[min_idx]) ROS_WARN_STREAM("Already matched to this one.");
+          else cur_objs[min_idx].id = prev_objs[i].id;
           // TODO: Not the right way. We need to find the best match
           matched[min_idx] = true;
         }
@@ -572,6 +587,7 @@ class PointCloudSegmentation
         }
       }
     }
+    // TODO: Store centroid change vector
   }
 
   double dist(pcl::PointXYZ a, pcl::PointXYZ b)
