@@ -14,7 +14,7 @@ from pr2_controllers_msgs.msg import Pr2GripperCommand
 
 from pixel_2_3d.srv import Pixel23d
 from pr2_arms import PR2Arm
-from pr2_reactive_grippers import PR2Gripper
+from pr2_gripper import PR2Gripper
 import pose_utils as pu
 
 class ArmIntermediary():
