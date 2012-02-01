@@ -665,7 +665,7 @@ function toggle_tool_power() {
 function start(){
     node = new ros.NodeHandle('ws://'+ ROBOT + ':9091');
 	node.setOnClose(function(e) {
-          log("Disconnected or Can't Connect.");
+          log("Disconnected or Can't Connect to " + node.url + ".");
     	});
     	node.setOnError(function(e) {
           log("Unknown error connecting!");
