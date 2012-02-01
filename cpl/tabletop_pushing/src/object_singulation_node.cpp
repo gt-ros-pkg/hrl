@@ -1306,7 +1306,13 @@ class ObjectSingulation
           // TODO: Ensure uniquness
           ROS_INFO_STREAM("Prev unmoved obj: " << prev_objs[i].id << ", " << i
                           << " maps to cur " << min_idx << " : " << min_score);
-          cur_objs[min_idx].id = prev_objs[i].id;
+          if (!matched[min_idx])
+          {
+            cur_objs[min_idx].id = prev_objs[i].id;
+            cur_objs[min_idx].delta_c = (cur_objs[min_idx].centroid -
+                                         prev_objs[i].centroid);
+          }
+
           matched[min_idx] = true;
         }
       }
