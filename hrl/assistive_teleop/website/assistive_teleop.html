@@ -26,6 +26,7 @@ arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 var plane = 'xy';
 var head_state;
 var torso_state;
+var pointing_frame='wide_stereo_optical_frame'
 
 $(function(){
 	$('#slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
@@ -494,8 +495,8 @@ function pub_head_goal(x,y,z,frame) { //Send 3d point to look at using kinect
 	node.publish('head_traj_controller/point_head_action/goal', 'pr2_controllers_msgs/PointHeadActionGoal', json(
 		{  'goal':{'target':{'header':{'frame_id':frame },
 				             'point':{'x':x, 'y':y, 'z':z}},
-                   'pointing_axis':{'x':1, 'y':0, 'z':0},
-                   'pointing_frame':'/openni_rgb_frame',
+                   'pointing_axis':{'x':0, 'y':0, 'z':1},
+                   'pointing_frame':window.pointing_frame,
                    'max_velocity':0.35}}))
 	//log("Sending command to looking at "+x.toString() +", "+y.toString()+", "+z.toString()+" in "+frame);
 };
@@ -636,6 +637,8 @@ function toggle_motors(command) { //command = 'halt' or 'reset'
 };
 
 function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+':8080/?topic=/'+cam+'?width=640?height=480'
+//if (cam=='/arrow_overlaid'){window.pointing_frame='openni_rgb_optical_frame';}
+//else if (cam=='/wide_stereo/right/image_color'){window.pointing_frame='wide_stereo_optical_frame';}
 };
 
 function shave(dir) {node.publish('wt_disc_shaving_step', 'std_msgs/Int8', json({'data':dir}));
