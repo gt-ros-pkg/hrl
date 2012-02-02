@@ -87,8 +87,8 @@ function init_msgs (){
 	}else {
         log('Joint Trajectory Action Goal Initialized, loading video'); 
         $('#force_view').slider("option", "disabled", true);
-        set_camera("/arrow_overlaid");
-	    log('Fully Initialized');
+        set_camera("/wide_stereo/right/image_color");
+	log('Fully Initialized');
 	};
 };
 
@@ -776,8 +776,8 @@ width:100px;
     <td> Camera: </td> <!-- Start Cell for Camera Selection -->
 	  <td><select onchange="set_camera($(this).val());">
 	      <!--<option value="/kinect_head/rgb/image_color">Kinect Camera</option>-->
-	      <option value="/arrow_overlaid">Kinect Camera</option>
 		  <option value="/wide_stereo/right/image_color">Wide Stereo Camera</option>
+	      <option value="/arrow_overlaid">Kinect Camera</option>
 		  <option value="/l_forearm_cam/image_color_rotated">Left Forearm Camera</option>
 		  <option value="/r_forearm_cam/image_color_rotated">Right Forearm Camera</option>
       </select></td> <!-- End Cell for Camera Selection -->
