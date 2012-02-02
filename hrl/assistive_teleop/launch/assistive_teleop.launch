@@ -197,25 +197,25 @@
 
     <!-- Throttling nodes for the topics used by the interface -->	
     <node 
-        name="throttle_torso_position_controller_state"
-        pkg="topic_tools"
-        type="throttle"
-        args="messages /torso_controller/state 2 /torso_state_throttle" />
-    <node 
         name="throttle_head_traj_controller_state"
         pkg="topic_tools" 
         type="throttle"
         args="messages /head_traj_controller/state 8 /head_traj_controller_state_throttle" />
     <node 
+        name="throttle_torso_position_controller_state"
+        pkg="topic_tools"
+        type="throttle"
+        args="messages /torso_controller/state 2 /torso_state_throttle" />
+    <node 
         name="throttle_r_gripper_controller_state" 
         pkg="topic_tools" 
         type="throttle"
-        args="messages /r_gripper_sensor_controller/state 1 /r_gripper_controller_state_throttle" />
+        args="messages /r_gripper_controller/state 1 /r_gripper_controller_state_throttle" />
     <node
         name="throttle_l_gripper_controller_state" 
         pkg="topic_tools" 
         type="throttle" 
-        args="messages /l_gripper_sensor_controller/state 1 /l_gripper_controller_state_throttle" />
+        args="messages /l_gripper_controller/state 1 /l_gripper_controller_state_throttle" />
     <node 
         name="throttle_r_arm_joints_state" 
         pkg="topic_tools" 
