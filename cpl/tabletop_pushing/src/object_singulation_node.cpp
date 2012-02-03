@@ -166,6 +166,9 @@ class ProtoTabletopObject
   std::vector<Boundary> boundaries;
   int id;
   bool moved;
+  // TODO: Replace with push count for quantized angles
+  // TODO: Add transform from initial orientation / position
+  // TODO: Estimate this transform
   int push_count;
 };
 
