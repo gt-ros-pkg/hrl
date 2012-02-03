@@ -71,8 +71,6 @@
 #include <pcl/segmentation/segment_differences.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/kdtree/impl/kdtree_flann.hpp>
-#include <pcl/features/feature.h>
-#include <pcl/features/normal_3d.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
@@ -85,13 +83,7 @@
 #include <opencv2/highgui/highgui.hpp>
 
 // Boost
-// TODO: Use these instead of passing pointers about
 #include <boost/shared_ptr.hpp>
-
-// cpl_visual_features
-#include <cpl_visual_features/motion/flow_types.h>
-#include <cpl_visual_features/motion/dense_lk.h>
-#include <cpl_visual_features/motion/feature_tracker.h>
 
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
@@ -142,10 +134,7 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
 typedef pcl::KdTree<pcl::PointXYZ>::Ptr KdTreePtr;
 typedef PushPose::Response PushVector;
-using cpl_visual_features::AffineFlowMeasure;
-using cpl_visual_features::AffineFlowMeasures;
-using cpl_visual_features::FeatureTracker;
-using cpl_visual_features::Descriptor;
+using boost::shared_ptr;
 
 class Boundary : public std::vector<cv::Point>
 {
@@ -177,8 +166,8 @@ typedef std::deque<ProtoTabletopObject> ProtoObjects;
 class PointCloudSegmentation
 {
  public:
-  PointCloudSegmentation(FeatureTracker* ft, tf::TransformListener * tf) :
-      ft_(ft), tf_(tf)
+  PointCloudSegmentation(shared_ptr<tf::TransformListener> tf) :
+      tf_(tf)
   {
     for (int i = 0; i < 200; ++i)
     {
@@ -693,8 +682,7 @@ class PointCloudSegmentation
   }
 
  protected:
-  FeatureTracker* ft_;
-  tf::TransformListener* tf_;
+  shared_ptr<tf::TransformListener> tf_;
   Eigen::Vector4f table_centroid_;
   std::vector<cv::Vec3f> colors_;
 
@@ -1102,8 +1090,8 @@ class LinkEdges
 class ObjectSingulation
 {
  public:
-  ObjectSingulation(FeatureTracker* ft, PointCloudSegmentation* pcl_segmenter) :
-      ft_(ft), pcl_segmenter_(pcl_segmenter), callback_count_(0), next_id_(0)
+  ObjectSingulation(shared_ptr<PointCloudSegmentation> pcl_segmenter) :
+      pcl_segmenter_(pcl_segmenter), callback_count_(0), next_id_(0)
   {
     // Create derivative kernels for edge calculation
     cv::getDerivKernels(dy_kernel_, dx_kernel_, 1, 0, CV_SCHARR, true, CV_32F);
@@ -2416,8 +2404,7 @@ class ObjectSingulation
   cv::Mat dx_kernel_;
   cv::Mat dy_kernel_;
   cv::Mat g_kernel_;
-  FeatureTracker* ft_;
-  PointCloudSegmentation* pcl_segmenter_;
+  shared_ptr<PointCloudSegmentation> pcl_segmenter_;
   XYZPointCloud prev_cloud_down_;
   XYZPointCloud prev_objs_down_;
   ProtoObjects prev_proto_objs_;
@@ -2452,12 +2439,16 @@ class ObjectSingulationNode
       depth_sub_(n, "depth_image_topic", 1),
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
-      it_(n), tf_(), ft_("pushing_perception"),
-      pcl_segmenter_(&ft_, &tf_),
-      os_(&ft_, &pcl_segmenter_),
+      it_(n),
+      /*pcl_segmenter_(tf_),*/
+      /*os_(pcl_segmenter_),*/
       have_depth_data_(false), tracking_(false),
       tracker_initialized_(false), tracker_count_(0)
   {
+    tf_ = shared_ptr<tf::TransformListener>(new tf::TransformListener());
+    pcl_segmenter_ = shared_ptr<PointCloudSegmentation>(
+        new PointCloudSegmentation(tf_));
+    os_ = shared_ptr<ObjectSingulation>(new ObjectSingulation(pcl_segmenter_));
     // Get parameters from the server
     n_private_.param("crop_min_x", crop_min_x_, 0);
     n_private_.param("crop_max_x", crop_max_x_, 640);
@@ -2470,33 +2461,33 @@ class ObjectSingulationNode
     n_private_.param("max_workspace_x", max_workspace_x_, 0.0);
     n_private_.param("max_workspace_y", max_workspace_y_, 0.0);
     n_private_.param("max_workspace_z", max_workspace_z_, 0.0);
-    n_private_.param("min_pushing_x", os_.min_pushing_x_, 0.0);
-    n_private_.param("min_pushing_y", os_.min_pushing_y_, 0.0);
-    n_private_.param("max_pushing_x", os_.max_pushing_x_, 0.0);
-    n_private_.param("max_pushing_y", os_.max_pushing_y_, 0.0);
+    n_private_.param("min_pushing_x", os_->min_pushing_x_, 0.0);
+    n_private_.param("min_pushing_y", os_->min_pushing_y_, 0.0);
+    n_private_.param("max_pushing_x", os_->max_pushing_x_, 0.0);
+    n_private_.param("max_pushing_y", os_->max_pushing_y_, 0.0);
     std::string default_workspace_frame = "/torso_lift_link";
     n_private_.param("workspace_frame", workspace_frame_,
                      default_workspace_frame);
-    os_.workspace_frame_ = workspace_frame_;
+    os_->workspace_frame_ = workspace_frame_;
 
-    n_private_.param("use_weighted_edges", os_.use_weighted_edges_, false);
-    n_private_.param("threshold_edges", os_.threshold_edges_, false);
-    n_private_.param("edge_weight_thresh", os_.edge_weight_thresh_, 0.5);
-    n_private_.param("depth_edge_weight_thresh", os_.depth_edge_weight_thresh_,
+    n_private_.param("use_weighted_edges", os_->use_weighted_edges_, false);
+    n_private_.param("threshold_edges", os_->threshold_edges_, false);
+    n_private_.param("edge_weight_thresh", os_->edge_weight_thresh_, 0.5);
+    n_private_.param("depth_edge_weight_thresh", os_->depth_edge_weight_thresh_,
                      0.5);
-    n_private_.param("depth_edge_weight", os_.depth_edge_weight_, 0.75);
-    n_private_.param("max_pushing_angle", os_.max_push_angle_, M_PI*0.5);
-    n_private_.param("min_pushing_angle", os_.min_push_angle_, -M_PI*0.5);
-    n_private_.param("boundary_ransac_thresh", os_.boundary_ransac_thresh_,
+    n_private_.param("depth_edge_weight", os_->depth_edge_weight_, 0.75);
+    n_private_.param("max_pushing_angle", os_->max_push_angle_, M_PI*0.5);
+    n_private_.param("min_pushing_angle", os_->min_push_angle_, -M_PI*0.5);
+    n_private_.param("boundary_ransac_thresh", os_->boundary_ransac_thresh_,
                      0.01);
-    n_private_.param("min_edge_length", os_.min_edge_length_, 3);
+    n_private_.param("min_edge_length", os_->min_edge_length_, 3);
 
-    n_private_.param("min_table_z", pcl_segmenter_.min_table_z_, -0.5);
-    n_private_.param("max_table_z", pcl_segmenter_.max_table_z_, 1.5);
-    pcl_segmenter_.min_workspace_x_ = min_workspace_x_;
-    pcl_segmenter_.max_workspace_x_ = max_workspace_x_;
-    pcl_segmenter_.min_workspace_z_ = min_workspace_z_;
-    pcl_segmenter_.max_workspace_z_ = max_workspace_z_;
+    n_private_.param("min_table_z", pcl_segmenter_->min_table_z_, -0.5);
+    n_private_.param("max_table_z", pcl_segmenter_->max_table_z_, 1.5);
+    pcl_segmenter_->min_workspace_x_ = min_workspace_x_;
+    pcl_segmenter_->max_workspace_x_ = max_workspace_x_;
+    pcl_segmenter_->min_workspace_z_ = min_workspace_z_;
+    pcl_segmenter_->max_workspace_z_ = max_workspace_z_;
 
     n_private_.param("autostart_tracking", tracking_, false);
     n_private_.param("autostart_pcl_segmentation", autorun_pcl_segmentation_,
@@ -2504,35 +2495,29 @@ class ObjectSingulationNode
     n_private_.param("use_guided_pushes", use_guided_pushes_, true);
 
     n_private_.param("num_downsamples", num_downsamples_, 2);
-    pcl_segmenter_.num_downsamples_ = num_downsamples_;
+    pcl_segmenter_->num_downsamples_ = num_downsamples_;
     std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
     n_private_.param("cam_info_topic", cam_info_topic_,
                      cam_info_topic_def);
-    n_private_.param("table_ransac_thresh", pcl_segmenter_.table_ransac_thresh_,
+    n_private_.param("table_ransac_thresh", pcl_segmenter_->table_ransac_thresh_,
                      0.01);
     n_private_.param("table_ransac_angle_thresh",
-                     pcl_segmenter_.table_ransac_angle_thresh_, 30.0);
-
-    n_private_.param("surf_hessian_thresh", ft_.surf_.hessianThreshold,
-                     150.0);
-    bool use_fast;
-    n_private_.param("use_fast_corners", use_fast, false);
-    ft_.setUseFast(use_fast);
-    n_private_.param("pcl_cluster_tolerance", pcl_segmenter_.cluster_tolerance_,
+                     pcl_segmenter_->table_ransac_angle_thresh_, 30.0);
+    n_private_.param("pcl_cluster_tolerance", pcl_segmenter_->cluster_tolerance_,
                      0.25);
-    n_private_.param("pcl_difference_thresh", pcl_segmenter_.cloud_diff_thresh_,
+    n_private_.param("pcl_difference_thresh", pcl_segmenter_->cloud_diff_thresh_,
                      0.01);
-    n_private_.param("pcl_min_cluster_size", pcl_segmenter_.min_cluster_size_,
+    n_private_.param("pcl_min_cluster_size", pcl_segmenter_->min_cluster_size_,
                      100);
-    n_private_.param("pcl_max_cluster_size", pcl_segmenter_.max_cluster_size_,
+    n_private_.param("pcl_max_cluster_size", pcl_segmenter_->max_cluster_size_,
                      2500);
-    n_private_.param("pcl_voxel_downsample_res", pcl_segmenter_.voxel_down_res_,
+    n_private_.param("pcl_voxel_downsample_res", pcl_segmenter_->voxel_down_res_,
                      0.005);
     n_private_.param("pcl_cloud_intersect_thresh",
-                     pcl_segmenter_.cloud_intersect_thresh_, 0.005);
-    n_private_.param("pcl_concave_hull_alpha", pcl_segmenter_.hull_alpha_,
+                     pcl_segmenter_->cloud_intersect_thresh_, 0.005);
+    n_private_.param("pcl_concave_hull_alpha", pcl_segmenter_->hull_alpha_,
                      0.1);
-    n_private_.param("use_pcl_voxel_downsample", pcl_segmenter_.use_voxel_down_,
+    n_private_.param("use_pcl_voxel_downsample", pcl_segmenter_->use_voxel_down_,
                      true);
     n_private_.param("default_push_dist", default_push_dist_, 0.1);
 
@@ -2544,11 +2529,11 @@ class ObjectSingulationNode
     table_location_server_ = n_.advertiseService(
         "get_table_location", &ObjectSingulationNode::getTableLocation,
         this);
-    pcl_segmenter_.pcl_obj_seg_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
+    pcl_segmenter_->pcl_obj_seg_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
         "separate_table_objs", 1000);
-    pcl_segmenter_.pcl_down_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
+    pcl_segmenter_->pcl_down_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
         "downsampled_objs", 1000);
-    os_.obj_push_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
+    os_->obj_push_pub_ = n_.advertise<sensor_msgs::PointCloud2>(
         "object_singulation_cloud", 1000);
   }
 
@@ -2561,7 +2546,7 @@ class ObjectSingulationNode
       cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(
           cam_info_topic_, n_, ros::Duration(5.0));
       camera_initialized_ = true;
-      pcl_segmenter_.cam_info_ = cam_info_;
+      pcl_segmenter_->cam_info_ = cam_info_;
     }
     // Convert images to OpenCV format
     cv::Mat color_frame(bridge_.imgMsgToCv(img_msg));
@@ -2573,9 +2558,9 @@ class ObjectSingulationNode
     // Transform point cloud into the correct frame and convert to PCL struct
     XYZPointCloud cloud;
     pcl::fromROSMsg(*cloud_msg, cloud);
-    tf_.waitForTransform(workspace_frame_, cloud.header.frame_id,
-                         cloud.header.stamp, ros::Duration(0.5));
-    pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, tf_);
+    tf_->waitForTransform(workspace_frame_, cloud.header.frame_id,
+                          cloud.header.stamp, ros::Duration(0.5));
+    pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, *tf_);
 
     // Convert nans to zeros
     for (int r = 0; r < depth_frame.rows; ++r)
@@ -2631,7 +2616,7 @@ class ObjectSingulationNode
     cur_point_cloud_ = cloud;
     have_depth_data_ = true;
     cur_camera_header_ = img_msg->header;
-    pcl_segmenter_.cur_camera_header_ = cur_camera_header_;
+    pcl_segmenter_->cur_camera_header_ = cur_camera_header_;
 
     // Debug stuff
     if (autorun_pcl_segmentation_) getPushPose(default_push_dist_,
@@ -2691,11 +2676,11 @@ class ObjectSingulationNode
   {
     if (!use_guided)
     {
-      return os_.findRandomPushPose(cur_point_cloud_);
+      return os_->findRandomPushPose(cur_point_cloud_);
     }
     else
     {
-      return os_.getPushVector(push_dist,
+      return os_->getPushVector(push_dist,
                                cur_color_frame_, cur_depth_frame_,
                                cur_point_cloud_, cur_workspace_mask_);
     }
@@ -2746,7 +2731,7 @@ class ObjectSingulationNode
   {
     XYZPointCloud obj_cloud, table_cloud;
     // TODO: Comptue the hull on the first call
-    Eigen::Vector4f table_centroid = pcl_segmenter_.getTablePlane(cloud,
+    Eigen::Vector4f table_centroid = pcl_segmenter_->getTablePlane(cloud,
                                                                   obj_cloud,
                                                                   table_cloud/*,
                                                                   true*/);
@@ -2835,7 +2820,7 @@ class ObjectSingulationNode
   image_transport::ImageTransport it_;
   sensor_msgs::CameraInfo cam_info_;
   sensor_msgs::CvBridge bridge_;
-  tf::TransformListener tf_;
+  shared_ptr<tf::TransformListener> tf_;
   ros::ServiceServer push_pose_server_;
   ros::ServiceServer table_location_server_;
   cv::Mat cur_color_frame_;
@@ -2847,9 +2832,8 @@ class ObjectSingulationNode
   std_msgs::Header cur_camera_header_;
   std_msgs::Header prev_camera_header_;
   XYZPointCloud cur_point_cloud_;
-  FeatureTracker ft_;
-  PointCloudSegmentation pcl_segmenter_;
-  ObjectSingulation os_;
+  shared_ptr<PointCloudSegmentation> pcl_segmenter_;
+  shared_ptr<ObjectSingulation> os_;
   bool have_depth_data_;
   int crop_min_x_;
   int crop_max_x_;
