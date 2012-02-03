@@ -2,6 +2,9 @@
 
 import sys
 from PyQt4 import QtCore, QtGui, uic
+import roslib
+roslib.load_manifest("rospy")
+import rospy
 
 from controller_gui import Ui_Frame as QTControllerGUIFrame
 
@@ -18,27 +21,37 @@ class ControllerGUIFrame(QtGui.QFrame):
 
         self.ui.start_button.clicked.connect(self.start_button_clk)
         self.ui.kill_button.clicked.connect(self.kill_button_clk)
-        self.controller = "l_arm_controller"
-        self.ui.controller_combo.addItem("l_arm_controller")
-        self.ui.controller_combo.addItem("l_cart")
-        self.ui.controller_combo.addItem("r_arm_controller")
-        self.ui.controller_combo.addItem("r_cart")
-        self.ui.controller_combo.activated[str].connect(self.combo_activated)
-
-    def combo_activated(self, text):
-        self.controller = text
+        self.ui.restart_button.clicked.connect(self.restart_button_clk)
+        self.ui.controller_combo.addItem("%s_arm_controller")
+        self.ui.controller_combo.addItem("%s_cart")
+        self.ui.controller_combo.addItem("%s_joint_controller_low")
 
     def start_button_clk(self):
-        if self.controller is not None:
-            Popen("rosrun pr2_controller_manager pr2_controller_manager start %s" % self.controller, 
-                  shell=True)
+        controller = str(self.ui.controller_combo.currentText())
+        arm = str(self.ui.arm_combo.currentText())
+        ctrl_filled = controller % arm[0]
+        Popen("rosrun pr2_controller_manager pr2_controller_manager spawn %s" % ctrl_filled, 
+              shell=True)
 
     def kill_button_clk(self):
-        if self.controller is not None:
-            Popen("rosrun pr2_controller_manager pr2_controller_manager stop %s" % self.controller, 
-                  shell=True)
+        controller = str(self.ui.controller_combo.currentText())
+        arm = str(self.ui.arm_combo.currentText())
+        ctrl_filled = controller % arm[0]
+        Popen("rosrun pr2_controller_manager pr2_controller_manager kill %s" % ctrl_filled, 
+              shell=True)
+
+    def restart_button_clk(self):
+        controller = str(self.ui.controller_combo.currentText())
+        arm = str(self.ui.arm_combo.currentText())
+        ctrl_filled = controller % arm[0]
+        Popen("rosrun pr2_controller_manager pr2_controller_manager kill %s" % ctrl_filled, 
+              shell=True)
+        rospy.sleep(0.1)
+        Popen("rosrun pr2_controller_manager pr2_controller_manager spawn %s" % ctrl_filled, 
+              shell=True)
 
 def main():
+    rospy.init_node("controller_gui")
     app = QtGui.QApplication(sys.argv)
     frame = ControllerGUIFrame()
     frame.show()

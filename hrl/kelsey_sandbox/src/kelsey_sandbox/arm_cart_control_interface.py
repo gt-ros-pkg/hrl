@@ -10,16 +10,7 @@ import rospy
 from std_msgs.msg import String
 
 from arm_cart_control_gui import Ui_Frame as QTArmControlGUIFrame
-
-MOVE_BUTTONS = {'translate_up' : [0, 1], 'translate_down' : [0, -1],
-                'translate_left' : [1, 1], 'translate_right' : [1, -1],
-                'translate_in' : [2, 1], 'translate_out' : [2, -1],
-                'rotate_x_pos' : [3, 1], 'rotate_x_neg' : [3, -1],
-                'rotate_y_pos' : [4, 1], 'rotate_y_neg' : [4, -1],
-                'rotate_z_pos' : [5, 1], 'rotate_z_neg' : [5, -1]}
-
-POSE_PARAMS = ['position.x', 'position.y', 'position.z', 
-               'orientation.x', 'orientation.y', 'orientation.z']
+from arm_cart_control_backend import MOVE_BUTTONS, MONITOR_RATE
 
 ARM_STYLESHEET = """image: url(:/icons/arm_%s_%s.png);
                     background-image: url(:/icons/empty.png);"""
@@ -46,7 +37,7 @@ class ArmCartControlGUIFrame(QtGui.QFrame):
         self.ui.arm_right.clicked.connect(self.arm_right_clk)
         self.monitor_timer = QtCore.QTimer(self)
         QtCore.QObject.connect(self.monitor_timer, QtCore.SIGNAL("timeout()"), self.monitor_cb)
-        self.monitor_timer.start(50)
+        self.monitor_timer.start(MONITOR_RATE)
 
     def monitor_cb(self):
         if not self.has_set_arm:
