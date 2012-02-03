@@ -6,6 +6,7 @@ import roslib.substitution_args
 from pr2_mechanism_msgs.srv import LoadController, UnloadController, SwitchController, ListControllers
 
 POSSIBLE_ARM_CONTROLLERS = ['%s_arm_controller', '%s_cart']
+POSSIBLE_CONTROLLERS_PARAMETER = "/pr2_controller_switcher/arm_controllers"
 
 ##
 # Offers controller switching inside python on the fly.
@@ -23,6 +24,8 @@ class ControllerSwitcher:
         self.unload_controller.wait_for_service()
         self.switch_controller_srv.wait_for_service()
         self.list_controllers_srv.wait_for_service()
+        if POSSIBLE_CONTROLLERS_PARAMETER not in rosparam.list_params(""):
+            rosparam.set_param_raw(POSSIBLE_CONTROLLERS_PARAMETER, POSSIBLE_ARM_CONTROLLERS)
         rospy.loginfo("[pr2_controller_switcher] ControllerSwitcher ready.")
 
     ##
@@ -56,23 +59,35 @@ class ControllerSwitcher:
     # @param arm (r/l)
     # @param new_controller Name of new controller to load
     # @param param_file YAML file containing parameters for the new controller.
-    # @param possible_controllers List of possible controller names like "%s_cart" to lookup and take down
     # @return Success of switch.
-    def carefree_switch(self, arm, new_controller, param_file=None, possible_controllers=None):
+    def carefree_switch(self, arm, new_controller, param_file=None):
         if '%s' in new_controller:
-            new_controller = new_controller % arm
+            new_ctrl = new_controller % arm
+        else:
+            new_ctrl = new_controller
         if param_file is not None:
             params = rosparam.load_file(roslib.substitution_args.resolve_args(param_file))
-            rosparam.upload_params("", params[0][0])
-        if possible_controllers is None:
-            possible_controllers = POSSIBLE_ARM_CONTROLLERS
+            if new_ctrl not in params[0][0]:
+                rospy.logwarn("[pr2_controller_switcher] Controller not in parameter file.")
+                return
+            else:
+                rosparam.upload_params("", {new_ctrl : params[0][0][new_ctrl]})
+        possible_controllers = rosparam.get_param(POSSIBLE_CONTROLLERS_PARAMETER)
+        if new_controller not in possible_controllers:
+            possible_controllers.append(new_controller)
+            rosparam.set_param_raw(POSSIBLE_CONTROLLERS_PARAMETER, possible_controllers)
         check_arm_controllers = [controller % arm for controller in possible_controllers]
         resp = self.list_controllers_srv()
-        start_controllers, stop_controllers = [new_controller], []
+        start_controllers, stop_controllers = [new_ctrl], []
         for i, controller in enumerate(resp.controllers):
             if controller in check_arm_controllers and resp.state[i] == 'running':
                 stop_controllers.append(controller)
-        self.load_controller(new_controller)
+            if controller == new_ctrl:
+                if resp.state[i] == 'running':
+                    self.switch_controller_srv([], [new_ctrl], 1)
+                self.unload_controller(new_ctrl)
+                
+        self.load_controller(new_ctrl)
         rospy.loginfo("[pr2_controller_switcher] Starting controller %s" % (start_controllers[0]) +
                       " and stopping controllers: [" + ",".join(stop_controllers) + "]")
         resp = self.switch_controller_srv(start_controllers, stop_controllers, 1)

@@ -17,13 +17,16 @@ from threading import Lock
 import roslib
 roslib.load_manifest('hrl_pr2_arms')
 roslib.load_manifest('object_manipulation_msgs')
+roslib.load_manifest('robot_mechanism_controllers')
 
 import rospy
 import actionlib
 
 from std_msgs.msg import Header, Float64MultiArray
 from sensor_msgs.msg import JointState
-from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal
+from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal 
+from pr2_controllers_msgs.msg import JointTrajectoryControllerState 
+from robot_mechanism_controllers.msg import JTCartesianControllerState
 from object_manipulation_msgs.msg import CartesianGains
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from trajectory_msgs.msg import JointTrajectoryPoint
@@ -39,6 +42,8 @@ JOINT_NAMES_LIST = ['_shoulder_pan_joint',
                     '_shoulder_lift_joint', '_upper_arm_roll_joint',
                     '_elbow_flex_joint', '_forearm_roll_joint',
                     '_wrist_flex_joint', '_wrist_roll_joint']
+
+ARM_AT_EP_ERR_THRESH = []
 
 class PR2Arm(HRLArm):
     ##
@@ -125,8 +130,6 @@ class PR2Arm(HRLArm):
                 if self.ep is not None:
                     return True
             r.sleep()
-        if not rospy.is_shutdown():
-            rospy.logwarn("[pr2_arm_base] Cannot read controller state, timing out.")
         return False
             
     ##
@@ -185,13 +188,17 @@ class PR2ArmJointTrajectory(PR2Arm):
     def __init__(self, arm, kinematics, controller_name='/%s_arm_controller', timeout=5.):
         super(PR2ArmJointTrajectory, self).__init__(arm, kinematics, controller_name, timeout)
         self.joint_action_client = actionlib.SimpleActionClient(
-                                       controller_name + '/joint_trajectory_action',
+                                       self.controller_name + '/joint_trajectory_action',
                                        JointTrajectoryAction)
 
         self.ctrl_state_dict = {}
-        rospy.Subscriber(controller_name + '/state', JointTrajectoryControllerState, 
+        rospy.Subscriber(self.controller_name + '/state', JointTrajectoryControllerState, 
                          self._ctrl_state_cb)
-        self.wait_for_ep(timeout)
+        if not self.wait_for_ep(timeout):
+            rospy.logwarn("[pr2_arm] Timed out waiting for EP.")
+        
+        if not self.joint_action_client.wait_for_server(rospy.Duration(timeout)):
+            rospy.logwarn("[pr2_arm] JointTrajectoryAction action server timed out.")
 
     def _ctrl_state_cb(self, ctrl_state):
         with self.lock:
@@ -219,11 +226,18 @@ class PR2ArmJointTrajectory(PR2Arm):
         jtg = JointTrajectoryGoal()
         jtg.trajectory.header.stamp = rospy.Time.now() + rospy.Duration(delay)
         jtg.trajectory.joint_names = self.joint_names_list
+
         jtp = JointTrajectoryPoint()
         jtp.positions = list(jep)
         jtp.time_from_start = rospy.Duration(duration)
         jtg.trajectory.points.append(jtp)
+
         self.joint_action_client.send_goal(jtg)
+
+    def is_arm_at_ep(self, err_thresh=None):
+        if err_thresh is None:
+            err_thresh = ARM_AT_EP_ERR_THRESH
+        return True
 
     def interpolate_ep(self, ep_a, ep_b, t_vals):
         linspace_list = [[ep_a[i] + (ep_b[i] - ep_a[i]) * t for t in t_vals] for i in range(len(ep_a))]
@@ -233,15 +247,20 @@ class PR2ArmJointTrajectory(PR2Arm):
         pass
         #self.ep = self.get_joint_angles(False)
 
+def extract_twist(msg):
+    return np.array([msg.linear.x, msg.linear.y, msg.linear.z, 
+                     msg.angular.x, msg.angular.y, msg.angular.z])
+
 class PR2ArmCartesianBase(PR2Arm):
     def __init__(self, arm, kinematics, controller_name='/%s_cart', timeout=5.):
         super(PR2ArmCartesianBase, self).__init__(arm, kinematics, controller_name, timeout)
         self.command_pose_pub = rospy.Publisher(self.controller_name + '/command_pose', PoseStamped)
 
         self.ctrl_state_dict = {}
-        rospy.Subscriber(controller_name + '/state', JointTrajectoryControllerState, 
+        rospy.Subscriber(self.controller_name + '/state', JTCartesianControllerState, 
                          self._ctrl_state_cb)
-        self.wait_for_ep(timeout)
+        if not self.wait_for_ep(timeout):
+            rospy.logwarn("[pr2_arm] Timed out waiting for EP.")
 
     def _ctrl_state_cb(self, ctrl_state):
         with self.lock:
@@ -249,12 +268,12 @@ class PR2ArmCartesianBase(PR2Arm):
         with self.ctrl_state_lock:
             self.ctrl_state_dict["frame"] = ctrl_state.header.frame_id
             self.ctrl_state_dict["x_desi"] = PoseConverter.to_pos_rot(ctrl_state.x_desi)
-            self.ctrl_state_dict["xd_desi"] = PoseConverter.to_pos_rot(ctrl_state.xd_desi)
+            self.ctrl_state_dict["xd_desi"] = extract_twist(ctrl_state.xd_desi)
             self.ctrl_state_dict["x_act"] = PoseConverter.to_pos_rot(ctrl_state.x)
-            self.ctrl_state_dict["xd_act"] = PoseConverter.to_pos_rot(ctrl_state.xd)
+            self.ctrl_state_dict["xd_act"] = extract_twist(ctrl_state.xd)
             self.ctrl_state_dict["x_desi_filt"] = PoseConverter.to_pos_rot(
                                                                 ctrl_state.x_desi_filtered)
-            self.ctrl_state_dict["x_err"] = PoseConverter.to_pos_rot(ctrl_state.x_err)
+            self.ctrl_state_dict["x_err"] = extract_twist(ctrl_state.x_err)
             self.ctrl_state_dict["tau_pose"] = np.array(ctrl_state.tau_pose)
             self.ctrl_state_dict["tau_posture"] = np.array(ctrl_state.tau_posture)
             self.ctrl_state_dict["tau"] = np.array(ctrl_state.tau)

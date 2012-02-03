@@ -1,6 +1,7 @@
 import sys
 import subprocess
 import numpy as np
+from collections import deque
 
 import roslib
 roslib.load_manifest("rospy")
@@ -16,6 +17,7 @@ from geometry_msgs.msg import *
 import actionlib
 import smach
 import smach_ros
+import rosparam
 #from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJointTrajectory, PR2ArmJTranspose
 from hrl_pr2_arms.pr2_arm import *
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher

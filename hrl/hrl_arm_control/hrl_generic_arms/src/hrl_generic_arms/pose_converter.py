@@ -119,7 +119,7 @@ class PoseConverter:
     # @return geometry_msgs.Pose
     @staticmethod
     def to_pose_msg(*args):
-        header, homo_mat, quat_rot = PoseConverter._make_generic(args)
+        header, homo_mat, quat_rot, _ = PoseConverter._make_generic(args)
         if homo_mat is None:
             rospy.logwarn("[pose_converter] Unknown pose type.")
             return None, None, None, None
@@ -130,7 +130,7 @@ class PoseConverter:
     # @return geometry_msgs.PoseStamped
     @staticmethod
     def to_pose_stamped_msg(*args):
-        header, homo_mat, quat_rot = PoseConverter._make_generic(args)
+        header, homo_mat, quat_rot, _ = PoseConverter._make_generic(args)
         if homo_mat is None:
             rospy.logwarn("[pose_converter] Unknown pose type.")
             return None, None, None, None
@@ -148,7 +148,7 @@ class PoseConverter:
     # @return geometry_msgs.Transform
     @staticmethod
     def to_tf_msg(*args):
-        header, homo_mat, quat_rot = PoseConverter._make_generic(args)
+        header, homo_mat, quat_rot, _ = PoseConverter._make_generic(args)
         if homo_mat is None:
             rospy.logwarn("[pose_converter] Unknown pose type.")
             return None, None, None, None
@@ -159,7 +159,7 @@ class PoseConverter:
     # @return geometry_msgs.TransformStamped
     @staticmethod
     def to_tf_stamped_msg(*args):
-        header, homo_mat, quat_rot = PoseConverter._make_generic(args)
+        header, homo_mat, quat_rot, _ = PoseConverter._make_generic(args)
         if homo_mat is None:
             rospy.logwarn("[pose_converter] Unknown pose type.")
             return None, None, None, None
@@ -177,7 +177,7 @@ class PoseConverter:
     # @return 4x4 numpy mat
     @staticmethod
     def to_homo_mat(*args):
-        header, homo_mat, quat_rot, euler_rot = PoseConverter._make_generic(args)
+        header, homo_mat, quat_rot, _ = PoseConverter._make_generic(args)
         if homo_mat is None:
             rospy.logwarn("[pose_converter] Unknown pose type.")
             return None, None, None, None
@@ -188,7 +188,7 @@ class PoseConverter:
     # @return (3x1 numpy mat, 3x3 numpy mat)
     @staticmethod
     def to_pos_rot(*args):
-        header, homo_mat, quat_rot, euler_rot = PoseConverter._make_generic(args)
+        header, homo_mat, quat_rot, _ = PoseConverter._make_generic(args)
         if homo_mat is None:
             rospy.logwarn("[pose_converter] Unknown pose type.")
             return None, None, None, None
@@ -199,7 +199,7 @@ class PoseConverter:
     # @return (3 list, 4 list)
     @staticmethod
     def to_pos_quat(*args):
-        header, homo_mat, quat_rot, euler_rot = PoseConverter._make_generic(args)
+        header, homo_mat, quat_rot, _ = PoseConverter._make_generic(args)
         if homo_mat is None:
             rospy.logwarn("[pose_converter] Unknown pose type.")
             return None, None, None, None
