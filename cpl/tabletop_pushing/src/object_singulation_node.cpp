@@ -150,14 +150,15 @@ class ProtoTabletopObject
  public:
   XYZPointCloud cloud;
   Eigen::Vector4f centroid;
+  // Replace delta c with stuff
   Eigen::Vector4f delta_c;
   Eigen::Vector4f table_centroid;
-  std::vector<Boundary> boundaries;
+  // std::vector<Boundary> boundaries;
   int id;
   bool moved;
-  // TODO: Replace with push count for quantized angles
   // TODO: Add transform from initial orientation / position
   // TODO: Estimate this transform
+  // TODO: Replace with push count for quantized angles
   int push_count;
 };
 
@@ -232,10 +233,10 @@ class PointCloudSegmentation
     plane_seg.setMethodType(pcl::SAC_RANSAC);
     plane_seg.setDistanceThreshold(table_ransac_thresh_);
     plane_seg.setInputCloud(cloud_filtered.makeShared());
-    plane_seg.segment(plane_inliers, coefficients);
     Eigen::Vector3f v(1.0,1.0,0.0);
     plane_seg.setAxis(v);
     plane_seg.setEpsAngle(table_ransac_angle_thresh_);
+    plane_seg.segment(plane_inliers, coefficients);
     pcl::copyPointCloud(cloud_filtered, plane_inliers, plane_cloud);
 
     // Extract the outliers from the point clouds
@@ -401,6 +402,7 @@ class PointCloudSegmentation
     XYZPointCloud aligned;
     icp.align(aligned);
     double score = icp.getFitnessScore();
+    // TODO: Estimate the transform
     return score;
   }
 
@@ -1346,6 +1348,7 @@ class ObjectSingulation
           }
           else
           {
+            // TODO: Store estimated transform
             cur_objs[min_idx].id = prev_objs[i].id;
             cur_objs[min_idx].delta_c = (cur_objs[min_idx].centroid -
                                          prev_objs[i].centroid);
@@ -1564,6 +1567,7 @@ class ObjectSingulation
   void associate3DBoundaries(std::vector<Boundary>& boundaries,
                              ProtoObjects& objs, cv::Mat& obj_lbl_img)
   {
+    // TODO: Create the boundary orientation histograms
     int no_overlap_count = 0;
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
@@ -1596,8 +1600,8 @@ class ObjectSingulation
       else
       {
         boundaries[b].object_id = max_id;
-        // TODO: Here is a place the ID depends on the image id
-        objs[max_id].boundaries.push_back(boundaries[b]);
+        // TODO: increment the correct orientation bin
+        // objs[max_id].boundaries.push_back(boundaries[b]);
       }
     }
     ROS_DEBUG_STREAM("No overlap for: " << no_overlap_count << " of " <<
@@ -1605,8 +1609,9 @@ class ObjectSingulation
   }
 
   // Get plane best containing the 3D curve
-  Eigen::Vector4f planeRANSAC(Boundary& b)
+  Eigen::Vector4f splitPlaneRANSAC(Boundary& b)
   {
+    // TODO: Estimate plane parallel to the z-axis
     XYZPointCloud cloud;
     cloud.resize(b.points3D.size());
     for (unsigned int i = 0; i < b.points3D.size(); ++i)
@@ -1642,6 +1647,11 @@ class ObjectSingulation
     plane_seg.setModelType(pcl::SACMODEL_PLANE);
     plane_seg.setMethodType(pcl::SAC_RANSAC);
     plane_seg.setDistanceThreshold(boundary_ransac_thresh_);
+    // TODO: Make this only look at vertical planes
+    // Eigen::Vector3f v(0.0,0.0,1.0);
+    // plane_seg.setAxis(v);
+    // plane_seg.setEpsAngle(table_ransac_angle_thresh_);
+
     plane_seg.setInputCloud(cloud.makeShared());
     plane_seg.segment(plane_inliers, coefficients);
     ROS_DEBUG_STREAM("Plane Hessian Normal Form: (" << coefficients.values[0] <<
@@ -1814,7 +1824,7 @@ class ObjectSingulation
   ProtoObjects splitObject3D(Boundary& boundary, ProtoTabletopObject& to_split)
   {
     // Get plane containing the boundary
-    Eigen::Vector4f hessian = planeRANSAC(boundary);
+    Eigen::Vector4f hessian = splitPlaneRANSAC(boundary);
     // Split based on the plane
     return splitObject3D(hessian, to_split);
   }
