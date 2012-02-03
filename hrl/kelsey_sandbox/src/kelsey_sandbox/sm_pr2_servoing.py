@@ -232,7 +232,10 @@ def main():
 
     if True:
         sm_pr2_servoing = build_full_sm()
+        sis = smach_ros.IntrospectionServer('pr2_servo', sm_pr2_servoing, 'UI_FIND_TAG_WAIT')
+        sis.start()
         sm_pr2_servoing.execute(userdata)
+        sis.stop()
     else:
         sm_test = build_test_sm()
         rospy.sleep(4)
