@@ -116,7 +116,7 @@
 #define DISPLAY_PREV_PROJECTED_OBJECTS 1
 #define DISPLAY_OBJECT_SPLITS 1
 // #define DISPLAY_LINKED_EDGES 1
-// #define DISPLAY_CHOSEN_BOUNDARY 1
+#define DISPLAY_CHOSEN_BOUNDARY 1
 #define DISPLAY_CLOUD_DIFF 1
 #define DISPLAY_3D_BOUNDARIES 1
 #define DISPLAY_WAIT 1
@@ -139,8 +139,6 @@ using boost::shared_ptr;
 class Boundary : public std::vector<cv::Point>
 {
  public:
-  double external_prob;
-  double internal_prob;
   std::vector<pcl::PointXYZ> points3D;
   unsigned int object_id;
 };
@@ -152,10 +150,8 @@ class ProtoTabletopObject
   Eigen::Vector4f centroid;
   int id;
   bool moved;
-  // TODO: Add transform from initial orientation / position
-  // TODO: Estimate this transform
-  // TODO: Replace with push count for quantized angles
-  int push_count;
+  std::vector<int> boundary_angle_dist;
+  std::vector<int> push_history;
 };
 
 typedef std::deque<ProtoTabletopObject> ProtoObjects;
@@ -372,6 +368,8 @@ class PointCloudSegmentation
     {
       // Create proto objects from the point cloud
       ProtoTabletopObject po;
+      po.push_history.clear();
+      po.boundary_angle_dist.clear();
       pcl::copyPointCloud(objects_cloud, clusters[i], po.cloud);
       pcl::compute3DCentroid(po.cloud, po.centroid);
       po.id = i;
@@ -1297,6 +1295,7 @@ class ObjectSingulation
           if (!matched[min_idx])
           {
             cur_objs[min_idx].id = prev_objs[i].id;
+            cur_objs[min_idx].push_history = prev_objs[i].push_history;
           }
 
           matched[min_idx] = true;
@@ -1343,6 +1342,7 @@ class ObjectSingulation
           {
             // TODO: Store estimated transform
             cur_objs[min_idx].id = prev_objs[i].id;
+            cur_objs[min_idx].push_history = prev_objs[i].push_history;
             matched[min_idx] = true;
           }
 
@@ -1420,11 +1420,12 @@ class ObjectSingulation
     // Split point cloud at location of the boundary
     ProtoObjects split_objs3D = splitObject3D(boundary, objs[boundary.
                                                              object_id]);
+#ifdef DISPLAY_OBJECT_SPLITS
     cv::Mat split_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         split_objs3D, obj_lbl_img.size(), workspace_frame_, obj_coords);
     pcl_segmenter_->displayObjectImage(split_img, "3D Split");
+#endif // DISPLAY_OBJECT_SPLITS
 
-    // TODO: Generalize to more than 2 object splits
     PushVector push_pose = getPushDirection(push_dist, split_objs3D[0],
                                             split_objs3D[1], objs,
                                             boundary.object_id,
@@ -1553,11 +1554,15 @@ class ObjectSingulation
     }
   }
 
-  // TODO: Need to match previous and current boundaries
   void associate3DBoundaries(std::vector<Boundary>& boundaries,
                              ProtoObjects& objs, cv::Mat& obj_lbl_img)
   {
-    // TODO: Create the boundary orientation histograms
+    // Clear boundary_angle_dist for all objects
+    for (unsigned int o = 0; o < objs.size(); ++o)
+    {
+      objs[o].boundary_angle_dist.clear();
+      objs[o].boundary_angle_dist.resize(num_angle_bins_, 0);
+    }
     int no_overlap_count = 0;
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
@@ -1583,19 +1588,48 @@ class ObjectSingulation
       }
       if (max_id == objs.size())
       {
-        ROS_DEBUG_STREAM("No overlap for boundary: " << b);
         boundaries[b].object_id = objs.size();
         no_overlap_count++;
       }
       else
       {
         boundaries[b].object_id = max_id;
-        // TODO: increment the correct orientation bin
-        // objs[max_id].boundaries.push_back(boundaries[b]);
+        if (boundaries[b].points3D.size() >= 3)
+        {
+          int angle_idx = getBoundaryOrientationIndex(boundaries[b],
+                                                      objs[max_id]);
+          objs[max_id].boundary_angle_dist[angle_idx]++;
+        }
       }
     }
     ROS_DEBUG_STREAM("No overlap for: " << no_overlap_count << " of " <<
                      boundaries.size() << " boundaries");
+  }
+
+  int getBoundaryOrientationIndex(Boundary& b, ProtoTabletopObject& o)
+  {
+    Eigen::Vector3f b_vect = getRANSACXYVector(b);
+    float angle = std::atan2(b_vect[1], b_vect[0]);
+    // TODO: Rotate based on object transform history
+
+    // NOTE: All angles should be between -pi/2 and pi/2 (only want gradient)
+    while ( angle < -M_PI/2 )
+    {
+      angle += M_PI;
+    }
+    while ( angle > M_PI/2 )
+    {
+      angle -= M_PI;
+    }
+
+    // discritize using num_angle_bins_ for M_PI radians range
+    int bin = static_cast<int>(((angle + M_PI/2.0)/M_PI)*num_angle_bins_);
+    ROS_INFO_STREAM("Got angle " << angle << " with bin num " << bin <<
+                    " of " << num_angle_bins_);
+
+  // NOTE: Just in case the value is exactly pi/2, we don't want to return an
+  // index out of range
+    return std::max(std::min(bin, num_angle_bins_-1), 0);
   }
 
   Eigen::Vector3f getRANSACXYVector(Boundary& b)
@@ -1632,7 +1666,6 @@ class ObjectSingulation
     n = n/n.norm();
     ROS_INFO_STREAM("n is: (" << n[0] << ", " << n[1] << ", " << n[2] << ")");
     float d = p.norm();
-    ROS_INFO_STREAM("d is: " << d);
     Eigen::Vector4f hessian(n[0], n[1], n[2], d);
     return hessian;
   }
@@ -1695,9 +1728,29 @@ class ObjectSingulation
     return hessian;
   }
 
-
   Boundary chooseTestBoundary(std::vector<Boundary>& boundaries,
                               ProtoObjects& objs, cv::Mat& obj_img)
+  {
+    std::vector<double> scores(boundaries.size(), 0.0f);
+    for (unsigned int i = 0; i < boundaries.size(); ++i)
+    {
+      if (boundaries[i].object_id >= objs.size() ||
+          boundaries[i].points3D.size() < 3)
+      {
+        scores[i] = boundaries[i].points3D.size();
+      }
+    }
+    // TODO: Choose boundary and object based on unpushed directions
+    // unsigned int chosen_id = 0;
+    unsigned int chosen_id = sampleScore(scores);
+    ROS_INFO_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
+                    boundaries[chosen_id].object_id << " and " <<
+                    boundaries[chosen_id].points3D.size() << " 3D points.");
+    return boundaries[chosen_id];
+  }
+
+  Boundary chooseTestBoundaryWeighted(std::vector<Boundary>& boundaries,
+                                      ProtoObjects& objs, cv::Mat& obj_img)
   {
     std::vector<double> scores(boundaries.size(), 0.0f);
     for (unsigned int i = 0; i < boundaries.size(); ++i)
@@ -1708,7 +1761,6 @@ class ObjectSingulation
         continue;
       }
       // NOTE: Currently choose on ratio of split object sizes
-      // TODO: Should use estimated internal and external likelihoods
       ProtoObjects split = splitObject3D(boundaries[i],
                                          objs[boundaries[i].object_id]);
       double s0 = split[0].cloud.size();
@@ -1742,6 +1794,7 @@ class ObjectSingulation
                               ProtoObjects& objs, unsigned int id,
                               cv::Mat& lbl_img)
   {
+    // TODO: Simulate end effector clearance
     // Get vector between the two split object centroids and find the normal to
     // the vertical plane running through this vector
     const Eigen::Vector4f split_diff = split0.centroid - split1.centroid;
@@ -1852,10 +1905,10 @@ class ObjectSingulation
   ProtoObjects splitObject3D(Boundary& boundary, ProtoTabletopObject& to_split)
   {
     // Get plane containing the boundary
-    Eigen::Vector4f hessian = splitPlaneRANSAC(boundary);
-    Eigen::Vector4f hessian2 = splitPlaneVertical(boundary);
+    // Eigen::Vector4f hessian = splitPlaneRANSAC(boundary);
+    Eigen::Vector4f hessian = splitPlaneVertical(boundary);
     // Split based on the plane
-    return splitObject3D(hessian2, to_split);
+    return splitObject3D(hessian, to_split);
   }
 
   ProtoObjects splitObject3D(Eigen::Vector4f& hessian,
@@ -1891,9 +1944,6 @@ class ObjectSingulation
     ProtoObjects split;
     ProtoTabletopObject po1;
     ProtoTabletopObject po2;
-    // TODO: Fix ID stuff
-    // po1.id = to_split.id;
-    // po2.id = to_split.id;
     pcl::ExtractIndices<pcl::PointXYZ> extract;
     pcl::PointIndices plane_outliers;
     extract.setInputCloud(to_split.cloud.makeShared());
@@ -2469,6 +2519,7 @@ class ObjectSingulation
   double min_push_angle_;
   double boundary_ransac_thresh_;
   int min_edge_length_;
+  int num_angle_bins_;
 };
 
 class ObjectSingulationNode
@@ -2522,6 +2573,7 @@ class ObjectSingulationNode
     n_private_.param("boundary_ransac_thresh", os_->boundary_ransac_thresh_,
                      0.01);
     n_private_.param("min_edge_length", os_->min_edge_length_, 3);
+    n_private_.param("num_angle_bins", os_->num_angle_bins_, 8);
 
     n_private_.param("min_table_z", pcl_segmenter_->min_table_z_, -0.5);
     n_private_.param("max_table_z", pcl_segmenter_->max_table_z_, 1.5);
