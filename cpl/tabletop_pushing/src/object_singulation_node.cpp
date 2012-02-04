@@ -150,10 +150,6 @@ class ProtoTabletopObject
  public:
   XYZPointCloud cloud;
   Eigen::Vector4f centroid;
-  // Replace delta c with stuff
-  Eigen::Vector4f delta_c;
-  Eigen::Vector4f table_centroid;
-  // std::vector<Boundary> boundaries;
   int id;
   bool moved;
   // TODO: Add transform from initial orientation / position
@@ -379,7 +375,6 @@ class PointCloudSegmentation
       pcl::copyPointCloud(objects_cloud, clusters[i], po.cloud);
       pcl::compute3DCentroid(po.cloud, po.centroid);
       po.id = i;
-      po.table_centroid = table_centroid_;
       po.moved = false;
       objs.push_back(po);
     }
@@ -1167,23 +1162,23 @@ class ObjectSingulation
                     << " pushable proto objects");
     int rand_idx = pushable_obj_idx[rand() % pushable_obj_idx.size()];
     Eigen::Vector4f obj_xyz_centroid = objs[rand_idx].centroid;
+    double rand_orientation = (randf()*
+                               (max_push_angle_- min_push_angle_) +
+                               min_push_angle_);
     p.start_point.x = obj_xyz_centroid[0];
     p.start_point.y = obj_xyz_centroid[1];
     // Set z to be the table height
-    p.start_point.z = objs[0].table_centroid[2];
+    p.start_point.z = obj_xyz_centroid[2];
+    // Choose a random orientation
+    p.push_angle = rand_orientation;
 
     sensor_msgs::PointCloud2 obj_push_msg;
     pcl::toROSMsg(objs[rand_idx].cloud, obj_push_msg);
     obj_push_pub_.publish(obj_push_msg);
 
-    // Choose a random orientation
-    double rand_orientation = (randf()*
-                               (max_push_angle_- min_push_angle_) +
-                               min_push_angle_);
-    ROS_INFO_STREAM("Chosen push pose is at: (" << obj_xyz_centroid[0] << ", "
-                    << obj_xyz_centroid[1] << ", " << objs[0].table_centroid[2]
-                    << ") with orientation of: " << rand_orientation);
-    p.push_angle = rand_orientation;
+    ROS_INFO_STREAM("Chosen push pose is at: (" << p.start_point.x << ", "
+                    << p.start_point.y << ", " << p.start_point.z
+                    << ") with orientation of: " << p.push_angle);
     return p;
   }
 
@@ -1302,8 +1297,6 @@ class ObjectSingulation
           if (!matched[min_idx])
           {
             cur_objs[min_idx].id = prev_objs[i].id;
-            cur_objs[min_idx].delta_c = (cur_objs[min_idx].centroid -
-                                         prev_objs[i].centroid);
           }
 
           matched[min_idx] = true;
@@ -1350,8 +1343,6 @@ class ObjectSingulation
           {
             // TODO: Store estimated transform
             cur_objs[min_idx].id = prev_objs[i].id;
-            cur_objs[min_idx].delta_c = (cur_objs[min_idx].centroid -
-                                         prev_objs[i].centroid);
             matched[min_idx] = true;
           }
 
@@ -1457,7 +1448,6 @@ class ObjectSingulation
                                                    cv::Mat& workspace_mask,
                                                    cv::Mat& combined_edges)
   {
-
     cv::Mat tmp_bw(color_img.size(), CV_8UC1);
     cv::Mat bw_img(color_img.size(), CV_32FC1);
     cv::Mat Ix(bw_img.size(), CV_32FC1);
@@ -1608,10 +1598,48 @@ class ObjectSingulation
                      boundaries.size() << " boundaries");
   }
 
+  Eigen::Vector3f getRANSACXYVector(Boundary& b)
+  {
+    XYZPointCloud cloud;
+    cloud.resize(b.points3D.size());
+    for (unsigned int i = 0; i < b.points3D.size(); ++i)
+    {
+      cloud.at(i) = b.points3D[i];
+      cloud.at(i).z = 0;
+    }
+
+    pcl::ModelCoefficients c;
+    pcl::PointIndices line_inliers;
+    pcl::SACSegmentation<pcl::PointXYZ> line_seg;
+    line_seg.setOptimizeCoefficients(true);
+    line_seg.setModelType(pcl::SACMODEL_LINE);
+    line_seg.setMethodType(pcl::SAC_RANSAC);
+    line_seg.setDistanceThreshold(boundary_ransac_thresh_);
+    line_seg.setInputCloud(cloud.makeShared());
+    line_seg.segment(line_inliers, c);
+
+    // NOTE: Just want vector, in plane, so z is 0
+    Eigen::Vector3f l_vector(c.values[3], c.values[4], 0);
+    return l_vector;
+  }
+
+  Eigen::Vector4f splitPlaneVertical(Boundary& b)
+  {
+    Eigen::Vector3f l = getRANSACXYVector(b);
+    const Eigen::Vector3f z_axis(0, 0, 1);
+    Eigen::Vector3f n = l.cross(z_axis);
+    Eigen::Vector3f p(b.points3D[0].x, b.points3D[0].y, 0.0f);
+    n = n/n.norm();
+    ROS_INFO_STREAM("n is: (" << n[0] << ", " << n[1] << ", " << n[2] << ")");
+    float d = p.norm();
+    ROS_INFO_STREAM("d is: " << d);
+    Eigen::Vector4f hessian(n[0], n[1], n[2], d);
+    return hessian;
+  }
+
   // Get plane best containing the 3D curve
   Eigen::Vector4f splitPlaneRANSAC(Boundary& b)
   {
-    // TODO: Estimate plane parallel to the z-axis
     XYZPointCloud cloud;
     cloud.resize(b.points3D.size());
     for (unsigned int i = 0; i < b.points3D.size(); ++i)
@@ -1654,7 +1682,7 @@ class ObjectSingulation
 
     plane_seg.setInputCloud(cloud.makeShared());
     plane_seg.segment(plane_inliers, coefficients);
-    ROS_DEBUG_STREAM("Plane Hessian Normal Form: (" << coefficients.values[0] <<
+    ROS_INFO_STREAM("Plane Hessian Normal Form: (" << coefficients.values[0] <<
                      ", " << coefficients.values[1] << ", " <<
                      coefficients.values[2] << ", " << coefficients.values[3] <<
                      ")");
@@ -1825,13 +1853,16 @@ class ObjectSingulation
   {
     // Get plane containing the boundary
     Eigen::Vector4f hessian = splitPlaneRANSAC(boundary);
+    Eigen::Vector4f hessian2 = splitPlaneVertical(boundary);
     // Split based on the plane
-    return splitObject3D(hessian, to_split);
+    return splitObject3D(hessian2, to_split);
   }
 
   ProtoObjects splitObject3D(Eigen::Vector4f& hessian,
                              ProtoTabletopObject& to_split)
   {
+    // NOTE: If this is a unti vector, denom is 1
+    // TODO: Assume a unit vector
     const float denom = std::sqrt(hessian[0]*hessian[0] + hessian[1]*hessian[1]
                                   + hessian[2]*hessian[2]);
     const Eigen::Vector3f norm(hessian[0]/denom, hessian[1]/denom,
