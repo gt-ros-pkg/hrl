@@ -59,8 +59,8 @@ class TabletopExecutive:
                                                 -0.03)
         self.gripper_y_offset = rospy.get_param('~gripper_push_start_x_offset',
                                                 0.0)
-        self.gripper_z_offset = rospy.get_param('~gripper_push_start_z_offset',
-                                                0.0)
+        self.gripper_start_z = rospy.get_param('~gripper_push_start_z',
+                                                -0.25)
 
         self.gripper_sweep_dist = rospy.get_param('~gripper_sweep_dist',
                                                  0.25)
@@ -110,27 +110,39 @@ class TabletopExecutive:
 
         # Setup perception system
         self.num_total_pushes = 0
+        opts = [1,0,2]
         # TODO: Switch to use singulation feedback
         for i in xrange(num_pushes):
             pose_res = self.request_singulation_push(use_guided)
             if pose_res is None:
                 continue
             # TODO: Decide push based on the orientation returned
-            opt = 0
-            if pose_res.start_point.y < 0:
-                which_arm = 'r'
-            else:
-                which_arm = 'l'
+            opt = opts[i%len(opts)]
+
             if opt == 0:
+                if pose_res.push_angle > 0:
+                    which_arm = 'r'
+                else:
+                    which_arm = 'l'
+
                 # TODO: Make this a parameter
-                pose_res.start_point.z = -0.22
+                pose_res.start_point.z = self.gripper_start_z
                 self.gripper_push_object(self.gripper_push_dist, which_arm,
                                          pose_res)
             if opt == 1:
+
+                if pose_res.start_point.y < 0:
+                    which_arm = 'r'
+                else:
+                    which_arm = 'l'
                 # TODO: Make this a parameter
                 pose_res.start_point.z = -0.25
                 self.sweep_object(self.gripper_push_dist, which_arm, pose_res)
             if opt == 2:
+                if pose_res.push_angle > 0:
+                    which_arm = 'r'
+                else:
+                    which_arm = 'l'
                 # TODO: Make this a parameter
                 pose_res.start_point.z = -0.25
                 self.overhead_push_object(self.gripper_push_dist, which_arm,
@@ -237,7 +249,7 @@ class TabletopExecutive:
         # Offset pose to not hit the object immediately
         push_req.start_point.point.x += self.gripper_x_offset*cos(wrist_yaw)
         push_req.start_point.point.y += self.gripper_x_offset*sin(wrist_yaw)
-        push_req.start_point.point.z += self.gripper_z_offset
+        #push_req.start_point.point.z += self.gripper_z_offset
 
         push_req.left_arm = (which_arm == 'l')
         push_req.right_arm = not push_req.left_arm
@@ -332,4 +344,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(False)
-    node.run(4)
+    node.run(3)

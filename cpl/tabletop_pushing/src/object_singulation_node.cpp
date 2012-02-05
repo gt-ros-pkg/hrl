@@ -105,6 +105,8 @@
 #include <time.h> // for srand(time(NULL))
 #include <cstdlib> // for MAX_RAND
 
+// TODO: Put a single launch param inside all of these
+// TODO: Add separate waitKey inside of pushvector stuff 
 // Debugging IFDEFS
 #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
