@@ -361,6 +361,12 @@ class PointCloudSegmentation
       pcl_obj_seg_pub_.publish(label_cloud_msg);
     }
 
+    Eigen::Matrix4f t;
+    for (int i = 0; i < 4; ++i)
+    {
+      t(i,i) = 1.0;
+    };
+
     ProtoObjects objs;
     for (unsigned int i = 0; i < clusters.size(); ++i)
     {
@@ -372,6 +378,7 @@ class PointCloudSegmentation
       pcl::compute3DCentroid(po.cloud, po.centroid);
       po.id = i;
       po.moved = false;
+      po.transform = t;
       objs.push_back(po);
     }
     return objs;
@@ -1492,15 +1499,7 @@ class ObjectSingulation
     }
     else
     {
-      if (use_weighted_edges_)
-      {
-        combined_edges = (edge_img_masked*(1.0-depth_edge_weight_) +
-                          depth_edge_weight_*depth_edge_img_masked);
-      }
-      else
-      {
-        combined_edges = cv::max(edge_img_masked, depth_edge_img_masked);
-      }
+      combined_edges = cv::max(edge_img_masked, depth_edge_img_masked);
     }
 
     // Link edges into object boundary hypotheses
@@ -1641,9 +1640,7 @@ class ObjectSingulation
     Eigen::Vector3f n = l.cross(z_axis);
     Eigen::Vector3f p(b.points3D[0].x, b.points3D[0].y, 0.0f);
     n = n/n.norm();
-    ROS_INFO_STREAM("n is: (" << n[0] << ", " << n[1] << ", " << n[2] << ")");
     float d = p.norm();
-    ROS_INFO_STREAM("d is: " << d);
     Eigen::Vector4f hessian(n[0], n[1], n[2], d);
     return hessian;
   }
@@ -1710,6 +1707,7 @@ class ObjectSingulation
                               ProtoObjects& objs, cv::Mat& obj_img)
   {
     std::vector<double> scores(boundaries.size(), 0.0f);
+    int nonzero = 0;
     for (unsigned int i = 0; i < boundaries.size(); ++i)
     {
       if (boundaries[i].object_id >= objs.size() ||
@@ -1719,7 +1717,19 @@ class ObjectSingulation
       }
       else
       {
-        scores[i] = boundaries[i].points3D.size();
+        ProtoObjects pos = splitObject3D(boundaries[i],
+                                         objs[boundaries[i].object_id]);
+        const float s0 = pos[0].cloud.size();
+        const float s1 = pos[1].cloud.size();
+        if (s0 == 0 || s1 == 0)
+        {
+          scores[i] = 0;
+        }
+        else
+        {
+          scores[i] = std::min(s0,s1)/(s0+s1);
+          nonzero++;
+        }
       }
     }
     // TODO: Choose boundary and object based on unpushed directions
@@ -1728,6 +1738,7 @@ class ObjectSingulation
     ROS_INFO_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
                     boundaries[chosen_id].object_id << " and " <<
                     boundaries[chosen_id].points3D.size() << " 3D points.");
+    ROS_INFO_STREAM("Num nonzero scores: " << nonzero);
     return boundaries[chosen_id];
   }
 
@@ -1894,8 +1905,8 @@ class ObjectSingulation
         p2.indices.push_back(i);
       }
     }
-    ROS_INFO_STREAM("split3D: P1 has " << p1.indices.size() << " points");
-    ROS_INFO_STREAM("split3D: P2 has " << p2.indices.size() << " points");
+    ROS_DEBUG_STREAM("split3D: P1 has " << p1.indices.size() << " points");
+    ROS_DEBUG_STREAM("split3D: P2 has " << p2.indices.size() << " points");
     // Extract indices
     ProtoObjects split;
     ProtoTabletopObject po1;
@@ -2033,9 +2044,6 @@ class ObjectSingulation
     }
 
     Eigen::Vector3f n = getRANSACXYVector(boundary);
-    Eigen::Matrix4f t;
-    float angle = getBoundaryOrientation(boundary, t);
-    ROS_INFO_STREAM("Chosen boundary has orientation: " << angle);
     const cv::Scalar red(0.0f, 0.0f, 1.0f);
     const cv::Scalar blue(1.0f, 0.0f, 0.0f);
     for (unsigned int i = 0; i < boundary.points3D.size(); ++i)
@@ -2050,19 +2058,12 @@ class ObjectSingulation
       end_point.point.x = start_point.point.x + n[0]*0.10;
       end_point.point.y = start_point.point.y + n[1]*0.10;
       end_point.point.z = 0.0;
-      ROS_INFO_STREAM("Start: (" << start_point.point.x << ", " <<
-                      start_point.point.y << ", " << start_point.point.z <<
-                      ") \tend: (" << end_point.point.x << ", " <<
-                      end_point.point.y << ", " << end_point.point.z << ")");
 
       cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
           start_point);
       cv::Point img_end_point = pcl_segmenter_->projectPointIntoImage(
           end_point);
 
-      ROS_INFO_STREAM("Img start: (" << img_start_point.x << ", " <<
-                      img_start_point.y << ") \tend: (" << img_end_point.x <<
-                      ", " << img_end_point.y << ")");
       cv::line(obj_disp_img, img_start_point, img_end_point, red);
       cv::circle(obj_disp_img, img_end_point, 4, blue);
     }
@@ -2138,7 +2139,6 @@ class ObjectSingulation
   double max_pushing_y_;
   std::string workspace_frame_;
   ros::Publisher obj_push_pub_;
-  bool use_weighted_edges_;
   bool threshold_edges_;
   double depth_edge_weight_;
   double edge_weight_thresh_;
@@ -2193,7 +2193,6 @@ class ObjectSingulationNode
                      default_workspace_frame);
     os_->workspace_frame_ = workspace_frame_;
 
-    n_private_.param("use_weighted_edges", os_->use_weighted_edges_, false);
     n_private_.param("threshold_edges", os_->threshold_edges_, false);
     n_private_.param("edge_weight_thresh", os_->edge_weight_thresh_, 0.5);
     n_private_.param("depth_edge_weight_thresh", os_->depth_edge_weight_thresh_,
