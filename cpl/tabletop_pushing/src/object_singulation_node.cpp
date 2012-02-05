@@ -1727,7 +1727,7 @@ class ObjectSingulation
         }
         else
         {
-          scores[i] = std::min(s0,s1)/(s0+s1);
+          scores[i] = std::min(s0,s1)/std::max(s0,s1);
           nonzero++;
         }
       }
