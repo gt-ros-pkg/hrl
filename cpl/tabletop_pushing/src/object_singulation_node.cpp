@@ -366,8 +366,14 @@ class PointCloudSegmentation
     Eigen::Matrix4f t;
     for (int i = 0; i < 4; ++i)
     {
-      t(i,i) = 1.0;
-    };
+      for (int j = 0; j < 4; ++j)
+      {
+        if (i == j)
+          t(i,j) = 1.0f;
+        else
+          t(i,j) = 0.0f;
+      }
+    }
 
     ProtoObjects objs;
     for (unsigned int i = 0; i < clusters.size(); ++i)
@@ -394,7 +400,8 @@ class PointCloudSegmentation
    *
    * @return The ICP fitness score of the match
    */
-  double ICPProtoObjects(ProtoTabletopObject& a, ProtoTabletopObject& b)
+  double ICPProtoObjects(ProtoTabletopObject& a, ProtoTabletopObject& b,
+                         Eigen::Matrix4f& transform)
   {
     pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
     icp.setInputCloud(boost::make_shared<XYZPointCloud>(a.cloud));
@@ -402,6 +409,7 @@ class PointCloudSegmentation
     XYZPointCloud aligned;
     icp.align(aligned);
     double score = icp.getFitnessScore();
+    transform = icp.getFinalTransformation();
     // TODO: Estimate the transform
     return score;
   }
@@ -1275,6 +1283,7 @@ class ObjectSingulation
           {
             cur_objs[min_idx].id = prev_objs[i].id;
             cur_objs[min_idx].push_history = prev_objs[i].push_history;
+            cur_objs[min_idx].transform = prev_objs[i].transform;
           }
 
           matched[min_idx] = true;
@@ -1295,23 +1304,28 @@ class ObjectSingulation
         unsigned int min_idx = cur_objs.size();
         // Match the moved objects to their new locations
         ROS_DEBUG_STREAM("Finding match for object : " << prev_objs[i].id);
+        Eigen::Matrix4f min_transform;
         for (unsigned int j = 0; j < cur_objs.size(); ++j)
         {
           if (!matched[j])
           {
             // Run ICP to match between frames
+            Eigen::Matrix4f transform;
+            ROS_INFO_STREAM("ICP of " << i << " to " << j);
             double cur_score = pcl_segmenter_->ICPProtoObjects(prev_objs[i],
-                                                               cur_objs[j]);
+                                                               cur_objs[j],
+                                                               transform);
             if (cur_score < min_score)
             {
               min_score = cur_score;
               min_idx = j;
+              min_transform = transform;
             }
           }
         }
         if (min_idx < cur_objs.size())
         {
-          // TODO: If score is too bad ignore
+          // TODO: If score is too bad ignore / instantiate new
           ROS_INFO_STREAM("Prev moved obj: " << prev_objs[i].id  << ", " << i
                           << " maps to cur " << min_idx << " : " << min_score);
           if (matched[min_idx])
@@ -1319,12 +1333,17 @@ class ObjectSingulation
           }
           else
           {
-            // TODO: Store estimated transform
             cur_objs[min_idx].id = prev_objs[i].id;
             cur_objs[min_idx].push_history = prev_objs[i].push_history;
+            cur_objs[min_idx].transform = min_transform*prev_objs[i].transform;
+            ROS_DEBUG_STREAM("Previous transform is " << std::endl <<
+                             prev_objs[i].transform);
+            ROS_DEBUG_STREAM("Chosen transform is " << std::endl <<
+                             min_transform);
+            ROS_DEBUG_STREAM("Updated transform is " << std::endl <<
+                             cur_objs[min_idx].transform);
             matched[min_idx] = true;
           }
-
         }
         else
         {
