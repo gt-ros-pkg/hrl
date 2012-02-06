@@ -106,7 +106,7 @@
 #include <cstdlib> // for MAX_RAND
 
 // TODO: Put a single launch param inside all of these
-// TODO: Add separate waitKey inside of pushvector stuff 
+// TODO: Add separate waitKey inside of pushvector stuff
 // Debugging IFDEFS
 #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
@@ -576,8 +576,7 @@ class PointCloudSegmentation
    * @param objs The set of proto objects
    */
   void displayObjectImage(cv::Mat& obj_img,
-                          std::string win_name="projected objects",
-                          bool only_moved=false)
+                          std::string win_name="projected objects")
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     for (int r = 0; r < obj_img.rows; ++r)
@@ -592,19 +591,6 @@ class PointCloudSegmentation
       }
     }
     cv::imshow(win_name, obj_disp_img);
-  }
-
-  void displayColors()
-  {
-    cv::Mat color_img(250, 200, CV_32FC3);
-    for (int r = 0; r < color_img.rows; ++r)
-    {
-      for (int c = 0; c < color_img.cols; ++c)
-      {
-        color_img.at<cv::Vec3f>(r,c) = colors_[r/25];
-      }
-    }
-    cv::imshow("color ids", color_img);
   }
 
   void projectPointCloudIntoImage(XYZPointCloud& cloud, cv::Mat& lbl_img,
@@ -663,6 +649,7 @@ class PointCloudSegmentation
     }
     catch (tf::TransformException e)
     {
+      ROS_ERROR_STREAM("Fucked.");
       ROS_ERROR_STREAM(e.what());
     }
     return img_loc;
@@ -772,7 +759,8 @@ class LinkEdges
 {
  public:
   static std::vector<Boundary> edgeLink(cv::Mat& edge_img_raw,
-                                        unsigned int min_length=1)
+                                        unsigned int min_length=1,
+                                        bool use_displays = false)
   {
     // binarize image
     cv::Mat edge_img(edge_img_raw.size(), CV_8UC1, cv::Scalar(0));
@@ -819,21 +807,24 @@ class LinkEdges
     edge_img_f = -1*edge_img_f;
 
 #ifdef DISPLAY_LINKED_EDGES
-    ROS_DEBUG_STREAM("Found " << edges.size() << " edges ");
-    cv::Mat edge_disp_img(edge_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
-    for (unsigned int i = 0; i < edges.size(); ++i)
+    if (use_displays)
     {
-      cv::Vec3f rand_color;
-      rand_color[0] = randf();
-      rand_color[1] = randf();
-      rand_color[2] = randf();
-
-      for (unsigned int j = 0; j < edges[i].size(); ++j)
+      ROS_DEBUG_STREAM("Found " << edges.size() << " edges ");
+      cv::Mat edge_disp_img(edge_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+      for (unsigned int i = 0; i < edges.size(); ++i)
       {
-        edge_disp_img.at<cv::Vec3f>(edges[i][j].y, edges[i][j].x) = rand_color;
+        cv::Vec3f rand_color;
+        rand_color[0] = randf();
+        rand_color[1] = randf();
+        rand_color[2] = randf();
+
+        for (unsigned int j = 0; j < edges[i].size(); ++j)
+        {
+          edge_disp_img.at<cv::Vec3f>(edges[i][j].y, edges[i][j].x) = rand_color;
+        }
       }
+      cv::imshow("linked edges", edge_disp_img);
     }
-    cv::imshow("linked edges", edge_disp_img);
 #endif // DISPLAY_LINKED_EDGES
 
     return edges;
@@ -1071,7 +1062,6 @@ class LinkEdges
   {
     return (junctions.at<float>(r, c)==1);
   }
-
 };
 
 class ObjectSingulation
@@ -1183,7 +1173,6 @@ class ObjectSingulation
    */
   ProtoObjects calcProtoObjects(XYZPointCloud& cloud)
   {
-    // pcl_segmenter_->displayColors();
     XYZPointCloud objs_cloud;
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cloud, objs_cloud,
                                                             true);
@@ -1359,18 +1348,24 @@ class ObjectSingulation
                                std::vector<Boundary>& boundaries,
                                XYZPointCloud cloud)
   {
+    ROS_INFO_STREAM("Have " << objs.size() << " objects.");
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         objs, boundary_img.size(), workspace_frame_);
 
 #ifdef DISPLAY_PROJECTED_OBJECTS
-    pcl_segmenter_->displayObjectImage(obj_lbl_img);
+    if (use_displays_)
+    {
+      pcl_segmenter_->displayObjectImage(obj_lbl_img);
+    }
 #endif // DISPLAY_PROJECTED_OBJECTS
-
     get3DBoundaries(boundaries, cloud);
     associate3DBoundaries(boundaries, objs, obj_lbl_img);
 
 #ifdef DISPLAY_3D_BOUNDARIES
-    draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
+    if (use_displays_)
+    {
+      draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
+    }
 #endif // DISPLAY_3D_BOUNDARIES
 
     Boundary test_boundary = chooseTestBoundary(boundaries, objs, obj_lbl_img);
@@ -1400,17 +1395,23 @@ class ObjectSingulation
                                  XYZPointCloud& cloud)
   {
 #ifdef DISPLAY_CHOSEN_BOUNDARY
-    // displayBoundaryImage(obj_lbl_img, boundary, "chosen", true);
-    displayBoundaryOrientation(obj_lbl_img, boundary, "chosen angle", true);
+    if (use_displays_)
+    {
+      // displayBoundaryImage(obj_lbl_img, boundary, "chosen", true);
+      displayBoundaryOrientation(obj_lbl_img, boundary, "chosen angle", true);
+    }
 #endif // DISPLAY_CHOSEN_BOUNDARY
 
     // Split point cloud at location of the boundary
     ProtoObjects split_objs3D = splitObject3D(boundary, objs[boundary.
                                                              object_id]);
 #ifdef DISPLAY_OBJECT_SPLITS
-    cv::Mat split_img = pcl_segmenter_->projectProtoObjectsIntoImage(
-        split_objs3D, obj_lbl_img.size(), workspace_frame_);
-    pcl_segmenter_->displayObjectImage(split_img, "3D Split");
+    if (use_displays_)
+    {
+      cv::Mat split_img = pcl_segmenter_->projectProtoObjectsIntoImage(
+          split_objs3D, obj_lbl_img.size(), workspace_frame_);
+      pcl_segmenter_->displayObjectImage(split_img, "3D Split");
+    }
 #endif // DISPLAY_OBJECT_SPLITS
 
     PushVector push_pose = getPushDirection(push_dist, split_objs3D[0],
@@ -1506,7 +1507,8 @@ class ObjectSingulation
 
     // Link edges into object boundary hypotheses
     std::vector<Boundary> boundaries = LinkEdges::edgeLink(combined_edges,
-                                                           min_edge_length_);
+                                                           min_edge_length_,
+                                                           use_displays_);
     return boundaries;
   }
 
@@ -1685,11 +1687,6 @@ class ObjectSingulation
     plane_seg.setModelType(pcl::SACMODEL_PLANE);
     plane_seg.setMethodType(pcl::SAC_RANSAC);
     plane_seg.setDistanceThreshold(boundary_ransac_thresh_);
-    // TODO: Make this only look at vertical planes
-    // Eigen::Vector3f v(0.0,0.0,1.0);
-    // plane_seg.setAxis(v);
-    // plane_seg.setEpsAngle(table_ransac_angle_thresh_);
-
     plane_seg.setInputCloud(cloud.makeShared());
     plane_seg.segment(plane_inliers, coefficients);
     ROS_INFO_STREAM("Plane Hessian Normal Form: (" << coefficients.values[0] <<
@@ -1710,37 +1707,50 @@ class ObjectSingulation
   {
     std::vector<double> scores(boundaries.size(), 0.0f);
     int nonzero = 0;
+    int no_ids = 0;
+    int no_pts = 0;
     for (unsigned int i = 0; i < boundaries.size(); ++i)
     {
       if (boundaries[i].object_id >= objs.size() ||
           boundaries[i].points3D.size() < 3)
       {
+        if (boundaries[i].object_id >= objs.size())
+        {
+          ++no_ids;
+        }
+        if (boundaries[i].points3D.size() < 3)
+        {
+          ++no_pts;
+        }
         continue;
       }
       else
       {
         ProtoObjects pos = splitObject3D(boundaries[i],
                                          objs[boundaries[i].object_id]);
-        const float s0 = pos[0].cloud.size();
-        const float s1 = pos[1].cloud.size();
+        const unsigned int s0 = pos[0].cloud.size();
+        const unsigned int s1 = pos[1].cloud.size();
         if (s0 == 0 || s1 == 0)
         {
-          scores[i] = 0;
+          scores[i] = 0.0;
+        }
+        else if (s0 > s1)
+        {
+          scores[i] = static_cast<float>(s1)/static_cast<float>(s0);
+          nonzero++;
         }
         else
         {
-          scores[i] = std::min(s0,s1)/std::max(s0,s1);
+          scores[i] = static_cast<float>(s0)/static_cast<float>(s1);
           nonzero++;
         }
       }
     }
     // TODO: Choose boundary and object based on unpushed directions
-    // unsigned int chosen_id = 0;
     unsigned int chosen_id = sampleScore(scores);
     ROS_INFO_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
                     boundaries[chosen_id].object_id << " and " <<
                     boundaries[chosen_id].points3D.size() << " 3D points.");
-    ROS_INFO_STREAM("Num nonzero scores: " << nonzero);
     return boundaries[chosen_id];
   }
 
@@ -1817,27 +1827,30 @@ class ObjectSingulation
 
 #ifdef DISPLAY_PUSH_VECTOR
 
-    const Eigen::Vector4f moved_cent = split_opts[max_id].getMovedCentroid();
-    PointStamped start_point;
-    start_point.point = push.start_point;
-    start_point.header.frame_id = workspace_frame_;
-    PointStamped end_point;
-    end_point.point.x = moved_cent[0];
-    end_point.point.y = moved_cent[1];
-    end_point.point.z = moved_cent[2];
-    end_point.header.frame_id = workspace_frame_;
+    if (use_displays_)
+    {
+      const Eigen::Vector4f moved_cent = split_opts[max_id].getMovedCentroid();
+      PointStamped start_point;
+      start_point.point = push.start_point;
+      start_point.header.frame_id = workspace_frame_;
+      PointStamped end_point;
+      end_point.point.x = moved_cent[0];
+      end_point.point.y = moved_cent[1];
+      end_point.point.z = moved_cent[2];
+      end_point.header.frame_id = workspace_frame_;
 
-    cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
-        start_point);
-    cv::Point img_end_point = pcl_segmenter_->projectPointIntoImage(
-        end_point);
-    cv::Mat obj_img_f;
-    cv::Mat disp_img(lbl_img.size(), CV_32FC3);
-    lbl_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
-    cv::cvtColor(obj_img_f, disp_img, CV_GRAY2BGR);
-    cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,0,1.0));
-    cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,1.0,0));
-    cv::imshow("push_vector", disp_img);
+      cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
+          start_point);
+      cv::Point img_end_point = pcl_segmenter_->projectPointIntoImage(
+          end_point);
+      cv::Mat obj_img_f;
+      cv::Mat disp_img(lbl_img.size(), CV_32FC3);
+      lbl_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
+      cv::cvtColor(obj_img_f, disp_img, CV_GRAY2BGR);
+      cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,0,1.0));
+      cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,1.0,0));
+      cv::imshow("push_vector", disp_img);
+    }
 #endif // DISPLAY_PUSH_VECTOR
 
     return push;
@@ -1979,6 +1992,11 @@ class ObjectSingulation
         samples.push_back(p);
       }
     }
+    if (samples.size() < 1)
+    {
+      ROS_WARN_STREAM("No samples");
+      return 0;
+    }
     ROS_DEBUG_STREAM("Sampling from list of size: " << samples.size());
 
     std::sort(samples.begin(), samples.end(), PushSample::compareSamples);
@@ -2054,6 +2072,7 @@ class ObjectSingulation
       start_point.header.frame_id = workspace_frame_;
       start_point.point.x = boundary.points3D[i].x;
       start_point.point.y = boundary.points3D[i].y;
+      // TODO: Change z to table height
       start_point.point.z = 0.0;
       PointStamped end_point;
       end_point.header.frame_id = workspace_frame_;
@@ -2153,6 +2172,7 @@ class ObjectSingulation
   bool force_vertical_plane_;
   int num_downsamples_;
   int upscale_;
+  bool use_displays_;
 };
 
 class ObjectSingulationNode
@@ -2168,7 +2188,8 @@ class ObjectSingulationNode
       /*pcl_segmenter_(tf_),*/
       /*os_(pcl_segmenter_),*/
       have_depth_data_(false), tracking_(false),
-      tracker_initialized_(false), tracker_count_(0)
+      tracker_initialized_(false),
+      camera_initialized_(false), tracker_count_(0)
   {
     tf_ = shared_ptr<tf::TransformListener>(new tf::TransformListener());
     pcl_segmenter_ = shared_ptr<PointCloudSegmentation>(
@@ -2180,6 +2201,9 @@ class ObjectSingulationNode
     n_private_.param("crop_min_y", crop_min_y_, 0);
     n_private_.param("crop_max_y", crop_max_y_, 480);
     n_private_.param("display_wait_ms", display_wait_ms_, 3);
+    n_private_.param("use_displays", use_displays_, false);
+    // pcl_segmenter_->use_displays_ = use_displays_;
+    os_->use_displays_ = use_displays_;
     n_private_.param("min_workspace_x", min_workspace_x_, 0.0);
     n_private_.param("min_workspace_y", min_workspace_y_, 0.0);
     n_private_.param("min_workspace_z", min_workspace_z_, 0.0);
@@ -2353,20 +2377,32 @@ class ObjectSingulationNode
 
     // Display junk
 #ifdef DISPLAY_INPUT_COLOR
-    cv::imshow("color", cur_color_frame_);
+    if (use_displays_)
+    {
+      cv::imshow("color", cur_color_frame_);
+    }
 #endif // DISPLAY_INPUT_COLOR
 #ifdef DISPLAY_INPUT_DEPTH
-    double depth_max = 1.0;
-    cv::minMaxLoc(cur_depth_frame_, NULL, &depth_max);
-    cv::Mat depth_display = cur_depth_frame_.clone();
-    depth_display /= depth_max;
-    cv::imshow("input_depth", depth_display);
+    if (use_displays_)
+    {
+      double depth_max = 1.0;
+      cv::minMaxLoc(cur_depth_frame_, NULL, &depth_max);
+      cv::Mat depth_display = cur_depth_frame_.clone();
+      depth_display /= depth_max;
+      cv::imshow("input_depth", depth_display);
+    }
 #endif // DISPLAY_INPUT_DEPTH
 #ifdef DISPLAY_WORKSPACE_MASK
-    cv::imshow("workspace_mask", cur_workspace_mask_);
+    if (use_displays_)
+    {
+      cv::imshow("workspace_mask", cur_workspace_mask_);
+    }
 #endif // DISPLAY_WORKSPACE_MASK
 #ifdef DISPLAY_WAIT
-    cv::waitKey(display_wait_ms_);
+    if (use_displays_)
+    {
+      cv::waitKey(display_wait_ms_);
+    }
 #endif // DISPLAY_WAIT
   }
 
@@ -2409,6 +2445,7 @@ class ObjectSingulationNode
     }
     else
     {
+      ROS_INFO_STREAM("Get push vector!");
       return os_->getPushVector(push_dist,
                                cur_color_frame_, cur_depth_frame_,
                                cur_point_cloud_, cur_workspace_mask_);
@@ -2569,6 +2606,7 @@ class ObjectSingulationNode
   int crop_min_y_;
   int crop_max_y_;
   int display_wait_ms_;
+  bool use_displays_;
   double min_workspace_x_;
   double max_workspace_x_;
   double min_workspace_y_;
