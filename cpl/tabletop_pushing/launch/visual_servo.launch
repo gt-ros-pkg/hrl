@@ -1,0 +1,62 @@
+<launch>
+  <node name="visual_servo_node" pkg="tabletop_pushing" type="visual_servo_node" respawn="false" output="screen">
+    <remap from="color_image_topic" to="/kinect_head/rgb/image_color"/>
+    <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
+    <remap from="point_cloud_topic" to="/kinect_head/depth/points"/>
+
+    <param name="display_wait_ms" value="3" type="int"/>
+    <param name="autostart_pcl_segmentation" value="false" type="bool"/>
+    <param name="use_guided_pushes" value="true" type="bool"/>
+
+    <param name="crop_min_x" value="22" type="int"/>
+    <param name="crop_max_x" value="593" type="int"/>
+    <param name="crop_min_y" value="32" type="int"/>
+    <param name="crop_max_y" value="469" type="int"/>
+
+    <param name="workspace_frame" value="/torso_lift_link" type="string"/>
+    <param name="min_workspace_x" value="-1.0" type="double"/>
+    <param name="max_workspace_x" value="1.75" type="double"/>
+    <param name="min_workspace_y" value="-1.2" type="double"/>
+    <param name="max_workspace_y" value="1.2" type="double"/>
+    <param name="min_workspace_z" value="-0.8" type="double"/>
+    <param name="max_workspace_z" value="0.6" type="double"/>
+    <param name="below_table_z" value="0.1" type="double"/>
+
+    <param name="num_downsamples" value="1" type="int"/>
+
+    <param name="surf_hessian_thresh" value="50.0" type="double"/>
+    <param name="use_fast_corners" value="true" type="bool"/>
+
+    <param name="pcl_cluster_tolerance" value="0.03" type="double"/>
+    <param name="pcl_min_cluster_size" value="50" type="int"/>
+    <param name="pcl_max_cluster_size" value="25000" type="int"/>
+    <param name="pcl_voxel_downsample_res" value="0.005" type="double"/>
+    <param name="pcl_cloud_intersect_thresh" value="0.0025" type="double"/>
+    <param name="pcl_concave_hull_alpha" value="0.1" type="double"/>
+    <param name="use_pcl_voxel_downsample" value="false" type="bool"/>
+    <param name="table_ransac_thresh" value="0.015" type="double"/>
+    <param name="table_ransac_angle_thresh" value="5.0" type="double"/>
+    <param name="pcl_difference_thresh" value="0.0001" type="double"/>
+
+    <param name="min_table_z" value="-1.0" type="double"/>
+    <param name="max_table_z" value="1.0" type="double"/>
+    <param name="min_pushing_y" value="-1.0" type="double"/>
+    <param name="max_pushing_y" value="1.0" type="double"/>
+    <param name="min_pushing_x" value="0.0" type="double"/>
+    <param name="max_pushing_x" value="2.0" type="double"/>
+
+    <param name="use_weighted_edges" value="false" type="bool"/>
+    <param name="threshold_edges" value="true" type="bool"/>
+    <param name="edge_weight_thresh" value="0.1" type="double"/>
+    <param name="depth_edge_weight_thresh" value="0.05" type="double"/>
+    <param name="depth_edge_weight" value="0.75" type="double"/>
+
+    <param name="boundary_ransac_thresh" value="0.05" type="double"/>
+    <param name="min_edge_length" value="4" type="int"/>
+
+    <param name="hue_value" value="50" type="int"/>
+    <param name="hue_threshold" value="50" type="int"/>
+    <!-- <param name="min_pushing_angle" value="-0.3" type="double"/> -->
+    <!-- <param name="max_pushing_angle" value="0.3" type="double"/> -->
+  </node>
+</launch>
