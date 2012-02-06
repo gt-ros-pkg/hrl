@@ -105,8 +105,6 @@
 #include <time.h> // for srand(time(NULL))
 #include <cstdlib> // for MAX_RAND
 
-// TODO: Put a single launch param inside all of these
-// TODO: Add separate waitKey inside of pushvector stuff
 // Debugging IFDEFS
 #define DISPLAY_INPUT_COLOR 1
 // #define DISPLAY_INPUT_DEPTH 1
@@ -410,7 +408,6 @@ class PointCloudSegmentation
     icp.align(aligned);
     double score = icp.getFitnessScore();
     transform = icp.getFinalTransformation();
-    // TODO: Estimate the transform
     return score;
   }
 
@@ -1109,10 +1106,22 @@ class ObjectSingulation
     cv::Mat boundary_img;
     std::vector<Boundary> boundaries = getObjectBoundaryStrengths(
         color_img, depth_img, workspace_mask, boundary_img);
-    PushVector push_vector = determinePushPose(push_dist, boundary_img, objs,
+    PushVector push_vector = determinePushPose(push_dist, boundary_img,
+                                               cur_proto_objs_,
                                                boundaries, cloud);
-    ++callback_count_;
     push_vector.num_objects = cur_proto_objs_.size();
+    if (push_vector.object_id == cur_proto_objs_.size())
+    {
+      ROS_WARN_STREAM("No push vector selected.");
+      return push_vector;
+    }
+
+    // Increment the push direction of the object to be pushed
+    int push_idx = getObjFramePushIndex(push_vector.push_angle,
+                                        cur_proto_objs_[
+                                            push_vector.object_id].transform);
+    cur_proto_objs_[push_vector.object_id].push_history[push_idx]++;
+    ++callback_count_;
     return push_vector;
   }
 
@@ -1189,6 +1198,10 @@ class ObjectSingulation
     XYZPointCloud objs_cloud;
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cloud, objs_cloud,
                                                             true);
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      objs[i].push_history.resize(num_angle_bins_, 0);
+    }
     publishObjects(objs);
     XYZPointCloud cur_objs_down = pcl_segmenter_->downsampleCloud(objs_cloud,
                                                                   true);
@@ -1398,6 +1411,7 @@ class ObjectSingulation
     {
       ROS_WARN_STREAM("Boundary has no ID!");
       PushVector push_pose;
+      push_pose.object_id == objs.size();
       return push_pose;
     }
     return determinePushVector(push_dist, test_boundary, objs, obj_lbl_img,
@@ -1443,6 +1457,7 @@ class ObjectSingulation
                                             boundary.object_id,
                                             obj_lbl_img);
     push_pose.header.frame_id = workspace_frame_;
+    push_pose.object_id = boundary.object_id;
     return push_pose;
   }
 
@@ -1550,7 +1565,7 @@ class ObjectSingulation
     for (unsigned int i = 0; i < b.size(); ++i)
     {
       // NOTE: I don't think this is what it should be, lets try though...
-      // TODO: Do I need to upsample the indices here?
+      // NOTE: need to upsample the indices here
       pcl::PointXYZ p = cloud.at(b[i].x*upscale_, b[i].y*upscale_);
       // Don't add empty points
       if ((p.x == 0.0 && p.y == 0.0 && p.z == 0.0 )|| isnan(p.x) ||
@@ -1601,21 +1616,52 @@ class ObjectSingulation
         boundaries[b].object_id = max_id;
         if (boundaries[b].points3D.size() >= 3)
         {
-          // TODO: Switch sending the object to just sending the transform
-          int angle_idx = getBoundaryOrientationIndex(boundaries[b],
-                                                      objs[max_id].transform);
+          int angle_idx = getObjFrameBoundaryOrientationIndex(
+              boundaries[b], objs[max_id].transform);
           objs[max_id].boundary_angle_dist[angle_idx]++;
         }
       }
     }
   }
 
-  float getBoundaryOrientation(Boundary& b, Eigen::Matrix4f& t)
+  int getObjFramePushIndex(float theta, Eigen::Matrix4f& t)
   {
-    Eigen::Vector3f b_vect = getRANSACXYVector(b);
-    float angle = std::atan2(b_vect[1], b_vect[0]);
-    // TODO: Rotate based on object transform history
+    // Get vector from push_angle [cos(theta), sin(theta), 0, 1]
+    Eigen::Vector4f x(std::cos(theta), std::sin(theta), 0.0f, 1.0f);
+    // apply transform;
+    Eigen::Vector4f y = t*x;
+    // Extract angle
+    float angle = std::atan2(y[1], y[0]);
+    return quantizeAngle(subPiAngle(angle));
+  }
 
+  int getObjFrameBoundaryOrientationIndex(Boundary& b, Eigen::Matrix4f& t)
+  {
+    float angle = getObjFrameBoundaryOrientation(b, t);
+    return quantizeAngle(angle);
+  }
+
+  float getObjFrameBoundaryOrientation(Boundary& b, Eigen::Matrix4f& t)
+  {
+    Eigen::Vector3f b_vect3 = getRANSACXYVector(b);
+
+    // Rotate based on object transform history
+    Eigen::Vector4f b_vect(b_vect3[0], b_vect3[1], b_vect3[2], 1.0f);
+    b_vect = t.inverse()*b_vect;
+
+    float angle = std::atan2(b_vect[1], b_vect[0]);
+
+    return subPiAngle(angle);
+  }
+
+  int quantizeAngle(float angle)
+  {
+    int bin = static_cast<int>(((angle + M_PI/2.0)/M_PI)*num_angle_bins_);
+    return std::max(std::min(bin, num_angle_bins_-1), 0);
+  }
+
+  float subPiAngle(float angle)
+  {
     // NOTE: All angles should be between -pi/2 and pi/2 (only want gradient)
     while ( angle < -M_PI/2 )
     {
@@ -1626,13 +1672,6 @@ class ObjectSingulation
       angle -= M_PI;
     }
     return angle;
-  }
-
-  int getBoundaryOrientationIndex(Boundary& b, Eigen::Matrix4f& t)
-  {
-    float angle = getBoundaryOrientation(b, t);
-    int bin = static_cast<int>(((angle + M_PI/2.0)/M_PI)*num_angle_bins_);
-    return std::max(std::min(bin, num_angle_bins_-1), 0);
   }
 
   Eigen::Vector3f getRANSACXYVector(Boundary& b)
