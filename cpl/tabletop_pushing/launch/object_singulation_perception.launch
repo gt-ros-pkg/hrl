@@ -4,8 +4,9 @@
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
     <remap from="point_cloud_topic" to="/kinect_head/depth/points"/>
 
+    <param name="use_displays" value="false" type="bool"/>
     <param name="display_wait_ms" value="3" type="int"/>
-    <param name="autostart_pcl_segmentation" value="true" type="bool"/>
+    <param name="autostart_pcl_segmentation" value="false" type="bool"/>
     <param name="use_guided_pushes" value="true" type="bool"/>
 
     <param name="crop_min_x" value="22" type="int"/>
@@ -42,7 +43,6 @@
     <param name="min_pushing_x" value="0.0" type="double"/>
     <param name="max_pushing_x" value="2.0" type="double"/>
 
-    <param name="use_weighted_edges" value="false" type="bool"/>
     <param name="threshold_edges" value="true" type="bool"/>
     <param name="edge_weight_thresh" value="0.1" type="double"/>
     <param name="depth_edge_weight_thresh" value="0.05" type="double"/>

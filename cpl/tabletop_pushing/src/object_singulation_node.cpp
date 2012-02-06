@@ -655,6 +655,11 @@ class PointCloudSegmentation
     return img_loc;
   }
 
+  Eigen::Vector4f getTableCentroid()
+  {
+    return table_centroid_;
+  }
+
  protected:
   shared_ptr<tf::TransformListener> tf_;
   Eigen::Vector4f table_centroid_;
@@ -2064,6 +2069,7 @@ class ObjectSingulation
     }
 
     Eigen::Vector3f n = getRANSACXYVector(boundary);
+    Eigen::Vector4f table_centroid = pcl_segmenter_->getTableCentroid();
     const cv::Scalar red(0.0f, 0.0f, 1.0f);
     const cv::Scalar blue(1.0f, 0.0f, 0.0f);
     for (unsigned int i = 0; i < boundary.points3D.size(); ++i)
@@ -2072,13 +2078,12 @@ class ObjectSingulation
       start_point.header.frame_id = workspace_frame_;
       start_point.point.x = boundary.points3D[i].x;
       start_point.point.y = boundary.points3D[i].y;
-      // TODO: Change z to table height
-      start_point.point.z = 0.0;
+      start_point.point.z = table_centroid[2];
       PointStamped end_point;
       end_point.header.frame_id = workspace_frame_;
       end_point.point.x = start_point.point.x + n[0]*0.10;
       end_point.point.y = start_point.point.y + n[1]*0.10;
-      end_point.point.z = 0.0;
+      end_point.point.z = table_centroid[2];
 
       cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
           start_point);
