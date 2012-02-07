@@ -1103,6 +1103,9 @@ class ObjectSingulation
     ProtoObjects objs = calcProtoObjects(cloud);
     prev_proto_objs_ = cur_proto_objs_;
     cur_proto_objs_ = objs;
+
+    // TODO: Need an intialization callback
+    // TODO: Return empty if callback_count_ < 1?
     cv::Mat boundary_img;
     std::vector<Boundary> boundaries = getObjectBoundaryStrengths(
         color_img, depth_img, workspace_mask, boundary_img);
@@ -1206,7 +1209,7 @@ class ObjectSingulation
     XYZPointCloud cur_objs_down = pcl_segmenter_->downsampleCloud(objs_cloud,
                                                                   true);
     ProtoObjects cur_objs;
-    if (callback_count_ > 1)
+    if (callback_count_ > 0)
     {
       // Determine where stuff has moved
       ProtoObjects moved_regions = pcl_segmenter_->getMovedRegions(
@@ -1240,18 +1243,30 @@ class ObjectSingulation
    */
   void updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs)
   {
+    std::stringstream prev_idstream;
+    for (unsigned int i = 0; i < prev_objs.size(); ++i)
+    {
+      prev_idstream << " " << prev_objs[i].id;
+    }
+    ROS_INFO_STREAM("Prev object IDs: " << prev_idstream.str());
+    std::stringstream cur_idstream;
+    for (unsigned int i = 0; i < cur_objs.size(); ++i)
+    {
+      cur_idstream << " " << cur_objs[i].id;
+    }
+    ROS_INFO_STREAM("Cur object IDs: " << cur_idstream.str());
     const bool merged = cur_objs.size()  < prev_objs.size();
     const bool split = cur_objs.size()  > prev_objs.size();
     if (merged)
     {
-      ROS_WARN_STREAM("Objects merged from " << prev_objs.size() << " to " <<
+      ROS_INFO_STREAM("Objects merged from " << prev_objs.size() << " to " <<
                       cur_objs.size());
       // TODO: Something different for merging, check which moved objects
       // combined with which unmoved objects
     }
     else if (split)
     {
-      ROS_WARN_STREAM("Objects split from " << prev_objs.size() << " to " <<
+      ROS_INFO_STREAM("Objects split from " << prev_objs.size() << " to " <<
                       cur_objs.size());
       // TODO: Deal with adding new object ids for splitting, create a
       // static / global id generator method?
@@ -1364,10 +1379,10 @@ class ObjectSingulation
                           << prev_objs[i].id);
         }
       }
-      for (unsigned int i = 0; i < matched.size(); ++i)
-      {
-        if (!matched[i]) cur_objs[i].id = getNextID();
-      }
+    }
+    for (unsigned int i = 0; i < matched.size(); ++i)
+    {
+      if (!matched[i]) cur_objs[i].id = getNextID();
     }
   }
 
@@ -1385,7 +1400,6 @@ class ObjectSingulation
                                std::vector<Boundary>& boundaries,
                                XYZPointCloud cloud)
   {
-    ROS_INFO_STREAM("Have " << objs.size() << " objects.");
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         objs, boundary_img.size(), workspace_frame_);
 #ifdef DISPLAY_PROJECTED_OBJECTS
@@ -1750,7 +1764,7 @@ class ObjectSingulation
     plane_seg.setDistanceThreshold(boundary_ransac_thresh_);
     plane_seg.setInputCloud(cloud.makeShared());
     plane_seg.segment(plane_inliers, coefficients);
-    ROS_INFO_STREAM("Plane Hessian Normal Form: (" << coefficients.values[0] <<
+    ROS_DEBUG_STREAM("Plane Hessian Normal Form: (" << coefficients.values[0] <<
                      ", " << coefficients.values[1] << ", " <<
                      coefficients.values[2] << ", " << coefficients.values[3] <<
                      ")");
@@ -1781,8 +1795,8 @@ class ObjectSingulation
         possible_boundaries.push_back(boundaries[b]);
       }
     }
-    ROS_INFO_STREAM("Getting random test boundary from set of " <<
-                    possible_boundaries.size() << " possible boundaries.");
+    ROS_DEBUG_STREAM("Getting random test boundary from set of " <<
+                     possible_boundaries.size() << " possible boundaries.");
     return chooseRandTestBoundary(possible_boundaries, objs);
   }
 
@@ -1832,7 +1846,7 @@ class ObjectSingulation
     }
     // TODO: Choose boundary and object based on unpushed directions
     unsigned int chosen_id = sampleScore(scores);
-    ROS_INFO_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
+    ROS_DEBUG_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
                     boundaries[chosen_id].object_id << " and " <<
                     boundaries[chosen_id].points3D.size() << " 3D points.");
     return boundaries[chosen_id];
@@ -2228,6 +2242,7 @@ class ObjectSingulation
 
   int getNextID()
   {
+    ROS_INFO_STREAM("Getting next ID: " << next_id_);
     return next_id_++;
   }
   //
