@@ -1388,7 +1388,6 @@ class ObjectSingulation
     ROS_INFO_STREAM("Have " << objs.size() << " objects.");
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         objs, boundary_img.size(), workspace_frame_);
-
 #ifdef DISPLAY_PROJECTED_OBJECTS
     if (use_displays_)
     {
@@ -1405,8 +1404,7 @@ class ObjectSingulation
     }
 #endif // DISPLAY_3D_BOUNDARIES
 
-    Boundary test_boundary = chooseTestBoundary(boundaries, objs, obj_lbl_img);
-
+    Boundary test_boundary = chooseTestBoundary(boundaries, objs);
     if (test_boundary.object_id == objs.size())
     {
       ROS_WARN_STREAM("Boundary has no ID!");
@@ -1766,7 +1764,30 @@ class ObjectSingulation
   }
 
   Boundary chooseTestBoundary(std::vector<Boundary>& boundaries,
-                              ProtoObjects& objs, cv::Mat& obj_img)
+                              ProtoObjects& objs)
+  {
+    std::vector<Boundary> possible_boundaries;
+    for (unsigned int b = 0; b < boundaries.size(); ++b)
+    {
+      // Ignore small boundaries or those not on objects
+      if (boundaries[b].object_id == objs.size() ||
+          boundaries[b].points3D.size() < 3) continue;
+      const int i = boundaries[b].object_id;
+      unsigned int bin = getObjFrameBoundaryOrientationIndex(
+          boundaries[b], objs[i].transform);
+      // Only choose from boundaries associated with unpushed directions
+      if (objs[i].push_history[bin] == 0)
+      {
+        possible_boundaries.push_back(boundaries[b]);
+      }
+    }
+    ROS_INFO_STREAM("Getting random test boundary from set of " <<
+                    possible_boundaries.size() << " possible boundaries.");
+    return chooseRandTestBoundary(possible_boundaries, objs);
+  }
+
+  Boundary chooseRandTestBoundary(std::vector<Boundary>& boundaries,
+                                  ProtoObjects& objs)
   {
     std::vector<double> scores(boundaries.size(), 0.0f);
     int nonzero = 0;
@@ -2057,8 +2078,16 @@ class ObjectSingulation
     }
     if (samples.size() < 1)
     {
-      ROS_WARN_STREAM("No samples");
-      return 0;
+      if (scores.size() > 0)
+      {
+        ROS_WARN_STREAM("No non-zero sample scores, returning randomly from score list");
+        return (rand() % scores.size());
+      }
+      else
+      {
+        ROS_WARN_STREAM("No samples");
+        return 0;
+      }
     }
     ROS_DEBUG_STREAM("Sampling from list of size: " << samples.size());
 
@@ -2508,7 +2537,6 @@ class ObjectSingulationNode
     }
     else
     {
-      ROS_INFO_STREAM("Get push vector!");
       return os_->getPushVector(push_dist,
                                cur_color_frame_, cur_depth_frame_,
                                cur_point_cloud_, cur_workspace_mask_);
