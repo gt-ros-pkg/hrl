@@ -2500,7 +2500,7 @@ class VisualServoNode
     n_private_.param("use_pcl_voxel_downsample", pcl_segmenter_.use_voxel_down_,
                      true);
     
-    n_private_.param("tape_hue_value", tape_hue_value_, 173);
+    n_private_.param("tape_hue_value", tape_hue_value_, 137);
     n_private_.param("tape_hue_threshold", tape_hue_threshold_, 10);
     n_private_.param("hand_hue_value", hand_hue_value_, 173);
     n_private_.param("hand_hue_threshold", hand_hue_threshold_, 10);
@@ -2584,29 +2584,30 @@ class VisualServoNode
     cv::Mat depth_frame_down = downSample(depth_frame, num_downsamples_);
 
     cv::imshow("input",color_frame_down.clone());
-    cv::Mat temp = getBlueTape(color_frame_down.clone());
-    cv::imshow("output", temp.clone()); 
-    cv::waitKey(display_wait_ms_);
+    cv::Mat temp = getBlueTape(color_frame_down.clone(), tape_hue_value_, tape_hue_threshold_);
+    cv::imshow("tape", temp.clone()); 
+     temp = getBlueTape(color_frame_down.clone(), hand_hue_value_, hand_hue_threshold_);
+    cv::imshow("hand", temp.clone());   
+cv::waitKey(display_wait_ms_);
 }
 
 
     /** 
     * TEST
     */
-    cv::Mat getBlueTape(cv::Mat color_frame){
-        //int HUE_VALUE = 173;
-        int HUE_VALUE = tape_hue_value_;
-        int THRESHOLD = tape_hue_threshold_;
-        //cv::Mat temp = color_frame.clone();
+    cv::Mat getBlueTape(cv::Mat color_frame, int hue, int threshold){
         cv::Mat temp (color_frame.clone());
         cv::cvtColor(temp, temp, CV_RGB2HSV);
         std::vector<cv::Mat> hsv;
         cv::split(temp, hsv);
          
-        //cv::Mat hue = hsv[0];
-        //cv::imshow("temp", temp);
-        //cv::imshow("red", hsv[0]);
-        //cv::imshow("blue", hsv[2]);
+
+	//std::cout <<"[" << (int)hsv[0].at<uchar>(0, 0) << "]";
+	//std::cout <<"[" << (int)hsv[1].at<uchar>(0, 0) << "]";
+	//std::cout <<"[" << (int)hsv[2].at<uchar>(0, 0) << "]\n";
+        //cv::imshow("hue", hsv[0]);
+        //cv::imshow("saturation", hsv[1]);
+        //cv::imshow("value", hsv[2]);
         cv::Mat wm(color_frame.rows, color_frame.cols, CV_8UC1,
                            cv::Scalar(0));
         for (int r = 0; r < temp.rows; r++)
@@ -2615,11 +2616,11 @@ class VisualServoNode
             uchar* workspace_row = wm.ptr<uchar>(r);
             for (int c = 0; c < temp.cols; c++)
             {
-                int diff = (int)hsv[0].at<uchar>(r, c) - HUE_VALUE;
-                if (abs(diff) < THRESHOLD){
+                int diff0 = (int)hsv[0].at<uchar>(r, c) - hue;
+                if (abs(diff0) < threshold){
                    //wm.at<uchar>(c,r) = 255;
                    workspace_row[c] = 255;
-                }
+		}
             } 
         }
         //cv::imshow("mask", color_frame.clone());
