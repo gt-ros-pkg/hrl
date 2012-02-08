@@ -2500,8 +2500,10 @@ class VisualServoNode
     n_private_.param("use_pcl_voxel_downsample", pcl_segmenter_.use_voxel_down_,
                      true);
     
-    n_private_.param("hue_value", hue_value_, 173);
-    n_private_.param("hue_threshold", hue_threshold_, 10);
+    n_private_.param("tape_hue_value", tape_hue_value_, 173);
+    n_private_.param("tape_hue_threshold", tape_hue_threshold_, 10);
+    n_private_.param("hand_hue_value", hand_hue_value_, 173);
+    n_private_.param("hand_hue_threshold", hand_hue_threshold_, 10);
     n_private_.param("default_push_dist", default_push_dist_, 0.1);
     // Setup ros node connections
     sync_.registerCallback(&VisualServoNode::sensorCallback,
@@ -2593,8 +2595,8 @@ class VisualServoNode
     */
     cv::Mat getBlueTape(cv::Mat color_frame){
         //int HUE_VALUE = 173;
-        int HUE_VALUE = hue_value_;
-        int THRESHOLD = hue_threshold_;
+        int HUE_VALUE = tape_hue_value_;
+        int THRESHOLD = tape_hue_threshold_;
         //cv::Mat temp = color_frame.clone();
         cv::Mat temp (color_frame.clone());
         cv::cvtColor(temp, temp, CV_RGB2HSV);
@@ -2748,8 +2750,10 @@ class VisualServoNode
   bool autorun_pcl_segmentation_;
   bool use_guided_pushes_;
   double default_push_dist_;
-  int hue_value_;
-  int hue_threshold_;
+  int tape_hue_value_;
+  int tape_hue_threshold_;
+  int hand_hue_value_;
+  int hand_hue_threshold_;
 };
 
 int main(int argc, char ** argv)

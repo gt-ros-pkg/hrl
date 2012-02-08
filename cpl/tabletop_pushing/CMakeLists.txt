@@ -36,5 +36,4 @@ rosbuild_add_executable(object_singulation_node src/object_singulation_node.cpp)
 # rosbuild_add_executable(tabletop_segmenter_node src/ransac_segmenter.cpp)
 # rosbuild_add_executable(offline_segmenter_node src/offline_segmenter.cpp)
 # target_link_libraries(tabletop_pushing_perception_node graphcut)
-
 rosbuild_add_executable(visual_servo_node src/visual_servo.cpp)
