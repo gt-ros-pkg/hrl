@@ -13,7 +13,7 @@ from tf import TransformListener, transformations
 from pr2_controllers_msgs.msg import Pr2GripperCommand
 
 from pixel_2_3d.srv import Pixel23d
-from pr2_arms import PR2Arm
+from pr2_arms import PR2Arm_Planning
 from pr2_gripper import PR2Gripper
 import pose_utils as pu
 
@@ -21,7 +21,7 @@ class ArmIntermediary():
     def __init__(self, arm):
         self.arm = arm
         self.tfl = TransformListener()
-        self.pr2_arm = PR2Arm(self.arm, self.tfl)
+        self.pr2_arm = PR2Arm_Planning(self.arm, self.tfl)
         self.pr2_gripper = PR2Gripper(self.arm)
 
         rospy.loginfo('Waiting for Pixel_2_3d Service')

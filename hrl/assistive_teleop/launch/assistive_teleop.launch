@@ -57,17 +57,19 @@
         machine="c2"/>
     -->
 
-    <!--Tabletop Manipulation Content, i.e. Arm Navigation etc
-    <group><remap from="camera" to="kinect_head"/>
+    <!--Tabletop Manipulation Content, i.e. Arm Navigation etc-->
+    <group>
+        <remap from="camera" to="kinect_head"/>
+        <remap from="camera/rgb/camera_info" to="kinect_head/rgb/camera_info"/>
         <include file="$(find pr2_tabletop_manipulation_launch)/launch/pr2_tabletop_manipulation.launch">
             <arg name="stereo" value="false"/>
-            <arg name="use_slip_controllers" value="true"/>
+            <arg name="use_slip_controllers" value="false"/>
             <arg name="use_right_arm" value="true"/>
             <arg name="use_left_arm" value="true"/>
             <arg name="use_task_cartesian" default="false"/>
         </include>
     </group>
-    -->
+
     <!-- Start Tuck Arm Action Server and Intermediary
     <node
         name="tuck_arm_node"

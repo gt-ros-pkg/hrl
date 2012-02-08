@@ -85,13 +85,6 @@ class PR2Arm():
         else:
             self.tf = tfListener
         
-        self.move_arm_client = actionlib.SimpleActionClient(
-                                     'move_' + self.arm + '_arm', MoveArmAction)
-        rospy.loginfo("Waiting for move_" + self.arm + "_arm server")
-        if self.move_arm_client.wait_for_server(rospy.Duration(50)):
-            rospy.loginfo("Found move_" + self.arm + "_arm server")
-        else:
-            rospy.logwarn("Cannot find move_" + self.arm + "_arm server")
 
         self.arm_traj_client = actionlib.SimpleActionClient(
                                self.arm[0]+
@@ -503,6 +496,18 @@ class PR2Arm():
         arm_goal = JointTrajectoryGoal()
         arm_goal.trajectory = joint_traj
         self.arm_traj_client.send_goal(arm_goal)
+
+class PR2Arm_Planning(PR2Arm):
+    def __init__(self, arm, tfl=None):
+        PR2Arm.__init__(self, arm, tfl)
+        
+        self.move_arm_client = actionlib.SimpleActionClient(
+                                     'move_' + self.arm + '_arm', MoveArmAction)
+        rospy.loginfo("Waiting for move_" + self.arm + "_arm server")
+        if self.move_arm_client.wait_for_server(rospy.Duration(50)):
+            rospy.loginfo("Found move_" + self.arm + "_arm server")
+        else:
+            rospy.logwarn("Cannot find move_" + self.arm + "_arm server")
 
     def move_arm_to(self, goal_in):
         (reachable, ik_goal, duration) = self.full_ik_check(goal_in)
