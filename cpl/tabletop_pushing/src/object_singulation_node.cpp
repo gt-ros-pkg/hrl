@@ -1078,12 +1078,23 @@ class ObjectSingulation
 {
  public:
   ObjectSingulation(shared_ptr<PointCloudSegmentation> pcl_segmenter) :
-      pcl_segmenter_(pcl_segmenter), callback_count_(0), next_id_(0)
+      pcl_segmenter_(pcl_segmenter), callback_count_(0), next_id_(0),
+      initialized_(false)
   {
     // Create derivative kernels for edge calculation
     cv::getDerivKernels(dy_kernel_, dx_kernel_, 1, 0, CV_SCHARR, true, CV_32F);
     cv::flip(dy_kernel_, dy_kernel_, -1);
     cv::transpose(dy_kernel_, dx_kernel_);
+  }
+
+  bool initialize(cv::Mat& color_img, cv::Mat& depth_img,
+                  XYZPointCloud& cloud, cv::Mat& workspace_mask)
+  {
+    callback_count_ = 0;
+    ProtoObjects objs = calcProtoObjects(cloud);
+    initialized_ = true;
+    callback_count_++;
+    return true;
   }
 
   /**
@@ -1100,12 +1111,21 @@ class ObjectSingulation
                            cv::Mat& depth_img, XYZPointCloud& cloud,
                            cv::Mat& workspace_mask)
   {
+    if (!initialized_)
+    {
+      ROS_WARN_STREAM("Trying to get a push vector before initializing.");
+      PushVector push_pose;
+      push_pose.object_id = 0;
+      return push_pose;
+    }
+    // Move current proto objects to prev proto objects
+    prev_proto_objs_.clear();
+    for (unsigned int i = 0; i < cur_proto_objs_.size(); ++i)
+    {
+      prev_proto_objs_.push_back(cur_proto_objs_[i]);
+    }
     ProtoObjects objs = calcProtoObjects(cloud);
-    prev_proto_objs_ = cur_proto_objs_;
-    cur_proto_objs_ = objs;
 
-    // TODO: Need an intialization callback
-    // TODO: Return empty if callback_count_ < 1?
     cv::Mat boundary_img;
     std::vector<Boundary> boundaries = getObjectBoundaryStrengths(
         color_img, depth_img, workspace_mask, boundary_img);
@@ -1201,6 +1221,7 @@ class ObjectSingulation
     XYZPointCloud objs_cloud;
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cloud, objs_cloud,
                                                             true);
+    ROS_INFO_STREAM("Found " << objs.size() << " objects!");
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       objs[i].push_history.resize(num_angle_bins_, 0);
@@ -1218,7 +1239,6 @@ class ObjectSingulation
       pcl_segmenter_->matchMovedRegions(prev_proto_objs_, moved_regions);
       // Match the moved objects to their new locations
       updateMovedObjs(objs, prev_proto_objs_);
-
     }
     else
     {
@@ -1229,6 +1249,8 @@ class ObjectSingulation
       }
     }
     prev_objs_down_ = cur_objs_down;
+    cur_proto_objs_.clear();
+    cur_proto_objs_ = objs;
     return objs;
   }
 
@@ -1243,18 +1265,6 @@ class ObjectSingulation
    */
   void updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs)
   {
-    std::stringstream prev_idstream;
-    for (unsigned int i = 0; i < prev_objs.size(); ++i)
-    {
-      prev_idstream << " " << prev_objs[i].id;
-    }
-    ROS_INFO_STREAM("Prev object IDs: " << prev_idstream.str());
-    std::stringstream cur_idstream;
-    for (unsigned int i = 0; i < cur_objs.size(); ++i)
-    {
-      cur_idstream << " " << cur_objs[i].id;
-    }
-    ROS_INFO_STREAM("Cur object IDs: " << cur_idstream.str());
     const bool merged = cur_objs.size()  < prev_objs.size();
     const bool split = cur_objs.size()  > prev_objs.size();
     if (merged)
@@ -1423,7 +1433,7 @@ class ObjectSingulation
     {
       ROS_WARN_STREAM("Boundary has no ID!");
       PushVector push_pose;
-      push_pose.object_id == objs.size();
+      push_pose.object_id = objs.size();
       return push_pose;
     }
     return determinePushVector(push_dist, test_boundary, objs, obj_lbl_img,
@@ -2198,7 +2208,7 @@ class ObjectSingulation
   }
 
   void draw3DBoundaries(std::vector<Boundary> boundaries, cv::Mat& obj_img,
-                       int objs_size)
+                        unsigned int objs_size)
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     std::vector<cv::Vec3f> colors;
@@ -2242,9 +2252,19 @@ class ObjectSingulation
 
   int getNextID()
   {
-    ROS_INFO_STREAM("Getting next ID: " << next_id_);
+    ROS_DEBUG_STREAM("Getting next ID: " << next_id_);
     return next_id_++;
   }
+
+ public:
+  //
+  // Getters and setters
+  //
+
+  bool isInitialized() const { return initialized_; }
+
+  void unInitialize() { initialized_ = false; }
+
   //
   // Class member variables
   //
@@ -2259,6 +2279,7 @@ class ObjectSingulation
   ProtoObjects cur_proto_objs_;
   int callback_count_;
   int next_id_;
+  bool initialized_;
 
  public:
   double min_pushing_x_;
@@ -2481,6 +2502,12 @@ class ObjectSingulationNode
     // Debug stuff
     if (autorun_pcl_segmentation_) getPushPose(default_push_dist_,
                                                use_guided_pushes_);
+    if (!os_->isInitialized())
+    {
+      ROS_INFO_STREAM("Calling initialize.");
+      os_->initialize(cur_color_frame_, cur_depth_frame_, cur_point_cloud_,
+                      cur_workspace_mask_);
+    }
 
     // Display junk
 #ifdef DISPLAY_INPUT_COLOR
@@ -2553,8 +2580,8 @@ class ObjectSingulationNode
     else
     {
       return os_->getPushVector(push_dist,
-                               cur_color_frame_, cur_depth_frame_,
-                               cur_point_cloud_, cur_workspace_mask_);
+                                cur_color_frame_, cur_depth_frame_,
+                                cur_point_cloud_, cur_workspace_mask_);
     }
   }
 
