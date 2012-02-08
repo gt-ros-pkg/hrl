@@ -44,8 +44,8 @@
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/translate_out.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/translate_out.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -67,8 +67,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/translate_up.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/translate_up.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -90,8 +90,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/translate_in.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/translate_in.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -113,8 +113,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/translate_left.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/translate_left.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -136,8 +136,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/translate_right.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/translate_right.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -159,8 +159,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/translate_down.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/translate_down.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -198,7 +198,7 @@ background-image: url(:/icons/empty.png);</string>
     <string>Frame</string>
    </property>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>20</x>
@@ -223,8 +223,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/roate_x_neg.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/roate_x_neg.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -246,8 +246,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/rotate_y_pos.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/rotate_y_pos.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -269,8 +269,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/roate_x_pos.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/roate_x_pos.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -292,8 +292,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/rotate_z_neg.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/rotate_z_neg.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -315,8 +315,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/rotate_z_pos.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/rotate_z_pos.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -338,8 +338,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/rotate_y_neg.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/rotate_y_neg.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string/>
@@ -348,7 +348,7 @@ background-image: url(:/icons/empty.png);</string>
     </item>
    </layout>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>20</x>
@@ -383,8 +383,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/arm_left_off.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/arm_left_off.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string>Left Arm</string>
@@ -406,8 +406,8 @@ background-image: url(:/icons/empty.png);</string>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">image: url(:/icons/arm_right_off.png);
-background-image: url(:/icons/empty.png);</string>
+       <string notr="true">image: url(:/resources/arm_right_off.png);
+background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string>Right Arm</string>
@@ -418,7 +418,7 @@ background-image: url(:/icons/empty.png);</string>
   </widget>
  </widget>
  <resources>
-  <include location="../../resources/icons.qrc"/>
+  <include location="resources/icons.qrc"/>
  </resources>
  <connections/>
 </ui>

@@ -16,6 +16,8 @@ MOVE_BUTTONS = {'translate_up' : [0, 1], 'translate_down' : [0, -1],
 POSE_PARAMS = ['position.x', 'position.y', 'position.z', 
                'orientation.x', 'orientation.y', 'orientation.z']
 
+MONITOR_RATE = 20
+
 class ArmCartController(object):
     def __init__(self):
         rospy.Subscriber("/arm_control_gui/move_state", String, self.move_state_cb)

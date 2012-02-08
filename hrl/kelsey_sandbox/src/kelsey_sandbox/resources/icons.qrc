@@ -1,5 +1,5 @@
 <RCC>
-  <qresource prefix="icons">
+  <qresource prefix="resources">
     <file>arm_right_on.png</file>
     <file>arm_right_off.png</file>
     <file>arm_left_on.png</file>
