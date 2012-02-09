@@ -50,6 +50,8 @@
 
     <param name="boundary_ransac_thresh" value="0.05" type="double"/>
     <param name="min_edge_length" value="4" type="int"/>
+    <param name="os_min_cluster_size" value="10" type="int"/>
+    <param name="os_min_boundary_length" value="5" type="int"/>
     <param name="num_anlge_bins" value="8" type="int"/>
     <param name="force_vertical_plane" value="true" type="bool"/>
   </node>

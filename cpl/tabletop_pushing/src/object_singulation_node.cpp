@@ -1610,6 +1610,8 @@ class ObjectSingulation
     int no_overlap_count = 0;
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
+      // NOTE: default to no match, only update if all criterian are met
+      boundaries[b].object_id = objs.size();
       std::vector<int> obj_overlaps(objs.size(), 0);
       for (unsigned int i = 0; i < boundaries[b].size(); ++i)
       {
@@ -1632,17 +1634,26 @@ class ObjectSingulation
       }
       if (max_id == objs.size())
       {
-        boundaries[b].object_id = objs.size();
         no_overlap_count++;
       }
       else
       {
-        boundaries[b].object_id = max_id;
-        if (boundaries[b].points3D.size() >= 3)
+        // Don't add short boundaries
+        if (boundaries[b].points3D.size() >= min_boundary_length_)
         {
-          int angle_idx = getObjFrameBoundaryOrientationIndex(
-              boundaries[b], objs[max_id].transform);
-          objs[max_id].boundary_angle_dist[angle_idx]++;
+          ProtoObjects pos = splitObject3D(boundaries[b], objs[max_id]);
+          const unsigned int s0 = pos[0].cloud.size();
+          const unsigned int s1 = pos[1].cloud.size();
+          // NOTE: Don't add external object boundaries
+          if (s0 > min_cluster_size_ && s1 > min_cluster_size_)
+          {
+            ROS_INFO_STREAM("s0 cluster size is: " << s0);
+            ROS_INFO_STREAM("s1 cluster size is: " << s1);
+            int angle_idx = getObjFrameBoundaryOrientationIndex(
+                boundaries[b], objs[max_id].transform);
+            objs[max_id].boundary_angle_dist[angle_idx]++;
+            boundaries[b].object_id = max_id;
+          }
         }
       }
     }
@@ -1822,13 +1833,13 @@ class ObjectSingulation
     for (unsigned int i = 0; i < boundaries.size(); ++i)
     {
       if (boundaries[i].object_id >= objs.size() ||
-          boundaries[i].points3D.size() < 3)
+          boundaries[i].points3D.size() < min_boundary_length_)
       {
         if (boundaries[i].object_id >= objs.size())
         {
           ++no_ids;
         }
-        if (boundaries[i].points3D.size() < 3)
+        if (boundaries[i].points3D.size() < min_boundary_length_)
         {
           ++no_pts;
         }
@@ -1836,27 +1847,10 @@ class ObjectSingulation
       }
       else
       {
-        ProtoObjects pos = splitObject3D(boundaries[i],
-                                         objs[boundaries[i].object_id]);
-        const unsigned int s0 = pos[0].cloud.size();
-        const unsigned int s1 = pos[1].cloud.size();
-        if (s0 == 0 || s1 == 0)
-        {
-          scores[i] = 0.0;
-        }
-        else if (s0 > s1)
-        {
-          scores[i] = static_cast<float>(s1)/static_cast<float>(s0);
-          nonzero++;
-        }
-        else
-        {
-          scores[i] = static_cast<float>(s0)/static_cast<float>(s1);
-          nonzero++;
-        }
+        scores[i] = 1.0;
+        nonzero++;
       }
     }
-    // TODO: Choose boundary and object based on unpushed directions
     unsigned int chosen_id = sampleScore(scores);
     ROS_DEBUG_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
                     boundaries[chosen_id].object_id << " and " <<
@@ -2115,7 +2109,7 @@ class ObjectSingulation
         return 0;
       }
     }
-    ROS_DEBUG_STREAM("Sampling from list of size: " << samples.size());
+    ROS_INFO_STREAM("Sampling from list of size: " << samples.size());
 
     std::sort(samples.begin(), samples.end(), PushSample::compareSamples);
 
@@ -2214,7 +2208,7 @@ class ObjectSingulation
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     std::vector<cv::Vec3f> colors;
-    for (int i = 0; i < objs_size; ++i)
+    for (unsigned int i = 0; i < objs_size; ++i)
     {
       cv::Vec3f rand_color;
       rand_color[0] = randf();
@@ -2256,7 +2250,7 @@ class ObjectSingulation
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     std::vector<cv::Vec3f> colors;
-    for (int i = 0; i < objs.size(); ++i)
+    for (unsigned int i = 0; i < objs.size(); ++i)
     {
       cv::Vec3f rand_color;
       rand_color[0] = randf();
@@ -2324,7 +2318,7 @@ class ObjectSingulation
       cv::Point img_end_point_z = pcl_segmenter_->projectPointIntoImage(
           end_point_z);
 
-      // TODO: Draw axises on image
+      // Draw axises on image
       cv::line(obj_disp_img, img_start_point, img_end_point_x, red);
       cv::line(obj_disp_img, img_start_point, img_end_point_y, green);
       cv::line(obj_disp_img, img_start_point, img_end_point_z, cyan);
@@ -2385,6 +2379,8 @@ class ObjectSingulation
   int num_downsamples_;
   int upscale_;
   bool use_displays_;
+  int min_cluster_size_;
+  int min_boundary_length_;
 };
 
 class ObjectSingulationNode
@@ -2414,7 +2410,6 @@ class ObjectSingulationNode
     n_private_.param("crop_max_y", crop_max_y_, 480);
     n_private_.param("display_wait_ms", display_wait_ms_, 3);
     n_private_.param("use_displays", use_displays_, false);
-    // pcl_segmenter_->use_displays_ = use_displays_;
     os_->use_displays_ = use_displays_;
     n_private_.param("min_workspace_x", min_workspace_x_, 0.0);
     n_private_.param("min_workspace_y", min_workspace_y_, 0.0);
@@ -2443,6 +2438,10 @@ class ObjectSingulationNode
     n_private_.param("min_edge_length", os_->min_edge_length_, 3);
     n_private_.param("num_angle_bins", os_->num_angle_bins_, 8);
     n_private_.param("force_vertical_plane", os_->force_vertical_plane_, true);
+    n_private_.param("os_min_cluster_size", os_->min_cluster_size_, 20);
+    n_private_.param("os_min_boundary_length", os_->min_boundary_length_, 3);
+    // NOTE: Must be at least 3 for mathematical reasons
+    os_->min_boundary_length_ = std::max(os_->min_boundary_length_, 3);
 
     n_private_.param("min_table_z", pcl_segmenter_->min_table_z_, -0.5);
     n_private_.param("max_table_z", pcl_segmenter_->max_table_z_, 1.5);
