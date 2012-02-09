@@ -9,7 +9,9 @@ from std_msgs.msg import Bool, String
 CIRCUITS=[0,1,2] #Base, Right arm, Left Arm circuits
 
 class RunStopUtil(object):
+    """Provide utility functions for starting/stopping PR2."""
     def __init__(self):
+        """Establish service connections for motors, power board."""
         self.init_successful = True
         rospy.loginfo("Waiting for halt motors service")
         try:
@@ -36,6 +38,7 @@ class RunStopUtil(object):
             self.init_successful = False
 
     def run_stop(self):
+        """Halt motors, place power board into standboy. Stops robot."""
         self.halt_motors_client(EmptyRequest()) #Halt motors immediately
         success = [False, False, False]
         for circuit in CIRCUITS:
@@ -46,6 +49,7 @@ class RunStopUtil(object):
             return False
 
     def run_start(self):
+        """Reset power board, reset motors.  Un-does 'run_stop'."""
         success = [False, False, False]
         for circuit in CIRCUITS:
             success[circuit] = self.reset_power(circuit)
@@ -57,12 +61,14 @@ class RunStopUtil(object):
             return False
 
     def standby_power(self, circuit):
+        """Place PR2 power board into standby"""
         stdby_cmd = PowerBoardCommand2Request()
         stdby_cmd.circuit = circuit
         stdby_cmd.command = "stop"
         return self.power_board_client(stdby_cmd)
 
     def reset_power(self,circuit):
+        """Reset PR2 power board to active from standby"""
         reset_cmd = PowerBoardCommand2Request()
         reset_cmd.circuit = circuit
         reset_cmd.command = "start"
