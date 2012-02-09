@@ -1,7 +1,7 @@
 <package>
   <description brief="wouse">
 
-    This package contains code for the Wince-mouse, an optical mouse mounted to a pair of glasses such that the mouse detects movement of the skin near the temples.  This device was developed under the Robots for Humanity project to act as a reliable, wearable run-stop for persons with severe physical disabilities.
+    The wouse package is software for the "Wince-mouse": optical mouse components mounted to a pair of glasses such that the mouse reports the movement of the skin near the temples.  This device was developed under the Robots for Humanity project to act as a reliable, wearable run-stop for persons with severe physical disabilities.
 
   </description>
   <author>Phillip M. Grice, Advisor: Prof. Charlie Kemp, Lab: The Healthcare Robotoics Lab at Georgia Tech.</author>
