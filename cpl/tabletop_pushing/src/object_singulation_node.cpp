@@ -1412,10 +1412,12 @@ class ObjectSingulation
   {
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         objs, boundary_img.size(), workspace_frame_);
+
 #ifdef DISPLAY_PROJECTED_OBJECTS
     if (use_displays_)
     {
       pcl_segmenter_->displayObjectImage(obj_lbl_img);
+      drawObjectTransformAxises(obj_lbl_img, objs);
     }
 #endif // DISPLAY_PROJECTED_OBJECTS
     get3DBoundaries(boundaries, cloud);
@@ -2249,6 +2251,88 @@ class ObjectSingulation
     }
     cv::imshow("3D boundaries", obj_disp_img);
   }
+
+  void drawObjectTransformAxises(cv::Mat& obj_img, ProtoObjects& objs)
+  {
+    cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    std::vector<cv::Vec3f> colors;
+    for (int i = 0; i < objs.size(); ++i)
+    {
+      cv::Vec3f rand_color;
+      rand_color[0] = randf();
+      rand_color[1] = randf();
+      rand_color[2] = randf();
+      colors.push_back(rand_color);
+    }
+
+    for (int r = 0; r < obj_img.rows; ++r)
+    {
+      for (int c = 0; c < obj_img.cols; ++c)
+      {
+        unsigned int id = obj_img.at<uchar>(r,c);
+        if (id > 0)
+        {
+          obj_disp_img.at<cv::Vec3f>(r,c) = colors[id-1];
+        }
+      }
+    }
+    cv::Scalar green(0.0, 1.0, 0.0);
+    cv::Scalar red(0.0, 0.0, 1.0);
+    cv::Scalar cyan(1.0, 1.0, 0.0);
+
+    const Eigen::Vector4f x_axis(0.1, 0.0, 0.0, 1.0);
+    const Eigen::Vector4f y_axis(0.0, 0.1, 0.0, 1.0);
+    const Eigen::Vector4f z_axis(0.0, 0.0, 0.1, 1.0);
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      // Transform axises into current frame
+      const Eigen::Vector4f x_t = objs[i].transform*x_axis;
+      const Eigen::Vector4f y_t = objs[i].transform*y_axis;
+      const Eigen::Vector4f z_t = objs[i].transform*z_axis;
+
+      // Project axises into image
+      PointStamped start_point;
+      start_point.point.x = objs[i].centroid[0];
+      start_point.point.y = objs[i].centroid[1];
+      start_point.point.z = objs[i].centroid[2];
+      start_point.header.frame_id = workspace_frame_;
+
+      PointStamped end_point_x;
+      end_point_x.point.x = start_point.point.x + x_t[0];
+      end_point_x.point.y = start_point.point.y + x_t[1];
+      end_point_x.point.z = start_point.point.z + x_t[2];
+      end_point_x.header.frame_id = workspace_frame_;
+
+      PointStamped end_point_y;
+      end_point_y.point.x = start_point.point.x + y_t[0];
+      end_point_y.point.y = start_point.point.y + y_t[1];
+      end_point_y.point.z = start_point.point.z + y_t[2];
+      end_point_y.header.frame_id = workspace_frame_;
+
+      PointStamped end_point_z;
+      end_point_z.point.x = start_point.point.x + z_t[0];
+      end_point_z.point.y = start_point.point.y + z_t[1];
+      end_point_z.point.z = start_point.point.z + z_t[2];
+      end_point_z.header.frame_id = workspace_frame_;
+
+      cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
+          start_point);
+      cv::Point img_end_point_x = pcl_segmenter_->projectPointIntoImage(
+          end_point_x);
+      cv::Point img_end_point_y = pcl_segmenter_->projectPointIntoImage(
+          end_point_y);
+      cv::Point img_end_point_z = pcl_segmenter_->projectPointIntoImage(
+          end_point_z);
+
+      // TODO: Draw axises on image
+      cv::line(obj_disp_img, img_start_point, img_end_point_x, red);
+      cv::line(obj_disp_img, img_start_point, img_end_point_y, green);
+      cv::line(obj_disp_img, img_start_point, img_end_point_z, cyan);
+    }
+
+    cv::imshow("Object axis", obj_disp_img);
+  }
+
 
   int getNextID()
   {
