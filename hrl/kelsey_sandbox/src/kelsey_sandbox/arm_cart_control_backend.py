@@ -17,12 +17,14 @@ POSE_PARAMS = ['position.x', 'position.y', 'position.z',
                'orientation.x', 'orientation.y', 'orientation.z']
 
 MONITOR_RATE = 20.
+MOVE_STATE_TOPIC = "/arm_control_gui/move_state"
+LOAD_ARM_TOPIC = "/arm_control_gui/load_arm"
 
 class ArmCartCtrlBackend(object):
     def __init__(self, monitor_rate, misses_allowed=3):
         self.misses_allowed = misses_allowed
-        rospy.Subscriber("/arm_control_gui/move_state", String, self.move_state_cb)
-        rospy.Subscriber("/arm_control_gui/load_arm", String, self.load_arm_cb)
+        rospy.Subscriber(MOVE_STATE_TOPIC, String, self.move_state_cb)
+        rospy.Subscriber(LOAD_ARM_TOPIC, String, self.load_arm_cb)
         self.is_move_connected = False
         self.last_move_time = 0.
         self.misses = 0

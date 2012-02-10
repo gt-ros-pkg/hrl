@@ -10,7 +10,7 @@ import rospy
 from std_msgs.msg import String
 
 from arm_cart_control_gui import Ui_Frame as QTArmControlGUIFrame
-from arm_cart_control_backend import MOVE_BUTTONS, MONITOR_RATE
+from arm_cart_control_backend import MOVE_BUTTONS, MONITOR_RATE, MOVE_STATE_TOPIC, LOAD_ARM_TOPIC
 
 ARM_STYLESHEET = """image: url(:/icons/arm_%s_%s.png);
                     background-image: url(:/icons/empty.png);"""
@@ -20,8 +20,8 @@ class ArmCartControlGUIFrame(QtGui.QFrame):
         super(ArmCartControlGUIFrame, self).__init__()
         self.has_set_arm = False
 
-        self.move_state_pub = rospy.Publisher("/arm_control_gui/move_state", String)
-        self.arm_state_pub = rospy.Publisher("/arm_control_gui/load_arm", String)
+        self.move_state_pub = rospy.Publisher(MOVE_STATE_TOPIC, String)
+        self.arm_state_pub = rospy.Publisher(LOAD_ARM_TOPIC, String)
 
         self.init_ui()
 
