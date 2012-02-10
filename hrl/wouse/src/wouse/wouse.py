@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
+import math
 from threading import Condition
+from collections import deque
 
 #General
 import roslib; roslib.load_manifest('wouse')
@@ -23,7 +25,7 @@ class Wouse(object):
             rospy.logerr("Cannot find wouse run-stop service")
         
         self.mouse_event = MouseEvent()
-        device_file = rospy.get_param('~wouse_device_file', '/dev/input/mouse1')
+        device_file = rospy.get_param('~wouse_device_file', '/dev/wouse')
         self.condition = Condition()
         self.mouse_listener = MouseListener(self.mouse_event,
                                             self.condition,
@@ -36,9 +38,7 @@ class Wouse(object):
         self.ping_server_pub = rospy.Publisher('runstop_alive_ping', Header)
         self.ping_timer = rospy.Timer(rospy.Duration(0.01), self.ping_server)
 
-        self.filt_pos = None
-        self.stop_cnt = 0
-        self.stop_time = rospy.get_time()
+        self.filt_pos = deque([],maxlen=5)
        
     def ping_server(self, event):
         """Send updated timestamp to Runstop server."""
@@ -56,32 +56,21 @@ class Wouse(object):
             if self.mouse_event.x_overflow or self.mouse_event.y_overflow:
                 self.ptst.point.z = 1
         self.point_pub.publish(self.ptst)
+        self.update_detection(self.ptst.point.x, 
+                              self.ptst.point.y, 
+                              self.ptst.header.stamp)
 
-    def threshold(self,x,y):
+    def update_detection(self, x, y, time):
+        """Use to point to detection function."""
+        self.threshold(self, x, y, time)
+        
+    def threshold(self,x, y, time):
         """Detect wince signals based upon simple threshold"""
-        if filt_pos == None:
-            filt_pos = pos
-        else:
-            alpha = 0.8
-            filt_pos = (alpha * filt_pos) + ((1.0 - alpha) * pos)
-        diff = pos - filt_pos
-        x_thresh = 1.5
-        y_thresh = 1.5
-        stop_wait = rospy.Duration(1.0) #seconds
-        stop_time_diff = rospy.get_time() - stop_time
-        if ((diff[0] > x_thresh) and
-            (diff[1] > y_thresh) and
-            (stop_time_diff > stop_wait)):
-            
+        thresh = 10
+        if math.sqrt(x*x+y*y) > thresh:
+            rospy.loginfo("Wince Detected, stopping robot!")
             self.runstop_client(WouseRunStopRequest(True, False))
 
-            stop_cnt = stop_cnt + 1
-            stop_time = rospy.get_time()
-            print '*****************'
-            print 'STOP %d!' % stop_cnt
-            print 'seconds since last STOP = %f' % stop_time_diff.to_sec()
-            print 'diff =', diff
-            print '*****************'
 
 if __name__=='__main__':
     rospy.init_node('wouse_node')
