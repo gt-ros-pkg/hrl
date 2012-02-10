@@ -9,6 +9,8 @@ from std_srvs.srv import Empty, EmptyRequest
 from wouse.srv import WouseRunStop
 
 CIRCUITS=[0,1,2] #Base, Right arm, Left Arm circuits
+DEAD_MAN_CONFIGURATION=False
+
 
 class RunStop(object):
     """Provide utility functions for starting/stopping PR2."""
@@ -78,15 +80,15 @@ class RunStop(object):
 
 class RunStopServer(object):
     def __init__(self):
-        self.timeout = rospy.Duration(rospy.get_param('wouse_timeout', 0.1))
-        rospy.Subscriber('runstop_alive_ping', Header, self.check_in)
-        self.last_active_time = None
-        self.run_stop = RunStop()
         rospy.Service("wouse_run_stop", WouseRunStop, self.service_cb)
-        rospy.Timer(rospy.Duration(5), self.check_receiving, oneshot=True)
+        self.run_stop = RunStop()
+        if DEAD_MAN_CONFIGURATION:
+            rospy.Subscriber('runstop_alive_ping', Header, self.check_in)
+            self.timeout = rospy.Duration(rospy.get_param('wouse_timeout', 0.1))
+            self.last_active_time = None
+            rospy.Timer(rospy.Duration(5), self.check_receiving, oneshot=True)
 
     def check_receiving(self, event):
-        print type(self.last_active_time), type(Header().stamp)
         if isinstance(self.last_active_time, type(Header().stamp)):
             if self.last_active_time - rospy.Time.now() < rospy.Duration(5):
                 rospy.loginfo("RunStopServer receiving Dead-man switch pings")
@@ -117,5 +119,3 @@ if __name__=='__main__':
     rss = RunStopServer()
     while not rospy.is_shutdown():
         rospy.spin()
-
-
