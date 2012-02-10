@@ -5,15 +5,22 @@ from threading import Condition
 #General
 import roslib; roslib.load_manifest('wouse')
 import rospy
+from std_msgs.msg import Header
 from geometry_msgs.msg import PointStamped
 
-from run_stop_util import RunStopUtil
 from mouse_listener_thread import MouseListener, MouseEvent
+from wouse.srv import WouseRunStop, WouseRunStopRequest
 
 class Wouse(object):
     """Listens for mouse events, detects wincing motions, and signals e-stop"""
     def __init__(self):
-        self.runstop = RunStopUtil()
+        try:
+            rospy.wait_for_service('wouse_run_stop', 5) 
+            self.runstop_client=rospy.ServiceProxy('wouse_run_stop',
+                                                        WouseRunStop)
+            rospy.loginfo("Found wouse run-stop service")
+        except:
+            rospy.logerr("Cannot find wouse run-stop service")
         
         self.mouse_event = MouseEvent()
         device_file = rospy.get_param('~wouse_device_file', '/dev/input/mouse1')
@@ -25,11 +32,20 @@ class Wouse(object):
         
         self.point_pub = rospy.Publisher('wouse_movement', PointStamped)
         self.ptst = PointStamped()
-        
+
+        self.ping_server_pub = rospy.Publisher('runstop_alive_ping', Header)
+        self.ping_timer = rospy.Timer(0.01, self.ping_server)
+
         self.filt_pos = None
         self.stop_cnt = 0
         self.stop_time = rospy.get_time()
-        
+       
+    def ping_server(self):
+        """Send updated timestamp to Runstop server."""
+        hdr = Header()
+        hdr.stamp = rospy.Time.now()
+        self.ping_server_pub.publish(hdr)
+
     def poll(self):
         """Wait for new mouse event from listener thread, then pub/process"""
         with self.condition:
@@ -57,7 +73,7 @@ class Wouse(object):
             (diff[1] > y_thresh) and
             (stop_time_diff > stop_wait)):
             
-            runstop.run_stop()
+            self.runstop_client(WouseRunStopRequest(True, False))
 
             stop_cnt = stop_cnt + 1
             stop_time = rospy.get_time()

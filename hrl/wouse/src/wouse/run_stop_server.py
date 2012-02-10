@@ -81,7 +81,16 @@ class RunStopServer(object):
         self.last_active_time = None
         self.run_stop = RunStop()
         rospy.Service("wouse_run_stop", WouseRunStop, self.service_cb)
-        #TODO: Wait 3/5 secs, check to make sure we're receiving!
+        rospy.Timer(rospy.Duration(5), self.check_receiving, oneshot=True)
+
+    def check_receiving(self):
+        if isinstance(self.last_active_time, rospy.Time):
+            if self.last_active_time - rospy.Time.now() < rospy.Duration(5):
+                rospy.loginfo("RunStopServer receiving Dead-man switch pings")
+            else:
+                rospy.logerr("RunStopServer has contact time, but it is old")
+        else:
+            rospy.logerr("RunStopServer has not received a message from Wouse")
 
     def check_in(self, hdr):
         if self.last_active_time is None:
