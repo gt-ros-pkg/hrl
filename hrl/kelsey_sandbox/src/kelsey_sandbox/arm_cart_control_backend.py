@@ -16,21 +16,40 @@ MOVE_BUTTONS = {'translate_up' : [0, 1], 'translate_down' : [0, -1],
 POSE_PARAMS = ['position.x', 'position.y', 'position.z', 
                'orientation.x', 'orientation.y', 'orientation.z']
 
-MONITOR_RATE = 20
+MONITOR_RATE = 20.
 
-class ArmCartController(object):
-    def __init__(self):
+class ArmCartCtrlBackend(object):
+    def __init__(self, monitor_rate, misses_allowed=3):
+        self.misses_allowed = misses_allowed
         rospy.Subscriber("/arm_control_gui/move_state", String, self.move_state_cb)
         rospy.Subscriber("/arm_control_gui/load_arm", String, self.load_arm_cb)
+        self.is_move_connected = False
+        self.last_move_time = 0.
+        self.misses = 0
 
     def move_state_cb(self, msg):
-        pass
+        self.is_move_connected = True
+        self.last_move_time = rospy.get_time()
+        self.misses = 0
 
     def load_arm_cb(self, msg):
         pass
 
+    def check_state(self):
+        if rospy.get_time() - self.last_move_time > 1. / MONITOR_RATE:
+            self.misses += 1
+            if self.misses > self.misses_allowed:
+                self.is_move_connected = False
+        return self.is_move_connected
+
 def main():
     rospy.init_node("arm_cart_control_backend")
+    r = rospy.Rate(MONITOR_RATE)
+    cart_ctrl = ArmCartCtrlBackend(MONITOR_RATE)
+    while not rospy.is_shutdown():
+        if cart_ctrl.check_state():
+            print "Connected"
+        r.sleep()
 
 if __name__ == "__main__":
     main()
