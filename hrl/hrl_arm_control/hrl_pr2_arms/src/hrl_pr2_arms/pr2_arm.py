@@ -329,7 +329,9 @@ class PR2ArmCartesianPostureBase(PR2ArmCartesianBase):
         self.command_posture_pub = rospy.Publisher(self.controller_name + '/command_posture', 
                                                    Float64MultiArray)
 
-    def set_posture(self, posture):
+    def set_posture(self, posture=None):
+        if posture is None:
+            posture = self.get_joint_angles()
         assert len(posture) == 7, "Wrong posture length"
         msg = Float64MultiArray()
         msg.data = list(posture)
