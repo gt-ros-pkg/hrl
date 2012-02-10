@@ -1,0 +1,4 @@
+bool stop
+bool start
+---
+bool success
