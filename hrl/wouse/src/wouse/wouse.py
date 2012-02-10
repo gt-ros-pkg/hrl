@@ -34,13 +34,13 @@ class Wouse(object):
         self.ptst = PointStamped()
 
         self.ping_server_pub = rospy.Publisher('runstop_alive_ping', Header)
-        self.ping_timer = rospy.Timer(0.01, self.ping_server)
+        self.ping_timer = rospy.Timer(rospy.Duration(0.01), self.ping_server)
 
         self.filt_pos = None
         self.stop_cnt = 0
         self.stop_time = rospy.get_time()
        
-    def ping_server(self):
+    def ping_server(self, event):
         """Send updated timestamp to Runstop server."""
         hdr = Header()
         hdr.stamp = rospy.Time.now()

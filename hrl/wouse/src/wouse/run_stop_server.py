@@ -6,6 +6,8 @@ from std_msgs.msg import Header, Bool, String
 from pr2_power_board.srv import PowerBoardCommand2, PowerBoardCommand2Request
 from std_srvs.srv import Empty, EmptyRequest
 
+from wouse.srv import WouseRunStop
+
 CIRCUITS=[0,1,2] #Base, Right arm, Left Arm circuits
 
 class RunStop(object):
@@ -83,14 +85,15 @@ class RunStopServer(object):
         rospy.Service("wouse_run_stop", WouseRunStop, self.service_cb)
         rospy.Timer(rospy.Duration(5), self.check_receiving, oneshot=True)
 
-    def check_receiving(self):
-        if isinstance(self.last_active_time, rospy.Time):
+    def check_receiving(self, event):
+        print type(self.last_active_time), type(Header().stamp)
+        if isinstance(self.last_active_time, type(Header().stamp)):
             if self.last_active_time - rospy.Time.now() < rospy.Duration(5):
                 rospy.loginfo("RunStopServer receiving Dead-man switch pings")
             else:
-                rospy.logerr("RunStopServer has contact time, but it is old")
+                rospy.logwarn("RunStopServer has contact time, but it is old")
         else:
-            rospy.logerr("RunStopServer has not received a message from Wouse")
+            rospy.logwarn("RunStopServer has not received a message from Wouse")
 
     def check_in(self, hdr):
         if self.last_active_time is None:

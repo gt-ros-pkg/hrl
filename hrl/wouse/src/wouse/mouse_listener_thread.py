@@ -23,7 +23,7 @@ LEFT_BUTTON = 1
 class MouseListener(Thread):
     """A thread for reading a PS/2 mouse character device file"""
     def __init__(self, event, condition, device_file="/dev/input/mouse1"):
-        Thread.__init__(self)
+        Thread.__init__(self, name="mouse_listener_thread")
         self.daemon = True
         self.event = event
         self.condition = condition
