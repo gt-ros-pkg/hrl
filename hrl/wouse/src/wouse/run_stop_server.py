@@ -80,6 +80,7 @@ class RunStop(object):
 
 class RunStopServer(object):
     def __init__(self):
+        """Provide dead-man-switch like server for handling wouse run-stops."""
         rospy.Service("wouse_run_stop", WouseRunStop, self.service_cb)
         self.run_stop = RunStop()
         if DEAD_MAN_CONFIGURATION:
@@ -89,6 +90,7 @@ class RunStopServer(object):
             rospy.Timer(rospy.Duration(5), self.check_receiving, oneshot=True)
 
     def check_receiving(self, event):
+        """After timeout, check to ensure that activity is seen from wouse."""
         if isinstance(self.last_active_time, type(Header().stamp)):
             if self.last_active_time - rospy.Time.now() < rospy.Duration(5):
                 rospy.loginfo("RunStopServer receiving Dead-man switch pings")
@@ -98,6 +100,7 @@ class RunStopServer(object):
             rospy.logwarn("RunStopServer has not received a message from Wouse")
 
     def check_in(self, hdr):
+        """Update most recent active time, or do run-stop if past timeout."""
         if self.last_active_time is None:
             self.last_active_time = hdr.stamp
             return
@@ -105,10 +108,10 @@ class RunStopServer(object):
             self.run_stop.stop()
             rospy.logwarn("No Signal Received from Wouse for %s sec."
                                                             %self.timeout)
-        else:
-            self.last_active_time = hdr.stamp
+        self.last_active_time = hdr.stamp
 
     def service_cb(self, req):
+        """Handle service requests to start/stop run-stop.  Used to reset."""
         if req.stop:
             return self.run_stop.stop()
         elif req.start:
