@@ -10,7 +10,8 @@ from geometry_msgs.msg import PointStamped
 from run_stop_util import RunStopUtil
 from mouse_listener_thread import MouseListener, MouseEvent
 
-class ThreshWouse(object):
+class Wouse(object):
+    """Listens for mouse events, detects wincing motions, and signals e-stop"""
     def __init__(self):
         self.runstop = RunStopUtil()
         
@@ -30,6 +31,7 @@ class ThreshWouse(object):
         self.stop_time = rospy.get_time()
         
     def poll(self):
+        """Wait for new mouse event from listener thread, then pub/process"""
         with self.condition:
             self.condition.wait() 
             self.ptst.header.stamp = rospy.Time.now()
@@ -40,6 +42,7 @@ class ThreshWouse(object):
         self.point_pub.publish(self.ptst)
 
     def threshold(self,x,y):
+        """Detect wince signals based upon simple threshold"""
         if filt_pos == None:
             filt_pos = pos
         else:
@@ -66,7 +69,7 @@ class ThreshWouse(object):
 
 if __name__=='__main__':
     rospy.init_node('wouse_node')
-    wouse = ThreshWouse()
+    wouse = Wouse()
     while not rospy.is_shutdown():
         wouse.poll()
 
