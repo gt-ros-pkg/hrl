@@ -1,68 +1,43 @@
 #!/usr/bin/env python
 
-#xinput polling
-import subprocess as sp
-import shlex
-import re
-
-#Xlib polling
-from Xlib import display
-
-#Pygame polling
-import pygame as pg
-import numpy as np
+from threading import Condition
 
 #General
 import roslib; roslib.load_manifest('wouse')
 import rospy
+from geometry_msgs.msg import PointStamped
 
 from run_stop_util import RunStopUtil
+from mouse_listener_thread import MouseListener, MouseEvent
 
 class ThreshWouse(object):
     def __init__(self):
-       
-        self.disp_root = display.Display().screen().root
-
-        #pygame_polling
-        #pg.init()
-        #screen = pg.display.set_mode()
-        #pg.mouse.set_visible(1)
-        #bg = pg.Surface(screen.get_size())
-
-        filt_pos = None
-        stop_cnt = 0
-        stop_time = rospy.get_time()
-
-        runstop = RunStopUtil()
+        self.runstop = RunStopUtil()
+        
+        self.mouse_event = MouseEvent()
+        device_file = rospy.get_param('~wouse_device_file', '/dev/input/mouse1')
+        self.condition = Condition()
+        self.mouse_listener = MouseListener(self.mouse_event,
+                                            self.condition,
+                                            device_file)
+        self.mouse_listener.start()
+        
+        self.point_pub = rospy.Publisher('wouse_movement', PointStamped)
+        self.ptst = PointStamped()
+        
+        self.filt_pos = None
+        self.stop_cnt = 0
+        self.stop_time = rospy.get_time()
         
     def poll(self):
-        #return self.xinput_polling()
-        #return self.pygame_polling()
-        return self.Xlib_polling()
-
-    def Xlib_polling(self):
-        curr_point = self.disp_root.query_pointer()
-        return (curr_point._data["root_x"], curr_point._data["root_y"])
-
-
-    def xinput_polling(self):
-        """An implementation which polls xinput from the commandline to get mouse position"""
-        xid = rospy.get_param('~xinput_id', "11")
-        proc = sp.Popen(["xinput query-state "+xid],
-                        shell=True, 
-                        stdout=sp.PIPE)
-        (out, err) = proc.communicate()
-        if not err:
-            mouse_pos = []
-            state_fields = shlex.split(out)
-            for field in state_fields[-2:]:
-                eq_ind = field.find('=')
-                mouse_pos.append(float(field[(eq_ind+1):]))
-            return tuple(mouse_pos)
-
-    def pygame_polling(self):
-        pg.event.get()
-        return pg.mouse.get_pos()
+        with self.condition:
+            self.condition.wait() 
+            self.ptst.header.stamp = rospy.Time.now()
+            self.ptst.point.x = self.mouse_event.rel_x
+            self.ptst.point.y = self.mouse_event.rel_x
+            if self.mouse_event.x_overflow or self.mouse_event.y_overflow:
+                self.ptst.point.z = 1
+        self.point_pub.publish(self.ptst)
 
     def threshold(self,x,y):
         if filt_pos == None:
@@ -89,12 +64,32 @@ class ThreshWouse(object):
             print 'diff =', diff
             print '*****************'
 
-
 if __name__=='__main__':
     rospy.init_node('wouse_node')
     wouse = ThreshWouse()
-    polling_rate = rospy.Rate(100)
     while not rospy.is_shutdown():
-        (x,y) = wouse.poll()
-        print "X: ",x," Y: ",y
-        polling_rate.sleep()
+        wouse.poll()
+
+#    def Xlib_polling(self):
+#        curr_point = self.disp_root.query_pointer()
+#        return (curr_point._data["root_x"], curr_point._data["root_y"])
+#
+#
+#    def xinput_polling(self):
+#        """An implementation which polls xinput from the commandline to get mouse position"""
+#        xid = rospy.get_param('~xinput_id', "11")
+#        proc = sp.Popen(["xinput query-state "+xid],
+#                        shell=True, 
+#                        stdout=sp.PIPE)
+#        (out, err) = proc.communicate()
+#        if not err:
+#            mouse_pos = []
+#            state_fields = shlex.split(out)
+#            for field in state_fields[-2:]:
+#                eq_ind = field.find('=')
+#                mouse_pos.append(float(field[(eq_ind+1):]))
+#            return tuple(mouse_pos)
+#
+#    def pygame_polling(self):
+#        pg.event.get()
+#        return pg.mouse.get_pos()

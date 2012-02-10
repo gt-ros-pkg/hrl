@@ -13,26 +13,26 @@ class RunStopUtil(object):
     def __init__(self):
         """Establish service connections for motors, power board."""
         self.init_successful = True
-        rospy.loginfo("Waiting for halt motors service")
         try:
             rospy.wait_for_service('pr2_etherCAT/halt_motors', 5) 
             self.halt_motors_client=rospy.ServiceProxy('pr2_etherCAT/halt_motors',Empty)
+            rospy.loginfo("Found halt motors service")
         except:
             rospy.logerr("Cannot find halt motors service")
             self.init_successful = False
 
-        rospy.loginfo("Waiting for reset motors service")
         try:
             rospy.wait_for_service('pr2_etherCAT/reset_motors',5)
             self.reset_motors_client=rospy.ServiceProxy('pr2_etherCAT/reset_motors',Empty)
+            rospy.loginfo("Found reset motors service")
         except:
             rospy.logerr("Cannot find halt motors service")
             self.init_successful = False
 
-        rospy.loginfo("Waiting for power_board/control service")
         try:
             rospy.wait_for_service('power_board/control2',5)
             self.power_board_client=rospy.ServiceProxy('power_board/control2',PowerBoardCommand2)
+            rospy.loginfo("Found power_board/control2 service")
         except:
             rospy.logerr("Cannot find power_board/control2 service")
             self.init_successful = False
