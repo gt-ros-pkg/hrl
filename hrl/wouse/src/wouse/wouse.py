@@ -25,7 +25,7 @@ class Wouse(object):
             rospy.logerr("Cannot find wouse run-stop service")
         
         self.mouse_event = MouseEvent()
-        device_file = rospy.get_param('~wouse_device_file', '/dev/wouse')
+        device_file = rospy.get_param('~wouse_device_file', '/dev/input/mouse2')
         self.condition = Condition()
         self.mouse_listener = MouseListener(self.mouse_event,
                                             self.condition,
@@ -62,7 +62,7 @@ class Wouse(object):
 
     def update_detection(self, x, y, time):
         """Use to point to detection function."""
-        self.threshold(self, x, y, time)
+        self.threshold(x, y, time)
         
     def threshold(self,x, y, time):
         """Detect wince signals based upon simple threshold"""
