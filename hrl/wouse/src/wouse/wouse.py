@@ -19,7 +19,7 @@ class Wouse(object):
         try:
             rospy.wait_for_service('wouse_run_stop', 5) 
             self.runstop_client=rospy.ServiceProxy('wouse_run_stop',
-                                                        WouseRunStop)
+                                                        WouseRunStop, True)
             rospy.loginfo("Found wouse run-stop service")
         except:
             rospy.logerr("Cannot find wouse run-stop service")
@@ -42,9 +42,11 @@ class Wouse(object):
        
     def ping_server(self, event):
         """Send updated timestamp to Runstop server."""
-        hdr = Header()
-        hdr.stamp = rospy.Time.now()
-        self.ping_server_pub.publish(hdr)
+        req = WouseRunStopRequest(False, False, rospy.Time.now())
+        self.runstop_client(req)
+        #hdr = Header()
+        #hdr.stamp = rospy.Time.now()
+        #self.ping_server_pub.publish(hdr)
 
     def poll(self):
         """Wait for new mouse event from listener thread, then pub/process"""
@@ -77,27 +79,3 @@ if __name__=='__main__':
     wouse = Wouse()
     while not rospy.is_shutdown():
         wouse.poll()
-
-#    def Xlib_polling(self):
-#        curr_point = self.disp_root.query_pointer()
-#        return (curr_point._data["root_x"], curr_point._data["root_y"])
-#
-#
-#    def xinput_polling(self):
-#        """An implementation which polls xinput from the commandline to get mouse position"""
-#        xid = rospy.get_param('~xinput_id', "11")
-#        proc = sp.Popen(["xinput query-state "+xid],
-#                        shell=True, 
-#                        stdout=sp.PIPE)
-#        (out, err) = proc.communicate()
-#        if not err:
-#            mouse_pos = []
-#            state_fields = shlex.split(out)
-#            for field in state_fields[-2:]:
-#                eq_ind = field.find('=')
-#                mouse_pos.append(float(field[(eq_ind+1):]))
-#            return tuple(mouse_pos)
-#
-#    def pygame_polling(self):
-#        pg.event.get()
-#        return pg.mouse.get_pos()

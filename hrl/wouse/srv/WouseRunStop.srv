@@ -1,4 +1,5 @@
 bool stop
 bool start
+std_msgs/Time time
 ---
 bool success

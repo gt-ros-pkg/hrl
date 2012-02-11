@@ -112,10 +112,16 @@ class RunStopServer(object):
 
     def service_cb(self, req):
         """Handle service requests to start/stop run-stop.  Used to reset."""
+        hz = 1/(req.time-self.last_active_time)
+        self.last_active_time = req.time
         if req.stop:
             return self.run_stop.stop()
         elif req.start:
             return self.run_stop.start()
+        else:
+            print "ping received!"
+            print "%s Hz" %hz
+            return True #only update timestamp
 
 if __name__=='__main__':
     rospy.init_node('run_stop_server')
