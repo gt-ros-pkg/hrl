@@ -1,0 +1,10 @@
+<launch>
+    <machine name="pr2c1" address="monty1" />
+    <machine name="pr2base" address="localhost">
+        <env name="ROS_IP" value="10.68.0.138" />
+    </machine>
+    <node pkg="kelsey_sandbox" name="arm_cart_control_backend" type="arm_cart_control_backend.py"
+          machine="pr2c1" required="true" />
+    <node pkg="kelsey_sandbox" name="arm_cart_control_interface" type="arm_cart_control_interface.py"
+          machine="pr2base" required="true" />
+</launch>

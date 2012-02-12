@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>702</width>
-    <height>476</height>
+    <height>521</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,161 +19,11 @@
   <property name="frameShadow">
    <enum>QFrame::Raised</enum>
   </property>
-  <widget class="QWidget" name="layoutWidget">
-   <property name="geometry">
-    <rect>
-     <x>360</x>
-     <y>20</y>
-     <width>321</width>
-     <height>311</height>
-    </rect>
-   </property>
-   <layout class="QGridLayout" name="gridLayout_2">
-    <item row="0" column="0">
-     <widget class="QPushButton" name="translate_out">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="baseSize">
-       <size>
-        <width>80</width>
-        <height>80</height>
-       </size>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">image: url(:/resources/translate_out.png);
-background-image: url(:/resources/empty.png);</string>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </item>
-    <item row="0" column="1">
-     <widget class="QPushButton" name="translate_up">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="baseSize">
-       <size>
-        <width>80</width>
-        <height>80</height>
-       </size>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">image: url(:/resources/translate_up.png);
-background-image: url(:/resources/empty.png);</string>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </item>
-    <item row="0" column="2">
-     <widget class="QPushButton" name="translate_in">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="baseSize">
-       <size>
-        <width>80</width>
-        <height>80</height>
-       </size>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">image: url(:/resources/translate_in.png);
-background-image: url(:/resources/empty.png);</string>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="QPushButton" name="translate_left">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="baseSize">
-       <size>
-        <width>80</width>
-        <height>80</height>
-       </size>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">image: url(:/resources/translate_left.png);
-background-image: url(:/resources/empty.png);</string>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="2">
-     <widget class="QPushButton" name="translate_right">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="baseSize">
-       <size>
-        <width>80</width>
-        <height>80</height>
-       </size>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">image: url(:/resources/translate_right.png);
-background-image: url(:/resources/empty.png);</string>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="1">
-     <widget class="QPushButton" name="translate_down">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="baseSize">
-       <size>
-        <width>80</width>
-        <height>80</height>
-       </size>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">image: url(:/resources/translate_down.png);
-background-image: url(:/resources/empty.png);</string>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
   <widget class="QComboBox" name="frame">
    <property name="geometry">
     <rect>
      <x>420</x>
-     <y>350</y>
+     <y>430</y>
      <width>261</width>
      <height>31</height>
     </rect>
@@ -186,7 +36,7 @@ background-image: url(:/resources/empty.png);</string>
    <property name="geometry">
     <rect>
      <x>330</x>
-     <y>350</y>
+     <y>430</y>
      <width>71</width>
      <height>31</height>
     </rect>
@@ -201,8 +51,8 @@ background-image: url(:/resources/empty.png);</string>
   <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
-     <x>20</x>
-     <y>20</y>
+     <x>360</x>
+     <y>50</y>
      <width>321</width>
      <height>311</height>
     </rect>
@@ -346,13 +196,24 @@ background-image: url(:/resources/empty.png);</string>
       </property>
      </widget>
     </item>
+    <item row="1" column="1">
+     <widget class="QLabel" name="label_3">
+      <property name="styleSheet">
+       <string notr="true">background-image: url(:/resources/empty.png);
+image: url(:/resources/arm_gripper.png);</string>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+    </item>
    </layout>
   </widget>
   <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>20</x>
-     <y>350</y>
+     <y>390</y>
      <width>271</width>
      <height>111</height>
     </rect>
@@ -411,6 +272,188 @@ background-image: url(:/resources/empty.png);</string>
       </property>
       <property name="text">
        <string>Right Arm</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QLabel" name="label_5">
+   <property name="geometry">
+    <rect>
+     <x>470</x>
+     <y>10</y>
+     <width>151</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">font: 20pt;</string>
+   </property>
+   <property name="text">
+    <string>Rotation</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_4">
+   <property name="geometry">
+    <rect>
+     <x>110</x>
+     <y>10</y>
+     <width>151</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">font: 20pt;</string>
+   </property>
+   <property name="text">
+    <string>Translation</string>
+   </property>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_2">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>50</y>
+     <width>321</width>
+     <height>311</height>
+    </rect>
+   </property>
+   <layout class="QGridLayout" name="gridLayout_2">
+    <item row="0" column="0">
+     <widget class="QPushButton" name="translate_out">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="baseSize">
+       <size>
+        <width>80</width>
+        <height>80</height>
+       </size>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">image: url(:/resources/translate_out.png);
+background-image: url(:/resources/empty.png);</string>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="1">
+     <widget class="QPushButton" name="translate_up">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="baseSize">
+       <size>
+        <width>80</width>
+        <height>80</height>
+       </size>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">image: url(:/resources/translate_up.png);
+background-image: url(:/resources/empty.png);</string>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="2">
+     <widget class="QPushButton" name="translate_in">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="baseSize">
+       <size>
+        <width>80</width>
+        <height>80</height>
+       </size>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">image: url(:/resources/translate_in.png);
+background-image: url(:/resources/empty.png);</string>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="0">
+     <widget class="QPushButton" name="translate_left">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="baseSize">
+       <size>
+        <width>80</width>
+        <height>80</height>
+       </size>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">image: url(:/resources/translate_left.png);
+background-image: url(:/resources/empty.png);</string>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="2">
+     <widget class="QPushButton" name="translate_right">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="baseSize">
+       <size>
+        <width>80</width>
+        <height>80</height>
+       </size>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">image: url(:/resources/translate_right.png);
+background-image: url(:/resources/empty.png);</string>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="1">
+     <widget class="QPushButton" name="translate_down">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="baseSize">
+       <size>
+        <width>80</width>
+        <height>80</height>
+       </size>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">image: url(:/resources/translate_down.png);
+background-image: url(:/resources/empty.png);</string>
+      </property>
+      <property name="text">
+       <string/>
       </property>
      </widget>
     </item>

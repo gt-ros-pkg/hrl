@@ -12,22 +12,19 @@ from std_msgs.msg import String
 from arm_cart_control_gui import Ui_Frame as QTArmControlGUIFrame
 from arm_cart_control_backend import MOVE_BUTTONS, MONITOR_RATE, MOVE_STATE_TOPIC, LOAD_ARM_TOPIC
 
-ARM_STYLESHEET = """image: url(:/icons/arm_%s_%s.png);
-                    background-image: url(:/icons/empty.png);"""
+ARM_STYLESHEET = """image: url(:/resources/arm_%s_%s.png);
+                    background-image: url(:/resources/empty.png);"""
 
 class ArmCartControlGUIFrame(QtGui.QFrame):
     def __init__(self):
         super(ArmCartControlGUIFrame, self).__init__()
-        self.has_set_arm = False
 
         self.move_state_pub = rospy.Publisher(MOVE_STATE_TOPIC, String)
         self.arm_state_pub = rospy.Publisher(LOAD_ARM_TOPIC, String)
 
+        self.cur_arm = "l"
         self.init_ui()
-
-        #axis, direction = button_data
-        #        self.button_state = PoseStamped()
-        #        exec('self.cmd_msg.pose.%s = %f' % (POSE_PARAMS[], ))
+        self.arm_left_clk()
 
     def init_ui(self):
         self.ui = QTArmControlGUIFrame()
@@ -40,22 +37,20 @@ class ArmCartControlGUIFrame(QtGui.QFrame):
         self.monitor_timer.start(MONITOR_RATE)
 
     def monitor_cb(self):
-        if not self.has_set_arm:
-            return
         move_button = ""
         for button in MOVE_BUTTONS:
             exec("is_down = self.ui.%s.isDown()" % button)
             if is_down:
                 move_button = button
         self.move_state_pub.publish(String(move_button))
+        self.arm_state_pub.publish(String(self.cur_arm))
 
     def arm_left_clk(self):
-        self.arm_state_pub.publish(String("l"))
         self.ui.arm_left.setDisabled(True)
         self.ui.arm_right.setEnabled(True)
         self.ui.arm_left.setStyleSheet(ARM_STYLESHEET % ("left", "on"))
         self.ui.arm_right.setStyleSheet(ARM_STYLESHEET % ("right", "off"))
-        self.has_set_arm = True
+        self.cur_arm = "l"
 
     def arm_right_clk(self):
         self.arm_state_pub.publish(String("r"))
@@ -63,7 +58,7 @@ class ArmCartControlGUIFrame(QtGui.QFrame):
         self.ui.arm_left.setEnabled(True)
         self.ui.arm_left.setStyleSheet(ARM_STYLESHEET % ("left", "off"))
         self.ui.arm_right.setStyleSheet(ARM_STYLESHEET % ("right", "on"))
-        self.has_set_arm = True
+        self.cur_arm = "r"
 
 def main():
     rospy.init_node("arm_cart_control_interface")
