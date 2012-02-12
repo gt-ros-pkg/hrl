@@ -71,7 +71,7 @@ class Wouse(object):
         thresh = 10
         if math.sqrt(x*x+y*y) > thresh:
             rospy.loginfo("Wince Detected, stopping robot!")
-            self.runstop_client(WouseRunStopRequest(True, False))
+            self.runstop_client(WouseRunStopRequest(True, False,rospy.Time.now()))
 
 
 if __name__=='__main__':
