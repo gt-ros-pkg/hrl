@@ -5,11 +5,12 @@ import rospy
 from std_msgs.msg import Header, Bool, String
 from pr2_power_board.srv import PowerBoardCommand2, PowerBoardCommand2Request
 from std_srvs.srv import Empty, EmptyRequest
+from sound_play.libsoundplay import SoundClient
 
 from wouse.srv import WouseRunStop
 
 CIRCUITS=[0,1,2] #Base, Right arm, Left Arm circuits
-DEAD_MAN_CONFIGURATION=False
+DEAD_MAN_CONFIGURATION=True
 
 
 class RunStop(object):
@@ -84,20 +85,24 @@ class RunStopServer(object):
         rospy.Service("wouse_run_stop", WouseRunStop, self.service_cb)
         self.run_stop = RunStop()
         if DEAD_MAN_CONFIGURATION:
+            self.sound_client = SoundClient()
             rospy.Subscriber('runstop_alive_ping', Header, self.check_in)
             self.timeout = rospy.Duration(rospy.get_param('wouse_timeout', 0.1))
-            self.last_active_time = None
-            rospy.Timer(rospy.Duration(5), self.check_receiving, oneshot=True)
+            self.tone_period = rospy.Duration(10)
+            self.last_active_time = rospy.Time.now()
+            self.last_sound = rospy.Time.now()
+            rospy.Timer(self.timeout, self.check_receiving)
 
     def check_receiving(self, event):
         """After timeout, check to ensure that activity is seen from wouse."""
-        if isinstance(self.last_active_time, type(Header().stamp)):
-            if self.last_active_time - rospy.Time.now() < rospy.Duration(5):
-                rospy.loginfo("RunStopServer receiving Dead-man switch pings")
-            else:
-                rospy.logwarn("RunStopServer has contact time, but it is old")
-        else:
-            rospy.logwarn("RunStopServer has not received a message from Wouse")
+        silence = rospy.Time.now() - self.last_active_time
+        if silence < self.timeout:
+            return True
+        if (silence > self.timeout and (rospy.Time.now() - self.last_sound) > self.tone_period):
+            rospy.logwarn("RunStopServer has not heard from wouse recently.")
+            self.sound_client.play(3)#1
+            self.last_sound = rospy.Time.now()
+        return False
 
     def check_in(self, hdr):
         """Update most recent active time, or do run-stop if past timeout."""
@@ -112,15 +117,12 @@ class RunStopServer(object):
 
     def service_cb(self, req):
         """Handle service requests to start/stop run-stop.  Used to reset."""
-        hz = 1/(req.time-self.last_active_time)
         self.last_active_time = req.time
         if req.stop:
             return self.run_stop.stop()
         elif req.start:
             return self.run_stop.start()
         else:
-            print "ping received!"
-            print "%s Hz" %hz
             return True #only update timestamp
 
 if __name__=='__main__':
