@@ -131,8 +131,9 @@
 
 #define randf() static_cast<float>(rand())/RAND_MAX
 
+typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
+typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image,sensor_msgs::PointCloud2> MySyncPolicy;
 
-/
 class VisualServoNode
 {
 public:
@@ -142,8 +143,7 @@ public:
     depth_sub_(n, "depth_image_topic", 1),
     cloud_sub_(n, "point_cloud_topic", 1),
     sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
-    it_(n), tf_(), ft_("pushing_perception"),
-    pcl_segmenter_(&ft_, &tf_),
+    it_(n), tf_(), 
     
     have_depth_data_(false), tracking_(false),
     tracker_initialized_(false), tracker_count_(0)
@@ -162,37 +162,25 @@ public:
         n_private_.param("max_workspace_z", max_workspace_z_, 0.0);
         std::string default_workspace_frame = "/torso_lift_link";
         n_private_.param("workspace_frame", workspace_frame_, default_workspace_frame);
-        
+       
+        /* 
         n_private_.param("min_table_z", pcl_segmenter_.min_table_z_, -0.5);
         n_private_.param("max_table_z", pcl_segmenter_.max_table_z_, 1.5);
         pcl_segmenter_.min_workspace_x_ = min_workspace_x_;
         pcl_segmenter_.max_workspace_x_ = max_workspace_x_;
         pcl_segmenter_.min_workspace_z_ = min_workspace_z_;
         pcl_segmenter_.max_workspace_z_ = max_workspace_z_;
-        
+        */
         n_private_.param("autostart_tracking", tracking_, false);
         n_private_.param("autostart_pcl_segmentation", autorun_pcl_segmentation_, false);
         n_private_.param("use_guided_pushes", use_guided_pushes_, true);
         
         n_private_.param("num_downsamples", num_downsamples_, 2);
-        pcl_segmenter_.num_downsamples_ = num_downsamples_;
         std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
         n_private_.param("cam_info_topic", cam_info_topic_, cam_info_topic_def);
-        n_private_.param("table_ransac_thresh", pcl_segmenter_.table_ransac_thresh_, 0.01);
-        n_private_.param("table_ransac_angle_thresh", pcl_segmenter_.table_ransac_angle_thresh_, 30.0);
         
-        n_private_.param("surf_hessian_thresh", ft_.surf_.hessianThreshold, 150.0);
         bool use_fast;
         n_private_.param("use_fast_corners", use_fast, false);
-        ft_.setUseFast(use_fast);
-        n_private_.param("pcl_cluster_tolerance", pcl_segmenter_.cluster_tolerance_, 0.25);
-        n_private_.param("pcl_difference_thresh", pcl_segmenter_.cloud_diff_thresh_, 0.01);
-        n_private_.param("pcl_min_cluster_size", pcl_segmenter_.min_cluster_size_, 100);
-        n_private_.param("pcl_max_cluster_size", pcl_segmenter_.max_cluster_size_, 2500);
-        n_private_.param("pcl_voxel_downsample_res", pcl_segmenter_.voxel_down_res_, 0.005);
-        n_private_.param("pcl_cloud_intersect_thresh", pcl_segmenter_.cloud_intersect_thresh_, 0.005);
-        n_private_.param("pcl_concave_hull_alpha", pcl_segmenter_.hull_alpha_, 0.1);
-        n_private_.param("use_pcl_voxel_downsample", pcl_segmenter_.use_voxel_down_, true);
         
         n_private_.param("tape_hue_value", tape_hue_value_, 137);
         n_private_.param("tape_hue_threshold", tape_hue_threshold_, 10);
@@ -200,7 +188,29 @@ public:
         n_private_.param("hand_hue_threshold", hand_hue_threshold_, 10);
         n_private_.param("default_push_dist", default_push_dist_, 0.1);
         // Setup ros node connections
-        sync_.registerCallback(&VisualServoNode::sensorCallback,       this);
+        sync_.registerCallback(&VisualServoNode::sensorCallback, this);
+ 
+        /** 
+         * Uncomment below to test with local image
+        std::cout << "1\n";
+        IplImage* img = cvLoadImage("/home/bootcamp/gt-ros-pkg/cpl/tabletop_pushing/src/test1.jpeg");
+        cv::Mat color_frame(img);
+        cvReleaseImage(&img);
+        std::cout << "1\n";
+        cv::imshow("input",color_frame.clone());
+        std::cout << "1\n";
+        //cv::Mat color_frame_down = downSample(color_frame, num_downsamples_);
+        cv::Mat color_frame_down = color_frame.clone();
+        std::cout << "1\n";
+        cv::Mat tape = colorSegment(color_frame_down.clone(), tape_hue_value_, tape_hue_threshold_);
+        cv::Mat hand = colorSegment(color_frame_down.clone(), hand_hue_value_, hand_hue_threshold_);
+        std::cout << "1\n";
+        cv::imshow("input",color_frame_down.clone());
+        cv::imshow("tape", tape.clone()); 
+        cv::imshow("hand", hand.clone());   
+        cv::waitKey(3000);
+        */
+
     }
     
     
@@ -210,7 +220,6 @@ public:
         {
             cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(cam_info_topic_, n_, ros::Duration(5.0));
             camera_initialized_ = true;
-            pcl_segmenter_.cam_info_ = cam_info_;
         }
         // Convert images to OpenCV format
         cv::Mat color_frame(bridge_.imgMsgToCv(img_msg));
@@ -219,15 +228,6 @@ public:
         // Swap kinect color channel order
         cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
         
-        
-        /** 
-         * Uncomment below to test with local image
-         **/
-        //IplImage* img = cvLoadImage("/home/bootcamp/gt-ros-pkg/cpl/tabletop_pushing/src/test1.jpg");
-        //cv::Mat readin(img);
-        //cvReleaseImage(&img);
-        //cv::imshow("input",readin.clone());
-        //getBlueTape(readin.clone());
         cv::Mat color_frame_down = downSample(color_frame, num_downsamples_);
         cv::Mat depth_frame_down = downSample(depth_frame, num_downsamples_);
         
@@ -237,6 +237,8 @@ public:
         cv::imshow("tape", tape.clone()); 
         cv::imshow("hand", hand.clone());   
         cv::waitKey(display_wait_ms_);
+        
+
     }
     
     
@@ -247,7 +249,7 @@ public:
          * Same with saturation 0. Low saturation makes everything more gray scaled
          * So the default setting are below 
          */
-        return colorSegment(color_frame, hue - threshold, hue + threshold,  40, 255, 30, 235);
+        return colorSegment(color_frame, hue - threshold, hue + threshold,  40, 255, 30, 225);
     }
 
     
@@ -285,9 +287,6 @@ public:
         color_frame.copyTo(ret, wm);
         return ret;
     }
-    
-    
-    
     
     //
     // Helper Methods
@@ -347,7 +346,6 @@ protected:
     std_msgs::Header cur_camera_header_;
     std_msgs::Header prev_camera_header_;
     XYZPointCloud cur_point_cloud_;
-    PointCloudSegmentation pcl_segmenter_;
     bool have_depth_data_;
     int crop_min_x_;
     int crop_max_x_;

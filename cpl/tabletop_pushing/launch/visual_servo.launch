@@ -1,5 +1,7 @@
 <launch>
-    <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch"/>
+  <!-- 
+  <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch"/>
+  -->
   <node name="visual_servo_node" pkg="tabletop_pushing" type="visual_servo_node" respawn="false" output="screen">
     <remap from="color_image_topic" to="/kinect_head/rgb/image_color"/>
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
