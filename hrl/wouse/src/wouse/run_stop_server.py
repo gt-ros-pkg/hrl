@@ -79,6 +79,7 @@ class RunStop(object):
         reset_cmd.command = "start"
         return self.power_board_client(reset_cmd)
 
+
 class RunStopServer(object):
     def __init__(self):
         """Provide dead-man-switch like server for handling wouse run-stops."""
@@ -86,8 +87,7 @@ class RunStopServer(object):
         self.run_stop = RunStop()
         if DEAD_MAN_CONFIGURATION:
             self.sound_client = SoundClient()
-            rospy.Subscriber('runstop_alive_ping', Header, self.check_in)
-            self.timeout = rospy.Duration(rospy.get_param('wouse_timeout', 0.1))
+            self.timeout = rospy.Duration(rospy.get_param('wouse_timeout', 1.5))
             self.tone_period = rospy.Duration(10)
             self.last_active_time = rospy.Time.now()
             self.last_sound = rospy.Time.now()
@@ -96,28 +96,22 @@ class RunStopServer(object):
     def check_receiving(self, event):
         """After timeout, check to ensure that activity is seen from wouse."""
         silence = rospy.Time.now() - self.last_active_time
+        #print silence, " / ", self.timeout
         if silence < self.timeout:
-            return True
+         #   print "Receiving"
+            return
+        #else:
+          #  print "NOT receiving"
         if (silence > self.timeout and (rospy.Time.now() - self.last_sound) > self.tone_period):
             rospy.logwarn("RunStopServer has not heard from wouse recently.")
             self.sound_client.play(3)#1
             self.last_sound = rospy.Time.now()
-        return False
-
-    def check_in(self, hdr):
-        """Update most recent active time, or do run-stop if past timeout."""
-        if self.last_active_time is None:
-            self.last_active_time = hdr.stamp
-            return
-        if hdr.stamp - self.last_active_time > self.timeout:
-            self.run_stop.stop()
-            rospy.logwarn("No Signal Received from Wouse for %s sec."
-                                                            %self.timeout)
-        self.last_active_time = hdr.stamp
 
     def service_cb(self, req):
         """Handle service requests to start/stop run-stop.  Used to reset."""
+        #print "Separation: ", req.time-self.last_active_time
         self.last_active_time = req.time
+        #print "Delay: ", rospy.Time.now() - self.last_active_time
         if req.stop:
             return self.run_stop.stop()
         elif req.start:
