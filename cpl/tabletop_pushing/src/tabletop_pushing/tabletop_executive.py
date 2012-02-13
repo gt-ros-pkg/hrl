@@ -42,7 +42,7 @@ import tf
 import numpy as np
 from tabletop_pushing.srv import *
 from tabletop_pushing.msg import *
-from math import sin, cos, pi
+from math import sin, cos, pi, fabs
 import sys
 import random
 
@@ -54,7 +54,7 @@ class TabletopExecutive:
         # The offsets should be removed and learned implicitly
         rospy.init_node('tabletop_executive_node',log_level=rospy.DEBUG)
         self.gripper_push_dist = rospy.get_param('~gripper_push_dist',
-                                                 0.20)
+                                                 0.15)
         self.gripper_x_offset = rospy.get_param('~gripper_push_start_x_offset',
                                                 -0.03)
         self.gripper_y_offset = rospy.get_param('~gripper_push_start_x_offset',
@@ -109,10 +109,8 @@ class TabletopExecutive:
         self.raise_and_look()
         # Initialize push pose
         self.initialize_push_pose();
-        # Setup perception system
-        self.num_total_pushes = 0
-        opts = [1,0,2]
-        # TODO: Switch to use singulation feedback
+
+        # NOTE: Should exit before reaching num_pushes, this is just a backup
         for i in xrange(num_pushes):
             pose_res = self.request_singulation_push(use_guided)
             if pose_res is None:
@@ -122,8 +120,12 @@ class TabletopExecutive:
                 rospy.loginfo("No push. Exiting pushing.");
                 break
             # TODO: Decide push based on the orientation returned
-            # opt = opts[i%len(opts)]
-            opt = 0
+            rospy.loginfo('Push angle: ' + str(pose_res.push_angle))
+            if fabs(pose_res.push_angle) > pi*0.375:
+                opt = 1
+            else:
+                # TODO: use overhead if the object is low-profile and straight
+                opt = 0
 
             if opt == 0:
                 if pose_res.push_angle > 0:
@@ -136,8 +138,8 @@ class TabletopExecutive:
                 self.gripper_push_object(self.gripper_push_dist, which_arm,
                                          pose_res)
             if opt == 1:
-
-                if pose_res.start_point.y < 0:
+                # if pose_res.start_point.y < 0:
+                if pose_res.push_angle > 0:
                     which_arm = 'r'
                 else:
                     which_arm = 'l'
@@ -290,7 +292,10 @@ class TabletopExecutive:
         # TODO: Correctly set the wrist yaw
         # orientation = pose_res.push_pose.pose.orientation
         # wrist_yaw = 0.0 # 0.25*pi
-        wrist_yaw = pose_res.push_angle
+        if pose_res.push_angle > 0.0:
+            wrist_yaw = pose_res.push_angle - pi/2
+        else:
+            wrist_yaw = pose_res.push_angle + pi/2
         sweep_req.wrist_yaw = wrist_yaw
         sweep_req.desired_push_dist = -y_offset_dir*push_dist
 
