@@ -59,8 +59,10 @@ class ControllerSwitcher:
     # @param arm (r/l)
     # @param new_controller Name of new controller to load
     # @param param_file YAML file containing parameters for the new controller.
+    # @param reset If true, the controller will bring down, unload and restart the controller
+    #              using new parameters if currently running.  If false, nothing will happen.
     # @return Success of switch.
-    def carefree_switch(self, arm, new_controller, param_file=None):
+    def carefree_switch(self, arm, new_controller, param_file=None, reset=True):
         if '%s' in new_controller:
             new_ctrl = new_controller % arm
         else:
@@ -84,6 +86,9 @@ class ControllerSwitcher:
                 stop_controllers.append(controller)
             if controller == new_ctrl:
                 if resp.state[i] == 'running':
+                    if not reset:
+                        rospy.loginfo("[pr2_controller_switcher] Specified controller is already running.")
+                        return False
                     self.switch_controller_srv([], [new_ctrl], 1)
                 self.unload_controller(new_ctrl)
                 
