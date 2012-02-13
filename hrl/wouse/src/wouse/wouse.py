@@ -4,7 +4,6 @@ import math
 from threading import Condition
 from collections import deque
 
-#General
 import roslib; roslib.load_manifest('wouse')
 import rospy
 from std_msgs.msg import Header
@@ -32,18 +31,15 @@ class Wouse(object):
                                             device_file)
         self.mouse_listener.start()
         
+        rospy.Timer(rospy.Duration(0.1), self.ping_server)
         self.point_pub = rospy.Publisher('wouse_movement', PointStamped)
         self.ptst = PointStamped()
-
-        self.ping_server_pub = rospy.Publisher('runstop_alive_ping', Header)
-        self.ping_timer = rospy.Timer(rospy.Duration(0.01), self.ping_server)
-
-        self.filt_pos = deque([],maxlen=5)
        
     def ping_server(self, event):
         """Send updated timestamp to Runstop server."""
         req = WouseRunStopRequest(False, False, rospy.Time.now())
         self.runstop_client(req)
+#        print "Sent time: ", req.time
         #hdr = Header()
         #hdr.stamp = rospy.Time.now()
         #self.ping_server_pub.publish(hdr)
