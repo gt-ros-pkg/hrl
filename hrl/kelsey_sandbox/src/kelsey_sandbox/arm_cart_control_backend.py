@@ -115,7 +115,7 @@ def main():
         q = [-0.34781704,  0.27341079, -1.75392154, -2.08626393, -3.43756314, -1.82146607, -1.85187734]
         r_arm_js.set_ep(q, 3) 
         rospy.sleep(6)
-    ctrl_switcher.carefree_switch('r', '%s_cart',
+    ctrl_switcher.carefree_switch('r', '%s_cart_low_rfh',
                                   '$(find kelsey_sandbox)/params/j_transpose_low_rfh.yaml')
 
     r_arm = create_pr2_arm('r', PR2ArmCartesianPostureBase)
