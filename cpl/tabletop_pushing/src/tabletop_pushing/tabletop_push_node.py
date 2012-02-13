@@ -407,6 +407,12 @@ class TabletopPushNode:
             which_arm = 'r'
             wrist_roll = 0.0
 
+        rospy.loginfo('Moving gripper up')
+        push_arm.move_relative_gripper(
+            np.matrix([0.0, self.gripper_raise_dist, 0.0]).T,
+            stop='pressure', pressure=5000)
+        rospy.loginfo('Done moving up')
+
         rospy.loginfo('Sweeping outward')
         push_arm.move_relative_gripper(
             np.matrix([0.0, 0.0, (push_dist)]).T,

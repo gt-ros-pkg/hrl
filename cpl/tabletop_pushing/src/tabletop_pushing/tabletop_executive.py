@@ -280,24 +280,24 @@ class TabletopExecutive:
             y_offset_dir = +1
         else:
             y_offset_dir = -1
-        sweep_req.start_point.header = pose_res.header
-        sweep_req.start_point.point = pose_res.start_point
-        sweep_req.start_point.point.y += y_offset_dir*self.sweep_y_offset
-        sweep_req.start_point.point.z += self.sweep_z_offset
-        sweep_req.arm_init = True
-        sweep_req.arm_reset = True
 
-        # rospy.loginfo('Push pose point:' + str(sweep_req.start_point.point))
-
-        # TODO: Correctly set the wrist yaw
-        # orientation = pose_res.push_pose.pose.orientation
-        # wrist_yaw = 0.0 # 0.25*pi
+        # Correctly set the wrist yaw
         if pose_res.push_angle > 0.0:
             wrist_yaw = pose_res.push_angle - pi/2
         else:
             wrist_yaw = pose_res.push_angle + pi/2
         sweep_req.wrist_yaw = wrist_yaw
         sweep_req.desired_push_dist = -y_offset_dir*push_dist
+
+        # Set offset in x y, based on distance
+        sweep_req.start_point.header = pose_res.header
+        sweep_req.start_point.point = pose_res.start_point
+        sweep_req.start_point.point.x += y_offset_dir*self.sweep_y_offset*sin(wrist_yaw)
+        sweep_req.start_point.point.y += y_offset_dir*self.sweep_y_offset*cos(wrist_yaw)
+        sweep_req.start_point.point.z += self.sweep_z_offset
+        sweep_req.arm_init = True
+        sweep_req.arm_reset = True
+
 
 
         # TODO: Remove these offsets and incorporate them directly into the perceptual inference
