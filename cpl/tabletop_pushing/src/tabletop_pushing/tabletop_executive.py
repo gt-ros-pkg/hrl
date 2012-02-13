@@ -63,11 +63,11 @@ class TabletopExecutive:
                                                 -0.25)
 
         self.gripper_sweep_dist = rospy.get_param('~gripper_sweep_dist',
-                                                 0.25)
+                                                 0.15)
         self.sweep_x_offset = rospy.get_param('~gripper_sweep_start_x_offset',
                                               0.10)
         self.sweep_y_offset = rospy.get_param('~gripper_sweep_start_y_offset',
-                                              0.05)
+                                              0.10)
         self.sweep_z_offset = rospy.get_param('~gripper_sweep_start_z_offset',
                                               0.01)
 
@@ -145,7 +145,7 @@ class TabletopExecutive:
                     which_arm = 'l'
                 # TODO: Make this a parameter
                 pose_res.start_point.z = -0.25
-                self.sweep_object(self.gripper_push_dist, which_arm, pose_res)
+                self.sweep_object(self.gripper_sweep_dist, which_arm, pose_res)
             if opt == 2:
                 if pose_res.push_angle > 0:
                     which_arm = 'r'

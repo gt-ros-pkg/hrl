@@ -139,6 +139,7 @@ class Boundary : public std::vector<cv::Point>
  public:
   std::vector<pcl::PointXYZ> points3D;
   int object_id;
+  double ort;
 };
 
 class ProtoTabletopObject
@@ -1134,6 +1135,7 @@ class ObjectSingulation
     int push_idx = getObjFramePushIndex(push_vector.push_angle,
                                         cur_proto_objs_[
                                             push_vector.object_id].transform);
+    ROS_DEBUG_STREAM("Push angle is in bin: " << push_idx);
     cur_proto_objs_[push_vector.object_id].push_history[push_idx]++;
     ++callback_count_;
     return push_vector;
@@ -1261,21 +1263,21 @@ class ObjectSingulation
     const bool split = cur_objs.size()  > prev_objs.size();
     if (merged)
     {
-      ROS_INFO_STREAM("Objects merged from " << prev_objs.size() << " to " <<
+      ROS_DEBUG_STREAM("Objects merged from " << prev_objs.size() << " to " <<
                       cur_objs.size());
       // TODO: Something different for merging, check which moved objects
       // combined with which unmoved objects
     }
     else if (split)
     {
-      ROS_INFO_STREAM("Objects split from " << prev_objs.size() << " to " <<
+      ROS_DEBUG_STREAM("Objects split from " << prev_objs.size() << " to " <<
                       cur_objs.size());
       // TODO: Deal with adding new object ids for splitting, create a
       // static / global id generator method?
     }
     else
     {
-      ROS_INFO_STREAM("Same number of objects: " << prev_objs.size());
+      ROS_DEBUG_STREAM("Same number of objects: " << prev_objs.size());
     }
 
     std::vector<bool> matched = matchUnmoved(cur_objs, prev_objs);
@@ -1408,7 +1410,7 @@ class ObjectSingulation
 #ifdef DISPLAY_PROJECTED_OBJECTS
     if (use_displays_)
     {
-      pcl_segmenter_->displayObjectImage(obj_lbl_img);
+      // pcl_segmenter_->displayObjectImage(obj_lbl_img);
       drawObjectTransformAxises(obj_lbl_img, objs);
     }
 #endif // DISPLAY_PROJECTED_OBJECTS
@@ -1489,8 +1491,8 @@ class ObjectSingulation
       pcl_segmenter_->displayObjectImage(split_img, "3D Split");
     }
 #endif // DISPLAY_OBJECT_SPLITS
-
-    PushVector push_pose = getPushDirection(push_dist, split_objs3D[0],
+    PushVector push_pose = getPushDirection(push_dist, boundary.ort,
+                                            split_objs3D[0],
                                             split_objs3D[1], objs,
                                             boundary.object_id,
                                             obj_lbl_img);
@@ -1661,8 +1663,11 @@ class ObjectSingulation
           // NOTE: Don't add external object boundaries
           if (s0 > min_cluster_size_ && s1 > min_cluster_size_)
           {
-            int angle_idx = getObjFrameBoundaryOrientationIndex(
+            //int angle_idx = getObjFrameBoundaryOrientationIndex(
+            // boundaries[b], objs[max_id].transform);
+            boundaries[b].ort = getObjFrameBoundaryOrientation(
                 boundaries[b], objs[max_id].transform);
+            int angle_idx = quantizeAngle(boundaries[b].ort);
             objs[max_id].boundary_angle_dist[angle_idx]++;
             boundaries[b].object_id = max_id;
           }
@@ -1876,37 +1881,34 @@ class ObjectSingulation
     return boundaries[chosen_id];
   }
 
-  /**
-   * Determine the best direction to push given the current set of objects and
-   * the hypothesized splits.
-   *
-   * @param split0 The first hypothesized object split
-   * @param split1 The second hypothesized object split
-   * @param objs The current set of object estimates
-   * @param id The ID of the object that is trying to the splits
-   *
-   * @return The push to make
-   */
   PushVector getPushDirection(double push_dist,
+                              double push_angle,
                               ProtoTabletopObject& split0,
                               ProtoTabletopObject& split1,
                               ProtoObjects& objs, unsigned int id,
                               cv::Mat& lbl_img)
   {
+
     // TODO: Simulate end effector clearance
-    // Get vector between the two split object centroids and find the normal to
-    // the vertical plane running through this vector
-    const Eigen::Vector4f split_diff = split0.centroid - split1.centroid;
-    const Eigen::Vector3f split_diff3(split_diff[0], split_diff[1],
-                                      split_diff[2]);
-    const Eigen::Vector3f z_axis(0, 0, 1);
-    const Eigen::Vector3f x_axis(1, 0, 0);
-    const Eigen::Vector3f split_norm = split_diff3.cross(z_axis);
-    const Eigen::Vector3f push_vec_pos = split_norm/split_norm.norm();
-    const Eigen::Vector3f push_vec_neg = -split_norm/split_norm.norm();
-    const double push_angle_pos = std::atan2(push_vec_pos[1], push_vec_pos[0]);
-    const double push_angle_neg = std::atan2(push_vec_neg[1], push_vec_neg[0]);
-    // Find the highest clearance push from the four possible combinations of
+    // TODO: Force use of push angle from chosen boundary
+     double push_angle_pos = 0.0;
+     double push_angle_neg = 0.0;
+     if (push_angle > 0)
+     {
+       push_angle_pos = push_angle;
+       push_angle_neg = push_angle - M_PI;
+     }
+     else
+     {
+       push_angle_neg = push_angle;
+       push_angle_pos = push_angle + M_PI;
+     }
+     const Eigen::Vector3f push_vec_pos(std::cos(push_angle_pos),
+                                        std::sin(push_angle_pos), 0.0);
+     const Eigen::Vector3f push_vec_neg(std::cos(push_angle_neg),
+                                        std::sin(push_angle_neg), 0.0);
+
+     // Find the highest clearance push from the four possible combinations of
     // split object and angles
     std::vector<PushOpt> split_opts;
     split_opts.push_back(PushOpt(split0, push_angle_pos, push_vec_pos, id,
@@ -2128,7 +2130,11 @@ class ObjectSingulation
         return -1;
       }
     }
-    ROS_INFO_STREAM("Sampling from list of size: " << samples.size());
+    ROS_DEBUG_STREAM("Sampling from list of size: " << samples.size());
+    if (samples.size() == 1)
+    {
+      return samples[0].id;
+    }
 
     std::sort(samples.begin(), samples.end(), PushSample::compareSamples);
 
