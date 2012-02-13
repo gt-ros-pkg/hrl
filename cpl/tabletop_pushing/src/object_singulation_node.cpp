@@ -1116,6 +1116,7 @@ class ObjectSingulation
       ROS_WARN_STREAM("Trying to get a push vector before initializing.");
       PushVector push_pose;
       push_pose.object_id = 0;
+      push_pose.no_push = true;
       return push_pose;
     }
     // Move current proto objects to prev proto objects
@@ -1136,6 +1137,7 @@ class ObjectSingulation
     if (push_vector.object_id == cur_proto_objs_.size())
     {
       ROS_WARN_STREAM("No push vector selected.");
+      push_vector.no_push = true;
       return push_vector;
     }
 
@@ -1181,6 +1183,7 @@ class ObjectSingulation
     if (pushable_obj_idx.size() < 1)
     {
       ROS_WARN_STREAM("No object clusters found! Returning empty push_pose");
+      p.no_push = true;
       return p;
     }
     ROS_INFO_STREAM("Found " << pushable_obj_idx.size()
@@ -1436,6 +1439,7 @@ class ObjectSingulation
       ROS_WARN_STREAM("Boundary has no ID!");
       PushVector push_pose;
       push_pose.object_id = objs.size();
+      push_pose.no_push = true;
       return push_pose;
     }
     return determinePushVector(push_dist, test_boundary, objs, obj_lbl_img,
@@ -1647,8 +1651,6 @@ class ObjectSingulation
           // NOTE: Don't add external object boundaries
           if (s0 > min_cluster_size_ && s1 > min_cluster_size_)
           {
-            ROS_INFO_STREAM("s0 cluster size is: " << s0);
-            ROS_INFO_STREAM("s1 cluster size is: " << s1);
             int angle_idx = getObjFrameBoundaryOrientationIndex(
                 boundaries[b], objs[max_id].transform);
             objs[max_id].boundary_angle_dist[angle_idx]++;
@@ -1921,6 +1923,7 @@ class ObjectSingulation
       push.start_point.y = 0.0;
       push.start_point.z = 0.0;
       push.push_angle = 0.0;
+      push.no_push = true;
       return push;
     }
     PushVector push;
@@ -1928,7 +1931,7 @@ class ObjectSingulation
     push.start_point.y = split_opts[max_id].obj.centroid[1];
     push.start_point.z = split_opts[max_id].obj.centroid[2];
     push.push_angle = split_opts[max_id].push_angle;
-
+    push.no_push = false;
 #ifdef DISPLAY_PUSH_VECTOR
 
     if (use_displays_)
@@ -2641,6 +2644,7 @@ class ObjectSingulationNode
     else
     {
       ROS_ERROR_STREAM("Calling getPushPose prior to receiving sensor data.");
+      res.no_push = true;
       return false;
     }
     return true;
