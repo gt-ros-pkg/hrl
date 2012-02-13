@@ -1948,7 +1948,7 @@ class ObjectSingulation
     push.start_point.x = split_opts[max_id].obj.centroid[0];
     push.start_point.y = split_opts[max_id].obj.centroid[1];
     push.start_point.z = split_opts[max_id].obj.centroid[2];
-    push.push_angle = split_opts[max_id].push_angle;
+    push.push_angle = push_angle;
     push.no_push = false;
 #ifdef DISPLAY_PUSH_VECTOR
 
