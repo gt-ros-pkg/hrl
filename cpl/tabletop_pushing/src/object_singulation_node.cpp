@@ -117,6 +117,7 @@
 #define DISPLAY_3D_BOUNDARIES 1
 #define DISPLAY_PUSH_VECTOR 1
 #define DISPLAY_WAIT 1
+#define DEBUG_PUSH_HISTORY 1
 
 #define randf() static_cast<float>(rand())/RAND_MAX
 
@@ -361,18 +362,6 @@ class PointCloudSegmentation
       pcl_obj_seg_pub_.publish(label_cloud_msg);
     }
 
-    Eigen::Matrix4f t;
-    for (int i = 0; i < 4; ++i)
-    {
-      for (int j = 0; j < 4; ++j)
-      {
-        if (i == j)
-          t(i,j) = 1.0f;
-        else
-          t(i,j) = 0.0f;
-      }
-    }
-
     ProtoObjects objs;
     for (unsigned int i = 0; i < clusters.size(); ++i)
     {
@@ -384,7 +373,7 @@ class PointCloudSegmentation
       pcl::compute3DCentroid(po.cloud, po.centroid);
       po.id = i;
       po.moved = false;
-      po.transform = t;
+      po.transform = Eigen::Matrix4f::Identity();
       objs.push_back(po);
     }
     return objs;
@@ -1242,6 +1231,19 @@ class ObjectSingulation
       pcl_segmenter_->matchMovedRegions(prev_proto_objs_, moved_regions);
       // Match the moved objects to their new locations
       updateMovedObjs(objs, prev_proto_objs_);
+#ifdef DEBUG_PUSH_HISTORY
+      for (unsigned int i = 0; i < objs.size(); ++i)
+      {
+        std::stringstream push_hist_str;
+        for (int j = 0; j < objs[i].push_history.size(); ++j)
+        {
+          push_hist_str << objs[i].push_history[j];
+          if (j < objs[i].push_history.size() - 1) push_hist_str << ", ";
+        }
+        ROS_INFO_STREAM("Obj " << i << " hist: [" << push_hist_str.str() <<
+                        "]");
+      }
+#endif // DEBUG_PUSH_HISTORY
     }
     else
     {
