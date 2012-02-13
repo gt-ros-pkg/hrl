@@ -107,7 +107,8 @@ class TabletopExecutive:
     def run(self, num_pushes=1, use_guided=True):
         # Get table height and raise to that before anything else
         self.raise_and_look()
-
+        # Initialize push pose
+        self.initialize_push_pose();
         # Setup perception system
         self.num_total_pushes = 0
         opts = [1,0,2]
@@ -115,9 +116,14 @@ class TabletopExecutive:
         for i in xrange(num_pushes):
             pose_res = self.request_singulation_push(use_guided)
             if pose_res is None:
-                continue
+                rospy.logwarn("pose_res is None. Exiting pushing");
+                break
+            if pose_res.no_push:
+                rospy.loginfo("No push. Exiting pushing.");
+                break
             # TODO: Decide push based on the orientation returned
-            opt = opts[i%len(opts)]
+            # opt = opts[i%len(opts)]
+            opt = 0
 
             if opt == 0:
                 if pose_res.push_angle > 0:
@@ -148,8 +154,9 @@ class TabletopExecutive:
                 self.overhead_push_object(self.gripper_push_dist, which_arm,
                                           pose_res)
         pose_res = self.request_singulation_push(use_guided)
-        rospy.loginfo('Final estimate of: ' + str(pose_res.num_objects) +
-                      ' objects')
+        if not (pose_res is None):
+            rospy.loginfo('Final estimate of: ' + str(pose_res.num_objects) +
+                          ' objects')
 
     def request_singulation_push(self, use_guided=True, which_arm='l'):
         if (self.use_fake_push_pose):
@@ -157,16 +164,10 @@ class TabletopExecutive:
         pose_req = PushPoseRequest()
         pose_req.use_guided = use_guided
         pose_req.push_dist = self.gripper_push_dist
+        pose_req.initialize = False
         rospy.loginfo("Calling push pose service")
         try:
             pose_res = self.push_pose_proxy(pose_req)
-            if (pose_res.start_point.x == 0.0 and
-                pose_res.start_point.y == 0.0 and
-                pose_res.start_point.z == 0.0):
-                rospy.logwarn('No push pose found.')
-                return None
-            else:
-                rospy.loginfo('Got push pose')
             return pose_res
         except rospy.ServiceException, e:
             rospy.logwarn("Service did not process request: %s"%str(e))
@@ -200,6 +201,12 @@ class TabletopExecutive:
             pose_res.start_point.y = 0.0
             pose_res.start_point.z = -0.25
         return pose_res
+
+    def initialize_push_pose(self):
+        pose_req = PushPoseRequest()
+        pose_req.initialize = True
+        rospy.loginfo('Initializing push pose service.')
+        self.push_pose_proxy(pose_req)
 
     def raise_and_look(self):
         table_req = LocateTableRequest()
@@ -344,4 +351,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(False)
-    node.run(3)
+    node.run(30)

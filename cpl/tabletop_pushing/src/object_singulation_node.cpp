@@ -138,7 +138,7 @@ class Boundary : public std::vector<cv::Point>
 {
  public:
   std::vector<pcl::PointXYZ> points3D;
-  unsigned int object_id;
+  int object_id;
 };
 
 class ProtoTabletopObject
@@ -1231,19 +1231,6 @@ class ObjectSingulation
       pcl_segmenter_->matchMovedRegions(prev_proto_objs_, moved_regions);
       // Match the moved objects to their new locations
       updateMovedObjs(objs, prev_proto_objs_);
-#ifdef DEBUG_PUSH_HISTORY
-      for (unsigned int i = 0; i < objs.size(); ++i)
-      {
-        std::stringstream push_hist_str;
-        for (int j = 0; j < objs[i].push_history.size(); ++j)
-        {
-          push_hist_str << objs[i].push_history[j];
-          if (j < objs[i].push_history.size() - 1) push_hist_str << ", ";
-        }
-        ROS_INFO_STREAM("Obj " << i << " hist: [" << push_hist_str.str() <<
-                        "]");
-      }
-#endif // DEBUG_PUSH_HISTORY
     }
     else
     {
@@ -1427,7 +1414,27 @@ class ObjectSingulation
 #endif // DISPLAY_PROJECTED_OBJECTS
     get3DBoundaries(boundaries, cloud);
     associate3DBoundaries(boundaries, objs, obj_lbl_img);
-
+#ifdef DEBUG_PUSH_HISTORY
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      std::stringstream push_hist_str;
+      std::stringstream ang_dist_str;
+      for (int j = 0; j < objs[i].push_history.size(); ++j)
+      {
+        push_hist_str << objs[i].push_history[j];
+        ang_dist_str << objs[i].boundary_angle_dist[j];
+        if (j < objs[i].push_history.size() - 1)
+        {
+          push_hist_str << ", ";
+          ang_dist_str << ", ";
+        }
+      }
+      ROS_INFO_STREAM("Obj " << i << " hist: [" << push_hist_str.str() <<
+                      "]");
+      ROS_INFO_STREAM("Obj " << i << " est: [" << ang_dist_str.str() <<
+                      "]");
+    }
+#endif // DEBUG_PUSH_HISTORY
 #ifdef DISPLAY_3D_BOUNDARIES
     if (use_displays_)
     {
@@ -1436,7 +1443,8 @@ class ObjectSingulation
 #endif // DISPLAY_3D_BOUNDARIES
 
     Boundary test_boundary = chooseTestBoundary(boundaries, objs);
-    if (test_boundary.object_id == objs.size())
+    if (test_boundary.object_id == objs.size() ||
+        test_boundary.object_id < 0)
     {
       ROS_WARN_STREAM("Boundary has no ID!");
       PushVector push_pose;
@@ -1855,7 +1863,13 @@ class ObjectSingulation
         nonzero++;
       }
     }
-    unsigned int chosen_id = sampleScore(scores);
+    int chosen_id = sampleScore(scores);
+    if ( chosen_id < 0 || chosen_id > boundaries.size())
+    {
+      Boundary b;
+      b.object_id = -1;
+      return b;
+    }
     ROS_DEBUG_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
                     boundaries[chosen_id].object_id << " and " <<
                     boundaries[chosen_id].points3D.size() << " 3D points.");
@@ -2088,7 +2102,7 @@ class ObjectSingulation
     obj_push_pub_.publish(obj_msg);
   }
 
-  unsigned int sampleScore(std::vector<double>& scores)
+  int sampleScore(std::vector<double>& scores)
   {
     SampleList samples;
     for (unsigned int i = 0; i < scores.size(); ++i)
@@ -2111,7 +2125,7 @@ class ObjectSingulation
       else
       {
         ROS_WARN_STREAM("No samples");
-        return 0;
+        return -1;
       }
     }
     ROS_INFO_STREAM("Sampling from list of size: " << samples.size());
@@ -2588,13 +2602,15 @@ class ObjectSingulationNode
     pcl_segmenter_->cur_camera_header_ = cur_camera_header_;
 
     // Debug stuff
-    if (autorun_pcl_segmentation_) getPushPose(default_push_dist_,
-                                               use_guided_pushes_);
-    if (!os_->isInitialized())
+    if (autorun_pcl_segmentation_)
     {
-      ROS_INFO_STREAM("Calling initialize.");
-      os_->initialize(cur_color_frame_, cur_depth_frame_, cur_point_cloud_,
-                      cur_workspace_mask_);
+      getPushPose(default_push_dist_, use_guided_pushes_);
+      if (!os_->isInitialized())
+      {
+        ROS_INFO_STREAM("Calling initialize.");
+        os_->initialize(cur_color_frame_, cur_depth_frame_, cur_point_cloud_,
+                        cur_workspace_mask_);
+      }
     }
 
     // Display junk
@@ -2641,7 +2657,18 @@ class ObjectSingulationNode
   {
     if ( have_depth_data_ )
     {
-      res = getPushPose(req.push_dist, req.use_guided);
+      if (req.initialize)
+      {
+        os_->unInitialize();
+        os_->initialize(cur_color_frame_, cur_depth_frame_,
+                        cur_point_cloud_, cur_workspace_mask_);
+        res.no_push = true;
+        return true;
+      }
+      else
+      {
+        res = getPushPose(req.push_dist, req.use_guided);
+      }
     }
     else
     {
