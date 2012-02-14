@@ -1137,6 +1137,13 @@ class ObjectSingulation
                                             push_vector.object_id].transform);
     ROS_DEBUG_STREAM("Push angle is in bin: " << push_idx);
     cur_proto_objs_[push_vector.object_id].push_history[push_idx]++;
+
+#ifdef DEBUG_PUSH_HISTORY
+    // TODO: Draw push history and angle distributions in different colors
+    drawHist(cur_proto_objs_[push_vector.object_id].push_history,
+             color_img, cv::Point(20, 200), 10, 30);
+#endif // DEBUG_PUSH_HISTORY
+
     ++callback_count_;
     return push_vector;
   }
@@ -2357,6 +2364,81 @@ class ObjectSingulation
   {
     ROS_DEBUG_STREAM("Getting next ID: " << next_id_);
     return next_id_++;
+  }
+
+  void drawSemicircleHist(std::vector<int>& hist, cv::Mat& img,
+                          cv::Point center, int r0 = 10, int r1 = 30)
+  {
+    // Draw inner circle
+    cv::Mat disp_img;
+    if (img.depth() == CV_8U)
+    {
+      img.convertTo(disp_img, CV_32FC3, 1.0/255.0);
+    }
+    else
+    {
+      img.copyTo(disp_img);
+    }
+    cv::circle(disp_img, center, r0, cv::Scalar(0,1.0,0));
+    cv::circle(disp_img, center, r1, cv::Scalar(0,0,1.0));
+    cv::imshow("semicricle test", disp_img);
+  }
+
+  void drawHist(std::vector<int>& hist, cv::Mat& img, cv::Point start,
+                int w = 10, int h = 30)
+  {
+    const cv::Scalar line_color(0.0, 1.0, 0.0);
+    const cv::Vec3f fill_color(1.0, 1.0, 1.0);
+    drawHist(hist, img, start, w, h, line_color, fill_color);
+  }
+
+  void drawHist(std::vector<int>& hist, cv::Mat& img, cv::Point start,
+                int w = 10, int h = 30, const cv::Scalar line_color,
+                const cv::Vec3f fill_color)
+  {
+    // Draw inner circle
+    cv::Mat disp_img;
+    if (img.depth() == CV_8U)
+    {
+      img.convertTo(disp_img, CV_32FC3, 1.0/255.0);
+    }
+    else
+    {
+      img.copyTo(disp_img);
+    }
+    float hist_max = 0.0;
+    for (unsigned int i = 0; i < hist.size(); ++i)
+    {
+      if (hist[i] > hist_max)
+      {
+        hist_max = hist[i];
+      }
+    }
+    for (unsigned int i = 0; i < hist.size(); ++i)
+    {
+      // draw bin base
+      cv::Point next(start.x + w, start.y);
+      cv::line(disp_img, start, next, line_color);
+      if (hist[i] > 0)
+      {
+        int d_y = h * hist[i] / hist_max;
+        cv::Point top_l(start.x, start.y-d_y);
+        cv::Point top_r(next.x, next.y-d_y);
+        cv::line(disp_img, start, top_l, line_color);
+        cv::line(disp_img, next, top_r, line_color);
+        cv::line(disp_img, top_l, top_r, line_color);
+        // TODO: Fill bin
+        for (int y = top_l.y+1; y < start.y; ++y)
+        {
+          for (int x = start.x+1; x < next.x; ++x)
+          {
+            disp_img.at<cv::Vec3f>(y,x) = fill_color;
+          }
+        }
+      }
+      start.x += w;
+    }
+    cv::imshow("hist test", disp_img);
   }
 
  public:
