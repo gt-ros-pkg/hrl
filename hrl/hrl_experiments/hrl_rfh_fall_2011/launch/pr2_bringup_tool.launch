@@ -16,7 +16,7 @@
   <group ns="pr2_etherCAT/non_ethercat_devices">
     <rosparam>
       netft1:
-        type: NetFT
+        type: netft_ethercat_hardware/NetFT
         address: 10.68.0.60
         analog_in_name: force_torque_1
         ros_publish_period: 0.01

@@ -4,7 +4,7 @@ import numpy as np
 
 import roslib
 roslib.load_manifest('hrl_rfh_fall_2011')
-roslib.load_manifest('web_teleop_trunk')
+roslib.load_manifest('assistive_teleop')
 roslib.load_manifest('smach_ros')
 import rospy
 import smach
@@ -14,7 +14,7 @@ from hrl_rfh_fall_2011.sm_topic_monitor import TopicMonitor
 from hrl_rfh_fall_2011.sm_input_parser import InputParser
  
 from hrl_rfh_fall_2011.msg import EllipsoidMoveAction, EllipsoidMoveGoal
-from web_teleop_trunk.msg import FtMoveAction, FtHoldAction, FtHoldGoal
+from assistive_teleop.msg import FtMoveAction, FtHoldAction, FtHoldGoal
 from geometry_msgs.msg import Point, WrenchStamped
 from std_msgs.msg import Int8
 
