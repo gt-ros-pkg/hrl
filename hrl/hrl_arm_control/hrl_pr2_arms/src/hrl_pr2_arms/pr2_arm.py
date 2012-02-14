@@ -173,9 +173,9 @@ def create_pr2_arm(arm, arm_type=PR2Arm, base_link="torso_lift_link",
     chain, joint_info = kdlp.chain_from_param(base_link, end_link, param=param)
     kin = KDLArmKinematics(chain, joint_info, base_link, end_link)
     if controller_name is None:
-        return arm_type(arm, kin)
+        return arm_type(arm, kin, "", timeout=timeout)
     else:
-        return arm_type(arm, kin, controller_name=controller_name)
+        return arm_type(arm, kin, controller_name=controller_name, timeout=timeout)
 
 def create_pr2_arm_from_file(arm, arm_type=PR2Arm, base_link="torso_lift_link",  
                              end_link="%s_gripper_tool_frame", 
@@ -228,7 +228,7 @@ class PR2ArmJointTrajectory(PR2Arm):
     # @return equilibrium point
     def get_ep(self, wrapped=False):
         with self.lock:
-            ret_ep = self.ep.copy()
+            ret_ep = copy.copy(self.ep)
         if wrapped:
             return self.wrap_angles(ret_ep)
         else:

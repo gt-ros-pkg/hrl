@@ -11,7 +11,7 @@ import rospy
 from std_msgs.msg import String
 import tf.transformations as tf_trans
 
-from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJointTrajectory, PR2ArmCartesianPostureBase
+from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2Arm, PR2ArmJointTrajectory, PR2ArmCartesianPostureBase
 from arm_cart_vel_control import PR2ArmCartVelocityController
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 
@@ -25,43 +25,44 @@ JOINT_VELOCITY_WEIGHT = [3.0, 1.7, 1.7, 1.0, 1.0, 1.0, 0.5]
 
 class ArmPoseMoveController(object):
     def __init__(self, ctrl_name, param_file):
-        self.r_arm = create_pr2_arm('r', PR2ArmJointTrajectory, 
-                                    controller_name=ctrl_name, timeout=3)
-        self.l_arm = create_pr2_arm('l', PR2ArmJointTrajectory, 
-                                    controller_name=ctrl_name, timeout=3)
         self.ctrl_name = ctrl_name
         self.param_file = param_file
         self.cur_joint_traj = None
         self.running = False
         self.ctrl_switcher = ControllerSwitcher()
 
+    def load_arm(self, arm_char):
+        self.ctrl_switcher.carefree_switch(arm_char, self.ctrl_name, self.param_file, reset=False)
+        return create_pr2_arm(arm_char, PR2ArmJointTrajectory, 
+                              controller_name=CTRL_NAME_LOW, timeout=8)
+
+
     def execute_trajectory(self, joint_trajectory, arm_char, rate, blocking=True):
         if self.running:
             rospy.logerror("[arm_pose_move_controller] Trajectory already in motion.")
             return False
-        if not self.can_exec_traj(joint_trajectory):
-            rospy.logwarn("[arm_pose_move_controller] Arm not at trajectory start.")
-            return False
+        self.cur_arm = self.load_arm(arm_char)
         if self.cur_joint_traj is None:
+            if not self.can_exec_traj(joint_trajectory):
+                rospy.logwarn("[arm_pose_move_controller] Arm not at trajectory start.")
+                return False
             self.cur_joint_traj = joint_trajectory
             self.cur_idx = 0
-        if arm_char == 'r':
-            arm = self.r_arm
-        else:
-            arm = self.l_arm
-        self.ctrl_switcher.carefree_switch(arm.arm, self.ctrl_name, self.param_file, reset=False)
-        rospy.sleep(0.2)
         r = rospy.Rate(rate)
-        self.stop_traj = False
         def exec_traj(te):
+            self.stop_traj = False
             self.running = True
+            rospy.loginfo("[arm_pose_move_controller] Starting trajectory.")
             while (not rospy.is_shutdown() and not self.stop_traj and 
                    self.cur_idx < len(self.cur_joint_traj)):
-                arm.set_ep(self.cur_joint_traj[self.cur_idx], 1./rate)
+                self.cur_arm.set_ep(self.cur_joint_traj[self.cur_idx], 1./rate)
                 self.cur_idx += 1
                 r.sleep()
-            arm.set_ep(arm.get_ep(), 0.3)
+            self.cur_arm.set_ep(self.cur_arm.get_ep(), 0.3)
             self.running = False
+            if self.cur_idx == len(self.cur_joint_traj):
+                self.cur_joint_traj = None
+            rospy.loginfo("[arm_pose_move_controller] Finished trajectory.")
         if blocking:
             exec_traj(None)
         else:
@@ -75,10 +76,17 @@ class ArmPoseMoveController(object):
             traj.reverse()
         return self.execute_trajectory(traj, arm_char, rate * rate_mult, blocking)
 
+    def move_to_setup_from_file(self, filename, velocity=0.1, rate=RATE, reverse=False, blocking=True):
+        f = file(filename, "r")
+        traj, arm_char, rate = pickle.load(f)
+        if reverse:
+            traj.reverse()
+        return self.move_to_angles(traj[0], arm_char, velocity=velocity, rate=rate, blocking=blocking)
+
     def can_exec_traj(self, joint_trajectory):
-        q_cur = self.arm.get_ep()
+        q_cur = self.cur_arm.get_ep()
         q_init = joint_trajectory[0]
-        diff = self.arm.diff_angles(q_cur, q_init)
+        diff = self.cur_arm.diff_angles(q_cur, q_init)
         return np.all(np.fabs(diff) < JOINT_TOLERANCES)
 
     def can_exec_traj_from_file(self, filename):
@@ -99,8 +107,9 @@ class ArmPoseMoveController(object):
         self.cur_joint_traj = None
 
     def move_to_angles(self, q_goal, arm_char, rate=RATE, velocity=0.1, blocking=True):
-        q_cur = self.arm.get_ep(True)
-        diff = self.arm.diff_angles(q_goal, q_cur)
+        self.cur_arm = self.load_arm(arm_char)
+        q_cur = self.cur_arm.get_ep(True)
+        diff = self.cur_arm.diff_angles(q_goal, q_cur)
         max_ang = np.max(np.fabs(diff) * JOINT_VELOCITY_WEIGHT)
         time_traj = max_ang / velocity
         steps = np.round(rate * time_traj)
@@ -112,20 +121,13 @@ class ArmPoseMoveController(object):
 
 class TrajectorySaver(object):
     def __init__(self, rate):
-        self.r_arm = create_pr2_arm('r', PR2ArmBase, 
-                                    controller_name=ctrl_name, timeout=3)
-        self.l_arm = create_pr2_arm('l', PR2ArmBase, 
-                                    controller_name=ctrl_name, timeout=3)
         self.rate = rate
 
     def record_trajectory(self, arm_char, blocking=True):
         self.traj = []
         self.stop_recording = False
         self.is_recording = True
-        if arm_char == 'r':
-            self.cur_arm = self.r_arm
-        else:
-            self.cur_arm = self.l_arm
+        self.cur_arm = create_pr2_arm(arm_char, PR2Arm, timeout=3)
         def rec_traj(te):
             rospy.loginfo("[arm_pose_move_controller] Recording trajectory.")
             r = rospy.Rate(self.rate)
