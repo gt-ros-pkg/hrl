@@ -118,6 +118,7 @@
 #define DISPLAY_PUSH_VECTOR 1
 #define DISPLAY_WAIT 1
 #define DEBUG_PUSH_HISTORY 1
+#define WRITE_TO_DISK 1
 
 #define randf() static_cast<float>(rand())/RAND_MAX
 
@@ -658,9 +659,9 @@ class PointCloudSegmentation
  protected:
   shared_ptr<tf::TransformListener> tf_;
   Eigen::Vector4f table_centroid_;
-  std::vector<cv::Vec3f> colors_;
 
  public:
+  std::vector<cv::Vec3f> colors_;
   double min_table_z_;
   double max_table_z_;
   double min_workspace_x_;
@@ -1138,12 +1139,6 @@ class ObjectSingulation
     ROS_DEBUG_STREAM("Push angle is in bin: " << push_idx);
     cur_proto_objs_[push_vector.object_id].push_history[push_idx]++;
 
-#ifdef DEBUG_PUSH_HISTORY
-    // TODO: Draw push history and angle distributions in different colors
-    drawHist(cur_proto_objs_[push_vector.object_id].push_history,
-             color_img, cv::Point(20, 200), 10, 30);
-#endif // DEBUG_PUSH_HISTORY
-
     ++callback_count_;
     return push_vector;
   }
@@ -1443,6 +1438,7 @@ class ObjectSingulation
       ROS_INFO_STREAM("Obj " << i << " est: [" << ang_dist_str.str() <<
                       "]");
     }
+    drawObjectHists(obj_lbl_img, cur_proto_objs_);
 #endif // DEBUG_PUSH_HISTORY
 #ifdef DISPLAY_3D_BOUNDARIES
     if (use_displays_)
@@ -1688,6 +1684,8 @@ class ObjectSingulation
     // Get vector from push_angle [cos(theta), sin(theta), 0, 1]
     Eigen::Vector4f x(std::cos(theta), std::sin(theta), 0.0f, 1.0f);
     // apply transform;
+    // TODO: Should this be an inverse?
+    // Eigen::Vector4f y = t.Inverse()*x;
     Eigen::Vector4f y = t*x;
     // Extract angle
     float angle = std::atan2(y[1], y[0]);
@@ -1897,7 +1895,6 @@ class ObjectSingulation
   {
 
     // TODO: Simulate end effector clearance
-    // TODO: Force use of push angle from chosen boundary
      double push_angle_pos = 0.0;
      double push_angle_neg = 0.0;
      if (push_angle > 0)
@@ -2239,15 +2236,6 @@ class ObjectSingulation
                         unsigned int objs_size)
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
-    std::vector<cv::Vec3f> colors;
-    for (unsigned int i = 0; i < objs_size; ++i)
-    {
-      cv::Vec3f rand_color;
-      rand_color[0] = randf();
-      rand_color[1] = randf();
-      rand_color[2] = randf();
-      colors.push_back(rand_color);
-    }
 
     for (int r = 0; r < obj_img.rows; ++r)
     {
@@ -2256,7 +2244,7 @@ class ObjectSingulation
         unsigned int id = obj_img.at<uchar>(r,c);
         if (id > 0)
         {
-          obj_disp_img.at<cv::Vec3f>(r,c) = colors[id-1];
+          obj_disp_img.at<cv::Vec3f>(r,c) = pcl_segmenter_->colors_[id-1];
         }
       }
     }
@@ -2281,15 +2269,6 @@ class ObjectSingulation
   void drawObjectTransformAxises(cv::Mat& obj_img, ProtoObjects& objs)
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
-    std::vector<cv::Vec3f> colors;
-    for (unsigned int i = 0; i < objs.size(); ++i)
-    {
-      cv::Vec3f rand_color;
-      rand_color[0] = randf();
-      rand_color[1] = randf();
-      rand_color[2] = randf();
-      colors.push_back(rand_color);
-    }
 
     for (int r = 0; r < obj_img.rows; ++r)
     {
@@ -2298,7 +2277,7 @@ class ObjectSingulation
         unsigned int id = obj_img.at<uchar>(r,c);
         if (id > 0)
         {
-          obj_disp_img.at<cv::Vec3f>(r,c) = colors[id-1];
+          obj_disp_img.at<cv::Vec3f>(r,c) = pcl_segmenter_->colors_[id-1];
         }
       }
     }
@@ -2355,10 +2334,8 @@ class ObjectSingulation
       cv::line(obj_disp_img, img_start_point, img_end_point_y, green);
       cv::line(obj_disp_img, img_start_point, img_end_point_z, cyan);
     }
-
     cv::imshow("Object axis", obj_disp_img);
   }
-
 
   int getNextID()
   {
@@ -2366,47 +2343,79 @@ class ObjectSingulation
     return next_id_++;
   }
 
-  void drawSemicircleHist(std::vector<int>& hist, cv::Mat& img,
-                          cv::Point center, int r0 = 10, int r1 = 30)
+  void drawObjectHists(cv::Mat& img, ProtoObjects& objs)
   {
-    // Draw inner circle
-    cv::Mat disp_img;
-    if (img.depth() == CV_8U)
+    cv::Mat disp_img(img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    for (int r = 0; r < img.rows; ++r)
     {
-      img.convertTo(disp_img, CV_32FC3, 1.0/255.0);
+      for (int c = 0; c < img.cols; ++c)
+      {
+        unsigned int id = img.at<uchar>(r,c);
+        if (id > 0)
+        {
+          disp_img.at<cv::Vec3f>(r,c) = pcl_segmenter_->colors_[id-1];
+        }
+      }
     }
-    else
+    cv::Mat disp_img_hist;
+    disp_img.copyTo(disp_img_hist);
+    const Eigen::Vector4f x_axis(0.1, 0.0, 0.0, 1.0);
+    const int w = 5;
+    const int h = 30;
+    const cv::Scalar est_line_color(1.0, 1.0, 1.0);
+    const cv::Scalar est_fill_color(0.0, 0.0, 0.7);
+    const cv::Scalar history_line_color(1.0, 1.0, 1.0);
+    const cv::Scalar history_fill_color(0.0, 0.7, 0.0);
+    for (unsigned int i = 0; i < objs.size(); ++i)
     {
-      img.copyTo(disp_img);
+      const Eigen::Vector4f x_t = objs[i].transform*x_axis;
+      // NOTE: In degrees!
+      const float start_angle = atan2(x_t[1], x_t[0])*180.0/M_PI;
+      // Get the locations from object centroids
+      PointStamped center3D;
+      center3D.point.x = objs[i].centroid[0];
+      center3D.point.y = objs[i].centroid[1];
+      center3D.point.z = objs[i].centroid[2];
+      center3D.header.frame_id = workspace_frame_;
+      cv::Point center = pcl_segmenter_->projectPointIntoImage(center3D);
+      drawSemicircleHist(objs[i].boundary_angle_dist, disp_img, center, w, h,
+                         est_line_color, est_fill_color, start_angle);
+      drawSemicircleHist(objs[i].push_history, disp_img_hist, center, w, h,
+                         history_line_color, history_fill_color, start_angle);
     }
-    cv::circle(disp_img, center, r0, cv::Scalar(0,1.0,0));
-    cv::circle(disp_img, center, r1, cv::Scalar(0,0,1.0));
-    cv::imshow("semicricle test", disp_img);
+    if (use_displays_)
+    {
+      cv::imshow("Boundary Estimate Distributions", disp_img);
+      cv::imshow("Pushing History Distributions", disp_img_hist);
+    }
+#ifdef WRITE_TO_DISK
+    // Write to disk to create video output
+    std::stringstream est_out_name;
+    std::stringstream hist_out_name;
+    est_out_name << base_output_path_ << "bound_est" << callback_count_
+                 << ".tiff";
+    hist_out_name << base_output_path_ << "hist_est" << callback_count_
+                  << ".tiff";
+    cv::Mat est_out_img(disp_img.size(), CV_8UC3);
+    cv::Mat hist_out_img(disp_img.size(), CV_8UC3);
+    disp_img.convertTo(est_out_img, CV_8UC3, 255);
+    disp_img_hist.convertTo(hist_out_img, CV_8UC3, 255);
+    cv::imwrite(est_out_name.str(), est_out_img);
+    cv::imwrite(hist_out_name.str(), hist_out_img);
+#endif // WRITE_TO_DISK
   }
 
-  void drawHist(std::vector<int>& hist, cv::Mat& img, cv::Point start,
-                int w = 10, int h = 30)
+  void drawSemicircleHist(std::vector<int>& hist, cv::Mat& disp_img,
+                          const cv::Point center, int w, int h,
+                          const cv::Scalar line_color,
+                          const cv::Scalar fill_color, const float start_rot)
   {
-    const cv::Scalar line_color(0.0, 1.0, 0.0);
-    const cv::Vec3f fill_color(1.0, 1.0, 1.0);
-    drawHist(hist, img, start, w, h, line_color, fill_color);
-  }
-
-  void drawHist(std::vector<int>& hist, cv::Mat& img, cv::Point start,
-                int w, int h, const cv::Scalar line_color,
-                const cv::Vec3f fill_color)
-  {
-    // Draw inner circle
-    cv::Mat disp_img;
-    if (img.depth() == CV_8U)
-    {
-      img.convertTo(disp_img, CV_32FC3, 1.0/255.0);
-    }
-    else
-    {
-      img.copyTo(disp_img);
-    }
+    int half_circ = w*hist.size();
+    const int r0 = half_circ/M_PI;
+    const cv::Size s0(r0, r0);
+    const float angle_inc = 180.0/(hist.size());
     float hist_max = 0.0;
+    const float deg_precision = 1.0;
     for (unsigned int i = 0; i < hist.size(); ++i)
     {
       if (hist[i] > hist_max)
@@ -2414,31 +2423,73 @@ class ObjectSingulation
         hist_max = hist[i];
       }
     }
+    // Draw all fills
+    float rot = start_rot;
     for (unsigned int i = 0; i < hist.size(); ++i)
     {
-      // draw bin base
-      cv::Point next(start.x + w, start.y);
-      cv::line(disp_img, start, next, line_color);
       if (hist[i] > 0)
       {
         int d_y = h * hist[i] / hist_max;
-        cv::Point top_l(start.x, start.y-d_y);
-        cv::Point top_r(next.x, next.y-d_y);
-        cv::line(disp_img, start, top_l, line_color);
-        cv::line(disp_img, next, top_r, line_color);
-        cv::line(disp_img, top_l, top_r, line_color);
-        // TODO: Fill bin
-        for (int y = top_l.y+1; y < start.y; ++y)
+        const int r1 = r0+d_y;
+        const cv::Size s1(r1, r1);
+        // cv::ellipse(disp_img, center, s1, rot, 0.0, angle_inc, line_color);
+        std::vector<cv::Point> out_arc_pts;
+        cv::ellipse2Poly(center, s1, rot, 0.0, angle_inc, deg_precision,
+                         out_arc_pts);
+        std::vector<cv::Point> in_arc_pts;
+        cv::ellipse2Poly(center, s0, rot, 0.0, angle_inc, deg_precision,
+                         in_arc_pts);
+        std::vector<cv::Point> poly_vect;
+        for (unsigned int j = 0; j < in_arc_pts.size(); ++j)
         {
-          for (int x = start.x+1; x < next.x; ++x)
-          {
-            disp_img.at<cv::Vec3f>(y,x) = fill_color;
-          }
+          poly_vect.push_back(in_arc_pts[j]);
         }
+        for (unsigned int j = out_arc_pts.size()-1; j > 0; --j)
+        {
+          poly_vect.push_back(out_arc_pts[j]);
+        }
+
+        int npts[1] = {poly_vect.size()};
+        cv::Point* poly = new cv::Point[poly_vect.size()];
+        for (unsigned int j = 0; j < poly_vect.size(); ++j)
+        {
+          poly[j] = poly_vect[j];
+        }
+        const cv::Point* pts[1] = {poly};
+        // fill bin
+        cv::fillPoly(disp_img, pts, npts, 1, fill_color);
+        delete poly;
+        // Draw bin edge lines
+        // cv::line(disp_img, in_arc_pts.front(), out_arc_pts.front(), line_color);
+        // cv::line(disp_img, in_arc_pts.back(), out_arc_pts.back(), line_color);
       }
-      start.x += w;
+      rot += angle_inc;
     }
-    cv::imshow("hist test", disp_img);
+    // Draw inner circle
+    cv::ellipse(disp_img, center, s0, start_rot, 0.0, 180.0, line_color);
+
+    // Draw all lines
+    rot = start_rot;
+    for (unsigned int i = 0; i < hist.size(); ++i)
+    {
+      if (hist[i] > 0)
+      {
+        int d_y = h * hist[i] / hist_max;
+        const int r1 = r0+d_y;
+        const cv::Size s1(r1, r1);
+        cv::ellipse(disp_img, center, s1, rot, 0.0, angle_inc, line_color);
+        std::vector<cv::Point> out_arc_pts;
+        cv::ellipse2Poly(center, s1, rot, 0.0, angle_inc, deg_precision,
+                         out_arc_pts);
+        std::vector<cv::Point> in_arc_pts;
+        cv::ellipse2Poly(center, s0, rot, 0.0, angle_inc, deg_precision,
+                         in_arc_pts);
+        // Draw bin edge lines
+        cv::line(disp_img, in_arc_pts.front(), out_arc_pts.front(), line_color);
+        cv::line(disp_img, in_arc_pts.back(), out_arc_pts.back(), line_color);
+      }
+      rot += angle_inc;
+    }
   }
 
  public:
@@ -2488,6 +2539,7 @@ class ObjectSingulation
   bool use_displays_;
   int min_cluster_size_;
   int min_boundary_length_;
+  std::string base_output_path_;
 };
 
 class ObjectSingulationNode
@@ -2549,6 +2601,8 @@ class ObjectSingulationNode
     n_private_.param("os_min_boundary_length", os_->min_boundary_length_, 3);
     // NOTE: Must be at least 3 for mathematical reasons
     os_->min_boundary_length_ = std::max(os_->min_boundary_length_, 3);
+    std::string output_path_def = "~";
+    n_private_.param("img_output_path", os_->base_output_path_, output_path_def);
 
     n_private_.param("min_table_z", pcl_segmenter_->min_table_z_, -0.5);
     n_private_.param("max_table_z", pcl_segmenter_->max_table_z_, 1.5);
