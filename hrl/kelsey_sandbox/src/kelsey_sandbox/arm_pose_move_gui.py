@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'arm_pose_move_gui.ui'
 #
-# Created: Tue Feb 14 03:40:02 2012
+# Created: Tue Feb 14 08:25:12 2012
 #      by: PyQt4 UI code generator 4.7.2
 #
 # WARNING! All changes made in this file will be lost!
@@ -88,6 +88,9 @@ class Ui_Frame(object):
         sizePolicy.setHeightForWidth(self.traj_combo.sizePolicy().hasHeightForWidth())
         self.traj_combo.setSizePolicy(sizePolicy)
         self.traj_combo.setObjectName("traj_combo")
+        self.setup_box = QtGui.QCheckBox(Frame)
+        self.setup_box.setGeometry(QtCore.QRect(290, 330, 181, 21))
+        self.setup_box.setObjectName("setup_box")
         self.widget1 = QtGui.QWidget(Frame)
         self.widget1.setGeometry(QtCore.QRect(20, 10, 521, 191))
         self.widget1.setObjectName("widget1")
@@ -136,6 +139,7 @@ class Ui_Frame(object):
         self.label_2.setText(QtGui.QApplication.translate("Frame", "None", None, QtGui.QApplication.UnicodeUTF8))
         self.traj_button.setText(QtGui.QApplication.translate("Frame", "Trajectory", None, QtGui.QApplication.UnicodeUTF8))
         self.joint_pose_button.setText(QtGui.QApplication.translate("Frame", "Joint Pose", None, QtGui.QApplication.UnicodeUTF8))
+        self.setup_box.setText(QtGui.QApplication.translate("Frame", "Move to Setup Only", None, QtGui.QApplication.UnicodeUTF8))
         self.start_button.setText(QtGui.QApplication.translate("Frame", "Start/Restart", None, QtGui.QApplication.UnicodeUTF8))
         self.stop_button.setText(QtGui.QApplication.translate("Frame", "Pause", None, QtGui.QApplication.UnicodeUTF8))
         self.reset_button.setText(QtGui.QApplication.translate("Frame", "Reset", None, QtGui.QApplication.UnicodeUTF8))

@@ -6,7 +6,9 @@ from PyQt4 import QtCore, QtGui, uic
 import roslib
 roslib.load_manifest("rospy")
 roslib.load_manifest("std_msgs")
+roslib.load_manifest("rosparam")
 import rospy
+import rosparam
 from std_msgs.msg import Bool
 
 from arm_pose_move_gui import Ui_Frame as QTArmPoseMoveGUIFrame
@@ -16,6 +18,9 @@ from arm_pose_move_backend import HEARTBEAT_TOPIC, COMMAND_TOPIC, MONITOR_RATE
 class ArmPoseMoveGUIFrame(QtGui.QFrame):
     def __init__(self):
         super(ArmPoseMoveGUIFrame, self).__init__()
+        params = rosparam.get_param("/arm_pose_move")
+        self.pose_dict = params['poses']
+        self.traj_dict = params['trajectories']
 
         self.heartbeat_pub = rospy.Publisher(HEARTBEAT_TOPIC, Bool)
         self.cmd_pub = rospy.Publisher(COMMAND_TOPIC, ArmPoseMoveCmd)
@@ -29,12 +34,13 @@ class ArmPoseMoveGUIFrame(QtGui.QFrame):
         self.ui.start_button.clicked.connect(self.start_clk)
         self.ui.stop_button.clicked.connect(self.stop_clk)
         self.ui.reset_button.clicked.connect(self.reset_clk)
-        trajectories = ['test1', 'test2']
-        for traj in trajectories:
-            self.ui.traj_combo.addItem(traj)
-        poses = ['ptest1', 'ptest2']
-        for pose in poses:
-            self.ui.joint_combo.addItem(pose)
+        self.traj_name_list, self.pose_name_list = [], []
+        for traj in self.traj_dict:
+            self.ui.traj_combo.addItem(self.traj_dict[traj]['text'])
+            self.traj_name_list.append(traj)
+        for pose in self.pose_dict:
+            self.ui.joint_combo.addItem(self.pose_dict[pose]['text'])
+            self.pose_name_list.append(pose)
 
         self.monitor_timer = QtCore.QTimer(self)
         QtCore.QObject.connect(self.monitor_timer, QtCore.SIGNAL("timeout()"), self.monitor_cb)
@@ -44,13 +50,13 @@ class ArmPoseMoveGUIFrame(QtGui.QFrame):
         msg = ArmPoseMoveCmd()
         msg.type = msg.START
         if self.ui.traj_button.isChecked():
-            msg.traj_name = str(self.ui.traj_combo.currentText())
+            msg.traj_name = self.traj_name_list[self.ui.traj_combo.currentIndex()]
             msg.is_trajectory = True
             msg.is_forward = self.ui.forward_button.isChecked()
+            msg.is_setup = self.ui.setup_box.isChecked()
         else:
-            msg.traj_name = str(self.ui.joint_combo.currentText())
+            msg.traj_name = self.pose_name_list[self.ui.joint_combo.currentIndex()]
             msg.is_trajectory = False
-            msg.is_forward = self.ui.forward_button.isChecked()
         self.cmd_pub.publish(msg)
 
     def stop_clk(self):

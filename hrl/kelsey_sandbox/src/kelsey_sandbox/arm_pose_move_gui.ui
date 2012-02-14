@@ -195,6 +195,19 @@ Running:</string>
     </sizepolicy>
    </property>
   </widget>
+  <widget class="QCheckBox" name="setup_box">
+   <property name="geometry">
+    <rect>
+     <x>290</x>
+     <y>330</y>
+     <width>181</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Move to Setup Only</string>
+   </property>
+  </widget>
   <widget class="QWidget" name="">
    <property name="geometry">
     <rect>
