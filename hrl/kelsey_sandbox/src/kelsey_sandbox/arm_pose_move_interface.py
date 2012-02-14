@@ -11,10 +11,7 @@ from std_msgs.msg import Bool
 
 from arm_pose_move_gui import Ui_Frame as QTArmPoseMoveGUIFrame
 from msg import ArmPoseMoveCmd
-
-HEARTBEAT_TOPIC = '/arm_pose_move_gui/heartbeat'
-COMMAND_TOPIC = '/arm_pose_move_gui/command'
-MONITOR_RATE = 20
+from arm_pose_move_backend import HEARTBEAT_TOPIC, COMMAND_TOPIC, MONITOR_RATE
 
 class ArmPoseMoveGUIFrame(QtGui.QFrame):
     def __init__(self):

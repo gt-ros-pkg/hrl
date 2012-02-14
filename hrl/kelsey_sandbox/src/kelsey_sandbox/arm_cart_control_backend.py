@@ -118,7 +118,7 @@ def main():
     ctrl_switcher.carefree_switch('r', '%s_cart_low_rfh',
                                   '$(find kelsey_sandbox)/params/j_transpose_low_rfh.yaml')
 
-    r_arm = create_pr2_arm('r', PR2ArmCartesianPostureBase)
+    r_arm = create_pr2_arm('r', PR2ArmCartesianPostureBase, controller_name='%s_cart_low_rfh')
     r_arm.set_posture()
     rospy.sleep(0.2)
     l_arm = None

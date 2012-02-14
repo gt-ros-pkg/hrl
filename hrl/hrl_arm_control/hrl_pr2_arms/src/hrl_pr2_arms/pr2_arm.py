@@ -143,17 +143,25 @@ class PR2Arm(HRLArm):
 
     ##
     # Returns the same angles with the forearm and wrist roll wrapped to the 
-    # range -pi to pi
+    # range 0 to 2 * pi
     # @param q Joint angles
     # @return Wrapped joint angles
     def wrap_angles(self, q):
-        ret_q = list(q)
-        for ind in [4, 6]:
-            while ret_q[ind] < -np.pi:
-                ret_q[ind] += 2*np.pi
-            while ret_q[ind] > np.pi:
-                ret_q[ind] -= 2*np.pi
-        return np.array(ret_q)
+        q_arr = np.array(q).copy()
+        q_mod = np.mod(q_arr, 2 * np.pi)
+        q_arr[[4, 6]] = q_mod[[4, 6]]
+        return q_arr
+
+    def diff_angles(self, q1, q2):
+        diff = np.array(q1) - np.array(q2)
+        diff_mod = np.mod(diff, 2 * np.pi)
+        diff_alt = diff_mod - 2 * np.pi 
+        for i in [4, 6]:
+            if diff_mod[i] < -diff_alt[i]:
+                diff[i] = diff_mod[i]
+            else:
+                diff[i] = diff_alt[i]
+        return diff
 
 def create_pr2_arm(arm, arm_type=PR2Arm, base_link="torso_lift_link",  
                    end_link="%s_gripper_tool_frame", param="/robot_description",
@@ -214,6 +222,17 @@ class PR2ArmJointTrajectory(PR2Arm):
             self.ctrl_state_dict["x_err"] = np.array(ctrl_state.error.positions)
             self.ctrl_state_dict["xd_err"] = np.array(ctrl_state.error.velocities)
             self.ctrl_state_dict["xdd_err"] = np.array(ctrl_state.error.accelerations)
+
+    ##
+    # Returns the current equilibrium point
+    # @return equilibrium point
+    def get_ep(self, wrapped=False):
+        with self.lock:
+            ret_ep = self.ep.copy()
+        if wrapped:
+            return self.wrap_angles(ret_ep)
+        else:
+            return ret_ep
             
     ##
     # Commands joint angles to a single position
@@ -234,6 +253,7 @@ class PR2ArmJointTrajectory(PR2Arm):
 
         self.joint_action_client.send_goal(jtg)
 
+    # TODO Implementation int arm_pose_move_controller
     def is_arm_at_ep(self, err_thresh=None):
         if err_thresh is None:
             err_thresh = ARM_AT_EP_ERR_THRESH
