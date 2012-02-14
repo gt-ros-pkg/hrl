@@ -186,6 +186,10 @@ public:
         n_private_.param("tape_hue_threshold", tape_hue_threshold_, 10);
         n_private_.param("hand_hue_value", hand_hue_value_, 173);
         n_private_.param("hand_hue_threshold", hand_hue_threshold_, 10);
+        n_private_.param("default_sat_bot_value", default_sat_bot_value_, 40);
+        n_private_.param("default_sat_top_value", default_sat_top_value_, 40);
+        n_private_.param("default_val_value", default_val_value_, 200);
+ 
         n_private_.param("default_push_dist", default_push_dist_, 0.1);
         // Setup ros node connections
         sync_.registerCallback(&VisualServoNode::sensorCallback, this);
@@ -249,7 +253,7 @@ public:
          * Same with saturation 0. Low saturation makes everything more gray scaled
          * So the default setting are below 
          */
-        return colorSegment(color_frame, hue - threshold, hue + threshold,  40, 255, 30, 225);
+        return colorSegment(color_frame, hue - threshold, hue + threshold,  default_sat_bot_value_, default_sat_top_value_, 50, default_val_value_);
     }
 
     
@@ -372,6 +376,9 @@ protected:
     int tape_hue_threshold_;
     int hand_hue_value_;
     int hand_hue_threshold_;
+    int default_sat_bot_value_;
+    int default_sat_top_value_;
+    int default_val_value_;
 };
 
 int main(int argc, char ** argv)
