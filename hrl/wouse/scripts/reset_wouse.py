@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import sys
 
@@ -23,3 +23,5 @@ if success:
     rospy.loginfo("[Wouse Reset]: Reset returned successfully.")
 else:
     rospy.logwarn("[Wouse Reset]: Reset reported failure.")
+
+
