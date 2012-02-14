@@ -2,27 +2,17 @@
 
     <include file="$(find pr2_machine)/$(env ROBOT).machine" />
 
-    <!-- Arduino Control Board for powering Shaver 
+    <!-- Arduino Control Board for powering Shaver -->
     <node
         name="tool_power_toggle"
         pkg="rosserial_python"
         type="serial_node.py"
         args="/dev/ttyUSB0"
         output="screen"/>
-    -->
   
-    <!-- Shaving Manager Node
-    <node 
-        name="shaving_manager"
-        pkg="assistive_teleop"
-        type="shaving.py"
-        output="screen"
-        machine="c2"/>
-    -->
-
     <!-- NetFt Sensor-->
-        <!-- Launch sensor 
-        <include file="$(find hrl_netft)/launch/tool_razor_inline_zeroed.launch" />-->
+        <!-- Launch sensor -->
+        <include file="$(find hrl_netft)/launch/tool_razor_inline_zeroed.launch" />
         <!-- Throttle feedback to interface -->
         <node
             name="throttle_wt_force_out"
@@ -49,40 +39,26 @@
         type="ft_move_action_server.py"
         output="screen"
         machine="c2"/>
+    -->
     <node
         name="ft_hold_server"
         pkg="assistive_teleop"
         type="ft_hold_action_server.py"
         output="screen"
         machine="c2"/>
-    -->
 
-    <!--Tabletop Manipulation Content, i.e. Arm Navigation etc-->
+    <!--Tabletop Manipulation Content, i.e. Arm Navigation etc
     <group>
         <remap from="camera" to="kinect_head"/>
         <remap from="camera/rgb/camera_info" to="kinect_head/rgb/camera_info"/>
         <include file="$(find pr2_tabletop_manipulation_launch)/launch/pr2_tabletop_manipulation.launch">
-            <arg name="stereo" value="false"/>
+            <arg name="stereo" value="true"/>
             <arg name="use_slip_controllers" value="false"/>
             <arg name="use_right_arm" value="true"/>
             <arg name="use_left_arm" value="true"/>
             <arg name="use_task_cartesian" default="false"/>
         </include>
     </group>
-
-    <!-- Start Tuck Arm Action Server and Intermediary
-    <node
-        name="tuck_arm_node"
-        pkg="pr2_tuck_arms_action"
-        type="tuck_arms.py"
-        output="screen"
-        machine="c2"/>
-    <node
-        name="tuck_arm_intermediary" 
-        pkg="assistive_teleop" 
-        type="tuck_arms_intermediary.py" 
-        output="screen" 
-        machine="c2" />
     -->
 
     <!-- Bring up intermediary for handling arm movements, one for each arm -->
@@ -138,7 +114,7 @@
     </node>
 
     <!-- Launch Kinect with GT launch files (gt-ros-pkg)-->
-    <!--<include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" /> -->
+    <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" />
     
     <!--3d point from Pixel Node-->
     <node 
