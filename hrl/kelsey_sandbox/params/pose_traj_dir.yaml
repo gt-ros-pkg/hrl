@@ -1,0 +1,12 @@
+arm_pose_move:
+    poses:
+        test1:
+            file: "test1.pkl"
+            text: "cool test1"
+        test2:
+            file: "test2.pkl"
+            text: "cool test2"
+    trajectories:
+        test3:
+            file: "test3.pkl"
+            text: "cool test3"
