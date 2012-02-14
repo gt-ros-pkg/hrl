@@ -2393,7 +2393,7 @@ class ObjectSingulation
   }
 
   void drawHist(std::vector<int>& hist, cv::Mat& img, cv::Point start,
-                int w = 10, int h = 30, const cv::Scalar line_color,
+                int w, int h, const cv::Scalar line_color,
                 const cv::Vec3f fill_color)
   {
     // Draw inner circle
