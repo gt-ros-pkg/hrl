@@ -23,12 +23,14 @@ class SetupTaskController(smach.State):
         def __init__(self):
             smach.State.__init__(self, outcomes=['succeeded'])
             self.ctrl_switcher = ControllerSwitcher()
-            self.arm = create_pr2_arm('l', PR2ArmJTransposeTask, end_link="%s_gripper_shaver45_frame")
 
         def execute(self, userdata):
             self.ctrl_switcher.carefree_switch('l', '%s_cart_jt_task', 
                                                "$(find hrl_rfh_fall_2011)/params/l_jt_task_shaver45.yaml") 
-            rospy.sleep(1)
+            rospy.sleep(0.3)
+            self.arm = create_pr2_arm('l', PR2ArmJTransposeTask, 
+                                      controller_name='%s_cart_jt_task', 
+                                      end_link="%s_gripper_shaver45_frame")
             setup_angles = [0, 0, np.pi/2, -np.pi/2, -np.pi, -np.pi/2, -np.pi/2]
             self.arm.set_posture(setup_angles)
             self.arm.set_gains([200, 800, 800, 80, 80, 80], [15, 15, 15, 1.2, 1.2, 1.2])

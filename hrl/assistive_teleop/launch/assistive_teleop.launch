@@ -43,7 +43,7 @@
     <node
         name="ft_hold_server"
         pkg="assistive_teleop"
-        type="ft_hold_action_server.py"
+        type="ft_hold_as.py"
         output="screen"
         machine="c2"/>
 

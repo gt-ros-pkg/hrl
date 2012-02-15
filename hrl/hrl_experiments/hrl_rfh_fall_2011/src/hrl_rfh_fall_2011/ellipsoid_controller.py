@@ -56,14 +56,14 @@ class EllipsoidController(object):
         self.ell_space = EllipsoidSpace(1)
         self.tf_list = tf.TransformListener()
         self.found_params = False
-        self.ell_sub = rospy.Subscriber("/ellipsoid_params", EllipsoidParams, self.read_params)
-        self.start_pub = rospy.Publisher("/start_pose", PoseStamped)
-        self.end_pub = rospy.Publisher("/end_pose", PoseStamped)
         self.ctrl_switcher = ControllerSwitcher()
         self.ell_cmd_lock = Lock()
         self.params_lock = Lock()
         self.ell_ep = None
         self.action_preempted = False
+        self.ell_sub = rospy.Subscriber("/ellipsoid_params", EllipsoidParams, self.read_params)
+        self.start_pub = rospy.Publisher("/start_pose", PoseStamped)
+        self.end_pub = rospy.Publisher("/end_pose", PoseStamped)
         self.ell_move_act = actionlib.SimpleActionServer("/ellipsoid_move", EllipsoidMoveAction, 
                                                          self.command_move_exec, False)
         self.ell_move_act.start()
@@ -202,6 +202,7 @@ def main():
         setup_task_controller.execute(None)
         cart_arm = setup_task_controller.arm
     else:
+        assert(False)
         cart_arm = create_pr2_arm('l', PR2ArmJTransposeTask, end_link="%s_gripper_shaver45_frame")
 
     rospy.sleep(1)
