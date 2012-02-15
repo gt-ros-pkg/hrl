@@ -44,7 +44,7 @@ class PoseConverter:
 
             elif isinstance(args[0], (np.matrix, np.ndarray)) and np.shape(args[0]) == (4, 4):
                 return (None, np.mat(args[0]), tf_trans.quaternion_from_matrix(args[0]).tolist(),
-                        tf_trans.euler_from_matrix(args[0]).tolist())
+                        tf_trans.euler_from_matrix(args[0]))
 
             elif isinstance(args[0], (tuple, list)) and len(args[0]) == 2:
                 pos_arg = np.mat(args[0][0])
