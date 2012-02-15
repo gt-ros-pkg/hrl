@@ -1431,37 +1431,15 @@ class ObjectSingulation
     PushVector push = determinePushVector(push_dist, test_boundary, objs,
                                           obj_lbl_img, cloud);
     // Increment the push direction of the object to be pushed
-    // int push_idx = quantizeAngle(push.push_angle);
-    int push_idx = getObjFramePushIndex(push.push_angle,
-                                        cur_proto_objs_[
-                                            push.object_id].transform);
-    ROS_INFO_STREAM("Pushing on object: " << push.object_id);
-    ROS_INFO_STREAM("Push angle is: " << push.push_angle);
-    ROS_INFO_STREAM("Push angle is in bin: " << push_idx);
+    const int push_idx = quantizeAngle(test_boundary.ort);
     cur_proto_objs_[push.object_id].push_history[push_idx]++;
 
 #ifdef DEBUG_PUSH_HISTORY
-    for (unsigned int i = 0; i < objs.size(); ++i)
-    {
-      std::stringstream push_hist_str;
-      std::stringstream ang_dist_str;
-      for (int j = 0; j < objs[i].push_history.size(); ++j)
-      {
-        push_hist_str << objs[i].push_history[j];
-        ang_dist_str << objs[i].boundary_angle_dist[j];
-        if (j < objs[i].push_history.size() - 1)
-        {
-          push_hist_str << ", ";
-          ang_dist_str << ", ";
-        }
-      }
-      ROS_INFO_STREAM("Obj " << i << " hist: [" << push_hist_str.str() <<
-                      "]");
-      ROS_INFO_STREAM("Obj " << i << " est: [" << ang_dist_str.str() <<
-                      "]");
-    }
     drawObjectHists(obj_lbl_img, cur_proto_objs_);
 #endif // DEBUG_PUSH_HISTORY
+    ROS_INFO_STREAM("Chose to push object: " << push.object_id);
+    ROS_INFO_STREAM("Push angle is : " << push.push_angle);
+    ROS_INFO_STREAM("Push angle is in bin : " << push_idx);
     return push;
   }
 
@@ -1683,7 +1661,7 @@ class ObjectSingulation
     }
   }
 
-  int getObjFramePushAngle(float theta, Eigen::Matrix4f& t)
+  int getObjFrameAngleFromWorldFrame(float theta, Eigen::Matrix4f& t)
   {
     // Get vector from push_angle [cos(theta), sin(theta), 0, 1]
     Eigen::Vector4f x(std::cos(theta), std::sin(theta), 0.0f, 1.0f);
@@ -1704,10 +1682,10 @@ class ObjectSingulation
     return angle;
   }
 
-  int getObjFramePushIndex(float theta, Eigen::Matrix4f& t)
+  int getObjFrameIndexFromWorldAngle(float theta_world, Eigen::Matrix4f& t)
   {
-    float angle = getObjFramePushAngle(theta, t);
-    return quantizeAngle(subPiAngle(angle));
+    float angle = getObjFrameAngleFromWorldFrame(theta_world, t);
+    return quantizeAngle(angle);
   }
 
   int getObjFrameBoundaryOrientationIndex(Boundary& b, Eigen::Matrix4f& t)
@@ -1798,7 +1776,6 @@ class ObjectSingulation
                               ProtoObjects& objs)
   {
     std::vector<Boundary> possible_boundaries;
-    std::vector<int> possible_bins;
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
       // Ignore small boundaries or those not on objects
@@ -1810,14 +1787,12 @@ class ObjectSingulation
       const int i = boundaries[b].object_id;
       const unsigned int bin = quantizeAngle(boundaries[b].ort);
       // Only choose from boundaries associated with unpushed directions
-      if (objs[i].push_history[bin] == 0 &&
-          objs[i].boundary_angle_dist[bin] != 0)
+      if (objs[i].push_history[bin] == 0)
       {
         possible_boundaries.push_back(boundaries[b]);
-        possible_bins.push_back(bin);
       }
     }
-    ROS_INFO_STREAM("Getting random test boundary from set of " <<
+    ROS_DEBUG_STREAM("Getting random test boundary from set of " <<
                      possible_boundaries.size() << " possible boundaries.");
     int chosen_id = chooseRandTestBoundary(possible_boundaries, objs);
     if ( chosen_id < 0 || chosen_id > possible_boundaries.size())
@@ -1826,11 +1801,9 @@ class ObjectSingulation
       b.object_id = -1;
       return b;
     }
-    ROS_INFO_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
-                    possible_boundaries[chosen_id].object_id << " and " <<
-                    possible_boundaries[chosen_id].points3D.size() <<
-                    " 3D points.");
-    ROS_WARN_STREAM("Chosen bin is: " << possible_bins[chosen_id]);
+    ROS_DEBUG_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
+                     possible_boundaries[chosen_id].object_id);
+    ROS_DEBUG_STREAM("Boundary.ort is: " << possible_boundaries[chosen_id].ort);
     return possible_boundaries[chosen_id];
   }
 
@@ -2942,7 +2915,9 @@ class ObjectSingulationNode
 
 int main(int argc, char ** argv)
 {
-  srand(time(NULL));
+  int seed = time(NULL);
+  srand(seed);
+  std::cout << "Rand seed is: " << seed << std::endl;
   ros::init(argc, argv, "object_singulation_node");
   ros::NodeHandle n;
   ObjectSingulationNode singulation_node(n);
