@@ -18,6 +18,7 @@ import roslib
 roslib.load_manifest('hrl_pr2_arms')
 roslib.load_manifest('object_manipulation_msgs')
 roslib.load_manifest('robot_mechanism_controllers')
+roslib.load_manifest('pr2_manipulation_controllers')
 
 import rospy
 import actionlib
@@ -26,6 +27,7 @@ from std_msgs.msg import Header, Float64MultiArray
 from sensor_msgs.msg import JointState
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal 
 from pr2_controllers_msgs.msg import JointTrajectoryControllerState 
+from pr2_manipulation_controllers.msg import JTTaskControllerState
 from robot_mechanism_controllers.msg import JTCartesianControllerState
 from object_manipulation_msgs.msg import CartesianGains
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
@@ -276,34 +278,6 @@ class PR2ArmCartesianBase(PR2Arm):
         super(PR2ArmCartesianBase, self).__init__(arm, kinematics, controller_name, timeout)
         self.command_pose_pub = rospy.Publisher(self.controller_name + '/command_pose', PoseStamped)
 
-        self.ctrl_state_dict = {}
-        rospy.Subscriber(self.controller_name + '/state', JTCartesianControllerState, 
-                         self._ctrl_state_cb)
-        if not self.wait_for_ep(timeout):
-            rospy.logwarn("[pr2_arm] Timed out waiting for EP.")
-
-    def _ctrl_state_cb(self, ctrl_state):
-        with self.lock:
-            self.ep = PoseConverter.to_pos_rot(ctrl_state.x_desi_filtered)
-        with self.ctrl_state_lock:
-            self.ctrl_state_dict["frame"] = ctrl_state.header.frame_id
-            self.ctrl_state_dict["x_desi"] = PoseConverter.to_pos_rot(ctrl_state.x_desi)
-            self.ctrl_state_dict["xd_desi"] = extract_twist(ctrl_state.xd_desi)
-            self.ctrl_state_dict["x_act"] = PoseConverter.to_pos_rot(ctrl_state.x)
-            self.ctrl_state_dict["xd_act"] = extract_twist(ctrl_state.xd)
-            self.ctrl_state_dict["x_desi_filt"] = PoseConverter.to_pos_rot(
-                                                                ctrl_state.x_desi_filtered)
-            self.ctrl_state_dict["x_err"] = extract_twist(ctrl_state.x_err)
-            self.ctrl_state_dict["tau_pose"] = np.array(ctrl_state.tau_pose)
-            self.ctrl_state_dict["tau_posture"] = np.array(ctrl_state.tau_posture)
-            self.ctrl_state_dict["tau"] = np.array(ctrl_state.tau)
-            self.ctrl_state_dict["F"] = np.array([ctrl_state.F.force.x, 
-                                                  ctrl_state.F.force.y,
-                                                  ctrl_state.F.force.z,
-                                                  ctrl_state.F.torque.x,
-                                                  ctrl_state.F.torque.y,
-                                                  ctrl_state.F.torque.z])
-
     def set_ep(self, cep, duration, delay=0.0):
         cep_pose_stmp = PoseConverter.to_pose_stamped_msg('torso_lift_link', cep)
         cep_pose_stmp.header.stamp = rospy.Time.now()
@@ -358,7 +332,36 @@ class PR2ArmCartesianPostureBase(PR2ArmCartesianBase):
         self.command_posture_pub.publish(msg)
 
 class PR2ArmJTranspose(PR2ArmCartesianPostureBase):
-    pass
+    def __init__(self, arm, kinematics, controller_name='/%s_cart', timeout=5.):
+        super(PR2ArmJTranspose, self).__init__(arm, kinematics, controller_name, timeout)
+
+        self.ctrl_state_dict = {}
+        rospy.Subscriber(self.controller_name + '/state', JTCartesianControllerState, 
+                         self._ctrl_state_cb)
+        if not self.wait_for_ep(timeout):
+            rospy.logwarn("[pr2_arm] Timed out waiting for EP.")
+
+    def _ctrl_state_cb(self, ctrl_state):
+        with self.lock:
+            self.ep = PoseConverter.to_pos_rot(ctrl_state.x_desi_filtered)
+        with self.ctrl_state_lock:
+            self.ctrl_state_dict["frame"] = ctrl_state.header.frame_id
+            self.ctrl_state_dict["x_desi"] = PoseConverter.to_pos_rot(ctrl_state.x_desi)
+            self.ctrl_state_dict["xd_desi"] = extract_twist(ctrl_state.xd_desi)
+            self.ctrl_state_dict["x_act"] = PoseConverter.to_pos_rot(ctrl_state.x)
+            self.ctrl_state_dict["xd_act"] = extract_twist(ctrl_state.xd)
+            self.ctrl_state_dict["x_desi_filt"] = PoseConverter.to_pos_rot(
+                                                                ctrl_state.x_desi_filtered)
+            self.ctrl_state_dict["x_err"] = extract_twist(ctrl_state.x_err)
+            self.ctrl_state_dict["tau_pose"] = np.array(ctrl_state.tau_pose)
+            self.ctrl_state_dict["tau_posture"] = np.array(ctrl_state.tau_posture)
+            self.ctrl_state_dict["tau"] = np.array(ctrl_state.tau)
+            self.ctrl_state_dict["F"] = np.array([ctrl_state.F.force.x, 
+                                                  ctrl_state.F.force.y,
+                                                  ctrl_state.F.force.z,
+                                                  ctrl_state.F.torque.x,
+                                                  ctrl_state.F.torque.y,
+                                                  ctrl_state.F.torque.z])
 
 class PR2ArmJInverse(PR2ArmCartesianPostureBase):
     pass
@@ -367,6 +370,34 @@ class PR2ArmJTransposeTask(PR2ArmCartesianPostureBase):
     def __init__(self, arm, kinematics, controller_name='/%s_cart', timeout=5.):
         super(PR2ArmJTransposeTask, self).__init__(arm, kinematics, controller_name, timeout)
         self.command_gains_pub = rospy.Publisher(self.controller_name + '/gains', CartesianGains)
+
+        self.ctrl_state_dict = {}
+        rospy.Subscriber(self.controller_name + '/state', JTTaskControllerState, 
+                         self._ctrl_state_cb)
+        if not self.wait_for_ep(timeout):
+            rospy.logwarn("[pr2_arm] Timed out waiting for EP.")
+
+    def _ctrl_state_cb(self, ctrl_state):
+        with self.lock:
+            self.ep = PoseConverter.to_pos_rot(ctrl_state.x_desi_filtered)
+        with self.ctrl_state_lock:
+            self.ctrl_state_dict["frame"] = ctrl_state.header.frame_id
+            self.ctrl_state_dict["x_desi"] = PoseConverter.to_pos_rot(ctrl_state.x_desi)
+            self.ctrl_state_dict["xd_desi"] = extract_twist(ctrl_state.xd_desi)
+            self.ctrl_state_dict["x_act"] = PoseConverter.to_pos_rot(ctrl_state.x)
+            self.ctrl_state_dict["xd_act"] = extract_twist(ctrl_state.xd)
+            self.ctrl_state_dict["x_desi_filt"] = PoseConverter.to_pos_rot(
+                                                                ctrl_state.x_desi_filtered)
+            self.ctrl_state_dict["x_err"] = extract_twist(ctrl_state.x_err)
+            self.ctrl_state_dict["tau_pose"] = np.array(ctrl_state.tau_pose)
+            self.ctrl_state_dict["tau_posture"] = np.array(ctrl_state.tau_posture)
+            self.ctrl_state_dict["tau"] = np.array(ctrl_state.tau)
+            self.ctrl_state_dict["F"] = np.array([ctrl_state.F.force.x, 
+                                                  ctrl_state.F.force.y,
+                                                  ctrl_state.F.force.z,
+                                                  ctrl_state.F.torque.x,
+                                                  ctrl_state.F.torque.y,
+                                                  ctrl_state.F.torque.z])
 
     def set_gains(self, p_gains, d_gains, frame=None):
         if frame is None:
