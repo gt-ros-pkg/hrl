@@ -155,7 +155,6 @@ class TabletopExecutive:
                 pose_res.start_point.z = -0.25
                 self.overhead_push_object(self.gripper_push_dist, which_arm,
                                           pose_res)
-        pose_res = self.request_singulation_push(use_guided)
         if not (pose_res is None):
             rospy.loginfo('Final estimate of: ' + str(pose_res.num_objects) +
                           ' objects')
