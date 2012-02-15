@@ -14,7 +14,7 @@ from smach_msgs.msg import SmachContainerStatus
 
 from servoing_ui import Ui_Frame as QTServoingFrame
 
-disabled_button_ss = """QPushButton { font: 75 18pt "AlArabiya";
+disabled_button_ss = """QPushButton { font: 75 18pt;
                                       background-color: rgb(190, 190, 190);}"""
 
 STATUS_DICT = { "UI_FIND_TAG_WAIT" : "Navigate the robot so it can see\nthe AR tag.",

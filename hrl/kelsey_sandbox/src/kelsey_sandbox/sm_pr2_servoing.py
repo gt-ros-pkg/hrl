@@ -211,7 +211,8 @@ def build_full_sm():
                                transitions={'arm_collision' : 'UI_FIND_TAG_WAIT',
                                             'laser_collision' : 'UI_FIND_TAG_WAIT',
                                             'user_preempted' : 'UI_FIND_TAG_WAIT',
-                                            'lost_tag' : 'UI_FIND_TAG_WAIT'})
+                                            'lost_tag' : 'UI_FIND_TAG_WAIT',
+                                            'succeeded' : 'UI_FIND_TAG_WAIT'})
 
     return sm_pr2_servoing
 
