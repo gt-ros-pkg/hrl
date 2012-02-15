@@ -112,13 +112,12 @@
 #define DISPLAY_PROJECTED_OBJECTS 1
 #define DISPLAY_OBJECT_SPLITS 1
 // #define DISPLAY_LINKED_EDGES 1
-#define DISPLAY_CHOSEN_BOUNDARY 1
+// #define DISPLAY_CHOSEN_BOUNDARY 1
 // #define DISPLAY_CLOUD_DIFF 1
 #define DISPLAY_3D_BOUNDARIES 1
 #define DISPLAY_PUSH_VECTOR 1
 #define DISPLAY_WAIT 1
 #define DEBUG_PUSH_HISTORY 1
-#define WRITE_TO_DISK 1
 
 #define randf() static_cast<float>(rand())/RAND_MAX
 
@@ -1108,6 +1107,7 @@ class ObjectSingulation
       PushVector push_pose;
       push_pose.object_id = 0;
       push_pose.no_push = true;
+      push_pose.num_objects = 0;
       return push_pose;
     }
     // Move current proto objects to prev proto objects
@@ -1131,14 +1131,6 @@ class ObjectSingulation
       push_vector.no_push = true;
       return push_vector;
     }
-
-    // Increment the push direction of the object to be pushed
-    int push_idx = getObjFramePushIndex(push_vector.push_angle,
-                                        cur_proto_objs_[
-                                            push_vector.object_id].transform);
-    ROS_DEBUG_STREAM("Push angle is in bin: " << push_idx);
-    cur_proto_objs_[push_vector.object_id].push_history[push_idx]++;
-
     ++callback_count_;
     return push_vector;
   }
@@ -1222,7 +1214,6 @@ class ObjectSingulation
     {
       objs[i].push_history.resize(num_angle_bins_, 0);
     }
-    publishObjects(objs);
     XYZPointCloud cur_objs_down = pcl_segmenter_->downsampleCloud(objs_cloud,
                                                                   true);
     ProtoObjects cur_objs;
@@ -1412,12 +1403,43 @@ class ObjectSingulation
 #ifdef DISPLAY_PROJECTED_OBJECTS
     if (use_displays_)
     {
-      // pcl_segmenter_->displayObjectImage(obj_lbl_img);
       drawObjectTransformAxises(obj_lbl_img, objs);
     }
 #endif // DISPLAY_PROJECTED_OBJECTS
+
     get3DBoundaries(boundaries, cloud);
     associate3DBoundaries(boundaries, objs, obj_lbl_img);
+
+#ifdef DISPLAY_3D_BOUNDARIES
+    if (use_displays_)
+    {
+      draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
+    }
+#endif // DISPLAY_3D_BOUNDARIES
+
+    Boundary test_boundary = chooseTestBoundary(boundaries, objs);
+    if (test_boundary.object_id == objs.size() ||
+        test_boundary.object_id < 0)
+    {
+      ROS_WARN_STREAM("Boundary has no ID!");
+      PushVector push_pose;
+      push_pose.object_id = objs.size();
+      push_pose.no_push = true;
+      return push_pose;
+    }
+
+    PushVector push = determinePushVector(push_dist, test_boundary, objs,
+                                          obj_lbl_img, cloud);
+    // Increment the push direction of the object to be pushed
+    // int push_idx = quantizeAngle(push.push_angle);
+    int push_idx = getObjFramePushIndex(push.push_angle,
+                                        cur_proto_objs_[
+                                            push.object_id].transform);
+    ROS_INFO_STREAM("Pushing on object: " << push.object_id);
+    ROS_INFO_STREAM("Push angle is: " << push.push_angle);
+    ROS_INFO_STREAM("Push angle is in bin: " << push_idx);
+    cur_proto_objs_[push.object_id].push_history[push_idx]++;
+
 #ifdef DEBUG_PUSH_HISTORY
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
@@ -1440,25 +1462,7 @@ class ObjectSingulation
     }
     drawObjectHists(obj_lbl_img, cur_proto_objs_);
 #endif // DEBUG_PUSH_HISTORY
-#ifdef DISPLAY_3D_BOUNDARIES
-    if (use_displays_)
-    {
-      draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
-    }
-#endif // DISPLAY_3D_BOUNDARIES
-
-    Boundary test_boundary = chooseTestBoundary(boundaries, objs);
-    if (test_boundary.object_id == objs.size() ||
-        test_boundary.object_id < 0)
-    {
-      ROS_WARN_STREAM("Boundary has no ID!");
-      PushVector push_pose;
-      push_pose.object_id = objs.size();
-      push_pose.no_push = true;
-      return push_pose;
-    }
-    return determinePushVector(push_dist, test_boundary, objs, obj_lbl_img,
-                               cloud);
+    return push;
   }
 
   /**
@@ -1478,7 +1482,6 @@ class ObjectSingulation
 #ifdef DISPLAY_CHOSEN_BOUNDARY
     if (use_displays_)
     {
-      // displayBoundaryImage(obj_lbl_img, boundary, "chosen", true);
       displayBoundaryOrientation(obj_lbl_img, boundary, "chosen angle", true);
     }
 #endif // DISPLAY_CHOSEN_BOUNDARY
@@ -1494,7 +1497,10 @@ class ObjectSingulation
       pcl_segmenter_->displayObjectImage(split_img, "3D Split");
     }
 #endif // DISPLAY_OBJECT_SPLITS
-    PushVector push_pose = getPushDirection(push_dist, boundary.ort,
+    // Need to transform this into the world frame
+    float push_angle = getWorldFrameAngleFromObjFrame(
+        boundary.ort, objs[boundary.object_id].transform);
+    PushVector push_pose = getPushDirection(push_dist, push_angle,
                                             split_objs3D[0],
                                             split_objs3D[1], objs,
                                             boundary.object_id,
@@ -1611,7 +1617,7 @@ class ObjectSingulation
       // NOTE: need to upsample the indices here
       pcl::PointXYZ p = cloud.at(b[i].x*upscale_, b[i].y*upscale_);
       // Don't add empty points
-      if ((p.x == 0.0 && p.y == 0.0 && p.z == 0.0 )|| isnan(p.x) ||
+      if ((p.x == 0.0 && p.y == 0.0 && p.z == 0.0 ) || isnan(p.x) ||
           isnan(p.y) || isnan(p.z)) continue;
       b.points3D.push_back(p);
     }
@@ -1666,8 +1672,6 @@ class ObjectSingulation
           // NOTE: Don't add external object boundaries
           if (s0 > min_cluster_size_ && s1 > min_cluster_size_)
           {
-            //int angle_idx = getObjFrameBoundaryOrientationIndex(
-            // boundaries[b], objs[max_id].transform);
             boundaries[b].ort = getObjFrameBoundaryOrientation(
                 boundaries[b], objs[max_id].transform);
             int angle_idx = quantizeAngle(boundaries[b].ort);
@@ -1679,16 +1683,30 @@ class ObjectSingulation
     }
   }
 
-  int getObjFramePushIndex(float theta, Eigen::Matrix4f& t)
+  int getObjFramePushAngle(float theta, Eigen::Matrix4f& t)
   {
     // Get vector from push_angle [cos(theta), sin(theta), 0, 1]
     Eigen::Vector4f x(std::cos(theta), std::sin(theta), 0.0f, 1.0f);
     // apply transform;
-    // TODO: Should this be an inverse?
-    // Eigen::Vector4f y = t.Inverse()*x;
+    Eigen::Vector4f y = t.inverse()*x;
+    // Extract angle
+    float angle = std::atan2(y[1], y[0]);
+    return angle;
+  }
+
+  float getWorldFrameAngleFromObjFrame(float theta, Eigen::Matrix4f& t)
+  {
+    Eigen::Vector4f x(std::cos(theta), std::sin(theta), 0.0f, 1.0f);
+    // apply transform;
     Eigen::Vector4f y = t*x;
     // Extract angle
     float angle = std::atan2(y[1], y[0]);
+    return angle;
+  }
+
+  int getObjFramePushIndex(float theta, Eigen::Matrix4f& t)
+  {
+    float angle = getObjFramePushAngle(theta, t);
     return quantizeAngle(subPiAngle(angle));
   }
 
@@ -1704,15 +1722,22 @@ class ObjectSingulation
 
     // Rotate based on object transform history
     Eigen::Vector4f b_vect(b_vect3[0], b_vect3[1], b_vect3[2], 1.0f);
-    b_vect = t.inverse()*b_vect;
+    Eigen::Vector4f b_vect_obj = t.inverse()*b_vect;
 
-    float angle = std::atan2(b_vect[1], b_vect[0]);
+    float angle = std::atan2(b_vect_obj[1], b_vect_obj[0]);
 
     return subPiAngle(angle);
   }
 
   int quantizeAngle(float angle)
   {
+    // TODO: Make an assert
+    if (angle < -M_PI/2.0 || angle > M_PI/2.0)
+    {
+      ROS_WARN_STREAM("Quantizing angle: " << angle << " outside of range");
+      angle = subPiAngle(angle);
+      ROS_WARN_STREAM("Converted to: " << angle);
+    }
     int bin = static_cast<int>(((angle + M_PI/2.0)/M_PI)*num_angle_bins_);
     return std::max(std::min(bin, num_angle_bins_-1), 0);
   }
@@ -1769,84 +1794,48 @@ class ObjectSingulation
     return hessian;
   }
 
-  // Get plane best containing the 3D curve
-  Eigen::Vector4f splitPlaneRANSAC(Boundary& b)
-  {
-    XYZPointCloud cloud;
-    cloud.resize(b.points3D.size());
-    for (unsigned int i = 0; i < b.points3D.size(); ++i)
-    {
-      cloud.at(i) = b.points3D[i];
-    }
-    if (b.points3D.size() < 4)
-    {
-      Eigen::Vector4f unit_norm;
-      ROS_WARN_STREAM("Plane has 3 or fewer points.");
-      if (b.points3D.size() == 3)
-      {
-        ROS_WARN_STREAM("Plane has exactly 3 points.");
-      }
-      if (b.points3D.size() == 2)
-      {
-        ROS_WARN_STREAM("Will get plane running through line and origin.");
-      } else if (b.points3D.size() > 0)
-      {
-        ROS_WARN_STREAM("Will get plane running through point and z-axis.");
-      }
-      else
-      {
-        ROS_WARN_STREAM("No 3D points");
-      }
-      return unit_norm;
-    }
-
-    pcl::ModelCoefficients coefficients;
-    pcl::PointIndices plane_inliers;
-    pcl::SACSegmentation<pcl::PointXYZ> plane_seg;
-    plane_seg.setOptimizeCoefficients (true);
-    plane_seg.setModelType(pcl::SACMODEL_PLANE);
-    plane_seg.setMethodType(pcl::SAC_RANSAC);
-    plane_seg.setDistanceThreshold(boundary_ransac_thresh_);
-    plane_seg.setInputCloud(cloud.makeShared());
-    plane_seg.segment(plane_inliers, coefficients);
-    ROS_DEBUG_STREAM("Plane Hessian Normal Form: (" << coefficients.values[0] <<
-                     ", " << coefficients.values[1] << ", " <<
-                     coefficients.values[2] << ", " << coefficients.values[3] <<
-                     ")");
-
-    Eigen::Vector4f hessian;
-    hessian[0] = coefficients.values[0];
-    hessian[1] = coefficients.values[1];
-    hessian[2] = coefficients.values[2];
-    hessian[3] = coefficients.values[3];
-    return hessian;
-  }
-
   Boundary chooseTestBoundary(std::vector<Boundary>& boundaries,
                               ProtoObjects& objs)
   {
     std::vector<Boundary> possible_boundaries;
+    std::vector<int> possible_bins;
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
       // Ignore small boundaries or those not on objects
       if (boundaries[b].object_id == objs.size() ||
-          boundaries[b].points3D.size() < 3) continue;
+          boundaries[b].points3D.size() < 3 || boundaries[b].object_id < 0)
+      {
+        continue;
+      }
       const int i = boundaries[b].object_id;
-      unsigned int bin = getObjFrameBoundaryOrientationIndex(
-          boundaries[b], objs[i].transform);
+      const unsigned int bin = quantizeAngle(boundaries[b].ort);
       // Only choose from boundaries associated with unpushed directions
-      if (objs[i].push_history[bin] == 0)
+      if (objs[i].push_history[bin] == 0 &&
+          objs[i].boundary_angle_dist[bin] != 0)
       {
         possible_boundaries.push_back(boundaries[b]);
+        possible_bins.push_back(bin);
       }
     }
-    ROS_DEBUG_STREAM("Getting random test boundary from set of " <<
+    ROS_INFO_STREAM("Getting random test boundary from set of " <<
                      possible_boundaries.size() << " possible boundaries.");
-    return chooseRandTestBoundary(possible_boundaries, objs);
+    int chosen_id = chooseRandTestBoundary(possible_boundaries, objs);
+    if ( chosen_id < 0 || chosen_id > possible_boundaries.size())
+    {
+      Boundary b;
+      b.object_id = -1;
+      return b;
+    }
+    ROS_INFO_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
+                    possible_boundaries[chosen_id].object_id << " and " <<
+                    possible_boundaries[chosen_id].points3D.size() <<
+                    " 3D points.");
+    ROS_WARN_STREAM("Chosen bin is: " << possible_bins[chosen_id]);
+    return possible_boundaries[chosen_id];
   }
 
-  Boundary chooseRandTestBoundary(std::vector<Boundary>& boundaries,
-                                  ProtoObjects& objs)
+  int chooseRandTestBoundary(std::vector<Boundary>& boundaries,
+                             ProtoObjects& objs)
   {
     std::vector<double> scores(boundaries.size(), 0.0f);
     int nonzero = 0;
@@ -1874,16 +1863,7 @@ class ObjectSingulation
       }
     }
     int chosen_id = sampleScore(scores);
-    if ( chosen_id < 0 || chosen_id > boundaries.size())
-    {
-      Boundary b;
-      b.object_id = -1;
-      return b;
-    }
-    ROS_DEBUG_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
-                    boundaries[chosen_id].object_id << " and " <<
-                    boundaries[chosen_id].points3D.size() << " 3D points.");
-    return boundaries[chosen_id];
+    return chosen_id;
   }
 
   PushVector getPushDirection(double push_dist,
@@ -1893,26 +1873,25 @@ class ObjectSingulation
                               ProtoObjects& objs, unsigned int id,
                               cv::Mat& lbl_img)
   {
-
     // TODO: Simulate end effector clearance
-     double push_angle_pos = 0.0;
-     double push_angle_neg = 0.0;
-     if (push_angle > 0)
-     {
-       push_angle_pos = push_angle;
-       push_angle_neg = push_angle - M_PI;
-     }
-     else
-     {
-       push_angle_neg = push_angle;
-       push_angle_pos = push_angle + M_PI;
-     }
-     const Eigen::Vector3f push_vec_pos(std::cos(push_angle_pos),
-                                        std::sin(push_angle_pos), 0.0);
-     const Eigen::Vector3f push_vec_neg(std::cos(push_angle_neg),
-                                        std::sin(push_angle_neg), 0.0);
+    double push_angle_pos = 0.0;
+    double push_angle_neg = 0.0;
+    if (push_angle > 0)
+    {
+      push_angle_pos = push_angle;
+      push_angle_neg = push_angle - M_PI;
+    }
+    else
+    {
+      push_angle_neg = push_angle;
+      push_angle_pos = push_angle + M_PI;
+    }
+    const Eigen::Vector3f push_vec_pos(std::cos(push_angle_pos),
+                                       std::sin(push_angle_pos), 0.0);
+    const Eigen::Vector3f push_vec_neg(std::cos(push_angle_neg),
+                                       std::sin(push_angle_neg), 0.0);
 
-     // Find the highest clearance push from the four possible combinations of
+    // Find the highest clearance push from the four possible combinations of
     // split object and angles
     std::vector<PushOpt> split_opts;
     split_opts.push_back(PushOpt(split0, push_angle_pos, push_vec_pos, id,
@@ -2016,15 +1995,7 @@ class ObjectSingulation
   ProtoObjects splitObject3D(Boundary& boundary, ProtoTabletopObject& to_split)
   {
     // Get plane containing the boundary
-    Eigen::Vector4f hessian;
-    if (force_vertical_plane_)
-    {
-      hessian = splitPlaneVertical(boundary);
-    }
-    else
-    {
-      hessian = splitPlaneRANSAC(boundary);
-    }
+    Eigen::Vector4f hessian = splitPlaneVertical(boundary);
     // Split based on the plane
     return splitObject3D(hessian, to_split);
   }
@@ -2070,42 +2041,6 @@ class ObjectSingulation
     }
 
     return split;
-  }
-
-  /**
-   * Helper method to publish a set of proto objects for display purposes.
-   *
-   * @param objs The objects to publish
-   */
-  void publishObjects(ProtoObjects& objs)
-  {
-    if (objs.size() == 0) return;
-    XYZPointCloud objs_cloud = objs[0].cloud;
-    for (unsigned int i = 1; i < objs.size(); ++i)
-    {
-      objs_cloud += objs[i].cloud;
-    }
-
-    pcl::PointCloud<pcl::PointXYZI> label_cloud;
-    label_cloud.header.frame_id = objs_cloud.header.frame_id;
-    label_cloud.height = objs_cloud.height;
-    label_cloud.width = objs_cloud.width;
-    label_cloud.resize(label_cloud.height*label_cloud.width);
-    for (unsigned int i = 1, j=0; i < objs.size(); ++i)
-    {
-      for (unsigned int k=0; k < objs[i].cloud.size(); ++k, ++j)
-      {
-        // TODO: This is not working
-        label_cloud.at(j).x = objs_cloud.at(j).x;
-        label_cloud.at(j).y = objs_cloud.at(j).y;
-        label_cloud.at(j).z = objs_cloud.at(j).z;
-        label_cloud.at(j).intensity = objs[i].id;
-      }
-    }
-
-    sensor_msgs::PointCloud2 obj_msg;
-    pcl::toROSMsg(label_cloud, obj_msg);
-    obj_push_pub_.publish(obj_msg);
   }
 
   int sampleScore(std::vector<double>& scores)
@@ -2162,33 +2097,11 @@ class ObjectSingulation
   //
   // I/O Methods
   //
-  void displayBoundaryImage(cv::Mat& obj_img, Boundary& boundary,
-                            std::string title, bool u8=true)
-  {
-    cv::Mat obj_disp_img(obj_img.size(), CV_32FC3);
-    if (u8)
-    {
-      cv::Mat obj_img_f;
-      obj_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
-      cv::cvtColor(obj_img_f, obj_disp_img, CV_GRAY2BGR);
-    }
-    else
-    {
-      cv::cvtColor(obj_img, obj_disp_img, CV_GRAY2BGR);
-    }
-    cv::Vec3f green(0.0f, 1.0f, 0.0f);
-    for (unsigned int i = 0; i < boundary.size(); ++i)
-    {
-      obj_disp_img.at<cv::Vec3f>(boundary[i].y, boundary[i].x) = green;
-    }
-    cv::imshow(title, obj_disp_img);
-  }
-
   void displayBoundaryOrientation(cv::Mat& obj_img, Boundary& boundary,
-                                  std::string title, bool u8=true)
+                                  std::string title)
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3);
-    if (u8)
+    if (obj_img.depth() == CV_8U)
     {
       cv::Mat obj_img_f;
       obj_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
@@ -2360,8 +2273,10 @@ class ObjectSingulation
     cv::Mat disp_img_hist;
     disp_img.copyTo(disp_img_hist);
     const Eigen::Vector4f x_axis(0.1, 0.0, 0.0, 1.0);
-    const int w = 5;
-    const int h = 30;
+    // const int w = 5;
+    // const int h = 30;
+    const int w = histogram_bin_width_;
+    const int h = histogram_bin_height_;
     const cv::Scalar est_line_color(1.0, 1.0, 1.0);
     const cv::Scalar est_fill_color(0.0, 0.0, 0.7);
     const cv::Scalar history_line_color(1.0, 1.0, 1.0);
@@ -2370,7 +2285,7 @@ class ObjectSingulation
     {
       const Eigen::Vector4f x_t = objs[i].transform*x_axis;
       // NOTE: In degrees!
-      const float start_angle = atan2(x_t[1], x_t[0])*180.0/M_PI;
+      const float start_angle = atan2(x_t[1], x_t[0])*180.0/M_PI + 180.0;
       // Get the locations from object centroids
       PointStamped center3D;
       center3D.point.x = objs[i].centroid[0];
@@ -2389,19 +2304,22 @@ class ObjectSingulation
       cv::imshow("Pushing History Distributions", disp_img_hist);
     }
 #ifdef WRITE_TO_DISK
-    // Write to disk to create video output
-    std::stringstream est_out_name;
-    std::stringstream hist_out_name;
-    est_out_name << base_output_path_ << "bound_est" << callback_count_
-                 << ".tiff";
-    hist_out_name << base_output_path_ << "hist_est" << callback_count_
-                  << ".tiff";
-    cv::Mat est_out_img(disp_img.size(), CV_8UC3);
-    cv::Mat hist_out_img(disp_img.size(), CV_8UC3);
-    disp_img.convertTo(est_out_img, CV_8UC3, 255);
-    disp_img_hist.convertTo(hist_out_img, CV_8UC3, 255);
-    cv::imwrite(est_out_name.str(), est_out_img);
-    cv::imwrite(hist_out_name.str(), hist_out_img);
+    if (write_to_disk_)
+    {
+      // Write to disk to create video output
+      std::stringstream est_out_name;
+      std::stringstream hist_out_name;
+      est_out_name << base_output_path_ << "bound_est" << callback_count_
+                   << ".tiff";
+      hist_out_name << base_output_path_ << "hist_est" << callback_count_
+                    << ".tiff";
+      cv::Mat est_out_img(disp_img.size(), CV_8UC3);
+      cv::Mat hist_out_img(disp_img.size(), CV_8UC3);
+      disp_img.convertTo(est_out_img, CV_8UC3, 255);
+      disp_img_hist.convertTo(hist_out_img, CV_8UC3, 255);
+      cv::imwrite(est_out_name.str(), est_out_img);
+      cv::imwrite(hist_out_name.str(), hist_out_img);
+    }
 #endif // WRITE_TO_DISK
   }
 
@@ -2427,9 +2345,10 @@ class ObjectSingulation
     float rot = start_rot;
     for (unsigned int i = 0; i < hist.size(); ++i)
     {
-      if (hist[i] > 0)
+      // NOTE: need to flip histogram order to correctly display
+      if (hist[hist.size()-i-1] > 0)
       {
-        int d_y = h * hist[i] / hist_max;
+        int d_y = h * hist[hist.size()-i-1] / hist_max;
         const int r1 = r0+d_y;
         const cv::Size s1(r1, r1);
         // cv::ellipse(disp_img, center, s1, rot, 0.0, angle_inc, line_color);
@@ -2472,9 +2391,9 @@ class ObjectSingulation
     rot = start_rot;
     for (unsigned int i = 0; i < hist.size(); ++i)
     {
-      if (hist[i] > 0)
+      if (hist[hist.size()-i-1] > 0)
       {
-        int d_y = h * hist[i] / hist_max;
+        int d_y = h * hist[hist.size()-i-1] / hist_max;
         const int r1 = r0+d_y;
         const cv::Size s1(r1, r1);
         cv::ellipse(disp_img, center, s1, rot, 0.0, angle_inc, line_color);
@@ -2533,13 +2452,15 @@ class ObjectSingulation
   double boundary_ransac_thresh_;
   int min_edge_length_;
   int num_angle_bins_;
-  bool force_vertical_plane_;
   int num_downsamples_;
   int upscale_;
   bool use_displays_;
+  bool write_to_disk_;
   int min_cluster_size_;
   int min_boundary_length_;
   std::string base_output_path_;
+  int histogram_bin_width_;
+  int histogram_bin_height_;
 };
 
 class ObjectSingulationNode
@@ -2570,6 +2491,7 @@ class ObjectSingulationNode
     n_private_.param("display_wait_ms", display_wait_ms_, 3);
     n_private_.param("use_displays", use_displays_, false);
     os_->use_displays_ = use_displays_;
+    n_private_.param("write_to_disk", os_->write_to_disk_, false);
     n_private_.param("min_workspace_x", min_workspace_x_, 0.0);
     n_private_.param("min_workspace_y", min_workspace_y_, 0.0);
     n_private_.param("min_workspace_z", min_workspace_z_, 0.0);
@@ -2596,11 +2518,12 @@ class ObjectSingulationNode
                      0.01);
     n_private_.param("min_edge_length", os_->min_edge_length_, 3);
     n_private_.param("num_angle_bins", os_->num_angle_bins_, 8);
-    n_private_.param("force_vertical_plane", os_->force_vertical_plane_, true);
     n_private_.param("os_min_cluster_size", os_->min_cluster_size_, 20);
     n_private_.param("os_min_boundary_length", os_->min_boundary_length_, 3);
     // NOTE: Must be at least 3 for mathematical reasons
     os_->min_boundary_length_ = std::max(os_->min_boundary_length_, 3);
+    n_private_.param("os_hist_bin_width", os_->histogram_bin_width_, 5);
+    n_private_.param("os_hist_bin_height", os_->histogram_bin_height_, 30);
     std::string output_path_def = "~";
     n_private_.param("img_output_path", os_->base_output_path_, output_path_def);
 
