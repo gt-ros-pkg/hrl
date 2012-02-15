@@ -110,7 +110,6 @@
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
 #define DISPLAY_PROJECTED_OBJECTS 1
-#define DISPLAY_OBJECT_SPLITS 1
 // #define DISPLAY_LINKED_EDGES 1
 // #define DISPLAY_CHOSEN_BOUNDARY 1
 // #define DISPLAY_CLOUD_DIFF 1
@@ -570,8 +569,9 @@ class PointCloudSegmentation
    * @param obj_img The projected objects image
    * @param objs The set of proto objects
    */
-  void displayObjectImage(cv::Mat& obj_img,
-                          std::string win_name="projected objects")
+  cv::Mat displayObjectImage(cv::Mat& obj_img,
+                             std::string win_name="projected objects",
+                             bool use_display=true)
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     for (int r = 0; r < obj_img.rows; ++r)
@@ -585,7 +585,11 @@ class PointCloudSegmentation
         }
       }
     }
-    cv::imshow(win_name, obj_disp_img);
+    if (use_display)
+    {
+      cv::imshow(win_name, obj_disp_img);
+    }
+    return obj_disp_img;
   }
 
   void projectPointCloudIntoImage(XYZPointCloud& cloud, cv::Mat& lbl_img,
@@ -1401,7 +1405,7 @@ class ObjectSingulation
         objs, boundary_img.size(), workspace_frame_);
 
 #ifdef DISPLAY_PROJECTED_OBJECTS
-    if (use_displays_)
+    if (use_displays_ || write_to_disk_)
     {
       drawObjectTransformAxises(obj_lbl_img, objs);
     }
@@ -1411,7 +1415,7 @@ class ObjectSingulation
     associate3DBoundaries(boundaries, objs, obj_lbl_img);
 
 #ifdef DISPLAY_3D_BOUNDARIES
-    if (use_displays_)
+    if (use_displays_ || write_to_disk_)
     {
       draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
     }
@@ -1467,14 +1471,6 @@ class ObjectSingulation
     // Split point cloud at location of the boundary
     ProtoObjects split_objs3D = splitObject3D(boundary, objs[boundary.
                                                              object_id]);
-#ifdef DISPLAY_OBJECT_SPLITS
-    if (use_displays_)
-    {
-      cv::Mat split_img = pcl_segmenter_->projectProtoObjectsIntoImage(
-          split_objs3D, obj_lbl_img.size(), workspace_frame_);
-      pcl_segmenter_->displayObjectImage(split_img, "3D Split");
-    }
-#endif // DISPLAY_OBJECT_SPLITS
     // Need to transform this into the world frame
     float push_angle = getWorldFrameAngleFromObjFrame(
         boundary.ort, objs[boundary.object_id].transform);
@@ -1906,31 +1902,45 @@ class ObjectSingulation
     push.start_point.z = split_opts[max_id].obj.centroid[2];
     push.push_angle = push_angle;
     push.no_push = false;
-#ifdef DISPLAY_PUSH_VECTOR
 
+#ifdef DISPLAY_PUSH_VECTOR
+    ProtoObjects split_objs3D;
+    split_objs3D.push_back(split0);
+    split_objs3D.push_back(split1);
+    cv::Mat split_img = pcl_segmenter_->projectProtoObjectsIntoImage(
+        split_objs3D, lbl_img.size(), workspace_frame_);
+    cv::Mat disp_img = pcl_segmenter_->displayObjectImage(
+        split_img, "3D Split", false);
+
+    const Eigen::Vector4f moved_cent = split_opts[max_id].getMovedCentroid();
+    PointStamped start_point;
+    start_point.point = push.start_point;
+    start_point.header.frame_id = workspace_frame_;
+    PointStamped end_point;
+    end_point.point.x = moved_cent[0];
+    end_point.point.y = moved_cent[1];
+    end_point.point.z = moved_cent[2];
+    end_point.header.frame_id = workspace_frame_;
+
+    cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
+        start_point);
+    cv::Point img_end_point = pcl_segmenter_->projectPointIntoImage(
+        end_point);
+    cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,0,1.0));
+    cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,1.0,0));
     if (use_displays_)
     {
-      const Eigen::Vector4f moved_cent = split_opts[max_id].getMovedCentroid();
-      PointStamped start_point;
-      start_point.point = push.start_point;
-      start_point.header.frame_id = workspace_frame_;
-      PointStamped end_point;
-      end_point.point.x = moved_cent[0];
-      end_point.point.y = moved_cent[1];
-      end_point.point.z = moved_cent[2];
-      end_point.header.frame_id = workspace_frame_;
-
-      cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
-          start_point);
-      cv::Point img_end_point = pcl_segmenter_->projectPointIntoImage(
-          end_point);
-      cv::Mat obj_img_f;
-      cv::Mat disp_img(lbl_img.size(), CV_32FC3);
-      lbl_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
-      cv::cvtColor(obj_img_f, disp_img, CV_GRAY2BGR);
-      cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,0,1.0));
-      cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,1.0,0));
       cv::imshow("push_vector", disp_img);
+    }
+    if (write_to_disk_)
+    {
+      // Write to disk to create video output
+      std::stringstream push_out_name;
+      push_out_name << base_output_path_ << "push_vector" << callback_count_
+                    << ".tiff";
+      cv::Mat push_out_img(disp_img.size(), CV_8UC3);
+      disp_img.convertTo(push_out_img, CV_8UC3, 255);
+      cv::imwrite(push_out_name.str(), push_out_img);
     }
 #endif // DISPLAY_PUSH_VECTOR
 
@@ -2149,7 +2159,20 @@ class ObjectSingulation
                                    boundaries[b][i].x) = color;
       }
     }
-    cv::imshow("3D boundaries", obj_disp_img);
+    if (use_displays_)
+    {
+      cv::imshow("3D boundaries", obj_disp_img);
+    }
+    if (write_to_disk_)
+    {
+      // Write to disk to create video output
+      std::stringstream bound_out_name;
+      bound_out_name << base_output_path_ << "bound3D" << callback_count_
+                   << ".tiff";
+      cv::Mat bound_out_img(obj_disp_img.size(), CV_8UC3);
+      obj_disp_img.convertTo(bound_out_img, CV_8UC3, 255);
+      cv::imwrite(bound_out_name.str(), bound_out_img);
+    }
   }
 
   void drawObjectTransformAxises(cv::Mat& obj_img, ProtoObjects& objs)
@@ -2220,7 +2243,20 @@ class ObjectSingulation
       cv::line(obj_disp_img, img_start_point, img_end_point_y, green);
       cv::line(obj_disp_img, img_start_point, img_end_point_z, cyan);
     }
-    cv::imshow("Object axis", obj_disp_img);
+    if (use_displays_)
+    {
+      cv::imshow("Object axis", obj_disp_img);
+    }
+    if (write_to_disk_)
+    {
+      // Write to disk to create video output
+      std::stringstream axis_out_name;
+      axis_out_name << base_output_path_ << "axis" << callback_count_
+                     << ".tiff";
+      cv::Mat axis_out_img(obj_disp_img.size(), CV_8UC3);
+      obj_disp_img.convertTo(axis_out_img, CV_8UC3, 255);
+      cv::imwrite(axis_out_name.str(), axis_out_img);
+    }
   }
 
   int getNextID()
@@ -2276,7 +2312,6 @@ class ObjectSingulation
       cv::imshow("Boundary Estimate Distributions", disp_img);
       cv::imshow("Pushing History Distributions", disp_img_hist);
     }
-#ifdef WRITE_TO_DISK
     if (write_to_disk_)
     {
       // Write to disk to create video output
@@ -2293,7 +2328,6 @@ class ObjectSingulation
       cv::imwrite(est_out_name.str(), est_out_img);
       cv::imwrite(hist_out_name.str(), hist_out_img);
     }
-#endif // WRITE_TO_DISK
   }
 
   void drawSemicircleHist(std::vector<int>& hist, cv::Mat& disp_img,
