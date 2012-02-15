@@ -1101,7 +1101,8 @@ class ObjectSingulation
    *
    * @return The location and orientation to push
    */
-  PushVector getPushVector(double push_dist, cv::Mat& color_img,
+  PushVector getPushVector(double push_dist, bool no_push_calc,
+                           cv::Mat& color_img,
                            cv::Mat& depth_img, XYZPointCloud& cloud,
                            cv::Mat& workspace_mask)
   {
@@ -1122,6 +1123,15 @@ class ObjectSingulation
     }
     ProtoObjects objs = calcProtoObjects(cloud);
 
+    if (no_push_calc)
+    {
+      PushVector push_vector;
+      push_vector.no_push = true;
+      push_vector.num_objects = objs.size();
+      ++callback_count_;
+      return push_vector;
+    }
+
     cv::Mat boundary_img;
     std::vector<Boundary> boundaries = getObjectBoundaryStrengths(
         color_img, depth_img, workspace_mask, boundary_img);
@@ -1133,9 +1143,9 @@ class ObjectSingulation
     {
       ROS_WARN_STREAM("No push vector selected.");
       push_vector.no_push = true;
+      ++callback_count_;
       return push_vector;
     }
-    ++callback_count_;
     return push_vector;
   }
 
@@ -1196,6 +1206,7 @@ class ObjectSingulation
     ROS_INFO_STREAM("Chosen push pose is at: (" << p.start_point.x << ", "
                     << p.start_point.y << ", " << p.start_point.z
                     << ") with orientation of: " << p.push_angle);
+    p.num_objects = pushable_obj_idx.size();
     return p;
   }
 
@@ -1474,6 +1485,7 @@ class ObjectSingulation
     // Need to transform this into the world frame
     float push_angle = getWorldFrameAngleFromObjFrame(
         boundary.ort, objs[boundary.object_id].transform);
+    ROS_INFO_STREAM("push_angle sent to getPushDir(): " << push_angle);
     PushVector push_pose = getPushDirection(push_dist, push_angle,
                                             split_objs3D[0],
                                             split_objs3D[1], objs,
@@ -1845,7 +1857,7 @@ class ObjectSingulation
     // TODO: Simulate end effector clearance
     double push_angle_pos = 0.0;
     double push_angle_neg = 0.0;
-    if (push_angle > 0)
+    if (push_angle > 0.0)
     {
       push_angle_pos = push_angle;
       push_angle_neg = push_angle - M_PI;
@@ -1900,7 +1912,8 @@ class ObjectSingulation
     push.start_point.x = split_opts[max_id].obj.centroid[0];
     push.start_point.y = split_opts[max_id].obj.centroid[1];
     push.start_point.z = split_opts[max_id].obj.centroid[2];
-    push.push_angle = push_angle;
+    // push.push_angle = push_angle;
+    push.push_angle = split_opts[max_id].push_angle;
     push.no_push = false;
 
 #ifdef DISPLAY_PUSH_VECTOR
@@ -1959,6 +1972,7 @@ class ObjectSingulation
   {
     // TODO: Check angle stuff
     double min_clearance = FLT_MAX;
+    double max_clearance = 0.0;
     const Eigen::Vector4f moved_cent = split.getMovedCentroid();
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
@@ -1970,6 +1984,10 @@ class ObjectSingulation
       if (clearance < min_clearance)
       {
         min_clearance = clearance;
+      }
+      if (clearance > max_clearance)
+      {
+        max_clearance = clearance;
       }
     }
     return min_clearance;
@@ -2739,7 +2757,7 @@ class ObjectSingulationNode
       }
       else
       {
-        res = getPushPose(req.push_dist, req.use_guided);
+        res = getPushPose(req.push_dist, req.use_guided, req.no_push_calc);
       }
     }
     else
@@ -2759,7 +2777,8 @@ class ObjectSingulationNode
    *
    * @return The PushPose
    */
-  PushVector getPushPose(double push_dist=0.1, bool use_guided=true)
+  PushVector getPushPose(double push_dist=0.1, bool use_guided=true,
+                         bool no_push_calc=false)
   {
     if (!use_guided)
     {
@@ -2767,7 +2786,7 @@ class ObjectSingulationNode
     }
     else
     {
-      return os_->getPushVector(push_dist,
+      return os_->getPushVector(push_dist, no_push_calc,
                                 cur_color_frame_, cur_depth_frame_,
                                 cur_point_cloud_, cur_workspace_mask_);
     }

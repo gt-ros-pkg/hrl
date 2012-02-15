@@ -155,6 +155,7 @@ class TabletopExecutive:
                 pose_res.start_point.z = -0.25
                 self.overhead_push_object(self.gripper_push_dist, which_arm,
                                           pose_res)
+        pose_res = self.get_num_objs()
         if not (pose_res is None):
             rospy.loginfo('Final estimate of: ' + str(pose_res.num_objects) +
                           ' objects')
@@ -166,6 +167,7 @@ class TabletopExecutive:
         pose_req.use_guided = use_guided
         pose_req.push_dist = self.gripper_push_dist
         pose_req.initialize = False
+        pose_req.no_push_calc = False
         rospy.loginfo("Calling push pose service")
         try:
             pose_res = self.push_pose_proxy(pose_req)
@@ -206,8 +208,19 @@ class TabletopExecutive:
     def initialize_push_pose(self):
         pose_req = PushPoseRequest()
         pose_req.initialize = True
+        pose_req.use_guided = True
+        pose_req.no_push_calc = False
         rospy.loginfo('Initializing push pose service.')
         self.push_pose_proxy(pose_req)
+
+    def get_num_objs(self):
+        pose_req = PushPoseRequest()
+        pose_req.initialize = False
+        pose_req.use_guided = True
+        pose_req.no_push_calc = True
+        rospy.loginfo('Calling push pose service with no_push_calc.')
+        pose_res = self.push_pose_proxy(pose_req)
+        return pose_res
 
     def raise_and_look(self):
         table_req = LocateTableRequest()
