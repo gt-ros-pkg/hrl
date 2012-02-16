@@ -10,6 +10,7 @@ import math, time, copy
 import numpy as np
 import tf, rospy, actionlib
 import hrl_lib.transforms as hrl_tr
+import tf.transformations as tf_trans
 import hrl_pr2_arms.pr2_controller_switcher as pr2cs
 import hrl_pr2_arms.pr2_arm as pr2arm
 import hrl_generic_arms.ep_trajectory_controller as eptc
@@ -131,11 +132,17 @@ class ar_manipulation():
 		self.grasp_object = False
 
 #		Load JTcontroller
-		self.r_arm_cart = pr2arm.create_pr2_arm('r', pr2arm.PR2ArmJTranspose)
-		self.l_arm_cart = pr2arm.create_pr2_arm('l', pr2arm.PR2ArmJTranspose)
+		self.r_arm_cart = pr2arm.create_pr2_arm('r', pr2arm.PR2ArmJTranspose,
+                                                        controller_name="%s_cart", timeout=0)
+		self.l_arm_cart = pr2arm.create_pr2_arm('l', pr2arm.PR2ArmJTranspose,
+                                                        controller_name="%s_cart", timeout=0)
 # 		Load Joint space controller
-		self.r_arm = pr2arm.create_pr2_arm('r', pr2arm.PR2ArmJointTrajectory)
-		self.l_arm = pr2arm.create_pr2_arm('l', pr2arm.PR2ArmJointTrajectory)
+		self.r_arm = pr2arm.create_pr2_arm('r', pr2arm.PR2ArmJointTrajectory,
+                                                   controller_name="%s_arm_controller",
+                                                   timeout=0)
+		self.l_arm = pr2arm.create_pr2_arm('l', pr2arm.PR2ArmJointTrajectory,
+                                                   controller_name="%s_arm_controller",
+                                                   timeout=0)
 
 		self.epc = eptc.EPC('linear_move')
 		self.time_step = 1/20.
@@ -178,19 +185,17 @@ class ar_manipulation():
 			side = 'r'
 			self.arm_controller = self.r_arm_cart	
 
-		self.cs.carefree_switch(side, side+'_cart', 
+		self.cs.carefree_switch(side, '%s_cart', 
 #			"$(find hrl_pr2_arms)/params/j_transpose_params_low.yaml")
 			"$(find hrl_pr2_arms)/params/j_transpose_params_high.yaml")
 
 
 	def get_angles(self):
-		self.r_arm.reset_ep()
-		self.l_arm.reset_ep()
 		self.r_angle = self.r_arm.get_joint_angles()
 		self.l_angle = self.l_arm.get_joint_angles()
 
 
-	def epc_move_arm(self, arm, ep1, ep2, duration=5.):
+	def epc_move_arm(self, arm, ep1, ep2, duration=10.):
 		self.t_vals = eptc.min_jerk_traj(duration/self.time_step)
 		traj = arm.interpolate_ep(ep1, ep2, self.t_vals)
 		tc = eptc.EPTrajectoryControl(arm, traj)
@@ -211,6 +216,8 @@ class ar_manipulation():
 
 		self.cs.carefree_switch('r', '%s_arm_controller')
 		self.cs.carefree_switch('l', '%s_arm_controller')
+                self.r_arm.wait_for_ep()
+                self.l_arm.wait_for_ep()
 		self.epc_move_arm(self.r_arm, self.r_angle, self.r_ep, duration)
 		self.epc_move_arm(self.l_arm, self.l_angle, self.l_ep, duration)
 		self.pr2_init = True
@@ -239,28 +246,30 @@ class ar_manipulation():
 	def fetch_tool(self, duration=5.):
 		rospy.logout("Moving the "+self.arm+" to fetch the object")
 		self.switch_arm()
-		self.arm_controller.reset_ep()
+                self.arm_controller.wait_for_ep()
 		ep_cur = self.arm_controller.get_ep()
 		ep1 = copy.deepcopy(self.ar_ep)
 		ep1[0][2]=ep_cur[0][2]+.1
+                ep1[1] = np.mat(tf_trans.euler_matrix(0, np.pi/2, 0))[:3,:3]
 
-		self.epc_move_arm(self.arm_controller, ep_cur, ep1, duration)
+		self.epc_move_arm(self.arm_controller, ep_cur, ep1, 20)
 		self.gripper.Open(self.arm)
 		time.sleep(2.)
 
 		self.tool_ep = copy.deepcopy(self.ar_ep)
+                self.tool_ep[1] = np.mat(tf_trans.euler_matrix(0, np.pi/2, 0))[:3,:3]
 
 		# Kinect on Monty has not been calibrated!
 		#Offset due to Kinect error
-		self.tool_ep[0][0]-= .05
-#		self.tool_ep[0][1]-= .01
+#		self.tool_ep[0][0]-= .05
+#		self.tool_ep[0][1]-= .02
 #		self.tool_ep[0][2]-= .03
 		self.tool_ep[0][2]-= .04
 
-		self.epc_move_arm(self.arm_controller, ep1, self.tool_ep, duration)
+		self.epc_move_arm(self.arm_controller, ep1, self.tool_ep, 15)
 		self.gripper.Close(self.arm)
 		time.sleep(2.)
-		self.epc_move_arm(self.arm_controller, self.tool_ep, ep1, duration)
+		self.epc_move_arm(self.arm_controller, self.tool_ep, ep1, 15)
 
 		self.found_tag = False
 		self.search_tag = False
@@ -282,7 +291,6 @@ if __name__ == "__main__":
 			arm.detect_artag()
 			if arm.found_tag:
 				arm.fetch_tool()
-
 
 
 

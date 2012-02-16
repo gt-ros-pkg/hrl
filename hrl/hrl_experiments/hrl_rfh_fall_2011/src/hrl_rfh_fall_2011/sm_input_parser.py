@@ -7,7 +7,8 @@ import roslib;
 roslib.load_manifest('smach')
 roslib.load_manifest('hrl_rfh_fall_2011')
 import rospy
-import smach 
+import smach
+from geometry_msgs.msg import Point 
 from std_msgs.msg import Int8
 
 class InputParser(smach.State):
@@ -24,27 +25,29 @@ class InputParser(smach.State):
         try: 
             f = file('../../data/pickled_poses.pkl', 'r')
             self.pose_dict = pickle.load(f)
-            self.keys = self.pose_dict.keys()
-            self.keys.sort()
+            self.keys = sorted(self.pose_dict.keys())
             print self.keys
             print self.pose_dict
             f.close()
+	    rospy.loginfo("Succesfully loaded pose dict")
         except:
             rospy.logwarn("Could Not Import Head-relative Poses! Global Move cannot succeed")
 
 
     def execute(self, userdata):
-        try:
+	if isinstance(userdata.goal_location, type(Int8())):
             userdata.goal_location.data
             if userdata.goal_location.data == -1: 
+		print "Shave!"
                 return 'shave'
             else:
+		print "Global Move!"
                 self.selection_out.publish(userdata.goal_location.data)
                 userdata.goal_pose = self.pose_dict[self.keys[userdata.goal_location.data]]
                 print 'GLOBAL MOVE GOAL: ', self.pose_dict[self.keys[userdata.goal_location.data]]
                 return 'global_move'
-        
-        except:
+
+        elif isinstance(userdata.goal_location, type(Point())): 
             print "GOAL LOCATION IN LOCAL INPUT PARSER: ", userdata.goal_location
             if userdata.goal_location.y == 1:
                 return 'ell_up'
@@ -58,7 +61,8 @@ class InputParser(smach.State):
                 return 'ell_out'
             elif userdata.goal_location.z == -1:
                 return 'ell_in'
-        
+        else:
+	    print "Unrecognized data type"
 #class LocalInputParser(smach.State):
 #    def __init__(self):
 #        smach.State.__init__(self, outcomes=['ell_up', 'ell_down', 'ell_left', 

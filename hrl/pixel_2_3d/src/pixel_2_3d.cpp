@@ -194,10 +194,10 @@ namespace pixel_2_3d {
         pt3d_pose.pose.position.x = pt3d_trans.point.x;
         pt3d_pose.pose.position.y = pt3d_trans.point.y;
         pt3d_pose.pose.position.z = pt3d_trans.point.z;
-        pt3d_pose.pose.orientation.x = quat.getX();
-        pt3d_pose.pose.orientation.y = quat.getY();
-        pt3d_pose.pose.orientation.z = quat.getZ();
-        pt3d_pose.pose.orientation.w = quat.getW();
+        pt3d_pose.pose.orientation.x = 0;//quat.getX();
+        pt3d_pose.pose.orientation.y = 0;//quat.getY();
+        pt3d_pose.pose.orientation.z = 0;//quat.getZ();
+        pt3d_pose.pose.orientation.w = 1;//quat.getW();
         
         if(output_frame == "")
             output_frame = cur_pc->header.frame_id;

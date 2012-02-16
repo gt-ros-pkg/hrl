@@ -202,8 +202,9 @@ def main():
         setup_task_controller.execute(None)
         cart_arm = setup_task_controller.arm
     else:
-        assert(False)
-        cart_arm = create_pr2_arm('l', PR2ArmJTransposeTask, end_link="%s_gripper_shaver45_frame")
+        cart_arm = create_pr2_arm('l', PR2ArmJTransposeTask, 
+                                  controller_name='%s_cart_jt_task', 
+                                  end_link="%s_gripper_shaver45_frame", timeout=0)
 
     rospy.sleep(1)
     ell_controller = EllipsoidController(cart_arm)

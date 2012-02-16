@@ -229,7 +229,7 @@ def build_test_sm():
 def main():
     rospy.init_node("sm_pr2_servoing")
     userdata = smach.user_data.UserData()
-    userdata['goal_ar_pose'] = [0.55, -0.29, 1.57]
+    userdata['goal_ar_pose'] = [ 0.57160106, -0.4300153 , -1.70840111]
 
     if True:
         sm_pr2_servoing = build_full_sm()

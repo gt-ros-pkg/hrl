@@ -12,10 +12,10 @@ import rospy
 import smach
 from smach_ros import SimpleActionState, ServiceState, IntrospectionServer
 
-from hrl_rfh_summer_2011.sm_approach_only import SMNavApproach
 from hrl_rfh_fall_2011.sm_register_head_ellipse import SMEllipsoidRegistration
 from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
 from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPositionGoal
+from hrl_rfh_fall_2011.sm_topic_monitor import TopicMonitor
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJTransposeTask
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 
@@ -38,45 +38,16 @@ class SetupTaskController(smach.State):
 
 class SMRegistrationSetup(object):
     def __init__(self):
-        self.sm_nav_approach = SMNavApproach()
         self.sm_ell_reg = SMEllipsoidRegistration()
 
     def get_sm(self):
         sm = smach.StateMachine(outcomes=['succeeded','preempted','aborted'])
         
         with sm:
-            smach.StateMachine.add('NAV_APPROACH',
-                    self.sm_nav_approach.get_sm(),
-                    transitions={'succeeded' : 'TORSO_SETUP',
-                                 'shutdown' : 'aborted'})
 
-            # move torso up
-            tgoal = SingleJointPositionGoal()
-            tgoal.position = 0.300  # all the way up is 0.300
-            tgoal.min_duration = rospy.Duration( 2.0 )
-            tgoal.max_velocity = 1.0
-            smach.StateMachine.add(
-                'TORSO_SETUP',
-                SimpleActionState( 'torso_controller/position_joint_action',
-                                   SingleJointPositionAction,
-                                   goal = tgoal),
-                transitions = { 'succeeded': 'R_UNTUCK' })
-
-            # Untucks the right arm
-            smach.StateMachine.add(
-                'R_UNTUCK',
-                ServiceState( 'traj_playback/untuck_r_arm',
-                              TrajPlaybackSrv,
-                              request = TrajPlaybackSrvRequest( False )), # if True, reverse trajectory
-                transitions = { 'succeeded' : 'R_ADJUST_MIRROR' })
-
-            # Adjusts the mirror
-            smach.StateMachine.add(
-                'R_ADJUST_MIRROR',
-                ServiceState( 'traj_playback/r_adjust_mirror',
-                              TrajPlaybackSrv,
-                              request = TrajPlaybackSrvRequest( False )), # if True, reverse trajectory
-                transitions = { 'succeeded' : 'L_UNTUCK' })
+            smach.StateMachine.add('HEAD_REG_ALL',
+                    self.sm_ell_reg.get_sm(),
+                    transitions = { 'succeeded' : 'L_UNTUCK' })
 
             # Untucks the left arm
             smach.StateMachine.add(
@@ -84,11 +55,7 @@ class SMRegistrationSetup(object):
                 ServiceState( 'traj_playback/untuck_l_arm',
                               TrajPlaybackSrv,
                               request = TrajPlaybackSrvRequest( False )), # if True, reverse trajectory
-                transitions = { 'succeeded' : 'HEAD_REG_ALL' })
-
-            smach.StateMachine.add('HEAD_REG_ALL',
-                    self.sm_ell_reg.get_sm(),
-                    transitions = { 'succeeded' : 'SETUP_TASK_CONTROLLER' })
+                transitions = { 'succeeded' : 'SETUP_TASK_CONTROLLER' })
 
             smach.StateMachine.add(
                 'SETUP_TASK_CONTROLLER',
@@ -104,7 +71,7 @@ def main():
         sm.set_initial_state(['SETUP_TASK_CONTROLLER'])
     rospy.sleep(1)
 
-    sis = IntrospectionServer('registration_setup', sm, '/NAV_APPROACH')
+    sis = IntrospectionServer('registration_setup', sm, '/HEAD_REG_ALL')
     sis.start()
 
     outcome = sm.execute()

@@ -6,7 +6,7 @@ from geometry_msgs.msg import PointStamped, Point, Quaternion
 from std_msgs.msg import String
 from tf import TransformListener, transformations as tft
 
-
+#goal = (0,0,0) ellipse frame == (0,0,x), rotating only about (0,0,0) tool frame, then apply linear offset
 
 class MirrorDirector(object):
     def __init__(self):
@@ -16,7 +16,9 @@ class MirrorDirector(object):
 
     def adjust_mirror(self, msg):
         frame = msg.header.frame_id
-        point = msg.point
+        point = msg.point	
+	
+	
 
 
 

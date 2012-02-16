@@ -287,7 +287,7 @@ class PR2VisualServoAR(object):
 
 def main():
     rospy.init_node("pr2_viz_servo")
-    viz_servo = PR2VisualServoAR("/pr2_test_ar_pose_marker")
+    viz_servo = PR2VisualServoAR("/r_pr2_ar_pose_marker")
     if False:
         viz_servo.save_ar_goal()
     elif False:

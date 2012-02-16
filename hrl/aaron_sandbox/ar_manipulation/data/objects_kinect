@@ -1,23 +1,12 @@
 #the number of patterns to be recognized
-3
+1
 
 #pattern 1
-ar_shaver
-data/4x4/4x4_48.patt
-80.0
-0.0 0.0
-
-#pattern 2
 ar_scratcher
 data/4x4/4x4_65.patt
 80.0
 0.0 0.0
 
-#pattern 3
-ar_comb
-data/4x4/4x4_14.patt
-80.0
-0.0 0.0
 
 
 

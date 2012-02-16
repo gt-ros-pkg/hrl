@@ -1,5 +1,7 @@
 <launch>
+<!--
     <include file="$(find hrl_pr2_lib)/launch/openni_kinect_polled.launch" />
+-->
 
   <node name="reconfig_kinect" pkg="dynamic_reconfigure" type="dynparam" args="load kinect_head $(find ar_manipulation)/data/kinect_params.yaml" />
 

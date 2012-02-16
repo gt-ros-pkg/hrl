@@ -78,7 +78,11 @@ class ControllerSwitcher:
         if new_controller not in possible_controllers:
             possible_controllers.append(new_controller)
             rosparam.set_param_raw(POSSIBLE_CONTROLLERS_PARAMETER, possible_controllers)
-        check_arm_controllers = [controller % arm for controller in possible_controllers]
+        check_arm_controllers = []
+        for controller in possible_controllers:
+            if '%s' in controller:
+                controller = controller % arm 
+            check_arm_controllers.append(controller)
         resp = self.list_controllers_srv()
         start_controllers, stop_controllers = [new_ctrl], []
         for i, controller in enumerate(resp.controllers):

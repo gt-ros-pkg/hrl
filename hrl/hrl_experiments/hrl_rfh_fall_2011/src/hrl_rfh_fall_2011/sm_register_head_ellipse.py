@@ -75,46 +75,11 @@ class SMEllipsoidRegistration(object):
                                    ServiceState('pc_switch', PCSwitch, 
                                                 request=PCSwitchRequest(True),
                                                 response_cb=pc_swtich_resp_cb),
-                                   transitions={'succeeded' : 'HEAD_REGISTRATION',
+                                   transitions={'succeeded' : 'FREEZE_PC_WAIT',
                                                 'aborted' : 'aborted'})
 
-            # create clicking registration loop
-            def child_term_cb(outcome_map):
-                print 'outcome_map', outcome_map
-                if outcome_map['REGISTRATION_CONFIRM'] == 'succeeded':
-                    return True
-                return False
-            sm_reg = smach.Concurrence(outcomes=['succeeded', 'aborted'],
-                                       default_outcome='succeeded',
-                                       child_termination_cb=child_term_cb)
-
-            with sm_reg:
-                
-                # wait for this topic to be called to exit the loop
-                def reg_confirm_cb(ud, req):
-                    return 'succeeded'
-                smach.Concurrence.add('REGISTRATION_CONFIRM', 
-                        TopicMonitor('reg_confirm', Bool))
-
-                sm_reg_loop = smach.StateMachine(outcomes=['succeeded','preempted','aborted'])
-                with sm_reg_loop:
-                    # receive a message from pixel_2_3d
-                    smach.StateMachine.add(
-                        'INPUT_CHEEK_CLICK',
-                        TopicMonitor('/init_head', PoseStamped),
-                        transitions={'succeeded' : 'REGISTER_HEAD'},
-                        remapping={'output' : 'cheek_pose'})
-
-                    # update the ellipsoid frame location
-                    smach.StateMachine.add(
-                        'REGISTER_HEAD',
-                        self.get_pub_head_registration(),
-                        transitions={'succeeded' : 'INPUT_CHEEK_CLICK'},
-                        remapping={'cheek_pose' : 'cheek_pose'})
-
-                smach.Concurrence.add('HEAD_REGISTRATION_LOOP', sm_reg_loop)
-
-            smach.StateMachine.add('HEAD_REGISTRATION', sm_reg,
+            smach.StateMachine.add('FREEZE_PC_WAIT', 
+                                   TopicMonitor('reg_confirm', Bool),
                                    transitions={'succeeded' : 'FREEZE_PC'})
 
             # turn the switch on the pc topic off so that the user can register on a still PC
@@ -124,7 +89,10 @@ class SMEllipsoidRegistration(object):
                                    ServiceState('pc_switch', PCSwitch, 
                                                 request=PCSwitchRequest(False),
                                                 response_cb=pc_swtich_resp_cb),
-                                   transitions={'aborted' : 'aborted'})
+                                   transitions={'succeeded' : 'CONFIRM_REG'})
+
+            smach.StateMachine.add('CONFIRM_REG',
+                                   TopicMonitor('/shaving_reg_confirm', Bool))
 
         return sm
 
