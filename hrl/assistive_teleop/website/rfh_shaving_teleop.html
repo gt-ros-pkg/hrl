@@ -13,8 +13,9 @@ function nop(){};
 function json(obj){return JSON.stringify(obj);};
 function log(message){ document.getElementById('console').innerHTML = message.toString();};
 
-var ROBOT = 'monty1.hsi.gatech.edu';
+//var ROBOT = 'monty1.hsi.gatech.edu';
 //var ROBOT = 'localhost'
+var ROBOT = 'prl.willowgarage.com'
 var head_pub;
 var base_pub;
 var scales={head:50,base:50,rarm:50,larm:50,rwrist:50,lwrist:50};
@@ -26,7 +27,7 @@ arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 var plane = 'xy';
 var head_state;
 var torso_state;
-var pointing_frame='wide_stereo_optical_frame'
+var pointing_frame='openni_rgb_optical_frame'
 
 $(function(){
 	$('#slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
@@ -666,16 +667,38 @@ function toggle_tool_power() {
     log("Sending Tool Power Toggle");
 };
 
-function ar_servo_command(dir) {
-    switch(dir){
-        case -1:
-            node.publish('ar_servoing_topic', 'geometry_msgs/Bool', json({'data':state}));
-        case 0:
-            node.publish('ar_servoing_topic', 'geometry_msgs/Bool', json({'data':state}));
-        case 1:
-            node.publish('ar_servoing_topic', 'geometry_msgs/Bool', json({'data':state}));
-        }
-}
+function servo_detect_tag(){
+    node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({'data':true}));
+};
+
+function servo_confirm_tag(){
+    node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({'data':true}));
+};
+
+function servo_preempt(){
+    node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({'data':true}));
+};
+
+function servo_setup(){
+    node.rosjs.callService('pr2_ar_servo/arms_setup', [json({'data':true})], function(resp){})
+};
+
+function play_trajectory(traj){
+    switch(traj){
+        case 'untuck left arm':
+            node.rosjs.callService('/l_untuck_arm/play_traj', [json({'data':true})], function(resp){});
+            break;
+        case 'untuck right arm':
+            node.rosjs.callService('/l_untuck_arm/play_traj', [json({'data':true})], function(resp){});
+            break;
+        case 'untuck right arm':
+            node.rosjs.callService('/l_untuck_arm/play_traj', [json({'data':true})], function(resp){});
+            break;
+        case 'untuck right arm':
+            node.rosjs.callService('/l_untuck_arm/play_traj', [json({'data':true})], function(resp){});
+            break;
+    };
+};
 
 function start(){
     node = new ros.NodeHandle('ws://'+ ROBOT + ':9091');
@@ -748,14 +771,19 @@ width:100px;
       <table>
         <tr>
           <td>
-            <button id="shave_start" class='act_menu' type="button" onclick="$('#head_nav_goal_flag, #shave_end, #ar_servoing_done, .ar_servo_controls').show(); $(this).hide(); ">Shave</button>
-            <button id="shave_end" class='act_menu' type="button" onclick="$('#bpd2, #shave_select, #freeze_cloud, #init_head_flag, #tool_power, .ar_servo_controls, #ar_servoing_done').hide(); $('#tp, #shave_start').show();$(this).hide()">End Shaving</button>
+            <button id="shave_start" class='act_menu' type="button" onclick="$('#shave_end, #ar_servoing_setup').show(); $(this).hide(); ">Shave</button>
+            <button id="shave_end" class='act_menu' type="button" onclick="$('#bpd2, #shave_select, #freeze_cloud, #init_head_flag, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done').hide(); $('#tp, #shave_start').show();$(this).hide()">End Shaving</button>
           </td>
        </tr>
        <tr><td><hr></td></tr>
        <tr>
-         <!--<td><button id="head_nav_goal_flag" class='shave_acts' type="button" onclick="window.img_act='head_nav_goal'; $('#init_head_flag').show(); $(this).hide()">Approach (Click Cheek)</button></td>-->
-         <td><button id="ar_servoing_done" class='shave_acts' type="button" onclick="$('#init_head_flag').show(); $(this).hide(); $('.ar_servo_controls').hide()"> Approach Finished </button></td>
+         <td><button id="ar_servoing_setup" class='shave_acts' onclick="servo_setup();"+
+                                                                        "$(this).hide();"+
+                                                                        "$('#ar_servoing_done').show()"> Setup for Approach </button></td>
+       </tr><tr>
+         <td><button id="ar_servoing_done" class='shave_acts' type="button" onclick="$('#init_head_flag').show();+
+                                                                                     "$(this).hide();"+
+                                                                                     "$('.ar_servo_controls').hide()"> Approach Finished </button></td>
        </tr><tr>
         <td><button id="init_head_flag" class='shave_acts' type="button" onclick="window.img_act='init_head_cloud'; $('#freeze_cloud').show(); $(this).hide();">Initialize Head Model (Click Cheek)</button></td>
        </tr><tr>
@@ -792,7 +820,7 @@ width:100px;
     <td> Camera: </td> <!-- Start Cell for Camera Selection -->
 	  <td><select onchange="set_camera($(this).val());">
 	      <!--<option value="/kinect_head/rgb/image_color">Kinect Camera</option>-->
-	          <option value="/arrow_overlaid">Kinect Camera</option>
+	      <option value="/arrow_overlaid">Kinect Camera</option>
 		  <option value="/wide_stereo/right/image_color">Wide Stereo Camera</option>
 		  <option value="/l_forearm_cam/image_color_rotated">Left Forearm Camera</option>
 		  <option value="/r_forearm_cam/image_color_rotated">Right Forearm Camera</option>
@@ -975,9 +1003,9 @@ width:100px;
       <table class='ar_servo_controls'>
         <tr>
           <td>Approach Controls: </td>
-          <td><button id='servo_reverse' onclick="log('Backing Up'); ar_servo_command(-1);"> Reverse </button></td>
-          <td><button id='servo_pause' onclick="txt=$(this).text(); log(txt); if(txt=='Resume'){$(this).text('Pause')}; if(txt=='Pause'){$(this).text('Resume')}; ar_servo_command(0);"> Resume </button></td>
-          <td><button id='servo_forward' onclick="log('Driving Forward'); ar_servo_command(1);"> Forward </button></td>
+          <td><button id='servo_detect_tag' style="font-size:150%;height:75;width:150" onclick="log('Searching for ARTag'); servo_detect_tag();"> Detect Tag </button></td>
+          <td><button id='servo_confirm_tag' style="font-size:150%;height:75;width:150" onclick="log('Approaching Tag'); servo_confirm_tag();"> Approach </button></td>
+          <td><button id='servo_stop' style="font-size:150%;background-color:red;height:75;width:150" onclick="log('Stopping'); servo_preempt();"> Stop </button></td>
         </tr>
       </table>
     </td>
