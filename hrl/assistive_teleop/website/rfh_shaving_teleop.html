@@ -120,10 +120,10 @@ function init_subscribers() {
 	node.subscribe('/wt_log_out', function(msg){log(msg.data.toString())});
 	
 		//Move Arm Pose State
-	node.subscribe('/r_arm_controller_state_throttle', function(msg){
-                                        window.arm_joints.right = msg.actual});
-	node.subscribe('/l_arm_controller_state_throttle', function(msg){
-                                        window.arm_joints.left = msg.actual});
+//    node.subscribe('/r_arm_controller_state_throttle', function(msg){
+//                                       window.arm_joints.right = msg.actual});
+//    node.subscribe('/l_arm_controller_state_throttle', function(msg){
+//                                       window.arm_joints.left = msg.actual});
 	node.subscribe('/wt_force_out_throttle',
                     function(ws){$('#force_view').slider("option", "value",
                     Math.sqrt(Math.pow(ws.wrench.force.x,2) + 
@@ -133,6 +133,7 @@ function init_subscribers() {
 	node.subscribe('/ros_switch_state', function(msg){
                     window.tool_state=msg.data;
                   });
+	node.subscribe('/sm_selected_pose', function(msg){window.sm_selected_pose = msg.data});
 };//END sub_state
 
 function init_publishers() {
@@ -643,18 +644,28 @@ function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+'
 //else if (cam=='/wide_stereo/right/image_color'){window.pointing_frame='wide_stereo_optical_frame';}
 };
 
-function shave(dir) {node.publish('wt_disc_shaving_step', 'std_msgs/Int8', json({'data':dir}));
-                    log("Sending Next Shaving Position");
-};
+//function shave(dir) {node.publish('wt_disc_shaving_step', 'std_msgs/Int8', json({'data':dir}));
+//                    log("Sending Next Shaving Position");
+//};
+//
+//function shave_step(x,y,z) {points = window.gm_point;
+//                        points.x = x; points.y = y; points.z = z;
+//                        node.publish('wt_cont_shaving_step', 'geometry_msgs/Point', json(points));
+//                        log("Sending Adjustment to Shaving Position");
+//};
+//
+//function send_shave_location(num) {node.publish('wt_shave_location', 'std_msgs/Int8', json({'data':num}));
+//                                 log("Sending New Shave Position: "+num.toString());
+//};
 
 function shave_step(x,y,z) {points = window.gm_point;
                         points.x = x; points.y = y; points.z = z;
-                        node.publish('wt_cont_shaving_step', 'geometry_msgs/Point', json(points));
+                        node.publish('/wt_shave_step', 'geometry_msgs/Point', json(points));
                         log("Sending Adjustment to Shaving Position");
 };
 
 function send_shave_location(num) {node.publish('wt_shave_location', 'std_msgs/Int8', json({'data':num}));
-                                 log("Sending New Shave Position: "+num.toString());
+                                   log("Sending New Shave Position: "+ document.getElementById('shave_list').options[window.sm_selected_pose].text);
 };
 
 function freeze_cloud() {node.publish('reg_confirm', 'std_msgs/Bool', json({'data':true}))
@@ -680,14 +691,14 @@ function servo_preempt(){
 };
 
 function servo_setup(){
-    node.rosjs.callService('pr2_ar_servo/arms_setup', [json({'data':true})], function(resp){})
+    //node.rosjs.callService('pr2_ar_servo/arms_setup', [json({'data':true})], function(resp){})
 };
 
 function play_trajectory(traj){
     switch(traj){
         case 'untuck left arm':
             node.rosjs.callService('/l_untuck_arm/play_traj', [json({'data':true})], function(resp){});
-            break;
+           break;
         case 'untuck right arm':
             node.rosjs.callService('/l_untuck_arm/play_traj', [json({'data':true})], function(resp){});
             break;
@@ -756,7 +767,7 @@ width:100px;
           <td colspan=2 align='center'>Force</td>
         </tr><tr>
         </tr><tr>
-          <td colspan=2 align='center'> 0-20 N </td>
+          <td colspan=2 align='center'> 0-15 N </td>
         </tr><tr>
           <td align='center'><div id='force_set' style="height:360px"></div></td>
           <td align='center'><div id='force_view' style="height:360px"></div></td>
@@ -772,22 +783,17 @@ width:100px;
         <tr>
           <td>
             <button id="shave_start" class='act_menu' type="button" onclick="$('#shave_end, #ar_servoing_setup').show(); $(this).hide(); ">Shave</button>
-            <button id="shave_end" class='act_menu' type="button" onclick="$('#bpd2, #shave_select, #freeze_cloud, #init_head_flag, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done').hide(); $('#tp, #shave_start').show();$(this).hide()">End Shaving</button>
+            <button id="shave_end" class='act_menu' type="button" onclick="$('#bpd2, #shave_select, #freeze_cloud, #init_head_flag, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave').hide(); $('#tp, #shave_start').show();$(this).hide()">End Shaving</button>
           </td>
        </tr>
        <tr><td><hr></td></tr>
-       <tr>
-         <td><button id="ar_servoing_setup" class='shave_acts' onclick="servo_setup();"+
-                                                                        "$(this).hide();"+
-                                                                        "$('#ar_servoing_done').show()"> Setup for Approach </button></td>
-       </tr><tr>
-         <td><button id="ar_servoing_done" class='shave_acts' type="button" onclick="$('#init_head_flag').show();+
-                                                                                     "$(this).hide();"+
-                                                                                     "$('.ar_servo_controls').hide()"> Approach Finished </button></td>
-       </tr><tr>
-        <td><button id="init_head_flag" class='shave_acts' type="button" onclick="window.img_act='init_head_cloud'; $('#freeze_cloud').show(); $(this).hide();">Initialize Head Model (Click Cheek)</button></td>
-       </tr><tr>
-         <td><button id="freeze_cloud" class='shave_acts' type="button" onclick="freeze_cloud(); $(this).hide(); $('#tp').hide(); $('#bpd2, #shave_select, #tool_power, #bpd2').show()">Freeze Pointcloud</button></td>
+       <tr><td>
+         <button id="ar_servoing_setup" class='shave_acts' onclick="servo_setup(); $(this).hide(); $('#ar_servoing_done').show(); $('.ar_servo_controls').show();"> Setup for Approach </button>
+         <button id="ar_servoing_done" class='shave_acts' type="button" onclick="$('#init_head_flag').show(); $(this).hide(); $('.ar_servo_controls').hide()"> Approach Finished </button>
+         <button id="init_head_flag" class='shave_acts' type="button" onclick="window.img_act='init_head_cloud'; $('#freeze_cloud').show(); $(this).hide();">Initialize Head Model (Click Cheek)</button>
+          <button id="freeze_cloud" class='shave_acts' type="button" onclick="freeze_cloud(); $(this).hide(); $('#tp').hide(); $('#bpd2, #shave_select, #tool_power, #bpd2, #shave').show()">Freeze Pointcloud</button>
+          <button id="shave" class='shave_acts' type="button" onclick="send_shave_location(-1);">Shave Now</button>
+          </td>
         </tr>
       <tr>
         <td>
@@ -796,18 +802,18 @@ width:100px;
         <tr>
           <td>
             <select id='shave_list'>
-              <option value=0>Near Ear</option>
-              <option value=1>Upper Cheek</option>
-              <option value=2>Middle Cheek</option>
-              <option value=3>Jaw</option>
-              <option value=4>Neck</option>
-              <option value=5>Nose</option>
-              <option value=6>Chin</option>
-              <option value=7>Corner of Mouth</option>
+              <option value=0>Neck</option>
+              <option value=1>Chin</option>
+              <option value=2>Jaw</option>
+              <option value=3>Middle Cheek</option>
+              <option value=4>Corner of Mouth</option>
+              <option value=5>Near Ear</option>
+              <option value=6>Nose</option>
+              <option value=7>Upper Cheek</option>
 	        </select>
           </td>
           </tr><tr>
-          <td><button id="send_shave_select" type="button" onclick="send_shave_location(document.getElementById('shave_list').selectedIndex)">Shave Selection</button></td>
+          <td><button id="send_shave_select" type="button" onclick="window.sm_selected_pose = document.getElementById('shave_list').selectedIndex; log('Sending Command to move to ' + document.getElementById('shave_list').options[window.sm_selected_pose].text); send_shave_location(window.sm_selected_pose)">Move to Selection</button></td>
 	    </tr>
 	</table>
   </div>  <!--End Shaving Drop-Down -->
