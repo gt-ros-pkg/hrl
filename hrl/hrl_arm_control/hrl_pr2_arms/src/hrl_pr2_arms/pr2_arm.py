@@ -204,10 +204,10 @@ class PR2ArmJointTrajectory(PR2Arm):
         self.ctrl_state_dict = {}
         rospy.Subscriber(self.controller_name + '/state', JointTrajectoryControllerState, 
                          self._ctrl_state_cb)
-        if not self.wait_for_ep(timeout):
+        if timeout > 0 and not self.wait_for_ep(timeout):
             rospy.logwarn("[pr2_arm] Timed out waiting for EP.")
         
-        if not self.joint_action_client.wait_for_server(rospy.Duration(timeout)):
+        if timeout > 0 and not self.joint_action_client.wait_for_server(rospy.Duration(timeout)):
             rospy.logwarn("[pr2_arm] JointTrajectoryAction action server timed out.")
 
     def _ctrl_state_cb(self, ctrl_state):
@@ -338,7 +338,7 @@ class PR2ArmJTranspose(PR2ArmCartesianPostureBase):
         self.ctrl_state_dict = {}
         rospy.Subscriber(self.controller_name + '/state', JTCartesianControllerState, 
                          self._ctrl_state_cb)
-        if not self.wait_for_ep(timeout):
+        if timeout > 0 and not self.wait_for_ep(timeout):
             rospy.logwarn("[pr2_arm] Timed out waiting for EP.")
 
     def _ctrl_state_cb(self, ctrl_state):
@@ -374,7 +374,7 @@ class PR2ArmJTransposeTask(PR2ArmCartesianPostureBase):
         self.ctrl_state_dict = {}
         rospy.Subscriber(self.controller_name + '/state', JTTaskControllerState, 
                          self._ctrl_state_cb)
-        if not self.wait_for_ep(timeout):
+        if timeout > 0 and not self.wait_for_ep(timeout):
             rospy.logwarn("[pr2_arm] Timed out waiting for EP.")
 
     def _ctrl_state_cb(self, ctrl_state):
