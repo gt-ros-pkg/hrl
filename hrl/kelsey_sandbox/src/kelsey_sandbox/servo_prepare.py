@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import numpy as np
+import sys
 
 import roslib
 roslib.load_manifest('hrl_pr2_arms')
@@ -32,7 +33,12 @@ def setup_servoing_arms(msg):
 
 def main():
     rospy.init_node("servo_prepare")
-    rospy.Subscriber("/pr2_ar_servo/arms_setup", Bool, setup_servoing_arms)
+    if len(sys.argv) < 2:
+        print "-s for server, -p for play"
+    if sys.argv[1] == "-s":
+        rospy.Subscriber("/pr2_ar_servo/arms_setup", Bool, setup_servoing_arms)
+    if sys.argv[1] == "-p":
+        setup_servoing_arms(None)
     rospy.spin()
 
 if __name__ == "__main__":
