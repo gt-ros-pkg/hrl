@@ -139,6 +139,8 @@ class Boundary : public std::vector<cv::Point>
   std::vector<pcl::PointXYZ> points3D;
   int object_id;
   double ort;
+  bool external;
+  bool too_short;
 };
 
 class ProtoTabletopObject
@@ -1146,6 +1148,18 @@ class ObjectSingulation
       ++callback_count_;
       return push_vector;
     }
+
+#ifdef DEBUG_PUSH_HISTORY
+    //drawObjectHists(obj_lbl_img, cur_proto_objs_);
+    drawObjectHists(color_img, cur_proto_objs_);
+#endif // DEBUG_PUSH_HISTORY
+#ifdef DISPLAY_3D_BOUNDARIES
+    if (use_displays_ || write_to_disk_)
+    {
+      draw3DBoundaries(boundaries, color_img, objs.size());
+    }
+#endif // DISPLAY_3D_BOUNDARIES
+
     return push_vector;
   }
 
@@ -1424,11 +1438,10 @@ class ObjectSingulation
 
     get3DBoundaries(boundaries, cloud);
     associate3DBoundaries(boundaries, objs, obj_lbl_img);
-
 #ifdef DISPLAY_3D_BOUNDARIES
     if (use_displays_ || write_to_disk_)
     {
-      draw3DBoundaries(boundaries, obj_lbl_img, objs.size());
+      // draw3DBoundaries(boundaries, obj_lbl_img, objs.size(), true);
     }
 #endif // DISPLAY_3D_BOUNDARIES
 
@@ -1449,9 +1462,6 @@ class ObjectSingulation
     const int push_idx = quantizeAngle(test_boundary.ort);
     cur_proto_objs_[push.object_id].push_history[push_idx]++;
 
-#ifdef DEBUG_PUSH_HISTORY
-    drawObjectHists(obj_lbl_img, cur_proto_objs_);
-#endif // DEBUG_PUSH_HISTORY
     ROS_INFO_STREAM("Chose to push object: " << push.object_id);
     ROS_INFO_STREAM("Push angle is : " << push.push_angle);
     ROS_INFO_STREAM("Push angle is in bin : " << push_idx);
@@ -1649,12 +1659,15 @@ class ObjectSingulation
       }
       else
       {
+        boundaries[b].object_id = max_id;
         // Don't add short boundaries
         if (boundaries[b].points3D.size() >= min_boundary_length_)
         {
+          boundaries[b].too_short = false;
           ProtoObjects pos = splitObject3D(boundaries[b], objs[max_id]);
           const unsigned int s0 = pos[0].cloud.size();
           const unsigned int s1 = pos[1].cloud.size();
+          // TODO: Need to fix this
           // NOTE: Don't add external object boundaries
           if (s0 > min_cluster_size_ && s1 > min_cluster_size_)
           {
@@ -1662,8 +1675,17 @@ class ObjectSingulation
                 boundaries[b], objs[max_id].transform);
             int angle_idx = quantizeAngle(boundaries[b].ort);
             objs[max_id].boundary_angle_dist[angle_idx]++;
-            boundaries[b].object_id = max_id;
+            boundaries[b].external = false;
           }
+          else
+          {
+            boundaries[b].external = true;
+          }
+        }
+        else
+        {
+          boundaries[b].too_short = true;
+          boundaries[b].external = false;
         }
       }
     }
@@ -1751,6 +1773,8 @@ class ObjectSingulation
       cloud.at(i) = b.points3D[i];
       cloud.at(i).z = 0;
     }
+    // TODO: Check magnitude of the edge points
+    // TODO: Handle vertical edge
 
     pcl::ModelCoefficients c;
     pcl::PointIndices line_inliers;
@@ -1788,7 +1812,7 @@ class ObjectSingulation
     {
       // Ignore small boundaries or those not on objects
       if (boundaries[b].object_id == objs.size() ||
-          boundaries[b].points3D.size() < 3 || boundaries[b].object_id < 0)
+          boundaries[b].external || boundaries[b].too_short)
       {
         continue;
       }
@@ -2146,40 +2170,81 @@ class ObjectSingulation
     cv::imshow(title, obj_disp_img);
   }
 
-  void draw3DBoundaries(std::vector<Boundary> boundaries, cv::Mat& obj_img,
-                        unsigned int objs_size)
+  void draw3DBoundaries(std::vector<Boundary> boundaries, cv::Mat& img,
+                        unsigned int objs_size, bool is_obj_img=false)
   {
-    cv::Mat obj_disp_img(obj_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    cv::Mat disp_img(img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
 
-    for (int r = 0; r < obj_img.rows; ++r)
+    if (is_obj_img)
     {
-      for (int c = 0; c < obj_img.cols; ++c)
+      for (int r = 0; r < img.rows; ++r)
       {
-        unsigned int id = obj_img.at<uchar>(r,c);
-        if (id > 0)
+        for (int c = 0; c < img.cols; ++c)
         {
-          obj_disp_img.at<cv::Vec3f>(r,c) = pcl_segmenter_->colors_[id-1];
+          unsigned int id = img.at<uchar>(r,c);
+          if (id > 0)
+          {
+            disp_img.at<cv::Vec3f>(r,c) = pcl_segmenter_->colors_[id-1];
+          }
         }
       }
     }
-    cv::Vec3f green(0.0, 1.0, 0.0);
-    cv::Vec3f red(0.0, 0.0, 1.0);
+    else
+    {
+      if (img.type() == CV_32FC3)
+      {
+        img.copyTo(disp_img);
+      }
+      else if (img.type() == CV_8UC3)
+      {
+        img.convertTo(disp_img, CV_32FC3, 1.0/255.0);
+      }
+      else if (img.type() == CV_32FC1)
+      {
+        cv::cvtColor(img, disp_img, CV_GRAY2BGR);
+      }
+      else if (img.type() == CV_8UC3)
+      {
+        cv::Mat tmp_img;
+        img.convertTo(tmp_img, CV_32FC1, 1.0/255.0);
+        cv::cvtColor(tmp_img, disp_img, CV_GRAY2BGR);
+      }
+    }
+    cv::Vec3f no_obj(0.0, 0.0, 1.0);
+    cv::Vec3f short_col(1.0, 0.0, 0.0);
+    cv::Vec3f good(0.0, 1.0, 0.0);
+    cv::Vec3f external(0.0, 1.0, 1.0);
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
       cv::Vec3f color;
-      if( boundaries[b].object_id < objs_size)
-        color = green;
+      if (boundaries[b].object_id < objs_size)
+      {
+        if (boundaries[b].too_short)
+        {
+          color = short_col;
+        }
+        else if (boundaries[b].external)
+        {
+          color = external;
+        }
+        else
+        {
+          color = good;
+        }
+      }
       else
-        color = red;
+      {
+        color = no_obj;
+      }
       for (unsigned int i = 0; i < boundaries[b].size(); ++i)
       {
-        obj_disp_img.at<cv::Vec3f>(boundaries[b][i].y,
+        disp_img.at<cv::Vec3f>(boundaries[b][i].y,
                                    boundaries[b][i].x) = color;
       }
     }
     if (use_displays_)
     {
-      cv::imshow("3D boundaries", obj_disp_img);
+      cv::imshow("3D boundaries", disp_img);
     }
     if (write_to_disk_)
     {
@@ -2187,8 +2252,8 @@ class ObjectSingulation
       std::stringstream bound_out_name;
       bound_out_name << base_output_path_ << "bound3D" << callback_count_
                    << ".tiff";
-      cv::Mat bound_out_img(obj_disp_img.size(), CV_8UC3);
-      obj_disp_img.convertTo(bound_out_img, CV_8UC3, 255);
+      cv::Mat bound_out_img(disp_img.size(), CV_8UC3);
+      disp_img.convertTo(bound_out_img, CV_8UC3, 255);
       cv::imwrite(bound_out_name.str(), bound_out_img);
     }
   }
@@ -2283,20 +2348,28 @@ class ObjectSingulation
     return next_id_++;
   }
 
-  void drawObjectHists(cv::Mat& img, ProtoObjects& objs)
+  void drawObjectHists(cv::Mat& img, ProtoObjects& objs, bool is_obj_img=false)
   {
     cv::Mat disp_img(img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
-    for (int r = 0; r < img.rows; ++r)
+    if (is_obj_img)
     {
-      for (int c = 0; c < img.cols; ++c)
+      for (int r = 0; r < img.rows; ++r)
       {
-        unsigned int id = img.at<uchar>(r,c);
-        if (id > 0)
+        for (int c = 0; c < img.cols; ++c)
         {
-          disp_img.at<cv::Vec3f>(r,c) = pcl_segmenter_->colors_[id-1];
+          unsigned int id = img.at<uchar>(r,c);
+          if (id > 0)
+          {
+            disp_img.at<cv::Vec3f>(r,c) = pcl_segmenter_->colors_[id-1];
+          }
         }
       }
     }
+    else
+    {
+      img.convertTo(disp_img, CV_32FC3, 1.0/255.0);
+    }
+
     cv::Mat disp_img_hist;
     disp_img.copyTo(disp_img_hist);
     const Eigen::Vector4f x_axis(0.1, 0.0, 0.0, 1.0);
@@ -2351,8 +2424,10 @@ class ObjectSingulation
   void drawSemicircleHist(std::vector<int>& hist, cv::Mat& disp_img,
                           const cv::Point center, int w, int h,
                           const cv::Scalar line_color,
-                          const cv::Scalar fill_color, const float start_rot)
+                          const cv::Scalar fill_color, const float start_rot,
+                          bool narrow_bins = false)
   {
+    const float narrow_rad = 6.0;
     int half_circ = w*hist.size();
     const int r0 = half_circ/M_PI;
     const cv::Size s0(r0, r0);
@@ -2376,12 +2451,18 @@ class ObjectSingulation
         int d_y = h * hist[hist.size()-i-1] / hist_max;
         const int r1 = r0+d_y;
         const cv::Size s1(r1, r1);
-        // cv::ellipse(disp_img, center, s1, rot, 0.0, angle_inc, line_color);
         std::vector<cv::Point> out_arc_pts;
-        cv::ellipse2Poly(center, s1, rot, 0.0, angle_inc, deg_precision,
+        float start_angle = 0.0;
+        float end_angle = angle_inc;
+        if (narrow_bins)
+        {
+          start_angle += narrow_rad;
+          end_angle -= narrow_rad;
+        }
+        cv::ellipse2Poly(center, s1, rot, start_angle, end_angle, deg_precision,
                          out_arc_pts);
         std::vector<cv::Point> in_arc_pts;
-        cv::ellipse2Poly(center, s0, rot, 0.0, angle_inc, deg_precision,
+        cv::ellipse2Poly(center, s0, rot, start_angle, end_angle, deg_precision,
                          in_arc_pts);
         std::vector<cv::Point> poly_vect;
         for (unsigned int j = 0; j < in_arc_pts.size(); ++j)
@@ -2403,9 +2484,6 @@ class ObjectSingulation
         // fill bin
         cv::fillPoly(disp_img, pts, npts, 1, fill_color);
         delete poly;
-        // Draw bin edge lines
-        // cv::line(disp_img, in_arc_pts.front(), out_arc_pts.front(), line_color);
-        // cv::line(disp_img, in_arc_pts.back(), out_arc_pts.back(), line_color);
       }
       rot += angle_inc;
     }
@@ -2421,12 +2499,21 @@ class ObjectSingulation
         int d_y = h * hist[hist.size()-i-1] / hist_max;
         const int r1 = r0+d_y;
         const cv::Size s1(r1, r1);
-        cv::ellipse(disp_img, center, s1, rot, 0.0, angle_inc, line_color);
+        float start_angle = 0.0;
+        float end_angle = angle_inc;
+        if (narrow_bins)
+        {
+          start_angle += narrow_rad;
+          end_angle -= narrow_rad;
+        }
+
+        cv::ellipse(disp_img, center, s1, rot, start_angle, end_angle,
+                    line_color);
         std::vector<cv::Point> out_arc_pts;
-        cv::ellipse2Poly(center, s1, rot, 0.0, angle_inc, deg_precision,
+        cv::ellipse2Poly(center, s1, rot, start_angle, end_angle, deg_precision,
                          out_arc_pts);
         std::vector<cv::Point> in_arc_pts;
-        cv::ellipse2Poly(center, s0, rot, 0.0, angle_inc, deg_precision,
+        cv::ellipse2Poly(center, s0, rot, start_angle, end_angle, deg_precision,
                          in_arc_pts);
         // Draw bin edge lines
         cv::line(disp_img, in_arc_pts.front(), out_arc_pts.front(), line_color);
