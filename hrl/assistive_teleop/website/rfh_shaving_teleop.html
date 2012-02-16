@@ -188,12 +188,15 @@ function init_publishers() {
     node.publish('wt_ft_goal', 'std_msgs/Float32', json({}))
     
     //Shaving Publishers
-    node.publish('wt_disc_shaving_step', 'std_msgs/Int8', json({}));
-    node.publish('wt_cont_shaving_step', 'geometry_msgs/Point', json({}));
+    node.publish('wt_shave_step', 'geometry_msgs/Point', json({}));
     node.publish('wt_shave_location', 'std_msgs/Int8', json({}));
     node.publish('reg_confirm', 'std_msgs/Bool', json({}))
     node.publish('ros_switch', 'std_msgs/Bool', json({}));
     node.publish('init_head', 'geometry_msgs/PoseStamped', json({}));
+    node.publish('pr2_ar_servo/arms_setup', 'std_msgs/Bool', json({}));
+    node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({}));
+    node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({}));
+    node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({}));
 
 };
 
@@ -333,19 +336,22 @@ function control_arm(x,y,z){
 };
 
 function pub_gripper(arm,grpos) {
-	node.publish('wt_'+arm+'_gripper_commands',
+	//node.publish('wt_'+arm+'_gripper_commands',
+	node.publish(arm+'_gripper_controller/command',
                  'pr2_controllers_msgs/Pr2GripperCommand',
                  json({'position': grpos ,'max_effort':-1}));
 };
 
 function gripper_grab(arm){
-    node.publish('wt_'+arm+'_gripper_grab_commands', 'std_msgs/Bool',
-                json({'data':true}));
+    pub_gripper(arm,0.0);
+    //node.publish('wt_'+arm+'_gripper_grab_commands', 'std_msgs/Bool',
+    //            json({'data':true}));
 };
 
 function gripper_release(arm){
-    node.publish('wt_'+arm+'_gripper_release_commands', 'std_msgs/Bool',
-                json({'data':true}));
+    pub_gripper(arm,0.09);
+    //node.publish('wt_'+arm+'_gripper_release_commands', 'std_msgs/Bool',
+    //            json({'data':true}));
 };
 
 function teleop_arm() {
@@ -691,7 +697,7 @@ function servo_preempt(){
 };
 
 function servo_setup(){
-    //node.rosjs.callService('pr2_ar_servo/arms_setup', [json({'data':true})], function(resp){})
+    node.publish('pr2_ar_servo/arms_setup','std_msgs/Bool', json({'data':true}));
 };
 
 function play_trajectory(traj){
