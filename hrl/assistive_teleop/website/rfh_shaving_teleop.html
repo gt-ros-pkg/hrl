@@ -192,7 +192,6 @@ function init_publishers() {
     node.publish('wt_shave_location', 'std_msgs/Int8', json({}));
     node.publish('reg_confirm', 'std_msgs/Bool', json({}))
     node.publish('ros_switch', 'std_msgs/Bool', json({}));
-    node.publish('init_head', 'geometry_msgs/PoseStamped', json({}));
     node.publish('pr2_ar_servo/arms_setup', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({}));
@@ -274,10 +273,6 @@ function determine_p23d_response(point_3d){
         case 'head_nav_goal':
                 log("Sending navigation seed position");
                 node.publish('head_nav_goal', 'geometry_msgs/PoseStamped', json(point_3d));
-                break
-        case 'init_head_cloud':
-                log("Sending Initial Position for Head Model");
-                node.publish('init_head', 'geometry_msgs/PoseStamped', json(point_3d));
                 break
         case 'norm_approach':
             log('Sending '+window.arm().toUpperCase()+ ' Arm Normal Approach Command')
@@ -645,10 +640,46 @@ function toggle_motors(command) { //command = 'halt' or 'reset'
 	node.rosjs.callService('/pr2_etherCAT/'+command+'_motors', json(''), nop);
 };
 
-function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+':8080/?topic=/'+cam+'?width=640?height=480'
+function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+':8080/?topic=/'+cam+'?width=640?height=480'};
+
+function servo_setup(){
+    node.publish('pr2_ar_servo/arms_setup','std_msgs/Bool', json({'data':true}));
+};
+
+function servo_detect_tag(){
+    node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({'data':true}));
+};
+
+function servo_confirm_tag(){
+    node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({'data':true}));
+};
+
+function servo_preempt(){
+    node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({'data':true}));
+};
+
+function freeze_cloud() {
+    node.publish('reg_confirm', 'std_msgs/Bool', json({'data':true}));
+    log("Sending command to freeze head pointcloud")
+};
+
+function confirm_registration() {
+    node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({'data':true}));
+    log("Sending command to prepare for shaving.")
+};
+
+function shave_step(x,y,z) {points = window.gm_point;
+                        points.x = x; points.y = y; points.z = z;
+                        node.publish('/wt_shave_step', 'geometry_msgs/Point', json(points));
+                        log("Sending Adjustment to Shaving Position");
+};
+
+function send_shave_location(num) {node.publish('wt_shave_location', 'std_msgs/Int8', json({'data':num}));
+                                   log("Sending New Shave Position: "+ document.getElementById('shave_list').options[window.sm_selected_pose].text);
+};
+
 //if (cam=='/arrow_overlaid'){window.pointing_frame='openni_rgb_optical_frame';}
 //else if (cam=='/wide_stereo/right/image_color'){window.pointing_frame='wide_stereo_optical_frame';}
-};
 
 //function shave(dir) {node.publish('wt_disc_shaving_step', 'std_msgs/Int8', json({'data':dir}));
 //                    log("Sending Next Shaving Position");
@@ -664,57 +695,10 @@ function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+'
 //                                 log("Sending New Shave Position: "+num.toString());
 //};
 
-function shave_step(x,y,z) {points = window.gm_point;
-                        points.x = x; points.y = y; points.z = z;
-                        node.publish('/wt_shave_step', 'geometry_msgs/Point', json(points));
-                        log("Sending Adjustment to Shaving Position");
-};
-
-function send_shave_location(num) {node.publish('wt_shave_location', 'std_msgs/Int8', json({'data':num}));
-                                   log("Sending New Shave Position: "+ document.getElementById('shave_list').options[window.sm_selected_pose].text);
-};
-
-function freeze_cloud() {node.publish('reg_confirm', 'std_msgs/Bool', json({'data':true}))
-                        log("Sending command to freeze head pointcloud")
-};
-
 function toggle_tool_power() {
     state = !window.tool_state;
     node.publish('ros_switch', 'std_msgs/Bool', json({'data':state}));
     log("Sending Tool Power Toggle");
-};
-
-function servo_detect_tag(){
-    node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({'data':true}));
-};
-
-function servo_confirm_tag(){
-    node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({'data':true}));
-};
-
-function servo_preempt(){
-    node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({'data':true}));
-};
-
-function servo_setup(){
-    node.publish('pr2_ar_servo/arms_setup','std_msgs/Bool', json({'data':true}));
-};
-
-function play_trajectory(traj){
-    switch(traj){
-        case 'untuck left arm':
-            node.rosjs.callService('/l_untuck_arm/play_traj', [json({'data':true})], function(resp){});
-           break;
-        case 'untuck right arm':
-            node.rosjs.callService('/l_untuck_arm/play_traj', [json({'data':true})], function(resp){});
-            break;
-        case 'untuck right arm':
-            node.rosjs.callService('/l_untuck_arm/play_traj', [json({'data':true})], function(resp){});
-            break;
-        case 'untuck right arm':
-            node.rosjs.callService('/l_untuck_arm/play_traj', [json({'data':true})], function(resp){});
-            break;
-    };
 };
 
 function start(){
@@ -789,15 +773,15 @@ width:100px;
         <tr>
           <td>
             <button id="shave_start" class='act_menu' type="button" onclick="$('#shave_end, #ar_servoing_setup').show(); $(this).hide(); ">Shave</button>
-            <button id="shave_end" class='act_menu' type="button" onclick="$('#bpd2, #shave_select, #freeze_cloud, #init_head_flag, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave').hide(); $('#tp, #shave_start').show();$(this).hide()">End Shaving</button>
+            <button id="shave_end" class='act_menu' type="button" onclick="$('#bpd2, #shave_select, #freeze_cloud, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave').hide(); $('#tp, #shave_start').show();$(this).hide()">End Shaving</button>
           </td>
        </tr>
        <tr><td><hr></td></tr>
        <tr><td>
          <button id="ar_servoing_setup" class='shave_acts' onclick="servo_setup(); $(this).hide(); $('#ar_servoing_done').show(); $('.ar_servo_controls').show();"> Setup for Approach </button>
-         <button id="ar_servoing_done" class='shave_acts' type="button" onclick="$('#init_head_flag').show(); $(this).hide(); $('.ar_servo_controls').hide()"> Approach Finished </button>
-         <button id="init_head_flag" class='shave_acts' type="button" onclick="window.img_act='init_head_cloud'; $('#freeze_cloud').show(); $(this).hide();">Initialize Head Model (Click Cheek)</button>
-          <button id="freeze_cloud" class='shave_acts' type="button" onclick="freeze_cloud(); $(this).hide(); $('#tp').hide(); $('#bpd2, #shave_select, #tool_power, #bpd2, #shave').show()">Freeze Pointcloud</button>
+         <button id="ar_servoing_done" class='shave_acts' type="button" onclick="$('#freeze_cloud').show(); $(this).hide(); $('.ar_servo_controls').hide()"> Approach Finished </button>
+          <button id="freeze_cloud" class='shave_acts' type="button" onclick="freeze_cloud(); $(this).hide(); $('#reg_confirm').show();"> Freeze Pointcloud</button>
+          <button id="reg_confirm" class='shave_acts' type="button" style="height:120" onclick="confirm_registration(); $(this).hide(); $('#tp').hide(); $('#bpd2, #shave_select, #tool_power, #bpd2, #shave').show()"> Confirm Registration (Raise Torso and Untuck Arms) </button>
           <button id="shave" class='shave_acts' type="button" onclick="send_shave_location(-1);">Shave Now</button>
           </td>
         </tr>
