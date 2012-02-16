@@ -61,7 +61,7 @@
     </group>
     -->
 
-    <!-- Bring up intermediary for handling arm movements, one for each arm -->
+    <!-- Bring up intermediary for handling arm movements, one for each arm 
     <node
         name="wt_left_arm"
         pkg="assistive_teleop"
@@ -76,6 +76,7 @@
         args="right"
         output="screen"
         machine="c2"/>
+    -->
 
     <!-- Launch Image Rotation Nodes for forearm cameras-->
     <node
