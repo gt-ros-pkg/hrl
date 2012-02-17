@@ -489,14 +489,51 @@ class PointCloudSegmentation
   {
     for (unsigned int i = 0; i < cloud0.size(); ++i)
     {
-      pcl::PointXYZ pt0 = cloud0.at(i);
+      const pcl::PointXYZ pt0 = cloud0.at(i);
       for (unsigned int j = 0; j < cloud1.size(); ++j)
       {
-        pcl::PointXYZ pt1 = cloud1.at(j);
+        const pcl::PointXYZ pt1 = cloud1.at(j);
         if (dist(pt0, pt1) < cloud_intersect_thresh_) return true;
       }
     }
     return false;
+  }
+
+  float pointLineXYDist(pcl::PointXYZ p,Eigen::Vector3f vec,Eigen::Vector4f base)
+  {
+    Eigen::Vector3f x0(p.x,p.y,0.0);
+    Eigen::Vector3f x1(base[0],base[1],0.0);
+    Eigen::Vector3f x2 = x1+vec;
+    Eigen::Vector3f num = (x0 - x1);
+    num = num.cross(x0 - x2);
+    Eigen::Vector3f den = x2 - x1;
+    float d = num.norm()/den.norm();
+    return d;
+  }
+
+  XYZPointCloud lineCloudIntersection(XYZPointCloud& cloud, Eigen::Vector3f vec,
+                                        Eigen::Vector4f base)
+  {
+    // TODO: Define parametric model of the line defined by base and vec and
+    // test cloud memebers for distance from the line, if the distance is less
+    // than epsilon say it intersects and add to the output set.
+    pcl::PointIndices line_inliers;
+    for (unsigned int i = 0; i < cloud.size(); ++i)
+    {
+      const pcl::PointXYZ pt = cloud.at(i);
+      if (pointLineXYDist(pt, vec, base) < cloud_intersect_thresh_)
+      {
+        line_inliers.indices.push_back(i);
+      }
+    }
+
+    // Extract the interesecting points of the line.
+    XYZPointCloud line_cloud;
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    extract.setInputCloud(cloud.makeShared());
+    extract.setIndices(boost::make_shared<pcl::PointIndices>(line_inliers));
+    extract.filter(line_cloud);
+    return line_cloud;
   }
 
   /**
@@ -1495,12 +1532,11 @@ class ObjectSingulation
     // Need to transform this into the world frame
     float push_angle = getWorldFrameAngleFromObjFrame(
         boundary.ort, objs[boundary.object_id].transform);
-    ROS_INFO_STREAM("push_angle sent to getPushDir(): " << push_angle);
-    PushVector push_pose = getPushDirection(push_dist, push_angle,
-                                            split_objs3D[0],
-                                            split_objs3D[1], objs,
-                                            boundary.object_id,
-                                            obj_lbl_img);
+    PushVector push_pose = determinePushDirection(push_dist, push_angle,
+                                                  split_objs3D[0],
+                                                  split_objs3D[1], objs,
+                                                  boundary.object_id,
+                                                  obj_lbl_img);
     push_pose.header.frame_id = workspace_frame_;
     push_pose.object_id = boundary.object_id;
     return push_pose;
@@ -1773,7 +1809,8 @@ class ObjectSingulation
       cloud.at(i) = b.points3D[i];
       cloud.at(i).z = 0;
     }
-    // TODO: Check magnitude of the edge points
+    // TODO: Check magnitude of the edge points in resultant model
+    // TODO: Examine fitness
     // TODO: Handle vertical edge
 
     pcl::ModelCoefficients c;
@@ -1871,12 +1908,12 @@ class ObjectSingulation
     return chosen_id;
   }
 
-  PushVector getPushDirection(double push_dist,
-                              double push_angle,
-                              ProtoTabletopObject& split0,
-                              ProtoTabletopObject& split1,
-                              ProtoObjects& objs, unsigned int id,
-                              cv::Mat& lbl_img)
+  PushVector determinePushDirection(double push_dist,
+                                    double push_angle,
+                                    ProtoTabletopObject& split0,
+                                    ProtoTabletopObject& split1,
+                                    ProtoObjects& objs, unsigned int id,
+                                    cv::Mat& lbl_img)
   {
     // TODO: Simulate end effector clearance
     double push_angle_pos = 0.0;
@@ -1932,10 +1969,43 @@ class ObjectSingulation
       push.no_push = true;
       return push;
     }
+    XYZPointCloud s0_int = pcl_segmenter_->lineCloudIntersection(
+        split0.cloud, push_vec_pos, split0.centroid);
+    XYZPointCloud s1_int = pcl_segmenter_->lineCloudIntersection(
+        split1.cloud, push_vec_pos, split1.centroid);
+
+    // TODO: Get startPoint
+
+    geometry_msgs::Point p;
+    if (max_id < 2)
+    {
+      if (s0_int.size() > 0)
+      {
+        p = determineStartPoint(s0_int, split_opts[max_id]);
+      }
+      else
+      {
+        p.x = split_opts[max_id].obj.centroid[0];
+        p.y = split_opts[max_id].obj.centroid[1];
+        p.z = split_opts[max_id].obj.centroid[2];
+      }
+    }
+    else
+    {
+      if (s1_int.size() > 0)
+      {
+        p = determineStartPoint(s1_int, split_opts[max_id]);
+      }
+      else
+      {
+        p.x = split_opts[max_id].obj.centroid[0];
+        p.y = split_opts[max_id].obj.centroid[1];
+        p.z = split_opts[max_id].obj.centroid[2];
+      }
+    }
+
     PushVector push;
-    push.start_point.x = split_opts[max_id].obj.centroid[0];
-    push.start_point.y = split_opts[max_id].obj.centroid[1];
-    push.start_point.z = split_opts[max_id].obj.centroid[2];
+    push.start_point = p;
     // push.push_angle = push_angle;
     push.push_angle = split_opts[max_id].push_angle;
     push.no_push = false;
@@ -1965,6 +2035,26 @@ class ObjectSingulation
         end_point);
     cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,0,1.0));
     cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,1.0,0));
+    // for (unsigned int i = 0; i < s0_int.size(); ++i)
+    // {
+    //   PointStamped pcl_pt;
+    //   pcl_pt.header.frame_id = workspace_frame_;
+    //   pcl_pt.point.x = s0_int.at(i).x;
+    //   pcl_pt.point.y = s0_int.at(i).y;
+    //   pcl_pt.point.z = s0_int.at(i).z;
+    //   cv::Point img_p = pcl_segmenter_->projectPointIntoImage(pcl_pt);
+    //   disp_img.at<cv::Vec3f>(img_p.y, img_p.x) = cv::Vec3f(1.0,1.0,0.0);
+    // }
+    // for (unsigned int i = 0; i < s1_int.size(); ++i)
+    // {
+    //   PointStamped pcl_pt;
+    //   pcl_pt.header.frame_id = workspace_frame_;
+    //   pcl_pt.point.x = s1_int.at(i).x;
+    //   pcl_pt.point.y = s1_int.at(i).y;
+    //   pcl_pt.point.z = s1_int.at(i).z;
+    //   cv::Point img_p = pcl_segmenter_->projectPointIntoImage(pcl_pt);
+    //   disp_img.at<cv::Vec3f>(img_p.y, img_p.x) = cv::Vec3f(1.0,0.0,1.0);
+    // }
     if (use_displays_)
     {
       cv::imshow("push_vector", disp_img);
@@ -1982,6 +2072,46 @@ class ObjectSingulation
 #endif // DISPLAY_PUSH_VECTOR
 
     return push;
+  }
+
+  geometry_msgs::Point determineStartPoint(XYZPointCloud& pts, PushOpt& opt)
+  {
+    unsigned int min_idx = pts.size();
+    unsigned int max_idx = pts.size();
+    float min_y = FLT_MAX;
+    float max_y = -FLT_MAX;
+    // TODO: Might want to care about y if angle is close to zero
+    for (unsigned int i = 0; i < pts.size(); ++i)
+    {
+      if (pts.at(i).y < min_y)
+      {
+        min_y = pts.at(i).y;
+        min_idx = i;
+      }
+      if (pts.at(i).y > max_y)
+      {
+        max_y = pts.at(i).y;
+        max_idx = i;
+      }
+    }
+
+    geometry_msgs::Point p;
+    // NOTE: greater than 0 implies right arm, pushing to the left, want right
+    // extreme, means min y value
+    if (opt.push_angle > 0)
+    {
+      p.x = pts.at(min_idx).x;
+      p.y = pts.at(min_idx).y;
+      p.z = pts.at(min_idx).z;
+    }
+    else
+    {
+      p.x = pts.at(max_idx).x;
+      p.y = pts.at(max_idx).y;
+      p.z = pts.at(max_idx).z;
+    }
+
+    return p;
   }
 
   /**
@@ -2030,7 +2160,6 @@ class ObjectSingulation
   {
     // Split the point clouds based on the half plane distance test
     pcl::PointIndices p1;
-    pcl::PointIndices p2;
     for (unsigned int i = 0; i < to_split.cloud.size(); ++i)
     {
       const pcl::PointXYZ x = to_split.cloud.at(i);
@@ -2040,13 +2169,7 @@ class ObjectSingulation
       {
         p1.indices.push_back(i);
       }
-      else
-      {
-        p2.indices.push_back(i);
-      }
     }
-    ROS_DEBUG_STREAM("split3D: P1 has " << p1.indices.size() << " points");
-    ROS_DEBUG_STREAM("split3D: P2 has " << p2.indices.size() << " points");
     // Extract indices
     ProtoObjects split;
     ProtoTabletopObject po1;
