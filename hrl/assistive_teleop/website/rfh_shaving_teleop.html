@@ -101,9 +101,9 @@ function init_subscribers() {
                     function(msg){
                         window.head_state = msg.actual;
                         window.head_joints = msg.joint_names;
-                        document.getElementById('head_pos_out').innerHTML='Head Position: Left/Right:\ \ ' + 
-                            Math.round(-window.head_state.positions[0]*180/Math.PI) + '\ deg.\ \ Up/Down:' + 
-                            Math.round(-window.head_state.positions[1]*180/Math.PI) + '\ deg.'
+                        //document.getElementById('head_pos_out').innerHTML='Head Position: Left/Right:\ \ ' + 
+                        //    Math.round(-window.head_state.positions[0]*180/Math.PI) + '\ deg.\ \ Up/Down:' + 
+                        //    Math.round(-window.head_state.positions[1]*180/Math.PI) + '\ deg.'
 			        });
 	node.subscribe('/r_gripper_controller_state_throttle',
                     function(msg){
@@ -135,7 +135,12 @@ function init_subscribers() {
                     window.tool_state=msg.data;
                   });
 	node.subscribe('/sm_selected_pose', function(msg){window.sm_selected_pose = msg.data});
+    node.subscribe('/pr2_ar_servo/state_feedback', function(msg){servo_feedback_cb(msg);});
 };//END sub_state
+
+function servo_feedback_cb(msg){
+    log(msg.data);
+};
 
 function init_publishers() {
 	//Gripper Publishers
@@ -185,25 +190,27 @@ function init_publishers() {
     //Assorted Publishers
     node.publish('base_controller/command', 'geometry_msgs/Twist',json({}));
     node.publish('text_to_say', 'std_msgs/String', json({}));
-	node.publish('torso_controller/position_joint_action/goal','pr2_controllers_msgs/SingleJointPositionActionGoal',json({}))
-    node.publish('wt_ft_goal', 'std_msgs/Float32', json({}))
+	node.publish('torso_controller/position_joint_action/goal','pr2_controllers_msgs/SingleJointPositionActionGoal',json({}));
+    node.publish('wt_ft_goal', 'std_msgs/Float32', json({}));
+    node.publish('wt_click_log', 'std_msgs/String', json({}));
     
     //Shaving Publishers
     node.publish('wt_shave_step', 'geometry_msgs/Point', json({}));
     node.publish('wt_shave_location', 'std_msgs/Int8', json({}));
-    node.publish('reg_confirm', 'std_msgs/Bool', json({}))
+    node.publish('reg_confirm', 'std_msgs/Bool', json({}));
     node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({}))
     node.publish('ros_switch', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/arms_setup', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({}));
+    node.publish('netft_gravity_zeroing/rezero_wrench', 'std_msgs/Bool', json({}));
 
 };
 
 function log_click(event){
-    //node.publish('wt_click_log', 'std_msgs/String', json(event.target.id));
-    log(event.target.id);
+    node.publish('wt_click_log', 'std_msgs/String', json({'data':event.target.id.toString()}));
+    //log(event.target.id);
 };
 
 function pub_ft_goal(thresh) {
@@ -357,6 +364,7 @@ function gripper_release(arm){
 };
 
 function teleop_arm() {
+	window.base_pub = window.clearInterval(base_pub);
 	var x,y,z,b9txt,b7txt;
 	if (plane == 'xy'){
         x=0;
@@ -427,6 +435,7 @@ function pub_arm_joints(angles){
 };
 
 function teleop_wrist() {
+	window.base_pub = window.clearInterval(base_pub);
     log('Controlling '+window.arm().toUpperCase()+' Hand');
     $('#slider').unbind("slidestop");
     $('#slider').bind("slidestop", function(event,ui){scales[window.arm()[0]+'wrist'] = $('#slider').slider("value")});
@@ -513,6 +522,7 @@ function pub_head_goal(x,y,z,frame) { //Send 3d point to look at using kinect
 };
 
 function teleop_head() {
+	window.base_pub = window.clearInterval(base_pub);
 	window.head_pub = window.clearInterval(head_pub);
 	log('Controlling Head');
 	$('#slider').unbind("slidestop");
@@ -671,7 +681,7 @@ function freeze_cloud() {
 };
 
 function confirm_registration() {
-    node.publish('having_reg_confirm', 'std_msgs/Bool', json({'data':true}));
+    node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({'data':true}));
     log("Sending command to prepare for shaving.")
 };
 
@@ -706,6 +716,11 @@ function toggle_tool_power() {
     state = !window.tool_state;
     node.publish('ros_switch', 'std_msgs/Bool', json({'data':state}));
     log("Sending Tool Power Toggle");
+};
+
+function rezero_wrench(){
+    node.publish('netft_gravity_zeroing/rezero_wrench','std_msgs/Bool',json({'data':true}));
+    log("Sending command to Re-zero Force/Torque Sensor");
 };
 
 function start(){
@@ -779,16 +794,16 @@ width:100px;
       <table>
         <tr>
           <td>
-            <button id="shave_start" class='act_menu' type="button" onclick="$('#shave_end, #ar_servoing_setup').show(); $(this).hide(); ">Shave</button>
-            <button id="shave_end" class='act_menu' type="button" onclick="$('#bpd2, #shave_select, #freeze_cloud, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave').hide(); $('#tp, #shave_start').show();$(this).hide()">End Shaving</button>
+            <button id="shave_start" class='act_menu' type="button" onclick="$('#shave_end, #ar_servoing_setup').show(); $(this).hide(); log('Opened Shaving Interface');">Shave</button>
+            <button id="shave_end" class='act_menu' type="button" onclick="$('#bpd2, #shave_select, #freeze_cloud, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave, #rezero_wrench').hide(); $('#tp, #shave_start').show();$(this).hide(); log('Closed Shaving Interface');">End Shaving</button>
           </td>
        </tr>
        <tr><td><hr></td></tr>
        <tr><td>
-         <button id="ar_servoing_setup" class='shave_acts' onclick="servo_setup(); $(this).hide(); $('#ar_servoing_done').show(); $('.ar_servo_controls').show();"> Setup for Approach </button>
-         <button id="ar_servoing_done" class='shave_acts' type="button" onclick="$('#freeze_cloud').show(); $(this).hide(); $('.ar_servo_controls').hide()"> Approach Finished </button>
-          <button id="freeze_cloud" class='shave_acts' type="button" onclick="freeze_cloud(); $(this).hide(); $('#reg_confirm').show();"> Freeze Pointcloud</button>
-          <button id="reg_confirm" class='shave_acts' type="button" style="height:120" onclick="confirm_registration(); $(this).hide(); $('#tp').hide(); $('#bpd2, #shave_select, #tool_power, #bpd2, #shave').show()"> Confirm Registration (Raise Torso and Untuck Arms) </button>
+         <button id="ar_servoing_setup" class='shave_acts' onclick="servo_setup(); $(this).hide(); $('#ar_servoing_done').show(); $('.ar_servo_controls').show(); log('Positioning arms to see AR Tag for servoing. USE BUTTONS TO PERFORM APPROACH');"> Setup for Approach </button>
+         <button id="ar_servoing_done" class='shave_acts' type="button" onclick="$('#freeze_cloud').show(); $(this).hide(); $('.ar_servo_controls').hide(); log('Approach Completed. PLACE HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD');"> Approach Finished </button>
+          <button id="freeze_cloud" class='shave_acts' type="button" onclick="freeze_cloud(); $(this).hide(); $('#reg_confirm').show(); log('USE R-VIZ TO FULLY ALIGN ELLIPSE, THEN CLICK CONFIRM.');"> Freeze Pointcloud</button>
+          <button id="reg_confirm" class='shave_acts' type="button" style="height:120" onclick="confirm_registration(); $(this).hide(); $('#tp').hide(); $('#bpd2, #shave_select, #tool_power, #bpd2, #shave, #rezero_wrench').show(); log('Untucking arms to begin shaving.');"> Confirm Registration (Raise Torso and Untuck Arms) </button>
           <button id="shave" class='shave_acts' type="button" onclick="send_shave_location(-1);">Shave Now</button>
           </td>
         </tr>
@@ -799,14 +814,22 @@ width:100px;
         <tr>
           <td>
             <select id='shave_list'>
-              <option value=0>Neck</option>
-              <option value=1>Chin</option>
-              <option value=2>Jaw</option>
-              <option value=3>Middle Cheek</option>
-              <option value=4>Corner of Mouth</option>
-              <option value=5>Near Ear</option>
-              <option value=6>Nose</option>
-              <option value=7>Upper Cheek</option>
+                  <option value=0>Chin</option>
+                  <option value=7>Nose</option>
+              <optgroup label="Left">
+                  <option value=1>Mid-Cheek</option>
+                  <option value=2>Near Ear</option>
+                  <option value=3>Jaw</option>
+                  <option value=4>Mouth</option>
+                  <option value=5>Neck</option>
+                  <option value=6>High Cheek</option>
+              <optgroup label="Right">
+                  <option value=8>Mid-Cheek</option>
+                  <option value=9>Near Ear</option>
+                  <option value=10>Jaw</option>
+                  <option value=11>Mouth</option>
+                  <option value=12>Neck</option>
+                  <option value=13>High Cheek</option>
 	        </select>
           </td>
           </tr><tr>
@@ -816,6 +839,9 @@ width:100px;
   </div>  <!--End Shaving Drop-Down -->
   </td></tr>
       <tr><td><button  class='shave_acts' id="tool_power" type="button" value="-1" onclick="toggle_tool_power()">Start/Stop Tool</button></td></tr>
+      <tr>
+        <td><button id="rezero_wrench" class='shave_acts' type='button' onclick="rezero_wrench()";>Zero FT Sensor</button>
+      </tr>
       </td>
       </table>
     <td>
@@ -861,7 +887,7 @@ width:100px;
 </table>
 <!-- ABANDONED BUTTONS: DRIVING AND ARM TUCKING -->
 
-<div id="head_pos_out"></div>
+<!--<div id="head_pos_out"></div>-->
 
 <table><tr><td> <!-- Begin Gross Formatting-->
 <div>
