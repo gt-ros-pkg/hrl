@@ -30,6 +30,7 @@ var torso_state;
 var pointing_frame='openni_rgb_optical_frame'
 
 $(function(){
+    $(':button').click(log_click);
 	$('#slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
 	$('#force_view').slider({value:0,range:'min',min:0,max:15,step:0.05,orientation:'vertical'}); 
 	$('#force_set').slider({value:1,min:0,max:15,step:0.05,orientation:'vertical'}); 
@@ -191,12 +192,18 @@ function init_publishers() {
     node.publish('wt_shave_step', 'geometry_msgs/Point', json({}));
     node.publish('wt_shave_location', 'std_msgs/Int8', json({}));
     node.publish('reg_confirm', 'std_msgs/Bool', json({}))
+    node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({}))
     node.publish('ros_switch', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/arms_setup', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({}));
 
+};
+
+function log_click(event){
+    //node.publish('wt_click_log', 'std_msgs/String', json(event.target.id));
+    log(event.target.id);
 };
 
 function pub_ft_goal(thresh) {
@@ -664,7 +671,7 @@ function freeze_cloud() {
 };
 
 function confirm_registration() {
-    node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({'data':true}));
+    node.publish('having_reg_confirm', 'std_msgs/Bool', json({'data':true}));
     log("Sending command to prepare for shaving.")
 };
 
