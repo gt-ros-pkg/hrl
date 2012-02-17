@@ -35,8 +35,6 @@ import roslib; roslib.load_manifest('tabletop_pushing')
 import rospy
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import TwistStamped
-# import rosdoc_rosorg
-# import JinvTeleopController
 import tf
 import tf.transformations as tf_trans
 import sys
@@ -46,22 +44,25 @@ class TestNode:
     def __init__(self):
        rospy.init_node('test_node', log_level=rospy.DEBUG)
 
-    def talk():
-        pub = rospy.Publish('command_pose', PoseStamped)
+    def talk(self):
+        # pub = rospy.Publisher('command', PoseStamped)
+        pub = rospy.Publisher('r_cart/command_pose', PoseStamped)
         rospy.loginfo('created the publisher obj')
         
-        pose = PostStamped()
-        pose.pose.position.x = 1
-        pose.pose.position.y = 1
+        pose = PoseStamped()
+        pose.header.frame_id = '/torso_lift_link'
+        pose.header.stamp = rospy.Time(0)
+        pose.pose.position.x = 0.5
+        pose.pose.position.y = 0.5
         pose.pose.position.z = 0
         
-        pub.publish(pose)
-        rospy.sleep(1.0) 
-
-    def run(self):
-        talk();
-
+        while not rospy.is_shutdown():
+            rospy.loginfo('Publishing following message: %s'%pose)
+            pub.publish(pose)
+            rospy.sleep(2.0) 
 
 if __name__ == '__main__':
-    node = TestNode()
-    node.run()
+    try:
+        node = TestNode()
+        node.talk()
+    except rospy.ROSInterruptException: pass
