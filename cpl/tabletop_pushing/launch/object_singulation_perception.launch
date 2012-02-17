@@ -51,7 +51,7 @@
 
     <param name="boundary_ransac_thresh" value="0.05" type="double"/>
     <param name="min_edge_length" value="4" type="int"/>
-    <param name="os_min_cluster_size" value="1" type="int"/>
+    <param name="os_min_cluster_size" value="5" type="int"/>
     <param name="os_min_boundary_length" value="4" type="int"/>
     <param name="os_hist_bin_width" value="5" type="int"/>
     <param name="os_hist_bin_height" value="15" type="int"/>
