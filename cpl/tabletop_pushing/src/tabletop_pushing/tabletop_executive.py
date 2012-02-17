@@ -54,22 +54,22 @@ class TabletopExecutive:
         # The offsets should be removed and learned implicitly
         rospy.init_node('tabletop_executive_node',log_level=rospy.DEBUG)
         self.gripper_push_dist = rospy.get_param('~gripper_push_dist',
-                                                 0.15)
+                                                 0.10)
         self.gripper_x_offset = rospy.get_param('~gripper_push_start_x_offset',
-                                                -0.03)
+                                                -0.05)
         self.gripper_y_offset = rospy.get_param('~gripper_push_start_x_offset',
                                                 0.0)
         self.gripper_start_z = rospy.get_param('~gripper_push_start_z',
-                                                -0.25)
+                                                -0.22)
 
         self.gripper_sweep_dist = rospy.get_param('~gripper_sweep_dist',
                                                  0.15)
         self.sweep_x_offset = rospy.get_param('~gripper_sweep_start_x_offset',
-                                              0.10)
+                                              -0.05)
         self.sweep_y_offset = rospy.get_param('~gripper_sweep_start_y_offset',
                                               0.10)
-        self.sweep_z_offset = rospy.get_param('~gripper_sweep_start_z_offset',
-                                              0.01)
+        self.sweep_start_z = rospy.get_param('~gripper_sweep_start_z',
+                                              -0.22)
 
         self.overhead_x_offset = rospy.get_param('~overhead_push_start_x_offset',
                                                  0.00)
@@ -144,7 +144,6 @@ class TabletopExecutive:
                 else:
                     which_arm = 'l'
                 # TODO: Make this a parameter
-                pose_res.start_point.z = -0.25
                 self.sweep_object(self.gripper_sweep_dist, which_arm, pose_res)
             if opt == 2:
                 if pose_res.push_angle > 0:
@@ -268,8 +267,14 @@ class TabletopExecutive:
         # TODO: Remove these offsets and incorporate them directly into the
         # perceptual inference
         # Offset pose to not hit the object immediately
+        rospy.loginfo('Gripper start before: (' +
+                      str(push_req.start_point.point.x) + ', ' +
+                      str(push_req.start_point.point.y) + ')')
         push_req.start_point.point.x += self.gripper_x_offset*cos(wrist_yaw)
         push_req.start_point.point.y += self.gripper_x_offset*sin(wrist_yaw)
+        rospy.loginfo('Gripper start after: (' +
+                      str(push_req.start_point.point.x) + ', ' +
+                      str(push_req.start_point.point.y) + ')')
         #push_req.start_point.point.z += self.gripper_z_offset
 
         push_req.left_arm = (which_arm == 'l')
@@ -304,21 +309,11 @@ class TabletopExecutive:
         # Set offset in x y, based on distance
         sweep_req.start_point.header = pose_res.header
         sweep_req.start_point.point = pose_res.start_point
-        sweep_req.start_point.point.x += y_offset_dir*self.sweep_y_offset*sin(wrist_yaw)
-        sweep_req.start_point.point.y += y_offset_dir*self.sweep_y_offset*cos(wrist_yaw)
-        sweep_req.start_point.point.z += self.sweep_z_offset
+        sweep_req.start_point.point.x += self.sweep_x_offset
+        sweep_req.start_point.point.y += y_offset_dir*self.sweep_y_offset
+        sweep_req.start_point.point.z = self.sweep_start_z
         sweep_req.arm_init = True
         sweep_req.arm_reset = True
-
-
-
-        # TODO: Remove these offsets and incorporate them directly into the perceptual inference
-        # Offset pose to not hit the object immediately
-        sweep_req.start_point.point.x += (self.sweep_x_offset*cos(wrist_yaw) +
-                                          self.sweep_y_offset*sin(wrist_yaw))
-        sweep_req.start_point.point.y += y_offset_dir*(
-            self.sweep_x_offset*sin(wrist_yaw) + self.sweep_y_offset*cos(wrist_yaw))
-        sweep_req.start_point.point.z += self.sweep_z_offset
 
         rospy.loginfo("Calling gripper pre sweep service")
         pre_sweep_res = self.gripper_pre_sweep_proxy(sweep_req)
