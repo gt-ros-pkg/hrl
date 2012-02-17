@@ -39,7 +39,7 @@ class FtHolder:
                 ft_active = rospy.Time.now()
             elif rospy.Time.now()-ft_active > goal.timeout:
                 result.timeout = True
-                self.hold_server.set_aborted(result, "Inactive for %ss, finished holding" %goal.timeout.secs)
+                self.hold_server.set_succeeded(result, "Inactive for %ss, finished holding" %goal.timeout.secs)
                 rospy.loginfo("Inactive for %ss, finished holding" %goal.timeout.secs)
                 break
             
