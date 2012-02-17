@@ -160,10 +160,12 @@ class ar_manipulation():
 
 
 	def put_back_tool_cb(self,msg):
-		duration=5.
+		duration=10.
 		self.arm = msg.data
 		self.switch_arm()
-
+		time.sleep(5.)	
+                self.arm_controller.wait_for_ep()
+	
 		if self.grasp_object:
 			rospy.logout("Putting back the object")
 			ep_cur = self.arm_controller.get_ep()
@@ -246,25 +248,26 @@ class ar_manipulation():
 	def fetch_tool(self, duration=5.):
 		rospy.logout("Moving the "+self.arm+" to fetch the object")
 		self.switch_arm()
+		time.sleep(5.)	
+#		raw_input("After switch")
                 self.arm_controller.wait_for_ep()
 		ep_cur = self.arm_controller.get_ep()
 		ep1 = copy.deepcopy(self.ar_ep)
 		ep1[0][2]=ep_cur[0][2]+.1
-                ep1[1] = np.mat(tf_trans.euler_matrix(0, np.pi/2, 0))[:3,:3]
 
-		self.epc_move_arm(self.arm_controller, ep_cur, ep1, 20)
+		self.epc_move_arm(self.arm_controller, ep_cur, ep1, 10)
 		self.gripper.Open(self.arm)
 		time.sleep(2.)
 
 		self.tool_ep = copy.deepcopy(self.ar_ep)
-                self.tool_ep[1] = np.mat(tf_trans.euler_matrix(0, np.pi/2, 0))[:3,:3]
+#                self.tool_ep[1] = np.mat(tf_trans.euler_matrix(0, np.pi/2, 0))[:3,:3]
 
 		# Kinect on Monty has not been calibrated!
 		#Offset due to Kinect error
-#		self.tool_ep[0][0]-= .05
-#		self.tool_ep[0][1]-= .02
-#		self.tool_ep[0][2]-= .03
-		self.tool_ep[0][2]-= .04
+		self.tool_ep[0][0]-= .02
+#		self.tool_ep[0][1]+= .02
+		self.tool_ep[0][2]+= .03
+#		self.tool_ep[0][2]-= .05
 
 		self.epc_move_arm(self.arm_controller, ep1, self.tool_ep, 15)
 		self.gripper.Close(self.arm)
