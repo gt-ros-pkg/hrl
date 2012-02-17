@@ -3,9 +3,10 @@
 import pickle
 import numpy as np
 
-import roslib; 
+import roslib
 roslib.load_manifest('smach')
 roslib.load_manifest('hrl_rfh_fall_2011')
+import roslib.substitution_args
 import rospy
 import smach
 from geometry_msgs.msg import Point 
@@ -22,26 +23,28 @@ class InputParser(smach.State):
         
         self.selection_out = rospy.Publisher('sm_selected_pose', Int8, latch=True)
         
+        path = roslib.substitution_args.resolve_args('$(find hrl_rfh_fall_2011)/data/bilateral_poses.pkl')
+        print path
         try: 
-            f = file('../../data/pickled_poses.pkl', 'r')
+            f = file(path, 'r')
             self.pose_dict = pickle.load(f)
             self.keys = sorted(self.pose_dict.keys())
             print self.keys
             print self.pose_dict
             f.close()
-	    rospy.loginfo("Succesfully loaded pose dict")
+            rospy.loginfo("Succesfully loaded pose dict")
         except:
             rospy.logwarn("Could Not Import Head-relative Poses! Global Move cannot succeed")
 
 
     def execute(self, userdata):
-	if isinstance(userdata.goal_location, type(Int8())):
+        if isinstance(userdata.goal_location, type(Int8())):
             userdata.goal_location.data
             if userdata.goal_location.data == -1: 
-		print "Shave!"
+                print "Shave!"
                 return 'shave'
             else:
-		print "Global Move!"
+                print "Global Move!"
                 self.selection_out.publish(userdata.goal_location.data)
                 userdata.goal_pose = self.pose_dict[self.keys[userdata.goal_location.data]]
                 print 'GLOBAL MOVE GOAL: ', self.pose_dict[self.keys[userdata.goal_location.data]]
@@ -62,7 +65,7 @@ class InputParser(smach.State):
             elif userdata.goal_location.z == -1:
                 return 'ell_in'
         else:
-	    print "Unrecognized data type"
+            print "Unrecognized data type"
 #class LocalInputParser(smach.State):
 #    def __init__(self):
 #        smach.State.__init__(self, outcomes=['ell_up', 'ell_down', 'ell_left', 

@@ -59,7 +59,8 @@ class SMRegistrationSetup(object):
 
             smach.StateMachine.add(
                 'SETUP_TASK_CONTROLLER',
-                SetupTaskController())
+                SetupTaskController(),
+                transitions = { 'succeeded' : 'HEAD_REG_ALL'})
 
         return sm
 

@@ -132,10 +132,10 @@ class EllipsoidController(object):
                 self.arm.reset_ep()
                 self.reset_ell_ep()
                 ell_f = np.where(abs_ep_sel, change_ep, self.ell_ep + change_ep)
-                if req.duration == 0:
+                if req.velocity == 0:
                     self.execute_trajectory(ell_f, req.gripper_rot)
                 else:
-                    self.execute_trajectory(ell_f, req.gripper_rot, req.duration)
+                    self.execute_trajectory(ell_f, req.gripper_rot, req.velocity)
                 self.ell_move_act.set_succeeded(EllipsoidMoveResult(*self.ell_ep))
 
     def _check_preempt(self, timer_event):
@@ -143,10 +143,8 @@ class EllipsoidController(object):
             self.ell_traj_behavior.stop_epc = True
             self.action_preempted = True
 
-    def execute_trajectory(self, ell_f, gripper_rot, duration=5.):
+    def execute_trajectory(self, ell_f, gripper_rot, velocity=0.001):
         ell_f[1] = np.mod(ell_f[1], 2 * np.pi)
-        num_samps = int(duration / self.time_step)
-        t_vals = min_jerk_traj(num_samps)
         self.arm.reset_ep()
         self.reset_ell_ep()
         ell_init = np.mat(self.ell_ep).T
@@ -158,6 +156,9 @@ class EllipsoidController(object):
             ell_final[1,0] -= 2 * np.pi
             print "wrapping; ell_f:", ell_f
         
+        num_samps = int(np.linalg.norm(ell_final - ell_init) / velocity)
+        num_samps = max(2, num_samps)
+        t_vals = min_jerk_traj(num_samps)
             
         print "init", ell_init, "final", ell_final
         ell_traj = np.array(ell_init) + np.array(np.tile(ell_final - ell_init, (1, num_samps))) * np.array(t_vals)
