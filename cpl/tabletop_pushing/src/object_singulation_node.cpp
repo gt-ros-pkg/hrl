@@ -1196,7 +1196,7 @@ class ObjectSingulation
       draw3DBoundaries(boundaries, color_img, objs.size());
     }
 #endif // DISPLAY_3D_BOUNDARIES
-
+    ++callback_count_;
     return push_vector;
   }
 
