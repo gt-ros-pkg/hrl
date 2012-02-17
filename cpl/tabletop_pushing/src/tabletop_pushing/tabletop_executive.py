@@ -65,19 +65,20 @@ class TabletopExecutive:
         self.gripper_sweep_dist = rospy.get_param('~gripper_sweep_dist',
                                                  0.15)
         self.sweep_x_offset = rospy.get_param('~gripper_sweep_start_x_offset',
-                                              -0.05)
+                                              -0.03)
         self.sweep_y_offset = rospy.get_param('~gripper_sweep_start_y_offset',
-                                              0.10)
+                                              0.05)
         self.sweep_start_z = rospy.get_param('~gripper_sweep_start_z',
                                               -0.22)
 
         self.overhead_x_offset = rospy.get_param('~overhead_push_start_x_offset',
-                                                 0.00)
+                                                 0.02)
         self.overhead_y_offset = rospy.get_param('~overhead_push_start_x_offset',
                                                  0.00)
-        self.overhead_z_offset = rospy.get_param('~overhead_push_start_z_offset',
-                                                 0.01)
-
+        self.overhead_start_z = rospy.get_param('~overhead_push_start_z',
+                                                 -0.23)
+        self.use_overhead_x_thresh = rospy.get_param('~use_overhead_x_thresh',
+                                                     0.5)
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
                                                      GripperPush)
@@ -119,22 +120,24 @@ class TabletopExecutive:
             if pose_res.no_push:
                 rospy.loginfo("No push. Exiting pushing.");
                 break
-            # TODO: Decide push based on the orientation returned
+            # Decide push based on the orientation returned
+            rospy.loginfo('Push start_point: (' + str(pose_res.start_point.x) +
+                          ', ' + str(pose_res.start_point.y) + ', ' +
+                          ', ' + str(pose_res.start_point.z) + ')')
             rospy.loginfo('Push angle: ' + str(pose_res.push_angle))
             if fabs(pose_res.push_angle) > pi*0.375:
                 opt = 1
             else:
-                # TODO: use overhead if the object is low-profile and straight
-                opt = 0
+                if pose_res.start_point.x < self.use_overhead_x_thresh:
+                    opt = 2
+                else:
+                    opt = 0
 
             if opt == 0:
                 if pose_res.push_angle > 0:
                     which_arm = 'r'
                 else:
                     which_arm = 'l'
-
-                # TODO: Make this a parameter
-                pose_res.start_point.z = self.gripper_start_z
                 self.gripper_push_object(self.gripper_push_dist, which_arm,
                                          pose_res)
             if opt == 1:
@@ -143,15 +146,12 @@ class TabletopExecutive:
                     which_arm = 'r'
                 else:
                     which_arm = 'l'
-                # TODO: Make this a parameter
                 self.sweep_object(self.gripper_sweep_dist, which_arm, pose_res)
             if opt == 2:
                 if pose_res.push_angle > 0:
                     which_arm = 'r'
                 else:
                     which_arm = 'l'
-                # TODO: Make this a parameter
-                pose_res.start_point.z = -0.25
                 self.overhead_push_object(self.gripper_push_dist, which_arm,
                                           pose_res)
         pose_res = self.get_num_objs()
@@ -258,25 +258,15 @@ class TabletopExecutive:
         push_req.arm_init = True
         push_req.arm_reset = True
 
-        # TODO: Use the sent wrist yaw
-        # wrist_yaw = 0.0 # 0.5*pi # 0.25*pi # -0.25*pi
+        # Use the sent wrist yaw
         wrist_yaw = pose_res.push_angle
         push_req.wrist_yaw = wrist_yaw
         push_req.desired_push_dist = push_dist
 
-        # TODO: Remove these offsets and incorporate them directly into the
-        # perceptual inference
         # Offset pose to not hit the object immediately
-        rospy.loginfo('Gripper start before: (' +
-                      str(push_req.start_point.point.x) + ', ' +
-                      str(push_req.start_point.point.y) + ')')
         push_req.start_point.point.x += self.gripper_x_offset*cos(wrist_yaw)
         push_req.start_point.point.y += self.gripper_x_offset*sin(wrist_yaw)
-        rospy.loginfo('Gripper start after: (' +
-                      str(push_req.start_point.point.x) + ', ' +
-                      str(push_req.start_point.point.y) + ')')
-        #push_req.start_point.point.z += self.gripper_z_offset
-
+        push_req.start_point.point.z = self.gripper_start_z
         push_req.left_arm = (which_arm == 'l')
         push_req.right_arm = not push_req.left_arm
 
@@ -330,29 +320,17 @@ class TabletopExecutive:
         push_req.arm_init = True
         push_req.arm_reset = True
 
-        # TODO: Correctly set the wrist yaw
-        # orientation = pose_res.push_pose.pose.orientation
-        # wrist_yaw = 0.0 # -0.25*pi
+        # Correctly set the wrist yaw
         wrist_yaw = pose_res.push_angle
         push_req.wrist_yaw = wrist_yaw
         push_req.desired_push_dist = push_dist
 
+        # Offset pose to not hit the object immediately
+        push_req.start_point.point.x += self.overhead_x_offset*cos(wrist_yaw)
+        push_req.start_point.point.y += self.overhead_x_offset*sin(wrist_yaw)
+        push_req.start_point.point.z = self.overhead_start_z
         push_req.left_arm = (which_arm == 'l')
         push_req.right_arm = not push_req.left_arm
-
-        if push_req.left_arm:
-            y_offset_dir = +1
-        else:
-            y_offset_dir = -1
-
-        # TODO: Remove these offsets and incorporate them directly into the perceptual inference
-        # Offset pose to not hit the object immediately
-        push_req.start_point.point.x += (self.overhead_x_offset*cos(wrist_yaw) +
-                                          self.overhead_y_offset*sin(wrist_yaw))
-        push_req.start_point.point.y += y_offset_dir*(
-            self.overhead_x_offset*sin(wrist_yaw) +
-            self.overhead_y_offset*cos(wrist_yaw))
-        push_req.start_point.point.z += self.overhead_z_offset
 
         rospy.loginfo("Calling pre overhead push service")
         pre_push_res = self.overhead_pre_push_proxy(push_req)
