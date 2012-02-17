@@ -35,6 +35,7 @@ import roslib; roslib.load_manifest('tabletop_pushing')
 import rospy
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import TwistStamped
+from geometry_msgs.msg import Twist
 import tf
 import tf.transformations as tf_trans
 import sys
@@ -46,19 +47,18 @@ class TestNode:
 
     def talk(self):
         # pub = rospy.Publisher('command', PoseStamped)
-        pub = rospy.Publisher('r_cart/command_pose', PoseStamped)
+        pub = rospy.Publisher('l_cart/command', Twist)
         rospy.loginfo('created the publisher obj')
         
-        pose = PoseStamped()
-        pose.header.frame_id = '/torso_lift_link'
-        pose.header.stamp = rospy.Time(0)
-        pose.pose.position.x = 0.3
-        pose.pose.position.y = -0.2
-        pose.pose.position.z = -0.20
-        pose.pose.orientation.x = 1
-        pose.pose.orientation.y = 0 
-        pose.pose.orientation.z = 0.
-        pose.pose.orientation.w = 0.
+        pose = Twist()
+        # pose.header.frame_id = '/torso_lift_link'
+        # pose.header.stamp = rospy.Time(0)
+        pose.linear.x = 0
+        pose.linear.y = 0
+        pose.linear.z = 0.0
+        pose.angular.x = 0.0
+        pose.angular.y = 0.4
+        pose.angular.z = 0.0
         while not rospy.is_shutdown():
             	rospy.loginfo('Publishing following message: %s'%pose)
             	pub.publish(pose)
