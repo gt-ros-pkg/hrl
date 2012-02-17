@@ -1933,8 +1933,6 @@ class ObjectSingulation
     const Eigen::Vector3f push_vec_neg(std::cos(push_angle_neg),
                                        std::sin(push_angle_neg), 0.0);
 
-    // Find the highest clearance push from the four possible combinations of
-    // split object and angles
     std::vector<PushOpt> split_opts;
     split_opts.push_back(PushOpt(split0, push_angle_pos, push_vec_pos, id,
                                  push_dist));
@@ -2006,7 +2004,6 @@ class ObjectSingulation
 
     PushVector push;
     push.start_point = p;
-    // push.push_angle = push_angle;
     push.push_angle = split_opts[max_id].push_angle;
     push.no_push = false;
 
@@ -2726,7 +2723,8 @@ class ObjectSingulationNode
     n_private_.param("display_wait_ms", display_wait_ms_, 3);
     n_private_.param("use_displays", use_displays_, false);
     os_->use_displays_ = use_displays_;
-    n_private_.param("write_to_disk", os_->write_to_disk_, false);
+    n_private_.param("write_to_disk", write_to_disk_, false);
+    os_->write_to_disk_ = write_to_disk_;
     n_private_.param("min_workspace_x", min_workspace_x_, 0.0);
     n_private_.param("min_workspace_y", min_workspace_y_, 0.0);
     n_private_.param("min_workspace_z", min_workspace_z_, 0.0);
@@ -2760,7 +2758,8 @@ class ObjectSingulationNode
     n_private_.param("os_hist_bin_width", os_->histogram_bin_width_, 5);
     n_private_.param("os_hist_bin_height", os_->histogram_bin_height_, 30);
     std::string output_path_def = "~";
-    n_private_.param("img_output_path", os_->base_output_path_, output_path_def);
+    n_private_.param("img_output_path", base_output_path_, output_path_def);
+    os_->base_output_path_ = base_output_path_;
 
     n_private_.param("min_table_z", pcl_segmenter_->min_table_z_, -0.5);
     n_private_.param("max_table_z", pcl_segmenter_->max_table_z_, 1.5);
@@ -2919,6 +2918,15 @@ class ObjectSingulationNode
     {
       cv::imshow("color", cur_color_frame_);
     }
+    // TODO: Way too much disk writing!
+    // if (write_to_disk_)
+    // {
+    //   std::stringstream color_out_name;
+    //   color_out_name << base_output_path_ << "video/input" << tracker_count_
+    //                  << ".tiff";
+    //   tracker_count_++;
+    //   cv::imwrite(color_out_name.str(), cur_color_frame_);
+    // }
 #endif // DISPLAY_INPUT_COLOR
 #ifdef DISPLAY_INPUT_DEPTH
     if (use_displays_)
@@ -2959,6 +2967,7 @@ class ObjectSingulationNode
     {
       if (req.initialize)
       {
+        tracker_count_ = 0;
         os_->unInitialize();
         os_->initialize(cur_color_frame_, cur_depth_frame_,
                         cur_point_cloud_, cur_workspace_mask_);
@@ -3157,6 +3166,8 @@ class ObjectSingulationNode
   int crop_max_y_;
   int display_wait_ms_;
   bool use_displays_;
+  bool write_to_disk_;
+  std::string base_output_path_;
   double min_workspace_x_;
   double max_workspace_x_;
   double min_workspace_y_;
