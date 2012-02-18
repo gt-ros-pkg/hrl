@@ -18,9 +18,14 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/actuator_array_driver</url>
-  
+
+<!--   
   <export>
     <cpp cflags="-I${prefix}/include" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lactuator_array_driver" />
+  </export>
+ -->
+  <export>
+    <cpp cflags="-I${prefix}/include" />
   </export>
   
   <depend package="roscpp"/>

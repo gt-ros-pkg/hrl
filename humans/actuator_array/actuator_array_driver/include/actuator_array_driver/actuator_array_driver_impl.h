@@ -31,23 +31,25 @@
  *      Author: swilliams8
  */
 
-#include <actuator_array_driver/actuator_array_driver.h>
 #include <urdf/model.h>
 
 namespace actuator_array_driver
 {
 
-ActuatorArrayDriver::ActuatorArrayDriver()
+template<class JOINT>
+ActuatorArrayDriver<JOINT>::ActuatorArrayDriver()
 {
   return;
 }
 
-ActuatorArrayDriver::~ActuatorArrayDriver()
+template<class JOINT>
+ActuatorArrayDriver<JOINT>::~ActuatorArrayDriver()
 {
   return;
 }
 
-void ActuatorArrayDriver::command_callback(const sensor_msgs::JointState::ConstPtr& command_msg)
+template<class JOINT>
+void ActuatorArrayDriver<JOINT>::command_callback(const sensor_msgs::JointState::ConstPtr& command_msg)
 {
   // sensor_msgs::JointState definition specifies that each vector can either be empty, or contain the
   // same number of elements as "name". Check for empty vectors.
@@ -61,7 +63,7 @@ void ActuatorArrayDriver::command_callback(const sensor_msgs::JointState::ConstP
   {
     for(unsigned int j = 0; j < command_msg->name.size(); ++j)
     {
-      if(command_msg->name[j] == this->command_msg_.name[i])
+      if(this->command_msg_.name[i] == command_msg->name[j])
       {
         if(has_position)
         {
@@ -85,18 +87,52 @@ void ActuatorArrayDriver::command_callback(const sensor_msgs::JointState::ConstP
   command_();
 }
 
-bool ActuatorArrayDriver::stop_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+template<class JOINT>
+bool ActuatorArrayDriver<JOINT>::stop_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
 {
   return stop_();
 }
 
-bool ActuatorArrayDriver::home_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+template<class JOINT>
+bool ActuatorArrayDriver<JOINT>::home_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
 {
   return home_();
 }
 
-void ActuatorArrayDriver::init(ros::NodeHandle& node)
+template<class JOINT>
+void ActuatorArrayDriver<JOINT>::parse_actuator_list(const ros::NodeHandle& node)
 {
+  // Get the list of joints and possibly extended properties from the parameter server
+  XmlRpc::XmlRpcValue joints_array;
+  node.getParam("joints", joints_array);
+
+  if (joints_array.getType() != XmlRpc::XmlRpcValue::TypeArray)
+  {
+    ROS_WARN("Parameter 'joints' is not an array");
+    return;
+  }
+
+  for(int i = 0; i < joints_array.size(); ++i)
+  {
+    XmlRpc::XmlRpcValue& joint_data = joints_array[i];
+    if(joint_data.getType() == XmlRpc::XmlRpcValue::TypeString)
+    {
+      this->joints_[(std::string)joint_data] = JOINT();
+    }
+    else if(joint_data.getType() == XmlRpc::XmlRpcValue::TypeStruct)
+    {
+      if (joint_data.hasMember("name"))
+      {
+        this->joints_[(std::string)joint_data["name"]] = JOINT();
+        init_actuator_(joint_data);
+      }
+      else
+      {
+        ROS_WARN("Parameter 'joints' entry %d does not contain a field 'name'. Skipping actuator.", i);
+      }
+    }
+  }
+
   // Resize joint_state, controller_state for the proper number of joints
   unsigned int joint_count = this->joints_.size();
   this->joint_state_msg_.name.resize(joint_count);
@@ -107,39 +143,20 @@ void ActuatorArrayDriver::init(ros::NodeHandle& node)
   this->command_msg_.position.resize(joint_count);
   this->command_msg_.velocity.resize(joint_count);
   this->command_msg_.effort.resize(joint_count);
-  std::vector<JointProperties >::iterator joint;
+
+  // Fill in the joint names in the messages
+  typename std::map<std::string, JOINT>::iterator joint;
   unsigned int i;
   for(i = 0, joint = this->joints_.begin(); joint != this->joints_.end(); ++joint, ++i)
   {
-    this->joint_state_msg_.name[i] = joint->joint_name;
-    this->command_msg_.name[i] = joint->joint_name;
+    this->joint_state_msg_.name[i] = joint->first;
+    this->command_msg_.name[i] = joint->first;
   }
-
-  // Create a private node for reading parameters, etc
-  ros::NodeHandle private_node = ros::NodeHandle("~");
-
-  // Get the robot_description parameter name from the parameter server
-  private_node.param("robot_description", this->robot_description_parameter_, std::string("robot_description"));
-
-  // Update the joint properties using the robot_description
-  parse_urdf(node);
-
-
-  // subscribe to commands in the controller namespace
-  this->command_sub_ = node.subscribe("command", 1, &ActuatorArrayDriver::command_callback, this);
-
-  // Advertise services in the controller namespace
-  this->stop_srv_ = node.advertiseService("stop", &ActuatorArrayDriver::stop_callback, this);
-
-  // Advertise services in the controller namespace
-  this->home_srv_ = node.advertiseService("home", &ActuatorArrayDriver::home_callback, this);
-
-  // Advertise joint states in the parent namespace
-  this->joint_state_pub_ = node.advertise<sensor_msgs::JointState>("joint_states", 1);
 
 }
 
-void ActuatorArrayDriver::parse_urdf(const ros::NodeHandle& node)
+template<class JOINT>
+void ActuatorArrayDriver<JOINT>::parse_urdf(const ros::NodeHandle& node)
 {
   // Construct a model from the robot description parameter
   std::string full_name = node.resolveName(this->robot_description_parameter_);
@@ -151,39 +168,78 @@ void ActuatorArrayDriver::parse_urdf(const ros::NodeHandle& node)
   }
   urdf_model.initParam(full_name);
 
-  std::vector<JointProperties>::iterator joint;
+  typename std::map<std::string, JOINT>::iterator joint;
   for(joint = this->joints_.begin(); joint != this->joints_.end(); ++joint)
   {
-    boost::shared_ptr<const urdf::Joint> urdf_joint = urdf_model.getJoint(joint->joint_name);
+    const std::string& joint_name = joint->first;
+    JOINT& joint_properties = joint->second;
+
+    boost::shared_ptr<const urdf::Joint> urdf_joint = urdf_model.getJoint(joint_name);
     if (!urdf_joint)
     {
-      ROS_ERROR("Joint not found in robot description: %s.", joint->joint_name.c_str());
+      ROS_ERROR("Joint not found in robot description: %s.", joint_name.c_str());
       exit(1);
     }
 
     // Store joint properties from a combination of urdf and the parameter server
     if(urdf_joint->limits)
     {
-      joint->min_position = urdf_joint->limits->lower;
-      joint->max_position = urdf_joint->limits->upper;
-      joint->has_position_limits = (joint->max_position > joint->min_position);
-      joint->max_velocity = urdf_joint->limits->velocity;
-      joint->has_velocity_limits = (joint->max_velocity > 0.0);
-      joint->max_effort = urdf_joint->limits->effort;
-      joint->has_effort_limits = (joint->max_effort > 0.0);
+      joint_properties.min_position = urdf_joint->limits->lower;
+      joint_properties.max_position = urdf_joint->limits->upper;
+      joint_properties.has_position_limits = (joint_properties.max_position > joint_properties.min_position);
+      joint_properties.max_velocity = urdf_joint->limits->velocity;
+      joint_properties.has_velocity_limits = (joint_properties.max_velocity > 0.0);
+      joint_properties.max_effort = urdf_joint->limits->effort;
+      joint_properties.has_effort_limits = (joint_properties.max_effort > 0.0);
     }
 
     if(urdf_joint->dynamics)
     {
-      joint->damping = urdf_joint->dynamics->damping;
-      joint->friction = urdf_joint->dynamics->friction;
+      joint_properties.damping = urdf_joint->dynamics->damping;
+      joint_properties.friction = urdf_joint->dynamics->friction;
     }
-
   }
 
 }
 
-void ActuatorArrayDriver::read_and_publish()
+template<class JOINT>
+void ActuatorArrayDriver<JOINT>::advertise_and_subscribe(ros::NodeHandle& node)
+{
+  // subscribe to commands in the controller namespace
+  this->command_sub_ = node.subscribe("command", 1, &ActuatorArrayDriver::command_callback, this);
+
+  // Advertise services in the controller namespace
+  this->stop_srv_ = node.advertiseService("stop", &ActuatorArrayDriver::stop_callback, this);
+
+  // Advertise services in the controller namespace
+  this->home_srv_ = node.advertiseService("home", &ActuatorArrayDriver::home_callback, this);
+
+  // Advertise joint states in the parent namespace
+  this->joint_state_pub_ = node.advertise<sensor_msgs::JointState>("joint_states", 1);
+}
+
+template<class JOINT>
+void ActuatorArrayDriver<JOINT>::init()
+{
+  // Create a normal and private node for reading parameters, etc
+  ros::NodeHandle node = ros::NodeHandle();
+  ros::NodeHandle private_node = ros::NodeHandle("~");
+
+  // Get the robot_description parameter name from the parameter server
+  private_node.param("robot_description_parameter", this->robot_description_parameter_, std::string("robot_description"));
+
+  // Fill in the joints_ map from the 'joints' list on the parameter server
+  parse_actuator_list(private_node);
+
+  // Read in additional joint information for the robot description
+  parse_urdf(node);
+
+  // Advertise services and subscribe to topics
+  advertise_and_subscribe(node);
+}
+
+template<class JOINT>
+void ActuatorArrayDriver<JOINT>::read_and_publish()
 {
   if(read_())
   {
@@ -191,7 +247,8 @@ void ActuatorArrayDriver::read_and_publish()
   }
 }
 
-void ActuatorArrayDriver::spin()
+template<class JOINT>
+void ActuatorArrayDriver<JOINT>::spin()
 {
   ros::NodeHandle node;
   while (node.ok())
@@ -200,6 +257,5 @@ void ActuatorArrayDriver::spin()
     ros::spinOnce();
   }
 }
-
 
 }

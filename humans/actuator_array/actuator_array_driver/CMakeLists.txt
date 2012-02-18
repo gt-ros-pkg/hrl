@@ -29,4 +29,4 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
 
-rosbuild_add_library(actuator_array_driver src/actuator_array_driver.cpp)
+#rosbuild_add_library(actuator_array_driver src/actuator_array_driver.cpp)
