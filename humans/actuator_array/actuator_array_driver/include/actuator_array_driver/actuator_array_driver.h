@@ -37,6 +37,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
 #include <std_srvs/Empty.h>
+#include <urdf/model.h>
 
 namespace actuator_array_driver
 {
@@ -126,8 +127,22 @@ protected:
   /// not the robot description itself
   std::string robot_description_parameter_;
 
+  /// \brief The URDF model parsed from the provided robot_description
+  urdf::Model urdf_model_;
+
   /// \brief list of joints to be controlled, accessible by joint name
   std::map<std::string, JOINT> joints_;
+
+  /// \brief helper method that parses the URDF contained in the
+  /// robot_description_parameter on the Parameter Server and stores
+  /// it in the urdf_model_ property of the base class.
+  void parse_urdf(const ros::NodeHandle& node);
+
+  /// \brief helper method that extracts information from the URDF model
+  /// about a specific joint name and stores it in the provided 'joint_properties'
+  /// struct. If the provided joint name does not exist in the URDF, a warning
+  /// will be issued and the 'joint_properties' struct will not be updated.
+  void update_joint_from_urdf(const std::string& joint_name, JOINT& joint_properties);
 
   /// \brief helper method that reads in a list of actuator names from the parameter
   /// server and initializes the joints_ map. This list can be a simple,
@@ -136,19 +151,11 @@ protected:
   /// generally loaded via a YAML file, one entry must be called 'name'. Additionally,
   /// an initialization function named 'init_actuator_' can be implemented. This
   /// function is called once per actuator in the list, and is provided with the
-  /// full XMLRPC struct for that actuator.
-  /// The provided node object should be in the namespace of the 'joints' list on
-  /// the parameter server (i.e. a private node)
+  /// full XMLRPC struct for that actuator. This call occurs after the joint is
+  /// updated using the URDF information, so any information inside the URDF can be
+  /// accessed by the initialization function. The provided node object should be
+  /// in the namespace of the 'joints' list on the parameter server (i.e. a private node)
   void parse_actuator_list(const ros::NodeHandle& node);
-
-  /// \brief helper method that parses the URDF contained in the
-  /// robot_description_parameter on the Parameter Server.
-  /// Only information about the joints already contained the joints_ map
-  /// will be updated. If a joint in the joints_ map does not exist in
-  /// the URDF, the program will exit
-  /// Note: This assumes the joints_ map has already been populated, (for
-  /// example, using parse_actuator_list)
-  void parse_urdf(const ros::NodeHandle& node);
 
   /// \brief helper method that sets up the communication elements with
   /// ROS. This involves subscribing to the 'command' topic, advertising
@@ -166,12 +173,12 @@ protected:
 
   /// \brief helper method that performs custom initialization on a per-actuator
   /// basis. If the 'joints' parameter contains an XMLRPC array of structs,
-  /// then this function is called once per actuator and is provided with the
-  /// XMLRPC struct. This is a convenience function that allows a single YAML
-  /// configuration file to both initialize the list of actuators to control, and
-  /// define custom properties about each actuator. Such entries as 'channel id',
-  /// 'offset' , and 'home' are common attributes that are unique to each actuator.
-  virtual bool init_actuator_(XmlRpc::XmlRpcValue& joint_data) {return true;};
+  /// then this function is also provided with the full XMLRPC structure. This is
+  // a convenience function that allows a single YAML configuration file to both
+  /// initialize the list of actuators to control, and define custom properties
+  /// about each actuator. Such entries as 'channel id', 'offset' , and 'home'
+  /// are common attributes that are unique to each actuator.
+  virtual bool init_actuator_(const std::string& joint_name, JOINT& joint_properties, XmlRpc::XmlRpcValue& joint_data) {return true;};
 
   /// \brief virtual function that is responsible for reading the current device state
   /// and updating the internal joint_state_msg_
