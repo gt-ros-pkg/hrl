@@ -45,8 +45,15 @@
 
 #include "boost/thread/mutex.hpp"
 #include <ros/ros.h>
-#include <ros/callback_queue.h>
 #include <control_toolbox/pid.h>
+
+#define USE_CBQ
+#ifdef USE_CBQ
+#include <ros/callback_queue.h>
+#include <ros/advertise_options.h>
+#include <ros/advertise_service_options.h>
+#include <ros/subscribe_options.h>
+#endif
 
 #include <actuator_array_driver/actuator_array_driver.h>
 
@@ -65,9 +72,7 @@ namespace gazebo
  inside Gazebo with a PID loop (courtesy of control_toolbox::Pid). This PID can be tuned to match
  the performance of the real system. This controller publishes the state of each actuator via
  sensor_msgs::JointState messages to the {robot_namespace}/joint_states topic, and receives joint commands
- via a trajectory_msgs::JointTrajectory message on the {robot_namespace}/command topic. All command
- messages must have the same joint names specified, and in the same order. Currently, only the first
- trajectory_msgs::JointTrajectoryPoint in the command message is used.
+ via a sensor_msgs::JointState message on the {robot_namespace}/command topic.
 
  When specifying the controller, each joint that is to be controlled should be placed inside a
  <joint> tag. The joint name (required), home position (optional), and PID parameters (optional) are
@@ -80,7 +85,7 @@ namespace gazebo
  <model:physical name="some_fancy_model">
    <controller:gazebo_ros_actuator_array name="actuator_array_controller" plugin="libgazebo_ros_actuator_array.so">
      <alwaysOn>true</alwaysOn>
-     <updateRate>1000.0</updateRate>
+     <updateRate>30.0</updateRate>
      <robotParam>robot_description</robotParam>
      <joint>
        <name>joint01</name>
@@ -123,9 +128,7 @@ namespace gazebo
  inside Gazebo with a PID loop (courtesy of control_toolbox::Pid). This PID can be tuned to match
  the performance of the real system. This controller publishes the state of each actuator via
  sensor_msgs::JointState messages to the {robot_namespace}/joint_states topic, and receives joint commands
- via a trajectory_msgs::JointTrajectory message on the {robot_namespace}/command topic. All command
- messages must have the same joint names specified, and in the same order. Currently, only the first
- trajectory_msgs::JointTrajectoryPoint in the command message is used.
+ via a sensor_msgs::JointState message on the {robot_namespace}/command topic.
 
  \li When specifying the controller, each joint that is to be controlled should be placed inside a
  <joint> tag. The joint name (required), home position (optional), and PID parameters (optional) are
@@ -137,7 +140,7 @@ namespace gazebo
  <model:physical name="some_fancy_model">
    <controller:gazebo_ros_actuator_array name="actuator_array_controller" plugin="libgazebo_ros_actuator_array.so">
      <alwaysOn>true</alwaysOn>
-     <updateRate>1000.0</updateRate>
+     <updateRate>30.0</updateRate>
      <robotParam>robot_description</robotParam>
      <joint>
        <name>joint01</name>
@@ -169,9 +172,9 @@ namespace gazebo
  .
  **/
 
-struct GazeboJointProperties
+struct GazeboJointProperties : public actuator_array_driver::JointProperties
 {
-  std::string joint_name;
+  int joint_index;
   gazebo::Joint* joint_ptr;
   control_toolbox::Pid pid;
   double position;
@@ -186,7 +189,7 @@ struct MimicJointProperties : GazeboJointProperties
   double offset;
 };
 
-class GazeboRosActuatorArray : public Controller, public actuator_array_driver::ActuatorArrayDriver
+class GazeboRosActuatorArray : public Controller, public actuator_array_driver::ActuatorArrayDriver<GazeboJointProperties>
 {
   /// \brief Constructor
 public:
@@ -208,11 +211,8 @@ private:
   /// \brief for setting the parameter name that holds the robot description
   ParamT<std::string> *robotParamP;
 
-  /// \brief Holds properties of each joint extracted from the robot_description
-  std::vector<GazeboJointProperties>  gazebo_joints_;
-
-  std::vector<actuator_array_driver::JointProperties>  mimic_joints_;
-  std::vector<MimicJointProperties>  mimic_gazebo_joints_;
+  /// \brief A second set of joint properties for handling Gazebo Mimic joints
+  std::map<std::string, MimicJointProperties>  mimic_joints_;
 
   /// \brief The parent Model
   Model *myParent;
@@ -223,13 +223,15 @@ private:
   /// \brief A mutex to lock access to fields that are used in message callbacks
   boost::mutex lock_;
 
-  /// \brief ???
-  ros::CallbackQueue queue_;
-  boost::thread* callback_queue_thread_;
-  void QueueThread();
+#ifdef USE_CBQ
+  private: ros::CallbackQueue queue_;
+  private: void QueueThread();
+  private: boost::thread callback_queue_thread_;
+#endif
+
 
   void parse_mimic_joints(const ros::NodeHandle& node);
-  void update_joint(actuator_array_driver::JointProperties& joint, GazeboJointProperties& gazebo_joint, double command_position, double command_velocity, double command_effort, double dt);
+  void update_joint(GazeboJointProperties& gazebo_joint, double command_position, double command_velocity, double command_effort, double dt);
 
 
   /// \brief pure virtual function that handles sensing a command to the device.
