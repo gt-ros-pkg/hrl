@@ -39,33 +39,50 @@ from geometry_msgs.msg import Twist
 import tf
 import tf.transformations as tf_trans
 import sys
-
+from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 class TestNode:
-
     def __init__(self):
-       rospy.init_node('test_node', log_level=rospy.DEBUG)
 
     def talk(self):
-        # pub = rospy.Publisher('command', PoseStamped)
-        pub = rospy.Publisher('l_cart/command', Twist)
-        rospy.loginfo('created the publisher obj')
-        
-        pose = Twist()
-        # pose.header.frame_id = '/torso_lift_link'
-        # pose.header.stamp = rospy.Time(0)
-        pose.linear.x = 0
-        pose.linear.y = 0
-        pose.linear.z = 0.0
-        pose.angular.x = 0.0
-        pose.angular.y = 0.4
-        pose.angular.z = 0.0
-        while not rospy.is_shutdown():
+        option = True
+        if (option):
+            # this is for robot_mechanism_controllers/CartesianTwistController
+            pub = rospy.Publisher('l_cart/command', Twist)
+            rospy.loginfo('created the publisher obj')
+            pose = Twist()
+            pose.linear.x = 0
+            pose.linear.y = 0
+            pose.linear.z = 0.0
+            pose.angular.x = 0.0
+            pose.angular.y = 0.4
+            pose.angular.z = 0.0
+        else:
+            # this is for teleop_controllers/JinvTeleopController
+            pub = rospy.Publisher('l_cart/command_twist', TwistStamped)
+            pose = TwistStamped()
+            pose.header.frame_id = '/torso_lift_link'
+            pose.header.stamp = rospy.Time(0)
+            pose.linear.x = 0
+            pose.linear.y = 0
+            pose.linear.z = 0.0
+            pose.angular.x = 0.0
+            pose.angular.y = 0.4
+            pose.angular.z = 0.0
+            while not rospy.is_shutdown():
             	rospy.loginfo('Publishing following message: %s'%pose)
             	pub.publish(pose)
             	rospy.sleep(2.0) 
 
+def main()
+    rospy.init_node('test_node', log_level=rospy.DEBUG)
+    rospy.loginfo('create the controller')
+    ctrl_switcher = ControllerSwitcher()
+    ctrl_switcher.carefree_switch('l', '%s_cart', '$(find tabletop_pushing)/params/cart_param.yaml')
+    rospy.sleep(0.5)
+
 if __name__ == '__main__':
     try:
+        main()
         node = TestNode()
         node.talk()
     except rospy.ROSInterruptException: pass
