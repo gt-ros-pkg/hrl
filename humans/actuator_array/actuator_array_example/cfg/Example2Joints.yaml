@@ -1,0 +1,9 @@
+# YAML Configuration file that specifies only the names of the joints to control
+
+joints:
+
+  - joint1
+  - joint2
+  - joint3
+  - joint4
+

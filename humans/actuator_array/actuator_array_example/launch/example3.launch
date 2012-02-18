@@ -1,0 +1,28 @@
+<launch>
+
+	<group ns="robot3">
+		
+		<!-- Load Robot Description onto the Parameter Server -->
+		<param name="robot_description" command="$(find xacro)/xacro.py $(find actuator_array_example)/robots/robot3.urdf.xacro" />
+	
+		<!-- Start the Example Driver -->
+        <node pkg="actuator_array_example" type="example3_driver" name="robot3_driver" output="screen" >
+            <rosparam command="load" file="$(find actuator_array_example)/cfg/Example3Joints.yaml" />
+            <param name="rate" type="double" value="10.0" />
+            <param name="robot_description_parameter" type="string" value="robot_description" />
+        </node>
+		
+		<!-- Start the state publisher to convert joint_states into tf transformations -->
+        <node pkg="robot_state_publisher" type="state_publisher" name="robot3_state_publisher" >
+            <param name="tf_prefix" value="robot3" />
+        </node>
+
+		<!-- Start the manual control GUI -->
+        <node pkg="actuator_array_driver_gui" type="actuator_array_driver_gui.py" name="robot3_control_gui" respawn="false" output="screen">
+            <param name="robot_description_parameter" type="string" value="robot_description" />
+            <rosparam command="load" file="$(find actuator_array_example)/cfg/Example3Joints.yaml" />
+        </node>
+		
+	</group>
+	
+</launch>

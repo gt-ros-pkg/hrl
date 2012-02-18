@@ -1,0 +1,20 @@
+<package>
+  <description brief="actuator_array_example">
+
+     actuator_array_example
+
+  </description>
+  <author>Stephen Williams</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/actuator_array_example</url>
+  <depend package="roscpp"/>
+  <depend package="xacro"/>
+  <depend package="gazebo"/>
+  <depend package="robot_state_publisher"/>
+  <depend package="actuator_array_driver"/>
+  <depend package="actuator_array_gazebo_plugin"/>
+
+</package>
+
+
