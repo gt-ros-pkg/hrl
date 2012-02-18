@@ -85,25 +85,26 @@ class ActuatorArrayGuiFrame(wx.Frame):
         
 		# Extract joint properties from the robot_description URDF
 		robot_description_parameter = rospy.get_param("~robot_description_parameter", "robot_description")
-		robot_description_parameter = rospy.resolve_name(robot_description_parameter)
-		urdf_string = rospy.get_param(robot_description_parameter)
-		urdf_doc = parseString(urdf_string)
-		joints = urdf_doc.getElementsByTagName("joint")
-		for joint in joints:
-			name = joint.getAttribute("name")
-			indices = [index for index,actuator in enumerate(self.actuators) if actuator.name == name]
-			if indices:
-				index = indices[0]
-				limits = joint.getElementsByTagName("limit")
-				for limit in limits:
-					if limit.hasAttribute("lower"):
-						self.actuators[index].min_position = float(limit.getAttribute("lower"))
-					if limit.hasAttribute("upper"):
-						self.actuators[index].max_position = float(limit.getAttribute("upper"))
-					if limit.hasAttribute("velocity"):
-						self.actuators[index].max_velocity = float(limit.getAttribute("velocity"))
-					if limit.hasAttribute("effort"):
-						self.actuators[index].max_effort = float(limit.getAttribute("effort"))
+		if len(robot_description_parameter) > 0:
+			robot_description_parameter = rospy.resolve_name(robot_description_parameter)
+			urdf_string = rospy.get_param(robot_description_parameter)
+			urdf_doc = parseString(urdf_string)
+			joints = urdf_doc.getElementsByTagName("joint")
+			for joint in joints:
+				name = joint.getAttribute("name")
+				indices = [index for index,actuator in enumerate(self.actuators) if actuator.name == name]
+				if indices:
+					index = indices[0]
+					limits = joint.getElementsByTagName("limit")
+					for limit in limits:
+						if limit.hasAttribute("lower"):
+							self.actuators[index].min_position = float(limit.getAttribute("lower"))
+						if limit.hasAttribute("upper"):
+							self.actuators[index].max_position = float(limit.getAttribute("upper"))
+						if limit.hasAttribute("velocity"):
+							self.actuators[index].max_velocity = float(limit.getAttribute("velocity"))
+						if limit.hasAttribute("effort"):
+							self.actuators[index].max_effort = float(limit.getAttribute("effort"))
         
 		# Advertise Commands
 		self.command_pub = rospy.Publisher("command", JointState)
