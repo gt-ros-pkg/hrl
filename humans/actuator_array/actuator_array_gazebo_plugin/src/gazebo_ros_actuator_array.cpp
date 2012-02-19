@@ -115,7 +115,7 @@ void GazeboRosActuatorArray::LoadChild(XMLConfigNode *node)
       GazeboJointProperties joint;
       joint.joint_index = joint_index++;
       joint.joint_ptr = dynamic_cast<gazebo::Joint*> (this->myParent->GetJoint(joint_name));
-      joint.pid.setGains(kp, ki, kd, imax, imin);
+      joint.pid.initPid(kp, ki, kd, imax, imin);
       joint.position = 0.0;
       joint.home_position = child_node->GetDouble("home", 0.0, 0);
 
@@ -125,6 +125,9 @@ void GazeboRosActuatorArray::LoadChild(XMLConfigNode *node)
 
     child_node = child_node->GetNext("joint");
   }
+
+  // Read additional properties from the URDF
+  parse_urdf(ros_node);
 
   // Resize joint_state, controller_state for the proper number of joints
   unsigned int joint_count = this->joints_.size();
@@ -139,18 +142,18 @@ void GazeboRosActuatorArray::LoadChild(XMLConfigNode *node)
   for(std::map<std::string, GazeboJointProperties>::iterator joint = joints_.begin(); joint != joints_.end(); ++joint)
   {
     const std::string& joint_name = joint->first;
-    const GazeboJointProperties& joint_properties = joint->second;
+    GazeboJointProperties& joint_properties = joint->second;
+
+    // Fill in any properties provided by the URDF for this joint
+    update_joint_from_urdf(joint_name, joint_properties);
+
+    // Copy Home position for each joint into the commanded position
+    this->command_msg_.position[joint_properties.joint_index] = joint_properties.home_position;
 
     // Add joint names to the joint state messages
     this->joint_state_msg_.name[joint_properties.joint_index] = joint_name;
     this->command_msg_.name[joint_properties.joint_index] = joint_name;
-
-    // Copy Home position for each joint into the commanded position
-    this->command_msg_.position[joint_properties.joint_index] = joint_properties.home_position;
   }
-
-  // Read additional properties from the URDF
-  parse_urdf(ros_node);
 
   // read in mimic joint properties
   parse_mimic_joints(ros_node);
@@ -322,6 +325,7 @@ void GazeboRosActuatorArray::update_joint(GazeboJointProperties& joint, double c
   }
 
   // Update the PID for this joint and get the joint command
+  joint.pid.setCurrentCmd(command_position);
   double velocity = joint.pid.updatePid(error, ros::Duration(dt));
 
   // Limit command to max velocity provided in the robot_description
@@ -427,7 +431,7 @@ void GazeboRosActuatorArray::parse_mimic_joints(const ros::NodeHandle& node)
         double kp, ki, kd, imax, imin;
         parent_properties.pid.getGains(kp, ki, kd, imax, imin);
         mimic_properties.joint_ptr = dynamic_cast<gazebo::Joint*> (this->myParent->GetJoint(mimic_name));
-        mimic_properties.pid.setGains(kp, ki, kd, imax, imin);
+        mimic_properties.pid.initPid(kp, ki, kd, imax, imin);
         mimic_properties.position = 0.0;
         mimic_properties.master_joint_index = parent_properties.joint_index;
         mimic_properties.master_joint_name = parent_name;
