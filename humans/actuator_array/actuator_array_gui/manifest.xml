@@ -9,7 +9,7 @@
   <author>Stephen Williams</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
-  <url>http://ros.org/wiki/actuator_array_driver_gui</url>
+  <url>http://ros.org/wiki/actuator_array_gui</url>
   
   <depend package="rospy"/>
   <depend package="sensor_msgs"/>

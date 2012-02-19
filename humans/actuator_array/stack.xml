@@ -2,7 +2,7 @@
   <description brief="Contains packages for communicating, controlling, simulating, or otherwise concerning chains of position-controlled actuators (i.e. rc servos)">
   
   <p>
-  This stack contains packages communicating, controlling, simulating, or otherwise concerning chains of position-controlled 
+  This stack contains packages for communicating, controlling, simulating, or otherwise concerning chains of position-controlled 
   actuators (i.e. rc servos).
   </p>
   

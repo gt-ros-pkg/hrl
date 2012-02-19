@@ -12,7 +12,7 @@
         </node>
 
 		<!-- Start the manual control GUI -->
-        <node pkg="actuator_array_driver_gui" type="actuator_array_driver_gui.py" name="robot_control_gui" respawn="false" output="screen">
+        <node pkg="actuator_array_gui" type="actuator_array_gui.py" name="robot_control_gui" respawn="false" output="screen">
             <param name="robot_description_parameter" type="string" value="robot_description" />
             <rosparam command="load" file="$(find actuator_array_example)/cfg/Example3Joints.yaml" />
         </node>

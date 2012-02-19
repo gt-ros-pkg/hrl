@@ -30,12 +30,12 @@
 #***********************************************************
 
 import roslib;
-roslib.load_manifest('actuator_array_driver_gui')
+roslib.load_manifest('actuator_array_gui')
 
 import wx
 
 import rospy
-from actuator_array_driver_gui.actuator_array_gui_frame import ActuatorArrayGuiFrame
+from actuator_array_gui.actuator_array_gui_frame import ActuatorArrayGuiFrame
 
 
 if __name__ == '__main__':

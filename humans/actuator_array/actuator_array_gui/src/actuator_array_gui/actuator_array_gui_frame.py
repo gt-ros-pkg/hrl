@@ -30,12 +30,12 @@
 #***********************************************************
 
 import roslib;
-roslib.load_manifest('actuator_array_driver_gui')
+roslib.load_manifest('actuator_array_gui')
 
 import rospy
 from std_srvs.srv import *
 from sensor_msgs.msg import JointState
-from actuator_array_driver_gui.joint_panel import JointPanel
+from actuator_array_gui.joint_panel import JointPanel
 
 from xml.dom.minidom import parse, parseString
 
@@ -59,7 +59,7 @@ class ActuatorArrayGuiFrame(wx.Frame):
 		self.actuators = []
 
 		# Initialize ROS Node
-		rospy.init_node('actuator_array_driver_gui')
+		rospy.init_node('actuator_array_gui')
 
 		# Get actual remapped node name
 		node_name = rospy.get_name()
