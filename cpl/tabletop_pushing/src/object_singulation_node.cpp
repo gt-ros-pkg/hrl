@@ -732,15 +732,17 @@ class PushOpt
 {
  public:
   PushOpt(ProtoTabletopObject& _obj, double _push_angle,
-          Eigen::Vector3f _push_vec, unsigned int _id, double _push_dist=0.1) :
-      obj(_obj), push_angle(_push_angle), push_unit_vec(_push_vec), id(_id),
-      push_dist(_push_dist)
+          Eigen::Vector3f _push_vec, unsigned int _obj_id,
+          unsigned int _split_id, double _push_dist=0.1) :
+      obj(_obj), push_angle(_push_angle), push_unit_vec(_push_vec),
+      object_id(_obj_id), split_id(_split_id), push_dist(_push_dist)
   {
   }
   ProtoTabletopObject obj;
   double push_angle;
   Eigen::Vector3f push_unit_vec;
-  unsigned int id;
+  unsigned int object_id;
+  unsigned int split_id;
   double push_dist;
 
   Eigen::Vector4f getMovedCentroid()
@@ -751,6 +753,16 @@ class PushOpt
     new_cent[2] = obj.centroid[2] + push_unit_vec[2]*push_dist;
     new_cent[3] = 1.0f;
     return new_cent;
+  }
+
+  Eigen::Vector4f getMovedPoint(geometry_msgs::Point p)
+  {
+    Eigen::Vector4f moved;
+    moved[0] = p.x + push_unit_vec[0]*push_dist;
+    moved[1] = p.y + push_unit_vec[1]*push_dist;
+    moved[2] = p.z + push_unit_vec[2]*push_dist;
+    moved[3] = 1.0f;
+    return moved;
   }
 };
 
@@ -1329,10 +1341,23 @@ class ObjectSingulation
     }
     else if (split)
     {
-      ROS_DEBUG_STREAM("Objects split from " << prev_objs.size() << " to " <<
+      ROS_INFO_STREAM("Objects split from " << prev_objs.size() << " to " <<
                       cur_objs.size());
-      // TODO: Deal with adding new object ids for splitting, create a
-      // static / global id generator method?
+      int num_moved = 0;
+      int num_unmoved = 0;
+      for (unsigned int i = 0; i < prev_objs.size(); ++i)
+      {
+        if (prev_objs[i].moved)
+        {
+          num_moved++;
+        }
+        else
+        {
+          num_unmoved++;
+        }
+      }
+      ROS_INFO_STREAM("num_moved: " << num_moved);
+      ROS_INFO_STREAM("num_moved: " << num_unmoved);
     }
     else
     {
@@ -1340,7 +1365,7 @@ class ObjectSingulation
     }
 
     std::vector<bool> matched = matchUnmoved(cur_objs, prev_objs);
-    matchMoved(cur_objs, prev_objs, matched);
+    matchMoved(cur_objs, prev_objs, matched, split);
   }
 
   std::vector<bool> matchUnmoved(ProtoObjects& cur_objs,
@@ -1385,7 +1410,7 @@ class ObjectSingulation
   }
 
   void matchMoved(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
-                  std::vector<bool> matched)
+                  std::vector<bool> matched, bool split)
   {
     for (unsigned int i = 0; i < prev_objs.size(); ++i)
     {
@@ -1398,6 +1423,7 @@ class ObjectSingulation
         Eigen::Matrix4f min_transform;
         for (unsigned int j = 0; j < cur_objs.size(); ++j)
         {
+          // TODO: Deal with split here
           if (!matched[j])
           {
             // Run ICP to match between frames
@@ -1427,12 +1453,6 @@ class ObjectSingulation
             cur_objs[min_idx].id = prev_objs[i].id;
             cur_objs[min_idx].push_history = prev_objs[i].push_history;
             cur_objs[min_idx].transform = min_transform*prev_objs[i].transform;
-            ROS_DEBUG_STREAM("Previous transform is " << std::endl <<
-                             prev_objs[i].transform);
-            ROS_DEBUG_STREAM("Chosen transform is " << std::endl <<
-                             min_transform);
-            ROS_DEBUG_STREAM("Updated transform is " << std::endl <<
-                             cur_objs[min_idx].transform);
             matched[min_idx] = true;
           }
         }
@@ -1449,7 +1469,6 @@ class ObjectSingulation
     }
   }
 
-
   /**
    * Determine what push to make given the current object and boundary estimates
    *
@@ -1463,6 +1482,7 @@ class ObjectSingulation
                                std::vector<Boundary>& boundaries,
                                XYZPointCloud cloud)
   {
+    ROS_INFO_STREAM("determinePushPose()");
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         objs, boundary_img.size(), workspace_frame_);
 
@@ -1519,6 +1539,7 @@ class ObjectSingulation
                                  ProtoObjects& objs, cv::Mat& obj_lbl_img,
                                  XYZPointCloud& cloud)
   {
+    ROS_INFO_STREAM("determinePushVector()");
 #ifdef DISPLAY_CHOSEN_BOUNDARY
     if (use_displays_)
     {
@@ -1634,6 +1655,7 @@ class ObjectSingulation
 
   void get3DBoundaries(std::vector<Boundary>& boundaries, XYZPointCloud& cloud)
   {
+    ROS_INFO_STREAM("get3DBoundaries()");
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
       get3DBoundary(boundaries[b], cloud);
@@ -1658,6 +1680,7 @@ class ObjectSingulation
   void associate3DBoundaries(std::vector<Boundary>& boundaries,
                              ProtoObjects& objs, cv::Mat& obj_lbl_img)
   {
+    ROS_INFO_STREAM("associate3DBoundaries()");
     // Clear boundary_angle_dist for all objects
     for (unsigned int o = 0; o < objs.size(); ++o)
     {
@@ -1703,7 +1726,6 @@ class ObjectSingulation
           ProtoObjects pos = splitObject3D(boundaries[b], objs[max_id]);
           const unsigned int s0 = pos[0].cloud.size();
           const unsigned int s1 = pos[1].cloud.size();
-          // TODO: Need to fix this
           // NOTE: Don't add external object boundaries
           if (s0 > min_cluster_size_ && s1 > min_cluster_size_)
           {
@@ -1775,7 +1797,7 @@ class ObjectSingulation
 
   int quantizeAngle(float angle)
   {
-    // TODO: Make an assert
+    // TODO: Make into an assert
     if (angle < -M_PI/2.0 || angle > M_PI/2.0)
     {
       ROS_WARN_STREAM("Quantizing angle: " << angle << " outside of range");
@@ -1844,6 +1866,7 @@ class ObjectSingulation
   Boundary chooseTestBoundary(std::vector<Boundary>& boundaries,
                               ProtoObjects& objs)
   {
+    ROS_INFO_STREAM("chooseTestBoundary()");
     std::vector<Boundary> possible_boundaries;
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
@@ -1915,7 +1938,6 @@ class ObjectSingulation
                                     ProtoObjects& objs, unsigned int id,
                                     cv::Mat& lbl_img)
   {
-    // TODO: Simulate end effector clearance
     double push_angle_pos = 0.0;
     double push_angle_neg = 0.0;
     if (push_angle > 0.0)
@@ -1934,78 +1956,69 @@ class ObjectSingulation
                                        std::sin(push_angle_neg), 0.0);
 
     std::vector<PushOpt> split_opts;
-    split_opts.push_back(PushOpt(split0, push_angle_pos, push_vec_pos, id,
+    split_opts.push_back(PushOpt(split0, push_angle_pos, push_vec_pos, id, 0,
                                  push_dist));
-    split_opts.push_back(PushOpt(split0, push_angle_neg, push_vec_neg, id,
+    split_opts.push_back(PushOpt(split0, push_angle_neg, push_vec_neg, id, 0,
                                  push_dist));
-    split_opts.push_back(PushOpt(split1, push_angle_pos, push_vec_pos, id,
+    split_opts.push_back(PushOpt(split1, push_angle_pos, push_vec_pos, id, 1,
                                  push_dist));
-    split_opts.push_back(PushOpt(split1, push_angle_neg, push_vec_neg, id,
+    split_opts.push_back(PushOpt(split1, push_angle_neg, push_vec_neg, id, 1,
                                  push_dist));
-    double max_clearance = 0.0;
-    unsigned int max_id = split_opts.size();
-    for (unsigned int i = 0; i < split_opts.size(); ++i)
-    {
-      if (split_opts[i].push_angle < min_push_angle_ ||
-          split_opts[i].push_angle > max_push_angle_) continue;
-      const double clearance = getSplitPushClearance(split_opts[i], objs);
-      if (clearance > max_clearance)
-      {
-        max_clearance = clearance;
-        max_id = i;
-      }
-    }
-    if (max_id == split_opts.size())
-    {
-      // NOTE: Nothing found
-      ROS_WARN_STREAM("No object push found!");
-      PushVector push;
-      push.start_point.x = 0.0;
-      push.start_point.y = 0.0;
-      push.start_point.z = 0.0;
-      push.push_angle = 0.0;
-      push.no_push = true;
-      return push;
-    }
+
+    // TODO: Make pushes not cause collisions between objects
+    // Choose pushing location closer to the robot by examining the 4
+    // possible intersections with the boundaries
     XYZPointCloud s0_int = pcl_segmenter_->lineCloudIntersection(
         split0.cloud, push_vec_pos, split0.centroid);
     XYZPointCloud s1_int = pcl_segmenter_->lineCloudIntersection(
         split1.cloud, push_vec_pos, split1.centroid);
-
-    // TODO: Get startPoint
-
+    unsigned int chosen_idx = split_opts.size();
+    bool p_not_set = true;
     geometry_msgs::Point p;
-    if (max_id < 2)
+    for (unsigned int i = 0; i < split_opts.size(); ++i)
     {
-      if (s0_int.size() > 0)
+      if (split_opts[i].push_angle < min_push_angle_ ||
+          split_opts[i].push_angle > max_push_angle_) continue;
+      geometry_msgs::Point p_cur;
+      if (split_opts[i].split_id == 0 && s0_int.size() > 0)
       {
-        p = determineStartPoint(s0_int, split_opts[max_id]);
+        p_cur = determineStartPoint(s0_int, split_opts[i]);
+      }
+      else if (s1_int.size() > 0)
+      {
+        p_cur = determineStartPoint(s1_int, split_opts[i]);
       }
       else
       {
-        p.x = split_opts[max_id].obj.centroid[0];
-        p.y = split_opts[max_id].obj.centroid[1];
-        p.z = split_opts[max_id].obj.centroid[2];
+        p_cur.x = split_opts[i].obj.centroid[0];
+        p_cur.y = split_opts[i].obj.centroid[1];
+        p_cur.z = split_opts[i].obj.centroid[2];
+      }
+      if (p_not_set || p_cur.x < p.x)
+      {
+        p_not_set = false;
+        p = p_cur;
+        chosen_idx = i;
       }
     }
-    else
+    if (chosen_idx == split_opts.size())
     {
-      if (s1_int.size() > 0)
-      {
-        p = determineStartPoint(s1_int, split_opts[max_id]);
-      }
-      else
-      {
-        p.x = split_opts[max_id].obj.centroid[0];
-        p.y = split_opts[max_id].obj.centroid[1];
-        p.z = split_opts[max_id].obj.centroid[2];
-      }
+      ROS_WARN_STREAM("No push direction chosen, fix this!");
+      PushVector push;
+      push.no_push = true;
+      return push;
     }
 
     PushVector push;
     push.start_point = p;
-    push.push_angle = split_opts[max_id].push_angle;
+    push.push_angle = split_opts[chosen_idx].push_angle;
     push.no_push = false;
+    ROS_INFO_STREAM("Chosen push_dir: [" <<
+                    split_opts[chosen_idx].push_unit_vec[0] << ", " <<
+                    split_opts[chosen_idx].push_unit_vec[1] << ", " <<
+                    split_opts[chosen_idx].push_unit_vec[2] << ")");
+    ROS_INFO_STREAM("Chosen start_point: [" << p.x << ", " << p.y << ", " <<
+                    p.z << ")");
 
 #ifdef DISPLAY_PUSH_VECTOR
     ProtoObjects split_objs3D;
@@ -2016,14 +2029,15 @@ class ObjectSingulation
     cv::Mat disp_img = pcl_segmenter_->displayObjectImage(
         split_img, "3D Split", false);
 
-    const Eigen::Vector4f moved_cent = split_opts[max_id].getMovedCentroid();
+    const Eigen::Vector4f moved_start = split_opts[chosen_idx].getMovedPoint(
+        push.start_point);
     PointStamped start_point;
     start_point.point = push.start_point;
     start_point.header.frame_id = workspace_frame_;
     PointStamped end_point;
-    end_point.point.x = moved_cent[0];
-    end_point.point.y = moved_cent[1];
-    end_point.point.z = moved_cent[2];
+    end_point.point.x = moved_start[0];
+    end_point.point.y = moved_start[1];
+    end_point.point.z = moved_start[2];
     end_point.header.frame_id = workspace_frame_;
 
     cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
@@ -2032,26 +2046,6 @@ class ObjectSingulation
         end_point);
     cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,0,1.0));
     cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,1.0,0));
-    // for (unsigned int i = 0; i < s0_int.size(); ++i)
-    // {
-    //   PointStamped pcl_pt;
-    //   pcl_pt.header.frame_id = workspace_frame_;
-    //   pcl_pt.point.x = s0_int.at(i).x;
-    //   pcl_pt.point.y = s0_int.at(i).y;
-    //   pcl_pt.point.z = s0_int.at(i).z;
-    //   cv::Point img_p = pcl_segmenter_->projectPointIntoImage(pcl_pt);
-    //   disp_img.at<cv::Vec3f>(img_p.y, img_p.x) = cv::Vec3f(1.0,1.0,0.0);
-    // }
-    // for (unsigned int i = 0; i < s1_int.size(); ++i)
-    // {
-    //   PointStamped pcl_pt;
-    //   pcl_pt.header.frame_id = workspace_frame_;
-    //   pcl_pt.point.x = s1_int.at(i).x;
-    //   pcl_pt.point.y = s1_int.at(i).y;
-    //   pcl_pt.point.z = s1_int.at(i).z;
-    //   cv::Point img_p = pcl_segmenter_->projectPointIntoImage(pcl_pt);
-    //   disp_img.at<cv::Vec3f>(img_p.y, img_p.x) = cv::Vec3f(1.0,0.0,1.0);
-    // }
     if (use_displays_)
     {
       cv::imshow("push_vector", disp_img);
@@ -2128,7 +2122,7 @@ class ObjectSingulation
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       // Don't compare object to itself
-      if (i == split.id) continue;
+      if (i == split.object_id) continue;
 
       const double clearance = (moved_cent - objs[i].centroid).norm();
 
