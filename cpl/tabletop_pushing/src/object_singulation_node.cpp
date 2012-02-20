@@ -2001,7 +2001,7 @@ class ObjectSingulation
         chosen_idx = i;
       }
     }
-    if (chosen_idx == split_opts.size())
+    if (chosen_idx == split_opts.size() || p_not_set)
     {
       ROS_WARN_STREAM("No push direction chosen, fix this!");
       PushVector push;
@@ -2016,8 +2016,8 @@ class ObjectSingulation
     ROS_INFO_STREAM("Chosen push_dir: [" <<
                     split_opts[chosen_idx].push_unit_vec[0] << ", " <<
                     split_opts[chosen_idx].push_unit_vec[1] << ", " <<
-                    split_opts[chosen_idx].push_unit_vec[2] << ")");
-    ROS_INFO_STREAM("Chosen start_point: [" << p.x << ", " << p.y << ", " <<
+                    split_opts[chosen_idx].push_unit_vec[2] << "]");
+    ROS_INFO_STREAM("Chosen start_point: (" << p.x << ", " << p.y << ", " <<
                     p.z << ")");
 
 #ifdef DISPLAY_PUSH_VECTOR
