@@ -148,7 +148,7 @@ public:
     have_depth_data_(false), tracking_(false),
     tracker_initialized_(false), tracker_count_(0)
     {
-        // Get parameters from the server
+        // Legacy stuff. Must remove unused ones
         n_private_.param("crop_min_x", crop_min_x_, 0);
         n_private_.param("crop_max_x", crop_max_x_, 640);
         n_private_.param("crop_min_y", crop_min_y_, 0);
@@ -162,15 +162,6 @@ public:
         n_private_.param("max_workspace_z", max_workspace_z_, 0.0);
         std::string default_workspace_frame = "/torso_lift_link";
         n_private_.param("workspace_frame", workspace_frame_, default_workspace_frame);
-       
-        /* 
-        n_private_.param("min_table_z", pcl_segmenter_.min_table_z_, -0.5);
-        n_private_.param("max_table_z", pcl_segmenter_.max_table_z_, 1.5);
-        pcl_segmenter_.min_workspace_x_ = min_workspace_x_;
-        pcl_segmenter_.max_workspace_x_ = max_workspace_x_;
-        pcl_segmenter_.min_workspace_z_ = min_workspace_z_;
-        pcl_segmenter_.max_workspace_z_ = max_workspace_z_;
-        */
         n_private_.param("autostart_tracking", tracking_, false);
         n_private_.param("autostart_pcl_segmentation", autorun_pcl_segmentation_, false);
         n_private_.param("use_guided_pushes", use_guided_pushes_, true);
@@ -178,10 +169,10 @@ public:
         n_private_.param("num_downsamples", num_downsamples_, 2);
         std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
         n_private_.param("cam_info_topic", cam_info_topic_, cam_info_topic_def);
-        
         bool use_fast;
         n_private_.param("use_fast_corners", use_fast, false);
         
+        // color segmentation specific ones
         n_private_.param("tape_hue_value", tape_hue_value_, 137);
         n_private_.param("tape_hue_threshold", tape_hue_threshold_, 10);
         n_private_.param("hand_hue_value", hand_hue_value_, 173);
@@ -237,14 +228,23 @@ public:
         
         cv::Mat tape = colorSegment(color_frame_down.clone(), tape_hue_value_, tape_hue_threshold_);
         cv::Mat hand = colorSegment(color_frame_down.clone(), hand_hue_value_, hand_hue_threshold_);
+        
+        cv::Mat element = cv::getStructuringElement(cv::MORPH_CROSS, cv::Size(3,3));
+
+        cv::Mat dest, temp;
+        cv::morphologyEx(tape, dest, cv::MORPH_OPEN, element);
+        //cv::erode(tape, eroded);
+        //cv::dilate(eroded, dilated);
+
         cv::imshow("input",color_frame_down.clone());
         cv::imshow("tape", tape.clone()); 
-        cv::imshow("hand", hand.clone());   
+        cv::imshow("hand", hand.clone());  
+         
+        //cv::imshow("eroded", eroded.clone());   
+        cv::imshow("open", dest.clone());   
         cv::waitKey(display_wait_ms_);
-        
+    }    
 
-    }
-    
     
     
     cv::Mat colorSegment(cv::Mat color_frame, int hue, int threshold){
@@ -270,9 +270,7 @@ public:
         std::vector<cv::Mat> hsv;
         cv::split(temp, hsv);
         
-         //std::cout <<"[" << (int)hsv[0].at<uchar>(0, 0) << "]";
-         //std::cout <<"[" << (int)hsv[1].at<uchar>(0, 0) << "]";
-         //std::cout <<"[" << (int)hsv[2].at<uchar>(0, 0) << "]\n";
+        // masking out values that do not fall between the condition 
         cv::Mat wm(color_frame.rows, color_frame.cols, CV_8UC1, cv::Scalar(0));
         for (int r = 0; r < temp.rows; r++)
         {
@@ -287,14 +285,17 @@ public:
                 
             } 
         }
+
+        // removing unwanted parts by applying mask to the original image
         cv::Mat ret;
         color_frame.copyTo(ret, wm);
         return ret;
     }
+   
     
-    //
-    // Helper Methods
-    //
+    /*************************
+        Helper Methods
+    **************************/
     cv::Mat downSample(cv::Mat data_in, int scales)
     {
         cv::Mat out = data_in.clone();
