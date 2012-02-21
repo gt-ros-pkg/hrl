@@ -1985,9 +1985,6 @@ class ObjectSingulation
       push_angle_neg = push_angle;
       push_angle_pos = push_angle + M_PI;
     }
-    ROS_INFO_STREAM("Split 0 is size: " << split0.cloud.size());
-    ROS_INFO_STREAM("Split 1 is size: " << split1.cloud.size());
-
     const Eigen::Vector3f push_vec_pos(std::cos(push_angle_pos),
                                        std::sin(push_angle_pos), 0.0);
     const Eigen::Vector3f push_vec_neg(std::cos(push_angle_neg),
@@ -2324,7 +2321,7 @@ class ObjectSingulation
       obj_img.copyTo(obj_disp_img);
     }
     Eigen::Vector3f l_pt;
-    Eigen::Vector3f l_dir = getRANSACXYVector(boundary, l_pt, true);
+    Eigen::Vector3f l_dir = getRANSACXYVector(boundary, l_pt);
     Eigen::Vector4f n = splitPlaneVertical(boundary);
     Eigen::Vector4f table_centroid = pcl_segmenter_->getTableCentroid();
     const cv::Scalar red(0.0f, 0.0f, 1.0f);
