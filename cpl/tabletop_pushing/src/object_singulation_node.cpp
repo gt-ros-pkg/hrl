@@ -1495,12 +1495,6 @@ class ObjectSingulation
 
     get3DBoundaries(boundaries, cloud);
     associate3DBoundaries(boundaries, objs, obj_lbl_img);
-#ifdef DISPLAY_3D_BOUNDARIES
-    if (use_displays_ || write_to_disk_)
-    {
-      // draw3DBoundaries(boundaries, obj_lbl_img, objs.size(), true);
-    }
-#endif // DISPLAY_3D_BOUNDARIES
 
     Boundary test_boundary = chooseTestBoundary(boundaries, objs);
     if (test_boundary.object_id == objs.size() ||
@@ -1720,16 +1714,6 @@ class ObjectSingulation
           ProtoObjects pos = splitObject3D(boundaries[b], objs[max_id]);
           const unsigned int s0 = pos[0].cloud.size();
           const unsigned int s1 = pos[1].cloud.size();
-          // ROS_INFO_STREAM("Cloud 0 is size: " << s0);
-          // ROS_INFO_STREAM("Cloud 1 is size: " << s1);
-          // TODO: Show splits for debugging
-          // cv::Mat split_img = pcl_segmenter_->projectProtoObjectsIntoImage(
-          //     pos, obj_lbl_img.size(), workspace_frame_);
-          // cv::Mat disp_img = pcl_segmenter_->displayObjectImage(
-          //     split_img, "3D Split", false);
-          // displayBoundaryOrientation(disp_img, boundaries[b],
-          //                            "split obj ort");
-          // cv::waitKey();
 
           // NOTE: Don't add external object boundaries
           if (s0 > min_cluster_size_ && s1 > min_cluster_size_)
@@ -1919,8 +1903,8 @@ class ObjectSingulation
         possible_boundaries.push_back(boundaries[b]);
       }
     }
-    ROS_DEBUG_STREAM("Getting random test boundary from set of " <<
-                     possible_boundaries.size() << " possible boundaries.");
+    ROS_INFO_STREAM("Getting random test boundary from set of " <<
+                    possible_boundaries.size() << " possible boundaries.");
     int chosen_id = chooseRandTestBoundary(possible_boundaries, objs);
     if ( chosen_id < 0 || chosen_id > possible_boundaries.size())
     {
@@ -1928,9 +1912,9 @@ class ObjectSingulation
       b.object_id = -1;
       return b;
     }
-    ROS_DEBUG_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
+    ROS_INFO_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
                      possible_boundaries[chosen_id].object_id);
-    ROS_DEBUG_STREAM("Boundary.ort is: " << possible_boundaries[chosen_id].ort);
+    ROS_INFO_STREAM("Boundary.ort is: " << possible_boundaries[chosen_id].ort);
     return possible_boundaries[chosen_id];
   }
 

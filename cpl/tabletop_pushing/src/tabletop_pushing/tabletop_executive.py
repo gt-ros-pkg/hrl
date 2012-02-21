@@ -54,7 +54,7 @@ class TabletopExecutive:
         # The offsets should be removed and learned implicitly
         rospy.init_node('tabletop_executive_node',log_level=rospy.DEBUG)
         self.gripper_push_dist = rospy.get_param('~gripper_push_dist',
-                                                 0.10)
+                                                 0.20)
         self.gripper_x_offset = rospy.get_param('~gripper_push_start_x_offset',
                                                 -0.05)
         self.gripper_y_offset = rospy.get_param('~gripper_push_start_x_offset',

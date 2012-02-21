@@ -43,16 +43,18 @@
     <param name="max_pushing_y" value="1.0" type="double"/>
     <param name="min_pushing_x" value="0.0" type="double"/>
     <param name="max_pushing_x" value="2.0" type="double"/>
+    <!-- <param name="min_pushing_angle" value="-1.885" type="double"/> -->
+    <!-- <param name="max_pushing_angle" value="1.885" type="double"/> -->
 
     <param name="threshold_edges" value="true" type="bool"/>
     <param name="edge_weight_thresh" value="0.1" type="double"/>
     <param name="depth_edge_weight_thresh" value="0.05" type="double"/>
     <param name="depth_edge_weight" value="0.75" type="double"/>
 
-    <param name="boundary_ransac_thresh" value="0.05" type="double"/>
+    <param name="boundary_ransac_thresh" value="0.005" type="double"/>
     <param name="min_edge_length" value="4" type="int"/>
-    <param name="os_min_cluster_size" value="5" type="int"/>
-    <param name="os_min_boundary_length" value="4" type="int"/>
+    <param name="os_min_cluster_size" value="100" type="int"/>
+    <param name="os_min_boundary_length" value="20" type="int"/>
     <param name="os_hist_bin_width" value="5" type="int"/>
     <param name="os_hist_bin_height" value="15" type="int"/>
 
