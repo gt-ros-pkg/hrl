@@ -111,7 +111,7 @@
 // #define DISPLAY_WORKSPACE_MASK 1
 #define DISPLAY_PROJECTED_OBJECTS 1
 // #define DISPLAY_LINKED_EDGES 1
-// #define DISPLAY_CHOSEN_BOUNDARY 1
+ #define DISPLAY_CHOSEN_BOUNDARY 1
 // #define DISPLAY_CLOUD_DIFF 1
 #define DISPLAY_3D_BOUNDARIES 1
 #define DISPLAY_PUSH_VECTOR 1
@@ -1540,12 +1540,6 @@ class ObjectSingulation
                                  XYZPointCloud& cloud)
   {
     ROS_INFO_STREAM("determinePushVector()");
-#ifdef DISPLAY_CHOSEN_BOUNDARY
-    if (use_displays_)
-    {
-      displayBoundaryOrientation(obj_lbl_img, boundary, "chosen angle", true);
-    }
-#endif // DISPLAY_CHOSEN_BOUNDARY
 
     // Split point cloud at location of the boundary
     ProtoObjects split_objs3D = splitObject3D(boundary, objs[boundary.
@@ -1557,7 +1551,7 @@ class ObjectSingulation
                                                   split_objs3D[0],
                                                   split_objs3D[1], objs,
                                                   boundary.object_id,
-                                                  obj_lbl_img);
+                                                  obj_lbl_img, boundary);
     push_pose.header.frame_id = workspace_frame_;
     push_pose.object_id = boundary.object_id;
     return push_pose;
@@ -1726,6 +1720,17 @@ class ObjectSingulation
           ProtoObjects pos = splitObject3D(boundaries[b], objs[max_id]);
           const unsigned int s0 = pos[0].cloud.size();
           const unsigned int s1 = pos[1].cloud.size();
+          // ROS_INFO_STREAM("Cloud 0 is size: " << s0);
+          // ROS_INFO_STREAM("Cloud 1 is size: " << s1);
+          // TODO: Show splits for debugging
+          // cv::Mat split_img = pcl_segmenter_->projectProtoObjectsIntoImage(
+          //     pos, obj_lbl_img.size(), workspace_frame_);
+          // cv::Mat disp_img = pcl_segmenter_->displayObjectImage(
+          //     split_img, "3D Split", false);
+          // displayBoundaryOrientation(disp_img, boundaries[b],
+          //                            "split obj ort");
+          // cv::waitKey();
+
           // NOTE: Don't add external object boundaries
           if (s0 > min_cluster_size_ && s1 > min_cluster_size_)
           {
@@ -1824,17 +1829,22 @@ class ObjectSingulation
 
   Eigen::Vector3f getRANSACXYVector(Boundary& b)
   {
+    Eigen::Vector3f l_pt;
+    return getRANSACXYVector(b, l_pt);
+  }
+
+  Eigen::Vector3f getRANSACXYVector(Boundary& b, Eigen::Vector3f& l_pt,
+                                    bool debug_fitting=false)
+  {
     XYZPointCloud cloud;
     cloud.resize(b.points3D.size());
     for (unsigned int i = 0; i < b.points3D.size(); ++i)
     {
       cloud.at(i) = b.points3D[i];
-      cloud.at(i).z = 0;
+      cloud.at(i).z = 0.0f;
     }
-    // TODO: Check magnitude of the edge points in resultant model
     // TODO: Examine fitness
     // TODO: Handle vertical edge
-
     pcl::ModelCoefficients c;
     pcl::PointIndices line_inliers;
     pcl::SACSegmentation<pcl::PointXYZ> line_seg;
@@ -1845,21 +1855,28 @@ class ObjectSingulation
     line_seg.setInputCloud(cloud.makeShared());
     line_seg.segment(line_inliers, c);
 
-    // NOTE: Just want vector, in plane, so z is 0
-    Eigen::Vector3f l_vector(c.values[3], c.values[4], 0.0);
-    l_vector = l_vector/l_vector.norm();
+    // Check magnitude of the edge points in resultant model
+    if (debug_fitting)
+    {
+      ROS_INFO_STREAM("Fit: " << line_inliers.indices.size() <<
+                      " line points from " << b.points3D.size());
+    }
+    Eigen::Vector3f l_vector(c.values[3], c.values[4], c.values[5]);
+    l_pt[0] = c.values[0];
+    l_pt[1] = c.values[1];
+    l_pt[2] = c.values[2];
     return l_vector;
   }
 
   Eigen::Vector4f splitPlaneVertical(Boundary& b)
   {
-    Eigen::Vector3f l = getRANSACXYVector(b);
+    Eigen::Vector3f l_pt;
+    Eigen::Vector3f l_dir = getRANSACXYVector(b, l_pt);
     const Eigen::Vector3f z_axis(0, 0, 1);
-    Eigen::Vector3f n = l.cross(z_axis);
-    Eigen::Vector3f p(b.points3D[0].x, b.points3D[0].y, 0.0f);
+    Eigen::Vector3f n = l_dir.cross(z_axis);
     n = n/n.norm();
-    float d = p.norm();
-    Eigen::Vector4f hessian(n[0], n[1], n[2], d);
+    float p = -n[0]*l_pt[0]+n[1]*l_pt[1]+n[2]*l_pt[2];
+    Eigen::Vector4f hessian(n[0], n[1], n[2], p);
     return hessian;
   }
 
@@ -1936,7 +1953,7 @@ class ObjectSingulation
                                     ProtoTabletopObject& split0,
                                     ProtoTabletopObject& split1,
                                     ProtoObjects& objs, unsigned int id,
-                                    cv::Mat& lbl_img)
+                                    cv::Mat& lbl_img, Boundary& boundary)
   {
     double push_angle_pos = 0.0;
     double push_angle_neg = 0.0;
@@ -1950,6 +1967,9 @@ class ObjectSingulation
       push_angle_neg = push_angle;
       push_angle_pos = push_angle + M_PI;
     }
+    ROS_INFO_STREAM("Split 0 is size: " << split0.cloud.size());
+    ROS_INFO_STREAM("Split 1 is size: " << split1.cloud.size());
+
     const Eigen::Vector3f push_vec_pos(std::cos(push_angle_pos),
                                        std::sin(push_angle_pos), 0.0);
     const Eigen::Vector3f push_vec_neg(std::cos(push_angle_neg),
@@ -1994,7 +2014,7 @@ class ObjectSingulation
         p_cur.y = split_opts[i].obj.centroid[1];
         p_cur.z = split_opts[i].obj.centroid[2];
       }
-      if (p_not_set || p_cur.x < p.x)
+      if (p_not_set || p_cur.x < p.x && (p_cur.x != 0.0))
       {
         p_not_set = false;
         p = p_cur;
@@ -2028,6 +2048,12 @@ class ObjectSingulation
         split_objs3D, lbl_img.size(), workspace_frame_);
     cv::Mat disp_img = pcl_segmenter_->displayObjectImage(
         split_img, "3D Split", false);
+#ifdef DISPLAY_CHOSEN_BOUNDARY
+    if (use_displays_)
+    {
+      displayBoundaryOrientation(disp_img, boundary, "chosen");
+    }
+#endif // DISPLAY_CHOSEN_BOUNDARY
 
     const Eigen::Vector4f moved_start = split_opts[chosen_idx].getMovedPoint(
         push.start_point);
@@ -2046,6 +2072,7 @@ class ObjectSingulation
         end_point);
     cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,0,1.0));
     cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,1.0,0));
+
     if (use_displays_)
     {
       cv::imshow("push_vector", disp_img);
@@ -2154,9 +2181,9 @@ class ObjectSingulation
     for (unsigned int i = 0; i < to_split.cloud.size(); ++i)
     {
       const pcl::PointXYZ x = to_split.cloud.at(i);
-      const float d = hessian[0]*x.x + hessian[1]*x.y + hessian[2]*x.z +
+      const float D = hessian[0]*x.x + hessian[1]*x.y + hessian[2]*x.z +
           hessian[3];
-      if (d > 0)
+      if (D > 0)
       {
         p1.indices.push_back(i);
       }
@@ -2166,7 +2193,6 @@ class ObjectSingulation
     ProtoTabletopObject po1;
     ProtoTabletopObject po2;
     pcl::ExtractIndices<pcl::PointXYZ> extract;
-    pcl::PointIndices plane_outliers;
     extract.setInputCloud(to_split.cloud.makeShared());
     extract.setIndices(boost::make_shared<pcl::PointIndices>(p1));
     extract.filter(po1.cloud);
@@ -2246,40 +2272,58 @@ class ObjectSingulation
       obj_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
       cv::cvtColor(obj_img_f, obj_disp_img, CV_GRAY2BGR);
     }
-    else
+    else if (obj_img.type() == CV_32FC1)
     {
       cv::cvtColor(obj_img, obj_disp_img, CV_GRAY2BGR);
     }
-    const cv::Vec3f green(0.0f, 1.0f, 0.0f);
-    for (unsigned int i = 0; i < boundary.size(); ++i)
+    else
     {
-      obj_disp_img.at<cv::Vec3f>(boundary[i].y, boundary[i].x) = green;
+      obj_img.copyTo(obj_disp_img);
     }
-
-    Eigen::Vector3f n = getRANSACXYVector(boundary);
+    Eigen::Vector3f l_pt;
+    Eigen::Vector3f l_dir = getRANSACXYVector(boundary, l_pt, true);
+    Eigen::Vector4f n = splitPlaneVertical(boundary);
     Eigen::Vector4f table_centroid = pcl_segmenter_->getTableCentroid();
     const cv::Scalar red(0.0f, 0.0f, 1.0f);
     const cv::Scalar blue(1.0f, 0.0f, 0.0f);
+    const cv::Scalar cyan(1.0f, 1.0f, 0.0f);
+    const cv::Scalar green(0.0f, 1.0f, 0.0f);
     for (unsigned int i = 0; i < boundary.points3D.size(); ++i)
     {
-      PointStamped start_point;
-      start_point.header.frame_id = workspace_frame_;
-      start_point.point.x = boundary.points3D[i].x;
-      start_point.point.y = boundary.points3D[i].y;
-      start_point.point.z = table_centroid[2];
-      PointStamped end_point;
-      end_point.header.frame_id = workspace_frame_;
-      end_point.point.x = start_point.point.x + n[0]*0.10;
-      end_point.point.y = start_point.point.y + n[1]*0.10;
-      end_point.point.z = table_centroid[2];
+      PointStamped start_pt;
+      start_pt.header.frame_id = workspace_frame_;
+      start_pt.point.x = boundary.points3D[i].x;
+      start_pt.point.y = boundary.points3D[i].y;
+      start_pt.point.z = boundary.points3D[i].z;
+      PointStamped end_pt;
+      end_pt.header.frame_id = workspace_frame_;
+      end_pt.point.x = start_pt.point.x + n[0]*0.10;
+      end_pt.point.y = start_pt.point.y + n[1]*0.10;
+      end_pt.point.z = start_pt.point.z + n[2]*0.10;
 
-      cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
-          start_point);
-      cv::Point img_end_point = pcl_segmenter_->projectPointIntoImage(
-          end_point);
-
-      cv::line(obj_disp_img, img_start_point, img_end_point, red);
-      cv::circle(obj_disp_img, img_end_point, 4, blue);
+      cv::Point img_start_pt = pcl_segmenter_->projectPointIntoImage(start_pt);
+      cv::Point img_end_pt = pcl_segmenter_->projectPointIntoImage(end_pt);
+      cv::line(obj_disp_img, img_start_pt, img_end_pt, red);
+      cv::circle(obj_disp_img, img_end_pt, 4, blue);
+    }
+    PointStamped l_point;
+    l_point.header.frame_id = workspace_frame_;
+    l_point.point.x = l_pt[0];
+    l_point.point.y = l_pt[1];
+    l_point.point.z = l_pt[2];
+    PointStamped l_end;
+    l_end.header.frame_id = workspace_frame_;
+    l_end.point.x = l_pt[0] + l_dir[0]*0.10;
+    l_end.point.y = l_pt[1] + l_dir[1]*0.10;
+    l_end.point.z = l_pt[2] + l_dir[2]*0.10;
+    cv::Point img_l_pt = pcl_segmenter_->projectPointIntoImage(l_point);
+    cv::Point img_l_end = pcl_segmenter_->projectPointIntoImage(l_end);
+    cv::circle(obj_disp_img, img_l_pt, 6, cyan);
+    cv::line(obj_disp_img, img_l_pt, img_l_end, green);
+    const cv::Vec3f green_v(0.0f, 1.0f, 0.0f);
+    for (unsigned int i = 0; i < boundary.size(); ++i)
+    {
+      obj_disp_img.at<cv::Vec3f>(boundary[i].y, boundary[i].x) = green_v;
     }
     cv::imshow(title, obj_disp_img);
   }
@@ -2491,9 +2535,9 @@ class ObjectSingulation
     // const int h = 30;
     const int w = histogram_bin_width_;
     const int h = histogram_bin_height_;
-    const cv::Scalar est_line_color(1.0, 1.0, 1.0);
+    const cv::Scalar est_line_color(0.0, 0.0, 0.0);
     const cv::Scalar est_fill_color(0.0, 0.0, 0.7);
-    const cv::Scalar history_line_color(1.0, 1.0, 1.0);
+    const cv::Scalar history_line_color(0.0, 0.0, 0.0);
     const cv::Scalar history_fill_color(0.0, 0.7, 0.0);
     for (unsigned int i = 0; i < objs.size(); ++i)
     {

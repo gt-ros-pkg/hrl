@@ -65,20 +65,23 @@ class TabletopExecutive:
         self.gripper_sweep_dist = rospy.get_param('~gripper_sweep_dist',
                                                  0.15)
         self.sweep_x_offset = rospy.get_param('~gripper_sweep_start_x_offset',
-                                              -0.03)
+                                              -0.01)
         self.sweep_y_offset = rospy.get_param('~gripper_sweep_start_y_offset',
-                                              0.05)
+                                              0.03)
         self.sweep_start_z = rospy.get_param('~gripper_sweep_start_z',
                                               -0.22)
 
         self.overhead_x_offset = rospy.get_param('~overhead_push_start_x_offset',
-                                                 0.02)
+                                                 0.00)
         self.overhead_y_offset = rospy.get_param('~overhead_push_start_x_offset',
                                                  0.00)
         self.overhead_start_z = rospy.get_param('~overhead_push_start_z',
                                                  -0.25)
         self.use_overhead_x_thresh = rospy.get_param('~use_overhead_x_thresh',
-                                                     0.55)
+                                                     0.525)
+        self.use_sweep_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
+                                                      # pi*0.5)
+                                                     pi*0.375)
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
                                                      GripperPush)
@@ -125,14 +128,13 @@ class TabletopExecutive:
                           ', ' + str(pose_res.start_point.y) + ', ' +
                           ', ' + str(pose_res.start_point.z) + ')')
             rospy.loginfo('Push angle: ' + str(pose_res.push_angle))
-            if fabs(pose_res.push_angle) > pi*0.375:
+            if fabs(pose_res.push_angle) > self.use_sweep_angle_thresh:
                 opt = 1
             else:
                 if pose_res.start_point.x < self.use_overhead_x_thresh:
                     opt = 2
                 else:
                     opt = 0
-
             if opt == 0:
                 if pose_res.push_angle > 0:
                     which_arm = 'r'
@@ -141,7 +143,6 @@ class TabletopExecutive:
                 self.gripper_push_object(self.gripper_push_dist, which_arm,
                                          pose_res)
             if opt == 1:
-                # if pose_res.start_point.y < 0:
                 if pose_res.push_angle > 0:
                     which_arm = 'r'
                 else:
