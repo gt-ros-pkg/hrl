@@ -222,26 +222,31 @@ public:
         
         // Swap kinect color channel order
         cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
-        
+	// Downsample the image
         cv::Mat color_frame_down = downSample(color_frame, num_downsamples_);
         cv::Mat depth_frame_down = downSample(depth_frame, num_downsamples_);
-        
+	
+	// Segment the blue tape on the hand
+	// Values are from the launch file
         cv::Mat tape = colorSegment(color_frame_down.clone(), tape_hue_value_, tape_hue_threshold_);
-        cv::Mat hand = colorSegment(color_frame_down.clone(), hand_hue_value_, hand_hue_threshold_);
         
-        cv::Mat element = cv::getStructuringElement(cv::MORPH_CROSS, cv::Size(3,3));
+        cv::Mat open;
+        cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3,3));
+        cv::morphologyEx(tape.clone(), open, cv::MORPH_OPEN, element);
 
-        cv::Mat dest, temp;
-        cv::morphologyEx(tape, dest, cv::MORPH_OPEN, element);
-        //cv::erode(tape, eroded);
-        //cv::dilate(eroded, dilated);
+		
+	std::vector<std::vector<cv::Point> > moving_contours;
+	moving_contours.clear();
+    	// NOTE: This method makes changes to the "moving" image
+    	cv::findContours(open, moving_contours, cv::RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
 
+
+	cv::Moments m; 
+	m = cv::moments(moving_contours[0]);
+      	ROS_INFO_STREAM("first moment:"  << moving_contours.size());
         cv::imshow("input",color_frame_down.clone());
         cv::imshow("tape", tape.clone()); 
-        cv::imshow("hand", hand.clone());  
-         
-        //cv::imshow("eroded", eroded.clone());   
-        cv::imshow("open", dest.clone());   
+        cv::imshow("open", open.clone());   
         cv::waitKey(display_wait_ms_);
     }    
 
@@ -262,7 +267,7 @@ public:
      * Very Basic Color Segmentation done in HSV space
      * Takes in Hue value and threshold as input to compute the distance in color space
      * cv::Mat color_frame: color input from image
-     * 
+     * Return: mask from the color segmentation 
      */
     cv::Mat colorSegment(cv::Mat color_frame, int _hue_n, int _hue_p, int _sat_n, int _sat_p, int _value_n,  int _value_p){
         cv::Mat temp (color_frame.clone());

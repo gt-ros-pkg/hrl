@@ -5,12 +5,12 @@
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
     <remap from="point_cloud_topic" to="/kinect_head/depth/points"/>
 
-    <param name="tape_hue_value" value="10" type="int"/>
-    <param name="tape_hue_threshold" value="30" type="int"/>
+    <param name="tape_hue_value" value="15" type="int"/>
+    <param name="tape_hue_threshold" value="50" type="int"/>
     <param name="hand_hue_value" value="120" type="int"/>
     <param name="hand_hue_threshold" value="10" type="int"/>
-    <param name="default_sat_bot_value" value="120" type="int"/>
-    <param name="default_sat_top_value" value="190" type="int"/>
+    <param name="default_sat_bot_value" value="100" type="int"/>
+    <param name="default_sat_top_value" value="220" type="int"/>
     <param name="default_val_value" value="255" type="int"/>
  
     <param name="display_wait_ms" value="3" type="int"/>
