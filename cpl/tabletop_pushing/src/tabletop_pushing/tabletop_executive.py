@@ -155,6 +155,8 @@ class TabletopExecutive:
                     which_arm = 'l'
                 self.overhead_push_object(self.gripper_push_dist, which_arm,
                                           pose_res)
+        if not (pose_res is None):
+            rospy.loginfo('Singulated objects: ' + str(pose_res.singulated))
         pose_res = self.get_num_objs()
         if not (pose_res is None):
             rospy.loginfo('Final estimate of: ' + str(pose_res.num_objects) +

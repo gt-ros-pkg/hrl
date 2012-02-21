@@ -9,3 +9,4 @@ float64 push_angle
 uint32 num_objects
 uint32 object_id
 bool no_push
+uint32[] singulated

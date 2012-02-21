@@ -93,7 +93,7 @@
 #include <vector>
 #include <deque>
 #include <queue>
-#include <map>
+#include <set>
 #include <string>
 #include <sstream>
 #include <iostream>
@@ -1496,17 +1496,27 @@ class ObjectSingulation
     get3DBoundaries(boundaries, cloud);
     associate3DBoundaries(boundaries, objs, obj_lbl_img);
 
-    Boundary test_boundary = chooseTestBoundary(boundaries, objs);
-    if (test_boundary.object_id == objs.size() ||
-        test_boundary.object_id < 0)
+    std::vector<unsigned int> singulated = checkSingulated(boundaries, objs);
+    if (singulated.size() > 0)
+    {
+      std::stringstream sing_stream;
+      for (unsigned int i = 0; i < singulated.size(); ++i)
+      {
+        sing_stream << i << " ";
+      }
+      ROS_INFO_STREAM("The following objects are singulated: " <<
+                      sing_stream.str());
+    }
+    if (singulated.size() == objs.size())
     {
       ROS_WARN_STREAM("Boundary has no ID!");
       PushVector push_pose;
       push_pose.object_id = objs.size();
       push_pose.no_push = true;
+      push_pose.singulated = singulated;
       return push_pose;
     }
-
+    Boundary test_boundary = chooseTestBoundary(boundaries, objs);
     PushVector push = determinePushVector(push_dist, test_boundary, objs,
                                           obj_lbl_img, cloud);
     // Increment the push direction of the object to be pushed
@@ -1516,6 +1526,7 @@ class ObjectSingulation
     ROS_INFO_STREAM("Chose to push object: " << push.object_id);
     ROS_INFO_STREAM("Push angle is : " << push.push_angle);
     ROS_INFO_STREAM("Push angle is in bin : " << push_idx);
+    push.singulated = singulated;
     return push;
   }
 
@@ -1882,6 +1893,37 @@ class ObjectSingulation
     return hessian;
   }
 
+  std::vector<unsigned int> checkSingulated(std::vector<Boundary>& boundaries,
+                                   ProtoObjects& objs)
+  {
+    std::set<unsigned int> has_pushes;
+    for (unsigned int b = 0; b < boundaries.size(); ++b)
+    {
+      // Ignore small boundaries or those not on objects
+      if (boundaries[b].object_id == objs.size() ||
+          boundaries[b].external || boundaries[b].too_short)
+      {
+        continue;
+      }
+      const int i = boundaries[b].object_id;
+      const unsigned int bin = quantizeAngle(boundaries[b].ort);
+      // Only choose from boundaries associated with unpushed directions
+      if (objs[i].push_history[bin] == 0)
+      {
+        has_pushes.insert(i);
+      }
+    }
+    std::vector<unsigned int> singulated;
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      if (has_pushes.count(i) == 0)
+      {
+        singulated.push_back(i);
+      }
+    }
+    return singulated;
+  }
+
   Boundary chooseTestBoundary(std::vector<Boundary>& boundaries,
                               ProtoObjects& objs)
   {
@@ -1922,28 +1964,16 @@ class ObjectSingulation
                              ProtoObjects& objs)
   {
     std::vector<double> scores(boundaries.size(), 0.0f);
-    int nonzero = 0;
-    int no_ids = 0;
-    int no_pts = 0;
     for (unsigned int i = 0; i < boundaries.size(); ++i)
     {
-      if (boundaries[i].object_id >= objs.size() ||
-          boundaries[i].points3D.size() < min_boundary_length_)
+      if (boundaries[i].object_id >= objs.size() || boundaries[i].too_short ||
+          boundaries[i].external)
       {
-        if (boundaries[i].object_id >= objs.size())
-        {
-          ++no_ids;
-        }
-        if (boundaries[i].points3D.size() < min_boundary_length_)
-        {
-          ++no_pts;
-        }
         continue;
       }
       else
       {
         scores[i] = 1.0;
-        nonzero++;
       }
     }
     int chosen_id = sampleScore(scores);
