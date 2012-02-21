@@ -1841,7 +1841,11 @@ class ObjectSingulation
     for (unsigned int i = 0; i < b.points3D.size(); ++i)
     {
       cloud.at(i) = b.points3D[i];
-      cloud.at(i).z = 0.0f;
+      // NOTE: This is kind of a hack, instead of setting to 0.0, I set to the z
+      // of the first point to try and get around numerical approximations
+      // NOTE: Helps with visualization if the line is at the approximate height
+      // in the world
+      cloud.at(i).z = b.points3D[0].z;
     }
     // TODO: Examine fitness
     // TODO: Handle vertical edge
@@ -1868,15 +1872,29 @@ class ObjectSingulation
     return l_vector;
   }
 
-  Eigen::Vector4f splitPlaneVertical(Boundary& b)
+  Eigen::Vector4f splitPlaneVertical(Boundary& b, bool debug_fitting=false)
   {
     Eigen::Vector3f l_pt;
     Eigen::Vector3f l_dir = getRANSACXYVector(b, l_pt);
+    l_dir /= l_dir.norm();
     const Eigen::Vector3f z_axis(0, 0, 1);
     Eigen::Vector3f n = l_dir.cross(z_axis);
     n = n/n.norm();
-    float p = -n[0]*l_pt[0]+n[1]*l_pt[1]+n[2]*l_pt[2];
+    float p = -(n[0]*l_pt[0]+n[1]*l_pt[1]+n[2]*l_pt[2]);
     Eigen::Vector4f hessian(n[0], n[1], n[2], p);
+    if (debug_fitting)
+    {
+      for (unsigned int i = 0; i < b.points3D.size(); ++i)
+      {
+        pcl::PointXYZ x = b.points3D[i];
+        const float D = hessian[0]*x.x + hessian[1]*x.y + hessian[2]*x.z +
+            hessian[3];
+        ROS_INFO_STREAM("Point: (" << x.x << ", " << x.y << ", " << x.z <<
+                        ") : " << D);
+      }
+      ROS_INFO_STREAM("hessian is: " << hessian[0] << ", " << hessian[1] <<
+                      ", " <<  hessian[2] << ", " << hessian[3] << ")");
+    }
     return hessian;
   }
 
@@ -2165,16 +2183,18 @@ class ObjectSingulation
     return min_clearance;
   }
 
-  ProtoObjects splitObject3D(Boundary& boundary, ProtoTabletopObject& to_split)
+  ProtoObjects splitObject3D(Boundary& boundary, ProtoTabletopObject& to_split,
+                             bool debug_fitting=false)
   {
     // Get plane containing the boundary
-    Eigen::Vector4f hessian = splitPlaneVertical(boundary);
+    Eigen::Vector4f hessian = splitPlaneVertical(boundary, debug_fitting);
     // Split based on the plane
-    return splitObject3D(hessian, to_split);
+    return splitObject3D(hessian, to_split, debug_fitting);
   }
 
   ProtoObjects splitObject3D(Eigen::Vector4f& hessian,
-                             ProtoTabletopObject& to_split)
+                             ProtoTabletopObject& to_split,
+                             bool debug_fitting=false)
   {
     // Split the point clouds based on the half plane distance test
     pcl::PointIndices p1;
@@ -2203,6 +2223,29 @@ class ObjectSingulation
     for (unsigned int i = 0; i < split.size(); ++i)
     {
       pcl::compute3DCentroid(split[i].cloud, split[i].centroid);
+    }
+
+    if (debug_fitting)
+    {
+      pcl::PointCloud<pcl::PointXYZI> label_cloud;
+      label_cloud.header.frame_id = workspace_frame_;
+      label_cloud.resize(po1.cloud.size()+po2.cloud.size());
+      for (unsigned int i = 0, k =0; i < split.size(); ++i)
+      {
+        for (unsigned int j = 0; j < split[i].cloud.size(); ++j, ++k)
+        {
+          // NOTE: Intensity 0 is the table; so use 1-based indexing
+          pcl::PointXYZI p;
+          p.x = split[i].cloud[j].x;
+          p.y = split[i].cloud[j].y;
+          p.z = split[i].cloud[j].z;
+          p.intensity = i;
+          label_cloud.at(k) = p;
+        }
+      }
+      sensor_msgs::PointCloud2 label_cloud_msg;
+      pcl::toROSMsg(label_cloud, label_cloud_msg);
+      obj_push_pub_.publish(label_cloud_msg);
     }
 
     return split;
