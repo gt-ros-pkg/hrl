@@ -1,0 +1,4 @@
+uint8 priority
+string behavior_name
+---
+bool success
