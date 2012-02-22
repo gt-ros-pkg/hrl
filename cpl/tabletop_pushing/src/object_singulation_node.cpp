@@ -1473,7 +1473,7 @@ class ObjectSingulation
             }
             else
             {
-              cur_objs[min_idx].push_history.clear();
+              cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
             }
             cur_objs[min_idx].transform = min_transform*prev_objs[i].transform;
             matched[min_idx] = true;
@@ -1919,7 +1919,7 @@ class ObjectSingulation
   }
 
   std::vector<unsigned int> checkSingulated(std::vector<Boundary>& boundaries,
-                                   ProtoObjects& objs)
+                                            ProtoObjects& objs)
   {
     std::set<unsigned int> has_pushes;
     for (unsigned int b = 0; b < boundaries.size(); ++b)
@@ -2105,10 +2105,10 @@ class ObjectSingulation
 #ifdef DISPLAY_CHOSEN_BOUNDARY
     if (use_displays_ || write_to_disk_)
     {
-      if (use_displays_)
-      {
-        displayBoundaryOrientation(disp_img, boundary, "chosen debug");
-      }
+      // if (use_displays_)
+      // {
+      //   displayBoundaryOrientation(disp_img, boundary, "chosen debug");
+      // }
       highlightBoundaryOrientation(disp_img, boundary, "chosen");
     }
 #endif // DISPLAY_CHOSEN_BOUNDARY
