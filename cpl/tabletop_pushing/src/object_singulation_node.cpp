@@ -2105,10 +2105,10 @@ class ObjectSingulation
 #ifdef DISPLAY_CHOSEN_BOUNDARY
     if (use_displays_ || write_to_disk_)
     {
-      // if (use_displays_)
-      // {
-      //   displayBoundaryOrientation(disp_img, boundary, "chosen debug");
-      // }
+      if (use_displays_)
+      {
+        displayBoundaryOrientation(disp_img, boundary, "chosen debug");
+      }
       highlightBoundaryOrientation(disp_img, boundary, "chosen");
     }
 #endif // DISPLAY_CHOSEN_BOUNDARY
@@ -2155,14 +2155,17 @@ class ObjectSingulation
     double max_dist = 0.0;
     for (unsigned int i = 0; i < b.points3D.size()-1; ++i)
     {
-      for (unsigned int j = 0; j < b.points3D.size(); ++j)
+      for (unsigned int j = i+1; j < b.points3D.size(); ++j)
       {
-        if (j <= i) continue;
         double dist = pcl_segmenter_->sqrDistXY(b.points3D[i], b.points3D[j]);
-        if (dist > max_dist) max_dist = dist;
+        if (dist > max_dist)
+        {
+          max_dist = dist;
+        }
       }
     }
-    return std::sqrt(max_dist);
+    max_dist = std::sqrt(max_dist);
+    return max_dist;
   }
 
   geometry_msgs::Point determineStartPoint(XYZPointCloud& pts, PushOpt& opt)
