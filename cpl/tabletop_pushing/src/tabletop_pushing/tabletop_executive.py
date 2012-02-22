@@ -55,7 +55,7 @@ class TabletopExecutive:
                                                  True)
         self.default_push_dist = rospy.get_param('~push_dist', 0.20)
         # TODO: Determine workspace limits for max here
-        self.min_push_dist = rospy.get_param('~min_push_dist', 0.05)
+        self.min_push_dist = rospy.get_param('~min_push_dist', 0.1)
         self.max_push_dist = rospy.get_param('~mix_push_dist', 0.5)
 
         # TODO: Replace these parameters with learned / perceived values
@@ -284,7 +284,7 @@ class TabletopExecutive:
         # Use the sent wrist yaw
         wrist_yaw = pose_res.push_angle
         push_req.wrist_yaw = wrist_yaw
-        push_req.desired_push_dist = push_dist
+        push_req.desired_push_dist = push_dist + abs(self.gripper_x_offset)
 
         # Offset pose to not hit the object immediately
         push_req.start_point.point.x += self.gripper_x_offset*cos(wrist_yaw)
