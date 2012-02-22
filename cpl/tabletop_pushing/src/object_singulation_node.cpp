@@ -2078,9 +2078,13 @@ class ObjectSingulation
     cv::Mat disp_img = pcl_segmenter_->displayObjectImage(
         split_img, "3D Split", false);
 #ifdef DISPLAY_CHOSEN_BOUNDARY
-    if (use_displays_)
+    if (use_displays_ || write_to_disk_)
     {
-      displayBoundaryOrientation(disp_img, boundary, "chosen");
+      if (use_displays_)
+      {
+        displayBoundaryOrientation(disp_img, boundary, "chosen debug");
+      }
+      highlightBoundaryOrientation(disp_img, boundary, "chosen");
     }
 #endif // DISPLAY_CHOSEN_BOUNDARY
 
@@ -2380,6 +2384,45 @@ class ObjectSingulation
       obj_disp_img.at<cv::Vec3f>(boundary[i].y, boundary[i].x) = green_v;
     }
     cv::imshow(title, obj_disp_img);
+  }
+
+  void highlightBoundaryOrientation(cv::Mat& obj_img, Boundary& boundary,
+                                  std::string title)
+  {
+    cv::Mat obj_disp_img(obj_img.size(), CV_32FC3);
+    if (obj_img.depth() == CV_8U)
+    {
+      cv::Mat obj_img_f;
+      obj_img.convertTo(obj_img_f, CV_32FC1, 30.0/255);
+      cv::cvtColor(obj_img_f, obj_disp_img, CV_GRAY2BGR);
+    }
+    else if (obj_img.type() == CV_32FC1)
+    {
+      cv::cvtColor(obj_img, obj_disp_img, CV_GRAY2BGR);
+    }
+    else
+    {
+      obj_img.copyTo(obj_disp_img);
+    }
+    cv::Vec3f green(0.0,1.0,0.0);
+    for (unsigned int i = 0; i < boundary.size(); ++i)
+    {
+      obj_disp_img.at<cv::Vec3f>(boundary[i].y, boundary[i].x) = green;
+    }
+    if (use_displays_)
+    {
+      cv::imshow(title, obj_disp_img);
+    }
+    if (write_to_disk_)
+    {
+      // Write to disk to create video output
+      std::stringstream bound_out_name;
+      bound_out_name << base_output_path_ << "chosen" << callback_count_
+                     << ".tiff";
+      cv::Mat bound_out_img(obj_disp_img.size(), CV_8UC3);
+      obj_disp_img.convertTo(bound_out_img, CV_8UC3, 255);
+      cv::imwrite(bound_out_name.str(), bound_out_img);
+    }
   }
 
   void draw3DBoundaries(std::vector<Boundary> boundaries, cv::Mat& img,
@@ -2801,7 +2844,7 @@ class ObjectSingulationNode
       /*os_(pcl_segmenter_),*/
       have_depth_data_(false), tracking_(false),
       tracker_initialized_(false),
-      camera_initialized_(false), tracker_count_(0)
+      camera_initialized_(false), tracker_count_(0), recording_input_(false)
   {
     tf_ = shared_ptr<tf::TransformListener>(new tf::TransformListener());
     pcl_segmenter_ = shared_ptr<PointCloudSegmentation>(
@@ -3011,14 +3054,14 @@ class ObjectSingulationNode
       cv::imshow("color", cur_color_frame_);
     }
     // TODO: Way too much disk writing!
-    // if (write_to_disk_)
-    // {
-    //   std::stringstream color_out_name;
-    //   color_out_name << base_output_path_ << "video/input" << tracker_count_
-    //                  << ".tiff";
-    //   tracker_count_++;
-    //   cv::imwrite(color_out_name.str(), cur_color_frame_);
-    // }
+    if (write_to_disk_ && recording_input_)
+    {
+      std::stringstream color_out_name;
+      color_out_name << base_output_path_ << "video/input" << tracker_count_
+                     << ".tiff";
+      tracker_count_++;
+      cv::imwrite(color_out_name.str(), cur_color_frame_);
+    }
 #endif // DISPLAY_INPUT_COLOR
 #ifdef DISPLAY_INPUT_DEPTH
     if (use_displays_)
@@ -3064,10 +3107,19 @@ class ObjectSingulationNode
         os_->initialize(cur_color_frame_, cur_depth_frame_,
                         cur_point_cloud_, cur_workspace_mask_);
         res.no_push = true;
+        recording_input_ = false;
         return true;
       }
       else
       {
+        if ( ! recording_input_)
+        {
+          recording_input_ = true;
+        }
+        if ( !req.no_push_calc)
+        {
+          recording_input_ = false;
+        }
         res = getPushPose(req.push_dist, req.use_guided, req.no_push_calc);
       }
     }
@@ -3277,6 +3329,7 @@ class ObjectSingulationNode
   bool autorun_pcl_segmentation_;
   bool use_guided_pushes_;
   double default_push_dist_;
+  bool recording_input_;
 };
 
 int main(int argc, char ** argv)
