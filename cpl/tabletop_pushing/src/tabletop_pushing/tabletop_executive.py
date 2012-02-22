@@ -53,19 +53,20 @@ class TabletopExecutive:
         rospy.init_node('tabletop_executive_node',log_level=rospy.DEBUG)
         self.use_returned_dist = rospy.get_param('~use_returned_push_dist',
                                                  True)
+        self.default_push_dist = rospy.get_param('~push_dist', 0.20)
+        # TODO: Determine workspace limits for max here
+        self.min_push_dist = rospy.get_param('~mine_push_dist', 0.05)
+        self.max_push_dist = rospy.get_param('~mine_push_dist', 0.60)
+
         # TODO: Replace these parameters with learned / perceived values
         # The offsets should be removed and learned implicitly
-        self.gripper_push_dist = rospy.get_param('~gripper_push_dist',
-                                                 0.20)
         self.gripper_x_offset = rospy.get_param('~gripper_push_start_x_offset',
                                                 -0.05)
         self.gripper_y_offset = rospy.get_param('~gripper_push_start_x_offset',
                                                 0.0)
         self.gripper_start_z = rospy.get_param('~gripper_push_start_z',
-                                                -0.22)
+                                                -0.20)
 
-        self.gripper_sweep_dist = rospy.get_param('~gripper_sweep_dist',
-                                                 0.15)
         self.sweep_x_offset = rospy.get_param('~gripper_sweep_start_x_offset',
                                               -0.01)
         self.sweep_y_offset = rospy.get_param('~gripper_sweep_start_y_offset',
@@ -83,6 +84,7 @@ class TabletopExecutive:
                                                      0.525)
         self.use_sweep_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
                                                      pi*0.375)
+        # Setup service proxies
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
                                                      GripperPush)
@@ -105,9 +107,9 @@ class TabletopExecutive:
         self.raise_and_look_proxy = rospy.ServiceProxy('raise_and_look',
                                                        RaiseAndLook)
         self.table_proxy = rospy.ServiceProxy('get_table_location', LocateTable)
+        # Bookkeeping fof fake pushes
         self.use_fake_push_pose = use_fake_push_pose
         self.push_count = 0
-        self.sweep_count = 0
 
     def run(self, num_pushes=1, use_guided=True):
         # Get table height and raise to that before anything else
@@ -129,6 +131,7 @@ class TabletopExecutive:
                           ', ' + str(pose_res.start_point.y) + ', ' +
                           ', ' + str(pose_res.start_point.z) + ')')
             rospy.loginfo('Push angle: ' + str(pose_res.push_angle))
+            rospy.loginfo('Push dist: ' + str(pose_res.push_dist))
             if fabs(pose_res.push_angle) > self.use_sweep_angle_thresh:
                 opt = 1
             else:
@@ -144,7 +147,9 @@ class TabletopExecutive:
                 if self.use_returned_dist:
                     push_dist = pose_res.push_dist
                 else:
-                    push_dist = self.gripper_push_dist
+                    push_dist = self.default_push_dist
+                push_dist = max(min(push_dist, self.max_push_dist),
+                                self.min_push_dist)
                 self.gripper_push_object(push_dist, which_arm, pose_res)
             if opt == 1:
                 if pose_res.push_angle > 0:
@@ -152,10 +157,12 @@ class TabletopExecutive:
                 else:
                     which_arm = 'l'
                 if self.use_returned_dist:
-                    push_dist = pose_res.push_dist # TODO: + offset
+                    push_dist = pose_res.push_dist
                 else:
-                    push_dist = self.gripper_sweep_dist
-                self.sweep_object(self.gripper_push_dist, which_arm, pose_res)
+                    push_dist = default_push_dist
+                push_dist = max(min(push_dist, self.max_push_dist),
+                                self.min_push_dist)
+                self.sweep_object(self.default_push_dist, which_arm, pose_res)
             if opt == 2:
                 if pose_res.push_angle > 0:
                     which_arm = 'r'
@@ -164,7 +171,9 @@ class TabletopExecutive:
                 if self.use_returned_dist:
                     push_dist = pose_res.push_dist
                 else:
-                    push_dist = self.gripper_push_dist
+                    push_dist = self.default_push_dist
+                push_dist = max(min(push_dist, self.max_push_dist),
+                                self.min_push_dist)
                 self.overhead_push_object(push_dist, which_arm, pose_res)
         if not (pose_res is None):
             rospy.loginfo('Singulated objects: ' + str(pose_res.singulated))
@@ -178,7 +187,7 @@ class TabletopExecutive:
             return request_fake_singulation_push(which_arm)
         pose_req = PushPoseRequest()
         pose_req.use_guided = use_guided
-        pose_req.push_dist = self.gripper_push_dist
+        pose_req.push_dist = self.default_push_dist
         pose_req.initialize = False
         pose_req.no_push_calc = False
         rospy.loginfo("Calling push pose service")
@@ -308,7 +317,8 @@ class TabletopExecutive:
         else:
             wrist_yaw = pose_res.push_angle + pi/2
         sweep_req.wrist_yaw = wrist_yaw
-        sweep_req.desired_push_dist = -y_offset_dir*push_dist
+        sweep_req.desired_push_dist = -y_offset_dir*(self.sweep_y_offset +
+                                                     push_dist)
 
         # Set offset in x y, based on distance
         sweep_req.start_point.header = pose_res.header

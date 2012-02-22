@@ -1205,6 +1205,16 @@ class ObjectSingulation
                                                cur_proto_objs_,
                                                boundaries, cloud);
     push_vector.num_objects = cur_proto_objs_.size();
+#ifdef DISPLAY_3D_BOUNDARIES
+    if (use_displays_ || write_to_disk_)
+    {
+      draw3DBoundaries(boundaries, color_img, objs.size());
+    }
+#endif // DISPLAY_3D_BOUNDARIES
+#ifdef DEBUG_PUSH_HISTORY
+    //drawObjectHists(obj_lbl_img, cur_proto_objs_);
+    drawObjectHists(color_img, cur_proto_objs_);
+#endif // DEBUG_PUSH_HISTORY
     if (push_vector.object_id == cur_proto_objs_.size())
     {
       ROS_WARN_STREAM("No push vector selected.");
@@ -1213,16 +1223,6 @@ class ObjectSingulation
       return push_vector;
     }
 
-#ifdef DEBUG_PUSH_HISTORY
-    //drawObjectHists(obj_lbl_img, cur_proto_objs_);
-    drawObjectHists(color_img, cur_proto_objs_);
-#endif // DEBUG_PUSH_HISTORY
-#ifdef DISPLAY_3D_BOUNDARIES
-    if (use_displays_ || write_to_disk_)
-    {
-      draw3DBoundaries(boundaries, color_img, objs.size());
-    }
-#endif // DISPLAY_3D_BOUNDARIES
     ++callback_count_;
     return push_vector;
   }
@@ -1466,7 +1466,15 @@ class ObjectSingulation
           else
           {
             cur_objs[min_idx].id = prev_objs[i].id;
-            cur_objs[min_idx].push_history = prev_objs[i].push_history;
+            // TODO: This isn't guaranteed to do what we want to do...
+            if (!split)
+            {
+              cur_objs[min_idx].push_history = prev_objs[i].push_history;
+            }
+            else
+            {
+              cur_objs[min_idx].push_history.clear();
+            }
             cur_objs[min_idx].transform = min_transform*prev_objs[i].transform;
             matched[min_idx] = true;
           }
@@ -2876,7 +2884,7 @@ class ObjectSingulationNode
       /*os_(pcl_segmenter_),*/
       have_depth_data_(false), tracking_(false),
       tracker_initialized_(false),
-      camera_initialized_(false), tracker_count_(0), recording_input_(false)
+      camera_initialized_(false), record_count_(0), recording_input_(false)
   {
     tf_ = shared_ptr<tf::TransformListener>(new tf::TransformListener());
     pcl_segmenter_ = shared_ptr<PointCloudSegmentation>(
@@ -3088,11 +3096,10 @@ class ObjectSingulationNode
     // TODO: Way too much disk writing!
     if (write_to_disk_ && recording_input_)
     {
-      std::stringstream color_out_name;
-      color_out_name << base_output_path_ << "video/input" << tracker_count_
-                     << ".tiff";
-      tracker_count_++;
-      cv::imwrite(color_out_name.str(), cur_color_frame_);
+      std::stringstream out_name;
+      out_name << base_output_path_ << "input" << record_count_ << ".tiff";
+      record_count_++;
+      cv::imwrite(out_name.str(), cur_color_frame_);
     }
 #endif // DISPLAY_INPUT_COLOR
 #ifdef DISPLAY_INPUT_DEPTH
@@ -3134,7 +3141,7 @@ class ObjectSingulationNode
     {
       if (req.initialize)
       {
-        tracker_count_ = 0;
+        record_count_ = 0;
         os_->unInitialize();
         os_->initialize(cur_color_frame_, cur_depth_frame_,
                         cur_point_cloud_, cur_workspace_mask_);
@@ -3147,10 +3154,12 @@ class ObjectSingulationNode
         if ( ! recording_input_)
         {
           recording_input_ = true;
+          ROS_INFO_STREAM("Starting input recording.");
         }
-        if ( !req.no_push_calc)
+        if ( req.no_push_calc)
         {
           recording_input_ = false;
+          ROS_INFO_STREAM("Stopping input recording.");
         }
         res = getPushPose(req.push_dist, req.use_guided, req.no_push_calc);
       }
@@ -3357,7 +3366,7 @@ class ObjectSingulationNode
   bool tracker_initialized_;
   bool camera_initialized_;
   std::string cam_info_topic_;
-  int tracker_count_;
+  int record_count_;
   bool autorun_pcl_segmentation_;
   bool use_guided_pushes_;
   double default_push_dist_;
