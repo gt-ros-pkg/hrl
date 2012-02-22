@@ -132,13 +132,12 @@ class TabletopExecutive:
                           ', ' + str(pose_res.start_point.z) + ')')
             rospy.loginfo('Push angle: ' + str(pose_res.push_angle))
             rospy.loginfo('Push dist: ' + str(pose_res.push_dist))
-            if fabs(pose_res.push_angle) > self.use_sweep_angle_thresh:
+            if pose_res.start_point.x < self.use_overhead_x_thresh:
+                opt = 2
+            elif fabs(pose_res.push_angle) > self.use_sweep_angle_thresh:
                 opt = 1
             else:
-                if pose_res.start_point.x < self.use_overhead_x_thresh:
-                    opt = 2
-                else:
-                    opt = 0
+                opt = 0
             if opt == 0:
                 if pose_res.push_angle > 0:
                     which_arm = 'r'
