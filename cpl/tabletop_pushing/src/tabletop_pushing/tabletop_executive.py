@@ -55,8 +55,8 @@ class TabletopExecutive:
                                                  True)
         self.default_push_dist = rospy.get_param('~push_dist', 0.20)
         # TODO: Determine workspace limits for max here
-        self.min_push_dist = rospy.get_param('~mine_push_dist', 0.05)
-        self.max_push_dist = rospy.get_param('~mine_push_dist', 0.60)
+        self.min_push_dist = rospy.get_param('~min_push_dist', 0.05)
+        self.max_push_dist = rospy.get_param('~mix_push_dist', 0.5)
 
         # TODO: Replace these parameters with learned / perceived values
         # The offsets should be removed and learned implicitly
