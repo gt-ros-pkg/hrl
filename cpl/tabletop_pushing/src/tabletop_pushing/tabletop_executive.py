@@ -50,9 +50,11 @@ class TabletopExecutive:
 
     def __init__(self, use_fake_push_pose=False):
         random.seed()
+        rospy.init_node('tabletop_executive_node',log_level=rospy.DEBUG)
+        self.use_returned_dist = rospy.get_param('~use_returned_push_dist',
+                                                 True)
         # TODO: Replace these parameters with learned / perceived values
         # The offsets should be removed and learned implicitly
-        rospy.init_node('tabletop_executive_node',log_level=rospy.DEBUG)
         self.gripper_push_dist = rospy.get_param('~gripper_push_dist',
                                                  0.20)
         self.gripper_x_offset = rospy.get_param('~gripper_push_start_x_offset',
@@ -80,7 +82,6 @@ class TabletopExecutive:
         self.use_overhead_x_thresh = rospy.get_param('~use_overhead_x_thresh',
                                                      0.525)
         self.use_sweep_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
-                                                      # pi*0.5)
                                                      pi*0.375)
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
@@ -140,21 +141,31 @@ class TabletopExecutive:
                     which_arm = 'r'
                 else:
                     which_arm = 'l'
-                self.gripper_push_object(self.gripper_push_dist, which_arm,
-                                         pose_res)
+                if self.use_returned_dist:
+                    push_dist = pose_res.push_dist
+                else:
+                    push_dist = self.gripper_push_dist
+                self.gripper_push_object(push_dist, which_arm, pose_res)
             if opt == 1:
                 if pose_res.push_angle > 0:
                     which_arm = 'r'
                 else:
                     which_arm = 'l'
-                self.sweep_object(self.gripper_sweep_dist, which_arm, pose_res)
+                if self.use_returned_dist:
+                    push_dist = pose_res.push_dist # TODO: + offset
+                else:
+                    push_dist = self.gripper_sweep_dist
+                self.sweep_object(self.gripper_push_dist, which_arm, pose_res)
             if opt == 2:
                 if pose_res.push_angle > 0:
                     which_arm = 'r'
                 else:
                     which_arm = 'l'
-                self.overhead_push_object(self.gripper_push_dist, which_arm,
-                                          pose_res)
+                if self.use_returned_dist:
+                    push_dist = pose_res.push_dist
+                else:
+                    push_dist = self.gripper_push_dist
+                self.overhead_push_object(push_dist, which_arm, pose_res)
         if not (pose_res is None):
             rospy.loginfo('Singulated objects: ' + str(pose_res.singulated))
         pose_res = self.get_num_objs()

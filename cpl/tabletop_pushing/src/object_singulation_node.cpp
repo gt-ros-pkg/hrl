@@ -459,7 +459,7 @@ class PointCloudSegmentation
     ROS_DEBUG_STREAM("Num moved objects: " << moved_count);
   }
 
-  double dist(pcl::PointXYZ a, pcl::PointXYZ b)
+  inline double dist(pcl::PointXYZ a, pcl::PointXYZ b)
   {
     double dx = a.x-b.x;
     double dy = a.y-b.y;
@@ -467,12 +467,27 @@ class PointCloudSegmentation
     return std::sqrt(dx*dx+dy*dy+dz*dz);
   }
 
-  double sqrDist(Eigen::Vector4f a, Eigen::Vector4f b)
+  inline double sqrDist(Eigen::Vector4f a, Eigen::Vector4f b)
   {
     double dx = a[0]-b[0];
     double dy = a[1]-b[1];
     double dz = a[2]-b[2];
     return dx*dx+dy*dy+dz*dz;
+  }
+
+  inline double sqrDist(pcl::PointXYZ a, pcl::PointXYZ b)
+  {
+    double dx = a.x-b.x;
+    double dy = a.y-b.z;
+    double dz = a.z-b.z;
+    return dx*dx+dy*dy+dz*dz;
+  }
+
+  inline double sqrDistXY(pcl::PointXYZ a, pcl::PointXYZ b)
+  {
+    double dx = a.x-b.x;
+    double dy = a.y-b.z;
+    return dx*dx+dy*dy;
   }
 
   /**
@@ -1559,6 +1574,8 @@ class ObjectSingulation
                                                   obj_lbl_img, boundary);
     push_pose.header.frame_id = workspace_frame_;
     push_pose.object_id = boundary.object_id;
+    push_pose.push_dist = getBoundaryLengthXYMeters(boundary);
+    ROS_INFO_STREAM("suggested push_dist is: " << push_pose.push_dist);
     return push_pose;
   }
 
@@ -2123,6 +2140,21 @@ class ObjectSingulation
 #endif // DISPLAY_PUSH_VECTOR
 
     return push;
+  }
+
+  double getBoundaryLengthXYMeters(Boundary& b)
+  {
+    double max_dist = 0.0;
+    for (unsigned int i = 0; i < b.points3D.size()-1; ++i)
+    {
+      for (unsigned int j = 0; j < b.points3D.size(); ++j)
+      {
+        if (j <= i) continue;
+        double dist = pcl_segmenter_->sqrDistXY(b.points3D[i], b.points3D[j]);
+        if (dist > max_dist) max_dist = dist;
+      }
+    }
+    return std::sqrt(max_dist);
   }
 
   geometry_msgs::Point determineStartPoint(XYZPointCloud& pts, PushOpt& opt)
