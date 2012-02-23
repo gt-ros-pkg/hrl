@@ -1,5 +1,7 @@
 #! /usr/bin/python
 
+# TODO Remove or update
+
 import numpy as np
 
 import roslib

@@ -8,6 +8,8 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/urdf_parser_python</url>
+  <depend package="rospy"/>
+  <depend package="tf"/>
 
 </package>
 

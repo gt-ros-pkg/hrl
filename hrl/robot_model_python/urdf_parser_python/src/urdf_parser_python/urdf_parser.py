@@ -1,7 +1,6 @@
 
 import roslib
-roslib.load_manifest("rospy")
-roslib.load_manifest("tf")
+roslib.load_manifest("urdf_parser_python")
 import rospy
 import roslib.substitution_args
 

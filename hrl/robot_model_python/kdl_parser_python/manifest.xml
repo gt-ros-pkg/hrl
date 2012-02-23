@@ -8,13 +8,7 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/kdl_parser_python</url>
-  <depend package="rospy"/>
   <depend package="urdf_parser_python"/>
-
-  <export>
-    <python path="${prefix}/lib:${prefix}/src"  />
-  </export>
-
 
 </package>
 
