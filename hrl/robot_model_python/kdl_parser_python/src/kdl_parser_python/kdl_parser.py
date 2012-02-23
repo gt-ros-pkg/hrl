@@ -5,17 +5,6 @@ import numpy as np
 import roslib
 roslib.load_manifest("kdl_parser_python")
 
-# this is an odd little trick which puts our libraries ahead of all the others
-# so that we get the new version of PyKDL instead of the old one
-import sys
-kpp_paths, other_paths = [], []
-for path in sys.path:
-    if "kdl_parser_python" in path:
-        kpp_paths.append(path)
-    else:
-        other_paths.append(path)
-sys.path = kpp_paths + other_paths
-
 import urdf_parser_python.urdf_parser as urdf
 import PyKDL as kdl
 
@@ -49,7 +38,7 @@ def to_kdl_rbi(i):
     origin = to_kdl_frame(i.origin)
     rbi = kdl.RigidBodyInertia(i.mass, origin.p, 
                                kdl.RotationalInertia(i.ixx, i.iyy, i.ixy, i.ixz, i.iyz))
-    return rbi.rot_mult(origin.M)
+    return origin.M * rbi
 
 def add_children_to_tree(root, tree):
     children = root.child_links
