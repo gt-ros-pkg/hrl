@@ -2189,7 +2189,6 @@ class ObjectSingulation
     }
 #endif // DISPLAY_PUSH_VECTOR
     push.push_dist = push_dist;
-    // getBoundaryLengthXYMeters(boundary);
     return push;
   }
 
