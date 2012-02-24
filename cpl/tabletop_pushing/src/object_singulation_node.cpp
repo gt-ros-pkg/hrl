@@ -133,6 +133,9 @@ typedef pcl::KdTree<pcl::PointXYZ>::Ptr KdTreePtr;
 typedef PushPose::Response PushVector;
 using boost::shared_ptr;
 
+class ProtoTabletopObject;
+typedef std::deque<ProtoTabletopObject> ProtoObjects;
+
 class Boundary : public std::vector<cv::Point>
 {
  public:
@@ -142,6 +145,7 @@ class Boundary : public std::vector<cv::Point>
   double xyLength3D;
   bool external;
   bool too_short;
+  ProtoObjects splits;
 };
 
 class ProtoTabletopObject
@@ -154,9 +158,8 @@ class ProtoTabletopObject
   Eigen::Matrix4f transform;
   std::vector<int> boundary_angle_dist;
   std::vector<int> push_history;
+  bool singulated;
 };
-
-typedef std::deque<ProtoTabletopObject> ProtoObjects;
 
 class PointCloudSegmentation
 {
@@ -377,6 +380,7 @@ class PointCloudSegmentation
       po.id = i;
       po.moved = false;
       po.transform = Eigen::Matrix4f::Identity();
+      po.singulated = false;
       objs.push_back(po);
     }
     return objs;
@@ -530,7 +534,7 @@ class PointCloudSegmentation
   XYZPointCloud lineCloudIntersection(XYZPointCloud& cloud, Eigen::Vector3f vec,
                                         Eigen::Vector4f base)
   {
-    // TODO: Define parametric model of the line defined by base and vec and
+    // Define parametric model of the line defined by base and vec and
     // test cloud memebers for distance from the line, if the distance is less
     // than epsilon say it intersects and add to the output set.
     pcl::PointIndices line_inliers;
@@ -741,7 +745,6 @@ class PointCloudSegmentation
   int num_downsamples_;
   sensor_msgs::CameraInfo cam_info_;
   std_msgs::Header cur_camera_header_;
-  // XYZPointCloud concave_hull_;
 };
 
 class PushOpt
@@ -749,7 +752,7 @@ class PushOpt
  public:
   PushOpt(ProtoTabletopObject& _obj, double _push_angle,
           Eigen::Vector3f _push_vec, unsigned int _obj_idx,
-          unsigned int _split_id, double _push_dist=0.1) :
+          unsigned int _split_id, double _push_dist) :
       obj(_obj), push_angle(_push_angle), push_unit_vec(_push_vec),
       object_idx(_obj_idx), split_id(_split_id), push_dist(_push_dist)
   {
@@ -761,16 +764,6 @@ class PushOpt
   unsigned int split_id;
   double push_dist;
 
-  Eigen::Vector4f getMovedCentroid()
-  {
-    Eigen::Vector4f new_cent;
-    new_cent[0] = obj.centroid[0] + push_unit_vec[0]*push_dist;
-    new_cent[1] = obj.centroid[1] + push_unit_vec[1]*push_dist;
-    new_cent[2] = obj.centroid[2] + push_unit_vec[2]*push_dist;
-    new_cent[3] = 1.0f;
-    return new_cent;
-  }
-
   Eigen::Vector4f getMovedPoint(geometry_msgs::Point p)
   {
     Eigen::Vector4f moved;
@@ -781,7 +774,6 @@ class PushOpt
     return moved;
   }
 };
-
 
 class PushSample
 {
@@ -1421,7 +1413,6 @@ class ObjectSingulation
         }
         if (min_idx < cur_objs.size())
         {
-          // TODO: Ensure uniquness
           ROS_INFO_STREAM("Prev unmoved obj: " << prev_objs[i].id << ", " << i
                           << " maps to cur " << min_idx << " : " << min_score);
           if (!matched[min_idx])
@@ -1448,11 +1439,9 @@ class ObjectSingulation
         double min_score = std::numeric_limits<double>::max();
         unsigned int min_idx = cur_objs.size();
         // Match the moved objects to their new locations
-        ROS_DEBUG_STREAM("Finding match for object : " << prev_objs[i].id);
         Eigen::Matrix4f min_transform;
         for (unsigned int j = 0; j < cur_objs.size(); ++j)
         {
-          // TODO: Deal with split here
           if (!matched[j])
           {
             // Run ICP to match between frames
@@ -1480,17 +1469,18 @@ class ObjectSingulation
           else
           {
             cur_objs[min_idx].id = prev_objs[i].id;
-            // TODO: This isn't guaranteed to do what we want to do...
-            if (!split)
-            {
-              cur_objs[min_idx].push_history = prev_objs[i].push_history;
-            }
-            else
-            {
-              // cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
-            }
+            cur_objs[min_idx].push_history = prev_objs[i].push_history;
             cur_objs[min_idx].transform = min_transform*prev_objs[i].transform;
             matched[min_idx] = true;
+            // TODO: Examine bad fits of ICP
+            bool bad_icp = false;
+            if (split && bad_icp)
+            {
+              // TODO: Deal with split here
+               cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
+               matched[min_idx] = false;
+               cur_objs[min_idx].transform =  Eigen::Matrix4f::Identity();
+            }
           }
         }
         else
@@ -1531,23 +1521,7 @@ class ObjectSingulation
     get3DBoundaries(boundaries, cloud);
     associate3DBoundaries(boundaries, objs, obj_lbl_img);
 
-    std::vector<bool> singulated = checkSingulated(boundaries, objs);
-    std::vector<unsigned int> singulated_ids;
-    for (unsigned int i = 0; i < singulated.size(); ++i)
-    {
-      if (singulated[i]) singulated_ids.push_back(i);
-    }
-
-    if (singulated_ids.size() > 0)
-    {
-      std::stringstream sing_stream;
-      for (unsigned int i = 0; i < singulated.size(); ++i)
-      {
-        if (singulated[i]) sing_stream << i << " ";
-      }
-      ROS_INFO_STREAM("The following objects are singulated: " <<
-                      sing_stream.str());
-    }
+    std::vector<unsigned int> singulated_ids = checkSingulated(boundaries, objs);
     if (singulated_ids.size() == objs.size())
     {
       ROS_WARN_STREAM("Boundary has no ID!");
@@ -1557,12 +1531,16 @@ class ObjectSingulation
       push_pose.singulated = singulated_ids;
       return push_pose;
     }
-    Boundary test_boundary = chooseTestBoundary(boundaries, objs, singulated);
-    PushVector push = determinePushVector(test_boundary, objs, obj_lbl_img, cloud);
+
+    // TODO: Switch to the new ranking method
+    // PushVector push = determinePushVector(boundaries, objs, obj_lbl_img);
+    // TODO: Make determine push vector choose from the ranks?
+
+    Boundary test_boundary = chooseTestBoundary(boundaries, objs);
+    PushVector push = determinePushVector(test_boundary, objs, obj_lbl_img);
     // Increment the push direction of the object to be pushed
     const int push_idx = quantizeAngle(test_boundary.ort);
     cur_proto_objs_[push.object_idx].push_history[push_idx]++;
-
     ROS_INFO_STREAM("Chose to push object: " << push.object_idx);
     ROS_INFO_STREAM("Push angle is : " << push.push_angle);
     ROS_INFO_STREAM("Push angle is in bin : " << push_idx << std::endl);
@@ -1570,33 +1548,33 @@ class ObjectSingulation
     return push;
   }
 
-  /**
-   * Determine how the robot should push to disambiguate the given boundary
-   * hypotheses
-   *
-   * @param hypo_img The image containing the boundary hypothesis
-   * @param objs The set of objects
-   * @param obj_img The objects projected into the image frame
-   *
-   * @return The push command
-   */
   PushVector determinePushVector(Boundary& boundary, ProtoObjects& objs,
-                                 cv::Mat& obj_lbl_img, XYZPointCloud& cloud)
+                                 cv::Mat& obj_lbl_img)
   {
-    // Split point cloud at location of the boundary
-    ProtoObjects split_objs3D = splitObject3D(boundary, objs[boundary.
-                                                             object_idx]);
     // Need to transform this into the world frame
     float push_angle = getWorldFrameAngleFromObjFrame(
         boundary.ort, objs[boundary.object_idx].transform);
-    PushVector push_pose = determinePushDirection(push_angle,
-                                                  split_objs3D[0],
-                                                  split_objs3D[1], objs,
+    PushVector push_pose = determinePushDirection(push_angle, objs,
                                                   boundary.object_idx,
                                                   obj_lbl_img, boundary);
     push_pose.header.frame_id = workspace_frame_;
     push_pose.object_idx = boundary.object_idx;
     push_pose.object_id = objs[push_pose.object_idx].id;
+    ROS_INFO_STREAM("suggested push_dist is: " << push_pose.push_dist);
+    return push_pose;
+  }
+
+
+  PushVector determinePushVector(std::vector<Boundary>& boundaries,
+                                 ProtoObjects& objs, cv::Mat& obj_lbl_img)
+  {
+    std::vector<PushVector> pushes = getPushRanks(boundaries, objs,
+                                                  obj_lbl_img);
+    // TODO: Choose from the pushes in some smart way
+    PushVector push_pose = pushes[0];
+    push_pose.header.frame_id = workspace_frame_;
+    // push_pose.object_idx = boundary.object_idx;
+    // push_pose.object_id = objs[push_pose.object_idx].id;
     ROS_INFO_STREAM("suggested push_dist is: " << push_pose.push_dist);
     return push_pose;
   }
@@ -1772,6 +1750,7 @@ class ObjectSingulation
             int angle_idx = quantizeAngle(boundaries[b].ort);
             objs[max_idx].boundary_angle_dist[angle_idx]++;
             boundaries[b].external = false;
+            boundaries[b].splits = pos;
           }
           else
           {
@@ -1874,14 +1853,10 @@ class ObjectSingulation
     for (unsigned int i = 0; i < b.points3D.size(); ++i)
     {
       cloud.at(i) = b.points3D[i];
-      // NOTE: This is kind of a hack, instead of setting to 0.0, I set to the z
-      // of the first point to try and get around numerical approximations
-      // NOTE: Helps with visualization if the line is at the approximate height
-      // in the world
+      // NOTE: This helps with visualization if the line is at the approximate
+      // height in the world
       cloud.at(i).z = b.points3D[0].z;
     }
-    // TODO: Examine fitness
-    // TODO: Handle vertical edge
     pcl::ModelCoefficients c;
     pcl::PointIndices line_inliers;
     pcl::SACSegmentation<pcl::PointXYZ> line_seg;
@@ -1931,7 +1906,7 @@ class ObjectSingulation
     return hessian;
   }
 
-  std::vector<bool> checkSingulated(std::vector<Boundary>& boundaries,
+  std::vector<unsigned int> checkSingulated(std::vector<Boundary>& boundaries,
                                             ProtoObjects& objs)
   {
     std::set<unsigned int> has_pushes;
@@ -1951,34 +1926,36 @@ class ObjectSingulation
         has_pushes.insert(i);
       }
     }
-    std::vector<bool> singulated;
+    std::vector<unsigned int> singulated_ids;
+    std::stringstream sing_stream;
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       if (has_pushes.count(i) == 0)
       {
-        singulated.push_back(true);
-      }
-      else
-      {
-        singulated.push_back(false);
+        singulated_ids.push_back(i);
+        objs[i].singulated = true;
+        sing_stream << i << " ";
       }
     }
-    return singulated;
+    if (singulated_ids.size() > 0)
+    {
+      ROS_INFO_STREAM("The following objects are singulated: " <<
+                      sing_stream.str());
+    }
+    return singulated_ids;
   }
 
-  Boundary chooseTestBoundary(std::vector<Boundary>& boundaries,
-                              ProtoObjects& objs, std::vector<bool> singulated)
+  std::vector<PushVector> getPushRanks(std::vector<Boundary>& boundaries,
+                                       ProtoObjects& objs, cv::Mat& obj_lbl_img)
   {
-    std::vector<Boundary> possible_boundaries;
-
     // Check if the previously pushed object is singulated
     bool force_obj_id = false;
     int forced_idx = -1;
     if (!prev_push_vector_.no_push)
     {
-      for (unsigned int i = 0; i < singulated.size(); ++i)
+      for (unsigned int i = 0; i < objs.size(); ++i)
       {
-        if (singulated[i])
+        if (objs[i].singulated)
         {
           continue;
         }
@@ -1991,6 +1968,66 @@ class ObjectSingulation
       }
     }
 
+    std::vector<PushVector> ranks;
+    for (unsigned int b = 0; b < boundaries.size(); ++b)
+    {
+      // Ignore small boundaries or those not on objects
+      if (boundaries[b].object_idx == objs.size() ||
+          boundaries[b].external || boundaries[b].too_short)
+      {
+        continue;
+      }
+      const int i = boundaries[b].object_idx;
+      const unsigned int bin = quantizeAngle(boundaries[b].ort);
+      // Only choose from boundaries associated with unpushed directions
+      if (objs[i].push_history[bin] == 0)
+      {
+        // If previous object is unsingulated, then choose from it only
+        if (force_obj_id && boundaries[b].object_idx != forced_idx)
+        {
+          continue;
+        }
+        float push_angle = getWorldFrameAngleFromObjFrame(
+            boundaries[b].ort, objs[boundaries[b].object_idx].transform);
+        PushVector push = determinePushDirection(push_angle, objs,
+                                                 boundaries[b].object_idx,
+                                                 obj_lbl_img, boundaries[b]);
+        ranks.push_back(push);
+      }
+    }
+    // TODO: Sort ranks...
+    // TODO: Add in boundary length
+    // TODO: Get higher ranked pushes for each direction
+    // TODO: Don't push intop other stuff
+    // TODO: Don't push outside the workspace
+    // TODO: Don't push off the table
+    return ranks;
+  }
+
+  Boundary chooseTestBoundary(std::vector<Boundary>& boundaries,
+                              ProtoObjects& objs)
+  {
+    // Check if the previously pushed object is singulated
+    bool force_obj_id = false;
+    int forced_idx = -1;
+    if (!prev_push_vector_.no_push)
+    {
+      for (unsigned int i = 0; i < objs.size(); ++i)
+      {
+        if (objs[i].singulated)
+        {
+          continue;
+        }
+        if (objs[i].id == prev_push_vector_.object_id)
+        {
+          force_obj_id = true;
+          forced_idx = i;
+          break;
+        }
+      }
+    }
+
+    std::vector<Boundary> possible_boundaries;
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
       // Ignore small boundaries or those not on objects
@@ -2046,11 +2083,12 @@ class ObjectSingulation
   }
 
   PushVector determinePushDirection(double push_angle,
-                                    ProtoTabletopObject& split0,
-                                    ProtoTabletopObject& split1,
                                     ProtoObjects& objs, unsigned int id,
                                     cv::Mat& lbl_img, Boundary& boundary)
   {
+    ProtoTabletopObject split0 = boundary.splits[0];
+    ProtoTabletopObject split1 = boundary.splits[1];
+
     double push_dist = std::min(std::max(boundary.xyLength3D, min_push_dist_),
                                 max_push_dist_);
     double push_angle_pos = 0.0;
@@ -2071,22 +2109,22 @@ class ObjectSingulation
                                        std::sin(push_angle_neg), 0.0);
 
     std::vector<PushOpt> split_opts;
-    split_opts.push_back(PushOpt(split0, push_angle_pos, push_vec_pos, id, 0,
-                                 push_dist));
-    split_opts.push_back(PushOpt(split0, push_angle_neg, push_vec_neg, id, 0,
-                                 push_dist));
-    split_opts.push_back(PushOpt(split1, push_angle_pos, push_vec_pos, id, 1,
-                                 push_dist));
-    split_opts.push_back(PushOpt(split1, push_angle_neg, push_vec_neg, id, 1,
-                                 push_dist));
+    split_opts.push_back(PushOpt(boundary.splits[0], push_angle_pos,
+                                 push_vec_pos, id, 0, push_dist));
+    split_opts.push_back(PushOpt(boundary.splits[0], push_angle_neg,
+                                 push_vec_neg, id, 0, push_dist));
+    split_opts.push_back(PushOpt(boundary.splits[1], push_angle_pos,
+                                 push_vec_pos, id, 1, push_dist));
+    split_opts.push_back(PushOpt(boundary.splits[1], push_angle_neg,
+                                 push_vec_neg, id, 1, push_dist));
 
     // TODO: Make pushes not cause collisions between objects
     // Choose pushing location closer to the robot by examining the 4
     // possible intersections with the boundaries
     XYZPointCloud s0_int = pcl_segmenter_->lineCloudIntersection(
-        split0.cloud, push_vec_pos, split0.centroid);
+        boundary.splits[0].cloud, push_vec_pos, boundary.splits[0].centroid);
     XYZPointCloud s1_int = pcl_segmenter_->lineCloudIntersection(
-        split1.cloud, push_vec_pos, split1.centroid);
+        boundary.splits[1].cloud, push_vec_pos, boundary.splits[1].centroid);
     unsigned int chosen_idx = split_opts.size();
     bool p_not_set = true;
     geometry_msgs::Point p;
@@ -2137,11 +2175,8 @@ class ObjectSingulation
                     p.z << ")");
 
 #ifdef DISPLAY_PUSH_VECTOR
-    ProtoObjects split_objs3D;
-    split_objs3D.push_back(split0);
-    split_objs3D.push_back(split1);
     cv::Mat split_img = pcl_segmenter_->projectProtoObjectsIntoImage(
-        split_objs3D, lbl_img.size(), workspace_frame_);
+        boundary.splits, lbl_img.size(), workspace_frame_);
     cv::Mat disp_img = pcl_segmenter_->displayObjectImage(
         split_img, "3D Split", false);
 #ifdef DISPLAY_CHOSEN_BOUNDARY
@@ -2248,39 +2283,6 @@ class ObjectSingulation
     }
 
     return p;
-  }
-
-  /**
-   * Aproximate the amount of clearance between objects after performing the push
-   *
-   * @param split The split object to push
-   * @param objs The current set of object estimates
-   *
-   * @return The clearance in meters
-   */
-  double getSplitPushClearance(PushOpt& split, ProtoObjects& objs)
-  {
-    // TODO: Check angle stuff
-    double min_clearance = FLT_MAX;
-    double max_clearance = 0.0;
-    const Eigen::Vector4f moved_cent = split.getMovedCentroid();
-    for (unsigned int i = 0; i < objs.size(); ++i)
-    {
-      // Don't compare object to itself
-      if (i == split.object_idx) continue;
-
-      const double clearance = (moved_cent - objs[i].centroid).norm();
-
-      if (clearance < min_clearance)
-      {
-        min_clearance = clearance;
-      }
-      if (clearance > max_clearance)
-      {
-        max_clearance = clearance;
-      }
-    }
-    return min_clearance;
   }
 
   ProtoObjects splitObject3D(Boundary& boundary, ProtoTabletopObject& to_split,
