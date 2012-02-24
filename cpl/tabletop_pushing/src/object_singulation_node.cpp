@@ -137,7 +137,7 @@ class Boundary : public std::vector<cv::Point>
 {
  public:
   std::vector<pcl::PointXYZ> points3D;
-  int object_id;
+  int object_idx;
   double ort;
   double xyLength3D;
   bool external;
@@ -460,34 +460,34 @@ class PointCloudSegmentation
     ROS_DEBUG_STREAM("Num moved objects: " << moved_count);
   }
 
-  inline double dist(pcl::PointXYZ a, pcl::PointXYZ b)
+  static inline double dist(pcl::PointXYZ a, pcl::PointXYZ b)
   {
-    double dx = a.x-b.x;
-    double dy = a.y-b.y;
-    double dz = a.z-b.z;
+    const double dx = a.x-b.x;
+    const double dy = a.y-b.y;
+    const double dz = a.z-b.z;
     return std::sqrt(dx*dx+dy*dy+dz*dz);
   }
 
-  inline double sqrDist(Eigen::Vector4f a, Eigen::Vector4f b)
+  static inline double sqrDist(Eigen::Vector4f a, Eigen::Vector4f b)
   {
-    double dx = a[0]-b[0];
-    double dy = a[1]-b[1];
-    double dz = a[2]-b[2];
+    const double dx = a[0]-b[0];
+    const double dy = a[1]-b[1];
+    const double dz = a[2]-b[2];
     return dx*dx+dy*dy+dz*dz;
   }
 
-  inline double sqrDist(pcl::PointXYZ a, pcl::PointXYZ b)
+  static inline double sqrDist(pcl::PointXYZ a, pcl::PointXYZ b)
   {
-    double dx = a.x-b.x;
-    double dy = a.y-b.z;
-    double dz = a.z-b.z;
+    const double dx = a.x-b.x;
+    const double dy = a.y-b.y;
+    const double dz = a.z-b.z;
     return dx*dx+dy*dy+dz*dz;
   }
 
-  inline double sqrDistXY(pcl::PointXYZ a, pcl::PointXYZ b)
+  static inline double sqrDistXY(pcl::PointXYZ a, pcl::PointXYZ b)
   {
-    double dx = a.x-b.x;
-    double dy = a.y-b.z;
+    const double dx = a.x-b.x;
+    const double dy = a.y-b.y;
     return dx*dx+dy*dy;
   }
 
@@ -748,16 +748,16 @@ class PushOpt
 {
  public:
   PushOpt(ProtoTabletopObject& _obj, double _push_angle,
-          Eigen::Vector3f _push_vec, unsigned int _obj_id,
+          Eigen::Vector3f _push_vec, unsigned int _obj_idx,
           unsigned int _split_id, double _push_dist=0.1) :
       obj(_obj), push_angle(_push_angle), push_unit_vec(_push_vec),
-      object_id(_obj_id), split_id(_split_id), push_dist(_push_dist)
+      object_idx(_obj_idx), split_id(_split_id), push_dist(_push_dist)
   {
   }
   ProtoTabletopObject obj;
   double push_angle;
   Eigen::Vector3f push_unit_vec;
-  unsigned int object_id;
+  unsigned int object_idx;
   unsigned int split_id;
   double push_dist;
 
@@ -792,36 +792,41 @@ class PushSample
 
   static bool compareSamples(PushSample a, PushSample b)
   {
-    return a.weight > b.weight;
+    return a.weight < b.weight;
   }
 
   static int cdfBinarySearch(std::vector<PushSample>& scores, float cdf_goal)
   {
     int min_idx = 0;
     int max_idx = scores.size();
-    int cur_idx = min_idx + max_idx / 2;
-    // NOTE: Assumse scores is sorted in decresaing order
+    int cur_idx = max_idx / 2;
+    if (cdf_goal < scores[0].cdf_weight)
+    {
+      return 0;
+    }
     while (min_idx != max_idx)
     {
       cur_idx = (min_idx + max_idx)/2;
-      float cur_val = scores[cur_idx].cdf_weight;
-      if (cur_val == cdf_goal || (cur_val > cdf_goal &&
-                                  scores[cur_idx+1].cdf_weight < cdf_goal))
+      const float cur_val = scores[cur_idx].cdf_weight;
+      if (cur_val == cdf_goal)
       {
         return cur_idx;
       }
-      else if (cur_val > cdf_goal)
+      if (cur_val < cdf_goal)
       {
         min_idx = cur_idx;
       }
       else
       {
         max_idx = cur_idx;
+        if (scores[cur_idx-1].cdf_weight < cdf_goal)
+        {
+          return cur_idx;
+        }
       }
     }
     return cur_idx;
   }
-
 };
 
 typedef std::vector<PushSample> SampleList;
@@ -1157,6 +1162,7 @@ class ObjectSingulation
     callback_count_++;
 
     PushVector push_vector;
+    push_vector.object_idx = 0;
     push_vector.object_id = 0;
     push_vector.no_push = true;
     push_vector.num_objects = 0;
@@ -1182,6 +1188,7 @@ class ObjectSingulation
     {
       ROS_WARN_STREAM("Trying to get a push vector before initializing.");
       PushVector push_vector;
+      push_vector.object_idx = 0;
       push_vector.object_id = 0;
       push_vector.no_push = true;
       push_vector.num_objects = 0;
@@ -1221,7 +1228,7 @@ class ObjectSingulation
     //drawObjectHists(obj_lbl_img, cur_proto_objs_);
     drawObjectHists(color_img, cur_proto_objs_);
 #endif // DEBUG_PUSH_HISTORY
-    if (push_vector.object_id == cur_proto_objs_.size())
+    if (push_vector.object_idx == cur_proto_objs_.size())
     {
       ROS_WARN_STREAM("No push vector selected.");
       push_vector.no_push = true;
@@ -1363,7 +1370,7 @@ class ObjectSingulation
     }
     else if (split)
     {
-      ROS_INFO_STREAM("Objects split from " << prev_objs.size() << " to " <<
+      ROS_WARN_STREAM("Objects split from " << prev_objs.size() << " to " <<
                       cur_objs.size());
       int num_moved = 0;
       int num_unmoved = 0;
@@ -1379,7 +1386,7 @@ class ObjectSingulation
         }
       }
       ROS_INFO_STREAM("num_moved: " << num_moved);
-      ROS_INFO_STREAM("num_moved: " << num_unmoved);
+      ROS_INFO_STREAM("num_unmoved: " << num_unmoved);
     }
     else
     {
@@ -1480,7 +1487,7 @@ class ObjectSingulation
             }
             else
             {
-              cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
+              // cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
             }
             cur_objs[min_idx].transform = min_transform*prev_objs[i].transform;
             matched[min_idx] = true;
@@ -1545,7 +1552,7 @@ class ObjectSingulation
     {
       ROS_WARN_STREAM("Boundary has no ID!");
       PushVector push_pose;
-      push_pose.object_id = objs.size();
+      push_pose.object_idx = objs.size();
       push_pose.no_push = true;
       push_pose.singulated = singulated_ids;
       return push_pose;
@@ -1554,11 +1561,11 @@ class ObjectSingulation
     PushVector push = determinePushVector(test_boundary, objs, obj_lbl_img, cloud);
     // Increment the push direction of the object to be pushed
     const int push_idx = quantizeAngle(test_boundary.ort);
-    cur_proto_objs_[push.object_id].push_history[push_idx]++;
+    cur_proto_objs_[push.object_idx].push_history[push_idx]++;
 
-    ROS_INFO_STREAM("Chose to push object: " << push.object_id);
+    ROS_INFO_STREAM("Chose to push object: " << push.object_idx);
     ROS_INFO_STREAM("Push angle is : " << push.push_angle);
-    ROS_INFO_STREAM("Push angle is in bin : " << push_idx);
+    ROS_INFO_STREAM("Push angle is in bin : " << push_idx << std::endl);
     push.singulated = singulated_ids;
     return push;
   }
@@ -1578,17 +1585,18 @@ class ObjectSingulation
   {
     // Split point cloud at location of the boundary
     ProtoObjects split_objs3D = splitObject3D(boundary, objs[boundary.
-                                                             object_id]);
+                                                             object_idx]);
     // Need to transform this into the world frame
     float push_angle = getWorldFrameAngleFromObjFrame(
-        boundary.ort, objs[boundary.object_id].transform);
+        boundary.ort, objs[boundary.object_idx].transform);
     PushVector push_pose = determinePushDirection(push_angle,
                                                   split_objs3D[0],
                                                   split_objs3D[1], objs,
-                                                  boundary.object_id,
+                                                  boundary.object_idx,
                                                   obj_lbl_img, boundary);
     push_pose.header.frame_id = workspace_frame_;
-    push_pose.object_id = boundary.object_id;
+    push_pose.object_idx = boundary.object_idx;
+    push_pose.object_id = objs[push_pose.object_idx].id;
     ROS_INFO_STREAM("suggested push_dist is: " << push_pose.push_dist);
     return push_pose;
   }
@@ -1719,7 +1727,7 @@ class ObjectSingulation
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
       // NOTE: default to no match, only update if all criterian are met
-      boundaries[b].object_id = objs.size();
+      boundaries[b].object_idx = objs.size();
       std::vector<int> obj_overlaps(objs.size(), 0);
       for (unsigned int i = 0; i < boundaries[b].size(); ++i)
       {
@@ -1731,27 +1739,27 @@ class ObjectSingulation
         }
       }
       int max_overlap = 0;
-      unsigned int max_id = objs.size();
+      unsigned int max_idx = objs.size();
       for (unsigned int o = 0; o < objs.size(); ++o)
       {
         if (obj_overlaps[o] > max_overlap)
         {
           max_overlap = obj_overlaps[o];
-          max_id = o;
+          max_idx = o;
         }
       }
-      if (max_id == objs.size())
+      if (max_idx == objs.size())
       {
         no_overlap_count++;
       }
       else
       {
-        boundaries[b].object_id = max_id;
+        boundaries[b].object_idx = max_idx;
         // Don't add short boundaries
         if (boundaries[b].points3D.size() >= min_boundary_length_)
         {
           boundaries[b].too_short = false;
-          ProtoObjects pos = splitObject3D(boundaries[b], objs[max_id]);
+          ProtoObjects pos = splitObject3D(boundaries[b], objs[max_idx]);
           const unsigned int s0 = pos[0].cloud.size();
           const unsigned int s1 = pos[1].cloud.size();
 
@@ -1759,10 +1767,10 @@ class ObjectSingulation
           if (s0 > min_cluster_size_ && s1 > min_cluster_size_)
           {
             boundaries[b].ort = getObjFrameBoundaryOrientation(
-                boundaries[b], objs[max_id].transform);
+                boundaries[b], objs[max_idx].transform);
             boundaries[b].xyLength3D = getBoundaryLengthXYMeters(boundaries[b]);
             int angle_idx = quantizeAngle(boundaries[b].ort);
-            objs[max_id].boundary_angle_dist[angle_idx]++;
+            objs[max_idx].boundary_angle_dist[angle_idx]++;
             boundaries[b].external = false;
           }
           else
@@ -1930,12 +1938,12 @@ class ObjectSingulation
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
       // Ignore small boundaries or those not on objects
-      if (boundaries[b].object_id == objs.size() ||
+      if (boundaries[b].object_idx == objs.size() ||
           boundaries[b].external || boundaries[b].too_short)
       {
         continue;
       }
-      const int i = boundaries[b].object_id;
+      const int i = boundaries[b].object_idx;
       const unsigned int bin = quantizeAngle(boundaries[b].ort);
       // Only choose from boundaries associated with unpushed directions
       if (objs[i].push_history[bin] == 0)
@@ -1961,46 +1969,58 @@ class ObjectSingulation
   Boundary chooseTestBoundary(std::vector<Boundary>& boundaries,
                               ProtoObjects& objs, std::vector<bool> singulated)
   {
-    ROS_INFO_STREAM("chooseTestBoundary()");
     std::vector<Boundary> possible_boundaries;
 
-    // TODO: if previous object is unsingulated, then choose from it only
+    // Check if the previously pushed object is singulated
     bool force_obj_id = false;
-    if (!prev_push_vector_.no_push && singulated[prev_push_vector_.object_id])
+    int forced_idx = -1;
+    if (!prev_push_vector_.no_push)
     {
-      force_obj_id = true;
-      // TODO: need to keep track of id not IDX!
+      for (unsigned int i = 0; i < singulated.size(); ++i)
+      {
+        if (singulated[i])
+        {
+          continue;
+        }
+        if (objs[i].id == prev_push_vector_.object_id)
+        {
+          force_obj_id = true;
+          forced_idx = i;
+          break;
+        }
+      }
     }
 
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
       // Ignore small boundaries or those not on objects
-      if (boundaries[b].object_id == objs.size() ||
+      if (boundaries[b].object_idx == objs.size() ||
           boundaries[b].external || boundaries[b].too_short)
       {
         continue;
       }
-      const int i = boundaries[b].object_id;
+      const int i = boundaries[b].object_idx;
       const unsigned int bin = quantizeAngle(boundaries[b].ort);
       // Only choose from boundaries associated with unpushed directions
       if (objs[i].push_history[bin] == 0)
       {
+        // If previous object is unsingulated, then choose from it only
+        if (force_obj_id && boundaries[b].object_idx != forced_idx)
+        {
+          continue;
+        }
         possible_boundaries.push_back(boundaries[b]);
       }
     }
-    ROS_INFO_STREAM("Getting random test boundary from set of " <<
-                    possible_boundaries.size() << " possible boundaries.");
-    int chosen_id = chooseRandTestBoundary(possible_boundaries, objs);
-    if ( chosen_id < 0 || chosen_id > possible_boundaries.size())
+    int chosen_idx = chooseRandTestBoundary(possible_boundaries, objs);
+    if ( chosen_idx < 0 || chosen_idx > possible_boundaries.size())
     {
       Boundary b;
-      b.object_id = -1;
+      b.object_idx = -1;
       return b;
     }
-    ROS_INFO_STREAM("Chose boundary: " << chosen_id << " has objet_id: " <<
-                     possible_boundaries[chosen_id].object_id);
-    ROS_INFO_STREAM("Boundary.ort is: " << possible_boundaries[chosen_id].ort);
-    return possible_boundaries[chosen_id];
+    ROS_INFO_STREAM("Boundary.ort is: " << possible_boundaries[chosen_idx].ort);
+    return possible_boundaries[chosen_idx];
   }
 
   int chooseRandTestBoundary(std::vector<Boundary>& boundaries,
@@ -2010,7 +2030,7 @@ class ObjectSingulation
     int nonzero_scores = 0;
     for (unsigned int i = 0; i < boundaries.size(); ++i)
     {
-      if (boundaries[i].object_id >= objs.size() || boundaries[i].too_short ||
+      if (boundaries[i].object_idx >= objs.size() || boundaries[i].too_short ||
           boundaries[i].external)
       {
         continue;
@@ -2021,7 +2041,6 @@ class ObjectSingulation
         nonzero_scores++;
       }
     }
-    ROS_INFO_STREAM("Have " << nonzero_scores << " scores set");
     int chosen_id = sampleScore(scores);
     return chosen_id;
   }
@@ -2032,8 +2051,6 @@ class ObjectSingulation
                                     ProtoObjects& objs, unsigned int id,
                                     cv::Mat& lbl_img, Boundary& boundary)
   {
-    // TODO: Add a parameter to inflate this distance.
-    // TODO: Add min and max push dist parametersx
     double push_dist = std::min(std::max(boundary.xyLength3D, min_push_dist_),
                                 max_push_dist_);
     double push_angle_pos = 0.0;
@@ -2172,6 +2189,7 @@ class ObjectSingulation
     }
 #endif // DISPLAY_PUSH_VECTOR
     push.push_dist = push_dist;
+    // getBoundaryLengthXYMeters(boundary);
     return push;
   }
 
@@ -2250,7 +2268,7 @@ class ObjectSingulation
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       // Don't compare object to itself
-      if (i == split.object_id) continue;
+      if (i == split.object_idx) continue;
 
       const double clearance = (moved_cent - objs[i].centroid).norm();
 
@@ -2360,14 +2378,12 @@ class ObjectSingulation
         return -1;
       }
     }
-    ROS_INFO_STREAM("Sampling from list of size: " << samples.size());
     if (samples.size() == 1)
     {
       return samples[0].id;
     }
 
     std::sort(samples.begin(), samples.end(), PushSample::compareSamples);
-
     double running_cdf = 0.0;
     for (int i = samples.size() - 1; i >= 0; --i)
     {
@@ -2379,7 +2395,6 @@ class ObjectSingulation
       samples[i].cdf_weight /= running_cdf;
       samples[i].weight /= running_cdf;
     }
-
     float cdf_goal = randf();
     unsigned int idx = PushSample::cdfBinarySearch(samples, cdf_goal);
     return samples[idx].id;
@@ -2540,7 +2555,7 @@ class ObjectSingulation
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
       cv::Vec3f color;
-      if (boundaries[b].object_id < objs_size)
+      if (boundaries[b].object_idx < objs_size)
       {
         if (boundaries[b].too_short)
         {
