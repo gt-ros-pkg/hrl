@@ -60,25 +60,6 @@
 // PCL
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/common/eigen.h>
-#include <pcl/common/norms.h>
-#include <pcl/ros/conversions.h>
-#include <pcl_ros/transforms.h>
-#include <pcl/ModelCoefficients.h>
-#include <pcl/sample_consensus/method_types.h>
-#include <pcl/sample_consensus/model_types.h>
-#include <pcl/segmentation/sac_segmentation.h>
-#include <pcl/segmentation/extract_clusters.h>
-#include <pcl/segmentation/segment_differences.h>
-#include <pcl/kdtree/kdtree_flann.h>
-#include <pcl/kdtree/impl/kdtree_flann.hpp>
-#include <pcl/features/feature.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl/filters/extract_indices.h>
-#include <pcl/surface/concave_hull.h>
-#include <pcl/registration/icp.h>
 
 // OpenCV
 #include <opencv2/core/core.hpp>
@@ -86,17 +67,8 @@
 #include <opencv2/highgui/highgui.hpp>
 
 // Boost
-// TODO: Use these instead of passing pointers about
-#include <boost/shared_ptr.hpp>
-
-// cpl_visual_features
-#include <cpl_visual_features/motion/flow_types.h>
-#include <cpl_visual_features/motion/dense_lk.h>
-#include <cpl_visual_features/motion/feature_tracker.h>
 
 // tabletop_pushing
-#include <tabletop_pushing/PushPose.h>
-#include <tabletop_pushing/LocateTable.h>
 
 // STL
 #include <vector>
@@ -114,20 +86,8 @@
 #include <time.h> // for srand(time(NULL))
 #include <cstdlib> // for MAX_RAND
 
-// Debugging IFDEFS
-#define DISPLAY_INPUT_COLOR 1
-#define DISPLAY_INPUT_DEPTH 1
-// #define DISPLAY_WORKSPACE_MASK 1
-// #define DISPLAY_PLANE_ESTIMATE 1
-// #define DISPLAY_TABLE_DISTANCES 1
-#define DISPLAY_OBJECT_BOUNDARIES 1
-#define DISPLAY_PROJECTED_OBJECTS 1
-#define DISPLAY_OBJECT_SPLITS 1
-// #define DISPLAY_LINKED_EDGES 1
-// #define DISPLAY_CHOSEN_BOUNDARY 1
-#define DISPLAY_CLOUD_DIFF 1
-#define DISPLAY_3D_BOUNDARIES 1
 #define DISPLAY_WAIT 1
+#define DEBUG_MODE 1
 
 #define randf() static_cast<float>(rand())/RAND_MAX
 
@@ -144,33 +104,16 @@ public:
     cloud_sub_(n, "point_cloud_topic", 1),
     sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
     it_(n), tf_(), 
+    have_depth_data_(false) 
     
-    have_depth_data_(false), tracking_(false),
-    tracker_initialized_(false), tracker_count_(0)
     {
         // Legacy stuff. Must remove unused ones
-        n_private_.param("crop_min_x", crop_min_x_, 0);
-        n_private_.param("crop_max_x", crop_max_x_, 640);
-        n_private_.param("crop_min_y", crop_min_y_, 0);
-        n_private_.param("crop_max_y", crop_max_y_, 480);
         n_private_.param("display_wait_ms", display_wait_ms_, 3);
-        n_private_.param("min_workspace_x", min_workspace_x_, 0.0);
-        n_private_.param("min_workspace_y", min_workspace_y_, 0.0);
-        n_private_.param("min_workspace_z", min_workspace_z_, 0.0);
-        n_private_.param("max_workspace_x", max_workspace_x_, 0.0);
-        n_private_.param("max_workspace_y", max_workspace_y_, 0.0);
-        n_private_.param("max_workspace_z", max_workspace_z_, 0.0);
         std::string default_workspace_frame = "/torso_lift_link";
         n_private_.param("workspace_frame", workspace_frame_, default_workspace_frame);
-        n_private_.param("autostart_tracking", tracking_, false);
-        n_private_.param("autostart_pcl_segmentation", autorun_pcl_segmentation_, false);
-        n_private_.param("use_guided_pushes", use_guided_pushes_, true);
-        
         n_private_.param("num_downsamples", num_downsamples_, 2);
         std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
         n_private_.param("cam_info_topic", cam_info_topic_, cam_info_topic_def);
-        bool use_fast;
-        n_private_.param("use_fast_corners", use_fast, false);
         
         // color segmentation specific ones
         n_private_.param("tape_hue_value", tape_hue_value_, 137);
@@ -180,40 +123,22 @@ public:
         n_private_.param("default_sat_bot_value", default_sat_bot_value_, 40);
         n_private_.param("default_sat_top_value", default_sat_top_value_, 40);
         n_private_.param("default_val_value", default_val_value_, 200);
- 
-        n_private_.param("default_push_dist", default_push_dist_, 0.1);
+        n_private_.param("min_contour_size", min_contour_size_, 100.0);
         // Setup ros node connections
         sync_.registerCallback(&VisualServoNode::sensorCallback, this);
- 
-        /** 
-         * Uncomment below to test with local image
-        std::cout << "1\n";
-        IplImage* img = cvLoadImage("/home/bootcamp/gt-ros-pkg/cpl/tabletop_pushing/src/test1.jpeg");
-        cv::Mat color_frame(img);
-        cvReleaseImage(&img);
-        std::cout << "1\n";
-        cv::imshow("input",color_frame.clone());
-        std::cout << "1\n";
-        //cv::Mat color_frame_down = downSample(color_frame, num_downsamples_);
-        cv::Mat color_frame_down = color_frame.clone();
-        std::cout << "1\n";
-        cv::Mat tape = colorSegment(color_frame_down.clone(), tape_hue_value_, tape_hue_threshold_);
-        cv::Mat hand = colorSegment(color_frame_down.clone(), hand_hue_value_, hand_hue_threshold_);
-        std::cout << "1\n";
-        cv::imshow("input",color_frame_down.clone());
-        cv::imshow("tape", tape.clone()); 
-        cv::imshow("hand", hand.clone());   
-        cv::waitKey(3000);
-        */
-
     }
     
-    
-    void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg,const sensor_msgs::ImageConstPtr& depth_msg,const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
+    /** 
+    * Experiment: visual servo
+    * Given a fixed engineered setting, we are taping robot hand with
+    * three painter's tape and use those three features to do the image-based
+    * visual servoing
+    **/
+    void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg, const sensor_msgs::ImageConstPtr& depth_msg, const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     {
         if (!camera_initialized_)
         {
-            cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(cam_info_topic_, n_, ros::Duration(5.0));
+            cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(cam_info_topic_, n_, ros::Duration(2.0));
             camera_initialized_ = true;
         }
         // Convert images to OpenCV format
@@ -222,39 +147,189 @@ public:
         
         // Swap kinect color channel order
         cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
-	// Downsample the image
-        cv::Mat color_frame_down = downSample(color_frame, num_downsamples_);
-        cv::Mat depth_frame_down = downSample(depth_frame, num_downsamples_);
+	    
+        // Downsample the image
+        //cv::Mat color_frame_down = downSample(color_frame, num_downsamples_);
+        //cv::Mat depth_frame_down = downSample(depth_frame, num_downsamples_);
 	
-	// Segment the blue tape on the hand
-	// Values are from the launch file
-        cv::Mat tape = colorSegment(color_frame_down.clone(), tape_hue_value_, tape_hue_threshold_);
+	    // Segment the blue tape on the hand
+	    // Values are from the launch file
+        cv::Mat tape_mask = colorSegment(color_frame.clone(), tape_hue_value_, tape_hue_threshold_);
+       
+        std::vector<cv::Moments> ms = findMoments(tape_mask, color_frame); 
+        ms = orderMoments(ms);
+
+
+        //XYZPointCloud cloud; 
+        //pcl::fromROSMsg(*cloud_msg, cloud);
+        //tf_->waitForTransform(workspace_frame_, cloud.header.frame_id,
+        //                cloud.header.stamp, ros::Duration(0.5));
+        //pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, *tf_);
+
+
+        // interaction matrix, image jacobian
         
-        cv::Mat open;
-        cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3,3));
-        cv::morphologyEx(tape.clone(), open, cv::MORPH_OPEN, element);
+        printf("Image Jacobian\n");
 
-		
-	std::vector<std::vector<cv::Point> > moving_contours;
-	moving_contours.clear();
-    	// NOTE: This method makes changes to the "moving" image
-    	cv::findContours(open, moving_contours, cv::RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
+        double L[6][6];
+        if (ms.size() == 3) {
+           for (int i = 0; i < 3; i++) {
+               cv::Moments m = ms.at(i);
+               double x = (m.m10/m.m00);
+               double y = (m.m01/m.m00);
+               double z = depth_frame.at<uchar>((int)y,(int)x); 
+               printf("%.3f\t", z);
 
+               if (z == 0) z = 1e-6;
+               L[i][0] = -1/z;
+               L[i+1][0] = 0;
+               L[i][1] = 0;
+               L[i+1][1] = -1/z;
+               L[i][2] = x/z;
+               L[i+1][2] = y/z;
+               L[i][3] = x*y;
+               L[i+1][3] = 1 + pow(y,2);
+               L[i][4] = -(1+pow(x,2));
+               L[i+1][4] = -x*y;
+               L[i][5] = y;
+               L[i+1][5] = -x;
+           }
+           printf("\n");
 
-	cv::Moments m; 
-	m = cv::moments(moving_contours[0]);
-      	ROS_INFO_STREAM("first moment:"  << moving_contours.size());
-        cv::imshow("input",color_frame_down.clone());
-        cv::imshow("tape", tape.clone()); 
-        cv::imshow("open", open.clone());   
+           for (int i=0; i < 6; i++) {
+               for (int j=0; j<6; j++)
+                   printf("%1.3E\t", L[i][j]);
+               printf("\n");
+           }
+        }
+        
+#ifdef DEBUG_MODE
+        for (unsigned int i = 0; i < ms.size(); i++) {
+            cv::Moments m = ms.at(i);
+            double x = m.m10/m.m00;
+            double y = m.m01/m.m00;
+            cv::circle(color_frame, cv::Point(x,y), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
+       } 
+        
+        double depth_max = 1.0;
+        cv::minMaxLoc(depth_frame, NULL, &depth_max);
+        cv::Mat depth_display = depth_frame.clone();
+        depth_display /= depth_max;
+        cv::imshow("input_depth", depth_display);
+        cv::imshow("input", color_frame.clone());
         cv::waitKey(display_wait_ms_);
+#endif 
     }    
 
     
     
+    std::vector<cv::Moments> orderMoments(std::vector<cv::Moments> ms)
+    {
+        std::vector<cv::Moments> oMs;
+        oMs.clear();
+        if (ms.size() == 3) { 
+            double centroids[3][2];
+            for (int i = 0; i < 3; i++) {
+                cv::Moments m0 = ms.at(i);
+                double x0, y0;
+                x0 = m0.m10/m0.m00;
+                y0 = m0.m01/m0.m00;
+                centroids[i][0] = x0; 
+                centroids[i][1] = y0; 
+            }
+        
+            // find the top left corner using distance scheme
+            double dist[3][3], lowest(1e6);
+            int one(-1);
+            for (int i = 0; i < 3; i++) {
+                for (int j = i; j < 3; j++) {
+                    double temp = pow(centroids[j][0]- centroids[i][0],2) 
+                    + pow(centroids[j][1]-centroids[i][1],2);
+                    dist[i][j] = temp;
+                    dist[j][i] = temp;
+                }
+                double score = dist[i][0] + dist[i][1] + dist[i][2];
+                if (score < lowest) {
+                    lowest = score;
+                    one = i;
+                }
+            }
+
+            oMs.push_back(ms.at(one));
+            // going to use quaderant based searching
+            int a = one == 0 ? 1 : 0;
+            int b = one == 2 ? 1 : 2; 
+            double vX0, vY0, vX1, vY1, result;
+            vX0 = centroids[a][0] - centroids[one][0];
+            vY0 = centroids[a][1] - centroids[one][1];
+            vX1 = centroids[b][0] - centroids[one][0];
+            vY1 = centroids[b][1] - centroids[one][1];
+            // cross-product assuming that z = 0 for both
+            result = vX1*vY0 - vX0*vY1;
+            if (result >= 0) {
+                oMs.push_back(ms.at(b));
+                oMs.push_back(ms.at(a));
+            }
+            else {
+                oMs.push_back(ms.at(a));
+                oMs.push_back(ms.at(b));
+            }
+                
+        }
+        return oMs;
+    } 
+
+    /**
+    * findMoments those morphology to filter out noises and find contours around
+    * possible features. Lastly, it returns the three largest moments
+    * Arg
+    * in: single channel image input
+    * Return
+    * three largest moment in the image
+    */
+    std::vector<cv::Moments> findMoments(cv::Mat in, cv::Mat &color_frame) { 
+        cv::Mat open;
+        cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3,3));
+        cv::morphologyEx(in.clone(), open, cv::MORPH_OPEN, element);
+	
+	    std::vector<std::vector<cv::Point> > contours; contours.clear();
+    	cv::findContours(open, contours, cv::RETR_CCOMP,CV_CHAIN_APPROX_NONE);
+        std::vector<cv::Moments> moments; moments.clear();
+        
+        for (unsigned int i = 0; i < contours.size(); i++) {
+            cv::Moments m = cv::moments(contours[i]);
+            if (m.m00 > min_contour_size_) {
+                // first add the forth element
+
+                moments.push_back(m);
+                // find the smallest element of 4 and remove that
+                if (moments.size() > 3) {
+                    double small(moments.at(0).m00);
+                    unsigned int smallInd(0);
+                    for (unsigned int j = 1; j < moments.size(); j++){
+                        if (moments.at(j).m00 < small) {
+                            small = moments.at(j).m00;
+                            smallInd = j;
+                        }
+                    }
+                    moments.erase(moments.begin() + smallInd);
+                }
+            }
+        }
+
+#ifdef DEBUG_MODE
+        cv::drawContours(color_frame, contours, -1,  cv::Scalar(50,225,255), 2);
+        // cv::imshow("open", open.clone());   
+#endif
+ 
+
+        return moments;
+    }
+    
     cv::Mat colorSegment(cv::Mat color_frame, int hue, int threshold){
         /*
-         * Often value = 0 or 255 are very useless. The distance at those end points get very close and it is not useful
+         * Often value = 0 or 255 are very useless. 
+         * The distance at those end points get very close and it is not useful
          * Same with saturation 0. Low saturation makes everything more gray scaled
          * So the default setting are below 
          */
@@ -292,9 +367,7 @@ public:
         }
 
         // removing unwanted parts by applying mask to the original image
-        cv::Mat ret;
-        color_frame.copyTo(ret, wm);
-        return ret;
+        return wm;
     }
    
     
@@ -357,27 +430,12 @@ protected:
     std_msgs::Header prev_camera_header_;
     XYZPointCloud cur_point_cloud_;
     bool have_depth_data_;
-    int crop_min_x_;
-    int crop_max_x_;
-    int crop_min_y_;
-    int crop_max_y_;
     int display_wait_ms_;
-    double min_workspace_x_;
-    double max_workspace_x_;
-    double min_workspace_y_;
-    double max_workspace_y_;
-    double min_workspace_z_;
-    double max_workspace_z_;
     int num_downsamples_;
     std::string workspace_frame_;
-    bool tracking_;
-    bool tracker_initialized_;
     bool camera_initialized_;
     std::string cam_info_topic_;
     int tracker_count_;
-    bool autorun_pcl_segmentation_;
-    bool use_guided_pushes_;
-    double default_push_dist_;
     int tape_hue_value_;
     int tape_hue_threshold_;
     int hand_hue_value_;
@@ -385,6 +443,7 @@ protected:
     int default_sat_bot_value_;
     int default_sat_top_value_;
     int default_val_value_;
+    double min_contour_size_;
 };
 
 int main(int argc, char ** argv)
