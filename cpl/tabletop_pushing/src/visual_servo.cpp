@@ -60,21 +60,20 @@
 // PCL
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl_ros/transforms.h>
+
+// Boost
+#include <boost/shared_ptr.hpp>
 
 // OpenCV
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-// Boost
-
-// tabletop_pushing
-
 // STL
 #include <vector>
 #include <deque>
 #include <queue>
-#include <map>
 #include <string>
 #include <sstream>
 #include <iostream>
@@ -86,13 +85,11 @@
 #include <time.h> // for srand(time(NULL))
 #include <cstdlib> // for MAX_RAND
 
-#define DISPLAY_WAIT 1
 #define DEBUG_MODE 1
-
-#define randf() static_cast<float>(rand())/RAND_MAX
 
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image,sensor_msgs::PointCloud2> MySyncPolicy;
+using boost::shared_ptr;
 
 class VisualServoNode
 {
@@ -103,10 +100,9 @@ public:
     depth_sub_(n, "depth_image_topic", 1),
     cloud_sub_(n, "point_cloud_topic", 1),
     sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
-    it_(n), tf_(), 
-    have_depth_data_(false) 
-    
+    it_(n), tf_(), have_depth_data_(false) 
     {
+    	tf_ = shared_ptr<tf::TransformListener>(new tf::TransformListener());
         // Legacy stuff. Must remove unused ones
         n_private_.param("display_wait_ms", display_wait_ms_, 3);
         std::string default_workspace_frame = "/torso_lift_link";
@@ -159,46 +155,44 @@ public:
         std::vector<cv::Moments> ms = findMoments(tape_mask, color_frame); 
         ms = orderMoments(ms);
 
-
-        //XYZPointCloud cloud; 
-        //pcl::fromROSMsg(*cloud_msg, cloud);
-        //tf_->waitForTransform(workspace_frame_, cloud.header.frame_id,
-        //                cloud.header.stamp, ros::Duration(0.5));
-        //pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, *tf_);
-
+        XYZPointCloud cloud; 
+        pcl::fromROSMsg(*cloud_msg, cloud);
+        tf_->waitForTransform(workspace_frame_, cloud.header.frame_id,
+                        cloud.header.stamp, ros::Duration(0.5));
+        pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, *tf_);
 
         // interaction matrix, image jacobian
-        
-        printf("Image Jacobian\n");
-
         double L[6][6];
         if (ms.size() == 3) {
+        printf("Image Jacobian\n");
            for (int i = 0; i < 3; i++) {
                cv::Moments m = ms.at(i);
                double x = (m.m10/m.m00);
                double y = (m.m01/m.m00);
                double z = depth_frame.at<uchar>((int)y,(int)x); 
-               printf("%.3f\t", z);
-
-               if (z == 0) z = 1e-6;
-               L[i][0] = -1/z;
-               L[i+1][0] = 0;
-               L[i][1] = 0;
-               L[i+1][1] = -1/z;
-               L[i][2] = x/z;
-               L[i+1][2] = y/z;
-               L[i][3] = x*y;
-               L[i+1][3] = 1 + pow(y,2);
-               L[i][4] = -(1+pow(x,2));
-               L[i+1][4] = -x*y;
-               L[i][5] = y;
-               L[i+1][5] = -x;
+  
+	       pcl::PointXYZ cur_pt = cloud.at(x, y);
+               printf("[%.3f vs. %.3f]\t", z, cur_pt.z);
+	       int l = i * 2;
+               if (z == 0) z = 1e-4;
+               L[l][0] = -1/z;
+               L[l+1][0] = 0;
+               L[l][1] = 0;
+               L[l+1][1] = -1/z;
+               L[l][2] = x/z;
+               L[l+1][2] = y/z;
+               L[l][3] = x*y;
+               L[l+1][3] = 1 + pow(y,2);
+               L[l][4] = -(1+pow(x,2));
+               L[l+1][4] = -x*y;
+               L[l][5] = y;
+               L[l+1][5] = -x;
            }
            printf("\n");
 
            for (int i=0; i < 6; i++) {
-               for (int j=0; j<6; j++)
-                   printf("%1.3E\t", L[i][j]);
+               for (int j=0; j< 6; j++)
+                   printf("%6.3e\t", L[i][j]);
                printf("\n");
            }
         }
@@ -288,12 +282,12 @@ public:
     * three largest moment in the image
     */
     std::vector<cv::Moments> findMoments(cv::Mat in, cv::Mat &color_frame) { 
-        cv::Mat open;
-        cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3,3));
+        cv::Mat open, temp;
+        cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5,5));
         cv::morphologyEx(in.clone(), open, cv::MORPH_OPEN, element);
-	
-	    std::vector<std::vector<cv::Point> > contours; contours.clear();
-    	cv::findContours(open, contours, cv::RETR_CCOMP,CV_CHAIN_APPROX_NONE);
+	std::vector<std::vector<cv::Point> > contours; contours.clear();
+	temp = open.clone();
+    	cv::findContours(temp, contours, cv::RETR_CCOMP,CV_CHAIN_APPROX_NONE);
         std::vector<cv::Moments> moments; moments.clear();
         
         for (unsigned int i = 0; i < contours.size(); i++) {
@@ -319,7 +313,7 @@ public:
 
 #ifdef DEBUG_MODE
         cv::drawContours(color_frame, contours, -1,  cv::Scalar(50,225,255), 2);
-        // cv::imshow("open", open.clone());   
+        cv::imshow("open", open.clone());   
 #endif
  
 
@@ -419,7 +413,7 @@ protected:
     image_transport::ImageTransport it_;
     sensor_msgs::CameraInfo cam_info_;
     sensor_msgs::CvBridge bridge_;
-    tf::TransformListener tf_;
+    shared_ptr<tf::TransformListener> tf_;
     cv::Mat cur_color_frame_;
     cv::Mat cur_depth_frame_;
     cv::Mat cur_workspace_mask_;
