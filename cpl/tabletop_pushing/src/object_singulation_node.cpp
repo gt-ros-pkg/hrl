@@ -1497,18 +1497,22 @@ class ObjectSingulation
           else
           {
             file_out << "matched new with score of: " << min_score << std::endl;
-            cur_objs[min_idx].id = prev_objs[i].id;
-            cur_objs[min_idx].push_history = prev_objs[i].push_history;
-            cur_objs[min_idx].transform = min_transform*prev_objs[i].transform;
-            matched[min_idx] = true;
             // TODO: Examine bad fits of ICP
             bool bad_icp = (min_score > bad_icp_score_limit_);
+            cur_objs[min_idx].id = prev_objs[i].id;
+            matched[min_idx] = true;
             if (split && bad_icp)
             {
-              // TODO: Deal with split here
+              ROS_INFO_STREAM("Bad score on split, resetting history of " <<
+                              min_idx << "!");
               cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
-              matched[min_idx] = false;
+              // matched[min_idx] = false;
               cur_objs[min_idx].transform =  Eigen::Matrix4f::Identity();
+            }
+            else
+            {
+              cur_objs[min_idx].push_history = prev_objs[i].push_history;
+              cur_objs[min_idx].transform = min_transform*prev_objs[i].transform;
             }
           }
         }
