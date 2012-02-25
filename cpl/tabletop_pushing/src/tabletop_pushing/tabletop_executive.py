@@ -65,7 +65,7 @@ class TabletopExecutive:
         self.gripper_y_offset = rospy.get_param('~gripper_push_start_x_offset',
                                                 0.0)
         self.gripper_start_z = rospy.get_param('~gripper_push_start_z',
-                                                -0.20)
+                                                -0.25)
 
         self.sweep_x_offset = rospy.get_param('~gripper_sweep_start_x_offset',
                                               -0.01)

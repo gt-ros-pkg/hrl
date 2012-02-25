@@ -12,3 +12,4 @@ uint32 object_id
 bool no_push
 uint32[] singulated
 float64 push_dist
+uint32 push_bin

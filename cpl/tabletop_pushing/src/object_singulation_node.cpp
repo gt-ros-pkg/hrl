@@ -1239,8 +1239,8 @@ class ObjectSingulation
     }
 #endif // DISPLAY_3D_BOUNDARIES
 #ifdef DEBUG_PUSH_HISTORY
-    //drawObjectHists(obj_lbl_img, cur_proto_objs_);
-    drawObjectHists(color_img, cur_proto_objs_);
+    drawObjectHists(color_img, cur_proto_objs_, push_vector.push_bin,
+                    push_vector.object_idx);
 #endif // DEBUG_PUSH_HISTORY
     if (push_vector.object_idx == cur_proto_objs_.size())
     {
@@ -1456,6 +1456,9 @@ class ObjectSingulation
   void matchMoved(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
                   std::vector<bool> matched, bool split)
   {
+    std::stringstream file_out_name;
+    file_out_name << base_output_path_ << "icp_scores.txt";
+    std::ofstream file_out(file_out_name.str().c_str(), std::ios_base::app);
     for (unsigned int i = 0; i < prev_objs.size(); ++i)
     {
       if (prev_objs[i].moved)
@@ -1489,21 +1492,23 @@ class ObjectSingulation
                           << " maps to cur " << min_idx << " : " << min_score);
           if (matched[min_idx])
           {
+            file_out << "matched old with score of: " << min_score << std::endl;
           }
           else
           {
+            file_out << "matched new with score of: " << min_score << std::endl;
             cur_objs[min_idx].id = prev_objs[i].id;
             cur_objs[min_idx].push_history = prev_objs[i].push_history;
             cur_objs[min_idx].transform = min_transform*prev_objs[i].transform;
             matched[min_idx] = true;
             // TODO: Examine bad fits of ICP
-            bool bad_icp = false;
+            bool bad_icp = (min_score > bad_icp_score_limit_);
             if (split && bad_icp)
             {
               // TODO: Deal with split here
-               cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
-               matched[min_idx] = false;
-               cur_objs[min_idx].transform =  Eigen::Matrix4f::Identity();
+              cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
+              matched[min_idx] = false;
+              cur_objs[min_idx].transform =  Eigen::Matrix4f::Identity();
             }
           }
         }
@@ -1518,6 +1523,7 @@ class ObjectSingulation
     {
       if (!matched[i]) cur_objs[i].id = getNextID();
     }
+    file_out.close();
   }
 
   /**
@@ -1569,6 +1575,7 @@ class ObjectSingulation
     ROS_INFO_STREAM("Push angle is : " << push.push_angle);
     ROS_INFO_STREAM("Push angle is in bin : " << push_idx << std::endl);
     push.singulated = singulated_ids;
+    push.push_bin = push_idx;
     return push;
   }
 
@@ -2719,7 +2726,9 @@ class ObjectSingulation
     return next_id_++;
   }
 
-  void drawObjectHists(cv::Mat& img, ProtoObjects& objs, bool is_obj_img=false)
+  void drawObjectHists(cv::Mat& img, ProtoObjects& objs, int highlight_bin,
+                       int highlight_obj,
+                       bool is_obj_img=false)
   {
     cv::Mat disp_img(img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     if (is_obj_img)
@@ -2752,6 +2761,7 @@ class ObjectSingulation
     const cv::Scalar est_fill_color(0.0, 0.0, 0.7);
     const cv::Scalar history_line_color(0.0, 0.0, 0.0);
     const cv::Scalar history_fill_color(0.0, 0.7, 0.0);
+    const cv::Scalar highlight_color(0.7, 0.0, 0.0);
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       const Eigen::Vector4f x_t = objs[i].transform*x_axis;
@@ -2765,9 +2775,16 @@ class ObjectSingulation
       center3D.header.frame_id = workspace_frame_;
       cv::Point center = pcl_segmenter_->projectPointIntoImage(center3D);
       drawSemicircleHist(objs[i].boundary_angle_dist, disp_img, center, w, h,
-                         est_line_color, est_fill_color, start_angle);
+                         est_line_color, est_fill_color, highlight_color,
+                         start_angle);
+      int to_highlight = -1;
+      if (i == highlight_obj)
+      {
+        to_highlight = highlight_bin;
+      }
       drawSemicircleHist(objs[i].push_history, disp_img_hist, center, w, h,
-                         history_line_color, history_fill_color, start_angle);
+                         history_line_color, history_fill_color,
+                         highlight_color, start_angle, to_highlight);
     }
     if (use_displays_)
     {
@@ -2795,10 +2812,11 @@ class ObjectSingulation
   void drawSemicircleHist(std::vector<int>& hist, cv::Mat& disp_img,
                           const cv::Point center, int w, int h,
                           const cv::Scalar line_color,
-                          const cv::Scalar fill_color, const float start_rot,
-                          bool narrow_bins = false)
+                          const cv::Scalar fill_color,
+                          const cv::Scalar highlight_color,
+                          const float start_rot,
+                          int highlight_bin=-1)
   {
-    const float narrow_rad = 6.0;
     int half_circ = w*hist.size();
     const int r0 = half_circ/M_PI;
     const cv::Size s0(r0, r0);
@@ -2817,19 +2835,19 @@ class ObjectSingulation
     for (unsigned int i = 0; i < hist.size(); ++i)
     {
       // NOTE: need to flip histogram order to correctly display
-      if (hist[hist.size()-i-1] > 0)
+      if (hist[hist.size()-i-1] > 0 || (hist.size()-i-1) == highlight_bin)
       {
         int d_y = h * hist[hist.size()-i-1] / hist_max;
+        if ((hist.size()-i-1) == highlight_bin && d_y == 0)
+        {
+          d_y = h;
+        }
         const int r1 = r0+d_y;
         const cv::Size s1(r1, r1);
         std::vector<cv::Point> out_arc_pts;
         float start_angle = 0.0;
         float end_angle = angle_inc;
-        if (narrow_bins)
-        {
-          start_angle += narrow_rad;
-          end_angle -= narrow_rad;
-        }
+
         cv::ellipse2Poly(center, s1, rot, start_angle, end_angle, deg_precision,
                          out_arc_pts);
         std::vector<cv::Point> in_arc_pts;
@@ -2853,13 +2871,24 @@ class ObjectSingulation
         }
         const cv::Point* pts[1] = {poly};
         // fill bin
-        cv::fillPoly(disp_img, pts, npts, 1, fill_color);
+        if ((hist.size()-i-1) == highlight_bin)
+        {
+          cv::fillPoly(disp_img, pts, npts, 1, highlight_color);
+        }
+        else
+        {
+          cv::fillPoly(disp_img, pts, npts, 1, fill_color);
+        }
         delete poly;
       }
       rot += angle_inc;
     }
     // Draw inner circle
     cv::ellipse(disp_img, center, s0, start_rot, 0.0, 180.0, line_color);
+    std::vector<cv::Point> arc_pts;
+    cv::ellipse2Poly(center, s0, start_rot, 0.0, 180.0, deg_precision, arc_pts);
+    // TODO: Draw diameter line
+    cv::line(disp_img, arc_pts.front(), arc_pts.back(), line_color);
 
     // Draw all lines
     rot = start_rot;
@@ -2872,11 +2901,6 @@ class ObjectSingulation
         const cv::Size s1(r1, r1);
         float start_angle = 0.0;
         float end_angle = angle_inc;
-        if (narrow_bins)
-        {
-          start_angle += narrow_rad;
-          end_angle -= narrow_rad;
-        }
 
         cv::ellipse(disp_img, center, s1, rot, start_angle, end_angle,
                     line_color);
@@ -2949,6 +2973,7 @@ class ObjectSingulation
   double min_push_dist_;
   double max_push_dist_;
   double push_dist_inflation_;
+  double bad_icp_score_limit_;
 };
 
 class ObjectSingulationNode
@@ -3017,6 +3042,7 @@ class ObjectSingulationNode
     os_->min_boundary_length_ = std::max(os_->min_boundary_length_, 3);
     n_private_.param("os_hist_bin_width", os_->histogram_bin_width_, 5);
     n_private_.param("os_hist_bin_height", os_->histogram_bin_height_, 30);
+    n_private_.param("bad_icp_score_limit", os_->bad_icp_score_limit_, 0.0015);
     std::string output_path_def = "~";
     n_private_.param("img_output_path", base_output_path_, output_path_def);
     os_->base_output_path_ = base_output_path_;
