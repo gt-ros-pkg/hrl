@@ -675,6 +675,17 @@ class PointCloudSegmentation
     return projectPointIntoImage(cur_point, target_frame);
   }
 
+  void projectPointCloudIntoImage(XYZPointCloud& cloud, cv::Mat& lbl_img)
+  {
+    for (unsigned int i = 0; i < cloud.size(); ++i)
+    {
+      cv::Point img_idx = projectPointIntoImage(cloud.at(i),
+                                                cloud.header.frame_id,
+                                                cur_camera_header_.frame_id);
+      lbl_img.at<uchar>(img_idx.y, img_idx.x) = 1;
+    }
+  }
+
   cv::Point projectPointIntoImage(PointStamped cur_point)
   {
     return projectPointIntoImage(cur_point, cur_camera_header_.frame_id);
@@ -773,7 +784,19 @@ class PushOpt
     moved[3] = 1.0f;
     return moved;
   }
+
+  Eigen::Vector4f getMovedCentroid()
+  {
+    Eigen::Vector4f moved;
+    moved[0] = obj.centroid[0] + push_unit_vec[0]*push_dist;
+    moved[1] = obj.centroid[1] + push_unit_vec[1]*push_dist;
+    moved[2] = obj.centroid[2] + push_unit_vec[2]*push_dist;
+    moved[3] = 1.0f;
+    return moved;
+  }
 };
+
+typedef std::vector<PushOpt> PushOpts;
 
 class PushSample
 {
@@ -1193,7 +1216,6 @@ class ObjectSingulation
       prev_proto_objs_.push_back(cur_proto_objs_[i]);
     }
     ProtoObjects objs = calcProtoObjects(cloud);
-
     if (no_push_calc)
     {
       PushVector push_vector;
@@ -1222,7 +1244,7 @@ class ObjectSingulation
 #endif // DEBUG_PUSH_HISTORY
     if (push_vector.object_idx == cur_proto_objs_.size())
     {
-      ROS_WARN_STREAM("No push vector selected.");
+      ROS_WARN_STREAM("No push vector selected." << std::endl);
       push_vector.no_push = true;
       ++callback_count_;
       return push_vector;
@@ -1306,8 +1328,10 @@ class ObjectSingulation
   ProtoObjects calcProtoObjects(XYZPointCloud& cloud)
   {
     XYZPointCloud objs_cloud;
+    XYZPointCloud table_cloud;
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cloud, objs_cloud,
-                                                            true);
+                                                            table_cloud, true);
+    cur_table_cloud_ = table_cloud;
     ROS_INFO_STREAM("Found " << objs.size() << " objects!");
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
@@ -1524,7 +1548,7 @@ class ObjectSingulation
     std::vector<unsigned int> singulated_ids = checkSingulated(boundaries, objs);
     if (singulated_ids.size() == objs.size())
     {
-      ROS_WARN_STREAM("Boundary has no ID!");
+      ROS_WARN_STREAM("All objects singulated!");
       PushVector push_pose;
       push_pose.object_idx = objs.size();
       push_pose.no_push = true;
@@ -1989,6 +2013,13 @@ class ObjectSingulation
         }
         float push_angle = getWorldFrameAngleFromObjFrame(
             boundaries[b].ort, objs[boundaries[b].object_idx].transform);
+        PushOpts split_opts = generatePushOpts(push_angle, boundaries[b],
+                                               boundaries[b].object_idx);
+        // TODO: Get higher ranked pushes for each direction
+        // TODO: Don't push intop other stuff
+        // TODO: Don't push outside the workspace
+        // TODO: Don't push off the table
+        // TODO: Get score from all that stuff
         PushVector push = determinePushDirection(push_angle, objs,
                                                  boundaries[b].object_idx,
                                                  obj_lbl_img, boundaries[b]);
@@ -1996,11 +2027,7 @@ class ObjectSingulation
       }
     }
     // TODO: Sort ranks...
-    // TODO: Add in boundary length
-    // TODO: Get higher ranked pushes for each direction
-    // TODO: Don't push intop other stuff
-    // TODO: Don't push outside the workspace
-    // TODO: Don't push off the table
+    // TODO: Add in boundary length sorting
     return ranks;
   }
 
@@ -2082,13 +2109,9 @@ class ObjectSingulation
     return chosen_id;
   }
 
-  PushVector determinePushDirection(double push_angle,
-                                    ProtoObjects& objs, unsigned int id,
-                                    cv::Mat& lbl_img, Boundary& boundary)
+  PushOpts generatePushOpts(double push_angle, Boundary& boundary,
+                            unsigned int id)
   {
-    ProtoTabletopObject split0 = boundary.splits[0];
-    ProtoTabletopObject split1 = boundary.splits[1];
-
     double push_dist = std::min(std::max(boundary.xyLength3D, min_push_dist_),
                                 max_push_dist_);
     double push_angle_pos = 0.0;
@@ -2117,14 +2140,23 @@ class ObjectSingulation
                                  push_vec_pos, id, 1, push_dist));
     split_opts.push_back(PushOpt(boundary.splits[1], push_angle_neg,
                                  push_vec_neg, id, 1, push_dist));
+    return split_opts;
+  }
 
+  PushVector determinePushDirection(double push_angle,
+                                    ProtoObjects& objs, unsigned int id,
+                                    cv::Mat& lbl_img, Boundary& boundary)
+  {
+    PushOpts split_opts = generatePushOpts(push_angle, boundary, id);
     // TODO: Make pushes not cause collisions between objects
     // Choose pushing location closer to the robot by examining the 4
     // possible intersections with the boundaries
     XYZPointCloud s0_int = pcl_segmenter_->lineCloudIntersection(
-        boundary.splits[0].cloud, push_vec_pos, boundary.splits[0].centroid);
+        boundary.splits[0].cloud, split_opts[0].push_unit_vec,
+        boundary.splits[0].centroid);
     XYZPointCloud s1_int = pcl_segmenter_->lineCloudIntersection(
-        boundary.splits[1].cloud, push_vec_pos, boundary.splits[1].centroid);
+        boundary.splits[1].cloud, split_opts[1].push_unit_vec,
+        boundary.splits[1].centroid);
     unsigned int chosen_idx = split_opts.size();
     bool p_not_set = true;
     geometry_msgs::Point p;
@@ -2159,13 +2191,14 @@ class ObjectSingulation
       ROS_WARN_STREAM("No push direction chosen, fix this!");
       PushVector push;
       push.no_push = true;
-      push.push_dist = push_dist;
+      push.push_dist = split_opts[0].push_dist;
       return push;
     }
 
     PushVector push;
     push.start_point = p;
     push.push_angle = split_opts[chosen_idx].push_angle;
+    push.push_dist = split_opts[chosen_idx].push_dist;
     push.no_push = false;
     ROS_INFO_STREAM("Chosen push_dir: [" <<
                     split_opts[chosen_idx].push_unit_vec[0] << ", " <<
@@ -2223,7 +2256,6 @@ class ObjectSingulation
       cv::imwrite(push_out_name.str(), push_out_img);
     }
 #endif // DISPLAY_PUSH_VECTOR
-    push.push_dist = push_dist;
     return push;
   }
 
@@ -2887,6 +2919,7 @@ class ObjectSingulation
   int callback_count_;
   int next_id_;
   bool initialized_;
+  XYZPointCloud cur_table_cloud_;
 
  public:
   double min_pushing_x_;
