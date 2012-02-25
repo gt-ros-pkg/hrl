@@ -159,6 +159,7 @@ class ProtoTabletopObject
   std::vector<int> boundary_angle_dist;
   std::vector<int> push_history;
   bool singulated;
+  double icp_score;
 };
 
 class PointCloudSegmentation
@@ -1215,12 +1216,28 @@ class ObjectSingulation
     {
       prev_proto_objs_.push_back(cur_proto_objs_[i]);
     }
-    ProtoObjects objs = calcProtoObjects(cloud);
+    calcProtoObjects(cloud);
+    // TODO: Update push histories
+    if (!prev_push_vector_.no_push)
+    {
+      for (unsigned int i = 0; i < cur_proto_objs_.size(); ++i)
+      {
+        if (cur_proto_objs_[i].id == prev_push_vector_.object_id)
+        {
+          // TODO: Check if push failed (nothing moved or wrong object moved)
+          // Only increment if good ICP score
+          if (cur_proto_objs_[i].icp_score <= bad_icp_score_limit_)
+          {
+            cur_proto_objs_[i].push_history[prev_push_vector_.push_bin]++;
+          }
+        }
+      }
+    }
     if (no_push_calc)
     {
       PushVector push_vector;
       push_vector.no_push = true;
-      push_vector.num_objects = objs.size();
+      push_vector.num_objects = cur_proto_objs_.size();
       ++callback_count_;
       prev_push_vector_ = push_vector;
       return push_vector;
@@ -1235,7 +1252,7 @@ class ObjectSingulation
 #ifdef DISPLAY_3D_BOUNDARIES
     if (use_displays_ || write_to_disk_)
     {
-      draw3DBoundaries(boundaries, color_img, objs.size());
+      draw3DBoundaries(boundaries, color_img, cur_proto_objs_.size());
     }
 #endif // DISPLAY_3D_BOUNDARIES
 #ifdef DEBUG_PUSH_HISTORY
@@ -1444,6 +1461,7 @@ class ObjectSingulation
             cur_objs[min_idx].id = prev_objs[i].id;
             cur_objs[min_idx].push_history = prev_objs[i].push_history;
             cur_objs[min_idx].transform = prev_objs[i].transform;
+            cur_objs[min_idx].icp_score = 0.0;
           }
 
           matched[min_idx] = true;
@@ -1500,6 +1518,7 @@ class ObjectSingulation
             // TODO: Examine bad fits of ICP
             bool bad_icp = (min_score > bad_icp_score_limit_);
             cur_objs[min_idx].id = prev_objs[i].id;
+            cur_objs[min_idx].icp_score = min_score;
             matched[min_idx] = true;
             if (split && bad_icp)
             {
@@ -1574,12 +1593,12 @@ class ObjectSingulation
     PushVector push = determinePushVector(test_boundary, objs, obj_lbl_img);
     // Increment the push direction of the object to be pushed
     const int push_idx = quantizeAngle(test_boundary.ort);
-    cur_proto_objs_[push.object_idx].push_history[push_idx]++;
+    // cur_proto_objs_[push.object_idx].push_history[push_idx]++;
+    push.singulated = singulated_ids;
+    push.push_bin = push_idx;
     ROS_INFO_STREAM("Chose to push object: " << push.object_idx);
     ROS_INFO_STREAM("Push angle is : " << push.push_angle);
     ROS_INFO_STREAM("Push angle is in bin : " << push_idx << std::endl);
-    push.singulated = singulated_ids;
-    push.push_bin = push_idx;
     return push;
   }
 
@@ -2514,7 +2533,7 @@ class ObjectSingulation
   }
 
   void highlightBoundaryOrientation(cv::Mat& obj_img, Boundary& boundary,
-                                  std::string title)
+                                    std::string title)
   {
     cv::Mat obj_disp_img(obj_img.size(), CV_32FC3);
     if (obj_img.depth() == CV_8U)
@@ -2731,8 +2750,7 @@ class ObjectSingulation
   }
 
   void drawObjectHists(cv::Mat& img, ProtoObjects& objs, int highlight_bin,
-                       int highlight_obj,
-                       bool is_obj_img=false)
+                       int highlight_obj, bool is_obj_img=false)
   {
     cv::Mat disp_img(img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
     if (is_obj_img)
@@ -2841,7 +2859,11 @@ class ObjectSingulation
       // NOTE: need to flip histogram order to correctly display
       if (hist[hist.size()-i-1] > 0 || (hist.size()-i-1) == highlight_bin)
       {
-        int d_y = h * hist[hist.size()-i-1] / hist_max;
+        int d_y = 0.0;
+        if (hist_max != 0)
+        {
+          d_y = h * hist[hist.size()-i-1] / hist_max;
+        }
         if ((hist.size()-i-1) == highlight_bin && d_y == 0)
         {
           d_y = h;
