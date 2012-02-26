@@ -1174,6 +1174,7 @@ class ObjectSingulation
                   XYZPointCloud& cloud, cv::Mat& workspace_mask)
   {
     callback_count_ = 0;
+    next_id_ = 0;
     ProtoObjects objs = calcProtoObjects(cloud);
     initialized_ = true;
     callback_count_++;
@@ -1389,6 +1390,30 @@ class ObjectSingulation
       {
         objs[i].id = getNextID();
       }
+      // TODO: Get table limits
+      min_table_x_ = FLT_MAX;
+      max_table_x_ = -FLT_MAX;
+      min_table_y_ = FLT_MAX;
+      max_table_y_ = -FLT_MAX;
+      for (unsigned int i = 0; i < cur_table_cloud_.size(); ++i)
+      {
+        if (cur_table_cloud_.at(i).x < min_table_x_)
+        {
+          min_table_x_ = cur_table_cloud_.at(i).x;
+        }
+        if (cur_table_cloud_.at(i).y < min_table_y_)
+        {
+          min_table_y_ = cur_table_cloud_.at(i).y;
+        }
+        if (cur_table_cloud_.at(i).x > max_table_x_)
+        {
+          max_table_x_ = cur_table_cloud_.at(i).x;
+        }
+        if (cur_table_cloud_.at(i).y > max_table_y_)
+        {
+          max_table_y_ = cur_table_cloud_.at(i).y;
+        }
+      }
     }
     prev_objs_down_ = cur_objs_down;
     cur_proto_objs_.clear();
@@ -1474,6 +1499,7 @@ class ObjectSingulation
           if (!matched[min_idx])
           {
             cur_objs[min_idx].id = prev_objs[i].id;
+            cur_objs[min_idx].singulated = prev_objs[i].singulated;
             cur_objs[min_idx].push_history = prev_objs[i].push_history;
             cur_objs[min_idx].transform = prev_objs[i].transform;
             cur_objs[min_idx].icp_score = 0.0;
@@ -1536,6 +1562,7 @@ class ObjectSingulation
             cur_objs[min_idx].id = prev_objs[i].id;
             cur_objs[min_idx].icp_score = min_score;
             cur_objs[min_idx].moved = true;
+            cur_objs[min_idx].singulated = prev_objs[i].singulated;
             matched[min_idx] = true;
             if (split && bad_icp)
             {
@@ -1607,6 +1634,15 @@ class ObjectSingulation
     // TODO: Make determine push vector choose from the ranks?
 
     Boundary test_boundary = chooseTestBoundary(boundaries, objs);
+    if (test_boundary.object_idx < 0 || test_boundary.object_idx > objs.size())
+    {
+      ROS_WARN_STREAM("Invalid test_boundary returned!");
+      PushVector push_pose;
+      push_pose.object_idx = objs.size();
+      push_pose.no_push = true;
+      push_pose.singulated = singulated_ids;
+      return push_pose;
+    }
     PushVector push = determinePushVector(test_boundary, objs, obj_lbl_img);
     // Increment the push direction of the object to be pushed
     const int push_idx = quantizeAngle(test_boundary.ort);
@@ -2001,7 +2037,9 @@ class ObjectSingulation
     std::stringstream sing_stream;
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
-      if (has_pushes.count(i) == 0)
+      // NOTE: We force something that has been called singulated once to
+      // remain singulated
+      if (has_pushes.count(i) == 0 || objs[i].singulated)
       {
         singulated_ids.push_back(i);
         objs[i].singulated = true;
@@ -2128,6 +2166,7 @@ class ObjectSingulation
     {
       Boundary b;
       b.object_idx = -1;
+      ROS_INFO_STREAM("No boundary chosen!");
       return b;
     }
     ROS_INFO_STREAM("Boundary.ort is: " << possible_boundaries[chosen_idx].ort);
@@ -2211,6 +2250,22 @@ class ObjectSingulation
     {
       if (split_opts[i].push_angle < min_push_angle_ ||
           split_opts[i].push_angle > max_push_angle_) continue;
+      bool will_collide = pushCollidesWithObject(split_opts[i], objs);
+      if (will_collide)
+      {
+        ROS_WARN_STREAM("PushOpt " << i << " collides with other object");
+      }
+      bool will_leave = pushLeavesWorkspace(split_opts[i]);
+      if (will_leave)
+      {
+        ROS_WARN_STREAM("PushOpt " << i << " leaves the workpsace");
+      }
+      bool will_leave_table = pushLeavesTable(split_opts[i]);
+      if (will_leave_table)
+      {
+        ROS_WARN_STREAM("PushOpt " << i << " leaves the table");
+      }
+      // TODO: Check if leaves table
       geometry_msgs::Point p_cur;
       if (split_opts[i].split_id == 0 && s0_int.size() > 0)
       {
@@ -2222,6 +2277,7 @@ class ObjectSingulation
       }
       else
       {
+        ROS_WARN_STREAM("Setting start point to centroid!");
         p_cur.x = split_opts[i].obj.centroid[0];
         p_cur.y = split_opts[i].obj.centroid[1];
         p_cur.z = split_opts[i].obj.centroid[2];
@@ -2304,6 +2360,51 @@ class ObjectSingulation
     }
 #endif // DISPLAY_PUSH_VECTOR
     return push;
+  }
+
+  bool pushCollidesWithObject(PushOpt& po, ProtoObjects& objs)
+  {
+    // TODO: transform point cloud for po.object_idx
+    XYZPointCloud moved = pushPointCloud(po, objs[po.object_idx].cloud);
+    // TODO: check if transformed point cloud intersects with any other object
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      if (i == po.object_idx) continue;
+      if (pcl_segmenter_->cloudsIntersect(moved, objs[i].cloud),
+          push_collision_intersection_thresh_)
+        return true;
+    }
+    return false;
+  }
+
+  bool pushLeavesWorkspace(PushOpt& po)
+  {
+    Eigen::Vector4f moved = po.getMovedCentroid();
+    return (moved[0] > max_pushing_x_ || moved[0] < min_pushing_x_ ||
+            moved[1] > max_pushing_y_ || moved[1] < min_pushing_y_);
+  }
+
+  bool pushLeavesTable(PushOpt& po)
+  {
+    Eigen::Vector4f moved = po.getMovedCentroid();
+    return (moved[0] > max_table_x_ || moved[0] < min_table_x_ ||
+            moved[1] > max_table_y_ || moved[1] < min_table_y_);
+  }
+
+  XYZPointCloud pushPointCloud(PushOpt& po, XYZPointCloud& cloud_in)
+  {
+    XYZPointCloud cloud_out;
+    cloud_out.header = cloud_in.header;
+    cloud_out.resize(cloud_in.size());
+    const double delta_x = po.push_unit_vec[0]*po.push_dist;
+    const double delta_y = po.push_unit_vec[1]*po.push_dist;
+    for (unsigned int i = 0; i < cloud_in.size(); ++i)
+    {
+      cloud_out.at(i) = cloud_in.at(i);
+      cloud_out.at(i).x += delta_x;
+      cloud_out.at(i).y += delta_y;
+    }
+    return cloud_out;
   }
 
   double getBoundaryLengthXYMeters(Boundary& b)
@@ -2993,6 +3094,11 @@ class ObjectSingulation
   double max_pushing_x_;
   double min_pushing_y_;
   double max_pushing_y_;
+  double min_table_x_;
+  double max_table_x_;
+  double min_table_y_;
+  double max_table_y_;
+  double push_collision_intersection_thresh_;
   std::string workspace_frame_;
   ros::Publisher obj_push_pub_;
   bool threshold_edges_;
@@ -3086,6 +3192,8 @@ class ObjectSingulationNode
     n_private_.param("os_hist_bin_width", os_->histogram_bin_width_, 5);
     n_private_.param("os_hist_bin_height", os_->histogram_bin_height_, 30);
     n_private_.param("bad_icp_score_limit", os_->bad_icp_score_limit_, 0.0015);
+    n_private_.param("push_collision_thresh",
+                     os_->push_collision_intersection_thresh_, 0.03);
     std::string output_path_def = "~";
     n_private_.param("img_output_path", base_output_path_, output_path_def);
     os_->base_output_path_ = base_output_path_;
