@@ -112,7 +112,7 @@
 #define DISPLAY_PROJECTED_OBJECTS 1
 // #define DISPLAY_LINKED_EDGES 1
  #define DISPLAY_CHOSEN_BOUNDARY 1
-// #define DISPLAY_CLOUD_DIFF 1
+#define DISPLAY_CLOUD_DIFF 1
 #define DISPLAY_3D_BOUNDARIES 1
 #define DISPLAY_PUSH_VECTOR 1
 #define DISPLAY_WAIT 1
@@ -172,7 +172,7 @@ class PointCloudSegmentation
     {
       cv::Vec3f rand_color;
       rand_color[0] = randf();
-      rand_color[1] = randf();
+      rand_color[1] = randf()*0.5;
       rand_color[2] = randf();
       colors_.push_back(rand_color);
     }
@@ -2271,7 +2271,7 @@ class ObjectSingulation
       bool will_collide = pushCollidesWithObject(split_opts[i], objs);
       if (will_collide)
       {
-        ROS_WARN_STREAM("PushOpt " << i << " collides with other object");
+        ROS_WARN_STREAM("PushOpt " << i << " collides with another object");
       }
       bool will_leave = pushLeavesWorkspace(split_opts[i]);
       if (will_leave)
@@ -2359,8 +2359,8 @@ class ObjectSingulation
         start_point);
     cv::Point img_end_point = pcl_segmenter_->projectPointIntoImage(
         end_point);
-    cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,0,1.0));
-    cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,1.0,0));
+    cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,1.0,0.0));
+    cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,1.0,0.0));
 
     if (use_displays_)
     {
@@ -2643,7 +2643,7 @@ class ObjectSingulation
 
       cv::Point img_start_pt = pcl_segmenter_->projectPointIntoImage(start_pt);
       cv::Point img_end_pt = pcl_segmenter_->projectPointIntoImage(end_pt);
-      cv::line(obj_disp_img, img_start_pt, img_end_pt, red);
+      cv::line(obj_disp_img, img_start_pt, img_end_pt, cyan);
       cv::circle(obj_disp_img, img_end_pt, 4, blue);
     }
     PointStamped l_point;
@@ -2658,7 +2658,7 @@ class ObjectSingulation
     l_end.point.z = l_pt[2] + l_dir[2]*0.10;
     cv::Point img_l_pt = pcl_segmenter_->projectPointIntoImage(l_point);
     cv::Point img_l_end = pcl_segmenter_->projectPointIntoImage(l_end);
-    cv::circle(obj_disp_img, img_l_pt, 6, cyan);
+    cv::circle(obj_disp_img, img_l_pt, 6, green);
     cv::line(obj_disp_img, img_l_pt, img_l_end, green);
     const cv::Vec3f green_v(0.0f, 1.0f, 0.0f);
     for (unsigned int i = 0; i < boundary.size(); ++i)
