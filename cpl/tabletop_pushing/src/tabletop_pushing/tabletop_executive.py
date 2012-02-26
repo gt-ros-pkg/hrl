@@ -81,7 +81,7 @@ class TabletopExecutive:
         self.overhead_start_z = rospy.get_param('~overhead_push_start_z',
                                                  -0.25)
         self.use_overhead_x_thresh = rospy.get_param('~use_overhead_x_thresh',
-                                                     0.525)
+                                                     0.6)
         self.use_sweep_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
                                                      pi*0.375)
         # Setup service proxies

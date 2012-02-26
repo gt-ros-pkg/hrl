@@ -112,7 +112,7 @@
 #define DISPLAY_PROJECTED_OBJECTS 1
 // #define DISPLAY_LINKED_EDGES 1
  #define DISPLAY_CHOSEN_BOUNDARY 1
-#define DISPLAY_CLOUD_DIFF 1
+// #define DISPLAY_CLOUD_DIFF 1
 #define DISPLAY_3D_BOUNDARIES 1
 #define DISPLAY_PUSH_VECTOR 1
 #define DISPLAY_WAIT 1
@@ -864,7 +864,7 @@ class PushOpt
     // TODO: Check start point in workspace
     // TODO: Check start point collision with another object
     // Split based on point cloud ratios
-    return (a.split_score < b.split_score);
+    return (a.split_score > b.split_score);
   }
 
   // Members
@@ -1251,7 +1251,7 @@ class ObjectSingulation
  public:
   ObjectSingulation(shared_ptr<PointCloudSegmentation> pcl_segmenter) :
       pcl_segmenter_(pcl_segmenter), callback_count_(0), next_id_(0),
-      initialized_(false)
+      initialized_(false), merged_(false), split_(false)
   {
     // Create derivative kernels for edge calculation
     cv::getDerivKernels(dy_kernel_, dx_kernel_, 1, 0, CV_SCHARR, true, CV_32F);
@@ -1492,11 +1492,11 @@ class ObjectSingulation
    */
   void updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs)
   {
-    const bool merged = cur_objs.size()  < prev_objs.size();
-    const bool split = cur_objs.size()  > prev_objs.size();
-    if (split || merged )
+    merged_ = cur_objs.size()  < prev_objs.size();
+    split_ = cur_objs.size()  > prev_objs.size();
+    if (split_ || merged_ )
     {
-      if (merged)
+      if (merged_)
       {
         ROS_WARN_STREAM("Objects merged from " << prev_objs.size() << " to " <<
                         cur_objs.size());
@@ -1529,7 +1529,7 @@ class ObjectSingulation
 
     // Match stuff
     std::vector<bool> matched = matchUnmoved(cur_objs, prev_objs);
-    matchMoved(cur_objs, prev_objs, matched, split, merged);
+    matchMoved(cur_objs, prev_objs, matched, split_, merged_);
 
     // Update push histories
     if (!prev_push_vector_.no_push)
@@ -1550,9 +1550,9 @@ class ObjectSingulation
             // Only increment if good ICP score
             cur_objs[i].push_history[prev_push_vector_.push_bin]++;
           }
-          else if (split)
+          else if (split_)
           {
-            ROS_WARN_STREAM("Not updating history because of split");
+            ROS_WARN_STREAM("Not updating push history because of split");
           }
           else
           {
@@ -1661,7 +1661,7 @@ class ObjectSingulation
             cur_objs[min_idx].id = prev_objs[i].id;
             cur_objs[min_idx].icp_score = min_score;
             cur_objs[min_idx].moved = true;
-            cur_objs[min_idx].singulated = prev_objs[i].singulated;
+            cur_objs[min_idx].singulated = false;
             matched[min_idx] = true;
             if (split && (bad_icp || cur_objs.size() == 2))
             {
@@ -1781,7 +1781,7 @@ class ObjectSingulation
     // Check if the previously pushed object is singulated
     bool force_obj_id = false;
     int forced_idx = -1;
-    if (!prev_push_vector_.no_push)
+    if (!prev_push_vector_.no_push && !split_)
     {
       for (unsigned int i = 0; i < objs.size(); ++i)
       {
@@ -1797,7 +1797,6 @@ class ObjectSingulation
         }
       }
     }
-    ROS_INFO_STREAM("Getting push_opts");
     PushOpts push_opts;
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
@@ -1832,21 +1831,18 @@ class ObjectSingulation
         }
       }
     }
-    ROS_INFO_STREAM("Checking number of push_opts");
-    if (!(push_opts.size() > 0))
+    if (push_opts.size() == 0)
     {
       ROS_WARN_STREAM("No viable pushing options found");
       PushVector push_pose;
       push_pose.object_idx = objs.size();
       push_pose.no_push = true;
-      // push_pose.singulated = singulated_ids;
       return push_pose;
     }
     // TODO: Get higher ranked pushes for each object
     // TODO: Prefer pushes in directions with full neighboring bins
     // TODO: Get higher ranked pushes for each direction
     // TODO: Sort ranks...
-    ROS_INFO_STREAM("Sorting push_opts");
     if (push_opts.size() > 1)
     {
       std::sort(push_opts.begin(), push_opts.end(), PushOpt::compareOpts);
@@ -1855,6 +1851,7 @@ class ObjectSingulation
     // TODO: store options for next attempt if necessary
     ROS_INFO_STREAM("Getting push_vector");
     PushVector push_pose = push_opts[0].getPushVector();
+    ROS_INFO_STREAM("Chosen push score: " << push_opts[0].split_score);
     ROS_INFO_STREAM("Chosen push_dir: [" <<
                     push_opts[0].push_unit_vec[0] << ", " <<
                     push_opts[0].push_unit_vec[1] << ", " <<
@@ -1865,6 +1862,19 @@ class ObjectSingulation
                     push_opts[0].start_point.z << ")");
     push_pose.header.frame_id = workspace_frame_;
     push_pose.object_id = objs[push_pose.object_idx].id;
+    if (push_opts[0].will_collide)
+    {
+      int idx = pushCollidesWithWhat(push_opts[0], objs);
+      ROS_WARN_STREAM("Chosen PushOpt collides with another object: " << idx);
+    }
+    if (push_opts[0].will_leave)
+    {
+      ROS_WARN_STREAM("Chosen PushOpt leaves the workpsace");
+    }
+    if (push_opts[0].will_leave_table)
+    {
+      ROS_WARN_STREAM("Chosen PushOpt leaves the table");
+    }
 #ifdef DISPLAY_PUSH_VECTOR
     displayPushVector(obj_lbl_img, boundaries[push_opts[0].boundary_idx],
                       push_pose, push_opts[0]);
@@ -2343,8 +2353,8 @@ class ObjectSingulation
                                        std::sin(push_angle_neg), 0.0);
     double split_score = (std::min(boundary.splits[0].cloud.size(),
                                    boundary.splits[1].cloud.size()) /
-                          std::max(boundary.splits[0].cloud.size(),
-                                   boundary.splits[1].cloud.size()));
+                          static_cast<double>(std::max(boundary.splits[0].cloud.size(),
+                                                       boundary.splits[1].cloud.size())));
     std::vector<PushOpt> split_opts;
     split_opts.push_back(PushOpt(boundary.splits[0], push_angle_pos,
                                  push_vec_pos, id, 0, push_dist, split_score,
@@ -2543,6 +2553,22 @@ class ObjectSingulation
         return true;
     }
     return false;
+  }
+
+  int pushCollidesWithWhat(PushOpt& po, ProtoObjects& objs)
+  {
+    // transform point cloud for po.object_idx
+    //XYZPointCloud moved = po.pushPointCloud(po, objs[po.object_idx].cloud);
+    XYZPointCloud moved = po.pushPointCloud();
+    // check if transformed point cloud intersects with any other object
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      if (i == po.object_idx) continue;
+      if (pcl_segmenter_->cloudsIntersect(moved, objs[i].cloud),
+          push_collision_intersection_thresh_)
+        return i;
+    }
+    return -1;
   }
 
   bool pushLeavesWorkspace(PushOpt& po)
@@ -3239,6 +3265,8 @@ class ObjectSingulation
   int callback_count_;
   int next_id_;
   bool initialized_;
+  bool split_;
+  bool merged_;
   XYZPointCloud cur_table_cloud_;
 
  public:
