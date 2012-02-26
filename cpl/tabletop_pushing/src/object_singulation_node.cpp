@@ -905,6 +905,7 @@ class LinkEdges
       cv::Mat edge_disp_img(edge_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
       for (unsigned int i = 0; i < edges.size(); ++i)
       {
+        // TODO: Make this a fixed set, so we get colors we like...
         cv::Vec3f rand_color;
         rand_color[0] = randf();
         rand_color[1] = randf();
@@ -1225,11 +1226,25 @@ class ObjectSingulation
         if (cur_proto_objs_[i].id == prev_push_vector_.object_id)
         {
           // TODO: Check if push failed (nothing moved or wrong object moved)
-          // Only increment if good ICP score
-          if (cur_proto_objs_[i].icp_score <= bad_icp_score_limit_)
+          if (!cur_proto_objs_[i].moved)
           {
+            ROS_WARN_STREAM("Intended object to push did not move, not " <<
+                            " updating push history.");
+          }
+          else if (cur_proto_objs_[i].icp_score <= bad_icp_score_limit_)
+          {
+            // Only increment if good ICP score
             cur_proto_objs_[i].push_history[prev_push_vector_.push_bin]++;
           }
+          else
+          {
+            ROS_WARN_STREAM("Not updating push history because of bad push.");
+          }
+        }
+        else if (cur_proto_objs_[i].moved)
+        {
+          ROS_WARN_STREAM("Object " << cur_proto_objs_[i].id <<
+                          " unintentionally moved");
         }
       }
     }
@@ -1462,6 +1477,7 @@ class ObjectSingulation
             cur_objs[min_idx].push_history = prev_objs[i].push_history;
             cur_objs[min_idx].transform = prev_objs[i].transform;
             cur_objs[min_idx].icp_score = 0.0;
+            cur_objs[min_idx].moved = false;
           }
 
           matched[min_idx] = true;
@@ -1519,6 +1535,7 @@ class ObjectSingulation
             bool bad_icp = (min_score > bad_icp_score_limit_);
             cur_objs[min_idx].id = prev_objs[i].id;
             cur_objs[min_idx].icp_score = min_score;
+            cur_objs[min_idx].moved = true;
             matched[min_idx] = true;
             if (split && bad_icp)
             {
