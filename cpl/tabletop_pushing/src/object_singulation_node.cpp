@@ -1219,14 +1219,16 @@ class ObjectSingulation
       prev_proto_objs_.push_back(cur_proto_objs_[i]);
     }
     calcProtoObjects(cloud);
-    // TODO: Update push histories
+
+    // Update push histories
     if (!prev_push_vector_.no_push)
     {
       for (unsigned int i = 0; i < cur_proto_objs_.size(); ++i)
       {
         if (cur_proto_objs_[i].id == prev_push_vector_.object_id)
         {
-          // TODO: Check if push failed (nothing moved or wrong object moved)
+          // Check if push failed (nothing moved or wrong object moved)
+          // TODO: Change this to a distance on the ICP fit?
           if (!cur_proto_objs_[i].moved)
           {
             ROS_WARN_STREAM("Intended object to push did not move, not " <<
