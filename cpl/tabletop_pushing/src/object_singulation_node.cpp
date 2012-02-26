@@ -117,7 +117,7 @@
 #define DISPLAY_PUSH_VECTOR 1
 #define DISPLAY_WAIT 1
 #define DEBUG_PUSH_HISTORY 1
-
+#define USE_NEW_DETERMINE_PUSH_VECTOR 1
 #define randf() static_cast<float>(rand())/RAND_MAX
 
 using tabletop_pushing::PushPose;
@@ -462,7 +462,6 @@ class PointCloudSegmentation
         }
       }
     }
-    ROS_DEBUG_STREAM("Num moved objects: " << moved_count);
   }
 
   static inline double dist(pcl::PointXYZ a, pcl::PointXYZ b)
@@ -764,17 +763,15 @@ class PushOpt
  public:
   PushOpt(ProtoTabletopObject& _obj, double _push_angle,
           Eigen::Vector3f _push_vec, unsigned int _obj_idx,
-          unsigned int _split_id, double _push_dist) :
+          unsigned int _split_id, double _push_dist, double _split_score,
+          int bin) :
       obj(_obj), push_angle(_push_angle), push_unit_vec(_push_vec),
-      object_idx(_obj_idx), split_id(_split_id), push_dist(_push_dist)
+      object_idx(_obj_idx), split_id(_split_id), push_dist(_push_dist),
+      will_collide(false), will_leave(false), will_leave_table(false),
+      bad_angle(false), prev_bin_filled(false), next_bin_filled(false),
+      split_score(_split_score), push_bin(bin), boundary_idx(0)
   {
   }
-  ProtoTabletopObject obj;
-  double push_angle;
-  Eigen::Vector3f push_unit_vec;
-  unsigned int object_idx;
-  unsigned int split_id;
-  double push_dist;
 
   Eigen::Vector4f getMovedPoint(geometry_msgs::Point p)
   {
@@ -795,6 +792,98 @@ class PushOpt
     moved[3] = 1.0f;
     return moved;
   }
+
+  PushVector getPushVector()
+  {
+    PushVector push;
+    push.start_point = start_point;
+    push.push_angle = push_angle;
+    push.push_dist = push_dist;
+    push.object_idx = object_idx;
+    push.no_push = false;
+    push.push_bin = push_bin;
+    return push;
+  }
+
+  XYZPointCloud pushPointCloud()
+  {
+    XYZPointCloud cloud_out;
+    cloud_out.header = obj.cloud.header;
+    cloud_out.resize(obj.cloud.size());
+    const double delta_x = push_unit_vec[0]*push_dist;
+    const double delta_y = push_unit_vec[1]*push_dist;
+    for (unsigned int i = 0; i < obj.cloud.size(); ++i)
+    {
+      cloud_out.at(i) = obj.cloud.at(i);
+      cloud_out.at(i).x += delta_x;
+      cloud_out.at(i).y += delta_y;
+    }
+    return cloud_out;
+  }
+
+  /**
+   * Return true if a is a better option than b
+   *
+   * @param a first option
+   * @param b second option
+   *
+   * @return true if a is better than b
+   */
+  static bool compareOpts(PushOpt a, PushOpt b)
+  {
+    // Worst if push off the table
+    if (a.will_leave_table)
+    {
+      if (!b.will_leave_table)
+        return false;
+    }
+    else if (b.will_leave_table)
+    {
+      return true;
+    }
+    // Dont leave the workspace push into other stuff
+    if (a.will_leave)
+    {
+      if (!b.will_leave)
+        return false;
+    }
+    else if (b.will_leave)
+    {
+      return true;
+    }
+    // Don't push into other stuff
+    if (a.will_collide)
+    {
+      if (!b.will_collide)
+        return false;
+    }
+    else if (b.will_collide)
+    {
+      return true;
+    }
+    // TODO: Check start point in workspace
+    // TODO: Check start point collision with another object
+    // Split based on point cloud ratios
+    return (a.split_score < b.split_score);
+  }
+
+  // Members
+  ProtoTabletopObject obj;
+  double push_angle;
+  Eigen::Vector3f push_unit_vec;
+  unsigned int object_idx;
+  unsigned int split_id;
+  double push_dist;
+  bool will_collide;
+  bool will_leave;
+  bool will_leave_table;
+  bool bad_angle;
+  bool prev_bin_filled;
+  bool next_bin_filled;
+  geometry_msgs::Point start_point;
+  double split_score;
+  unsigned int push_bin;
+  unsigned int boundary_idx;
 };
 
 typedef std::vector<PushOpt> PushOpts;
@@ -1430,8 +1519,8 @@ class ObjectSingulation
           num_unmoved++;
         }
       }
-      ROS_INFO_STREAM("num_moved: " << num_moved);
-      ROS_INFO_STREAM("num_unmoved: " << num_unmoved);
+      ROS_INFO_STREAM("Prev objs num_moved: " << num_moved);
+      ROS_INFO_STREAM("Prev objs num_unmoved: " << num_unmoved);
     }
     else
     {
@@ -1647,10 +1736,9 @@ class ObjectSingulation
       return push_pose;
     }
 
-    // TODO: Switch to the new ranking method
-    // PushVector push = determinePushVector(boundaries, objs, obj_lbl_img);
-    // TODO: Make determine push vector choose from the ranks?
-
+#ifdef USE_NEW_DETERMINE_PUSH_VECTOR
+    PushVector push = determinePushVector(boundaries, objs, obj_lbl_img);
+#else // USE_NEW_DETERMINE_PUSH_VECTOR
     Boundary test_boundary = chooseTestBoundary(boundaries, objs);
     if (test_boundary.object_idx < 0 || test_boundary.object_idx > objs.size())
     {
@@ -1662,14 +1750,13 @@ class ObjectSingulation
       return push_pose;
     }
     PushVector push = determinePushVector(test_boundary, objs, obj_lbl_img);
-    // Increment the push direction of the object to be pushed
-    const int push_idx = quantizeAngle(test_boundary.ort);
-    // cur_proto_objs_[push.object_idx].push_history[push_idx]++;
+    push.push_bin = quantizeAngle(test_boundary.ort);
+#endif // USE_NEW_DETERMINE_PUSH_VECTOR
     push.singulated = singulated_ids;
-    push.push_bin = push_idx;
-    ROS_INFO_STREAM("Chose to push object: " << push.object_idx);
-    ROS_INFO_STREAM("Push angle is : " << push.push_angle);
-    ROS_INFO_STREAM("Push angle is in bin : " << push_idx << std::endl);
+    ROS_INFO_STREAM("Push object: " << push.object_idx);
+    ROS_INFO_STREAM("Push dist: " << push.push_dist);
+    ROS_INFO_STREAM("Push angle: " << push.push_angle);
+    ROS_INFO_STREAM("Push angle bin: " << push.push_bin << std::endl);
     return push;
   }
 
@@ -1685,22 +1772,103 @@ class ObjectSingulation
     push_pose.header.frame_id = workspace_frame_;
     push_pose.object_idx = boundary.object_idx;
     push_pose.object_id = objs[push_pose.object_idx].id;
-    ROS_INFO_STREAM("suggested push_dist is: " << push_pose.push_dist);
     return push_pose;
   }
-
 
   PushVector determinePushVector(std::vector<Boundary>& boundaries,
                                  ProtoObjects& objs, cv::Mat& obj_lbl_img)
   {
-    std::vector<PushVector> pushes = getPushRanks(boundaries, objs,
-                                                  obj_lbl_img);
-    // TODO: Choose from the pushes in some smart way
-    PushVector push_pose = pushes[0];
+    // Check if the previously pushed object is singulated
+    bool force_obj_id = false;
+    int forced_idx = -1;
+    if (!prev_push_vector_.no_push)
+    {
+      for (unsigned int i = 0; i < objs.size(); ++i)
+      {
+        if (objs[i].singulated)
+        {
+          continue;
+        }
+        if (objs[i].id == prev_push_vector_.object_id)
+        {
+          force_obj_id = true;
+          forced_idx = i;
+          break;
+        }
+      }
+    }
+    ROS_INFO_STREAM("Getting push_opts");
+    PushOpts push_opts;
+    for (unsigned int b = 0; b < boundaries.size(); ++b)
+    {
+      // Ignore small boundaries or those not on objects
+      if (boundaries[b].object_idx == objs.size() ||
+          boundaries[b].external || boundaries[b].too_short)
+      {
+        continue;
+      }
+      const int i = boundaries[b].object_idx;
+      const unsigned int bin = quantizeAngle(boundaries[b].ort);
+      // Only choose from boundaries associated with unpushed directions
+      if (objs[i].push_history[bin] == 0)
+      {
+        // If previous object is unsingulated, then choose from it only
+        if (force_obj_id && boundaries[b].object_idx != forced_idx)
+        {
+          continue;
+        }
+        float push_angle = getWorldFrameAngleFromObjFrame(
+            boundaries[b].ort, objs[boundaries[b].object_idx].transform);
+        PushOpts split_opts = generatePushOpts(push_angle, boundaries[b],
+                                               boundaries[b].object_idx);
+        evaluatePushOpts(split_opts, boundaries[b], objs);
+        for (unsigned int s = 0; s < split_opts.size(); ++s)
+        {
+          if (!split_opts[s].bad_angle)
+          {
+            split_opts[s].boundary_idx = b;
+            push_opts.push_back(split_opts[s]);
+          }
+        }
+      }
+    }
+    ROS_INFO_STREAM("Checking number of push_opts");
+    if (!(push_opts.size() > 0))
+    {
+      ROS_WARN_STREAM("No viable pushing options found");
+      PushVector push_pose;
+      push_pose.object_idx = objs.size();
+      push_pose.no_push = true;
+      // push_pose.singulated = singulated_ids;
+      return push_pose;
+    }
+    // TODO: Get higher ranked pushes for each object
+    // TODO: Prefer pushes in directions with full neighboring bins
+    // TODO: Get higher ranked pushes for each direction
+    // TODO: Sort ranks...
+    ROS_INFO_STREAM("Sorting push_opts");
+    if (push_opts.size() > 1)
+    {
+      std::sort(push_opts.begin(), push_opts.end(), PushOpt::compareOpts);
+    }
+
+    // TODO: store options for next attempt if necessary
+    ROS_INFO_STREAM("Getting push_vector");
+    PushVector push_pose = push_opts[0].getPushVector();
+    ROS_INFO_STREAM("Chosen push_dir: [" <<
+                    push_opts[0].push_unit_vec[0] << ", " <<
+                    push_opts[0].push_unit_vec[1] << ", " <<
+                    push_opts[0].push_unit_vec[2] << "]");
+    ROS_INFO_STREAM("Chosen start_point: (" <<
+                    push_opts[0].start_point.x << ", " <<
+                    push_opts[0].start_point.y << ", " <<
+                    push_opts[0].start_point.z << ")");
     push_pose.header.frame_id = workspace_frame_;
-    // push_pose.object_idx = boundary.object_idx;
-    // push_pose.object_id = objs[push_pose.object_idx].id;
-    ROS_INFO_STREAM("suggested push_dist is: " << push_pose.push_dist);
+    push_pose.object_id = objs[push_pose.object_idx].id;
+#ifdef DISPLAY_PUSH_VECTOR
+    displayPushVector(obj_lbl_img, boundaries[push_opts[0].boundary_idx],
+                      push_pose, push_opts[0]);
+#endif // DISPLAY_PUSH_VECTOR
     return push_pose;
   }
 
@@ -2072,68 +2240,6 @@ class ObjectSingulation
     return singulated_ids;
   }
 
-  std::vector<PushVector> getPushRanks(std::vector<Boundary>& boundaries,
-                                       ProtoObjects& objs, cv::Mat& obj_lbl_img)
-  {
-    // Check if the previously pushed object is singulated
-    bool force_obj_id = false;
-    int forced_idx = -1;
-    if (!prev_push_vector_.no_push)
-    {
-      for (unsigned int i = 0; i < objs.size(); ++i)
-      {
-        if (objs[i].singulated)
-        {
-          continue;
-        }
-        if (objs[i].id == prev_push_vector_.object_id)
-        {
-          force_obj_id = true;
-          forced_idx = i;
-          break;
-        }
-      }
-    }
-
-    std::vector<PushVector> ranks;
-    for (unsigned int b = 0; b < boundaries.size(); ++b)
-    {
-      // Ignore small boundaries or those not on objects
-      if (boundaries[b].object_idx == objs.size() ||
-          boundaries[b].external || boundaries[b].too_short)
-      {
-        continue;
-      }
-      const int i = boundaries[b].object_idx;
-      const unsigned int bin = quantizeAngle(boundaries[b].ort);
-      // Only choose from boundaries associated with unpushed directions
-      if (objs[i].push_history[bin] == 0)
-      {
-        // If previous object is unsingulated, then choose from it only
-        if (force_obj_id && boundaries[b].object_idx != forced_idx)
-        {
-          continue;
-        }
-        float push_angle = getWorldFrameAngleFromObjFrame(
-            boundaries[b].ort, objs[boundaries[b].object_idx].transform);
-        PushOpts split_opts = generatePushOpts(push_angle, boundaries[b],
-                                               boundaries[b].object_idx);
-        // TODO: Get higher ranked pushes for each direction
-        // TODO: Don't push intop other stuff
-        // TODO: Don't push outside the workspace
-        // TODO: Don't push off the table
-        // TODO: Get score from all that stuff
-        PushVector push = determinePushDirection(push_angle, objs,
-                                                 boundaries[b].object_idx,
-                                                 obj_lbl_img, boundaries[b]);
-        ranks.push_back(push);
-      }
-    }
-    // TODO: Sort ranks...
-    // TODO: Add in boundary length sorting
-    return ranks;
-  }
-
   Boundary chooseTestBoundary(std::vector<Boundary>& boundaries,
                               ProtoObjects& objs)
   {
@@ -2216,6 +2322,7 @@ class ObjectSingulation
   PushOpts generatePushOpts(double push_angle, Boundary& boundary,
                             unsigned int id)
   {
+    const unsigned int bin = quantizeAngle(boundary.ort);
     double push_dist = std::min(std::max(boundary.xyLength3D, min_push_dist_),
                                 max_push_dist_);
     double push_angle_pos = 0.0;
@@ -2234,17 +2341,57 @@ class ObjectSingulation
                                        std::sin(push_angle_pos), 0.0);
     const Eigen::Vector3f push_vec_neg(std::cos(push_angle_neg),
                                        std::sin(push_angle_neg), 0.0);
-
+    double split_score = (std::min(boundary.splits[0].cloud.size(),
+                                   boundary.splits[1].cloud.size()) /
+                          std::max(boundary.splits[0].cloud.size(),
+                                   boundary.splits[1].cloud.size()));
     std::vector<PushOpt> split_opts;
     split_opts.push_back(PushOpt(boundary.splits[0], push_angle_pos,
-                                 push_vec_pos, id, 0, push_dist));
+                                 push_vec_pos, id, 0, push_dist, split_score,
+                                 bin));
     split_opts.push_back(PushOpt(boundary.splits[0], push_angle_neg,
-                                 push_vec_neg, id, 0, push_dist));
+                                 push_vec_neg, id, 0, push_dist, split_score,
+                                 bin));
     split_opts.push_back(PushOpt(boundary.splits[1], push_angle_pos,
-                                 push_vec_pos, id, 1, push_dist));
+                                 push_vec_pos, id, 1, push_dist, split_score,
+                                 bin));
     split_opts.push_back(PushOpt(boundary.splits[1], push_angle_neg,
-                                 push_vec_neg, id, 1, push_dist));
+                                 push_vec_neg, id, 1, push_dist, split_score,
+                                 bin));
     return split_opts;
+  }
+
+  void evaluatePushOpts(PushOpts& split_opts, Boundary& boundary,
+                        ProtoObjects& objs)
+  {
+    XYZPointCloud s0_int = pcl_segmenter_->lineCloudIntersection(
+        boundary.splits[0].cloud, split_opts[0].push_unit_vec,
+        boundary.splits[0].centroid);
+    XYZPointCloud s1_int = pcl_segmenter_->lineCloudIntersection(
+        boundary.splits[1].cloud, split_opts[1].push_unit_vec,
+        boundary.splits[1].centroid);
+    for (unsigned int i = 0; i < split_opts.size(); ++i)
+    {
+      if (split_opts[i].push_angle < min_push_angle_ ||
+          split_opts[i].push_angle > max_push_angle_)
+      {
+        split_opts[i].bad_angle = true;
+        continue;
+      }
+
+      split_opts[i].will_collide = pushCollidesWithObject(split_opts[i], objs);
+      split_opts[i].will_leave = pushLeavesWorkspace(split_opts[i]);
+      split_opts[i].will_leave_table = pushLeavesTable(split_opts[i]);
+
+      if (split_opts[i].split_id == 0 && s0_int.size() > 0)
+      {
+        split_opts[i].start_point = determineStartPoint(s0_int, split_opts[i]);
+      }
+      else if (s1_int.size() > 0)
+      {
+        split_opts[i].start_point = determineStartPoint(s1_int, split_opts[i]);
+      }
+    }
   }
 
   PushVector determinePushDirection(double push_angle,
@@ -2267,38 +2414,35 @@ class ObjectSingulation
     for (unsigned int i = 0; i < split_opts.size(); ++i)
     {
       if (split_opts[i].push_angle < min_push_angle_ ||
-          split_opts[i].push_angle > max_push_angle_) continue;
-      bool will_collide = pushCollidesWithObject(split_opts[i], objs);
-      if (will_collide)
+          split_opts[i].push_angle > max_push_angle_)
+      {
+        ROS_WARN_STREAM("PushOpt " << i << " anlge outside allowed range.");
+        continue;
+      }
+      split_opts[i].will_collide = pushCollidesWithObject(split_opts[i], objs);
+      if (split_opts[i].will_collide)
       {
         ROS_WARN_STREAM("PushOpt " << i << " collides with another object");
       }
-      bool will_leave = pushLeavesWorkspace(split_opts[i]);
-      if (will_leave)
+      split_opts[i].will_leave = pushLeavesWorkspace(split_opts[i]);
+      if (split_opts[i].will_leave)
       {
         ROS_WARN_STREAM("PushOpt " << i << " leaves the workpsace");
       }
-      bool will_leave_table = pushLeavesTable(split_opts[i]);
-      if (will_leave_table)
+      // Check if leaves table
+      split_opts[i].will_leave_table = pushLeavesTable(split_opts[i]);
+      if (split_opts[i].will_leave_table)
       {
         ROS_WARN_STREAM("PushOpt " << i << " leaves the table");
       }
-      // TODO: Check if leaves table
       geometry_msgs::Point p_cur;
-      if (split_opts[i].split_id == 0 && s0_int.size() > 0)
+      if (split_opts[i].split_id == 0)
       {
         p_cur = determineStartPoint(s0_int, split_opts[i]);
       }
-      else if (s1_int.size() > 0)
-      {
-        p_cur = determineStartPoint(s1_int, split_opts[i]);
-      }
       else
       {
-        ROS_WARN_STREAM("Setting start point to centroid!");
-        p_cur.x = split_opts[i].obj.centroid[0];
-        p_cur.y = split_opts[i].obj.centroid[1];
-        p_cur.z = split_opts[i].obj.centroid[2];
+        p_cur = determineStartPoint(s1_int, split_opts[i]);
       }
       if (p_not_set || p_cur.x < p.x && (p_cur.x != 0.0))
       {
@@ -2329,6 +2473,14 @@ class ObjectSingulation
                     p.z << ")");
 
 #ifdef DISPLAY_PUSH_VECTOR
+    displayPushVector(lbl_img, boundary, push, split_opts[chosen_idx]);
+#endif // DISPLAY_PUSH_VECTOR
+    return push;
+  }
+
+  void displayPushVector(cv::Mat& lbl_img, Boundary& boundary,
+                         PushVector& push, PushOpt& split)
+  {
     cv::Mat split_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         boundary.splits, lbl_img.size(), workspace_frame_);
     cv::Mat disp_img = pcl_segmenter_->displayObjectImage(
@@ -2344,8 +2496,7 @@ class ObjectSingulation
     }
 #endif // DISPLAY_CHOSEN_BOUNDARY
 
-    const Eigen::Vector4f moved_start = split_opts[chosen_idx].getMovedPoint(
-        push.start_point);
+    const Eigen::Vector4f moved_start = split.getMovedPoint(push.start_point);
     PointStamped start_point;
     start_point.point = push.start_point;
     start_point.header.frame_id = workspace_frame_;
@@ -2376,15 +2527,14 @@ class ObjectSingulation
       disp_img.convertTo(push_out_img, CV_8UC3, 255);
       cv::imwrite(push_out_name.str(), push_out_img);
     }
-#endif // DISPLAY_PUSH_VECTOR
-    return push;
-  }
 
+  }
   bool pushCollidesWithObject(PushOpt& po, ProtoObjects& objs)
   {
-    // TODO: transform point cloud for po.object_idx
-    XYZPointCloud moved = pushPointCloud(po, objs[po.object_idx].cloud);
-    // TODO: check if transformed point cloud intersects with any other object
+    // transform point cloud for po.object_idx
+    //XYZPointCloud moved = po.pushPointCloud(po, objs[po.object_idx].cloud);
+    XYZPointCloud moved = po.pushPointCloud();
+    // check if transformed point cloud intersects with any other object
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       if (i == po.object_idx) continue;
@@ -2407,22 +2557,6 @@ class ObjectSingulation
     Eigen::Vector4f moved = po.getMovedCentroid();
     return (moved[0] > max_table_x_ || moved[0] < min_table_x_ ||
             moved[1] > max_table_y_ || moved[1] < min_table_y_);
-  }
-
-  XYZPointCloud pushPointCloud(PushOpt& po, XYZPointCloud& cloud_in)
-  {
-    XYZPointCloud cloud_out;
-    cloud_out.header = cloud_in.header;
-    cloud_out.resize(cloud_in.size());
-    const double delta_x = po.push_unit_vec[0]*po.push_dist;
-    const double delta_y = po.push_unit_vec[1]*po.push_dist;
-    for (unsigned int i = 0; i < cloud_in.size(); ++i)
-    {
-      cloud_out.at(i) = cloud_in.at(i);
-      cloud_out.at(i).x += delta_x;
-      cloud_out.at(i).y += delta_y;
-    }
-    return cloud_out;
   }
 
   double getBoundaryLengthXYMeters(Boundary& b)
