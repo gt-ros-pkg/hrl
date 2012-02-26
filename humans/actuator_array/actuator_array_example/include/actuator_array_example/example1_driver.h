@@ -48,20 +48,15 @@
 namespace actuator_array_example
 {
 
-// Create a custom JointProperties struct that additionally holds the home position of each
-// actuator and a DummyActuator object
-struct Example1JointProperties : public actuator_array_driver::JointProperties
-{
-  double home;
-  DummyActuator actuator;
-};
-
-class Example1Driver : public actuator_array_driver::ActuatorArrayDriver<Example1JointProperties>
+class Example1Driver : public actuator_array_driver::ActuatorArrayDriver<actuator_array_driver::JointProperties>
 {
 private:
 
   // Convenience typedef to a map of JointName-JointProperties
-  typedef std::map<std::string, Example1JointProperties> JointMap;
+  typedef std::map<std::string, actuator_array_driver::JointProperties> JointMap;
+
+  // An array of simulated actuators
+  std::map<int, DummyActuator> actuators_;
 
   // Keep track of the previous time a read/update was called
   ros::Time previous_time_;
@@ -70,11 +65,11 @@ public:
   Example1Driver();
   virtual ~Example1Driver();
 
-  bool init_actuator_(const std::string& joint_name, Example1JointProperties& joint_properties, XmlRpc::XmlRpcValue& joint_data);
+  // Overload the four main functions used by the ActuatorArrayDriver base class
   bool command_();
+  bool read_(ros::Time ts = ros::Time::now());
   bool stop_();
   bool home_();
-  bool read_(ros::Time ts = ros::Time::now());
 };
 
 }

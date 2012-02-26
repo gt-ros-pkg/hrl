@@ -41,22 +41,32 @@ int sgn(double val)
     return (val > double(0)) - (val < double(0));
 }
 
-DummyActuator::DummyActuator(double min_position, double max_position, double max_velcoity, double home)
+DummyActuator::DummyActuator()
 {
-  min_position_ = min_position;
-  max_position_ = max_position;
-  max_velocity_ = max_velcoity;
-  home_ = home;
+  configure(-1.57, 1.57, 10.0, 0.0);
+}
 
-  default_velocity_ = 1.0;
-  position_ = 0.0;
-  velocity_ = 0.0;
-  cmd_position_ = 0.0;
-  cmd_velocity_ = 0.0;
+DummyActuator::DummyActuator(double min_position, double max_position, double max_velocity, double home)
+{
+  configure(min_position, max_position, max_velocity, home);
 }
 
 DummyActuator::~DummyActuator()
 {
+}
+
+void DummyActuator::configure(double min_position, double max_position, double max_velocity, double home)
+{
+  min_position_ = min_position;
+  max_position_ = max_position;
+  max_velocity_ = max_velocity;
+  home_ = home;
+
+  default_velocity_ = max_velocity / 2.0;
+  position_ = home;
+  velocity_ = 0.0;
+  cmd_position_ = home;
+  cmd_velocity_ = default_velocity_;
 }
 
 void DummyActuator::update(double dt)

@@ -2,14 +2,14 @@
 
 	<!-- Start the Example Driver -->
     <node pkg="actuator_array_example" type="example1_driver" name="robot1_driver" output="screen" >
-        <rosparam command="load" file="$(find actuator_array_example)/cfg/Example1Joints.yaml" />
+        <rosparam command="load" file="$(find actuator_array_example)/cfg/example1.yaml" />
         <param name="robot_description_parameter" type="string" value="" />
     </node>
 		
 	<!-- Start the manual control GUI -->
     <node pkg="actuator_array_gui" type="actuator_array_gui.py" name="robot1_control_gui" respawn="false" output="screen">
         <param name="robot_description_parameter" type="string" value="" />
-        <rosparam command="load" file="$(find actuator_array_example)/cfg/Example1Joints.yaml" />
+        <rosparam command="load" file="$(find actuator_array_example)/cfg/example1.yaml" />
     </node>
 
 </launch>

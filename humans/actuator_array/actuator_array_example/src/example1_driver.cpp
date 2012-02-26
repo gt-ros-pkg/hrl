@@ -48,26 +48,19 @@ Example1Driver::Example1Driver()
   // base class. This sets up the list of joints, subscribes to needed topics, advertises
   // services, and calls the custom init_actuator_ function each actuator
   ActuatorArrayDriver::init();
+
+  // Now create the array of simulated actuators
+  for(unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  {
+    // For this first, simple example we will use the default parameters for joint limits,
+    // velocity, etc. provided by the DummyActuator Class
+    actuators_[i] = DummyActuator();
+  }
 }
 
 /* ******************************************************** */
 Example1Driver::~Example1Driver()
 {
-}
-
-/* ******************************************************** */
-bool Example1Driver::init_actuator_(const std::string& joint_name, Example1JointProperties& joint_properties, XmlRpc::XmlRpcValue& joint_data){
-
-  // Since this is a simple example, use a set of default properties for all joints
-  joint_properties.has_position_limits = true;
-  joint_properties.min_position = -1.57;
-  joint_properties.max_position = 1.57;
-  joint_properties.has_velocity_limits = true;
-  joint_properties.max_velocity = 10.0;
-  joint_properties.home = 0.0;
-  joint_properties.actuator = DummyActuator(joint_properties.min_position, joint_properties.max_position, joint_properties.max_velocity, joint_properties.home);
-
-  return true;
 }
 
 /* ******************************************************** */
@@ -77,43 +70,8 @@ bool Example1Driver::command_()
   // corresponding servo the desired behavior
   for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
   {
-    // Get a reference to the joints_ entry for this joint
-    Example1JointProperties& joint_properties = joints_[this->command_msg_.name[i]];
-
-    joint_properties.actuator.setVelocity(this->command_msg_.velocity[i]);
-    joint_properties.actuator.setPosition(this->command_msg_.position[i]);
-  }
-
-  return true;
-}
-
-/* ******************************************************** */
-bool Example1Driver::stop_()
-{
-  // Loop through each joint and send the stop command
-  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
-  {
-    // Get a reference to the joints_ entry for this joint
-    Example1JointProperties& joint_properties = joints_[this->command_msg_.name[i]];
-
-    // Update the simulated state of each actuator by dt seconds
-    joint_properties.actuator.stop();
-  }
-
-  return true;
-}
-
-/* ******************************************************** */
-bool Example1Driver::home_()
-{
-  // Loop through each joint and send the stop command
-  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
-  {
-    // Get a reference to the joints_ entry for this joint
-    Example1JointProperties& joint_properties = joints_[this->command_msg_.name[i]];
-
-    // Update the simulated state of each actuator by dt seconds
-    joint_properties.actuator.home();
+    actuators_[i].setVelocity(this->command_msg_.velocity[i]);
+    actuators_[i].setPosition(this->command_msg_.position[i]);
   }
 
   return true;
@@ -126,22 +84,47 @@ bool Example1Driver::read_(ros::Time ts)
   double dt = (ts - this->previous_time_).toSec();
 
   // Loop through each joint and request the current status
+  // Note: The base class functions ensure the same joint order in
+  // both the 'command' message and the 'joint_state' message
   for (unsigned int i = 0; i < this->joint_state_msg_.name.size(); ++i)
   {
-    // Get a reference to the joints_ entry for this joint
-    Example1JointProperties& joint_properties = joints_[this->joint_state_msg_.name[i]];
-
     // Update the simulated state of each actuator by dt seconds
-    joint_properties.actuator.update(dt);
+    actuators_[i].update(dt);
 
     // Query the current state of each actuator
-    this->joint_state_msg_.position[i] = joint_properties.actuator.getPosition();
-    this->joint_state_msg_.velocity[i] = joint_properties.actuator.getVelocity();
-    this->joint_state_msg_.effort[i]   = joint_properties.actuator.getMaxTorque();
+    this->joint_state_msg_.position[i] = actuators_[i].getPosition();
+    this->joint_state_msg_.velocity[i] = actuators_[i].getVelocity();
+    this->joint_state_msg_.effort[i]   = actuators_[i].getMaxTorque();
   }
 
   this->joint_state_msg_.header.stamp = ts;
   this->previous_time_ = ts;
+
+  return true;
+}
+
+/* ******************************************************** */
+bool Example1Driver::stop_()
+{
+  // Loop through each joint and send the stop command
+  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  {
+    // Update the simulated state of each actuator by dt seconds
+    actuators_[i].stop();
+  }
+
+  return true;
+}
+
+/* ******************************************************** */
+bool Example1Driver::home_()
+{
+  // Loop through each joint and send the home command
+  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  {
+    // Update the simulated state of each actuator by dt seconds
+    actuators_[i].home();
+  }
 
   return true;
 }

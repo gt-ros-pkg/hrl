@@ -24,6 +24,16 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+/*
+ * us to set custom parameters for each servo based on information stored in the  to set theBecause the base
+ * class was designed to use the robot description information, there are very few
+ * code changes. The only difference is the custom 'init_actuator_' function now makes
+ * use of information obtained from the robot description instead of using hard-coded
+ * defaults. The only extra work really involved is in the creation of the robot
+ * description file itself.
+ */
+
 /*
  * In this example, a timer is used to trigger read events instead of the built-in
  * 'spin()' function. The YAML configuration file associated with Example3 provides

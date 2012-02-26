@@ -4,8 +4,8 @@
 	<group ns="$(arg robot_name)">
 		
 		<!-- Load Robot Description onto the Parameter Server -->
-		<param name="robot_description" command="$(find xacro)/xacro.py $(find actuator_array_example)/robots/robot3.urdf.xacro" />
-	
+		<param name="robot_description" command="$(find xacro)/xacro.py $(find actuator_array_example)/robots/example_arm.urdf" />
+		
 		<!-- Start the state publisher to convert joint_states into tf transformations -->
         <node pkg="robot_state_publisher" type="state_publisher" name="robot_state_publisher" >
             <param name="tf_prefix" value="$(arg robot_name)" />
@@ -14,7 +14,7 @@
 		<!-- Start the manual control GUI -->
         <node pkg="actuator_array_gui" type="actuator_array_gui.py" name="robot_control_gui" respawn="false" output="screen">
             <param name="robot_description_parameter" type="string" value="robot_description" />
-            <rosparam command="load" file="$(find actuator_array_example)/cfg/Example3Joints.yaml" />
+            <rosparam command="load" file="$(find actuator_array_example)/cfg/example1.yaml" />
         </node>
 
 	</group>

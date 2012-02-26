@@ -7,7 +7,7 @@
 	
 		<!-- Start the Example Driver -->
         <node pkg="actuator_array_example" type="example3_driver" name="robot3_driver" output="screen" >
-            <rosparam command="load" file="$(find actuator_array_example)/cfg/Example3Joints.yaml" />
+            <rosparam command="load" file="$(find actuator_array_example)/cfg/example3.yaml" />
             <param name="rate" type="double" value="10.0" />
             <param name="robot_description_parameter" type="string" value="robot_description" />
         </node>
@@ -20,7 +20,7 @@
 		<!-- Start the manual control GUI -->
         <node pkg="actuator_array_gui" type="actuator_array_gui.py" name="robot3_control_gui" respawn="false" output="screen">
             <param name="robot_description_parameter" type="string" value="robot_description" />
-            <rosparam command="load" file="$(find actuator_array_example)/cfg/Example3Joints.yaml" />
+            <rosparam command="load" file="$(find actuator_array_example)/cfg/example3.yaml" />
         </node>
 		
 	</group>

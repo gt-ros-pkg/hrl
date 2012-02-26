@@ -44,26 +44,26 @@ class DummyActuator
 {
 private:
 
-  // Current Position
-  double position_;
-
   // Minimum allowed position
   double min_position_;
 
   // Maximum allowed position
   double max_position_;
 
-  // Current Velocity
-  double velocity_;
-
   // Maximum allowed velocity
   double max_velocity_;
+
+  // Home position
+  double home_;
 
   // Default velocity
   double default_velocity_;
 
-  // Home position
-  double home_;
+  // Current Position
+  double position_;
+
+  // Current Velocity
+  double velocity_;
 
   // Commanded Position
   double cmd_position_;
@@ -71,8 +71,11 @@ private:
   // Commanded Velocity
   double cmd_velocity_;
 
+  // Setup the properties and default values for this actuator
+  void configure(double min_position, double max_position, double max_velocity, double home);
+
 public:
-  DummyActuator() {};
+  DummyActuator();
   DummyActuator(double min_position, double max_position, double max_velocity, double home);
   virtual ~DummyActuator();
 
