@@ -908,7 +908,7 @@ class LinkEdges
         // TODO: Make this a fixed set, so we get colors we like...
         cv::Vec3f rand_color;
         rand_color[0] = randf();
-        rand_color[1] = randf();
+        rand_color[1] = 0.0; // randf()*0.5;
         rand_color[2] = randf();
 
         for (unsigned int j = 0; j < edges[i].size(); ++j)
