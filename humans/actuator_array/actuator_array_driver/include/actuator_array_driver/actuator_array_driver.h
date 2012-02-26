@@ -62,15 +62,15 @@ struct JointProperties
 };
 
 /*
- * This package contains a base class for an ActuatorArrayDriver. This is intended for use with chains of R/C Servos or other
+ * This package contains a base class for an Actuator Array Driver. This is intended for use with chains of R/C Servos or other
  * similar devices where position (and velocity) commands are sent at irregular intervals, as opposed to the tight, real-time
  * control loop of the PR2 Controller Manager system.
  *
  * This base class performs some standard functionality, such as parsing joint limits out of the robot_description, subscribing to
  * a 'command' topic, publishing on the 'joint_states' topic, and setting up a 'stop' and 'home' service call. This is designed to
  * work as a stand-alone driver for controlling/tele-operating a chain of servos, or in conjunction with the Actuatory Array
- * Trajectory Controller. This class is provided as a convenience only, and is not required for successful operation with the
- * Actuator Array Trajectory Controller.
+ * Joint Trajectory Action. This class is provided as a convenience only, and is not required for successful operation with the
+ * Actuator Array Joint Trajectory Action.
  *
  * The base class is templated on a JOINT structure. If no additional data is needed, the provided JointProperties can be used
  * as the template argument. If additional information needs to be stored on a per-joint basis, then the JointProperties class

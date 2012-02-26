@@ -1,7 +1,7 @@
 <package>
   <description brief="A base class for an ActuatorArrayDriver node">
     <p>	
-	This package contains a base class for an ActuatorArrayDriver. This is intended for use with chains of R/C Servos or other
+	This package contains a base class for an Actuator Array Driver. This is intended for use with chains of R/C Servos or other
 	similar devices where position (and velocity) commands are sent at irregular intervals, as opposed to the tight, real-time
 	control loop of the <a href="http://www.ros.org/wiki/pr2_controller_manager">PR2 Controller Manager</a> system. 
     </p>
@@ -9,8 +9,8 @@
     This base class performs some standard functionality, such as parsing joint limits out of the robot_description, subscribing to 
     a 'command' topic, publishing on the 'joint_states' topic, and setting up a 'stop' and 'home' service call. This is designed to 
     work as a stand-alone driver for controlling/tele-operating a chain of servos, or in conjunction with the 
-    <a href="http://www.ros.org/wiki/actuator_array_trajectory_controller">ActuatoryArrayTrajectoryController</a>. However, this is 
-    provided as a convenience only, and is not required for successful operation with the ActuatoryArrayTrajectoryController.
+    <a href="http://www.ros.org/wiki/actuator_array_joint_trajectory_action">Actuator Array Joint Trajectory Action</a>. However, this is 
+    provided as a convenience only, and is not required for successful operation with the Actuator Array Joint Trajectory Action.
     </p>
   </description>
 
@@ -19,11 +19,6 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/actuator_array_driver</url>
 
-<!--   
-  <export>
-    <cpp cflags="-I${prefix}/include" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lactuator_array_driver" />
-  </export>
- -->
   <export>
     <cpp cflags="-I${prefix}/include" />
   </export>

@@ -31,8 +31,6 @@
  *      Author: swilliams8
  */
 
-#include <iomanip>
-
 namespace actuator_array_driver
 {
 
