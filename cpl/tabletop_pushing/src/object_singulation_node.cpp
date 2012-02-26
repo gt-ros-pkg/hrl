@@ -1220,37 +1220,6 @@ class ObjectSingulation
     }
     calcProtoObjects(cloud);
 
-    // Update push histories
-    if (!prev_push_vector_.no_push)
-    {
-      for (unsigned int i = 0; i < cur_proto_objs_.size(); ++i)
-      {
-        if (cur_proto_objs_[i].id == prev_push_vector_.object_id)
-        {
-          // Check if push failed (nothing moved or wrong object moved)
-          // TODO: Change this to a distance on the ICP fit?
-          if (!cur_proto_objs_[i].moved)
-          {
-            ROS_WARN_STREAM("Intended object to push did not move, not " <<
-                            " updating push history.");
-          }
-          else if (cur_proto_objs_[i].icp_score <= bad_icp_score_limit_)
-          {
-            // Only increment if good ICP score
-            cur_proto_objs_[i].push_history[prev_push_vector_.push_bin]++;
-          }
-          else
-          {
-            ROS_WARN_STREAM("Not updating push history because of bad push.");
-          }
-        }
-        else if (cur_proto_objs_[i].moved)
-        {
-          ROS_WARN_STREAM("Object " << cur_proto_objs_[i].id <<
-                          " unintentionally moved");
-        }
-      }
-    }
     if (no_push_calc)
     {
       PushVector push_vector;
@@ -1436,17 +1405,18 @@ class ObjectSingulation
   {
     const bool merged = cur_objs.size()  < prev_objs.size();
     const bool split = cur_objs.size()  > prev_objs.size();
-    if (merged)
+    if (split || merged )
     {
-      ROS_DEBUG_STREAM("Objects merged from " << prev_objs.size() << " to " <<
-                      cur_objs.size());
-      // TODO: Something different for merging, check which moved objects
-      // combined with which unmoved objects
-    }
-    else if (split)
-    {
-      ROS_WARN_STREAM("Objects split from " << prev_objs.size() << " to " <<
-                      cur_objs.size());
+      if (merged)
+      {
+        ROS_WARN_STREAM("Objects merged from " << prev_objs.size() << " to " <<
+                        cur_objs.size());
+      }
+      else
+      {
+        ROS_WARN_STREAM("Objects split from " << prev_objs.size() << " to " <<
+                        cur_objs.size());
+      }
       int num_moved = 0;
       int num_unmoved = 0;
       for (unsigned int i = 0; i < prev_objs.size(); ++i)
@@ -1468,8 +1438,46 @@ class ObjectSingulation
       ROS_DEBUG_STREAM("Same number of objects: " << prev_objs.size());
     }
 
+    // Match stuff
     std::vector<bool> matched = matchUnmoved(cur_objs, prev_objs);
-    matchMoved(cur_objs, prev_objs, matched, split);
+    matchMoved(cur_objs, prev_objs, matched, split, merged);
+
+    // Update push histories
+    if (!prev_push_vector_.no_push)
+    {
+      for (unsigned int i = 0; i < cur_objs.size(); ++i)
+      {
+        if (cur_objs[i].id == prev_push_vector_.object_id)
+        {
+          // Check if push failed (nothing moved or wrong object moved)
+          // TODO: Change this to a distance on the ICP fit?
+          if (!cur_objs[i].moved)
+          {
+            ROS_WARN_STREAM("Intended object to push did not move, not " <<
+                            " updating push history.");
+          }
+          else if (cur_objs[i].icp_score <= bad_icp_score_limit_)
+          {
+            // Only increment if good ICP score
+            cur_objs[i].push_history[prev_push_vector_.push_bin]++;
+          }
+          else if (split)
+          {
+            ROS_WARN_STREAM("Not updating history because of split");
+          }
+          else
+          {
+            ROS_WARN_STREAM("Not updating push history because of bad push.");
+          }
+        }
+        else if (cur_objs[i].moved)
+        {
+          ROS_WARN_STREAM("Object " << cur_objs[i].id <<
+                          " unintentionally moved");
+        }
+      }
+    }
+
   }
 
   std::vector<bool> matchUnmoved(ProtoObjects& cur_objs,
@@ -1516,7 +1524,7 @@ class ObjectSingulation
   }
 
   void matchMoved(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
-                  std::vector<bool> matched, bool split)
+                  std::vector<bool> matched, bool split, bool merged)
   {
     std::stringstream file_out_name;
     file_out_name << base_output_path_ << "icp_scores.txt";
@@ -1566,12 +1574,20 @@ class ObjectSingulation
             cur_objs[min_idx].moved = true;
             cur_objs[min_idx].singulated = prev_objs[i].singulated;
             matched[min_idx] = true;
-            if (split && bad_icp)
+            if (split && (bad_icp || cur_objs.size() == 2))
             {
               ROS_INFO_STREAM("Bad score on split, resetting history of " <<
                               min_idx << "!");
               cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
               // matched[min_idx] = false;
+              cur_objs[min_idx].transform =  Eigen::Matrix4f::Identity();
+            }
+            else if (merged && (bad_icp || cur_objs.size() == 1))
+            {
+              ROS_INFO_STREAM("Bad score on merge, resetting history of " <<
+                              min_idx << "!");
+              cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
+              cur_objs[min_idx].singulated = false;
               cur_objs[min_idx].transform =  Eigen::Matrix4f::Identity();
             }
             else

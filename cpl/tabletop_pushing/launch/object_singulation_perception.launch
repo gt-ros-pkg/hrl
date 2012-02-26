@@ -39,8 +39,8 @@
 
     <param name="min_table_z" value="-1.0" type="double"/>
     <param name="max_table_z" value="1.0" type="double"/>
-    <param name="min_pushing_y" value="-1.0" type="double"/>
-    <param name="max_pushing_y" value="1.0" type="double"/>
+    <param name="min_pushing_y" value="-0.4" type="double"/>
+    <param name="max_pushing_y" value="0.4" type="double"/>
     <param name="min_pushing_x" value="0.3" type="double"/>
     <param name="max_pushing_x" value="0.9" type="double"/>
     <!-- <param name="min_pushing_angle" value="-1.885" type="double"/> -->
