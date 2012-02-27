@@ -171,23 +171,30 @@ class VisualServoNode
             pcl::PointXYZ three = origin;
             three.x -= 0.03;
 
-	    int error_mat[6];
+	    cv::Mat_<double> error_mat = cv::Mat::zeros(6,6, CV_32F);
      	    cv::Point pt = projectPointIntoImage(origin, cloud.header.frame_id, cur_camera_header_.frame_id);
             cv::circle(color_frame, pt, 2, cv::Scalar(0, 0, 220), 2);
-	    error_mat[0] = pt.x - pts.at(0).x; 
-	    error_mat[1] = pt.y - pts.at(0).y;
+	    error_mat(0,0) = pt.x - pts.at(0).x; 
+	    error_mat(1,0) = pt.y - pts.at(0).y;
      	    pt = projectPointIntoImage(two, cloud.header.frame_id, cur_camera_header_.frame_id);
             cv::circle(color_frame, pt, 2, cv::Scalar(100, 0, 110), 2);
-	    error_mat[2] = pt.x - pts.at(1).x; 
-	    error_mat[3] = pt.y - pts.at(1).y;
+	    error_mat(2,0) = pt.x - pts.at(1).x; 
+	    error_mat(3,0) = pt.y - pts.at(1).y;
      	    pt = projectPointIntoImage(three, cloud.header.frame_id, cur_camera_header_.frame_id);
             cv::circle(color_frame, pt, 2, cv::Scalar(200, 0, 0), 2);
-	    error_mat[4] = pt.x - pts.at(2).x; 
-	    error_mat[5] = pt.y - pts.at(2).y;
-	    for (int i = 0; i < 3; i++) {
-		ROS_INFO("%d[%d, %d]", i, error_mat[i], error_mat[i+1]); 
-	    }
-		}
+	    error_mat(4,0) = pt.x - pts.at(2).x; 
+	    error_mat(5,0) = pt.y - pts.at(2).y;
+
+	    cv::Mat_<double> ret(6,6);
+	try {	
+	    ret = inverse_jacobian_.mul(error_mat, 1.0); 
+	    	printf("********\n");
+		printMatrix(ret);
+
+}catch (cv::Exception e) {
+	ROS_ERROR_STREAM(e.what());
+}
+	}
 #ifdef DEBUG_MODE
             // put dots on the centroids
             for (unsigned int i = 0; i < pts.size(); i++) {
@@ -204,21 +211,30 @@ class VisualServoNode
             cv::waitKey(display_wait_ms_);
 #endif 
         }    
+	void printMatrix(cv::Mat_<double> in) {
+	    for (int i = 0; i < in.rows; i++) {
+		for (int j = 0; j < in.cols; j++) {
+			printf("%.2f\t", in(i,j)); 
+		}
+	    printf("\n");
+	    }
 
+	}
      
 	void getInteractionMatrix(XYZPointCloud cloud, 
-			cv::Mat depth_frame, std::vector<cv::Point> &pts) {
+		cv::Mat depth_frame, std::vector<cv::Point> &pts) {
 		// interaction matrix, image jacobian
-		cv::Mat_<double> L(6,6);
+		cv::Mat_<double> L = cv::Mat::zeros(6,6,CV_32F);
 		if (pts.size() == 3) {
 			for (int i = 0; i < 3; i++) {
 				cv::Point m = pts.at(i);
 				int x = m.x;
 				int y = m.y;
-				// uchar zchar = (int)depth_frame.at<uchar>(x, y); 
 				pcl::PointXYZ cur_pt = cloud.at(x, y);
-				// printf("[%d vs. %.3f]\t", zchar, cur_pt.z);
-				double z = cur_pt.z; 
+				double z = cur_pt.z;
+				if (isnan(z)) 
+					z = 0.5;
+					// z = (int)depth_frame.at<uchar>(x, y); 
 				int l = i * 2;
 				if (z == 0) z = 1e-4;
 				L(l,0) = -1/z;   L(l+1,0) = 0;
@@ -229,7 +245,7 @@ class VisualServoNode
 				L(l,5) = y;      L(l+1,5) = -x;
 			}
 		}
-		cv::invert(L, inverse_jacobian_);
+		inverse_jacobian_ = L.inv();
 		return;
 	}
 
