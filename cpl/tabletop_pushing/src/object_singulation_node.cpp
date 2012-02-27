@@ -111,7 +111,7 @@
 // #define DISPLAY_WORKSPACE_MASK 1
 #define DISPLAY_PROJECTED_OBJECTS 1
 // #define DISPLAY_LINKED_EDGES 1
- #define DISPLAY_CHOSEN_BOUNDARY 1
+#define DISPLAY_CHOSEN_BOUNDARY 1
 // #define DISPLAY_CLOUD_DIFF 1
 #define DISPLAY_3D_BOUNDARIES 1
 #define DISPLAY_PUSH_VECTOR 1
@@ -519,6 +519,21 @@ class PointCloudSegmentation
     return false;
   }
 
+  bool cloudsIntersect(XYZPointCloud cloud0, XYZPointCloud cloud1,
+                       double thresh)
+  {
+    for (unsigned int i = 0; i < cloud0.size(); ++i)
+    {
+      const pcl::PointXYZ pt0 = cloud0.at(i);
+      for (unsigned int j = 0; j < cloud1.size(); ++j)
+      {
+        const pcl::PointXYZ pt1 = cloud1.at(j);
+        if (dist(pt0, pt1) < thresh) return true;
+      }
+    }
+    return false;
+  }
+  
   float pointLineXYDist(pcl::PointXYZ p,Eigen::Vector3f vec,Eigen::Vector4f base)
   {
     Eigen::Vector3f x0(p.x,p.y,0.0);
@@ -532,7 +547,7 @@ class PointCloudSegmentation
   }
 
   XYZPointCloud lineCloudIntersection(XYZPointCloud& cloud, Eigen::Vector3f vec,
-                                        Eigen::Vector4f base)
+                                      Eigen::Vector4f base)
   {
     // Define parametric model of the line defined by base and vec and
     // test cloud memebers for distance from the line, if the distance is less
@@ -864,7 +879,11 @@ class PushOpt
     // TODO: Check start point in workspace
     // TODO: Check start point collision with another object
     // Split based on point cloud ratios
-    return (a.split_score > b.split_score);
+    if (a.split_score == b.split_score)
+    {
+      return (a.start_point.y < b.start_point.y);
+    }
+    return (a.split_score < b.split_score);
   }
 
   // Members
@@ -994,7 +1013,6 @@ class LinkEdges
       cv::Mat edge_disp_img(edge_img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
       for (unsigned int i = 0; i < edges.size(); ++i)
       {
-        // TODO: Make this a fixed set, so we get colors we like...
         cv::Vec3f rand_color;
         rand_color[0] = randf();
         rand_color[1] = 0.0; // randf()*0.5;
@@ -1481,7 +1499,7 @@ class ObjectSingulation
     return objs;
   }
 
-    /**
+  /**
    * Method to update the IDs and of moved proto objects
    *
    * @param cur_objs The current set of proto objects
@@ -1839,7 +1857,7 @@ class ObjectSingulation
       push_pose.no_push = true;
       return push_pose;
     }
-    // TODO: Get higher ranked pushes for each object
+    // TODO: Get highest ranked pushes for each object
     // TODO: Prefer pushes in directions with full neighboring bins
     // TODO: Get higher ranked pushes for each direction
     // TODO: Sort ranks...
@@ -1849,7 +1867,8 @@ class ObjectSingulation
     }
 
     // TODO: store options for next attempt if necessary
-    ROS_INFO_STREAM("Getting push_vector");
+    ROS_INFO_STREAM("Getting push_vector from best of " << push_opts.size() <<
+                    " options");
     PushVector push_pose = push_opts[0].getPushVector();
     ROS_INFO_STREAM("Chosen push score: " << push_opts[0].split_score);
     ROS_INFO_STREAM("Chosen push_dir: [" <<
@@ -2117,7 +2136,6 @@ class ObjectSingulation
 
   int quantizeAngle(float angle)
   {
-    // TODO: Make into an assert
     if (angle < -M_PI/2.0 || angle > M_PI/2.0)
     {
       ROS_WARN_STREAM("Quantizing angle: " << angle << " outside of range");
@@ -2409,7 +2427,6 @@ class ObjectSingulation
                                     cv::Mat& lbl_img, Boundary& boundary)
   {
     PushOpts split_opts = generatePushOpts(push_angle, boundary, id);
-    // TODO: Make pushes not cause collisions between objects
     // Choose pushing location closer to the robot by examining the 4
     // possible intersections with the boundaries
     XYZPointCloud s0_int = pcl_segmenter_->lineCloudIntersection(
@@ -2542,14 +2559,13 @@ class ObjectSingulation
   bool pushCollidesWithObject(PushOpt& po, ProtoObjects& objs)
   {
     // transform point cloud for po.object_idx
-    //XYZPointCloud moved = po.pushPointCloud(po, objs[po.object_idx].cloud);
     XYZPointCloud moved = po.pushPointCloud();
     // check if transformed point cloud intersects with any other object
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       if (i == po.object_idx) continue;
-      if (pcl_segmenter_->cloudsIntersect(moved, objs[i].cloud),
-          push_collision_intersection_thresh_)
+      if (pcl_segmenter_->cloudsIntersect(moved, objs[i].cloud,
+                                          push_collision_intersection_thresh_))
         return true;
     }
     return false;
@@ -2558,15 +2574,24 @@ class ObjectSingulation
   int pushCollidesWithWhat(PushOpt& po, ProtoObjects& objs)
   {
     // transform point cloud for po.object_idx
-    //XYZPointCloud moved = po.pushPointCloud(po, objs[po.object_idx].cloud);
     XYZPointCloud moved = po.pushPointCloud();
     // check if transformed point cloud intersects with any other object
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
-      if (i == po.object_idx) continue;
-      if (pcl_segmenter_->cloudsIntersect(moved, objs[i].cloud),
-          push_collision_intersection_thresh_)
+      if (i == po.object_idx)
+      {
+        continue;
+      }
+      if (pcl_segmenter_->cloudsIntersect(moved, objs[i].cloud,
+                                          push_collision_intersection_thresh_))
+      {
+        cv::Mat moved_img(240, 320, CV_8UC1, cv::Scalar(0));
+        pcl_segmenter_->projectPointCloudIntoImage(moved, moved_img);
+        cv::Mat collied_img(240, 320, CV_8UC1, cv::Scalar(0));
+        pcl_segmenter_->projectPointCloudIntoImage(objs[i].cloud, collied_img);
+        cv::imshow("moved push cloud", moved_img*128+collied_img*64);
         return i;
+      }
     }
     return -1;
   }
@@ -2936,7 +2961,7 @@ class ObjectSingulation
       for (unsigned int i = 0; i < boundaries[b].size(); ++i)
       {
         disp_img.at<cv::Vec3f>(boundaries[b][i].y,
-                                   boundaries[b][i].x) = color;
+                               boundaries[b][i].x) = color;
       }
     }
     if (use_displays_)
@@ -2948,7 +2973,7 @@ class ObjectSingulation
       // Write to disk to create video output
       std::stringstream bound_out_name;
       bound_out_name << base_output_path_ << "bound3D" << callback_count_
-                   << ".tiff";
+                     << ".tiff";
       cv::Mat bound_out_img(disp_img.size(), CV_8UC3);
       disp_img.convertTo(bound_out_img, CV_8UC3, 255);
       cv::imwrite(bound_out_name.str(), bound_out_img);
@@ -3032,7 +3057,7 @@ class ObjectSingulation
       // Write to disk to create video output
       std::stringstream axis_out_name;
       axis_out_name << base_output_path_ << "axis" << callback_count_
-                     << ".tiff";
+                    << ".tiff";
       cv::Mat axis_out_img(obj_disp_img.size(), CV_8UC3);
       obj_disp_img.convertTo(axis_out_img, CV_8UC3, 255);
       cv::imwrite(axis_out_name.str(), axis_out_img);
@@ -3209,7 +3234,7 @@ class ObjectSingulation
     cv::ellipse(disp_img, center, s0, start_rot, 0.0, 180.0, line_color);
     std::vector<cv::Point> arc_pts;
     cv::ellipse2Poly(center, s0, start_rot, 0.0, 180.0, deg_precision, arc_pts);
-    // TODO: Draw diameter line
+    // Draw diameter line
     cv::line(disp_img, arc_pts.front(), arc_pts.back(), line_color);
 
     // Draw all lines
@@ -3534,7 +3559,7 @@ class ObjectSingulationNode
     {
       cv::imshow("color", cur_color_frame_);
     }
-    // TODO: Way too much disk writing!
+    // Way too much disk writing!
     if (write_to_disk_ && recording_input_)
     {
       std::stringstream out_name;
@@ -3682,9 +3707,9 @@ class ObjectSingulationNode
     XYZPointCloud obj_cloud, table_cloud;
     // TODO: Comptue the hull on the first call
     Eigen::Vector4f table_centroid = pcl_segmenter_->getTablePlane(cloud,
-                                                                  obj_cloud,
-                                                                  table_cloud/*,
-                                                                  true*/);
+                                                                   obj_cloud,
+                                                                   table_cloud/*,
+                                                                                true*/);
     PoseStamped p;
     p.pose.position.x = table_centroid[0];
     p.pose.position.y = table_centroid[1];

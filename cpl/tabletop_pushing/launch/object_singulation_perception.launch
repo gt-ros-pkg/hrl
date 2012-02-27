@@ -61,7 +61,7 @@
     <param name="os_hist_bin_width" value="5" type="int"/>
     <param name="os_hist_bin_height" value="15" type="int"/>
     <param name="bad_icp_score_limit" value="0.0013" type="double"/>
-    <param name="push_collision_thresh" value="0.02" type="double"/>
+    <param name="push_collision_thresh" value="0.01" type="double"/>
 
     <param name="num_anlge_bins" value="8" type="int"/>
     <param name="img_output_path" value="/home/thermans/data/new/" type="string"/>
