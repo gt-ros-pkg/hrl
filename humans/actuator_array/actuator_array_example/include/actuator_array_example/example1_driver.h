@@ -26,7 +26,7 @@
  */
 /*
  * This is a very simple example demonstrating the use of the ActuatorArrayDriver
- * base class. This example makes use of convinience classes provided in the base
+ * base class. This example makes use of convenience classes provided in the base
  * class to read a simple list of actuators from the parameter server and set up
  * the standard ActuatorArrayDriver communication interface. This example does
  * not make use of the robot description. Instead, the init_actuator_ function
@@ -52,9 +52,6 @@ class Example1Driver : public actuator_array_driver::ActuatorArrayDriver<actuato
 {
 private:
 
-  // Convenience typedef to a map of JointName-JointProperties
-  typedef std::map<std::string, actuator_array_driver::JointProperties> JointMap;
-
   // An array of simulated actuators
   std::map<int, DummyActuator> actuators_;
 
@@ -66,8 +63,8 @@ public:
   virtual ~Example1Driver();
 
   // Overload the four main functions used by the ActuatorArrayDriver base class
-  bool command_();
   bool read_(ros::Time ts = ros::Time::now());
+  bool command_();
   bool stop_();
   bool home_();
 };

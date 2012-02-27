@@ -2,8 +2,18 @@
 
 joints:
 
-  - joint1
-  - joint2
-  - joint3
-  - joint4
+  - name: joint1
+    channel: 0      
+    home: 0.0
 
+  - name: joint2
+    channel: 3      
+    home: -1.57
+
+  - name: joint3
+    channel: 1      
+    home: 1.57
+
+  - name: joint4
+    channel: 2      
+    home: 0.785

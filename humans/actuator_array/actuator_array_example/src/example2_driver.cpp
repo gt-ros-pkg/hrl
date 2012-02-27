@@ -86,18 +86,45 @@ bool Example2Driver::init_actuator_(const std::string& joint_name, Example2Joint
 }
 
 /* ******************************************************** */
+bool Example2Driver::read_(ros::Time ts)
+{
+  // Calculate the time from the last update
+  double dt = (ts - previous_time_).toSec();
+
+  // Loop through each joint and request the current status
+  for (unsigned int i = 0; i < joint_state_msg_.name.size(); ++i)
+  {
+    // Look up the channel number from the JointProperties using the joint name
+    int channel = joints_[command_msg_.name[i]].channel;
+
+    // Update the simulated state of each actuator by dt seconds
+    actuators_[channel].update(dt);
+
+    // Query the current state of each actuator
+    joint_state_msg_.position[i] = actuators_[channel].getPosition();
+    joint_state_msg_.velocity[i] = actuators_[channel].getVelocity();
+    joint_state_msg_.effort[i]   = actuators_[channel].getMaxTorque();
+  }
+
+  joint_state_msg_.header.stamp = ts;
+  previous_time_ = ts;
+
+  return true;
+}
+
+/* ******************************************************** */
 bool Example2Driver::command_()
 {
   // Loop through each joint in the command message and send the
   // corresponding servo the desired behavior
-  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  for (unsigned int i = 0; i < command_msg_.name.size(); ++i)
   {
     // Look up the channel number from the JointProperties using the joint name
-    int channel = joints_[this->command_msg_.name[i]].channel;
+    int channel = joints_[command_msg_.name[i]].channel;
 
     // Send the actuator the desired position and velocity
-    actuators_[channel].setVelocity(this->command_msg_.velocity[i]);
-    actuators_[channel].setPosition(this->command_msg_.position[i]);
+    actuators_[channel].setVelocity(command_msg_.velocity[i]);
+    actuators_[channel].setPosition(command_msg_.position[i]);
   }
 
   return true;
@@ -107,10 +134,10 @@ bool Example2Driver::command_()
 bool Example2Driver::stop_()
 {
   // Loop through each joint and send the stop command
-  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  for (unsigned int i = 0; i < command_msg_.name.size(); ++i)
   {
     // Look up the channel number from the JointProperties using the joint name
-    int channel = joints_[this->command_msg_.name[i]].channel;
+    int channel = joints_[command_msg_.name[i]].channel;
 
     // Tell the actuator to stop
     actuators_[channel].stop();
@@ -123,41 +150,14 @@ bool Example2Driver::stop_()
 bool Example2Driver::home_()
 {
   // Loop through each joint and send the stop command
-  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  for (unsigned int i = 0; i < command_msg_.name.size(); ++i)
   {
     // Look up the channel number from the JointProperties using the joint name
-    int channel = joints_[this->command_msg_.name[i]].channel;
+    int channel = joints_[command_msg_.name[i]].channel;
 
     // Tell the actuator to go to the home position
     actuators_[channel].home();
   }
-
-  return true;
-}
-
-/* ******************************************************** */
-bool Example2Driver::read_(ros::Time ts)
-{
-  // Calculate the time from the last update
-  double dt = (ts - this->previous_time_).toSec();
-
-  // Loop through each joint and request the current status
-  for (unsigned int i = 0; i < this->joint_state_msg_.name.size(); ++i)
-  {
-    // Look up the channel number from the JointProperties using the joint name
-    int channel = joints_[this->command_msg_.name[i]].channel;
-
-    // Update the simulated state of each actuator by dt seconds
-    actuators_[channel].update(dt);
-
-    // Query the current state of each actuator
-    this->joint_state_msg_.position[i] = actuators_[channel].getPosition();
-    this->joint_state_msg_.velocity[i] = actuators_[channel].getVelocity();
-    this->joint_state_msg_.effort[i]   = actuators_[channel].getMaxTorque();
-  }
-
-  this->joint_state_msg_.header.stamp = ts;
-  this->previous_time_ = ts;
 
   return true;
 }

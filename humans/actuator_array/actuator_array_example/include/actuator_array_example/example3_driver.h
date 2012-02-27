@@ -26,24 +26,16 @@
  */
 
 /*
- * us to set custom parameters for each servo based on information stored in the  to set theBecause the base
- * class was designed to use the robot description information, there are very few
- * code changes. The only difference is the custom 'init_actuator_' function now makes
- * use of information obtained from the robot description instead of using hard-coded
- * defaults. The only extra work really involved is in the creation of the robot
- * description file itself.
- */
-
-/*
- * In this example, a timer is used to trigger read events instead of the built-in
- * 'spin()' function. The YAML configuration file associated with Example3 provides
- * additional properties, such as a channel number and home position for each servo.
- * The custom 'init_actuator_' function demonstrates how to read these additional
- * fields from the XMLRPS structure. Also, as a demonstration, the various helper
- * functions are called directly, instead of using the all-in-one 'init()' function.
- * Again, a DummyActuator class is used to simulate the operation of a real R/C
- * Servo motor. This removes the need to have specific hardware to test the basic
- * ActuatorArrayDriver system.
+ * In this example we will set parameters for each servo based on information stored
+ * in the URDF robot description. Because the base class was designed to use the robot
+ * description information, there are very few code changes. The only difference
+ * is the custom 'init_actuator_' function now makes use of information obtained
+ * from the robot description instead of using hard-coded defaults. The only extra
+ * work really involved is in the creation of the robot description file itself.
+ *
+ * Additionally, we will explore the initialization process in detail. In the first
+ * two examples, the convenience function 'init()' was used. Here we will perform
+ * initialization by manually calling helper functions provided by the base class.
  *
  *  Created on: Nov 27, 2011
  *      Author: Stephen Williams
@@ -68,28 +60,21 @@ class Example3Driver : public actuator_array_driver::ActuatorArrayDriver<Example
 {
 private:
 
-  // Convenience typedef to a map of JointName-JointProperties
-  typedef std::map<std::string, Example3JointProperties> JointMap;
-
-  // Create a timer object to trigger servo reads. The other standard choice
-  // is to put the node in a custom spin loop that continually reads the servo
-  // status. The function spin() is provided in the actuator_array_driver base
-  // class for such a purpose.
-  ros::Timer timer_;
-
   // A container of DummyActuator objects, stored by Channel ID
   std::map<int, DummyActuator> actuators_;
+
+  // Keep track of the previous time a read/update was called
+  ros::Time previous_time_;
 
 public:
   Example3Driver();
   virtual ~Example3Driver();
-  void timerCallback(const ros::TimerEvent& e);
 
   bool init_actuator_(const std::string& joint_name, Example3JointProperties& joint_properties, XmlRpc::XmlRpcValue& joint_data);
+  bool read_(ros::Time ts = ros::Time::now());
   bool command_();
   bool stop_();
   bool home_();
-  bool read_(ros::Time ts = ros::Time::now());
 };
 
 }

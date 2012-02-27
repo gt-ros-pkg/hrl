@@ -41,24 +41,17 @@ Example3Driver::Example3Driver()
 {
   // For normal drivers, you would read custom configuration settings from the parameter
   // server here. Common examples include the port name over which you are communicating,
-  // or the baud rate for the serial port. For this very simple example, we are simply
-  // going to retrieve the desired read rate of the servos to configure the timer
+  // or the baud rate for the serial port. For this simple driver, no additional information
+  // is required.
+
+  // For example purposes, we are going to call the base class methods manually.
 
   // Create a private node handle to read parameter settings
   ros::NodeHandle node = ros::NodeHandle();
   ros::NodeHandle private_node = ros::NodeHandle("~");
 
-  // Read the update rate parameter for the parameter server
-  double rate;
-  private_node.param("rate", rate, 10.0);
-
-  // Create the timer
-  timer_ = private_node.createTimer(ros::Duration(1.0/rate), &Example3Driver::timerCallback, this);
-
-  // For example purposes, we are going to call the base class methods manually.
-
   // Get the robot_description parameter name from the parameter server
-  private_node.param("robot_description_parameter", this->robot_description_parameter_, std::string("robot_description"));
+  private_node.param("robot_description_parameter", robot_description_parameter_, std::string("robot_description"));
 
   // Read in additional joint information from the robot description and store it in the urdf model
   ActuatorArrayDriver::parse_urdf(node);
@@ -74,20 +67,6 @@ Example3Driver::Example3Driver()
 /* ******************************************************** */
 Example3Driver::~Example3Driver()
 {
-}
-
-/* ******************************************************** */
-void Example3Driver::timerCallback(const ros::TimerEvent& e)
-{
-  // Update each actuator
-  double dt = (e.current_real - e.last_real).toSec();
-  for(std::map<int, DummyActuator>::iterator it = actuators_.begin(); it != actuators_.end(); ++it)
-  {
-    it->second.update(dt);
-  }
-
-  // Publish updated actuator states
-  read_and_publish();
 }
 
 /* ******************************************************** */
@@ -115,15 +94,45 @@ bool Example3Driver::init_actuator_(const std::string& joint_name, Example3Joint
 }
 
 /* ******************************************************** */
+bool Example3Driver::read_(ros::Time ts)
+{
+  // Calculate the time from the last update
+  double dt = (ts - previous_time_).toSec();
+
+  // Loop through each joint and request the current status
+  for (unsigned int i = 0; i < joint_state_msg_.name.size(); ++i)
+  {
+    // Look up the channel number from the JointProperties using the joint name
+    int channel = joints_[command_msg_.name[i]].channel;
+
+    // Update the simulated state of each actuator by dt seconds
+    actuators_[channel].update(dt);
+
+    // Query the current state of each actuator
+    joint_state_msg_.position[i] = actuators_[channel].getPosition();
+    joint_state_msg_.velocity[i] = actuators_[channel].getVelocity();
+    joint_state_msg_.effort[i]   = actuators_[channel].getMaxTorque();
+  }
+
+  joint_state_msg_.header.stamp = ts;
+  previous_time_ = ts;
+
+  return true;
+}
+
+/* ******************************************************** */
 bool Example3Driver::command_()
 {
   // Loop through each joint in the command message and send the
   // corresponding servo the desired behavior
-  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  for (unsigned int i = 0; i < command_msg_.name.size(); ++i)
   {
-    int channel = joints_[this->command_msg_.name[i]].channel;
-    actuators_[channel].setVelocity(this->command_msg_.velocity[i]);
-    actuators_[channel].setPosition(this->command_msg_.position[i]);
+    // Look up the channel number from the JointProperties using the joint name
+    int channel = joints_[command_msg_.name[i]].channel;
+
+    // Send the actuator the desired position and velocity
+    actuators_[channel].setVelocity(command_msg_.velocity[i]);
+    actuators_[channel].setPosition(command_msg_.position[i]);
   }
 
   return true;
@@ -133,9 +142,12 @@ bool Example3Driver::command_()
 bool Example3Driver::stop_()
 {
   // Loop through each joint and send the stop command
-  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  for (unsigned int i = 0; i < command_msg_.name.size(); ++i)
   {
-    int channel = joints_[this->command_msg_.name[i]].channel;
+    // Look up the channel number from the JointProperties using the joint name
+    int channel = joints_[command_msg_.name[i]].channel;
+
+    // Tell the actuator to stop
     actuators_[channel].stop();
   }
 
@@ -146,28 +158,14 @@ bool Example3Driver::stop_()
 bool Example3Driver::home_()
 {
   // Loop through each joint and send the stop command
-  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  for (unsigned int i = 0; i < command_msg_.name.size(); ++i)
   {
-    int channel = joints_[this->command_msg_.name[i]].channel;
+    // Look up the channel number from the JointProperties using the joint name
+    int channel = joints_[command_msg_.name[i]].channel;
+
+    // Tell the actuator to go to the home position
     actuators_[channel].home();
   }
-
-  return true;
-}
-
-/* ******************************************************** */
-bool Example3Driver::read_(ros::Time ts)
-{
-  // Loop through each joint and request the current status
-  for (unsigned int i = 0; i < this->joint_state_msg_.name.size(); ++i)
-  {
-    int channel = joints_[this->command_msg_.name[i]].channel;
-    this->joint_state_msg_.position[i] = actuators_[channel].getPosition();
-    this->joint_state_msg_.velocity[i] = actuators_[channel].getVelocity();
-    this->joint_state_msg_.effort[i]   = actuators_[channel].getMaxTorque();
-  }
-
-  joint_state_msg_.header.stamp = ros::Time::now();
 
   return true;
 }
@@ -184,10 +182,8 @@ int main(int argc, char** argv)
   // Create an Example2 Driver Object
   actuator_array_example::Example3Driver driver;
 
-  // Call ros::spin() instead of driver.spin(). The driver uses a
-  // timer with a callback function to update the actuators and
-  // publish data; no need to put it into a read-publish loop.
-  ros::spin();
+  // Put the driver in an infinite read-publish loop using the base class's 'spin' function
+  driver.spin();
 
   return 0;
 }

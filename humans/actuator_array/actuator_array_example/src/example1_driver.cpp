@@ -50,7 +50,7 @@ Example1Driver::Example1Driver()
   ActuatorArrayDriver::init();
 
   // Now create the array of simulated actuators
-  for(unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  for(unsigned int i = 0; i < command_msg_.name.size(); ++i)
   {
     // For this first, simple example we will use the default parameters for joint limits,
     // velocity, etc. provided by the DummyActuator Class
@@ -64,41 +64,41 @@ Example1Driver::~Example1Driver()
 }
 
 /* ******************************************************** */
-bool Example1Driver::command_()
-{
-  // Loop through each joint in the command message and send the
-  // corresponding servo the desired behavior
-  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
-  {
-    actuators_[i].setVelocity(this->command_msg_.velocity[i]);
-    actuators_[i].setPosition(this->command_msg_.position[i]);
-  }
-
-  return true;
-}
-
-/* ******************************************************** */
 bool Example1Driver::read_(ros::Time ts)
 {
   // Calculate the time from the last update
-  double dt = (ts - this->previous_time_).toSec();
+  double dt = (ts - previous_time_).toSec();
 
   // Loop through each joint and request the current status
   // Note: The base class functions ensure the same joint order in
   // both the 'command' message and the 'joint_state' message
-  for (unsigned int i = 0; i < this->joint_state_msg_.name.size(); ++i)
+  for (unsigned int i = 0; i < joint_state_msg_.name.size(); ++i)
   {
     // Update the simulated state of each actuator by dt seconds
     actuators_[i].update(dt);
 
     // Query the current state of each actuator
-    this->joint_state_msg_.position[i] = actuators_[i].getPosition();
-    this->joint_state_msg_.velocity[i] = actuators_[i].getVelocity();
-    this->joint_state_msg_.effort[i]   = actuators_[i].getMaxTorque();
+    joint_state_msg_.position[i] = actuators_[i].getPosition();
+    joint_state_msg_.velocity[i] = actuators_[i].getVelocity();
+    joint_state_msg_.effort[i]   = actuators_[i].getMaxTorque();
   }
 
-  this->joint_state_msg_.header.stamp = ts;
-  this->previous_time_ = ts;
+  joint_state_msg_.header.stamp = ts;
+  previous_time_ = ts;
+
+  return true;
+}
+
+/* ******************************************************** */
+bool Example1Driver::command_()
+{
+  // Loop through each joint in the command message and send the
+  // corresponding servo the desired behavior
+  for (unsigned int i = 0; i < command_msg_.name.size(); ++i)
+  {
+    actuators_[i].setVelocity(command_msg_.velocity[i]);
+    actuators_[i].setPosition(command_msg_.position[i]);
+  }
 
   return true;
 }
@@ -107,7 +107,7 @@ bool Example1Driver::read_(ros::Time ts)
 bool Example1Driver::stop_()
 {
   // Loop through each joint and send the stop command
-  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  for (unsigned int i = 0; i < command_msg_.name.size(); ++i)
   {
     // Update the simulated state of each actuator by dt seconds
     actuators_[i].stop();
@@ -120,7 +120,7 @@ bool Example1Driver::stop_()
 bool Example1Driver::home_()
 {
   // Loop through each joint and send the home command
-  for (unsigned int i = 0; i < this->command_msg_.name.size(); ++i)
+  for (unsigned int i = 0; i < command_msg_.name.size(); ++i)
   {
     // Update the simulated state of each actuator by dt seconds
     actuators_[i].home();
