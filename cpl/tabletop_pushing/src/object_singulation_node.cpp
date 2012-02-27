@@ -145,6 +145,8 @@ class Boundary : public std::vector<cv::Point>
   double xyLength3D;
   bool external;
   bool too_short;
+  double push_angle;
+  Eigen::Vector3f push_dir;
   ProtoObjects splits;
 };
 
@@ -1468,7 +1470,8 @@ class ObjectSingulation
       {
         objs[i].id = getNextID();
       }
-      // TODO: Get table limits
+      // TODO: Should get the boundary of the point cloud instead of just max x
+      // and y
       min_table_x_ = FLT_MAX;
       max_table_x_ = -FLT_MAX;
       min_table_y_ = FLT_MAX;
@@ -1665,7 +1668,6 @@ class ObjectSingulation
         }
         if (min_idx < cur_objs.size())
         {
-          // TODO: If score is too bad ignore / instantiate new
           ROS_INFO_STREAM("Prev moved obj: " << prev_objs[i].id  << ", " << i
                           << " maps to cur " << min_idx << " : " << min_score);
           if (matched[min_idx])
@@ -1675,7 +1677,7 @@ class ObjectSingulation
           else
           {
             file_out << "matched new with score of: " << min_score << std::endl;
-            // TODO: Examine bad fits of ICP
+            // Examine bad fits of ICP
             bool bad_icp = (min_score > bad_icp_score_limit_);
             cur_objs[min_idx].id = prev_objs[i].id;
             cur_objs[min_idx].icp_score = min_score;
@@ -1783,11 +1785,7 @@ class ObjectSingulation
                                  cv::Mat& obj_lbl_img)
   {
     // Need to transform this into the world frame
-    float push_angle = getWorldFrameAngleFromObjFrame(
-        boundary.ort, objs[boundary.object_idx].transform);
-    PushVector push_pose = determinePushDirection(push_angle, objs,
-                                                  boundary.object_idx,
-                                                  obj_lbl_img, boundary);
+    PushVector push_pose = determinePushDirection(boundary, objs, obj_lbl_img);
     push_pose.header.frame_id = workspace_frame_;
     push_pose.object_idx = boundary.object_idx;
     push_pose.object_id = objs[push_pose.object_idx].id;
@@ -1837,8 +1835,7 @@ class ObjectSingulation
         }
         float push_angle = getWorldFrameAngleFromObjFrame(
             boundaries[b].ort, objs[boundaries[b].object_idx].transform);
-        PushOpts split_opts = generatePushOpts(push_angle, boundaries[b],
-                                               boundaries[b].object_idx);
+        PushOpts split_opts = generatePushOpts(boundaries[b]);
         evaluatePushOpts(split_opts, boundaries[b], objs);
         for (unsigned int s = 0; s < split_opts.size(); ++s)
         {
@@ -1872,12 +1869,11 @@ class ObjectSingulation
                     " options");
     PushVector push_pose = push_opts[0].getPushVector();
     ROS_INFO_STREAM("Chosen push score: " << push_opts[0].split_score);
-    ROS_INFO_STREAM("Next push score: " << push_opts[1].split_score);
-    ROS_INFO_STREAM("Last push score: " << push_opts.back().split_score);
     ROS_INFO_STREAM("Chosen push_dir: [" <<
                     push_opts[0].push_unit_vec[0] << ", " <<
                     push_opts[0].push_unit_vec[1] << ", " <<
-                    push_opts[0].push_unit_vec[2] << "]");
+                    push_opts[0].push_unit_vec[2] << "] : " <<
+                    push_opts[0].push_unit_vec.norm());
     ROS_INFO_STREAM("Chosen start_point: (" <<
                     push_opts[0].start_point.x << ", " <<
                     push_opts[0].start_point.y << ", " <<
@@ -1886,8 +1882,8 @@ class ObjectSingulation
     push_pose.object_id = objs[push_pose.object_idx].id;
     if (push_opts[0].will_collide)
     {
-      int idx = pushCollidesWithWhat(push_opts[0], objs);
-      ROS_WARN_STREAM("Chosen PushOpt collides with another object: " << idx);
+      // int idx = pushCollidesWithWhat(push_opts[0], objs);
+      ROS_WARN_STREAM("Chosen PushOpt collides with another object.");
     }
     if (push_opts[0].will_leave)
     {
@@ -2062,7 +2058,10 @@ class ObjectSingulation
         if (boundaries[b].points3D.size() >= min_boundary_length_)
         {
           boundaries[b].too_short = false;
-          ProtoObjects pos = splitObject3D(boundaries[b], objs[max_idx]);
+          // HACK: we now also set the push dir and push angle inside this
+          // method
+          ProtoObjects pos = splitObject3D(boundaries[b], objs[max_idx],
+                                           true);
           const unsigned int s0 = pos[0].cloud.size();
           const unsigned int s1 = pos[1].cloud.size();
 
@@ -2169,8 +2168,7 @@ class ObjectSingulation
     return getRANSACXYVector(b, l_pt);
   }
 
-  Eigen::Vector3f getRANSACXYVector(Boundary& b, Eigen::Vector3f& l_pt,
-                                    bool debug_fitting=false)
+  Eigen::Vector3f getRANSACXYVector(Boundary& b, Eigen::Vector3f& l_pt)
   {
     XYZPointCloud cloud;
     cloud.resize(b.points3D.size());
@@ -2191,42 +2189,33 @@ class ObjectSingulation
     line_seg.setInputCloud(cloud.makeShared());
     line_seg.segment(line_inliers, c);
 
-    // Check magnitude of the edge points in resultant model
-    if (debug_fitting)
-    {
-      ROS_INFO_STREAM("Fit: " << line_inliers.indices.size() <<
-                      " line points from " << b.points3D.size());
-    }
-    Eigen::Vector3f l_vector(c.values[3], c.values[4], c.values[5]);
+    Eigen::Vector3f l_vector(c.values[3], c.values[4], 0.0);
+    l_vector /= l_vector.norm();
     l_pt[0] = c.values[0];
     l_pt[1] = c.values[1];
     l_pt[2] = c.values[2];
     return l_vector;
   }
 
-  Eigen::Vector4f splitPlaneVertical(Boundary& b, bool debug_fitting=false)
+  Eigen::Vector4f splitPlaneVertical(Boundary& b, bool update_boundary=false,
+                                     bool use_boundary=false)
   {
     Eigen::Vector3f l_pt;
     Eigen::Vector3f l_dir = getRANSACXYVector(b, l_pt);
-    l_dir /= l_dir.norm();
+    if (update_boundary)
+    {
+      b.push_dir = l_dir;
+      b.push_angle = atan2(l_dir[1], l_dir[0]);
+    }
+    if (use_boundary)
+    {
+      l_dir = b.push_dir;
+    }
     const Eigen::Vector3f z_axis(0, 0, 1);
     Eigen::Vector3f n = l_dir.cross(z_axis);
     n = n/n.norm();
     float p = -(n[0]*l_pt[0]+n[1]*l_pt[1]+n[2]*l_pt[2]);
     Eigen::Vector4f hessian(n[0], n[1], n[2], p);
-    if (debug_fitting)
-    {
-      for (unsigned int i = 0; i < b.points3D.size(); ++i)
-      {
-        pcl::PointXYZ x = b.points3D[i];
-        const float D = hessian[0]*x.x + hessian[1]*x.y + hessian[2]*x.z +
-            hessian[3];
-        ROS_INFO_STREAM("Point: (" << x.x << ", " << x.y << ", " << x.z <<
-                        ") : " << D);
-      }
-      ROS_INFO_STREAM("hessian is: " << hessian[0] << ", " << hessian[1] <<
-                      ", " <<  hessian[2] << ", " << hessian[3] << ")");
-    }
     return hessian;
   }
 
@@ -2350,28 +2339,37 @@ class ObjectSingulation
     return chosen_id;
   }
 
-  PushOpts generatePushOpts(double push_angle, Boundary& boundary,
-                            unsigned int id)
+  PushOpts generatePushOpts(Boundary& boundary)
   {
     const unsigned int bin = quantizeAngle(boundary.ort);
     double push_dist = std::min(std::max(boundary.xyLength3D, min_push_dist_),
                                 max_push_dist_);
     double push_angle_pos = 0.0;
     double push_angle_neg = 0.0;
-    if (push_angle > 0.0)
+    Eigen::Vector3f push_vec_pos;
+    Eigen::Vector3f push_vec_neg;
+    if (boundary.push_angle > 0.0)
     {
-      push_angle_pos = push_angle;
-      push_angle_neg = push_angle - M_PI;
+      push_angle_pos = boundary.push_angle;
+      push_angle_neg = boundary.push_angle - M_PI;
+      push_vec_pos[0] = boundary.push_dir[0];
+      push_vec_pos[1] = boundary.push_dir[1];
+      push_vec_pos[2] = 0.0f;
+      push_vec_neg[0] = -boundary.push_dir[0];
+      push_vec_neg[1] = -boundary.push_dir[1];
+      push_vec_pos[2] = 0.0f;
     }
     else
     {
-      push_angle_neg = push_angle;
-      push_angle_pos = push_angle + M_PI;
+      push_angle_neg = boundary.push_angle;
+      push_angle_pos = boundary.push_angle + M_PI;
+      push_vec_neg[0] = boundary.push_dir[0];
+      push_vec_neg[1] = boundary.push_dir[1];
+      push_vec_neg[2] = 0.0f;
+      push_vec_pos[0] = -boundary.push_dir[0];
+      push_vec_pos[1] = -boundary.push_dir[1];
+      push_vec_pos[2] = 0.0f;
     }
-    const Eigen::Vector3f push_vec_pos(std::cos(push_angle_pos),
-                                       std::sin(push_angle_pos), 0.0);
-    const Eigen::Vector3f push_vec_neg(std::cos(push_angle_neg),
-                                       std::sin(push_angle_neg), 0.0);
     double split_score = (std::min(boundary.splits[0].cloud.size(),
                                    boundary.splits[1].cloud.size()) /
                           static_cast<double>(
@@ -2379,24 +2377,23 @@ class ObjectSingulation
                                        boundary.splits[1].cloud.size())));
     std::vector<PushOpt> split_opts;
     split_opts.push_back(PushOpt(boundary.splits[0], push_angle_pos,
-                                 push_vec_pos, id, 0, push_dist, split_score,
-                                 bin));
+                                 push_vec_pos, boundary.object_idx, 0,
+                                 push_dist, split_score, bin));
     split_opts.push_back(PushOpt(boundary.splits[0], push_angle_neg,
-                                 push_vec_neg, id, 0, push_dist, split_score,
-                                 bin));
+                                 push_vec_neg, boundary.object_idx, 0,
+                                 push_dist, split_score, bin));
     split_opts.push_back(PushOpt(boundary.splits[1], push_angle_pos,
-                                 push_vec_pos, id, 1, push_dist, split_score,
-                                 bin));
+                                 push_vec_pos, boundary.object_idx, 1,
+                                 push_dist, split_score, bin));
     split_opts.push_back(PushOpt(boundary.splits[1], push_angle_neg,
-                                 push_vec_neg, id, 1, push_dist, split_score,
-                                 bin));
+                                 push_vec_neg, boundary.object_idx, 1,
+                                 push_dist, split_score, bin));
     return split_opts;
   }
 
   void evaluatePushOpts(PushOpts& split_opts, Boundary& boundary,
                         ProtoObjects& objs)
   {
-    // TODO: Change push_dist to be a function of the line cloud intersection
     XYZPointCloud s0_int = pcl_segmenter_->lineCloudIntersection(
         boundary.splits[0].cloud, split_opts[0].push_unit_vec,
         boundary.splits[0].centroid);
@@ -2427,11 +2424,10 @@ class ObjectSingulation
     }
   }
 
-  PushVector determinePushDirection(double push_angle,
-                                    ProtoObjects& objs, unsigned int id,
-                                    cv::Mat& lbl_img, Boundary& boundary)
+  PushVector determinePushDirection(Boundary& boundary, ProtoObjects& objs,
+                                    cv::Mat& lbl_img)
   {
-    PushOpts split_opts = generatePushOpts(push_angle, boundary, id);
+    PushOpts split_opts = generatePushOpts(boundary);
     // Choose pushing location closer to the robot by examining the 4
     // possible intersections with the boundaries
     XYZPointCloud s0_int = pcl_segmenter_->lineCloudIntersection(
@@ -2500,7 +2496,8 @@ class ObjectSingulation
     ROS_INFO_STREAM("Chosen push_dir: [" <<
                     split_opts[chosen_idx].push_unit_vec[0] << ", " <<
                     split_opts[chosen_idx].push_unit_vec[1] << ", " <<
-                    split_opts[chosen_idx].push_unit_vec[2] << "]");
+                    split_opts[chosen_idx].push_unit_vec[2] << "] : " <<
+                    split_opts[chosen_idx].push_unit_vec.norm());
     ROS_INFO_STREAM("Chosen start_point: (" << p.x << ", " << p.y << ", " <<
                     p.z << ")");
 
@@ -2684,17 +2681,16 @@ class ObjectSingulation
   }
 
   ProtoObjects splitObject3D(Boundary& boundary, ProtoTabletopObject& to_split,
-                             bool debug_fitting=false)
+                             bool update_boundary=false)
   {
     // Get plane containing the boundary
-    Eigen::Vector4f hessian = splitPlaneVertical(boundary, debug_fitting);
+    Eigen::Vector4f hessian = splitPlaneVertical(boundary, update_boundary);
     // Split based on the plane
-    return splitObject3D(hessian, to_split, debug_fitting);
+    return splitObject3D(hessian, to_split);
   }
 
   ProtoObjects splitObject3D(Eigen::Vector4f& hessian,
-                             ProtoTabletopObject& to_split,
-                             bool debug_fitting=false)
+                             ProtoTabletopObject& to_split)
   {
     // Split the point clouds based on the half plane distance test
     pcl::PointIndices p1;
@@ -2723,29 +2719,6 @@ class ObjectSingulation
     for (unsigned int i = 0; i < split.size(); ++i)
     {
       pcl::compute3DCentroid(split[i].cloud, split[i].centroid);
-    }
-
-    if (debug_fitting)
-    {
-      pcl::PointCloud<pcl::PointXYZI> label_cloud;
-      label_cloud.header.frame_id = workspace_frame_;
-      label_cloud.resize(po1.cloud.size()+po2.cloud.size());
-      for (unsigned int i = 0, k =0; i < split.size(); ++i)
-      {
-        for (unsigned int j = 0; j < split[i].cloud.size(); ++j, ++k)
-        {
-          // NOTE: Intensity 0 is the table; so use 1-based indexing
-          pcl::PointXYZI p;
-          p.x = split[i].cloud[j].x;
-          p.y = split[i].cloud[j].y;
-          p.z = split[i].cloud[j].z;
-          p.intensity = i;
-          label_cloud.at(k) = p;
-        }
-      }
-      sensor_msgs::PointCloud2 label_cloud_msg;
-      pcl::toROSMsg(label_cloud, label_cloud_msg);
-      obj_push_pub_.publish(label_cloud_msg);
     }
 
     return split;
@@ -2820,10 +2793,10 @@ class ObjectSingulation
     {
       obj_img.copyTo(obj_disp_img);
     }
-    Eigen::Vector3f l_pt;
-    Eigen::Vector3f l_dir = getRANSACXYVector(boundary, l_pt);
-    Eigen::Vector4f n = splitPlaneVertical(boundary);
-    Eigen::Vector4f table_centroid = pcl_segmenter_->getTableCentroid();
+    Eigen::Vector3f l_pt(boundary.points3D[0].x, boundary.points3D[0].y,
+                         boundary.points3D[0].z);
+    Eigen::Vector3f l_dir = boundary.push_dir;
+    Eigen::Vector4f n = splitPlaneVertical(boundary, false, true);
     const cv::Scalar red(0.0f, 0.0f, 1.0f);
     const cv::Scalar blue(1.0f, 0.0f, 0.0f);
     const cv::Scalar cyan(1.0f, 1.0f, 0.0f);
@@ -3124,7 +3097,8 @@ class ObjectSingulation
     {
       const Eigen::Vector4f x_t = objs[i].transform*x_axis;
       // NOTE: In degrees!
-      const float start_angle = (atan2(x_t[1], x_t[0])+M_PI)*180.0/M_PI;
+      const float start_angle = (atan2(x_t[1], x_t[0])+ M_PI)*180.0/M_PI;
+      // ROS_INFO_STREAM("Start angle is: " << start_angle);
       // Get the locations from object centroids
       PointStamped center3D;
       center3D.point.x = objs[i].centroid[0];
