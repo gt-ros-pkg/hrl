@@ -28,8 +28,6 @@
 <robot name="example_arm"
 	xmlns:controller="http://playerstage.sourceforge.net/gazebo/xmlschema/#controller"> 
 
-	<property name="pi" value="3.141592654" />
-
 	<!-- Create a heavy base to which to attach the arm -->
 	<link name="base_link">
 		<inertial>
@@ -40,7 +38,6 @@
 	
 		<collision>
 			<origin xyz=" 0.00000  0.00000  0.02500" rpy=" 0.00000  0.00000  0.00000" />
-			<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
 			<geometry>
 				<box size="0.10000 0.10000 0.05000" />
 			</geometry>
@@ -62,77 +59,75 @@
 		<parent link="base_link" />
 		<child link="link1" />
 		<axis xyz="0 0 1" />
-		<limit lower="${-pi/2}" upper="${pi/2}" effort="10.0" velocity="15.71" />
+		<limit lower="-1.57" upper="+1.57" effort="10.0" velocity="15.71" />
 		<dynamics damping="0.0" friction="0.0" />
 	</joint>
 	
 	<link name="link1">
 		<inertial>
-			<origin xyz=" 0.00000  0.00000  0.05000" rpy=" 0.00000  0.00000  0.00000" />
+			<origin xyz=" 0.00000  0.00000  0.01000" rpy=" 0.00000  0.00000  0.00000" />
 			<mass value="0.50" />
 			<inertia ixx="0.01" ixy="0.00" ixz="0.00" iyy="0.01" iyz="0.00" izz="0.01" />
 		</inertial>
 		
 		<collision>
-			<origin xyz=" 0.10000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
-			<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
+			<origin xyz=" 0.00000  0.00000  0.01000" rpy=" 0.00000  0.00000  0.00000" />
 			<geometry>
-				<cylinder radius="0.05000" length="0.05000" />
+				<cylinder radius="0.05000" length="0.02000" />
 			</geometry>
 		</collision>
 		
 		<visual>
-			<origin xyz=" 0.00000  0.00000  0.07500" rpy=" 0.00000  0.00000  0.00000" />
+			<origin xyz=" 0.00000  0.00000  0.01000" rpy=" 0.00000  0.00000  0.00000" />
 			<geometry>
-				<cylinder radius="0.05000" length="0.05000" />
+				<cylinder radius="0.05000" length="0.02000" />
 			</geometry>
 			<material name="link1_color">
 				<color rgba="0.5 0.5 0.5 1.0" />
 			</material>
 		</visual>
 	</link>
-
+	
 	<joint name="joint2" type="revolute">
-		<origin xyz=" 0.00000  0.00000  0.05000" rpy=" 0.00000  0.00000  0.00000" />
+		<origin xyz=" 0.00000  0.00000  0.03000" rpy=" 0.00000  0.00000  0.00000" />
 		<parent link="link1" />
 		<child link="link2" />
 		<axis xyz="0 1 0" />
-		<limit lower="${-pi}" upper="0.00000" effort="10.0" velocity="15.71" />
+		<limit lower="-3.14" upper="0.0" effort="10.0" velocity="15.71" />
 		<dynamics damping="0.0" friction="0.0" />
 	</joint>
 	
 	<link name="link2">
 		<inertial>
 			<origin xyz=" 0.10000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
-			<mass value="0.30" />
+			<mass value="0.10" />
 			<inertia ixx="0.01" ixy="0.00" ixz="0.00" iyy="0.01" iyz="0.00" izz="0.01" />
 		</inertial>
 		
 		<collision>
 			<origin xyz=" 0.10000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
-			<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
 			<geometry>
-				<box size="0.20000 0.05000 0.05000" />
+				<box size="0.20000 0.02000 0.02000" />
 			</geometry>
 		</collision>
 		
 		<visual>
 			<origin xyz=" 0.10000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
 			<geometry>
-				<box size="0.20000 0.05000 0.05000" />
+				<box size="0.20000 0.02000 0.02000" />
 			</geometry>
 			<material name="link2_color">
 				<color rgba="0.1 0.1 0.1 1.0" />
 			</material>
 		</visual>
 	</link>
-
-    <joint name="joint3" type="revolute">
+	
+	<joint name="joint3" type="revolute">
 		<origin xyz=" 0.20000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
 		<parent link="link2" />
 		<child link="link3" />
 		<axis xyz="0 1 0" />
-		<limit lower="0.00000" upper="${pi}" effort="10.0" velocity="15.71" />
+		<limit lower="-1.57" upper="1.57" effort="10.0" velocity="15.71" />
 		<dynamics damping="0.0" friction="0.0" />
 	</joint>
 
@@ -145,29 +140,28 @@
 		
 		<collision>
 			<origin xyz=" 0.10000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
-			<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
 			<geometry>
-				<box size="0.20000 0.05000 0.05000" />
+				<box size="0.20000 0.02000 0.02000" />
 			</geometry>
 		</collision>
 		
 		<visual>
 			<origin xyz=" 0.10000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
 			<geometry>
-				<box size="0.20000 0.05000 0.05000" />
+				<box size="0.20000 0.02000 0.02000" />
 			</geometry>
 			<material name="link3_color">
 				<color rgba="0.5 0.5 0.5 1.0" />
 			</material>
 		</visual>
 	</link>
-
+	
     <joint name="joint4" type="revolute">
-		<origin xyz=" 0.10000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
+		<origin xyz=" 0.20000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
 		<parent link="link3" />
 		<child link="link4" />
 		<axis xyz="0 1 0" />
-		<limit lower="0.00000" upper="${pi/2}" effort="10.0" velocity="15.71" />
+		<limit lower="-1.57" upper="1.57" effort="10.0" velocity="15.71" />
 		<dynamics damping="0.0" friction="0.0" />
 	</joint>
 	
@@ -180,16 +174,15 @@
 		
 		<collision>
 			<origin xyz=" 0.10000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
-			<contact_coefficients mu="1.0" kp="1.0" kd="1.0" />				
 			<geometry>
-				<box size="0.20000 0.05000 0.05000" />
+				<box size="0.20000 0.02000 0.02000" />
 			</geometry>
 		</collision>
 		
 		<visual>
 			<origin xyz=" 0.10000  0.00000  0.00000" rpy=" 0.00000  0.00000  0.00000" />
 			<geometry>
-				<box size="0.20000 0.05000 0.05000" />
+				<box size="0.20000 0.02000 0.02000" />
 			</geometry>
 			<material name="link4_color">
 				<color rgba="0.1 0.1 0.1 1.0" />
@@ -197,6 +190,7 @@
 		</visual>
 	</link>
 
+	
 	<!-- Specify the Gazebo color to use for each link -->
 	<gazebo reference="base_link">
 		<material value="Gazebo/Black" />
@@ -235,7 +229,7 @@
 			</joint>
 			<joint>
 				<name>joint2</name>
-				<home>2.094395102</home>
+				<home>0.0</home>
 				<p>10.0</p>
 				<i>0.0</i>
 				<d>0.0</d>
@@ -243,7 +237,7 @@
 			</joint>
 			<joint>
 				<name>joint3</name>
-				<home>1.483529864</home>
+				<home>0.0</home>
 				<p>10.0</p>
 				<i>0.0</i>
 				<d>0.0</d>
@@ -259,5 +253,5 @@
 			</joint>
 		</controller:gazebo_ros_actuator_array>
 	</gazebo>
-
+	
 </robot>
