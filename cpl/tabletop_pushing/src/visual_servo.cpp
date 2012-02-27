@@ -34,7 +34,6 @@
 // ROS
 #include <ros/ros.h>
 #include <ros/package.h>
-#include <ros/console.h>
 
 #include <std_msgs/Header.h>
 #include <geometry_msgs/PointStamped.h>
@@ -85,6 +84,8 @@
 #include <time.h> // for srand(time(NULL))
 #include <cstdlib> // for MAX_RAND
 
+// Else
+#include <tabletop_pushing/VisualServoTwist.h>
 #define DEBUG_MODE 1
 
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
@@ -92,6 +93,7 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sens
 using boost::shared_ptr;
 using geometry_msgs::PoseStamped;
 using geometry_msgs::PointStamped;
+using tabletop_pushing::VisualServoTwist;
 
 class VisualServoNode
 {
@@ -102,7 +104,8 @@ class VisualServoNode
             depth_sub_(n, "depth_image_topic", 1),
             cloud_sub_(n, "point_cloud_topic", 1),
             sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
-            it_(n), tf_(), have_depth_data_(false), camera_initialized_(false) 
+            it_(n), tf_(), have_depth_data_(false), camera_initialized_(false),
+            cur_twist_(cv::Mat::zeros(6,1, CV_32F))
     {
         tf_ = shared_ptr<tf::TransformListener>(new tf::TransformListener());
         // Legacy stuff. Must remove unused ones
@@ -122,8 +125,24 @@ class VisualServoNode
         n_private_.param("min_contour_size", min_contour_size_, 100.0);
         // Setup ros node connections
         sync_.registerCallback(&VisualServoNode::sensorCallback, this);
+
+        twistServer = n_.advertiseService("visual_servo_twist", &VisualServoNode::getTwist, this);
+        //TwistServer = n.advertiseService("get_vs_twist", &VisualServoNode::getTwist, this);
+        ROS_INFO("Ready to use the getTwist service");
     }
 
+    bool getTwist(VisualServoTwist::Request &req, VisualServoTwist::Response &res)
+    {
+        /*
+      res.vx = cur_twist_.at(0,0);
+      res.vy = cur_twist_.at(1,0);
+      res.vz = cur_twist_.at(2,0);
+      res.wx = cur_twist_.at(3,0);
+      res.wy = cur_twist_.at(4,0);
+      res.wz = cur_twist_.at(5,0);*/
+      return true;
+    }
+    
         /** 
          * Experiment: visual servo
          * Given a fixed engineered setting, we are taping robot hand with
@@ -132,109 +151,113 @@ class VisualServoNode
          **/
         void sensorCallback(const sensor_msgs::ImageConstPtr& img_msg, const sensor_msgs::ImageConstPtr& depth_msg, const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
         {
-            if (!camera_initialized_)
-            {
-                cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(cam_info_topic_, n_, ros::Duration(2.0));
+            try {	
+                if (!camera_initialized_)
+                {
+                    cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(cam_info_topic_, n_, ros::Duration(2.0));
+                    camera_initialized_ = true;
+                }
 
-		
-                camera_initialized_ = true;
-            }
-            // Convert images to OpenCV format
-            cv::Mat color_frame(bridge_.imgMsgToCv(img_msg));
-            cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
+                /** Preparing the image **/             
+                // Convert images to OpenCV format
+                cv::Mat color_frame(bridge_.imgMsgToCv(img_msg));
+                cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
 
-            // Swap kinect color channel order
-            cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
+                // Swap kinect color channel order
+                cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
 
 
-            XYZPointCloud cloud; 
-            pcl::fromROSMsg(*cloud_msg, cloud);
-            tf_->waitForTransform(workspace_frame_, cloud.header.frame_id,
-                    cloud.header.stamp, ros::Duration(0.5));
-            pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, *tf_);
-            prev_camera_header_ = cur_camera_header_;
-            cur_camera_header_ = img_msg->header;
+                XYZPointCloud cloud; 
+                pcl::fromROSMsg(*cloud_msg, cloud);
+                tf_->waitForTransform(workspace_frame_, cloud.header.frame_id,
+                        cloud.header.stamp, ros::Duration(0.5));
+                pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, *tf_);
+                prev_camera_header_ = cur_camera_header_;
+                cur_camera_header_ = img_msg->header;
 
-            // Segment the blue tape on the hand
-            // Values are from the launch file
-            cv::Mat tape_mask = colorSegment(color_frame.clone(), tape_hue_value_, tape_hue_threshold_);
-            std::vector<cv::Moments> ms = findMoments(tape_mask, color_frame); 
-	    std::vector<cv::Point> pts = getMomentCoordinates(ms);
- 	    if (pts.size() == 3){
-            getInteractionMatrix(cloud, depth_frame, pts);
 
-            // we are gonna put the robot in the middle of the screen... so
-            pcl::PointXYZ origin = cloud.at(color_frame.cols/2, color_frame.rows/2);
-	    origin.z += 0.0;
-            pcl::PointXYZ two = origin;
-            two.y -= 0.05;
-            pcl::PointXYZ three = origin;
-            three.x -= 0.03;
+                /** Main Logic **/
+                // segment color -> find contour -> moments -> reorder to recognize each point -> find error, interaction matrix, & twist
+                cv::Mat tape_mask = colorSegment(color_frame.clone(), tape_hue_value_, tape_hue_threshold_);
+                std::vector<cv::Moments> ms = findMoments(tape_mask, color_frame); 
+                std::vector<cv::Point> pts = getMomentCoordinates(ms);
+                computeTwist(cloud, color_frame, depth_frame, pts);
 
-	    cv::Mat_<double> error_mat = cv::Mat::zeros(6,6, CV_32F);
-     	    cv::Point pt = projectPointIntoImage(origin, cloud.header.frame_id, cur_camera_header_.frame_id);
-            cv::circle(color_frame, pt, 2, cv::Scalar(0, 0, 220), 2);
-	    error_mat(0,0) = pt.x - pts.at(0).x; 
-	    error_mat(1,0) = pt.y - pts.at(0).y;
-     	    pt = projectPointIntoImage(two, cloud.header.frame_id, cur_camera_header_.frame_id);
-            cv::circle(color_frame, pt, 2, cv::Scalar(100, 0, 110), 2);
-	    error_mat(2,0) = pt.x - pts.at(1).x; 
-	    error_mat(3,0) = pt.y - pts.at(1).y;
-     	    pt = projectPointIntoImage(three, cloud.header.frame_id, cur_camera_header_.frame_id);
-            cv::circle(color_frame, pt, 2, cv::Scalar(200, 0, 0), 2);
-	    error_mat(4,0) = pt.x - pts.at(2).x; 
-	    error_mat(5,0) = pt.y - pts.at(2).y;
 
-	    cv::Mat_<double> ret(6,6);
-	try {	
-	    ret = inverse_jacobian_.mul(error_mat, 1.0); 
-	    	printf("********\n");
-		printMatrix(ret);
-
-}catch (cv::Exception e) {
-	ROS_ERROR_STREAM(e.what());
-}
-	}
 #ifdef DEBUG_MODE
-            // put dots on the centroids
-            for (unsigned int i = 0; i < pts.size(); i++) {
-                cv::circle(color_frame, pts.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
+                // put dots on the centroids of wrisk
+                for (unsigned int i = 0; i < pts.size(); i++) {
+                    cv::circle(color_frame, pts.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
+                }
+                cv::imshow("input", color_frame.clone());
+                cv::waitKey(display_wait_ms_);
+#endif
+                 
+            }catch (cv::Exception e) {
+                ROS_ERROR_STREAM(e.what());
             }
- 		/*
-	    double depth_max = 1.0;
-	    cv::minMaxLoc(depth_frame, NULL, &depth_max);
-	    cv::Mat depth_display = depth_frame.clone();
-	    depth_display /= depth_max;
-	    cv::imshow("input_depth", depth_display);
-	    */
-	    cv::imshow("input", color_frame.clone());
-            cv::waitKey(display_wait_ms_);
-#endif 
-        }    
-	void printMatrix(cv::Mat_<double> in) {
-	    for (int i = 0; i < in.rows; i++) {
-		for (int j = 0; j < in.cols; j++) {
-			printf("%.2f\t", in(i,j)); 
-		}
-	    printf("\n");
-	    }
+        }   
+        
+        void computeTwist(XYZPointCloud cloud, cv::Mat color_frame, cv::Mat depth_frame, std::vector<cv::Point> pts) {
+            if (pts.size() == 3){
+                cv::Mat im = getInteractionMatrix(cloud, depth_frame, pts);
+                // Desired location: center of the screen
+                std::vector<pcl::PointXYZ> desired; desired.clear();
+                pcl::PointXYZ origin = cloud.at(color_frame.cols/2, color_frame.rows/2);
+                origin.z += 0.0;
+                pcl::PointXYZ two = origin;
+                pcl::PointXYZ three = origin;
 
-	}
-     
-	void getInteractionMatrix(XYZPointCloud cloud, 
-		cv::Mat depth_frame, std::vector<cv::Point> &pts) {
-		// interaction matrix, image jacobian
-		cv::Mat_<double> L = cv::Mat::zeros(6,6,CV_32F);
-		if (pts.size() == 3) {
-			for (int i = 0; i < 3; i++) {
-				cv::Point m = pts.at(i);
+                two.y -= 0.05;  // about 5 centimeter to right
+                three.x -= 0.03; // about 3 centimeter to down
+
+                desired.push_back(origin);
+                desired.push_back(two);
+                desired.push_back(three);
+
+                // Error = Desired location in image - Current position in image
+                cv::Mat_<double> error_mat = cv::Mat::zeros(6,6, CV_32F);
+                for (int i = 0; i < 3; i++) {
+                    cv::Point pt = projectPointIntoImage(desired.at(i), cloud.header.frame_id, cur_camera_header_.frame_id);
+                    error_mat(i,0) = pt.x - pts.at(i).x; 
+                    error_mat(i+1,0) = pt.y - pts.at(i).y;
+#ifdef DEBUG_MODE
+                    cv::circle(color_frame, pts.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
+#endif
+                }
+                
+                cv::Mat gain = cv::Mat::eye(6,6, CV_32F); 
+                im = gain.mul(im, 1.0);
+                cur_twist_ = im.mul(error_mat, 1.0);
+                // printMatrix(cur_twist_);
+            }
+            else {
+                cur_twist_ = cv::Mat::zeros(6,6,CV_32F);
+            }
+        }
+
+        void printMatrix(cv::Mat_<double> in) {
+            for (int i = 0; i < in.rows; i++) {
+                for (int j = 0; j < in.cols; j++) {
+                    printf("%.2f\t", in(i,j)); 
+                }
+                printf("\n");
+            }
+
+        }
+
+        cv::Mat getInteractionMatrix(XYZPointCloud cloud, 
+                cv::Mat depth_frame, std::vector<cv::Point> &pts) {
+            // interaction matrix, image jacobian
+            cv::Mat_<double> L = cv::Mat::zeros(6,6,CV_32F);
+            if (pts.size() == 3) {
+                for (int i = 0; i < 3; i++) {
+                    cv::Point m = pts.at(i);
 				int x = m.x;
 				int y = m.y;
-				pcl::PointXYZ cur_pt = cloud.at(x, y);
-				double z = cur_pt.z;
-				if (isnan(z)) 
-					z = 0.5;
-					// z = (int)depth_frame.at<uchar>(x, y); 
+				// pcl::PointXYZ cur_pt = cloud.at(x, y);
+				//double z = cur_pt.z;
+			    double z = (int)depth_frame.at<float>(x, y); 
 				int l = i * 2;
 				if (z == 0) z = 1e-4;
 				L(l,0) = -1/z;   L(l+1,0) = 0;
@@ -245,8 +268,7 @@ class VisualServoNode
 				L(l,5) = y;      L(l+1,5) = -x;
 			}
 		}
-		inverse_jacobian_ = L.inv();
-		return;
+		return L.inv();
 	}
 
         std::vector<cv::Point> getMomentCoordinates(std::vector<cv::Moments> ms)
@@ -483,7 +505,8 @@ class VisualServoNode
         int default_sat_top_value_;
         int default_val_value_;
         double min_contour_size_;
-        cv::Mat_<double> inverse_jacobian_;
+        cv::Mat cur_twist_; 
+        ros::ServiceServer twistServer;
 };
 
 int main(int argc, char ** argv)
