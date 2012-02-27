@@ -21,7 +21,7 @@
   <!-- <depend package="opencv2"/> -->
   <depend package="image_transport"/>
   <depend package="cv_bridge"/>
-  <!-- <depend package="hrl_pr2_lib"/> -->
+  <depend package="hrl_pr2_lib"/>
   <depend package="actionlib"/>
   <depend package="actionlib_msgs"/>
   <depend package="pr2_controllers_msgs"/>
