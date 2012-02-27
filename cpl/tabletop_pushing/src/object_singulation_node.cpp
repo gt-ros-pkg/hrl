@@ -1580,14 +1580,18 @@ class ObjectSingulation
             ROS_WARN_STREAM("Intended object to push did not move, not " <<
                             " updating push history.");
           }
+          else if (split_)
+          {
+            ROS_WARN_STREAM("Not updating push history because of split");
+          }
+          else if (merged_)
+          {
+            ROS_WARN_STREAM("Not updating push history because of merge");
+          }
           else if (cur_objs[i].icp_score <= bad_icp_score_limit_)
           {
             // Only increment if good ICP score
             cur_objs[i].push_history[prev_push_vector_.push_bin]++;
-          }
-          else if (split_)
-          {
-            ROS_WARN_STREAM("Not updating push history because of split");
           }
           else
           {
