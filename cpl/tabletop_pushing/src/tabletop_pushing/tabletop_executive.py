@@ -120,6 +120,8 @@ class TabletopExecutive:
         # NOTE: Should exit before reaching num_pushes, this is just a backup
         for i in xrange(num_pushes):
             pose_res = self.request_singulation_push(use_guided)
+            # raw_input('Hit any key to continue')
+            # continue
             if pose_res is None:
                 rospy.logwarn("pose_res is None. Exiting pushing");
                 break
@@ -364,4 +366,5 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(False)
-    node.run(30)
+    #node.run(30)
+    node.run(300)
