@@ -881,9 +881,9 @@ class PushOpt
     // Split based on point cloud ratios
     if (a.split_score == b.split_score)
     {
-      return (a.start_point.y < b.start_point.y);
+      return (a.start_point.x < b.start_point.x);
     }
-    return (a.split_score < b.split_score);
+    return (a.split_score > b.split_score);
   }
 
   // Members
@@ -1580,7 +1580,8 @@ class ObjectSingulation
         else if (cur_objs[i].moved)
         {
           ROS_WARN_STREAM("Object " << cur_objs[i].id <<
-                          " unintentionally moved");
+                          " unintentionally moved. Intented to move " <<
+                          prev_push_vector_.object_id);
         }
       }
     }
@@ -1867,10 +1868,12 @@ class ObjectSingulation
     }
 
     // TODO: store options for next attempt if necessary
-    ROS_INFO_STREAM("Getting push_vector from best of " << push_opts.size() <<
+    ROS_INFO_STREAM("Getting best push_vector of " << push_opts.size() <<
                     " options");
     PushVector push_pose = push_opts[0].getPushVector();
     ROS_INFO_STREAM("Chosen push score: " << push_opts[0].split_score);
+    ROS_INFO_STREAM("Next push score: " << push_opts[1].split_score);
+    ROS_INFO_STREAM("Last push score: " << push_opts.back().split_score);
     ROS_INFO_STREAM("Chosen push_dir: [" <<
                     push_opts[0].push_unit_vec[0] << ", " <<
                     push_opts[0].push_unit_vec[1] << ", " <<
@@ -2371,8 +2374,9 @@ class ObjectSingulation
                                        std::sin(push_angle_neg), 0.0);
     double split_score = (std::min(boundary.splits[0].cloud.size(),
                                    boundary.splits[1].cloud.size()) /
-                          static_cast<double>(std::max(boundary.splits[0].cloud.size(),
-                                                       boundary.splits[1].cloud.size())));
+                          static_cast<double>(
+                              std::max(boundary.splits[0].cloud.size(),
+                                       boundary.splits[1].cloud.size())));
     std::vector<PushOpt> split_opts;
     split_opts.push_back(PushOpt(boundary.splits[0], push_angle_pos,
                                  push_vec_pos, id, 0, push_dist, split_score,
@@ -2392,6 +2396,7 @@ class ObjectSingulation
   void evaluatePushOpts(PushOpts& split_opts, Boundary& boundary,
                         ProtoObjects& objs)
   {
+    // TODO: Change push_dist to be a function of the line cloud intersection
     XYZPointCloud s0_int = pcl_segmenter_->lineCloudIntersection(
         boundary.splits[0].cloud, split_opts[0].push_unit_vec,
         boundary.splits[0].centroid);
@@ -2664,7 +2669,17 @@ class ObjectSingulation
       p.y = pts.at(max_idx).y;
       p.z = pts.at(max_idx).z;
     }
+    // HACK: This should be made explicit that we are chaning this inside this
+    // method but I don't want to refactor right now.
+    double push_dist2 = std::sqrt(pcl_segmenter_->sqrDistXY(pts.at(max_idx),
+                                                            pts.at(min_idx)));
+    // Clip push dist
+    push_dist2 = std::min(std::max(push_dist2, min_push_dist_), max_push_dist_);
 
+    if (push_dist2 > opt.push_dist)
+    {
+      opt.push_dist = push_dist2;
+    }
     return p;
   }
 
@@ -3109,7 +3124,7 @@ class ObjectSingulation
     {
       const Eigen::Vector4f x_t = objs[i].transform*x_axis;
       // NOTE: In degrees!
-      const float start_angle = atan2(x_t[1], x_t[0])*180.0/M_PI + 180.0;
+      const float start_angle = (atan2(x_t[1], x_t[0])+M_PI)*180.0/M_PI;
       // Get the locations from object centroids
       PointStamped center3D;
       center3D.point.x = objs[i].centroid[0];
