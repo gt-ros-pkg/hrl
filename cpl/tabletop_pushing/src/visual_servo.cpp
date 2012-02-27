@@ -51,7 +51,7 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/CvBridge.h>
-#include <cv_bridge/cv_bridge.h>
+//#include <cv_bridge/cv_bridge.h>
 
 // TF
 #include <tf/transform_listener.h>
@@ -102,7 +102,7 @@ class VisualServoNode
             depth_sub_(n, "depth_image_topic", 1),
             cloud_sub_(n, "point_cloud_topic", 1),
             sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
-            it_(n), tf_(), have_depth_data_(false) 
+            it_(n), tf_(), have_depth_data_(false), camera_initialized_(false) 
     {
         tf_ = shared_ptr<tf::TransformListener>(new tf::TransformListener());
         // Legacy stuff. Must remove unused ones
@@ -135,6 +135,8 @@ class VisualServoNode
             if (!camera_initialized_)
             {
                 cam_info_ = *ros::topic::waitForMessage<sensor_msgs::CameraInfo>(cam_info_topic_, n_, ros::Duration(2.0));
+
+		
                 camera_initialized_ = true;
             }
             // Convert images to OpenCV format
@@ -157,73 +159,84 @@ class VisualServoNode
             // Values are from the launch file
             cv::Mat tape_mask = colorSegment(color_frame.clone(), tape_hue_value_, tape_hue_threshold_);
             std::vector<cv::Moments> ms = findMoments(tape_mask, color_frame); 
-            getInteractionMatrix(cloud, depth_frame, ms);
+	    std::vector<cv::Point> pts = getMomentCoordinates(ms);
+ 	    if (pts.size() == 3){
+            getInteractionMatrix(cloud, depth_frame, pts);
 
             // we are gonna put the robot in the middle of the screen... so
             pcl::PointXYZ origin = cloud.at(color_frame.cols/2, color_frame.rows/2);
-            origin.z = origin.z + 0.2;
+	    origin.z += 0.0;
             pcl::PointXYZ two = origin;
-            two.x = two.x + 0.01;
+            two.y -= 0.05;
             pcl::PointXYZ three = origin;
-            three.y = three.y - 0.01;
-	    cv::Point pt = projectPointIntoImage(origin, cloud.header.frame_id, cur_camera_header_.frame_id);
+            three.x -= 0.03;
 
-
-
+	    int error_mat[6];
+     	    cv::Point pt = projectPointIntoImage(origin, cloud.header.frame_id, cur_camera_header_.frame_id);
+            cv::circle(color_frame, pt, 2, cv::Scalar(0, 0, 220), 2);
+	    error_mat[0] = pt.x - pts.at(0).x; 
+	    error_mat[1] = pt.y - pts.at(0).y;
+     	    pt = projectPointIntoImage(two, cloud.header.frame_id, cur_camera_header_.frame_id);
+            cv::circle(color_frame, pt, 2, cv::Scalar(100, 0, 110), 2);
+	    error_mat[2] = pt.x - pts.at(1).x; 
+	    error_mat[3] = pt.y - pts.at(1).y;
+     	    pt = projectPointIntoImage(three, cloud.header.frame_id, cur_camera_header_.frame_id);
+            cv::circle(color_frame, pt, 2, cv::Scalar(200, 0, 0), 2);
+	    error_mat[4] = pt.x - pts.at(2).x; 
+	    error_mat[5] = pt.y - pts.at(2).y;
+	    for (int i = 0; i < 3; i++) {
+		ROS_INFO("%d[%d, %d]", i, error_mat[i], error_mat[i+1]); 
+	    }
+		}
 #ifdef DEBUG_MODE
             // put dots on the centroids
-            for (unsigned int i = 0; i < ms.size(); i++) {
-                cv::Moments m = ms.at(i);
-                double x = m.m10/m.m00;
-                double y = m.m01/m.m00;
-                cv::circle(color_frame, cv::Point(x,y), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
-            } 
-            /*
-               double depth_max = 1.0;
-               cv::minMaxLoc(depth_frame, NULL, &depth_max);
-               cv::Mat depth_display = depth_frame.clone();
-               depth_display /= depth_max;
-               cv::imshow("input_depth", depth_display);
-             */
-            cv::imshow("input", color_frame.clone());
+            for (unsigned int i = 0; i < pts.size(); i++) {
+                cv::circle(color_frame, pts.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
+            }
+ 		/*
+	    double depth_max = 1.0;
+	    cv::minMaxLoc(depth_frame, NULL, &depth_max);
+	    cv::Mat depth_display = depth_frame.clone();
+	    depth_display /= depth_max;
+	    cv::imshow("input_depth", depth_display);
+	    */
+	    cv::imshow("input", color_frame.clone());
             cv::waitKey(display_wait_ms_);
 #endif 
         }    
 
+     
+	void getInteractionMatrix(XYZPointCloud cloud, 
+			cv::Mat depth_frame, std::vector<cv::Point> &pts) {
+		// interaction matrix, image jacobian
+		cv::Mat_<double> L(6,6);
+		if (pts.size() == 3) {
+			for (int i = 0; i < 3; i++) {
+				cv::Point m = pts.at(i);
+				int x = m.x;
+				int y = m.y;
+				// uchar zchar = (int)depth_frame.at<uchar>(x, y); 
+				pcl::PointXYZ cur_pt = cloud.at(x, y);
+				// printf("[%d vs. %.3f]\t", zchar, cur_pt.z);
+				double z = cur_pt.z; 
+				int l = i * 2;
+				if (z == 0) z = 1e-4;
+				L(l,0) = -1/z;   L(l+1,0) = 0;
+				L(l,1) = 0;      L(l+1,1) = -1/z;
+				L(l,2) = x/z;    L(l+1,2) = y/z;
+				L(l,3) = x*y;    L(l+1,3) = 1 + pow(y,2);
+				L(l,4) = -(1+pow(x,2));  L(l+1,4) = -x*y;
+				L(l,5) = y;      L(l+1,5) = -x;
+			}
+		}
+		cv::invert(L, inverse_jacobian_);
+		return;
+	}
 
-
-        void getInteractionMatrix(XYZPointCloud cloud, cv::Mat depth_frame, std::vector<cv::Moments> &ms) {
-            ms = orderMoments(ms);
-            // interaction matrix, image jacobian
-            cv::Mat_<double> L(6,6);
-            if (ms.size() == 3) {
-                for (int i = 0; i < 3; i++) {
-                    cv::Moments m = ms.at(i);
-                    double x = (m.m10/m.m00);
-                    double y = (m.m01/m.m00);
-                    double z = depth_frame.at<uchar>((int)y,(int)x); 
-
-                    pcl::PointXYZ cur_pt = cloud.at(x, y);
-                    printf("[%.3f vs. %.3f]\t", z, cur_pt.z);
-
-                    int l = i * 2;
-                    if (z == 0) z = 1e-4;
-                    L(l,0) = -1/z;   L(l+1,0) = 0;
-                    L(l,1) = 0;      L(l+1,1) = -1/z;
-                    L(l,2) = x/z;    L(l+1,2) = y/z;
-                    L(l,3) = x*y;    L(l+1,3) = 1 + pow(y,2);
-                    L(l,4) = -(1+pow(x,2));  L(l+1,4) = -x*y;
-                    L(l,5) = y;      L(l+1,5) = -x;
-                }
-            }
-            cv::invert(L, inverse_jacobian_);
-            return;
-        }
-
-        std::vector<cv::Moments> orderMoments(std::vector<cv::Moments> ms)
+        std::vector<cv::Point> getMomentCoordinates(std::vector<cv::Moments> ms)
         {
-            std::vector<cv::Moments> oMs;
-            oMs.clear();
+            std::vector<cv::Point> ret;
+            ret.clear();
             if (ms.size() == 3) { 
                 double centroids[3][2];
                 for (int i = 0; i < 3; i++) {
@@ -251,29 +264,34 @@ class VisualServoNode
                         one = i;
                     }
                 }
-
-                oMs.push_back(ms.at(one));
-                // going to use quaderant based searching
-                int a = one == 0 ? 1 : 0;
+                
+		// index of others depending on the index of the origin
+		int a = one == 0 ? 1 : 0;
                 int b = one == 2 ? 1 : 2; 
+		// vectors of origin to a point
                 double vX0, vY0, vX1, vY1, result;
                 vX0 = centroids[a][0] - centroids[one][0];
                 vY0 = centroids[a][1] - centroids[one][1];
                 vX1 = centroids[b][0] - centroids[one][0];
                 vY1 = centroids[b][1] - centroids[one][1];
-                // cross-product assuming that z = 0 for both
+		cv::Point pto(centroids[one][0], centroids[one][1]);
+		cv::Point pta(centroids[a][0], centroids[a][1]);
+		cv::Point ptb(centroids[b][0], centroids[b][1]);
+		
+		// cross-product: simplified assuming that z = 0 for both
                 result = vX1*vY0 - vX0*vY1;
+		ret.push_back(pto);
                 if (result >= 0) {
-                    oMs.push_back(ms.at(b));
-                    oMs.push_back(ms.at(a));
+                    ret.push_back(ptb);
+                    ret.push_back(pta);
                 }
                 else {
-                    oMs.push_back(ms.at(a));
-                    oMs.push_back(ms.at(b));
+                    ret.push_back(pta);
+                    ret.push_back(ptb);
                 }
 
             }
-            return oMs;
+            return ret;
         } 
 
         /**
@@ -362,33 +380,31 @@ class VisualServoNode
             return wm;
         }
 
+	/** 
+	 * Helper Method from Object_Singulation
+	 */ 
+	cv::Point projectPointIntoImage(pcl::PointXYZ cur_point_pcl,
+			std::string point_frame,
+			std::string target_frame)
+	{
+		PointStamped cur_point;
+		cur_point.header.frame_id = point_frame;
+		cur_point.point.x = cur_point_pcl.x;
+		cur_point.point.y = cur_point_pcl.y;
+		cur_point.point.z = cur_point_pcl.z;
+		return projectPointIntoImage(cur_point, target_frame);
+	}
 
-        /** 
-         * Helper Method from Object_Singulation
-         */ 
-        cv::Point projectPointIntoImage(pcl::PointXYZ cur_point_pcl,
-                std::string point_frame,
-                std::string target_frame)
-        {
-            PointStamped cur_point;
-            cur_point.header.frame_id = point_frame;
-            cur_point.point.x = cur_point_pcl.x;
-            cur_point.point.y = cur_point_pcl.y;
-            cur_point.point.z = cur_point_pcl.z;
-            return projectPointIntoImage(cur_point, target_frame);
-        }
-
-        cv::Point projectPointIntoImage(PointStamped cur_point,
-                std::string target_frame)
-        {
-            cv::Point img_loc;
-            try
-            {
-                // Transform point into the camera frame
-                PointStamped image_frame_loc_m;
-                tf_->transformPoint(target_frame, cur_point, image_frame_loc_m);
-
-                // Project point onto the image
+	cv::Point projectPointIntoImage(PointStamped cur_point,
+			std::string target_frame)
+	{
+		cv::Point img_loc;
+		try
+		{
+			// Transform point into the camera frame
+			PointStamped image_frame_loc_m;
+			tf_->transformPoint(target_frame, cur_point, image_frame_loc_m);
+			// Project point onto the image
                 img_loc.x = static_cast<int>((cam_info_.K[0]*image_frame_loc_m.point.x +
                             cam_info_.K[2]*image_frame_loc_m.point.z) /
                         image_frame_loc_m.point.z);
@@ -396,20 +412,15 @@ class VisualServoNode
                             cam_info_.K[5]*image_frame_loc_m.point.z) /
                         image_frame_loc_m.point.z);
 
-                // Downsample poses if the image is downsampled
-                for (int i = 0; i < num_downsamples_; ++i)
-                {
-                    img_loc.x /= 2;
-                    img_loc.y /= 2;
-                }
             }
             catch (tf::TransformException e)
             {
-                ROS_ERROR_STREAM("Fucked.");
                 ROS_ERROR_STREAM(e.what());
             }
             return img_loc;
         }
+
+
 
 
         /**
