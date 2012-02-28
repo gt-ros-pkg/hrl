@@ -62,9 +62,11 @@ class TabletopExecutive:
         self.use_sweep_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
                                                      pi*0.375)
         self.use_pull_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
-                                                     pi*0.5)
+                                                     pi*0.6)
         self.use_same_side_y_thresh = rospy.get_param('~use_same_side_y_thresh',
                                                      0.3)
+        self.use_same_side_x_thresh = rospy.get_param('~use_same_side_x_thresh',
+                                                      0.8)
 
         # TODO: Replace these parameters with learned / perceived values
         # The offsets should be removed and learned implicitly
@@ -88,6 +90,10 @@ class TabletopExecutive:
                                                  0.00)
         self.overhead_start_z = rospy.get_param('~overhead_push_start_z',
                                                  -0.25)
+        self.pull_dist_offset = rospy.get_param('~overhead_pull_dist_offset',
+                                                0.03)
+        self.pull_start_z = rospy.get_param('~overhead_push_start_z',
+                                            -0.25)
         # Setup service proxies
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
@@ -158,13 +164,14 @@ class TabletopExecutive:
 
             # TODO: Make this a function
             # Choose arm
-            if fabs(pose_res.start_point.y) > self.use_same_side_y_thresh:
+            if (fabs(pose_res.start_point.y) > self.use_same_side_y_thresh or
+                pose_res.start_point.x > self.use_same_side_x_thresh):
                 if (pose_res.start_point.y < 0):
                     which_arm = 'r'
-                    rospy.loginfo('Setting arm to right because of far right pose')
+                    rospy.loginfo('Setting arm to right because of limits')
                 else:
                     which_arm = 'l'
-                    rospy.loginfo('Setting arm to left because of far right pose')
+                    rospy.loginfo('Setting arm to left because of limits')
             elif pose_res.push_angle > 0:
                 which_arm = 'r'
                 rospy.loginfo('Setting arm to right because of angle')
@@ -391,12 +398,13 @@ class TabletopExecutive:
         while wrist_yaw > pi*0.5:
             wrist_yaw -= pi
         push_req.wrist_yaw = wrist_yaw
-        push_req.desired_push_dist = push_dist
+        # Add offset distance to push to compensate
+        push_req.desired_push_dist = push_dist + self.pull_dist_offset
 
         # Offset pose to not hit the object immediately
-        push_req.start_point.point.x += self.overhead_x_offset*cos(wrist_yaw)
-        push_req.start_point.point.y += self.overhead_x_offset*sin(wrist_yaw)
-        push_req.start_point.point.z = self.overhead_start_z
+        push_req.start_point.point.x += self.pull_dist_offset*cos(wrist_yaw)
+        push_req.start_point.point.y += self.pull_dist_offset*sin(wrist_yaw)
+        push_req.start_point.point.z = self.pull_start_z
         push_req.left_arm = (which_arm == 'l')
         push_req.right_arm = not push_req.left_arm
 
