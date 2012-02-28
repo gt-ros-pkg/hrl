@@ -633,10 +633,10 @@ class TabletopPushNode:
         rot = np.matrix([orientation])
 
         # Rotate wrist before moving to position
-        rospy.loginfo('Rotating elbow for overhead push')
-        arm_pose = robot_arm.pose()
-        arm_pose[-3] =  wrist_pitch
-        robot_arm.set_pose(arm_pose, nsecs=1.0, block=True)
+        # rospy.loginfo('Rotating elbow for overhead push')
+        # arm_pose = robot_arm.pose()
+        # arm_pose[-3] =  wrist_pitch
+        # robot_arm.set_pose(arm_pose, nsecs=1.0, block=True)
 
         # Move to offset pose above the table
         loc = [pose, rot]
