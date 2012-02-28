@@ -4,9 +4,9 @@
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
     <remap from="point_cloud_topic" to="/kinect_head/depth/points"/>
 
-    <param name="use_displays" value="true" type="bool"/>
+    <param name="use_displays" value="false" type="bool"/>
     <param name="display_wait_ms" value="3" type="int"/>
-    <param name="autostart_pcl_segmentation" value="false" type="bool"/>
+    <param name="autostart_pcl_segmentation" value="true" type="bool"/>
     <param name="use_guided_pushes" value="true" type="bool"/>
     <param name="write_to_disk" value="true" type="bool"/>
     <param name="write_input_to_disk" value="false" type="bool"/>
@@ -67,5 +67,11 @@
     <param name="num_angle_bins" value="8" type="int"/>
     <param name="img_output_path" value="/u/thermans/data/new/" type="string"/>
     <param name="moved_count_thresh" value="3" type="int"/>
+    <param name="force_remain_singulated" value="false" type="bool"/>
+
+    <param name="icp_max_iters" value="1000" type="int"/>
+    <param name="icp_transform_eps" value="0" type="double"/>
+    <param name="icp_max_cor_dist" value="1.0" type="double"/>
+    <param name="icp_ransac_thresh" value="0.5" type="double"/>
   </node>
 </launch>

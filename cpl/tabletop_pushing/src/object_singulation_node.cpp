@@ -76,6 +76,7 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/surface/concave_hull.h>
 #include <pcl/registration/icp.h>
+#include <pcl/registration/icp_nl.h>
 
 // OpenCV
 #include <opencv2/core/core.hpp>
@@ -400,13 +401,19 @@ class PointCloudSegmentation
   double ICPProtoObjects(ProtoTabletopObject& a, ProtoTabletopObject& b,
                          Eigen::Matrix4f& transform)
   {
+    // TODO: Investigate this!
+    // pcl::IterativeClosestPointNonLinear<pcl::PointXYZ, pcl::PointXYZ> icp;
     pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+    icp.setMaximumIterations(icp_max_iters_);
+    icp.setTransformationEpsilon(icp_transform_eps_);
+    icp.setMaxCorrespondenceDistance(icp_max_cor_dist_);
+    icp.setRANSACOutlierRejectionThreshold(icp_ransac_thresh_);
     icp.setInputCloud(boost::make_shared<XYZPointCloud>(a.cloud));
     icp.setInputTarget(boost::make_shared<XYZPointCloud>(b.cloud));
     XYZPointCloud aligned;
-    icp.align(aligned);
+    icp.align(aligned, transform);
     double score = icp.getFitnessScore();
-    transform = icp.getFinalTransformation();
+    ROS_INFO_STREAM("ICP converged: " << icp.hasConverged());
     return score;
   }
 
@@ -802,6 +809,10 @@ class PointCloudSegmentation
   sensor_msgs::CameraInfo cam_info_;
   std_msgs::Header cur_camera_header_;
   int moved_count_thresh_;
+  int icp_max_iters_;
+  double icp_transform_eps_;
+  double icp_max_cor_dist_;
+  double icp_ransac_thresh_;
 };
 
 class PushOpt
@@ -926,8 +937,6 @@ class PushOpt
     {
       return true;
     }
-    // TODO: Check start point in workspace
-    // TODO: Check start point collision with another object
     // Split based on point cloud ratios
     if (a.split_score == b.split_score)
     {
@@ -1558,23 +1567,11 @@ class ObjectSingulation
     // Update push histories
     if (!prev_push_vector_.no_push)
     {
-      ROS_INFO_STREAM("prev_push_vector_.start_point: (" <<
-                      prev_push_vector_.start_point.x << ", " <<
-                      prev_push_vector_.start_point.y << ", " <<
-                      prev_push_vector_.start_point.z << ")");
-      ROS_INFO_STREAM("prev_push_vector_.push_angle:" <<
-                      prev_push_vector_.push_angle);
-      ROS_INFO_STREAM("prev_push_vector_.object_idx:" <<
-                      prev_push_vector_.object_idx);
-      ROS_INFO_STREAM("prev_push_vector_.object_id:" <<
-                      prev_push_vector_.object_id);
-
       for (unsigned int i = 0; i < cur_objs.size(); ++i)
       {
         if (cur_objs[i].id == prev_push_vector_.object_id)
         {
           // Check if push failed (nothing moved or wrong object moved)
-          // TODO: Change this to a distance on the ICP fit?
           if (!cur_objs[i].moved)
           {
             ROS_WARN_STREAM("Intended object to push did not move, not " <<
@@ -1670,7 +1667,7 @@ class ObjectSingulation
           if (!matched[j])
           {
             // Run ICP to match between frames
-            Eigen::Matrix4f transform;
+            Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
             ROS_INFO_STREAM("ICP of " << i << " to " << j);
             double cur_score = pcl_segmenter_->ICPProtoObjects(prev_objs[i],
                                                                cur_objs[j],
@@ -1810,6 +1807,7 @@ class ObjectSingulation
       }
     }
     PushOpts push_opts;
+    ROS_INFO_STREAM("Evaluating boundaries");
     for (unsigned int b = 0; b < boundaries.size(); ++b)
     {
       // Ignore small boundaries or those not on objects
@@ -1852,10 +1850,11 @@ class ObjectSingulation
     }
     // TODO: Get highest ranked pushes for each object
     // TODO: Prefer pushes in directions with full neighboring bins
-    // TODO: Get higher ranked pushes for each direction
-    // TODO: Sort ranks...
+    // TODO: Get higher ranked pushes for each direction (bin)
+    // Sort ranks...
     if (push_opts.size() > 1)
     {
+      ROS_INFO_STREAM("Sorting push options.");
       std::sort(push_opts.begin(), push_opts.end(), PushOpt::compareOpts);
     }
 
@@ -2247,7 +2246,8 @@ class ObjectSingulation
     {
       // NOTE: We force something that has been called singulated once to
       // remain singulated
-      if (has_pushes.count(i) == 0 || objs[i].singulated)
+      if (has_pushes.count(i) == 0 ||
+          (objs[i].singulated && force_remain_singulated_))
       {
         singulated_ids.push_back(i);
         objs[i].singulated = true;
@@ -2907,7 +2907,7 @@ class ObjectSingulation
       const Eigen::Vector4f x_t = objs[i].transform.transpose()*x_axis;
       // NOTE: In degrees!
       const float start_angle = (atan2(x_t[1], x_t[0])+ M_PI)*180.0/M_PI;
-      // ROS_INFO_STREAM("Start angle is: " << start_angle);
+      ROS_INFO_STREAM("Start angle is: " << start_angle);
       // Get the locations from object centroids
       PointStamped center3D;
       center3D.point.x = objs[i].centroid[0];
@@ -3127,6 +3127,7 @@ class ObjectSingulation
   double max_push_dist_;
   double push_dist_inflation_;
   double bad_icp_score_limit_;
+  bool force_remain_singulated_;
 };
 
 class ObjectSingulationNode
@@ -3139,8 +3140,6 @@ class ObjectSingulationNode
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
       it_(n),
-      /*pcl_segmenter_(tf_),*/
-      /*os_(pcl_segmenter_),*/
       have_depth_data_(false), tracking_(false),
       tracker_initialized_(false),
       camera_initialized_(false), record_count_(0), recording_input_(false)
@@ -3200,6 +3199,9 @@ class ObjectSingulationNode
                      os_->push_collision_intersection_thresh_, 0.03);
     n_private_.param("start_collision_thresh",
                      os_->start_collision_thresh_, 0.05);
+    n_private_.param("force_remain_singulated",
+                     os_->force_remain_singulated_, true);
+
     std::string output_path_def = "~";
     n_private_.param("img_output_path", base_output_path_, output_path_def);
     os_->base_output_path_ = base_output_path_;
@@ -3244,8 +3246,15 @@ class ObjectSingulationNode
                      pcl_segmenter_->cloud_intersect_thresh_, 0.005);
     n_private_.param("pcl_concave_hull_alpha", pcl_segmenter_->hull_alpha_,
                      0.1);
-    n_private_.param("use_pcl_voxel_downsample", pcl_segmenter_->use_voxel_down_,
-                     true);
+    n_private_.param("use_pcl_voxel_downsample",
+                     pcl_segmenter_->use_voxel_down_, true);
+    n_private_.param("icp_max_iters", pcl_segmenter_->icp_max_iters_, 100);
+    n_private_.param("icp_transform_eps", pcl_segmenter_->icp_transform_eps_,
+                     0.0);
+    n_private_.param("icp_max_cor_dist",
+                     pcl_segmenter_->icp_max_cor_dist_, 1.0);
+    n_private_.param("icp_ransac_thresh",
+                     pcl_segmenter_->icp_ransac_thresh_, 0.015);
 
     // Setup ros node connections
     sync_.registerCallback(&ObjectSingulationNode::sensorCallback,
