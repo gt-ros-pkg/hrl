@@ -1684,7 +1684,7 @@ class ObjectSingulation
         {
           ROS_INFO_STREAM("Prev moved obj: " << prev_objs[i].id  << ", " << i
                           << " maps to cur " << min_idx << " : " << min_score);
-          ROS_INFO_STREAM("Matched transform is: " << min_transform);
+          // ROS_INFO_STREAM("Matched transform is: " << min_transform);
           if (matched[min_idx])
           {
             file_out << "matched old with score of: " << min_score << std::endl;
@@ -2911,8 +2911,8 @@ class ObjectSingulation
     {
       const Eigen::Vector4f x_t = objs[i].transform.transpose()*x_axis;
       // NOTE: In degrees!
-      const float start_angle = (atan2(x_t[1], x_t[0])+ M_PI)*180.0/M_PI;
-      ROS_INFO_STREAM("Start angle is: " << start_angle);
+      const float start_angle = (-atan2(x_t[1], x_t[0])+ M_PI)*180.0/M_PI;
+      // ROS_INFO_STREAM("Start angle is: " << start_angle);
       // Get the locations from object centroids
       PointStamped center3D;
       center3D.point.x = objs[i].centroid[0];
