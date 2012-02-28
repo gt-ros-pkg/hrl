@@ -411,9 +411,9 @@ class PointCloudSegmentation
     icp.setInputCloud(boost::make_shared<XYZPointCloud>(a.cloud));
     icp.setInputTarget(boost::make_shared<XYZPointCloud>(b.cloud));
     XYZPointCloud aligned;
-    icp.align(aligned, transform);
+    icp.align(aligned);
     double score = icp.getFitnessScore();
-    ROS_INFO_STREAM("ICP converged: " << icp.hasConverged());
+    transform = icp.getFinalTransformation();
     return score;
   }
 
@@ -1667,7 +1667,7 @@ class ObjectSingulation
           if (!matched[j])
           {
             // Run ICP to match between frames
-            Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+            Eigen::Matrix4f transform;
             ROS_INFO_STREAM("ICP of " << i << " to " << j);
             double cur_score = pcl_segmenter_->ICPProtoObjects(prev_objs[i],
                                                                cur_objs[j],
@@ -1684,6 +1684,7 @@ class ObjectSingulation
         {
           ROS_INFO_STREAM("Prev moved obj: " << prev_objs[i].id  << ", " << i
                           << " maps to cur " << min_idx << " : " << min_score);
+          ROS_INFO_STREAM("Matched transform is: " << min_transform);
           if (matched[min_idx])
           {
             file_out << "matched old with score of: " << min_score << std::endl;
@@ -2252,6 +2253,10 @@ class ObjectSingulation
         singulated_ids.push_back(i);
         objs[i].singulated = true;
         sing_stream << i << " ";
+      }
+      else
+      {
+        objs[i].singulated = false;
       }
     }
     if (singulated_ids.size() > 0)
