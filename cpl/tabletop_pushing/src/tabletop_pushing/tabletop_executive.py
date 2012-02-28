@@ -44,19 +44,17 @@ from tabletop_pushing.srv import *
 from tabletop_pushing.msg import *
 from math import sin, cos, pi, fabs
 import sys
-import random
 
 class TabletopExecutive:
 
     def __init__(self, use_fake_push_pose=False):
-        random.seed()
         rospy.init_node('tabletop_executive_node',log_level=rospy.DEBUG)
         self.use_returned_dist = rospy.get_param('~use_returned_push_dist',
                                                  True)
         self.default_push_dist = rospy.get_param('~push_dist', 0.20)
         # TODO: Determine workspace limits for max here
-        self.min_push_dist = rospy.get_param('~min_push_dist', 0.1)
-        self.max_push_dist = rospy.get_param('~mix_push_dist', 0.5)
+        self.min_push_dist = rospy.get_param('~min_push_dist', 0.07)
+        self.max_push_dist = rospy.get_param('~mix_push_dist', 0.3)
 
         # TODO: Replace these parameters with learned / perceived values
         # The offsets should be removed and learned implicitly
@@ -104,6 +102,12 @@ class TabletopExecutive:
                                                       GripperPush)
         self.overhead_post_push_proxy = rospy.ServiceProxy('overhead_post_push',
                                                            GripperPush)
+        self.overhead_pre_pull_proxy = rospy.ServiceProxy('overhead_pre_pull',
+                                                          GripperPush)
+        self.overhead_pull_proxy = rospy.ServiceProxy('overhead_pull',
+                                                      GripperPush)
+        self.overhead_post_pull_proxy = rospy.ServiceProxy('overhead_post_pull',
+                                                           GripperPush)
         self.raise_and_look_proxy = rospy.ServiceProxy('raise_and_look',
                                                        RaiseAndLook)
         self.table_proxy = rospy.ServiceProxy('get_table_location', LocateTable)
@@ -120,6 +124,7 @@ class TabletopExecutive:
         # NOTE: Should exit before reaching num_pushes, this is just a backup
         for i in xrange(num_pushes):
             pose_res = self.request_singulation_push(use_guided)
+            # pose_res = self.request_fake_singulation_push(use_guided)
             # raw_input('Hit any key to continue')
             # continue
             if pose_res is None:
@@ -140,42 +145,24 @@ class TabletopExecutive:
                 opt = 1
             else:
                 opt = 0
+            if pose_res.push_angle > 0:
+                which_arm = 'r'
+            else:
+                which_arm = 'l'
+
+            # opt = 3
+            push_dist = pose_res.push_dist
+            push_dist = max(min(push_dist, self.max_push_dist),
+                            self.min_push_dist)
             if opt == 0:
-                if pose_res.push_angle > 0:
-                    which_arm = 'r'
-                else:
-                    which_arm = 'l'
-                if self.use_returned_dist:
-                    push_dist = pose_res.push_dist
-                else:
-                    push_dist = self.default_push_dist
-                push_dist = max(min(push_dist, self.max_push_dist),
-                                self.min_push_dist)
                 self.gripper_push_object(push_dist, which_arm, pose_res)
             if opt == 1:
-                if pose_res.push_angle > 0:
-                    which_arm = 'r'
-                else:
-                    which_arm = 'l'
-                if self.use_returned_dist:
-                    push_dist = pose_res.push_dist
-                else:
-                    push_dist = default_push_dist
-                push_dist = max(min(push_dist, self.max_push_dist),
-                                self.min_push_dist)
-                self.sweep_object(self.default_push_dist, which_arm, pose_res)
+                self.sweep_object(push_dist, which_arm, pose_res)
             if opt == 2:
-                if pose_res.push_angle > 0:
-                    which_arm = 'r'
-                else:
-                    which_arm = 'l'
-                if self.use_returned_dist:
-                    push_dist = pose_res.push_dist
-                else:
-                    push_dist = self.default_push_dist
-                push_dist = max(min(push_dist, self.max_push_dist),
-                                self.min_push_dist)
                 self.overhead_push_object(push_dist, which_arm, pose_res)
+            if opt == 3:
+                self.overhead_pull_object(push_dist, which_arm, pose_res)
+
         if not (pose_res is None):
             rospy.loginfo('Singulated objects: ' + str(pose_res.singulated))
         pose_res = self.get_num_objs()
@@ -201,7 +188,8 @@ class TabletopExecutive:
 
     def request_fake_singulation_push(self, which_arm):
         pose_res = PushPoseResponse()
-        if gripper_push:
+        opt = 2
+        if opt == 0:
             pose_res = PushPoseResponse()
             pose_res.start_point.x = 0.5
             pose_res.header.frame_id = '/torso_lift_link'
@@ -211,7 +199,7 @@ class TabletopExecutive:
             else:
                 pose_res.start_point.y = -0.3 + self.push_count*0.15
             pose_res.start_point.z = -0.22
-        elif sweep:
+        elif opt == 1:
             pose_res.header.frame_id = '/torso_lift_link'
             pose_res.header.stamp = rospy.Time(0)
             pose_res.start_point.x = 0.75
@@ -220,12 +208,14 @@ class TabletopExecutive:
             else:
                 pose_res.start_point.y = -0.15
             pose_res.start_point.z = -0.25
-        elif overhead:
+        elif opt == 2:
             pose_res.header.frame_id = '/torso_lift_link'
             pose_res.header.stamp = rospy.Time(0)
             pose_res.start_point.x = 0.7
             pose_res.start_point.y = 0.0
             pose_res.start_point.z = -0.25
+            pose_res.push_dist = 0.15
+            pose_res.push_angle = 0.75*pi
         return pose_res
 
     def initialize_push_pose(self):
@@ -364,7 +354,38 @@ class TabletopExecutive:
         rospy.loginfo("Calling post overhead push service")
         post_push_res = self.overhead_post_push_proxy(push_req)
 
+    def overhead_pull_object(self, push_dist, which_arm, pose_res):
+        # Convert pose response to correct push request format
+        push_req = GripperPushRequest()
+        push_req.start_point.header = pose_res.header
+        push_req.start_point.point = pose_res.start_point
+        push_req.arm_init = True
+        push_req.arm_reset = True
+
+        wrist_yaw = pose_res.push_angle
+        # Correctly set the wrist yaw
+        while wrist_yaw < -pi*0.5:
+            wrist_yaw += pi
+        while wrist_yaw > pi*0.5:
+            wrist_yaw -= pi
+        push_req.wrist_yaw = wrist_yaw
+        push_req.desired_push_dist = push_dist
+
+        # Offset pose to not hit the object immediately
+        push_req.start_point.point.x += self.overhead_x_offset*cos(wrist_yaw)
+        push_req.start_point.point.y += self.overhead_x_offset*sin(wrist_yaw)
+        push_req.start_point.point.z = self.overhead_start_z
+        push_req.left_arm = (which_arm == 'l')
+        push_req.right_arm = not push_req.left_arm
+
+        rospy.loginfo("Calling pre overhead pull service")
+        pre_push_res = self.overhead_pre_pull_proxy(push_req)
+        rospy.loginfo("Calling overhead pull service")
+        push_res = self.overhead_pull_proxy(push_req)
+        rospy.loginfo("Calling post overhead pull service")
+        post_push_res = self.overhead_post_pull_proxy(push_req)
+
 if __name__ == '__main__':
     node = TabletopExecutive(False)
     #node.run(30)
-    node.run(300)
+    node.run(1)
