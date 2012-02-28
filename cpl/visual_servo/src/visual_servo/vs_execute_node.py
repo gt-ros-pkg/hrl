@@ -46,11 +46,11 @@ class VisualServoExecutionNode:
     def move(self):
         rospy.loginfo('Switching the Arm Controller')
         ctrl_switcher = ControllerSwitcher()
-        ctrl_switcher.carefree_switch('l', '%s_cart', '$(find visual_servo)/params/cart_param.yaml')
+        ctrl_switcher.carefree_switch('r', '%s_cart', '$(find visual_servo)/params/rmc_cartTwist_params.yaml')
         rospy.sleep(0.5)
 
         rospy.loginfo('Creating the Publisher')
-        pub = rospy.Publisher('l_cart/command', Twist)
+        pub = rospy.Publisher('r_cart/command', Twist)
 
         rospy.loginfo('Waiting for Visual Servo Node Service')
         rospy.wait_for_service('visual_servo_twist')
@@ -74,9 +74,10 @@ class VisualServoExecutionNode:
                 pose.linear.z = resp.vz
                 pose.angular.x = resp.wx
                 pose.angular.y = resp.wy
-                pose.angular.z = resp.wz       
+                pose.angular.z = resp.wz
+		rospy.loginfo("[%s, %s, %s, %s, %s, %s]", resp.vx, resp.vy, resp.vz, resp.wx, resp.wy, resp.wz) 
                 pub.publish(pose)
-                rospy.sleep(1.0) 
+                rospy.sleep(2.0) 
             except rospy.ServiceException, e:
                 print "Service Call Failed: %s"%e
 

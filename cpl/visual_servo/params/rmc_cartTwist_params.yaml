@@ -3,12 +3,12 @@ r_cart:
    root_name: torso_lift_link
    tip_name: r_gripper_tool_frame
    fb_trans:
-     p: 20.0
+     p: 5.0
      i: 0.5
      d: 0.0
      i_clamp: 1.0
    fb_rot:
-     p: 0.5
+     p: 0.3
      i: 0.1
      d: 0.0
      i_clamp: 0.2
