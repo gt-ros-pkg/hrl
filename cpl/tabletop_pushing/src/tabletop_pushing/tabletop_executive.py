@@ -82,6 +82,8 @@ class TabletopExecutive:
                                                      0.6)
         self.use_sweep_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
                                                      pi*0.375)
+        self.use_pull_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
+                                                     pi*0.5)
         # Setup service proxies
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
@@ -124,7 +126,6 @@ class TabletopExecutive:
         # NOTE: Should exit before reaching num_pushes, this is just a backup
         for i in xrange(num_pushes):
             pose_res = self.request_singulation_push(use_guided)
-            # pose_res = self.request_fake_singulation_push(use_guided)
             # raw_input('Hit any key to continue')
             # continue
             if pose_res is None:
@@ -139,7 +140,9 @@ class TabletopExecutive:
                           ', ' + str(pose_res.start_point.z) + ')')
             rospy.loginfo('Push angle: ' + str(pose_res.push_angle))
             rospy.loginfo('Push dist: ' + str(pose_res.push_dist))
-            if pose_res.start_point.x < self.use_overhead_x_thresh:
+            if fabs(pose_res.push_angle) > self.use_pull_angle_thresh:
+                opt = 3
+            elif pose_res.start_point.x < self.use_overhead_x_thresh:
                 opt = 2
             elif fabs(pose_res.push_angle) > self.use_sweep_angle_thresh:
                 opt = 1
@@ -150,7 +153,6 @@ class TabletopExecutive:
             else:
                 which_arm = 'l'
 
-            # opt = 3
             push_dist = pose_res.push_dist
             push_dist = max(min(push_dist, self.max_push_dist),
                             self.min_push_dist)
@@ -175,7 +177,6 @@ class TabletopExecutive:
             return request_fake_singulation_push(which_arm)
         pose_req = PushPoseRequest()
         pose_req.use_guided = use_guided
-        pose_req.push_dist = self.default_push_dist
         pose_req.initialize = False
         pose_req.no_push_calc = False
         rospy.loginfo("Calling push pose service")
@@ -387,5 +388,4 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(False)
-    #node.run(30)
-    node.run(1)
+    node.run(30)

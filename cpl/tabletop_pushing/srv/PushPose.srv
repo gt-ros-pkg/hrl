@@ -1,5 +1,4 @@
 bool use_guided
-float64 push_dist
 bool initialize
 bool no_push_calc
 ---

@@ -852,16 +852,16 @@ class PushOpt
     return push;
   }
 
-  XYZPointCloud pushPointCloud()
+  XYZPointCloud pushPointCloud(XYZPointCloud& cloud_in)
   {
     XYZPointCloud cloud_out;
-    cloud_out.header = obj.cloud.header;
-    cloud_out.resize(obj.cloud.size());
+    cloud_out.header = cloud_in.header;
+    cloud_out.resize(cloud_in.size());
     const double delta_x = push_unit_vec[0]*push_dist;
     const double delta_y = push_unit_vec[1]*push_dist;
-    for (unsigned int i = 0; i < obj.cloud.size(); ++i)
+    for (unsigned int i = 0; i < cloud_in.size(); ++i)
     {
-      cloud_out.at(i) = obj.cloud.at(i);
+      cloud_out.at(i) = cloud_in.at(i);
       cloud_out.at(i).x += delta_x;
       cloud_out.at(i).y += delta_y;
     }
@@ -1881,7 +1881,6 @@ class ObjectSingulation
     }
     if (push_opts[0].will_collide)
     {
-      // int idx = pushCollidesWithWhat(push_opts[0], objs);
       ROS_WARN_STREAM("Chosen PushOpt collides with another object.");
     }
     if (push_opts[0].start_leaves)
@@ -2326,13 +2325,6 @@ class ObjectSingulation
         boundary.splits[1].centroid);
     for (unsigned int i = 0; i < split_opts.size(); ++i)
     {
-      if (split_opts[i].push_angle < min_push_angle_ ||
-          split_opts[i].push_angle > max_push_angle_)
-      {
-        split_opts[i].bad_angle = true;
-        continue;
-      }
-
       if (split_opts[i].split_id == 0 && s0_int.size() > 0)
       {
         split_opts[i].start_point = determineStartPoint(s0_int, split_opts[i]);
@@ -2404,7 +2396,7 @@ class ObjectSingulation
   bool pushCollidesWithObject(PushOpt& po, ProtoObjects& objs)
   {
     // transform point cloud for po.object_idx
-    XYZPointCloud moved = po.pushPointCloud();
+    XYZPointCloud moved = po.pushPointCloud(objs[po.object_idx].cloud);
     // check if transformed point cloud intersects with any other object
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
@@ -2432,7 +2424,7 @@ class ObjectSingulation
   int pushCollidesWithWhat(PushOpt& po, ProtoObjects& objs)
   {
     // transform point cloud for po.object_idx
-    XYZPointCloud moved = po.pushPointCloud();
+    XYZPointCloud moved = po.pushPointCloud(objs[po.object_idx].cloud);
     // check if transformed point cloud intersects with any other object
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
@@ -2500,7 +2492,6 @@ class ObjectSingulation
     unsigned int max_idx = pts.size();
     float min_y = FLT_MAX;
     float max_y = -FLT_MAX;
-    // TODO: Might want to care about y if angle is close to zero
     for (unsigned int i = 0; i < pts.size(); ++i)
     {
       if (pts.at(i).y < min_y)
