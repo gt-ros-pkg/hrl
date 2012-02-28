@@ -45,16 +45,26 @@ from tabletop_pushing.msg import *
 from math import sin, cos, pi, fabs
 import sys
 
+GRIPPER_PUSH = 0
+GRIPPER_SWEEP = 1
+OVERHEAD_PUSH = 2
+OVERHEAD_PULL = 3
+
 class TabletopExecutive:
 
     def __init__(self, use_fake_push_pose=False):
         rospy.init_node('tabletop_executive_node',log_level=rospy.DEBUG)
-        self.use_returned_dist = rospy.get_param('~use_returned_push_dist',
-                                                 True)
-        self.default_push_dist = rospy.get_param('~push_dist', 0.20)
         # TODO: Determine workspace limits for max here
         self.min_push_dist = rospy.get_param('~min_push_dist', 0.07)
         self.max_push_dist = rospy.get_param('~mix_push_dist', 0.3)
+        self.use_overhead_x_thresh = rospy.get_param('~use_overhead_x_thresh',
+                                                     0.6)
+        self.use_sweep_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
+                                                     pi*0.375)
+        self.use_pull_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
+                                                     pi*0.5)
+        self.use_same_side_y_thresh = rospy.get_param('~use_same_side_y_thresh',
+                                                     0.3)
 
         # TODO: Replace these parameters with learned / perceived values
         # The offsets should be removed and learned implicitly
@@ -78,12 +88,6 @@ class TabletopExecutive:
                                                  0.00)
         self.overhead_start_z = rospy.get_param('~overhead_push_start_z',
                                                  -0.25)
-        self.use_overhead_x_thresh = rospy.get_param('~use_overhead_x_thresh',
-                                                     0.6)
-        self.use_sweep_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
-                                                     pi*0.375)
-        self.use_pull_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
-                                                     pi*0.5)
         # Setup service proxies
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
@@ -140,30 +144,46 @@ class TabletopExecutive:
                           ', ' + str(pose_res.start_point.z) + ')')
             rospy.loginfo('Push angle: ' + str(pose_res.push_angle))
             rospy.loginfo('Push dist: ' + str(pose_res.push_dist))
+
+            # TODO: Make this a function
+            # Choose push behavior
             if fabs(pose_res.push_angle) > self.use_pull_angle_thresh:
-                opt = 3
+                push_opt = OVERHEAD_PULL
             elif pose_res.start_point.x < self.use_overhead_x_thresh:
-                opt = 2
+                push_opt = OVERHEAD_PUSH
             elif fabs(pose_res.push_angle) > self.use_sweep_angle_thresh:
-                opt = 1
+                push_opt = GRIPPER_SWEEP
             else:
-                opt = 0
-            if pose_res.push_angle > 0:
+                push_opt = GRIPPER_PUSH
+
+            # TODO: Make this a function
+            # Choose arm
+            if fabs(pose_res.start_point.y) > self.use_same_side_y_thresh:
+                if (pose_res.start_point.y < 0):
+                    which_arm = 'r'
+                    rospy.loginfo('Setting arm to right because of far right pose')
+                else:
+                    which_arm = 'l'
+                    rospy.loginfo('Setting arm to left because of far right pose')
+            elif pose_res.push_angle > 0:
                 which_arm = 'r'
+                rospy.loginfo('Setting arm to right because of angle')
             else:
                 which_arm = 'l'
+                rospy.loginfo('Setting arm to left because of angle')
 
             push_dist = pose_res.push_dist
             push_dist = max(min(push_dist, self.max_push_dist),
                             self.min_push_dist)
-            if opt == 0:
+            if push_opt == GRIPPER_PUSH:
                 self.gripper_push_object(push_dist, which_arm, pose_res)
-            if opt == 1:
+            if push_opt == GRIPPER_SWEEP:
                 self.sweep_object(push_dist, which_arm, pose_res)
-            if opt == 2:
+            if push_opt == OVERHEAD_PUSH:
                 self.overhead_push_object(push_dist, which_arm, pose_res)
-            if opt == 3:
+            if push_opt == OVERHEAD_PULL:
                 self.overhead_pull_object(push_dist, which_arm, pose_res)
+            rospy.loginfo('Done performing push behavior.\n')
 
         if not (pose_res is None):
             rospy.loginfo('Singulated objects: ' + str(pose_res.singulated))
@@ -189,8 +209,8 @@ class TabletopExecutive:
 
     def request_fake_singulation_push(self, which_arm):
         pose_res = PushPoseResponse()
-        opt = 2
-        if opt == 0:
+        push_opt = GRIPPER_PUSH
+        if push_opt == GRIPPER_PUSH:
             pose_res = PushPoseResponse()
             pose_res.start_point.x = 0.5
             pose_res.header.frame_id = '/torso_lift_link'
@@ -200,7 +220,7 @@ class TabletopExecutive:
             else:
                 pose_res.start_point.y = -0.3 + self.push_count*0.15
             pose_res.start_point.z = -0.22
-        elif opt == 1:
+        elif push_opt == GRIPPER_SWEEP:
             pose_res.header.frame_id = '/torso_lift_link'
             pose_res.header.stamp = rospy.Time(0)
             pose_res.start_point.x = 0.75
@@ -209,7 +229,7 @@ class TabletopExecutive:
             else:
                 pose_res.start_point.y = -0.15
             pose_res.start_point.z = -0.25
-        elif opt == 2:
+        elif push_opt == OVERHEAD_PUSH:
             pose_res.header.frame_id = '/torso_lift_link'
             pose_res.header.stamp = rospy.Time(0)
             pose_res.start_point.x = 0.7
@@ -298,10 +318,11 @@ class TabletopExecutive:
         sweep_req.left_arm = (which_arm == 'l')
         sweep_req.right_arm = not sweep_req.left_arm
 
-        if sweep_req.left_arm:
-            y_offset_dir = +1
-        else:
+        # if sweep_req.left_arm:
+        if pose_res.push_angle > 0:
             y_offset_dir = -1
+        else:
+            y_offset_dir = +1
 
         # Correctly set the wrist yaw
         if pose_res.push_angle > 0.0:
