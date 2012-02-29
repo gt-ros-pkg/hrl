@@ -58,11 +58,11 @@ class TabletopExecutive:
         self.min_push_dist = rospy.get_param('~min_push_dist', 0.07)
         self.max_push_dist = rospy.get_param('~mix_push_dist', 0.3)
         self.use_overhead_x_thresh = rospy.get_param('~use_overhead_x_thresh',
-                                                     0.6)
+                                                     0.55)
         self.use_sweep_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
                                                      pi*0.375)
         self.use_pull_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
-                                                     pi*0.6)
+                                                     pi*0.75)
         self.use_same_side_y_thresh = rospy.get_param('~use_same_side_y_thresh',
                                                      0.3)
         self.use_same_side_x_thresh = rospy.get_param('~use_same_side_x_thresh',
