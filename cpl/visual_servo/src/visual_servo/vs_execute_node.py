@@ -43,47 +43,51 @@ from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from visual_servo.srv import *
 
 class VisualServoExecutionNode:
-    def move(self):
-        rospy.loginfo('Switching the Arm Controller')
-        ctrl_switcher = ControllerSwitcher()
-        ctrl_switcher.carefree_switch('r', '%s_cart', '$(find visual_servo)/params/rmc_cartTwist_params.yaml')
-        rospy.sleep(0.5)
+		def move(self):
+				rospy.loginfo('Switching the Arm Controller')
+				ctrl_switcher = ControllerSwitcher()
+				ctrl_switcher.carefree_switch('r', '%s_cart', '$(find visual_servo)/params/rmc_cartTwist_params.yaml')
+				rospy.sleep(0.5)
 
-        rospy.loginfo('Creating the Publisher')
-        pub = rospy.Publisher('r_cart/command', Twist)
+				rospy.loginfo('Creating the Publisher')
+				pub = rospy.Publisher('r_cart/command', Twist)
 
-        rospy.loginfo('Waiting for Visual Servo Node Service')
-        rospy.wait_for_service('visual_servo_twist')
-        
-        rospy.loginfo('Hooking up Service Proxy to the Visual Servo Twist')
-        service = rospy.ServiceProxy('visual_servo_twist', VisualServoTwist)
-             
+				rospy.loginfo('Waiting for Visual Servo Node Service')
+				rospy.wait_for_service('visual_servo_twist')
 
-        pose = Twist()
-        pose.linear.x = 0.1
-        pose.linear.y = -0.2
-        pose.linear.z = 0.0
-        pose.angular.x = 0.0
-        pose.angular.y = 0.0
-        pose.angular.z = 0.0
-        while not rospy.is_shutdown():
-            try:
-                resp = service()
-                pose.linear.x = resp.vx
-                pose.linear.y = resp.vy
-                pose.linear.z = resp.vz
-                pose.angular.x = resp.wx
-                pose.angular.y = resp.wy
-                pose.angular.z = resp.wz
-		rospy.loginfo("[%s, %s, %s, %s, %s, %s]", resp.vx, resp.vy, resp.vz, resp.wx, resp.wy, resp.wz) 
-                pub.publish(pose)
-                rospy.sleep(2.0) 
-            except rospy.ServiceException, e:
-                print "Service Call Failed: %s"%e
+				rospy.loginfo('Hooking up Service Proxy to the Visual Servo Twist')
+				service = rospy.ServiceProxy('visual_servo_twist', VisualServoTwist)
+
+				pose = Twist()
+				pose.linear.x = 0.1
+				pose.linear.y = -0.2
+				pose.linear.z = 0.0
+				pose.angular.x = 0.0
+				pose.angular.y = 0.0
+				pose.angular.z = 0.0
+
+				rospy.loginfo("Moving to initial position") 
+ 				pub.publish(pose)
+				rospy.sleep(2.0) 
+
+				while not rospy.is_shutdown():
+						try:
+								resp = service()
+								pose.linear.x = resp.vx
+								pose.linear.y = resp.vy
+								pose.linear.z = resp.vz
+								pose.angular.x = resp.wx
+								pose.angular.y = resp.wy
+								pose.angular.z = resp.wz
+ 								rospy.loginfo(pose)
+								pub.publish(pose)
+								rospy.sleep(2.0) 
+						except rospy.ServiceException, e: 
+							print "Service Call Failed: %s"%e
 
 if __name__ == '__main__':
-    try:
-        rospy.init_node('vs_execute_node', log_level=rospy.DEBUG)
-        node = VisualServoExecutionNode()
-        node.move()
-    except rospy.ROSInterruptException: pass
+	try:
+		rospy.init_node('vs_execute_node', log_level=rospy.DEBUG)
+		node = VisualServoExecutionNode()
+		node.move()
+	except rospy.ROSInterruptException: pass
