@@ -4,12 +4,12 @@
     <remap from="depth_image_topic" to="/kinect_head/depth/image"/>
     <remap from="point_cloud_topic" to="/kinect_head/depth/points"/>
 
-    <param name="use_displays" value="false" type="bool"/>
+    <param name="use_displays" value="true" type="bool"/>
     <param name="display_wait_ms" value="3" type="int"/>
-    <param name="autostart_pcl_segmentation" value="true" type="bool"/>
+    <param name="autostart_pcl_segmentation" value="false" type="bool"/>
     <param name="use_guided_pushes" value="true" type="bool"/>
     <param name="write_to_disk" value="true" type="bool"/>
-    <param name="write_input_to_disk" value="false" type="bool"/>
+    <param name="write_input_to_disk" value="true" type="bool"/>
 
     <param name="crop_min_x" value="22" type="int"/>
     <param name="crop_max_x" value="593" type="int"/>
@@ -40,10 +40,10 @@
 
     <param name="min_table_z" value="-1.0" type="double"/>
     <param name="max_table_z" value="1.0" type="double"/>
-    <param name="min_pushing_y" value="-0.4" type="double"/>
-    <param name="max_pushing_y" value="0.4" type="double"/>
+    <param name="min_pushing_y" value="-0.35" type="double"/>
+    <param name="max_pushing_y" value="0.35" type="double"/>
     <param name="min_pushing_x" value="0.2" type="double"/>
-    <param name="max_pushing_x" value="0.9" type="double"/>
+    <param name="max_pushing_x" value="0.825" type="double"/>
     <!-- <param name="min_pushing_angle" value="-1.885" type="double"/> -->
     <!-- <param name="max_pushing_angle" value="1.885" type="double"/> -->
     <param name="min_push_dist" value="0.07" type="double"/>
