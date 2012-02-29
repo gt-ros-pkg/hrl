@@ -194,8 +194,6 @@ class TabletopExecutive:
 
         if not (pose_res is None):
             rospy.loginfo('Singulated objects: ' + str(pose_res.singulated))
-        pose_res = self.get_num_objs()
-        if not (pose_res is None):
             rospy.loginfo('Final estimate of: ' + str(pose_res.num_objects) +
                           ' objects')
 
@@ -253,15 +251,6 @@ class TabletopExecutive:
         pose_req.no_push_calc = False
         rospy.loginfo('Initializing push pose service.')
         self.push_pose_proxy(pose_req)
-
-    def get_num_objs(self):
-        pose_req = PushPoseRequest()
-        pose_req.initialize = False
-        pose_req.use_guided = True
-        pose_req.no_push_calc = True
-        rospy.loginfo('Calling push pose service with no_push_calc.')
-        pose_res = self.push_pose_proxy(pose_req)
-        return pose_res
 
     def raise_and_look(self):
         table_req = LocateTableRequest()

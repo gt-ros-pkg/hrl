@@ -1684,7 +1684,6 @@ class ObjectSingulation
         {
           ROS_INFO_STREAM("Prev moved obj: " << prev_objs[i].id  << ", " << i
                           << " maps to cur " << min_idx << " : " << min_score);
-          // ROS_INFO_STREAM("Matched transform is: " << min_transform);
           if (matched[min_idx])
           {
             file_out << "matched old with score of: " << min_score << std::endl;
@@ -1827,8 +1826,6 @@ class ObjectSingulation
         {
           continue;
         }
-        float push_angle = getWorldFrameAngleFromObjFrame(
-            boundaries[b].ort, objs[boundaries[b].object_idx].transform);
         PushOpts split_opts = generatePushOpts(boundaries[b]);
         evaluatePushOpts(split_opts, boundaries[b], objs);
         for (unsigned int s = 0; s < split_opts.size(); ++s)
@@ -2092,65 +2089,33 @@ class ObjectSingulation
     }
   }
 
-  int getObjFrameAngleFromWorldFrame(float theta, Eigen::Matrix4f& t)
-  {
-    // Get vector from push_angle [cos(theta), sin(theta), 0, 1]
-    Eigen::Vector4f x(std::cos(theta), std::sin(theta), 0.0f, 1.0f);
-    // apply transform;
-    Eigen::Vector4f y = t.transpose()*x;
-    // Extract angle
-    float angle = std::atan2(y[1], y[0]);
-    return angle;
-  }
-
-  float getWorldFrameAngleFromObjFrame(float theta, Eigen::Matrix4f& t)
-  {
-    Eigen::Vector4f x(std::cos(theta), std::sin(theta), 0.0f, 1.0f);
-    // apply transform;
-    Eigen::Vector4f y = t*x;
-    // Extract angle
-    float angle = std::atan2(y[1], y[0]);
-    return angle;
-  }
-
-  int getObjFrameIndexFromWorldAngle(float theta_world, Eigen::Matrix4f& t)
-  {
-    float angle = getObjFrameAngleFromWorldFrame(theta_world, t);
-    return quantizeAngle(angle);
-  }
-
-  int getObjFrameBoundaryOrientationIndex(Boundary& b, Eigen::Matrix4f& t)
-  {
-    float angle = getObjFrameBoundaryOrientation(b, t);
-    return quantizeAngle(angle);
-  }
-
   float getObjFrameBoundaryOrientation(Boundary& b, Eigen::Matrix4f& t)
   {
-    Eigen::Vector3f b_vect3 = getRANSACXYVector(b);
-
-    // Rotate based on object transform history
-    Eigen::Vector4f b_vect(b_vect3[0], b_vect3[1], b_vect3[2], 1.0f);
-    Eigen::Vector4f b_vect_obj = t.transpose()*b_vect;
-
+    Eigen::Matrix3f rot = t.block<3,3>(0,0);
+    Eigen::Vector3f b_vect_obj = rot.transpose()*b.push_dir;
     float angle = std::atan2(b_vect_obj[1], b_vect_obj[0]);
 
-    return subPiAngle(angle);
+    return angle;
+  }
+
+  float getObjFrameAngleFromWorldFrame(float theta, Eigen::Matrix4f& t)
+  {
+    // Rotate based on object transform history
+    Eigen::Vector3f b_vect(cos(theta), sin(theta), 0.0f);
+    Eigen::Matrix3f rot = t.block<3,3>(0,0);
+    Eigen::Vector3f b_vect_obj = rot.transpose()*b_vect;
+    float angle = std::atan2(b_vect_obj[1], b_vect_obj[0]);
+    return angle;
   }
 
   int quantizeAngle(float angle)
   {
-    if (angle < -M_PI/2.0 || angle > M_PI/2.0)
-    {
-      ROS_WARN_STREAM("Quantizing angle: " << angle << " outside of range");
-      angle = subPiAngle(angle);
-      ROS_WARN_STREAM("Converted to: " << angle);
-    }
+    angle = subHalfPiAngle(angle);
     int bin = static_cast<int>(((angle + M_PI/2.0)/M_PI)*num_angle_bins_);
     return std::max(std::min(bin, num_angle_bins_-1), 0);
   }
 
-  float subPiAngle(float angle)
+  float subHalfPiAngle(float angle)
   {
     // NOTE: All angles should be between -pi/2 and pi/2 (only want gradient)
     while ( angle < -M_PI/2 )
@@ -2270,7 +2235,8 @@ class ObjectSingulation
   PushOpts generatePushOpts(Boundary& boundary)
   {
     const unsigned int bin = quantizeAngle(boundary.ort);
-    double push_dist = std::min(std::max(boundary.xyLength3D, min_push_dist_),
+    double push_dist = std::min(std::max(boundary.xyLength3D+
+                                         push_dist_inflation_, min_push_dist_),
                                 max_push_dist_);
     double push_angle_pos = 0.0;
     double push_angle_neg = 0.0;
@@ -2512,8 +2478,8 @@ class ObjectSingulation
     }
 
     geometry_msgs::Point p;
-    // NOTE: greater than 0 implies right arm, pushing to the left, want right
-    // extreme, means min y value
+    // NOTE: greater than 0 implies pushing to the left, want right extreme,
+    // hence min y value
     if (opt.push_angle > 0)
     {
       p.x = pts.at(min_idx).x;
@@ -2529,7 +2495,8 @@ class ObjectSingulation
     // HACK: This should be made explicit that we are chaning this inside this
     // method but I don't want to refactor right now.
     double push_dist2 = std::sqrt(pcl_segmenter_->sqrDistXY(pts.at(max_idx),
-                                                            pts.at(min_idx)));
+                                                            pts.at(min_idx)))+
+        push_dist_inflation_;
     // Clip push dist
     push_dist2 = std::min(std::max(push_dist2, min_push_dist_), max_push_dist_);
 
@@ -2799,18 +2766,23 @@ class ObjectSingulation
     cv::Scalar red(0.0, 0.0, 1.0);
     cv::Scalar cyan(1.0, 1.0, 0.0);
 
-    const Eigen::Vector4f x_axis(0.1, 0.0, 0.0, 1.0);
-    const Eigen::Vector4f y_axis(0.0, 0.1, 0.0, 1.0);
-    const Eigen::Vector4f z_axis(0.0, 0.0, 0.1, 1.0);
+    const Eigen::Vector3f x_axis(0.1, 0.0, 0.0);
+    const Eigen::Vector3f y_axis(0.0, 0.1, 0.0);
+    const Eigen::Vector3f z_axis(0.0, 0.0, 0.1);
+
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
+      Eigen::Matrix3f rot = objs[i].transform.block<3,3>(0,0);
+      Eigen::Vector3f trans = objs[i].transform.block<3,1>(0,3);
+
       // Transform axises into current frame
-      Eigen::Vector4f x_t = objs[i].transform.transpose()*x_axis;
+      Eigen::Vector3f x_t = rot*x_axis;
+      Eigen::Vector3f y_t = rot*y_axis;
+      Eigen::Vector3f z_t = rot*z_axis;
       x_t /= x_t.norm();
-      Eigen::Vector4f y_t = objs[i].transform.transpose()*y_axis;
       y_t /= y_t.norm();
-      Eigen::Vector4f z_t = objs[i].transform.transpose()*z_axis;
       z_t /= z_t.norm();
+
       // Project axises into image
       PointStamped start_point;
       start_point.point.x = objs[i].centroid[0];
@@ -2819,21 +2791,21 @@ class ObjectSingulation
       start_point.header.frame_id = workspace_frame_;
 
       PointStamped end_point_x;
-      end_point_x.point.x = start_point.point.x + x_t[0];
-      end_point_x.point.y = start_point.point.y + x_t[1];
-      end_point_x.point.z = start_point.point.z + x_t[2];
+      end_point_x.point.x = start_point.point.x + 0.1*x_t[0];
+      end_point_x.point.y = start_point.point.y + 0.1*x_t[1];
+      end_point_x.point.z = start_point.point.z + 0.1*x_t[2];
       end_point_x.header.frame_id = workspace_frame_;
 
       PointStamped end_point_y;
-      end_point_y.point.x = start_point.point.x + y_t[0];
-      end_point_y.point.y = start_point.point.y + y_t[1];
-      end_point_y.point.z = start_point.point.z + y_t[2];
+      end_point_y.point.x = start_point.point.x + 0.1*y_t[0];
+      end_point_y.point.y = start_point.point.y + 0.1*y_t[1];
+      end_point_y.point.z = start_point.point.z + 0.1*y_t[2];
       end_point_y.header.frame_id = workspace_frame_;
 
       PointStamped end_point_z;
-      end_point_z.point.x = start_point.point.x + z_t[0];
-      end_point_z.point.y = start_point.point.y + z_t[1];
-      end_point_z.point.z = start_point.point.z + z_t[2];
+      end_point_z.point.x = start_point.point.x + 0.1*z_t[0];
+      end_point_z.point.y = start_point.point.y + 0.1*z_t[1];
+      end_point_z.point.z = start_point.point.z + 0.1*z_t[2];
       end_point_z.header.frame_id = workspace_frame_;
 
       cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
@@ -2897,7 +2869,8 @@ class ObjectSingulation
 
     cv::Mat disp_img_hist;
     disp_img.copyTo(disp_img_hist);
-    const Eigen::Vector4f x_axis(0.1, 0.0, 0.0, 1.0);
+    // const Eigen::Vector4f x_axis(0.1, 0.0, 0.0, 1.0);
+    const Eigen::Vector3f x_axis(0.1, 0.0, 0.0);
     // const int w = 5;
     // const int h = 30;
     const int w = histogram_bin_width_;
@@ -2909,10 +2882,12 @@ class ObjectSingulation
     const cv::Scalar highlight_color(0.7, 0.0, 0.0);
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
-      const Eigen::Vector4f x_t = objs[i].transform.transpose()*x_axis;
+      // const Eigen::Vector4f x_t = objs[i].transform.transpose()*x_axis;
+      Eigen::Matrix3f rot = objs[i].transform.block<3,3>(0,0);
+      Eigen::Vector3f trans = objs[i].transform.block<3,1>(0,3);
+      const Eigen::Vector3f x_t = rot*x_axis;
       // NOTE: In degrees!
       const float start_angle = (-atan2(x_t[1], x_t[0])+ M_PI)*180.0/M_PI;
-      // ROS_INFO_STREAM("Start angle is: " << start_angle);
       // Get the locations from object centroids
       PointStamped center3D;
       center3D.point.x = objs[i].centroid[0];
