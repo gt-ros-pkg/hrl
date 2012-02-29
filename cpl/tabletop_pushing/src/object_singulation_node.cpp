@@ -134,8 +134,8 @@ typedef pcl::KdTree<pcl::PointXYZ>::Ptr KdTreePtr;
 typedef PushPose::Response PushVector;
 using boost::shared_ptr;
 
-class ProtoTabletopObject;
-typedef std::deque<ProtoTabletopObject> ProtoObjects;
+class ProtoObject;
+typedef std::deque<ProtoObject> ProtoObjects;
 
 class Boundary : public std::vector<cv::Point>
 {
@@ -151,7 +151,7 @@ class Boundary : public std::vector<cv::Point>
   ProtoObjects splits;
 };
 
-class ProtoTabletopObject
+class ProtoObject
 {
  public:
   XYZPointCloud cloud;
@@ -376,7 +376,7 @@ class PointCloudSegmentation
     for (unsigned int i = 0; i < clusters.size(); ++i)
     {
       // Create proto objects from the point cloud
-      ProtoTabletopObject po;
+      ProtoObject po;
       po.push_history.clear();
       po.boundary_angle_dist.clear();
       pcl::copyPointCloud(objects_cloud, clusters[i], po.cloud);
@@ -398,7 +398,7 @@ class PointCloudSegmentation
    *
    * @return The ICP fitness score of the match
    */
-  double ICPProtoObjects(ProtoTabletopObject& a, ProtoTabletopObject& b,
+  double ICPProtoObjects(ProtoObject& a, ProtoObject& b,
                          Eigen::Matrix4f& transform)
   {
     // TODO: Investigate this!
@@ -566,7 +566,7 @@ class PointCloudSegmentation
     for (unsigned int i = 0; i < cloud.size(); ++i)
     {
       const pcl::PointXYZ pt_c = cloud.at(i);
-        if (dist(pt_c, pt) < thresh) return true;
+      if (dist(pt_c, pt) < thresh) return true;
     }
     return false;
   }
@@ -818,7 +818,7 @@ class PointCloudSegmentation
 class PushOpt
 {
  public:
-  PushOpt(ProtoTabletopObject& _obj, double _push_angle,
+  PushOpt(ProtoObject& _obj, double _push_angle,
           Eigen::Vector3f _push_vec, unsigned int _obj_idx,
           unsigned int _split_id, double _push_dist, double _split_score,
           int bin) :
@@ -946,7 +946,7 @@ class PushOpt
   }
 
   // Members
-  ProtoTabletopObject obj;
+  ProtoObject obj;
   double push_angle;
   Eigen::Vector3f push_unit_vec;
   unsigned int object_idx;
@@ -2308,7 +2308,8 @@ class ObjectSingulation
       split_opts[i].start_collides = startCollidesWithObject(split_opts[i],
                                                              objs);
       split_opts[i].start_leaves = startLeavesWorkspace(split_opts[i]);
-      split_opts[i].will_leave = pushLeavesWorkspace(split_opts[i]);
+      split_opts[i].will_leave = pushLeavesWorkspace(
+          split_opts[i], objs[split_opts[i].object_idx]);
       split_opts[i].will_leave_table = pushLeavesTable(split_opts[i]);
     }
   }
@@ -2417,11 +2418,19 @@ class ObjectSingulation
     return -1;
   }
 
-  bool pushLeavesWorkspace(PushOpt& po)
+  bool pushLeavesWorkspace(PushOpt& po, ProtoObject& obj)
   {
-    Eigen::Vector4f moved = po.getMovedCentroid();
-    return (moved[0] > max_pushing_x_ || moved[0] < min_pushing_x_ ||
-            moved[1] > max_pushing_y_ || moved[1] < min_pushing_y_);
+    XYZPointCloud moved = po.pushPointCloud(obj.cloud);
+    for (unsigned int i = 0; i < moved.size(); ++i)
+    {
+      const pcl::PointXYZ pt = moved.at(i);
+      if  (pt.x > max_pushing_x_ || pt.x < min_pushing_x_ ||
+           pt.y > max_pushing_y_ || pt.y < min_pushing_y_)
+      {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool startLeavesWorkspace(PushOpt& po)
@@ -2507,7 +2516,7 @@ class ObjectSingulation
     return p;
   }
 
-  ProtoObjects splitObject3D(Boundary& boundary, ProtoTabletopObject& to_split,
+  ProtoObjects splitObject3D(Boundary& boundary, ProtoObject& to_split,
                              bool update_boundary=false)
   {
     // Get plane containing the boundary
@@ -2517,7 +2526,7 @@ class ObjectSingulation
   }
 
   ProtoObjects splitObject3D(Eigen::Vector4f& hessian,
-                             ProtoTabletopObject& to_split)
+                             ProtoObject& to_split)
   {
     // Split the point clouds based on the half plane distance test
     pcl::PointIndices p1;
@@ -2533,8 +2542,8 @@ class ObjectSingulation
     }
     // Extract indices
     ProtoObjects split;
-    ProtoTabletopObject po1;
-    ProtoTabletopObject po2;
+    ProtoObject po1;
+    ProtoObject po2;
     pcl::ExtractIndices<pcl::PointXYZ> extract;
     extract.setInputCloud(to_split.cloud.makeShared());
     extract.setIndices(boost::make_shared<pcl::PointIndices>(p1));
