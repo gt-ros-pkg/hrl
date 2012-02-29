@@ -9,8 +9,7 @@ from geometry_msgs.msg import PoseStamped, WrenchStamped
 from assistive_teleop.msg import FtMoveAction, FtMoveFeedback, FtMoveResult
 
 
-class FtMoveServer:
-    
+class FtMoveServer(object):
     def __init__(self):
         self.ft_move_server = actionlib.SimpleActionServer('ft_move_action', FtMoveAction, self.ft_move, False) 
         self.ft_move_server.start()
