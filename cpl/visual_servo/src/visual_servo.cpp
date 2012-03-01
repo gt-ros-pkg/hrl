@@ -109,7 +109,6 @@ class VisualServoNode
       cur_twist_(cv::Mat::zeros(6,1, CV_32F))
   {
     tf_ = shared_ptr<tf::TransformListener>(new tf::TransformListener());
-    // Legacy stuff. Must remove unused ones
     n_private_.param("display_wait_ms", display_wait_ms_, 3);
     std::string default_workspace_frame = "/torso_lift_link";
     n_private_.param("workspace_frame", workspace_frame_, default_workspace_frame);
@@ -128,17 +127,18 @@ class VisualServoNode
     n_private_.param("max_workspace_y", max_workspace_y_, 1.2);
     n_private_.param("max_workspace_z", max_workspace_z_, 0.6);
 
-    // color segmentation specific ones
+    // color segmentation parameters
     n_private_.param("tape_hue_value", tape_hue_value_, 137);
     n_private_.param("tape_hue_threshold", tape_hue_threshold_, 10);
     n_private_.param("default_sat_bot_value", default_sat_bot_value_, 40);
     n_private_.param("default_sat_top_value", default_sat_top_value_, 40);
     n_private_.param("default_val_value", default_val_value_, 200);
-    n_private_.param("velocity_threshold", velocity_clip_threshold, 0.30);
+    n_private_.param("velocity_threshold", velocity_clip_threshold, 0.10);
     n_private_.param("min_contour_size", min_contour_size_, 10.0);
+
     // Setup ros node connections
     sync_.registerCallback(&VisualServoNode::sensorCallback, this);
-
+    // advertise twist service
     twistServer = n_.advertiseService("visual_servo_twist", &VisualServoNode::getTwist, this);
     ROS_DEBUG("Ready to use the getTwist service");
   }
@@ -152,29 +152,30 @@ class VisualServoNode
 
       ROS_DEBUG("Service Request In");
 
-
       /** Main Logic **/
-      // segment color -> find contour -> moments -> reorder to recognize each point -> find error, interaction matrix, & twist
-      cv::Mat tape_mask = colorSegment(cur_color_frame_.clone(), tape_hue_value_, tape_hue_threshold_);
+      // segment color -> find contour -> moments -> 
+      // reorder to recognize each point -> find error, interaction matrix, & twist
+      cv::Mat tape_mask = colorSegment(cur_color_frame_.clone(), tape_hue_value_, 
+                          tape_hue_threshold_);
       std::vector<cv::Moments> ms = findMoments(tape_mask, cur_color_frame_); 
       std::vector<cv::Point> pts = getMomentCoordinates(ms);
-      computeTwist(desired_, cur_color_frame_, cur_depth_frame_, pts);
+      computeTwist(desired_locations_, cur_color_frame_, cur_depth_frame_, pts);
+
 #ifdef DEBUG_MODE
       // put dots on the centroids of wrist
       for (unsigned int i = 0; i < pts.size(); i++) {
         cv::circle(cur_color_frame_, pts.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
       }
       // put dots on the desired location
-      for (unsigned int i = 0; i < desired_.size(); i++) {
-        cv::circle(cur_color_frame_, desired_.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
+      for (unsigned int i = 0; i < desired_locations_.size(); i++) {
+        cv::circle(cur_color_frame_, desired_locations_.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
       }
       cv::imshow("Arm", cur_color_frame_.clone());
-       double depth_max = 1.0;
+      double depth_max = 1.0;
       cv::minMaxLoc(cur_depth_frame_, NULL, &depth_max);
       cv::Mat depth_display = cur_depth_frame_.clone();
       depth_display /= depth_max;
       cv::imshow("input_depth", depth_display);
-
       cv::waitKey(display_wait_ms_);
 #endif
 
@@ -186,7 +187,6 @@ class VisualServoNode
       res.wy = cur_twist_.at<float>(4,0);
       res.wz = cur_twist_.at<float>(5,0);
       return true;
-
     }
 
     /** 
@@ -212,7 +212,6 @@ class VisualServoNode
       // Swap kinect color channel order
       cv::cvtColor(color_frame, color_frame, CV_RGB2BGR);
 
-
       XYZPointCloud cloud; 
       pcl::fromROSMsg(*cloud_msg, cloud);
       tf_->waitForTransform(workspace_frame_, cloud.header.frame_id,
@@ -220,9 +219,6 @@ class VisualServoNode
       pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, *tf_);
       prev_camera_header_ = cur_camera_header_;
       cur_camera_header_ = img_msg->header;
-
-
-  
 
       cv::Mat workspace_mask(color_frame.rows, color_frame.cols, CV_8UC1,
           cv::Scalar(255));
@@ -245,42 +241,45 @@ class VisualServoNode
           }
         }
       }
-      //											cur_color_frame_ = color_frame.copyTo(cur_color_frame_, workspace_mask);
-      //											cur_depth_frame_ = depth_frame.clone();
+      // focus only on the tabletop setting. do not care about anything far or too close
       color_frame.copyTo(cur_color_frame_, workspace_mask);
       cur_orig_color_frame_ = color_frame.clone();
       depth_frame.copyTo(cur_depth_frame_, workspace_mask);
       cur_point_cloud_ = cloud;
+      if (desired_locations_.size() != 3)
+          setDesiredPosition();
+    }   
 
+    void setDesiredPosition() {
+        /** Setting the Desired Location of the wrist **/
+        // Desired location: center of the screen
+        std::vector<cv::Point> desired; desired.clear();
+        pcl::PointXYZ origin = cur_point_cloud_.at(cur_color_frame_.cols/2, cur_color_frame_.rows/2);
+        origin.z += 0.0;
+        pcl::PointXYZ two = origin;
+        pcl::PointXYZ three = origin;
 
-      /** Setting the Desired Location of the wrist **/
-      // Desired location: center of the screen
-      std::vector<cv::Point> desired; desired.clear();
-      pcl::PointXYZ origin = cur_point_cloud_.at(cur_color_frame_.cols/2, cur_color_frame_.rows/2);
-      origin.z += 0.0;
-      pcl::PointXYZ two = origin;
-      pcl::PointXYZ three = origin;
-
-      two.y -= 0.05;  // about 5 centimeter to right
-      three.x -= 0.03; // about 3 centimeter to down
-      cv::Point p0 = projectPointIntoImage(origin, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
-      cv::Point p1, p2;
-      if (p0.x >= 0 && p0.y >= 0) {
-        p1 = projectPointIntoImage(two, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);								
-        p2 = projectPointIntoImage(three, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
-      }
-      else {
-        p0.x = cur_color_frame_.cols/2;
-        p0.y = cur_color_frame_.rows/2;
-        p1 = p0; p2 = p0;
-        p1.y -= 3; // default 3 pixels off
-        p2.x -= 2; // default 2 pixels off
-      }
-      desired.push_back(p0);
-      desired.push_back(p1);
-      desired.push_back(p2);
-      desired_ = desired;
-}   
+        two.y -= 0.05;  // about 5 centimeter to right
+        three.x -= 0.03; // about 3 centimeter to down
+        cv::Point p0 = projectPointIntoImage(origin, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
+        cv::Point p1, p2;
+        if (p0.x >= 0 && p0.y >= 0) {
+            p1 = projectPointIntoImage(two, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);								
+            p2 = projectPointIntoImage(three, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
+        }
+        else {
+            p0.x = cur_color_frame_.cols/2;
+            p0.y = cur_color_frame_.rows/2;
+            p1 = p0; p2 = p0;
+            p1.y -= 3; // default 3 pixels off
+            p2.x -= 2; // default 2 pixels off
+        }
+        desired.push_back(p0);
+        desired.push_back(p1);
+        desired.push_back(p2);
+        desired_locations_ = desired;
+        ROS_INFO("Setting the Desired Point at [%3d,%3d][%3d,%3d][%3d,%3d]", p0.x, p0.y, p1.x, p1.y, p2.x, p2.y); 
+    }
 
     void computeTwist(std::vector<cv::Point> desired,  cv::Mat color_frame, cv::Mat depth_frame, std::vector<cv::Point> pts) {
       if (pts.size() == 3){
@@ -293,7 +292,7 @@ class VisualServoNode
         }
 
         cv::Mat im = getInteractionMatrix(depth_frame, pts);
-        cv::Mat gain = cv::Mat::eye(6,6, CV_32F)*5e-4;
+        cv::Mat gain = cv::Mat::eye(6,6, CV_32F)*1e-4;
         im = im*gain;
         cur_twist_ = im*error_mat;
 
@@ -590,7 +589,7 @@ class VisualServoNode
     double min_contour_size_;
     cv::Mat cur_twist_; 
     ros::ServiceServer twistServer;
-    std::vector<cv::Point> desired_;
+    std::vector<cv::Point> desired_locations_;
     double min_workspace_x_;
     double max_workspace_x_;
     double min_workspace_y_;
