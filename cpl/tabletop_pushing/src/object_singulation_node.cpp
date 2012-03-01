@@ -1420,19 +1420,15 @@ class ObjectSingulation
     ROS_INFO_STREAM("Found " << pushable_obj_idx.size()
                     << " pushable proto objects");
     int rand_idx = pushable_obj_idx[rand() % pushable_obj_idx.size()];
-    ROS_INFO_STREAM("Chose idx: " << rand_idx);
     // Choose a random orientation
     double push_angle = (randf()* (max_push_angle_- min_push_angle_) +
                          min_push_angle_);
-    ROS_INFO_STREAM("Chose angle: " << push_angle);
     double push_dist = 0.0;
     Eigen::Vector3f push_unit_vec(cos(push_angle), sin(push_angle), 0.0f);
-    ROS_INFO_STREAM("Made push_unit_vec");
     p.start_point = determineStartPoint(objs[rand_idx].cloud,
                                         objs[rand_idx].centroid,
                                         push_unit_vec,
                                         push_angle, push_dist);
-    ROS_INFO_STREAM("Got start point");
     p.push_angle = push_angle;
     p.push_dist = push_dist;
     p.num_objects = objs.size();
@@ -2568,7 +2564,6 @@ class ObjectSingulation
                                            double& push_angle,
                                            double& push_dist)
   {
-    ROS_INFO_STREAM("Got to determineStartPoint()");
     XYZPointCloud pts = pcl_segmenter_->lineCloudIntersection(
         obj_cloud, push_unit_vec, centroid);
     unsigned int min_idx = pts.size();
@@ -2588,7 +2583,6 @@ class ObjectSingulation
         max_idx = i;
       }
     }
-
     geometry_msgs::Point p;
     if (pts.size() == 0)
     {
