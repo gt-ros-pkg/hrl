@@ -36,6 +36,7 @@ import rospy
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import TwistStamped
 from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Pose
 import tf
 import tf.transformations as tf_trans
 import sys
@@ -44,8 +45,31 @@ from visual_servo.srv import *
 
 class VisualServoExecutionNode:
 		def move(self):
-				rospy.loginfo('Switching the Arm Controller')
+				rospy.loginfo('Setting to initial pose')
 				ctrl_switcher = ControllerSwitcher()
+# note: more smooth but see some jerking robot_mechanism_controllers/JTCartesianControllers
+				ctrl_switcher.carefree_switch('r', '%s_cart', '$(find hrl_pr2_arms)/params/j_transpose_params_low.yaml')
+
+
+				rospy.sleep(1.0)
+				rospy.loginfo('initializing the test node')
+				pub = rospy.Publisher('r_cart/command_pose', PoseStamped)
+				pose = PoseStamped()
+				pose.header.frame_id = '/torso_lift_link'
+				pose.header.stamp = rospy.Time(0)
+				pose.pose.position.x = 0.7
+				pose.pose.position.y = -0.02
+				pose.pose.position.z = 0.10
+				pose.pose.orientation.x = 0 
+				pose.pose.orientation.y = 0
+				pose.pose.orientation.z = 0.7071
+				pose.pose.orientation.w = 0.7071
+				pub.publish(pose)
+				rospy.sleep(3.0)
+				pub.publish(pose)
+				rospy.sleep(3.0)
+
+				rospy.loginfo('Switching the Arm Controller')
 				ctrl_switcher.carefree_switch('r', '%s_cart', '$(find visual_servo)/params/rmc_cartTwist_params.yaml')
 				rospy.sleep(0.5)
 
@@ -60,19 +84,15 @@ class VisualServoExecutionNode:
 
 				pose = Twist()
 				pose.linear.x = 0.1
-				pose.linear.y = -0.2
+				pose.linear.y = -0.02
 				pose.linear.z = 0.0
 				pose.angular.x = 0.0
 				pose.angular.y = 0.0
 				pose.angular.z = 0.0
 
-				rospy.loginfo("Moving to initial position") 
- 				pub.publish(pose)
-				rospy.sleep(2.0) 
-
 				while not rospy.is_shutdown():
 						try:
-								resp = service()
+								resp = service()							
 								pose.linear.x = resp.vx
 								pose.linear.y = resp.vy
 								pose.linear.z = resp.vz
@@ -81,9 +101,9 @@ class VisualServoExecutionNode:
 								pose.angular.z = resp.wz
  								rospy.loginfo(pose)
 								pub.publish(pose)
-								rospy.sleep(2.0) 
-						except rospy.ServiceException, e: 
-							print "Service Call Failed: %s"%e
+								rospy.sleep(1.0) 
+						except rospy.ServiceException, e: pass 
+							#print "Service Call Failed: %s"%e
 
 if __name__ == '__main__':
 	try:

@@ -72,7 +72,7 @@ class TestNode:
             pose.header.frame_id = '/torso_lift_link'
             pose.header.stamp = rospy.Time(0)
             pose.twist.linear.x = 0
-            pose.twist.linear.y = 0.1
+            pose.twist.linear.y = 0.03
             pose.twist.linear.z = 0.0
             pose.twist.angular.x = 0.0
             pose.twist.angular.y = 0

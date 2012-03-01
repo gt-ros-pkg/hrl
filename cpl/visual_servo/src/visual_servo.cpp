@@ -117,13 +117,15 @@ class VisualServoNode
 								std::string cam_info_topic_def = "/kinect_head/rgb/camera_info";
 								n_private_.param("cam_info_topic", cam_info_topic_, cam_info_topic_def);
 
+											 	
 								// color segmentation specific ones
 								n_private_.param("tape_hue_value", tape_hue_value_, 137);
 								n_private_.param("tape_hue_threshold", tape_hue_threshold_, 10);
 								n_private_.param("default_sat_bot_value", default_sat_bot_value_, 40);
 								n_private_.param("default_sat_top_value", default_sat_top_value_, 40);
 								n_private_.param("default_val_value", default_val_value_, 200);
-								n_private_.param("min_contour_size", min_contour_size_, 100.0);
+								n_private_.param("velocity_threshold", velocity_clip_threshold, 0.30);
+								n_private_.param("min_contour_size", min_contour_size_, 10.0);
 								// Setup ros node connections
 								sync_.registerCallback(&VisualServoNode::sensorCallback, this);
 
@@ -133,9 +135,12 @@ class VisualServoNode
 
 								bool getTwist(VisualServoTwist::Request &req, VisualServoTwist::Response &res)
 								{
+												if (!camera_initialized_)
+												{
+														return false;
+												}
+
 												ROS_DEBUG("Service Request In");
-												ROS_DEBUG("\n************************");
-												//ROS_DEBUG("Desire:\t[%d, %d][%d, %d][%d, %d]", p0.x, p0.y, p1.x, p1.y, p2.x, p2.y);
 
 
 												/** Main Logic **/
@@ -159,8 +164,8 @@ class VisualServoNode
 
 												// XYZ in camera coords and robot control coord are different
 												res.vx = cur_twist_.at<float>(2,0);
-												res.vy = -1*cur_twist_.at<float>(0,0);
-												res.vz = -1*cur_twist_.at<float>(1,0);
+												res.vy = cur_twist_.at<float>(0,0);
+												res.vz = cur_twist_.at<float>(1,0);
 												res.wx = cur_twist_.at<float>(3,0);
 												res.wy = cur_twist_.at<float>(4,0);
 												res.wz = cur_twist_.at<float>(5,0);
@@ -232,12 +237,21 @@ class VisualServoNode
 												desired.push_back(p2);
 												desired_ = desired;
 #ifdef DEBUG_MODE
-
-												// put dots on the desired location
-												for (unsigned int i = 0; i < desired.size(); i++) {
-																cv::circle(cur_color_frame_, desired.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
+	/** Main Logic **/
+												// segment color -> find contour -> moments -> reorder to recognize each point -> find error, interaction matrix, & twist
+												cv::Mat tape_mask = colorSegment(cur_color_frame_.clone(), tape_hue_value_, tape_hue_threshold_);
+												std::vector<cv::Moments> ms = findMoments(tape_mask, cur_color_frame_); 
+												std::vector<cv::Point> pts = getMomentCoordinates(ms);
+												computeTwist(desired_, cur_color_frame_, cur_depth_frame_, pts);
+												// put dots on the centroids of wrist
+												for (unsigned int i = 0; i < pts.size(); i++) {
+																cv::circle(cur_color_frame_, pts.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
 												}
-												cv::imshow("input", cur_color_frame_.clone());
+												// put dots on the desired location
+												for (unsigned int i = 0; i < desired_.size(); i++) {
+																cv::circle(cur_color_frame_, desired_.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
+												}
+												cv::imshow("Arm", cur_color_frame_.clone());
 												cv::waitKey(display_wait_ms_);
 #endif
 								}   
@@ -245,11 +259,11 @@ class VisualServoNode
 								void computeTwist(std::vector<cv::Point> desired,  cv::Mat color_frame, cv::Mat depth_frame, std::vector<cv::Point> pts) {
 												if (pts.size() == 3){
 																// Error = Desired location in image - Current position in image
-																cv::Mat error_mat = cv::Mat::zeros(6,6, CV_32F);
+																cv::Mat error_mat = cv::Mat::zeros(6,1, CV_32F);
 
 																for (int i = 0; i < 3; i++) {
-																				error_mat.at<float>(i,0) 	= pts.at(i).x - desired.at(i).x ; 
-																				error_mat.at<float>(i+1,0)= pts.at(i).y - desired.at(i).y ;
+																				error_mat.at<float>(i*2,0) 	= pts.at(i).x - desired.at(i).x ; 
+																				error_mat.at<float>(i*2+1,0)= pts.at(i).y - desired.at(i).y ;
 																				ROS_DEBUG("ERROR:\t[%d - %d = %+.0f][%d - %d = %+.0f]", desired.at(i).x, pts.at(i).x, error_mat.at<float>(i,0),
 																									desired.at(i).y, pts.at(i).y, error_mat.at<float>(i+1,0));
 																}
@@ -259,26 +273,33 @@ class VisualServoNode
 																ROS_DEBUG("Inverse Interaction Matrix");
 																printMatrix(im);
 #endif
-																cv::Mat gain = cv::Mat::eye(6,6, CV_32F);
+																cv::Mat gain = cv::Mat::eye(6,6, CV_32F)*5e-4;
+																/*
 																gain.at<float>(0,0) = 1e-4;
 																gain.at<float>(1,1) = 1e-4;
 																gain.at<float>(2,2) = 1e-4;
+																*/
 																im = im*gain;
 																cur_twist_ = im*error_mat;
+
+																// twist cannot be larger than clipping threshold
+																// this is a safety measure to prevent robot from breaking
+																for (int i = 0; i < cur_twist_.rows; i++){
+																		if (cur_twist_.at<float>(i,0) > velocity_clip_threshold) cur_twist_.at<float>(i,0) = (float)velocity_clip_threshold;
+																		else if (cur_twist_.at<float>(i,0) < -1*velocity_clip_threshold) cur_twist_.at<float>(i,0) = (float)-1*velocity_clip_threshold;
+																}
 #ifdef DEBUG_MODE
 																ROS_DEBUG("Gain Matrix");
 																printMatrix(gain);
-																ROS_DEBUG("Adjusted Interaction Matrix");
-																printMatrix(im);
-																cv::Mat dst;
-																cv::transpose(cur_twist_(cv::Range(0,6), cv::Range(0,1)), dst);
+																ROS_DEBUG("Error Matrix");
+																printMatrix(error_mat);
 																ROS_DEBUG("Result");
-																printMatrix(dst);
+																printMatrix(cur_twist_);
 #endif
 
 												}
 												else {
-																cur_twist_ = cv::Mat::zeros(6,6,CV_32F);
+																cur_twist_ = cv::Mat::zeros(6,1,CV_32F);
 												}
 								}
 
@@ -548,6 +569,7 @@ class VisualServoNode
 								int default_sat_bot_value_;
 								int default_sat_top_value_;
 								int default_val_value_;
+								double velocity_clip_threshold;
 								double min_contour_size_;
 								cv::Mat cur_twist_; 
 								ros::ServiceServer twistServer;

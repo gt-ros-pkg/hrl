@@ -64,13 +64,13 @@ class TestNode:
             pose = PoseStamped()
             pose.header.frame_id = '/torso_lift_link'
             pose.header.stamp = rospy.Time(0)
-            pose.pose.position.x = 0.3
+            pose.pose.position.x = 0.1
             pose.pose.position.y = -0.2
-            pose.pose.position.z = -0.20
-            pose.pose.orientation.x = 0.7071
-            pose.pose.orientation.y = 0 
-            pose.pose.orientation.z = 0 
-            pose.pose.orientation.w = 0.7071 
+            pose.pose.position.z = -0.2
+            pose.pose.orientation.x = 0.5
+            pose.pose.orientation.y = 0.5
+            pose.pose.orientation.z = 0.5
+            pose.pose.orientation.w = 0.5 
             while not rospy.is_shutdown():
                 pose.pose.position.x = pose.pose.position.x + 0.025
             	rospy.loginfo('Publishing following message: %s'%pose)
