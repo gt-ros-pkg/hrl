@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import math
 import decimal
@@ -13,26 +13,26 @@ from geometry_msgs.msg import (PoseWithCovarianceStamped, PointStamped,
 from tf import TransformListener, transformations as tft
 from sensor_msgs.msg import LaserScan, PointCloud
 
+from assistive_teleop.msg import ServoAction, ServoResult, ServoFeedback
+
 class ServoingServer(object):
     def __init__(self):
         rospy.init_node('relative_servoing')
         rospy.Subscriber('robot_pose_ekf/odom_combined', 
                          PoseWithCovarianceStamped, 
                          self.update_position)
-        rospy.Subscriber('/base_scan', LaserScan, self.update_base_laser)
+        rospy.Subscriber('/base_scan', LaserScan, self.base_laser_cb)
         self.servoing_as = actionlib.SimpleActionServer('servoing_action', 
                                                         ServoAction,
                                                         self.goal_cb, False)
         self.vel_out = rospy.Publisher('base_controller/command', Twist)
-        self.rate_test = rospy.Publisher('rate_test', String)
         self.tfl = TransformListener()
         self.goal_out = rospy.Publisher('/servo_dest', PoseStamped, latch=True)
         self.left_out = rospy.Publisher('/left_points', PointCloud)
         self.right_out = rospy.Publisher('/right_points', PointCloud)
         self.front_out = rospy.Publisher('/front_points', PointCloud)
         #Initialize variables, so as not to spew errors before seeing a goal
-        self.goal_received = False
-        self.goal_present = False
+        self.at_goal = False
         self.rot_safe = True
         self.bfp_goal = PoseStamped()
         self.odom_goal = PoseStamped()
@@ -58,11 +58,14 @@ class ServoingServer(object):
         self.update_goal(goal_msg.goal_pose)
         update_rate = rospy.Rate(40)
         command = Twist()
-        while not (rospy.is_shutdown() or finished):
+        while not (rospy.is_shutdown() or self.at_goal):
             command.linear.x = self.get_trans_x()
             command.linear.y = self.get_trans_y()
             command.angular.z = self.get_rot()
-            command.angular.z += self.avoid_obstacles()
+            (x,y,z) = self.avoid_obstacles()
+            command.linear.x = x
+            command.linear.y = y
+            command.angular.z += z
             if command.linear.y > 0:
                 if not self.left_clear():
                     command.linear.y = 0.0
@@ -71,7 +74,12 @@ class ServoingServer(object):
                     command.linear.y = 0.0
             #print "Sending vel_command: \r\n %s" %self.command
             self.vel_out.publish(command)
-            update_rate.sleep()
+            rospy.sleep(0.01) #Min sleep
+            update_rate.sleep() #keep pace
+        if self.at_goal:
+            result = ServoResult()
+            result.arrived = True
+            self.servoing_as.set_succeeded(result)
     
     def update_goal(self, msg):
         msg.header.stamp = rospy.Time.now()
@@ -82,13 +90,10 @@ class ServoingServer(object):
                                   msg.header.stamp, rospy.Duration(0.5))
         self.odom_goal = self.tfl.transformPose('/odom_combined', msg)
         self.goal_out.publish(self.odom_goal)
-        
         ang_to_goal = math.atan2(self.bfp_goal.pose.position.y,
                                  self.bfp_goal.pose.position.x)
-        #The desired angular position 
         #(current angle in odom, plus the robot-relative change to face goal)
         self.ang_goal = self.curr_ang[2] + ang_to_goal
-        self.goal_received = True
         print "New Goal: \r\n %s" %self.bfp_goal
 
     def update_position(self, msg):
@@ -105,14 +110,15 @@ class ServoingServer(object):
         self.dist_to_goal = ((self.odom_goal.pose.position.x-
                               msg.pose.pose.position.x)**2 + 
                               (self.odom_goal.pose.position.y-
-                              msg.pose.pose.position.y)**2)**(1./2.)
-        #print "Dist to goal: %s" %self.dist_to_goal
+                              msg.pose.pose.position.y)**2)**(1./2)
 
             if ((self.dist_to_goal < self.dist_thresh) and 
                 (abs(self.ang_diff) < self.ang_thresh)):
                 self.at_goal = True
+            else:
+                self.at_goal = False
 
-    def update_base_laser(self, msg):
+    def base_laser_cb(self, msg):
         max_angle = msg.angle_max
         ranges = np.array(msg.ranges)
         angles = np.arange(msg.angle_min, msg.angle_max, msg.angle_increment)
@@ -159,42 +165,36 @@ class ServoingServer(object):
             leftScan  = PointCloud()
             leftScan.header.frame_id = '/base_laser_link'
             leftScan.header.stamp = rospy.Time.now()
-        
             for i in range(len(self.left[0][:])):
                 pt = Point32()
                 pt.x = self.left[0][i]
                 pt.y = self.left[1][i]
                 pt.z = 0
                 leftScan.points.append(pt)
-            
             self.left_out.publish(leftScan)
 
         if len(self.right[:][0]) > 0:
             rightScan = PointCloud()
             rightScan.header.frame_id = '/base_laser_link'
             rightScan.header.stamp = rospy.Time.now()
-
             for i in range(len(self.right[:][0])):
                 pt = Point32()
                 pt.x = self.right[0][i]
                 pt.y = self.right[1][i]
                 pt.z = 0
                 rightScan.points.append(pt)
-            
             self.right_out.publish(rightScan)
 
         if len(self.front[:][0]) > 0:
             frontScan = PointCloud()
             frontScan.header.frame_id = 'base_laser_link'
             frontScan.header.stamp = rospy.Time.now()
-            
             for i in range(len(self.front[:][0])):
                 pt = Point32()
                 pt.x = self.front[0][i]
                 pt.y = self.front[1][i]
                 pt.z = 0
                 frontScan.points.append(pt)
-            
             self.front_out.publish(frontScan)
 
     def get_rot(self):
@@ -207,8 +207,10 @@ class ServoingServer(object):
                 return np.sign(self.ang_diff)*np.clip(abs(0.35*self.ang_diff),
                                                        0.1, 0.5)
             else:
-               rospy.loginfo("Cannot Rotate, obstacles nearby")
-               return 0.0
+                fdbk = ServoFeedback()
+                fdbk.current_action = String("Cannot Rotate, obstacles nearby")
+                self.servoing_as.publish_feedback(fdbk)
+                return 0.0
 
     def get_trans_x(self):
         if (abs(self.ang_diff) < math.pi/6 and
@@ -234,6 +236,7 @@ class ServoingServer(object):
 
         ##Determine rotation to avoid obstacles in front of robot#
     def avoid_obstacles(self):
+        x = y = z = 0
         if len(self.front[0][:]) > 0:
             if min(self.front[0][:]) < self.retreat_thresh: 
                 #(round-up on corner-to-corner radius of robot) -
@@ -244,44 +247,36 @@ class ServoingServer(object):
                 min_x = self.front[0][np.argmin(front_dists)]
                 min_y = self.front[1][np.argmin(front_dists)]
                 #print "min x/y: %s,%s" %(min_x, min_y)
-                self.command.linear.x = (-np.sign(min_x)*
-                                          np.clip(abs(min_x),0.05,0.1))
-                self.command.linear.y = (-np.sign(min_y)*
-                                          np.clip(abs(min_y),0.05,0.1)) 
-                self.command.angular.z = 0.0
+                x = -np.sign(min_x)*np.clip(abs(min_x),0.05,0.1)
+                y = -np.sign(min_y)*np.clip(abs(min_y),0.05,0.1) 
+                z = 0.0
                 # This should probably be avoided...
-                rospy.loginfo("TOO CLOSE: Back up slowly..." )
+                fdbk = ServoFeedback()
+                fdbk.current_action = String("TOO CLOSE: Back up slowly...")
+                self.servoing_as.publish_feedback(fdbk)
                 self.retreat_thresh = 0.4
             elif min(self.front[0][:]) < 0.45: 
                 self.retreat_thresh = 0.3
-                rospy.loginfo("Turning Away from obstacles in front")
-                #self.command.linear.x = 0.0
-               # front_dists = np.sqrt(np.add(np.square(self.front[0][:]),
-               #                              np.square(self.front[1][:])))
-               # min_x = self.front[0][np.argmin(front_dists)]
-               # min_y = self.front[1][np.argmin(front_dists)]
-               # min_ang = math.atan2(min_y, min_x)
-               # print "min_ang: %s" %min_ang
-               # self.command.angular.z 
-
+                fdbk = ServoFeedback()
+                fdbk.current_action=String("Turning Away from obstacles in front")
+                self.servoing_as.publish_feedback(fdbk)
                 lfobs = self.front[0][np.logical_and(self.front[1]>0,
                                                      self.front[0]<0.45)]
                 rfobs = self.front[0][np.logical_and(self.front[1]<0,
                                                      self.front[0]<0.45)]
-               # print "lfobs: %s" %lfobs
                 if len(lfobs) == 0:
-                    self.command.linear.y = 0.07
-                #print "rfobs: %s" %rfobs
+                    y = 0.07
                 elif len(rfobs) == 0:
-                    self.command.linear.y += -0.07
+                    y = -0.07
                 weight = np.reciprocal(np.sum(np.reciprocal(rfobs)) -
                                        np.sum(np.reciprocal(lfobs)))
                 if weight > 0:
-                    return 0.05 
+                    z = 0.05 
                 else:
-                    return -0.05
+                    z = -0.05
             else:
                 self.retreat_thresh = 0.3
+        return (x,y,z)
 
     def left_clear(self): # Base Laser cannot see obstacles beside the back edge of the robot, which could cause problems, especially just after passing through doorways...
         if len(self.left[0][:])>0:
@@ -292,7 +287,9 @@ class ServoingServer(object):
                 left_obs = left_obs[:, np.logical_and(left_obs[0,:]<0.1,
                                                       left_obs[0,:]>-0.8)]
                 if len(left_obs[:][0])>0:
-                    rospy.loginfo("Obstacle to the left, cannot move.")
+                    fdbk = ServoFeedback()
+                    fdbk.current_action = String("Obstacle to the left, cannot move.")
+                    self.servoing_as.publish_feedback(fdbk)
                     return False
         return True
 
@@ -305,7 +302,9 @@ class ServoingServer(object):
                 right_obs = right_obs[:, np.logical_and(right_obs[0,:]<0.1,
                                                         right_obs[0,:]>-0.8)]
                 if len(right_obs[:][0])>0:
-                    print "Obstacle immediately to the right, cannot move."
+                    fdbk = ServoFeedback()
+                    fdbk.current_action = String("Obstacle immediately to the right, cannot move.")
+                    self.servoing_as.publish_feedback(fdbk)
                     return False
         return True
 
