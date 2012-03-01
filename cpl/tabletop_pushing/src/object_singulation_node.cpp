@@ -1397,6 +1397,7 @@ class ObjectSingulation
     ROS_INFO_STREAM("Found " << objs.size() << " objects.");
 
     std::vector<int> pushable_obj_idx;
+    pushable_obj_idx.clear();
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
       if (objs[i].centroid[0] > min_pushing_x_ &&
@@ -1410,7 +1411,7 @@ class ObjectSingulation
     PushVector p;
     p.header.frame_id = workspace_frame_;
 
-    if (pushable_obj_idx.size() < 1)
+    if (pushable_obj_idx.size() == 0)
     {
       ROS_WARN_STREAM("No object clusters found! Returning empty push_pose");
       p.no_push = true;
@@ -1419,25 +1420,26 @@ class ObjectSingulation
     ROS_INFO_STREAM("Found " << pushable_obj_idx.size()
                     << " pushable proto objects");
     int rand_idx = pushable_obj_idx[rand() % pushable_obj_idx.size()];
-    Eigen::Vector4f obj_xyz_centroid = objs[rand_idx].centroid;
-    double rand_orientation = (randf()*
-                               (max_push_angle_- min_push_angle_) +
-                               min_push_angle_);
-    p.start_point.x = obj_xyz_centroid[0];
-    p.start_point.y = obj_xyz_centroid[1];
-    // Set z to be the table height
-    p.start_point.z = obj_xyz_centroid[2];
+    ROS_INFO_STREAM("Chose idx: " << rand_idx);
     // Choose a random orientation
-    p.push_angle = rand_orientation;
-
-    sensor_msgs::PointCloud2 obj_push_msg;
-    pcl::toROSMsg(objs[rand_idx].cloud, obj_push_msg);
-    obj_push_pub_.publish(obj_push_msg);
-
+    double push_angle = (randf()* (max_push_angle_- min_push_angle_) +
+                         min_push_angle_);
+    ROS_INFO_STREAM("Chose angle: " << push_angle);
+    double push_dist = 0.0;
+    Eigen::Vector3f push_unit_vec(cos(push_angle), sin(push_angle), 0.0f);
+    ROS_INFO_STREAM("Made push_unit_vec");
+    p.start_point = determineStartPoint(objs[rand_idx].cloud,
+                                        objs[rand_idx].centroid,
+                                        push_unit_vec,
+                                        push_angle, push_dist);
+    ROS_INFO_STREAM("Got start point");
+    p.push_angle = push_angle;
+    p.push_dist = push_dist;
+    p.num_objects = objs.size();
     ROS_INFO_STREAM("Chosen push pose is at: (" << p.start_point.x << ", "
                     << p.start_point.y << ", " << p.start_point.z
                     << ") with orientation of: " << p.push_angle);
-    p.num_objects = pushable_obj_idx.size();
+    displayPushVector(objs[rand_idx], p, push_unit_vec);
     return p;
   }
 
@@ -2365,6 +2367,50 @@ class ObjectSingulation
     }
 
   }
+
+
+  void displayPushVector(ProtoObject& obj, PushVector& push,
+                         Eigen::Vector3f push_unit_vec)
+  {
+    ProtoObjects objs;
+    objs.push_back(obj);
+    cv::Mat obj_img = pcl_segmenter_->projectProtoObjectsIntoImage(
+        objs, cv::Size(320, 240), workspace_frame_);
+    cv::Mat disp_img = pcl_segmenter_->displayObjectImage(
+        obj_img, "3D Split", false);
+
+    PointStamped start_point;
+    start_point.point = push.start_point;
+    start_point.header.frame_id = workspace_frame_;
+    PointStamped end_point;
+    end_point.point.x = push.start_point.x + push_unit_vec[0]*push.push_dist;
+    end_point.point.y = push.start_point.y + push_unit_vec[1]*push.push_dist;
+    end_point.point.z = push.start_point.z;
+    end_point.header.frame_id = workspace_frame_;
+
+    cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
+        start_point);
+    cv::Point img_end_point = pcl_segmenter_->projectPointIntoImage(
+        end_point);
+    cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,1.0,0.0));
+    cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,1.0,0.0));
+
+    if (use_displays_)
+    {
+      cv::imshow("push_vector", disp_img);
+    }
+    if (write_to_disk_)
+    {
+      // Write to disk to create video output
+      std::stringstream push_out_name;
+      push_out_name << base_output_path_ << "push_vector" << callback_count_
+                    << ".tiff";
+      cv::Mat push_out_img(disp_img.size(), CV_8UC3);
+      disp_img.convertTo(push_out_img, CV_8UC3, 255);
+      cv::imwrite(push_out_name.str(), push_out_img);
+    }
+  }
+
   bool pushCollidesWithObject(PushOpt& po, ProtoObjects& objs)
   {
     // transform point cloud for po.object_idx
@@ -2513,6 +2559,67 @@ class ObjectSingulation
     {
       opt.push_dist = push_dist2;
     }
+    return p;
+  }
+
+  geometry_msgs::Point determineStartPoint(XYZPointCloud& obj_cloud,
+                                           Eigen::Vector4f centroid,
+                                           Eigen::Vector3f push_unit_vec,
+                                           double& push_angle,
+                                           double& push_dist)
+  {
+    ROS_INFO_STREAM("Got to determineStartPoint()");
+    XYZPointCloud pts = pcl_segmenter_->lineCloudIntersection(
+        obj_cloud, push_unit_vec, centroid);
+    unsigned int min_idx = pts.size();
+    unsigned int max_idx = pts.size();
+    float min_y = FLT_MAX;
+    float max_y = -FLT_MAX;
+    for (unsigned int i = 0; i < pts.size(); ++i)
+    {
+      if (pts.at(i).y < min_y)
+      {
+        min_y = pts.at(i).y;
+        min_idx = i;
+      }
+      if (pts.at(i).y > max_y)
+      {
+        max_y = pts.at(i).y;
+        max_idx = i;
+      }
+    }
+
+    geometry_msgs::Point p;
+    if (pts.size() == 0)
+    {
+      p.x = centroid[0];
+      p.y = centroid[1];
+      p.z = centroid[2];
+      push_dist = min_push_dist_;
+      ROS_WARN_STREAM("No intersecting points on the line, so returning centroid as start point.");
+      return p;
+    }
+    // NOTE: greater than 0 implies pushing to the left, want right extreme,
+    // hence min y value
+    if (push_angle > 0)
+    {
+      p.x = pts.at(min_idx).x;
+      p.y = pts.at(min_idx).y;
+      p.z = pts.at(min_idx).z;
+    }
+    else
+    {
+      p.x = pts.at(max_idx).x;
+      p.y = pts.at(max_idx).y;
+      p.z = pts.at(max_idx).z;
+    }
+    // HACK: This should be made explicit that we are chaning this inside this
+    // method but I don't want to refactor right now.
+    push_dist = std::sqrt(pcl_segmenter_->sqrDistXY(pts.at(max_idx),
+                                                            pts.at(min_idx)))+
+        push_dist_inflation_;
+    // Clip push dist
+    push_dist = std::min(std::max(push_dist, min_push_dist_), max_push_dist_);
     return p;
   }
 
@@ -3077,8 +3184,8 @@ class ObjectSingulation
   int callback_count_;
   int next_id_;
   bool initialized_;
-  bool split_;
   bool merged_;
+  bool split_;
   XYZPointCloud cur_table_cloud_;
 
  public:
@@ -3167,8 +3274,8 @@ class ObjectSingulationNode
     n_private_.param("depth_edge_weight_thresh", os_->depth_edge_weight_thresh_,
                      0.5);
     n_private_.param("depth_edge_weight", os_->depth_edge_weight_, 0.75);
-    n_private_.param("max_pushing_angle", os_->max_push_angle_, M_PI*0.5);
-    n_private_.param("min_pushing_angle", os_->min_push_angle_, -M_PI*0.5);
+    n_private_.param("max_pushing_angle", os_->max_push_angle_, M_PI);
+    n_private_.param("min_pushing_angle", os_->min_push_angle_, -M_PI);
     n_private_.param("boundary_ransac_thresh", os_->boundary_ransac_thresh_,
                      0.01);
     n_private_.param("min_edge_length", os_->min_edge_length_, 3);
