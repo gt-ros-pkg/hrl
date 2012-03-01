@@ -14,30 +14,21 @@
     <param name="default_val_value" value="255" type="int"/>
  
     <param name="display_wait_ms" value="3" type="int"/>
-    <param name="autostart_pcl_segmentation" value="false" type="bool"/>
-    <param name="use_guided_pushes" value="true" type="bool"/>
 
-    <param name="crop_min_x" value="22" type="int"/>
-    <param name="crop_max_x" value="593" type="int"/>
+    <param name="crop_min_x" value="20" type="int"/>
+    <param name="crop_max_x" value="620" type="int"/>
     <param name="crop_min_y" value="32" type="int"/>
-    <param name="crop_max_y" value="469" type="int"/>
+    <param name="crop_max_y" value="480" type="int"/>
 
     <param name="workspace_frame" value="/torso_lift_link" type="string"/>
 
+    <param name="min_workspace_x" value="-2.0" type="double"/>
+    <param name="max_workspace_x" value="1.20" type="double"/>
+    <param name="min_workspace_y" value="-1.2" type="double"/>
+    <param name="max_workspace_y" value="1.2" type="double"/>
+    <param name="min_workspace_z" value="-0.8" type="double"/>
+    <param name="max_workspace_z" value="0.6" type="double"/>
     <param name="min_table_z" value="-1.0" type="double"/>
     <param name="max_table_z" value="1.0" type="double"/>
-    <param name="min_pushing_y" value="-1.0" type="double"/>
-    <param name="max_pushing_y" value="1.0" type="double"/>
-    <param name="min_pushing_x" value="0.0" type="double"/>
-    <param name="max_pushing_x" value="2.0" type="double"/>
-
-    <param name="use_weighted_edges" value="false" type="bool"/>
-    <param name="threshold_edges" value="true" type="bool"/>
-    <param name="edge_weight_thresh" value="0.1" type="double"/>
-    <param name="depth_edge_weight_thresh" value="0.05" type="double"/>
-    <param name="depth_edge_weight" value="0.75" type="double"/>
-
-    <param name="boundary_ransac_thresh" value="0.05" type="double"/>
-    <param name="min_edge_length" value="4" type="int"/>
   </node>
 </launch>

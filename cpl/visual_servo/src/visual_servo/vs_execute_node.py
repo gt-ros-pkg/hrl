@@ -101,7 +101,7 @@ class VisualServoExecutionNode:
 								pose.angular.z = resp.wz
  								rospy.loginfo(pose)
 								pub.publish(pose)
-								rospy.sleep(1.0) 
+								rospy.sleep(0.3) 
 						except rospy.ServiceException, e: pass 
 							#print "Service Call Failed: %s"%e
 
