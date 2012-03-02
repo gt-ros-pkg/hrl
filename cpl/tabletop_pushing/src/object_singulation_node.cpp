@@ -1390,6 +1390,7 @@ class ObjectSingulation
    */
   PushVector findRandomPushPose(XYZPointCloud& input_cloud)
   {
+    // TODO: Make push confirmation thing
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(input_cloud);
     prev_proto_objs_ = cur_proto_objs_;
     cur_proto_objs_ = objs;
@@ -1415,6 +1416,7 @@ class ObjectSingulation
     {
       ROS_WARN_STREAM("No object clusters found! Returning empty push_pose");
       p.no_push = true;
+      callback_count_++;
       return p;
     }
     ROS_INFO_STREAM("Found " << pushable_obj_idx.size()
@@ -1436,6 +1438,7 @@ class ObjectSingulation
                     << p.start_point.y << ", " << p.start_point.z
                     << ") with orientation of: " << p.push_angle);
     displayPushVector(objs[rand_idx], p, push_unit_vec);
+    callback_count_++;
     return p;
   }
 
@@ -2356,7 +2359,7 @@ class ObjectSingulation
       // Write to disk to create video output
       std::stringstream push_out_name;
       push_out_name << base_output_path_ << "push_vector" << callback_count_
-                    << ".tiff";
+                    << ".png";
       cv::Mat push_out_img(disp_img.size(), CV_8UC3);
       disp_img.convertTo(push_out_img, CV_8UC3, 255);
       cv::imwrite(push_out_name.str(), push_out_img);
@@ -2400,7 +2403,7 @@ class ObjectSingulation
       // Write to disk to create video output
       std::stringstream push_out_name;
       push_out_name << base_output_path_ << "push_vector" << callback_count_
-                    << ".tiff";
+                    << ".png";
       cv::Mat push_out_img(disp_img.size(), CV_8UC3);
       disp_img.convertTo(push_out_img, CV_8UC3, 255);
       cv::imwrite(push_out_name.str(), push_out_img);
@@ -2762,7 +2765,7 @@ class ObjectSingulation
       // Write to disk to create video output
       std::stringstream bound_out_name;
       bound_out_name << base_output_path_ << "chosen" << callback_count_
-                     << ".tiff";
+                     << ".png";
       cv::Mat bound_out_img(obj_disp_img.size(), CV_8UC3);
       obj_disp_img.convertTo(bound_out_img, CV_8UC3, 255);
       cv::imwrite(bound_out_name.str(), bound_out_img);
@@ -2850,7 +2853,7 @@ class ObjectSingulation
       // Write to disk to create video output
       std::stringstream bound_out_name;
       bound_out_name << base_output_path_ << "bound3D" << callback_count_
-                     << ".tiff";
+                     << ".png";
       cv::Mat bound_out_img(disp_img.size(), CV_8UC3);
       disp_img.convertTo(bound_out_img, CV_8UC3, 255);
       cv::imwrite(bound_out_name.str(), bound_out_img);
@@ -2941,7 +2944,7 @@ class ObjectSingulation
       // Write to disk to create video output
       std::stringstream axis_out_name;
       axis_out_name << base_output_path_ << "axis" << callback_count_
-                    << ".tiff";
+                    << ".png";
       cv::Mat axis_out_img(obj_disp_img.size(), CV_8UC3);
       obj_disp_img.convertTo(axis_out_img, CV_8UC3, 255);
       cv::imwrite(axis_out_name.str(), axis_out_img);
@@ -3028,9 +3031,9 @@ class ObjectSingulation
       std::stringstream est_out_name;
       std::stringstream hist_out_name;
       est_out_name << base_output_path_ << "bound_est" << callback_count_
-                   << ".tiff";
+                   << ".png";
       hist_out_name << base_output_path_ << "hist_est" << callback_count_
-                    << ".tiff";
+                    << ".png";
       cv::Mat est_out_img(disp_img.size(), CV_8UC3);
       cv::Mat hist_out_img(disp_img.size(), CV_8UC3);
       disp_img.convertTo(est_out_img, CV_8UC3, 255);
@@ -3465,7 +3468,7 @@ class ObjectSingulationNode
     if (write_input_to_disk_ && recording_input_)
     {
       std::stringstream out_name;
-      out_name << base_output_path_ << "input" << record_count_ << ".tiff";
+      out_name << base_output_path_ << "input" << record_count_ << ".png";
       record_count_++;
       cv::imwrite(out_name.str(), cur_color_frame_);
     }
