@@ -10,23 +10,30 @@ roslib.load_manifest("kelsey_sandbox")
 
 import rospy
 from std_srvs.srv import Empty, EmptyResponse
+from std_msgs.msg import String
 
 from srv import BehaviorRegistration, BehaviorRequest, BehaviorRequestRequest, BehaviorRelinquish
 from srv import BehaviorRegistrationResponse, BehaviorRequestResponse, BehaviorRelinquishResponse
 from srv import BehaviorResume, BehaviorResumeResponse
 
 ALLOWED_RESOURCES = ['l_arm', 'r_arm', 'l_gripper', 'r_gripper', 'base', 'head', 'torso']
+HEARTBEAT_TIMEOUT = 5.
+HEARTBEAT_RATE = 10.
 
 def log(s):
     rospy.loginfo("[behavior_manager] %s" % s)
+
+def warn(s):
+    rospy.logwarn("[behavior_manager] %s" % s)
 
 def err(s):
     rospy.logerr("[behavior_manager] %s" % s)
 
 class BehaviorManager(object):
     def __init__(self):
-        self._lock = Lock()
-        with self._lock:
+        self._resource_lock = Lock()
+        self._heartbeat_lock = Lock()
+        with self._resource_lock:
             self._clear_manager()
             self._register_srv = rospy.Service('/behavior_manager/register_behavior', 
                                                BehaviorRegistration, self._register_cb)
@@ -43,12 +50,14 @@ class BehaviorManager(object):
         self._behavior_preempts = {}
         self._behavior_resumes = {}
         self._preempted_stacks = {}
+        self._heartbeat_timers = {}
+        self._hb_last_times = {}
         for resource in ALLOWED_RESOURCES:
             self._active_resources[resource] = None
             self._preempted_stacks[resource] = deque()
 
     def _register_cb(self, req):
-        with self._lock:
+        with self._resource_lock:
             bname = req.behavior_name
             if req.ctrl_resource not in ALLOWED_RESOURCES:
                 err("Resource %s not reservable." % req.ctrl_resource)
@@ -66,37 +75,64 @@ class BehaviorManager(object):
             log("Behavior %s successfully registered in the behavior manager." % bname)
             return BehaviorRegistrationResponse(True)
 
+    def _heartbeat_monitor(self, te):
+        cur_time = rospy.get_time()
+        for resource in self._active_resources:
+            running_resource = self._active_resources[resource]
+            if running_resource is None:
+                continue
+            bname = running_resource[1]
+            if cur_time - self._hb_last_times[bname] > HEARTBEAT_TIMEOUT:
+                resource = self._registered_behaviors[bname]
+                warn("Behavior %s has timed out and will release %s" % 
+                             (bname, resource))
+                self._relinquish_from_behavior(bname)
+
+    def _heartbeat_sub_cb(self, msg):
+        with self._heartbeat_lock:
+            self._hb_last_times[msg.data] = rospy.get_time()
+
     def _request_cb(self, req):
-        with self._lock:
+        with self._resource_lock:
             bname = req.behavior_name
             priority = req.priority
             if bname not in self._registered_behaviors:
-                err("Behavior %s not registered.")
+                err("Behavior %s not registered." % bname)
                 return BehaviorRequestResponse(False)
             resource = self._registered_behaviors[bname]
 
             if self._active_resources[resource] is None:
                 # resource is free, give it out
                 self._active_resources[resource] = [priority, bname]
-                return BehaviorRequestResponse(True)
+                success = True
+            elif priority >= self._active_resources[resource][0]:
+                # behavior is of higher importance, preempt currently running
+                preempted_behavior = self._active_resources[resource]
+                self._preempted_stacks[resource].append(preempted_behavior)
+                self._behavior_preempts[bname]()
+                self._active_resources[resource] = [priority, bname]
+                success = True
             else:
-                if priority >= self._active_resources[resource][0]:
-                    # behavior is of higher importance, preempt currently running
-                    preempted_behavior = self._active_resources[resource]
-                    self._preempted_stacks[resource].append(preempted_behavior)
-                    self._behavior_preempts[bname]()
-                    self._active_resources[resource] = [priority, bname]
-                    return BehaviorRequestResponse(True)
-                else:
-                    # current behavior is of higher importance, reject request
-                    return BehaviorRequestResponse(False)
+                # current behavior is of higher importance, reject request
+                success = False
+            if success:
+                self._hb_last_times[bname] = rospy.get_time()
+                self._heartbeat_sub = rospy.Subscriber('/behavior_manager/%s/heartbeat' % bname, 
+                                                       String, self._heartbeat_sub_cb)
+                self._heartbeat_timers[bname] = rospy.Timer(rospy.Duration(1./HEARTBEAT_RATE),
+                                                            self._heartbeat_monitor)
+            return BehaviorRequestResponse(success)
 
     def _relinquish_cb(self, req):
-        with self._lock:
-            bname = req.behavior_name
+        bname = req.behavior_name
+        self._relinquish_from_behavior(bname)
+        return BehaviorRelinquishResponse()
+
+    def _relinquish_from_behavior(self, bname):
+        with self._resource_lock:
             if bname not in self._registered_behaviors:
                 err("Behavior %s not registered.")
-                return BehaviorRelinquishResponse()
+                return
             resource = self._registered_behaviors[bname]
             while len(self._preempted_stacks[resource]) > 0:
                 # we have resume the FIFO preempted behavior
@@ -104,9 +140,8 @@ class BehaviorManager(object):
                 will_resume = self._behavior_resumes[resumed_behavior[1]]()
                 if will_resume:
                     self._active_resources[resource] = resumed_behavior
-                    return BehaviorRelinquishResponse()
+                    return 
             self._active_resources[resource] = None
-            return BehaviorRelinquishResponse()
 
     def _clear_cb(self, req):
         self._clear_manager()
@@ -153,6 +188,7 @@ class BehaviorManagerClient(object):
                                           Empty, self._call_preempt)
         self._resume_srv = rospy.Service('/behavior_manager/%s/resume' % self._bname, 
                                          BehaviorResume, self._call_resume)
+        self._heartbeat_pub = rospy.Publisher('/behavior_manager/%s/heartbeat' % self._bname, String)
 
         rospy.wait_for_service('/behavior_manager/register_behavior')
         register_behavior = rospy.ServiceProxy('/behavior_manager/register_behavior', BehaviorRegistration)
@@ -160,12 +196,10 @@ class BehaviorManagerClient(object):
 
         rospy.wait_for_service('/behavior_manager/request_resource')
         rospy.wait_for_service('/behavior_manager/relinquish_resource')
-        rospy.wait_for_service('/behavior_manager/clear_manager')
         self._request_resource = rospy.ServiceProxy('/behavior_manager/request_resource',
                                                     BehaviorRequest)
         self._relinquish_resource = rospy.ServiceProxy('/behavior_manager/relinquish_resource',
                                                        BehaviorRelinquish)
-        self._clear_manager = rospy.ServiceProxy('/behavior_manager/clear_manager', Empty)
 
     def _call_preempt(self, req):
         self._preempt_cb()
@@ -180,6 +214,9 @@ class BehaviorManagerClient(object):
     def set_resume_cb(self, resume_cb):
         self._resume_cb = resume_cb
 
+    def _heartbeat_cb(self, te):
+        self._heartbeat_pub.publish(String(self._bname))
+
     ##
     # Requests control of the resource from the behavior manager
     # @param priority Override the default priority set in the initialization.
@@ -188,8 +225,10 @@ class BehaviorManagerClient(object):
         if priority is None:
             priority = self._default_priority
         try:
-            result = self._request_resource(behavior_name=self._bname, priority=priority)
-            return result
+            success = self._request_resource(behavior_name=self._bname, priority=priority)
+            if success:
+                self._heartbeat_timer = rospy.Timer(rospy.Duration(1./HEARTBEAT_RATE), self._heartbeat_cb)
+            return success
         except rospy.ServiceException, e:
             err("Request service connection issue: %s" % str(e))
             return False
@@ -202,14 +241,16 @@ class BehaviorManagerClient(object):
         except rospy.ServiceException, e:
             err("Relinquish service connection issue: %s" % str(e))
 
-    ##
-    # Resets control of all resources in the behavior manager (CAREFUL WITH THIS).
-    def clear_manager(self):
-        try:
-            self._clear_manager()
-        except rospy.ServiceException, e:
-            err("Clear manager service connection issue: %s" % str(e))
 
+##
+# Resets control of all resources in the behavior manager (CAREFUL WITH THIS).
+def clear_behavior_manager():
+    clear_manager = rospy.ServiceProxy('/behavior_manager/clear_manager', Empty)
+    rospy.wait_for_service('/behavior_manager/clear_manager')
+    try:
+        clear_manager()
+    except rospy.ServiceException, e:
+        err("Clear manager service connection issue: %s" % str(e))
 
 def main():
     rospy.init_node("behavior_manager")

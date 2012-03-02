@@ -4,7 +4,7 @@ import roslib
 roslib.load_manifest("kelsey_sandbox")
 import rospy
 
-from behavior_manager import BehaviorManagerClient
+from behavior_manager import BehaviorManagerClient, clear_behavior_manager
 
 class BMCWrapper(object):
     def __init__(self, name, priority):
@@ -42,12 +42,12 @@ def main():
     p_med = BehaviorManagerClient.PRIORITIES.MEDIUM
     p_high = BehaviorManagerClient.PRIORITIES.HIGH
 
+    clear_behavior_manager()
     bmcw_low = BMCWrapper("test_low", p_low)
     bmcw_med = BMCWrapper("test_med", p_med)
     bmcw_high = BMCWrapper("test_high", p_high)
 
-    if False:
-        bmcw_low.clear_manager()
+    if True:
         bmcw_low.create_timer(0.01, 15)
         bmcw_med.create_timer(5, 5)
 
