@@ -43,11 +43,11 @@ from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from tabletop_pushing.srv import *
 
 def initialPose(ctrl_switcher):
-        ctrl_switcher.carefree_switch('l', '%s_cart', '$(find hrl_pr2_arms)/params/j_transpose_params_low.yaml')
+        ctrl_switcher.carefree_switch('r', '%s_cart', '$(find hrl_pr2_arms)/params/j_transpose_params_low.yaml')
 
         rospy.sleep(1.0)
         rospy.loginfo('initializing the test node')
-        pub = rospy.Publisher('l_cart/command_pose', PoseStamped)
+        pub = rospy.Publisher('r_cart/command_pose', PoseStamped)
 
         rospy.loginfo('Finally Publishing')
         pose = PoseStamped()
@@ -55,53 +55,33 @@ def initialPose(ctrl_switcher):
         pose.header.stamp = rospy.Time(0)
         pose.pose.position.x = 0.3
         pose.pose.position.y = 0
-        pose.pose.position.z = 0
-        pose.pose.orientation.x = 1
-        pose.pose.orientation.y = 0
-        pose.pose.orientation.z = 0
-        pose.pose.orientation.w = 0 
-        pub.publish(pose)
-        rospy.sleep(1.0) 
+        pose.pose.position.z = 0.2
+        pose.pose.orientation.x = 0 
+        pose.pose.orientation.y = 0 
+        pose.pose.orientation.z = 0 
+        pose.pose.orientation.w = 1 
         pub.publish(pose)
         rospy.sleep(4.0) 
+        # pub.publish(pose)
+        # rospy.sleep(4.0) 
 
 class TestNode:
     def move(self):
-        option = True
-        if (option):
             # this is for robot_mechanism_controllers/CartesianTwistController
-            ctrl_switcher = ControllerSwitcher()
-            initialPose(ctrl_switcher) 
-            rospy.loginfo('create the controller')
-            ctrl_switcher.carefree_switch('l', '%s_cart', '$(find visual_servo)/params/rmc_cartTwist_params.yaml')
-            rospy.sleep(0.5)
-            pub = rospy.Publisher('l_cart/command', Twist)
-            rospy.loginfo('created the publisher obj')
-            pose = Twist()
-            pose.linear.x = 0.05
-            pose.linear.y = 0.00
-            pose.linear.z = 0.0
-            pose.angular.x = 0.0
-            pose.angular.y = 0.0
-            pose.angular.z = 0.0
-        else:
-            # this is for teleop_controllers/JinvTeleopController
-            rospy.loginfo('create the controller')
-            ctrl_switcher = ControllerSwitcher()
-            initialPose(ctrl_switcher)
-             
-            ctrl_switcher.carefree_switch('l', '%s_cart', '$(find hrl_pr2_arms)/params/j_inverse_params_low.yaml')
-            rospy.sleep(0.5)
-            pub = rospy.Publisher('l_cart/command_twist', TwistStamped)
-            pose = TwistStamped()
-            pose.header.frame_id = '/head_pan_link'
-            pose.header.stamp = rospy.Time(0)
-            pose.twist.linear.x = 0.05
-            pose.twist.linear.y = 0.0
-            pose.twist.linear.z = 0.0
-            pose.twist.angular.x = 0.0
-            pose.twist.angular.y = 0
-            pose.twist.angular.z = 0.0
+        ctrl_switcher = ControllerSwitcher()
+        initialPose(ctrl_switcher) 
+        rospy.loginfo('create the controller')
+        ctrl_switcher.carefree_switch('r', '%s_cart', '$(find visual_servo)/params/rmc_cartTwist_params.yaml')
+        rospy.sleep(0.5)
+        pub = rospy.Publisher('r_cart/command', Twist)
+        rospy.loginfo('created the publisher obj')
+        pose = Twist()
+        pose.linear.x = 0.00
+        pose.linear.y = 0.00
+        pose.linear.z = -.05
+        pose.angular.x = 0.1
+        pose.angular.y = 0.1
+        pose.angular.z = 0.1
         while not rospy.is_shutdown():
           	rospy.loginfo('Publishing following message: %s'%pose)
            	pub.publish(pose)

@@ -151,7 +151,6 @@ class VisualServoNode
       }
 
       ROS_DEBUG("Service Request In");
-
       /** Main Logic **/
       // segment color -> find contour -> moments -> 
       // reorder to recognize each point -> find error, interaction matrix, & twist
@@ -164,21 +163,15 @@ class VisualServoNode
 #ifdef DEBUG_MODE
       // put dots on the centroids of wrist
       for (unsigned int i = 0; i < pts.size(); i++) {
-        cv::circle(cur_color_frame_, pts.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
+        cv::circle(cur_orig_color_frame_, pts.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
       }
       // put dots on the desired location
       for (unsigned int i = 0; i < desired_locations_.size(); i++) {
-        cv::circle(cur_color_frame_, desired_locations_.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
+        cv::circle(cur_orig_color_frame_, desired_locations_.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
       }
-      cv::imshow("Arm", cur_color_frame_.clone());
-      double depth_max = 1.0;
-      cv::minMaxLoc(cur_depth_frame_, NULL, &depth_max);
-      cv::Mat depth_display = cur_depth_frame_.clone();
-      depth_display /= depth_max;
-      cv::imshow("input_depth", depth_display);
-      cv::waitKey(display_wait_ms_);
+     cv::imshow("Output", cur_orig_color_frame_.clone());
+     cv::waitKey(display_wait_ms_);
 #endif
-
       // XYZ in camera coords and robot control coord are different
       res.vx = -1*cur_twist_.at<float>(2,0);
       res.vy = -1*cur_twist_.at<float>(0,0);
@@ -205,7 +198,6 @@ class VisualServoNode
       }
 
       /** Preparing the image **/             
-      // Convert images to OpenCV format
       cv::Mat color_frame(bridge_.imgMsgToCv(img_msg));
       cv::Mat depth_frame(bridge_.imgMsgToCv(depth_msg));
 
@@ -219,6 +211,8 @@ class VisualServoNode
       pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, *tf_);
       prev_camera_header_ = cur_camera_header_;
       cur_camera_header_ = img_msg->header;
+      
+      //ROS_INFO("%d", cur_camera_header_.frame_id);
 
       cv::Mat workspace_mask(color_frame.rows, color_frame.cols, CV_8UC1,
           cv::Scalar(255));
@@ -248,6 +242,8 @@ class VisualServoNode
       cur_point_cloud_ = cloud;
       if (desired_locations_.size() != 3)
           setDesiredPosition();
+
+
     }   
 
     void setDesiredPosition() {
@@ -255,12 +251,12 @@ class VisualServoNode
         // Desired location: center of the screen
         std::vector<cv::Point> desired; desired.clear();
         pcl::PointXYZ origin = cur_point_cloud_.at(cur_color_frame_.cols/2, cur_color_frame_.rows/2);
-        origin.z += 0.0;
+        origin.z += 0.1;
         pcl::PointXYZ two = origin;
         pcl::PointXYZ three = origin;
 
-        two.y -= 0.05;  // about 5 centimeter to right
-        three.x -= 0.03; // about 3 centimeter to down
+        two.y -= 0.0508;  // about 5 centimeter to right
+        three.x -= 0.0381; // about 3 centimeter to down
         cv::Point p0 = projectPointIntoImage(origin, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
         cv::Point p1, p2;
         if (p0.x >= 0 && p0.y >= 0) {
@@ -290,7 +286,7 @@ class VisualServoNode
           error_mat.at<float>(i*2,0) 	= pts.at(i).x - desired.at(i).x ; 
           error_mat.at<float>(i*2+1,0)= pts.at(i).y - desired.at(i).y ;
         }
-
+        error_mat *= 10;
         cv::Mat im = getInteractionMatrix(depth_frame, pts);
         cv::Mat gain = cv::Mat::eye(6,6, CV_32F)*1e-4;
         im = im*gain;
@@ -303,11 +299,10 @@ class VisualServoNode
           else if (cur_twist_.at<float>(i,0) < -1*velocity_clip_threshold) cur_twist_.at<float>(i,0) = (float)-1*velocity_clip_threshold;
         }
 #ifdef DEBUG_MODE
-        ROS_DEBUG("Inverse Matrix");
-        printMatrix(im);
-        ROS_DEBUG("Error Matrix");
+        //ROS_DEBUG("Inverse Matrix");
+        //printMatrix(im);
+        ROS_DEBUG("Results: Error, Twist");
         printMatrix(error_mat.t());
-        ROS_DEBUG("Result");
         printMatrix(cur_twist_.t());
 #endif
 
@@ -336,7 +331,8 @@ class VisualServoNode
           int x = m.x;
           int y = m.y;
           float z = depth_frame.at<float>(y, x);
-          printf("Z(%d, %d)= %f or %f\n", x,y, z, depth_frame.at<float>(y, x));
+          // float z = cur_point_cloud_.at(y,x).z;
+          printf("x,y,z = %d, %d, %.3f\n", x, y, z); 
           int l = i * 2;
           if (z <= 0 || isnan(z)) return cv::Mat::zeros(6,6, CV_32F);
           L.at<float>(l,0) = 1/z;   L.at<float>(l+1,0) = 0;
@@ -452,7 +448,7 @@ class VisualServoNode
         }
       }
 #ifdef DEBUG_MODE
-      cv::drawContours(color_frame, contours, -1,  cv::Scalar(50,225,255), 2);
+      cv::drawContours(cur_orig_color_frame_, contours, -1,  cv::Scalar(50,225,255), 2);
       // cv::imshow("open", open.clone());   
 #endif
       return moments;
