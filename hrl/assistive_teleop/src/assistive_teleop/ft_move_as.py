@@ -65,7 +65,6 @@ class FtMoveServer(object):
                     result.all_sent = True
                     self.ft_move_server.set_succeeded(result)
                     break
-            
             update_rate.sleep()
 
 if __name__ == '__main__':

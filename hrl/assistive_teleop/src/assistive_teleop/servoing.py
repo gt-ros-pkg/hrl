@@ -7,7 +7,7 @@ import numpy as np
 import roslib; roslib.load_manifest('assistive_teleop')
 import rospy
 import actionlib
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from geometry_msgs.msg import (PoseWithCovarianceStamped, PointStamped, 
                                 Twist, Point32, PoseStamped)
 from tf import TransformListener, transformations as tft
@@ -54,8 +54,8 @@ class ServoingServer(object):
         self.front = [[],[]]
         self.servoing_as.start()
 
-    def goal_cb(self, goal_msg):
-        self.update_goal(goal_msg.goal_pose)
+    def goal_cb(self, goal):
+        self.update_goal(goal.goal)
         update_rate = rospy.Rate(40)
         command = Twist()
         while not (rospy.is_shutdown() or self.at_goal):
@@ -63,13 +63,15 @@ class ServoingServer(object):
             command.linear.y = self.get_trans_y()
             command.angular.z = self.get_rot()
             (x,y,z) = self.avoid_obstacles()
-            command.linear.x = x
-            command.linear.y = y
+            if x is not None:
+                command.linear.x = x
+            if y is not None:
+                command.linear.y = y
             command.angular.z += z
             if command.linear.y > 0:
                 if not self.left_clear():
                     command.linear.y = 0.0
-            elif self.command.linear.y < 0:
+            elif command.linear.y < 0:
                 if not self.right_clear():
                     command.linear.y = 0.0
             #print "Sending vel_command: \r\n %s" %self.command
@@ -77,8 +79,9 @@ class ServoingServer(object):
             rospy.sleep(0.01) #Min sleep
             update_rate.sleep() #keep pace
         if self.at_goal:
+            print "Arrived at goal"
             result = ServoResult()
-            result.arrived = True
+            result.arrived = Bool(True)
             self.servoing_as.set_succeeded(result)
     
     def update_goal(self, msg):
@@ -112,11 +115,11 @@ class ServoingServer(object):
                               (self.odom_goal.pose.position.y-
                               msg.pose.pose.position.y)**2)**(1./2)
 
-            if ((self.dist_to_goal < self.dist_thresh) and 
-                (abs(self.ang_diff) < self.ang_thresh)):
-                self.at_goal = True
-            else:
-                self.at_goal = False
+        if ((self.dist_to_goal < self.dist_thresh) and 
+            (abs(self.ang_diff) < self.ang_thresh)):
+            self.at_goal = True
+        else:
+            self.at_goal = False
 
     def base_laser_cb(self, msg):
         max_angle = msg.angle_max
@@ -234,9 +237,10 @@ class ServoingServer(object):
         #print "Slide speed (m/s): %s" %slide
         return  np.sign(slide)*np.clip(abs(slide), 0.04, 0.07)
 
-        ##Determine rotation to avoid obstacles in front of robot#
     def avoid_obstacles(self):
-        x = y = z = 0
+        ##Determine rotation to avoid obstacles in front of robot#
+        x = y = None
+        z = 0.
         if len(self.front[0][:]) > 0:
             if min(self.front[0][:]) < self.retreat_thresh: 
                 #(round-up on corner-to-corner radius of robot) -
@@ -249,7 +253,7 @@ class ServoingServer(object):
                 #print "min x/y: %s,%s" %(min_x, min_y)
                 x = -np.sign(min_x)*np.clip(abs(min_x),0.05,0.1)
                 y = -np.sign(min_y)*np.clip(abs(min_y),0.05,0.1) 
-                z = 0.0
+                z = 0.
                 # This should probably be avoided...
                 fdbk = ServoFeedback()
                 fdbk.current_action = String("TOO CLOSE: Back up slowly...")
@@ -312,3 +316,4 @@ if __name__ == '__main__':
     servoer = ServoingServer()
     while not rospy.is_shutdown():
         rospy.spin()
+    servoer.servoing_as.set_aborted()
