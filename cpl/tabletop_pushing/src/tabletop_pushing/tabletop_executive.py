@@ -62,7 +62,7 @@ class TabletopExecutive:
         self.use_sweep_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
                                                      pi*0.375)
         self.use_pull_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
-                                                     pi*0.75)
+                                                     pi*0.5)
         self.use_same_side_y_thresh = rospy.get_param('~use_same_side_y_thresh',
                                                      0.3)
         self.use_same_side_x_thresh = rospy.get_param('~use_same_side_x_thresh',
@@ -91,9 +91,9 @@ class TabletopExecutive:
         self.overhead_start_z = rospy.get_param('~overhead_push_start_z',
                                                  -0.25)
         self.pull_dist_offset = rospy.get_param('~overhead_pull_dist_offset',
-                                                0.03)
+                                                0.05)
         self.pull_start_z = rospy.get_param('~overhead_push_start_z',
-                                            -0.25)
+                                            -0.27)
         # Setup service proxies
         self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
@@ -391,11 +391,17 @@ class TabletopExecutive:
         push_req.desired_push_dist = push_dist + self.pull_dist_offset
 
         # Offset pose to not hit the object immediately
+        rospy.loginfo('Pre pull offset (x,y): (' +
+                      str(push_req.start_point.point.x) + ', ' +
+                      str(push_req.start_point.point.y) + ')')
         push_req.start_point.point.x += self.pull_dist_offset*cos(wrist_yaw)
         push_req.start_point.point.y += self.pull_dist_offset*sin(wrist_yaw)
         push_req.start_point.point.z = self.pull_start_z
         push_req.left_arm = (which_arm == 'l')
         push_req.right_arm = not push_req.left_arm
+        rospy.loginfo('Post pull offset (x,y): (' +
+                      str(push_req.start_point.point.x) + ', ' +
+                      str(push_req.start_point.point.y) + ')')
 
         rospy.loginfo("Calling pre overhead pull service")
         pre_push_res = self.overhead_pre_pull_proxy(push_req)
@@ -407,3 +413,4 @@ class TabletopExecutive:
 if __name__ == '__main__':
     node = TabletopExecutive(False)
     node.run(30)
+    # node.run(30, False)
