@@ -13,9 +13,9 @@ function nop(){};
 function json(obj){return JSON.stringify(obj);};
 function log(message){ document.getElementById('console').innerHTML = message.toString();};
 
-//var ROBOT = 'monty1.hsi.gatech.edu';
+var ROBOT = 'monty1.hsi.gatech.edu';
 //var ROBOT = 'localhost'
-var ROBOT = 'prl.willowgarage.com'
+//var ROBOT = 'prl.willowgarage.com'
 var head_pub;
 var base_pub;
 var scales={head:50,base:50,rarm:50,larm:50,rwrist:50,lwrist:50};
@@ -659,30 +659,53 @@ function toggle_motors(command) { //command = 'halt' or 'reset'
 
 function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+':8080/?topic=/'+cam+'?width=640?height=480'};
 
-function servo_setup(){
-    node.publish('pr2_ar_servo/arms_setup','std_msgs/Bool', json({'data':true}));
+function servo_setup_cb(){
+    log('Sending command to prep arms for ar-servoing approach');
+    node.rosjs.callService('/pr2_ar_servo/arms_setup','[""]',function(msg){
+        $('#ar_servoing_setup').hide();
+        $('#ar_servoing_done, .ar_servo_controls').show();
+        $('#servo_approach, #servo_stop').fadeTo(0,0.5);
+        log('USE BUTTONS TO PERFORM APPROACH');
+        })
 };
 
-function servo_detect_tag(){
+function servoing_done_cb(){
+    $('#freeze_cloud').show();
+    $('#ar_servoing_done, .ar_servo_controls').hide(); 
+    log('Approach Completed. PLACE HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD');
+};
+
+function servo_detect_tag_cb(){
     node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({'data':true}));
+    log('Searching for ARTag'); 
 };
 
-function servo_confirm_tag(){
+function servo_approach_cb(){
     node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({'data':true}));
+    log('Approaching Tag'); 
 };
 
 function servo_preempt(){
     node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({'data':true}));
 };
 
-function freeze_cloud() {
+function freeze_cloud_cb() {
+    $('#freeze_cloud').hide();
+    $('#reg_confirm').show();
     node.publish('reg_confirm', 'std_msgs/Bool', json({'data':true}));
-    log("Sending command to freeze head pointcloud")
+    log('USE R-VIZ TO FULLY ALIGN ELLIPSE, THEN CLICK CONFIRM.');
 };
 
-function confirm_registration() {
-    node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({'data':true}));
-    log("Sending command to prepare for shaving.")
+function reg_confirm_cb() {
+    log("Sending command to untuck arms and start shaving.");
+    node.rosjs.callService('/setup_arms_shaving', json(''), function(msg){
+        $('#reg_confirm').hide();
+        $('#tp').hide();
+        $('#bpd2, #shave_select, #tool_power, #bpd2, #shave, #rezero_wrench').show();
+        log('Untucking arms to begin shaving.');
+        node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({'data':true}));
+        log("Sending command to prepare for shaving.")
+    });
 };
 
 function shave_step(x,y,z) {points = window.gm_point;
@@ -721,6 +744,19 @@ function toggle_tool_power() {
 function rezero_wrench(){
     node.publish('netft_gravity_zeroing/rezero_wrench','std_msgs/Bool',json({'data':true}));
     log("Sending command to Re-zero Force/Torque Sensor");
+};
+
+function shave_start_cb(){
+    $('#shave_end, #ar_servoing_setup').show();
+    $('#shave_start').hide();
+    log('Opened Shaving Interface');
+};
+
+function shave_end_cb() {
+$('#bpd2, #shave_select, #freeze_cloud, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave, #rezero_wrench').hide();
+$('#tp, #shave_start').show();
+$('#shave_end').hide();
+log('Closed Shaving Interface');
 };
 
 function start(){
@@ -794,16 +830,16 @@ width:100px;
       <table>
         <tr>
           <td>
-            <button id="shave_start" class='act_menu' type="button" onclick="$('#shave_end, #ar_servoing_setup').show(); $(this).hide(); log('Opened Shaving Interface');">Shave</button>
-            <button id="shave_end" class='act_menu' type="button" onclick="$('#bpd2, #shave_select, #freeze_cloud, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave, #rezero_wrench').hide(); $('#tp, #shave_start').show();$(this).hide(); log('Closed Shaving Interface');">End Shaving</button>
+            <button id="shave_start" class='act_menu' type="button" onclick="shave_start_cb()">Shave</button>
+            <button id="shave_end" class='act_menu' type="button" onclick="shave_end_cb">End Shaving</button>
           </td>
        </tr>
        <tr><td><hr></td></tr>
        <tr><td>
-         <button id="ar_servoing_setup" class='shave_acts' onclick="servo_setup(); $(this).hide(); $('#ar_servoing_done').show(); $('.ar_servo_controls').show(); log('Positioning arms to see AR Tag for servoing. USE BUTTONS TO PERFORM APPROACH');"> Setup for Approach </button>
-         <button id="ar_servoing_done" class='shave_acts' type="button" onclick="$('#freeze_cloud').show(); $(this).hide(); $('.ar_servo_controls').hide(); log('Approach Completed. PLACE HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD');"> Approach Finished </button>
-          <button id="freeze_cloud" class='shave_acts' type="button" onclick="freeze_cloud(); $(this).hide(); $('#reg_confirm').show(); log('USE R-VIZ TO FULLY ALIGN ELLIPSE, THEN CLICK CONFIRM.');"> Freeze Pointcloud</button>
-          <button id="reg_confirm" class='shave_acts' type="button" style="height:120" onclick="confirm_registration(); $(this).hide(); $('#tp').hide(); $('#bpd2, #shave_select, #tool_power, #bpd2, #shave, #rezero_wrench').show(); log('Untucking arms to begin shaving.');"> Confirm Registration (Raise Torso and Untuck Arms) </button>
+         <button id="ar_servoing_setup" class='shave_acts' onclick="servo_setup_cb();"> Setup for Approach </button>
+         <button id="ar_servoing_done" class='shave_acts' type="button" onclick="servoing_done_cb();"> Approach Finished </button>
+         <button id="freeze_cloud" class='shave_acts' type="button" onclick="freeze_cloud_cb();"> Freeze Pointcloud</button>
+          <button id="reg_confirm" class='shave_acts' type="button" style="height:120" onclick="reg_confirm_cb();"> Confirm Registration (Raise Torso and Untuck Arms) </button>
           <button id="shave" class='shave_acts' type="button" onclick="send_shave_location(-1);">Shave Now</button>
           </td>
         </tr>
@@ -1032,8 +1068,8 @@ width:100px;
       <table class='ar_servo_controls'>
         <tr>
           <td>Approach Controls: </td>
-          <td><button id='servo_detect_tag' style="font-size:150%;height:75;width:150" onclick="log('Searching for ARTag'); servo_detect_tag();"> Detect Tag </button></td>
-          <td><button id='servo_confirm_tag' style="font-size:150%;height:75;width:150" onclick="log('Approaching Tag'); servo_confirm_tag();"> Approach </button></td>
+          <td><button id='servo_detect_tag' style="font-size:150%;height:75;width:150" onclick="servo_detect_tag_cb();"> Detect Tag </button></td>
+          <td><button id='servo_approach' style="font-size:150%;height:75;width:150" onclick="servo_approach_cb();"> Approach </button></td>
           <td><button id='servo_stop' style="font-size:150%;background-color:red;height:75;width:150" onclick="log('Stopping'); servo_preempt();"> Stop </button></td>
         </tr>
       </table>
@@ -1044,11 +1080,11 @@ width:100px;
 </td>
 <td colspan='2'> <!-- Gross Formating-->
 <tr><td colspan='4'>
-  <button id="stop" type="button" style="color:red;background-color:gray;font:bold;height:auto;border-style:none;height:30px;width:100%;" onclick="toggle_motors('halt'); $(':button:visible:not(#reset)').fadeTo(1,0.4); $('#reset').show(); log('YOU\'VE STOPPED THE ROBOT! Please click \'REACTIVATE\' to reset.')">STOP ROBOT! </button> 
+  <button id="stop" type="button" style="color:red;background-color:gray;font:bold;height:auto;border-style:none;height:30px;width:100%;" onclick="toggle_motors('halt'); $(':button:visible:not(#reset)').fadeTo(0,0.4); $('#reset').show(); log('YOU\'VE STOPPED THE ROBOT! Please click \'REACTIVATE\' to reset.')">STOP ROBOT! </button> 
   </td>
 </tr><tr>
   <td colspan='4'>
-    <button id="reset" type="button" style="color:white;background-color:green;font:bold;height:30px;width:100%" onclick="toggle_motors('reset'); $(':button:visible').fadeTo(1,1); $(this).hide(); log('Operation Resumed.');">REACTIVATE</button>
+    <button id="reset" type="button" style="color:white;background-color:green;font:bold;height:30px;width:100%" onclick="toggle_motors('reset'); $(':button:visible').fadeTo(0,1); $(this).hide(); log('Operation Resumed.');">REACTIVATE</button>
  </td>
 </tr></table> <!--END Gross Formating-->
 </body>
