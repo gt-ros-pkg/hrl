@@ -1,0 +1,18 @@
+<launch>
+    <include file="$(find hrl_rfh_fall_2011)/launch/head_registration.launch" />
+    <include file="$(find kelsey_sandbox)/launch/pr2_ar_servo.launch" />
+    <node pkg="hrl_rfh_fall_2011" name="sm_register_head_ellipse" type="sm_register_head_ellipse.py" 
+          output="screen" />
+    <node pkg="hrl_rfh_fall_2011" name="sm_shaving" type="sm_shaving.py"
+          output="screen" />
+    <node pkg="hrl_rfh_fall_2011" name="ellipsoid_controller" type="ellipsoid_controller.py"
+          output="screen" args="a" />
+    <node pkg="hrl_rfh_fall_2011" name="setup_arms_shaving" type="setup_arms_shaving.py"
+          output="screen" args="-s" />
+    <node pkg="kelsey_sandbox" name="servo_prepare" type="servo_prepare.py"
+          output="screen" args="-s" />
+    <node pkg="hrl_trajectory_playback" name="untuck_l_arm_playback" type="playback.py" 
+          output="screen" respawn="false" 
+          args="--pkl $(find hrl_rfh_fall_2011)/data/untuck_l_arm.pkl --name untuck_l_arm --left" />
+
+</launch>

@@ -88,11 +88,11 @@ class SMEllipsoidRegistration(object):
             smach.StateMachine.add('FREEZE_PC',
                                    ServiceState('pc_switch', PCSwitch, 
                                                 request=PCSwitchRequest(False),
-                                                response_cb=pc_swtich_resp_cb),
-                                   transitions={'succeeded' : 'CONFIRM_REG'})
+                                                response_cb=pc_swtich_resp_cb))
+                                   #transitions={'succeeded' : 'CONFIRM_REG'})
 
-            smach.StateMachine.add('CONFIRM_REG',
-                                   TopicMonitor('/shaving_reg_confirm', Bool))
+            #smach.StateMachine.add('CONFIRM_REG',
+            #                       TopicMonitor('/shaving_reg_confirm', Bool))
 
         return sm
 

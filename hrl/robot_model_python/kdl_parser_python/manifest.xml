@@ -9,6 +9,7 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/kdl_parser_python</url>
   <depend package="urdf_parser_python"/>
+  <depend package="python_orocos_kdl"/>
 
 </package>
 
