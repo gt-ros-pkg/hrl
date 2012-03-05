@@ -2024,14 +2024,26 @@ class ObjectSingulation
       chosen_idx = forced_idx;
     }
     // Choose a random orientation
-    double push_angle = (randf()* (max_push_angle_- min_push_angle_) +
-                         min_push_angle_);
+    double push_angle = 0.0;
     double push_dist = 0.0;
-    Eigen::Vector3f push_unit_vec(cos(push_angle), sin(push_angle), 0.0f);
-    p.start_point = determineStartPoint(objs[chosen_idx].cloud,
-                                        objs[chosen_idx].centroid,
-                                        push_unit_vec,
-                                        push_angle, push_dist);
+    Eigen::Vector3f push_unit_vec(0.0f, 0.0f, 0.0f);
+    int push_guess_count = 0;
+    bool will_collide = false;
+    do
+    {
+      push_angle = (randf()* (max_push_angle_- min_push_angle_) +
+                    min_push_angle_);
+      push_unit_vec[0] = cos(push_angle);
+      push_unit_vec[1] = sin(push_angle);
+      p.start_point = determineStartPoint(objs[chosen_idx].cloud,
+                                          objs[chosen_idx].centroid,
+                                          push_unit_vec,
+                                          push_angle, push_dist);
+      PushOpt po(objs[chosen_idx], push_angle, push_unit_vec, chosen_idx,
+                 0, push_dist, 1.0, 0);
+      will_collide = pushCollidesWithObject(po, objs);
+      push_guess_count++;
+    } while (will_collide && push_guess_count < push_guess_limit_);
     p.push_angle = push_angle;
     p.push_dist = push_dist;
     p.num_objects = objs.size();
@@ -2041,6 +2053,10 @@ class ObjectSingulation
     ROS_INFO_STREAM("Chosen push pose is at: (" << p.start_point.x << ", "
                     << p.start_point.y << ", " << p.start_point.z
                     << ") with orientation of: " << p.push_angle);
+    if (will_collide)
+    {
+      ROS_INFO_STREAM("Chosen push is expected to collide.");
+    }
     if (use_displays_)
     {
       displayPushVector(objs[chosen_idx], p, push_unit_vec);
@@ -3274,7 +3290,7 @@ class ObjectSingulation
       // NOTE: need to flip histogram order to correctly display
       if (hist[hist.size()-i-1] > 0 || (hist.size()-i-1) == highlight_bin)
       {
-        int d_y = 0.0;
+        int d_y = 0;
         if (hist_max != 0)
         {
           d_y = h * hist[hist.size()-i-1] / hist_max;
@@ -3335,9 +3351,19 @@ class ObjectSingulation
     rot = start_rot;
     for (unsigned int i = 0; i < hist.size(); ++i)
     {
-      if (hist[hist.size()-i-1] > 0)
+      if (hist[hist.size()-i-1] > 0 || (hist.size()-i-1) == highlight_bin)
       {
-        int d_y = h * hist[hist.size()-i-1] / hist_max;
+        int d_y = 0;
+        if (hist_max != 0)
+        {
+          d_y = h * hist[hist.size()-i-1] / hist_max;
+        }
+        if ((hist.size()-i-1) == highlight_bin && d_y == 0)
+        {
+          d_y = h;
+          ROS_INFO_STREAM("Setting line height to h: " << d_y);
+        }
+
         const int r1 = r0+d_y;
         const cv::Size s1(r1, r1);
         float start_angle = 0.0;
@@ -3440,9 +3466,14 @@ class ObjectSingulation
     rot = start_rot;
     for (unsigned int i = 0; i < hist.size(); ++i)
     {
-      if (hist[hist.size()-i-1] > 0)
+      if (hist[hist.size()-i-1] > 0 || (hist.size()-i-1) == highlight_bin)
       {
         int d_y = h * hist[hist.size()-i-1] / hist_max;
+        if ((hist.size()-i-1) == highlight_bin)
+        {
+          d_y += h/hist_max;
+        }
+
         const int r1 = r0+d_y;
         const cv::Size s1(r1, r1);
         float start_angle = 0.0;
@@ -3531,6 +3562,7 @@ class ObjectSingulation
   bool force_remain_singulated_;
   int per_object_rand_push_count_;
   bool use_unguided_icp_;
+  int push_guess_limit_;
 };
 
 class ObjectSingulationNode
@@ -3606,8 +3638,8 @@ class ObjectSingulationNode
                      os_->force_remain_singulated_, true);
     n_private_.param("per_object_rand_push_count",
                      os_->per_object_rand_push_count_, 3);
-    n_private_.param("use_unguided_icp",
-                     os_->use_unguided_icp_, true);
+    n_private_.param("use_unguided_icp", os_->use_unguided_icp_, true);
+    n_private_.param("push_guess_limit", os_->push_guess_limit_, 1);
     std::string output_path_def = "~";
     n_private_.param("img_output_path", base_output_path_, output_path_def);
     os_->base_output_path_ = base_output_path_;

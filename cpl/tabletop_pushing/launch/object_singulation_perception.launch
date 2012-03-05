@@ -75,7 +75,8 @@
     <param name="icp_max_cor_dist" value="1.0" type="double"/>
     <param name="icp_ransac_thresh" value="0.5" type="double"/>
 
-    <param name="per_object_rand_push_count" value="2" type="int"/>
+    <param name="per_object_rand_push_count" value="3" type="int"/>
     <param name="use_unguided_icp" value="false" type="bool"/>
+    <param name="push_guess_limit" value="16" type="int"/>
   </node>
 </launch>
