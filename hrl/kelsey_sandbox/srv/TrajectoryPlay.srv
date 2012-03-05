@@ -1,0 +1,4 @@
+bool move_setup
+bool reverse
+string filepath
+---

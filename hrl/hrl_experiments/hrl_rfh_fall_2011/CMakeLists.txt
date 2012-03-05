@@ -34,3 +34,4 @@ rosbuild_gensrv()
 #target_link_libraries(example ${PROJECT_NAME})
 
 rosbuild_add_executable(pc_throttled_switch src/pc_throttled_switch.cpp)
+rosbuild_add_executable(pc_snapshotter src/pc_snapshotter.cpp)

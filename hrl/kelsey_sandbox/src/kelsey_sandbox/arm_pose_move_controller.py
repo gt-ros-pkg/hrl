@@ -16,10 +16,6 @@ from arm_cart_vel_control import PR2ArmCartVelocityController
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 
 RATE = 20
-CTRL_NAME_LOW = '%s_joint_controller_low'
-PARAMS_FILE_LOW = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_low.yaml'
-CTRL_NAME_NONE = '%s_joint_controller_none'
-PARAMS_FILE_NONE = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_none.yaml'
 JOINT_TOLERANCES = [0.03, 0.1, 0.1, 0.1, 0.17, 0.15, 0.12]
 JOINT_VELOCITY_WEIGHT = [3.0, 1.7, 1.7, 1.0, 1.0, 1.0, 0.5]
 
@@ -34,7 +30,7 @@ class ArmPoseMoveController(object):
     def load_arm(self, arm_char):
         self.ctrl_switcher.carefree_switch(arm_char, self.ctrl_name, self.param_file, reset=False)
         return create_pr2_arm(arm_char, PR2ArmJointTrajectory, 
-                              controller_name=CTRL_NAME_LOW, timeout=8)
+                              controller_name=self.ctrl_name, timeout=8)
 
 
     def execute_trajectory(self, joint_trajectory, arm_char, rate, blocking=True):
@@ -150,12 +146,31 @@ class TrajectorySaver(object):
         pickle.dump((self.traj, self.cur_arm.arm, self.rate), f)
         f.close()
 
+class TrajectoryServer(object):
+    def __init__(self, srv_name, ctrl_name, param_file):
+        self.traj_ctrl = ArmPoseMoveController(ctrl_name, param_file)
+        self.traj_srv = rospy.Service(srv_name, TrajectoryPlay, self.traj_play_cb)
+
+    def traj_play_cb(self, req):
+        if req.move_setup:
+            result = self.apm_ctrl.move_to_setup_from_file(req.filepath, 
+                                         reverse=not msg.is_forward, blocking=False)
+        else:
+            result = self.apm_ctrl.exec_traj_from_file(filepath, 
+                                         reverse=not msg.is_forward, blocking=False)
+
+
+CTRL_NAME_LOW = '%s_joint_controller_low'
+PARAMS_FILE_LOW = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_low.yaml'
+CTRL_NAME_NONE = '%s_joint_controller_none'
+PARAMS_FILE_NONE = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_none.yaml'
+
 def main():
     rospy.init_node("arm_pose_move_controller")
 
     from optparse import OptionParser
     p = OptionParser()
-    p.add_option('-f', '--file', dest="filename", default="",
+    p.add_option('-f', '--file', dest="params_file", default="",
                  help="YAML file to save parameters in or load from.")
     p.add_option('-l', '--left_arm', dest="left_arm",
                  action="store_true", default=False,
@@ -169,6 +184,13 @@ def main():
     p.add_option('-t', '--traj_mode', dest="traj_mode",
                  action="store_true", default=False,
                  help="Trajectory mode.")
+    p.add_option('-c', '--ctrl_name', dest="ctrl_name", default=CTRL_NAME_LOW,
+                 help="Controller to run the playback with.")
+    p.add_option('-v', '--srv_mode', dest="srv_mode", 
+                 action="store_true", default=False,
+                 help="Server mode.")
+    p.add_option('-n', '--srv_name', dest="srv_name", default='/trajectory_playback',
+                 help="Name of service to provide.")
     (opts, args) = p.parse_args()
 
     ctrl_switcher = ControllerSwitcher()
@@ -185,21 +207,25 @@ def main():
             raw_input("Press enter to start recording")
             traj_saver.record_trajectory(arm_char, blocking=True)
             traj_saver.stop_record(filename)
-            ctrl_switcher.carefree_switch(arm_char, CTRL_NAME_LOW, PARAMS_FILE_LOW, reset=False)
+            ctrl_switcher.carefree_switch(arm_char, opts.ctrl_name, PARAMS_FILE_LOW, reset=False)
             return
         else:
             print "FIX"
             return
+    elif opts.srv_mode:
+        traj_srv = TrajectoryServer(opts.srv_name, opts.ctrl_name, opts.params_file)
+        rospy.spin()
+        return
 
     if False:
-        ctrl_switcher.carefree_switch(arm_char, CTRL_NAME_LOW, PARAMS_FILE_LOW, reset=False)
-        arm_pm_ctrl = ArmPoseMoveController(CTRL_NAME_LOW, PARAMS_FILE_LOW)
+        ctrl_switcher.carefree_switch(arm_char, opts.ctrl_name, PARAMS_FILE_LOW, reset=False)
+        arm_pm_ctrl = ArmPoseMoveController(opts.ctrl_name, PARAMS_FILE_LOW)
         arm_pm_ctrl.move_to_angles(q_test, arm_char)
         return
 
     if False:
         raw_input("Press enter to continue")
-        arm_pm_ctrl = ArmPoseMoveController(CTRL_NAME_LOW, PARAMS_FILE_LOW)
+        arm_pm_ctrl = ArmPoseMoveController(opts.ctrl_name, PARAMS_FILE_LOW)
         result = arm_pm_ctrl.exec_traj_from_file(filename, reverse=True, blocking=True)
         print result
 

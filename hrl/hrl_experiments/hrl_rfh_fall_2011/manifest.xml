@@ -10,6 +10,7 @@
   <url>http://ros.org/wiki/hrl_rfh_fall_2011</url>
   <depend package="hrl_phri_2011"/>
   <depend package="actionlib_msgs"/>
+  <depend package="std_srvs"/>
 
 </package>
 

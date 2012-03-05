@@ -1,8 +1,8 @@
 <launch>
     <include file="$(find hrl_rfh_fall_2011)/launch/head_registration.launch" />
     <include file="$(find kelsey_sandbox)/launch/pr2_ar_servo.launch" />
-    <node pkg="hrl_rfh_fall_2011" name="sm_register_head_ellipse" type="sm_register_head_ellipse.py" 
-          output="screen" />
+    <node pkg="hrl_rfh_fall_2011" name="pc_snapshotter" type="pc_snapshotter" 
+          output="screen" args="/kinect_head/rgb/points" />
     <node pkg="hrl_rfh_fall_2011" name="sm_shaving" type="sm_shaving.py"
           output="screen" />
     <node pkg="hrl_rfh_fall_2011" name="ellipsoid_controller" type="ellipsoid_controller.py"
