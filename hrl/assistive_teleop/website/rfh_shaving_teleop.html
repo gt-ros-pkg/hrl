@@ -670,7 +670,7 @@ function servo_setup_cb(){
 };
 
 function servoing_done_cb(){
-    $('#freeze_cloud').show();
+    $('#pc_snapshot').show();
     $('#ar_servoing_done, .ar_servo_controls').hide(); 
     log('Approach Completed. PLACE HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD');
 };
@@ -689,16 +689,16 @@ function servo_preempt(){
     node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({'data':true}));
 };
 
-function freeze_cloud_cb() {
-    $('#freeze_cloud').hide();
+function pc_snapshot_cb() {
+    node.rosjs.callService('/take_pc_snapshot',json(''),nop);
     $('#reg_confirm').show();
-    node.publish('reg_confirm', 'std_msgs/Bool', json({'data':true}));
     log('USE R-VIZ TO FULLY ALIGN ELLIPSE, THEN CLICK CONFIRM.');
 };
 
 function reg_confirm_cb() {
     log("Sending command to untuck arms and start shaving.");
     node.rosjs.callService('/setup_arms_shaving', json(''), function(msg){
+        $('#pc_snapshot').hide();
         $('#reg_confirm').hide();
         $('#tp').hide();
         $('#bpd2, #shave_select, #tool_power, #bpd2, #shave, #rezero_wrench').show();
@@ -753,7 +753,7 @@ function shave_start_cb(){
 };
 
 function shave_end_cb() {
-$('#bpd2, #shave_select, #freeze_cloud, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave, #rezero_wrench').hide();
+$('#bpd2, #shave_select, #pc_shapshot, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave, #rezero_wrench').hide();
 $('#tp, #shave_start').show();
 $('#shave_end').hide();
 log('Closed Shaving Interface');
@@ -838,7 +838,7 @@ width:100px;
        <tr><td>
          <button id="ar_servoing_setup" class='shave_acts' onclick="servo_setup_cb();"> Setup for Approach </button>
          <button id="ar_servoing_done" class='shave_acts' type="button" onclick="servoing_done_cb();"> Approach Finished </button>
-         <button id="freeze_cloud" class='shave_acts' type="button" onclick="freeze_cloud_cb();"> Freeze Pointcloud</button>
+         <button id="pc_shapshot" class='shave_acts' type="button" onclick="pc_snapshot_cb();"> Take Snapshot (In Rviz)</button>
           <button id="reg_confirm" class='shave_acts' type="button" style="height:120" onclick="reg_confirm_cb();"> Confirm Registration (Raise Torso and Untuck Arms) </button>
           <button id="shave" class='shave_acts' type="button" onclick="send_shave_location(-1);">Shave Now</button>
           </td>
