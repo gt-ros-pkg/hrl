@@ -1,5 +1,5 @@
 r_cart:
-  type: pr2_manipulation_controllers/JInvTeleopController
+  type: pr2_manipulation_controllers/JinvTeleopController
   root_name: torso_lift_link
   tip_name: r_gripper_tool_frame
   k_posture: 25.0
@@ -16,7 +16,7 @@ r_cart:
   vel_saturation_rot: 4.0
 
 l_cart:
-  type: pr2_manipulation_controllers/JInvTeleopController
+  type: pr2_manipulation_controllers/JinvTeleopController
   root_name: torso_lift_link
   tip_name: l_gripper_tool_frame
   k_posture: 25.0

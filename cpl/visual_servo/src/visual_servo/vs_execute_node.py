@@ -46,35 +46,16 @@ import sys
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from visual_servo.srv import *
 from array import *
-import atexit
 
-def goodbye():
-  rospy.logwarn("Program Terminating: Reset all velocities to 0")
-  try:
-    cs = ControllerSwitcher()
-    cs.carefree_switch('r', '%s_cart', '$(find visual_servo)/params/rmc_cartTwist_params.yaml')
-    rospy.sleep(0.5)
-    pub = rospy.Publisher('r_cart/command', Twist)
-    twist = Twist()
-    twist.linear.x = 0.0
-    twist.linear.y = 0.0
-    twist.linear.z = 0.0
-    twist.angular.x = 0.0
-    twist.angular.y = 0.0
-    twist.angular.z = 0.0
-    pub.publish(twist) 
-  except rospy.ROSInterruptException,e: print "Could not terminate properly. Please panic and hit the reset button\n>> Reason:%s"%e
-
-#atexit.register(goodbye)
 class VisualServoExecutionNode:
   def initial_arm(self, cs):
-    rospy.loginfo('Setting to Initial pose...')
+    rospy.loginfo('Setting to Initial msg...')
     cs.carefree_switch('r', '%s_arm', '$(find visual_servo)/params/rmc_joint_trajectory_params.yaml' )
     rospy.sleep(0.5)
     pub = rospy.Publisher('r_arm/command', JointTrajectory)
     msg = JointTrajectory()
     pts = JointTrajectoryPoint()
-    pts.positions = array('d', [-0.20, +0.056137,
+    pts.positions = array('d', [-0.20, 0.056137,
                                     -1.53411927, -1.35,
                                     -15.85, -1.582,
                                     -1.72])
@@ -93,39 +74,23 @@ class VisualServoExecutionNode:
     rospy.init_node('vs_execute_node', log_level=rospy.DEBUG)
     cs = ControllerSwitcher()
     # self.initial_arm(cs)
-    
-    rospy.sleep(3.0)
-    cs.carefree_switch('r', '%s_cart', '$(find visual_servo)/params/pr2mc_jinv_params.yaml')
-    rospy.sleep(0.5)
-    pub = rospy.Publisher('r_cart/commandTwist', TwistStamped)
-    msg = TwistStamped()
-    msg.header.frame_id = '/torso_lift_link'
-    msg.header.stamp = rospy.Time(0)
-    msg.twist.linear.x = 0.00
-    msg.twist.linear.y = 0.10
-    msg.twist.linear.z = 0.0
-    msg.twist.angular.x = 0.0
-    msg.twist.angular.y = 0.0
-    msg.twist.angular.z = 0.0
-    pub.publish(msg)
-    rospy.sleep(0.5)
-    pub.publish(msg)
-    '''
+   
     cs.carefree_switch('r', '%s_cart', '$(find visual_servo)/params/rmc_cartTwist_params.yaml')
     rospy.sleep(0.5)
     pub = rospy.Publisher('r_cart/command', Twist)
-    pose = Twist()
-    pose.linear.x = 0.00
-    pose.linear.y = -0.2
-    pose.linear.z = 0.0
-    pose.angular.x = 0.0
-    pose.angular.y = 0.0
-    pose.angular.z = 0.0
-    pub.publish(pose)
+    zero = Twist()
+    zero.linear.x = 0.00
+    zero.linear.y = 0.50
+    zero.linear.z = 0.0
+    zero.angular.x = 0.0
+    zero.angular.y = 0.0
+    zero.angular.z = 0.0
+    pub.publish(zero)
     rospy.sleep(0.5)
-    pub.publish(pose)
-    '''
-    '''
+    pub.publish(zero)
+    
+    msg = Twist()
+    
     rospy.loginfo('Waiting for Visual Servo Node Service')
     rospy.wait_for_service('visual_servo_twist')
     rospy.loginfo('Hooking up Service Proxy to the Visual Servo Twist')
@@ -134,17 +99,21 @@ class VisualServoExecutionNode:
     while not rospy.is_shutdown():
       try:
         resp = service()							
-        pose.linear.x = resp.vx
-        pose.linear.y = resp.vy
-        pose.linear.z = resp.vz
-        pose.angular.x = resp.wx
-        pose.angular.y = resp.wy
-        pose.angular.z = resp.wz
-        rospy.loginfo(pose)
-        # pub.publish(pose)
+        msg.linear.x = resp.vx
+        msg.linear.y = resp.vy
+        msg.linear.z = resp.vz
+        msg.angular.x = resp.wx
+        msg.angular.y = resp.wy
+        msg.angular.z = resp.wz
+        rospy.loginfo(msg)
+        # pub.publish(msg)
         rospy.sleep(0.3) 
       except rospy.ServiceException, e: pass 
-'''
+    # shutdown sequence
+    rospy.loginfo('[IMPORTANT] Shutting Down. Set Twist to 0')
+    pub.publish(zero)
+    rospy.spin()
+
 if __name__ == '__main__':
 	try:
 		node = VisualServoExecutionNode()
