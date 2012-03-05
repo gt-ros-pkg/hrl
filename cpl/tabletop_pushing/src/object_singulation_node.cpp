@@ -1322,7 +1322,7 @@ class ObjectSingulation
    */
   PushVector getPushVector(bool no_push_calc, cv::Mat& color_img,
                            cv::Mat& depth_img, XYZPointCloud& cloud,
-                           cv::Mat& workspace_mask)
+                           cv::Mat& workspace_mask, bool use_guided=true)
   {
     if (!initialized_)
     {
@@ -1340,7 +1340,8 @@ class ObjectSingulation
     {
       prev_proto_objs_.push_back(cur_proto_objs_[i]);
     }
-    calcProtoObjects(cloud);
+
+    calcProtoObjects(cloud, use_guided);
 
     if (no_push_calc)
     {
@@ -1349,6 +1350,15 @@ class ObjectSingulation
       push_vector.num_objects = cur_proto_objs_.size();
       ++callback_count_;
       prev_push_vector_ = push_vector;
+      return push_vector;
+    }
+
+    if (!use_guided)
+    {
+      PushVector push_vector = findRandomPushVector(cur_proto_objs_, cloud,
+                                                    color_img.size());
+      prev_push_vector_ = push_vector;
+      ++callback_count_;
       return push_vector;
     }
 
@@ -1392,7 +1402,6 @@ class ObjectSingulation
    */
   PushVector findRandomPushPose(XYZPointCloud& input_cloud)
   {
-    // TODO: Make push confirmation thing
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(input_cloud);
     prev_proto_objs_ = cur_proto_objs_;
     cur_proto_objs_ = objs;
@@ -1453,7 +1462,7 @@ class ObjectSingulation
    *
    * @return The current estimate of the objects
    */
-  ProtoObjects calcProtoObjects(XYZPointCloud& cloud)
+  ProtoObjects calcProtoObjects(XYZPointCloud& cloud, bool use_guided=true)
   {
     XYZPointCloud objs_cloud;
     XYZPointCloud table_cloud;
@@ -1463,7 +1472,14 @@ class ObjectSingulation
     ROS_INFO_STREAM("Found " << objs.size() << " objects!");
     for (unsigned int i = 0; i < objs.size(); ++i)
     {
-      objs[i].push_history.resize(num_angle_bins_, 0);
+      if (use_guided)
+      {
+        objs[i].push_history.resize(num_angle_bins_, 0);
+      }
+      else
+      {
+        objs[i].push_history.resize(1, 0);
+      }
     }
     XYZPointCloud cur_objs_down = pcl_segmenter_->downsampleCloud(objs_cloud,
                                                                   true);
@@ -1476,7 +1492,7 @@ class ObjectSingulation
       // Match these moved regions to the previous objects
       pcl_segmenter_->matchMovedRegions(prev_proto_objs_, moved_regions);
       // Match the moved objects to their new locations
-      updateMovedObjs(objs, prev_proto_objs_);
+      updateMovedObjs(objs, prev_proto_objs_, use_guided);
     }
     else
     {
@@ -1526,7 +1542,8 @@ class ObjectSingulation
    *
    * @return
    */
-  void updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs)
+  void updateMovedObjs(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
+                       bool use_guided = true)
   {
     merged_ = cur_objs.size()  < prev_objs.size();
     split_ = cur_objs.size()  > prev_objs.size();
@@ -1565,7 +1582,7 @@ class ObjectSingulation
 
     // Match stuff
     std::vector<bool> matched = matchUnmoved(cur_objs, prev_objs);
-    matchMoved(cur_objs, prev_objs, matched, split_, merged_);
+    matchMoved(cur_objs, prev_objs, matched, split_, merged_, use_guided);
 
     // Update push histories
     if (!prev_push_vector_.no_push)
@@ -1574,6 +1591,13 @@ class ObjectSingulation
       {
         if (cur_objs[i].id == prev_push_vector_.object_id)
         {
+          if (!use_guided)
+          {
+            cur_objs[i].push_history[0]++;
+            ROS_INFO_STREAM("Updating the push history for object " << i <<
+                            " to " << cur_objs[i].push_history[0]);
+            return;
+          }
           // Check if push failed (nothing moved or wrong object moved)
           if (!cur_objs[i].moved)
           {
@@ -1606,7 +1630,6 @@ class ObjectSingulation
         }
       }
     }
-
   }
 
   std::vector<bool> matchUnmoved(ProtoObjects& cur_objs,
@@ -1652,7 +1675,8 @@ class ObjectSingulation
   }
 
   void matchMoved(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
-                  std::vector<bool> matched, bool split, bool merged)
+                  std::vector<bool> matched, bool split, bool merged,
+                  bool use_guided)
   {
     // std::stringstream file_out_name;
     // file_out_name << base_output_path_ << "icp_scores.txt";
@@ -1705,15 +1729,28 @@ class ObjectSingulation
             {
               ROS_INFO_STREAM("Bad score on split, resetting history of " <<
                               min_idx << "!");
-              cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
-              // matched[min_idx] = false;
+              if(use_guided)
+              {
+                cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
+              }
+              else
+              {
+                cur_objs[min_idx].push_history.resize(1, 0);
+              }
               cur_objs[min_idx].transform =  Eigen::Matrix4f::Identity();
             }
             else if (merged && (bad_icp || cur_objs.size() == 1))
             {
               ROS_INFO_STREAM("Bad score on merge, resetting history of " <<
                               min_idx << "!");
-              cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
+              if(use_guided)
+              {
+                cur_objs[min_idx].push_history.resize(num_angle_bins_, 0);
+              }
+              else
+              {
+                cur_objs[min_idx].push_history.resize(1, 0);
+              }
               cur_objs[min_idx].singulated = false;
               cur_objs[min_idx].transform =  Eigen::Matrix4f::Identity();
             }
@@ -1752,7 +1789,7 @@ class ObjectSingulation
    */
   PushVector determinePushPose(cv::Mat& boundary_img, ProtoObjects& objs,
                                std::vector<Boundary>& boundaries,
-                               XYZPointCloud cloud)
+                               XYZPointCloud& cloud)
   {
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
         objs, boundary_img.size(), workspace_frame_);
@@ -1900,6 +1937,105 @@ class ObjectSingulation
                       push_pose, push_opts[0]);
 #endif // DISPLAY_PUSH_VECTOR
     return push_pose;
+  }
+
+  /**
+   * Randomly choose an object to push that is within reach.
+   * Chooses a random direction to push from.
+   *
+   * @param input_cloud Point cloud containing the tabletop scene to push in
+   *
+   * @return The location and direction to push.
+   */
+  PushVector findRandomPushVector(ProtoObjects& objs, XYZPointCloud& cloud,
+                                  cv::Size img_size)
+  {
+    std::vector<int> pushable_obj_idx;
+    std::vector<unsigned int> singulated_ids;
+    std::stringstream sing_stream;
+    pushable_obj_idx.clear();
+    // Force to keep pushing the previous object if unsingulated
+    int forced_idx = -1;
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      if (objs[i].push_history[0] < per_object_rand_push_count_)
+      {
+        if (objs[i].id == prev_push_vector_.object_id)
+        {
+          forced_idx = i;
+        }
+        pushable_obj_idx.push_back(i);
+      }
+      else
+      {
+        singulated_ids.push_back(i);
+        sing_stream << i << " ";
+      }
+    }
+    if (singulated_ids.size() > 0)
+    {
+      ROS_INFO_STREAM("The following objects are singulated: " <<
+                      sing_stream.str());
+    }
+
+#ifdef DISPLAY_PROJECTED_OBJECTS
+    cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
+        objs, img_size, workspace_frame_);
+
+    if (use_displays_ || write_to_disk_)
+    {
+      drawObjectTransformAxises(obj_lbl_img, objs);
+    }
+#endif // DISPLAY_PROJECTED_OBJECTS
+    // TODO: Display push histories
+    
+    PushVector p;
+    p.header.frame_id = workspace_frame_;
+    p.singulated = singulated_ids;
+    if (pushable_obj_idx.size() == 0)
+    {
+      ROS_WARN_STREAM("All objects singulated! Returning empty push_pose");
+      p.no_push = true;
+      return p;
+    }
+    p.no_push = false;
+
+    ROS_INFO_STREAM("Found " << pushable_obj_idx.size()
+                    << " pushable proto objects");
+
+    int rand_idx = pushable_obj_idx[rand() % pushable_obj_idx.size()];
+    int chosen_idx;
+    if (forced_idx < 0)
+    {
+      chosen_idx = rand_idx;
+    }
+    else
+    {
+      chosen_idx = forced_idx;
+    }
+    // Choose a random orientation
+    double push_angle = (randf()* (max_push_angle_- min_push_angle_) +
+                         min_push_angle_);
+    double push_dist = 0.0;
+    Eigen::Vector3f push_unit_vec(cos(push_angle), sin(push_angle), 0.0f);
+    p.start_point = determineStartPoint(objs[chosen_idx].cloud,
+                                        objs[chosen_idx].centroid,
+                                        push_unit_vec,
+                                        push_angle, push_dist);
+    p.push_angle = push_angle;
+    p.push_dist = push_dist;
+    p.num_objects = objs.size();
+    p.object_idx = chosen_idx;
+    p.object_id = objs[chosen_idx].id;
+    ROS_INFO_STREAM("Pushing object: " << chosen_idx);
+    ROS_INFO_STREAM("Chosen push pose is at: (" << p.start_point.x << ", "
+                    << p.start_point.y << ", " << p.start_point.z
+                    << ") with orientation of: " << p.push_angle);
+    if (use_displays_)
+    {
+      displayPushVector(objs[chosen_idx], p, push_unit_vec);
+    }
+    return p;
   }
 
   /**
@@ -3223,6 +3359,7 @@ class ObjectSingulation
   double push_dist_inflation_;
   double bad_icp_score_limit_;
   bool force_remain_singulated_;
+  int per_object_rand_push_count_;
 };
 
 class ObjectSingulationNode
@@ -3296,7 +3433,8 @@ class ObjectSingulationNode
                      os_->start_collision_thresh_, 0.05);
     n_private_.param("force_remain_singulated",
                      os_->force_remain_singulated_, true);
-
+    n_private_.param("per_object_rand_push_count",
+                     os_->per_object_rand_push_count_, 3);
     std::string output_path_def = "~";
     n_private_.param("img_output_path", base_output_path_, output_path_def);
     os_->base_output_path_ = base_output_path_;
@@ -3563,16 +3701,9 @@ class ObjectSingulationNode
    */
   PushVector getPushPose(bool use_guided=true, bool no_push_calc=false)
   {
-    if (!use_guided)
-    {
-      return os_->findRandomPushPose(cur_point_cloud_);
-    }
-    else
-    {
-      return os_->getPushVector(no_push_calc, cur_color_frame_,
-                                cur_depth_frame_, cur_point_cloud_,
-                                cur_workspace_mask_);
-    }
+    return os_->getPushVector(no_push_calc, cur_color_frame_,
+                              cur_depth_frame_, cur_point_cloud_,
+                              cur_workspace_mask_, use_guided);
   }
 
   /**

@@ -64,6 +64,7 @@
     <param name="push_collision_thresh" value="0.03" type="double"/>
     <param name="start_collision_thresh" value="0.05" type="double"/>
     <param name="num_angle_bins" value="8" type="int"/>
+    <!-- <param name="img_output_path" value="/home/thermans/data/new/" type="string"/> -->
     <param name="img_output_path" value="/u/thermans/data/new/" type="string"/>
     <param name="moved_count_thresh" value="3" type="int"/>
     <param name="force_remain_singulated" value="false" type="bool"/>
@@ -73,5 +74,7 @@
     <param name="icp_transform_eps" value="0" type="double"/>
     <param name="icp_max_cor_dist" value="1.0" type="double"/>
     <param name="icp_ransac_thresh" value="0.5" type="double"/>
+
+    <param name="per_object_rand_push_count" value="2" type="int"/>
   </node>
 </launch>
