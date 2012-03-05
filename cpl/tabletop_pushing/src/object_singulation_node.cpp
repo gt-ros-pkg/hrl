@@ -1356,7 +1356,7 @@ class ObjectSingulation
     if (!use_guided)
     {
       PushVector push_vector = findRandomPushVector(cur_proto_objs_, cloud,
-                                                    color_img.size());
+                                                    color_img);
       prev_push_vector_ = push_vector;
       ++callback_count_;
       return push_vector;
@@ -1591,12 +1591,12 @@ class ObjectSingulation
       {
         if (cur_objs[i].id == prev_push_vector_.object_id)
         {
-          if (!use_guided)
+          if (!use_guided && !use_unguided_icp_)
           {
             cur_objs[i].push_history[0]++;
             ROS_INFO_STREAM("Updating the push history for object " << i <<
                             " to " << cur_objs[i].push_history[0]);
-            return;
+            continue;
           }
           // Check if push failed (nothing moved or wrong object moved)
           if (!cur_objs[i].moved)
@@ -1611,6 +1611,13 @@ class ObjectSingulation
           else if (merged_)
           {
             ROS_WARN_STREAM("Not updating push history because of merge");
+          }
+          else if (!use_guided)
+          {
+            cur_objs[i].push_history[0]++;
+            ROS_INFO_STREAM("Updating the push history for object " << i <<
+                            " to " << cur_objs[i].push_history[0]);
+            continue;
           }
           else if (cur_objs[i].icp_score <= bad_icp_score_limit_)
           {
@@ -1948,7 +1955,7 @@ class ObjectSingulation
    * @return The location and direction to push.
    */
   PushVector findRandomPushVector(ProtoObjects& objs, XYZPointCloud& cloud,
-                                  cv::Size img_size)
+                                  cv::Mat& color_img)
   {
     std::vector<int> pushable_obj_idx;
     std::vector<unsigned int> singulated_ids;
@@ -1980,7 +1987,7 @@ class ObjectSingulation
 
 #ifdef DISPLAY_PROJECTED_OBJECTS
     cv::Mat obj_lbl_img = pcl_segmenter_->projectProtoObjectsIntoImage(
-        objs, img_size, workspace_frame_);
+        objs, color_img.size(), workspace_frame_);
 
     if (use_displays_ || write_to_disk_)
     {
@@ -1988,12 +1995,15 @@ class ObjectSingulation
     }
 #endif // DISPLAY_PROJECTED_OBJECTS
     // TODO: Display push histories
-    
     PushVector p;
     p.header.frame_id = workspace_frame_;
     p.singulated = singulated_ids;
     if (pushable_obj_idx.size() == 0)
     {
+      if (use_displays_)
+      {
+        drawUnguidedHists(color_img, cur_proto_objs_, -1);
+      }
       ROS_WARN_STREAM("All objects singulated! Returning empty push_pose");
       p.no_push = true;
       return p;
@@ -2034,6 +2044,7 @@ class ObjectSingulation
     if (use_displays_)
     {
       displayPushVector(objs[chosen_idx], p, push_unit_vec);
+      drawUnguidedHists(color_img, cur_proto_objs_, chosen_idx);
     }
     return p;
   }
@@ -3181,13 +3192,67 @@ class ObjectSingulation
     }
   }
 
+  void drawUnguidedHists(cv::Mat& img, ProtoObjects& objs, int highlight_obj)
+  {
+    cv::Mat disp_img(img.size(), CV_32FC3, cv::Scalar(0.0,0.0,0.0));
+    img.convertTo(disp_img, CV_32FC3, 1.0/255.0);
+
+    const Eigen::Vector3f x_axis(0.1, 0.0, 0.0);
+    const int w = histogram_bin_width_;
+    const int h = histogram_bin_height_;
+    const cv::Scalar est_line_color(0.0, 0.0, 0.0);
+    const cv::Scalar est_fill_color(0.0, 0.0, 0.7);
+    const cv::Scalar history_line_color(0.0, 0.0, 0.0);
+    const cv::Scalar history_fill_color(0.0, 0.7, 0.0);
+    const cv::Scalar highlight_color(0.7, 0.0, 0.0);
+    for (unsigned int i = 0; i < objs.size(); ++i)
+    {
+      // const Eigen::Vector4f x_t = objs[i].transform.transpose()*x_axis;
+      Eigen::Matrix3f rot = objs[i].transform.block<3,3>(0,0);
+      Eigen::Vector3f trans = objs[i].transform.block<3,1>(0,3);
+      const Eigen::Vector3f x_t = rot*x_axis;
+      // NOTE: In degrees!
+      const float start_angle = (-atan2(x_t[1], x_t[0])+ M_PI)*180.0/M_PI;
+      // Get the locations from object centroids
+      PointStamped center3D;
+      center3D.point.x = objs[i].centroid[0];
+      center3D.point.y = objs[i].centroid[1];
+      center3D.point.z = objs[i].centroid[2];
+      center3D.header.frame_id = workspace_frame_;
+      cv::Point center = pcl_segmenter_->projectPointIntoImage(center3D);
+      int to_highlight = -1;
+      if (i == highlight_obj)
+      {
+        to_highlight = 2;
+      }
+      std::vector<int> fake_push_history(5,0);
+      fake_push_history[2] = objs[i].push_history[0];
+      drawUnguidedHist(fake_push_history, disp_img, center, w, h,
+                       history_line_color, history_fill_color,
+                       highlight_color, start_angle, to_highlight);
+    }
+    if (use_displays_)
+    {
+      cv::imshow("Pushing History Distributions", disp_img);
+    }
+    if (write_to_disk_)
+    {
+      // Write to disk to create video output
+      std::stringstream hist_out_name;
+      hist_out_name << base_output_path_ << "hist_est" << callback_count_
+                    << ".png";
+      cv::Mat hist_out_img(disp_img.size(), CV_8UC3);
+      disp_img.convertTo(hist_out_img, CV_8UC3, 255);
+      cv::imwrite(hist_out_name.str(), hist_out_img);
+    }
+  }
+
   void drawSemicircleHist(std::vector<int>& hist, cv::Mat& disp_img,
                           const cv::Point center, int w, int h,
                           const cv::Scalar line_color,
                           const cv::Scalar fill_color,
                           const cv::Scalar highlight_color,
-                          const float start_rot,
-                          int highlight_bin=-1)
+                          const float start_rot, int highlight_bin=-1)
   {
     int half_circ = w*hist.size();
     const int r0 = half_circ/M_PI;
@@ -3217,6 +3282,111 @@ class ObjectSingulation
         if ((hist.size()-i-1) == highlight_bin && d_y == 0)
         {
           d_y = h;
+        }
+        const int r1 = r0+d_y;
+        const cv::Size s1(r1, r1);
+        std::vector<cv::Point> out_arc_pts;
+        float start_angle = 0.0;
+        float end_angle = angle_inc;
+
+        cv::ellipse2Poly(center, s1, rot, start_angle, end_angle, deg_precision,
+                         out_arc_pts);
+        std::vector<cv::Point> in_arc_pts;
+        cv::ellipse2Poly(center, s0, rot, start_angle, end_angle, deg_precision,
+                         in_arc_pts);
+        std::vector<cv::Point> poly_vect;
+        for (unsigned int j = 0; j < in_arc_pts.size(); ++j)
+        {
+          poly_vect.push_back(in_arc_pts[j]);
+        }
+        for (unsigned int j = out_arc_pts.size()-1; j > 0; --j)
+        {
+          poly_vect.push_back(out_arc_pts[j]);
+        }
+
+        int npts[1] = {poly_vect.size()};
+        cv::Point* poly = new cv::Point[poly_vect.size()];
+        for (unsigned int j = 0; j < poly_vect.size(); ++j)
+        {
+          poly[j] = poly_vect[j];
+        }
+        const cv::Point* pts[1] = {poly};
+        // fill bin
+        if ((hist.size()-i-1) == highlight_bin)
+        {
+          cv::fillPoly(disp_img, pts, npts, 1, highlight_color);
+        }
+        else
+        {
+          cv::fillPoly(disp_img, pts, npts, 1, fill_color);
+        }
+        delete poly;
+      }
+      rot += angle_inc;
+    }
+    // Draw inner circle
+    cv::ellipse(disp_img, center, s0, start_rot, 0.0, 180.0, line_color);
+    std::vector<cv::Point> arc_pts;
+    cv::ellipse2Poly(center, s0, start_rot, 0.0, 180.0, deg_precision, arc_pts);
+    // Draw diameter line
+    cv::line(disp_img, arc_pts.front(), arc_pts.back(), line_color);
+
+    // Draw all lines
+    rot = start_rot;
+    for (unsigned int i = 0; i < hist.size(); ++i)
+    {
+      if (hist[hist.size()-i-1] > 0)
+      {
+        int d_y = h * hist[hist.size()-i-1] / hist_max;
+        const int r1 = r0+d_y;
+        const cv::Size s1(r1, r1);
+        float start_angle = 0.0;
+        float end_angle = angle_inc;
+
+        cv::ellipse(disp_img, center, s1, rot, start_angle, end_angle,
+                    line_color);
+        std::vector<cv::Point> out_arc_pts;
+        cv::ellipse2Poly(center, s1, rot, start_angle, end_angle, deg_precision,
+                         out_arc_pts);
+        std::vector<cv::Point> in_arc_pts;
+        cv::ellipse2Poly(center, s0, rot, start_angle, end_angle, deg_precision,
+                         in_arc_pts);
+        // Draw bin edge lines
+        cv::line(disp_img, in_arc_pts.front(), out_arc_pts.front(), line_color);
+        cv::line(disp_img, in_arc_pts.back(), out_arc_pts.back(), line_color);
+      }
+      rot += angle_inc;
+    }
+  }
+
+  void drawUnguidedHist(std::vector<int>& hist, cv::Mat& disp_img,
+                        const cv::Point center, int w, int h,
+                        const cv::Scalar line_color,
+                        const cv::Scalar fill_color,
+                        const cv::Scalar highlight_color,
+                        const float start_rot, int highlight_bin=-1)
+  {
+    int half_circ = w*hist.size();
+    const int r0 = half_circ/M_PI;
+    const cv::Size s0(r0, r0);
+    const float angle_inc = 180.0/(hist.size());
+    float hist_max = per_object_rand_push_count_;
+    const float deg_precision = 1.0;
+    // Draw all fills
+    float rot = start_rot;
+    for (unsigned int i = 0; i < hist.size(); ++i)
+    {
+      // NOTE: need to flip histogram order to correctly display
+      if (hist[hist.size()-i-1] > 0 || (hist.size()-i-1) == highlight_bin)
+      {
+        int d_y = 0.0;
+        if (hist_max != 0)
+        {
+          d_y = h * hist[hist.size()-i-1] / hist_max;
+        }
+        if ((hist.size()-i-1) == highlight_bin)
+        {
+          d_y += h/hist_max;
         }
         const int r1 = r0+d_y;
         const cv::Size s1(r1, r1);
@@ -3360,6 +3530,7 @@ class ObjectSingulation
   double bad_icp_score_limit_;
   bool force_remain_singulated_;
   int per_object_rand_push_count_;
+  bool use_unguided_icp_;
 };
 
 class ObjectSingulationNode
@@ -3435,6 +3606,8 @@ class ObjectSingulationNode
                      os_->force_remain_singulated_, true);
     n_private_.param("per_object_rand_push_count",
                      os_->per_object_rand_push_count_, 3);
+    n_private_.param("use_unguided_icp",
+                     os_->use_unguided_icp_, true);
     std::string output_path_def = "~";
     n_private_.param("img_output_path", base_output_path_, output_path_def);
     os_->base_output_path_ = base_output_path_;
