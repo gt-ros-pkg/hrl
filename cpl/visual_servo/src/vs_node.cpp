@@ -96,6 +96,7 @@ using geometry_msgs::PoseStamped;
 using geometry_msgs::PointStamped;
 using visual_servo::VisualServoTwist;
 
+
 class VisualServoNode
 {
   public:
@@ -240,8 +241,17 @@ class VisualServoNode
       cur_orig_color_frame_ = color_frame.clone();
       depth_frame.copyTo(cur_depth_frame_, workspace_mask);
       cur_point_cloud_ = cloud;
-      if (desired_locations_.size() != 3)
+
+      // if desired point is not initialized
+      if (desired_locations_.size() != 3) {
           setDesiredPosition();
+          desired_jacobian_ = getInteractionMatrix(cur_depth_frame_, desired_locations_);
+          // returned jacobian is null, which means we need to crap out
+          if (countNonZero(desired_jacobian_) == 0) {
+              ROS_ERROR("Could not get Image Jacobian for Desired Location. Please re-arrange your setting and retry.");
+              exit(-6);
+          }
+      }
 
 
     }   
@@ -255,8 +265,8 @@ class VisualServoNode
         pcl::PointXYZ two = origin;
         pcl::PointXYZ three = origin;
 
-        two.y -= 0.0508;  // about 5 centimeter to right
-        three.x -= 0.0381; // about 3 centimeter to down
+        two.y -= 0.0408;  // about 5 centimeter to right
+        three.x -= 0.0281; // about 3 centimeter to down
         cv::Point p0 = projectPointIntoImage(origin, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
         cv::Point p1, p2;
         if (p0.x >= 0 && p0.y >= 0) {
@@ -287,10 +297,20 @@ class VisualServoNode
           error_mat.at<float>(i*2+1,0)= pts.at(i).y - desired.at(i).y ;
         }
         error_mat *= 10;
+
         cv::Mat im = getInteractionMatrix(depth_frame, pts);
-        cv::Mat gain = cv::Mat::eye(6,6, CV_32F)*1e-4;
-        im = im*gain;
-        cur_twist_ = im*error_mat;
+        // you need to invert the matrix
+        // We use specific way shown on visual servo by Chaumette 2006
+        cv::Mat iim = 0.5*(desired_jacobian_ + im).inv();
+        // Gain Matrix K
+        
+        cv::Mat gain = cv::Mat::eye(6,6, CV_32F);
+        gain.at<float>(0,0) = 5e-5;
+        gain.at<float>(1,1) = 5e-5;
+        gain.at<float>(2,2) = 1e-2;
+        // K * IIM * ERROR = TWIST
+        iim = gain*iim;
+        cur_twist_ = iim*error_mat;
 
         // twist cannot be larger than clipping threshold
         // this is a safety measure to prevent robot from breaking
@@ -300,7 +320,7 @@ class VisualServoNode
         }
 #ifdef DEBUG_MODE
         //ROS_DEBUG("Inverse Matrix");
-        //printMatrix(im);
+        //printMatrix(iim);
         ROS_DEBUG("Results: Error, Twist");
         printMatrix(error_mat.t());
         printMatrix(cur_twist_.t());
@@ -343,11 +363,17 @@ class VisualServoNode
           L.at<float>(l,5) = -y;      L.at<float>(l+1,5) = x;
         }
       }
+      // try this in pseudo-fashion
+      cv::Mat pseudo = (L.t()*L).inv()*L.t();
 #ifdef DEBUG_MODE
-      ROS_DEBUG("Interaction");
-      printMatrix(L);
+//      ROS_DEBUG("Interaction");
+//      printMatrix(L);
+//      ROS_DEBUG("Inverse");
+//      printMatrix(L.inv());
+//      ROS_DEBUG("Pseudo");
+//      printMatrix(pseudo);
 #endif
-      return L.inv();
+      return L;
     }
 
     std::vector<cv::Point> getMomentCoordinates(std::vector<cv::Moments> ms)
@@ -586,6 +612,7 @@ class VisualServoNode
     cv::Mat cur_twist_; 
     ros::ServiceServer twistServer;
     std::vector<cv::Point> desired_locations_;
+    cv::Mat desired_jacobian_;
     double min_workspace_x_;
     double max_workspace_x_;
     double min_workspace_y_;
