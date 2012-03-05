@@ -60,9 +60,9 @@ class TabletopExecutive:
         self.use_overhead_x_thresh = rospy.get_param('~use_overhead_x_thresh',
                                                      0.55)
         self.use_sweep_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
-                                                     pi*0.375)
+                                                     pi*0.4)
         self.use_pull_angle_thresh = rospy.get_param('~use_sweep_angle_thresh',
-                                                     pi*0.5)
+                                                     pi*0.525)
         self.use_same_side_y_thresh = rospy.get_param('~use_same_side_y_thresh',
                                                      0.3)
         self.use_same_side_x_thresh = rospy.get_param('~use_same_side_x_thresh',
@@ -144,9 +144,10 @@ class TabletopExecutive:
             if pose_res.no_push:
                 rospy.loginfo("No push. Exiting pushing.");
                 break
+            rospy.loginfo('Performing push #' + str(i+1))
             # Decide push based on the orientation returned
             rospy.loginfo('Push start_point: (' + str(pose_res.start_point.x) +
-                          ', ' + str(pose_res.start_point.y) + ', ' +
+                          ', ' + str(pose_res.start_point.y) +
                           ', ' + str(pose_res.start_point.z) + ')')
             rospy.loginfo('Push angle: ' + str(pose_res.push_angle))
             rospy.loginfo('Push dist: ' + str(pose_res.push_dist))
@@ -194,7 +195,7 @@ class TabletopExecutive:
 
         if not (pose_res is None):
             rospy.loginfo('Singulated objects: ' + str(pose_res.singulated))
-            rospy.loginfo('Final estimate of: ' + str(pose_res.num_objects) +
+            rospy.loginfo('Final estimate of ' + str(pose_res.num_objects) +
                           ' objects')
 
     def request_singulation_push(self, use_guided=True, which_arm='l'):
@@ -412,5 +413,5 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(False)
-    node.run(30)
+    node.run(50)
     # node.run(30, False)

@@ -899,16 +899,6 @@ class PushOpt
     {
       return true;
     }
-    // Dont leave the workspace push into other stuff
-    if (a.will_leave)
-    {
-      if (!b.will_leave)
-        return false;
-    }
-    else if (b.will_leave)
-    {
-      return true;
-    }
     // Don't push into other stuff
     if (a.will_collide)
     {
@@ -919,6 +909,7 @@ class PushOpt
     {
       return true;
     }
+    // Don't start running into other stuff
     if (a.start_collides)
     {
       if (!b.start_collides)
@@ -928,6 +919,17 @@ class PushOpt
     {
       return true;
     }
+    // Dont leave the workspace
+    if (a.will_leave)
+    {
+      if (!b.will_leave)
+        return false;
+    }
+    else if (b.will_leave)
+    {
+      return true;
+    }
+    // Don't start outside the workspace
     if (a.start_leaves)
     {
       if (!b.start_leaves)
@@ -1652,9 +1654,9 @@ class ObjectSingulation
   void matchMoved(ProtoObjects& cur_objs, ProtoObjects& prev_objs,
                   std::vector<bool> matched, bool split, bool merged)
   {
-    std::stringstream file_out_name;
-    file_out_name << base_output_path_ << "icp_scores.txt";
-    std::ofstream file_out(file_out_name.str().c_str(), std::ios_base::app);
+    // std::stringstream file_out_name;
+    // file_out_name << base_output_path_ << "icp_scores.txt";
+    // std::ofstream file_out(file_out_name.str().c_str(), std::ios_base::app);
     for (unsigned int i = 0; i < prev_objs.size(); ++i)
     {
       if (prev_objs[i].moved)
@@ -1687,11 +1689,11 @@ class ObjectSingulation
                           << " maps to cur " << min_idx << " : " << min_score);
           if (matched[min_idx])
           {
-            file_out << "matched old with score of: " << min_score << std::endl;
+            // file_out << "matched old with score of: " << min_score << std::endl;
           }
           else
           {
-            file_out << "matched new with score of: " << min_score << std::endl;
+            // file_out << "matched new with score of: " << min_score << std::endl;
             // Examine bad fits of ICP
             bool bad_icp = (min_score > bad_icp_score_limit_);
             cur_objs[min_idx].id = prev_objs[i].id;
@@ -1737,7 +1739,7 @@ class ObjectSingulation
         cur_objs[i].moved = false;
       }
     }
-    file_out.close();
+    // file_out.close();
   }
 
   /**
@@ -3533,11 +3535,18 @@ class ObjectSingulationNode
           ROS_INFO_STREAM("Stopping input recording.");
         }
         res = getPushPose(req.use_guided, req.no_push_calc);
+        if ( res.no_push)
+        {
+          recording_input_ = false;
+          ROS_INFO_STREAM("Stopping input recording.");
+        }
+
       }
     }
     else
     {
       ROS_ERROR_STREAM("Calling getPushPose prior to receiving sensor data.");
+      recording_input_ = false;
       res.no_push = true;
       return false;
     }

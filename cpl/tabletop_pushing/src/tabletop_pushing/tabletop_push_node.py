@@ -98,6 +98,8 @@ class TabletopPushNode:
                                                     0.2)
         self.gripper_raise_dist = rospy.get_param('~graipper_post_push_raise_dist',
                                                   0.05)
+        self.pull_raise_dist = rospy.get_param('~graipper_post_push_raise_dist',
+                                                  0.10)
         use_slip = rospy.get_param('~use_slip_detection', 1)
 
         self.tf_listener = tf.TransformListener()
@@ -677,7 +679,7 @@ class TabletopPushNode:
 
         rospy.loginfo('Moving gripper up')
         push_arm.move_relative_gripper(
-            np.matrix([-self.gripper_raise_dist, 0.0, 0.0]).T,
+            np.matrix([-self.pull_raise_dist, 0.0, 0.0]).T,
             stop='pressure', pressure=5000)
         rospy.loginfo('Done moving up')
         rospy.loginfo('Pushing reverse')
