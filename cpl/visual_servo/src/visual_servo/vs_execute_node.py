@@ -47,6 +47,14 @@ from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from visual_servo.srv import *
 from array import *
 
+def cleanup():
+  rospy.loginfo('[IMPORTANT] Shutting Down. Set Twist to 0')
+  pub = rospy.Publisher('r_cart/command', Twist)
+  pub.publish(zero)
+  rospy.sleep(0.5)
+  pub.publish(zero)
+
+
 class VisualServoExecutionNode:
   def initial_arm(self, cs):
     rospy.loginfo('Setting to Initial msg...')
@@ -55,47 +63,47 @@ class VisualServoExecutionNode:
     pub = rospy.Publisher('r_arm/command', JointTrajectory)
     msg = JointTrajectory()
     pts = JointTrajectoryPoint()
-    pts.positions = array('d', [-0.20, 0.056137,
-                                    -1.53411927, -1.35,
-                                    -15.85, -1.582,
-                                    -1.72])
+    pts.positions = array('d', [-1.32734204881265387,
+                                      -0.34601608409943324,
+                                      -1.4620635485239604,
+                                      -1.2729772622637399,
+                                      -7.5123303230158518,
+                                      -1.5570651396529178,
+                                      -7.163787989862169])
     pts.time_from_start = rospy.Duration(10)
     msg.points = [pts]
     msg.joint_names = ['r_shoulder_pan_joint', 'r_shoulder_lift_joint', 'r_upper_arm_roll_joint','r_elbow_flex_joint', 'r_forearm_roll_joint','r_wrist_flex_joint','r_wrist_roll_joint']
-
-    sys.stdout.write('Moving... ')
+    '''
     pub.publish(msg)
     rospy.sleep(0.5)
     pub.publish(msg)
-    print 'Done'
+    rospy.sleep(5)
+    '''
+    rospy.loginfo('Waiting for Visual Servo Node Service')
+    rospy.wait_for_service('visual_servo_twist')
+    pts.positions = array('d', [-0.20, 0.1137, -1.60411927, -1.75,
+                                    -15.85, -1.582, -1.72])
+    msg.points = [pts]
+    pub.publish(msg)
+    rospy.sleep(0.5)
+    pub.publish(msg)
 
   def move(self):
-		
-    rospy.init_node('vs_execute_node', log_level=rospy.DEBUG)
     cs = ControllerSwitcher()
-    # self.initial_arm(cs)
-   
+    self.initial_arm(cs)
+    rospy.loginfo('Hooking up Service Proxy to the Visual Servo Twist')
+    service = rospy.ServiceProxy('visual_servo_twist', VisualServoTwist)
+
+    rospy.sleep(5) 
     cs.carefree_switch('r', '%s_cart', '$(find visual_servo)/params/rmc_cartTwist_params.yaml')
     rospy.sleep(0.5)
     pub = rospy.Publisher('r_cart/command', Twist)
-    zero = Twist()
-    zero.linear.x = 0.00
-    zero.linear.y = 0.50
-    zero.linear.z = 0.0
-    zero.angular.x = 0.0
-    zero.angular.y = 0.0
-    zero.angular.z = 0.0
     pub.publish(zero)
     rospy.sleep(0.5)
     pub.publish(zero)
     
-    msg = Twist()
-    
-    rospy.loginfo('Waiting for Visual Servo Node Service')
-    rospy.wait_for_service('visual_servo_twist')
-    rospy.loginfo('Hooking up Service Proxy to the Visual Servo Twist')
-    service = rospy.ServiceProxy('visual_servo_twist', VisualServoTwist)
-    
+    msg = Twist()    
+   
     while not rospy.is_shutdown():
       try:
         resp = service()							
@@ -106,16 +114,28 @@ class VisualServoExecutionNode:
         msg.angular.y = resp.wy
         msg.angular.z = resp.wz
         rospy.loginfo(msg)
-        # pub.publish(msg)
+        pub.publish(msg)
         rospy.sleep(0.3) 
       except rospy.ServiceException, e: pass 
     # shutdown sequence
-    rospy.loginfo('[IMPORTANT] Shutting Down. Set Twist to 0')
-    pub.publish(zero)
-    rospy.spin()
 
 if __name__ == '__main__':
-	try:
-		node = VisualServoExecutionNode()
-		node.move()
-	except rospy.ROSInterruptException: pass
+  try:
+    node = VisualServoExecutionNode()
+    # init
+    rospy.init_node('vs_execute_node', log_level=rospy.DEBUG)
+    global zero
+    global service
+    zero = Twist()
+    zero.linear.x = 0.0
+    zero.linear.y = 0.0
+    zero.linear.z = 0.0
+    zero.angular.x = 0.0
+    zero.angular.y = 0.0
+    zero.angular.z = 0.0
+    rospy.on_shutdown(cleanup)
+    node.move()
+
+  except rospy.ROSInterruptException: pass
+
+

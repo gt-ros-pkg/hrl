@@ -139,9 +139,7 @@ class VisualServoNode
 
     // Setup ros node connections
     sync_.registerCallback(&VisualServoNode::sensorCallback, this);
-    // advertise twist service
-    twistServer = n_.advertiseService("visual_servo_twist", &VisualServoNode::getTwist, this);
-    ROS_DEBUG("Ready to use the getTwist service");
+
   }
 
     bool getTwist(VisualServoTwist::Request &req, VisualServoTwist::Response &res)
@@ -173,17 +171,48 @@ class VisualServoNode
      cv::imshow("Output", cur_orig_color_frame_.clone());
      cv::waitKey(display_wait_ms_);
 #endif
+
       // XYZ in camera coords and robot control coord are different
-      res.vx = -1*cur_twist_.at<float>(2,0);
-      res.vy = -1*cur_twist_.at<float>(0,0);
-      res.vz = cur_twist_.at<float>(1,0);
-      res.wx = cur_twist_.at<float>(3,0);
-      res.wy = cur_twist_.at<float>(4,0);
-      res.wz = cur_twist_.at<float>(5,0);
+      res.vx = cur_twist_.at<float>(2,0);
+      res.vy = cur_twist_.at<float>(0,0);
+      res.vz = -1*cur_twist_.at<float>(1,0);
+      res.wx = cur_twist_.at<float>(5,0);
+      res.wy = cur_twist_.at<float>(3,0);
+      res.wz = cur_twist_.at<float>(4,0);
+      // res.vy = 0; res.vz = 0; res.wx= 0; res.wy = 0; res.wz = 0;
+
+      // res.vx = 0; res.vy = 0.; res.vz = 0.3; res.wx= 0; res.wy = 0; res.wz = 0;
+      // have to transform twist in camera frame to torso_lift_link
+      tf::Vector3 twist_rot(res.wx, res.wy, res.wz);
+      tf::Vector3 twist_vel(res.vx, res.vy, res.vz);
+      tf::StampedTransform transform; 
+      ros::Time now = ros::Time::now();
+      try {
+        tf::TransformListener listener;
+        listener.waitForTransform("/torso_lift_link", "/head_tilt_link",  now, ros::Duration(3.0));
+        listener.lookupTransform("/torso_lift_link", "/head_tilt_link",  now, transform);
+      }
+      catch (tf::TransformException e)
+      {
+        // return 0 value in case of error
+        res.vx = 0; res.vy = 0.; res.vz = 0; res.wx= 0; res.wy = 0; res.wz = 0;
+        ROS_WARN_STREAM(e.what());
+        return true;
+      }
+ 
+      btVector3 out_rot = transform.getBasis() * twist_rot;
+      btVector3 out_vel = transform.getBasis()* twist_vel + transform.getOrigin().cross(out_rot);
+
+      res.vx =  out_vel.x();
+      res.vy =  out_vel.y();
+      res.vz =  out_vel.z();
+      res.wx =  out_rot.x();
+      res.wy =  out_rot.y();
+      res.wz =  out_rot.z();
       return true;
     }
 
-    /** 
+    /*
      * Experiment: visual servo
      * Given a fixed engineered setting, we are taping robot hand with
      * three painter's tape and use those three features to do the image-based
@@ -243,17 +272,28 @@ class VisualServoNode
       cur_point_cloud_ = cloud;
 
       // if desired point is not initialized
-      if (desired_locations_.size() != 3) {
+      if (desired_locations_.size() != 3 || countNonZero(desired_jacobian_)==0) {
           setDesiredPosition();
           desired_jacobian_ = getInteractionMatrix(cur_depth_frame_, desired_locations_);
           // returned jacobian is null, which means we need to crap out
           if (countNonZero(desired_jacobian_) == 0) {
-              ROS_ERROR("Could not get Image Jacobian for Desired Location. Please re-arrange your setting and retry.");
-              exit(-6);
+            ROS_ERROR("Could not get Image Jacobian for Desired Location. Please re-arrange your setting and retry.");
+              // exit(-6);
+          } else {
+            // advertise twist service
+            twistServer = n_.advertiseService("visual_servo_twist", &VisualServoNode::getTwist, this);
+            ROS_DEBUG("Ready to use the getTwist service");
           }
       }
 
-
+#ifdef DEBUG_MODE
+      // put dots on the desired location
+      for (unsigned int i = 0; i < desired_locations_.size(); i++) {
+        cv::circle(cur_orig_color_frame_, desired_locations_.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
+      }
+     cv::imshow("Raw+Goal", cur_orig_color_frame_.clone());
+     cv::waitKey(display_wait_ms_);
+#endif
     }   
 
     void setDesiredPosition() {
@@ -261,7 +301,7 @@ class VisualServoNode
         // Desired location: center of the screen
         std::vector<cv::Point> desired; desired.clear();
         pcl::PointXYZ origin = cur_point_cloud_.at(cur_color_frame_.cols/2, cur_color_frame_.rows/2);
-        origin.z += 0.1;
+        origin.z += 0.2;
         pcl::PointXYZ two = origin;
         pcl::PointXYZ three = origin;
 
@@ -299,14 +339,18 @@ class VisualServoNode
         error_mat *= 10;
 
         cv::Mat im = getInteractionMatrix(depth_frame, pts);
+        if (countNonZero(im) == 0) {
+          cur_twist_ = cv::Mat::zeros(6,1,CV_32F);
+          return;
+      }
         // you need to invert the matrix
         // We use specific way shown on visual servo by Chaumette 2006
         cv::Mat iim = 0.5*(desired_jacobian_ + im).inv();
         // Gain Matrix K
         
         cv::Mat gain = cv::Mat::eye(6,6, CV_32F);
-        gain.at<float>(0,0) = 5e-5;
-        gain.at<float>(1,1) = 5e-5;
+        gain.at<float>(0,0) = 5e-4;
+        gain.at<float>(1,1) = 5e-4;
         gain.at<float>(2,2) = 1e-2;
         // K * IIM * ERROR = TWIST
         iim = gain*iim;
@@ -364,7 +408,7 @@ class VisualServoNode
         }
       }
       // try this in pseudo-fashion
-      cv::Mat pseudo = (L.t()*L).inv()*L.t();
+      //cv::Mat pseudo = (L.t()*L).inv()*L.t();
 #ifdef DEBUG_MODE
 //      ROS_DEBUG("Interaction");
 //      printMatrix(L);
