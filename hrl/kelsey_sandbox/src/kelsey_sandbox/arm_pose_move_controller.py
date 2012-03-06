@@ -10,10 +10,12 @@ roslib.load_manifest("hrl_pr2_arms")
 import rospy
 from std_msgs.msg import String
 import tf.transformations as tf_trans
+import roslib.substitution_args
 
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2Arm, PR2ArmJointTrajectory, PR2ArmCartesianPostureBase
 from arm_cart_vel_control import PR2ArmCartVelocityController
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
+from srv import TrajectoryPlay, TrajectoryPlayResponse
 
 RATE = 20
 JOINT_TOLERANCES = [0.03, 0.1, 0.1, 0.1, 0.17, 0.15, 0.12]
@@ -66,14 +68,14 @@ class ArmPoseMoveController(object):
         return True
 
     def exec_traj_from_file(self, filename, rate_mult=0.8, reverse=False, blocking=True):
-        f = file(filename, "r")
+        f = file(roslib.substitution_args.resolve_args(filename), "r")
         traj, arm_char, rate = pickle.load(f)
         if reverse:
             traj.reverse()
         return self.execute_trajectory(traj, arm_char, rate * rate_mult, blocking)
 
     def move_to_setup_from_file(self, filename, velocity=0.1, rate=RATE, reverse=False, blocking=True):
-        f = file(filename, "r")
+        f = file(roslib.substitution_args.resolve_args(filename), "r")
         traj, arm_char, rate = pickle.load(f)
         if reverse:
             traj.reverse()
@@ -86,7 +88,7 @@ class ArmPoseMoveController(object):
         return np.all(np.fabs(diff) < JOINT_TOLERANCES)
 
     def can_exec_traj_from_file(self, filename):
-        f = file(filename, "r")
+        f = file(roslib.substitution_args.resolve_args(filename), "r")
         traj, rate = pickle.load(f)
         return self.can_exec_traj(traj)
 
@@ -152,13 +154,20 @@ class TrajectoryServer(object):
         self.traj_srv = rospy.Service(srv_name, TrajectoryPlay, self.traj_play_cb)
 
     def traj_play_cb(self, req):
-        if req.move_setup:
-            result = self.apm_ctrl.move_to_setup_from_file(req.filepath, 
-                                         reverse=not msg.is_forward, blocking=False)
+        if req.mode == req.MOVE_SETUP:
+            result = self.apm_ctrl.move_to_setup_from_file(req.filepath, reverse=req.reverse,
+                                         velocity=req.setup_velocity, blocking=req.blocking)
+        elif req.mode == req.TRAJ_ONLY:
+            result = self.apm_ctrl.exec_traj_from_file(filepath, rate_mult=req.traj_rate_mult,
+                                         reverse=req.reverse, blocking=req.blocking)
+        elif req.mode == req.SETUP_AND_TRAJ:
+            result = self.apm_ctrl.move_to_setup_from_file(req.filepath, reverse=req.reverse,
+                                         velocity=req.setup_velocity, blocking=True)
+            result = self.apm_ctrl.exec_traj_from_file(filepath, rate_mult=req.traj_rate_mult, 
+                                         reverse=req.reverse, blocking=req.blocking)
         else:
-            result = self.apm_ctrl.exec_traj_from_file(filepath, 
-                                         reverse=not msg.is_forward, blocking=False)
-
+            rospy.logerror("[arm_pose_move_controller] Bad service call!")
+        return TrajectoryPlayResponse()
 
 CTRL_NAME_LOW = '%s_joint_controller_low'
 PARAMS_FILE_LOW = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_low.yaml'
@@ -206,7 +215,7 @@ def main():
             traj_saver = TrajectorySaver(RATE)
             raw_input("Press enter to start recording")
             traj_saver.record_trajectory(arm_char, blocking=True)
-            traj_saver.stop_record(filename)
+            traj_saver.stop_record(roslib.substitution_args.resolve_args(filename))
             ctrl_switcher.carefree_switch(arm_char, opts.ctrl_name, PARAMS_FILE_LOW, reset=False)
             return
         else:

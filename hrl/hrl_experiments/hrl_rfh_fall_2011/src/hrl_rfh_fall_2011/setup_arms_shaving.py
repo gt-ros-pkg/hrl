@@ -20,11 +20,12 @@ from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPosit
 from hrl_rfh_fall_2011.sm_topic_monitor import TopicMonitor
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJTransposeTask
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
+from kelsey_sandbox.srv import TrajectoryPlay, TrajectoryPlayRequest, TrajectoryPlayResponse
 
 class SetupArmsShaving():
         def __init__(self):
             self.ctrl_switcher = ControllerSwitcher()
-            self.untuck = rospy.ServiceProxy('traj_playback/untuck_l_arm', TrajPlaybackSrv)
+            self.traj_playback = rospy.ServiceProxy('/trajectory_playback', TrajectoryPlay)
             self.torso_sac = actionlib.SimpleActionClient('torso_controller/position_joint_action',
                                                           SingleJointPositionAction)
             self.torso_sac.wait_for_server()
@@ -38,12 +39,6 @@ class SetupArmsShaving():
             tgoal.max_velocity = 1.0
             self.torso_sac.send_goal_and_wait(tgoal)
 
-        def run(self, req):
-            self.adjust_torso()
-            self.untuck(False)
-            self.setup_task_controller()
-            return EmptyResponse()
-
         def setup_task_controller(self):
             self.ctrl_switcher.carefree_switch('l', '%s_cart_jt_task', 
                                                "$(find hrl_rfh_fall_2011)/params/l_jt_task_shaver45.yaml") 
@@ -55,6 +50,30 @@ class SetupArmsShaving():
             self.arm.set_posture(setup_angles)
             self.arm.set_gains([200, 800, 800, 80, 80, 80], [15, 15, 15, 1.2, 1.2, 1.2])
             rospy.sleep(0.3)
+
+        def move_to_setup(self):
+            traj = TrajectoryPlayRequest()
+            traj.mode = traj.SETUP_AND_TRAJ
+            traj.reverse = False
+            traj.setup_velocity = 0.1
+            traj.traj_rate_mult = 0.8
+
+            l_traj = copy.copy(traj)
+            l_traj.filepath = "$(find hrl_rfh_fall_2011)/data/l_arm_shaving_setup.pkl"
+            l_traj.blocking = False
+
+            r_traj = copy.copy(traj)
+            r_traj.filepath = "$(find hrl_rfh_fall_2011)/data/r_arm_shaving_setup.pkl"
+            r_traj.blocking = True
+
+            self.traj_playback(l_traj)
+            self.traj_playback(r_traj)
+
+        def run(self, req):
+            self.adjust_torso()
+            self.move_to_setup()
+            self.setup_task_controller()
+            return EmptyResponse()
 
 
 def main():

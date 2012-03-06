@@ -20,6 +20,13 @@ ALLOWED_RESOURCES = ['l_arm', 'r_arm', 'l_gripper', 'r_gripper', 'base', 'head',
 HEARTBEAT_TIMEOUT = 5.
 HEARTBEAT_RATE = 10.
 
+class BMPriorities:
+    TOP = 255
+    HIGH = 100
+    MEDIUM = 50
+    LOW = 10
+    BOTTOM = 0
+
 def log(s):
     rospy.loginfo("[behavior_manager] %s" % s)
 
@@ -148,12 +155,6 @@ class BehaviorManager(object):
         return EmptyResponse()
 
 class BehaviorManagerClient(object):
-    class PRIORITIES:
-        TOP = 255
-        HIGH = 100
-        MEDIUM = 50
-        LOW = 10
-        BOTTOM = 0
 
     ##
     # Interfaces with the behavior manager to control who has access to each of
@@ -251,6 +252,37 @@ def clear_behavior_manager():
         clear_manager()
     except rospy.ServiceException, e:
         err("Clear manager service connection issue: %s" % str(e))
+
+class Behavior(object):
+    def __init__(self, resource, priority, name="behavior"):
+        self.name = name
+        self.priority = priority
+        self.bmc = BehaviorManagerClient(resource, self._preempt_cb, self._resume_cb,
+                                         priority=priority, name=name)
+        self._execute = self.execute
+        def wrap_execute(*args, **kwargs):
+            if self.bmc.request():
+                self._execute(*args, **kwargs)
+                self.bmc.relinquish()
+                return True
+            else:
+                return False
+        self.execute = wrap_execute
+
+    def _preempt_cb(self):
+        self.preempt()
+
+    def _resume_cb(self):
+        return self.resume()
+
+    def preempt(self):
+        rospy.logerror("[behavior] preempt must be overrided!")
+
+    def resume(self):
+        return False
+
+    def execute(self):
+        rospy.logerror("[behavior] execute must be overrided!")
 
 def main():
     rospy.init_node("behavior_manager")

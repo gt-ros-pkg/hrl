@@ -1,4 +1,11 @@
-bool move_setup
+int8 MOVE_SETUP=1
+int8 TRAJ_ONLY=2
+int8 SETUP_AND_TRAJ=3
+
+int8 mode
 bool reverse
+bool blocking
+float32 setup_velocity
+float32 traj_rate_mult
 string filepath
 ---
