@@ -1591,7 +1591,7 @@ class ObjectSingulation
       {
         if (cur_objs[i].id == prev_push_vector_.object_id)
         {
-          if (!use_guided && !use_unguided_icp_)
+          if (!use_guided && !use_unguided_icp_ && !split_)
           {
             cur_objs[i].push_history[0]++;
             ROS_INFO_STREAM("Updating the push history for object " << i <<
@@ -1998,6 +1998,7 @@ class ObjectSingulation
     PushVector p;
     p.header.frame_id = workspace_frame_;
     p.singulated = singulated_ids;
+    p.num_objects = objs.size();
     if (pushable_obj_idx.size() == 0)
     {
       if (use_displays_)
@@ -2029,6 +2030,7 @@ class ObjectSingulation
     Eigen::Vector3f push_unit_vec(0.0f, 0.0f, 0.0f);
     int push_guess_count = 0;
     bool will_collide = false;
+    bool will_leave = false;
     do
     {
       push_angle = (randf()* (max_push_angle_- min_push_angle_) +
@@ -2042,26 +2044,31 @@ class ObjectSingulation
       PushOpt po(objs[chosen_idx], push_angle, push_unit_vec, chosen_idx,
                  0, push_dist, 1.0, 0);
       will_collide = pushCollidesWithObject(po, objs);
+      will_leave = pushLeavesWorkspace(po, objs[chosen_idx]);
       push_guess_count++;
-    } while (will_collide && push_guess_count < push_guess_limit_);
+    } while ((will_collide || will_leave) &&
+             push_guess_count < push_guess_limit_);
     p.push_angle = push_angle;
     p.push_dist = push_dist;
-    p.num_objects = objs.size();
     p.object_idx = chosen_idx;
     p.object_id = objs[chosen_idx].id;
-    ROS_INFO_STREAM("Pushing object: " << chosen_idx);
-    ROS_INFO_STREAM("Chosen push pose is at: (" << p.start_point.x << ", "
-                    << p.start_point.y << ", " << p.start_point.z
-                    << ") with orientation of: " << p.push_angle);
     if (will_collide)
     {
-      ROS_INFO_STREAM("Chosen push is expected to collide.");
+      ROS_WARN_STREAM("Chosen push is expected to collide.");
+    }
+    if (will_leave)
+    {
+      ROS_WARN_STREAM("Chosen push is expected to leave the workspace.");
     }
     if (use_displays_)
     {
       displayPushVector(objs[chosen_idx], p, push_unit_vec);
       drawUnguidedHists(color_img, cur_proto_objs_, chosen_idx);
     }
+    ROS_INFO_STREAM("Pushing object: " << chosen_idx);
+    ROS_INFO_STREAM("Chosen push pose is at: (" << p.start_point.x << ", "
+                    << p.start_point.y << ", " << p.start_point.z
+                    << ") with orientation of: " << p.push_angle << "\n");
     return p;
   }
 
@@ -3361,7 +3368,6 @@ class ObjectSingulation
         if ((hist.size()-i-1) == highlight_bin && d_y == 0)
         {
           d_y = h;
-          ROS_INFO_STREAM("Setting line height to h: " << d_y);
         }
 
         const int r1 = r0+d_y;
