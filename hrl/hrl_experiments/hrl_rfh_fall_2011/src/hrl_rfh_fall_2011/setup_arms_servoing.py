@@ -55,7 +55,7 @@ def main():
     if sys.argv[1] == "-s":
         rospy.Service("/pr2_ar_servo/arms_setup", Empty, sas.run)
         rospy.spin()
-    else:
+    elif sys.argv[1] == "-p":
         sas.run(None)
         
 if __name__ == "__main__":

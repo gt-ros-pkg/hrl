@@ -1,24 +1,24 @@
-l_arm_controller_none:
+l_joint_controller_none:
   gains:
-    l_elbow_flex_joint: {d: 4.0, i: 0, i_clamp: 4.0, p: 0.0}
-    l_forearm_roll_joint: {d: 6.0, i: 0, i_clamp: 2.0, p: 0.0}
+    l_shoulder_pan_joint:
+      d: 20.0
+      i: 0.0
+      i_clamp: 4.0
+      mass: 3.2999999999999998
+      p: 0.0
+      proxy: {acc_converge: 1.5, effort_limit: 11.800000000000001, lambda: 3.0, vel_limit: 2.0880000000000001}
     l_shoulder_lift_joint:
-      d: 10.0
+      d: 18.0
       i: 0.0
       i_clamp: 4.0
       mass: 2.0
       p: 0.0
       proxy: {acc_converge: 1.5, effort_limit: 8.0, lambda: 3.0, vel_limit: 2.0819999999999999}
-    l_shoulder_pan_joint:
-      d: 18.0
-      i: 0.0
-      i_clamp: 4.0}
-      mass: 3.2999999999999998
-      p: 0.0
-      proxy: {acc_converge: 1.5, effort_limit: 11.800000000000001, lambda: 3.0, vel_limit: 2.0880000000000001}
-    l_upper_arm_roll_joint: {d: 8.0, i: 0.0, i_clamp: 4.0, p: 0.0}
-    l_wrist_flex_joint: {d: 4.0, i: 0, i_clamp: 2.0, p: 0.0}
-    l_wrist_roll_joint: {d: 4.0, i: 0, i_clamp: 2.0, p: 0.0}
+    l_upper_arm_roll_joint: {p: 0.0, d: 8.0, i: 0.0, i_clamp: 0.0}
+    l_elbow_flex_joint: {p: 0.0, d: 1.0, i: 0, i_clamp: 0.0}
+    l_forearm_roll_joint: {p: 0, d: 1.0, i: 0, i_clamp: 0.0}
+    l_wrist_flex_joint: {p: 0.0, d: 2.0, i: 0, i_clamp: 0.0}
+    l_wrist_roll_joint: {p: 0.0, d: 2.0, i: 0, i_clamp: 0.0}
   joint_trajectory_action_node:
     constraints:
       goal_time: 0.59999999999999998

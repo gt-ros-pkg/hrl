@@ -9,3 +9,4 @@ float32 setup_velocity
 float32 traj_rate_mult
 string filepath
 ---
+bool success
