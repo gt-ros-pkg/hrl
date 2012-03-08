@@ -21,26 +21,30 @@ RATE = 20
 JOINT_TOLERANCES = [0.03, 0.1, 0.1, 0.1, 0.17, 0.15, 0.12]
 JOINT_VELOCITY_WEIGHT = [3.0, 1.7, 1.7, 1.0, 1.0, 1.0, 0.5]
 
-class ArmPoseMoveController(object):
-    def __init__(self, ctrl_name, param_file):
+class ArmPoseMoveBehavior(Behavior):
+    def __init__(self, arm_char, ctrl_name, param_file):
+        resource = arm_char + "_arm"
+        super(ArmPoseMoveBehavior, self).__init__(resource, BMPrioirities.MEDIUM, 
+                                                  name=resource+"_pose_move")
+        self.arm_char = arm_char
         self.ctrl_name = ctrl_name
         self.param_file = param_file
         self.cur_joint_traj = None
         self.running = False
         self.ctrl_switcher = ControllerSwitcher()
 
-    def load_arm(self, arm_char):
-        self.ctrl_switcher.carefree_switch(arm_char, self.ctrl_name, self.param_file, reset=False)
-        return create_pr2_arm(arm_char, PR2ArmJointTrajectory, 
+    def load_arm(self):
+        self.ctrl_switcher.carefree_switch(self.arm_char, self.ctrl_name, self.param_file, reset=False)
+        return create_pr2_arm(self.arm_char, PR2ArmJointTrajectory, 
                               controller_name=self.ctrl_name, timeout=8)
 
 
-    def execute_trajectory(self, joint_trajectory, arm_char, rate, blocking=True):
+    def execute(self, joint_trajectory, rate, blocking=True):
         # TODO Replace this with behavior_manager locking mechanism
         #if self.running:
         #    rospy.logerr("[arm_pose_move_controller] Trajectory already in motion.")
         #    return False
-        self.cur_arm = self.load_arm(arm_char)
+        self.cur_arm = self.load_arm()
         if self.cur_joint_traj is None:
             if not self.can_exec_traj(joint_trajectory):
                 rospy.logwarn("[arm_pose_move_controller] Arm not at trajectory start.")
@@ -68,30 +72,24 @@ class ArmPoseMoveController(object):
             self.exec_traj_timer = rospy.Timer(rospy.Duration(0.1), exec_traj, oneshot=True)
         return True
 
-    def exec_traj_from_file(self, filename, rate_mult=0.8, reverse=False, blocking=True):
-        f = file(roslib.substitution_args.resolve_args(filename), "r")
-        traj, arm_char, rate = pickle.load(f)
-        if reverse:
-            traj.reverse()
-        return self.execute_trajectory(traj, arm_char, rate * rate_mult, blocking)
-
-    def move_to_setup_from_file(self, filename, velocity=0.1, rate=RATE, reverse=False, blocking=True):
-        f = file(roslib.substitution_args.resolve_args(filename), "r")
-        traj, arm_char, rate = pickle.load(f)
-        if reverse:
-            traj.reverse()
-        return self.move_to_angles(traj[0], arm_char, velocity=velocity, rate=rate, blocking=blocking)
+    def move_to_angles(self, q_goal, arm_char, rate=RATE, velocity=0.1, blocking=True):
+        self.cur_arm = self.load_arm()
+        q_cur = self.cur_arm.get_ep(True)
+        diff = self.cur_arm.diff_angles(q_goal, q_cur)
+        max_ang = np.max(np.fabs(diff) * JOINT_VELOCITY_WEIGHT)
+        time_traj = max_ang / velocity
+        steps = np.round(rate * time_traj)
+        if steps == 0:
+            return True
+        t_vals = np.linspace(0., 1., steps)
+        traj = [q_cur + diff * t for t in t_vals]
+        return self.execute(traj, rate, blocking)
 
     def can_exec_traj(self, joint_trajectory):
         q_cur = self.cur_arm.get_ep()
         q_init = joint_trajectory[0]
         diff = self.cur_arm.diff_angles(q_cur, q_init)
         return np.all(np.fabs(diff) < JOINT_TOLERANCES)
-
-    def can_exec_traj_from_file(self, filename):
-        f = file(roslib.substitution_args.resolve_args(filename), "r")
-        traj, rate = pickle.load(f)
-        return self.can_exec_traj(traj)
 
     def is_moving(self):
         return self.running
@@ -105,19 +103,43 @@ class ArmPoseMoveController(object):
             rospy.sleep(0.01)
         self.cur_joint_traj = None
 
-    def move_to_angles(self, q_goal, arm_char, rate=RATE, velocity=0.1, blocking=True):
-        print "HEY GURLS!", arm_char, q_goal
-        self.cur_arm = self.load_arm(arm_char)
-        q_cur = self.cur_arm.get_ep(True)
-        diff = self.cur_arm.diff_angles(q_goal, q_cur)
-        max_ang = np.max(np.fabs(diff) * JOINT_VELOCITY_WEIGHT)
-        time_traj = max_ang / velocity
-        steps = np.round(rate * time_traj)
-        if steps == 0:
-            return True
-        t_vals = np.linspace(0., 1., steps)
-        traj = [q_cur + diff * t for t in t_vals]
-        return self.execute_trajectory(traj, arm_char, rate, blocking)
+    def preempt(self):
+        self.stop_moving()
+
+class TrajectoryLoader(object):
+    def __init__(self, ctrl_name, param_file):
+        self.traj_ctrl_r = ArmPoseMoveBehavior('r', ctrl_name, param_file)
+        self.traj_ctrl_l = ArmPoseMoveBehavior('l', ctrl_name, param_file)
+
+    def exec_traj_from_file(self, filename, rate_mult=0.8, reverse=False, blocking=True):
+        f = file(roslib.substitution_args.resolve_args(filename), "r")
+        traj, arm_char, rate = pickle.load(f)
+        if reverse:
+            traj.reverse()
+        if arm_char == 'r':
+            return self.traj_ctrl_r.execute(traj, rate * rate_mult, blocking)
+        else:
+            return self.traj_ctrl_l.execute(traj, rate * rate_mult, blocking)
+
+    def move_to_setup_from_file(self, filename, velocity=0.1, rate=RATE, reverse=False, blocking=True):
+        f = file(roslib.substitution_args.resolve_args(filename), "r")
+        traj, arm_char, rate = pickle.load(f)
+        if reverse:
+            traj.reverse()
+        if arm_char == 'r':
+            return self.traj_ctrl_r.move_to_angles(traj[0], arm_char, velocity=velocity, 
+                                                   rate=rate, blocking=blocking)
+        else:
+            return self.traj_ctrl_l.move_to_angles(traj[0], arm_char, velocity=velocity, 
+                                                   rate=rate, blocking=blocking)
+
+    def can_exec_traj_from_file(self, filename):
+        f = file(roslib.substitution_args.resolve_args(filename), "r")
+        traj, arm_char, rate = pickle.load(f)
+        if arm_char == 'r':
+            return self.traj_ctrl_r.can_exec_traj(traj)
+        else:
+            return self.traj_ctrl_l.can_exec_traj(traj)
 
 class TrajectorySaver(object):
     def __init__(self, rate):
@@ -152,21 +174,21 @@ class TrajectorySaver(object):
 
 class TrajectoryServer(object):
     def __init__(self, srv_name, ctrl_name, param_file):
-        self.traj_ctrl = ArmPoseMoveController(ctrl_name, param_file)
+        self.traj_load = TrajectoryLoader(ctrl_name, param_file)
         self.traj_srv = rospy.Service(srv_name, TrajectoryPlay, self.traj_play_cb)
 
     def traj_play_cb(self, req):
         if req.mode == req.MOVE_SETUP:
-            result = self.traj_ctrl.move_to_setup_from_file(req.filepath, reverse=req.reverse,
+            result = self.traj_load.move_to_setup_from_file(req.filepath, reverse=req.reverse,
                                          velocity=req.setup_velocity, blocking=req.blocking)
         elif req.mode == req.TRAJ_ONLY:
-            result = self.traj_ctrl.exec_traj_from_file(req.filepath, rate_mult=req.traj_rate_mult,
+            result = self.traj_load.exec_traj_from_file(req.filepath, rate_mult=req.traj_rate_mult,
                                          reverse=req.reverse, blocking=req.blocking)
         elif req.mode == req.SETUP_AND_TRAJ:
-            result = self.traj_ctrl.move_to_setup_from_file(req.filepath, reverse=req.reverse,
+            result = self.traj_load.move_to_setup_from_file(req.filepath, reverse=req.reverse,
                                          velocity=req.setup_velocity, blocking=True)
             if result:
-                result = self.traj_ctrl.exec_traj_from_file(req.filepath, 
+                result = self.traj_load.exec_traj_from_file(req.filepath, 
                                              rate_mult=req.traj_rate_mult, 
                                              reverse=req.reverse, blocking=req.blocking)
         else:
@@ -251,13 +273,13 @@ def main():
         return
     elif opts.playback_mode:
         raw_input("Press enter to continue")
-        arm_pm_ctrl = ArmPoseMoveController(opts.ctrl_name, PARAMS_FILE_LOW)
-        result = arm_pm_ctrl.exec_traj_from_file(opts.filename, reverse=opts.reverse, blocking=True)
+        traj_load = TrajectoryLoader(ctrl_name, param_file)
+        result = traj_load.exec_traj_from_file(opts.filename, reverse=opts.reverse, blocking=True)
         print result
 
     if False:
         ctrl_switcher.carefree_switch(arm_char, opts.ctrl_name, PARAMS_FILE_LOW, reset=False)
-        arm_pm_ctrl = ArmPoseMoveController(opts.ctrl_name, PARAMS_FILE_LOW)
+        arm_pm_ctrl = ArmPoseMoveBehavior(opts.ctrl_name, PARAMS_FILE_LOW)
         arm_pm_ctrl.move_to_angles(q_test, arm_char)
         return
 
