@@ -138,9 +138,6 @@ function init_subscribers() {
     node.subscribe('/pr2_ar_servo/state_feedback', function(msg){servo_feedback_cb(msg);});
 };//END sub_state
 
-function servo_feedback_cb(msg){
-    log(msg.data);
-};
 
 function init_publishers() {
 	//Gripper Publishers
@@ -689,6 +686,53 @@ function servo_preempt(){
     node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({'data':true}));
 };
 
+function servo_feedback_cb(msg){
+    switch(msg.data){
+        case 1:
+            text = "Searching for AR Tag."
+            break
+        case 2: 
+            text = "AR Tag Found. BEGIN APPROACH.";
+            $(servo_approach, servo_stop).fadeTo(0,1);
+            $(servo_detect_tag).fadeTo(0,0.4);
+            break
+        case 3:
+            text = "Unable to Locate AR Tag. ADJUST VIEW AND RETRY.";
+            break
+        case 4:
+            text = "Servoing"
+            break
+        case 5:
+            text = "Servoing Completed Successfully.";
+            $(servo_approach, servo_stop).fadeTo(0,0.4);
+            $(servo_detect_tag).fadeTo(0,1);
+            break
+        case 6:
+            text = "Servoing Detected Collision with Arms."+ 
+                    "ADJUST AND RE-DETECT TAG.";
+            $(servo_approach, servo_stop).fadeTo(0,0.4);
+            $(servo_detect_tag).fadeTo(0,1);
+            break
+        case 7:
+            text = "Servoing Detected Collision in Base Laser."+ 
+                    "ADJUST AND RE-DETECT TAG.";
+            $(servo_approach, servo_stop).fadeTo(0,0.4);
+            $(servo_detect_tag).fadeTo(0,1);
+            break
+        case 8:
+            text = "Lost view of AR Tag.  ADJUST AND RE-DETECT."
+            $(servo_approach, servo_stop).fadeTo(0,0.4);
+            $(servo_detect_tag).fadeTo(0,1);
+            break
+        case 9:
+            text = "Servoing Stopped by User. RE-DETECT TAG";
+            $(servo_approach, servo_stop).fadeTo(0,0.4);
+            $(servo_detect_tag).fadeTo(0,1);
+            break
+    }
+    log(text);
+};
+
 function pc_snapshot_cb() {
     node.rosjs.callService('/take_pc_snapshot',json(''),nop);
     $('#reg_confirm').show();
@@ -922,9 +966,10 @@ width:100px;
     
 </table>
 <!-- ABANDONED BUTTONS: DRIVING AND ARM TUCKING -->
-
 <!--<div id="head_pos_out"></div>-->
-
+<hr>
+<div id="console"></div>
+<hr>
 <table><tr><td> <!-- Begin Gross Formatting-->
 <div>
   <table>
@@ -1076,7 +1121,7 @@ width:100px;
     </td>
   </tr>
 <tr><td colspan='4'> <!-- Gross Formating-->
-<div id="console"></div>
+<!--<div id="console"></div>-->
 </td>
 <td colspan='2'> <!-- Gross Formating-->
 <tr><td colspan='4'>
