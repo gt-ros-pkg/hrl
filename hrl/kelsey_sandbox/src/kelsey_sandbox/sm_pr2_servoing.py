@@ -9,13 +9,24 @@ roslib.load_manifest('costmap_services')
 import rospy
 import smach
 import smach_ros
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Int8
 
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJointTrajectory
 from costmap_services.python_client import CostmapServices
 from pr2_viz_servo import PR2VisualServoAR
 
 outcomes_spa = ['succeeded','preempted','aborted']
+
+class ServoStates:
+    BEGIN_FIND_TAG = 1
+    FOUND_TAG = 2
+    TIMEOUT_FIND_TAG = 3
+    BEGIN_SERVO = 4
+    SUCCESS_SERVO = 5
+    ARM_COLLISION = 6
+    LASER_COLLISION = 7
+    LOST_TAG = 8
+    USER_PREEMPT = 9
 
 class ArmCollisionDetection(smach.State):
     def __init__(self, min_l_torques=[-5.]*7, min_r_torques=[-5.]*7,
@@ -137,6 +148,16 @@ class BoolTopicState(smach.State):
             r.sleep()
         return 'aborted'
 
+class PublishState(smach.State):
+    def __init__(self, topic, msg_type, msg):
+        smach.State.__init__(self, outcomes=['succeeded'])
+        self.pub = rospy.Publisher(topic, msg_type)
+        self.msg = msg
+
+    def execute(self, userdata):
+        self.pub.publish(msg)
+        return 'succeeded'
+
 class FindARTagState(smach.State):
     def __init__(self, viz_servo, timeout=6.):
         smach.State.__init__(self, 
@@ -193,26 +214,71 @@ def build_full_sm():
 
         smach.StateMachine.add('UI_FIND_TAG_WAIT',
                                BoolTopicState("/pr2_ar_servo/find_tag"),
-                               transitions={'true' : 'FIND_AR_TAG',
+                               transitions={'true' : 'BEGIN_FIND_TAG',
                                             'false' : 'aborted'})
+
+        smach.StateMachine.add('BEGIN_FIND_TAG',
+                               PublishState("/pr2_ar_servo/state_feedback",
+                                            Int8, Int8(ServoStates.BEGIN_FIND_TAG)),
+                               transitions={'succeeded' : 'FIND_AR_TAG'})
 
         smach.StateMachine.add('FIND_AR_TAG',
                                FindARTagState(viz_servo, timeout=find_tag_timeout),
-                               transitions={'found_tag' : 'UI_SERVO_WAIT',
-                                            'timeout' : 'UI_FIND_TAG_WAIT'})
+                               transitions={'found_tag' : 'FOUND_TAG',
+                                            'timeout' : 'TIMEOUT_FIND_TAG'})
+
+        smach.StateMachine.add('FOUND_TAG',
+                               PublishState("/pr2_ar_servo/state_feedback",
+                                            Int8, Int8(ServoStates.FOUND_TAG)),
+                               transitions={'succeeded' : 'UI_SERVO_WAIT'})
+
+        smach.StateMachine.add('TIMEOUT_FIND_TAG',
+                               PublishState("/pr2_ar_servo/state_feedback",
+                                            Int8, Int8(ServoStates.TIMEOUT_FIND_TAG)),
+                               transitions={'succeeded' : 'UI_FIND_TAG_WAIT'})
 
         smach.StateMachine.add('UI_SERVO_WAIT',
                                BoolTopicState("/pr2_ar_servo/tag_confirm"),
-                               transitions={'true' : 'CC_SERVOING',
+                               transitions={'true' : 'BEGIN_SERVO',
                                             'false' : 'UI_FIND_TAG_WAIT'})
+
+        smach.StateMachine.add('BEGIN_SERVO',
+                               PublishState("/pr2_ar_servo/state_feedback",
+                                            Int8, Int8(ServoStates.BEGIN_SERVO)),
+                               transitions={'succeeded' : 'CC_SERVOING'})
 
         smach.StateMachine.add('CC_SERVOING', 
                                build_cc_servoing(viz_servo),
-                               transitions={'arm_collision' : 'UI_FIND_TAG_WAIT',
-                                            'laser_collision' : 'UI_FIND_TAG_WAIT',
-                                            'user_preempted' : 'UI_FIND_TAG_WAIT',
-                                            'lost_tag' : 'UI_FIND_TAG_WAIT',
-                                            'succeeded' : 'UI_FIND_TAG_WAIT'})
+                               transitions={'arm_collision' : 'ARM_COLLISION',
+                                            'laser_collision' : 'LASER_COLLISION',
+                                            'user_preempted' : 'USER_PREEMPT',
+                                            'lost_tag' : 'LOST_TAG',
+                                            'succeeded' : 'SUCCESS_SERVO'})
+
+        smach.StateMachine.add('SUCCESS_SERVO',
+                               PublishState("/pr2_ar_servo/state_feedback",
+                                            Int8, Int8(ServoStates.SUCCESS_SERVO)),
+                               transitions={'succeeded' : 'UI_FIND_TAG_WAIT'})
+
+        smach.StateMachine.add('ARM_COLLISION',
+                               PublishState("/pr2_ar_servo/state_feedback",
+                                            Int8, Int8(ServoStates.ARM_COLLISION)),
+                               transitions={'succeeded' : 'UI_FIND_TAG_WAIT'})
+
+        smach.StateMachine.add('LASER_COLLISION',
+                               PublishState("/pr2_ar_servo/state_feedback",
+                                            Int8, Int8(ServoStates.LASER_COLLISION)),
+                               transitions={'succeeded' : 'UI_FIND_TAG_WAIT'})
+
+        smach.StateMachine.add('LOST_TAG',
+                               PublishState("/pr2_ar_servo/state_feedback",
+                                            Int8, Int8(ServoStates.LOST_TAG)),
+                               transitions={'succeeded' : 'UI_FIND_TAG_WAIT'})
+
+        smach.StateMachine.add('USER_PREEMPT',
+                               PublishState("/pr2_ar_servo/state_feedback",
+                                            Int8, Int8(ServoStates.USER_PREEMPT)),
+                               transitions={'succeeded' : 'UI_FIND_TAG_WAIT'})
 
     return sm_pr2_servoing
 
