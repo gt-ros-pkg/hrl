@@ -6,8 +6,8 @@
 		<param name="marker_center_x" type="double" value="0.0"/>
 		<param name="marker_center_y" type="double" value="0.0"/>
 		<param name="threshold" type="int" value="100"/>
-        <remap from="/usb_cam/image_raw" to="/r_forearm_cam/image_rect"/>
-        <remap from="/usb_cam/camera_info" to="/r_forearm_cam/camera_info"/>
+        <remap from="/usb_cam/image_raw" to="/l_forearm_cam/image_rect"/>
+        <remap from="/usb_cam/camera_info" to="/l_forearm_cam/camera_info"/>
         <remap from="/ar_pose_marker" to="/r_pr2_ar_pose_marker" />
 	</node>
 

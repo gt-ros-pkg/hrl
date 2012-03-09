@@ -11,10 +11,15 @@
           output="screen" args="a" />
     <node pkg="hrl_rfh_fall_2011" name="setup_arms_shaving" type="setup_arms_shaving.py"
           output="screen" args="-s" />
-    <node pkg="kelsey_sandbox" name="servo_prepare" type="servo_prepare.py"
+    <node pkg="hrl_rfh_fall_2011" name="setup_arms_servoing" type="setup_arms_servoing.py"
           output="screen" args="-s" />
-    <node pkg="hrl_trajectory_playback" name="untuck_l_arm_playback" type="playback.py" 
-          output="screen" respawn="false" 
-          args="--pkl $(find hrl_rfh_fall_2011)/data/untuck_l_arm.pkl --name untuck_l_arm --left" />
+    <node pkg="kelsey_sandbox" name="arm_pose_move_controller" type="arm_pose_move_controller.py"
+          output="screen" args="-v" />
+    <node name="$(anon dynparam)" pkg="dynamic_reconfigure" type="dynparam"
+          args="load /l_forearm_cam $(find hrl_rfh_fall_2011)/data/l_forearm_cam_settings.yaml" />
+    <node name="$(anon dynparam)" pkg="dynamic_reconfigure" type="dynparam"
+          args="load /r_forearm_cam $(find hrl_rfh_fall_2011)/data/r_forearm_cam_settings.yaml" />
+    <!-- <node pkg="kelsey_sandbox" name="servo_prepare" type="servo_prepare.py"
+          output="screen" args="-s" /> -->
 
 </launch>

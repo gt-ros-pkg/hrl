@@ -35,7 +35,7 @@ LOCAL_VELOCITY = 0.0025
 LONGITUDE_STEP = 0.03
 RETREAT_HEIGHT = 1.65
 SAFETY_RETREAT_HEIGHT = 1.9
-SAFETY_RETREAT_VELOCITY = 0.05
+SAFETY_RETREAT_VELOCITY = 0.0500
 SHAVE_HEIGHT = 0.8
 
 outcomes_spa = ['succeeded','preempted','aborted']
@@ -242,7 +242,7 @@ def build_sm():
                         get_ell_move_local(-LATITUDE_STEP, 0, 0, GRIPPER_ROT),
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
-                    transitions={'succeeded' : 'succeeded',
+                    transitions={'succeeded' : 'FT_HOLD',
                                  'collision' : 'FT_HOLD'})
 
                 smach.StateMachine.add(
@@ -252,7 +252,7 @@ def build_sm():
                         get_ell_move_local(0, LONGITUDE_STEP, 0, GRIPPER_ROT),
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
-                    transitions={'succeeded' : 'succeeded',
+                    transitions={'succeeded' : 'FT_HOLD',
                                  'collision' : 'FT_HOLD'})
 
                 smach.StateMachine.add(
@@ -262,7 +262,7 @@ def build_sm():
                         get_ell_move_local(LATITUDE_STEP, 0, 0, GRIPPER_ROT),
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
-                    transitions={'succeeded' : 'succeeded',
+                    transitions={'succeeded' : 'FT_HOLD',
                                  'collision' : 'FT_HOLD'})
 
                 smach.StateMachine.add(
@@ -272,7 +272,7 @@ def build_sm():
                         get_ell_move_local(0, -LONGITUDE_STEP, 0, GRIPPER_ROT),
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
-                    transitions={'succeeded' : 'succeeded',
+                    transitions={'succeeded' : 'FT_HOLD',
                                  'collision' : 'FT_HOLD'})
 
                 smach.StateMachine.add(
@@ -282,7 +282,7 @@ def build_sm():
                         get_ell_move_local(0, 0, HEIGHT_STEP, GRIPPER_ROT),
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
-                    transitions={'succeeded' : 'succeeded',
+                    transitions={'succeeded' : 'FT_HOLD',
                                  'collision' : 'FT_HOLD'})
 
                 smach.StateMachine.add(
@@ -292,7 +292,7 @@ def build_sm():
                         get_ell_move_local(0, 0, -HEIGHT_STEP, GRIPPER_ROT),
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
-                    transitions={'succeeded' : 'succeeded',
+                    transitions={'succeeded' : 'FT_HOLD',
                                  'collision' : 'FT_HOLD'})
 
 
@@ -362,7 +362,7 @@ def build_sm():
                     'ELL_RETREAT_SLOW',
                     wrap_state_force_detection(
                         'ELL_RETREAT_SLOW',
-                        get_ell_move_height(RETREAT_HEIGHT, 8, GRIPPER_ROT),
+                        get_ell_move_height(RETREAT_HEIGHT, SAFETY_RETREAT_VELOCITY, GRIPPER_ROT),
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
                     transitions={'succeeded' : 'succeeded',
@@ -402,7 +402,7 @@ def build_sm():
                                         smach_ros.SimpleActionState('ft_hold_action', FtHoldAction,
                                                                     goal=hold_goal),
                                         transitions={'succeeded':'ELL_RETREAT_SLOW',
-                                                     'preempted':'ELL_RETREAT_SLOW',
+                                                     'preempted':'succeeded',
                                                      'aborted':'ELL_RETREAT_FAST'},
                                         remapping={'activity_thresh':'hold_activity_thresh',
                                                    'z_thresh':'hold_z_thresh',

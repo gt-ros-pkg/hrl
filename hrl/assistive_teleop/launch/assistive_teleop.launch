@@ -7,7 +7,7 @@
         name="tool_power_toggle"
         pkg="rosserial_python"
         type="serial_node.py"
-        args="/dev/ttyUSB0"
+        args="/dev/ttyUSB1"
         output="screen"/>
   
     <!-- NetFt Sensor-->

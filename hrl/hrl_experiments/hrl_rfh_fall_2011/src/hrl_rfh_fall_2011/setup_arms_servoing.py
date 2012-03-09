@@ -32,7 +32,7 @@ class SetupArmsServoing():
         def run(self, req):
             traj = TrajectoryPlayRequest()
             traj.mode = traj.SETUP_AND_TRAJ
-            traj.reverse = False
+            traj.reverse = True
             traj.setup_velocity = 0.1
             traj.traj_rate_mult = 0.8
 

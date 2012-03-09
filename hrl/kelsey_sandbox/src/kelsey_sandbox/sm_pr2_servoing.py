@@ -36,8 +36,8 @@ class ArmCollisionDetection(smach.State):
         self.min_r_tor = np.array(min_r_torques)
         self.max_l_tor = np.array(max_l_torques)
         self.max_r_tor = np.array(max_r_torques)
-        self.l_arm = create_pr2_arm('l', PR2ArmJointTrajectory)
-        self.r_arm = create_pr2_arm('r', PR2ArmJointTrajectory)
+        self.l_arm = create_pr2_arm('l', PR2ArmJointTrajectory, timeout=0)
+        self.r_arm = create_pr2_arm('r', PR2ArmJointTrajectory, timeout=0)
 
     def execute(self, userdata):
         r = rospy.Rate(20)
@@ -295,7 +295,12 @@ def build_test_sm():
 def main():
     rospy.init_node("sm_pr2_servoing")
     userdata = smach.user_data.UserData()
-    userdata['goal_ar_pose'] = [ 0.57160106, -0.4300153 , -1.70840111]
+
+    # old testing
+    #userdata['goal_ar_pose'] = [ 0.57160106, -0.4300153 , -1.70840111]
+
+    # both sides spot?
+    userdata['goal_ar_pose'] = [ 0.57226345,  0.32838129, -1.15480113]
 
     if True:
         sm_pr2_servoing = build_full_sm()

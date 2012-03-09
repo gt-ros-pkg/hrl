@@ -170,7 +170,7 @@ class BehaviorManagerClient(object):
     #                 greater priority will be able to preempt the current active behavior.
     # @param name Optional prefix given to the behavior to make services more readable
     def __init__(self, resource, preempt_cb, resume_cb=None,
-                 priority=PRIORITIES.MEDIUM, name="behavior"):
+                 priority=BMPriorities.MEDIUM, name="behavior"):
         if resource not in ALLOWED_RESOURCES:
             err("Resource %s is not an allowed resource to reserve." % resource)
         self._resource = resource

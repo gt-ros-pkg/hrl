@@ -2,11 +2,13 @@
 
 import sys
 import numpy as np
+import copy
 
 import roslib
 roslib.load_manifest('hrl_pr2_arms')
 roslib.load_manifest('hrl_rfh_summer_2011')
 roslib.load_manifest('hrl_rfh_fall_2011')
+roslib.load_manifest('kelsey_sandbox')
 import rospy
 
 import smach
@@ -34,7 +36,7 @@ class SetupArmsShaving():
         def adjust_torso(self):
             # move torso up
             tgoal = SingleJointPositionGoal()
-            tgoal.position = 0.300  # all the way up is 0.300
+            tgoal.position = 0.040  # all the way up is 0.300
             tgoal.min_duration = rospy.Duration( 2.0 )
             tgoal.max_velocity = 1.0
             self.torso_sac.send_goal_and_wait(tgoal)
@@ -60,7 +62,7 @@ class SetupArmsShaving():
 
             l_traj = copy.copy(traj)
             l_traj.filepath = "$(find hrl_rfh_fall_2011)/data/l_arm_shaving_setup.pkl"
-            l_traj.blocking = False
+            l_traj.blocking = True
 
             r_traj = copy.copy(traj)
             r_traj.filepath = "$(find hrl_rfh_fall_2011)/data/r_arm_shaving_setup.pkl"

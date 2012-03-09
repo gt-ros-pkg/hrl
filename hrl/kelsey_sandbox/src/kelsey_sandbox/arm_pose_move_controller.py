@@ -16,6 +16,7 @@ from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2Arm, PR2ArmJointTrajectory, 
 from arm_cart_vel_control import PR2ArmCartVelocityController
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from srv import TrajectoryPlay, TrajectoryPlayResponse
+from behavior_manager import Behavior, BMPriorities
 
 RATE = 20
 JOINT_TOLERANCES = [0.03, 0.1, 0.1, 0.1, 0.17, 0.15, 0.12]
@@ -24,7 +25,7 @@ JOINT_VELOCITY_WEIGHT = [3.0, 1.7, 1.7, 1.0, 1.0, 1.0, 0.5]
 class ArmPoseMoveBehavior(Behavior):
     def __init__(self, arm_char, ctrl_name, param_file):
         resource = arm_char + "_arm"
-        super(ArmPoseMoveBehavior, self).__init__(resource, BMPrioirities.MEDIUM, 
+        super(ArmPoseMoveBehavior, self).__init__(resource, BMPriorities.MEDIUM, 
                                                   name=resource+"_pose_move")
         self.arm_char = arm_char
         self.ctrl_name = ctrl_name
@@ -74,7 +75,7 @@ class ArmPoseMoveBehavior(Behavior):
 
     def move_to_angles(self, q_goal, arm_char, rate=RATE, velocity=0.1, blocking=True):
         self.cur_arm = self.load_arm()
-        q_cur = self.cur_arm.get_ep(True)
+        q_cur = self.cur_arm.get_ep()
         diff = self.cur_arm.diff_angles(q_goal, q_cur)
         max_ang = np.max(np.fabs(diff) * JOINT_VELOCITY_WEIGHT)
         time_traj = max_ang / velocity
@@ -185,12 +186,20 @@ class TrajectoryServer(object):
             result = self.traj_load.exec_traj_from_file(req.filepath, rate_mult=req.traj_rate_mult,
                                          reverse=req.reverse, blocking=req.blocking)
         elif req.mode == req.SETUP_AND_TRAJ:
-            result = self.traj_load.move_to_setup_from_file(req.filepath, reverse=req.reverse,
-                                         velocity=req.setup_velocity, blocking=True)
-            if result:
-                result = self.traj_load.exec_traj_from_file(req.filepath, 
-                                             rate_mult=req.traj_rate_mult, 
-                                             reverse=req.reverse, blocking=req.blocking)
+            def setup_and_traj(te):
+                result = self.traj_load.move_to_setup_from_file(req.filepath, 
+                                             reverse=req.reverse,
+                                             velocity=req.setup_velocity, blocking=True)
+                if result:
+                    result = self.traj_load.exec_traj_from_file(req.filepath, 
+                                                 rate_mult=req.traj_rate_mult, 
+                                                 reverse=req.reverse, blocking=True)
+            if req.blocking:
+                result = setup_and_traj(None)
+            else:
+                rospy.Timer(rospy.Duration(0.01), setup_and_traj, oneshot=True)
+                result = True
+
         else:
             rospy.logerr("[arm_pose_move_controller] Bad service call!")
         return TrajectoryPlayResponse(result)
@@ -236,7 +245,6 @@ def main():
                  help="Name of service to provide.")
     (opts, args) = p.parse_args()
 
-    ctrl_switcher = ControllerSwitcher()
     if opts.right_arm:
         arm_char = 'r'
     else:
@@ -246,6 +254,7 @@ def main():
     if opts.save_mode:
         assert(opts.right_arm + opts.left_arm == 1)
         if opts.traj_mode:
+            ctrl_switcher = ControllerSwitcher()
             ctrl_switcher.carefree_switch(arm_char, CTRL_NAME_NONE, PARAMS_FILE_NONE, reset=False)
             traj_saver = TrajectorySaver(RATE)
             raw_input("Press enter to start recording")
@@ -273,7 +282,7 @@ def main():
         return
     elif opts.playback_mode:
         raw_input("Press enter to continue")
-        traj_load = TrajectoryLoader(ctrl_name, param_file)
+        traj_load = TrajectoryLoader(opts.ctrl_name, opts.params_file)
         result = traj_load.exec_traj_from_file(opts.filename, reverse=opts.reverse, blocking=True)
         print result
 

@@ -46,6 +46,7 @@ def print_trajectory_stats(ep_traj, traj, t_vals):
         print ep_traj.T[np.argmax(diffs_pos)]
         print traj[np.argmax(diffs_pos)]
 
+SETUP_ANGLES = [0, 0, np.pi/2, -np.pi/2, -np.pi, -np.pi/2, -np.pi/2]
 
 class EllipsoidController(object):
     def __init__(self, arm):
@@ -79,7 +80,7 @@ class EllipsoidController(object):
             self.found_params = True
     
     def reset_ell_ep(self):
-        ee_pose = PoseConverter.to_pose_stamped_msg("/torso_lift_link", self.arm.get_end_effector_pose())
+        ee_pose = PoseConverter.to_pose_stamped_msg("/torso_lift_link", self.arm.get_ep())
         cur_time = rospy.Time.now()
         ee_pose.header.stamp = cur_time
         self.tf_list.waitForTransform("/torso_lift_link", "/ellipse_frame", cur_time, rospy.Duration(3))
@@ -129,7 +130,7 @@ class EllipsoidController(object):
                 rospy.loginfo("Commanding ellipsoidal move: (%f, %f, %f), Abs: (%d, %d, %d)" % 
                                (change_ep[0], change_ep[1], change_ep[2], 
                                 abs_ep_sel[0], abs_ep_sel[1], abs_ep_sel[2]))
-                self.arm.reset_ep()
+                #self.arm.reset_ep()
                 self.reset_ell_ep()
                 ell_f = np.where(abs_ep_sel, change_ep, self.ell_ep + change_ep)
                 if req.velocity == 0:
@@ -144,8 +145,10 @@ class EllipsoidController(object):
             self.action_preempted = True
 
     def execute_trajectory(self, ell_f, gripper_rot, velocity=0.001):
+        self.arm.set_posture(SETUP_ANGLES)
+
         ell_f[1] = np.mod(ell_f[1], 2 * np.pi)
-        self.arm.reset_ep()
+        #self.arm.reset_ep()
         self.reset_ell_ep()
         ell_init = np.mat(self.ell_ep).T
         ell_final = np.mat(ell_f).T
