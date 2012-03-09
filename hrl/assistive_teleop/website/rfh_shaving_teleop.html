@@ -662,13 +662,15 @@ function servo_setup_cb(){
         $('#ar_servoing_setup').hide();
         $('#ar_servoing_done, .ar_servo_controls').show();
         $('#servo_approach, #servo_stop').fadeTo(0,0.5);
-        log('USE BUTTONS TO PERFORM APPROACH');
+        set_camera('/r_forearm_cam/image_color_rotated')
+        log('USE BUTTONS TO FIND TAG AND PERFORM APPROACH');
         })
 };
 
 function servoing_done_cb(){
     $('#pc_snapshot').show();
     $('#ar_servoing_done, .ar_servo_controls').hide(); 
+    set_camera('/arrow_overlaid')
     log('Approach Completed. PLACE HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD');
 };
 
@@ -693,41 +695,46 @@ function servo_feedback_cb(msg){
             break
         case 2: 
             text = "AR Tag Found. BEGIN APPROACH.";
-            $('#servo_approach, servo_stop').fadeTo(0,1);
+            $('#servo_approach, #servo_stop').fadeTo(0,1);
             $('#servo_detect_tag').fadeTo(0,0.5);
+            set_camera('/arrow_overlaid')
             break
         case 3:
             text = "Unable to Locate AR Tag. ADJUST VIEW AND RETRY.";
+            set_camera('/r_forearm_cam/image_color_rotated')
             break
         case 4:
             text = "Servoing"
             break
         case 5:
             text = "Servoing Completed Successfully.";
-            $('#servo_approach, servo_stop').fadeTo(0,0.5);
+            $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
+            set_camera('/arrow_overlaid')
             break
         case 6:
-            text = "Servoing Detected Collision with Arms."+ 
+            text = "Servoing Detected Collision with Arms.  "+ 
                     "ADJUST AND RE-DETECT TAG.";
-            $('#servo_approach, servo_stop').fadeTo(0,0.5);
+            $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
             break
         case 7:
-            text = "Servoing Detected Collision in Base Laser."+ 
+            text = "Servoing Detected Collision in Base Laser.  "+ 
                     "ADJUST AND RE-DETECT TAG.";
-            $('#servo_approach, servo_stop').fadeTo(0,0.5);
+            $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
             break
         case 8:
             text = "Lost view of AR Tag.  ADJUST AND RE-DETECT."
-            $('#servo_approach, servo_stop').fadeTo(0,0.5);
+            $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
+            set_camera('/r_forearm_cam/image_color_rotated')
             break
         case 9:
             text = "Servoing Stopped by User. RE-DETECT TAG";
-            $('#servo_approach, servo_stop').fadeTo(0,0.5);
+            $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
+            set_camera('/r_forearm_cam/image_color_rotated')
             break
     }
     log(text);
