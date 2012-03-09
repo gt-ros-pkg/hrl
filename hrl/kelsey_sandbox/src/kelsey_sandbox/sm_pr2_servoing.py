@@ -155,7 +155,7 @@ class PublishState(smach.State):
         self.msg = msg
 
     def execute(self, userdata):
-        self.pub.publish(msg)
+        self.pub.publish(self.msg)
         return 'succeeded'
 
 class FindARTagState(smach.State):
