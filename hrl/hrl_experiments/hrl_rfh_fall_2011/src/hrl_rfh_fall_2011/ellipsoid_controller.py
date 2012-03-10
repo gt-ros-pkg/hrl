@@ -47,6 +47,7 @@ def print_trajectory_stats(ep_traj, traj, t_vals):
         print traj[np.argmax(diffs_pos)]
 
 SETUP_ANGLES = [0, 0, np.pi/2, -np.pi/2, -np.pi, -np.pi/2, -np.pi/2]
+MIN_HEIGHT = 0.2
 
 class EllipsoidController(object):
     def __init__(self, arm):
@@ -76,7 +77,7 @@ class EllipsoidController(object):
             self.ell_space.rot = np.mat(np.eye(3))
             if not self.found_params:
                 rospy.loginfo("[ellipsoid_controller] Found params from /ellipsoid_params")
-                self.reset_ell_ep()
+                #self.reset_ell_ep()
             self.found_params = True
     
     def reset_ell_ep(self):
@@ -148,6 +149,8 @@ class EllipsoidController(object):
         self.arm.set_posture(SETUP_ANGLES)
 
         ell_f[1] = np.mod(ell_f[1], 2 * np.pi)
+        # don't want to approach singularity
+        ell_f[2] = max(ell_f[2], MIN_HEIGHT)
         #self.arm.reset_ep()
         self.reset_ell_ep()
         ell_init = np.mat(self.ell_ep).T

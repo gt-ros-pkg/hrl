@@ -19,6 +19,7 @@ from std_srvs.srv import Empty, EmptyResponse
 from hrl_rfh_fall_2011.sm_register_head_ellipse import SMEllipsoidRegistration
 from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
 from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPositionGoal
+from pr2_controllers_msgs.msg import Pr2GripperCommandAction, Pr2GripperCommandActionGoal
 from hrl_rfh_fall_2011.sm_topic_monitor import TopicMonitor
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJTransposeTask
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
@@ -31,6 +32,10 @@ class SetupArmsShaving():
             self.torso_sac = actionlib.SimpleActionClient('torso_controller/position_joint_action',
                                                           SingleJointPositionAction)
             self.torso_sac.wait_for_server()
+            self.gripper_sac = actionlib.SimpleActionClient(
+                                              '/l_gripper_controller/gripper_action_node',
+                                              Pr2GripperCommandAction)
+            self.gripper_sac.wait_for_server()
             rospy.loginfo("[setup_arms_shaving] SetupArmsShaving ready.")
 
         def adjust_torso(self):
@@ -40,6 +45,11 @@ class SetupArmsShaving():
             tgoal.min_duration = rospy.Duration( 2.0 )
             tgoal.max_velocity = 1.0
             self.torso_sac.send_goal_and_wait(tgoal)
+
+        def close_gripper(self):
+            ggoal = Pr2GripperCommandActionGoal()
+            ggoal.position = 0.0
+            ggoal.max_effort = 10.0
 
         def setup_task_controller(self):
             self.ctrl_switcher.carefree_switch('l', '%s_cart_jt_task', 
@@ -72,6 +82,7 @@ class SetupArmsShaving():
             self.traj_playback(r_traj)
 
         def run(self, req):
+            self.close_gripper()
             self.adjust_torso()
             self.move_to_setup()
             self.setup_task_controller()
