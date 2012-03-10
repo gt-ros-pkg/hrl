@@ -1,0 +1,6 @@
+<launch>
+    <include file="$(find kelsey_sandbox)/launch/winter_rfh_2012.launch" />
+    <include file="$(find assistive_teleop)/launch/assistive_teleop.launch" />
+    <node pkg="kelsey_sandbox" name="behavior_manager" type="behavior_manager.py" 
+          output="screen" />
+</launch>
