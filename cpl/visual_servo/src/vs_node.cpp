@@ -144,13 +144,32 @@ class VisualServoNode
     sync_.registerCallback(&VisualServoNode::sensorCallback, this);
   }
 
+
+
+    cv::Mat convertImageFrameToCameraFrame(cv::Mat in) 
+    {
+      cv::Mat out  = cv::Mat::zeros(6,1,CV_32F);
+      if (in.rows != 6 || in.cols != 1)
+      { 
+        return out;
+      }
+      // XYZ in camera coords and robot control coord are different
+      out.at<float>(0,0) = -in.at<float>(2,0);
+      out.at<float>(1,0) = -in.at<float>(0,0);
+      out.at<float>(2,0) = in.at<float>(1,0);
+      out.at<float>(3,0) = -in.at<float>(5,0);
+      out.at<float>(4,0) = -in.at<float>(3,0);
+      out.at<float>(5,0) = in.at<float>(4,0);
+      return out;
+    }
+
     bool getTwist(VisualServoTwist::Request &req, VisualServoTwist::Response &res)
     {
+      // Do not respond to service call when the node got no sensor callback
       if (!camera_initialized_)
       {
         return false;
       }
-
       /** Main Logic **/
       // segment color -> find contour -> moments -> 
       // reorder to recognize each point -> find error, interaction matrix, & twist
@@ -158,36 +177,28 @@ class VisualServoNode
           tape_hue_threshold_);
       std::vector<cv::Moments> ms = findMoments(tape_mask, cur_color_frame_); 
       std::vector<cv::Point> pts = getMomentCoordinates(ms);
-      computeTwist(desired_locations_, cur_color_frame_, cur_depth_frame_, pts);
+      cur_twist_ = computeTwist(desired_locations_, cur_color_frame_, cur_depth_frame_, pts);
 
 #ifdef DEBUG_MODE
       // put dots on the centroids of wrist
-      for (unsigned int i = 0; i < pts.size(); i++) {
+      for (unsigned int i = 0; i < pts.size(); i++) 
+      {
         cv::circle(cur_orig_color_frame_, pts.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
       }
       // put dots on the desired location
-      for (unsigned int i = 0; i < desired_locations_.size(); i++) {
+      for (unsigned int i = 0; i < desired_locations_.size(); i++)
+      {
         cv::circle(cur_orig_color_frame_, desired_locations_.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
       }
+
       cv::imshow("Output", cur_orig_color_frame_.clone());
       cv::waitKey(display_wait_ms_);
 #endif
 
-      // XYZ in camera coords and robot control coord are different
-      res.vx = cur_twist_.at<float>(2,0);
-      res.vy = cur_twist_.at<float>(0,0);
-      res.vz = -1*cur_twist_.at<float>(1,0);
-      res.wx = cur_twist_.at<float>(5,0);
-      res.wy = cur_twist_.at<float>(3,0);
-      res.wz = -1*cur_twist_.at<float>(4,0);
-
-      // DEBUG: Setting rotations to 0 for now
-      res.wx= 0; res.wy = 0; res.wz = 0;
-      printf("%+.5f\t%+.5f\t%+.5f\t%+.5f\t%+.5f\t%+.5f\n", res.vx, res.vy, res.vz, res.wx, res.wy, res.wz);
-
+      cv::Mat temp = convertImageFrameToCameraFrame(cur_twist_); 
       // have to transform twist in camera frame to torso_lift_link
-      tf::Vector3 twist_rot(res.wx, res.wy, res.wz);
-      tf::Vector3 twist_vel(res.vx, res.vy, res.vz);
+      tf::Vector3 twist_rot(temp.at<float>(3), temp.at<float>(4), temp.at<float>(5));
+      tf::Vector3 twist_vel(temp.at<float>(0), temp.at<float>(1), temp.at<float>(2));
       tf::StampedTransform transform; 
       ros::Time now = ros::Time::now();
       try {
@@ -204,16 +215,13 @@ class VisualServoNode
       }
 
       btVector3 out_rot = transform.getBasis() * twist_rot;
-      btVector3 out_vel = transform.getBasis()* twist_vel;// + transform.getOrigin().cross(out_rot);
+      btVector3 out_vel = transform.getBasis()* twist_vel + transform.getOrigin().cross(out_rot);
 
       // twist cannot be larger than clipping threshold
       // this is a safety measure to prevent robot from breaking
-      res.vx =  out_vel.x() > velocity_clip_threshold ? velocity_clip_threshold : 
-        (out_vel.x() < -1*velocity_clip_threshold ? -1*velocity_clip_threshold : out_vel.x());
-      res.vy =  out_vel.y() > velocity_clip_threshold ? velocity_clip_threshold : 
-        (out_vel.y() < -1*velocity_clip_threshold ? -1*velocity_clip_threshold : out_vel.y());
-      res.vz =  out_vel.z() > velocity_clip_threshold ? velocity_clip_threshold : 
-        (out_vel.z() < -1*velocity_clip_threshold ? -1*velocity_clip_threshold : out_vel.z());
+      res.wx =  out_vel.x();
+      res.wy =  out_vel.y();
+      res.wz =  out_vel.z();
       res.wx =  out_rot.x();
       res.wy =  out_rot.y();
       res.wz =  out_rot.z();
@@ -310,7 +318,8 @@ class VisualServoNode
      * to fix the orientation of the wrist, we now take a look at how the hand is positioned
      * and use it to compute the desired positions.
      **/
-    std::vector<cv::Point> setDesiredPosition() {
+    std::vector<cv::Point> setDesiredPosition()
+    {
       std::vector<cv::Point> desired; desired.clear();
       // Looking up the hand
       cv::Mat tape_mask = colorSegment(cur_color_frame_.clone(), tape_hue_value_, 
@@ -358,7 +367,10 @@ class VisualServoNode
       ROS_INFO("Setting the Desired Point at [%3d,%3d][%3d,%3d][%3d,%3d]", p0.x, p0.y, p1.x, p1.y, p2.x, p2.y); 
     }
 
-    void computeTwist(std::vector<cv::Point> desired,  cv::Mat color_frame, cv::Mat depth_frame, std::vector<cv::Point> pts) {
+    cv::Mat computeTwist(std::vector<cv::Point> desired, cv::Mat color_frame, 
+        cv::Mat depth_frame, std::vector<cv::Point> pts) 
+    {
+      cv::Mat ret = cv::Mat::zeros(6,1, CV_32F);
       if (pts.size() == 3){
         cv::Mat error_mat = cv::Mat::zeros(6,1, CV_32F);
 
@@ -367,7 +379,7 @@ class VisualServoNode
           error_mat.at<float>(i*2,0) 	= pts.at(i).x - desired.at(i).x ; 
           error_mat.at<float>(i*2+1,0)  = pts.at(i).y - desired.at(i).y ;
         }
-       
+
         // testing: buffing error seem to make velocity stable near the match 
         error_mat *= 10;
 
@@ -375,8 +387,7 @@ class VisualServoNode
 
         // if we can't compute interaction matrix, just make all twists 0
         if (countNonZero(im) == 0) {
-          cur_twist_ = cv::Mat::zeros(6,1,CV_32F);
-          return;
+          return ret;
         }
 
         // inverting the matrix (3 approaches)
@@ -393,14 +404,14 @@ class VisualServoNode
             iim = 0.5*(desired_jacobian_ + im).inv();
         }
         // Gain Matrix K
-        cv::Mat gain = cv::Mat::eye(6,6, CV_32F);
+        cv::Mat gain = -cv::Mat::eye(6,6, CV_32F);
         gain.at<float>(0,0) = 0.9e-3;
         gain.at<float>(1,1) = 8e-4;
         gain.at<float>(2,2) = 1e-2;
 
         // K x IIM x ERROR = TWIST
         iim = gain*iim;
-        cur_twist_ = iim*error_mat;
+        ret = iim*error_mat;
 
 
 #ifdef DEBUG_MODE
@@ -408,12 +419,11 @@ class VisualServoNode
 #endif
 
       }
-      else {
-        cur_twist_ = cv::Mat::zeros(6,1,CV_32F);
-      }
+      return ret;
     }
 
-    void printMatrix(cv::Mat_<double> in) {
+    void printMatrix(cv::Mat_<double> in)
+    {
       for (int i = 0; i < in.rows; i++) {
         for (int j = 0; j < in.cols; j++) {
           printf("%+.5f\t", in(i,j)); 
@@ -422,7 +432,8 @@ class VisualServoNode
       }
     }
 
-    cv::Mat getInteractionMatrix(cv::Mat depth_frame, std::vector<cv::Point> &pts) {
+    cv::Mat getInteractionMatrix(cv::Mat depth_frame, std::vector<cv::Point> &pts) 
+    {
       // interaction matrix, image jacobian
       cv::Mat L = cv::Mat::zeros(6,6,CV_32F);
       if (pts.size() == 3) {
@@ -522,7 +533,8 @@ class VisualServoNode
      * Return
      * three largest moment in the image
      */
-    std::vector<cv::Moments> findMoments(cv::Mat in, cv::Mat &color_frame) {
+    std::vector<cv::Moments> findMoments(cv::Mat in, cv::Mat &color_frame) 
+    {
       cv::Mat open, temp;
       cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3,3));
       cv::morphologyEx(in.clone(), open, cv::MORPH_OPEN, element);
@@ -558,7 +570,8 @@ class VisualServoNode
       return moments;
     }
 
-    cv::Mat colorSegment(cv::Mat color_frame, int hue, int threshold){
+    cv::Mat colorSegment(cv::Mat color_frame, int hue, int threshold)
+    {
       /*
        * Often value = 0 or 255 are very useless. 
        * The distance at those end points get very close and it is not useful
@@ -575,7 +588,8 @@ class VisualServoNode
      * cv::Mat color_frame: color input from image
      * Return: mask from the color segmentation 
      */
-    cv::Mat colorSegment(cv::Mat color_frame, int _hue_n, int _hue_p, int _sat_n, int _sat_p, int _value_n,  int _value_p){
+    cv::Mat colorSegment(cv::Mat color_frame, int _hue_n, int _hue_p, int _sat_n, int _sat_p, int _value_n,  int _value_p)
+    {
       cv::Mat temp (color_frame.clone());
       cv::cvtColor(temp, temp, CV_RGB2HSV);
       std::vector<cv::Mat> hsv;
@@ -605,8 +619,7 @@ class VisualServoNode
      * Helper Method from Object_Singulation
      */ 
     cv::Point projectPointIntoImage(pcl::PointXYZ cur_point_pcl,
-        std::string point_frame,
-        std::string target_frame)
+        std::string point_frame, std::string target_frame)
     {
       PointStamped cur_point;
       cur_point.header.frame_id = point_frame;
@@ -640,9 +653,6 @@ class VisualServoNode
       }
       return img_loc;
     }
-
-
-
 
     /**
      * Executive control function for launching the node.

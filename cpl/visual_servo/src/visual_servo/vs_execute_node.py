@@ -54,8 +54,9 @@ def cleanup():
   rospy.sleep(0.5)
   pub.publish(zero)
 
-
 class VisualServoExecutionNode:
+  clip_vel = 0.3
+
   def initial_arm(self, cs):
     rospy.loginfo('Setting to Initial msg...')
     cs.carefree_switch('r', '%s_arm', '$(find visual_servo)/params/rmc_joint_trajectory_params.yaml' )
@@ -108,22 +109,28 @@ class VisualServoExecutionNode:
     while not rospy.is_shutdown():
       try:
         resp = service()
-
-        msg.linear.x = resp.vx
-        msg.linear.y = resp.vy
-        msg.linear.z = resp.vz
-        msg.angular.x = 0#resp.wx
-        msg.angular.y = 0#resp.wy
-        msg.angular.z = 0#resp.wz
+        msg.linear.x = adjustVelocity(resp.vx)
+        msg.linear.y = adjustVelocity(resp.vy)
+        msg.linear.z = adjustVelocity(resp.vz)
+        msg.angular.x = adjustVelocity(resp.wx)
+        msg.angular.y = adjustVelocity(resp.wy)
+        msg.angular.z = adjustVelocity(resp.wz)
         rospy.loginfo('x:%+.5f\t y:%+.5f\t z:%+.5f', msg.linear.x, msg.linear.y, msg.linear.z)
         pub.publish(msg)
-        rospy.sleep(0.3) 
+        rospy.sleep(0.2) 
       except rospy.ServiceException, e: pass 
+  
+  def adjustVelocity(vel):
+    ret = vel
+    if vel > clip_vel:
+      ret = clip_vel
+    elif -vel > clip_vel:
+      ret = -clip_vel
+    return ret
 
 if __name__ == '__main__':
   try:
     node = VisualServoExecutionNode()
-    # init
     rospy.init_node('vs_execute_node', log_level=rospy.DEBUG)
     global zero
     global service
@@ -136,7 +143,6 @@ if __name__ == '__main__':
     zero.angular.z = 0.0
     rospy.on_shutdown(cleanup)
     node.move()
-
   except rospy.ROSInterruptException: pass
 
 
