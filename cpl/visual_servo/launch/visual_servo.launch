@@ -13,15 +13,15 @@
     <param name="default_sat_top_value" value="220" type="int"/>
     <param name="default_val_value" value="255" type="int"/>
  
+    <param name="jacobian_type" value="3" type="int"/>
+    
     <param name="display_wait_ms" value="3" type="int"/>
+    <param name="workspace_frame" value="/torso_lift_link" type="string"/>
 
     <param name="crop_min_x" value="20" type="int"/>
     <param name="crop_max_x" value="620" type="int"/>
     <param name="crop_min_y" value="32" type="int"/>
     <param name="crop_max_y" value="480" type="int"/>
-
-    <param name="workspace_frame" value="/torso_lift_link" type="string"/>
-
     <param name="min_workspace_x" value="-2.0" type="double"/>
     <param name="max_workspace_x" value="1.20" type="double"/>
     <param name="min_workspace_y" value="-1.2" type="double"/>

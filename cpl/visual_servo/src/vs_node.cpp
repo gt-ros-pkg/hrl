@@ -1,5 +1,4 @@
 /*********************************************************************
-
  *
  *  Copyright (c) 2011, Georgia Institute of Technology
  *  All rights reserved.
@@ -50,7 +49,6 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/CvBridge.h>
-//#include <cv_bridge/cv_bridge.h>
 
 // TF
 #include <tf/transform_listener.h>
@@ -87,7 +85,10 @@
 // Else
 #include <visual_servo/VisualServoTwist.h>
 #define DEBUG_MODE 1
-#define DEBUG_TEXT 1
+
+#define JACOBIAN_TYPE_INV 1
+#define JACOBIAN_TYPE_PSEUDO 2
+#define JACOBIAN_TYPE_AVG 3
 
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image,sensor_msgs::PointCloud2> MySyncPolicy;
@@ -134,12 +135,13 @@ class VisualServoNode
     n_private_.param("default_sat_bot_value", default_sat_bot_value_, 40);
     n_private_.param("default_sat_top_value", default_sat_top_value_, 40);
     n_private_.param("default_val_value", default_val_value_, 200);
-    n_private_.param("velocity_threshold", velocity_clip_threshold, 0.50);
     n_private_.param("min_contour_size", min_contour_size_, 10.0);
 
+    // others
+    n_private_.param("velocity_threshold", velocity_clip_threshold, 0.50);
+    n_private_.param("jacobian_type", jacobian_type_, JACOBIAN_TYPE_AVG);
     // Setup ros node connections
     sync_.registerCallback(&VisualServoNode::sensorCallback, this);
-
   }
 
     bool getTwist(VisualServoTwist::Request &req, VisualServoTwist::Response &res)
@@ -149,12 +151,11 @@ class VisualServoNode
         return false;
       }
 
-      // ROS_DEBUG("Service Request In");
       /** Main Logic **/
       // segment color -> find contour -> moments -> 
       // reorder to recognize each point -> find error, interaction matrix, & twist
       cv::Mat tape_mask = colorSegment(cur_color_frame_.clone(), tape_hue_value_, 
-                          tape_hue_threshold_);
+          tape_hue_threshold_);
       std::vector<cv::Moments> ms = findMoments(tape_mask, cur_color_frame_); 
       std::vector<cv::Point> pts = getMomentCoordinates(ms);
       computeTwist(desired_locations_, cur_color_frame_, cur_depth_frame_, pts);
@@ -180,9 +181,9 @@ class VisualServoNode
       res.wy = cur_twist_.at<float>(3,0);
       res.wz = -1*cur_twist_.at<float>(4,0);
 
+      // DEBUG: Setting rotations to 0 for now
       res.wx= 0; res.wy = 0; res.wz = 0;
       printf("%+.5f\t%+.5f\t%+.5f\t%+.5f\t%+.5f\t%+.5f\n", res.vx, res.vy, res.vz, res.wx, res.wy, res.wz);
-      // res.vx = 0; res.vy = 0; res.vz = 0; res.wx= 0; res.wy = 1; res.wz = 0;
 
       // have to transform twist in camera frame to torso_lift_link
       tf::Vector3 twist_rot(res.wx, res.wy, res.wz);
@@ -191,8 +192,8 @@ class VisualServoNode
       ros::Time now = ros::Time::now();
       try {
         tf::TransformListener listener;
-        listener.waitForTransform("/torso_lift_link", "/head_tilt_link",  now, ros::Duration(3.0));
-        listener.lookupTransform("/torso_lift_link", "/head_tilt_link",  now, transform);
+        listener.waitForTransform(workspace_frame_, "/openni_rgb_frame",  now, ros::Duration(3.0));
+        listener.lookupTransform(workspace_frame_, "/openni_rgb_frame",  now, transform);
       }
       catch (tf::TransformException e)
       {
@@ -201,13 +202,18 @@ class VisualServoNode
         ROS_WARN_STREAM(e.what());
         return true;
       }
- 
+
       btVector3 out_rot = transform.getBasis() * twist_rot;
       btVector3 out_vel = transform.getBasis()* twist_vel;// + transform.getOrigin().cross(out_rot);
 
-      res.vx =  out_vel.x();
-      res.vy =  out_vel.y();
-      res.vz =  out_vel.z();
+      // twist cannot be larger than clipping threshold
+      // this is a safety measure to prevent robot from breaking
+      res.vx =  out_vel.x() > velocity_clip_threshold ? velocity_clip_threshold : 
+        (out_vel.x() < -1*velocity_clip_threshold ? -1*velocity_clip_threshold : out_vel.x());
+      res.vy =  out_vel.y() > velocity_clip_threshold ? velocity_clip_threshold : 
+        (out_vel.y() < -1*velocity_clip_threshold ? -1*velocity_clip_threshold : out_vel.y());
+      res.vz =  out_vel.z() > velocity_clip_threshold ? velocity_clip_threshold : 
+        (out_vel.z() < -1*velocity_clip_threshold ? -1*velocity_clip_threshold : out_vel.z());
       res.wx =  out_rot.x();
       res.wy =  out_rot.y();
       res.wz =  out_rot.z();
@@ -243,7 +249,7 @@ class VisualServoNode
       pcl_ros::transformPointCloud(workspace_frame_, cloud, cloud, *tf_);
       prev_camera_header_ = cur_camera_header_;
       cur_camera_header_ = img_msg->header;
-      
+
       //ROS_INFO("%d", cur_camera_header_.frame_id);
 
       cv::Mat workspace_mask(color_frame.rows, color_frame.cols, CV_8UC1,
@@ -275,18 +281,18 @@ class VisualServoNode
 
       // if desired point is not initialized
       if (desired_locations_.size() != 3 || countNonZero(desired_jacobian_)==0) {
-          setDesiredPosition();
-          desired_jacobian_ = getInteractionMatrix(cur_depth_frame_, desired_locations_);
-          // returned jacobian is null, which means we need to crap out
-          if (countNonZero(desired_jacobian_) == 0) {
-            ROS_WARN("Could not get Image Jacobian for Desired Location. Please re-arrange your setting and retry.");
-            ros::Duration(0.5).sleep();
-              // exit(-6);
-          } else {
-            // advertise twist service
-            twistServer = n_.advertiseService("visual_servo_twist", &VisualServoNode::getTwist, this);
-            ROS_DEBUG("Ready to use the getTwist service");
-          }
+        desired_locations_ = setDesiredPosition();
+        desired_jacobian_ = getInteractionMatrix(cur_depth_frame_, desired_locations_);
+        // returned jacobian is null, which means we need to crap out
+        if (desired_locations_.size() != 3 || countNonZero(desired_jacobian_) == 0) {
+          ROS_WARN("Could not get Image Jacobian for Desired Location. Please re-arrange your setting and retry.");
+          ros::Duration(0.5).sleep();
+        } 
+        else {
+          // No error: advertise twist service
+          twistServer = n_.advertiseService("visual_servo_twist", &VisualServoNode::getTwist, this);
+          ROS_DEBUG("Ready to use the getTwist service");
+        }
       }
 
 #ifdef DEBUG_MODE
@@ -294,28 +300,37 @@ class VisualServoNode
       for (unsigned int i = 0; i < desired_locations_.size(); i++) {
         cv::circle(cur_orig_color_frame_, desired_locations_.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
       }
-     cv::imshow("Raw+Goal", cur_orig_color_frame_.clone());
-     cv::waitKey(display_wait_ms_);
+      cv::imshow("Raw+Goal", cur_orig_color_frame_.clone());
+      cv::waitKey(display_wait_ms_);
 #endif
     }   
 
-    void setDesiredPosition() {
+    /**
+     * Still in construction:
+     * to fix the orientation of the wrist, we now take a look at how the hand is positioned
+     * and use it to compute the desired positions.
+     **/
+    std::vector<cv::Point> setDesiredPosition() {
+      std::vector<cv::Point> desired; desired.clear();
+      // Looking up the hand
       cv::Mat tape_mask = colorSegment(cur_color_frame_.clone(), tape_hue_value_, 
           tape_hue_threshold_);
       std::vector<cv::Moments> ms = findMoments(tape_mask, cur_color_frame_); 
       std::vector<cv::Point> pts = getMomentCoordinates(ms);
+
+      // in case we can't find the hand
       if (pts.size() != 3){
         ROS_WARN("Need to find the hand for reference. Retrying");
-        return;
+        return desired;
       }
+
+      // look up the position of these hands in pc
       pcl::PointXYZ pt0 = cur_point_cloud_.at(pts.at(0).x, pts.at(0).y);
       pcl::PointXYZ pt1 = cur_point_cloud_.at(pts.at(1).x, pts.at(1).y);
       pcl::PointXYZ pt2 = cur_point_cloud_.at(pts.at(2).x, pts.at(2).y);
-     
-      
-      /** Setting the Desired Location of the wrist **/
+
+      // Setting the Desired Location of the wrist
       // Desired location: center of the screen
-      std::vector<cv::Point> desired; desired.clear();
       pcl::PointXYZ origin = cur_point_cloud_.at(cur_color_frame_.cols/2, cur_color_frame_.rows/2);
       origin.z += 0.01;
       pcl::PointXYZ two = origin;
@@ -326,67 +341,69 @@ class VisualServoNode
       three.x -= pt0.x - pt2.x; 
       three.y -= pt0.y - pt2.y;
 
-
+      // now we need to convert the position of these desired points that are in pc into the image location
       cv::Point p0 = projectPointIntoImage(origin, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
-      cv::Point p1, p2;
-      if (p0.x >= 0 && p0.y >= 0) {
-        p1 = projectPointIntoImage(two, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);								
-        p2 = projectPointIntoImage(three, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
-      }
-      else {
-        return;
-      }
-      if (p0.x < 0 || p0.y < 0 || p1.x < 0 || p1.y < 0 || p2.x < 0 || p2.y < 0) {
+      cv::Point p1 = projectPointIntoImage(two, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);								
+      cv::Point p2 = projectPointIntoImage(three, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
+      if (p0.x < 0 || p0.y < 0 || 
+          p1.x < 0 || p1.y < 0 || 
+          p2.x < 0 || p2.y < 0) {
+        // impossible to get negative pixel value. exit
         ROS_WARN("Invalid Points Computed. Retrying");
         ROS_WARN("Points at [%3d,%3d][%3d,%3d][%3d,%3d]", p0.x, p0.y, p1.x, p1.y, p2.x, p2.y); 
-        return;
+        return desired;
       }
-      desired.push_back(p0);
-      desired.push_back(p1);
-      desired.push_back(p2);
-      desired_locations_ = desired;
+      desired.push_back(p0); desired.push_back(p1); desired.push_back(p2);
+      return desired;
       ROS_INFO("Setting the Desired Point at [%3d,%3d][%3d,%3d][%3d,%3d]", p0.x, p0.y, p1.x, p1.y, p2.x, p2.y); 
     }
 
     void computeTwist(std::vector<cv::Point> desired,  cv::Mat color_frame, cv::Mat depth_frame, std::vector<cv::Point> pts) {
       if (pts.size() == 3){
-        // Error = Desired location in image - Current position in image
         cv::Mat error_mat = cv::Mat::zeros(6,1, CV_32F);
 
         for (int i = 0; i < 3; i++) {
-          // printf("[ComputeTwist] [%d, %d] - [%d, %d]\n", pts.at(i).x, pts.at(i).y, desired.at(i).x, desired.at(i).y);
+          // Error = Desired location in image - Current position in image
           error_mat.at<float>(i*2,0) 	= pts.at(i).x - desired.at(i).x ; 
-          error_mat.at<float>(i*2+1,0)= pts.at(i).y - desired.at(i).y ;
+          error_mat.at<float>(i*2+1,0)  = pts.at(i).y - desired.at(i).y ;
         }
+       
+        // testing: buffing error seem to make velocity stable near the match 
         error_mat *= 10;
 
         cv::Mat im = getInteractionMatrix(depth_frame, pts);
+
+        // if we can't compute interaction matrix, just make all twists 0
         if (countNonZero(im) == 0) {
           cur_twist_ = cv::Mat::zeros(6,1,CV_32F);
           return;
         }
-        // you need to invert the matrix
-        // We use specific way shown on visual servo by Chaumette 2006
-        cv::Mat iim = 0.5*(desired_jacobian_ + im).inv();
+
+        // inverting the matrix (3 approaches)
+        cv::Mat iim;
+        switch (jacobian_type_) {
+          case JACOBIAN_TYPE_INV:
+            iim = (im).inv();
+            break;
+          case JACOBIAN_TYPE_PSEUDO:
+            iim = (im.t() * im).inv()*im.t();
+            break;
+          default: // JACOBIAN_TYPE_AVG
+            // We use specific way shown on visual servo by Chaumette 2006
+            iim = 0.5*(desired_jacobian_ + im).inv();
+        }
         // Gain Matrix K
-        
         cv::Mat gain = cv::Mat::eye(6,6, CV_32F);
         gain.at<float>(0,0) = 0.9e-3;
         gain.at<float>(1,1) = 8e-4;
         gain.at<float>(2,2) = 1e-2;
-        // K * IIM * ERROR = TWIST
+
+        // K x IIM x ERROR = TWIST
         iim = gain*iim;
         cur_twist_ = iim*error_mat;
 
-        // twist cannot be larger than clipping threshold
-        // this is a safety measure to prevent robot from breaking
-        for (int i = 0; i < cur_twist_.rows; i++){
-          if (cur_twist_.at<float>(i,0) > velocity_clip_threshold) cur_twist_.at<float>(i,0) = (float)velocity_clip_threshold;
-          else if (cur_twist_.at<float>(i,0) < -1*velocity_clip_threshold) cur_twist_.at<float>(i,0) = (float)-1*velocity_clip_threshold;
-        }
+
 #ifdef DEBUG_MODE
-        //ROS_DEBUG("Inverse Matrix");
-        //printMatrix(iim);
         printMatrix((error_mat/10).t());
 #endif
 
@@ -403,7 +420,6 @@ class VisualServoNode
         }
         printf("\n");
       }
-
     }
 
     cv::Mat getInteractionMatrix(cv::Mat depth_frame, std::vector<cv::Point> &pts) {
@@ -416,7 +432,6 @@ class VisualServoNode
           int y = m.y;
           float z = depth_frame.at<float>(y, x);
           // float z = cur_point_cloud_.at(y,x).z;
-          // printf("x,y,z = %d, %d, %.3f\n", x, y, z); 
           int l = i * 2;
           if (z <= 0 || isnan(z)) return cv::Mat::zeros(6,6, CV_32F);
           L.at<float>(l,0) = 1/z;   L.at<float>(l+1,0) = 0;
@@ -427,15 +442,13 @@ class VisualServoNode
           L.at<float>(l,5) = -y;      L.at<float>(l+1,5) = x;
         }
       }
-      // try this in pseudo-fashion
-      //cv::Mat pseudo = (L.t()*L).inv()*L.t();
 #ifdef DEBUG_MODE
-//      ROS_DEBUG("Interaction");
-//      printMatrix(L);
-//      ROS_DEBUG("Inverse");
-//      printMatrix(L.inv());
-//      ROS_DEBUG("Pseudo");
-//      printMatrix(pseudo);
+      //      ROS_DEBUG("Interaction");
+      //      printMatrix(L);
+      //      ROS_DEBUG("Inverse");
+      //      printMatrix(L.inv());
+      //      ROS_DEBUG("Pseudo");
+      //      printMatrix(pseudo);
 #endif
       return L;
     }
@@ -502,8 +515,8 @@ class VisualServoNode
     } 
 
     /**
-     * findMoments those morphology to filter out noises and find contours around
-     * possible features. Lastly, it returns the three largest moments
+     * findMoments: first, apply morphology to filter out noises and find contours around
+     * possible features. Then, it returns the three largest moments
      * Arg
      * in: single channel image input
      * Return
@@ -660,6 +673,7 @@ class VisualServoNode
     std_msgs::Header cur_camera_header_;
     std_msgs::Header prev_camera_header_;
     XYZPointCloud cur_point_cloud_;
+
     bool have_depth_data_;
     int display_wait_ms_;
     int num_downsamples_;
@@ -667,17 +681,7 @@ class VisualServoNode
     bool camera_initialized_;
     std::string cam_info_topic_;
     int tracker_count_;
-    int tape_hue_value_;
-    int tape_hue_threshold_;
-    int default_sat_bot_value_;
-    int default_sat_top_value_;
-    int default_val_value_;
-    double velocity_clip_threshold;
-    double min_contour_size_;
-    cv::Mat cur_twist_; 
-    ros::ServiceServer twistServer;
-    std::vector<cv::Point> desired_locations_;
-    cv::Mat desired_jacobian_;
+    // filtering 
     double min_workspace_x_;
     double max_workspace_x_;
     double min_workspace_y_;
@@ -688,6 +692,20 @@ class VisualServoNode
     int crop_max_x_;
     int crop_min_y_;
     int crop_max_y_;
+    // segmenting
+    int tape_hue_value_;
+    int tape_hue_threshold_;
+    int default_sat_bot_value_;
+    int default_sat_top_value_;
+    int default_val_value_;
+    double min_contour_size_;
+
+    int jacobian_type_;
+    double velocity_clip_threshold;
+    ros::ServiceServer twistServer;
+    std::vector<cv::Point> desired_locations_;
+    cv::Mat cur_twist_; 
+    cv::Mat desired_jacobian_;
 };
 
 int main(int argc, char ** argv)
