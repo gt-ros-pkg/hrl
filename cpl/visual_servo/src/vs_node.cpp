@@ -134,7 +134,7 @@ class VisualServoNode
     n_private_.param("default_sat_bot_value", default_sat_bot_value_, 40);
     n_private_.param("default_sat_top_value", default_sat_top_value_, 40);
     n_private_.param("default_val_value", default_val_value_, 200);
-    n_private_.param("velocity_threshold", velocity_clip_threshold, 0.10);
+    n_private_.param("velocity_threshold", velocity_clip_threshold, 0.50);
     n_private_.param("min_contour_size", min_contour_size_, 10.0);
 
     // Setup ros node connections
@@ -149,7 +149,7 @@ class VisualServoNode
         return false;
       }
 
-      ROS_DEBUG("Service Request In");
+      // ROS_DEBUG("Service Request In");
       /** Main Logic **/
       // segment color -> find contour -> moments -> 
       // reorder to recognize each point -> find error, interaction matrix, & twist
@@ -168,8 +168,8 @@ class VisualServoNode
       for (unsigned int i = 0; i < desired_locations_.size(); i++) {
         cv::circle(cur_orig_color_frame_, desired_locations_.at(i), 2, cv::Scalar(100*i, 0, 110*(2-i)), 2);
       }
-     cv::imshow("Output", cur_orig_color_frame_.clone());
-     cv::waitKey(display_wait_ms_);
+      cv::imshow("Output", cur_orig_color_frame_.clone());
+      cv::waitKey(display_wait_ms_);
 #endif
 
       // XYZ in camera coords and robot control coord are different
@@ -178,10 +178,12 @@ class VisualServoNode
       res.vz = -1*cur_twist_.at<float>(1,0);
       res.wx = cur_twist_.at<float>(5,0);
       res.wy = cur_twist_.at<float>(3,0);
-      res.wz = cur_twist_.at<float>(4,0);
-      // res.vy = 0; res.vz = 0; res.wx= 0; res.wy = 0; res.wz = 0;
+      res.wz = -1*cur_twist_.at<float>(4,0);
 
-      // res.vx = 0; res.vy = 0.; res.vz = 0.3; res.wx= 0; res.wy = 0; res.wz = 0;
+      res.wx= 0; res.wy = 0; res.wz = 0;
+      printf("%+.5f\t%+.5f\t%+.5f\t%+.5f\t%+.5f\t%+.5f\n", res.vx, res.vy, res.vz, res.wx, res.wy, res.wz);
+      // res.vx = 0; res.vy = 0; res.vz = 0; res.wx= 0; res.wy = 1; res.wz = 0;
+
       // have to transform twist in camera frame to torso_lift_link
       tf::Vector3 twist_rot(res.wx, res.wy, res.wz);
       tf::Vector3 twist_vel(res.vx, res.vy, res.vz);
@@ -201,7 +203,7 @@ class VisualServoNode
       }
  
       btVector3 out_rot = transform.getBasis() * twist_rot;
-      btVector3 out_vel = transform.getBasis()* twist_vel + transform.getOrigin().cross(out_rot);
+      btVector3 out_vel = transform.getBasis()* twist_vel;// + transform.getOrigin().cross(out_rot);
 
       res.vx =  out_vel.x();
       res.vy =  out_vel.y();
@@ -277,7 +279,8 @@ class VisualServoNode
           desired_jacobian_ = getInteractionMatrix(cur_depth_frame_, desired_locations_);
           // returned jacobian is null, which means we need to crap out
           if (countNonZero(desired_jacobian_) == 0) {
-            ROS_ERROR("Could not get Image Jacobian for Desired Location. Please re-arrange your setting and retry.");
+            ROS_WARN("Could not get Image Jacobian for Desired Location. Please re-arrange your setting and retry.");
+            ros::Duration(0.5).sleep();
               // exit(-6);
           } else {
             // advertise twist service
@@ -297,34 +300,52 @@ class VisualServoNode
     }   
 
     void setDesiredPosition() {
-        /** Setting the Desired Location of the wrist **/
-        // Desired location: center of the screen
-        std::vector<cv::Point> desired; desired.clear();
-        pcl::PointXYZ origin = cur_point_cloud_.at(cur_color_frame_.cols/2, cur_color_frame_.rows/2);
-        origin.z += 0.2;
-        pcl::PointXYZ two = origin;
-        pcl::PointXYZ three = origin;
+      cv::Mat tape_mask = colorSegment(cur_color_frame_.clone(), tape_hue_value_, 
+          tape_hue_threshold_);
+      std::vector<cv::Moments> ms = findMoments(tape_mask, cur_color_frame_); 
+      std::vector<cv::Point> pts = getMomentCoordinates(ms);
+      if (pts.size() != 3){
+        ROS_WARN("Need to find the hand for reference. Retrying");
+        return;
+      }
+      pcl::PointXYZ pt0 = cur_point_cloud_.at(pts.at(0).x, pts.at(0).y);
+      pcl::PointXYZ pt1 = cur_point_cloud_.at(pts.at(1).x, pts.at(1).y);
+      pcl::PointXYZ pt2 = cur_point_cloud_.at(pts.at(2).x, pts.at(2).y);
+     
+      
+      /** Setting the Desired Location of the wrist **/
+      // Desired location: center of the screen
+      std::vector<cv::Point> desired; desired.clear();
+      pcl::PointXYZ origin = cur_point_cloud_.at(cur_color_frame_.cols/2, cur_color_frame_.rows/2);
+      origin.z += 0.01;
+      pcl::PointXYZ two = origin;
+      pcl::PointXYZ three = origin;
 
-        two.y -= 0.0408;  // about 5 centimeter to right
-        three.x -= 0.0281; // about 3 centimeter to down
-        cv::Point p0 = projectPointIntoImage(origin, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
-        cv::Point p1, p2;
-        if (p0.x >= 0 && p0.y >= 0) {
-            p1 = projectPointIntoImage(two, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);								
-            p2 = projectPointIntoImage(three, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
-        }
-        else {
-            p0.x = cur_color_frame_.cols/2;
-            p0.y = cur_color_frame_.rows/2;
-            p1 = p0; p2 = p0;
-            p1.y -= 3; // default 3 pixels off
-            p2.x -= 2; // default 2 pixels off
-        }
-        desired.push_back(p0);
-        desired.push_back(p1);
-        desired.push_back(p2);
-        desired_locations_ = desired;
-        ROS_INFO("Setting the Desired Point at [%3d,%3d][%3d,%3d][%3d,%3d]", p0.x, p0.y, p1.x, p1.y, p2.x, p2.y); 
+      two.x -= pt0.x - pt1.x; 
+      two.y -= pt0.y - pt1.y; 
+      three.x -= pt0.x - pt2.x; 
+      three.y -= pt0.y - pt2.y;
+
+
+      cv::Point p0 = projectPointIntoImage(origin, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
+      cv::Point p1, p2;
+      if (p0.x >= 0 && p0.y >= 0) {
+        p1 = projectPointIntoImage(two, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);								
+        p2 = projectPointIntoImage(three, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
+      }
+      else {
+        return;
+      }
+      if (p0.x < 0 || p0.y < 0 || p1.x < 0 || p1.y < 0 || p2.x < 0 || p2.y < 0) {
+        ROS_WARN("Invalid Points Computed. Retrying");
+        ROS_WARN("Points at [%3d,%3d][%3d,%3d][%3d,%3d]", p0.x, p0.y, p1.x, p1.y, p2.x, p2.y); 
+        return;
+      }
+      desired.push_back(p0);
+      desired.push_back(p1);
+      desired.push_back(p2);
+      desired_locations_ = desired;
+      ROS_INFO("Setting the Desired Point at [%3d,%3d][%3d,%3d][%3d,%3d]", p0.x, p0.y, p1.x, p1.y, p2.x, p2.y); 
     }
 
     void computeTwist(std::vector<cv::Point> desired,  cv::Mat color_frame, cv::Mat depth_frame, std::vector<cv::Point> pts) {
@@ -333,6 +354,7 @@ class VisualServoNode
         cv::Mat error_mat = cv::Mat::zeros(6,1, CV_32F);
 
         for (int i = 0; i < 3; i++) {
+          // printf("[ComputeTwist] [%d, %d] - [%d, %d]\n", pts.at(i).x, pts.at(i).y, desired.at(i).x, desired.at(i).y);
           error_mat.at<float>(i*2,0) 	= pts.at(i).x - desired.at(i).x ; 
           error_mat.at<float>(i*2+1,0)= pts.at(i).y - desired.at(i).y ;
         }
@@ -342,15 +364,15 @@ class VisualServoNode
         if (countNonZero(im) == 0) {
           cur_twist_ = cv::Mat::zeros(6,1,CV_32F);
           return;
-      }
+        }
         // you need to invert the matrix
         // We use specific way shown on visual servo by Chaumette 2006
         cv::Mat iim = 0.5*(desired_jacobian_ + im).inv();
         // Gain Matrix K
         
         cv::Mat gain = cv::Mat::eye(6,6, CV_32F);
-        gain.at<float>(0,0) = 5e-4;
-        gain.at<float>(1,1) = 5e-4;
+        gain.at<float>(0,0) = 0.9e-3;
+        gain.at<float>(1,1) = 8e-4;
         gain.at<float>(2,2) = 1e-2;
         // K * IIM * ERROR = TWIST
         iim = gain*iim;
@@ -365,9 +387,7 @@ class VisualServoNode
 #ifdef DEBUG_MODE
         //ROS_DEBUG("Inverse Matrix");
         //printMatrix(iim);
-        ROS_DEBUG("Results: Error, Twist");
-        printMatrix(error_mat.t());
-        printMatrix(cur_twist_.t());
+        printMatrix((error_mat/10).t());
 #endif
 
       }
@@ -396,7 +416,7 @@ class VisualServoNode
           int y = m.y;
           float z = depth_frame.at<float>(y, x);
           // float z = cur_point_cloud_.at(y,x).z;
-          printf("x,y,z = %d, %d, %.3f\n", x, y, z); 
+          // printf("x,y,z = %d, %d, %.3f\n", x, y, z); 
           int l = i * 2;
           if (z <= 0 || isnan(z)) return cv::Mat::zeros(6,6, CV_32F);
           L.at<float>(l,0) = 1/z;   L.at<float>(l+1,0) = 0;
@@ -489,7 +509,7 @@ class VisualServoNode
      * Return
      * three largest moment in the image
      */
-    std::vector<cv::Moments> findMoments(cv::Mat in, cv::Mat &color_frame) { 
+    std::vector<cv::Moments> findMoments(cv::Mat in, cv::Mat &color_frame) {
       cv::Mat open, temp;
       cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3,3));
       cv::morphologyEx(in.clone(), open, cv::MORPH_OPEN, element);
@@ -519,7 +539,8 @@ class VisualServoNode
       }
 #ifdef DEBUG_MODE
       cv::drawContours(cur_orig_color_frame_, contours, -1,  cv::Scalar(50,225,255), 2);
-      // cv::imshow("open", open.clone());   
+      //cv::imshow("in", in); 
+      //cv::imshow("open", open.clone());   
 #endif
       return moments;
     }
