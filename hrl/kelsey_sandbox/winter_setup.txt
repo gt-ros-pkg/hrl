@@ -1,0 +1,24 @@
+roslaunch hrl_rfh_fall_2011 pr2_bringup_tool.launch
+rosrun kelsey_sandbox behavior_manager.py
+roslaunch kelsey_sandbox winter_rfh_2012.launch
+roslaunch assistive_teleop assistive_teleop.launch
+
+#save
+rosrun kelsey_sandbox arm_pose_move_controller.py -r -s -t -f r_arm_servo_setup.pkl
+
+#playback
+rosrun kelsey_sandbox arm_pose_move_controller.py -l -y -z -t -f l_arm_shaving_setup.pkl
+
+#server
+rosrun kelsey_sandbox arm_pose_move_controller.py -v
+
+#servo arms setup
+rosservice call /pr2_ar_servo/arms_setup
+
+#call service
+                                  mode reverse blocking setup_vel traj_rate_mult filename
+rosservice call /trajectory_playback 3 1 1 0.1 0.8 l_arm_servo_setup.pkl
+
+REMEMBER TO SET THE ROS_IP
+
+0.59739709,  0.39469539, -0.7088098
