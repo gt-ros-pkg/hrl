@@ -8,6 +8,8 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_srvs</url>
 
+  <depend package="geometry_msgs" /> 
+
 </package>
 
 
