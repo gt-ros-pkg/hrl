@@ -31,49 +31,27 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
-#include <ros/ros.h>
-
+// ROS Message Types
 #include <std_msgs/Header.h>
+#include <sensor_msgs/CameraInfo.h>
 #include <geometry_msgs/PointStamped.h>
 
 // TF
 #include <tf/transform_listener.h>
-#include <tf/transform_datatypes.h>
 
 // PCL
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/common/eigen.h>
-#include <pcl/common/norms.h>
-#include <pcl/ros/conversions.h>
-#include <pcl_ros/transforms.h>
-#include <pcl/ModelCoefficients.h>
-#include <pcl/sample_consensus/method_types.h>
-#include <pcl/sample_consensus/model_types.h>
-#include <pcl/segmentation/sac_segmentation.h>
-#include <pcl/segmentation/extract_clusters.h>
-#include <pcl/segmentation/segment_differences.h>
-#include <pcl/kdtree/kdtree_flann.h>
-#include <pcl/kdtree/impl/kdtree_flann.hpp>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl/filters/extract_indices.h>
-#include <pcl/surface/concave_hull.h>
-#include <pcl/registration/icp.h>
-#include <pcl/registration/icp_nl.h>
 
 // OpenCV
 #include <opencv2/core/core.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
 
 // STL
 #include <vector>
 #include <deque>
 #include <string>
-#include <sstream>
 #include <math.h>
-#include <utility>
 
 // Boost
 #include <boost/shared_ptr.hpp>

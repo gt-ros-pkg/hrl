@@ -33,27 +33,16 @@
  *********************************************************************/
 #include <ros/ros.h>
 
-// TODO: Clean up includes
-#include <std_msgs/Header.h>
-#include <geometry_msgs/PointStamped.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/Pose2D.h>
-#include <sensor_msgs/Image.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <sensor_msgs/CameraInfo.h>
-#include <sensor_msgs/image_encodings.h>
-
 // TF
-#include <tf/transform_listener.h>
 #include <tf/transform_datatypes.h>
 
+// OpenCV
+#include <opencv2/highgui/highgui.hpp>
+
 // PCL
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
+#include <pcl/common/common.h>
 #include <pcl/common/eigen.h>
-#include <pcl/common/norms.h>
-#include <pcl/ros/conversions.h>
-#include <pcl_ros/transforms.h>
+#include <pcl/common/centroid.h>
 #include <pcl/ModelCoefficients.h>
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
@@ -69,10 +58,10 @@
 #include <pcl/registration/icp.h>
 #include <pcl/registration/icp_nl.h>
 
+// STL
+#include <sstream>
+// Local
 #include <tabletop_pushing/point_cloud_segmentation.h>
-
-// Boost
-#include <boost/shared_ptr.hpp>
 
 // #define DISPLAY_CLOUD_DIFF 1
 #define randf() static_cast<float>(rand())/RAND_MAX

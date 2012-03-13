@@ -33,7 +33,6 @@
  *********************************************************************/
 // ROS
 #include <ros/ros.h>
-// #include <ros/package.h>
 
 #include <std_msgs/Header.h>
 #include <geometry_msgs/PointStamped.h>
@@ -59,7 +58,9 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/common/eigen.h>
-#include <pcl/common/norms.h>
+#include <pcl/common/centroid.h>
+#include <pcl/io/io.h>
+#include <pcl_ros/transforms.h>
 #include <pcl/ros/conversions.h>
 #include <pcl/ModelCoefficients.h>
 #include <pcl/sample_consensus/method_types.h>
