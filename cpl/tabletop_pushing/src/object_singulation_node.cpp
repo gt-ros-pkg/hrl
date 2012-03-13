@@ -45,7 +45,6 @@
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <cv_bridge/CvBridge.h>
-// #include <cv_bridge/cv_bridge.h>
 
 // TF
 #include <tf/transform_listener.h>
@@ -53,6 +52,7 @@
 // PCL
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/common/common.h>
 #include <pcl/common/eigen.h>
 #include <pcl/common/centroid.h>
 #include <pcl/io/io.h>
@@ -62,7 +62,6 @@
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
-#include <pcl/segmentation/extract_clusters.h>
 #include <pcl/filters/extract_indices.h>
 
 // OpenCV
@@ -84,9 +83,7 @@
 #include <string>
 #include <sstream>
 #include <iostream>
-#include <fstream>
 #include <utility>
-#include <stdexcept>
 #include <float.h>
 #include <math.h>
 #include <time.h> // for srand(time(NULL))
@@ -103,7 +100,6 @@
 #define DISPLAY_PUSH_VECTOR 1
 #define DISPLAY_WAIT 1
 #define DEBUG_PUSH_HISTORY 1
-#define USE_NEW_DETERMINE_PUSH_VECTOR 1
 #define randf() static_cast<float>(rand())/RAND_MAX
 
 using boost::shared_ptr;
@@ -1004,9 +1000,6 @@ class ObjectSingulation
                   std::vector<bool> matched, bool split, bool merged,
                   bool use_guided)
   {
-    // std::stringstream file_out_name;
-    // file_out_name << base_output_path_ << "icp_scores.txt";
-    // std::ofstream file_out(file_out_name.str().c_str(), std::ios_base::app);
     for (unsigned int i = 0; i < prev_objs.size(); ++i)
     {
       if (prev_objs[i].moved)
@@ -1037,13 +1030,8 @@ class ObjectSingulation
         {
           ROS_INFO_STREAM("Prev moved obj: " << prev_objs[i].id  << ", " << i
                           << " maps to cur " << min_idx << " : " << min_score);
-          if (matched[min_idx])
+          if (!matched[min_idx])
           {
-            // file_out << "matched old with score of: " << min_score << std::endl;
-          }
-          else
-          {
-            // file_out << "matched new with score of: " << min_score << std::endl;
             // Examine bad fits of ICP
             bool bad_icp = (min_score > bad_icp_score_limit_);
             cur_objs[min_idx].id = prev_objs[i].id;
@@ -1102,7 +1090,6 @@ class ObjectSingulation
         cur_objs[i].moved = false;
       }
     }
-    // file_out.close();
   }
 
   /**
