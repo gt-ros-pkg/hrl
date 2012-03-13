@@ -29,6 +29,7 @@ rosbuild_gensrv()
 #find_package(opencv2)
 
 rosbuild_add_library(graphcut include/tabletop_pushing/extern/graphcut/graph.cpp include/tabletop_pushing/extern/graphcut/maxflow.cpp include/tabletop_pushing/extern/graphcut/LinkedBlockList.cpp include/tabletop_pushing/extern/graphcut/GCoptimization.cpp)
+rosbuild_add_library(point_cloud_segmentation include/tabletop_pushing/point_cloud_segmentation.h src/point_cloud_segmentation.cpp)
 # rosbuild_add_executable(tabletop_pushing_perception_node src/tabletop_pushing_perception_node.cpp)
 # rosbuild_add_executable(region_tracking_node src/region_tracking.cpp)
 # rosbuild_add_executable(bag_extractor src/extract_bag_images.cpp)
@@ -36,3 +37,4 @@ rosbuild_add_library(graphcut include/tabletop_pushing/extern/graphcut/graph.cpp
 # rosbuild_add_executable(offline_segmenter_node src/offline_segmenter.cpp)
 # target_link_libraries(tabletop_pushing_perception_node graphcut)
 rosbuild_add_executable(object_singulation_node src/object_singulation_node.cpp)
+target_link_libraries(object_singulation_node point_cloud_segmentation)
