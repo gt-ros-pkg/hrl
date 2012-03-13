@@ -748,9 +748,9 @@ function pc_snapshot_cb() {
 
 function reg_confirm_cb() {
     log("Sending command to untuck arms and start shaving.");
+    $('#pc_snapshot').hide();
+    $('#reg_confirm').hide();
     node.rosjs.callService('/setup_arms_shaving', json(''), function(msg){
-        $('#pc_snapshot').hide();
-        $('#reg_confirm').hide();
         $('#tp').hide();
         $('#bpd2, #shave_select, #tool_power, #bpd2, #shave, #rezero_wrench').show();
         log('Untucking arms to begin shaving.');
