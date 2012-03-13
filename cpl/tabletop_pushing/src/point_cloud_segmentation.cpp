@@ -56,7 +56,6 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/surface/concave_hull.h>
 #include <pcl/registration/icp.h>
-#include <pcl/registration/icp_nl.h>
 
 // STL
 #include <sstream>

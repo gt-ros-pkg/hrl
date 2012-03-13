@@ -40,19 +40,15 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/CameraInfo.h>
-#include <sensor_msgs/image_encodings.h>
 
 #include <message_filters/subscriber.h>
-#include <message_filters/time_synchronizer.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
-#include <image_transport/image_transport.h>
 #include <cv_bridge/CvBridge.h>
-#include <cv_bridge/cv_bridge.h>
+// #include <cv_bridge/cv_bridge.h>
 
 // TF
 #include <tf/transform_listener.h>
-#include <tf/transform_datatypes.h>
 
 // PCL
 #include <pcl/point_cloud.h>
@@ -2903,7 +2899,6 @@ class ObjectSingulationNode
       depth_sub_(n, "depth_image_topic", 1),
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
-      it_(n),
       have_depth_data_(false), tracking_(false),
       tracker_initialized_(false),
       camera_initialized_(false), record_count_(0), recording_input_(false)
@@ -3367,7 +3362,6 @@ class ObjectSingulationNode
   message_filters::Subscriber<sensor_msgs::Image> depth_sub_;
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
   message_filters::Synchronizer<MySyncPolicy> sync_;
-  image_transport::ImageTransport it_;
   sensor_msgs::CameraInfo cam_info_;
   sensor_msgs::CvBridge bridge_;
   shared_ptr<tf::TransformListener> tf_;
