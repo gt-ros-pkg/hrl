@@ -97,7 +97,6 @@
 // #define DISPLAY_INPUT_DEPTH 1
 // #define DISPLAY_WORKSPACE_MASK 1
 #define DISPLAY_PROJECTED_OBJECTS 1
-// #define DISPLAY_LINKED_EDGES 1
 #define DISPLAY_CHOSEN_BOUNDARY 1
 #define DISPLAY_3D_BOUNDARIES 1
 #define DISPLAY_PUSH_VECTOR 1
@@ -108,13 +107,13 @@
 using boost::shared_ptr;
 using tabletop_pushing::LearnPush;
 using tabletop_pushing::LocateTable;
+using tabletop_pushing::PushVector;
 using geometry_msgs::PoseStamped;
 using geometry_msgs::PointStamped;
 typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
-typedef LearnPush::Response PushVector;
 
 using tabletop_pushing::PointCloudSegmentation;
 using tabletop_pushing::ProtoObject;
@@ -132,7 +131,8 @@ class TabletopPushingPerceptionNode
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
       have_depth_data_(false), tracking_(false),
-      camera_initialized_(false), record_count_(0), recording_input_(false)
+      camera_initialized_(false), recording_input_(false), record_count_(0),
+      callback_count_(0)
   {
     tf_ = shared_ptr<tf::TransformListener>(new tf::TransformListener());
     pcl_segmenter_ = shared_ptr<PointCloudSegmentation>(
@@ -145,6 +145,7 @@ class TabletopPushingPerceptionNode
     n_private_.param("display_wait_ms", display_wait_ms_, 3);
     n_private_.param("use_displays", use_displays_, false);
     n_private_.param("write_input_to_disk", write_input_to_disk_, false);
+    n_private_.param("write_to_disk", write_to_disk_, false);
     n_private_.param("min_workspace_x", min_workspace_x_, 0.0);
     n_private_.param("min_workspace_y", min_workspace_y_, 0.0);
     n_private_.param("min_workspace_z", min_workspace_z_, 0.0);
@@ -167,10 +168,8 @@ class TabletopPushingPerceptionNode
     n_private_.param("moved_count_thresh", pcl_segmenter_->moved_count_thresh_,
                      1);
 
-    n_private_.param("autostart_tracking", tracking_, false);
     n_private_.param("autostart_pcl_segmentation", autorun_pcl_segmentation_,
                      false);
-    n_private_.param("use_guided_pushes", use_guided_pushes_, true);
 
     n_private_.param("num_downsamples", num_downsamples_, 2);
     pcl_segmenter_->num_downsamples_ = num_downsamples_;
@@ -210,7 +209,7 @@ class TabletopPushingPerceptionNode
     sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
                            this);
     push_pose_server_ = n_.advertiseService(
-        "get_push_pose", &TabletopPushingPerceptionNode::getPushPose, this);
+        "get_push_pose", &TabletopPushingPerceptionNode::getPushVector, this);
     table_location_server_ = n_.advertiseService(
         "get_table_location", &TabletopPushingPerceptionNode::getTableLocation,
         this);
@@ -300,7 +299,7 @@ class TabletopPushingPerceptionNode
     // Debug stuff
     if (autorun_pcl_segmentation_)
     {
-      getPushPose(use_guided_pushes_);
+      getPushVector(0.0);
     }
 
     // Display junk
@@ -351,26 +350,31 @@ class TabletopPushingPerceptionNode
    *
    * @return true if successfull, false otherwise
    */
-  bool getPushPose(LearnPush::Request& req, LearnPush::Response& res)
+  bool getPushVector(LearnPush::Request& req, LearnPush::Response& res)
   {
     if ( have_depth_data_ )
     {
       if (req.initialize)
       {
         record_count_ = 0;
+        callback_count_ = 0;
         // Initialize stuff if necessary (i.e. angle to push from)
         res.no_push = true;
         recording_input_ = false;
-        return true;
+      }
+      else if (req.analyze_previous)
+      {
+        res.no_push = true;
       }
       else
       {
-        res = getPushPose(req.analyze_previous);
+        res.push = getPushVector(req.push_angle);
+        res.no_push = false;
       }
     }
     else
     {
-      ROS_ERROR_STREAM("Calling getPushPose prior to receiving sensor data.");
+      ROS_ERROR_STREAM("Calling getPushVector prior to receiving sensor data.");
       recording_input_ = false;
       res.no_push = true;
       return false;
@@ -378,11 +382,92 @@ class TabletopPushingPerceptionNode
     return true;
   }
 
-  PushVector getPushPose(bool analyze_previous=false)
+  PushVector getPushVector(double desired_push_angle)
   {
-    // TODO: Push through the centroid of the current object at a specified
-    // angle
+    // Segment objects
+    ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cur_point_cloud_);
+    // Assume 1 currently
+    int chosen_idx = 0;
+    if (objs.size() > 1)
+    {
+      int max_size = 0;
+      for (unsigned int i = 0; i < objs.size(); ++i)
+      {
+        if (objs[i].cloud.size() > max_size)
+        {
+          max_size = objs[i].cloud.size() > max_size;
+          chosen_idx = i;
+        }
+      }
+    }
+    ROS_INFO_STREAM("Found " << objs.size() << " objects.");
+    // Set basic push information
     PushVector p;
+    p.header.frame_id = workspace_frame_;
+    p.push_angle = desired_push_angle;
+
+    // Get vector through centroid and determine start point and distance
+    Eigen::Vector3f push_unit_vec(std::cos(desired_push_angle),
+                                  std::sin(desired_push_angle), 0.0f);
+    XYZPointCloud intersection = pcl_segmenter_->lineCloudIntersection(
+        objs[chosen_idx].cloud, push_unit_vec, objs[chosen_idx].centroid);
+
+    unsigned int min_y_idx = intersection.size();
+    unsigned int max_y_idx = intersection.size();
+    unsigned int min_x_idx = intersection.size();
+    unsigned int max_x_idx = intersection.size();
+    float min_y = FLT_MAX;
+    float max_y = -FLT_MAX;
+    float min_x = FLT_MAX;
+    float max_x = -FLT_MAX;
+    for (unsigned int i = 0; i < intersection.size(); ++i)
+    {
+      if (intersection.at(i).y < min_y)
+      {
+        min_y = intersection.at(i).y;
+        min_y_idx = i;
+      }
+      if (intersection.at(i).y > max_y)
+      {
+        max_y = intersection.at(i).y;
+        max_y_idx = i;
+      }
+      if (intersection.at(i).x < min_x)
+      {
+        min_x = intersection.at(i).x;
+        min_x_idx = i;
+      }
+      if (intersection.at(i).x > max_x)
+      {
+        max_x = intersection.at(i).x;
+        max_x_idx = i;
+      }
+    }
+    double x_dist = max_x - min_x;
+    double y_dist = max_y - min_y;
+
+    // TODO: is this the right way to pick between x and y?
+    int max_idx = (x_dist > y_dist) ? max_x_idx : max_y_idx;
+    int min_idx = (x_dist > y_dist) ? min_x_idx : min_y_idx;
+    if (p.push_angle > 0)
+    {
+      p.start_point.x = intersection.at(min_idx).x;
+      p.start_point.y = intersection.at(min_idx).y;
+      p.start_point.z = intersection.at(min_idx).z;
+    }
+    else
+    {
+      p.start_point.x = intersection.at(max_idx).x;
+      p.start_point.y = intersection.at(max_idx).y;
+      p.start_point.z = intersection.at(max_idx).z;
+    }
+
+    // Get push distance
+    p.push_dist = std::sqrt(pcl_segmenter_->sqrDistXY(
+        intersection.at(max_idx), intersection.at(min_idx)));
+    // Visualize push vector
+    displayPushVector(cur_color_frame_, p);
+    callback_count_++;
     return p;
   }
 
@@ -446,6 +531,44 @@ class TabletopPushingPerceptionNode
     return p;
   }
 
+  void displayPushVector(cv::Mat& img, PushVector& push)
+  {
+    ROS_INFO_STREAM("Displaying vector");
+    cv::Mat disp_img;
+    img.copyTo(disp_img);
+    PointStamped start_point;
+    start_point.point = push.start_point;
+    start_point.header.frame_id = workspace_frame_;
+    PointStamped end_point;
+    end_point.point.x = start_point.point.x+std::cos(push.push_angle)*push.push_dist;
+    end_point.point.y = start_point.point.y+std::sin(push.push_angle)*push.push_dist;
+    end_point.point.z = start_point.point.z;
+    end_point.header.frame_id = workspace_frame_;
+
+    cv::Point img_start_point = pcl_segmenter_->projectPointIntoImage(
+        start_point);
+    cv::Point img_end_point = pcl_segmenter_->projectPointIntoImage(
+        end_point);
+    cv::line(disp_img, img_start_point, img_end_point, cv::Scalar(0,255,0));
+    cv::circle(disp_img, img_end_point, 4, cv::Scalar(0,255,0));
+
+    if (use_displays_)
+    {
+      cv::imshow("push_vector", disp_img);
+    }
+    if (write_to_disk_)
+    {
+      // Write to disk to create video output
+      std::stringstream push_out_name;
+      push_out_name << base_output_path_ << "push_vector" << callback_count_
+                    << ".png";
+      cv::Mat push_out_img(disp_img.size(), CV_8UC3);
+      disp_img.convertTo(push_out_img, CV_8UC3, 255);
+      cv::imwrite(push_out_name.str(), push_out_img);
+    }
+
+  }
+
   /**
    * Executive control function for launching the node.
    */
@@ -487,6 +610,7 @@ class TabletopPushingPerceptionNode
   int display_wait_ms_;
   bool use_displays_;
   bool write_input_to_disk_;
+  bool write_to_disk_;
   std::string base_output_path_;
   double min_workspace_x_;
   double max_workspace_x_;
@@ -500,10 +624,10 @@ class TabletopPushingPerceptionNode
   bool tracking_;
   bool camera_initialized_;
   std::string cam_info_topic_;
-  int record_count_;
   bool autorun_pcl_segmentation_;
-  bool use_guided_pushes_;
   bool recording_input_;
+  int record_count_;
+  int callback_count_;
 };
 
 int main(int argc, char ** argv)

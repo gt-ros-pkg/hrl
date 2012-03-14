@@ -400,8 +400,9 @@ bool PointCloudSegmentation::cloudsIntersect(XYZPointCloud cloud0, XYZPointCloud
   return false;
 }
 
-bool PointCloudSegmentation::pointIntersectsCloud(XYZPointCloud cloud, geometry_msgs::Point pt,
-                          double thresh)
+bool PointCloudSegmentation::pointIntersectsCloud(XYZPointCloud cloud,
+                                                  geometry_msgs::Point pt,
+                                                  double thresh)
 {
   for (unsigned int i = 0; i < cloud.size(); ++i)
   {
@@ -411,7 +412,9 @@ bool PointCloudSegmentation::pointIntersectsCloud(XYZPointCloud cloud, geometry_
   return false;
 }
 
-float PointCloudSegmentation::pointLineXYDist(pcl::PointXYZ p,Eigen::Vector3f vec,Eigen::Vector4f base)
+float PointCloudSegmentation::pointLineXYDist(pcl::PointXYZ p,
+                                              Eigen::Vector3f vec,
+                                              Eigen::Vector4f base)
 {
   Eigen::Vector3f x0(p.x,p.y,0.0);
   Eigen::Vector3f x1(base[0],base[1],0.0);
@@ -423,8 +426,8 @@ float PointCloudSegmentation::pointLineXYDist(pcl::PointXYZ p,Eigen::Vector3f ve
   return d;
 }
 
-XYZPointCloud PointCloudSegmentation::lineCloudIntersection(XYZPointCloud& cloud, Eigen::Vector3f vec,
-                                    Eigen::Vector4f base)
+XYZPointCloud PointCloudSegmentation::lineCloudIntersection(
+    XYZPointCloud& cloud, Eigen::Vector3f vec, Eigen::Vector4f base)
 {
   // Define parametric model of the line defined by base and vec and
   // test cloud memebers for distance from the line, if the distance is less
