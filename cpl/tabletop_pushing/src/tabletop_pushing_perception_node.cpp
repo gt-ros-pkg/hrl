@@ -76,7 +76,7 @@
 #include <cpl_visual_features/helpers.h>
 
 // tabletop_pushing
-#include <tabletop_pushing/PushPose.h>
+#include <tabletop_pushing/LearnPush.h>
 #include <tabletop_pushing/LocateTable.h>
 #include <tabletop_pushing/point_cloud_segmentation.h>
 
@@ -106,7 +106,7 @@
 #define randf() static_cast<float>(rand())/RAND_MAX
 
 using boost::shared_ptr;
-using tabletop_pushing::PushPose;
+using tabletop_pushing::LearnPush;
 using tabletop_pushing::LocateTable;
 using geometry_msgs::PoseStamped;
 using geometry_msgs::PointStamped;
@@ -114,7 +114,7 @@ typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
-typedef PushPose::Response PushVector;
+typedef LearnPush::Response PushVector;
 
 using tabletop_pushing::PointCloudSegmentation;
 using tabletop_pushing::ProtoObject;
@@ -351,7 +351,7 @@ class TabletopPushingPerceptionNode
    *
    * @return true if successfull, false otherwise
    */
-  bool getPushPose(PushPose::Request& req, PushPose::Response& res)
+  bool getPushPose(LearnPush::Request& req, LearnPush::Response& res)
   {
     if ( have_depth_data_ )
     {
@@ -365,22 +365,7 @@ class TabletopPushingPerceptionNode
       }
       else
       {
-        if (!recording_input_)
-        {
-          recording_input_ = true;
-          ROS_INFO_STREAM("Starting input recording.");
-        }
-        if (req.no_push_calc)
-        {
-          recording_input_ = false;
-          ROS_INFO_STREAM("Stopping input recording.");
-        }
-        res = getPushPose(req.no_push_calc);
-        if (res.no_push)
-        {
-          recording_input_ = false;
-          ROS_INFO_STREAM("Stopping input recording.");
-        }
+        res = getPushPose(req.analyze_previous);
       }
     }
     else
@@ -393,7 +378,7 @@ class TabletopPushingPerceptionNode
     return true;
   }
 
-  PushVector getPushPose(bool no_push_calc=false)
+  PushVector getPushPose(bool analyze_previous=false)
   {
     // TODO: Push through the centroid of the current object at a specified
     // angle
