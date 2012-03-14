@@ -14,16 +14,15 @@ def getTime():
     return '['+time.strftime("%H:%M:%S", time.localtime())+']'
 
 #copied from manipulation stack
-#angle between two quaternions (as lists)                                                                         
-def quat_angle(quat1, quat2):                                                                               
+#angle between two quaternions (as lists)
+def quat_angle(quat1, quat2):
     dot = sum([x*y for (x,y) in zip(quat1, quat2)])
-    if dot > 1.:                                                                                                  
-        dot = 1.                                                                                                  
-    if dot < -1.:                                                                                                 
-        dot = -1.                                                                                                 
-    angle = 2*math.acos(math.fabs(dot))                                                                           
+    if dot > 1.:
+        dot = 1.
+    if dot < -1.:
+        dot = -1.
+    angle = 2*math.acos(math.fabs(dot))
     return angle     
-
 
 def standard_rad(t):
     if t > 0:
