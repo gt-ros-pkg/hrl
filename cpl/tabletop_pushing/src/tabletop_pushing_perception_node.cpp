@@ -388,19 +388,24 @@ class TabletopPushingPerceptionNode
     ProtoObjects objs = pcl_segmenter_->findTabletopObjects(cur_point_cloud_);
     // Assume 1 currently
     int chosen_idx = 0;
-    if (objs.size() > 1)
+    int max_size = 0;
+    for (unsigned int i = 0; i < objs.size(); ++i)
     {
-      int max_size = 0;
-      for (unsigned int i = 0; i < objs.size(); ++i)
+      if (objs[i].cloud.size() > max_size)
       {
-        if (objs[i].cloud.size() > max_size)
-        {
-          max_size = objs[i].cloud.size() > max_size;
-          chosen_idx = i;
-        }
+        max_size = objs[i].cloud.size() > max_size;
+        chosen_idx = i;
       }
     }
+    if (objs.size() == 0)
+    {
+      PushVector p;
+      ROS_WARN_STREAM("No objects found");
+      return p;
+    }
     ROS_INFO_STREAM("Found " << objs.size() << " objects.");
+    ROS_INFO_STREAM("Chosen object idx is " << chosen_idx << " with " <<
+                    objs[chosen_idx].size() << " points");
     // Set basic push information
     PushVector p;
     p.header.frame_id = workspace_frame_;
@@ -468,6 +473,10 @@ class TabletopPushingPerceptionNode
     // Visualize push vector
     displayPushVector(cur_color_frame_, p);
     callback_count_++;
+    ROS_INFO_STREAM("Chosen push start point: (" << p.start_point.x << ", "
+                    << p.start_point.y << ", " << p.start_point.z << ")");
+    ROS_INFO_STREAM("Push dist: " << p.push_dist);
+    ROS_INFO_STREAM("Push angle: " << p.push_angle);
     return p;
   }
 
@@ -533,7 +542,6 @@ class TabletopPushingPerceptionNode
 
   void displayPushVector(cv::Mat& img, PushVector& push)
   {
-    ROS_INFO_STREAM("Displaying vector");
     cv::Mat disp_img;
     img.copyTo(disp_img);
     PointStamped start_point;
