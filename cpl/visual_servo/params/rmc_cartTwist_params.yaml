@@ -1,7 +1,7 @@
 r_cart:
   type: robot_mechanism_controllers/CartesianTwistController
   root_name: torso_lift_link 
-  tip_name: r_wrist_roll_link
+  tip_name: r_gripper_tool_frame
   fb_trans:
     p: 20.0
     i: 0.8

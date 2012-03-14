@@ -85,6 +85,7 @@
 // Else
 #include <visual_servo/VisualServoTwist.h>
 #define DEBUG_MODE 1
+#define PRINT_TWISTS 1
 
 #define JACOBIAN_TYPE_INV 1
 #define JACOBIAN_TYPE_PSEUDO 2
@@ -138,7 +139,8 @@ class VisualServoNode
     n_private_.param("min_contour_size", min_contour_size_, 10.0);
 
     // others
-    n_private_.param("velocity_threshold", velocity_clip_threshold, 0.50);
+    n_private_.param("gain_vel", gain_vel_, 50e-3);
+    n_private_.param("gain_rot", gain_rot_, 1e-1);
     n_private_.param("jacobian_type", jacobian_type_, JACOBIAN_TYPE_AVG);
     // Setup ros node connections
     sync_.registerCallback(&VisualServoNode::sensorCallback, this);
@@ -154,12 +156,12 @@ class VisualServoNode
         return out;
       }
       // XYZ in camera coords and robot control coord are different
-      out.at<float>(0,0) = -in.at<float>(2,0);
+      out.at<float>(0,0) =  in.at<float>(2,0);
       out.at<float>(1,0) = -in.at<float>(0,0);
-      out.at<float>(2,0) = in.at<float>(1,0);
-      out.at<float>(3,0) = -in.at<float>(5,0);
+      out.at<float>(2,0) = -in.at<float>(1,0);
+      out.at<float>(3,0) =  in.at<float>(5,0);
       out.at<float>(4,0) = -in.at<float>(3,0);
-      out.at<float>(5,0) = in.at<float>(4,0);
+      out.at<float>(5,0) = -in.at<float>(4,0);
       return out;
     }
 
@@ -177,7 +179,7 @@ class VisualServoNode
           tape_hue_threshold_);
       std::vector<cv::Moments> ms = findMoments(tape_mask, cur_color_frame_); 
       std::vector<cv::Point> pts = getMomentCoordinates(ms);
-      cur_twist_ = computeTwist(desired_locations_, cur_color_frame_, cur_depth_frame_, pts);
+      cv::Mat twist = computeTwist(desired_locations_, cur_color_frame_, cur_depth_frame_, pts);
 
 #ifdef DEBUG_MODE
       // put dots on the centroids of wrist
@@ -195,16 +197,19 @@ class VisualServoNode
       cv::waitKey(display_wait_ms_);
 #endif
 
-      cv::Mat temp = convertImageFrameToCameraFrame(cur_twist_); 
+      //cv::Mat temp = convertImageFrameToCameraFrame(twist); 
+      cv::Mat temp = twist.clone(); 
+      
       // have to transform twist in camera frame to torso_lift_link
       tf::Vector3 twist_rot(temp.at<float>(3), temp.at<float>(4), temp.at<float>(5));
       tf::Vector3 twist_vel(temp.at<float>(0), temp.at<float>(1), temp.at<float>(2));
       tf::StampedTransform transform; 
-      ros::Time now = ros::Time::now();
+      
+      ros::Time now = ros::Time(0);
       try {
         tf::TransformListener listener;
-        listener.waitForTransform(workspace_frame_, "/openni_rgb_frame",  now, ros::Duration(3.0));
-        listener.lookupTransform(workspace_frame_, "/openni_rgb_frame",  now, transform);
+        listener.waitForTransform(workspace_frame_, "/openni_rgb_optical_frame",  now, ros::Duration(1.0));
+        listener.lookupTransform(workspace_frame_, "/openni_rgb_optical_frame",  now, transform);
       }
       catch (tf::TransformException e)
       {
@@ -215,16 +220,21 @@ class VisualServoNode
       }
 
       btVector3 out_rot = transform.getBasis() * twist_rot;
-      btVector3 out_vel = transform.getBasis()* twist_vel + transform.getOrigin().cross(out_rot);
+      btVector3 out_vel = transform.getBasis() * twist_vel + transform.getOrigin().cross(out_rot);
 
       // twist cannot be larger than clipping threshold
       // this is a safety measure to prevent robot from breaking
-      res.wx =  out_vel.x();
-      res.wy =  out_vel.y();
-      res.wz =  out_vel.z();
-      res.wx =  out_rot.x();
-      res.wy =  out_rot.y();
-      res.wz =  out_rot.z();
+      res.vx =  out_vel.x()*gain_vel_;
+      res.vy =  out_vel.y()*gain_vel_;
+      res.vz =  out_vel.z()*gain_vel_;
+      res.wx =  out_rot.x()*gain_rot_;
+      res.wy =  out_rot.y()*gain_rot_;
+      res.wz =  out_rot.z()*gain_rot_;
+
+#ifdef PRINT_TWISTS
+      printMatrix(temp.t());
+      printf("%+.5f\t%+.5f\t%+.5f\t%+.5f\t%+.5f\t%+.5f\n", res.vx, res.vy, res.vz, res.wx, res.wy, res.wz);
+#endif
       return true;
     }
 
@@ -341,14 +351,12 @@ class VisualServoNode
       // Setting the Desired Location of the wrist
       // Desired location: center of the screen
       pcl::PointXYZ origin = cur_point_cloud_.at(cur_color_frame_.cols/2, cur_color_frame_.rows/2);
-      origin.z += 0.01;
+      origin.z += 0.1;
       pcl::PointXYZ two = origin;
       pcl::PointXYZ three = origin;
 
-      two.x -= pt0.x - pt1.x; 
-      two.y -= pt0.y - pt1.y; 
-      three.x -= pt0.x - pt2.x; 
-      three.y -= pt0.y - pt2.y;
+      two.y -= 0.05; //sqrt(pow(pt0.x - pt1.x,2) + pow(pt0.y - pt1.y,2)); 
+      three.x -= 0.03;//sqrt(pow(pt0.x - pt2.x, 2) + pow(pt0.y - pt2.y, 2));
 
       // now we need to convert the position of these desired points that are in pc into the image location
       cv::Point p0 = projectPointIntoImage(origin, cur_point_cloud_.header.frame_id, cur_camera_header_.frame_id);
@@ -381,7 +389,7 @@ class VisualServoNode
         }
 
         // testing: buffing error seem to make velocity stable near the match 
-        error_mat *= 10;
+        // error_mat *= 10;
 
         cv::Mat im = getInteractionMatrix(depth_frame, pts);
 
@@ -401,21 +409,28 @@ class VisualServoNode
             break;
           default: // JACOBIAN_TYPE_AVG
             // We use specific way shown on visual servo by Chaumette 2006
-            iim = 0.5*(desired_jacobian_ + im).inv();
+            cv::Mat temp = desired_jacobian_ + im;
+            iim = 0.5*(temp.t() * temp).inv() * temp.t();
         }
         // Gain Matrix K
-        cv::Mat gain = -cv::Mat::eye(6,6, CV_32F);
-        gain.at<float>(0,0) = 0.9e-3;
-        gain.at<float>(1,1) = 8e-4;
-        gain.at<float>(2,2) = 1e-2;
-
+        cv::Mat gain = cv::Mat::eye(6,6, CV_32F);
+        gain.at<float>(0,0) = 5e-2;
+        gain.at<float>(1,1) = 5e-2;
+        /*
+        gain.at<float>(2,2) = gain_vel_;
+        gain.at<float>(3,3) = gain_rot_;
+        gain.at<float>(4,4) = gain_rot_;
+        gain.at<float>(5,5) = gain_rot_;
+         */
         // K x IIM x ERROR = TWIST
-        iim = gain*iim;
-        ret = iim*error_mat;
+        ret = gain*(iim*error_mat);
 
 
 #ifdef DEBUG_MODE
-        printMatrix((error_mat/10).t());
+#ifdef PRINT_TWISTS
+        ROS_INFO("1. error matrix, 2. im frame twist, 3. torso frame twist");
+        printMatrix((error_mat).t());
+#endif
 #endif
 
       }
@@ -711,7 +726,8 @@ class VisualServoNode
     double min_contour_size_;
 
     int jacobian_type_;
-    double velocity_clip_threshold;
+    double gain_vel_;
+    double gain_rot_;
     ros::ServiceServer twistServer;
     std::vector<cv::Point> desired_locations_;
     cv::Mat cur_twist_; 

@@ -55,7 +55,14 @@ def cleanup():
   pub.publish(zero)
 
 class VisualServoExecutionNode:
-  clip_vel = 0.3
+  def adjustVelocity(self, vel):
+    clip_vel = 0.2
+    ret = vel 
+    if ret > clip_vel:
+      ret = clip_vel
+    elif -ret > clip_vel:
+      ret = -clip_vel
+    return -ret 
 
   def initial_arm(self, cs):
     rospy.loginfo('Setting to Initial msg...')
@@ -71,14 +78,13 @@ class VisualServoExecutionNode:
                                       -10.5123303230158518,
                                       0.0570651396529178,
                                       0.163787989862169])
-    pts.time_from_start = rospy.Duration(10)
+    pts.time_from_start = rospy.Duration(3.0)
     msg.points = [pts]
     msg.joint_names = ['r_shoulder_pan_joint', 'r_shoulder_lift_joint', 'r_upper_arm_roll_joint','r_elbow_flex_joint', 'r_forearm_roll_joint','r_wrist_flex_joint','r_wrist_roll_joint']
     pub.publish(msg)
     rospy.sleep(0.5)
     pub.publish(msg)
-    rospy.sleep(4)
-
+    rospy.sleep(3)
 
     pts.positions = array('d', [-0.60, 0.1137, -1.60411927, -1.75,
                                     -15.85, -1.282, -1.72])
@@ -109,24 +115,20 @@ class VisualServoExecutionNode:
     while not rospy.is_shutdown():
       try:
         resp = service()
-        msg.linear.x = adjustVelocity(resp.vx)
-        msg.linear.y = adjustVelocity(resp.vy)
-        msg.linear.z = adjustVelocity(resp.vz)
-        msg.angular.x = adjustVelocity(resp.wx)
-        msg.angular.y = adjustVelocity(resp.wy)
-        msg.angular.z = adjustVelocity(resp.wz)
-        rospy.loginfo('x:%+.5f\t y:%+.5f\t z:%+.5f', msg.linear.x, msg.linear.y, msg.linear.z)
+        msg.linear.x = self.adjustVelocity(resp.vx)
+        msg.linear.y = self.adjustVelocity(resp.vy)
+        msg.linear.z = self.adjustVelocity(resp.vz)
+        msg.angular.x = self.adjustVelocity(resp.wx)
+        msg.angular.y = self.adjustVelocity(resp.wy)
+        msg.angular.z = self.adjustVelocity(resp.wz)
+        rospy.loginfo('vx:%+.5f\tvy:%+.5f\tvz:%+.5f\twx:%+.5f\twy:%+.5f\twz:%+.5f', msg.linear.x, msg.linear.y, msg.linear.z, msg.angular.x, msg.angular.y, msg.angular.z)
         pub.publish(msg)
         rospy.sleep(0.2) 
-      except rospy.ServiceException, e: pass 
+      except rospy.ServiceException, e:
+        pub.publish(zero)
+        rospy.sleep(0.2) 
   
-  def adjustVelocity(vel):
-    ret = vel
-    if vel > clip_vel:
-      ret = clip_vel
-    elif -vel > clip_vel:
-      ret = -clip_vel
-    return ret
+
 
 if __name__ == '__main__':
   try:

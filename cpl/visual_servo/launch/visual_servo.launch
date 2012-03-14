@@ -14,6 +14,8 @@
     <param name="default_val_value" value="255" type="int"/>
  
     <param name="jacobian_type" value="3" type="int"/>
+    <param name="gain_rot" value="0.3" type="double"/>
+    <param name="gain_vel" value="0.05" type="double"/>
     
     <param name="display_wait_ms" value="3" type="int"/>
     <param name="workspace_frame" value="/torso_lift_link" type="string"/>
