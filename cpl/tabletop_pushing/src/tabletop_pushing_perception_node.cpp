@@ -405,7 +405,7 @@ class TabletopPushingPerceptionNode
     }
     ROS_INFO_STREAM("Found " << objs.size() << " objects.");
     ROS_INFO_STREAM("Chosen object idx is " << chosen_idx << " with " <<
-                    objs[chosen_idx].size() << " points");
+                    objs[chosen_idx].cloud.size() << " points");
     // Set basic push information
     PushVector p;
     p.header.frame_id = workspace_frame_;
