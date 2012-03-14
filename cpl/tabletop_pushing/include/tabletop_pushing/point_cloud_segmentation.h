@@ -311,4 +311,26 @@ class PointCloudSegmentation
   double icp_max_cor_dist_;
   double icp_ransac_thresh_;
 };
+
+XYZPointCloud getMaskedPointCloud(XYZPointCloud& input_cloud, cv::Mat& mask)
+{
+  // Select points from point cloud that are in the mask:
+  pcl::PointIndices mask_indices;
+  mask_indices.header = input_cloud.header;
+  for (int y = 0; y < mask.rows; ++y)
+  {
+    uchar* mask_row = mask.ptr<uchar>(y);
+    for (int x = 0; x < mask.cols; ++x)
+    {
+      if (mask_row[x] != 0)
+      {
+        mask_indices.indices.push_back(y*input_cloud.width + x);
+      }
+    }
+  }
+
+  XYZPointCloud masked_cloud;
+  pcl::copyPointCloud(input_cloud, mask_indices, masked_cloud);
+  return masked_cloud;
+}
 };
