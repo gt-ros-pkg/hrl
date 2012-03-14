@@ -73,7 +73,7 @@
 #include <boost/shared_ptr.hpp>
 
 // tabletop_pushing
-#include <tabletop_pushing/PushPose.h>
+#include <tabletop_pushing/SingulationPush.h>
 #include <tabletop_pushing/LocateTable.h>
 #include <tabletop_pushing/point_cloud_segmentation.h>
 
@@ -103,7 +103,7 @@
 #define randf() static_cast<float>(rand())/RAND_MAX
 
 using boost::shared_ptr;
-using tabletop_pushing::PushPose;
+using tabletop_pushing::SingulationPush;
 using tabletop_pushing::LocateTable;
 using geometry_msgs::PoseStamped;
 using geometry_msgs::PointStamped;
@@ -111,7 +111,7 @@ typedef pcl::PointCloud<pcl::PointXYZ> XYZPointCloud;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
                                                         sensor_msgs::Image,
                                                         sensor_msgs::PointCloud2> MySyncPolicy;
-typedef PushPose::Response PushVector;
+typedef SingulationPush::Response PushVector;
 
 using tabletop_pushing::PointCloudSegmentation;
 using tabletop_pushing::ProtoObject;
@@ -3009,7 +3009,7 @@ class ObjectSingulationNode
     sync_.registerCallback(&ObjectSingulationNode::sensorCallback,
                            this);
     push_pose_server_ = n_.advertiseService(
-        "get_push_pose", &ObjectSingulationNode::getPushPose, this);
+        "get_singulation_push_pose", &ObjectSingulationNode::getPushPose, this);
     table_location_server_ = n_.advertiseService(
         "get_table_location", &ObjectSingulationNode::getTableLocation,
         this);
@@ -3158,7 +3158,7 @@ class ObjectSingulationNode
    *
    * @return true if successfull, false otherwise
    */
-  bool getPushPose(PushPose::Request& req, PushPose::Response& res)
+  bool getPushPose(SingulationPush::Request& req, SingulationPush::Response& res)
   {
     if ( have_depth_data_ )
     {

@@ -95,7 +95,9 @@ class TabletopExecutive:
         self.pull_start_z = rospy.get_param('~overhead_push_start_z',
                                             -0.27)
         # Setup service proxies
-        self.push_pose_proxy = rospy.ServiceProxy('get_push_pose', PushPose)
+        # Singulation Push proxy
+        self.singulation_push_pose_proxy = rospy.ServiceProxy(
+            'get_singulation_push_pose', SingulationPush)
         self.gripper_push_proxy = rospy.ServiceProxy('gripper_push',
                                                      GripperPush)
         self.gripper_pre_push_proxy = rospy.ServiceProxy('gripper_pre_push',
@@ -127,11 +129,11 @@ class TabletopExecutive:
         self.use_fake_push_pose = use_fake_push_pose
         self.push_count = 0
 
-    def run(self, num_pushes=1, use_guided=True):
+    def run_singulation(self, num_pushes=1, use_guided=True):
         # Get table height and raise to that before anything else
         self.raise_and_look()
         # Initialize push pose
-        self.initialize_push_pose();
+        self.initialize_singulation_push_pose();
 
         # NOTE: Should exit before reaching num_pushes, this is just a backup
         for i in xrange(num_pushes):
@@ -201,23 +203,23 @@ class TabletopExecutive:
     def request_singulation_push(self, use_guided=True, which_arm='l'):
         if (self.use_fake_push_pose):
             return request_fake_singulation_push(which_arm)
-        pose_req = PushPoseRequest()
+        pose_req = SingulationPush()
         pose_req.use_guided = use_guided
         pose_req.initialize = False
         pose_req.no_push_calc = False
         rospy.loginfo("Calling push pose service")
         try:
-            pose_res = self.push_pose_proxy(pose_req)
+            pose_res = self.singulation_push_pose_proxy(pose_req)
             return pose_res
         except rospy.ServiceException, e:
             rospy.logwarn("Service did not process request: %s"%str(e))
             return None
 
     def request_fake_singulation_push(self, which_arm):
-        pose_res = PushPoseResponse()
+        pose_res = SingulationPushResponse()
         push_opt = GRIPPER_PUSH
         if push_opt == GRIPPER_PUSH:
-            pose_res = PushPoseResponse()
+            pose_res = SingulationPushResponse()
             pose_res.start_point.x = 0.5
             pose_res.header.frame_id = '/torso_lift_link'
             pose_res.header.stamp = rospy.Time(0)
@@ -245,13 +247,13 @@ class TabletopExecutive:
             pose_res.push_angle = 0.75*pi
         return pose_res
 
-    def initialize_push_pose(self):
-        pose_req = PushPoseRequest()
+    def initialize_singulation_push_pose(self):
+        pose_req = SingulationPushRequest()
         pose_req.initialize = True
         pose_req.use_guided = True
         pose_req.no_push_calc = False
         rospy.loginfo('Initializing push pose service.')
-        self.push_pose_proxy(pose_req)
+        self.singulation_push_pose_proxy(pose_req)
 
     def raise_and_look(self):
         table_req = LocateTableRequest()
@@ -413,5 +415,5 @@ class TabletopExecutive:
 
 if __name__ == '__main__':
     node = TabletopExecutive(False)
-    node.run(50)
-    #node.run(100, False)
+    node.run_singulation(50)
+    #node.run_singulation(100, False)
