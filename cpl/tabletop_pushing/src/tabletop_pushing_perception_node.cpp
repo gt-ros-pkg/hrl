@@ -72,6 +72,9 @@
 // Boost
 #include <boost/shared_ptr.hpp>
 
+// cpl_visual_features
+#include <cpl_visual_features/helpers.h>
+
 // tabletop_pushing
 #include <tabletop_pushing/PushPose.h>
 #include <tabletop_pushing/LocateTable.h>
@@ -116,6 +119,8 @@ typedef PushPose::Response PushVector;
 using tabletop_pushing::PointCloudSegmentation;
 using tabletop_pushing::ProtoObject;
 using tabletop_pushing::ProtoObjects;
+using cpl_visual_features::upSample;
+using cpl_visual_features::downSample;
 
 class TabletopPushingPerceptionNode
 {
@@ -127,7 +132,6 @@ class TabletopPushingPerceptionNode
       cloud_sub_(n, "point_cloud_topic", 1),
       sync_(MySyncPolicy(15), image_sub_, depth_sub_, cloud_sub_),
       have_depth_data_(false), tracking_(false),
-      tracker_initialized_(false),
       camera_initialized_(false), record_count_(0), recording_input_(false)
   {
     tf_ = shared_ptr<tf::TransformListener>(new tf::TransformListener());
@@ -203,12 +207,12 @@ class TabletopPushingPerceptionNode
                      pcl_segmenter_->icp_ransac_thresh_, 0.015);
 
     // Setup ros node connections
-    sync_.registerCallback(&ObjectSingulationNode::sensorCallback,
+    sync_.registerCallback(&TabletopPushingPerceptionNode::sensorCallback,
                            this);
     push_pose_server_ = n_.advertiseService(
-        "get_push_pose", &ObjectSingulationNode::getPushPose, this);
+        "get_push_pose", &TabletopPushingPerceptionNode::getPushPose, this);
     table_location_server_ = n_.advertiseService(
-        "get_table_location", &ObjectSingulationNode::getTableLocation,
+        "get_table_location", &TabletopPushingPerceptionNode::getTableLocation,
         this);
   }
 
@@ -351,6 +355,33 @@ class TabletopPushingPerceptionNode
   {
     if ( have_depth_data_ )
     {
+      if (req.initialize)
+      {
+        record_count_ = 0;
+        // Initialize stuff if necessary (i.e. angle to push from)
+        res.no_push = true;
+        recording_input_ = false;
+        return true;
+      }
+      else
+      {
+        if (!recording_input_)
+        {
+          recording_input_ = true;
+          ROS_INFO_STREAM("Starting input recording.");
+        }
+        if (req.no_push_calc)
+        {
+          recording_input_ = false;
+          ROS_INFO_STREAM("Stopping input recording.");
+        }
+        res = getPushPose(req.no_push_calc);
+        if (res.no_push)
+        {
+          recording_input_ = false;
+          ROS_INFO_STREAM("Stopping input recording.");
+        }
+      }
     }
     else
     {
@@ -362,16 +393,12 @@ class TabletopPushingPerceptionNode
     return true;
   }
 
-  /**
-   * Wrapper method to call the push pose from the ObjectSingulation class
-   *
-   * @param use_guided find a random pose if false, otherwise calculate using
-   *                   the ObjectSingulation method
-   *
-   * @return The PushPose
-   */
-  PushVector getPushPose(bool use_guided=true, bool no_push_calc=false)
+  PushVector getPushPose(bool no_push_calc=false)
   {
+    // TODO: Push through the centroid of the current object at a specified
+    // angle
+    PushVector p;
+    return p;
   }
 
   /**
@@ -421,8 +448,7 @@ class TabletopPushingPerceptionNode
     // TODO: Comptue the hull on the first call
     Eigen::Vector4f table_centroid = pcl_segmenter_->getTablePlane(cloud,
                                                                    obj_cloud,
-                                                                   table_cloud/*,
-                                                                                true*/);
+                                                                   table_cloud);
     PoseStamped p;
     p.pose.position.x = table_centroid[0];
     p.pose.position.y = table_centroid[1];
@@ -433,58 +459,6 @@ class TabletopPushingPerceptionNode
                     << p.pose.position.y << ", "
                     << p.pose.position.z << ")");
     return p;
-  }
-
-  //
-  // Helper Methods
-  //
-  cv::Mat downSample(cv::Mat data_in, int scales)
-  {
-    cv::Mat out = data_in.clone();
-    for (int i = 0; i < scales; ++i)
-    {
-      cv::pyrDown(data_in, out);
-      data_in = out;
-    }
-    return out;
-  }
-
-  cv::Mat upSample(cv::Mat data_in, int scales)
-  {
-    cv::Mat out = data_in.clone();
-    for (int i = 0; i < scales; ++i)
-    {
-      // NOTE: Currently assumes even cols, rows for data_in
-      cv::Size out_size(data_in.cols*2, data_in.rows*2);
-      cv::pyrUp(data_in, out, out_size);
-      data_in = out;
-    }
-    return out;
-  }
-
-  XYZPointCloud getMaskedPointCloud(XYZPointCloud& input_cloud, cv::Mat& mask_in)
-  {
-    // TODO: Assert that input_cloud is shaped
-    cv::Mat mask = upSample(mask_in, num_downsamples_);
-
-    // Select points from point cloud that are in the mask:
-    pcl::PointIndices mask_indices;
-    mask_indices.header = input_cloud.header;
-    for (int y = 0; y < mask.rows; ++y)
-    {
-      uchar* mask_row = mask.ptr<uchar>(y);
-      for (int x = 0; x < mask.cols; ++x)
-      {
-        if (mask_row[x] != 0)
-        {
-          mask_indices.indices.push_back(y*input_cloud.width + x);
-        }
-      }
-    }
-
-    XYZPointCloud masked_cloud;
-    pcl::copyPointCloud(input_cloud, mask_indices, masked_cloud);
-    return masked_cloud;
   }
 
   /**
@@ -539,7 +513,6 @@ class TabletopPushingPerceptionNode
   std::string workspace_frame_;
   PoseStamped table_centroid_;
   bool tracking_;
-  bool tracker_initialized_;
   bool camera_initialized_;
   std::string cam_info_topic_;
   int record_count_;
