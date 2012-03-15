@@ -1,6 +1,5 @@
 
 #
-#
 # Running mean and variance with supposedly superior numerical
 # stability.
 #
