@@ -85,6 +85,10 @@ class ManipulationBehaviors:
         #pdb.set_trace()
         #for i in range(2):
         r1, residual_error = self.movement.move_absolute((front_loc, orientation), stop='pressure', pressure=pressure_thres)
+        rospy.sleep(.1)
+        r1, residual_error = self.movement.move_absolute((front_loc, orientation), stop='pressure', pressure=pressure_thres)
+        rospy.sleep(.1)
+        r1, residual_error = self.movement.move_absolute((front_loc, orientation), stop='pressure', pressure=pressure_thres)
 
         #if residual_error > MOVEMENT_TOLERANCE or r1 != None: #if this step fails, we move back then return
         #    #self.move_absolute(start_loc, stop='accel')
@@ -197,7 +201,7 @@ class ApplicationBehaviorsDB:
                         #move_back_distance=np.matrix([-.0075,0,0]).T,
                         press_pressure=6000,
                         press_distance=np.matrix([0.01,0,-.15]).T,
-                        visual_change_thres=.023)
+                        visual_change_thres=.016)
 
         elif task_type == 'light_switch_up':
             return ft.partial(self.light_switch, 
@@ -207,7 +211,7 @@ class ApplicationBehaviorsDB:
                         #move_back_distance=np.matrix([-.0075,0,0]).T,
                         press_pressure=6000,
                         press_distance=np.matrix([0.01,0,.15]).T,
-                        visual_change_thres=.023)
+                        visual_change_thres=.016)
 
         elif task_type == 'light_rocker_up':
             return ft.partial(self.light_rocker_push,
@@ -507,7 +511,7 @@ class ApplicationBehaviorsDB:
         start_pose = self.robot.head.pose()
         #pdb.set_trace()
         #self.robot.head.set_pose(np.radians(np.matrix([1.04, -20]).T), 1)
-        self.robot.head.set_pose(np.radians(np.matrix([30., -20]).T), 1)
+        self.robot.head.set_pose(np.radians(np.matrix([-30., -30]).T), 1)
         time.sleep(4)
         for i in range(7):
             before_frame = self.wide_angle_camera_left.get_frame()
@@ -528,6 +532,8 @@ class ApplicationBehaviorsDB:
         config['auto_exposure'] = True
         self.wide_angle_configure.update_configuration(config)
 
+        rospy.loginfo('=======================================')
+        rospy.loginfo('=======================================')
         rospy.loginfo('camera difference %.4f (thres %.3f)' % (sdiff, threshold))
         if sdiff > threshold:
             rospy.loginfo('difference detected!')
@@ -535,6 +541,8 @@ class ApplicationBehaviorsDB:
         else:
             rospy.loginfo('NO differences detected!')
             return False, f_return
+        rospy.loginfo('=======================================')
+        rospy.loginfo('=======================================')
 
     def light_switch(self, point, 
             point_offset, press_contact_pressure, 
@@ -627,6 +635,18 @@ class ApplicationBehaviorsDB:
         #pdb.set_trace()
         #try:
         self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure_accel', pressure=3000)
+        rospy.sleep(.1)
+        self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure_accel', pressure=3000)
+        rospy.sleep(.1)
+        self.behaviors.movement.move_absolute(self.start_location_light_switch, stop='pressure_accel', pressure=3000)
+        start_dist_error = np.linalg.norm(self.start_location_light_switch[0] - self.robot.left.pose_cartesian_tf()[0])
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        print 'dist error', start_dist_error
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        if not ((start_dist_error > .1) and (start_dist_error < .15)):
+            pdb.set_trace()
         #except lm.RobotSafetyError, e:
         #    rospy.loginfo('robot safety error %s' % str(e))
 

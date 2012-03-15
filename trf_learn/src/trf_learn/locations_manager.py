@@ -104,6 +104,9 @@ class LocationsManager:
         self.image_pubs = {}
 
         for k in self.data.keys():
+            print '=========================================='
+            print 'Training for', k
+            print '=========================================='
             self.train(k)
             self.image_pubs[k] = r3d.ImagePublisher(k.replace(':', '_'))
 
