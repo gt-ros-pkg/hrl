@@ -7,8 +7,9 @@
     <include file="$(find pr2_2dnav)/pr2_2dnav.launch"/>
 
     <!-- MAPS -->
+    <!-- <include file="$(find gt_pr2)/aware_map.launch"/> -->
     <group if="$(arg aware_home)">
-    	<include file="$(find gt_pr2)/aware_map.launch"/>
+        <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/aware_home_025.yaml"/>
     </group>
 
     <group if="$(arg wg)">
@@ -22,7 +23,6 @@
 
     <include file="$(find hai_sandbox)/launch/right_arm_collision_free_ik.launch"/>
     <include file="$(find hai_sandbox)/launch/left_arm_collision_free_ik.launch"/>
-
     <include file="$(find pr2_gripper_sensor_action)/launch/pr2_gripper_sensor_actions.launch"/>
 
     <node ns="prosilica" pkg="image_proc" type="image_proc" respawn="true" name="prosilica_image_proc"/>
@@ -31,7 +31,7 @@
           args="/narrow_stereo_textured/narrow_stereo_textured_proc $(find trf_learn)/launch/narrow_stereo_manip.yaml"/>
 
     <!-- Move Base -->
-    <!-- <node pkg="hrl_pr2_lib" type="move_base_server.py" name="move_base_server"/> -->
+    <node pkg="hrl_pr2_lib" type="move_base_server.py" name="move_base_server"/>
 
     <node pkg="collider" type="collider_node" name="collider_node" respawn="true" output="screen">
        <param name="fixed_frame" type="string" value="base_link" />
@@ -52,5 +52,7 @@
        <!-- self filtering links -->
        <rosparam command="load" file="$(find pr2_arm_navigation_perception)/config/self_filter_right_left.yaml" />
     </node>
+
+
 
 </launch>
