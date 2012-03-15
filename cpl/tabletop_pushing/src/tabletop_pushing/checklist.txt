@@ -1,6 +1,0 @@
-* Set Gains Correctly
-hrl_pr2_gains/change_gains_push.py
-* Launch Kinect
-* Launch reactive
-* Launch perception
-* run tabletop_push_node

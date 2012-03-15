@@ -1,4 +1,0 @@
-sensor_msgs/Image clutter_labels
-sensor_msgs/Image raw_img
----
-sensor_msgs/Image smooth_clutter_labels

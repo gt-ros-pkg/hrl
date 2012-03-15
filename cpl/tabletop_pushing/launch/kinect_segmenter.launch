@@ -1,7 +1,0 @@
-<launch>
-  <node name="tabletop_segmenter" pkg="tabletop_pushing" type="tabletop_segmenter_node" respawn="false" output="screen">
-    <param name="point_cloud_topic" value="/kinect_head/rgb/points" type="string"/>
-    <param name="use_point_cloud_2" value="true" type="bool"/>
-  </node>
-
-</launch>

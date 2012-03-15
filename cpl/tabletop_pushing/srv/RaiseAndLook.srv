@@ -1,6 +1,0 @@
-geometry_msgs/PoseStamped table_centroid
-bool point_head_only
-bool init_arms
-string camera_frame
----
-bool head_succeeded

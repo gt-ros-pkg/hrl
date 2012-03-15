@@ -1,9 +1,0 @@
-geometry_msgs/PointStamped start_point
-bool left_arm
-bool right_arm
-float64 wrist_yaw
-float64 desired_push_dist
-bool arm_init
-bool arm_reset
----
-float64 dist_pushed

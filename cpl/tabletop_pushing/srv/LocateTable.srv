@@ -1,4 +1,0 @@
-bool recalculate
----
-geometry_msgs/PoseStamped table_centroid
-bool found_table

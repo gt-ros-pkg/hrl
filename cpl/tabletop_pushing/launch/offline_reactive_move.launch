@@ -1,8 +1,0 @@
-<launch>
-  <param name="/use_sim_time" value="true" />
-  <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch"/>
-  <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch"/>
-  <!-- <node pkg="hrl_pr2_lib" type="collision_monitor.py" name="collision_monitor_left" args="l"/> -->
-  <!-- <node pkg="hrl_pr2_lib" type="collision_monitor.py" name="collision_monitor_right" args="r"/> -->
-  <!-- <include file="$(find pr2_gripper_sensor_action)/launch/pr2_gripper_sensor_actions.launch"/> -->
-</launch>

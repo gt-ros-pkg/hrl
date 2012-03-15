@@ -1,6 +1,0 @@
-bool initialize
-bool analyze_previous
-float64 push_angle
----
-tabletop_pushing/PushVector push
-bool no_push

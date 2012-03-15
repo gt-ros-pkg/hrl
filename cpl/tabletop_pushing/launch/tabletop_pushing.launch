@@ -1,6 +1,0 @@
-<launch>
-    <node pkg="tabletop_pushing" type="tabletop_push_node.py" name="tabletop_push_node" output="screen">
-      <param name="collision_aware_ik" type="int" value="0"/>
-      <param name="torso_z_offset" type="double" value="0.2"/>
-    </node>
-</launch>
