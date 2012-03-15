@@ -52,9 +52,12 @@ import trf_learn.recognize_3d as r3d
 import trf_learn.application_behaviors as ab
 import trf_learn.locations_manager as lcm
 
+
+
 class TaskRelevantLearningBehaviors:
 
     def __init__(self, app_behaviors, tf_listener, optical_frame):
+        self.mode_click = 'init'
         #Import few fuctions from app_behaviors to keep interface clean
         self.look_at = app_behaviors.look_at
         self.manipulation_posture = app_behaviors.manipulation_posture
@@ -85,12 +88,22 @@ class TaskRelevantLearningBehaviors:
     def click_cb(self, point_bl):
         if point_bl!= None:
             print 'Got point', point_bl.T
-            self.init_task(point_bl)
+
+            if self.mode_click == 'init':
+                self.init_task(point_bl)
+
+            if self.mode_click == 'update_point':
+                self.update_point(point_bl)
 
 
     def run(self, mode, save, user_study):
         r = rospy.Rate(10)
         rospy.loginfo('Ready.')
+
+        if mode == 'update_point':
+            self.mode_click = 'update_point'
+            rospy.loginfo('UPDATING POINT')
+
         #self.init_task(np.matrix([[ 0.94070742, -0.23445448,  1.14915097]]).T)
         while not rospy.is_shutdown():
             r.sleep()
@@ -110,6 +123,16 @@ class TaskRelevantLearningBehaviors:
     #######################################################################################
     # Utility function
     #######################################################################################
+    def update_point(self, point_bl):
+        tasks = self.locations_man.data.keys()
+        for i, k in enumerate(tasks):
+            print i, k
+        selected_idx = int(raw_input("Select an action to update point location\n"))
+        task_id = tasks[selected_idx]
+        map_T_base_link = tfu.transform('map', 'base_link', self.tf_listener)
+        point_map = tfu.transform_points(map_T_base_link, point_bl)
+        self.locations_man.set_center(task_id, point_map)
+        self.locations_man.save_database()
 
     def update_base(self):
         tasks = self.locations_man.data.keys()
@@ -271,6 +294,7 @@ class TaskRelevantLearningBehaviors:
         converged = False
         indices_added = []
         reset_times = []
+        task_name = task_id.replace('_', ' ')
 
         #while not converged or (stop_fun != None and not stop_fun(np.matrix(labels))):
         while True:# and (stop_fun != None and not stop_fun(np.matrix(labels))):
@@ -355,23 +379,29 @@ class TaskRelevantLearningBehaviors:
                         #    success = False
                         #rospy.loginfo('as %s' % str(success))
                     else:
+                        self.robot.sound.say('executing ' +  task_name)
+                        pstart_0 = self.robot.left.pose_cartesian_tf()
                         success, _, undo_point_bl = behavior(kdict['points3d'][:, selected_idx])
+                        #self.did_end_effector_move(pstart)
                 else:
+                    self.robot.sound.say('executing ' +  task_name)
+                    pstart_0 = self.robot.left.pose_cartesian_tf()
                     success, _ , undo_point_bl = behavior(kdict['points3d'][:, selected_idx])
+                    #self.did_end_effector_move(pstart)
             #self.robot.projector.set(True)
 
             if success:
                 color = [0,255,0]
                 label = r3d.POSITIVE
                 rospy.loginfo('=============================================')
-                rospy.loginfo('>> behavior successful')
+                rospy.loginfo('>> %s successful' % task_id)
                 rospy.loginfo('=============================================')
                 self.robot.sound.say('action succeeded')
             else:
                 label = r3d.NEGATIVE
                 color = [0,0,255]
                 rospy.loginfo('=============================================')
-                rospy.loginfo('>> behavior NOT successful')
+                rospy.loginfo('>> %s NOT successful' % task_id)
                 rospy.loginfo('=============================================')
                 self.robot.sound.say('action failed')
 
@@ -533,7 +563,8 @@ class TaskRelevantLearningBehaviors:
                     locs2d_indices = np.where(False == np.sum(np.isnan(locs2d), 0))[1].A1
                     print locs2d[:, locs2d_indices]
                     loc2d_max, density_image = r3d.find_max_in_density(locs2d[:, locs2d_indices])
-                    cv.SaveImage("execute.png", 255 * (np.rot90(density_image)/np.max(density_image)))
+                    cv.SaveImage("execute.png", 
+                            cv.fromarray(255 * (np.rot90(density_image)/np.max(density_image))))
                     dists = ut.norm(kdict['points2d'] - loc2d_max)
                     selected_idx = np.argmin(dists)
                     if not first_time:
@@ -928,6 +959,18 @@ class TaskRelevantLearningBehaviors:
         rospy.loginfo('Done initializing new location!')
         self.driving_posture(task_type)
 
+    def did_end_effector_move(self, p_t0):
+        #pdb.set_trace()
+        p0 = p_t0[0]
+        p1 = self.robot.left.pose_cartesian_tf()[0]
+        d =  np.linalg.norm(p1 - p0)
+        if d < .05:
+            self.robot.sound.say('failed to move')
+            pdb.set_trace()
+            return False
+        else:
+            return True
+
     ##
     # Practice phase
     def practice_task(self):
@@ -975,6 +1018,7 @@ class TaskRelevantLearningBehaviors:
         point_map = self.locations_man.data[tid]['center']
         task_type = self.locations_man.data[tid]['task']
         points_added_history = []
+        #pdb.set_trace()
 
         unexplored_locs  = np.where(self.locations_man.data[tid]['practice_locations_history'] == 0)[1]
         unconverged_locs = np.where(self.locations_man.data[tid]['practice_locations_convergence'] == 0)[1]
@@ -1000,6 +1044,8 @@ class TaskRelevantLearningBehaviors:
             rospy.loginfo("WARNING: no unexplored or unconverged location")
             pidx = 3
             self.locations_man.data[tid]['practice_locations_convergence'][0, pidx] = 0
+
+        #pdb.set_trace()
 
         #Commence practice!
         while True: #%not converged:
@@ -1308,6 +1354,7 @@ def launch():
     p.add_option("-p", "--practice", action="store_true", default=False)
     p.add_option("-e", "--execute", action="store_true", default=False)
     p.add_option("-b", "--base", action="store_true", default=False)
+    p.add_option("-q", "--update_point", action="store_true", default=False)
     p.add_option("-s", "--static", action="store_true", default=False)
     p.add_option("-i", "--init", action="store_true", default=False)
     p.add_option("-t", "--test", action="store_true", default=False)
@@ -1318,7 +1365,7 @@ def launch():
         test_display()
         return
 
-    if opt.practice or opt.execute or opt.init or opt.base:
+    if opt.practice or opt.execute or opt.init or opt.base or opt.update_point:
         rospy.init_node('trf_learn', anonymous=True)
         optical_frame = 'high_def_optical_frame'
         tf_listener = tf.TransformListener()
@@ -1335,6 +1382,8 @@ def launch():
             mode = 'init'
         if opt.base:
             mode = 'update_base'
+        if opt.update_point:
+            mode = 'update_point'
 
         rospy.loginfo('Using mode %s' % mode)
         learn_behaviors.run(mode, not opt.static, opt.user_study)
