@@ -34,7 +34,7 @@ HOLD_ACTIVITY_THRESH = 3.0
 HOLD_MAG_THRESH = 10.0
 LATITUDE_STEP = 0.12
 LOCAL_VELOCITY = 0.0025
-LONGITUDE_STEP = 0.03
+LONGITUDE_STEP = 0.06
 RETREAT_HEIGHT = 1.65
 SAFETY_RETREAT_HEIGHT = 1.9
 SAFETY_RETREAT_VELOCITY = 0.0500
@@ -63,6 +63,24 @@ class ForceCollisionMonitor(smach.State):
                 return 'preempted'
             rospy.sleep(0.01)
         return 'aborted'
+############# Begin Concurrent Listeners (listening to interface for publications)
+
+class WaitState(smach.State):
+    def __init__(self, duration):
+        smach.State.__init__(self, outcomes=['succeeded', 'preempted', 'aborted'])
+        self.duration = duration
+
+    def execute(self, userdata):
+        start_time = rospy.get_time()
+        while not rospy.is_shutdown():
+            if rospy.get_time() - start_time >= self.duration:
+                return 'succeeded'
+            if self.preempt_requested():
+                self.service_preempt()
+                return 'preempted'
+            rospy.sleep(0.01)
+        return 'aborted'
+
 ############# Begin Concurrent Listeners (listening to interface for publications)
 
 def build_cc_listeners(prefix):
@@ -358,6 +376,11 @@ def build_sm():
                             'ELL_RETREAT_GLOBAL',
                             smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
                                 goal_cb=partial(get_ell_move_height, RETREAT_HEIGHT, APPROACH_VELOCITY)),
+                            transitions={'succeeded' : 'ELL_MOVE_GLOBAL_WAIT'})
+
+                        smach.StateMachine.add(
+                            'ELL_MOVE_GLOBAL_WAIT', 
+                            WaitState(0.3),
                             transitions={'succeeded' : 'ELL_MOVE_GLOBAL'})
 
                         smach.StateMachine.add(
@@ -365,6 +388,11 @@ def build_sm():
                             smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
                                 goal_cb=ell_move_global_goal_cb,
                                 input_keys=['goal_pose']),
+                            transitions={'succeeded' : 'ELL_APPROACH_GLOBAL_WAIT'})
+
+                        smach.StateMachine.add(
+                            'ELL_APPROACH_GLOBAL_WAIT', 
+                            WaitState(0.3),
                             transitions={'succeeded' : 'ELL_APPROACH_GLOBAL'})
 
                         smach.StateMachine.add(

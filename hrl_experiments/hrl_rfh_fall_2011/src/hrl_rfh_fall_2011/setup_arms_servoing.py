@@ -28,6 +28,7 @@ from kelsey_sandbox.srv import TrajectoryPlay, TrajectoryPlayRequest, Trajectory
 class SetupArmsServoing():
     def __init__(self):
         self.traj_playback = rospy.ServiceProxy('/trajectory_playback', TrajectoryPlay)
+        self.ctrl_switcher = ControllerSwitcher()
         rospy.loginfo("[setup_arms_servoing] SetupArmsServoing ready.")
         self.lock = Lock()
 
@@ -38,12 +39,12 @@ class SetupArmsServoing():
         traj = TrajectoryPlayRequest()
         traj.mode = traj.SETUP_AND_TRAJ
         traj.reverse = True
-        traj.setup_velocity = 0.1
+        traj.setup_velocity = 0.3
         traj.traj_rate_mult = 0.8
 
         l_traj = copy.copy(traj)
         l_traj.filepath = "$(find hrl_rfh_fall_2011)/data/l_arm_servo_setup.pkl"
-        l_traj.blocking = False
+        l_traj.blocking = True
 
         r_traj = copy.copy(traj)
         r_traj.filepath = "$(find hrl_rfh_fall_2011)/data/r_arm_servo_setup.pkl"
@@ -51,6 +52,9 @@ class SetupArmsServoing():
 
         self.traj_playback(l_traj)
         self.traj_playback(r_traj)
+    
+        self.ctrl_switcher.carefree_switch('l', '%s_arm_controller')
+        self.ctrl_switcher.carefree_switch('r', '%s_arm_controller')
 
         self.lock.release()
         ############################################################
