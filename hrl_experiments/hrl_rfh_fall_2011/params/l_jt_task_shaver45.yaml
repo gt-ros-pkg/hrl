@@ -2,13 +2,13 @@ l_cart_jt_task:
   type: pr2_manipulation_controllers/JTTaskController
   root_name: torso_lift_link
   tip_name: l_gripper_shaver45_frame
-  k_posture: 10.0
+  k_posture: 3.0
   jacobian_inverse_damping: 0.01
   pose_command_filter: 0.01
   cart_gains:
     trans:
-      p: 800.0
-      d: 15.0
+      p: 600.0
+      d: 8.0
     rot:
       p: 80.0
       d: 1.2
