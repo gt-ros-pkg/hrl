@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import numpy as np
+import sys
 from collections import deque
 
 import roslib
@@ -287,7 +288,11 @@ class PR2VisualServoAR(object):
 
 def main():
     rospy.init_node("pr2_viz_servo")
-    viz_servo = PR2VisualServoAR("/r_pr2_ar_pose_marker")
+    assert(sys.argv[1] in ['r', 'l'])
+    if sys.argv[1] == 'r':
+        viz_servo = PR2VisualServoAR("/r_pr2_ar_pose_marker")
+    else:
+        viz_servo = PR2VisualServoAR("/l_pr2_ar_pose_marker")
     if False:
         viz_servo.save_ar_goal()
     elif False:
