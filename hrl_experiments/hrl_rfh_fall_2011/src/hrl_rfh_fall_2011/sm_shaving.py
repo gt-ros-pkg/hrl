@@ -1,6 +1,8 @@
 #!/usr/bin/python
 
 import numpy as np
+import copy
+from functools import partial
 
 import roslib
 roslib.load_manifest('hrl_rfh_fall_2011')
@@ -206,30 +208,36 @@ def build_sm():
 
                     return sm_coll_detect_state
 
-                def get_ell_move_local(delta_lat, delta_lon, delta_hei, gripper_rot):
+                def get_ell_move_local(delta_lat, delta_lon, delta_hei, userdata, default_goal):
                     goal = EllipsoidMoveGoal()
                     goal.change_latitude = delta_lat
                     goal.change_longitude = delta_lon
                     goal.change_height = delta_hei
-                    goal.gripper_rot = gripper_rot
                     goal.velocity = LOCAL_VELOCITY
-                    return smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, goal=goal)
+                    if rospy.get_param("/shaving_side") == 'r':
+                        goal.gripper_rot = np.pi
+                    else:
+                        goal.gripper_rot = 0.
+                    return goal
                 
                 
-                def get_ell_move_height(height, velocity, gripper_rot):
+                def get_ell_move_height(height, velocity, userdata, default_goal):
                     goal = EllipsoidMoveGoal()
                     goal.change_height = height
                     goal.absolute_height = True
-                    goal.gripper_rot = gripper_rot
                     goal.velocity = velocity
-                    return smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, goal=goal)
-
+                    if rospy.get_param("/shaving_side") == 'r':
+                        goal.gripper_rot = np.pi
+                    else:
+                        goal.gripper_rot = 0.
+                    return goal 
 
                 smach.StateMachine.add(
                    'ELL_MOVE_RESET',
                     wrap_state_force_detection(
                             'ELL_MOVE_RESET_ACT',
-                            get_ell_move_local(0, 0, 0, GRIPPER_ROT),
+                            smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                                 goal_cb=partial(get_ell_move_local, 0, 0, 0)),
                             FORCE_THRESH,
                             outcomes=['succeeded','preempted','aborted']),
                     transitions={'succeeded' : 'succeeded',
@@ -239,7 +247,8 @@ def build_sm():
                     'ELL_MOVE_UP',
                     wrap_state_force_detection(
                         'ELL_MOVE_UP',
-                        get_ell_move_local(-LATITUDE_STEP, 0, 0, GRIPPER_ROT),
+                        smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                             goal_cb=partial(get_ell_move_local, -LATITUDE_STEP, 0, 0)),
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
                     transitions={'succeeded' : 'FT_HOLD',
@@ -249,7 +258,8 @@ def build_sm():
                     'ELL_MOVE_LEFT',
                     wrap_state_force_detection(
                         'ELL_MOVE_LEFT',
-                        get_ell_move_local(0, LONGITUDE_STEP, 0, GRIPPER_ROT),
+                        smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                             goal_cb=partial(get_ell_move_local, 0, LONGITUDE_STEP, 0)),
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
                     transitions={'succeeded' : 'FT_HOLD',
@@ -259,7 +269,8 @@ def build_sm():
                     'ELL_MOVE_DOWN',
                     wrap_state_force_detection(
                         'ELL_MOVE_DOWN',
-                        get_ell_move_local(LATITUDE_STEP, 0, 0, GRIPPER_ROT),
+                        smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                             goal_cb=partial(get_ell_move_local, LATITUDE_STEP, 0, 0)), 
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
                     transitions={'succeeded' : 'FT_HOLD',
@@ -269,7 +280,8 @@ def build_sm():
                     'ELL_MOVE_RIGHT',
                     wrap_state_force_detection(
                         'ELL_MOVE_RIGHT',
-                        get_ell_move_local(0, -LONGITUDE_STEP, 0, GRIPPER_ROT),
+                        smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                             goal_cb=partial(get_ell_move_local, 0, -LONGITUDE_STEP, 0)), 
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
                     transitions={'succeeded' : 'FT_HOLD',
@@ -279,7 +291,8 @@ def build_sm():
                     'ELL_MOVE_OUT',
                     wrap_state_force_detection(
                         'ELL_MOVE_OUT',
-                        get_ell_move_local(0, 0, HEIGHT_STEP, GRIPPER_ROT),
+                        smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                             goal_cb=partial(get_ell_move_local, 0, 0, HEIGHT_STEP)), 
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
                     transitions={'succeeded' : 'FT_HOLD',
@@ -289,7 +302,8 @@ def build_sm():
                     'ELL_MOVE_IN',
                     wrap_state_force_detection(
                         'ELL_MOVE_IN',
-                        get_ell_move_local(0, 0, -HEIGHT_STEP, GRIPPER_ROT),
+                        smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                             goal_cb=partial(get_ell_move_local, 0, 0, -HEIGHT_STEP)), 
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
                     transitions={'succeeded' : 'FT_HOLD',
@@ -298,63 +312,66 @@ def build_sm():
 
                 smach.StateMachine.add(
                     'ELL_RETREAT_FAST',
-                    get_ell_move_height(SAFETY_RETREAT_HEIGHT, SAFETY_RETREAT_VELOCITY, GRIPPER_ROT),
+                    smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                        goal_cb=partial(get_ell_move_height, SAFETY_RETREAT_HEIGHT, SAFETY_RETREAT_VELOCITY)),
                     transitions={'succeeded' : 'succeeded'})
 
                 smach.StateMachine.add(
                     'ELL_RETREAT_SETUP',
-                    get_ell_move_local(0, 0, -0.5, GRIPPER_ROT),
+                    smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                         goal_cb=partial(get_ell_move_local, 0, 0, -0.5)), 
                     transitions={'succeeded' : 'succeeded'})
                                  
 
-                def get_ell_move_spec_height(velocity, gripper_rot):
-                    def goal_cb(userdata, goal_in):
-                        goal = EllipsoidMoveGoal()
-                        goal.change_height = userdata.goal_pose[0][2]
-                        goal.absolute_height = True
-                        goal.gripper_rot = gripper_rot
-                        goal.velocity = velocity
-                        return goal
-
-                    return smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
-                                                       goal_cb=goal_cb,
-                                                       input_keys=['goal_pose'])
+                def ell_move_spec_height_goal_cb(userdata, default_goal):
+                    goal = EllipsoidMoveGoal()
+                    goal.change_height = userdata.goal_pose[0][2]
+                    goal.absolute_height = True
+                    goal.velocity = APPROACH_VELOCITY
+                    if rospy.get_param("/shaving_side") == 'r':
+                        goal.gripper_rot = np.pi
+                    else:
+                        goal.gripper_rot = 0.
+                    return goal
                 
-                def get_ell_move_global(retreat_height, velocity, gripper_rot):
-                    def goal_cb(userdata, goal_in):
-                        goal = EllipsoidMoveGoal()
-                        lat, lon, height = userdata.goal_pose[0]
-                        goal.change_latitude = lat
-                        goal.change_longitude = lon
-                        goal.change_height = retreat_height
-                        goal.gripper_rot = gripper_rot
-                        goal.absolute_latitude = True
-                        goal.absolute_longitude = True
-                        goal.absolute_height = True
-                        goal.velocity = velocity
-                        return goal
+                def ell_move_global_goal_cb(userdata, default_goal):
+                    goal = EllipsoidMoveGoal()
+                    lat, lon, height = userdata.goal_pose[0]
+                    goal.change_latitude = lat
+                    goal.change_longitude = lon
+                    goal.change_height = RETREAT_HEIGHT
+                    goal.absolute_latitude = True
+                    goal.absolute_longitude = True
+                    goal.absolute_height = True
+                    goal.velocity = GLOBAL_VELOCITY
+                    if rospy.get_param("/shaving_side") == 'r':
+                        goal.gripper_rot = np.pi
+                    else:
+                        goal.gripper_rot = 0.
+                    return goal
 
-                    return smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
-                                       goal_cb=goal_cb,
-                                       input_keys=['goal_pose'])
-
-                def get_ell_move_global_full(gripper_rot):
+                def get_ell_move_global_full():
                     sm = smach.StateMachine(outcomes=outcomes_spa, input_keys=['goal_pose'])
 
                     with sm:
                         smach.StateMachine.add(
                             'ELL_RETREAT_GLOBAL',
-                            get_ell_move_height(RETREAT_HEIGHT, APPROACH_VELOCITY, GRIPPER_ROT),
+                            smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                                goal_cb=partial(get_ell_move_height, RETREAT_HEIGHT, APPROACH_VELOCITY)),
                             transitions={'succeeded' : 'ELL_MOVE_GLOBAL'})
 
                         smach.StateMachine.add(
                             'ELL_MOVE_GLOBAL',
-                            get_ell_move_global(RETREAT_HEIGHT, GLOBAL_VELOCITY, GRIPPER_ROT),
+                            smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                                goal_cb=ell_move_global_goal_cb,
+                                input_keys=['goal_pose']),
                             transitions={'succeeded' : 'ELL_APPROACH_GLOBAL'})
 
                         smach.StateMachine.add(
                             'ELL_APPROACH_GLOBAL',
-                            get_ell_move_spec_height(APPROACH_VELOCITY, GRIPPER_ROT))
+                            smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                                goal_cb=ell_move_spec_height_goal_cb,
+                                input_keys=['goal_pose']))
                     return sm
 
 
@@ -362,7 +379,8 @@ def build_sm():
                     'ELL_RETREAT_SLOW',
                     wrap_state_force_detection(
                         'ELL_RETREAT_SLOW',
-                        get_ell_move_height(RETREAT_HEIGHT, SAFETY_RETREAT_VELOCITY, GRIPPER_ROT),
+                        smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                            goal_cb=partial(get_ell_move_height, RETREAT_HEIGHT, SAFETY_RETREAT_VELOCITY)),
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
                     transitions={'succeeded' : 'succeeded',
@@ -372,7 +390,7 @@ def build_sm():
                     'ELL_MOVE_GLOBAL_FULL',
                     wrap_state_force_detection(
                         'ELL_MOVE_GLOBAL_FULL_ACT',
-                        get_ell_move_global_full(GRIPPER_ROT),
+                        get_ell_move_global_full(),
                         FORCE_THRESH,
                         outcomes=outcomes_spa,
                         input_keys=['goal_pose']),
@@ -383,7 +401,8 @@ def build_sm():
                     'ELL_APPROACH',
                     wrap_state_force_detection(
                         'ELL_APPROACH',
-                        get_ell_move_height(SHAVE_HEIGHT, APPROACH_VELOCITY, GRIPPER_ROT),
+                        smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
+                            goal_cb=partial(get_ell_move_height, SHAVE_HEIGHT, APPROACH_VELOCITY)),
                         FORCE_THRESH,
                         outcomes=['succeeded','preempted','aborted']),
                     transitions={'succeeded' : 'FT_HOLD',
