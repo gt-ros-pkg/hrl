@@ -46,7 +46,9 @@ def print_trajectory_stats(ep_traj, traj, t_vals):
         print ep_traj.T[np.argmax(diffs_pos)]
         print traj[np.argmax(diffs_pos)]
 
-SETUP_ANGLES = [0, 0, np.pi/2, -np.pi/2, -np.pi, -np.pi/2, -np.pi/2]
+SETUP_ANGLES_R = [0, 0, np.pi/2, -np.pi/2, -np.pi, -np.pi/2, -np.pi/2]
+SETUP_ANGLES_L = [ 0.24575899,  0.35064596, -0.05039097, -1.87098988, -3.11778445,
+                  -1.33096993, -0.06899168]
 MIN_HEIGHT = 0.2
 
 class EllipsoidController(object):
@@ -146,7 +148,12 @@ class EllipsoidController(object):
             self.action_preempted = True
 
     def execute_trajectory(self, ell_f, gripper_rot, velocity=0.001):
-        self.arm.set_posture(SETUP_ANGLES)
+        shaving_side = rospy.get_param("shaving_side")
+        if shaving_side == "r":
+            self.arm.set_posture(SETUP_ANGLES_R)
+        else:
+            self.arm.set_posture(self.arm.get_joint_angles())
+            #self.arm.set_posture(SETUP_ANGLES_L)
 
         ell_f[1] = np.mod(ell_f[1], 2 * np.pi)
         # don't want to approach singularity
