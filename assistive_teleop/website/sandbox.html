@@ -1134,75 +1134,73 @@ width:100px;
             </td>
           </tr>
         </table>
+        <table class='ar_servo_controls'>
+          <tr>
+            <td>Approach Controls: </td>
+            <td><button id='servo_detect_tag' style="font-size:150%;height:75;width:150" onclick="servo_detect_tag_cb();"> Detect Tag </button></td>
+            <td><button id='servo_approach' style="font-size:150%;height:75;width:150" onclick="servo_approach_cb();"> Approach </button></td>
+            <td><button id='servo_stop' style="font-size:150%;background-color:red;height:75;width:150" onclick="log('Stopping'); servo_preempt();"> Stop </button></td>
+          </tr>
+        </table>
+      <h3> Speech </h3>
+        <table>
+          <tr>
+            <td>
+              <div id=speech_select>  <!--Speak Button and Text Input -->
+                <table>
+                  <tr>
+                    <form action=''>
+                      <td>
+                        <button id="submit_text" type="button">Speak:</button>
+                      </td>
+                      <td>
+                        <input id="txt2say" type="text" style="height:auto;width:105%"/>
+                      </td>
+                    </form>
+                  </tr>
+                  <tr>
+                    <td>Phrases:</td>
+                    <td>
+                      <select onchange="speak($(this).val()); $('#txt2say').val($(this).val())">
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                        <option value="Maybe">Maybe</option>
+                        <option value="OK">Ok</option>
+                        <option value="k">k</option>
+                        <option value="Board Please">Board Please</option>
+                        <option value="I don't know">I Don't Know</option>
+                        <option value="I don't care">I Don't Care</option>
+                        <option value="One Moment">One Moment</option>
+                        <option value="Please">Please</option>
+                        <option value="Thank You">Thank You</option>
+                        <option value="I agree">I agree</option>
+                        <option value="I disagree">I disagree</option>
+                        <option value="A lot">A lot</option>
+                        <option value="A little">A little</option>
+                        <option value="Hello">Hello</option>
+                        <option value="Goodbye">Goodbye</option>
+                      </select>
+                    </td>
+                  </tr>
+                </table>
+              </div>  <!--End Speak Button + Text -->
+            </td>
+          </tr>
+        </table>
     </div><!--End accordion -->
     <table> <!-- Begin Gross Formatting-->
       <tr>
-        <td>
-          <div id=speech_select>  <!--Speak Button and Text Input -->
-            <table>
-              <tr>
-                <form action=''>
-                  <td>
-                    <button id="submit_text" type="button">Speak:</button>
-                  </td>
-                  <td>
-                    <input id="txt2say" type="text" style="height:auto;width:105%"/>
-                  </td>
-                </form>
-              </tr>
-              <tr>
-                <td>Phrases:</td>
-                <td>
-                  <select onchange="speak($(this).val()); $('#txt2say').val($(this).val())">
-                    <option value="Yes">Yes</option>
-                    <option value="No">No</option>
-                    <option value="Maybe">Maybe</option>
-                    <option value="OK">Ok</option>
-                    <option value="k">k</option>
-                    <option value="Board Please">Board Please</option>
-                    <option value="I don't know">I Don't Know</option>
-                    <option value="I don't care">I Don't Care</option>
-                    <option value="One Moment">One Moment</option>
-                    <option value="Please">Please</option>
-                    <option value="Thank You">Thank You</option>
-                    <option value="I agree">I agree</option>
-                    <option value="I disagree">I disagree</option>
-                    <option value="A lot">A lot</option>
-                    <option value="A little">A little</option>
-                    <option value="Hello">Hello</option>
-                    <option value="Goodbye">Goodbye</option>
-                  </select>
-                </td>
-              </tr>
-            </table>
-          </div>  <!--End Speak Button + Text -->
+        <td colspan='4'>
+          <div>
+            <button id="stop" type="button" style="color:red;background-color:gray;font:bold;height:auto;border-style:none;height:30px;width:100%;" onclick="toggle_motors('halt'); $(':button:visible:not(#reset)').fadeTo(0,0.4); $('#reset').show(); log('YOU\'VE STOPPED THE ROBOT! Please click \'REACTIVATE\' to reset.')">STOP ROBOT! </button> 
+          </div>
         </td>
-<td rowspan='4'> <!-- Gross Formatting-->
-</td>
-</tr>
-  <tr>
-    <td colspan=4 align=right>
-      <table class='ar_servo_controls'>
-        <tr>
-          <td>Approach Controls: </td>
-          <td><button id='servo_detect_tag' style="font-size:150%;height:75;width:150" onclick="servo_detect_tag_cb();"> Detect Tag </button></td>
-          <td><button id='servo_approach' style="font-size:150%;height:75;width:150" onclick="servo_approach_cb();"> Approach </button></td>
-          <td><button id='servo_stop' style="font-size:150%;background-color:red;height:75;width:150" onclick="log('Stopping'); servo_preempt();"> Stop </button></td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-<tr><td colspan='4'> <!-- Gross Formating-->
-<!--<div id="console"></div>-->
-</td>
-<td colspan='2'> <!-- Gross Formating-->
-<tr><td colspan='4'>
-  <button id="stop" type="button" style="color:red;background-color:gray;font:bold;height:auto;border-style:none;height:30px;width:100%;" onclick="toggle_motors('halt'); $(':button:visible:not(#reset)').fadeTo(0,0.4); $('#reset').show(); log('YOU\'VE STOPPED THE ROBOT! Please click \'REACTIVATE\' to reset.')">STOP ROBOT! </button> 
-  </td>
-</tr><tr>
-  <td colspan='4'>
-    <button id="reset" type="button" style="color:white;background-color:green;font:bold;height:30px;width:100%" onclick="toggle_motors('reset'); $(':button:visible').fadeTo(0,1); $(this).hide(); log('Operation Resumed.');">REACTIVATE</button>
- </td>
-</tr></table> <!--END Gross Formating-->
-</body>
+      </tr>
+      <tr>
+        <td colspan='4'>
+          <button id="reset" type="button" style="color:white;background-color:green;font:bold;height:30px;width:100%" onclick="toggle_motors('reset'); $(':button:visible').fadeTo(0,1); $(this).hide(); log('Operation Resumed.');">REACTIVATE</button>
+        </td>
+      </tr>
+    </table> <!--END Gross Formating-->
+  </body>
 </html>
