@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import numpy as np
+import functools
 
 import roslib
 roslib.load_manifest('hrl_pr2_arms')
@@ -16,6 +17,11 @@ from costmap_services.python_client import CostmapServices
 from pr2_viz_servo import PR2VisualServoAR
 
 outcomes_spa = ['succeeded','preempted','aborted']
+
+viz_servo_dict = {
+    "r_pr2_ar_pose_marker" : [0.57226345,  0.32838129, -1.15480113],
+    "l_pr2_ar_pose_marker" : [0.57903398,  0.44215034, -0.76362254]}
+#"l_pr2_ar_pose_marker" : [0.59739709,  0.39469539, -0.7088098]}
 
 class ServoStates:
     BEGIN_FIND_TAG = 1
@@ -86,7 +92,7 @@ class LaserCollisionDetection(smach.State):
             r.sleep()
         return 'aborted'
 
-def build_cc_servoing(viz_servo):
+def build_cc_servoing(viz_servos):
     def term_cb(outcome_map):
         return True
     def out_cb(outcome_map):
@@ -103,14 +109,14 @@ def build_cc_servoing(viz_servo):
     cc_servoing = smach.Concurrence(
                             outcomes=outcomes_spa+
                             ['arm_collision', 'laser_collision', 'lost_tag', 'user_preempted'],
-                            input_keys=['goal_ar_pose', 'initial_ar_pose'],
+                            input_keys=['goal_ar_pose', 'initial_ar_pose', 'servo_topic'],
                             default_outcome='aborted',
                             child_termination_cb=term_cb,
                             outcome_cb=out_cb)
     
     with cc_servoing:
         smach.Concurrence.add('SERVOING',
-                              ServoARTagState(viz_servo))
+                              ServoARTagState(viz_servos))
 
         smach.Concurrence.add('ARM_COLLISION_DETECTION',
                               ArmCollisionDetection())
@@ -159,31 +165,63 @@ class PublishState(smach.State):
         return 'succeeded'
 
 class FindARTagState(smach.State):
-    def __init__(self, viz_servo, timeout=6.):
+    def __init__(self, viz_servos, timeout=6.):
         smach.State.__init__(self, 
                              outcomes=['found_tag', 'timeout', 'preempted', 'aborted'],
-                             output_keys=['initial_ar_pose'])
-        self.viz_servo = viz_servo
+                             output_keys=['initial_ar_pose', 'goal_ar_pose', 'servo_topic'])
+        self.viz_servos = viz_servos
         self.timeout = timeout
 
     def execute(self, userdata):
+        # This is just a mess.
+        # Figure this out and rewrite it...
         def check_preempt(event):
             if self.preempt_requested():
                 self.service_preempt()
-                self.viz_servo.request_preempt()
+                for topic in self.viz_servos:
+                    self.viz_servos[topic].request_preempt()
                 
         preempt_timer = rospy.Timer(rospy.Duration(0.1), check_preempt)
-        mean_ar, outcome = self.viz_servo.find_ar_tag(self.timeout)
+        self.outcome_dict = {}
+        def call_find_ar_tag(te, viz_servo, fart_state, topic):
+            mean_ar, outcome = viz_servo.find_ar_tag(self.timeout)
+            self.outcome_dict[topic] = (mean_ar, outcome)
+            if outcome == "found_tag":
+                self.request_preempt()
+        for topic in self.viz_servos:
+            call_find_ar_tag_filled = functools.partial(call_find_ar_tag, 
+                                                        viz_servo=self.viz_servos[topic],
+                                                        fart_state=self,
+                                                        topic=topic)
+            rospy.Timer(rospy.Duration(0.01), call_find_ar_tag_filled, oneshot=True)
+        while not rospy.is_shutdown():
+            if self.preempt_requested() or len(self.outcome_dict) == len(self.viz_servos):
+                break
+            rospy.sleep(0.05)
+        outcome = "timeout"
+        for topic in self.outcome_dict:
+            if self.outcome_dict[topic][1] == "found_tag":
+                userdata['initial_ar_pose'] = self.outcome_dict[topic][0]
+                userdata['goal_ar_pose'] = viz_servo_dict[topic]
+                userdata['servo_topic'] = topic
+                outcome = "found_tag"
+                # FIXME I should be shot for these lines: FIXME
+                if topic == "r_pr2_ar_pose_marker":
+                    rospy.set_param("/shaving_side", 'r')
+                else:
+                    rospy.set_param("/shaving_side", 'l')
+                ##################################################
+                break
+            
         preempt_timer.shutdown()
-        userdata['initial_ar_pose'] = mean_ar
         return outcome
 
 class ServoARTagState(smach.State):
-    def __init__(self, viz_servo):
+    def __init__(self, viz_servos):
         smach.State.__init__(self, 
                              outcomes=['lost_tag'] + outcomes_spa,
-                             input_keys=['goal_ar_pose', 'initial_ar_pose'])
-        self.viz_servo = viz_servo
+                             input_keys=['goal_ar_pose', 'initial_ar_pose', 'servo_topic'])
+        self.viz_servos = viz_servos
 
     def execute(self, userdata):
         if 'initial_ar_pose' in userdata:
@@ -192,21 +230,25 @@ class ServoARTagState(smach.State):
             rospy.logerr("Initial AR pose should be in userdata")
             initial_ar_pose = None
 
+        servo_topic = userdata['servo_topic']
         def check_preempt(event):
             if self.preempt_requested():
                 self.service_preempt()
-                self.viz_servo.request_preempt()
+                self.viz_servos[servo_topic].request_preempt()
                 
         preempt_timer = rospy.Timer(rospy.Duration(0.1), check_preempt)
-        outcome = self.viz_servo.servo_to_tag(pose_goal=userdata.goal_ar_pose,
-                                              initial_ar_pose=initial_ar_pose)
+        self.viz_servos[servo_topic].preempt_requested = False
+        outcome = self.viz_servos[servo_topic].servo_to_tag(pose_goal=userdata.goal_ar_pose,
+                                                            initial_ar_pose=initial_ar_pose)
         preempt_timer.shutdown()
         return outcome
 
 def build_full_sm():
     find_tag_timeout = 6.
 
-    viz_servo = PR2VisualServoAR("r_pr2_ar_pose_marker")
+    viz_servos = {}
+    for viz_servo_topic in viz_servo_dict:
+        viz_servos[viz_servo_topic] = PR2VisualServoAR(viz_servo_topic)
 
     sm_pr2_servoing = smach.StateMachine(outcomes=outcomes_spa,
                                          input_keys=['goal_ar_pose', 'initial_ar_pose'])
@@ -223,7 +265,7 @@ def build_full_sm():
                                transitions={'succeeded' : 'FIND_AR_TAG'})
 
         smach.StateMachine.add('FIND_AR_TAG',
-                               FindARTagState(viz_servo, timeout=find_tag_timeout),
+                               FindARTagState(viz_servos, timeout=find_tag_timeout),
                                transitions={'found_tag' : 'FOUND_TAG',
                                             'timeout' : 'TIMEOUT_FIND_TAG'})
 
@@ -248,7 +290,7 @@ def build_full_sm():
                                transitions={'succeeded' : 'CC_SERVOING'})
 
         smach.StateMachine.add('CC_SERVOING', 
-                               build_cc_servoing(viz_servo),
+                               build_cc_servoing(viz_servos),
                                transitions={'arm_collision' : 'ARM_COLLISION',
                                             'laser_collision' : 'LASER_COLLISION',
                                             'user_preempted' : 'USER_PREEMPT',

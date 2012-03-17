@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import numpy as np
+import sys
 from collections import deque
 
 import roslib
@@ -202,7 +203,7 @@ class PR2VisualServoAR(object):
             r.sleep()
 
     def servo_to_tag(self, pose_goal, goal_error=[0.03, 0.03, 0.1], initial_ar_pose=None):
-        lost_tag_thresh = 1.0 #0.4
+        lost_tag_thresh = 0.6 #0.4
 
         # TODO REMOVE
         err_pub = rospy.Publisher("servo_err", Float32MultiArray)
@@ -222,8 +223,8 @@ class PR2VisualServoAR(object):
             kf_y.update(ar_err[1])
             kf_r.update(ar_err[2])
             
-        pid_x = PIDController(k_p=0.5, rate=rate, saturation=0.06)
-        pid_y = PIDController(k_p=0.5, rate=rate, saturation=0.06)
+        pid_x = PIDController(k_p=0.5, rate=rate, saturation=0.05)
+        pid_y = PIDController(k_p=0.5, rate=rate, saturation=0.05)
         pid_r = PIDController(k_p=0.5, rate=rate, saturation=0.08)
         r = rospy.Rate(rate)
         while True:
@@ -259,7 +260,8 @@ class PR2VisualServoAR(object):
                 print "Noise:", x_unreli, y_unreli, r_unreli
                 # TODO REMOVE
                 ma = Float32MultiArray()
-                ma.data = [x_filt_err[0,0], x_filt_err[1,0], ar_err[0], x_unreli]
+                ma.data = [x_filt_err[0,0], x_filt_err[1,0], ar_err[0], 
+                           x_unreli, y_unreli, r_unreli]
                 err_pub.publish(ma)
 
                 print "xerr"
@@ -287,7 +289,11 @@ class PR2VisualServoAR(object):
 
 def main():
     rospy.init_node("pr2_viz_servo")
-    viz_servo = PR2VisualServoAR("/r_pr2_ar_pose_marker")
+    assert(sys.argv[1] in ['r', 'l'])
+    if sys.argv[1] == 'r':
+        viz_servo = PR2VisualServoAR("/r_pr2_ar_pose_marker")
+    else:
+        viz_servo = PR2VisualServoAR("/l_pr2_ar_pose_marker")
     if False:
         viz_servo.save_ar_goal()
     elif False:

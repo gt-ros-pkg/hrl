@@ -3,8 +3,6 @@
     <include file="$(find kelsey_sandbox)/launch/pr2_ar_servo.launch" />
     <node pkg="hrl_rfh_fall_2011" name="pc_snapshotter" type="pc_snapshotter" 
           output="screen" args="/kinect_head/rgb/points" />
-    <node pkg="kelsey_sandbox" name="sm_pr2_servoing" type="sm_pr2_servoing.py"
-          output="screen" />
     <node pkg="hrl_rfh_fall_2011" name="sm_shaving" type="sm_shaving.py"
           output="screen" />
     <node pkg="hrl_rfh_fall_2011" name="ellipsoid_controller" type="ellipsoid_controller.py"
@@ -15,11 +13,5 @@
           output="screen" args="-s" />
     <node pkg="kelsey_sandbox" name="arm_pose_move_controller" type="arm_pose_move_controller.py"
           output="screen" args="-v" />
-    <node name="$(anon dynparam)" pkg="dynamic_reconfigure" type="dynparam"
-          args="load /l_forearm_cam $(find hrl_rfh_fall_2011)/data/l_forearm_cam_settings.yaml" />
-    <node name="$(anon dynparam)" pkg="dynamic_reconfigure" type="dynparam"
-          args="load /r_forearm_cam $(find hrl_rfh_fall_2011)/data/r_forearm_cam_settings.yaml" />
-    <!-- <node pkg="kelsey_sandbox" name="servo_prepare" type="servo_prepare.py"
-          output="screen" args="-s" /> -->
 
 </launch>

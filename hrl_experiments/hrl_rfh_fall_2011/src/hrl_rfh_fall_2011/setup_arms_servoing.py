@@ -3,6 +3,7 @@
 import sys
 import numpy as np
 import copy
+from threading import Lock
 
 import roslib
 roslib.load_manifest('hrl_pr2_arms')
@@ -25,28 +26,40 @@ from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from kelsey_sandbox.srv import TrajectoryPlay, TrajectoryPlayRequest, TrajectoryPlayResponse
 
 class SetupArmsServoing():
-        def __init__(self):
-            self.traj_playback = rospy.ServiceProxy('/trajectory_playback', TrajectoryPlay)
-            rospy.loginfo("[setup_arms_servoing] SetupArmsServoing ready.")
+    def __init__(self):
+        self.traj_playback = rospy.ServiceProxy('/trajectory_playback', TrajectoryPlay)
+        self.ctrl_switcher = ControllerSwitcher()
+        rospy.loginfo("[setup_arms_servoing] SetupArmsServoing ready.")
+        self.lock = Lock()
 
-        def run(self, req):
-            traj = TrajectoryPlayRequest()
-            traj.mode = traj.SETUP_AND_TRAJ
-            traj.reverse = True
-            traj.setup_velocity = 0.1
-            traj.traj_rate_mult = 0.8
+    def run(self, req):
+        ############################################################
+        self.lock.acquire(False)
 
-            l_traj = copy.copy(traj)
-            l_traj.filepath = "$(find hrl_rfh_fall_2011)/data/l_arm_servo_setup.pkl"
-            l_traj.blocking = False
+        traj = TrajectoryPlayRequest()
+        traj.mode = traj.SETUP_AND_TRAJ
+        traj.reverse = True
+        traj.setup_velocity = 0.3
+        traj.traj_rate_mult = 0.8
 
-            r_traj = copy.copy(traj)
-            r_traj.filepath = "$(find hrl_rfh_fall_2011)/data/r_arm_servo_setup.pkl"
-            r_traj.blocking = True
+        l_traj = copy.copy(traj)
+        l_traj.filepath = "$(find hrl_rfh_fall_2011)/data/l_arm_servo_setup.pkl"
+        l_traj.blocking = True
 
-            self.traj_playback(l_traj)
-            self.traj_playback(r_traj)
-            return EmptyResponse()
+        r_traj = copy.copy(traj)
+        r_traj.filepath = "$(find hrl_rfh_fall_2011)/data/r_arm_servo_setup.pkl"
+        r_traj.blocking = True
+
+        self.traj_playback(l_traj)
+        self.traj_playback(r_traj)
+    
+        self.ctrl_switcher.carefree_switch('l', '%s_arm_controller')
+        self.ctrl_switcher.carefree_switch('r', '%s_arm_controller')
+
+        self.lock.release()
+        ############################################################
+
+        return EmptyResponse()
 
 def main():
     rospy.init_node("setup_arms_servoing")

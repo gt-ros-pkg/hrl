@@ -5,27 +5,43 @@
 		<param name="marker_width" type="double" value="135.0"/>
 		<param name="marker_center_x" type="double" value="0.0"/>
 		<param name="marker_center_y" type="double" value="0.0"/>
+		<param name="viz_marker_id" type="int" value="1"/>
+		<param name="marker_color_r" type="double" value="0.0"/>
+		<param name="marker_color_g" type="double" value="1.0"/>
+		<param name="marker_color_b" type="double" value="0.0"/>
+		<param name="marker_color_a" type="double" value="1.0"/>
 		<param name="threshold" type="int" value="100"/>
         <remap from="/usb_cam/image_raw" to="/l_forearm_cam/image_rect"/>
         <remap from="/usb_cam/camera_info" to="/l_forearm_cam/camera_info"/>
         <remap from="/ar_pose_marker" to="/r_pr2_ar_pose_marker" />
 	</node>
 
-    <!--
 	<node name="l_ar_pose" pkg="ar_pose" type="ar_single" respawn="false" output="screen">
-		<param name="marker_pattern" type="string" value="$(find ar_pose)/data/4x4/4x4_20.patt"/>
-		<param name="marker_width" type="double" value="126.6"/>
+		<param name="marker_pattern" type="string" value="$(find ar_pose)/data/4x4/4x4_33.patt"/>
+		<param name="marker_width" type="double" value="135.0"/>
 		<param name="marker_center_x" type="double" value="0.0"/>
 		<param name="marker_center_y" type="double" value="0.0"/>
+		<param name="viz_marker_id" type="int" value="2"/>
+		<param name="marker_color_r" type="double" value="0.0"/>
+		<param name="marker_color_g" type="double" value="0.0"/>
+		<param name="marker_color_b" type="double" value="1.0"/>
+		<param name="marker_color_a" type="double" value="1.0"/>
 		<param name="threshold" type="int" value="100"/>
         <remap from="/usb_cam/image_raw" to="/l_forearm_cam/image_rect"/>
         <remap from="/usb_cam/camera_info" to="/l_forearm_cam/camera_info"/>
         <remap from="/ar_pose_marker" to="/l_pr2_ar_pose_marker" />
 	</node>
-    -->
 	
     <node pkg="costmap_services" name="costmap_services" type="costmap_services" 
           respawn="true" output="screen">
       <rosparam file="$(find kelsey_sandbox)/launch/laser_baseonly.yaml" command="load" />
     </node>
+
+    <node pkg="kelsey_sandbox" name="sm_pr2_servoing" type="sm_pr2_servoing.py"
+          output="screen" />
+
+    <node name="$(anon dynparam)" pkg="dynamic_reconfigure" type="dynparam"
+          args="load /l_forearm_cam $(find hrl_rfh_fall_2011)/data/l_forearm_cam_settings.yaml" />
+    <node name="$(anon dynparam)" pkg="dynamic_reconfigure" type="dynparam"
+          args="load /r_forearm_cam $(find hrl_rfh_fall_2011)/data/r_forearm_cam_settings.yaml" />
 </launch>

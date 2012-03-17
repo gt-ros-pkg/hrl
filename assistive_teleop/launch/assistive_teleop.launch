@@ -1,13 +1,14 @@
 <launch>
 
     <include file="$(find pr2_machine)/$(env ROBOT).machine" />
+    <arg name="shaving_board" default="/dev/ttyUSB1" />
 
     <!-- Arduino Control Board for powering Shaver -->
     <node
         name="tool_power_toggle"
         pkg="rosserial_python"
         type="serial_node.py"
-        args="/dev/ttyUSB1"
+        args="$(arg shaving_board)"
         output="screen"/>
   
     <!-- NetFt Sensor-->
