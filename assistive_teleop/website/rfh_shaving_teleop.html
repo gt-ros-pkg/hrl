@@ -660,8 +660,7 @@ function servo_setup_cb(){
     log('Sending command to prep arms for ar-servoing approach');
     node.rosjs.callService('/pr2_ar_servo/arms_setup','[""]',function(msg){
         $('#ar_servoing_setup').hide();
-        $('#ar_servoing_done, .ar_servo_controls').show();
-        $('#servo_approach, #servo_stop').fadeTo(0,0.5);
+        $('#ar_servoing_done, #servo_detect_tag').show();
         set_camera('/r_forearm_cam/image_color_rotated')
         log('USE BUTTONS TO FIND TAG AND PERFORM APPROACH');
         })
@@ -671,12 +670,12 @@ function servoing_done_cb(){
     $('#pc_snapshot').show();
     $('#ar_servoing_done, .ar_servo_controls').hide(); 
     set_camera('/arrow_overlaid')
-    log('Approach Completed. PLACE HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD');
+    log('Approach Completed. ENSURE ROBOT IS LOOKING AT YOUR HEAD, PLACE YOUR HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD');
 };
 
 function servo_detect_tag_cb(){
     node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({'data':true}));
-    log('Searching for ARTag'); 
+    log('Sending command to search for ARTag'); 
 };
 
 function servo_approach_cb(){
@@ -695,7 +694,7 @@ function servo_feedback_cb(msg){
             break
         case 2: 
             text = "AR Tag Found. BEGIN APPROACH.";
-            $('#servo_approach, #servo_stop').fadeTo(0,1);
+            $('#servo_approach, #servo_stop').show().fadeTo(0,1);
             $('#servo_detect_tag').fadeTo(0,0.5);
             set_camera('/arrow_overlaid')
             break
@@ -925,7 +924,7 @@ width:100px;
 	</table>
   </div>  <!--End Shaving Drop-Down -->
   </td></tr>
-      <tr><td><button  class='shave_acts' id="tool_power" type="button" value="-1" onclick="toggle_tool_power()">Start/Stop Tool</button></td></tr>
+      <tr><td><button  class='shave_acts' id="tool_power" type="button" value="-1" onclick="toggle_tool_power()">Start/Stop Razor</button></td></tr>
       <tr>
         <td><button id="rezero_wrench" class='shave_acts' type='button' onclick="rezero_wrench()";>Zero FT Sensor</button>
       </tr>
