@@ -20,7 +20,7 @@ var head_pub;
 var base_pub;
 var scales={head:50,base:50,rarm:50,larm:50,rwrist:50,lwrist:50};
 var arm_joints={right:[],left:[]}
-var bx=by=bz=count_surf_wipe_right=count_surf_wipe_left=force_wipe_count=0;
+var count_surf_wipe_right=count_surf_wipe_left=force_wipe_count=0;
 var img_act = 'looking'
 var norm_appr_left = norm_appr_right = driving = tool_state = false;
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
@@ -361,7 +361,6 @@ function gripper_release(arm){
 };
 
 function teleop_arm() {
-	window.base_pub = window.clearInterval(base_pub);
 	var x,y,z,b9txt,b7txt;
 	if (plane == 'xy'){
         x=0;
@@ -432,7 +431,6 @@ function pub_arm_joints(angles){
 };
 
 function teleop_wrist() {
-	window.base_pub = window.clearInterval(base_pub);
     log('Controlling '+window.arm().toUpperCase()+' Hand');
     $('#slider').unbind("slidestop");
     $('#slider').bind("slidestop", function(event,ui){scales[window.arm()[0]+'wrist'] = $('#slider').slider("value")});
@@ -519,7 +517,6 @@ function pub_head_goal(x,y,z,frame) { //Send 3d point to look at using kinect
 };
 
 function teleop_head() {
-	window.base_pub = window.clearInterval(base_pub);
 	window.head_pub = window.clearInterval(head_pub);
 	log('Controlling Head');
 	$('#slider').unbind("slidestop");
@@ -588,48 +585,27 @@ function pub_Twist(bx,by,bz) {
                     '{"linear":{"x":' + bx + ',"y":' + by + ',"z":0}, "angular":{"x":0,"y":0,"z":' + bz + '}}');
 };
 
-function teleop_base() {
+function start_base_pub(bx,by,bz) {
+	window.base_pub = setInterval("pub_Twist(bx,by,bz)", 50);
+
+function stop_base_pub() {
 	window.base_pub = window.clearInterval(base_pub);
-	window.base_pub = setInterval("pub_Twist(window.bx,window.by,window.bz)", 50);
+};
+
+function teleop_base() {
 	log("Controlling Base");
 	$('#slider').unbind("slidestop");
 	$('#slider').bind("slidestop", function(event,ui){scales.base = $('#slider').slider("value")});
 	$('#slider').show().slider("option", "value", scales.base);
-	
 	$("#tp").unbind().hide();
-/*// Control Mappings for the touchpad for moving the base: Disabled because of occasional 'runaway' behavior, as browser registers a click-and-hold as a drag and drop  of the touchpad image, and so fails to register a mouse-up.
-	$("#tp").mousedown(function(e){
-		window.by -= 0.002*(e.pageX - Math.round(this.width/2) - this.x);
-		window.bx -= 0.002*(e.pageY - Math.round(this.height/2) - this.y);
-	}).mouseout(function(e){window.bx=0; window.by=0}).mouseup(function(e){window.bx=0; window.by=0});;
-*/	
 	$('.bpd').unbind();
-	$('#b9').hide()
-  	$('#b8').show().text("^").mousedown(function(e){// base forward 
-		window.bx = 0.002*scales.base;
-		}).mouseout(function(e){window.bx=0}).mouseup(function(e){window.bx=0});
-		
-	$('#b7').hide()
-	$('#b6').show().text(">").mousedown(function(e){ //base right
-   		window.by = -0.002*scales.base;
-		}).mouseout(function(e){window.by=0}).mouseup(function(e){window.by=0});
-	
-	$('#b5').hide();
-	$('#b4').show().text("<").mousedown(function(e){ //base left
-   		window.by = 0.002*scales.base;
-		}).mouseout(function(e){window.by=0}).mouseup(function(e){window.by=0});
-
-  	$('#b3').show().text("Turn Right").mousedown(function(e){ //base rot right (cw)
-   		window.bz = -0.006*scales.base;
-		}).mouseout(function(e){window.bz=0}).mouseup(function(e){window.bz=0});
-
-	$('#b2').show().text("v").mousedown(function(e){ // base backward
-   		window.bx = -0.002*scales.base;
-		}).mouseout(function(e){window.bx=0}).mouseup(function(e){window.bx=0});
-
-   	$('#b1').show().text("Turn Left").mousedown(function(e){ //base rot left (ccw)
-   		window.bz = 0.006*scales.base;
-		}).mouseout(function(e){window.bz=0}).mouseup(function(e){window.bz=0});
+	$('#b9, #b7, #b5').hide()
+  	$('#b8').show().text("^").mousedown(start_base_pub(0.002*scales.base,0,0)).mouseout(stop_base_pub()).mouseup(stop_base_pub());
+	$('#b6').show().text(">").mousedown(start_base_pub(0,-0.002*scales.bas,0)).mouseout(stop_base_pub()).mouseup(stop_base_pub());
+	$('#b4').show().text("<").mousedown(start_base_pub(0,0.002*scales.base,0).mouseout(stop_base_pub()).mouseup(stop_base_pub());
+  	$('#b3').show().text("Turn Right").mousedown(start_base_pub(0,0,-0.006*scales.base)).mouseout(stop_base_pub()).mouseup(stop_base_pub());
+	$('#b2').show().text("v").mousedown(start_base_pub(-0.002*scales.base,0,0)).mouseout(stop_base_pub()).mouseup(stop_base_pub());
+   	$('#b1').show().text("Turn Left").mousedown(start_base_pub(0,0,0.006*scales.base)).mouseout(stop_base_pub()).mouseup(stop_base_pub());
 };
 
 function speak(text){
