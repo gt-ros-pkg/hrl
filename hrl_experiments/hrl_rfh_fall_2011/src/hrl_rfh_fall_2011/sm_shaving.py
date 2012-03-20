@@ -3,6 +3,7 @@
 import numpy as np
 import copy
 from functools import partial
+import sys
 
 import roslib
 roslib.load_manifest('hrl_rfh_fall_2011')
@@ -466,13 +467,22 @@ def build_sm():
                                                                     'new_global_goal':'CC_LISTENER_BEHAVIOR',
                                                                     'completed':'CC_OUTER_LISTENER'})
 
- #   sis = smach_ros.IntrospectionServer('shaving_sis', sm_top, 'SM_SHAVING')
-#  sis.start() 
+    return sm_top
 
-    outcome = sm_top.execute()
-#   sis.stop()
+def main():
+    rospy.init_node('shaving_behavior_sm_node')
+
+    if len(sys.argv) >= 2 and sys.argv[1] == '-d':
+        sm_top = build_sm()
+        sis = smach_ros.IntrospectionServer('shaving_sis', sm_top, 'SM_SHAVING')
+        sis.start() 
+        rospy.spin()
+        sis.stop()
+        return
+    else:
+        sm_top = build_sm()
+        outcome = sm_top.execute()
+        return
 
 if __name__=='__main__':
-    rospy.init_node('shaving_behavior_sm_node')
-    build_sm()
-
+    main()
