@@ -657,7 +657,7 @@ function servo_setup_cb(){
     node.rosjs.callService('/pr2_ar_servo/arms_setup','[""]',function(msg){
         $('#ar_servoing_setup').hide();
         $('#ar_servoing_done, #servo_detect_tag').show();
-        set_camera('/r_forearm_cam/image_color_rotated')
+        set_camera('/l_forearm_cam/image_color_rotated')
         log('USE BUTTONS TO FIND TAG AND PERFORM APPROACH');
         })
 };
@@ -696,7 +696,7 @@ function servo_feedback_cb(msg){
             break
         case 3:
             text = "Unable to Locate AR Tag. ADJUST VIEW AND RETRY.";
-            set_camera('/r_forearm_cam/image_color_rotated')
+            set_camera('/l_forearm_cam/image_color_rotated')
             break
         case 4:
             text = "Servoing"
@@ -723,13 +723,13 @@ function servo_feedback_cb(msg){
             text = "Lost view of AR Tag.  ADJUST AND RE-DETECT."
             $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
-            set_camera('/r_forearm_cam/image_color_rotated')
+            set_camera('/l_forearm_cam/image_color_rotated')
             break
         case 9:
             text = "Servoing Stopped by User. RE-DETECT TAG";
             $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
-            set_camera('/r_forearm_cam/image_color_rotated')
+            set_camera('/l_forearm_cam/image_color_rotated')
             break
     }
     log(text);
