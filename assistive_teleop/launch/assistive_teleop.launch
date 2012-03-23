@@ -10,7 +10,13 @@
         type="serial_node.py"
         args="$(arg shaving_board)"
         output="screen"/>
-  
+
+    <node
+        name="razor_run_stop_monitor"
+        pkg="assistive_teleop"
+        type="razor_runstop.py"
+        output="screen"/>
+
     <!-- NetFt Sensor-->
         <!-- Launch sensor -->
         <include file="$(find hrl_netft)/launch/tool_razor_inline_zeroed.launch" />
