@@ -8,10 +8,13 @@ import roslib.substitution_args
 import rospy
 from geometry_msgs.msg import Vector3Stamped
 
-DEGREES = ['WEAK', 'AVERAGE', 'STRONG']
-ACTIONS = ['WINCE', 'SMILE', 'FROWN', 'LAUGH', 'GLARE', 'NOD', 'SHAKE', 
-            'REQUEST FOR BOARD', 'EYE-ROLL','JOY', 'SUPRISE', 'FEAR', 
-            'ANGER', 'DISGUST', 'SADNESS']
+#DEGREES = ['WEAK', 'AVERAGE', 'STRONG']
+DEGREES = ['AVERAGE']
+#ACTIONS = ['WINCE', 'SMILE', 'FROWN', 'LAUGH', 'GLARE', 'NOD', 'SHAKE', 
+#            'REQUEST FOR BOARD', 'EYE-ROLL','JOY', 'SUPRISE', 'FEAR', 
+#            'ANGER', 'DISGUST', 'SADNESS']
+ACTIONS = ['WINCE', 'NOD', 'SHAKE', 'JOY', 'SUPRISE', 'FEAR', 'ANGER', 
+            'DISGUST', 'SADNESS']
 
 SYMBOLS = ["**"*20, "%%"*20, "^v"*20, '##'*20, '&&'*20, '$$'*20]
 
@@ -33,7 +36,7 @@ class WouseTrainer(object):
         self.csv_writer.writerow(line)
         print "Writing"
 
-    def run(self, run_time=60., switch_period=4.):
+    def run(self, run_time=630., switch_period=3.5):
         end_time = rospy.Time.now() + rospy.Duration(run_time)
         switch_rate = rospy.Rate(1/switch_period)
         while rospy.Time.now()< end_time and not rospy.is_shutdown():
