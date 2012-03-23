@@ -21,15 +21,9 @@ from assistive_teleop.msg import FtHoldAction, FtHoldGoal
 from geometry_msgs.msg import Point, WrenchStamped
 from std_msgs.msg import Int8
 
-RIGHT_SIDE = True
-                
 APPROACH_VELOCITY = 0.0025
 FORCE_THRESH = 3.0
 GLOBAL_VELOCITY = 0.0025
-if RIGHT_SIDE:
-    GRIPPER_ROT = np.pi
-else:
-    GRIPPER_ROT = 0.
 HEIGHT_STEP = 0.17
 HOLD_ACTIVITY_THRESH = 3.0
 HOLD_MAG_THRESH = 10.0
@@ -179,25 +173,6 @@ def build_sm():
                                                       'global_move':'ELL_MOVE_GLOBAL_FULL'},
                                         remapping = {'input':'goal_location',
                                                      'output':'goal_pose'})
-
-#  print "Adding Glocal Input Parser State to SM_BEHAVIOR"
-#                smach.StateMachine.add('GLOBAL_INPUT_PARSER', GlobalInputParser(),
-#                                       transitions = {'shave':'ELL_APPROACH',
-#                                                      'move':'ELL_MOVE_GLOBAL_FULL'},
-#                                        remapping = {'input':'goal_location',
-#                                                     'goal_pose':'goal_pose'})
-                
-#                print "Adding Local Input parser to SM_BEHAVIOR"
-#                smach.StateMachine.add('LOCAL_INPUT_PARSER', LocalInputParser(), 
-#                                       transitions = {'ell_right':'ELL_MOVE_RIGHT',
-#                                                      'ell_left':'ELL_MOVE_LEFT',
-#                                                      'ell_up':'ELL_MOVE_UP',
-#                                                      'ell_down':'ELL_MOVE_DOWN',
-#                                                      'ell_in':'ELL_MOVE_IN',
-#                                                      'ell_out':'ELL_MOVE_OUT'},
-#                                                      'shave':'LILNEAR_APPROACH',
-#                                                      'global_move':'ELL_MOVE_GLOBAL_FULL'
-#                                        remapping = {'input':'goal_location'})
                 
                 def wrap_state_force_detection(state_name, state, force_thresh, outcomes, input_keys=[]):
                     collision_outcomes = ['collision']
@@ -462,10 +437,11 @@ def build_sm():
             smach.Concurrence.add('SM_BEHAVIOR', sm_behavior)
 
         print "Adding CC_LISTENER_BEHAVIOR to SM_TOP"
-        smach.StateMachine.add('CC_LISTENER_BEHAVIOR', cc_listener_behavior, transitions={
-                                                                    'new_local_goal':'CC_LISTENER_BEHAVIOR',
-                                                                    'new_global_goal':'CC_LISTENER_BEHAVIOR',
-                                                                    'completed':'CC_OUTER_LISTENER'})
+        smach.StateMachine.add('CC_LISTENER_BEHAVIOR', cc_listener_behavior, 
+                transitions={
+                    'new_local_goal':'CC_LISTENER_BEHAVIOR',
+                    'new_global_goal':'CC_LISTENER_BEHAVIOR',
+                    'completed':'CC_OUTER_LISTENER'})
 
     return sm_top
 
