@@ -1,3 +1,0 @@
-<launch>
-    <node pkg="hrl_netft" name="netft_gravity_zeroing" type="netft_zeroing.py" args="-l -r -z -p -f $(find hrl_netft)/params/ft_zero_params_razor_inline.yaml" output="screen" />
-</launch>
