@@ -19,7 +19,7 @@
             name="throttle_wt_force_out"
             pkg="topic_tools"
             type="throttle"
-            args="messages /netft_gravity_zeroing/wrench_zeroed 8 /wt_force_out_throttle" />
+            args="messages /netft_gravity_zeroer/wrench_zeroed 8 /wt_force_out_throttle" />
  
     <!-- JTTask Controller load
     <include file="$(find assistive_teleop)/launch/c_jtask_mod.launch" />

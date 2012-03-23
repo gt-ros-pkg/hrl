@@ -1,38 +1,27 @@
 <html>
 <head>
   <title>Teleop Trial</title>
+    <link type="text/css" href="css/rfh_interface.css" rel="stylesheet" />   
     <link type="text/css" href="jqueryui/css/sunny/jquery-ui-1.8.10.custom.css" rel="stylesheet" />   
-    <link type="text/css" href="rfh_interface.css" rel="stylesheet" />   
     <script type="text/javascript" src="jqueryui/js/jquery-1.4.4.min.js"></script> 
     <script type="text/javascript" src="jqueryui/js/jquery-ui-1.8.10.custom.min.js"></script> 
-    <script type="text/javascript" src="json2.js"></script>
-    <script type="text/javascript" src="rosbridge.min.js"></script>
+    <script type="text/javascript" src="js/json2.js"></script>
+    <script type="text/javascript" src="js/rosbridge.min.js"></script>
     <script type="text/javascript" src="ros/ros.js"> </script>
+    <script type="text/javascript" src="js/rfh_teleop.js"> </script>
+    <script type="text/javascript" src="js/rfh_clickable_video.js"> </script>
+    <script type="text/javascript" src="js/rfh_shaving.js"> </script>
 
 <script type="text/javascript">
 function nop(){};
 function json(obj){return JSON.stringify(obj);};
 function log(message){ document.getElementById('console').innerHTML = message.toString();};
+arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
 var ROBOT = 'monty1.hsi.gatech.edu';
-//var ROBOT = 'localhost'
-//var ROBOT = 'prl.willowgarage.com'
-var head_pub;
-var base_pub;
-var scales={head:50,base:50,rarm:50,larm:50,rwrist:50,lwrist:50};
-var arm_joints={right:[],left:[]}
-var count_surf_wipe_right=count_surf_wipe_left=force_wipe_count=0;
-var img_act = 'looking'
-var norm_appr_left = norm_appr_right = driving = tool_state = false;
-arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
-var plane = 'xy';
-var head_state;
-var torso_state;
-var pointing_frame='openni_rgb_optical_frame'
 
 $(function(){
     $(':button').click(log_click);
-	$('#slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
 	$('#force_view').slider({value:0,range:'min',min:0,max:15,step:0.05,orientation:'vertical'}); 
 	$('#force_set').slider({value:1,min:0,max:15,step:0.05,orientation:'vertical'}); 
 	$('#force_set').unbind("slidestop").bind("slidestop", function(event,ui){
@@ -55,23 +44,24 @@ $(function(){
                                                             pub_torso($('#torso_slider').slider("value"))
                                                             });	
 	$('#submit_text').click(function(e){speak($('#txt2say').val())});
-	$("body").find('*').mouseup(function(e){window.bx=0; window.by=0; window.bz=0});
 	$('#slelect_plane').change(function(event,ui){window.plane = $('#select_plane').val()});
 	$('.cont_sel').click(function(e){
                             $('.cont_sel').css('background-color','buttonface');
                             $(this).css('background-color', 'gray')
                             }); 
-    $('.shave_acts').hide()
-    $('.ar_servo_controls').hide();
-	$('#reset, #bpd2, #shave_end, #shave_select').hide(); 
+	$('#reset').hide(); 
 });
 
 function init(){
     init_subscribers();
     init_msgs();
     init_publishers();
+    camera_init();
+    teleop_init();
+    shaving_init();
 	log('Fully Initialized');
 };
+
 
 function init_msgs (){
     //log("Beginning Initialization");
@@ -98,14 +88,6 @@ function init_msgs (){
 };
 
 function init_subscribers() {
-	node.subscribe('/head_traj_controller_state_throttle',
-                    function(msg){
-                        window.head_state = msg.actual;
-                        window.head_joints = msg.joint_names;
-                        //document.getElementById('head_pos_out').innerHTML='Head Position: Left/Right:\ \ ' + 
-                        //    Math.round(-window.head_state.positions[0]*180/Math.PI) + '\ deg.\ \ Up/Down:' + 
-                        //    Math.round(-window.head_state.positions[1]*180/Math.PI) + '\ deg.'
-			        });
 	node.subscribe('/r_gripper_controller_state_throttle',
                     function(msg){
                         $('#rg_slider').show().slider("option", "value", msg.process_value);
@@ -122,25 +104,16 @@ function init_subscribers() {
 	node.subscribe('/wt_log_out', function(msg){log(msg.data.toString())});
 	
 		//Move Arm Pose State
-//    node.subscribe('/r_arm_controller_state_throttle', function(msg){
-//                                       window.arm_joints.right = msg.actual});
-//    node.subscribe('/l_arm_controller_state_throttle', function(msg){
-//                                       window.arm_joints.left = msg.actual});
 	node.subscribe('/wt_force_out_throttle',
                     function(ws){
                        mag = Math.sqrt(Math.pow(ws.wrench.force.x,2) + 
                                        Math.pow(ws.wrench.force.y,2) + 
                                        Math.pow(ws.wrench.force.z,2))
                         $('#force_view').slider("option", "value", mag);
-                       set_ft_bar(Math.min(mag, 15),7.5);
+                       set_ft_bar(Math.min(mag, 15)/15, 0.5);
+                       $('#ft_readout').html('<p>'+mag+' N </p>')
                    });
-	node.subscribe('/ros_switch_state', function(msg){
-                    window.tool_state=msg.data;
-                  });
-	node.subscribe('/sm_selected_pose', function(msg){window.sm_selected_pose = msg.data});
-    node.subscribe('/pr2_ar_servo/state_feedback', function(msg){servo_feedback_cb(msg);});
 };//END sub_state
-
 
 function init_publishers() {
 	//Gripper Publishers
@@ -151,61 +124,12 @@ function init_publishers() {
     node.publish('wt_r_gripper_grab_commands', 'std_msgs/Bool',json({}));
     node.publish('wt_l_gripper_grab_commands', 'std_msgs/Bool',json({}));
 
-    //Arm Publishers
-    node.publish('wt_right_arm_pose_commands','geometry_msgs/Point', json({}));
-    node.publish('wt_left_arm_pose_commands','geometry_msgs/Point', json({}));
-    node.publish('wt_right_arm_angle_commands', 'trajectory_msgs/JointTrajectoryPoint', json({}))
-    node.publish('wt_left_arm_angle_commands', 'trajectory_msgs/JointTrajectoryPoint', json({}))
-    node.publish('wt_lin_move_right','std_msgs/Float32', json({}));
-    node.publish('wt_lin_move_left','std_msgs/Float32', json({}));
-    //node.publish('wt_tuck_arms', 'std_msgs/String', json({}));
    
-    //Image-Click Publishers
-    node.publish('norm_approach_right', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('norm_approach_left', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_contact_approach_right', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_contact_approach_left', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_poke_right_point', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_poke_left_point', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_swipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_swipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_wipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_wipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_rg_right_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_rg_left_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_grasp_right_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_grasp_left_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_surf_wipe_r_points', 'geometry_msgs/Point', json({}));
-    node.publish('wt_surf_wipe_l_points', 'geometry_msgs/Point', json({}));
-   
-    //Wrist Publishers
-    node.publish('wt_adjust_elbow_right','std_msgs/Float32', json({}));
-    node.publish('wt_adjust_elbow_left','std_msgs/Float32', json({}));
-
-    //Head Publishers
-    node.publish('head_nav_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('head_traj_controller/joint_trajectory_action/goal','pr2_controllers_msgs/JointTrajectoryActionGoal', json({}));
-	node.publish('head_traj_controller/point_head_action/goal', 'pr2_controllers_msgs/PointHeadActionGoal', json({}));
-    
     //Assorted Publishers
-    node.publish('base_controller/command', 'geometry_msgs/Twist',json({}));
     node.publish('text_to_say', 'std_msgs/String', json({}));
 	node.publish('torso_controller/position_joint_action/goal','pr2_controllers_msgs/SingleJointPositionActionGoal',json({}));
     node.publish('wt_ft_goal', 'std_msgs/Float32', json({}));
     node.publish('wt_click_log', 'std_msgs/String', json({}));
-    
-    //Shaving Publishers
-    node.publish('wt_shave_step', 'geometry_msgs/Point', json({}));
-    node.publish('wt_shave_location', 'std_msgs/Int8', json({}));
-    node.publish('reg_confirm', 'std_msgs/Bool', json({}));
-    node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({}))
-    node.publish('ros_switch', 'std_msgs/Bool', json({}));
-    node.publish('pr2_ar_servo/arms_setup', 'std_msgs/Bool', json({}));
-    node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({}));
-    node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({}));
-    node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({}));
-    node.publish('netft_gravity_zeroing/rezero_wrench', 'std_msgs/Bool', json({}));
-
 };
 
 function log_click(event){
@@ -217,132 +141,6 @@ function pub_ft_goal(thresh) {
     node.publish('wt_ft_goal', 'std_msgs/Float32', json({}));
 };
 
-function click_position(e) {
-	var posx = 0;
-	var posy = 0;
-	if (!e) var e = window.event;
-	if (e.pageX || e.pageY) 	{
-		posx = e.pageX;
-		posy = e.pageY;
-	}
-	else if (e.clientX || e.clientY) 	{
-		posx = e.clientX + document.body.scrollLeft
-			+ document.documentElement.scrollLeft;
-		posy = e.clientY + document.body.scrollTop
-			+ document.documentElement.scrollTop;
-	}	return [posx,posy]
-};
-
-function get_point(event){
-	var point = click_position(event);
-	click_x = point[0] - document.getElementById('video_container').offsetLeft 
-	click_y = point[1] - document.getElementById('video_container').offsetTop 
-	//log("Clicked on point (x,y) = ("+ click_x.toString() +","+ click_y.toString()+")");
-	return [click_x, click_y]
-};
-
-function image_click(event){
-	var im_pixel = get_point(event);
-	if (window.img_act == 'surf_wipe') {
-    surf_points_out = window.gm_point
-    surf_points_out.x = im_pixel[0]
-    surf_points_out.y = im_pixel[1]
-    log('Surface Wipe');
-        log('Surface Wipe '+window.arm().toUpperCase()+' '+window.count_surf_wipe_right.toString())
-        node.publish('wt_surf_wipe_'+window.arm()+'_points', 'geometry_msgs/Point', json(surf_points_out));
-        if (window.count_surf_wipe == 0){
-           log("Sending start position for surface-aware wiping");
-           window.count_surf_wipe = 1;
-        } else if (window.count_surf_wipe == 1){
-           log("Sending end position for surface-aware wiping");
-           window.count_surf_wipe = 0;
-           $('#img_act_select').val('looking');
-           window.img_act = 'looking';
-        }
-    }else{
-	get_im_3d(im_pixel[0],im_pixel[1])
-	};
-};
-
-function get_im_3d(x,y){
-	window.point_2d.pixel_u = x;
-	window.point_2d.pixel_v = y;
-    log('Sending Pixel_2_3d request, awaiting response');
-	node.rosjs.callService('/pixel_2_3d',
-                            '['+json(window.point_2d.pixel_u)+','+json(window.point_2d.pixel_v)+']',
-                            function(msg){
-                                log('pixel_2_3d response received');
-                                point_3d=msg.pixel3d;
-                                determine_p23d_response(point_3d)
-                            })
-};
-
-function determine_p23d_response(point_3d){
-    switch (window.img_act){
-        case 'looking':
-            log("Sending look to point command");
-            window.head_pub = window.clearInterval(head_pub);
-            pub_head_goal(point_3d.pose.position.x, point_3d.pose.position.y, point_3d.pose.position.z, point_3d.header.frame_id);
-            break
-        case 'head_nav_goal':
-                log("Sending navigation seed position");
-                node.publish('head_nav_goal', 'geometry_msgs/PoseStamped', json(point_3d));
-                break
-        case 'norm_approach':
-            log('Sending '+window.arm().toUpperCase()+ ' Arm Normal Approach Command')
-            node.publish('norm_approach_'+window.arm(), 'geometry_msgs/PoseStamped', json(point_3d));
-            break
-        case 'grasp':
-            log('Sending command to attempt to grasp object with '+window.arm().toUpperCase()+' arm')
-            node.publish('wt_grasp_'+window.arm()+'_goal', 'geometry_msgs/PoseStamped', json(point_3d));
-            break
-        case 'reactive_grasp':
-            log('Sending command to grasp object with reactive grasping with '+window.arm().toUpperCase()+' arm');
-            node.publish('wt_rg_'+window.arm()+'_goal', 'geometry_msgs/PoseStamped', json(point_3d));
-            break
-        case 'wipe':
-            node.publish('wt_wipe_'+window.arm()+'_goals', 'geometry_msgs/PoseStamped', json(point_3d));
-            if (window.force_wipe_count == 0) {
-                window.force_wipe_count = 1;
-                log('Sending start position for force-sensitive wiping')
-            } else if (window.force_wipe_count == 1) {
-                window.force_wipe_count = 0;
-                log('Sending end position for force-sensitive wiping')
-            };    
-            break
-        case 'swipe':
-            log('Sending command to swipe from start to finish with '+window.arm().toUpperCase+' arm')
-            node.publish('wt_swipe_'+window.arm()+'_goals', 'geometry_msgs/PoseStamped', json(point_3d));
-            break
-        case 'poke':
-            log('Sending command to poke point with '+window.arm().toUpperCase()+' arm')
-            node.publish('wt_poke_'+window.arm()+'_point', 'geometry_msgs/PoseStamped', json(point_3d));
-            break
-        case 'contact_approach':
-            log('Sending command to approaching point by moving until contact with '+window.arm().toUpperCase()+' arm')
-            node.publish('wt_contact_approach_'+window.arm(), 'geometry_msgs/PoseStamped', json(point_3d));
-        };
-        if (window.force_wipe_count == 0){
-            $('#img_act_select').val('looking');
-            window.img_act = 'looking';
-        };
-};
-
-
-function pub_lin_move(){
-    node.publish('wt_lin_move_'+window.arm(),'std_msgs/Float32', json({"data":window.lin_move}));
-    log('Sending '+window.arm().toUpperCase()+' Hand Advance/Retreat command');
-};
-
-function control_arm(x,y,z){
-	goal = window.gm_point;
-    goal.x = x;
-    goal.y = y;
-    goal.z = z;
-    log('Sending command to '+window.arm().toUpperCase()+' arm');
-    node.publish('wt_'+window.arm()+'_arm_pose_commands',
-                 'geometry_msgs/Point', json(goal));
-};
 
 function pub_gripper(arm,grpos) {
 	//node.publish('wt_'+arm+'_gripper_commands',
@@ -363,132 +161,6 @@ function gripper_release(arm){
     //            json({'data':true}));
 };
 
-function teleop_arm() {
-	var x,y,z,b9txt,b7txt;
-	if (plane == 'xy'){
-        x=0;
-        y=1;
-        z=2;
-        b9txt='Up';
-        b7txt='Down'
-    } else if (plane == 'yz') {
-        x=2;
-        y=1;
-        z=0;
-        b9txt='Further Away';
-        b7txt='Closer'
-    };
-
-    log('Controlling '+window.arm().toUpperCase()+' Arm');
-    $('#slider').unbind("slidestop");
-    $('#slider').bind("slidestop", function(event,ui){scales[window.arm()[0]+'arm'] = $('#slider').slider("value")});
-    $('#slider').show().slider("option", "value", scales[window.arm()[0]+'arm']);
-
-    $("#tp").unbind().show();
-    $("#tp").click(function(e){
-        y = -(e.pageX - Math.round(this.width/2) - this.x)/500;
-        x = -(e.pageY - Math.round(this.height/2) - this.y)/500;
-        control_arm(x,y,0);	
-    });
-
-    $('.bpd').unbind();
-    $('#b9').show().text(b9txt).click(function(e){
-        control_arm(0,0,scales[window.arm()[0]+'arm']/500);
-    });
-    $('#b8').show().text("^").click(function(e){
-        control_arm(scales[window.arm()[0]+'arm']/500,0,0);
-    });
-    $('#b7').show().text(b7txt).click(function(e){
-        control_arm(0,0,-scales[window.arm()[0]+'arm']/500);
-    });
-    $('#b6').show().text(">").click(function(e){
-        control_arm(0,-scales[window.arm()[0]+'arm']/500,0);
-    });
-    $('#b5').hide()
-    $('#b4').show().text("<").click(function(e){
-        control_arm(0,scales[window.arm()[0]+'arm']/500,0);
-    });
-    $('#b3').show().text("Advance").click(function(e){
-        window.lin_move=0.1*(scales[window.arm()[0]+'arm']/100);
-        pub_lin_move();
-    });
-    $('#b2').show().text("v").click(function(e){
-        control_arm(-scales[window.arm()[0]+'arm']/500,0,0);
-    });
-    $('#b1').show().text("Retreat").click(function(e){
-        window.lin_move=-0.1*(scales[window.arm()[0]+'arm']/100);
-        pub_lin_move();
-    });
-};
-
-function pub_elbow(dir) {
-    dir =  (window.arm()=='right') ? -dir : dir; //Catch reflection, switch value for left side
-    var action = (dir == 1) ? 'Raise ' : 'Lower ';
-    node.publish('wt_adjust_elbow_'+window.arm(),'std_msgs/Float32', json({"data":dir}));
-    log('Sending command to ' + action + window.arm().toUpperCase() + ' elbow')
-};
-
-function pub_arm_joints(angles){
-	//angles.velocities = [];
-    node.publish('wt_'+window.arm()+'_arm_angle_commands', 'trajectory_msgs/JointTrajectoryPoint', json(angles))
-};
-
-function teleop_wrist() {
-    log('Controlling '+window.arm().toUpperCase()+' Hand');
-    $('#slider').unbind("slidestop");
-    $('#slider').bind("slidestop", function(event,ui){scales[window.arm()[0]+'wrist'] = $('#slider').slider("value")});
-    $('#slider').show().slider("option", "value", scales[window.arm()[0]+'wrist']);
-    $('.bpd').unbind();
-
-    $("#tp").unbind().show();
-    $("#tp").click(function(e){
-        x = (e.pageX - Math.round(this.width/2) - this.x);
-        y = (e.pageY - Math.round(this.height/2) - this.y);
-        var joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[4] += x*0.0107;
-        joint_goals.positions[5] -= y*(Math.PI/200);
-        pub_arm_joints(joint_goals)
-    });
-
-    $('#b9').show().text("Hand Roll Right").click(function(e){
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[6] += scales[window.arm()[0]+'wrist']*(Math.PI/200);
-        pub_arm_joints(joint_goals)
-    });
-    $('#b8').show().text("Wrist Flex Out").click(function(e){
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[5] += scales[window.arm()[0]+'wrist']*0.0107;
-        pub_arm_joints(joint_goals)
-    });
-    $('#b7').show().text("Hand Roll Left").click(function(e){
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[6] -= scales[window.arm()[0]+'wrist']*(Math.PI/200);
-        pub_arm_joints(joint_goals)
-    });
-    $('#b6').show().text("Arm Roll Right").click(function(e){
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[4] += scales[window.arm()[0]+'wrist']*(Math.PI/200);
-        pub_arm_joints(joint_goals)
-    });
-    $('#b5').hide()
-    $('#b4').show().text("Arm Roll Left").click(function(e){
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[4] -= scales[window.arm()[0]+'wrist']*0.0107;
-        pub_arm_joints(joint_goals)
-    });
-    $('#b3').show().text("Raise Elbow").click(function(e){
-        pub_elbow(0.01*scales[window.arm()[0]+'wrist'])
-    });
-    $('#b2').show().text("Wrist Flex In").click(function(e){ 
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[5] -= scales[window.arm()[0]+'wrist']*(Math.PI/200);
-        pub_arm_joints(joint_goals)
-    });
-    $('#b1').show().text("Lower Elbow").click(function(e){
-        pub_elbow(-0.01*scales[window.arm()[0]+'wrist'])
-    });
-};
-
 function pub_torso(tz){
     var dir = (tz < window.torso_state) ? 'Lowering' : 'Raising';
     log(dir+" Torso");
@@ -498,354 +170,30 @@ function pub_torso(tz){
                 )
 };
 
-function pub_head_traj(head_traj_goal, dist){ //Send pan/tilt trajectory commands to head
-		if (head_traj_goal.goal.trajectory.points[0].positions[0] < -2.70) {head_traj_goal.goal.trajectory.points[0].positions[0] = -2.70} 
-		if (head_traj_goal.goal.trajectory.points[0].positions[0] > 2.70) {head_traj_goal.goal.trajectory.points[0].positions[0] = 2.70}
-		if (head_traj_goal.goal.trajectory.points[0].positions[1] < -0.5) {head_traj_goal.goal.trajectory.points[0].positions[1] = -0.5}
-		if (head_traj_goal.goal.trajectory.points[0].positions[1] > 1.4) {head_traj_goal.goal.trajectory.points[0].positions[1] = 1.4}
-		head_traj_goal.goal.trajectory.joint_names = window.head_joints;
-		head_traj_goal.goal.trajectory.points[0].velocities = [0, 0];
-		head_traj_goal.goal.trajectory.points[0].time_from_start.secs = Math.max(4*dist, 1);
-  		node.publish('head_traj_controller/joint_trajectory_action/goal', 'pr2_controllers_msgs/JointTrajectoryActionGoal', json(head_traj_goal));
-};
-
-function pub_head_goal(x,y,z,frame) { //Send 3d point to look at using kinect
-	node.publish('head_traj_controller/point_head_action/goal', 'pr2_controllers_msgs/PointHeadActionGoal', json(
-		{  'goal':{'target':{'header':{'frame_id':frame },
-				             'point':{'x':x, 'y':y, 'z':z}},
-                   'pointing_axis':{'x':0, 'y':0, 'z':1},
-                   'pointing_frame':window.pointing_frame,
-                   'max_velocity':0.35}}))
-	//log("Sending command to looking at "+x.toString() +", "+y.toString()+", "+z.toString()+" in "+frame);
-};
-
-function teleop_head() {
-	window.head_pub = window.clearInterval(head_pub);
-	log('Controlling Head');
-	$('#slider').unbind("slidestop");
-	$('#slider').bind("slidestop", function(event,ui){scales.head = $('#slider').slider("value")});
-	$('#slider').show().slider("option", "value", scales.head);
-	
-	$("#tp").unbind().show();
-	$("#tp").click(function(e){
-		window.head_pub = window.clearInterval(head_pub);
-		x = (e.pageX - Math.round(this.width/2) - this.x)/200;
-		y = (e.pageY - Math.round(this.height/2) - this.y)/200;
-   		head_traj_goal = JTAGoal;
-		head_traj_goal.goal.trajectory.points[0] = window.head_state;
-		head_traj_goal.goal.trajectory.points[0].positions[0] -= x;
-		head_traj_goal.goal.trajectory.points[0].positions[1] += y;
-                pub_head_traj(head_traj_goal, Math.sqrt(x*x+y*y));
-	});
-	
-	$('.bpd').unbind();
-	$('#b9, #b7').hide(); 
-	$('#b8').show().text("^").click(function(e){//head up 
-		window.head_pub = window.clearInterval(head_pub);
-   		head_traj_goal = JTAGoal;
-		head_traj_goal.goal.trajectory.points[0] = window.head_state;
-		head_traj_goal.goal.trajectory.points[0].positions[1] -= scales.head/150;
-                pub_head_traj(head_traj_goal, scales.head/150);
-	});
-	$('#b6').show().text(">").click(function(e){ //head right
-		window.head_pub = window.clearInterval(head_pub);
-   		head_traj_goal = JTAGoal;
-		head_traj_goal.goal.trajectory.points[0] = window.head_state;
-		head_traj_goal.goal.trajectory.points[0].positions[0] -= scales.head/150;
-                pub_head_traj(head_traj_goal, scales.head/150);
-	});
-	$('#b5').show().text("_|_").click(function(e){ //center head to (0,0)
-		window.head_pub = window.clearInterval(head_pub);
-        pub_head_goal(0.8, 0.0, -0.25, '/base_footprint');
-	});
-	$('#b4').show().text("<").click(function(e){ //head left
-		window.head_pub = window.clearInterval(head_pub);
-   		head_traj_goal = JTAGoal;
-		head_traj_goal.goal.trajectory.points[0] = window.head_state;
-		head_traj_goal.goal.trajectory.points[0].positions[0] += scales.head/150;
-                pub_head_traj(head_traj_goal, scales.head/150);
-	});
-	$('#b3').show().text("Track Right Hand").click(function(e){
-		window.head_pub = window.clearInterval(head_pub);
-		window.head_pub = window.setInterval("pub_head_goal(0,0,0,'r_gripper_tool_frame');",200);
-	});	
-  	$('#b2').show().text("v").click(function(e){ //head down
-		window.head_pub = window.clearInterval(head_pub);
-   		head_traj_goal = JTAGoal;
-		head_traj_goal.goal.trajectory.points[0] = window.head_state;
-		head_traj_goal.goal.trajectory.points[0].positions[1] += scales.head/150;
-                pub_head_traj(head_traj_goal, scales.head/150);
-	});
-	$('#b1').show().text("Track Left Hand").click(function(e){
-		window.head_pub = window.clearInterval(head_pub);
-		window.head_pub = window.setInterval("pub_head_goal(0,0,0,'l_gripper_tool_frame');",200);
-	});
-};
-
-function pub_Twist(bx,by,bz) {
-          node.publish('base_controller/command', 'geometry_msgs/Twist',
-                    '{"linear":{"x":' + bx + ',"y":' + by + ',"z":0}, "angular":{"x":0,"y":0,"z":' + bz + '}}');
-};
-
-function start_base_pub(bx,by,bz) {
-	window.base_pub = setInterval("pub_Twist("+bx+","+by+","+bz+")", 50);
-};
-
-function stop_base_pub() {
-	window.base_pub = window.clearInterval(base_pub);
-};
-
-function teleop_base() {
-	log("Controlling Base");
-	$('#slider').unbind("slidestop");
-	$('#slider').bind("slidestop", function(event,ui){scales.base = $('#slider').slider("value")});
-	$('#slider').show().slider("option", "value", scales.base);
-	$("#tp").unbind().hide();
-	$('.bpd').unbind();
-	$('#b9, #b7, #b5').hide()
-    $('#b8, #b6, #b4, #b3, #b2, #b1').mouseout(function(e){
-                                        stop_base_pub();
-                                    }).mouseup(function(e){
-                                        stop_base_pub();
-                                    });
-  	$('#b8').show().text("^").mousedown(function(e){
-                                 start_base_pub(0.002*scales.base,0,0);
-    });
-	$('#b6').show().text(">").mousedown(function(e){
-                                 start_base_pub(0,-0.002*scales.base,0);
-    });
-	$('#b4').show().text("<").mousedown(function(e){
-                                start_base_pub(0,0.002*scales.base,0);
-    });
-  	$('#b3').show().text("Turn Right").mousedown(function(e){
-                               start_base_pub(0,0,-0.006*scales.base);
-    });
-	$('#b2').show().text("v").mousedown(function(e){
-                                start_base_pub(-0.002*scales.base,0,0)
-    });
-   	$('#b1').show().text("Turn Left").mousedown(function(e){
-                                start_base_pub(0,0,0.006*scales.base)
-    });
-};
-
 function speak(text){
 		node.publish('wt_speech', 'std_msgs/String', json({'data':text}));
 		log('\"' + text +'\"'); 
 };
 
-//funnction tuck_arms(arm){
-//      if (arm == 'r'){
-//          log('Sending Tuck Right Arm');
-//          node.publish('wt_tuck_arms', 'std_msgs/String', json({'data':'right'}));
-//      } else if (arm == 'l') {
-//          log('Sending Tuck Left Arm');
-//          node.publish('wt_tuck_arms', 'std_msgs/String', json({'data':'left'}));
-//      } else {
-//          log('Sending Tuck Both Arms')
-//          node.publish('wt_tuck_arms', 'std_msgs/String', json({'data':'both'}));
-//      };
-//};
-
 function toggle_motors(command) { //command = 'halt' or 'reset'
 	node.rosjs.callService('/pr2_etherCAT/'+command+'_motors', json(''), nop);
 };
 
-function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+':8080/?topic=/'+cam+'?width=640?height=480'};
-
-function servo_setup_cb(){
-    log('Sending command to prep arms for ar-servoing approach');
-    node.rosjs.callService('/pr2_ar_servo/arms_setup','[""]',function(msg){
-        $('#ar_servoing_setup').hide();
-        $('#ar_servoing_done, #servo_detect_tag').show();
-        set_camera('/l_forearm_cam/image_color_rotated')
-        log('USE BUTTONS TO FIND TAG AND PERFORM APPROACH');
-        })
-};
-
-function servoing_done_cb(){
-    $('#pc_snapshot').show();
-    $('#ar_servoing_done, .ar_servo_controls').hide(); 
-    set_camera('/kinect_head/rbg/image_color')
-    log('Approach Completed. ENSURE ROBOT IS LOOKING AT YOUR HEAD, PLACE YOUR HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD');
-};
-
-function servo_detect_tag_cb(){
-    node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({'data':true}));
-    log('Sending command to search for ARTag'); 
-};
-
-function servo_approach_cb(){
-    node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({'data':true}));
-    log('Approaching Tag'); 
-};
-
-function servo_preempt(){
-    node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({'data':true}));
-};
-
-function servo_feedback_cb(msg){
-    switch(msg.data){
-        case 1:
-            text = "Searching for AR Tag."
-            break
-        case 2: 
-            text = "AR Tag Found. BEGIN APPROACH.";
-            $('#servo_approach, #servo_stop').show().fadeTo(0,1);
-            $('#servo_detect_tag').fadeTo(0,0.5);
-            set_camera('/kinect_head/rbg/image_color')
-            break
-        case 3:
-            text = "Unable to Locate AR Tag. ADJUST VIEW AND RETRY.";
-            set_camera('/l_forearm_cam/image_color_rotated')
-            break
-        case 4:
-            text = "Servoing"
-            break
-        case 5:
-            text = "Servoing Completed Successfully.";
-            $('#servo_approach, #servo_stop').fadeTo(0,0.5);
-            $('#servo_detect_tag').fadeTo(0,1);
-            set_camera('/kinect_head/rbg/image_color')
-            break
-        case 6:
-            text = "Servoing Detected Collision with Arms.  "+ 
-                    "ADJUST AND RE-DETECT TAG.";
-            $('#servo_approach, #servo_stop').fadeTo(0,0.5);
-            $('#servo_detect_tag').fadeTo(0,1);
-            break
-        case 7:
-            text = "Servoing Detected Collision in Base Laser.  "+ 
-                    "ADJUST AND RE-DETECT TAG.";
-            $('#servo_approach, #servo_stop').fadeTo(0,0.5);
-            $('#servo_detect_tag').fadeTo(0,1);
-            break
-        case 8:
-            text = "Lost view of AR Tag.  ADJUST AND RE-DETECT."
-            $('#servo_approach, #servo_stop').fadeTo(0,0.5);
-            $('#servo_detect_tag').fadeTo(0,1);
-            set_camera('/l_forearm_cam/image_color_rotated')
-            break
-        case 9:
-            text = "Servoing Stopped by User. RE-DETECT TAG";
-            $('#servo_approach, #servo_stop').fadeTo(0,0.5);
-            $('#servo_detect_tag').fadeTo(0,1);
-            set_camera('/l_forearm_cam/image_color_rotated')
-            break
-    }
-    log(text);
-};
-
-function pc_snapshot_cb() {
-    node.rosjs.callService('/take_pc_snapshot',json(''),nop);
-    $('#reg_confirm').show();
-    log('USE R-VIZ TO FULLY ALIGN ELLIPSE, THEN CLICK CONFIRM.');
-};
-
-function reg_confirm_cb() {
-    log("Sending command to untuck arms and start shaving.");
-    $('#pc_snapshot').hide();
-    $('#reg_confirm').hide();
-    node.rosjs.callService('/setup_arms_shaving', json(''), function(msg){
-        $('#tp').hide();
-        $('#bpd2, #shave_select, #tool_power, #bpd2, #shave, #rezero_wrench').show();
-        log('Untucking arms to begin shaving.');
-        node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({'data':true}));
-        log("Sending command to prepare for shaving.");
-        get_shave_side();
-    });
-};
-
-function get_shave_side() {
-    node.rosjs.callService('/rosbridge/get_param',
-                           '["shaving_side"]',
-                           function(msg){window.shaving_side = msg;});
-};
-
-function shave_step(x,y,z) {points = window.gm_point;
-                        points.x = x; points.y = y; points.z = z;
-                        node.publish('/wt_shave_step', 'geometry_msgs/Point', json(points));
-                        log("Sending Adjustment to Shaving Position");
-};
-
-function send_shave_location(num) {
-    log("Sending New Shave Position: "+ document.getElementById('shave_list').options[window.sm_selected_pose].text);
-    if (window.shave_side == 'r') {
-        if (num >= 1 && num <= 6) {
-            num += 7;
-            };
-    };
-    node.publish('wt_shave_location', 'std_msgs/Int8', json({'data':num}));
-};
-
-//if (cam=='arrow_overlaid'){window.pointing_frame='openni_rgb_optical_frame';}
-//else if (cam=='/wide_stereo/right/image_color'){window.pointing_frame='wide_stereo_optical_frame';}
-
-//function shave(dir) {node.publish('wt_disc_shaving_step', 'std_msgs/Int8', json({'data':dir}));
-//                    log("Sending Next Shaving Position");
-//};
-//
-//function shave_step(x,y,z) {points = window.gm_point;
-//                        points.x = x; points.y = y; points.z = z;
-//                        node.publish('wt_cont_shaving_step', 'geometry_msgs/Point', json(points));
-//                        log("Sending Adjustment to Shaving Position");
-//};
-//
-//function send_shave_location(num) {node.publish('wt_shave_location', 'std_msgs/Int8', json({'data':num}));
-//                                 log("Sending New Shave Position: "+num.toString());
-//};
-
-function toggle_tool_power() {
-    state = !window.tool_state;
-    node.publish('ros_switch', 'std_msgs/Bool', json({'data':state}));
-    log("Sending Tool Power Toggle");
-};
-
-function rezero_wrench(){
-    node.publish('netft_gravity_zeroing/rezero_wrench','std_msgs/Bool',json({'data':true}));
-    log("Sending command to Re-zero Force/Torque Sensor");
-};
-
-function shave_start_cb(){
-    $('#shave_end, #ar_servoing_setup').show();
-    $('#shave_start').hide();
-    log('Opened Shaving Interface');
-};
-
-function shave_end_cb() {
-$('#bpd2, #shave_select, #pc_snapshot, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave, #rezero_wrench').hide();
-$('#tp, #shave_start').show();
-$('#shave_end').hide();
-log('Closed Shaving Interface');
-};
-
-function set_ft_bar(pct,yellow_pct){
-    g = r = "FF";
-    if (pct > yellow_pct){
-        g = Math.round((255*(1-(pct-yellow_pct)/(1-yellow_pct)))).toString(16);
-        if (g.length==1){g="0"+g};
-    };
-    if (pct < yellow_pct){
-        r = (Math.round(255*(pct/yellow_pct))).toString(16);
-        if (r.length==1){ r="0"+r};
-    };
-    color = "#"+r+g+'00';
-    $('#ft_bar_wrapper').css('background-color', color);
-    $('#ft_bar_value').css('height', Math.round(100*(1-pct)).toString()+'%');
-};
 
 function start(){
     node = new ros.NodeHandle('ws://'+ ROBOT + ':9091');
 	node.setOnClose(function(e) {
-          //log("Disconnected or Can't Connect to " + node.url + ".");
+          log("Disconnected or Can't Connect to " + node.url + ".");
     	});
     	node.setOnError(function(e) {
-          //log("Unknown error connecting!");
+          log("Unknown error connecting!");
     	});
       	node.setOnOpen(function(e) {   
-	  //log("Connected to " + node.url + ".");
-	  //init();
+	  log("Connected to " + node.url + ".");
+	  init();
 	  });
 };
+
 </script>
 </head>
   <body onload="start()">
@@ -874,6 +222,23 @@ function start(){
         </tr>
       </table>
       </div> <!-- End Force-Torque Set/Feedback Block -->
+    </td>
+    <td>
+      <table border=1 style="height:450px; width:10px">
+        <tr style="height:50%;background-color:red">
+          <td>
+           <p>Danger</p>
+          </td>
+        </tr>
+        <tr style="height:30%;background-color:green">
+          <td style="writing-mode:tb-rl;" >Activity</td>
+        </tr>
+        <tr style="height:20%;background-color:gray">
+         <td>
+           <div id="ft_readout"></div>
+         </td>
+        </tr>
+      </table>
     </td>
     <td>
       <div id="ft_bar_wrapper">
