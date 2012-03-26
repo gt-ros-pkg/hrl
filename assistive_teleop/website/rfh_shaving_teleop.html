@@ -18,7 +18,7 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){ document.getElementById('console').innerHTML = message.toString();};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-var ROBOT = 'monty1.hsi.gatech.edu';
+var ROBOT = '10.68.0.1';
 
 $(function(){
     $(':button').click(log_click);
