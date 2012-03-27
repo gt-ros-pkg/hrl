@@ -11,6 +11,8 @@
           output="screen" args="-s" />
     <node pkg="hrl_rfh_fall_2011" name="setup_arms_servoing" type="setup_arms_servoing.py"
           output="screen" args="-s" />
+    <node pkg="hrl_rfh_fall_2011" name="setup_registration" type="setup_registration.py"
+          output="screen" args="-s" />
     <node pkg="kelsey_sandbox" name="arm_pose_move_controller" type="arm_pose_move_controller.py"
           output="screen" args="-v" />
 

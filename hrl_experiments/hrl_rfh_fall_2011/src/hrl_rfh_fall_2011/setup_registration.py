@@ -47,7 +47,7 @@ class SetupRegistration(object):
         head_goal.target.point.z -= 0.15
         head_goal.target.header.stamp = rospy.Time()
         head_goal.min_duration = rospy.Duration(1.)
-        head_goal.max_velocity = 1.
+        head_goal.max_velocity = 0.2
         self.head_point_sac.send_goal_and_wait(head_goal)
 
         self.lock.release()
