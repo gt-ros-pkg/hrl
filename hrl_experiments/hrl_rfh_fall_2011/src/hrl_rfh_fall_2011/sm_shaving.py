@@ -9,6 +9,7 @@ import roslib
 roslib.load_manifest('hrl_rfh_fall_2011')
 roslib.load_manifest('assistive_teleop')
 roslib.load_manifest('smach_ros')
+roslib.load_manifest('kelsey_sandbox')
 import rospy
 import smach
 import smach_ros
@@ -344,7 +345,7 @@ class ShavingTopGenerator(object):
 
                             smach.StateMachine.add('PUB_ELL_RETREAT_GLOBAL',
                                 PublishState("shaving_state",
-                                Int8, Int8(ServoStates.ELL_RETREAT_GLOBAL)),
+                                Int8, Int8(TransitionIDs.ELL_RETREAT_GLOBAL)),
                                 transitions={'succeeded' : 'ELL_RETREAT_GLOBAL'})
 
                             smach.StateMachine.add(
@@ -360,7 +361,7 @@ class ShavingTopGenerator(object):
 
                             smach.StateMachine.add('PUB_ELL_MOVE_GLOBAL',
                                 PublishState("shaving_state",
-                                Int8, Int8(ServoStates.ELL_MOVE_GLOBAL)),
+                                Int8, Int8(TransitionIDs.ELL_MOVE_GLOBAL)),
                                 transitions={'succeeded' : 'ELL_MOVE_GLOBAL'})
 
                             smach.StateMachine.add(
@@ -384,7 +385,7 @@ class ShavingTopGenerator(object):
 
                             smach.StateMachine.add('PUB_ELL_APPROACH_GLOBAL',
                                 PublishState("shaving_state",
-                                Int8, Int8(ServoStates.ELL_APPROACH_GLOBAL)))
+                                Int8, Int8(TransitionIDs.ELL_APPROACH_GLOBAL)))
                         return sm
 
 
@@ -393,7 +394,7 @@ class ShavingTopGenerator(object):
                         wrap_state_force_detection(
                             'ELL_RETREAT_SLOW',
                             smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
-                                goal_cb=partial(get_ell_move_height, RETREAT_HEIGHT, SAFETY_RETREAT_VELOCITY)),
+                                goal_cb=partial(get_ell_move_height, RETREAT_HEIGHT, SLOW_RETREAT_VELOCITY)),
                             FORCE_THRESH,
                             outcomes=['succeeded','preempted','aborted']),
                         transitions={'succeeded' : 'succeeded',
@@ -433,14 +434,24 @@ class ShavingTopGenerator(object):
                     smach.StateMachine.add('FT_HOLD',
                                             smach_ros.SimpleActionState('ft_hold_action', FtHoldAction,
                                                                         goal=hold_goal),
-                                            transitions={'succeeded':'ELL_RETREAT_SLOW',
+                                            transitions={'succeeded':'PUB_ELL_RETREAT_SLOW',
                                                          'preempted':'succeeded',
-                                                         'aborted':'ELL_RETREAT_FAST'},
+                                                         'aborted':'PUB_ELL_RETREAT_FAST'},
                                             remapping={'activity_thresh':'hold_activity_thresh',
                                                        'z_thresh':'hold_z_thresh',
                                                        'mag_thresh':'hold_mag_thresh',
                                                        'timeout':'hold_timeout'}
                                             )
+
+                    smach.StateMachine.add('PUB_ELL_RETREAT_SLOW',
+                        PublishState("shaving_state",
+                        Int8, Int8(TransitionIDs.ELL_RETREAT_SLOW)),
+                        transitions={'succeeded' : 'ELL_RETREAT_SLOW'})
+
+                    smach.StateMachine.add('PUB_ELL_RETREAT_FAST',
+                        PublishState("shaving_state",
+                        Int8, Int8(TransitionIDs.ELL_RETREAT_FAST)),
+                        transitions={'succeeded' : 'ELL_RETREAT_FAST'})
 
                 print "Adding SM_BEHAVIOR to CC_LISTENER_BEHAVIOR"
                 smach.Concurrence.add('SM_BEHAVIOR', sm_behavior)
@@ -466,7 +477,8 @@ def main():
         sis.stop()
         return
     else:
-        sm_top = build_sm()
+        sm_top_gen = ShavingTopGenerator()
+        sm_top = sm_top_gen.build_sm()
         outcome = sm_top.execute()
         return
 
