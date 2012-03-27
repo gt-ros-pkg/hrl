@@ -3,7 +3,7 @@ import copy
 
 import roslib; roslib.load_manifest('hrl_generic_arms')
 import rospy
-from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
+from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion, PointStamped
 from geometry_msgs.msg import Transform, TransformStamped, Vector3
 import tf.transformations as tf_trans
 
@@ -142,6 +142,34 @@ class PoseConverter:
             ps.header.stamp = header[1]
             ps.header.frame_id = header[2]
         ps.pose = Pose(Point(*homo_mat[:3,3].T.A[0]), Quaternion(*quat_rot))
+        return ps
+
+    ##
+    # @return geometry_msgs.Point
+    @staticmethod
+    def to_point_msg(*args):
+        header, homo_mat, quat_rot, _ = PoseConverter._make_generic(args)
+        if homo_mat is None:
+            rospy.logwarn("[pose_converter] Unknown pose type.")
+            return None, None, None, None
+        return Point(*homo_mat[:3,3].T.A[0])
+
+    ##
+    # @return geometry_msgs.PointStamped
+    @staticmethod
+    def to_point_stamped_msg(*args):
+        header, homo_mat, quat_rot, _ = PoseConverter._make_generic(args)
+        if homo_mat is None:
+            rospy.logwarn("[pose_converter] Unknown pose type.")
+            return None, None, None, None
+        ps = PointStamped()
+        if header is None:
+            ps.header.stamp = rospy.Time.now()
+        else:
+            ps.header.seq = header[0]
+            ps.header.stamp = header[1]
+            ps.header.frame_id = header[2]
+        ps.point = Point(*homo_mat[:3,3].T.A[0])
         return ps
 
     ##
