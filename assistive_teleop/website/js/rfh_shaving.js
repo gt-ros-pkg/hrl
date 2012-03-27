@@ -30,10 +30,6 @@ $(function(){
 
 function servo_setup_cb(){
     log('Sending command to prep arms for ar-servoing approach');
-        $('.ar_servo_controls').show();
-        $('#ar_servoing_setup, #servo_approach, #servo_stop').hide();
-        set_camera('/l_forearm_cam/image_color_rotated')
-        log('USE BUTTONS TO FIND TAG AND PERFORM APPROACH');
     node.rosjs.callService('/pr2_ar_servo/arms_setup','[""]',function(msg){
         $('.ar_servo_controls').show();
         $('#ar_servoing_setup, #servo_approach, #servo_stop').hide();
@@ -46,7 +42,7 @@ function servoing_done_cb(){
     node.rosjs.callService('/setup_registration','[""]',function(msg){
         $('#pc_snapshot').show();
         $('#ar_servoing_done, .ar_servo_controls').hide(); 
-        set_camera('/kinect_head/rbg/image_color');
+        set_camera('/kinect_head/rgb/image_color');
         log('Approach Completed. ENSURE ROBOT IS LOOKING AT YOUR HEAD, PLACE YOUR HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD')
     })
 };
@@ -74,7 +70,7 @@ function servo_feedback_cb(msg){
             text = "AR Tag Found. BEGIN APPROACH.";
             $('#servo_approach, #servo_stop, #ar_servoing_done').show().fadeTo(0,1);
             $('#servo_detect_tag').fadeTo(0,0.5);
-            set_camera('/kinect_head/rbg/image_color')
+            set_camera('/kinect_head/rgb/image_color')
             break
         case 3:
             text = "Unable to Locate AR Tag. ADJUST VIEW AND RETRY.";
@@ -87,7 +83,7 @@ function servo_feedback_cb(msg){
             text = "Servoing Completed Successfully.";
             $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
-            set_camera('/kinect_head/rbg/image_color')
+            set_camera('/kinect_head/rgb/image_color')
             break
         case 6:
             text = "Servoing Detected Collision with Arms.  "+ 
@@ -200,7 +196,7 @@ function shaving_feedback_cb(msg){
             text = "Starting Small Move In";
             break
         case 8: 
-            text = "Starting Shaving";
+            text = "Moving in to Shave Current Position";
             break
         case 9: 
             text = "Collision While Moving";
