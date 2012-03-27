@@ -18,7 +18,7 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){ document.getElementById('console').innerHTML = message.toString();};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-var ROBOT = '10.68.0.1';
+var ROBOT = 'monty1';
 
 $(function(){
     $(':button').click(log_click);
@@ -111,7 +111,7 @@ function init_subscribers() {
                                        Math.pow(ws.wrench.force.z,2))
                         $('#force_view').slider("option", "value", mag);
                        set_ft_bar(Math.min(mag, 15)/15, 0.5);
-                       $('#ft_readout').html('<p>'+mag+' N </p>')
+                       $('#ft_readout').html('<p>'+mag.toFixed(1)+' N </p>')
                    });
 };//END sub_state
 
