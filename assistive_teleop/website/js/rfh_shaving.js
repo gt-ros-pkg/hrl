@@ -142,7 +142,7 @@ function shave_step(x,y,z) {points = window.gm_point;
 
 function send_shave_location(num) {
     log("Sending New Shave Position: "+ document.getElementById('shave_list').options[window.sm_selected_pose].text);
-    if (window.shave_side == 'r') {
+    if (window.shaving_side == 'r') {
         if (num >= 1 && num <= 6) {
             num += 7;
             };
