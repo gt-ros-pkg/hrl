@@ -60,7 +60,7 @@ def main():
     assert(len(sys.argv) > 1)
     sreg = SetupRegistration()
     if sys.argv[1] == "-s":
-        rospy.Service("/setup_ell_registration", Empty, sreg.run)
+        rospy.Service("/setup_registration", Empty, sreg.run)
         rospy.spin()
     elif sys.argv[1] == "-p":
         sreg.run(None)
