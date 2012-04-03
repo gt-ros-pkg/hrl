@@ -27,13 +27,18 @@ def main():
     #joint_controller = EPArmController(joint_arm, 0.1, "joint_ep_controller")
     #joint_controller.execute_interpolated_ep(setup_angles, 10)
 
-    ctrl_switcher.carefree_switch('l', '%s_cart', None)
+    ctrl_switcher.carefree_switch('l', '%s_cart_jt_task', 
+                                  "$(find hrl_rfh_fall_2011)/params/l_jt_task_shaver45.yaml") 
     rospy.sleep(1)
 
-    cart_arm = create_pr2_arm('l', PR2ArmJTransposeTask, end_link="%s_gripper_shaver45_frame")
+    cart_arm = create_pr2_arm('l', PR2ArmJTransposeTask, 
+                              controller_name='%s_cart_jt_task', 
+                              end_link="%s_gripper_shaver45_frame")
+    rospy.sleep(1)
     cart_arm.set_posture(setup_angles)
-#cart_arm.set_posture(cart_arm.get_joint_angles(wrapped=False))
-    cart_arm.set_gains([110, 600, 600, 40, 40, 40], [15, 15, 15, 1.2, 1.2, 1.2])
+    setup_angles = [0, 0, np.pi/2, -np.pi/2, -np.pi, -np.pi/2, -np.pi/2]
+    cart_arm.set_posture(setup_angles)
+    cart_arm.set_gains([200, 800, 800, 80, 80, 80], [15, 15, 15, 1.2, 1.2, 1.2])
     ell_controller = EllipsoidController(cart_arm)
     ell_controller.reset_arm_orientation(8)
 
