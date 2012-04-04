@@ -8,7 +8,7 @@ from threading import Lock
 
 import roslib
 roslib.load_manifest('hrl_generic_arms')
-roslib.load_manifest('hrl_ellispoidal_control')
+roslib.load_manifest('hrl_ellipsoidal_control')
 roslib.load_manifest('hrl_pr2_arms')
 
 import rospy
@@ -88,16 +88,17 @@ class EllipsoidController(object):
         return PoseConverter.to_pos_rot(ell_frame_mat * ell_pose_mat)
                                           
 
-#   def reset_arm_orientation(self, duration=10.):
-#       with self.ell_cmd_lock:
-#           num_samps = duration / self.time_step
-#           cur_pose = self.arm.get_end_effector_pose()
-#           ell_pose = self.robot_ellipsoidal_pose(*(self.get_ell_ep() + [self.gripper_rot]))
-#           adjust_traj = self.arm.interpolate_ep(cur_pose, ell_pose, min_jerk_traj(num_samps))
-#           ep_traj_control = EPTrajectoryControl(self.arm, adjust_traj)
-#           self.start_pub.publish(PoseConverter.to_pose_stamped_msg("/torso_lift_link", cur_pose))
-#           self.end_pub.publish(PoseConverter.to_pose_stamped_msg("/torso_lift_link", ell_pose))
-#           self.ell_traj_behavior.epc_motion(ep_traj_control, self.time_step)
+    def reset_arm_orientation(self, duration=10.):
+        with self.ell_cmd_lock:
+            num_samps = duration / self.time_step
+            cur_pose = self.arm.get_end_effector_pose()
+            args = self.get_ell_ep() + [self.gripper_rot]
+            ell_pose = self.robot_ellipsoidal_pose(*args)
+            adjust_traj = self.arm.interpolate_ep(cur_pose, ell_pose, min_jerk_traj(num_samps))
+            ep_traj_control = EPTrajectoryControl(self.arm, adjust_traj)
+            self.start_pub.publish(PoseConverter.to_pose_stamped_msg("/torso_lift_link", cur_pose))
+            self.end_pub.publish(PoseConverter.to_pose_stamped_msg("/torso_lift_link", ell_pose))
+            self.ell_traj_behavior.epc_motion(ep_traj_control, self.time_step)
 
     def command_stop(self):
         self.ell_traj_behavior.stop_epc = True
