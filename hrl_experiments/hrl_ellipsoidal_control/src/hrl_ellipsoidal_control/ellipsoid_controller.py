@@ -70,16 +70,9 @@ class EllipsoidController(object):
         pos, quat = PoseConverter.to_pos_quat(ell_pose)
         return list(self.ell_space.pos_to_ellipsoidal(*pos))
 
-    def update_ellipse_pose(self):
-        cur_time = rospy.Time.now()
-        self.tf_list.waitForTransform("/torso_lift_link", "/ellipse_frame", cur_time, rospy.Duration(3))
-        cur_tf = self.tf_list.lookupTransform("/torso_lift_link", "/ellipse_frame", cur_time, rospy.Duration(3))
-        self.ell_tf = PoseConverter.to_homo_mat(cur_tf)
-
+    ##
+    # Get pose in robot's frame of ellipsoidal coordinates
     def robot_ellipsoidal_pose(self, lat, lon, height, gripper_rot, ell_frame_mat):
-        """
-            Get pose in robot's frame of ellipsoidal coordinates
-        """
         pos, quat = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
         quat_gripper_rot = tf_trans.quaternion_from_euler(gripper_rot, 0, 0)
         quat_rotated = tf_trans.quaternion_multiply(quat, quat_gripper_rot)
