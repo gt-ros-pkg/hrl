@@ -59,7 +59,6 @@ class EllipsoidController(object):
             self.ell_space.rot = np.mat(np.eye(3))
             if not self.found_params:
                 rospy.loginfo("[ellipsoid_controller] Found params from /ellipsoid_params")
-                #self.reset_ell_ep()
             self.found_params = True
     
     def get_ell_ep(self):
@@ -87,49 +86,68 @@ class EllipsoidController(object):
         ell_pose_mat = PoseConverter.to_homo_mat(pos, quat_rotated)
         return PoseConverter.to_pos_rot(ell_frame_mat * ell_pose_mat)
                                           
-
-    def reset_arm_orientation(self, duration=10.):
-        with self.ell_cmd_lock:
-            num_samps = duration / self.time_step
-            cur_pose = self.arm.get_end_effector_pose()
-            args = self.get_ell_ep() + [self.gripper_rot]
-            ell_pose = self.robot_ellipsoidal_pose(*args)
-            adjust_traj = self.arm.interpolate_ep(cur_pose, ell_pose, min_jerk_traj(num_samps))
-            ep_traj_control = EPTrajectoryControl(self.arm, adjust_traj)
-            self.start_pub.publish(PoseConverter.to_pose_stamped_msg("/torso_lift_link", cur_pose))
-            self.end_pub.publish(PoseConverter.to_pose_stamped_msg("/torso_lift_link", ell_pose))
-            self.ell_traj_behavior.epc_motion(ep_traj_control, self.time_step)
+    def reset_arm_orientation(self, duration=10., ell_pose_mat=np.mat(np.eye(4))):
+        with self.params_lock:
+            with self.ell_cmd_lock:
+                num_samps = duration / self.time_step
+                cur_pose = self.arm.get_end_effector_pose()
+                ell_frame_mat = self.get_ell_frame()
+                args = self.get_ell_ep() + [self.gripper_rot, ell_frame_mat]
+                ell_pose = self.robot_ellipsoidal_pose(*args)
+                adjust_traj = self.arm.interpolate_ep(cur_pose, ell_pose, 
+                                                      min_jerk_traj(num_samps))
+                ep_traj_control = EPTrajectoryControl(self.arm, adjust_traj)
+                self.start_pub.publish(
+                        PoseConverter.to_pose_stamped_msg("/torso_lift_link", cur_pose))
+                self.end_pub.publish(
+                        PoseConverter.to_pose_stamped_msg("/torso_lift_link", ell_pose))
+                self.ell_traj_behavior.epc_motion(ep_traj_control, self.time_step)
 
     def command_stop(self):
         self.ell_traj_behavior.stop_epc = True
 
     def command_move_exec(self, req):
+        if req.reset_ellipsoid:
+            self.reset_arm_orientation()
+        change_ep = np.array([req.change_latitude, req.change_longitude, 
+                              req.change_height])
+        abs_ep_sel = np.array([req.absolute_latitude, req.absolute_longitude, 
+                               req.absolute_height])
+        rospy.loginfo("Commanding ellipsoidal move: (%f, %f, %f), Abs: (%d, %d, %d)" % 
+                       (change_ep[0], change_ep[1], change_ep[2], 
+                        abs_ep_sel[0], abs_ep_sel[1], abs_ep_sel[2]))
+        self.execute_ell_move(change_ep, abs_ep_sel, req.gripper_rot, req.velocity)
+        self.ell_move_act.set_succeeded(EllipsoidMoveResult(*self.get_ell_ep()))
+
+    def execute_ell_move(self, change_ep, abs_ep_sel, gripper_rot=0., velocity=0.001):
         with self.params_lock:
             with self.ell_cmd_lock:
-                change_ep = np.array([req.change_latitude, req.change_longitude, req.change_height])
-                abs_ep_sel = np.array([req.absolute_latitude, req.absolute_longitude, req.absolute_height])
-                rospy.loginfo("Commanding ellipsoidal move: (%f, %f, %f), Abs: (%d, %d, %d)" % 
-                               (change_ep[0], change_ep[1], change_ep[2], 
-                                abs_ep_sel[0], abs_ep_sel[1], abs_ep_sel[2]))
-                ell_f = np.where(abs_ep_sel, change_ep, self.get_ell_ep() + change_ep)
-                if req.velocity == 0:
-                    self.execute_trajectory(ell_f, req.gripper_rot)
-                else:
-                    self.execute_trajectory(ell_f, req.gripper_rot, req.velocity)
-                self.ell_move_act.set_succeeded(EllipsoidMoveResult(*self.get_ell_ep()))
+                ell_f = np.where(abs_ep_sel, change_ep, 
+                                             np.array(self.get_ell_ep()) + change_ep)
+                self.execute_trajectory(ell_f, gripper_rot, velocity)
 
     def _check_preempt(self, timer_event):
         if self.ell_move_act.is_preempt_requested():
             self.ell_traj_behavior.stop_epc = True
             self.action_preempted = True
 
+    def get_ell_frame(self):
+        # find the current ellipsoid frame
+        cur_time = rospy.Time.now()
+        self.tf_list.waitForTransform("/torso_lift_link", "/ellipse_frame", 
+                                      cur_time, rospy.Duration(3))
+        ell_frame_mat = PoseConverter.to_homo_mat(
+                             self.tf_list.lookupTransform("/torso_lift_link", 
+                                                          "/ellipse_frame", cur_time))
+        return ell_frame_mat
+
     def execute_trajectory(self, ell_f, gripper_rot, velocity=0.001):
-        shaving_side = rospy.get_param("shaving_side")
-        if shaving_side == "r":
-            self.arm.set_posture(SETUP_ANGLES_R)
-        else:
-            self.arm.set_posture(self.arm.get_joint_angles())
-            #self.arm.set_posture(SETUP_ANGLES_L)
+        #shaving_side = rospy.get_param("shaving_side")
+        #if shaving_side == "r":
+        #    self.arm.set_posture(SETUP_ANGLES_R)
+        #else:
+        #    self.arm.set_posture(self.arm.get_joint_angles())
+        #    #self.arm.set_posture(SETUP_ANGLES_L)
 
         ell_f[1] = np.mod(ell_f[1], 2 * np.pi)
         # don't want to approach singularity
@@ -148,12 +166,7 @@ class EllipsoidController(object):
         ell_traj = np.array(ell_init) + np.array(np.tile(ell_final - ell_init, 
                                                          (1, num_samps))) * np.array(t_vals)
 
-        # find the current ellipsoid frame
-        cur_time = rospy.Time.now()
-        self.tf_list.waitForTransform("/torso_lift_link", "/ellipse_frame", cur_time, rospy.Duration(3))
-        ell_frame_mat = PoseConverter.to_homo_mat(
-                             self.tf_list.lookupTransform("/torso_lift_link", 
-                                                          "/ellipse_frame", cur_time))
+        ell_frame_mat = self.get_ell_frame()
 
         ell_pose_traj = [self.robot_ellipsoidal_pose(ell_traj[0,i], ell_traj[1,i], ell_traj[2,i],
                                                      gripper_rot, ell_frame_mat) 
