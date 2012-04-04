@@ -22,8 +22,16 @@ RATE = 20
 JOINT_TOLERANCES = [0.03, 0.1, 0.1, 0.1, 0.17, 0.15, 0.12]
 JOINT_VELOCITY_WEIGHT = [3.0, 1.7, 1.7, 1.0, 1.0, 1.0, 0.5]
 
+##
+# Allows one to move the arm through a set of joint angles safely and controller
+# agnostic.  
 class ArmPoseMoveBehavior(Behavior):
-    def __init__(self, arm_char, ctrl_name, param_file):
+    ##
+    # @param arm_char 'r' or 'l' to choose which arm to load
+    # @param ctrl_name name of the controller to load from the param_file 
+    # @param param_file Location of the parameter file which specifies the controller
+    #        (e.g. "$(find hrl_pr2_arms)/params/joint_traj_params_electric_low.yaml")
+    def __init__(self, arm_char, ctrl_name="%s_arm_controller", param_file=None):
         resource = arm_char + "_arm"
         super(ArmPoseMoveBehavior, self).__init__(resource, BMPriorities.MEDIUM, 
                                                   name=resource+"_pose_move")
@@ -34,14 +42,25 @@ class ArmPoseMoveBehavior(Behavior):
         self.running = False
         self.ctrl_switcher = ControllerSwitcher()
 
+    ##
+    # Switches controllers and returns an instance of the arm to control
     def load_arm(self):
-        self.ctrl_switcher.carefree_switch(self.arm_char, self.ctrl_name, self.param_file, reset=False)
+        self.ctrl_switcher.carefree_switch(self.arm_char, self.ctrl_name, 
+                                           self.param_file, reset=False)
         return create_pr2_arm(self.arm_char, PR2ArmJointTrajectory, 
                               controller_name=self.ctrl_name, timeout=8)
 
-
+    ##
+    # Plays back the specified trajectory.  The arm must currently be at the first
+    # joint configuration specified in the joint trajectory within a certain degree of
+    # tolerance.
+    # @param joint_trajectory List of lists of length 7 representing joint angles to move through.
+    # @param rate Frequency with which to iterate through the list.
+    # @param blocking If True, the function will wait until done, if False, it will return
+    #                 immediately
     def execute(self, joint_trajectory, rate, blocking=True):
         # TODO Replace this with behavior_manager locking mechanism
+        # 4/3/12 - Already done?
         #if self.running:
         #    rospy.logerr("[arm_pose_move_controller] Trajectory already in motion.")
         #    return False
@@ -73,7 +92,17 @@ class ArmPoseMoveBehavior(Behavior):
             self.exec_traj_timer = rospy.Timer(rospy.Duration(0.1), exec_traj, oneshot=True)
         return True
 
-    def move_to_angles(self, q_goal, arm_char, rate=RATE, velocity=0.1, blocking=True):
+    ##
+    # Executes a linearly interpolated trajectory from the current joint angles to the
+    # q_goal angles.
+    # @param q_goal List of length 7 representing the desired end configuration.
+    # @param rate Rate with which to execute trajectory.
+    # @param velocity Speed (~rad/s) to move based on a heursitic which weighs relative
+    #                 joint speeds.  The elbow will not move quicker than the velocity
+    #                 in rad/s.
+    # @param blocking If True, the function will wait until done, if False, it will return
+    #                 immediately
+    def move_to_angles(self, q_goal, rate=RATE, velocity=0.1, blocking=True):
         self.cur_arm = self.load_arm()
         q_cur = self.cur_arm.get_ep()
         diff = self.cur_arm.diff_angles(q_goal, q_cur)
@@ -86,6 +115,11 @@ class ArmPoseMoveBehavior(Behavior):
         traj = [q_cur + diff * t for t in t_vals]
         return self.execute(traj, rate, blocking)
 
+    ##
+    # Determines whether or not the arm can execute the trajectory by checking the first
+    # joint configuration and seeing whether or not it is within joint tolerances.
+    # @param joint_trajectory List of lists of length 7 representing joint angles to move through.
+    # @return True if the arm is at the beginning, False otherwise.
     def can_exec_traj(self, joint_trajectory):
         q_cur = self.cur_arm.get_ep()
         q_init = joint_trajectory[0]
@@ -95,9 +129,13 @@ class ArmPoseMoveBehavior(Behavior):
     def is_moving(self):
         return self.running
 
+    ##
+    # Pauses the movement of the trajectory but doesn't reset its position in the array.
     def pause_moving(self):
         self.stop_traj = True
 
+    ##
+    # Stops the movement of the trajectory and resets the trajectory so it cannot restart.
     def stop_moving(self):
         self.stop_traj = True
         while not rospy.is_shutdown() and self.running:
@@ -128,10 +166,10 @@ class TrajectoryLoader(object):
         if reverse:
             traj.reverse()
         if arm_char == 'r':
-            return self.traj_ctrl_r.move_to_angles(traj[0], arm_char, velocity=velocity, 
+            return self.traj_ctrl_r.move_to_angles(traj[0], velocity=velocity, 
                                                    rate=rate, blocking=blocking)
         else:
-            return self.traj_ctrl_l.move_to_angles(traj[0], arm_char, velocity=velocity, 
+            return self.traj_ctrl_l.move_to_angles(traj[0], velocity=velocity, 
                                                    rate=rate, blocking=blocking)
 
     def can_exec_traj_from_file(self, filename):
@@ -285,12 +323,6 @@ def main():
         traj_load = TrajectoryLoader(opts.ctrl_name, opts.params_file)
         result = traj_load.exec_traj_from_file(opts.filename, reverse=opts.reverse, blocking=True)
         print result
-
-    if False:
-        ctrl_switcher.carefree_switch(arm_char, opts.ctrl_name, PARAMS_FILE_LOW, reset=False)
-        arm_pm_ctrl = ArmPoseMoveBehavior(opts.ctrl_name, PARAMS_FILE_LOW)
-        arm_pm_ctrl.move_to_angles(q_test, arm_char)
-        return
 
 if __name__ == "__main__":
     main()
