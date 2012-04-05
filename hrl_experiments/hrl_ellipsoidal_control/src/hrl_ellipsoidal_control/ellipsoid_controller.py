@@ -35,7 +35,6 @@ MIN_HEIGHT = 0.2
 class EllipsoidController(object):
     def __init__(self, arm):
         self.time_step = 1. / 20.
-        self.gripper_rot = np.pi 
         self.arm = arm
         self.ell_traj_behavior = EPC("ellipsoid_traj")
         self.ell_space = EllipsoidSpace(1)
@@ -72,20 +71,20 @@ class EllipsoidController(object):
 
     ##
     # Get pose in robot's frame of ellipsoidal coordinates
-    def robot_ellipsoidal_pose(self, lat, lon, height, gripper_rot, ell_frame_mat):
+    def robot_ellipsoidal_pose(self, lat, lon, height, orient_quat):
+        ell_frame_mat = self.get_ell_frame()
         pos, quat = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
-        quat_gripper_rot = tf_trans.quaternion_from_euler(gripper_rot, 0, 0)
-        quat_rotated = tf_trans.quaternion_multiply(quat, quat_gripper_rot)
+        quat_rotated = tf_trans.quaternion_multiply(quat, orient_quat)
         ell_pose_mat = PoseConverter.to_homo_mat(pos, quat_rotated)
         return PoseConverter.to_pos_rot(ell_frame_mat * ell_pose_mat)
                                           
-    def reset_arm_orientation(self, duration=10., ell_pose_mat=np.mat(np.eye(4))):
+    def reset_arm_orientation(self, duration=10., gripper_rot=np.pi):
         with self.params_lock:
             with self.ell_cmd_lock:
                 num_samps = duration / self.time_step
                 cur_pose = self.arm.get_end_effector_pose()
-                ell_frame_mat = self.get_ell_frame()
-                args = self.get_ell_ep() + [self.gripper_rot, ell_frame_mat]
+                quat_gripper_rot = tf_trans.quaternion_from_euler(gripper_rot, 0, 0)
+                args = self.get_ell_ep() + [quat_gripper_rot]
                 ell_pose = self.robot_ellipsoidal_pose(*args)
                 adjust_traj = self.arm.interpolate_ep(cur_pose, ell_pose, 
                                                       min_jerk_traj(num_samps))
@@ -112,12 +111,12 @@ class EllipsoidController(object):
         self.execute_ell_move(change_ep, abs_ep_sel, req.gripper_rot, req.velocity)
         self.ell_move_act.set_succeeded(EllipsoidMoveResult(*self.get_ell_ep()))
 
-    def execute_ell_move(self, change_ep, abs_ep_sel, gripper_rot=0., velocity=0.001):
+    def execute_ell_move(self, change_ep, abs_ep_sel, orient_quat=[0., 0., 0., 1.], velocity=0.001):
         with self.params_lock:
             with self.ell_cmd_lock:
                 ell_f = np.where(abs_ep_sel, change_ep, 
                                              np.array(self.get_ell_ep()) + change_ep)
-                self.execute_trajectory(ell_f, gripper_rot, velocity)
+                self.execute_trajectory(ell_f, orient_quat, velocity)
 
     def _check_preempt(self, timer_event):
         if self.ell_move_act.is_preempt_requested():
@@ -134,7 +133,7 @@ class EllipsoidController(object):
                                                           "/ellipse_frame", cur_time))
         return ell_frame_mat
 
-    def execute_trajectory(self, ell_f, gripper_rot, velocity=0.001):
+    def execute_trajectory(self, ell_f, orient_quat=[0., 0., 0., 1.], velocity=0.001):
         #shaving_side = rospy.get_param("shaving_side")
         #if shaving_side == "r":
         #    self.arm.set_posture(SETUP_ANGLES_R)
@@ -142,11 +141,14 @@ class EllipsoidController(object):
         #    self.arm.set_posture(self.arm.get_joint_angles())
         #    #self.arm.set_posture(SETUP_ANGLES_L)
 
-        ell_f[1] = np.mod(ell_f[1], 2 * np.pi)
-        # don't want to approach singularity
-        ell_f[2] = max(ell_f[2], MIN_HEIGHT)
-        ell_init = np.mat(self.get_ell_ep()).T
+        ell_f[1] = np.mod(ell_f[1], 2 * np.pi) # wrap longitude value
+
+        ell_f[2] = max(ell_f[2], MIN_HEIGHT) # don't want to approach singularity
+
+        ell_init = np.mat(self.get_ell_ep()).T # get the current ellipsoidal location of the end effector
         ell_final = np.mat(ell_f).T
+
+        # find the closest longitude angle to interpolate to
         if np.fabs(2 * np.pi + ell_final[1,0] - ell_init[1,0]) < np.pi:
             ell_final[1,0] += 2 * np.pi
         elif np.fabs(-2 * np.pi + ell_final[1,0] - ell_init[1,0]) < np.pi:
@@ -154,26 +156,27 @@ class EllipsoidController(object):
         
         num_samps = int(np.linalg.norm(ell_final - ell_init) / velocity)
         num_samps = max(2, num_samps)
-        t_vals = min_jerk_traj(num_samps)
+        t_vals = min_jerk_traj(num_samps) # makes movement smooth
             
+        # smoothly interpolate from init to final
         ell_traj = np.array(ell_init) + np.array(np.tile(ell_final - ell_init, 
                                                          (1, num_samps))) * np.array(t_vals)
 
-        ell_frame_mat = self.get_ell_frame()
-
         ell_pose_traj = [self.robot_ellipsoidal_pose(ell_traj[0,i], ell_traj[1,i], ell_traj[2,i],
-                                                     gripper_rot, ell_frame_mat) 
+                                                     orient_quat) 
                          for i in range(ell_traj.shape[1])]
-        # replace the rotation matricies with a simple cartesian slerp
-        cart_interp_traj = self.arm.interpolate_ep(self.arm.get_ep(), ell_pose_traj[-1], 
-                                                   t_vals)
-        fixed_traj = [(ell_pose_traj[i][0], cart_interp_traj[i][1]) for i in range(num_samps)]
+        if False:
+            # replace the rotation matricies with a simple cartesian slerp
+            cart_interp_traj = self.arm.interpolate_ep(self.arm.get_ep(), ell_pose_traj[-1], 
+                                                       t_vals)
+            fixed_traj = [(ell_pose_traj[i][0], cart_interp_traj[i][1]) for i in range(num_samps)]
+            ell_pose_traj = fixed_traj
 
         self.start_pub.publish(
                 PoseConverter.to_pose_stamped_msg("/torso_lift_link", cart_interp_traj[0]))
         self.end_pub.publish(
                 PoseConverter.to_pose_stamped_msg("/torso_lift_link", cart_interp_traj[-1]))
-        ep_traj_control = EPTrajectoryControl(self.arm, fixed_traj)
+        ep_traj_control = EPTrajectoryControl(self.arm, ell_pose_traj)
         self.action_preempted = False
         self.ell_traj_behavior.stop_epc = False
         monitor_timer = rospy.Timer(rospy.Duration(0.1), self._check_preempt)
