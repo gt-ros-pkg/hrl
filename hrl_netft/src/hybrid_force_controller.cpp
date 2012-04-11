@@ -35,6 +35,7 @@
 #include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/scoped_ptr.hpp>
+#include <boost/foreach.hpp>
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
@@ -552,6 +553,10 @@ bool HybridForceController::init(pr2_mechanism_model::RobotState *robot_state, r
   {
     ROS_ERROR("HybridForceController: Cannot find AnalogIn named \"%s\"",
               analog_in_name.c_str());
+    BOOST_FOREACH(const pr2_hardware_interface::AnalogInMap::value_type &v, hw->analog_ins_)
+    {
+      ROS_INFO("AnalogIn : %s", v.first.c_str());
+    }
     return false;
   }
   ROS_INFO("HybridForceController: Using AnalogIn named \"%s\"", analog_in_name.c_str());

@@ -43,7 +43,7 @@ l_cart:
 
   use_tip_frame: false
 
-  force_torque_analog_in: force_torque_1
+  force_torque_analog_in: l_gripper_motor_ft
   force_torque_frame: l_netft_frame
   force_gains:
     trans:
