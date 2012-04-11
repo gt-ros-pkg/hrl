@@ -174,15 +174,24 @@ class EllipsoidController(object):
                                                          (1, num_samps))) * np.array(t_vals)
 
         ell_frame_mat = self.get_ell_frame()
+
+        # maintain rotation
+        _, cur_rot = self.arm.get_ep()
+        _, ell_init_rot = self.robot_ellipsoidal_pose(ell_init[0,0], ell_init[1,0], ell_init[2,0],
+                                                      orient_quat, ell_frame_mat)
+        offset_rot = ell_init_rot.T * cur_rot
+
         ell_pose_traj = [self.robot_ellipsoidal_pose(ell_traj[0,i], ell_traj[1,i], ell_traj[2,i],
                                                      orient_quat, ell_frame_mat) 
                          for i in range(ell_traj.shape[1])]
-        if False:
-            # replace the rotation matricies with a simple cartesian slerp
-            cart_interp_traj = self.arm.interpolate_ep(self.arm.get_ep(), ell_pose_traj[-1], 
-                                                       t_vals)
-            fixed_traj = [(ell_pose_traj[i][0], cart_interp_traj[i][1]) for i in range(num_samps)]
-            ell_pose_traj = fixed_traj
+        ell_pose_traj = [(ell_pose_traj[i][0], ell_pose_traj[i][1] * offset_rot) for i in range(num_samps)]
+
+        #if False:
+        #    # replace the rotation matricies with a simple cartesian slerp
+        #    cart_interp_traj = self.arm.interpolate_ep(self.arm.get_ep(), ell_pose_traj[-1], 
+        #                                               t_vals)
+        #    fixed_traj = [(ell_pose_traj[i][0], cart_interp_traj[i][1]) for i in range(num_samps)]
+        #    ell_pose_traj = fixed_traj
 
         self.start_pub.publish(
                 PoseConverter.to_pose_stamped_msg("/torso_lift_link", ell_pose_traj[0]))
