@@ -32,6 +32,16 @@ SETUP_ANGLES_L = [ 0.24575899,  0.35064596, -0.05039097, -1.87098988, -3.1177844
                   -1.33096993, -0.06899168]
 MIN_HEIGHT = 0.2
 
+# TODO Figure this out sometime...
+#def get_time_traj(kin, dense_traj, q_start, velocity):
+#    max_ang_diff = np.array([0.] * kin.n_jts)
+#    q_cur = np.array(q_start)
+#    for pos, rot in dense_traj:
+#        q_next = np.array(kin.IK(pos, rot, q_cur))
+#        cur_diff = np.fabs(q_next - q_cur)
+#        max_ang_diff = np.where(cur_diff > max_ang_diff, cur_diff, max_ang_diff)
+#        q_cur = q_next
+
 class EllipsoidController(object):
     def __init__(self, arm):
         self.time_step = 1. / 20.
@@ -71,8 +81,9 @@ class EllipsoidController(object):
 
     ##
     # Get pose in robot's frame of ellipsoidal coordinates
-    def robot_ellipsoidal_pose(self, lat, lon, height, orient_quat):
-        ell_frame_mat = self.get_ell_frame()
+    def robot_ellipsoidal_pose(self, lat, lon, height, orient_quat, ell_frame_mat=None):
+        if ell_frame_mat is None:
+            ell_frame_mat = self.get_ell_frame()
         pos, quat = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
         quat_rotated = tf_trans.quaternion_multiply(quat, orient_quat)
         ell_pose_mat = PoseConverter.to_homo_mat(pos, quat_rotated)
@@ -162,8 +173,9 @@ class EllipsoidController(object):
         ell_traj = np.array(ell_init) + np.array(np.tile(ell_final - ell_init, 
                                                          (1, num_samps))) * np.array(t_vals)
 
+        ell_frame_mat = self.get_ell_frame()
         ell_pose_traj = [self.robot_ellipsoidal_pose(ell_traj[0,i], ell_traj[1,i], ell_traj[2,i],
-                                                     orient_quat) 
+                                                     orient_quat, ell_frame_mat) 
                          for i in range(ell_traj.shape[1])]
         if False:
             # replace the rotation matricies with a simple cartesian slerp
@@ -173,9 +185,9 @@ class EllipsoidController(object):
             ell_pose_traj = fixed_traj
 
         self.start_pub.publish(
-                PoseConverter.to_pose_stamped_msg("/torso_lift_link", cart_interp_traj[0]))
+                PoseConverter.to_pose_stamped_msg("/torso_lift_link", ell_pose_traj[0]))
         self.end_pub.publish(
-                PoseConverter.to_pose_stamped_msg("/torso_lift_link", cart_interp_traj[-1]))
+                PoseConverter.to_pose_stamped_msg("/torso_lift_link", ell_pose_traj[-1]))
         ep_traj_control = EPTrajectoryControl(self.arm, ell_pose_traj)
         self.action_preempted = False
         self.ell_traj_behavior.stop_epc = False
@@ -184,6 +196,28 @@ class EllipsoidController(object):
         monitor_timer.shutdown()
         if self.action_preempted:
             pass
+
+    def execute_rotation(self, rpy, velocity, gripper_rot=np.pi):
+        num_samps = int(np.linalg.norm(rpy) / velocity)
+        num_samps = max(2, num_samps)
+
+        cur_pose = self.arm.get_ep()
+        #quat_gripper_rot = tf_trans.quaternion_from_euler(gripper_rot, 0, 0)
+        #args = self.get_ell_ep() + [quat_gripper_rot]
+        #cur_ell_pos, cur_ell_rot = self.robot_ellipsoidal_pose(*args)
+        rot_mat = np.mat(tf_trans.euler_matrix(rpy[0], rpy[1], rpy[2]))[:3,:3]
+        new_pose = (cur_pose[0], cur_pose[1] * rot_mat)
+        #new_pose = (cur_ell_pos, cur_ell_rot * rot_mat)
+        adjust_traj = self.arm.interpolate_ep(cur_pose, new_pose, 
+                                              min_jerk_traj(num_samps))
+        ep_traj_control = EPTrajectoryControl(self.arm, adjust_traj)
+        self.start_pub.publish(
+                PoseConverter.to_pose_stamped_msg("/torso_lift_link", cur_pose))
+        self.end_pub.publish(
+                PoseConverter.to_pose_stamped_msg("/torso_lift_link", new_pose))
+        self.ell_traj_behavior.epc_motion(ep_traj_control, self.time_step)
+
+
 
 def main():
     rospy.init_node("ellipsoid_controller", sys.argv)
