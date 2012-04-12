@@ -2,33 +2,30 @@
 
 import sys
 from PyQt4 import QtCore, QtGui, uic
-import numpy as np
 import functools
 
 import roslib
 roslib.load_manifest("rospy")
 roslib.load_manifest("std_msgs")
 roslib.load_manifest("std_srvs")
-roslib.load_manifest("tf")
 import rospy
 from std_msgs.msg import String
-import tf.transformations as tf_trans
 from std_srvs.srv import Empty, EmptyResponse
 
 from arm_cart_control_gui import Ui_Frame as QTArmControlGUIFrame
 
-MOVE_BUTTONS = {'translate_up' : (True, tf_trans.euler_matrix(0, -np.pi/2, 0)[:3,:3]), 
-                'translate_down' : (True, tf_trans.euler_matrix(0, np.pi/2, 0)[:3,:3]), 
-                'translate_left' : (True, tf_trans.euler_matrix(0, 0, np.pi/2)[:3,:3]), 
-                'translate_right' : (True, tf_trans.euler_matrix(0, 0, -np.pi/2)[:3,:3]), 
-                'translate_in' : (True, tf_trans.euler_matrix(0, 0, np.pi)[:3,:3]), 
-                'translate_out' : (True, tf_trans.euler_matrix(0, 0, 0)[:3,:3]),
-                'rotate_x_pos' : (False, tf_trans.euler_matrix(0, 0, 0)[:3,:3]),
-                'rotate_x_neg' : (False, tf_trans.euler_matrix(0, 0, np.pi)[:3,:3]),
-                'rotate_y_pos' : (False, tf_trans.euler_matrix(0, 0, np.pi/2)[:3,:3]),
-                'rotate_y_neg' : (False, tf_trans.euler_matrix(0, 0, -np.pi/2)[:3,:3]),
-                'rotate_z_pos' : (False, tf_trans.euler_matrix(0, -np.pi/2, 0)[:3,:3]),
-                'rotate_z_neg' : (False, tf_trans.euler_matrix(0, np.pi/2, 0)[:3,:3])}
+MOVE_BUTTONS = ['translate_up', 
+                'translate_down',
+                'translate_left', 
+                'translate_right', 
+                'translate_in', 
+                'translate_out',
+                'rotate_x_pos', 
+                'rotate_x_neg', 
+                'rotate_y_pos', 
+                'rotate_y_neg', 
+                'rotate_z_pos', 
+                'rotate_z_neg'] 
 
 BUTTON_STYLESHEET = """image: url(:/resources/%s_%s.png);
                        background-image: url(:/resources/empty.png);"""
