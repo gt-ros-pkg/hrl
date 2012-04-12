@@ -65,7 +65,7 @@ class EllipsoidInterfaceBackend(ControllerInterfaceBackend):
 
         self.ell_controller = EllipsoidController(self.cart_arm)
         rospy.sleep(1)
-        if True:
+        if False:
             #cart_arm.set_posture(setup_angles)
             setup_angles = [0, 0, np.pi/2, -np.pi/2, -np.pi, -np.pi/2, -np.pi/2]
             self.cart_arm.set_posture(setup_angles)
@@ -75,13 +75,16 @@ class EllipsoidInterfaceBackend(ControllerInterfaceBackend):
     def run_controller(self, button_press):
         quat_gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
         if button_press in trans_params:
-            change_ep = trans_params[button_press]
-            self.ell_controller.execute_ell_move(change_ep, (0, 0, 0), quat_gripper_rot, LOCAL_VELOCITY)
+            change_trans_ep = trans_params[button_press]
+            self.ell_controller.execute_ell_move((change_trans_ep, (0, 0, 0)), ((0, 0, 0), 0), 
+                                                 quat_gripper_rot, LOCAL_VELOCITY)
         elif button_press in rot_params:
-            change_ep = rot_params[button_press]
-            self.ell_controller.execute_rotation(change_ep, ROT_VELOCITY)
-
-
+            change_rot_ep = rot_params[button_press]
+            self.ell_controller.execute_ell_move(((0, 0, 0), change_rot_ep), ((0, 0, 0), 0), 
+                                                 quat_gripper_rot, ROT_VELOCITY)
+        elif button_press == "reset_rotation":
+            self.ell_controller.execute_ell_move(((0, 0, 0), np.mat(np.eye(3))), ((0, 0, 0), 1), 
+                                                 quat_gripper_rot, ROT_VELOCITY)
 
 def main():
     rospy.init_node("ellipsoidal_controller_backend")
