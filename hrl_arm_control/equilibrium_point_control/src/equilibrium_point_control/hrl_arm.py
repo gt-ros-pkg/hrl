@@ -89,14 +89,6 @@ class HRLArmKinematics():
         last_link_rot = rot * self.tooltip_rot.T
         return self.IK_vanilla(last_link_pos, last_link_rot, q_guess)
 
-    ##
-    # Sets the offset of the tool from the last link in the kinematic chain
-    # @param tool_pos Postion offset of the tool from the last link in the kinematic chain
-    # @param tool_rot Rotation offset of the tool from the last link in the kinematic chain
-    def set_tooltip(self, tool_pos, tool_rot=np.matrix(np.eye(3))):
-        self.tooltip_pos = tool_pos
-        self.tooltip_rot = tool_rot
-
     # IK without the  tooltip.
     def IK_vanilla(self, p, rot, q_guess=None):
         raise RuntimeError('Unimplemented Function')
