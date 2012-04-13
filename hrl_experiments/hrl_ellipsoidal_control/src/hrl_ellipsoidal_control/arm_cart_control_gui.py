@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'arm_cart_control_gui.ui'
 #
-# Created: Wed Apr 11 22:20:42 2012
+# Created: Thu Apr 12 20:42:17 2012
 #      by: PyQt4 UI code generator 4.7.2
 #
 # WARNING! All changes made in this file will be lost!
@@ -98,6 +98,17 @@ class Ui_Frame(object):
         self.label_3.setText("")
         self.label_3.setObjectName("label_3")
         self.gridLayout.addWidget(self.label_3, 1, 1, 1, 1)
+        self.reset_rotation = QtGui.QPushButton(self.layoutWidget)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.reset_rotation.sizePolicy().hasHeightForWidth())
+        self.reset_rotation.setSizePolicy(sizePolicy)
+        self.reset_rotation.setBaseSize(QtCore.QSize(80, 80))
+        self.reset_rotation.setStyleSheet("font: 16pt ;\n"
+"background-image: url(:/resources/empty.png);")
+        self.reset_rotation.setObjectName("reset_rotation")
+        self.gridLayout.addWidget(self.reset_rotation, 2, 0, 1, 1)
         self.label_5 = QtGui.QLabel(Frame)
         self.label_5.setGeometry(QtCore.QRect(470, 70, 151, 31))
         self.label_5.setStyleSheet("font: 20pt;")
@@ -111,18 +122,6 @@ class Ui_Frame(object):
         self.layoutWidget_2.setObjectName("layoutWidget_2")
         self.gridLayout_2 = QtGui.QGridLayout(self.layoutWidget_2)
         self.gridLayout_2.setObjectName("gridLayout_2")
-        self.translate_out = QtGui.QPushButton(self.layoutWidget_2)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.translate_out.sizePolicy().hasHeightForWidth())
-        self.translate_out.setSizePolicy(sizePolicy)
-        self.translate_out.setBaseSize(QtCore.QSize(80, 80))
-        self.translate_out.setStyleSheet("image: url(:/resources/translate_out_on.png);\n"
-"background-image: url(:/resources/empty.png);")
-        self.translate_out.setText("")
-        self.translate_out.setObjectName("translate_out")
-        self.gridLayout_2.addWidget(self.translate_out, 0, 0, 1, 1)
         self.translate_up = QtGui.QPushButton(self.layoutWidget_2)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
@@ -135,18 +134,6 @@ class Ui_Frame(object):
         self.translate_up.setText("")
         self.translate_up.setObjectName("translate_up")
         self.gridLayout_2.addWidget(self.translate_up, 0, 1, 1, 1)
-        self.translate_in = QtGui.QPushButton(self.layoutWidget_2)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.translate_in.sizePolicy().hasHeightForWidth())
-        self.translate_in.setSizePolicy(sizePolicy)
-        self.translate_in.setBaseSize(QtCore.QSize(80, 80))
-        self.translate_in.setStyleSheet("image: url(:/resources/translate_in_on.png);\n"
-"background-image: url(:/resources/empty.png);")
-        self.translate_in.setText("")
-        self.translate_in.setObjectName("translate_in")
-        self.gridLayout_2.addWidget(self.translate_in, 0, 2, 1, 1)
         self.translate_left = QtGui.QPushButton(self.layoutWidget_2)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
@@ -189,6 +176,30 @@ class Ui_Frame(object):
         self.label_6.setText("")
         self.label_6.setObjectName("label_6")
         self.gridLayout_2.addWidget(self.label_6, 1, 1, 1, 1)
+        self.translate_out = QtGui.QPushButton(self.layoutWidget_2)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.translate_out.sizePolicy().hasHeightForWidth())
+        self.translate_out.setSizePolicy(sizePolicy)
+        self.translate_out.setBaseSize(QtCore.QSize(80, 80))
+        self.translate_out.setStyleSheet("image: url(:/resources/translate_out_on.png);\n"
+"background-image: url(:/resources/empty.png);")
+        self.translate_out.setText("")
+        self.translate_out.setObjectName("translate_out")
+        self.gridLayout_2.addWidget(self.translate_out, 0, 2, 1, 1)
+        self.translate_in = QtGui.QPushButton(self.layoutWidget_2)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.translate_in.sizePolicy().hasHeightForWidth())
+        self.translate_in.setSizePolicy(sizePolicy)
+        self.translate_in.setBaseSize(QtCore.QSize(80, 80))
+        self.translate_in.setStyleSheet("image: url(:/resources/translate_in_on.png);\n"
+"background-image: url(:/resources/empty.png);")
+        self.translate_in.setText("")
+        self.translate_in.setObjectName("translate_in")
+        self.gridLayout_2.addWidget(self.translate_in, 0, 0, 1, 1)
         self.layoutWidget_3 = QtGui.QWidget(Frame)
         self.layoutWidget_3.setGeometry(QtCore.QRect(20, 3, 661, 51))
         self.layoutWidget_3.setObjectName("layoutWidget_3")
@@ -233,6 +244,8 @@ class Ui_Frame(object):
 
     def retranslateUi(self, Frame):
         Frame.setWindowTitle(QtGui.QApplication.translate("Frame", "Frame", None, QtGui.QApplication.UnicodeUTF8))
+        self.reset_rotation.setText(QtGui.QApplication.translate("Frame", "Reset\n"
+"Rotation", None, QtGui.QApplication.UnicodeUTF8))
         self.label_5.setText(QtGui.QApplication.translate("Frame", "Rotation", None, QtGui.QApplication.UnicodeUTF8))
         self.label_4.setText(QtGui.QApplication.translate("Frame", "Translation", None, QtGui.QApplication.UnicodeUTF8))
         self.label_7.setText(QtGui.QApplication.translate("Frame", "Controller:", None, QtGui.QApplication.UnicodeUTF8))
