@@ -27,18 +27,6 @@ from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmCartesianBase, PR2ArmJTra
 from hrl_generic_arms.pose_converter import PoseConverter
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 
-MIN_HEIGHT = 0.2
-
-# TODO Figure this out sometime...
-#def get_time_traj(kin, dense_traj, q_start, velocity):
-#    max_ang_diff = np.array([0.] * kin.n_jts)
-#    q_cur = np.array(q_start)
-#    for pos, rot in dense_traj:
-#        q_next = np.array(kin.IK(pos, rot, q_cur))
-#        cur_diff = np.fabs(q_next - q_cur)
-#        max_ang_diff = np.where(cur_diff > max_ang_diff, cur_diff, max_ang_diff)
-#        q_cur = q_next
-
 class CartesianController(object):
     def __init__(self, arm):
         self.time_step = 1. / 20.

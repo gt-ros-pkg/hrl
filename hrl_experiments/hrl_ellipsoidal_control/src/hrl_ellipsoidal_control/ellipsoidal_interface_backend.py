@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import numpy as np
+import cPickle as pkl
 
 import roslib
 roslib.load_manifest("hrl_ellipsoidal_control")
@@ -31,16 +32,21 @@ rot_params = {'rotate_x_pos' : (-ROLL_STEP, 0, 0), 'rotate_x_neg' : (ROLL_STEP, 
               'rotate_y_pos' : (0, PITCH_STEP, 0), 'rotate_y_neg' : (0, -PITCH_STEP, 0),
               'rotate_z_pos' : (0, 0, -YAW_STEP),  'rotate_z_neg' : (0, 0, YAW_STEP)}
 
-button_history = {}
 
-class EllipsoidInterfaceBackend(ControllerInterfaceBackend):
+class EllipsoidalInterfaceBackend(ControllerInterfaceBackend):
     def __init__(self, cart_arm):
-        super(EllipsoidInterfaceBackend, self).__init__("Ellipsoid Controller")
+        super(EllipsoidalInterfaceBackend, self).__init__("Ellipsoid Controller")
         self.cart_arm = cart_arm
         self.ell_controller = EllipsoidController(self.cart_arm)
+        self.button_distances = {}
+        self.button_times = {}
+        for button in trans_params.keys() + rot_params.keys() + ["reset_rotation"]:
+            self.button_distances[button] = []
+            self.button_times[button] = []
 
     def run_controller(self, button_press):
         start_pos, _ = self.cart_arm.get_ep()
+        start_time = rospy.get_time()
         quat_gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
         if button_press in trans_params:
             change_trans_ep = trans_params[button_press]
@@ -54,22 +60,52 @@ class EllipsoidInterfaceBackend(ControllerInterfaceBackend):
             self.ell_controller.execute_ell_move(((0, 0, 0), np.mat(np.eye(3))), ((0, 0, 0), 1), 
                                                  quat_gripper_rot, ROT_VELOCITY)
         end_pos, _ = self.cart_arm.get_ep()
+        end_time = rospy.get_time()
         dist = np.linalg.norm(end_pos - start_pos)
-        print "%s, %.3f" % (button_press, dist)
-        button_history[button_press].append(dist)
+        time_diff = end_time - start_time
+        print "%s, dist: %.3f, time_diff: %.2f" % (button_press, dist, time_diff)
+        self.button_distances[button_press].append(dist)
+        self.button_times[button_press].append(time_diff)
+
+    def print_statistics(self):
+        print self.button_distances
+        print self.button_times
+        print "MEANS:"
+        for button in trans_params.keys() + rot_params.keys() + ["reset_rotation"]:
+            print "%s, avg dist: %.3f, avg_time: %.3f, num_presses: %d" % (
+                    button, 
+                    np.mean(self.button_distances[button]), 
+                    np.mean(self.button_times[button]), 
+                    len(self.button_distances[button]))
+
+    def save_statistics(self, filename):
+        button_mean_distances = {}
+        button_mean_times = {}
+        button_num_presses = {}
+        for button in trans_params.keys() + rot_params.keys() + ["reset_rotation"]:
+            button_mean_distances[button] = np.mean(self.button_distances[button])
+            button_mean_times[button] = np.mean(self.button_times[button])
+            button_num_presses[button] = len(self.button_distances[button])
+        stats = {
+            "button_distances"      : self.button_distances,
+            "button_times"          : self.button_times,
+            "button_mean_distances" : button_mean_distances,
+            "button_mean_times"     : button_mean_times,
+            "button_num_presses"    : button_num_presses
+        }
+        f = file(filename, "w")
+        pkl.dump(stats, f)
+        f.close()
 
 def main():
     rospy.init_node("ellipsoidal_controller_backend")
-
-    for button in trans_params.keys() + rot_params.keys():
-        button_history[button] = []
 
 
     cart_arm = create_pr2_arm('l', PR2ArmJTransposeTask, 
                               controller_name='%s_cart_jt_task', 
                               end_link="%s_gripper_shaver45_frame")
 
-    ell_backend = EllipsoidInterfaceBackend(cart_arm)
+    ell_backend = EllipsoidalInterfaceBackend(cart_arm)
     ell_backend.disable_interface("Setting up arm.")
 
     if True:
@@ -95,10 +131,7 @@ def main():
 
     ell_backend.enable_interface("Controller ready.")
     rospy.spin()
-    print button_history
-    print "MEANS:"
-    for button in trans_params.keys() + rot_params.keys():
-        print "%s, %.3f, %d" % (button, np.mean(button_history[button]), len(button_history[button]))
+    ell_backend.print_statistics()
 
 if __name__ == "__main__":
     main()
