@@ -11,11 +11,11 @@ import rospy
 from std_msgs.msg import String
 import tf.transformations as tf_trans
 import roslib.substitution_args
+import actionlib
 
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2Arm, PR2ArmJointTrajectory, PR2ArmCartesianPostureBase
-from arm_cart_vel_control import PR2ArmCartVelocityController
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
-from srv import TrajectoryPlay, TrajectoryPlayResponse
+from msg import TrajectoryPlayAction, TrajectoryPlayGoal
 from behavior_manager import Behavior, BMPriorities
 
 RATE = 20
@@ -150,9 +150,17 @@ class TrajectoryLoader(object):
         self.traj_ctrl_r = ArmPoseMoveBehavior('r', ctrl_name, param_file)
         self.traj_ctrl_l = ArmPoseMoveBehavior('l', ctrl_name, param_file)
 
+    def _load_arm(self, filename):
+        try:
+            f = file(roslib.substitution_args.resolve_args(filename), "r")
+            return pickle.load(f)
+        except Exception as e:
+            print "Cannot open file."
+            print "Error:", e
+            return None
+
     def exec_traj_from_file(self, filename, rate_mult=0.8, reverse=False, blocking=True):
-        f = file(roslib.substitution_args.resolve_args(filename), "r")
-        traj, arm_char, rate = pickle.load(f)
+        traj, arm_char, rate = self._load_arm(filename)
         if reverse:
             traj.reverse()
         if arm_char == 'r':
@@ -161,8 +169,7 @@ class TrajectoryLoader(object):
             return self.traj_ctrl_l.execute(traj, rate * rate_mult, blocking)
 
     def move_to_setup_from_file(self, filename, velocity=0.1, rate=RATE, reverse=False, blocking=True):
-        f = file(roslib.substitution_args.resolve_args(filename), "r")
-        traj, arm_char, rate = pickle.load(f)
+        traj, arm_char, rate = self._load_arm(filename)
         if reverse:
             traj.reverse()
         if arm_char == 'r':
@@ -212,26 +219,26 @@ class TrajectorySaver(object):
         f.close()
 
 class TrajectoryServer(object):
-    def __init__(self, srv_name, ctrl_name, param_file):
+    def __init__(self, as_name, ctrl_name, param_file):
         self.traj_load = TrajectoryLoader(ctrl_name, param_file)
-        self.traj_srv = rospy.Service(srv_name, TrajectoryPlay, self.traj_play_cb)
+        self.traj_srv = actionlib.SimpleActionServer(as_name, TrajectoryPlayAction, self.traj_play_cb)
 
     def traj_play_cb(self, req):
         if req.mode == req.MOVE_SETUP:
             result = self.traj_load.move_to_setup_from_file(req.filepath, reverse=req.reverse,
-                                         velocity=req.setup_velocity, blocking=req.blocking)
+                                         velocity=req.setup_velocity, blocking=False)
         elif req.mode == req.TRAJ_ONLY:
             result = self.traj_load.exec_traj_from_file(req.filepath, rate_mult=req.traj_rate_mult,
-                                         reverse=req.reverse, blocking=req.blocking)
+                                         reverse=req.reverse, blocking=False)
         elif req.mode == req.SETUP_AND_TRAJ:
             def setup_and_traj(te):
                 result = self.traj_load.move_to_setup_from_file(req.filepath, 
                                              reverse=req.reverse,
-                                             velocity=req.setup_velocity, blocking=True)
+                                             velocity=req.setup_velocity, blocking=False)
                 if result:
                     result = self.traj_load.exec_traj_from_file(req.filepath, 
                                                  rate_mult=req.traj_rate_mult, 
-                                                 reverse=req.reverse, blocking=True)
+                                                 reverse=req.reverse, blocking=False)
             if req.blocking:
                 result = setup_and_traj(None)
             else:
@@ -240,7 +247,6 @@ class TrajectoryServer(object):
 
         else:
             rospy.logerr("[arm_pose_move_controller] Bad service call!")
-        return TrajectoryPlayResponse(result)
 
 CTRL_NAME_LOW = '%s_joint_controller_low'
 PARAMS_FILE_LOW = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_low.yaml'
