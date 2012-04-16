@@ -114,6 +114,9 @@ class HRLArmKinematics():
 
     #----- 2D functions ----------
 
+    # return list of 2D points corresponding to the locations of the
+    # joint axes for a planar arm. Something funky for a spatial arm
+    # that Advait does not want to put into words.
     def arm_config_to_points_list(self, q):
         return [self.FK(q, i)[0].A1[0:2] for i in range(len(q)+1)]
 
@@ -131,6 +134,24 @@ class HRLArmKinematics():
     def distance_from_arm(self, q, pt):
         p_l = self.arm_config_to_points_list(q)
         return hg.distance_from_curve(pt, p_l)
+
+    # is pt at the joint?
+    # pt - 2x1 or 3x1 np matrix
+    # return True if distance between a joint and the point projected
+    # onto the skeleton is <= dist_threshold.
+    #
+    # tested only for planar arms. (see test_contact_at_joints.py in
+    # sandbox_advait_darpa_m3/src/sandbox_advait_darpa_m3/software_simulation)
+    def is_contact_at_joint(self, pt, q, dist_threshold):
+        pts_list = [self.FK(q, i)[0].A1 for i in range(len(q)+1)]
+        proj_pt = hg.project_point_on_curve(pt, pts_list)
+
+        # ignore end effector (it is not a joint)
+        for jt in pts_list[:-1]:
+            dist = np.linalg.norm(np.matrix(jt).T-proj_pt)
+            if dist <= dist_threshold:
+                return True
+        return False
 
 
 
