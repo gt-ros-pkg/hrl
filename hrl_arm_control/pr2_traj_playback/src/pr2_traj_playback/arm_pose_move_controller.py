@@ -260,7 +260,6 @@ CTRL_NAME_NONE = '%s_joint_controller_none'
 PARAMS_FILE_NONE = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_none.yaml'
 
 def main():
-    rospy.init_node("arm_pose_move_controller")
 
     from optparse import OptionParser
     p = OptionParser()
@@ -291,8 +290,6 @@ def main():
     p.add_option('-z', '--reverse', dest="reverse", 
                  action="store_true", default=False,
                  help="Plays back trajectory in reverse.")
-    p.add_option('-n', '--srv_name', dest="srv_name", default='/trajectory_playback',
-                 help="Name of service to provide.")
     (opts, args) = p.parse_args()
 
     if opts.right_arm:
@@ -304,6 +301,7 @@ def main():
         return
     filename = opts.filename
 
+    rospy.init_node("arm_pose_move_controller_%s" % arm_char)
     if opts.save_mode:
         assert(opts.right_arm + opts.left_arm == 1)
         if opts.traj_mode:
@@ -330,7 +328,8 @@ def main():
             print "FIX"
             return
     elif opts.srv_mode:
-        traj_srv = TrajectoryServer(arm_char, opts.srv_name, opts.ctrl_name, opts.params_file)
+        traj_srv = TrajectoryServer(arm_char, "/trajectory_playback_" + arm_char, 
+                                    opts.ctrl_name, opts.params_file)
         rospy.spin()
         return
     elif opts.playback_mode:
