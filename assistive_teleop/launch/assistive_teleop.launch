@@ -19,13 +19,15 @@
 
     <!-- NetFt Sensor-->
         <!-- Launch sensor -->
-        <include file="$(find hrl_netft)/launch/tool_razor_inline_zeroed.launch" />
+        <node pkg="hrl_netft" name="netft_gravity_zeroing" type="netft_zeroing.py" 
+              args="-l -r -z -p -f $(find hrl_rfh_fall_2011)/params/ft_zero_params_razor_inline.yaml" 
+              output="screen" />
         <!-- Throttle feedback to interface -->
         <node
             name="throttle_wt_force_out"
             pkg="topic_tools"
             type="throttle"
-            args="messages /netft_gravity_zeroer/wrench_zeroed 8 /wt_force_out_throttle" />
+            args="messages /netft_gravity_zeroing/wrench_zeroed 8 /wt_force_out_throttle" />
  
     <!-- JTTask Controller load
     <include file="$(find assistive_teleop)/launch/c_jtask_mod.launch" />

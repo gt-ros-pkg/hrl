@@ -18,7 +18,7 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){ document.getElementById('console').innerHTML = message.toString();};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-var ROBOT = 'monty1.hsi.gatech.edu';
+var ROBOT = 'monty1';
 
 $(function(){
     $(':button').click(log_click);
@@ -111,7 +111,7 @@ function init_subscribers() {
                                        Math.pow(ws.wrench.force.z,2))
                         $('#force_view').slider("option", "value", mag);
                        set_ft_bar(Math.min(mag, 15)/15, 0.5);
-                       $('#ft_readout').html('<p>'+mag+' N </p>')
+                       $('#ft_readout').html('<p>'+mag.toFixed(1)+' N </p>')
                    });
 };//END sub_state
 
@@ -434,9 +434,13 @@ function start(){
       <td><button class="bpd" id="bpd2_b6" type="button" value="-1" onclick="shave_step(1,0,0)">></button></td>
     </tr>
     <tr>
-      <td><button class="bpd" id="bpd2_b1" type="button" value=1 onclick="shave(-1)"> Prev. </button></td>
+      <td>
+      <!--<button class="bpd" id="bpd2_b1" type="button" value=1 onclick="shave(-1)"> Prev. </button>-->
+      </td>
       <td><button class="bpd" id="bpd2_b2" type="button" value="-1" onclick="shave_step(0,-1,0)">v</button></td>
-      <td><button class="bpd" id="bpd2_b3" type="button" value=1 onclick="shave(1)"> Next </button></td>
+      <td>
+      <!--<button class="bpd" id="bpd2_b3" type="button" value=1 onclick="shave(1)"> Next </button>-->
+      </td>
     </tr>
   </table>
 </div> <!--END buttonpad controls -->

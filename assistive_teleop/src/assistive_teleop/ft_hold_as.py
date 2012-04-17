@@ -5,6 +5,7 @@ import math
 import roslib; roslib.load_manifest('assistive_teleop')
 import rospy
 import actionlib
+from std_msgs.msg import Int8 # kelsey
 from geometry_msgs.msg import WrenchStamped
 from assistive_teleop.msg import FtHoldAction, FtHoldFeedback, FtHoldResult
 
@@ -13,8 +14,9 @@ class FtHolder:
     
     def __init__(self):
         self.hold_server = actionlib.SimpleActionServer('ft_hold_action', FtHoldAction, self.hold, False) 
-        self.hold_server.start()
+        self.trans_pub = rospy.Publisher('shaving_state', Int8, latch=True) # kelsey
         rospy.Subscriber('/netft_gravity_zeroing/wrench_zeroed', WrenchStamped, self.get_netft_state)
+        self.hold_server.start()
 
     def get_netft_state(self, ws):
         self.netft_wrench = ws
@@ -27,6 +29,7 @@ class FtHolder:
         result=FtHoldResult()
         print "Check ft mag init"
         print self.ft_mag
+        self.trans_pub.publish(15) # kelsey
         while not rospy.is_shutdown():
 
             if self.hold_server.is_preempt_requested():

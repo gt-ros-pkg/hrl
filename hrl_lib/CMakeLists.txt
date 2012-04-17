@@ -29,4 +29,5 @@ rosbuild_gensrv()
 #rospack_link_boost(${PROJECT_NAME} thread)
 #rospack_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
-rosbuild_add_library(hrl_lib src/kbhit.cpp)
+
+#rosbuild_add_library(hrl_lib src/kbhit.cpp)

@@ -1,4 +1,4 @@
-roslaunch hrl_rfh_fall_2011 pr2_bringup_tool.launch
+robot start
 rosrun kelsey_sandbox behavior_manager.py
 roslaunch kelsey_sandbox winter_rfh_2012.launch
 roslaunch assistive_teleop assistive_teleop.launch

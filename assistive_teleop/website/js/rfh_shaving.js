@@ -8,6 +8,9 @@ function shaving_init(){
     node.subscribe('/pr2_ar_servo/state_feedback', function(msg){
                     servo_feedback_cb(msg);}
                     );
+    node.subscribe('/shaving_state', function(msg){
+                    shaving_feedback_cb(msg);}
+                    );
     
     node.publish('wt_shave_step', 'geometry_msgs/Point', json({}));
     node.publish('wt_shave_location', 'std_msgs/Int8', json({}));
@@ -28,18 +31,20 @@ $(function(){
 function servo_setup_cb(){
     log('Sending command to prep arms for ar-servoing approach');
     node.rosjs.callService('/pr2_ar_servo/arms_setup','[""]',function(msg){
-        $('#ar_servoing_setup').hide();
-        $('#ar_servoing_done, #servo_detect_tag').show();
+        $('.ar_servo_controls').show();
+        $('#ar_servoing_setup, #servo_approach, #servo_stop').hide();
         set_camera('/l_forearm_cam/image_color_rotated')
         log('USE BUTTONS TO FIND TAG AND PERFORM APPROACH');
         })
 };
 
 function servoing_done_cb(){
-    $('#pc_snapshot').show();
-    $('#ar_servoing_done, .ar_servo_controls').hide(); 
-    set_camera('/kinect_head/rbg/image_color')
-    log('Approach Completed. ENSURE ROBOT IS LOOKING AT YOUR HEAD, PLACE YOUR HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD');
+    node.rosjs.callService('/setup_registration','[""]',function(msg){
+        $('#pc_snapshot').show();
+        $('#ar_servoing_done, .ar_servo_controls').hide(); 
+        set_camera('/kinect_head/rgb/image_color');
+        log('Approach Completed. ENSURE ROBOT IS LOOKING AT YOUR HEAD, PLACE YOUR HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD')
+    })
 };
 
 function servo_detect_tag_cb(){
@@ -63,9 +68,9 @@ function servo_feedback_cb(msg){
             break
         case 2: 
             text = "AR Tag Found. BEGIN APPROACH.";
-            $('#servo_approach, #servo_stop').show().fadeTo(0,1);
+            $('#servo_approach, #servo_stop, #ar_servoing_done').show().fadeTo(0,1);
             $('#servo_detect_tag').fadeTo(0,0.5);
-            set_camera('/kinect_head/rbg/image_color')
+            set_camera('/kinect_head/rgb/image_color')
             break
         case 3:
             text = "Unable to Locate AR Tag. ADJUST VIEW AND RETRY.";
@@ -78,7 +83,7 @@ function servo_feedback_cb(msg){
             text = "Servoing Completed Successfully.";
             $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
-            set_camera('/kinect_head/rbg/image_color')
+            set_camera('/kinect_head/rgb/image_color')
             break
         case 6:
             text = "Servoing Detected Collision with Arms.  "+ 
@@ -142,7 +147,7 @@ function shave_step(x,y,z) {points = window.gm_point;
 
 function send_shave_location(num) {
     log("Sending New Shave Position: "+ document.getElementById('shave_list').options[window.sm_selected_pose].text);
-    if (window.shave_side == 'r') {
+    if (window.shaving_side == 'r') {
         if (num >= 1 && num <= 6) {
             num += 7;
             };
@@ -165,6 +170,57 @@ function shave_start_cb(){
     $('#shave_end, #ar_servoing_setup').show();
     $('#shave_start').hide();
     log('Opened Shaving Interface');
+};
+
+function shaving_feedback_cb(msg){
+    switch(msg.data){
+        case 1:
+            text = "Global Move Command Received";
+            break
+        case 2: 
+            text = "Starting Small Move Up";
+            break
+        case 3: 
+            text = "Starting Small Move Down";
+            break
+        case 4: 
+            text = "Starting Small Move Left";
+            break
+        case 5: 
+            text = "Starting Small Move Right";
+            break
+        case 6: 
+            text = "Starting Small Move Out";
+            break
+        case 7: 
+            text = "Starting Small Move In";
+            break
+        case 8: 
+            text = "Moving in to Shave Current Position";
+            break
+        case 9: 
+            text = "Collision While Moving";
+            break
+        case 10: 
+            text = "Backing Away...";
+            break
+        case 11: 
+            text = "Moving to new location...";
+            break
+        case 12: 
+            text = "Approaching...";
+            break
+        case 13: 
+            text = "Retreating Slowly";
+            break
+        case 14: 
+            text = "Fast Retreat (Safety Threshold Exceeded)";
+            break
+        case 15: 
+            text = "Beginning Force-Sensitive Hold.";
+            break
+    }
+    log(text);
 };
 
 function shave_end_cb() {
