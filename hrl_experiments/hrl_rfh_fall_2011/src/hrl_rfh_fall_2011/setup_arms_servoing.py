@@ -9,12 +9,11 @@ import roslib
 roslib.load_manifest('hrl_pr2_arms')
 roslib.load_manifest('hrl_rfh_summer_2011')
 roslib.load_manifest('hrl_rfh_fall_2011')
-roslib.load_manifest('kelsey_sandbox')
+roslib.load_manifest('pr2_traj_playback')
 import rospy
 
 import smach
 import actionlib
-from smach_ros import SimpleActionState, ServiceState, IntrospectionServer
 from std_srvs.srv import Empty, EmptyResponse
 
 from hrl_rfh_fall_2011.sm_register_head_ellipse import SMEllipsoidRegistration
@@ -23,35 +22,55 @@ from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPosit
 from hrl_rfh_fall_2011.sm_topic_monitor import TopicMonitor
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJTransposeTask
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
-from kelsey_sandbox.srv import TrajectoryPlay, TrajectoryPlayRequest, TrajectoryPlayResponse
+from pr2_traj_playback.msg import TrajectoryPlayAction, TrajectoryPlayGoal
+
+def get_goal_template():
+    traj = TrajectoryPlayGoal()
+    traj.mode = traj.SETUP_AND_TRAJ
+    traj.reverse = True
+    traj.setup_velocity = 0.3
+    traj.traj_rate_mult = 0.8
+    return traj
 
 class SetupArmsServoing():
     def __init__(self):
-        self.traj_playback = rospy.ServiceProxy('/trajectory_playback', TrajectoryPlay)
-        self.ctrl_switcher = ControllerSwitcher()
-        rospy.loginfo("[setup_arms_servoing] SetupArmsServoing ready.")
         self.lock = Lock()
+        self.ctrl_switcher = ControllerSwitcher()
+        self.torso_sac = actionlib.SimpleActionClient('torso_controller/position_joint_action',
+                                                      SingleJointPositionAction)
+        self.traj_playback_l = actionlib.SimpleActionClient('/trajectory_playback_l', TrajectoryPlayAction)
+        self.traj_playback_r = actionlib.SimpleActionClient('/trajectory_playback_r', TrajectoryPlayAction)
+        self.torso_sac.wait_for_server()
+        self.traj_playback_l.wait_for_server()
+        self.traj_playback_r.wait_for_server()
+        rospy.loginfo("[setup_arms_servoing] SetupArmsServoing ready.")
+
+    def adjust_torso(self):
+        # move torso up
+        tgoal = SingleJointPositionGoal()
+        tgoal.position = 0.01  # all the way up is 0.300, all the way down is 0.01
+        tgoal.min_duration = rospy.Duration( 2.0 )
+        tgoal.max_velocity = 1.0
+        self.torso_sac.send_goal_and_wait(tgoal)
 
     def run(self, req):
         ############################################################
         self.lock.acquire(False)
 
-        traj = TrajectoryPlayRequest()
-        traj.mode = traj.SETUP_AND_TRAJ
-        traj.reverse = True
-        traj.setup_velocity = 0.3
-        traj.traj_rate_mult = 0.8
+        print "A"
+        self.adjust_torso()
+        print "B"
 
-        l_traj = copy.copy(traj)
+        l_traj = get_goal_template()
         l_traj.filepath = "$(find hrl_rfh_fall_2011)/data/l_arm_servo_setup.pkl"
-        l_traj.blocking = True
 
-        r_traj = copy.copy(traj)
+        r_traj = get_goal_template()
         r_traj.filepath = "$(find hrl_rfh_fall_2011)/data/r_arm_servo_setup.pkl"
-        r_traj.blocking = True
 
-        self.traj_playback(l_traj)
-        self.traj_playback(r_traj)
+        self.traj_playback_l.send_goal(l_traj)
+        self.traj_playback_r.send_goal(r_traj)
+        self.traj_playback_l.wait_for_result()
+        self.traj_playback_r.wait_for_result()
     
         self.ctrl_switcher.carefree_switch('l', '%s_arm_controller')
         self.ctrl_switcher.carefree_switch('r', '%s_arm_controller')
