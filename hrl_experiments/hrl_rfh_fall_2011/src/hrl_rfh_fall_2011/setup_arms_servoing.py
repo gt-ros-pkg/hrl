@@ -21,8 +21,10 @@ from hrl_trajectory_playback.srv import TrajPlaybackSrv, TrajPlaybackSrvRequest
 from pr2_controllers_msgs.msg import SingleJointPositionAction, SingleJointPositionGoal
 from hrl_rfh_fall_2011.sm_topic_monitor import TopicMonitor
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJTransposeTask
+from hrl_generic_arms.pose_converter import PoseConverter
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from pr2_traj_playback.msg import TrajectoryPlayAction, TrajectoryPlayGoal
+from pr2_controllers_msgs.msg import PointHeadAction, PointHeadGoal
 
 def get_goal_template():
     traj = TrajectoryPlayGoal()
@@ -38,9 +40,12 @@ class SetupArmsServoing():
         self.ctrl_switcher = ControllerSwitcher()
         self.torso_sac = actionlib.SimpleActionClient('torso_controller/position_joint_action',
                                                       SingleJointPositionAction)
+        self.head_point_sac = actionlib.SimpleActionClient('/head_traj_controller/point_head_action',
+                                                           PointHeadAction)
         self.traj_playback_l = actionlib.SimpleActionClient('/trajectory_playback_l', TrajectoryPlayAction)
         self.traj_playback_r = actionlib.SimpleActionClient('/trajectory_playback_r', TrajectoryPlayAction)
         self.torso_sac.wait_for_server()
+        self.head_point_sac.wait_for_server()
         self.traj_playback_l.wait_for_server()
         self.traj_playback_r.wait_for_server()
         rospy.loginfo("[setup_arms_servoing] SetupArmsServoing ready.")
@@ -53,14 +58,17 @@ class SetupArmsServoing():
         tgoal.max_velocity = 1.0
         self.torso_sac.send_goal_and_wait(tgoal)
 
-    def run(self, req):
-        ############################################################
-        self.lock.acquire(False)
+    def point_head(self):
+        head_goal = PointHeadGoal()
+        ahead_frame = (np.mat([1., 0., 0.]).T, np.mat(np.eye(3)))
+        head_goal.target = PoseConverter.to_point_stamped_msg("/torso_lift_link", ahead_frame)
+        head_goal.target.point.z -= 0.15
+        head_goal.target.header.stamp = rospy.Time()
+        head_goal.min_duration = rospy.Duration(1.)
+        head_goal.max_velocity = 0.2
+        self.head_point_sac.send_goal_and_wait(head_goal)
 
-        print "A"
-        self.adjust_torso()
-        print "B"
-
+    def setup_arms(self):
         l_traj = get_goal_template()
         l_traj.filepath = "$(find hrl_rfh_fall_2011)/data/l_arm_servo_setup.pkl"
 
@@ -74,6 +82,14 @@ class SetupArmsServoing():
     
         self.ctrl_switcher.carefree_switch('l', '%s_arm_controller')
         self.ctrl_switcher.carefree_switch('r', '%s_arm_controller')
+
+    def run(self, req):
+        ############################################################
+        self.lock.acquire(False)
+
+        self.adjust_torso()
+        self.point_head()
+        self.setup_arms()
 
         self.lock.release()
         ############################################################

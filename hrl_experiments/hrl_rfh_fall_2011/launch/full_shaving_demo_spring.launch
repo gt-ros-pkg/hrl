@@ -2,7 +2,7 @@
     <rosparam>
        shaving_side: l
     </rosparam>
-    <include file="$(find kelsey_sandbox)/launch/winter_rfh_2012.launch" />
+    <include file="$(find hrl_rfh_fall_2011)/launch/winter_rfh_2012.launch" />
     <include file="$(find assistive_teleop)/launch/assistive_teleop.launch" >
         <arg name="shaving_board" value="/dev/ttyUSB1" />
     </include>
