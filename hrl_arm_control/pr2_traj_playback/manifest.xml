@@ -9,6 +9,7 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/pr2_traj_playback</url>
   <depend package="hrl_pr2_arms"/>
+  <depend package="hrl_behavior_manager"/>
 
 </package>
 

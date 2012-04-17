@@ -2,11 +2,10 @@
 
 import numpy as np
 import cPickle as pickle
+from threading import Lock
 
 import roslib
-roslib.load_manifest("rospy")
-roslib.load_manifest("std_msgs")
-roslib.load_manifest("hrl_pr2_arms")
+roslib.load_manifest("pr2_traj_playback")
 import rospy
 from std_msgs.msg import String
 import tf.transformations as tf_trans
@@ -16,7 +15,7 @@ import actionlib
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2Arm, PR2ArmJointTrajectory, PR2ArmCartesianPostureBase
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from msg import TrajectoryPlayAction, TrajectoryPlayGoal
-from behavior_manager import Behavior, BMPriorities
+from hrl_behavior_manager.behavior_manager import Behavior, BMPriorities
 
 RATE = 20
 JOINT_TOLERANCES = [0.03, 0.1, 0.1, 0.1, 0.17, 0.15, 0.12]
@@ -151,6 +150,7 @@ def load_arm_file(filename):
         traj, arm_char, rate = pickle.load(f)
         if arm_char not in ['r', 'l']:
             raise Exception("arm_char not r or l")
+        return traj, arm_char, rate
     except Exception as e:
         print "Cannot open file."
         print "Error:", e
@@ -220,41 +220,39 @@ class TrajectorySaver(object):
         f.close()
 
 class TrajectoryServer(object):
-    def __init__(self, as_name, ctrl_name, param_file):
-        self.traj_ctrl_l = ArmPoseMoveBehavior('l', ctrl_name, param_file)
-        self.traj_ctrl_r = ArmPoseMoveBehavior('r', ctrl_name, param_file)
-        self.lock = Lock()
-        self.goal_id_arm = {}
-        self.traj_srv = actionlib.ActionServer(as_name, TrajectoryPlayAction, 
-                                               self.traj_play_cb, self.traj_cancel_cb)
+    def __init__(self, arm_char, as_name, ctrl_name, param_file):
+        self.traj_ctrl = ArmPoseMoveBehavior(arm_char, ctrl_name, param_file)
+        self.traj_srv = actionlib.SimpleActionServer(as_name, TrajectoryPlayAction, 
+                                                     self.traj_play_cb, False)
+        self.traj_srv.register_preempt_callback(self.traj_cancel_cb)
+        self.traj_srv.start()
 
-    def traj_play_cb(self, gh):
-        goal = gh.get_goal()
-        goal_id = gh.get_goal_id().id
+    def traj_play_cb(self, goal):
         traj, arm_char, rate = load_arm_file(goal.filepath)
         if traj is None:
+            self.traj_srv.set_aborted(text="Failed to open file.")
+            return
+        if arm_char != self.traj_ctrl.arm_char:
+            self.traj_srv.set_aborted(text="File contains wrong arm.")
             return
         if goal.reverse:
             traj.reverse()
-        traj_ctrl = self.traj_ctrl_r if arm_char == 'r' else self.traj_ctrl_l
-        self.goal_id_arm[goal_id] = arm_char
         if goal.mode == goal.MOVE_SETUP:
-            traj_ctrl.move_to_angles(traj[0], velocity=goal.setup_velocity, 
-                                     rate=RATE, blocking=True)
+            self.traj_ctrl.move_to_angles(traj[0], velocity=goal.setup_velocity, 
+                                          rate=RATE, blocking=True)
         elif goal.mode == goal.TRAJ_ONLY:
-            traj_ctrl.execute(traj, rate * goal.traj_rate_mult, blocking=True)
+            self.traj_ctrl.execute(traj, rate * goal.traj_rate_mult, blocking=True)
         elif goal.mode == goal.SETUP_AND_TRAJ:
-            traj_ctrl.move_to_angles(traj[0], velocity=goal.setup_velocity, 
-                                     rate=RATE, blocking=True)
-            traj_ctrl.execute(traj, rate * goal.traj_rate_mult, blocking=True)
+            self.traj_ctrl.move_to_angles(traj[0], velocity=goal.setup_velocity, 
+                                          rate=RATE, blocking=True)
+            self.traj_ctrl.execute(traj, rate * goal.traj_rate_mult, blocking=True)
         else:
-            rospy.logerr("[arm_pose_move_controller] Bad service call!")
+            self.traj_srv.set_aborted(text="Unknown goal mode.")
+            return
+        self.traj_srv.set_succeeded()
 
-    def traj_cancel_cb(self, gh):
-        goal_id = gh.get_goal_id().id
-        arm_char = self.goal_id_arm[goal_id]
-        traj_ctrl = self.traj_ctrl_r if arm_char == 'r' else self.traj_ctrl_l
-        traj_ctrl.stop_moving()
+    def traj_cancel_cb(self):
+        self.traj_ctrl.stop_moving()
 
 CTRL_NAME_LOW = '%s_joint_controller_low'
 PARAMS_FILE_LOW = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_low.yaml'
@@ -299,8 +297,11 @@ def main():
 
     if opts.right_arm:
         arm_char = 'r'
-    else:
+    elif opts.left_arm:
         arm_char = 'l'
+    else:
+        print "Must select arm with -r or -l."
+        return
     filename = opts.filename
 
     if opts.save_mode:
@@ -329,11 +330,12 @@ def main():
             print "FIX"
             return
     elif opts.srv_mode:
-        traj_srv = TrajectoryServer(opts.srv_name, opts.ctrl_name, opts.params_file)
+        traj_srv = TrajectoryServer(arm_char, opts.srv_name, opts.ctrl_name, opts.params_file)
         rospy.spin()
         return
     elif opts.playback_mode:
         raw_input("Press enter to continue")
+        # TODO FIX
         traj_load = TrajectoryLoader(opts.ctrl_name, opts.params_file)
         result = traj_load.exec_traj_from_file(opts.filename, reverse=opts.reverse, blocking=True)
         print result
