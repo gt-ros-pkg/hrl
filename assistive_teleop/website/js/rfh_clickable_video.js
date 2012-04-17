@@ -1,6 +1,7 @@
 var count_surf_wipe_right=count_surf_wipe_left=force_wipe_count=0;
 var img_act = 'looking'
 var norm_appr_left = norm_appr_right = driving = tool_state = false;
+var MJPEG_QUALITY= '10'
 
 function camera_init(){
     //Image-Click Publishers
@@ -23,7 +24,13 @@ function camera_init(){
 };
 
 
-function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+':8080/?topic=/'+cam+'?width=640?height=480'};
+//function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+':8080/stream?topic=/'+cam+'?width=640?height=480?quality=10'};
+function set_camera(cam) {
+mjpeg_url = 'http://'+ROBOT+':8080/stream?topic=/'+cam+'?width=100?height=100?quality=35?'
+document.getElementById('video').src=mjpeg_url
+log(mjpeg_url)
+};
+
 
 function click_position(e) {
 	var posx = 0;
