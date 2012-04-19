@@ -22,8 +22,8 @@ var ROBOT = 'monty1';
 
 $(function(){
     $(':button').click(log_click);
-	$('#force_view').slider({value:0,range:'min',min:0,max:15,step:0.05,orientation:'vertical'}); 
-	$('#force_set').slider({value:1,min:0,max:15,step:0.05,orientation:'vertical'}); 
+	$('#force_view').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
+	$('#force_set').slider({value:1,min:0,max:12,step:0.05,orientation:'vertical'}); 
 	$('#force_set').unbind("slidestop").bind("slidestop", function(event,ui){
                                                             pub_ft_goal($('#force_set').slider('value'));
                                                             log('Setting Force Threshold to '+ $('#force_set').slider("value").toString() + ' N ('+
@@ -110,7 +110,7 @@ function init_subscribers() {
                                        Math.pow(ws.wrench.force.y,2) + 
                                        Math.pow(ws.wrench.force.z,2))
                         $('#force_view').slider("option", "value", mag);
-                       set_ft_bar(Math.min(mag, 15)/15, 0.5);
+                       set_ft_bar(Math.min(mag, 12)/12, 0.5);
                        $('#ft_readout').html('<p>'+mag.toFixed(1)+' N </p>')
                    });
 };//END sub_state
@@ -212,7 +212,7 @@ function start(){
           <td colspan=2 align='center'>Force</td>
         </tr><tr>
         </tr><tr>
-          <td colspan=2 align='center'> 0-15 N </td>
+          <td colspan=2 align='center'> 0-12 N </td>
         </tr><tr>
           <td align='center'><div id='force_set' style="height:360px"></div></td>
           <td align='center'><div id='force_view' style="height:360px"></div></td>
@@ -225,15 +225,15 @@ function start(){
     </td>
     <td>
       <table border=1 style="height:450px; width:10px">
-        <tr style="height:50%;background-color:red">
+        <tr style="height:17%;background-color:red">
           <td>
            <p>Danger</p>
           </td>
         </tr>
-        <tr style="height:30%;background-color:green">
+        <tr style="height:58%;background-color:green">
           <td style="writing-mode:tb-rl;" >Activity</td>
         </tr>
-        <tr style="height:20%;background-color:gray">
+        <tr style="height:25%;background-color:gray">
          <td>
            <div id="ft_readout"></div>
          </td>
