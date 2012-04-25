@@ -26,6 +26,8 @@
   <depend package="hrl_opencv"/>
   <depend package="dynamic_reconfigure"/>
 
+  <depend package="hai_sandbox"/>
+
 </package>
 
 

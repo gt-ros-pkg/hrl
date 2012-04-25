@@ -1,6 +1,7 @@
 ##
 # Representation of a dataset, operations that can be performed on it, and quantities that can be calculated from it
 import numpy as np
+import copy
 
 class Dataset:
 
@@ -43,6 +44,17 @@ class AttributeDescriptor:
 ###############################################################################
 # Operations on datasets
 ###############################################################################
+
+##
+# Good for leave one out cross validation loops.
+# @param dataset
+# @param index
+def leave_one_out(dataset, index):
+    inputs = np.column_stack((dataset.inputs[:, :index], dataset.inputs[:, index+1:]))
+    outputs = np.column_stack((dataset.outputs[:, :index], dataset.outputs[:, index+1:]))
+    d = Dataset(inputs, outputs)
+    d.metadata = copy.copy(dataset.metadata)
+    return d, dataset.inputs[:, index], dataset.outputs[:,index]
 
 ##
 # Splits up a dataset based on value in a particular attribute
