@@ -10,10 +10,18 @@
         type="serial_node.py"
         args="$(arg shaving_board)"
         output="screen"/>
-  
+
+    <node
+        name="razor_run_stop_monitor"
+        pkg="assistive_teleop"
+        type="razor_runstop.py"
+        output="screen"/>
+
     <!-- NetFt Sensor-->
         <!-- Launch sensor -->
-        <include file="$(find hrl_netft)/launch/tool_razor_inline_zeroed.launch" />
+        <node pkg="hrl_netft" name="netft_gravity_zeroing" type="netft_zeroing.py" 
+              args="-l -r -z -p -f $(find hrl_rfh_fall_2011)/params/ft_zero_params_razor_inline.yaml" 
+              output="screen" />
         <!-- Throttle feedback to interface -->
         <node
             name="throttle_wt_force_out"
@@ -207,6 +215,11 @@
         type="throttle" 
         args="messages /l_arm_controller/state 8 /l_arm_controller_state_throttle" />
 
+    <node 
+        name="throttle_kinect_camera" 
+        pkg="topic_tools" 
+        type="throttle" 
+        args="messages /kinect_head/rgb/image_color 10 /kinect_throttled" />
     <!-- Launch mjpeg server, used for sending image streams -->
     <node 
         name="mjpeg_server" 

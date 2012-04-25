@@ -175,7 +175,7 @@ def create_pr2_arm(arm, arm_type=PR2Arm, base_link="torso_lift_link",
     chain, joint_info = kdlp.chain_from_param(base_link, end_link, param=param)
     kin = KDLArmKinematics(chain, joint_info, base_link, end_link)
     if controller_name is None:
-        return arm_type(arm, kin, "", timeout=timeout)
+        return arm_type(arm, kin, timeout=timeout)
     else:
         return arm_type(arm, kin, controller_name=controller_name, timeout=timeout)
 

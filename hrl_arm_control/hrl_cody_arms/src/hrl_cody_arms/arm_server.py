@@ -95,11 +95,9 @@ class MekaArmSettings():
 class MekaArmServer():
     def __init__(self, right_arm_settings=None,
                  left_arm_settings=None, use_netft_r = False,
-                 use_netft_l = False):
+                 use_netft_l = False, enable_right_arm=True,
+                 enable_left_arm=True):
         self.arm_settings = {}  # dict is set in set_arm_settings
-        self.initialize_joints(right_arm_settings, left_arm_settings)
-
-        #self.initialize_gripper()
 
         self.left_arm_ft = {'force': np.matrix(np.zeros((3,1),dtype='float32')),
                             'torque': np.matrix(np.zeros((3,1),dtype='float32'))}
@@ -119,6 +117,30 @@ class MekaArmServer():
         self.R_force['left_arm'] = [0.1**2, 0.1**2, 0.1**2, 0.05**2, 0.05**2, 0.05**2]
         self.xhat_force['left_arm'] = [0., 0., 0., 0., 0., 0.]
         self.P_force['left_arm'] = [1.0, 1.0, 1.0, 0., 0., 0.]
+
+        self.enable_left_arm = enable_left_arm
+        self.enable_right_arm = enable_right_arm
+
+        if not enable_right_arm:
+            right_arm_settings = None
+            self.right_arm_ft = None
+            self.Q_force['right_arm'] = None
+            self.R_force['right_arm'] = None
+            self.P_force['right_arm'] = None
+            self.xhat_force['right_arm'] = None
+
+        if not enable_left_arm:
+            left_arm_settings = None
+            self.left_arm_ft = None
+            self.Q_force['left_arm'] = None
+            self.R_force['left_arm'] = None
+            self.P_force['left_arm'] = None
+            self.xhat_force['left_arm'] = None
+
+        self.initialize_joints(right_arm_settings, left_arm_settings)
+
+        #self.initialize_gripper()
+
 
         #----- ROS interface ---------
         rospy.init_node('arm_server', anonymous=False)
@@ -177,7 +199,6 @@ class MekaArmServer():
         d['left_arm'] = ac.get_joint_name_list('l')
         self.joint_names_list = d
 
-
     def set_arm_settings(self,right_arm_settings,left_arm_settings):
         self.arm_settings['right_arm'] = right_arm_settings
         self.arm_settings['left_arm'] = left_arm_settings
@@ -187,8 +208,9 @@ class MekaArmServer():
 
 # OFF mode doesn't seem to work. (Advait, Jan 1 2010)
             if arm_settings == None:
-                for c in joint_component_list:
-                    c.set_control_mode(OFF)
+                if joint_component_list != None:
+                    for c in joint_component_list:
+                        c.set_control_mode(OFF)
                 continue
 
             stiffness_list = arm_settings.stiffness_list
@@ -236,59 +258,83 @@ class MekaArmServer():
     def initialize_joints(self, right_arm_settings, left_arm_settings):
         self.proxy = m3p.M3RtProxy()
         self.proxy.start(True, True) # the second true enables ROS (needed for the skin patch)
-        for c in ['m3pwr_pwr003','m3loadx6_ma1_l0','m3arm_ma1','m3loadx6_ma2_l0','m3arm_ma2']:
+
+        l1 = ['m3pwr_pwr003']
+
+        if self.enable_right_arm:
+            l1.append('m3loadx6_ma1_l0')
+            l1.append('m3arm_ma1')
+
+        if left_arm_settings is not None:
+            l1.append('m3loadx6_ma2_l0')
+            l1.append('m3arm_ma2')
+
+        for c in l1:
             if not self.proxy.is_component_available(c):
                 raise m3t.M3Exception('Component '+c+' is not available.')
         
         self.joint_list_dict = {}
 
-        right_l = []
-        for c in ['m3joint_ma1_j0','m3joint_ma1_j1','m3joint_ma1_j2',
-                  'm3joint_ma1_j3','m3joint_ma1_j4','m3joint_ma1_j5',
-                  'm3joint_ma1_j6']:
-            if not self.proxy.is_component_available(c):
-                raise m3t.M3Exception('Component '+c+' is not available.')
-            right_l.append(m3f.create_component(c))
-        self.joint_list_dict['right_arm'] = right_l
+        if self.enable_right_arm:
+            right_l = []
+            for c in ['m3joint_ma1_j0','m3joint_ma1_j1','m3joint_ma1_j2',
+                      'm3joint_ma1_j3','m3joint_ma1_j4','m3joint_ma1_j5',
+                      'm3joint_ma1_j6']:
+                if not self.proxy.is_component_available(c):
+                    raise m3t.M3Exception('Component '+c+' is not available.')
+                right_l.append(m3f.create_component(c))
+            self.joint_list_dict['right_arm'] = right_l
+        else:
+            self.joint_list_dict['right_arm'] = None
 
-        left_l = []
-        for c in ['m3joint_ma2_j0','m3joint_ma2_j1','m3joint_ma2_j2',
-                  'm3joint_ma2_j3','m3joint_ma2_j4','m3joint_ma2_j5',
-                  'm3joint_ma2_j6']:
-            if not self.proxy.is_component_available(c):
-                raise m3t.M3Exception('Component '+c+' is not available.')
-            left_l.append(m3f.create_component(c))
-        self.joint_list_dict['left_arm'] = left_l
-
+        if self.enable_left_arm:
+            left_l = []
+            for c in ['m3joint_ma2_j0','m3joint_ma2_j1','m3joint_ma2_j2',
+                      'm3joint_ma2_j3','m3joint_ma2_j4','m3joint_ma2_j5',
+                      'm3joint_ma2_j6']:
+                if not self.proxy.is_component_available(c):
+                    raise m3t.M3Exception('Component '+c+' is not available.')
+                left_l.append(m3f.create_component(c))
+            self.joint_list_dict['left_arm'] = left_l
+        else:
+            self.joint_list_dict['left_arm'] = None
 
         for arm,arm_settings in zip(['right_arm','left_arm'],[right_arm_settings,left_arm_settings]):
             if arm_settings == None:
                 continue
-
             for comp in self.joint_list_dict[arm]:
                 self.proxy.subscribe_status(comp)
                 self.proxy.publish_command(comp)
 
         self.set_arm_settings(right_arm_settings,left_arm_settings)
 
-        right_fts=m3.loadx6.M3LoadX6('m3loadx6_ma1_l0')
-        self.proxy.subscribe_status(right_fts)
-        left_fts=m3.loadx6.M3LoadX6('m3loadx6_ma2_l0')
-        self.proxy.subscribe_status(left_fts)
-
-        self.fts = {'right_arm':right_fts,'left_arm':left_fts}
-
-        #self.pwr=m3w.M3Pwr('m3pwr_pwr003')
         self.pwr=m3f.create_component('m3pwr_pwr003')
         self.proxy.subscribe_status(self.pwr)
         self.proxy.publish_command(self.pwr)
 
         self.arms = {}
-        self.arms['right_arm']=m3.arm.M3Arm('m3arm_ma1')
-        self.proxy.subscribe_status(self.arms['right_arm'])
 
-        self.arms['left_arm']=m3.arm.M3Arm('m3arm_ma2')
-        self.proxy.subscribe_status(self.arms['left_arm'])
+        if self.enable_right_arm:
+            right_fts=m3.loadx6.M3LoadX6('m3loadx6_ma1_l0')
+            self.proxy.subscribe_status(right_fts)
+
+            self.arms['right_arm']=m3.arm.M3Arm('m3arm_ma1')
+            self.proxy.subscribe_status(self.arms['right_arm'])
+        else:
+            right_fts = None
+            self.arms['right_arm'] = None
+
+        if self.enable_left_arm:
+            left_fts=m3.loadx6.M3LoadX6('m3loadx6_ma2_l0')
+            self.proxy.subscribe_status(left_fts)
+
+            self.arms['left_arm']=m3.arm.M3Arm('m3arm_ma2')
+            self.proxy.subscribe_status(self.arms['left_arm'])
+        else:
+            left_fts = None
+            self.arms['left_arm'] = None
+
+        self.fts = {'right_arm':right_fts,'left_arm':left_fts}
 
         self.proxy.step()
         self.proxy.step()
@@ -301,7 +347,13 @@ class MekaArmServer():
 
     def step(self):
         self.proxy.step()
-        for arm in ['left_arm', 'right_arm']:
+        l = []
+        if self.enable_right_arm:
+            l.append('right_arm')
+        if self.enable_left_arm:
+            l.append('left_arm')
+
+        for arm in l:
             z = self.get_wrist_force(arm).A1 # Force vector
             #if arm == 'right_arm':
             #    z = self.get_wrist_force_nano().A1
@@ -321,16 +373,24 @@ class MekaArmServer():
         l_arm = 'left_arm'
 
         self.cb_lock.acquire()
-        r_jep = copy.copy(self.r_jep)
-        l_jep = copy.copy(self.l_jep)
-        r_alpha = copy.copy(self.arm_settings['right_arm'].stiffness_list)
-        l_alpha = copy.copy(self.arm_settings['left_arm'].stiffness_list)
+
+        if self.enable_left_arm:
+            l_jep = copy.copy(self.l_jep)
+            l_alpha = copy.copy(self.arm_settings['left_arm'].stiffness_list)
+
+        if self.enable_right_arm:
+            r_jep = copy.copy(self.r_jep)
+            r_alpha = copy.copy(self.arm_settings['right_arm'].stiffness_list)
+
         self.cb_lock.release()
 
-        self.set_jep(r_arm, r_jep)
-        self.set_jep(l_arm, l_jep)
-        self.set_alpha(r_arm, r_alpha)
-        self.set_alpha(l_arm, l_alpha)
+        if self.enable_left_arm:
+            self.set_jep(l_arm, l_jep)
+            self.set_alpha(l_arm, l_alpha)
+
+        if self.enable_right_arm:
+            self.set_jep(r_arm, r_jep)
+            self.set_alpha(r_arm, r_alpha)
 
         self.step()
 
@@ -339,8 +399,16 @@ class MekaArmServer():
         if not motor_pwr_state:
             self.maintain_configuration()
 
-        q_r = self.get_joint_angles(r_arm)
-        q_l = self.get_joint_angles(l_arm)
+        if self.enable_right_arm:
+            q_r = self.get_joint_angles(r_arm)
+        else:
+            q_r = None
+
+        if self.enable_left_arm:
+            q_l = self.get_joint_angles(l_arm)
+        else:
+            q_l = None
+
         t_now = rospy.get_time()
         if self.q_r != None and self.q_l != None and self.time_stamp != None:
             dt = t_now - self.time_stamp
@@ -354,42 +422,51 @@ class MekaArmServer():
         self.q_l = q_l
         self.time_stamp = t_now
 
-        f_raw_r = self.get_wrist_force(r_arm).A1.tolist()
-        f_raw_l = self.get_wrist_force(l_arm).A1.tolist()
-        f_r = self.xhat_force[r_arm]
-        f_l = self.xhat_force[l_arm]
+        if self.enable_right_arm:
+            f_raw_r = self.get_wrist_force(r_arm).A1.tolist()
+            f_r = self.xhat_force[r_arm]
+
+        if self.enable_left_arm:
+            f_raw_l = self.get_wrist_force(l_arm).A1.tolist()
+            f_l = self.xhat_force[l_arm]
 
         # publish stuff over ROS.
         time_stamp = rospy.Time.now()
         h = Header()
         h.stamp = time_stamp
 
-        self.q_r_pub.publish(FloatArray(h, q_r))
-        self.q_l_pub.publish(FloatArray(h, q_l))
-
-        self.qdot_r_pub.publish(FloatArray(h, qdot_r))
-        self.qdot_l_pub.publish(FloatArray(h, qdot_l))
-
-        self.jep_r_pub.publish(FloatArray(h, r_jep))
-        self.jep_l_pub.publish(FloatArray(h, l_jep))
-
-        self.alph_r_pub.publish(FloatArray(h, r_alpha))
-        self.alph_l_pub.publish(FloatArray(h, l_alpha))
-
         h.frame_id = '/torso_lift_link'
-        nms = self.joint_names_list['right_arm'] + self.joint_names_list['left_arm']
-        pos = q_r + q_l
+        pos = []
+        nms = []
+
+        if self.enable_right_arm:
+            self.q_r_pub.publish(FloatArray(h, q_r))
+            self.qdot_r_pub.publish(FloatArray(h, qdot_r))
+            self.jep_r_pub.publish(FloatArray(h, r_jep))
+            self.alph_r_pub.publish(FloatArray(h, r_alpha))
+
+            nms = nms + self.joint_names_list['right_arm']
+            pos = pos + q_r
+
+            h.frame_id = 'should_not_be_using_this'
+            self.force_raw_r_pub.publish(FloatArray(h, f_raw_r))
+            self.force_r_pub.publish(FloatArray(h, f_r))
+            
+        if enable_left_arm:
+            self.q_l_pub.publish(FloatArray(h, q_l))
+            self.qdot_l_pub.publish(FloatArray(h, qdot_l))
+            self.jep_l_pub.publish(FloatArray(h, l_jep))
+            self.alph_l_pub.publish(FloatArray(h, l_alpha))
+
+            nms = nms + self.joint_names_list['left_arm']
+            pos = pos + q_l
+
+            h.frame_id = 'should_not_be_using_this'
+            self.force_raw_l_pub.publish(FloatArray(h, f_raw_l))
+            self.force_l_pub.publish(FloatArray(h, f_l))
+
         self.joint_state_pub.publish(JointState(h, nms, pos,
                                     [0.]*len(pos), [0.]*len(pos)))
-
-        h.frame_id = 'should_not_be_using_this'
-        self.force_raw_r_pub.publish(FloatArray(h, f_raw_r))
-        self.force_r_pub.publish(FloatArray(h, f_r))
-        
-        h.frame_id = 'should_not_be_using_this'
-        self.force_raw_l_pub.publish(FloatArray(h, f_raw_l))
-        self.force_l_pub.publish(FloatArray(h, f_l))
-
         self.pwr_state_pub.publish(Bool(motor_pwr_state))
 
     def is_motor_power_on(self):
@@ -410,7 +487,13 @@ class MekaArmServer():
         self.step()
 
     def maintain_configuration(self):
-        for arm in ['right_arm','left_arm']:
+        l = []
+        if self.enable_left_arm:
+            l.append('left_arm')
+        if self.enable_right_arm:
+            l.append('right_arm')
+
+        for arm in l:
             q = self.get_joint_angles(arm)
             if self.arm_settings[arm] == None:
                 continue
@@ -578,6 +661,8 @@ if __name__ == '__main__':
                  help='use net ft for the right arm')
     p.add_option('--enable_net_ft_l', action='store_true', dest='netft_l',
                  help='use net ft for the left arm') #Tiffany 11/11/2011
+    p.add_option('--arm_to_use', action='store', dest='arm_to_use',
+                 help='use only one arm (l or r)', type='string')
     opt, args = p.parse_args()
 
     try:
@@ -585,8 +670,22 @@ if __name__ == '__main__':
         #settings_r = None
         settings_l = MekaArmSettings(stiffness_list=[0.1939,0.6713,0.748,0.7272,0.75])
         #settings_l = None
+
+        if opt.arm_to_use == 'l':
+            enable_left_arm = True
+            enable_right_arm = False
+        elif opt.arm_to_use == 'r':
+            enable_left_arm = False
+            enable_right_arm = True
+        elif opt.arm_to_use == 'b':
+            enable_right_arm = True
+            enable_left_arm = True
+        else:
+            raise RuntimeError('Unrecognized value for the arm_to_use command line argument')
+
         cody_arms = MekaArmServer(settings_r, settings_l, opt.netft_r,
-                opt.netft_l)
+                                  opt.netft_l, enable_right_arm,
+                                  enable_left_arm)
 
 #        print 'hit a key to power up the arms.'
 #        k=m3t.get_keystroke()
