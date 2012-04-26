@@ -541,8 +541,9 @@ class SVMPCA_ActiveLearner:
     # @param instances column vectors of instances to predict
     def classify(self, instances):
         #pdb.set_trace()
-#        pdb.set_trace()
+        #pdb.set_trace()
         projected_inst = np.matrix(self.partial_pca_project(instances), dtype='float32').copy()
+        print '>> PROJECTED INSTANCE SHAPE', projected_inst.shape
         scaled_inst = self.scale.scale(projected_inst)
         if self.classifier == 'knn':
             labels = self.reduced_dataset.outputs[:, \

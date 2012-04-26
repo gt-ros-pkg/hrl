@@ -36,66 +36,49 @@ import optparse
 import pdb
 import numpy as np
 import ml_lib.dataset as ds
+import sklearn.metrics as sm 
 
 class LeaveOneOut:
 
     def __init__(self, filename, dataset_name):
         self.rec_params = r3d.Recognize3DParam()
-        self.locations_man = lcm.LocationsManager(filename, rec_params=self.rec_params, train=True)
+        self.locations_man = lcm.LocationsManager(filename, rec_params=self.rec_params, train=False)
         self.dataset_name = dataset_name
-        pdb.set_trace()
+        #pdb.set_trace()
         print 'The following datasets are available:', self.locations_man.data.keys()
 
+    def train(self, dataset, rec_params, pca_obj):
+        nneg = np.sum(dataset.outputs == r3d.NEGATIVE) #TODO: this was copied and pasted from r3d
+        npos = np.sum(dataset.outputs == r3d.POSITIVE)
+        neg_to_pos_ratio = float(nneg)/float(npos)
+        weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
+        learner = r3d.SVMPCA_ActiveLearner(use_pca=True, 
+                        reconstruction_std_lim=rec_params.reconstruction_std_lim, 
+                        reconstruction_err_toler=rec_params.reconstruction_err_toler,
+                        old_learner=None, pca=pca_obj)
+        inputs_for_pca = dataset.inputs #Questionable!
+        learner.train(dataset, 
+                      inputs_for_pca,
+                      rec_params.svm_params + weight_balance,
+                      rec_params.variance_keep)
+        return learner
+
     def leave_one_out(self):
-        #For each data set in locations man, for each data point, remove one data point, train, test on that point
+        pca_obj = self.locations_man.data[self.dataset_name]['pca']
+        pca_obj.projection_basis = pca_obj.projection_basis[:,:5]
         dataset = self.locations_man.data[self.dataset_name]['dataset']
         num_datapoints = dataset.inputs.shape[1]
-        #dataset.inputs = np.row_stack((np.matrix(range(num_datapoints)), dataset.inputs))
-
         predicted_values = []
-        correct = 0
-        incorrect = 0
-        confusion = np.matrix([[0,0], [0,0.]])
-        num_pos = np.sum(dataset.outputs)
-        num_neg = num_datapoints-num_pos
-        #for i in range(2):
         for i in range(num_datapoints):
             loo_dataset, left_out_input, left_out_output = ds.leave_one_out(dataset, i)
-            self.locations_man.data[self.dataset_name]['dataset'] = loo_dataset
-            self.locations_man.train(self.dataset_name, save_pca_images=False)
-            learner = self.locations_man.learners[self.dataset_name]
+            learner = self.train(loo_dataset, self.rec_params, pca_obj)
             predicted = learner.classify(left_out_input)
             predicted_values += predicted
-            if predicted[0] == 0:
-                if left_out_output[0,0] == 0:
-                    confusion[0,0] += 1
-                else:
-                    confusion[0,1] += 1
-            else:
-                #predicted[0] == 1
-                if left_out_output[0,0] == 0:
-                    confusion[1,0] += 1
-                else:
-                    confusion[1,1] += 1
-
-            if predicted[0] == left_out_output[0,0]:
-                correct += 1
-            else:
-                incorrect += 1
-
-        print '============================================'
-        print 'dataset', self.dataset_name
-        print 'confusion matrix\n', confusion
-        confusion[:,0] = confusion[:,0] / num_neg
-        confusion[:,1] = confusion[:,1] / num_pos
-        print 'correct', correct, '\nincorrect', incorrect, '\npercentage', 100.* (correct/float(num_datapoints))
-        print predicted_values
-        print '============================================'
 
 
-        #predicted_values += predicted
-        #np.matrix(predicted_values)
-        #print 'result', predicted[0], predicted.__class__, left_out_output[0,0]
+        cmat = sm.confusion_matrix(dataset.outputs.A1, np.array(predicted_values)) 
+        print 'confusion matrix'
+        print cmat
 
 if __name__ == '__main__':
     #p = optparse.OptionParser()
