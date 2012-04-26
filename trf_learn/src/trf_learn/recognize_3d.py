@@ -294,10 +294,7 @@ class SVM:
     def __init__(self, dataset, params):
         samples = dataset.inputs.T.tolist()
         labels = dataset.outputs.T.A1.tolist()
-        #pdb.set_trace()
         print 'SVM: training with params => ', params
-        #pdb.set_trace()
-        #dataset_to_libsvm(dataset, 'total_set_light_switch_libsvm.data')
         self.model = su.svm_train(labels, samples, params)
         self.nsamples = len(samples)
 
@@ -327,9 +324,6 @@ class DataScale:
             self.mins = np.min(data,1)
             self.ranges = self.maxes - self.mins
             self.ranges[np.where(self.ranges < .001)[0], :] = 1.
-            #pdb.set_trace()
-        #pdb.set_trace()
-        #pdb.set_trace()
         scaled = (((data - self.mins) / self.ranges) * 2.) - 1
         return scaled
 
@@ -349,18 +343,14 @@ class PCAIntensities:
 
     def calculate_pca_vectors(self, data, variance_keep):
         data_in = data[self.intensities_index:, :]
-        #we already have pca vectors
-        #pdb.set_trace()
         print 'PCAIntensities: data.shape', data.shape
         if self.intensities_mean != None:
             normed_data = (data_in - self.intensities_mean) / self.intensities_std
-            #if not self.is_dataset_far_from_pca_subspace(self.projection_basis.T * normed_data, normed_data):
             if True:
                 print 'PCAIntensities: is_dataset_far_from_pca_subspace no, dataset is not far.'
                 return
             else:
                 print 'PCAIntensities: is_dataset_far_from_pca_subspace yes, dataset is far. recalculating pca.'
-                #pdb.set_trace()
                 nsamples = min(data_in.shape[1], 3000) #2000 is the max that we can handle
                 loaded_data = ut.load_pickle(self.pca_data)
                 data_in  = np.column_stack((data_in, loaded_data[self.intensities_index:, :]))
@@ -374,10 +364,7 @@ class PCAIntensities:
         data_in_shifted = data_in - self.intensities_mean
         data_in_normed = data_in_shifted / self.intensities_std
         print 'PCAIntensities.calculate_pca_vectors: Constructing PCA basis'
-        #self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)[:,:50]
-        #pdb.set_trace()
         self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)[:,:50]
-        #self.projection_basis = dr.pca_vectors(data_in_normed, variance_keep)
         print 'PCAIntensities.calculate_pca_vectors: PCA basis size -', self.projection_basis.shape
 
         projected = (self.projection_basis.T * data_in_normed)
@@ -388,7 +375,6 @@ class PCAIntensities:
         self.reconstruction_error = self.calc_reconstruction_errors(projected, data_in_normed)
 
         pca_data_name = time.strftime('%A_%m_%d_%Y_%I:%M%p') + '_pca_data.pkl'
-        #pdb.set_trace()
         ut.save_pickle(data, pca_data_name)
         self.pca_data = pca_data_name
 
@@ -493,23 +479,15 @@ class SVMPCA_ActiveLearner:
         return data_idx, data_dists, sv_dist < data_dist
 
     def train(self, dataset, inputs_for_scaling, svm_params, variance_keep=.95):
-        #pdb.set_trace()
-        #pdb.set_trace()
-        #TODO: somehow generate labels for these datasets...
         self.dataset = dataset
         trainingset = dataset.inputs
         responses = dataset.outputs
 
         #Calculate PCA vectors (also try do detect if our PCA vectors need updating)
         if self.use_pca: #and self.projection_basis == None:
-            #self.intensities_index = self.dataset.metadata[-1].extent[0]
-            #rebalanced_set = self._balance_classes(trainingset, responses)
-            #self._calculate_pca_vectors(rebalanced_set, variance_keep)
-            #self._calculate_pca_vectors(inputs_for_scaling, variance_keep)
             if self.pca == None:
                 self.pca = PCAIntensities(self.dataset.metadata[-1].extent[0], self.reconstruction_std_lim, self.reconstruction_err_toler)
             self.pca.calculate_pca_vectors(inputs_for_scaling, variance_keep)
-            #self.pca.calculate_pca_vectors(rebalanced_set, variance_keep, incremental=True)
 
         trainingset = self.partial_pca_project(trainingset)
         inputs_for_scaling = self.partial_pca_project(inputs_for_scaling)
@@ -529,10 +507,7 @@ class SVMPCA_ActiveLearner:
         self.scale.scale(inputs_for_scaling)
         rescaled_inputs = self.scale.scale(self.reduced_dataset.inputs)
         self.rescaled_dataset = ds.Dataset(rescaled_inputs, self.reduced_dataset.outputs)
-
-        #dataset_to_libsvm(self.rescaled_dataset, 'interest_point_data.libsvm')
         self.classifiers['svm'] = SVM(self.rescaled_dataset, svm_params)
-        #self.classifiers['knn'] = sp.KDTree(np.array(self.rescaled_dataset.inputs.T))
 
         self.sv_instances = self.dataset.inputs[:, self.classifiers['svm'].sv_indices()]
         self.sv_idx, self.sv_dist = self.get_closest_instances(self.sv_instances, 1)

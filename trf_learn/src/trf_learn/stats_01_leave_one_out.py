@@ -38,6 +38,13 @@ import numpy as np
 import ml_lib.dataset as ds
 import sklearn.metrics as sm 
 
+def confusion_matrix_in_percent(cmat):
+    row_sums = np.sum(np.matrix(cmat), 1)
+    pmat = cmat.copy()
+    for i in range(cmat.shape[0]):
+        pmat[i,:] = cmat[i,:]/float(row_sums[i,0])
+    return pmat
+
 class LeaveOneOut:
 
     def __init__(self, filename, dataset_name):
@@ -47,7 +54,7 @@ class LeaveOneOut:
         #pdb.set_trace()
         print 'The following datasets are available:', self.locations_man.data.keys()
 
-    def train(self, dataset, rec_params, pca_obj):
+    def train(self, dataset, rec_params, pca_obj, g=.5, c=.5):
         nneg = np.sum(dataset.outputs == r3d.NEGATIVE) #TODO: this was copied and pasted from r3d
         npos = np.sum(dataset.outputs == r3d.POSITIVE)
         neg_to_pos_ratio = float(nneg)/float(npos)
@@ -57,28 +64,71 @@ class LeaveOneOut:
                         reconstruction_err_toler=rec_params.reconstruction_err_toler,
                         old_learner=None, pca=pca_obj)
         inputs_for_pca = dataset.inputs #Questionable!
+        svm_params = '-s 0 -t 2 -g %f -c %f' % (g, c)
         learner.train(dataset, 
                       inputs_for_pca,
-                      rec_params.svm_params + weight_balance,
+                      svm_params + weight_balance,
                       rec_params.variance_keep)
         return learner
 
-    def leave_one_out(self):
+    def leave_one_out(self, g=.5, c=.5, pca=5, subset=20):
         pca_obj = self.locations_man.data[self.dataset_name]['pca']
-        pca_obj.projection_basis = pca_obj.projection_basis[:,:5]
+        pca_obj.projection_basis = pca_obj.projection_basis[:,:pca]
         dataset = self.locations_man.data[self.dataset_name]['dataset']
         num_datapoints = dataset.inputs.shape[1]
         predicted_values = []
-        for i in range(num_datapoints):
+        perm_subset = np.random.permutation(num_datapoints)[0:subset]
+        #for i in range(num_datapoints):
+        for i in perm_subset:
             loo_dataset, left_out_input, left_out_output = ds.leave_one_out(dataset, i)
-            learner = self.train(loo_dataset, self.rec_params, pca_obj)
+            learner = self.train(loo_dataset, self.rec_params, pca_obj, g, c)
             predicted = learner.classify(left_out_input)
             predicted_values += predicted
+        num_correct = np.sum(dataset.outputs.A1[perm_subset] == np.array(predicted_values))
+        cmat = sm.confusion_matrix(dataset.outputs.A1[perm_subset], np.array(predicted_values))
+        #pdb.set_trace()
+        return cmat, num_correct/float(len(perm_subset))
 
+    def searchg(self):
+        rangeg = np.arange(0.1, 4, .1)
+        cmats = []
+        accuracies = []
+        for g in rangeg:
+            cmat, percentage = self.leave_one_out(g=g, pca=50)
+            cmats.append(cmat)
+            accuracies.append(percentage)
+        return rangeg, cmats, accuracies
 
-        cmat = sm.confusion_matrix(dataset.outputs.A1, np.array(predicted_values)) 
-        print 'confusion matrix'
-        print cmat
+    def searchc(self):
+        rangeg = np.arange(0.1, 4, .1)
+        cmats = []
+        accuracies = []
+        for c in rangeg:
+            cmat, percentage = self.leave_one_out(c=c, pca=50)
+            cmats.append(cmat)
+            accuracies.append(percentage)
+        return rangeg, cmats, accuracies
+
+    def parameter_search(self):
+        gvals, gmats, gaccuracies = self.searchg()
+        cvals, cmats, caccuracies = self.searchc()
+
+        print '======================================'
+        print '======================================'
+        print 'G values'
+        for v, mat, p in zip(gvals, gmats, gaccuracies):
+            print v, p#, mat
+            print confusion_matrix_in_percent(mat)
+
+        print '======================================'
+        print '======================================'
+        print 'C values'
+        for v, mat, p in zip(cvals, cmats, caccuracies):
+            print v, p#, mat
+            print confusion_matrix_in_percent(mat)
+
+        print 'max gamma', gvals[np.argmax(gaccuracies)], 'accuracy', np.max(gaccuracies)
+        print 'max C    ', cvals[np.argmax(caccuracies)], 'accuracy', np.max(caccuracies)
 
 if __name__ == '__main__':
     #p = optparse.OptionParser()
@@ -90,7 +140,8 @@ if __name__ == '__main__':
         name = 'locations_narrow_v11.pkl'
 
     loo = LeaveOneOut(name, sys.argv[2])
-    loo.leave_one_out()
+    loo.parameter_search()
+    #loo.leave_one_out()
     print 'end!'
 
 
