@@ -37,6 +37,7 @@ import pdb
 import numpy as np
 import ml_lib.dataset as ds
 import sklearn.metrics as sm 
+import hrl_lib.util as ut
 
 def confusion_matrix_in_percent(cmat):
     row_sums = np.sum(np.matrix(cmat), 1)
@@ -45,13 +46,30 @@ def confusion_matrix_in_percent(cmat):
         pmat[i,:] = cmat[i,:]/float(row_sums[i,0])
     return pmat
 
-class LeaveOneOut:
+##
+# Effort to switch to scikit learn
+#class LocationManagerDatasetProducer:
+#
+#    def __init__(self, filename):
+#        self.rec_params = r3d.Recognize3DParam()
+#        self.locations_man = lcm.LocationsManager(filename, rec_params=self.rec_params, train=False)
+#
+#    def dataset_names(self):
+#        return self.locations_man.data.keys()
+#
+#    def get_dataset(self, name):
+#        dataset = self.locations_man.data[name]
+#        return dataset.inputs, dataset.outputs
+#
+#    def get_pca_vectors_for_dataset(self, name):
 
-    def __init__(self, filename, dataset_name):
+class Evaluation:
+
+    def __init__(self, filename, task_id):
         self.rec_params = r3d.Recognize3DParam()
-        self.locations_man = lcm.LocationsManager(filename, rec_params=self.rec_params, train=False)
-        self.dataset_name = dataset_name
-        #pdb.set_trace()
+        print 'loading locations manager'
+        self.locations_man = lcm.LocationsManager(filename, rec_params=self.rec_params, train=True)
+        self.task_id = task_id
         print 'The following datasets are available:', self.locations_man.data.keys()
 
     def train(self, dataset, rec_params, pca_obj, g=.5, c=.5):
@@ -72,9 +90,9 @@ class LeaveOneOut:
         return learner
 
     def leave_one_out(self, g=.5, c=.5, pca=5, subset=20):
-        pca_obj = self.locations_man.data[self.dataset_name]['pca']
+        pca_obj = self.locations_man.data[self.task_id]['pca']
         pca_obj.projection_basis = pca_obj.projection_basis[:,:pca]
-        dataset = self.locations_man.data[self.dataset_name]['dataset']
+        dataset = self.locations_man.data[self.task_id]['dataset']
         num_datapoints = dataset.inputs.shape[1]
         predicted_values = []
         perm_subset = np.random.permutation(num_datapoints)[0:subset]
@@ -130,18 +148,33 @@ class LeaveOneOut:
         print 'max gamma', gvals[np.argmax(gaccuracies)], 'accuracy', np.max(gaccuracies)
         print 'max C    ', cvals[np.argmax(caccuracies)], 'accuracy', np.max(caccuracies)
 
+    def load_interest_point_dataset(self, name):
+        print 'loading features dataset'
+        dataset = ut.load_pickle(name)
+        print 'classifying'
+        predictions = np.matrix(self.locations_man.learners[self.task_id].classify(dataset['instances']))
+        pdb.set_trace()
+        print 'loaded'
+
+def classify_saved_data():
+    kdict, image_name = self.read_features_save(task_id, point3d_bl, params)
+    predictions = np.matrix(self.locations_man.learners[task_id].classify(kdict['instances']))
+
+
 if __name__ == '__main__':
     #p = optparse.OptionParser()
     #p.add_option("-d", "--display", action="store", default='locations_narrow_v11.pkl')
 
-    if len(sys.argv) > 1:
-        name = sys.argv[1]
-    else:
-        name = 'locations_narrow_v11.pkl'
+    if len(sys.argv) < 2:
+        exit()
 
-    loo = LeaveOneOut(name, sys.argv[2])
-    loo.parameter_search()
-    #loo.leave_one_out()
-    print 'end!'
+    name = sys.argv[1]
+    task_id = sys.argv[2]
+    features = sys.argv[3]
+
+    loo = Evaluation(name, task_id)
+    loo.load_interest_point_dataset(features)
+    #loo.parameter_search()
+    #load_interest_point_dataset(name)
 
 

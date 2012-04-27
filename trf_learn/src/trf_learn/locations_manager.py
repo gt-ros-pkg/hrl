@@ -341,7 +341,7 @@ class LocationsManager:
             #inputs_for_pca = self.data[task_id]['pca'].pca_data
             inputs_for_pca = dataset.inputs
 
-        pdb.set_trace()
+#        pdb.set_trace()
         learner.train(dataset, 
                       inputs_for_pca,
                       rec_params.svm_params + weight_balance,

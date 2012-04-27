@@ -205,6 +205,22 @@ class TaskRelevantLearningBehaviors:
     #######################################################################################
     # Perception Behaviors
     #######################################################################################
+    def record_extracted_features(self, extracted_dict, folder_name):
+        d={}
+        d['instances'] = extracted_dict['instances']
+        d['points2d'] = extracted_dict['points2d']
+        d['points3d'] = extracted_dict['points3d']
+        d['sizes'] = extracted_dict['sizes']
+        tstring = time.strftime('%A_%m_%d_%Y_%I_%M%p')
+        pickle_fname = '%s_features.pkl' % tstring   
+        if folder_name != None:
+            try:
+                os.mkdir(folder_name)
+            except OSError, e:
+                print e
+            pickle_fname = pt.join(folder_name, pickle_fname)
+        rospy.loginfo('RECORDING EXTRACTED FEATURES')
+        ut.save_pickle(d, pickle_fname)
 
     def record_perceptual_data(self, point3d_bl, image_frame, rdict=None, folder_name=None):
         rospy.loginfo('saving dataset..')
@@ -254,6 +270,7 @@ class TaskRelevantLearningBehaviors:
         rospy.sleep(2.)
         f = self.feature_ex.read(point3d_bl, params=params)
         file_name, kimage_name = self.record_perceptual_data(point3d_bl, self.optical_frame, rdict=f['rdict'], folder_name=task_id)
+        self.record_extracted_features(f, task_id)
         self.robot.projector.set(False)
 
         #image_T_bl = tfu.transform(self.optical_frame, 'base_link', self.tf_listener)
