@@ -674,10 +674,14 @@ if __name__ == '__main__':
         if opt.arm_to_use == 'l':
             enable_left_arm = True
             enable_right_arm = False
-
-        if opt.arm_to_use == 'r':
+        elif opt.arm_to_use == 'r':
             enable_left_arm = False
             enable_right_arm = True
+        elif opt.arm_to_use == 'b':
+            enable_right_arm = True
+            enable_left_arm = True
+        else:
+            raise RuntimeError('Unrecognized value for the arm_to_use command line argument')
 
         cody_arms = MekaArmServer(settings_r, settings_l, opt.netft_r,
                                   opt.netft_l, enable_right_arm,

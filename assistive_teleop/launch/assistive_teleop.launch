@@ -215,6 +215,11 @@
         type="throttle" 
         args="messages /l_arm_controller/state 8 /l_arm_controller_state_throttle" />
 
+    <node 
+        name="throttle_kinect_camera" 
+        pkg="topic_tools" 
+        type="throttle" 
+        args="messages /kinect_head/rgb/image_color 10 /kinect_throttled" />
     <!-- Launch mjpeg server, used for sending image streams -->
     <node 
         name="mjpeg_server" 

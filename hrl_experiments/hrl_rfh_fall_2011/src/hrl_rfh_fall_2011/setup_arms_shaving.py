@@ -9,7 +9,7 @@ import roslib
 roslib.load_manifest('hrl_pr2_arms')
 roslib.load_manifest('hrl_rfh_summer_2011')
 roslib.load_manifest('hrl_rfh_fall_2011')
-roslib.load_manifest('kelsey_sandbox')
+roslib.load_manifest('pr2_traj_playback')
 import rospy
 
 import smach
@@ -24,19 +24,30 @@ from pr2_controllers_msgs.msg import Pr2GripperCommandAction, Pr2GripperCommandG
 from hrl_rfh_fall_2011.sm_topic_monitor import TopicMonitor
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJTransposeTask
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
-from kelsey_sandbox.srv import TrajectoryPlay, TrajectoryPlayRequest, TrajectoryPlayResponse
+from pr2_traj_playback.msg import TrajectoryPlayAction, TrajectoryPlayGoal
+
+def get_goal_template():
+    traj = TrajectoryPlayGoal()
+    traj.mode = traj.SETUP_AND_TRAJ
+    traj.reverse = False
+    traj.setup_velocity = 0.1
+    traj.traj_rate_mult = 0.8
+    return traj
 
 class SetupArmsShaving():
     def __init__(self):
         self.lock = Lock()
         self.ctrl_switcher = ControllerSwitcher()
-        self.traj_playback = rospy.ServiceProxy('/trajectory_playback', TrajectoryPlay)
+        self.traj_playback_l = actionlib.SimpleActionClient('/trajectory_playback_l', TrajectoryPlayAction)
+        self.traj_playback_r = actionlib.SimpleActionClient('/trajectory_playback_r', TrajectoryPlayAction)
         self.torso_sac = actionlib.SimpleActionClient('torso_controller/position_joint_action',
                                                       SingleJointPositionAction)
-        self.torso_sac.wait_for_server()
         self.gripper_sac = actionlib.SimpleActionClient(
                                           '/l_gripper_controller/gripper_action',
                                           Pr2GripperCommandAction)
+        self.torso_sac.wait_for_server()
+        self.traj_playback_l.wait_for_server()
+        self.traj_playback_r.wait_for_server()
         self.gripper_sac.wait_for_server()
         rospy.loginfo("[setup_arms_shaving] SetupArmsShaving ready.")
 
@@ -75,26 +86,21 @@ class SetupArmsShaving():
         print shaving_side
         assert(shaving_side in ["r", "l"])
 
-        traj = TrajectoryPlayRequest()
-        traj.mode = traj.SETUP_AND_TRAJ
-        traj.reverse = False
-        traj.setup_velocity = 0.1
-        traj.traj_rate_mult = 0.8
-
-        l_traj = copy.copy(traj)
+        l_traj = get_goal_template()
         print ("$(find hrl_rfh_fall_2011)/data/l_arm_shaving_setup_%s.pkl" %
                            shaving_side)
         l_traj.filepath = ("$(find hrl_rfh_fall_2011)/data/l_arm_shaving_setup_%s.pkl" %
                            shaving_side)
-        l_traj.blocking = True
 
-        r_traj = copy.copy(traj)
+        r_traj = get_goal_template()
         r_traj.filepath = ("$(find hrl_rfh_fall_2011)/data/r_arm_shaving_setup_%s.pkl" %
                            shaving_side)
-        r_traj.blocking = True
 
-        self.traj_playback(l_traj)
-        self.traj_playback(r_traj)
+        self.traj_playback_l.send_goal(l_traj)
+        self.traj_playback_r.send_goal(r_traj)
+        self.traj_playback_l.wait_for_result()
+        self.traj_playback_r.wait_for_result()
+    
 
     def run(self, req):
         ############################################################

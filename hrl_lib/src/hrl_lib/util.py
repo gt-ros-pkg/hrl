@@ -216,6 +216,21 @@ def get_bash_command_output(cmd):
     return output_l
 
 
+## Returns the weighted average and standard deviation.
+# http://stackoverflow.com/questions/2413522/weighted-standard-deviation-in-numpy
+# values - n x m np MATRIX
+# weights - 1D np arrays of length n
+# returns - two 1D np arrays
+def weighted_avg_and_std(values, weights, unbiased):
+    average = np.average(values, axis=0, weights=weights)
+    variance = np.dot(weights, (values-average).A**2)/weights.sum()
+    if unbiased:
+        n = len(weights) * 1.
+        variance = n / (n-1) * variance
+    return average.A1, np.sqrt(variance)
+
+
+
 
 
 

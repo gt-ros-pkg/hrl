@@ -1,7 +1,7 @@
 <launch>
-    <arg name="aware_home" default="true"/>
+    <arg name="aware_home" default="false"/>
     <arg name="wg" default="false"/>
-    <arg name="hrl" default="false"/>
+    <arg name="hrl" default="true"/>
 
     <include file="$(find pr2_machine)/$(env ROBOT).machine" />
     <include file="$(find pr2_2dnav)/pr2_2dnav.launch"/>
