@@ -53,11 +53,11 @@ plot_decision_boundary_active(model, X, Y, poolX, poolY)
 print model.support_, model.support_.__class__
 pl.savefig('%d_decision_boundary.png' % iteration)
 
-while False:
-    distances_sv = mode.decision_function(model.support_vectors_)
+while True:
+    distances_sv = model.decision_function(model.support_vectors_)
     distances = model.decision_function(poolX)
 
-    min_sv_dist = np.min(distances_cv)
+    min_sv_dist = np.min(distances_sv)
     min_idx = np.argmin(distances)
     min_pool_dist = distances[min_idx,0]
     if min_pool_dist > min_sv_dist:
