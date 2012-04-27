@@ -1,0 +1,15 @@
+<package>
+  <description brief="hrl_behavior_manager">
+
+     A global locking mechanism for managing robot resources.
+
+  </description>
+  <author>Kelsey Hawkins</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/hrl_behavior_manager</url>
+  <depend package="rospy"/>
+
+</package>
+
+

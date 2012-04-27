@@ -9,13 +9,15 @@ import rospy
 import actionlib
 from std_msgs.msg import Float64MultiArray, Header, MultiArrayDimension, Bool
 from geometry_msgs.msg import WrenchStamped
+from pr2_manipulation_controllers.msg import JTTaskControllerState
 
-from hrl_pr2_arms.pr2_arm import PR2ArmCartesianPostureBase
-from hrl_netft.msg import HybridCartesianGains
+from hrl_generic_arms.pose_converter import PoseConverter
+from hrl_pr2_arms.pr2_arm import PR2ArmCartesianPostureBase, extract_twist
+from hrl_netft.msg import HybridCartesianGains, HybridForceState
 
 class PR2ArmHybridForce(PR2ArmCartesianPostureBase):
-    def __init__(self, arm, kinematics, controller_name='/%s_cart', js_timeout=5.):
-        super(PR2ArmHybridForce, self).__init__(arm, kinematics, controller_name, js_timeout)
+    def __init__(self, arm, kinematics, controller_name='/%s_cart', timeout=5.):
+        super(PR2ArmHybridForce, self).__init__(arm, kinematics, controller_name, timeout)
         controller_name = self.controller_name
         self.auto_update = False
         self.command_gains_pub = rospy.Publisher(controller_name + '/gains', HybridCartesianGains)
@@ -42,7 +44,33 @@ class PR2ArmHybridForce(PR2ArmCartesianPostureBase):
         self.rot_i_force_gains = 3 * [rospy.get_param(controller_name + '/force_gains/rot/i')]
         self.rot_i_max_force_gains = 3 * [rospy.get_param(controller_name + '/force_gains/rot/i_max')]
 
-        rospy.sleep(1)
+        self.ctrl_state_dict = {}
+        rospy.Subscriber(self.controller_name + '/state', JTTaskControllerState, 
+                         self._ctrl_state_cb)
+        if timeout > 0 and not self.wait_for_ep(timeout):
+            rospy.logwarn("[pr2_arm] Timed out waiting for EP.")
+
+    def _ctrl_state_cb(self, ctrl_state):
+        with self.lock:
+            self.ep = PoseConverter.to_pos_rot(ctrl_state.x_desi_filtered)
+        with self.ctrl_state_lock:
+            self.ctrl_state_dict["frame"] = ctrl_state.header.frame_id
+            self.ctrl_state_dict["x_desi"] = PoseConverter.to_pos_rot(ctrl_state.x_desi)
+            self.ctrl_state_dict["xd_desi"] = extract_twist(ctrl_state.xd_desi)
+            self.ctrl_state_dict["x_act"] = PoseConverter.to_pos_rot(ctrl_state.x)
+            self.ctrl_state_dict["xd_act"] = extract_twist(ctrl_state.xd)
+            self.ctrl_state_dict["x_desi_filt"] = PoseConverter.to_pos_rot(
+                                                                ctrl_state.x_desi_filtered)
+            self.ctrl_state_dict["x_err"] = extract_twist(ctrl_state.x_err)
+            self.ctrl_state_dict["tau_pose"] = np.array(ctrl_state.tau_pose)
+            self.ctrl_state_dict["tau_posture"] = np.array(ctrl_state.tau_posture)
+            self.ctrl_state_dict["tau"] = np.array(ctrl_state.tau)
+            self.ctrl_state_dict["F"] = np.array([ctrl_state.F.force.x, 
+                                                  ctrl_state.F.force.y,
+                                                  ctrl_state.F.force.z,
+                                                  ctrl_state.F.torque.x,
+                                                  ctrl_state.F.torque.y,
+                                                  ctrl_state.F.torque.z])
 
     def _ft_wrench_cb(self, ws):
         self.ft_wrench = np.mat([ws.wrench.force.x, ws.wrench.force.y, ws.wrench.force.z, 

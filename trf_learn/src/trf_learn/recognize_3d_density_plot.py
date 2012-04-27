@@ -1,10 +1,13 @@
+#!/usr/bin/python
 import roslib; roslib.load_manifest('trf_learn')
+import trf_learn.recognize_3d as r3d
 import hrl_lib.util as ut
 import pylab as pb
 from PIL import Image
 import os.path as pt
 import pdb
 import numpy as np
+import os
 
 def minmax(mat):
     return (np.min(mat[0,:]), np.max(mat[0,:]), 
@@ -25,11 +28,11 @@ def num_bins(points, bin_size):
 ##
 #   ['neg_pred', 'image', 'pos_pred', 'tried', 'center']
 def density_plot(pickle_file_name):
+    print 'density_plot: processing', pickle_file_name
     BIN_SIZE = 20
     #PICKLE_FOLDER = 'pickle_files'
 
     data_dict = ut.load_pickle(pickle_file_name)
-    #pdb.set_trace()
     orig_pickle_folder, _ = pt.split(pickle_file_name)
     folder_name, img_name = pt.split(data_dict['image'])
     nimg_path = pt.join(orig_pickle_folder, img_name)
@@ -37,7 +40,7 @@ def density_plot(pickle_file_name):
     w, h = img_obj.size
     pb.imshow(img_obj, origin='lower')
 
-    data_dict['neg_pred'][1,:] = h - data_dict['neg_pred'][1,:]  
+    data_dict['neg_pred'][1,:] = h - data_dict['neg_pred'][1,:]
     data_dict['pos_pred'][1,:] = h - data_dict['pos_pred'][1,:]
 
     all_pts = np.column_stack((data_dict['neg_pred'], data_dict['pos_pred']))
@@ -59,14 +62,27 @@ def density_plot(pickle_file_name):
 
     print 'max', max_val, 'min', min_val
     pb.imshow(Hrgba, extent=extent, interpolation='spline36', origin='upper', alpha = .7)
+    if data_dict['tried'][1] == r3d.NEGATIVE:
+        pb.plot(data_dict['tried'][0][0,0], h-data_dict['tried'][0][1,0], 'bx')
+    else:
+        pb.plot(data_dict['tried'][0][0,0], h-data_dict['tried'][0][1,0], 'bx')
+
     #pdb.set_trace()
     #pb.plot(data_dict['neg_pred'][0,:].A1, data_dict['neg_pred'][1,:].A1, 'rx')
     #pb.plot(data_dict['pos_pred'][0,:].A1, data_dict['pos_pred'][1,:].A1, 'x')
     min_x, max_x, min_y, max_y = minmax(all_pts)
     pb.axis([max(min_x-100,0), min(max_x+100,w), max(min_y-100, 0), min(max_y+100, h)])
     #pb.axis([0, w, 0, h])
-    name, extension = pt.splitext(img_name)
-    pb.savefig(pt.join(orig_pickle_folder, name + '_plot.png'))
+    #name, extension = pt.splitext(img_name)
+    name = pt.splitext(pt.split(pickle_file_name)[1])[0]
+
+    if data_dict['tried'][1] == r3d.NEGATIVE:
+        figname = pt.join(orig_pickle_folder, name + '_plot_FAIL.png')
+    else:
+        figname = pt.join(orig_pickle_folder, name + '_plot_SUCC.png')
+
+    pb.savefig(figname)
+    
     #pb.show()
 
 if __name__ == '__main__':

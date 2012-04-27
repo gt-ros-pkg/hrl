@@ -3,6 +3,7 @@
 #include <tf/transform_broadcaster.h>
 #include <geometry_msgs/Pose.h>
 #include <hrl_phri_2011/EllipsoidParams.h>
+#include <hrl_phri_2011/LoadEllipsoidParams.h>
 #include <hrl_phri_2011/utils.h>
 
 class InteractiveEllipse 
@@ -20,6 +21,7 @@ private:
     geometry_msgs::Transform old_marker_tf_;
     geometry_msgs::TransformStamped tf_msg_;
     hrl_phri_2011::EllipsoidParams cur_e_params_;
+    ros::ServiceServer load_param_srv_;
 public:
     InteractiveEllipse(const std::string& parent_frame, const std::string& child_frame, double rate = 100);
     void processTFControl(const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback);
@@ -30,6 +32,8 @@ public:
     void publishTF(const ros::TimerEvent& event);
     void loadEllipsoidParams(const hrl_phri_2011::EllipsoidParams& e_params);
     void bagTF(const string& bag_name);
+    bool loadParamCB(hrl_phri_2011::LoadEllipsoidParams::Request& req,
+                     hrl_phri_2011::LoadEllipsoidParams::Response& resp);
 };
 
 InteractiveEllipse::InteractiveEllipse(const std::string& parent_frame, 
@@ -43,6 +47,8 @@ InteractiveEllipse::InteractiveEllipse(const std::string& parent_frame,
     marker_pose_.orientation.w = 1;
     params_pub = nh.advertise<hrl_phri_2011::EllipsoidParams>("/ellipsoid_params", 1);
     params_cmd = nh.subscribe("/ell_params_cmd", 1, &InteractiveEllipse::loadEllipsoidParams, this);
+    load_param_srv_ = nh.advertiseService("/load_ellipsoid_params", 
+                                          &InteractiveEllipse::loadParamCB, this);
 }
 
 void InteractiveEllipse::addTFMarker(const geometry_msgs::Transform& mkr_tf) 
@@ -199,6 +205,13 @@ void InteractiveEllipse::bagTF(const string& bag_name)
     bag.open(bag_name, rosbag::bagmode::Write);
     bag.write("/ellipsoid_params", ros::Time::now(), cur_e_params_);
     bag.close();
+}
+
+bool InteractiveEllipse::loadParamCB(hrl_phri_2011::LoadEllipsoidParams::Request& req,
+                                     hrl_phri_2011::LoadEllipsoidParams::Response& resp)
+{
+    loadEllipsoidParams(req.params);
+    return true;
 }
 
 int main(int argc, char **argv)

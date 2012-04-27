@@ -1,6 +1,0 @@
-<launch>
-    <node pkg="netft_rdt_driver" name="netft_driver" type="netft_node" args="--address 10.68.0.60">
-        <remap from="/netft_data" to="/pr2_netft/wrench_raw" />
-    </node>
-    <node pkg="hrl_netft" name="netft_gravity_zeroing" type="netft_zeroing.py" args="-l -r -z -p -f $(find hrl_netft)/params/ft_zero_params_razor_inline.yaml" output="screen" />
-</launch>

@@ -4,9 +4,8 @@ int8 SETUP_AND_TRAJ=3
 
 int8 mode
 bool reverse
-bool blocking
 float32 setup_velocity
 float32 traj_rate_mult
 string filepath
 ---
-bool success
+---

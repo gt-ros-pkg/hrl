@@ -18,9 +18,11 @@
 
     <!-- <depend package="pr2_laser_snapshotter"/> -->
     <!--<depend package="hrl_opencv"/>-->
+    <!--
     <export>
         <cpp cflags="-I${prefix}/msg/cpp -I${prefix}/include" lflags="-L${prefix}/lib -Wl,-rpath,-L${prefix}/lib -lhrl_lib"/>
     </export>
+    -->
 </package>
 
 
