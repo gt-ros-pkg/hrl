@@ -27,7 +27,7 @@ class WouseTrainer(object):
     def __init__(self, fname):
         path = roslib.substitution_args.resolve_args('$(find wouse)/data/')
         file_out = path + fname + '.csv'
-        self.csv_writer = csv.writer(open(file_out, 'wb'))
+        self.csv_writer = csv.writer(open(file_out, 'ab'))
         title_row = ['Degree','Action','Time(s)','dx','dy']
         self.csv_writer.writerow(title_row)
         rospy.Subscriber('/wouse_movement', Vector3Stamped, self.movement_cb)
@@ -56,7 +56,7 @@ class WouseTrainer(object):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description="A Script for Collecting Training Data to be used by the Support Vector Machine Classifier.")
-    parser.add_argument('-f', '--filename', 
+    parser.add_argument('filename', 
                         default="training_data", 
                         help="filename for saving data")
     parser.add_argument('-l', '--length', 

@@ -90,10 +90,8 @@ def parse(files):
     #pprint.pprint(data)
     plt.legend(loc=2,bbox_to_anchor=(1,1))
     plt.show()
-       
-
 
 if __name__=='__main__':
     files = sys.argv[1:]
-    print "files: ", files
+    print "Parsing data from the following files: \r\n ", files
     parse(files)
