@@ -17,9 +17,11 @@ from wouse.srv import WouseRunStop, WouseRunStopRequest
 
 
 class Wouse(object):
-    """Listens for mouse events, detects wincing motions, and signals e-stop"""
+    """
+    Subscribes to mouse movements, detects wincing, and signals e-stop.
+    """
     def __init__(self):
-        """Initialize mouse-listener thread and svm classifier."""
+        """Initialize svm classifier and needed services."""
         try:
             rospy.wait_for_service('wouse_run_stop', 5) 
             self.runstop_client=rospy.ServiceProxy('wouse_run_stop',
@@ -34,16 +36,8 @@ class Wouse(object):
             sys.exit()
 
         (self.scaler, self.classifier) = self.init_classifier()
-        self.mouse_event = MouseEvent()
-        device_file = rospy.get_param('~device_file')
-        self.condition = Condition()
-        self.mouse_listener = MouseListener(self.mouse_event, self.condition,
-                                            device_file)
-        self.mouse_listener.start()
-        
+        rospy.Subscriber('wouse_movements', Vector3Stamped, self.movement_cb)
         rospy.Timer(rospy.Duration(0.1), self.ping_server)
-        self.vector_pub = rospy.Publisher('wouse_movement', Vector3Stamped)
-        self.v3st = Vector3Stamped()
         self.window = []
       
     def init_classifier(self):
@@ -68,25 +62,11 @@ class Wouse(object):
         req = WouseRunStopRequest(False, False, rospy.Time.now())
         self.runstop_client(req)
 
-    def poll(self):
-        """Wait for new mouse event from listener thread, then pub/process"""
-        with self.condition:
-            self.condition.wait() 
-            self.v3st.header.stamp = rospy.Time.now()
-            self.v3st.vector.x = self.mouse_event.rel_x
-            self.v3st.vector.y = self.mouse_event.rel_y
-            if self.mouse_event.x_overflow or self.mouse_event.y_overflow:
-                self.v3st.vector.z = 1
-        self.vector_pub.publish(self.v3st)
-        self.update_detection(self.v3st.vector.x, 
-                              self.v3st.vector.y, 
-                              self.v3st.header.stamp)
-
-    def update_detection(self, x, y, time):
+    def movement_cb(self, v3):
         """Filter out small movements, check classifier, call stop if needed."""
-        if (x**2+y**2)**(0.5) < 2.5:
+        if (v3.vector.x**2+v3.vector.y**2)**(0.5) < 2.5:
             return
-        if self.classify_svm(x, y, time):
+        if self.classify_svm(v3.vector.x, v3.vector.y, v3.header.stamp):
             self.runstop_client(WouseRunStopRequest(True, False,rospy.Time.now()))
             rospy.loginfo("Wince Detected, stopping robot!")
         else:
@@ -117,5 +97,4 @@ class Wouse(object):
 if __name__=='__main__':
     rospy.init_node('wouse_node')
     wouse = Wouse()
-    while not rospy.is_shutdown():
-        wouse.poll()
+    rospy.spin()
