@@ -1,0 +1,10 @@
+<launch>
+    <node name="wouse_node" 
+          pkg="wouse" 
+          type="wouse.py"  
+          output="screen" >
+        <param name="svm_data_file" type="str" value="$(find wouse)/data/svm_data.pkl" />
+        <param name="device_file" type="str" value="/dev/input/mouse2" />
+    </node>
+
+</launch>
