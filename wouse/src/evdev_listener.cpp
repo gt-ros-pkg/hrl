@@ -297,7 +297,7 @@ bool EventInput::run()
   {
     return false;
   }
-
+  ROS_INFO("[evdev_listener]: Ready");
   int num_event_slots = 64;
   struct input_event *event_buf = new input_event[num_event_slots];
   fd_set read_set, except_set;

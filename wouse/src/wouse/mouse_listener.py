@@ -36,6 +36,8 @@ class MouseListener(object):
             if errno == 11: 
                 rate.sleep()
                 return
+            else:
+                raise
         bits = ord(data[0])
         if not bits & CHECK:
            rospy.logwarn("[mouse_listener]: Bit Check Failed")
