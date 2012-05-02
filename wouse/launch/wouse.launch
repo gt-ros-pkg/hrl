@@ -1,4 +1,6 @@
 <launch>
+
+    <include file="$(find wouse)/launch/mouse_listener.launch" />
     <node name="wouse_node" 
           pkg="wouse" 
           type="wouse.py"  
