@@ -44,7 +44,6 @@ EventInput::EventInput()
   : fd_(-1)
   , initialized_(false)
 {
-  wince_count_ = 0;
 };
 
 bool EventInput::init(const char *input_device, ros::NodeHandle nh)
@@ -283,7 +282,6 @@ bool EventInput::init(const char *input_device, ros::NodeHandle nh)
   } 
 
   movement_pub_ = nh.advertise<geometry_msgs::Vector3Stamped>("wouse_movement", 100);
-  wince_pub_ = nh.advertise<std_msgs::Int32>("wince_count", 1, true);
 
   initialized_ = true;
   return true;
@@ -308,8 +306,6 @@ bool EventInput::run()
   ros::Duration wince_publish_duration(0.1);
  
   bool is_error = false;
-  
-  publishWince();
 
   while (!is_error && ros::ok())
   {
@@ -400,25 +396,10 @@ bool EventInput::run()
         } // end for
       } // end if(read_result)
     } //end select
-      
-    if ( (ros::Time::now() - last_wince_publish_time_) > wince_publish_duration)
-    {
-      //ROS_INFO("wince republish");
-      publishWince();
-    }
-
   } //end while (ros::ok())
 
   // as node is exiting send a runstop message
   return is_error;
-}
-
-void EventInput::publishWince()
-{
-  last_wince_publish_time_ = ros::Time::now();
-  std_msgs::Int32 wince_msg;  
-  wince_msg.data = wince_count_;
-  wince_pub_.publish(wince_msg);
 }
 
 void EventInput::publishMovement(double delta_x, double delta_y, ros::Time time)
@@ -445,12 +426,13 @@ int main(int argc, char* argv[])
   }
 
   evdev_listener::EventInput evdev_listener;
+  ROS_INFO("Preparing to init");
   
   if (!evdev_listener.init(argv[1], nh))
   {
     return 1;
   }
-
+  ROS_INFO("Preparing to run");
   if (!evdev_listener.run())
   {
     return 1;

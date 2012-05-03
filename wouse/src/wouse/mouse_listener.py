@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os
+import os, sys
 
 import roslib; roslib.load_manifest('wouse')
 import rospy
@@ -16,13 +16,8 @@ LEFT_BUTTON = 1
 
 class MouseListener(object):
     """A node for reading a PS/2 mouse linux character device file"""
-    def __init__(self):
-        if rospy.has_param('~device_file'):
-            device_file = rospy.get_param('~device_file')
-            self.f = os.open(device_file, os.O_RDONLY | os.O_NONBLOCK)
-        else:
-            rospy.logerr("[mouse_listener]: Could not find mouse device")
-            sys.exit()
+    def __init__(self, device_file):
+        self.f = os.open(device_file, os.O_RDONLY | os.O_NONBLOCK)
         self.vec_pub = rospy.Publisher('wouse_movement', Vector3Stamped)
         rospy.loginfo("[wouse_listener]: Ready")
 
@@ -59,8 +54,9 @@ class MouseListener(object):
 
 if __name__=='__main__':
     rospy.init_node('mouse_listener')
-    ml =  MouseListener()
+    ml =  MouseListener(sys.argv[1])
     rate = rospy.Rate(200)
     while not rospy.is_shutdown():
         ml.poll()
+        rate.sleep()
     os.close(ml.f)

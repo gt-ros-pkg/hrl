@@ -12,7 +12,6 @@ import rospy
 from std_msgs.msg import Header
 from geometry_msgs.msg import Vector3Stamped
 
-from mouse_listener_thread import MouseListener, MouseEvent
 from wouse.srv import WouseRunStop, WouseRunStopRequest
 
 
@@ -20,7 +19,7 @@ class Wouse(object):
     """
     Subscribes to mouse movements, detects wincing, and signals e-stop.
     """
-    def __init__(self):
+    def __init__(self, svm_datafile):
         """Initialize svm classifier and needed services."""
         try:
             rospy.wait_for_service('wouse_run_stop', 5) 
@@ -30,32 +29,25 @@ class Wouse(object):
         except:
             rospy.logerr("Cannot find wouse run-stop service")
             sys.exit()
-       
-        if not rospy.has_param('~svm_data_file'):
-            rospy.logerr("Cannot find svm training data file. Exiting")
-            sys.exit()
 
-        (self.scaler, self.classifier) = self.init_classifier()
-        rospy.Subscriber('wouse_movements', Vector3Stamped, self.movement_cb)
+        (self.scaler, self.classifier) = self.init_classifier(svm_datafile)
+        rospy.loginfo("SVM Trained on data from %s" %svm_datafile)
+        rospy.Subscriber('wouse_movement', Vector3Stamped, self.movement_cb)
         rospy.Timer(rospy.Duration(0.1), self.ping_server)
         self.window = []
+        rospy.loginfo("[%s]: Ready" %rospy.get_name())
       
-    def init_classifier(self):
+    def init_classifier(self, filename):
         """Unpickle svm training data, train classifier"""
-        if not rospy.has_param('~svm_data_file'):
-            rospy.logerr("Cannot find svm training data file. Exiting")
-            sys.exit()
-        else:
-            filename = rospy.get_param('~svm_data_file')
-            with open(filename, 'rb') as f:
-                svm_data = pickle.load(f)
-            labels = svm_data['labels']
-            data = svm_data['data']
-            scaler = pps.Scaler().fit(data)
-            data_scaled = scaler.transform(data)
-            classifier = svm.SVC()
-            classifier.fit(data_scaled, labels)
-            return (scaler, classifier)
+        with open(filename, 'rb') as f:
+            svm_data = pickle.load(f)
+        labels = svm_data['labels']
+        data = svm_data['data']
+        scaler = pps.Scaler().fit(data)
+        data_scaled = scaler.transform(data)
+        classifier = svm.SVC()
+        classifier.fit(data_scaled, labels)
+        return (scaler, classifier)
 
     def ping_server(self, event):
         """Send updated timestamp to Runstop server."""
@@ -96,5 +88,5 @@ class Wouse(object):
 
 if __name__=='__main__':
     rospy.init_node('wouse_node')
-    wouse = Wouse()
+    wouse = Wouse(sys.argv[1])
     rospy.spin()

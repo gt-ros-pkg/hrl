@@ -1,8 +1,8 @@
 <launch>
+    <arg name="device_file" default="/dev/input/mouse1" />
     <node name="mouse_listener" 
           pkg="wouse" 
           type="mouse_listener.py"
-          output="screen" >
-        <param name="device_file" type="str" value="/dev/input/mouse2" />
-    </node>
+          output="screen" 
+          args="$(arg device_file)" />
 </launch>
