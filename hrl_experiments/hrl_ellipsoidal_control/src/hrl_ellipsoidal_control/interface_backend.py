@@ -28,6 +28,9 @@ class ControllerInterfaceBackend(object):
         self.set_ctrl_name_pub.publish(self.ctrl_name)
         self.buttons_enable_srv()
 
+    def set_arm(self, cart_arm):
+        rospy.logerr("set_arm not implemented!")
+        
     def _button_clk_cb(self, msg):
         self.set_ctrl_name_pub.publish(self.ctrl_name)
         self.set_status_pub.publish("Moving arm.")

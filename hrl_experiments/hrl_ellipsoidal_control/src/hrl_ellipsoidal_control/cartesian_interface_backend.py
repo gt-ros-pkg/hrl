@@ -16,9 +16,9 @@ from hrl_ellipsoidal_control.cartesian_controller import CartesianController
 from hrl_ellipsoidal_control.interface_backend import ControllerInterfaceBackend
 
 TRANS_VELOCITY = 0.02
-HORIZONTAL_STEP = 0.02
-VERTICAL_STEP = 0.02
-DEPTH_STEP = 0.02
+HORIZONTAL_STEP = 0.015
+VERTICAL_STEP = 0.014
+DEPTH_STEP = 0.014
 trans_params = {'translate_up' : (0, 0, -VERTICAL_STEP),   'translate_down' : (0, 0, VERTICAL_STEP),
                 'translate_right' : (0, -HORIZONTAL_STEP, 0), 'translate_left' : (0, HORIZONTAL_STEP, 0),
                 'translate_in' : (DEPTH_STEP, 0, 0),      'translate_out' : (-DEPTH_STEP, 0, 0)}
@@ -33,16 +33,18 @@ rot_params = {'rotate_x_pos' : (-ROLL_STEP, 0, 0), 'rotate_x_neg' : (ROLL_STEP, 
 
 
 class CartesianInterfaceBackend(ControllerInterfaceBackend):
-    def __init__(self, cart_arm):
+    def __init__(self):
         super(CartesianInterfaceBackend, self).__init__("Cartesian Controller",
                                                         hidden_buttons=["reset_rotation"])
-        self.cart_arm = cart_arm
-        self.cart_controller = CartesianController(self.cart_arm)
         self.button_distances = {}
         self.button_times = {}
         for button in trans_params.keys() + rot_params.keys() + ["reset_rotation"]:
             self.button_distances[button] = []
             self.button_times[button] = []
+
+    def set_arm(self, cart_arm):
+        self.cart_arm = cart_arm
+        self.controller = CartesianController(self.cart_arm)
 
     def run_controller(self, button_press):
         start_pos, _ = self.cart_arm.get_ep()
@@ -50,14 +52,14 @@ class CartesianInterfaceBackend(ControllerInterfaceBackend):
         quat_gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
         if button_press in trans_params:
             change_trans_ep = trans_params[button_press]
-            self.cart_controller.execute_cart_move((change_trans_ep, (0, 0, 0)), ((0, 0, 0), 0), 
+            self.controller.execute_cart_move((change_trans_ep, (0, 0, 0)), ((0, 0, 0), 0), 
                                                  quat_gripper_rot, TRANS_VELOCITY)
         elif button_press in rot_params:
             change_rot_ep = rot_params[button_press]
-            self.cart_controller.execute_cart_move(((0, 0, 0), change_rot_ep), ((0, 0, 0), 0), 
+            self.controller.execute_cart_move(((0, 0, 0), change_rot_ep), ((0, 0, 0), 0), 
                                                  quat_gripper_rot, ROT_VELOCITY)
         elif button_press == "reset_rotation":
-            self.cart_controller.execute_cart_move(((0, 0, 0), np.mat(np.eye(3))), ((0, 0, 0), 1), 
+            self.controller.execute_cart_move(((0, 0, 0), np.mat(np.eye(3))), ((0, 0, 0), 1), 
                                                  quat_gripper_rot, ROT_VELOCITY)
         end_pos, _ = self.cart_arm.get_ep()
         end_time = rospy.get_time()
@@ -128,7 +130,7 @@ def main():
         setup_angles = [0, 0, np.pi/2, -np.pi/2, -np.pi, -np.pi/2, -np.pi/2]
         cart_arm.set_posture(setup_angles)
         cart_arm.set_gains([200, 800, 800, 80, 80, 80], [15, 15, 15, 1.2, 1.2, 1.2])
-        cart_backend.cart_controller.reset_arm_orientation(8)
+        cart_backend.controller.reset_arm_orientation(8)
 
     cart_backend.enable_interface("Controller ready.")
     rospy.spin()
