@@ -52,8 +52,6 @@ import trf_learn.recognize_3d as r3d
 import trf_learn.application_behaviors as ab
 import trf_learn.locations_manager as lcm
 
-
-
 class TaskRelevantLearningBehaviors:
 
     def __init__(self, app_behaviors, tf_listener, optical_frame):
@@ -613,6 +611,7 @@ class TaskRelevantLearningBehaviors:
                                 'pos_pred': pos_pred,
                                 'neg_pred': neg_pred,
                                 'tried': [kdict['points2d'][:, selected_idx], label],
+                                'id': task_id,
                                 'center': point2d_img}, pkname)
 
                 try_num = try_num + 1
