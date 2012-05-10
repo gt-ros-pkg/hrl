@@ -26,9 +26,12 @@ class CartesianController(ControllerBase):
                     _, cur_rot = self.arm.get_ep()
                     rot_mat = np.mat(tf_trans.euler_matrix(*rpy))[:3,:3]
                     rot_mat_f = cur_rot * rot_mat
-                self._execute_trajectory(pos_f, rot_mat_f, orient_quat, velocity)
+                traj = self._create_cart_trajectory(pos_f, rot_mat_f, orient_quat, velocity)
+        self._run_traj(traj)
+        if self.action_preempted:
+            pass
 
-    def _execute_trajectory(self, pos_f, rot_mat_f, orient_quat=[0., 0., 0., 1.], velocity=0.001):
+    def _create_cart_trajectory(self, pos_f, rot_mat_f, orient_quat=[0., 0., 0., 1.], velocity=0.001):
         cur_pos, cur_rot = self.arm.get_ep()
 
         rpy = tf_trans.euler_from_matrix(cur_rot.T * rot_mat_f) # get roll, pitch, yaw of angle diff
@@ -41,10 +44,7 @@ class CartesianController(ControllerBase):
         traj = self.arm.interpolate_ep([cur_pos, cur_rot], 
                                        [np.mat(pos_f).T, rot_mat_f], 
                                        min_jerk_traj(num_samps))
-
-        self._run_traj(traj)
-        if self.action_preempted:
-            pass
+        return traj
 
 def main():
     rospy.init_node("cartesian_controller", sys.argv)

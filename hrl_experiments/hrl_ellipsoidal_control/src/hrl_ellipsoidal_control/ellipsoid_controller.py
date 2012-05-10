@@ -26,9 +26,12 @@ class EllipsoidController(ControllerBase):
                     _, cur_rot = self.arm.get_ep()
                     rot_mat = np.mat(tf_trans.euler_matrix(*rpy))[:3,:3]
                     rot_mat_f = cur_rot * rot_mat
-                self._execute_trajectory(ell_f, rot_mat_f, orient_quat, velocity)
+                traj = self._create_ell_trajectory(ell_f, rot_mat_f, orient_quat, velocity)
+        self._run_traj(traj)
+        if self.action_preempted:
+            pass
 
-    def _execute_trajectory(self, ell_f, rot_mat_f, orient_quat=[0., 0., 0., 1.], velocity=0.001):
+    def _create_ell_trajectory(self, ell_f, rot_mat_f, orient_quat=[0., 0., 0., 1.], velocity=0.001):
         _, cur_rot = self.arm.get_ep()
 
         rpy = tf_trans.euler_from_matrix(cur_rot.T * rot_mat_f) # get roll, pitch, yaw of angle diff
@@ -70,9 +73,7 @@ class EllipsoidController(ControllerBase):
                           ell_pose_traj[i][1] * ell_init_rot.T * rot_adjust_traj[i][1]) 
                          for i in range(num_samps)]
 
-        self._run_traj(ell_pose_traj)
-        if self.action_preempted:
-            pass
+        return ell_pose_traj
 
 def main():
     rospy.init_node("ellipsoid_controller", sys.argv)
