@@ -185,18 +185,21 @@ class EllipsoidController(object):
                           ell_pose_traj[i][1] * ell_init_rot.T * rot_adjust_traj[i][1]) 
                          for i in range(num_samps)]
 
+        self._run_traj(ell_pose_traj)
+        if self.action_preempted:
+            pass
+
+    def _run_traj(self, traj):
         self.start_pub.publish(
-                PoseConverter.to_pose_stamped_msg("/torso_lift_link", ell_pose_traj[0]))
+                PoseConverter.to_pose_stamped_msg("/torso_lift_link", traj[0]))
         self.end_pub.publish(
-                PoseConverter.to_pose_stamped_msg("/torso_lift_link", ell_pose_traj[-1]))
-        ep_traj_control = EPTrajectoryControl(self.arm, ell_pose_traj)
+                PoseConverter.to_pose_stamped_msg("/torso_lift_link", traj[-1]))
+        ep_traj_control = EPTrajectoryControl(self.arm, traj)
         self.action_preempted = False
         self.ell_traj_behavior.stop_epc = False
         monitor_timer = rospy.Timer(rospy.Duration(0.1), self._check_preempt)
         self.ell_traj_behavior.epc_motion(ep_traj_control, self.time_step)
         monitor_timer.shutdown()
-        if self.action_preempted:
-            pass
 
 def main():
     rospy.init_node("ellipsoid_controller", sys.argv)

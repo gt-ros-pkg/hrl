@@ -157,6 +157,11 @@ class CartesianController(object):
                                        [np.mat(pos_f).T, rot_mat_f], 
                                        min_jerk_traj(num_samps))
 
+        self._run_traj(traj)
+        if self.action_preempted:
+            pass
+
+    def _run_traj(self, traj):
         self.start_pub.publish(
                 PoseConverter.to_pose_stamped_msg("/torso_lift_link", traj[0]))
         self.end_pub.publish(
@@ -167,8 +172,6 @@ class CartesianController(object):
         monitor_timer = rospy.Timer(rospy.Duration(0.1), self._check_preempt)
         self.ell_traj_behavior.epc_motion(ep_traj_control, self.time_step)
         monitor_timer.shutdown()
-        if self.action_preempted:
-            pass
 
 def main():
     rospy.init_node("cartesian_controller", sys.argv)
