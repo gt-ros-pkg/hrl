@@ -21,6 +21,8 @@ class HRLArm():
         # object of class derived from HRLArmKinematics
         self.kinematics = kinematics
         self.ep = None # equilibrium point
+        self.kp = None # joint stiffness
+        self.kd = None # joint damping
         self.q = None # angles
         self.qdot = None # angular velocity
         self.lock = RLock()
@@ -43,7 +45,13 @@ class HRLArm():
     def get_ep(self):
         with self.lock:
             return copy.copy(self.ep)
-    
+
+    # returns kp, kd
+    # np arrays of stiffness and damping of the virtual springs.      
+    def get_joint_impedance(self): 
+        with self.lock:
+            return np.array(self.kp), np.array(self.kd)
+
     # do we really need this function?
     def freeze(self):
         self.set_ep(self.ep)
