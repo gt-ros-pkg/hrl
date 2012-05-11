@@ -5,9 +5,16 @@ import sys
 import roslib
 roslib.load_manifest('hrl_ellipsoidal_control')
 
-class CartesianController(ControllerBase):
+class CartesianController(EllipsoidController):
 
-    def execute_cart_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], velocity=0.001):
+    def _get_ell_equiv_dist(self, ell_change_ep, ell_abs_sel, orient_quat, velocity):
+        ell_f, rot_mat_f = self._parse_ell_move(ell_change_ep, ell_abs_sel, orient_quat)
+        traj = self._create_ell_trajectory(ell_f, rot_mat_f, orient_quat, velocity)
+        dist = np.linalg.norm(traj[0][0] - traj[-1][0])
+        return dist
+
+    def execute_cart_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], velocity=0.001,
+                          num_samps=None):
         with self.params_lock:
             with self.cmd_lock:
                 cur_pos, cur_rot = self.arm.get_ep()
@@ -26,18 +33,22 @@ class CartesianController(ControllerBase):
                     _, cur_rot = self.arm.get_ep()
                     rot_mat = np.mat(tf_trans.euler_matrix(*rpy))[:3,:3]
                     rot_mat_f = cur_rot * rot_mat
-                traj = self._create_cart_trajectory(pos_f, rot_mat_f, orient_quat, velocity)
+                traj = self._create_cart_trajectory(pos_f, rot_mat_f, orient_quat, velocity, num_samps)
         self._run_traj(traj)
         if self.action_preempted:
             pass
 
-    def _create_cart_trajectory(self, pos_f, rot_mat_f, orient_quat=[0., 0., 0., 1.], velocity=0.001):
+        ell_traj = self._parse_ell_move(change_ep, abs_sel, orient_quat, velocity)
+
+    def _create_cart_trajectory(self, pos_f, rot_mat_f, orient_quat=[0., 0., 0., 1.], velocity=0.001,
+                                velocity=0.001, num_samps=None):
         cur_pos, cur_rot = self.arm.get_ep()
 
         rpy = tf_trans.euler_from_matrix(cur_rot.T * rot_mat_f) # get roll, pitch, yaw of angle diff
 
-        num_samps = np.max([2, int(np.linalg.norm(pos_f - cur_pos) / velocity), 
-                               int(np.linalg.norm(rpy) / velocity)])
+        if num_samps is None:
+            num_samps = np.max([2, int(np.linalg.norm(pos_f - cur_pos) / velocity), 
+                                   int(np.linalg.norm(rpy) / velocity)])
 
         ell_frame_mat = self.get_ell_frame()
 

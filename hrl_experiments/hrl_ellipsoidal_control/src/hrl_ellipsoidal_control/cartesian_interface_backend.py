@@ -14,22 +14,26 @@ from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJTransposeTask
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from hrl_ellipsoidal_control.cartesian_controller import CartesianController
 from hrl_ellipsoidal_control.interface_backend import ControllerInterfaceBackend
+from hrl_ellipsoidal_control.ellipsoidal_interface_backend import ell_trans_params
+from hrl_ellipsoidal_control.ellipsoidal_interface_backend import ELL_LOCAL_VEL
 
-TRANS_VELOCITY = 0.02
+CART_TRANS_VEL = 0.02
 HORIZONTAL_STEP = 0.015
 VERTICAL_STEP = 0.014
 DEPTH_STEP = 0.014
-trans_params = {'translate_up' : (0, 0, -VERTICAL_STEP),   'translate_down' : (0, 0, VERTICAL_STEP),
-                'translate_right' : (0, -HORIZONTAL_STEP, 0), 'translate_left' : (0, HORIZONTAL_STEP, 0),
-                'translate_in' : (DEPTH_STEP, 0, 0),      'translate_out' : (-DEPTH_STEP, 0, 0)}
+cart_trans_params = {
+    'translate_up' : (0, 0, -VERTICAL_STEP),   'translate_down' : (0, 0, VERTICAL_STEP),
+    'translate_right' : (0, -HORIZONTAL_STEP, 0), 'translate_left' : (0, HORIZONTAL_STEP, 0),
+    'translate_in' : (DEPTH_STEP, 0, 0),      'translate_out' : (-DEPTH_STEP, 0, 0)}
 
-ROT_VELOCITY = 0.016
+CART_ROT_VEL = 0.016
 ROLL_STEP = np.pi/12
 PITCH_STEP = np.pi/12
 YAW_STEP = np.pi/12
-rot_params = {'rotate_x_pos' : (-ROLL_STEP, 0, 0), 'rotate_x_neg' : (ROLL_STEP, 0, 0),
-              'rotate_y_pos' : (0, PITCH_STEP, 0), 'rotate_y_neg' : (0, -PITCH_STEP, 0),
-              'rotate_z_pos' : (0, 0, -YAW_STEP),  'rotate_z_neg' : (0, 0, YAW_STEP)}
+cart_rot_params = {
+    'rotate_x_pos' : (-ROLL_STEP, 0, 0), 'rotate_x_neg' : (ROLL_STEP, 0, 0),
+    'rotate_y_pos' : (0, PITCH_STEP, 0), 'rotate_y_neg' : (0, -PITCH_STEP, 0),
+    'rotate_z_pos' : (0, 0, -YAW_STEP),  'rotate_z_neg' : (0, 0, YAW_STEP)}
 
 
 class CartesianInterfaceBackend(ControllerInterfaceBackend):
@@ -38,7 +42,7 @@ class CartesianInterfaceBackend(ControllerInterfaceBackend):
                                                         hidden_buttons=["reset_rotation"])
         self.button_distances = {}
         self.button_times = {}
-        for button in trans_params.keys() + rot_params.keys() + ["reset_rotation"]:
+        for button in cart_trans_params.keys() + cart_rot_params.keys() + ["reset_rotation"]:
             self.button_distances[button] = []
             self.button_times[button] = []
 
@@ -50,17 +54,33 @@ class CartesianInterfaceBackend(ControllerInterfaceBackend):
         start_pos, _ = self.cart_arm.get_ep()
         start_time = rospy.get_time()
         quat_gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
-        if button_press in trans_params:
-            change_trans_ep = trans_params[button_press]
+        if button_press in cart_trans_params:
+            ell_change_trans_ep = ell_trans_params[button_press]
+            change_trans_ep = cart_trans_params[button_press]
+
+            # get number of samples:
+            ell_f, rot_mat_f = self._parse_ell_move((ell_change_trans_ep, (0, 0, 0)), 
+                                                    ((0, 0, 0), 0), 
+                                                    quat_gripper_rot)
+            traj = self._create_ell_trajectory(ell_f, rot_mat_f, orient_quat, velocity)
+            num_samps = len(traj)
+
+            # normalization occurs here:
+            ell_dist = self.controller._get_ell_equiv_dist((ell_change_trans_ep, (0, 0, 0)), 
+                                                           ((0, 0, 0), 0), 
+                                                           quat_gripper_rot, ELL_LOCAL_VEL)
+            change_trans_ep = tuple(np.array(change_trans_ep)/np.sum(change_trans_ep) *
+                                    ell_dist)
+
             self.controller.execute_cart_move((change_trans_ep, (0, 0, 0)), ((0, 0, 0), 0), 
-                                                 quat_gripper_rot, TRANS_VELOCITY)
-        elif button_press in rot_params:
-            change_rot_ep = rot_params[button_press]
+                                                 quat_gripper_rot, CART_TRANS_VEL, num_samps=num_samps)
+        elif button_press in cart_rot_params:
+            change_rot_ep = cart_rot_params[button_press]
             self.controller.execute_cart_move(((0, 0, 0), change_rot_ep), ((0, 0, 0), 0), 
-                                                 quat_gripper_rot, ROT_VELOCITY)
+                                                 quat_gripper_rot, CART_ROT_VEL)
         elif button_press == "reset_rotation":
             self.controller.execute_cart_move(((0, 0, 0), np.mat(np.eye(3))), ((0, 0, 0), 1), 
-                                                 quat_gripper_rot, ROT_VELOCITY)
+                                                 quat_gripper_rot, CART_ROT_VEL)
         end_pos, _ = self.cart_arm.get_ep()
         end_time = rospy.get_time()
         dist = np.linalg.norm(end_pos - start_pos)
@@ -73,7 +93,7 @@ class CartesianInterfaceBackend(ControllerInterfaceBackend):
         print self.button_distances
         print self.button_times
         print "MEANS:"
-        for button in trans_params.keys() + rot_params.keys() + ["reset_rotation"]:
+        for button in cart_trans_params.keys() + cart_rot_params.keys() + ["reset_rotation"]:
             print "%s, avg dist: %.3f, avg_time: %.3f, num_presses: %d" % (
                     button, 
                     np.mean(self.button_distances[button]), 
@@ -84,7 +104,7 @@ class CartesianInterfaceBackend(ControllerInterfaceBackend):
         button_mean_distances = {}
         button_mean_times = {}
         button_num_presses = {}
-        for button in trans_params.keys() + rot_params.keys() + ["reset_rotation"]:
+        for button in cart_trans_params.keys() + cart_rot_params.keys() + ["reset_rotation"]:
             button_mean_distances[button] = np.mean(self.button_distances[button])
             button_mean_times[button] = np.mean(self.button_times[button])
             button_num_presses[button] = len(self.button_distances[button])

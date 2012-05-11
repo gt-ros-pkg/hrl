@@ -10,6 +10,13 @@ MIN_HEIGHT = 0.2
 class EllipsoidController(ControllerBase):
 
     def execute_ell_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], velocity=0.001):
+        ell_f, rot_mat_f = self._parse_ell_move(change_ep, abs_sel, orient_quat)
+        traj = self._create_ell_trajectory(ell_f, rot_mat_f, orient_quat, velocity)
+        self._run_traj(traj)
+        if self.action_preempted:
+            pass
+
+    def _parse_ell_move(self, change_ep, abs_sel, orient_quat):
         with self.params_lock:
             with self.cmd_lock:
                 change_ell_ep, change_rot_ep = change_ep
@@ -26,10 +33,7 @@ class EllipsoidController(ControllerBase):
                     _, cur_rot = self.arm.get_ep()
                     rot_mat = np.mat(tf_trans.euler_matrix(*rpy))[:3,:3]
                     rot_mat_f = cur_rot * rot_mat
-                traj = self._create_ell_trajectory(ell_f, rot_mat_f, orient_quat, velocity)
-        self._run_traj(traj)
-        if self.action_preempted:
-            pass
+                return ell_f, rot_mat_f
 
     def _create_ell_trajectory(self, ell_f, rot_mat_f, orient_quat=[0., 0., 0., 1.], velocity=0.001):
         _, cur_rot = self.arm.get_ep()
