@@ -2,6 +2,7 @@
 import argparse
 import random
 import csv
+import math
 
 import roslib; roslib.load_manifest('wouse')
 import rospy
@@ -35,20 +36,16 @@ class WouseTrainer(object):
         self.csv_writer.writerow(line)
         print "Writing"
 
-    def run(self, run_time, switch_period):
+    def run(self, act_list, switch_period):
         """Perform training for a given time, at a given rate."""
-        total=int(round(run_time/switch_period))
-        count = 0
-        end_time = rospy.Time.now() + rospy.Duration(run_time)
+        total=len(act_list)
         switch_rate = rospy.Rate(1/switch_period)
-        while rospy.Time.now() < end_time and not rospy.is_shutdown():
-            count +=1
-            self.degree = random.choice(DEGREES)
-            self.behavior = random.choice(ACTIONS)
+        while len(act_list) > 0 and not rospy.is_shutdown():
+            self.behavior = act_list.pop(random.randint(0,len(act_list)))
             bar = random.choice(SYMBOLS)
             print "\r\n"*10
             print bar
-            print "%s/%s: %s  %s" %(count, total, self.degree, self.behavior)
+            print "%s:     %s" %(total-len(act_list), self.behavior)
             print bar
             print "\r\n"*10
             switch_rate.sleep()
@@ -67,9 +64,13 @@ if __name__=='__main__':
                         type=float,
                         help="duration of each facial expression")
     args = parser.parse_args()
+    num = int(math.ceil(args.length/args.duration))
+    num = num + num%len(ACTIONS)
+    act_list = ACTIONS*num
+    length = len(act_list)*args.duration
     
     rospy.init_node('wouse_trainer')
     wt = WouseTrainer(args.filename)
-    wt.run(args.length, args.duration)
+    wt.run(act_list, args.duration)
     print "Training Session Completed"
 
