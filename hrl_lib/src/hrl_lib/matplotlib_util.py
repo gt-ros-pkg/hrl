@@ -158,12 +158,12 @@ def plot_circle(cx, cy, rad, start_angle, end_angle, step=math.radians(2),
 # @param color - color of the circle.
 # @param label - legend label.
 def plot_radii(cx, cy, rad, start_angle, end_angle, interval=math.radians(15),
-               color='k', label='', alpha=1.0):
+               color='k', label='', alpha=1.0, linewidth=1.):
     if start_angle < 0.:
         start_angle = 2*math.pi+start_angle
     if end_angle < 0.:
         end_angle = 2*math.pi+end_angle
-    if start_angle>end_angle:
+    if start_angle > end_angle:
         interval = -interval
 
     n_step = int((end_angle-start_angle)/interval+0.5)
@@ -178,7 +178,7 @@ def plot_radii(cx, cy, rad, start_angle, end_angle, interval=math.radians(15),
     x.append(cx-rad*math.sin(end_angle))
     y.append(cy+rad*math.cos(end_angle))
 
-    pp.plot(x,y,c=color,label=label,linewidth=1,alpha=alpha)
+    pp.plot(x,y,c=color,label=label,linewidth=linewidth,alpha=alpha)
     pp.axis('equal')
 
 
