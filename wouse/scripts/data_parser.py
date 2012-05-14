@@ -29,7 +29,7 @@ ACTIONS = {'WINCE'  : [0,0,0],
             'DISGUST': [1,0,1],
             'SADNESS': [0.5,0,0]}
 ACT_LIST = ['WINCE', 'NOD', 'SHAKE', 'JOY', "FEAR", "SUPRISE", "ANGER", "DISGUST", "SADNESS"]
-WINDOW_DUR = 0.25
+#WINDOW_DUR = 0.25
 
 def extract_data(files):
     data = []
