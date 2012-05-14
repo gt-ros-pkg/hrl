@@ -42,6 +42,14 @@ def extract_data(files):
 
 def process(files, SVM_DATA_FILE, WINDOW_DUR, MAG_THRESH, plot):
     data = extract_data(files)
+    npdata = np.array(data)
+    txt = npdata[:,:2]
+    nums=np.array(npdata[:,2:], dtype=float)
+    x2 = np.square(nums[:,1])
+    y2 = np.square(nums[:,2])
+    mags=np.sqrt(np.add(x2, y2))
+    dirs=np.arctan2(nums[:,2], nums[:,1])
+    nums = np.hstack((nums, np.column_stack((mags,dirs))))
     window = []
     o_type_cnt={}.fromkeys(ACT_LIST,0)
     f_type_cnt={}.fromkeys(ACT_LIST,0)
@@ -92,17 +100,30 @@ def process(files, SVM_DATA_FILE, WINDOW_DUR, MAG_THRESH, plot):
                 svm_label.append(0)
             svm_data.append([dat[5],dat[6],dat[7],dat[9],dat[10]])
     
+    
+    print "Text: \r\n", txt[:,1]
+    mean_std = np.empty((4, len(ACT_LIST)))
+    for i,act in enumerate(ACT_LIST):
+        indices = np.nonzero(txt[1,:]==act)
+        print act, indices
+        mean_std[i,0] = np.mean(nums[indices,1])
+        mean_std[i,1] = np.std(nums[indices,2])
+        mean_std[i,2] = np.mean(nums[indices,3])
+        mean_std[i,3] = np.std(nums[indices,4])
+    print "Magnitude: (Mean +/- Std)"
+    for act in enumerate(ACT_LIST):
+        print "%s : Mag: %3.2f (%3.2f) \r\n%s : Dir: %3.2f (%3.2f)" %(act, mean_std[i,0], mean_std[i,1], mean_std[i,2], mean_std[i,3])
 
     print " \r\n"*5
     print "Total Datapoints: ", len(data)
     print " \r\n"
     print "Impact of Filtering:"
-    for type in o_type_cnt.keys():
-        print "%s: \r\n  %s (%2.2f%%) --> \r\n  %s (%2.2f%%)" %(type, 
-                                    o_type_cnt[type], 
-                                    (100.*o_type_cnt[type])/len(data),
-                                    f_type_cnt[type], 
-                                    (100.*f_type_cnt[type])/len(data))
+    for type_ in o_type_cnt.keys():
+        print "%s: \r\n  %s (%2.2f%%) --> \r\n  %s (%2.2f%%)" %(type_, 
+                                    o_type_cnt[type_], 
+                                    (100.*o_type_cnt[type_])/len(data),
+                                    f_type_cnt[type_], 
+                                    (100.*f_type_cnt[type_])/len(data))
     print " \r\n"*2
 
     if plot:

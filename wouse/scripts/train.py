@@ -14,7 +14,7 @@ DEGREES = ['']
 ACTIONS = ['WINCE', 'NOD', 'SHAKE', 'JOY', 'SUPRISE', 'FEAR', 'ANGER', 
             'DISGUST', 'SADNESS']
 
-SYMBOLS = ["**"*20, "%%"*20, "^v"*20, '##'*20, '&&'*20, '$$'*20]
+SYMBOLS = ["**"*25, "%%"*25, "^v"*25, '##'*25, '&&'*25, '$$'*25]
 
 def choose_state():
     return random.choice(DEGREES), random.choice(ACTIONS)
@@ -26,8 +26,8 @@ class WouseTrainer(object):
         path = '../data/'
         file_out = path + fname + '.csv'
         self.csv_writer = csv.writer(open(file_out, 'ab'))
-        title_row = ['Degree','Action','Time(s)','dx','dy']
-        self.csv_writer.writerow(title_row)
+        #title_row = ['Degree','Action','Time(s)','dx','dy']
+        #self.csv_writer.writerow(title_row)
         pygame.init()
         self.sound_new = pygame.mixer.Sound('../sounds/new_item.wav')
         self.sound_done = pygame.mixer.Sound('../sounds/item_done.wav')
@@ -40,21 +40,21 @@ class WouseTrainer(object):
             line = [self.degree, self.behavior, v3s.header.stamp.to_sec(),
                     v3s.vector.x, v3s.vector.y]
             self.csv_writer.writerow(line)
-            print "Writing"
+            #print "Writing"
 
     def run(self, act_list, switch_period):
         """Perform training given a list of actions, at a given rate."""
         total=len(act_list)
         switch_rate = rospy.Rate(1/switch_period)
         while len(act_list) > 0 and not rospy.is_shutdown():
-            self.behavior = act_list.pop(random.randint(0,len(act_list)))
+            self.behavior = act_list.pop(random.randint(0,len(act_list)-1))
             bar = random.choice(SYMBOLS)
             self.sound_new.play()
-            print "\r\n"*10
+            print "\r\n"*15
             print bar
             print "%s:     %s" %(total-len(act_list), self.behavior)
             print bar
-            print "\r\n"*10
+            print "\r\n"*15
             rospy.sleep(2)
             self.behavior = None
             self.sound_done.play()
@@ -74,10 +74,11 @@ if __name__=='__main__':
                         type=float,
                         help="duration of each facial expression")
     args = parser.parse_args()
-    num = int(math.ceil(args.length/args.duration))
-    num = num + num%len(ACTIONS)
-    act_list = ACTIONS*num
-    length = len(act_list)*args.duration
+    #num = int(math.ceil(args.length/args.duration))
+    #num = num + num%len(ACTIONS)
+    #act_list = ACTIONS*num
+    #length = len(act_list)*args.duration
+    act_list = ACTIONS*30
     
     rospy.init_node('wouse_trainer')
     wt = WouseTrainer(args.filename)
