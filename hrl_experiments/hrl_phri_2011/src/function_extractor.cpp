@@ -59,10 +59,11 @@ void projectCloudEllipsoid(const PCRGB& in_pc, PCRGB& out_pc, Ellipsoid& e)
     }
 }
 
-void projectDataEllipsoidHead(const PCRGB& head_pc, const PCRGB& ell_head_pc, const PCRGB& data_pc, PCRGB& out_pc)
+void projectDataEllipsoidHead(const PCRGB& head_pc, const PCRGB& ell_head_pc, const PCRGB& data_pc, 
+                              PCRGB& out_pc, double noise_sigma)
 {
     boost::mt19937 rand_gen;
-    boost::normal_distribution<> norm_dist(0.0, 0.000);
+    boost::normal_distribution<> norm_dist(0.0, noise_sigma);
     boost::variate_generator<boost::mt19937, boost::normal_distribution<> > norm_gen(rand_gen, norm_dist);
 
     pcl::KdTreeFLANN<PRGB> head_kd(new pcl::KdTreeFLANN<PRGB> ());
@@ -107,23 +108,23 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "function_extractor");
     ros::NodeHandle nh;
-    if(argc < 4 || argc > 6) {
-        printf("Usage: function_extractor force_processed_bag value output_bag [ellipsoid_registration] [user_projection] [multiplier]\n");
+    if(argc < 5 || argc > 8) {
+        printf("Usage: function_extractor force_processed_bag value output_bag output_nonproj_data [ellipsoid_registration] [user_projection] [multiplier] [noise_sigma]\n");
         return 1;
     }
     vector<hrl_phri_2011::ForceProcessed::Ptr> fp_list;
     readBagTopic<hrl_phri_2011::ForceProcessed>(argv[1], fp_list, "/force_processed");
-    PCRGB data_cloud;
-    if(argc >= 5) {
+    PCRGB data_cloud, head_pc, ell_head_pc, ell_data_pc;
+    if(argc >= 6) {
         vector<hrl_phri_2011::EllipsoidParams::Ptr> ep_list;
-        readBagTopic<hrl_phri_2011::EllipsoidParams>(argv[4], ep_list, "/ellipsoid_params");
+        readBagTopic<hrl_phri_2011::EllipsoidParams>(argv[5], ep_list, "/ellipsoid_params");
         Ellipsoid e(*ep_list[0]);
-        if(argc >= 6) {
-            PCRGB head_pc, ell_head_pc, ell_data_pc;
-            loadRegisteredHead(argv[5], argv[4], head_pc, e);
+        if(argc >= 7) {
+            loadRegisteredHead(argv[6], argv[5], head_pc, e);
             projectCloudEllipsoid(head_pc, ell_head_pc, e);
-            extractEllipsoidFrameCloud(fp_list, argv[2], ell_data_pc, e, true);
-            projectDataEllipsoidHead(head_pc, ell_head_pc, ell_data_pc, data_cloud);
+            extractEllipsoidFrameCloud(fp_list, argv[2], ell_data_pc, e, false);
+            double noise_sigma = atof(argv[7]);
+            projectDataEllipsoidHead(head_pc, ell_head_pc, ell_data_pc, data_cloud, noise_sigma);
         } else
             extractEllipsoidFrameCloud(fp_list, argv[2], data_cloud, e);
     } else {
@@ -137,9 +138,16 @@ int main(int argc, char **argv)
         extractContacts(data_cloud, force_thresh, time_thresh);
     if(multiplier != -1)
         multiplyCloud(data_cloud, multiplier);
+
     data_cloud.header.frame_id = "/base_link";
     rosbag::Bag bag;
     bag.open(argv[3], rosbag::bagmode::Write);
     bag.write("/data_cloud", ros::Time::now(), data_cloud);
     bag.close();
+
+    ell_data_pc.header.frame_id = "/base_link";
+    rosbag::Bag bag2;
+    bag2.open(argv[4], rosbag::bagmode::Write);
+    bag2.write("/nonproj_data_cloud", ros::Time::now(), ell_data_pc);
+    bag2.close();
 }
