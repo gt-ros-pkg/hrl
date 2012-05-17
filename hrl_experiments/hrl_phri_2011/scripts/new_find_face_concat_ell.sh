@@ -24,7 +24,7 @@ else
     posh=0.02
     ptrim=0.50
     study_users=( "${study_users_shaving[@]}" )
-    multipliers=( "${shaving_multipliers[@]}" )
+    multipliers=( "${shaver_multipliers[@]}" )
 fi
 
 #multipliers=( "1" "1" "1" "1" "1" "1" "1" "1" )
@@ -33,8 +33,8 @@ num_users=${#study_users[@]}
 set -x
 for (( i=0; i<${num_users}; i++ ));
 do
-    rosrun hrl_phri_2011 extract_ell_face_function.sh ${study_users[$i]} $1 $2 $3 ${multipliers[$i]}
+    rosrun hrl_phri_2011 function_extractor $dir/${people[${study_users[$i]}]}_${tools[$1]}_${places[$2]}_processed_norms.bag ${functions[$3]} $dir/${people[${study_users[$i]}]}_${tools[$1]}_${places[$2]}_${functions[$3]}_ell_face_data_cloud.bag $dir/${people[${study_users[$i]}]}_${tools[$1]}_${places[$2]}_${functions[$3]}_ell_face_data_cloud_nonproj.bag _force_thresh:=0.5 _time_thresh:=0.2 _multiplier:=${multipliers[$i]}
 done
-rosrun hrl_phri_2011 density_est_all.sh $1 $2 $3 ${study_users[*]}
+rosrun hrl_phri_2011 new_density_est_all.sh $1 $2 $3 $posh $ptrim ${study_users[*]}
 #rosrun hrl_phri_2011 concat_ell_face_clouds.sh $1 $2 $3 ${study_users[*]}
 #rosrun hrl_phri_2011 color_combo_face_cloud.sh $1 $2 $3 

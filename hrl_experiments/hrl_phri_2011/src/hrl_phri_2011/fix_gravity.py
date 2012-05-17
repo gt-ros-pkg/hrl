@@ -12,7 +12,8 @@ import rosbag
 
 def main():
     bag = rosbag.Bag(sys.argv[1], 'r')
-    fixed_file = sys.argv[1].split(".")[0] + "_fixed.bag"
+    prefix = ".".join(sys.argv[1].split(".")[:-1])
+    fixed_file = prefix + "_fixed.bag"
     fixed_bag = rosbag.Bag(fixed_file, 'w')
     for topic, tf_msg, t in bag.read_messages():
         if topic == "/tf":
