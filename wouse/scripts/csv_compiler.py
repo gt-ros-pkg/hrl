@@ -16,6 +16,6 @@ def extract_data(files):
 if __name__=='__main__':
    files = sys.argv[1:]
    data = extract_data(files)
-   with open('../data/condensed_data.csv', 'wb') as f_out:
+   with open('../data/condensed_1910_data.csv', 'wb') as f_out:
        writer = csv.writer(f_out)
        writer.writerows(data)
