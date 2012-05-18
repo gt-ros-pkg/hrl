@@ -123,12 +123,18 @@ def process(files, SVM_DATA_FILE, WINDOW_DUR, MAG_THRESH, plot):
 
     print " \r\n"
     print "Impact of Filtering:"
+    total_features=0
+    for type_ in o_type_cnt.keys():
+        total_features += f_type_cnt[type_]
     for type_ in o_type_cnt.keys():
         print "%s: \r\n  %s (%2.2f%%) --> \r\n  %s (%2.2f%%)" %(type_, 
                                     o_type_cnt[type_], 
                                     (100.*o_type_cnt[type_])/len(data),
                                     f_type_cnt[type_], 
-                                    (100.*f_type_cnt[type_])/len(data))
+                                    (100.*f_type_cnt[type_])/total_features)
+    
+    print " \r\n"
+    print "Total Features: ", total_features
     print " \r\n"*2
 
     if plot:
@@ -168,7 +174,8 @@ def create_ROC(filename):
         from sklearn.metrics import roc_curve, auc
         from sklearn.cross_validation import StratifiedKFold, LeaveOneOut
 
-        with open('../data/svm_data.pkl', 'rb') as f:
+        filepath='../data/'+filename+'.pkl'
+        with open(filepath, 'rb') as f:
             svm_data = pickle.load(f)
         labels = svm_data['labels']
         data = svm_data['data']
