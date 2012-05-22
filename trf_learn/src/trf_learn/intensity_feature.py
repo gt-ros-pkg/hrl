@@ -115,13 +115,15 @@ class IntensityCloudFeatureExtractor:
         self.image_T_bl = image_T_bl
         self.camera_calibration = camera_calibration
         self.params = params
-        self.subsampler_service = Subsampler()
+        self.subsampler_service = None
         self.sizes = None #Important but access should be limited to decouple code
 
     def get_sizes(self):
         return self.sizes
 
     def _subsample(self):
+        if self.subsampler_service == None:
+            self.subsampler_service = Subsampler()
         rospy.loginfo('Subsampling using PCL')
         rospy.loginfo('before %s' % str(self.pointcloud_bl.shape))
         self.pc_sub_samp_bl = self.subsampler_service.subsample(self.pointcloud_bl)

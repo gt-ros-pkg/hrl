@@ -4,6 +4,7 @@ import cPickle as pickle
 import sys
 import copy
 import numpy as np
+from threading import Lock
 
 import roslib
 roslib.load_manifest("tf")
@@ -184,16 +185,27 @@ class NetFTZeroer:
 
         self.colors = [ColorRGBA(1., 0., 0., 1.), ColorRGBA(0., 1., 0., 1.)]
 
+        self.msg_lock = Lock()
+        self.last_msg_time = 0.
         rospy.sleep(0.1)
-        rospy.Subscriber(netft_topic, WrenchStamped, self.process_wrench)
+        rospy.Subscriber(netft_topic, WrenchStamped, self.save_cur_msg, queue_size=1)
 
-    def process_wrench(self, msg):
-        cur_wrench = np.mat([msg.wrench.force.x, 
-                             msg.wrench.force.y, 
-                             msg.wrench.force.z, 
-                             msg.wrench.torque.x, 
-                             msg.wrench.torque.y, 
-                             msg.wrench.torque.z]).T
+    def save_cur_msg(self, msg):
+        with self.msg_lock:
+            self.cur_msg = msg
+            self.last_msg_time = rospy.get_time()
+
+    def _process_wrench(self, te):
+        with self.msg_lock:
+            if rospy.get_time() - self.last_msg_time > 0.1:
+                return
+            cur_wrench = np.mat([self.cur_msg.wrench.force.x, 
+                                 self.cur_msg.wrench.force.y, 
+                                 self.cur_msg.wrench.force.z, 
+                                 self.cur_msg.wrench.torque.x, 
+                                 self.cur_msg.wrench.torque.y, 
+                                 self.cur_msg.wrench.torque.z]).T
+            header = self.cur_msg.header
         try:
             (ft_pos, ft_quat) = self.tf_list.lookupTransform(self.gravity_frame, 
                                                              self.netft_frame, rospy.Time(0))
@@ -215,7 +227,7 @@ class NetFTZeroer:
         tf_zeroed_wrench = self.transform_wrench(zeroed_wrench)
         if tf_zeroed_wrench is None:
             return
-        zero_msg = WrenchStamped(msg.header, 
+        zero_msg = WrenchStamped(header, 
                                  Wrench(Vector3(*tf_zeroed_wrench[:3,0]), Vector3(*tf_zeroed_wrench[3:,0])))
         self.zero_pub.publish(zero_msg)
         self.visualize_wrench(tf_zeroed_wrench)
@@ -265,6 +277,8 @@ class NetFTZeroer:
         m.color = self.colors[m_id]
         self.vis_pub.publish(m)
 
+    def start_publisher(self, rate):
+        self.timer_pub = rospy.Timer(rospy.Duration(1./rate), self._process_wrench)
 
 def main():
     rospy.init_node("netft_gravity_zeroing")
@@ -291,6 +305,8 @@ def main():
     p.add_option('-n', '--ntrials', dest="n_trials",
                  default="6,6,4",
                  help="Number of trials for each of the last 3 joint angles to move through. (default: 6,6,4)")
+    p.add_option('-c', '--rate', dest="rate", type="int", default=100,
+                 help="Rate at which to publish the output topics.")
     (opts, args) = p.parse_args()
 
     try:
@@ -307,6 +323,7 @@ def main():
     if opts.is_run:
         rospy.sleep(0.1)
         nft_z = NetFTZeroer(start_zero=opts.start_zero, is_pr2=opts.is_pr2)
+        nft_z.start_publisher(opts.rate)
         rospy.spin()
         return
 

@@ -117,9 +117,9 @@ class Joint:
 
 class PR2Arm(Joint):
 
-    def __init__(self, joint_provider, tf_listener, arm):
+    def __init__(self, joint_provider, tf_listener, arm, use_kinematics=True):
         joint_controller_name = arm + '_arm_controller'
-        cart_controller_name = arm + '_cart'
+        cart_controller_name = arm + '_arm_cartesian_pose_controller'
         Joint.__init__(self, joint_controller_name, joint_provider)
         self.arm = arm
         self.tf_listener = tf_listener
@@ -128,13 +128,15 @@ class PR2Arm(Joint):
         self.client.wait_for_server()
         self.joint_controller_name = joint_controller_name
 
-        self.cart_posure_pub = rospy.Publisher("/%s/command_posture" % cart_controller_name, stdm.Float64MultiArray).publish
-        self.cart_pose_pub = rospy.Publisher("/%s/command_pose" % cart_controller_name, gm.PoseStamped).publish
+        self.cart_posture_pub = rospy.Publisher("/%s/command_posture" % cart_controller_name, stdm.Float64MultiArray).publish
+        self.cart_pose_pub = rospy.Publisher("/%s/command" % cart_controller_name, gm.PoseStamped).publish
         if arm == 'l':
             self.full_arm_name = 'left'
         else:
             self.full_arm_name = 'right'
-        self.kinematics = pr2k.PR2ArmKinematics(self.full_arm_name, self.tf_listener)
+        if use_kinematics:
+            self.kinematics = pr2k.PR2ArmKinematics(self.full_arm_name,
+                                                    self.tf_listener)
         #self.ik_utilities = iku.IKUtilities(self.full_arm_name, self.tf_listener) 
 
         self.POSTURES = {
@@ -149,12 +151,12 @@ class PR2Arm(Joint):
             }
 
     def set_posture(self, posture_mat):
-        self.cart_posure_pub(stdm.Float64MultiArray(data=posture_mat.A1.tolist()))
+        self.cart_posture_pub(stdm.Float64MultiArray(data=posture_mat.A1.tolist()))
 
     ##
     # Send a cartesian pose to *_cart controllers
     # @param trans len 3 list
-    # @param rot len 3 list
+    # @param rot len 4 list
     # @param frame string
     # @param msg_time float
     def set_cart_pose(self, trans, rot, frame, msg_time):
@@ -466,7 +468,8 @@ class SoundPlay:
 
 class PR2:
 
-    def __init__(self, tf_listener=None, arms=True, base=False, grippers=True):
+    def __init__(self, tf_listener=None, arms=True, base=False, grippers=True,
+                 use_kinematics=True):
         try:
             rospy.init_node('pr2', anonymous=True)
         except rospy.exceptions.ROSException, e:
@@ -480,8 +483,10 @@ class PR2:
         self.joint_provider = ft.partial(jl.read, allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
 
         if arms:
-            self.left = PR2Arm(self.joint_provider, self.tf_listener, 'l')
-            self.right = PR2Arm(self.joint_provider, self.tf_listener, 'r')
+            self.left = PR2Arm(self.joint_provider, self.tf_listener, 'l',
+                               use_kinematics)
+            self.right = PR2Arm(self.joint_provider, self.tf_listener, 'r',
+                                use_kinematics)
 
         if grippers:
             self.left_gripper = PR2Gripper('l', self.joint_provider)

@@ -133,6 +133,7 @@ def insert_folder_name(apath, folder_name):
 
 def load_data_from_file2(fname, rec_param):
     data_pkl = ut.load_pickle(fname)
+    print data_pkl.keys()
     image_fname = pt.join(pt.split(fname)[0], data_pkl['image'])
     intensity_image = cv.LoadImageM(image_fname)
     center_point_bl = data_pkl['touch_point']
@@ -140,6 +141,7 @@ def load_data_from_file2(fname, rec_param):
     print 'Robot touched point cloud at point', center_point_bl.T
     distance_feature_points = None
     syn_locs_fname = pt.splitext(fname)[0] + '_synthetic_locs3d.pkl'
+    #pdb.set_trace()
     if pt.isfile(syn_locs_fname):
         print 'found synthetic locations file', syn_locs_fname
         distance_feature_points = ut.load_pickle(syn_locs_fname)
@@ -227,6 +229,7 @@ def preprocess_scan_extract_features(raw_data_fname, ext):
                          'image': image_fname,
                          'labels': labels,
                          'sizes': feature_extractor.get_sizes()}
+
     if data_pkl.has_key('synthetic_locs3d'):
         preprocessed_dict['synthetic_locs3d'] = data_pkl['synthetic_locs3d']
 
@@ -282,9 +285,6 @@ def make_point_exclusion_test_set(training_dataset, all_data_dir, ext):
     return InterestPointDataset(np.column_stack(dset['inputs']),\
                                 np.column_stack(dset['outputs']),\
                                 None, None, None, sizes = sizes)
-
-
-
 
 class SVM:
     ##
@@ -392,6 +392,8 @@ class PCAIntensities:
         percent_error = self.calc_reconstruction_errors(projected_instances, original_instances)
         return percent_error > (self.reconstruction_error + self.reconstruction_err_toler)
 
+    ##
+    # @param intances is a matrix of size features x instances.  This method will select only intensity features.
     def partial_pca_project(self, instances):
         #pdb.set_trace()
         #self.intensities_mean = np.mean(data_in, 1)
@@ -673,8 +675,12 @@ class Recognize3DParam:
         #self.svm_params = '-s 0 -t 2 -g 5. -c 4'
         #self.svm_params = '-s 0 -t 2 -g .01 -c 4'
         #self.svm_params = '-s 0 -t 2 -g .2 -c 4'
-        self.svm_params = '-s 0 -t 2 -g .5 -c .5'
         #self.svm_params = '-s 0 -t 2 -g 100 -c .5'
+
+
+        #Paper params
+        self.svm_params = '-s 0 -t 2 -g .5 -c .5'  #for using pca 'intensity' features
+        #self.svm_params = '-s 0 -t 2 -g 50 -c .5' #for using 'distance' features
 
         #sampling parameters
         #self.n_samples = 5000
@@ -743,10 +749,17 @@ def find_max_in_density(locs2d):
 
 class ScanLabeler:
 
+    ##
+    # @param dirname  directory to look for files
+    # @param ext extension of files to load
+    # @param scan_to_train_on name of dataset to train on
+    # @param seed_dset name of dataset to seed active learning with (optional)
+    # @param features_to_use 
     def __init__(self, dirname, ext, scan_to_train_on, seed_dset, features_to_use):
         self.scan_dir_name = dirname
         self.scan_names = glob.glob(pt.join(dirname, '*' + ext))
         self.scan_names.append(self.scan_names.pop(0))
+        #pdb.set_trace()
         self.feature_file_ext = ext
         self.features_to_use = features_to_use
 
@@ -799,6 +812,7 @@ class ScanLabeler:
         
     def load_scan(self, fname):
         print 'Loading scan', fname
+        #pdb.set_trace()
         self.cdisp = {}
         self.current_scan = ut.load_pickle(fname)
         #image_fname = pt.join(pt.split(fname)[0], self.current_scan['image'])
@@ -891,6 +905,7 @@ class ScanLabeler:
 
     def step(self):
         k = cv.WaitKey(33)
+        k = k & 255
         if k == ord('n'):
             print 'Loading next scan..'
             self.load_next()
@@ -1003,6 +1018,7 @@ class ScanLabeler:
     #    return np.concatenate(patches, 1)
 
     def select_features(self, instances, features_to_use, sizes):
+        #pdb.set_trace()
         offset = 0
         fset = set(features_to_use)
         selected_fea = []
@@ -1019,11 +1035,14 @@ class ScanLabeler:
         #pdb.set_trace()
         return np.row_stack(selected_fea)
 
+    ##
+    # Loads training dataset.
+    # Uses distance features to generate labels.
     def automatic_label(self):
-        self.dataset = ut.load_pickle(self.training_sname)
+        self.dataset = ut.load_pickle(self.training_sname) #Train uses this dataset
         fea = self.select_features(self.current_scan['instances'], ['distance'], self.current_scan['sizes'])
         #pdb.set_trace()
-        self.train(fea)
+        self.train(fea) #just used for scaling
         #for name in ['4_20_2011/down/Monday_04_18_2011_11_20PM_interest_point_dataset_features_df2_dict.pkl']:
         for idx, name in enumerate(self.scan_names):
             self.scan_idx = idx
@@ -1749,7 +1768,10 @@ class ScanLabeler:
         if pos_ex > 0 and neg_ex > 0:
             return True
 
+    # @param inputs_for_scaling uses this for scaling purposes only
+    # self.dataset this is the actual dataset used for training
     def train(self, inputs_for_scaling):
+        #pdb.set_trace()
         if self.dataset != None and self.has_enough_data():
             use_pca=False
             for f in self.features_to_use:
@@ -1843,7 +1865,9 @@ class FiducialPicker:
         #load pickle and display image
         self.fname = fname
         self.data_pkl = ut.load_pickle(fname)
-        image_fname = pt.join(pt.split(fname)[0], self.data_pkl['image'])
+        #pdb.set_trace()
+        #image_fname = pt.join(pt.split(fname)[0], self.data_pkl['image'])
+        image_fname = self.data_pkl['image']
         self.img = cv.LoadImageM(image_fname)
         self.clicked_points = None
         self.clicked_points3d = None
