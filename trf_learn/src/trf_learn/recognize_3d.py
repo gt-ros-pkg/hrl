@@ -37,7 +37,7 @@ import Queue as qu
 import os.path as pt
 import glob
 
-#import pdb
+import pdb
 #pdb.set_trace()
 #import libsvm.svm as svm
 import libsvm.svmutil as su
@@ -417,6 +417,10 @@ class PCAIntensities:
         return np.row_stack((instances[:self.intensities_index, :], reduced_intensities))
 
 class SVMPCA_ActiveLearner:
+
+    ##
+    # @param old_learner takes pca vectors calculated from old_learner if available
+    # @param pca or take pca vectors from this param
     def __init__(self, use_pca, reconstruction_std_lim=None, 
                  reconstruction_err_toler=None, old_learner=None, pca=None):
         self.classifier = 'svm' #or 'knn'
@@ -533,8 +537,11 @@ class SVMPCA_ActiveLearner:
         self.sv_instances = self.dataset.inputs[:, self.classifiers['svm'].sv_indices()]
         self.sv_idx, self.sv_dist = self.get_closest_instances(self.sv_instances, 1)
 
+    ##
+    # @param instances column vectors of instances to predict
     def classify(self, instances):
         #pdb.set_trace()
+#        pdb.set_trace()
         projected_inst = np.matrix(self.partial_pca_project(instances), dtype='float32').copy()
         scaled_inst = self.scale.scale(projected_inst)
         if self.classifier == 'knn':

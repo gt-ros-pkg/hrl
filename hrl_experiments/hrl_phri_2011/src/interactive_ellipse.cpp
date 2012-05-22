@@ -228,15 +228,15 @@ int main(int argc, char **argv)
         itf.addTFMarker(mkr_tf);
         if(!(argc >= 7 && atoi(argv[6])))
             itf.addEllipseMarker();
-        if(argc >= 5) {
+        if(argc >= 6) {
             // load params
             std::vector<hrl_phri_2011::EllipsoidParams::Ptr> params;
-            readBagTopic<hrl_phri_2011::EllipsoidParams>(argv[4], params, "/ellipsoid_params");
+            readBagTopic<hrl_phri_2011::EllipsoidParams>(argv[5], params, "/ellipsoid_params");
             itf.loadEllipsoidParams(*params[0]);
         }
         ros::spin();
-        if(argc >= 6)
-            itf.bagTF(argv[5]);
+        if(argc >= 5)
+            itf.bagTF(argv[4]);
     } 
 
     return 0;

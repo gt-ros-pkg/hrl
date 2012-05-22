@@ -18,11 +18,23 @@ int main(int argc, char **argv)
     rosbag::View view(bag);
 
     PCRGB::Ptr pc_head(new PCRGB());
+    bool found_topic = false;
     BOOST_FOREACH(rosbag::MessageInstance const m, view) {
         sensor_msgs::PointCloud2::Ptr pc2 = m.instantiate<sensor_msgs::PointCloud2>();
         pcl::fromROSMsg(*pc2, *pc_head);
-        break;
+        if(argc == 2) {
+            found_topic = true;
+            break;
+        } else if (m.getTopic() == argv[2]) {
+            found_topic = true;
+            break;
+        }
     }
+    if(!found_topic) {
+        printf("Topic %s not found in bag!", argv[2]);
+        return -1;
+    }
+
     if(argc == 2)
         pubLoop(*pc_head, "/stitched_head");
     else if(argc == 3)

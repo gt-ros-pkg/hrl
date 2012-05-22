@@ -86,7 +86,7 @@ class LocationDisplay(threading.Thread):
 
 class LocationsManager:
 
-    def __init__(self, name, rec_params):
+    def __init__(self, name, rec_params, train=True):
         self.RELIABILITY_RECORD_LIM = 20
         self.RELIABILITY_THRES = .9
 
@@ -103,12 +103,13 @@ class LocationsManager:
         self._load_database()
         self.image_pubs = {}
 
-        for k in self.data.keys():
-            print '=========================================='
-            print 'Training for', k
-            print '=========================================='
-            self.train(k)
-            self.image_pubs[k] = r3d.ImagePublisher(k.replace(':', '_'))
+        if train:
+            for k in self.data.keys():
+                print '=========================================='
+                print 'Training for', k
+                print '=========================================='
+                self.train(k)
+                self.image_pubs[k] = r3d.ImagePublisher(k.replace(':', '_'))
 
         self.task_types = ['light_switch_down', 'light_switch_up', 
                             'light_rocker_down', 'light_rocker_up', 

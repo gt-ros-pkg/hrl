@@ -28,7 +28,7 @@
   <depend package="hrl_pr2_lib"/>
   <depend package="ml_lib"/>
   <depend package="actionlib"/>
-  <depend package="planning_environment_msgs"/>
+  <!--<depend package="planning_environment_msgs"/>-->
   <depend package="laser_interface"/>
   <depend package="interpolated_ik_motion_planner"/>
   <depend package="dynamic_reconfigure"/>

@@ -52,8 +52,6 @@ import trf_learn.recognize_3d as r3d
 import trf_learn.application_behaviors as ab
 import trf_learn.locations_manager as lcm
 
-
-
 class TaskRelevantLearningBehaviors:
 
     def __init__(self, app_behaviors, tf_listener, optical_frame):
@@ -116,6 +114,11 @@ class TaskRelevantLearningBehaviors:
                 t2 = time.time()
                 print '>> That took', t2 - t, 'seconds'
                 exit()
+
+            if mode == 'novision':
+                for i in range(10):
+                    rospy.loginfo('NOVISION: iteration %d.' % i)
+                    self.execute_task(save, user_study, True)
 
             if mode == 'update_base':
                 self.update_base()
@@ -608,6 +611,7 @@ class TaskRelevantLearningBehaviors:
                                 'pos_pred': pos_pred,
                                 'neg_pred': neg_pred,
                                 'tried': [kdict['points2d'][:, selected_idx], label],
+                                'id': task_id,
                                 'center': point2d_img}, pkname)
 
                 try_num = try_num + 1
@@ -1126,7 +1130,7 @@ class TaskRelevantLearningBehaviors:
 
     ##
     # Execution phase
-    def execute_task(self, save, user_study):
+    def execute_task(self, save, user_study, novision=False):
         rospy.loginfo('===================================================')
         rospy.loginfo('= User selection mode!                            =')
         rospy.loginfo('===================================================')
@@ -1137,16 +1141,13 @@ class TaskRelevantLearningBehaviors:
         tid = tasks[int(raw_input())]
         task_type = self.locations_man.data[tid]['task']
         rospy.loginfo('User selected %s' % tid)
-        #self.driving_posture(task_type)
-        #self.manipulation_posture(task_type)
-        #return
 
         #record current robot position
         if not self.locations_man.data[tid].has_key('execute_locations'):
             self.locations_man.data[tid]['execute_locations'] = []
         t_current_map, r_current_map = self.robot.base.get_pose()
         self.locations_man.data[tid]['execute_locations'].append([t_current_map, r_current_map])
-        if not user_study:
+        if not user_study and not novision:
             self.locations_man.save_database()
 
         point_map = self.locations_man.data[tid]['center']
@@ -1167,14 +1168,27 @@ class TaskRelevantLearningBehaviors:
             self.robot.sound.say('unable to get to location!')
             return False
 
-        self.manipulation_posture(task_type)
+        if not novision:
+            self.manipulation_posture(task_type)
         bl_T_map = tfu.transform('base_link', 'map', self.tf_listener)
         point_bl = tfu.transform_points(bl_T_map, point_map)
         self.look_at(point_bl, False)
 
         self.robot.sound.say('Executing behavior')
-        self.execute(tid, point_bl, save, user_study=user_study)
-        self.driving_posture(task_type)
+        if not novision:
+            self.execute(tid, point_bl, save, user_study=user_study)
+        else:
+            tstring = time.strftime('%A_%m_%d_%Y_%I_%M%p')
+            kimage_name = '%s_highres.png' % tstring
+            rospy.sleep(2)
+            for i in range(10):
+                kimage = self.prosilica.get_frame()
+            cv.SaveImage('/u/haidai/' + kimage_name, kimage)
+            rospy.loginfo('GOT IMAGE!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
+
+        if not novision:
+            self.driving_posture(task_type)
 
 class TestLearner:
 
@@ -1352,6 +1366,7 @@ def launch():
     p = optparse.OptionParser()
     p.add_option("-d", "--display", action="store_true", default=False)
     p.add_option("-p", "--practice", action="store_true", default=False)
+    p.add_option("-v", "--novision", action="store_true", default=False)
     p.add_option("-e", "--execute", action="store_true", default=False)
     p.add_option("-b", "--base", action="store_true", default=False)
     p.add_option("-q", "--update_point", action="store_true", default=False)
@@ -1365,7 +1380,7 @@ def launch():
         test_display()
         return
 
-    if opt.practice or opt.execute or opt.init or opt.base or opt.update_point:
+    if opt.practice or opt.execute or opt.init or opt.base or opt.update_point or opt.novision:
         rospy.init_node('trf_learn', anonymous=True)
         optical_frame = 'high_def_optical_frame'
         tf_listener = tf.TransformListener()
@@ -1374,6 +1389,8 @@ def launch():
         learn_behaviors = TaskRelevantLearningBehaviors(app_behaviors, tf_listener, optical_frame)
 
         mode = None
+        if opt.novision:
+            mode = 'novision'
         if opt.practice:
             mode = 'practice'
         if opt.execute:

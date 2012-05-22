@@ -1,0 +1,22 @@
+<launch>
+    <arg name="use_evdev" default="true" />
+    <arg name="device_file" default="/dev/wouse" />
+    <arg name="svm_datafile" value="$(find wouse)/data/svm_data.pkl" />
+    
+    <include if="$(arg use_evdev)" 
+             file="$(find wouse)/launch/evdev_listener.launch" >
+             <arg name="device_file" value="$(arg device_file)" />
+    </include>
+    
+    <include unless="$(arg use_evdev)" 
+             file="$(find wouse)/launch/mouse_listener.launch" >
+             <arg name="device_file" value="$(arg device_file)" />
+    </include>
+
+    <node name="wouse_node" 
+          pkg="wouse" 
+          type="wouse.py"  
+          output="screen" 
+          args="$(arg svm_datafile)" />
+
+</launch>

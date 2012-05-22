@@ -120,8 +120,10 @@ class LinearReactiveMovement:
 
         self.pressure_listener = pm.PressureListener(ptopic, 5000)
 
+        print 'INITIALIZING CONTROLLER MANAGER'
         self.cman = con.ControllerManager(arm, self.tf_listener, using_slip_controller,
                                           using_slip_detection)
+        print 'INITIALIZAING REACTIVE GRASPER'
         self.reactive_gr = rgr.ReactiveGrasper(self.cman)
         #self.collision_monitor = cmon.CollisionClient(arm)
 

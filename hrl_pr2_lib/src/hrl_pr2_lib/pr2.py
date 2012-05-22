@@ -289,6 +289,7 @@ class PR2Base:
         goal = hm.GoAngleGoal()
         goal.angle = angle
         self.go_angle_client.send_goal(goal)
+        print 'SENT TURN GOAL'
         if block:
             rospy.loginfo('turn_to: waiting for turn..')
             self.go_angle_client.wait_for_result()

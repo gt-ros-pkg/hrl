@@ -121,5 +121,4 @@ class RunStopServer(object):
 if __name__=='__main__':
     rospy.init_node('run_stop_server')
     rss = RunStopServer()
-    while not rospy.is_shutdown():
-        rospy.spin()
+    rospy.spin()
