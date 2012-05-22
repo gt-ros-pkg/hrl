@@ -1,0 +1,18 @@
+<launch>
+    <node name="vrpn_tracked_object_1" pkg="ros_vrpn_client" type="ros_vrpn_client"
+        args="__name:=vrpn_tracked_object_1 _vrpn_server_ip:=10.68.0.130" respawn="false" output="screen" />
+
+    <!--
+    <node name="right_hand" pkg="ros_vrpn_client" type="ros_vrpn_client"
+        args="_name:=right_hand _vrpn_server_ip:=192.168.0.114" respawn="false" output="screen" />
+    <node name="left_hand" pkg="ros_vrpn_client" type="ros_vrpn_client"
+        args="_name:=left_hand _vrpn_server_ip:=192.168.0.114" respawn="false" output="screen" />
+    <node name="right_shoulder" pkg="ros_vrpn_client" type="ros_vrpn_client"
+        args="_name:=right_shoulder _vrpn_server_ip:=192.168.0.114" respawn="false" output="screen" />
+    <node name="left_shoulder" pkg="ros_vrpn_client" type="ros_vrpn_client"
+        args="_name:=left_shoulder _vrpn_server_ip:=192.168.0.114" respawn="false" output="screen" />
+    <node name="sternum" pkg="ros_vrpn_client" type="ros_vrpn_client"
+        args="_name:=sternum _vrpn_server_ip:=192.168.0.114" respawn="false" output="screen" />
+    -->
+</launch>
+
