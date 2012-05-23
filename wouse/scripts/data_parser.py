@@ -163,7 +163,7 @@ def process(files, SVM_DATA_FILE, WINDOW_DUR, MAG_THRESH, plot):
     if SVM_DATA_FILE is not None:      
         svm_output = {'labels':svm_label,
                       'data':svm_data}
-        with open('../data/'+SVM_DATA_FILE+'.pkl','wb+') as f_pkl:
+        with open(SVM_DATA_FILE+'.pkl','wb+') as f_pkl:
             pickle.dump(svm_output, f_pkl)
 
 
@@ -174,7 +174,7 @@ def create_ROC(filename):
         from sklearn.metrics import roc_curve, auc
         from sklearn.cross_validation import StratifiedKFold, LeaveOneOut
 
-        filepath='../data/'+filename+'.pkl'
+        filepath=filename+'.pkl'
         with open(filepath, 'rb') as f:
             svm_data = pickle.load(f)
         labels = svm_data['labels']
