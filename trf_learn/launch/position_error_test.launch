@@ -1,18 +1,17 @@
 <launch>
-    <node name="vrpn_tracked_object_1" pkg="ros_vrpn_client" type="ros_vrpn_client"
-        args="__name:=vrpn_tracked_object_1 _vrpn_server_ip:=10.68.0.130" respawn="false" output="screen" />
+    <include file="$(find pr2_machine)/$(env ROBOT).machine" />
 
-    <!--
-    <node name="right_hand" pkg="ros_vrpn_client" type="ros_vrpn_client"
-        args="_name:=right_hand _vrpn_server_ip:=192.168.0.114" respawn="false" output="screen" />
-    <node name="left_hand" pkg="ros_vrpn_client" type="ros_vrpn_client"
-        args="_name:=left_hand _vrpn_server_ip:=192.168.0.114" respawn="false" output="screen" />
-    <node name="right_shoulder" pkg="ros_vrpn_client" type="ros_vrpn_client"
-        args="_name:=right_shoulder _vrpn_server_ip:=192.168.0.114" respawn="false" output="screen" />
-    <node name="left_shoulder" pkg="ros_vrpn_client" type="ros_vrpn_client"
-        args="_name:=left_shoulder _vrpn_server_ip:=192.168.0.114" respawn="false" output="screen" />
-    <node name="sternum" pkg="ros_vrpn_client" type="ros_vrpn_client"
-        args="_name:=sternum _vrpn_server_ip:=192.168.0.114" respawn="false" output="screen" />
-    -->
+    <include file="$(find pr2_2dnav)/pr2_2dnav.launch"/>
+    <node pkg="hrl_pr2_lib" type="move_base_server.py" name="move_base_server"/>
+    <node name="map_server" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/hsi_full_4_24.yaml" machine="c2"/>
+
+    <node name="monty" pkg="ros_vrpn_client" type="ros_vrpn_client"
+        args="__name:=monty _vrpn_server_ip:=10.68.0.130" respawn="false" output="screen" />
+
+    <include file="$(find rcommander_pr2_gui)/launch/rcommander_robot.launch">
+        <arg name="standalone" default="true"/>
+        <arg name="sim" default="false"/>
+        <arg name="interactive_manipulation" default="false"/>
+    </include>
 </launch>
 
