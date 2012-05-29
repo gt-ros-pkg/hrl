@@ -1,13 +1,12 @@
 #!/bin/bash 
 pkg=`rospack find hrl_phri_2011`
 source $pkg/scripts/variables.sh
-args=("$@")
-ccargs=""
+set -x
+
+noise=0.001;
 
 if [ $1 == 0 ]; then
     # subjects for wiping:
-    posh=0.02
-    ptrim=0.50
     study_users=( "${study_users_wiping[@]}" )
     echo $study_users
     if [ $2 == 0 ]; then
@@ -21,20 +20,21 @@ if [ $1 == 0 ]; then
     fi
 else
     # subjects for shaving:
-    posh=0.02
-    ptrim=0.50
     study_users=( "${study_users_shaving[@]}" )
     multipliers=( "${shaving_multipliers[@]}" )
 fi
 
-#multipliers=( "1" "1" "1" "1" "1" "1" "1" "1" )
-
 num_users=${#study_users[@]}
+
+out_bags="";
 set -x
 for (( i=0; i<${num_users}; i++ ));
 do
-    rosrun hrl_phri_2011 extract_ell_face_function.sh ${study_users[$i]} $1 $2 $3 ${multipliers[$i]}
+    echo $i
+    in_bag=$dir/${people[${study_users[$i]}]}_${tools[$1]}_${places[$2]}_processed_norms.bag;
+    out_bag=$dir/${people[${study_users[$i]}]}_${tools[$1]}_${places[$2]}_${functions[$3]}_ell_data_cloud_noisy.bag;
+    rosrun hrl_phri_2011 function_extractor $in_bag ${functions[$3]} $out_bag $dir/sub1_ellipsoid_registration.bag $dir/${people[4]}_head_stitched.bag $noise _force_thresh:=0.5 _time_thresh:=0.2 _multiplier:=${multipliers[$i]}
+    out_bags="${out_bags} ${out_bag}";
 done
-rosrun hrl_phri_2011 density_est_all.sh $1 $2 $3 ${study_users[*]}
-#rosrun hrl_phri_2011 concat_ell_face_clouds.sh $1 $2 $3 ${study_users[*]}
-#rosrun hrl_phri_2011 color_combo_face_cloud.sh $1 $2 $3 
+
+rosrun hrl_phri_2011 concat_clouds /data_cloud $out_bags ${dir}/${tools[$1]}_${places[$2]}_concat_noisy_clouds.bag

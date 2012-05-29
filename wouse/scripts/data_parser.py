@@ -46,8 +46,11 @@ def process(files, SVM_DATA_FILE, WINDOW_DUR, MAG_THRESH, plot):
     txt = npdata[:,:2]
     nums=np.array(npdata[:,2:], dtype=float)
     x2 = np.square(nums[:,1])
+    #print x2, np.max(x2), np.min(x2)
     y2 = np.square(nums[:,2])
+    #print y2, np.max(y2), np.min(y2)
     mags=np.sqrt(np.add(x2, y2))
+    #print mags, np.max(mags)
     dirs=np.arctan2(nums[:,2], nums[:,1])
     nums = np.hstack((nums, np.column_stack((mags,dirs))))
     window = []
@@ -56,7 +59,6 @@ def process(files, SVM_DATA_FILE, WINDOW_DUR, MAG_THRESH, plot):
     legend_labels = []
     svm_label = []
     svm_data = []
-
     for dat in data:
         #dat[0]=Degree 
         o_type_cnt[dat[1]] += 1#dat[1] = Action
@@ -66,6 +68,22 @@ def process(files, SVM_DATA_FILE, WINDOW_DUR, MAG_THRESH, plot):
         dat.append((dat[3]**2. + dat[4]**2.)**(1./2)) #dat[5] = Magnitude
         dat.append(math.atan2(dat[4], dat[3])) #dat[6] = Direction
         color = tuple(ACTIONS[dat[1]]+[DEGREES[dat[0]]])
+        if plot: 
+            if dat[1] not in legend_labels:
+                legend_labels.append(dat[1])
+                plt.figure(1)
+                plt.polar(dat[-1], dat[-2], '.', color=color, label=dat[1])
+                plt.figure(2)
+                #plt.plot(dat[-1], dat[-2], '.', color=color, label=dat[1])
+                plt.figure(3)
+                #plt.plot(dat[-3], ACT_LIST.index(dat[1]), '.', color=color, label=dat[1])
+            else:
+                plt.figure(1)
+                plt.polar(dat[-1], dat[-2], '.', color=color)
+                plt.figure(2)
+                #plt.plot(dat[-1], dat[-2], '.', color=color)
+                plt.figure(3)
+                #plt.plot(dat[-3], ACT_LIST.index(dat[1]), '.', color=color)
         if (dat[5]<MAG_THRESH):#Initial filtering
             continue
         
@@ -81,58 +99,71 @@ def process(files, SVM_DATA_FILE, WINDOW_DUR, MAG_THRESH, plot):
         dat.append((movement[0]**2+movement[1]**2)**(1./2))#dat[8] = Mag of window movement
         dat.append(dat[-1]/dat[-2])#dat[9] = Avg Window Movement
         dat.append(math.atan2(movement[1],movement[0]))#dat[10] = Dir of window movement
-        if plot: 
-            if dat[1] not in legend_labels:
-                legend_labels.append(dat[1])
-                #plt.polar(dat[-1], dat[-2], '.', color=color, label=dat[1])
-                plt.plot(dat[-1], dat[-2], '.', color=color, label=dat[1])
-                #plt.plot(dat[-3], ACT_LIST.index(dat[1]), '.', color=color, label=dat[1])
-            else:
-                #plt.polar(dat[-1], dat[-2], '.', color=color)
-                plt.plot(dat[-1], dat[-2], '.', color=color)
-                #plt.plot(dat[-3], ACT_LIST.index(dat[1]), '.', color=color)
-
         if SVM_DATA_FILE is not None:
-            #OUTPUT Data in format for Sci-kit Learn
             if dat[1] == 'WINCE':
                 svm_label.append(1)
             else:
                 svm_label.append(0)
             svm_data.append([dat[5],dat[6],dat[7],dat[9],dat[10]])
     
-    
-    print "Text: \r\n", txt[:,1]
     mean_std = np.empty((4, len(ACT_LIST)))
-    for i,act in enumerate(ACT_LIST):
-        indices = np.nonzero(txt[1,:]==act)
-        print act, indices
-        mean_std[i,0] = np.mean(nums[indices,1])
-        mean_std[i,1] = np.std(nums[indices,2])
-        mean_std[i,2] = np.mean(nums[indices,3])
-        mean_std[i,3] = np.std(nums[indices,4])
-    print "Magnitude: (Mean +/- Std)"
-    for act in enumerate(ACT_LIST):
-        print "%s : Mag: %3.2f (%3.2f) \r\n%s : Dir: %3.2f (%3.2f)" %(act, mean_std[i,0], mean_std[i,1], mean_std[i,2], mean_std[i,3])
-
     print " \r\n"*5
     print "Total Datapoints: ", len(data)
     print " \r\n"
+    for i,act in enumerate(ACT_LIST):
+        indices = np.nonzero(txt[:,1]==act)
+        mean_std[0,i] = np.mean(nums[indices,3])
+        mean_std[1,i] = np.std(nums[indices,3])
+        mean_std[2,i] = np.mean(nums[indices,4])
+        mean_std[3,i] = np.std(nums[indices,4])
+        print "%s:" %act
+        print "%s raw events" %indices[0].size
+        print "Mag: %3.2f (%3.2f) \r\nDir: %3.2f (%3.2f)" %(mean_std[0,i], mean_std[1,i], mean_std[2,i], mean_std[3,i])
+
+
+    print " \r\n"
     print "Impact of Filtering:"
+    total_features=0
+    for type_ in o_type_cnt.keys():
+        total_features += f_type_cnt[type_]
     for type_ in o_type_cnt.keys():
         print "%s: \r\n  %s (%2.2f%%) --> \r\n  %s (%2.2f%%)" %(type_, 
                                     o_type_cnt[type_], 
                                     (100.*o_type_cnt[type_])/len(data),
                                     f_type_cnt[type_], 
-                                    (100.*f_type_cnt[type_])/len(data))
+                                    (100.*f_type_cnt[type_])/total_features)
+    
+    print " \r\n"
+    print "Total Features: ", total_features
     print " \r\n"*2
 
     if plot:
+        plt.figure(1)
         plt.legend(loc=2,bbox_to_anchor=(1,1))
+        plt.figure(3)
+        ind = np.arange(len(ACT_LIST))
+        width = 0.5
+        p1 = plt.bar(ind, mean_std[0,:], width, yerr=mean_std[1,:])
+        plt.ylabel('Mean Mag. +/- std.')
+        plt.xlabel('Event Type')
+        plt.title('Mean Magnitude per Event Type')
+        plt.xticks(ind+width/2., tuple(ACT_LIST))
+        #plt.yticks(np.arange(min(mean_std[0:1,:],max(mean_std[0:1,:]),10)))
+        
+        plt.figure(4)
+        ind = np.arange(len(ACT_LIST))
+        width = 0.5
+        p1 = plt.bar(ind, mean_std[2,:], width, yerr=mean_std[3,:])
+        plt.ylabel('Mean Dir. +/- std.')
+        plt.xlabel('Event Type')
+        plt.title('Mean Direction per Event Type')
+        plt.xticks(ind+width/2., tuple(ACT_LIST))
+        #plt.yticks(np.arange(min(mean_std[0:1,:],max(mean_std[0:1,:]),10)))
 
     if SVM_DATA_FILE is not None:      
         svm_output = {'labels':svm_label,
                       'data':svm_data}
-        with open('../data/'+SVM_DATA_FILE+'.pkl','wb+') as f_pkl:
+        with open(SVM_DATA_FILE+'.pkl','wb+') as f_pkl:
             pickle.dump(svm_output, f_pkl)
 
 
@@ -143,7 +174,8 @@ def create_ROC(filename):
         from sklearn.metrics import roc_curve, auc
         from sklearn.cross_validation import StratifiedKFold, LeaveOneOut
 
-        with open('../data/svm_data.pkl', 'rb') as f:
+        filepath=filename+'.pkl'
+        with open(filepath, 'rb') as f:
             svm_data = pickle.load(f)
         labels = svm_data['labels']
         data = svm_data['data']
@@ -224,4 +256,5 @@ if __name__=='__main__':
 
     process(args.filename, args.SVM_DATA_FILE, args.window, args.threshold, args.plot)
     if args.SVM_DATA_FILE is not None and args.ROC:
+        print "Creating ROC"
         create_ROC(args.SVM_DATA_FILE)
