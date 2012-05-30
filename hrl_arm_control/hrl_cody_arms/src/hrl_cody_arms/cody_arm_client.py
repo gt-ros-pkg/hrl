@@ -63,13 +63,17 @@ class CodyArmClient(HRLArm):
         HRLArm.__init__(self, kinematics)
 
         #stiffness from .yaml file [1800., 1300., 350., 600., 60., 80., 60.] mN-meter/deg
-        self.nom_kp = [103, 74.5, 20.1, 34.4, 3.44, 4.58, 3.44] #N-m/rad
+        self.nom_kp = [103, 74.5, 20.1, 34.4, 3.44] #N-m/rad
+        # we don't use last two values becuase they are position controlled  - 4.58, 3.44] 
+
         if arm == 'r':
             #damping from .yaml file [100., 120., 10., 25., 1.25, 0.3, 0.25] mN-meter-sec/deg
-            self.nom_kd = [5.73, 6.88, 0.573, 1.43, 0.0716, 0.0172, 0.0143] #N-m-s/deg
+            self.nom_kd = [5.73, 6.88, 0.573, 1.43, 0.0716] #N-m-s/deg
+            # we don't use last two values becuase they are position controlled  - 0.0172, 0.0143]
         elif arm == 'l':
             #damping from .yaml file [80., 60., 10., 15., 1.25, 0.3, 0.20] mN-meter-sec/deg
-            self.nom_kd = [4.58, 3.44, 0.573, 0.859, 0.0716, 0.0172, 0.0115] #N-m-s/deg
+            self.nom_kd = [4.58, 3.44, 0.573, 0.859, 0.0716] #N-m-s/deg
+            # we don't use last two values becuase they are position controlled  - 0.0172, 0.0115
         else:
             rospy.logerr("You didn't give me a 'r' or 'l' for which arm ... Exiting")
             assert(False)
