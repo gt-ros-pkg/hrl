@@ -1,7 +1,7 @@
 subj_num + 3 = id # this has been fazed out
 
 Subjects:
-1 2 4 5 6 7 8 10 
+1 2 3 4 5 6 7 8 10 
 
 Tools:
 0             1
@@ -19,8 +19,8 @@ Shavers:
 Bag fix:
 # use RAWs!
 ./scripts/fix_frame.sh 4 0 0
-./scripts/playback_fix_bag.sh <user> 0 0 # in window 1
-./scripts/record_fix_bag.sh 4 0 0 # in window 2
+./scripts/record_fix_bag.sh 4 0 0 # in window 1
+./scripts/playback_fix_bag.sh <user> 0 0 # in window 2
 ./scripts/final_bag_fix.sh 4 0 0
 
 Head stitching:

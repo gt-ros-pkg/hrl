@@ -16,49 +16,53 @@ from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from hrl_ellipsoidal_control.ellipsoid_controller import EllipsoidController
 from hrl_ellipsoidal_control.interface_backend import ControllerInterfaceBackend
 
-LOCAL_VELOCITY = 0.0025
+ELL_LOCAL_VEL = 0.0025
 LONGITUDE_STEP = 0.12
 LATITUDE_STEP = 0.096
 HEIGHT_STEP = 0.0986
-trans_params = {'translate_up' : (-LATITUDE_STEP, 0, 0),   'translate_down' : (LATITUDE_STEP, 0, 0),
-                'translate_right' : (0, -LONGITUDE_STEP, 0), 'translate_left' : (0, LONGITUDE_STEP, 0),
-                'translate_in' : (0, 0, -HEIGHT_STEP),      'translate_out' : (0, 0, HEIGHT_STEP)}
+ell_trans_params = {
+    'translate_up' : (-LATITUDE_STEP, 0, 0),   'translate_down' : (LATITUDE_STEP, 0, 0),
+    'translate_right' : (0, -LONGITUDE_STEP, 0), 'translate_left' : (0, LONGITUDE_STEP, 0),
+    'translate_in' : (0, 0, -HEIGHT_STEP),      'translate_out' : (0, 0, HEIGHT_STEP)}
 
-ROT_VELOCITY = 0.002
+ELL_ROT_VEL = 0.002
 ROLL_STEP = np.pi/12
 PITCH_STEP = np.pi/12
 YAW_STEP = np.pi/12
-rot_params = {'rotate_x_pos' : (-ROLL_STEP, 0, 0), 'rotate_x_neg' : (ROLL_STEP, 0, 0),
-              'rotate_y_pos' : (0, PITCH_STEP, 0), 'rotate_y_neg' : (0, -PITCH_STEP, 0),
-              'rotate_z_pos' : (0, 0, -YAW_STEP),  'rotate_z_neg' : (0, 0, YAW_STEP)}
+ell_rot_params = {
+    'rotate_x_pos' : (-ROLL_STEP, 0, 0), 'rotate_x_neg' : (ROLL_STEP, 0, 0),
+    'rotate_y_pos' : (0, PITCH_STEP, 0), 'rotate_y_neg' : (0, -PITCH_STEP, 0),
+    'rotate_z_pos' : (0, 0, -YAW_STEP),  'rotate_z_neg' : (0, 0, YAW_STEP)}
 
 
 class EllipsoidalInterfaceBackend(ControllerInterfaceBackend):
-    def __init__(self, cart_arm):
+    def __init__(self):
         super(EllipsoidalInterfaceBackend, self).__init__("Ellipsoid Controller")
-        self.cart_arm = cart_arm
-        self.ell_controller = EllipsoidController(self.cart_arm)
         self.button_distances = {}
         self.button_times = {}
-        for button in trans_params.keys() + rot_params.keys() + ["reset_rotation"]:
+        for button in ell_trans_params.keys() + ell_rot_params.keys() + ["reset_rotation"]:
             self.button_distances[button] = []
             self.button_times[button] = []
+
+    def set_arm(self, cart_arm):
+        self.cart_arm = cart_arm
+        self.controller = EllipsoidController(self.cart_arm)
 
     def run_controller(self, button_press):
         start_pos, _ = self.cart_arm.get_ep()
         start_time = rospy.get_time()
         quat_gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
-        if button_press in trans_params:
-            change_trans_ep = trans_params[button_press]
-            self.ell_controller.execute_ell_move((change_trans_ep, (0, 0, 0)), ((0, 0, 0), 0), 
-                                                 quat_gripper_rot, LOCAL_VELOCITY)
-        elif button_press in rot_params:
-            change_rot_ep = rot_params[button_press]
-            self.ell_controller.execute_ell_move(((0, 0, 0), change_rot_ep), ((0, 0, 0), 0), 
-                                                 quat_gripper_rot, ROT_VELOCITY)
+        if button_press in ell_trans_params:
+            change_trans_ep = ell_trans_params[button_press]
+            self.controller.execute_ell_move((change_trans_ep, (0, 0, 0)), ((0, 0, 0), 0), 
+                                                 quat_gripper_rot, ELL_LOCAL_VEL)
+        elif button_press in ell_rot_params:
+            change_rot_ep = ell_rot_params[button_press]
+            self.controller.execute_ell_move(((0, 0, 0), change_rot_ep), ((0, 0, 0), 0), 
+                                                 quat_gripper_rot, ELL_ROT_VEL)
         elif button_press == "reset_rotation":
-            self.ell_controller.execute_ell_move(((0, 0, 0), np.mat(np.eye(3))), ((0, 0, 0), 1), 
-                                                 quat_gripper_rot, ROT_VELOCITY)
+            self.controller.execute_ell_move(((0, 0, 0), np.mat(np.eye(3))), ((0, 0, 0), 1), 
+                                                 quat_gripper_rot, ELL_ROT_VEL)
         end_pos, _ = self.cart_arm.get_ep()
         end_time = rospy.get_time()
         dist = np.linalg.norm(end_pos - start_pos)
@@ -71,7 +75,7 @@ class EllipsoidalInterfaceBackend(ControllerInterfaceBackend):
         print self.button_distances
         print self.button_times
         print "MEANS:"
-        for button in trans_params.keys() + rot_params.keys() + ["reset_rotation"]:
+        for button in ell_trans_params.keys() + ell_rot_params.keys() + ["reset_rotation"]:
             print "%s, avg dist: %.3f, avg_time: %.3f, num_presses: %d" % (
                     button, 
                     np.mean(self.button_distances[button]), 
@@ -82,7 +86,7 @@ class EllipsoidalInterfaceBackend(ControllerInterfaceBackend):
         button_mean_distances = {}
         button_mean_times = {}
         button_num_presses = {}
-        for button in trans_params.keys() + rot_params.keys() + ["reset_rotation"]:
+        for button in ell_trans_params.keys() + ell_rot_params.keys() + ["reset_rotation"]:
             button_mean_distances[button] = np.mean(self.button_distances[button])
             button_mean_times[button] = np.mean(self.button_times[button])
             button_num_presses[button] = len(self.button_distances[button])
@@ -127,7 +131,7 @@ def main():
         setup_angles = [0, 0, np.pi/2, -np.pi/2, -np.pi, -np.pi/2, -np.pi/2]
         cart_arm.set_posture(setup_angles)
         cart_arm.set_gains([200, 800, 800, 80, 80, 80], [15, 15, 15, 1.2, 1.2, 1.2])
-        ell_backend.ell_controller.reset_arm_orientation(8)
+        ell_backend.controller.reset_arm_orientation(8)
 
     ell_backend.enable_interface("Controller ready.")
     rospy.spin()

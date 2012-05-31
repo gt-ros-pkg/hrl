@@ -12,7 +12,6 @@ from wouse.srv import WouseRunStop
 CIRCUITS=[0,1,2] #Base, Right arm, Left Arm circuits
 DEAD_MAN_CONFIGURATION=True
 
-
 class RunStop(object):
     """Provide utility functions for starting/stopping PR2."""
     def __init__(self):
@@ -122,5 +121,4 @@ class RunStopServer(object):
 if __name__=='__main__':
     rospy.init_node('run_stop_server')
     rss = RunStopServer()
-    while not rospy.is_shutdown():
-        rospy.spin()
+    rospy.spin()

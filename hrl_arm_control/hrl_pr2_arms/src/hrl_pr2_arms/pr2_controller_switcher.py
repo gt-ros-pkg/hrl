@@ -82,7 +82,8 @@ class ControllerSwitcher:
         for controller in possible_controllers:
             if '%s' in controller:
                 controller = controller % arm 
-            check_arm_controllers.append(controller)
+            if controller[0] == arm:
+                check_arm_controllers.append(controller)
         resp = self.list_controllers_srv()
         start_controllers, stop_controllers = [new_ctrl], []
         for i, controller in enumerate(resp.controllers):

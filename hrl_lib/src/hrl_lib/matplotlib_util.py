@@ -28,7 +28,7 @@
 #  \author Advait Jain (Healthcare Robotics Lab, Georgia Tech.)
 
 
-import pylab as pl
+import matplotlib.pyplot as pp
 import math, numpy as np
 from matplotlib.patches import Ellipse
 
@@ -37,12 +37,8 @@ from matplotlib.patches import Ellipse
 # other params can be added if required.
 # @param dpi - changing this can change the size of the font.
 def figure(fig_num=None, dpi=None):
-    #mpu.pl.figure(num=None, figsize=(4, 4), dpi=100, facecolor='w', edgecolor='k')
-    return pl.figure(fig_num, dpi=dpi, facecolor='w')
+    return pp.figure(fig_num, dpi=dpi, facecolor='w')
 
-## calls pylab.savefig()
-def savefig(fname):
-    pl.savefig(fname)
 
 ## legend drawing helper
 # @param loc - 'best', 'upper left' ...
@@ -50,12 +46,12 @@ def savefig(fname):
 def legend(loc='best',display_mode='normal', draw_frame = True,
         handlelength=0.003):
     params = {'legend.fontsize': 10}
-    pl.rcParams.update(params)
+    pp.rcParams.update(params)
     if display_mode == 'normal':
-        leg = pl.legend(loc=loc)
+        leg = pp.legend(loc=loc)
         leg.draw_frame(draw_frame)
     elif display_mode == 'less_space':
-        leg = pl.legend(loc=loc,handletextpad=0.7,handlelength=handlelength,labelspacing=0.01,
+        leg = pp.legend(loc=loc,handletextpad=0.7,handlelength=handlelength,labelspacing=0.01,
                         markerscale=0.5)
         leg.draw_frame(draw_frame)
 
@@ -85,7 +81,12 @@ def set_figure_size(fig_width, fig_height):
               'ytick.labelsize': 10,
               'text.usetex': True,
               'figure.figsize': fig_size}
-    pl.rcParams.update(params)
+    pp.rcParams.update(params)
+
+def reduce_figure_margins(left=0.1, right=0.98, top=0.99, bottom=0.15):
+    f = pp.gcf()
+    f.subplots_adjust(bottom=bottom, top=top, right=right, left=left)
+
 
 ## typical usage: ax = pp.gca(); mpu.flip_x_axis(ax)
 def flip_x_axis(ax):
@@ -116,7 +117,7 @@ def plot_ellipse(pos, angle, w1, w2, edge_color, face_color='w',
     e = Ellipse(xy=pos, width=w1, height=w2, angle=orient,
                 facecolor=face_color, edgecolor=edge_color)
     e.set_alpha(alpha)
-    ax = pl.gca()
+    ax = pp.gca()
     ax.add_patch(e)
     return e
 
@@ -132,7 +133,7 @@ def plot_ellipse(pos, angle, w1, w2, edge_color, face_color='w',
 #
 # circle plotted as bunch of linear segments. back to LOGO days.
 def plot_circle(cx, cy, rad, start_angle, end_angle, step=math.radians(2),
-                color='k', label='', alpha=1.0):
+                color='k', label='', alpha=1.0, linewidth=2):
     if start_angle>end_angle:
         step = -step
 
@@ -144,8 +145,8 @@ def plot_circle(cx, cy, rad, start_angle, end_angle, step=math.radians(2),
     x.append(cx-rad*math.sin(end_angle))
     y.append(cy+rad*math.cos(end_angle))
 
-    pl.axis('equal')
-    return pl.plot(x,y,c=color,label=label,linewidth=2, alpha=alpha)
+    pp.axis('equal')
+    return pp.plot(x,y,c=color,label=label,linewidth=linewidth, alpha=alpha)
 
 ## plot radii at regular angular intervals.
 # @param cx - x coord of center of circle.
@@ -157,12 +158,12 @@ def plot_circle(cx, cy, rad, start_angle, end_angle, step=math.radians(2),
 # @param color - color of the circle.
 # @param label - legend label.
 def plot_radii(cx, cy, rad, start_angle, end_angle, interval=math.radians(15),
-               color='k', label='', alpha=1.0):
+               color='k', label='', alpha=1.0, linewidth=1.):
     if start_angle < 0.:
         start_angle = 2*math.pi+start_angle
     if end_angle < 0.:
         end_angle = 2*math.pi+end_angle
-    if start_angle>end_angle:
+    if start_angle > end_angle:
         interval = -interval
 
     n_step = int((end_angle-start_angle)/interval+0.5)
@@ -177,17 +178,8 @@ def plot_radii(cx, cy, rad, start_angle, end_angle, interval=math.radians(15),
     x.append(cx-rad*math.sin(end_angle))
     y.append(cy+rad*math.cos(end_angle))
 
-    pl.plot(x,y,c=color,label=label,linewidth=1,alpha=alpha)
-    pl.axis('equal')
-
-## plot a quiver
-# @param y - list/1D array
-# @param x - list/1D array
-# @param v - 2xN or 3xN np matrix of vectors.
-# @param width - thickness of the arrows.
-# @param scale - decreasing the scale increases the length of the arrows.
-def plot_quiver_yxv(y, x, v, color='k', width=0.005, scale=100.0):
-    pl.quiver(x, y, v[0,:].A1,v[1,:].A1, width=width, color=color, scale=scale)
+    pp.plot(x,y,c=color,label=label,linewidth=linewidth,alpha=alpha)
+    pp.axis('equal')
 
 
 ## plot a histogram.
@@ -195,29 +187,9 @@ def plot_quiver_yxv(y, x, v, color='k', width=0.005, scale=100.0):
 # @param height - height of each bin (array-like)
 def plot_histogram(left, height, width=0.8, label='',
                    align='center', color='b', alpha=1.):
-    pb_obj = pl.bar(left, height, width=width, align=align,
+    pb_obj = pp.bar(left, height, width=width, align=align,
                     color=color, alpha=alpha, label=label, linewidth=0)
     return pb_obj
-
-
-# 3d in matplotlib is buggy. Using mayavi instead.
-##---------- 3D plotting ---------------
-#
-###
-## @param scatter_size - as of Aug 17, 2010 and matplotlib version 0.99.1.1, scatter_size does not work
-#def plot_xyz(x, y, z, color='b', scatter_size=20, fig=None, xlabel='',
-#             ylabel='', zlabel=''):
-#    if fig == None:
-#        fig = pl.figure()
-#    ax = fig.gca(projection='3d')
-##    ax = Axes3D(fig)
-##    ax.plot(x, y, z, c=color)
-#    ax.scatter(x, y, z, s=scatter_size)
-#
-##    ax.set_xlabel(xlabel)
-##    ax.set_ylabel(ylabel)
-##    ax.set_zlabel(zlabel)
-##    ax.legend()
 
 
 

@@ -53,7 +53,7 @@ def main():
             exec("data['%s'].append(fp.%s)" % (field_map[field], field))
     bag.close()
 
-    output_file = sys.argv[1].split(".")[0] + ".mat"
+    output_file = ".".join(sys.argv[1].split(".")[:-1] + ["mat"])
     scipy.io.savemat(output_file, data)
     print "Saved mat file to:", output_file
 

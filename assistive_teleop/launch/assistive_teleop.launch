@@ -131,7 +131,7 @@
         pkg="pixel_2_3d"
         type="pixel_2_3d"
         name="pixel_2_3d"
-        machine="c2" >
+        machine="c1" >
             <remap
                 from="image"
                 to="/kinect_head/rgb/image_color" />

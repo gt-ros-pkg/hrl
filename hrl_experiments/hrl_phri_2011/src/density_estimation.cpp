@@ -53,6 +53,8 @@ int main(int argc, char **argv)
     pcl::KdTreeFLANN<PRGB> head_kd_tree(new pcl::KdTreeFLANN<PRGB> ());
     vector<pcl::KdTreeFLANN<PRGB>::Ptr > data_kd_trees;
 
+    PCRGB raw_data;
+    raw_data.header.frame_id = "/base_link";
     vector<PCRGB::Ptr> pc_list;
     //readBagTopic<PCRGB>(argv[1], pc_list, "/stitched_head");
     readBagTopic<PCRGB>(argv[1], pc_list, "/data_cloud");
@@ -67,6 +69,7 @@ int main(int argc, char **argv)
         pcl::KdTreeFLANN<PRGB>::Ptr new_kd_tree(new pcl::KdTreeFLANN<PRGB> ());
         new_kd_tree->setInputCloud(pc_list[0]);
         data_kd_trees.push_back(new_kd_tree);
+        raw_data += *pc_list[0];
     }
     
 
@@ -241,7 +244,8 @@ int main(int argc, char **argv)
 
     vector<PCRGB::Ptr> pcs;
     vector<string> topics;
-    PCRGB color_joint_den, color_pos_den, color_marginal_den, color_expected_val, color_force_variance;
+    PCRGB color_joint_den, color_pos_den, color_marginal_den, color_expected_val, color_force_variance,
+          color_raw_data;
 
     colorizeDataPC(joint_den, color_joint_den);
     color_joint_den.header.frame_id = "/base_link";
@@ -262,6 +266,10 @@ int main(int argc, char **argv)
     colorizeDataPC(force_variance, color_force_variance);
     color_force_variance.header.frame_id = "/base_link";
     pcs.push_back(color_force_variance.makeShared()); topics.push_back("/force_variance");
+
+    colorizeDataPC(raw_data, color_raw_data);
+    color_raw_data.header.frame_id = "/base_link";
+    pcs.push_back(color_raw_data.makeShared()); topics.push_back("/raw_data");
 
     pcs.push_back(head_pc); topics.push_back("/head_pc");
     //pubLoop(pcs, topics, 1);
