@@ -123,8 +123,8 @@ class CodyArmClient(HRLArm):
     def alpha_cb(self, msg):
         with self.lock:
             self.alpha = copy.copy(msg.data)
-            self.kp = np.diag(np.diag(self.alpha)*np.array(self.nom_kp)).tolist()
-            self.kd = np.diag(np.diag(self.alpha)*np.array(self.nom_kd)).tolist()
+            self.kp = (np.array(self.alpha)*np.array(self.nom_kp)).tolist()
+            self.kd = (np.array(self.alpha)*np.array(self.nom_kd)).tolist()
 
     def q_cb(self, msg):
         with self.lock:
@@ -243,6 +243,36 @@ class CodyArmClient(HRLArm):
     # leaving this unimplemented for now. Advait Nov 14, 2010.
     def get_wrist_torque(self, bias=True):  #Tiffany Nov 8 2011 removed 'arm' arg
         pass
+
+
+
+
+# these two classes are specifically for the model predictive
+# controller that we developed for reaching in clutter with multiple
+# contacts.
+# We override the get_joint_impedance function to return values that
+# the model predictive controller will use.
+class CodyArmClient_7DOF(CodyArmClient):
+    def __init__(self, arm):
+        CodyArmClient.__init__(self, arm)
+
+    # dummy kp values for the wrist, kd still of length five
+    def get_joint_impedance(self):
+        with self.lock:
+            kp_t = [k for k in self.kp]
+            kp_t[-1] = 30.
+            kp_t.append(30.)
+            kp_t.append(30.)
+            return kp_t, copy.copy(self.kd)
+
+class CodyArmClient_4DOF(CodyArmClient):
+    def __init__(self, arm):
+        CodyArmClient.__init__(self, arm)
+
+    def get_joint_impedance(self):
+        with self.lock:
+            return copy.copy(self.kp[0:4]), copy.copy(self.kd[0:4])
+
 
 
 if __name__ == '__main__':
