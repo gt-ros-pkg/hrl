@@ -27,7 +27,7 @@
   <depend package="dynamic_reconfigure"/>
 
   <depend package="hai_sandbox"/>
-
+  <depend package="rcommander_pr2_gui"/>
 </package>
 
 

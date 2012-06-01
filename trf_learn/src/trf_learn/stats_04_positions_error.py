@@ -37,7 +37,7 @@ class PositionErrorExp:
     def pose_cb(self, msg):
         if self.message_lock.acquire(True):
             self.message = msg
-            self.messages.append(msg)
+            #self.messages.append(msg)
             self.message_lock.release()
 
     def turn_to_point(self, point_bl, block=True):
@@ -89,7 +89,7 @@ class PositionErrorExp:
         tstring = time.strftime('%A_%m_%d_%Y_%I_%M%p')
         locations = [a_loc, b_loc]
         base_poses = [[], []]
-        for i in range(10):
+        for i in range(30):
             print '=================================='
             print '=================================='
             print 'starting iteration', i
@@ -101,12 +101,12 @@ class PositionErrorExp:
                 base_poses[j].append(self.message)
                 print j, 'Saved pose', base_poses[j][-1]
                 
-                self.message_lock.acquire()
-                messages = copy.copy(self.messages)
-                self.message_lock.release()
+                #self.message_lock.acquire()
+                #messages = copy.copy(self.messages)
+                #self.message_lock.release()
 
                 print 'saving pickle'
-                ut.save_pickle({'locations':locations, 'base_poses': base_poses, 'messages': messages}, 
+                ut.save_pickle({'locations':locations, 'base_poses': base_poses}, #, 'messages': messages}, 
                                 'stats_04_poses_%s.pkl' % tstring)
                 print 'saved!'
             print 'Finished iteration %d.' % i
