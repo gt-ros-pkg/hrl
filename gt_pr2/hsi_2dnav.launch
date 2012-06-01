@@ -1,5 +1,0 @@
-<launch>
-    <include file="$(find gt_pr2)/navigation/pr2_2dnav.launch"/>
-    <include file="$(find gt_pr2)/hsi_map.launch"/>
-</launch>
-

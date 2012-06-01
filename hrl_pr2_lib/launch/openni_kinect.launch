@@ -1,9 +1,0 @@
-<launch>
-  <node pkg="openni_camera" type="openni_node" name="kinect_head" output="screen" launch-prefix="nice -n 19">
-    <remap from="camera" to="kinect_head"/>
-    <param name="registration_type" value="2" />
-    <param name="image_input_format" value="6" />
-    <rosparam command="load" file="$(find openni_camera)/info/openni_params.yaml" />
-  </node>
-  <!-- <include file="$(find hrl_pr2_lib)/launch/kinect_frames.launch"/> -->
-</launch>

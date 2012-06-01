@@ -1,9 +1,0 @@
-<launch>
-    <machine name="pr2c1" address="pr2c1.hsi.gatech.edu" 
-        ros-root="$(env ROS_ROOT)"    
-        ros-package-path="$(env ROS_PACKAGE_PATH)" />
-
-    <machine name="pr2c2" address="pr2c2.hsi.gatech.edu" 
-        ros-root="$(env ROS_ROOT)"    
-        ros-package-path="$(env ROS_PACKAGE_PATH)" />
-</launch>

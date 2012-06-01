@@ -1,7 +1,0 @@
-<launch>
-
-    <!--<node pkg="tf" type="static_transform_publisher" name="l_netft_frame" args="0.052 0 0 0.13459031 0 0 0.99090133 /l_wrist_roll_link /l_netft_frame 100" /> -->
-  <node pkg="netft_rdt_driver" type="netft_node" name="netft_node" args="10.68.0.60" output='screen'/>
-  <node pkg="hrl_pr2_lib" type="ft_pointmass.py" name="netft_pointmass_adjust" />
-
-</launch>
