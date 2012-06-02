@@ -65,8 +65,11 @@ class PR2Arm(HRLArm):
         self.torso_position = None
         self.arm_efforts = None
 
+        rospy.logwarn('Put in correct values for PR2 joint stiffnesses')
+        self.kp = [10.] * 7
+
         rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
-        self.marker_pub = rospy.Publisher(arm+'_arm/viz_markers', Marker)
+        self.marker_pub = rospy.Publisher(arm+'_arm/viz/markers', Marker)
         self.cep_marker_id = 1
 
         self.tf_lstnr = tf.TransformListener()
@@ -126,6 +129,30 @@ class PR2Arm(HRLArm):
             while q[ind] > np.pi:
                 q[ind] -= 2*np.pi
         return q
+
+
+    def publish_rviz_markers(self):
+        # publish the CEP marker.
+        o = np.matrix([0.,0.,0.,1.]).T
+        jep = self.get_ep()
+        cep, r = self.kinematics.FK(jep)
+        cep_marker = hv.single_marker(cep, o, 'sphere',
+                        '/torso_lift_link', color=(0., 0., 1., 1.),
+                        scale = (0.02, 0.02, 0.02), duration=0.,
+                        m_id=1)
+        cep_marker.header.stamp = rospy.Time.now()
+        self.marker_pub.publish(cep_marker)
+
+        q = self.get_joint_angles()
+        ee, r = self.kinematics.FK(q)
+        ee_marker = hv.single_marker(ee, o, 'sphere',
+                        '/torso_lift_link', color=(0., 1., 0., 1.),
+                        scale = (0.02, 0.02, 0.02), duration=0.,
+                        m_id=2)
+        ee_marker.header.stamp = rospy.Time.now()
+        self.marker_pub.publish(ee_marker)
+
+
 
 
 if __name__ == '__main__':

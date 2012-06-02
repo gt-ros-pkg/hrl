@@ -66,6 +66,8 @@ class PR2ArmKinematics(HRLArmKinematics):
         nominal_gripper_length = 0.2
         self.setup_kdl_chains(arm, nominal_gripper_length)
 
+        self.arm_type = 'real' # for epc_skin_math
+
     def create_right_chain(self, end_effector_length):
         ch = kdl.Chain()
         self.right_arm_base_offset_from_torso_lift_link = np.matrix([0., -0.188, 0.]).T
@@ -179,29 +181,6 @@ class PR2ArmKinematics(HRLArmKinematics):
         for i in range(n):
             q_kdl[i] = q[i]
         return q_kdl
-
-    ## compute Jacobian at point pos.
-    # p is in the torso_lift_link coord frame.
-    def Jacobian(self, arm, q, pos):
-        if arm != 0:
-            rospy.logerr('Arm %d is not supported.'%(arm))
-            return None
-
-        tooltip = self.right_tooltip
-        self.right_tooltip = np.matrix([0.,0.,0.]).T
-        v_list = []
-        w_list = []
-        for i in range(7):
-            p, rot = self.FK_all(arm, q, i)
-            r = pos - p
-            z_idx = self.right_chain.getSegment(i).getJoint().getType() - 1
-            z = rot[:, z_idx]
-            v_list.append(np.matrix(np.cross(z.A1, r.A1)).T)
-            w_list.append(z)
-
-        J = np.row_stack((np.column_stack(v_list), np.column_stack(w_list)))
-        self.right_tooltip = tooltip
-        return J
 
 
     #----------- extra functions -----------------
