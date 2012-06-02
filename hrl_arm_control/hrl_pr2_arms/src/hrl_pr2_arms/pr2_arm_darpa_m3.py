@@ -34,13 +34,14 @@ import numpy as np, math
 from threading import RLock, Timer
 import sys, copy
 
-
 import roslib; roslib.load_manifest('hrl_pr2_arms')
+import rospy
+
+from equilibrium_point_control.hrl_arm import HRLArm
+from pr2_arm_kinematics_darpa_m3 import PR2ArmKinematics
 
 import tf
 import hrl_lib.viz as hv
-
-import rospy
 
 import actionlib
 
@@ -55,8 +56,6 @@ class PR2Arm(HRLArm):
     def __init__(self, arm):
         kinematics = PR2ArmKinematics(arm)
         HRLArm.__init__(self, kinematics)
-
-        self.arms = PR2Arms_kdl() # KDL chain.
 
         self.joint_names_list = [arm + s for s in ['_shoulder_pan_joint', '_shoulder_lift_joint',
                                                    '_upper_arm_roll_joint', '_elbow_flex_joint',
@@ -90,7 +89,7 @@ class PR2Arm(HRLArm):
             jt_idx_list[i] = data.name.index(jt_nm)
 
         for i in range(7):
-            idx = r_jt_idx_list[i]
+            idx = jt_idx_list[i]
             if data.name[idx] != self.joint_names_list[i]:
                 raise RuntimeError('joint angle name does not match.')
             arm_angles.append(data.position[idx])
@@ -117,7 +116,7 @@ class PR2Arm(HRLArm):
             #jtp.accelerations = [0 for i in range(len(q))]
             jtp.time_from_start = rospy.Duration(duration)
             jtg.trajectory.points.append(jtp)
-            self.joint_action_client[arm].send_goal(jtg)
+            self.joint_action_client.send_goal(jtg)
             self.ep = jep
 
     def wrap_angles(self, q):
@@ -130,65 +129,17 @@ class PR2Arm(HRLArm):
 
 
 if __name__ == '__main__':
-    from visualization_msgs.msg import Marker
-    import hrl_lib.viz as hv
 
     rospy.init_node('pr2_arms_test')
 
-    pr2_arms = PR2Arms()
-    pr2_kdl = PR2Arms_kdl()
-    r_arm, l_arm = 0, 1
-    arm = r_arm
+    robot = PR2Arm('r')
 
-    if False:
-        np.set_printoptions(precision=2, suppress=True)
-        while not rospy.is_shutdown():
-            q = pr2_arms.get_joint_angles(arm)
-            print 'q in degrees:', np.degrees(q)
-            rospy.sleep(0.1)
-
-    if False:
+    if True:
         jep = [0.] * 7
+        jep = np.radians([-30, 0, -90, -60, 0, 0, 0])
         rospy.loginfo('Going to home location.')
         raw_input('Hit ENTER to go')
-        pr2_arms.set_jep(arm, jep, duration=2.)
-
-    if False:
-        # testing FK by publishing a frame marker.
-        marker_pub = rospy.Publisher('/pr2_kdl/ee_marker', Marker)
-        pr2_kdl.set_tooltip(arm, np.matrix([0.15, 0., 0.]).T)
-        rt = rospy.Rate(100)
-        rospy.loginfo('Starting the maker publishing loop.')
-        while not rospy.is_shutdown():
-            q = pr2_arms.get_joint_angles(arm)
-            p, rot = pr2_kdl.FK_all(arm, q)
-            m = hv.create_frame_marker(p, rot, 0.15, '/torso_lift_link')
-            m.header.stamp = rospy.Time.now()
-            marker_pub.publish(m)
-            rt.sleep()
-
-    if False:
-        # testing Jacobian by printing KDL and my own Jacobian at the
-        # current configuration.
-        while not rospy.is_shutdown():
-            q = pr2_arms.get_joint_angles(arm)
-            J_kdl = pr2_kdl.Jac(arm , q)
-            p, rot = pr2_kdl.FK_all(arm, q)
-            J_adv = pr2_kdl.Jacobian(arm, q, p)
-            print J_adv.shape
-            diff_J = J_kdl - J_adv
-            print 'difference between KDL and adv is:'
-            print diff_J
-            print 'Norm of difference matrix:', np.linalg.norm(diff_J)
-            raw_input('Move arm into some configuration and hit enter to get the Jacobian.')
-
-
-
-
-
-
-
-
+        robot.set_ep(jep, duration=2.)
 
 
 

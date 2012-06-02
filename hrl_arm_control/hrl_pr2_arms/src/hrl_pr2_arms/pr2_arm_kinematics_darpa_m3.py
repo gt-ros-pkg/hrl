@@ -66,7 +66,7 @@ class PR2ArmKinematics(HRLArmKinematics):
         nominal_gripper_length = 0.2
         self.setup_kdl_chains(arm, nominal_gripper_length)
 
-    def create_right_chain(self):
+    def create_right_chain(self, end_effector_length):
         ch = kdl.Chain()
         self.right_arm_base_offset_from_torso_lift_link = np.matrix([0., -0.188, 0.]).T
         # shoulder pan
@@ -82,7 +82,7 @@ class PR2ArmKinematics(HRLArmKinematics):
         # wrist flex
         ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotY),kdl.Frame(kdl.Vector(0.,0.,0.))))
         # wrist roll
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotX),kdl.Frame(kdl.Vector(0.,0.,0.))))
+        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotX),kdl.Frame(kdl.Vector(end_effector_length,0.,0.))))
         return ch
 
     def create_solvers(self, ch):
