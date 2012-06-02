@@ -38,11 +38,9 @@ import sys, copy
 import roslib; roslib.load_manifest('hrl_pr2_arms')
 
 import tf
-import hrl_lib.transforms as tr
 import hrl_lib.viz as hv
 
 import rospy
-import PyKDL as kdl
 
 import actionlib
 
@@ -50,10 +48,6 @@ from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal,
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 from sensor_msgs.msg import JointState
-
-import hrl_lib.transforms as tr
-import hrl_lib.kdl_utils as ku
-import time
 
 from visualization_msgs.msg import Marker
 
@@ -135,217 +129,6 @@ class PR2Arm(HRLArm):
         return q
 
 
-##
-# using KDL for pr2 arm kinematics.
-class PR2ArmKinematics():
-    def __init__(self, arm):
-        if arm != 'r':
-            raise RuntimeError('Unimplemented arm')
-
-        HRLArmKinematics.__init__(self, n_jts = 7)
-
-        # create joint limit dicts
-        if arm == 'r':
-            max_lim = np.radians([ 120.00, 122.15, 77.5, 144., 122.,  45.,  45.])
-            min_lim = np.radians([ -47.61,  -20., -77.5,   0., -80., -45., -45.])
-        else:
-            max_lim = np.radians([ 120.00,   20.,  77.5, 144.,   80.,  45.,  45.])
-            min_lim = np.radians([ -47.61, -122.15, -77.5,   0., -122., -45., -45.])
-
-        self.type = "real"
-            
-        self.joint_lim_dict = {}
-        self.joint_lim_dict['max'] = max_lim
-        self.joint_lim_dict['min'] = min_lim
-
-        wrist_stub_length = 0.0135 + 0.04318 # wrist linkange and FT sensor lengths
-        self.setup_kdl_chains(arm, wrist_stub_length)
-
-        if arm == 'r':
-            pkl_nm = 'q_guess_right_dict.pkl'
-        else:
-            pkl_nm = 'q_guess_left_dict.pkl'
-
-        pth = roslib.rospack.rospackexec(['find', 'hrl_cody_arms'])
-        q_guess_pkl = pth + '/src/hrl_cody_arms/'+pkl_nm
-        self.q_guess_dict = ut.load_pickle(q_guess_pkl)
-
-
-
-
-
-
-
-
-
-
-
-
-        self.chain = self.create_chain(arm)
-        fk, ik_v, ik_p, jac = self.create_solvers(self.right_chain)
-        self.right_fk = fk
-        self.right_ik_v = ik_v
-        self.right_ik_p = ik_p
-        self.right_jac = jac
-        self.right_tooltip = np.matrix([0.,0.,0.]).T
-
-    def create_right_chain(self):
-        ch = kdl.Chain()
-        self.right_arm_base_offset_from_torso_lift_link = np.matrix([0., -0.188, 0.]).T
-        # shoulder pan
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotZ),kdl.Frame(kdl.Vector(0.1,0.,0.))))
-        # shoulder lift
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotY),kdl.Frame(kdl.Vector(0.,0.,0.))))
-        # upper arm roll
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotX),kdl.Frame(kdl.Vector(0.4,0.,0.))))
-        # elbox flex
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotY),kdl.Frame(kdl.Vector(0.0,0.,0.))))
-        # forearm roll
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotX),kdl.Frame(kdl.Vector(0.321,0.,0.))))
-        # wrist flex
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotY),kdl.Frame(kdl.Vector(0.,0.,0.))))
-        # wrist roll
-        ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotX),kdl.Frame(kdl.Vector(0.,0.,0.))))
-        return ch
-
-    def create_solvers(self, ch):
-         fk = kdl.ChainFkSolverPos_recursive(ch)
-         ik_v = kdl.ChainIkSolverVel_pinv(ch)
-         ik_p = kdl.ChainIkSolverPos_NR(ch, fk, ik_v)
-         jac = kdl.ChainJntToJacSolver(ch)
-         return fk, ik_v, ik_p, jac
-
-    ## define tooltip as a 3x1 np matrix in the wrist coord frame.
-    def set_tooltip(self, arm, p):
-        if arm == 0:
-            self.right_tooltip = p
-        else:
-            rospy.logerr('Arm %d is not supported.'%(arm))
-
-    def FK_kdl(self, arm, q, link_number):
-        if arm == 0:
-            fk = self.right_fk
-            endeffec_frame = kdl.Frame()
-            kinematics_status = fk.JntToCart(q, endeffec_frame,
-                                             link_number)
-            if kinematics_status >= 0:
-                return endeffec_frame
-            else:
-                rospy.loginfo('Could not compute forward kinematics.')
-                return None
-        else:
-            msg = '%s arm not supported.'%(arm)
-            rospy.logerr(msg)
-            raise RuntimeError(msg)
-
-    ## returns point in torso lift link.
-    def FK_all(self, arm, q, link_number = 7):
-        q = self.pr2_to_kdl(q)
-        frame = self.FK_kdl(arm, q, link_number)
-        pos = frame.p
-        pos = ku.kdl_vec_to_np(pos)
-        pos = pos + self.right_arm_base_offset_from_torso_lift_link
-        m = frame.M
-        rot = ku.kdl_rot_to_np(m)
-        if arm == 0:
-            tooltip_baseframe = rot * self.right_tooltip
-            pos += tooltip_baseframe
-        else:
-            rospy.logerr('Arm %d is not supported.'%(arm))
-            return None
-        return pos, rot
-
-    def kdl_to_pr2(self, q):
-        if q == None:
-            return None
-
-        q_pr2 = [0] * 7
-        q_pr2[0] = q[0]
-        q_pr2[1] = q[1]
-        q_pr2[2] = q[2]
-        q_pr2[3] = q[3]
-        q_pr2[4] = q[4]
-        q_pr2[5] = q[5]
-        q_pr2[6] = q[6]
-        return q_pr2
-
-    def pr2_to_kdl(self, q):
-        if q == None:
-            return None
-        n = len(q)
-        q_kdl = kdl.JntArray(n)
-        for i in range(n):
-            q_kdl[i] = q[i]
-        return q_kdl
-
-    def Jac_kdl(self, arm, q):
-        J_kdl = kdl.Jacobian(7)
-        if arm != 0:
-            rospy.logerr('Unsupported arm: '+ str(arm))
-            return None
-
-        self.right_jac.JntToJac(q,J_kdl)
-
-        kdl_jac =  np.matrix([
-            [J_kdl[0,0],J_kdl[0,1],J_kdl[0,2],J_kdl[0,3],J_kdl[0,4],J_kdl[0,5],J_kdl[0,6]],
-            [J_kdl[1,0],J_kdl[1,1],J_kdl[1,2],J_kdl[1,3],J_kdl[1,4],J_kdl[1,5],J_kdl[1,6]],
-            [J_kdl[2,0],J_kdl[2,1],J_kdl[2,2],J_kdl[2,3],J_kdl[2,4],J_kdl[2,5],J_kdl[2,6]],
-            [J_kdl[3,0],J_kdl[3,1],J_kdl[3,2],J_kdl[3,3],J_kdl[3,4],J_kdl[3,5],J_kdl[3,6]],
-            [J_kdl[4,0],J_kdl[4,1],J_kdl[4,2],J_kdl[4,3],J_kdl[4,4],J_kdl[4,5],J_kdl[4,6]],
-            [J_kdl[5,0],J_kdl[5,1],J_kdl[5,2],J_kdl[5,3],J_kdl[5,4],J_kdl[5,5],J_kdl[5,6]],
-            ])
-        return kdl_jac
-        
-    ## compute Jacobian (at wrist).
-    # @param arm - 0 or 1
-    # @param q - list of 7 joint angles.
-    # @return 6x7 np matrix
-    def Jac(self, arm, q):
-        rospy.logerr('Jac only works for getting the Jacobian at the wrist. Use Jacobian to get the Jacobian at a general location.')
-        jntarr = self.pr2_to_kdl(q)
-        kdl_jac = self.Jac_kdl(arm, jntarr)
-        pr2_jac = kdl_jac
-        return pr2_jac
-
-    ## compute Jacobian at point pos.
-    # p is in the torso_lift_link coord frame.
-    def Jacobian(self, arm, q, pos):
-        if arm != 0:
-            rospy.logerr('Arm %d is not supported.'%(arm))
-            return None
-
-        tooltip = self.right_tooltip
-        self.right_tooltip = np.matrix([0.,0.,0.]).T
-        v_list = []
-        w_list = []
-        for i in range(7):
-            p, rot = self.FK_all(arm, q, i)
-            r = pos - p
-            z_idx = self.right_chain.getSegment(i).getJoint().getType() - 1
-            z = rot[:, z_idx]
-            v_list.append(np.matrix(np.cross(z.A1, r.A1)).T)
-            w_list.append(z)
-
-        J = np.row_stack((np.column_stack(v_list), np.column_stack(w_list)))
-        self.right_tooltip = tooltip
-        return J
-
-    def close_to_singularity(self, arm, q):
-        pass
-
-    def within_joint_limits(self, arm, q, delta_list=[0., 0., 0., 0., 0., 0., 0.]):
-        if arm == 0: # right arm
-            min_arr = np.radians(np.array([-109., -24, -220, -132, -np.inf, -120, -np.inf]))
-            #max_arr = np.radians(np.array([26., 68, 41, 0, np.inf, 0, np.inf]))
-            max_arr = np.radians(np.array([26., 68, 41, 5, np.inf, 5, np.inf])) # 5 to prevent singularity. Need to come up with a better solution.
-        else:
-            raise RuntimeError('within_joint_limits unimplemented for left arm')
-
-        q_arr = np.array(q)
-        d_arr = np.array(delta_list)
-        return np.all((q_arr <= max_arr+d_arr, q_arr >= min_arr-d_arr))
-
-
 if __name__ == '__main__':
     from visualization_msgs.msg import Marker
     import hrl_lib.viz as hv
@@ -400,23 +183,7 @@ if __name__ == '__main__':
             raw_input('Move arm into some configuration and hit enter to get the Jacobian.')
 
 
-    if True:
-        while not rospy.is_shutdown():
-            q = pr2_arms.wrap_angles(pr2_arms.get_joint_angles(arm))
-            print "actual", q
-            p_ros, rot_ros = pr2_arms.FK(arm, q)
-            p_kdl, rot_kdl = pr2_kdl.FK_all(arm, q)
-            ik_ros = pr2_arms.IK(r_arm, p_ros, rot_ros, q)
-            ik_kdl = pr2_arms.IK(r_arm, p_kdl, rot_kdl, q)
-            diff = np.array(ik_ros) - np.array(ik_kdl)
-            print "IK ros", ik_ros
-            print "IK kdl", ik_kdl
-            if len(ik_ros) == 7:
-                err_ros = np.array(q) - np.array(ik_ros)
-                err_kdl = np.array(q) - np.array(ik_kdl)
-                print "err ros", sum(err_ros**2), "err kdl", sum(err_kdl**2), "diff", sum(diff**2)
 
-            
 
 
 
