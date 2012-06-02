@@ -134,12 +134,28 @@ if __name__ == '__main__':
 
     robot = PR2Arm('r')
 
-    if True:
+    if False:
         jep = [0.] * 7
         jep = np.radians([-30, 0, -90, -60, 0, 0, 0])
         rospy.loginfo('Going to home location.')
         raw_input('Hit ENTER to go')
         robot.set_ep(jep, duration=2.)
+
+    if True:
+        # simple go_jep example
+        roslib.load_manifest('equilibrium_point_control')
+        import equilibrium_point_control.epc as epc
+        epcon = epc.EPC(robot)
+
+        while robot.get_joint_angles() == None:
+            rospy.sleep(0.1)
+
+        q = robot.get_joint_angles()
+        robot.set_ep(q)
+
+#        jep = [0.] * 7
+        jep = np.radians([-30, 0, -90, -60, 0, 0, 0])
+        epcon.go_jep(jep, speed=math.radians(30.))
 
 
 
