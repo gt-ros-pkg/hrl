@@ -66,7 +66,7 @@ class PR2Arm(HRLArm):
         self.arm_efforts = None
 
         rospy.logwarn('Put in correct values for PR2 joint stiffnesses')
-        self.kp = [10.] * 7
+        self.kp = [100.] * 7
 
         rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
         self.marker_pub = rospy.Publisher(arm+'_arm/viz/markers', Marker)
