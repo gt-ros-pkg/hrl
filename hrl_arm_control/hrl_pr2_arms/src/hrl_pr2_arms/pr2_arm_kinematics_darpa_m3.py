@@ -63,11 +63,10 @@ class PR2ArmKinematics(HRLArmKinematics):
         self.joint_lim_dict['max'] = max_lim
         self.joint_lim_dict['min'] = min_lim
 
-        rospy.logwarn('##############################################')
-        rospy.logwarn('measure the nominal gripper length')
-        rospy.logwarn('##############################################')
-        nominal_gripper_length = 0.2
+        # define tooltips from the /r_gripper_palm_link origin
+        nominal_gripper_length = 0.
         self.setup_kdl_chains(arm, nominal_gripper_length)
+        self.set_tooltip(np.matrix([0.2, 0.,0.]).T)
 
         self.arm_type = 'real' # for epc_skin_math
 
