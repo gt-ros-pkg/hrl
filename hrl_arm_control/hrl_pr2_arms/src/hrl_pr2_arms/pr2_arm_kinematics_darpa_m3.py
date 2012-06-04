@@ -73,7 +73,7 @@ class PR2ArmKinematics(HRLArmKinematics):
 
     def create_right_chain(self, end_effector_length):
         ch = kdl.Chain()
-        self.right_arm_base_offset_from_torso_lift_link = np.matrix([0., -0.188, 0.]).T
+        self.arm_base_offset_from_torso_lift_link = np.matrix([0., -0.188, 0.]).T
         # shoulder pan
         ch.addSegment(kdl.Segment(kdl.Joint(kdl.Joint.RotZ),kdl.Frame(kdl.Vector(0.1,0.,0.))))
         # shoulder lift
@@ -134,7 +134,7 @@ class PR2ArmKinematics(HRLArmKinematics):
         q = self.pr2_angles_to_kdl(q)
         frame = self.FK_kdl(q, link_number)
         pos = frame.p
-        pos = ku.kdl_vec_to_np(pos)
+        pos = ku.kdl_vec_to_np(pos) + self.arm_base_offset_from_torso_lift_link
         m = frame.M
         rot = ku.kdl_rot_to_np(m)
         return pos, rot
