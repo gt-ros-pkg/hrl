@@ -57,8 +57,6 @@ class CodyArmKinematics(HRLArmKinematics):
             max_lim = np.radians([ 120.00,   20.,  77.5, 144.,   80.,  45.,  45.])
             min_lim = np.radians([ -47.61, -122.15, -77.5,   0., -122., -45., -45.])
 
-        self.type = "real"
-            
         self.joint_lim_dict = {}
         self.joint_lim_dict['max'] = max_lim
         self.joint_lim_dict['min'] = min_lim
@@ -74,6 +72,8 @@ class CodyArmKinematics(HRLArmKinematics):
         pth = roslib.rospack.rospackexec(['find', 'hrl_cody_arms'])
         q_guess_pkl = pth + '/src/hrl_cody_arms/'+pkl_nm
         self.q_guess_dict = ut.load_pickle(q_guess_pkl)
+
+        self.arm_type = 'real' # for epc_skin_math
 
     #--------------- KDL stuff ----------------
     # KDL joint array to meka joint list. (7->7)

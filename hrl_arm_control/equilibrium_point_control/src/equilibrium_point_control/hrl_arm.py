@@ -50,7 +50,7 @@ class HRLArm():
     # np arrays of stiffness and damping of the virtual springs.      
     def get_joint_impedance(self): 
         with self.lock:
-            return np.array(self.kp), np.array(self.kd)
+            return copy.copy(self.kp), copy.copy(self.kd)
 
     # do we really need this function?
     def freeze(self):
