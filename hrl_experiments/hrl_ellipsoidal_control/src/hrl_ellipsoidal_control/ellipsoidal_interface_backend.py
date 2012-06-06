@@ -15,29 +15,13 @@ from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmJTransposeTask
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from hrl_ellipsoidal_control.ellipsoid_controller import EllipsoidController
 from hrl_ellipsoidal_control.interface_backend import ControllerInterfaceBackend
-
-ELL_LOCAL_VEL = 0.0025
-LONGITUDE_STEP = 0.12
-LATITUDE_STEP = 0.096
-HEIGHT_STEP = 0.0986
-ell_trans_params = {
-    'translate_up' : (-LATITUDE_STEP, 0, 0),   'translate_down' : (LATITUDE_STEP, 0, 0),
-    'translate_right' : (0, -LONGITUDE_STEP, 0), 'translate_left' : (0, LONGITUDE_STEP, 0),
-    'translate_in' : (0, 0, -HEIGHT_STEP),      'translate_out' : (0, 0, HEIGHT_STEP)}
-
-ELL_ROT_VEL = 0.002
-ROLL_STEP = np.pi/12
-PITCH_STEP = np.pi/12
-YAW_STEP = np.pi/12
-ell_rot_params = {
-    'rotate_x_pos' : (-ROLL_STEP, 0, 0), 'rotate_x_neg' : (ROLL_STEP, 0, 0),
-    'rotate_y_pos' : (0, PITCH_STEP, 0), 'rotate_y_neg' : (0, -PITCH_STEP, 0),
-    'rotate_z_pos' : (0, 0, -YAW_STEP),  'rotate_z_neg' : (0, 0, YAW_STEP)}
-
+from hrl_ellipsoidal_control.ellipsoidal_parameters import *
 
 class EllipsoidalInterfaceBackend(ControllerInterfaceBackend):
-    def __init__(self):
-        super(EllipsoidalInterfaceBackend, self).__init__("Ellipsoid Controller")
+    def __init__(self, use_service=True):
+        super(EllipsoidalInterfaceBackend, self).__init__("Ellipsoid Controller", 
+                                                          use_service=use_service)
+        self.controller = EllipsoidController()
         self.button_distances = {}
         self.button_times = {}
         for button in ell_trans_params.keys() + ell_rot_params.keys() + ["reset_rotation"]:
@@ -46,7 +30,7 @@ class EllipsoidalInterfaceBackend(ControllerInterfaceBackend):
 
     def set_arm(self, cart_arm):
         self.cart_arm = cart_arm
-        self.controller = EllipsoidController(self.cart_arm)
+        self.controller.set_arm(self.cart_arm)
 
     def run_controller(self, button_press):
         start_pos, _ = self.cart_arm.get_ep()

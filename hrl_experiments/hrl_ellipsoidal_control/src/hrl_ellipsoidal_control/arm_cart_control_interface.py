@@ -43,18 +43,18 @@ class ArmCartControlGUIFrame(QtGui.QFrame):
         self.hide_button = None
         self.show_button = None
 
-        self.button_clk_pub = rospy.Publisher("/arm_cart_ctrl_gui/button_clk", String)
-        self.buttons_enable_srv = rospy.Service("/arm_cart_ctrl_gui/buttons_enable", Empty, 
+        self.button_clk_pub = rospy.Publisher("/arm_ctrl_gui/button_clk", String)
+        self.buttons_enable_srv = rospy.Service("/arm_ctrl_gui/buttons_enable", Empty, 
                                                 self._buttons_enable_cb)
-        self.buttons_disable_srv = rospy.Service("/arm_cart_ctrl_gui/buttons_disable", Empty,
+        self.buttons_disable_srv = rospy.Service("/arm_ctrl_gui/buttons_disable", Empty,
                                                  self._buttons_disable_cb)
-        self.set_ctrl_name_sub = rospy.Subscriber("/arm_cart_ctrl_gui/set_controller_name", String,
+        self.set_ctrl_name_sub = rospy.Subscriber("/arm_ctrl_gui/set_controller_name", String,
                                                   self._set_ctrl_name_cb)
-        self.set_status_sub = rospy.Subscriber("/arm_cart_ctrl_gui/set_status", String,
+        self.set_status_sub = rospy.Subscriber("/arm_ctrl_gui/set_status", String,
                                                self._set_status_cb)
-        self.hide_button_sub = rospy.Subscriber("/arm_cart_ctrl_gui/hide_button", String,
+        self.hide_button_sub = rospy.Subscriber("/arm_ctrl_gui/hide_button", String,
                                                 self._hide_button_cb)
-        self.show_button_sub = rospy.Subscriber("/arm_cart_ctrl_gui/show_button", String,
+        self.show_button_sub = rospy.Subscriber("/arm_ctrl_gui/show_button", String,
                                                 self._show_button_cb)
 
         self.init_ui()

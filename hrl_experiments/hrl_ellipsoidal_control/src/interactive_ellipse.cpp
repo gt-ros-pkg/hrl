@@ -1,22 +1,10 @@
-#include <Eigen/Eigen>
-#include <boost/format.hpp>
-#include <boost/make_shared.hpp>
-#include <boost/foreach.hpp>
-
 #include <ros/ros.h>
-#include <rosbag/bag.h>
-#include <rosbag/view.h>
-#include <rosbag/message_instance.h>
 #include <interactive_markers/interactive_marker_server.h>
 #include <tf/transform_broadcaster.h>
 #include <geometry_msgs/Pose.h>
-#include <tf_conversions/tf_eigen.h>
-
 #include <hrl_ellipsoidal_control/EllipsoidParams.h>
 #include <hrl_ellipsoidal_control/LoadEllipsoidParams.h>
 //#include <hrl_ellipsoidal_control/utils.h>
-
-using namespace std;
 
 class InteractiveEllipse 
 {
@@ -230,7 +218,7 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "interative_ellipse");
     if(argc < 3 || argc > 7) {
-        printf("Usage: interative_ellipse parent_frame child_frame rate [inital_params] [save_params] [use_ellipsoid_markers]\n");
+        printf("Usage: interative_ellipse parent_frame child_frame rate [inital_params] [remove_ells]\n");
         return 1;
     }
     if(argc >= 4) {
@@ -240,22 +228,15 @@ int main(int argc, char **argv)
         itf.addTFMarker(mkr_tf);
         if(!(argc >= 7 && atoi(argv[6])))
             itf.addEllipseMarker();
-        if(argc >= 5) {
+        if(argc >= 6) {
             // load params
-            hrl_ellipsoidal_control::EllipsoidParams::Ptr e_params;
-            rosbag::Bag bag;
-            bag.open(argv[4], rosbag::bagmode::Read);
-            rosbag::View view(bag, rosbag::TopicQuery("/ellipsoid_params"));
-            BOOST_FOREACH(rosbag::MessageInstance const msg, view) {
-                e_params = msg.instantiate< hrl_ellipsoidal_control::EllipsoidParams >();
-                break;
-            }
-            bag.close();
-            itf.loadEllipsoidParams(*e_params);
+            std::vector<hrl_ellipsoidal_control::EllipsoidParams::Ptr> params;
+            readBagTopic<hrl_ellipsoidal_control::EllipsoidParams>(argv[5], params, "/ellipsoid_params");
+            itf.loadEllipsoidParams(*params[0]);
         }
         ros::spin();
-        if(argc >= 6)
-            itf.bagTF(argv[5]);
+        if(argc >= 5)
+            itf.bagTF(argv[4]);
     } 
 
     return 0;

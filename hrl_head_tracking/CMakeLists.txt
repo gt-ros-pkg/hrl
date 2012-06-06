@@ -19,7 +19,7 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #uncomment if you have defined messages
 #rosbuild_genmsg()
 #uncomment if you have defined services
-#rosbuild_gensrv()
+rosbuild_gensrv()
 
 #common commands for building c++ executables and libraries
 #rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
@@ -33,8 +33,14 @@ rosbuild_add_library(${PROJECT_NAME} src/head_tracking.cpp)
 
 rosbuild_add_executable(test_face_detect src/test_face_detect.cpp)
 rosbuild_add_executable(head_tracking src/head_tracking.cpp)
+rosbuild_add_executable(head_tracking_srv src/head_tracking_srv.cpp)
 rosbuild_add_executable(head_training src/head_training.cpp)
 rosbuild_add_executable(pub_pc src/pub_pc.cpp)
+rosbuild_add_executable(clickable_pc src/clickable_pc.cpp)
+rosbuild_add_executable(capture_pc src/capture_pc.cpp)
 target_link_libraries(head_tracking ${PROJECT_NAME})
+target_link_libraries(head_tracking_srv ${PROJECT_NAME})
 target_link_libraries(head_training ${PROJECT_NAME})
 target_link_libraries(pub_pc ${PROJECT_NAME})
+target_link_libraries(clickable_pc ${PROJECT_NAME})
+target_link_libraries(capture_pc ${PROJECT_NAME})

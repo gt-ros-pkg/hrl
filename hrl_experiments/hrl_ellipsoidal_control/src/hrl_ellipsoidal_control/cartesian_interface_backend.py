@@ -37,9 +37,11 @@ cart_rot_params = {
 
 
 class CartesianInterfaceBackend(ControllerInterfaceBackend):
-    def __init__(self):
+    def __init__(self, use_service=True):
         super(CartesianInterfaceBackend, self).__init__("Cartesian Controller",
-                                                        hidden_buttons=["reset_rotation"])
+                                                        hidden_buttons=["reset_rotation"]
+                                                        use_service=use_service)
+        self.controller = CartesianController()
         self.button_distances = {}
         self.button_times = {}
         for button in cart_trans_params.keys() + cart_rot_params.keys() + ["reset_rotation"]:
@@ -48,7 +50,7 @@ class CartesianInterfaceBackend(ControllerInterfaceBackend):
 
     def set_arm(self, cart_arm):
         self.cart_arm = cart_arm
-        self.controller = CartesianController(self.cart_arm)
+        self.controller.set_arm(self.cart_arm)
 
     def run_controller(self, button_press):
         start_pos, _ = self.cart_arm.get_ep()

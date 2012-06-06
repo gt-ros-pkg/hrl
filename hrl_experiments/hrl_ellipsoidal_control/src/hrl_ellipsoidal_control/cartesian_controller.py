@@ -4,6 +4,7 @@ import sys
 
 import roslib
 roslib.load_manifest('hrl_ellipsoidal_control')
+from hrl_ellipsoidal_control.ellipsoid_controller import EllipsoidController
 
 class CartesianController(EllipsoidController):
 
@@ -14,30 +15,28 @@ class CartesianController(EllipsoidController):
         return dist
 
     def execute_cart_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], velocity=0.001,
-                          num_samps=None):
-        with self.params_lock:
-            with self.cmd_lock:
-                cur_pos, cur_rot = self.arm.get_ep()
-                change_pos_ep, change_rot_ep = change_ep
-                abs_cart_ep_sel, is_abs_rot = abs_sel
-                pos_f = np.where(abs_cart_ep_sel, change_pos_ep, 
-                                 np.array(cur_pos + cur_rot * np.mat(change_pos_ep).T).T[0])
-                if is_abs_rot:
-                    # TODO FIX THIS
-                    rot_change_mat = change_rot_ep
-                    _, ell_final_rot = self.robot_ellipsoidal_pose(ell_f[0], ell_f[1], ell_f[2],
-                                                                   orient_quat)
-                    rot_mat_f = ell_final_rot * rot_change_mat
-                else:
-                    rpy = change_rot_ep
-                    _, cur_rot = self.arm.get_ep()
-                    rot_mat = np.mat(tf_trans.euler_matrix(*rpy))[:3,:3]
-                    rot_mat_f = cur_rot * rot_mat
-                traj = self._create_cart_trajectory(pos_f, rot_mat_f, orient_quat, velocity, num_samps)
-        self._run_traj(traj)
-        if self.action_preempted:
-            pass
+                          num_samps=None, blocking=True):
+        with self.cmd_lock:
+            cur_pos, cur_rot = self.arm.get_ep()
+            change_pos_ep, change_rot_ep = change_ep
+            abs_cart_ep_sel, is_abs_rot = abs_sel
+            pos_f = np.where(abs_cart_ep_sel, change_pos_ep, 
+                             np.array(cur_pos + cur_rot * np.mat(change_pos_ep).T).T[0])
+            if is_abs_rot:
+                # TODO FIX THIS
+                rot_change_mat = change_rot_ep
+                _, ell_final_rot = self.robot_ellipsoidal_pose(ell_f[0], ell_f[1], ell_f[2],
+                                                               orient_quat)
+                rot_mat_f = ell_final_rot * rot_change_mat
+            else:
+                rpy = change_rot_ep
+                _, cur_rot = self.arm.get_ep()
+                rot_mat = np.mat(tf_trans.euler_matrix(*rpy))[:3,:3]
+                rot_mat_f = cur_rot * rot_mat
+            traj = self._create_cart_trajectory(pos_f, rot_mat_f, orient_quat, velocity, num_samps)
+        self._run_traj(traj, blocking=blocking)
 
+        # TODO huh? TODO
         ell_traj = self._parse_ell_move(change_ep, abs_sel, orient_quat, velocity)
 
     def _create_cart_trajectory(self, pos_f, rot_mat_f, orient_quat=[0., 0., 0., 1.], velocity=0.001,

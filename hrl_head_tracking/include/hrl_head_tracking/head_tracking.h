@@ -29,4 +29,9 @@ void extractSkinPC(const PCRGB::Ptr& pc_in, PCRGB::Ptr& pc_out, double thresh);
 uint32_t findClosestPoint(const PCRGB::Ptr& pc, uint32_t u, uint32_t v);
 void sphereTrim(const PCRGB::Ptr& pc_in, PCRGB::Ptr& pc_out, uint32_t ind, double radius);
 
+
+void extractFace(const PCRGB::Ptr& input_pc, PCRGB::Ptr& out_pc, int u_click, int v_click);
+void findFaceRegistration(const PCRGB::Ptr& template_pc, const PCRGB::Ptr& input_pc,
+                          int u_click, int v_click, Eigen::Affine3d& tf_mat);
+
 #endif

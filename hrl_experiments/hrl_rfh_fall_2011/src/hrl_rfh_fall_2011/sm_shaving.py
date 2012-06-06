@@ -226,7 +226,7 @@ class ShavingTopGenerator(object):
                                 'ELL_MOVE_RESET_ACT',
                                 smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
                                      goal_cb=partial(get_ell_move_local, 0, 0, 0)),
-                                FORCE_THRESH,
+                                CONTACT_FORCE_THRESH,
                                 outcomes=['succeeded','preempted','aborted']),
                         transitions={'succeeded' : 'succeeded',
                                      'collision' : 'aborted'})
@@ -237,7 +237,7 @@ class ShavingTopGenerator(object):
                             'ELL_MOVE_UP',
                             smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
                                  goal_cb=partial(get_ell_move_local, -LATITUDE_STEP, 0, 0)),
-                            FORCE_THRESH,
+                            CONTACT_FORCE_THRESH,
                             outcomes=['succeeded','preempted','aborted']),
                         transitions={'succeeded' : 'FT_HOLD',
                                      'collision' : 'FT_HOLD'})
@@ -248,7 +248,7 @@ class ShavingTopGenerator(object):
                             'ELL_MOVE_LEFT',
                             smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
                                  goal_cb=partial(get_ell_move_local, 0, LONGITUDE_STEP, 0)),
-                            FORCE_THRESH,
+                            CONTACT_FORCE_THRESH,
                             outcomes=['succeeded','preempted','aborted']),
                         transitions={'succeeded' : 'FT_HOLD',
                                      'collision' : 'FT_HOLD'})
@@ -259,7 +259,7 @@ class ShavingTopGenerator(object):
                             'ELL_MOVE_DOWN',
                             smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
                                  goal_cb=partial(get_ell_move_local, LATITUDE_STEP, 0, 0)), 
-                            FORCE_THRESH,
+                            CONTACT_FORCE_THRESH,
                             outcomes=['succeeded','preempted','aborted']),
                         transitions={'succeeded' : 'FT_HOLD',
                                      'collision' : 'FT_HOLD'})
@@ -270,7 +270,7 @@ class ShavingTopGenerator(object):
                             'ELL_MOVE_RIGHT',
                             smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
                                  goal_cb=partial(get_ell_move_local, 0, -LONGITUDE_STEP, 0)), 
-                            FORCE_THRESH,
+                            CONTACT_FORCE_THRESH,
                             outcomes=['succeeded','preempted','aborted']),
                         transitions={'succeeded' : 'FT_HOLD',
                                      'collision' : 'FT_HOLD'})
@@ -281,7 +281,7 @@ class ShavingTopGenerator(object):
                             'ELL_MOVE_OUT',
                             smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
                                  goal_cb=partial(get_ell_move_local, 0, 0, HEIGHT_STEP)), 
-                            FORCE_THRESH,
+                            CONTACT_FORCE_THRESH,
                             outcomes=['succeeded','preempted','aborted']),
                         transitions={'succeeded' : 'FT_HOLD',
                                      'collision' : 'FT_HOLD'})
@@ -292,7 +292,7 @@ class ShavingTopGenerator(object):
                             'ELL_MOVE_IN',
                             smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
                                  goal_cb=partial(get_ell_move_local, 0, 0, -HEIGHT_STEP)), 
-                            FORCE_THRESH,
+                            CONTACT_FORCE_THRESH,
                             outcomes=['succeeded','preempted','aborted']),
                         transitions={'succeeded' : 'FT_HOLD',
                                      'collision' : 'FT_HOLD'})
@@ -395,7 +395,7 @@ class ShavingTopGenerator(object):
                             'ELL_RETREAT_SLOW',
                             smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
                                 goal_cb=partial(get_ell_move_height, RETREAT_HEIGHT, SLOW_RETREAT_VELOCITY)),
-                            FORCE_THRESH,
+                            CONTACT_FORCE_THRESH,
                             outcomes=['succeeded','preempted','aborted']),
                         transitions={'succeeded' : 'succeeded',
                                      'collision' : 'FT_HOLD'})
@@ -405,7 +405,7 @@ class ShavingTopGenerator(object):
                         wrap_state_force_detection(
                             'ELL_MOVE_GLOBAL_FULL_ACT',
                             get_ell_move_global_full(),
-                            FORCE_THRESH,
+                            CONTACT_FORCE_THRESH,
                             outcomes=outcomes_spa,
                             input_keys=['goal_pose']),
                             transitions={'succeeded' : 'ELL_APPROACH',
@@ -417,7 +417,7 @@ class ShavingTopGenerator(object):
                             'ELL_APPROACH',
                             smach_ros.SimpleActionState('ellipsoid_move', EllipsoidMoveAction, 
                                 goal_cb=partial(get_ell_move_height, SHAVE_HEIGHT, APPROACH_VELOCITY)),
-                            FORCE_THRESH,
+                            CONTACT_FORCE_THRESH,
                             outcomes=['succeeded','preempted','aborted']),
                         transitions={'succeeded' : 'FT_HOLD',
                                      'preempted':'ELL_RETREAT_SLOW',
@@ -426,10 +426,10 @@ class ShavingTopGenerator(object):
 
                     print "Adding FtHold State to SM_BEHAVIOR"
                     hold_goal = FtHoldGoal()
-                    hold_goal.activity_thresh = HOLD_ACTIVITY_THRESH
+                    hold_goal.activity_thresh = ACTIVITY_FORCE_THRESH
                     hold_goal.z_thresh = 8.0
-                    hold_goal.mag_thresh = HOLD_MAG_THRESH
-                    hold_goal.timeout = rospy.Duration(30.0)
+                    hold_goal.mag_thresh = DANGEROUS_FORCE_THRESH
+                    hold_goal.timeout = rospy.Duration(TIMEOUT_TIME)
 
                     smach.StateMachine.add('FT_HOLD',
                                             smach_ros.SimpleActionState('ft_hold_action', FtHoldAction,

@@ -10,6 +10,7 @@ int main(int argc, char **argv)
 
     ros::Publisher pc_pub = nh.advertise<sensor_msgs::PointCloud2>(argv[2], 100);
     while(ros::ok()) {
+        input_pc->header.stamp = ros::Time().now();
         pc_pub.publish(input_pc);
         ros::Duration(0.1).sleep();
     }
