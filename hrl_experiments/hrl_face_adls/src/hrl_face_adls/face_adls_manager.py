@@ -3,13 +3,14 @@
 import sys
 
 import roslib
-roslib.load_manifest('hrl_ellipsoidal_control')
+roslib.load_manifest('hrl_face_adls')
 
 from std_msgs.msg import Int8, String
 
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmCartesianBase, PR2ArmJTransposeTask
 from hrl_ellipsoidal_control.ellipsoid_controller import EllipsoidController
 from hrl_ellipsoidal_control.ellipsoidal_parameters import *
+from hrl_face_adls.face_adls_parameters import *
 
 quat_gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
 
