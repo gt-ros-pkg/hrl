@@ -25,7 +25,7 @@ function shaving_init(){
 };
 
 $(function(){
-    $('.shave_acts, .ar_servo_controls, #shave_select, #shave_end, #bpd2').hide()
+    $('.shave_acts, #shave_select, #shave_end').hide()
 });
 
 function servo_setup_cb(){

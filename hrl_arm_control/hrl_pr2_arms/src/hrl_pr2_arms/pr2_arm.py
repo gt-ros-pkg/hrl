@@ -1,15 +1,5 @@
 #! /usr/bin/python
 
-# TODO TODO TODO
-# Saving an internal equilibrium point is dangerous.  If another application
-# uses the controller, the internal state of this controller will not be updated
-# causing potentially high velocity actions since this controller does not know
-# where the EP actually is.  Every low-level controller should publish its current
-# EP.  The JT controller does and this code has been modified to that effect.
-# The joint trajectory controller does not and this is a significant issue.
-#
-# Um, never mind...
-
 import copy
 import numpy as np
 from threading import Lock
