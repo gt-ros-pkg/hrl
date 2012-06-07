@@ -35,20 +35,6 @@
  *********************************************************************/
 
 /**
- * @fileoverview Base for all ros classes implemented in javscript.
- *    Include just this file in a script tag and it will include all other
- *    source files needed by ros.
- *    For more information about ros see
- *    http://code.google.com/p/ros.
- */
-
-/**
- * A namespace for all the ros classes.
- * @namespace
- */
-var ros = ros || {};
-
-/**
  * Reference to the global context.  In most cases this will be 'window'.
  */
 ros.global = this;
@@ -57,7 +43,7 @@ ros.global = this;
  * Path for included scripts.
  * @type {string}
  */
-ros.basePath = '';
+ros.basePath = 'rosjs_common/js/';
 
 /**
  * Tries to detect the base path of the base.js script that
@@ -200,13 +186,8 @@ ros.runSoon = function (f) {
 }
 
 /**
- * Convenience function for class inheritance
+ * Trims a string
  */
-//function ros.inherit(DerivedClassName, BaseClassName) {
-//  DerivedClassName.prototype = new BaseClassName();
-//  DerivedClassName.prototype.constructor = DerivedClassName;
-//}
-
 ros.trim = function(str) {
   str = str.replace(/^\s+/, '');
   for (var i = str.length - 1; i >= 0; i--) {
@@ -229,15 +210,15 @@ ros.sleep = function(ms)
 }
 
 if (!("console" in window)) {
-	  window.console = {
-	    log : function(s) {
-	      var l = document.getElementById('log');
-	      if (l) {
-	        l.innerHTML = l.innerHTML + "<span>" + s.toString() + "</span><br>";
-	      }
-	    }
-	  };
-	}
+    window.console = {
+      log : function(s) {
+        var l = document.getElementById('log');
+        if (l) {
+          l.innerHTML = l.innerHTML + "<span>" + s.toString() + "</span><br>";
+        }
+      }
+    };
+  }
 
 ros_error = function(string)
 {
@@ -273,68 +254,21 @@ ros.dump = function(string) {
   ros_info(string);
 };
 
-/**
- * Gets the value of a matrix as a string.
- * @param {} matrix Matrix4 to get value of.
- * @param {string} opt_prefix Optional prefix for indenting.
- * @return {string} Value of param.
- */
-ros.getMatrixAsString = function(matrix, rows, cols, opt_prefix) {
-  opt_prefix = opt_prefix || '';
-  var result = opt_prefix + '[';
-  for (var i = 0; i<rows; ++i){
-    var mi = sglGetRowM4(matrix,i);
-    result += '[';
-    for (var j = 0; j<cols; ++j) {
-      result += mi[j];
-      if (j < mi.length - 1) {
-        result += ', ';
-      } else {
-        result += ']';
-      }
-    }
-    if (i < rows - 1) {
-      result += '\n';
-      result += opt_prefix;
-    }
-  }
-  result += ']';
-  return result;
-};
-
-/**
- * Dumps a matrix
- * @param {string} label Label to put in front of dump.
- * @param {} matrix Matrix to dump.
- * @param {string} opt_prefix optional prefix for indenting.
- */
-ros.dumpMatrix = function(label, matrix, rows, cols, opt_prefix) {
-  opt_prefix = opt_prefix || '';
-  ros.dump(
-      opt_prefix + label + ' :\n' +
-      ros.getMatrixAsString(matrix, rows, cols, opt_prefix + '    ') +
-      '\n');
-};
-
 // First find the path to the directory where all ros-webgl sources live.
 ros.findBasePath_();
 
-//include all system files at once
-ros.include('classUtil');
-ros.include('serviceclient');
-ros.include('publisher');
-ros.include('nodehandle');
-ros.include('actionlib/actionlib');
+//include all files at once
+ros.include('class');
+ros.include('system/time');
+ros.include('system/map');
+ros.include('system/tree');
+ros.include('core/core');
+ros.include('math/math');
+ros.include('geometry/geometry');
 ros.include('roslib/roslib');
-//ros.include('system/time');
-//ros.include('system/map');
-//ros.include('system/tree');
-//ros.include('math/math');
-//ros.include('pcl/pcl');
-//ros.include('urdf/urdf');
-//ros.include('webgl/webgl');
-//ros.include('tf/tf');
-//ros.include('widgets/widgets');
-//ros.include('pickandplace/pickandplace');
-
+ros.include('pcl/pcl');
+ros.include('urdf/urdf');
+ros.include('tf/tf');
+ros.include('actionlib/actionlib');
+ros.include('widgets/widgets');
 

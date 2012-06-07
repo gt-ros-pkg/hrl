@@ -1,0 +1,95 @@
+K 25
+svn:wc:ra_dav:version-url
+V 81
+/svnroot/bosch-ros-pkg/!svn/ver/1339/trunk/stacks/remote_lab/rosjs_common/js/urdf
+END
+pose.js
+K 25
+svn:wc:ra_dav:version-url
+V 89
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/pose.js
+END
+cylinder.js
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/cylinder.js
+END
+color.js
+K 25
+svn:wc:ra_dav:version-url
+V 90
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/color.js
+END
+joint.js
+K 25
+svn:wc:ra_dav:version-url
+V 90
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/joint.js
+END
+vector3.js
+K 25
+svn:wc:ra_dav:version-url
+V 92
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/vector3.js
+END
+sphere.js
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/sphere.js
+END
+box.js
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/box.js
+END
+geometry.js
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/geometry.js
+END
+mesh.js
+K 25
+svn:wc:ra_dav:version-url
+V 89
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/mesh.js
+END
+link.js
+K 25
+svn:wc:ra_dav:version-url
+V 89
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/link.js
+END
+material.js
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/material.js
+END
+rotation.js
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svnroot/bosch-ros-pkg/!svn/ver/1210/trunk/stacks/remote_lab/rosjs_common/js/urdf/rotation.js
+END
+model.js
+K 25
+svn:wc:ra_dav:version-url
+V 90
+/svnroot/bosch-ros-pkg/!svn/ver/1339/trunk/stacks/remote_lab/rosjs_common/js/urdf/model.js
+END
+urdf.js
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/svnroot/bosch-ros-pkg/!svn/ver/464/trunk/stacks/remote_lab/rosjs_common/js/urdf/urdf.js
+END
+visual.js
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svnroot/bosch-ros-pkg/!svn/ver/1339/trunk/stacks/remote_lab/rosjs_common/js/urdf/visual.js
+END

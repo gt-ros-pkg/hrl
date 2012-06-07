@@ -7,7 +7,7 @@
     <script type="text/javascript" src="jqueryui/js/jquery-ui-1.8.10.custom.min.js"></script> 
     <script type="text/javascript" src="js/json2.js"></script>
     <script type="text/javascript" src="js/rosbridge.min.js"></script>
-    <script type="text/javascript" src="ros/ros.js"> </script>
+    <script type="text/javascript" src="rosjs_common/js/common.js"> </script>
     <script type="text/javascript" src="js/rfh_teleop.js"> </script>
     <script type="text/javascript" src="js/rfh_shaving.js"> </script>
     <script type="text/javascript" src="js/rfh_clickable_video.js"> </script>
@@ -59,41 +59,53 @@ $(function(){
 });
 
 function init(){
+    log("Starting Init");
+    log('out of messge');
     init_subscribers();
-    init_msgs();
     init_publishers();
+    init_action_clients();
     camera_init();
     teleop_init();
     shaving_init();
 	log('Fully Initialized');
+    load_params();
+//    init_msgs();
 };
 
-
 function init_msgs (){
-    //log("Beginning Initialization");
+    log("Beginning Message Init");
 	if (!window.point_2d){
-        //log("Looking for Pixel_2_3d service");
+        log("Looking for Pixel_2_3d service");
 		node.rosjs.callService('/rosbridge/reqClassFromTypeString',
                                '["pixel_2_3d/Pixel23d"]',
                                function(msg){window.point_2d=msg; init_msgs()});
 	}else if (!window.gm_point){
-        //log('PoseStamped Initialized, trying Geometry_msgs Point'); 
+        log('Looking for Geometry_msgs Point'); 
 		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
                                '["geometry_msgs/Point"]',
                                function(msg){window.gm_point=msg; init_msgs()});
 	}else if (!window.JTAGoal){
-        //log('Geometry_msgs Point Initialized, trying Joint Trajectory Action Goal');
+        log('Looking for JointTrajectoryActionGoal');
 		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
                           '["pr2_controllers_msgs/JointTrajectoryActionGoal"]',
                           function(msg){window.JTAGoal=msg; init_msgs()});
+	}else if (!window.TrajPlayGoal){
+        log('Looking for TrajectoryPlayGoal'); 
+		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
+                               '["pr2_traj_playback/TrajectoryPlayGoal"]',
+                               function(msg){window.TrajPlayGoal=msg; init_msgs()});
 	}else {
-        //log('Joint Trajectory Action Goal Initialized, loading video'); 
+        log('loading video1'); 
         $('#force_view').slider("option", "disabled", true);
+        log('loading video2'); 
         set_camera("kinect_head/rgb/image_color");
+        log('loading video3'); 
 	};
+    //log("End Message Init");
 };
 
 function init_subscribers() {
+    log("Begin Subscriber Init")
 	node.subscribe('/r_gripper_controller_state_throttle',
                     function(msg){
                         $('#rg_slider').show().slider("option", "value", msg.process_value);
@@ -119,9 +131,11 @@ function init_subscribers() {
                        set_ft_bar(Math.min(mag, 12)/12, 0.5);
                        $('#ft_readout').html('<p>'+mag.toFixed(1)+' N </p>')
                    });
+    log("End Subscriber Init")
 };//END sub_state
 
 function init_publishers() {
+    log("Begin Publisher Init")
 	//Gripper Publishers
     node.publish('wt_r_gripper_commands','pr2_controllers_msgs/Pr2GripperCommand',json({}));
 	node.publish('wt_l_gripper_commands','pr2_controllers_msgs/Pr2GripperCommand',json({}));
@@ -136,7 +150,35 @@ function init_publishers() {
 	node.publish('torso_controller/position_joint_action/goal','pr2_controllers_msgs/SingleJointPositionActionGoal',json({}));
     node.publish('wt_ft_goal', 'std_msgs/Float32', json({}));
     node.publish('wt_click_log', 'std_msgs/String', json({}));
+    log("End Publisher Init")
 };
+
+function init_action_clients(){
+    log("Begin Action Client Init");
+    var traj_play_act_spec = new ros.actionlib.ActionSpec('pr2_traj_playback/TrajectoryPlayAction');
+    window.traj_play_r_client = new ros.actionlib.SimpleActionClient(node,'/trajectory_playback_r', traj_play_act_spec);
+    window.traj_play_l_client = new ros.actionlib.SimpleActionClient(node,'/trajectory_playback_l', traj_play_act_spec);
+
+    traj_play_r_client.wait_for_server(10, function(e){
+          if(!e) {
+            log("Couldn't find action server.");
+          } else {
+            //log("Found Right Trajectory Playback Action");
+          };
+      });
+    traj_play_l_client.wait_for_server(10, function(e){
+          if(!e) {
+            log("Couldn't find action server.");
+          } else {
+            //log("Found Left Trajectory Playback Action");
+          };
+      });
+    log("End Action Client Init");
+};
+
+function load_params(){
+    node.getParam('face_adls_traj_files', function(params){window.traj_files = params; log("In got params")});
+    };
 
 function empty_srv(service){
 	node.rosjs.callService(service, json(''), nop);
@@ -185,6 +227,17 @@ function speak(text){
 		node.publish('wt_speech', 'std_msgs/String', json({'data':text}));
 		log('\"' + text +'\"'); 
 };
+
+function traj_play_send_goal(){
+    goal = window.TrajPlayGoal
+    goal.mode = parseInt($('input[name=traj_play_radio]:checked','#traj_play_radio').val());
+    goal.reverse = $("traj_play_reverse").is(":checked");
+    goal.setup_velocity = 0.1;
+    goal.traj_rate_mult = 0.8;
+    goal.filepath = "SOME/FiLE/PATH"
+    window.traj_play_r_client.send_goal(goal)
+};
+
 
 function start(){
     node = new ros.NodeHandle('ws://'+ ROBOT + ':9091');
@@ -482,16 +535,16 @@ function start(){
         </tr>
         <tr>
           <td colspan=2>
-            <form>
-              <div id="traj_play_radio" style="margin-left:auto; margin-right:auto">
-                <input type="radio" id="traj_play_setup" name="radio" />
+            <div>
+              <form id="traj_play_radio">
+                <input type="radio" id="traj_play_setup" name="traj_play_radio" value=1/>
                 <label for="traj_play_setup"> Move to Setup </label>
-                <input type="radio" id="traj_play_exec" name="radio" />
+                <input type="radio" id="traj_play_exec" name="traj_play_radio" value=2/>
                 <label for="traj_play_exec"> Execute Traj. </label>
-                <input type="radio" id="traj_play_set_and_exec" name="radio" checked="checked" />
+                <input type="radio" id="traj_play_set_and_exec" name="traj_play_radio" value=3 checked="checked" />
                 <label for="traj_play_set_and_exec"> Setup AND Execute </label>
-              </div>
-            </form>
+              </form>
+            </div>
           </td>
         </tr>
         <tr>
@@ -505,13 +558,13 @@ function start(){
             <table>
               <tr>
                 <td>
-                  <button id='traj_play_play' style="font-size:150%;height:75;width:150" onclick="traj_play_plab();"> Play </button>
+                  <button id='traj_play_play' style="font-size:150%;height:75;width:150" onclick="traj_play_send_goal();"> Play </button>
                 </td>
                 <td>
-                  <button id='traj_play_stop' style="font-size:150%;height:75;width:150" onclick="empty_srv();"> Pause </button>
+                  <button id='traj_play_stop' style="font-size:150%;height:75;width:150" onclick="empty_srv('trajectory_playback_r_pause');empty_srv('trajectory_playback_l_pause');"> Pause </button>
                 </td>
                 <td>
-                  <button id='traj_play_reset' style="font-size:150%;height:75;width:150" onclick="empty_srv('')"> Reset </button>
+                  <button id='traj_play_reset' style="font-size:150%;height:75;width:150" onclick="empty_srv('trajectory_playback_r_stop');empty_srv('trajectory_playback_l_stop')"> Stop </button>
                 </td>
               </tr>
             </table>
