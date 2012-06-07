@@ -158,6 +158,18 @@ namespace pixel_2_3d {
         std::vector<int> inds;
         pcl::removeNaNFromPointCloud<PRGB>(*near_pts, *near_pts, inds);
 
+        uint32_t closest_ind;
+        double closest_dist = 1000, cur_dist;
+        for(uint32_t i=0;i<inds.size();i++) {
+            cur_dist = DIST3(pt3d_trans.point.x, pt3d_trans.point.y, pt3d_trans.point.z,
+                             near_pts->points.at(i).x, near_pts->points.at(i).y, 
+                             near_pts->points.at(i).z);
+            if(cur_dist < closest_dist) {
+                closest_dist = cur_dist;
+                closest_ind = i;
+            }
+        }
+
         // Compute normals
         pcl::PointCloud<pcl::Normal>::Ptr normals_ptr(new pcl::PointCloud<pcl::Normal>());
         pcl::KdTree<PRGB>::Ptr normals_tree (new pcl::KdTreeFLANN<PRGB> ());
@@ -171,12 +183,10 @@ namespace pixel_2_3d {
         mls.setSearchRadius(normal_search_radius);
         mls.reconstruct(mls_points);
 
-        int pc_ind_near = std::find(inds.begin(), inds.end(), pc_ind) - inds.begin();
-
         // convert normal to quaternion
-        double nx = normals_ptr->points[pc_ind_near].normal[0];
-        double ny = normals_ptr->points[pc_ind_near].normal[1];
-        double nz = normals_ptr->points[pc_ind_near].normal[2];
+        double nx = normals_ptr->points[closest_ind].normal[0];
+        double ny = normals_ptr->points[closest_ind].normal[1];
+        double nz = normals_ptr->points[closest_ind].normal[2];
         double dot = nx*pt3d_trans.point.x + ny*pt3d_trans.point.y + nz*pt3d_trans.point.z;
         if(dot > 0) { nx = -nx; ny = -ny; nz = -nz; }
         double j = std::sqrt(1/(1+ny*ny/(nz*nz)));
@@ -194,10 +204,10 @@ namespace pixel_2_3d {
         pt3d_pose.pose.position.x = pt3d_trans.point.x;
         pt3d_pose.pose.position.y = pt3d_trans.point.y;
         pt3d_pose.pose.position.z = pt3d_trans.point.z;
-        pt3d_pose.pose.orientation.x = 0;//quat.getX();
-        pt3d_pose.pose.orientation.y = 0;//quat.getY();
-        pt3d_pose.pose.orientation.z = 0;//quat.getZ();
-        pt3d_pose.pose.orientation.w = 1;//quat.getW();
+        pt3d_pose.pose.orientation.x = quat.getX();
+        pt3d_pose.pose.orientation.y = quat.getY();
+        pt3d_pose.pose.orientation.z = quat.getZ();
+        pt3d_pose.pose.orientation.w = quat.getW();
         
         if(output_frame == "")
             output_frame = cur_pc->header.frame_id;
