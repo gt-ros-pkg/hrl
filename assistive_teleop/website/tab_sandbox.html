@@ -11,6 +11,8 @@
     <script type="text/javascript" src="js/rfh_teleop.js"> </script>
     <script type="text/javascript" src="js/rfh_shaving.js"> </script>
     <script type="text/javascript" src="js/rfh_clickable_video.js"> </script>
+    <link href="keyboard/css/keyboard.css" rel="stylesheet">
+	<script src="keyboard/js/jquery.keyboard.js"></script>
 
 <script type="text/javascript">
 function nop(){};
@@ -21,7 +23,10 @@ arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 var ROBOT = 'monty1';
 
 $(function(){
+    $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
     $("#tabs").tabs()
+    $("#traj_play_radio").buttonset();
+    $("#traj_play_reverse").button();
     $(':button').click(log_click);
 	$('#force_view').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
 	$('#force_set').slider({value:1,min:0,max:12,step:0.05,orientation:'vertical'}); 
@@ -133,6 +138,11 @@ function init_publishers() {
     node.publish('wt_click_log', 'std_msgs/String', json({}));
 };
 
+function empty_srv(service){
+	node.rosjs.callService(service, json(''), nop);
+    };
+
+
 function log_click(event){
     node.publish('wt_click_log', 'std_msgs/String', json({'data':event.target.id.toString()}));
     //log(event.target.id);
@@ -175,11 +185,6 @@ function speak(text){
 		node.publish('wt_speech', 'std_msgs/String', json({'data':text}));
 		log('\"' + text +'\"'); 
 };
-
-function toggle_motors(command) { //command = 'halt' or 'reset'
-	node.rosjs.callService('/pr2_etherCAT/'+command+'_motors', json(''), nop);
-};
-
 
 function start(){
     node = new ros.NodeHandle('ws://'+ ROBOT + ':9091');
@@ -414,11 +419,35 @@ function start(){
     </div><!-- END TAB CART CONTROL -->
 
     <div id="tab_ar_servoing">
-      <table class='ar_servo_controls'>
+      <table>
         <tr>
-          <td><button id='servo_detect_tag' style="font-size:150%;height:75;width:150" onclick="servo_detect_tag_cb();"> Detect Tag </button></td>
-          <td><button id='servo_approach' style="font-size:150%;height:75;width:150" onclick="servo_approach_cb();"> Approach </button></td>
-          <td><button id='servo_stop' style="font-size:150%;background-color:red;height:75;width:150" onclick="log('Stopping'); servo_preempt();"> Stop </button></td>
+          <td>
+            <div id="ar_servo_combo">
+              <select>
+                <option value="base_pose_1"> Base Pose 1 </option>
+                <option value="base_pose_2"> Base Pose 2 </option>
+              </select>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class='ar_servo_buttons' id='ar_servo_buttons'>
+              <table>
+                <tr>
+                  <td>
+                    <button id='servo_detect_tag' style="font-size:150%;height:75;width:150" onclick="servo_detect_tag_cb();"> Detect Tag </button>
+                  </td>
+                  <td>
+                    <button id='servo_approach' style="font-size:150%;height:75;width:150" onclick="servo_approach_cb();"> Approach </button>
+                  </td>
+                  <td>
+                    <button id='servo_stop' style="font-size:150%;background-color:red;height:75;width:150" onclick="log('Stopping'); servo_preempt();"> Stop </button>
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </td>
         </tr>
       </table>
     </div>
@@ -426,23 +455,67 @@ function start(){
     <div id="tab_traj_play">
       <table>
         <tr>
-          <td>Select Trajectory:</td>
           <td>
-            <select onchange="traj_play_send($(this).val());">
-              <option value="shaving_untuck">Un-Tuck</option>
-              <option value="shaving_retuck">Re-Tuck</option>
-            </select>
+            <div id="traj_play_select">
+              <table>
+                <tr>
+                  <td>Select Trajectory:</td>
+                  <td>
+                    <select onchange="traj_play_send($(this).val());">
+                      <option value="shaving_untuck">Un-Tuck</option>
+                      <option value="shaving_retuck">Re-Tuck</option>
+                    </select>
+                  </td>
+                </tr>
+              </table>
+            <div>
+          </td>
+          <td>
+            <input type="checkbox" id="traj_play_reverse" />
+            <label for="traj_play_reverse"> Play Backward (Reverse) </label>
           </td>
         </tr>
         <tr>
-          <td>
-            <button id='traj_play_play' style="font-size:150%;height:75;width:150" onclick="traj_play_plab();"> Play </button>
+          <td colspan=2>
+            <hr>
+          </td> 
+        </tr>
+        <tr>
+          <td colspan=2>
+            <form>
+              <div id="traj_play_radio" style="margin-left:auto; margin-right:auto">
+                <input type="radio" id="traj_play_setup" name="radio" />
+                <label for="traj_play_setup"> Move to Setup </label>
+                <input type="radio" id="traj_play_exec" name="radio" />
+                <label for="traj_play_exec"> Execute Traj. </label>
+                <input type="radio" id="traj_play_set_and_exec" name="radio" checked="checked" />
+                <label for="traj_play_set_and_exec"> Setup AND Execute </label>
+              </div>
+            </form>
           </td>
-          <td>
-            <button id='traj_play_stop' style="font-size:150%;height:75;width:150" onclick="traj_play_stop();"> Pause </button>
-          </td>
-          <td>
-            <button id='traj_play_reverse' style="font-size:150%;background-color:red;height:75;width:150" onclick="traj_play_reverse();"> Reverse </button>
+        </tr>
+        <tr>
+          <td colspan=2>
+            <hr>
+          </td> 
+        </tr>
+        <tr>
+          <td colspan=2>
+            <div id="traj_play_buttons">
+            <table>
+              <tr>
+                <td>
+                  <button id='traj_play_play' style="font-size:150%;height:75;width:150" onclick="traj_play_plab();"> Play </button>
+                </td>
+                <td>
+                  <button id='traj_play_stop' style="font-size:150%;height:75;width:150" onclick="empty_srv();"> Pause </button>
+                </td>
+                <td>
+                  <button id='traj_play_reset' style="font-size:150%;height:75;width:150" onclick="empty_srv('')"> Reset </button>
+                </td>
+              </tr>
+            </table>
+            </div>
           </td>
         </tr>
       </table>
@@ -479,34 +552,41 @@ function start(){
 
     <div id="tab_tts">
       <div id=speech_select>  <!--Speak Button and Text Input -->
-            <table><tr>
-              <form action=''>
-                 <td><button id="submit_text" type="button">Speak:</button></td>
-                 <td><input id="txt2say" type="text" style="height:auto;width:105%"/></td>
-              </form>
-            </tr>
-        <tr>
+        <table>
+          <tr>
+            <form action=''>
+              <td>
+                <button id="submit_text" type="button">Speak:</button>
+              </td>
+              <td> 
+                <input id="txt2say" type="text" style="height:auto;width:105%"/>
+              </td>
+            </form>
+          </tr>
+          <tr>
             <td>Phrases:</td>
-            <td><select onchange="speak($(this).val()); $('#txt2say').val($(this).val())">
-            <option value="Yes">Yes</option>
-            <option value="No">No</option>
-            <option value="Maybe">Maybe</option>
-            <option value="OK">Ok</option>
-            <option value="k">k</option>
-            <option value="Board Please">Board Please</option>
-            <option value="I don't know">I Don't Know</option>
-            <option value="I don't care">I Don't Care</option>
-            <option value="One Moment">One Moment</option>
-            <option value="Please">Please</option>
-            <option value="Thank You">Thank You</option>
-            <option value="I agree">I agree</option>
-            <option value="I disagree">I disagree</option>
-            <option value="A lot">A lot</option>
-            <option value="A little">A little</option>
-            <option value="Hello">Hello</option>
-            <option value="Goodbye">Goodbye</option>
-            </select></td>
-        </tr>
+            <td>
+              <select onchange="speak($(this).val()); $('#txt2say').val($(this).val())">
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="Maybe">Maybe</option>
+                <option value="OK">Ok</option>
+                <option value="k">k</option>
+                <option value="Board Please">Board Please</option>
+                <option value="I don't know">I Don't Know</option>
+                <option value="I don't care">I Don't Care</option>
+                <option value="One Moment">One Moment</option>
+                <option value="Please">Please</option>
+                <option value="Thank You">Thank You</option>
+                <option value="I agree">I agree</option>
+                <option value="I disagree">I disagree</option>
+                <option value="A lot">A lot</option>
+                <option value="A little">A little</option>
+                <option value="Hello">Hello</option>
+                <option value="Goodbye">Goodbye</option>
+              </select>
+            </td>
+          </tr>
         </table>
       </div>  <!--End Speak Button + Text -->
     </div> <!--END Tab TTS -->
@@ -561,11 +641,11 @@ function start(){
 </td>
 <td> <!-- Gross Formating-->
 <tr><td>
-  <button id="stop" type="button" style="color:red;background-color:gray;font:bold;height:auto;border-style:none;height:30px;width:100%;" onclick="toggle_motors('halt'); $(':button:visible:not(#reset)').fadeTo(0,0.4); $('#reset').show(); log('YOU\'VE STOPPED THE ROBOT! Please click \'REACTIVATE\' to reset.')">STOP ROBOT! </button> 
+  <button id="stop" type="button" style="color:red;background-color:gray;font:bold;height:auto;border-style:none;height:30px;width:100%;" onclick="empty_srv('/pr2_etherCAT/halt_motors'); $(':button:visible:not(#reset)').fadeTo(0,0.4); $('#reset').show(); log('YOU\'VE STOPPED THE ROBOT! Please click \'REACTIVATE\' to reset.')">STOP ROBOT! </button> 
   </td>
 </tr><tr>
   <td>
-    <button id="reset" type="button" style="color:white;background-color:green;font:bold;height:30px;width:100%" onclick="toggle_motors('reset'); $(':button:visible').fadeTo(0,1); $(this).hide(); log('Operation Resumed.');">REACTIVATE</button>
+    <button id="reset" type="button" style="color:white;background-color:green;font:bold;height:30px;width:100%" onclick="empty_srv('/pr2_etherCAT/reset_motors'); $(':button:visible').fadeTo(0,1); $(this).hide(); log('Operation Resumed.');">REACTIVATE</button>
  </td>
 </tr>
 </table> <!--END Gross Formating-->
