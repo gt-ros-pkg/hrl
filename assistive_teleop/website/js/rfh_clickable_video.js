@@ -75,6 +75,10 @@ function image_click(event){
            $('#img_act_select').val('looking');
            window.img_act = 'looking';
         }
+    }else if (window.img_act == 'seed_reg'){
+        node.rosjs.callService('/initialize_registration',
+                            '['+json(window.point_2d.pixel_u)+','+json(window.point_2d.pixel_v)+']',
+                            nop)
     }else{
 	get_im_3d(im_pixel[0],im_pixel[1])
 	};

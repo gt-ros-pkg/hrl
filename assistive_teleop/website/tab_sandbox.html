@@ -1,7 +1,6 @@
 <html>
 <head>
   <title>Teleop Trial</title>
-    <link type="text/css" href="css/rfh_interface.css" rel="stylesheet" />   
     <link type="text/css" href="jqueryui/css/sunny/jquery-ui-1.8.10.custom.css" rel="stylesheet" />   
     <script type="text/javascript" src="jqueryui/js/jquery-1.4.4.min.js"></script> 
     <script type="text/javascript" src="jqueryui/js/jquery-ui-1.8.10.custom.min.js"></script> 
@@ -13,6 +12,7 @@
     <script type="text/javascript" src="js/rfh_clickable_video.js"> </script>
     <link href="keyboard/css/keyboard.css" rel="stylesheet">
 	<script src="keyboard/js/jquery.keyboard.js"></script>
+    <link type="text/css" href="css/rfh_interface.css" rel="stylesheet" />   
 
 <script type="text/javascript">
 function nop(){};
@@ -20,14 +20,14 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){ document.getElementById('console').innerHTML = message.toString();};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-//var ROBOT = 'monty1';
-var ROBOT = 'localhost';
+var ROBOT = 'monty1';
+//var ROBOT = 'localhost';
 
 $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
     $("#tabs").tabs()
     $("#traj_play_radio").buttonset();
-    $("#traj_play_reverse").button();
+    $(".bpd, .cont_sel, #traj_play_reverse, #ell_controller, #reg_head, #tool_power").button();
     $(':button').click(log_click);
 	$('#force_view').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
 	$('#force_set').slider({value:1,min:0,max:12,step:0.05,orientation:'vertical'}); 
@@ -61,16 +61,15 @@ $(function(){
 
 function init(){
     log("Starting Init");
-    log('out of messge');
+    init_msgs();
     init_subscribers();
     init_publishers();
     init_action_clients();
-    camera_init();
     teleop_init();
     shaving_init();
+    camera_init();
+    init_params();
 	log('Fully Initialized');
-    load_params();
-//    init_msgs();
 };
 
 function init_msgs (){
@@ -96,13 +95,10 @@ function init_msgs (){
                                '["pr2_traj_playback/TrajectoryPlayGoal"]',
                                function(msg){window.TrajPlayGoal=msg; init_msgs()});
 	}else {
-        log('loading video1'); 
         $('#force_view').slider("option", "disabled", true);
-        log('loading video2'); 
         set_camera("kinect_head/rgb/image_color");
-        log('loading video3'); 
 	};
-    //log("End Message Init");
+    log("End Message Init");
 };
 
 function init_subscribers() {
@@ -177,18 +173,19 @@ function init_action_clients(){
     log("End Action Client Init");
 };
 
-function load_params(){
+function init_params(){
     node.rosjs.callService('/rosbridge/get_param','["face_adls_traj_files"]',
-                           function(msg){list_options('traj_play_select', msg)});
+                          function(msg){list_opts('#traj_play_select', msg)});
     };
 
-function list_options(cont_sel, dict){
+function list_opts(cont_sel, dict){
     for (var key in dict){
-        $("#"+cont_sel).append('<option value="'+dict[key]+'">'+key+'</option>');
+        $(cont_sel).append('<option value="'+dict[key]+'">'+key+'</option>');
         };
 };
 
 function empty_srv(service){
+    log("Making Empty Call to "+service)
 	node.rosjs.callService(service, json(''), nop);
     };
 
@@ -236,14 +233,24 @@ function speak(text){
 		log('\"' + text +'\"'); 
 };
 
+function head_reg_cb(){
+        window.img_act = 'seed_reg';
+        alert('Click your head in the video to seed the ellipse registratoin')
+    };
+
 function traj_play_send_goal(){
-    goal = window.TrajPlayGoal
+    goal = window.TrajPlayGoal;
     goal.mode = parseInt($('input[name=traj_play_radio]:checked','#traj_play_radio').val());
-    goal.reverse = $("traj_play_reverse").is(":checked");
+    goal.reverse = $("#traj_play_reverse").is(":checked");
     goal.setup_velocity = 0.1;
     goal.traj_rate_mult = 0.8;
-    goal.filepath = "SOME/FiLE/PATH"
-    window.traj_play_r_client.send_goal(goal)
+    goal.filepath = $("#traj_play_select option:selected").val()
+    if ($("#traj_play_select option:selected").text().slice(1,2) == 'R'){
+        window.traj_play_r_client.send_goal(goal)
+    } else if ($("#traj_play_select option:selected").text().slice(1,2) == 'L'){
+        window.traj_play_l_client.send_goal(goal)
+    } else {log("Cannot Tell Which Arm to use based on filepath")};
+    log("sending Trajectory Play Goal");
 };
 
 
@@ -483,10 +490,8 @@ function start(){
       <table>
         <tr>
           <td>
-            <div id="ar_servo_combo">
-              <select>
-                <option value="base_pose_1"> Base Pose 1 </option>
-                <option value="base_pose_2"> Base Pose 2 </option>
+            <div>
+              <select id="ar_servo_select">
               </select>
             </div>
           </td>
@@ -511,7 +516,7 @@ function start(){
           </td>
         </tr>
       </table>
-    </div>
+    </div><!-- END Tab Ar Servo -->
     
     <div id="tab_traj_play">
       <table>
@@ -522,7 +527,7 @@ function start(){
                 <tr>
                   <td>Select Trajectory:</td>
                   <td>
-                    <select id="traj_play_select" onchange="traj_play_send($(this).val());">
+                    <select id="traj_play_select">
                     </select>
                   </td>
                 </tr>
@@ -567,10 +572,10 @@ function start(){
                   <button id='traj_play_play' style="font-size:150%;height:75;width:150" onclick="traj_play_send_goal();"> Play </button>
                 </td>
                 <td>
-                  <button id='traj_play_stop' style="font-size:150%;height:75;width:150" onclick="empty_srv('trajectory_playback_r_pause');empty_srv('trajectory_playback_l_pause');"> Pause </button>
+                  <button id='traj_play_stop' style="font-size:150%;height:75;width:150" onclick="empty_srv('/trajectory_playback_r_pause');empty_srv('/trajectory_playback_l_pause');"> Pause </button>
                 </td>
                 <td>
-                  <button id='traj_play_reset' style="font-size:150%;height:75;width:150" onclick="empty_srv('trajectory_playback_r_stop');empty_srv('trajectory_playback_l_stop')"> Stop </button>
+                  <button id='traj_play_reset' style="font-size:150%;height:75;width:150" onclick="empty_srv('/trajectory_playback_r_stop');empty_srv('/trajectory_playback_l_stop')"> Stop </button>
                 </td>
               </tr>
             </table>
@@ -581,32 +586,101 @@ function start(){
     </div>
 
     <div id="tab_ellipse">
-        <div id='bpd2'> <!--Buttonpad Controls-->
-          <table>
-            <tr><td rowspan="4">
-              <div style="height:215px" id="slider"></div>
-            </td></tr>
-            <tr>
-              <td><button class="bpd" id="bpd2_b7" type="button" value=1 onclick="shave_step(0,0,-1)"> Ellipse In </button></td>
-              <td><button class="bpd" id="bpd2_b8" type="button" value=1 onclick="shave_step(0,1,0)"> ^ </button></td>
-              <td><button class="bpd" id="bpd2_b9" type="button" value=1 onclick="shave_step(0,0,1)"> Ellipse Out </button></td>
-            </tr>
-            <tr>
-              <td><button class="bpd" id="bpd2_b4" type="button" value="1" onclick="shave_step(-1,0,0)"><</button></td>
-              <td><!--<button class="bpd" id="bpd2_b5" type="button" value=1 onclick="shave(0)"> Current </button>--></td>
-              <td><button class="bpd" id="bpd2_b6" type="button" value="-1" onclick="shave_step(1,0,0)">></button></td>
-            </tr>
-            <tr>
-              <td>
-              <!--<button class="bpd" id="bpd2_b1" type="button" value=1 onclick="shave(-1)"> Prev. </button>-->
-              </td>
-              <td><button class="bpd" id="bpd2_b2" type="button" value="-1" onclick="shave_step(0,-1,0)">v</button></td>
-              <td>
-              <!--<button class="bpd" id="bpd2_b3" type="button" value=1 onclick="shave(1)"> Next </button>-->
-              </td>
-            </tr>
-          </table>
-        </div> <!--END buttonpad controls -->
+      <table>
+        <tr>
+          <td>
+            <table>
+              <tr>
+                <th> Action </th>
+              </tr>
+              <tr>
+                <td>
+                  <button class="centered" id="reg_head" onclick="head_reg_cb()"> Register Head </button>
+                </td>
+              </tr>
+                <td>
+                  </hr>
+                </td>
+              <tr>
+                <th> Toggles </th>
+              </tr>
+              <tr>
+                <td>
+                  <input type="checkbox" class="centered" id="ell_controller" />
+                  <label for="ell_controller"> Ellipsoidal Control </label>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                   <button class="centered" id="tool_power" onclick="toggle_tool_power()">Start/Stop Razor</button>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <td>
+            <div id='bpd_ell_trans'> <!-- Translate Ellipse Buttonpad-->
+              <table>
+                <tr>
+                  <th colspan="4"> Translate </th>
+                </tr>
+                <tr><td rowspan="4">
+                  <div style="height:215px" id="slider"></div>
+                </td></tr>
+                <tr>
+                  <td><button class="bpd arrow_trans_in" id="b7" value=1 onclick="shave_step('translate_in')"/></td>
+                  <td><button class="bpd arrow_trans_up" id="b8" value=1 onclick="shave_step('translate_up')"/></td>
+                  <td><button class="bpd arrow_trans_out" id="b9" value=1 onclick="shave_step('translate_out')"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd arrow_trans_left" id="b4" value="1" onclick="shave_step('translate_left')"/></td>
+                  <td><button class="bpd" id="b5" value=1 onclick="shave(0)"/></td>
+                  <td><button class="bpd arrow_trans_right" id="b6" value="-1" onclick="shave_step('translate_right')"/></td>
+                </tr>
+                <tr>
+                  <td>
+                  <button class="bpd" id="b1" onclick="shave_step()"/>
+                  </td>
+                  <td><button class="bpd arrow_trans_down" id="b2" onclick="shave_step('translate_down')"/>
+                  <td>
+                  <button class="bpd" id="b3" onclick="shave(1)"/>
+                  </td>
+                </tr>
+              </table>
+            </div> <!--END Translate Ellipse Buttonpad -->
+          </td>
+          <td> 
+            <div id='bpd_ell_rot'> <!--Rotate Ellipse Buttonpad-->
+              <table>
+                <tr>
+                  <th colspan="4"> Rotate </th>
+                </tr>
+                <tr><td rowspan="4">
+                  <div style="height:215px" id="slider"></div>
+                </td></tr>
+                <tr>
+                  <td><button class="bpd arrow_rot_x_pos" id="b7" value=1 onclick="shave_step('rotate_x_pos')"/></td>
+                  <td><button class="bpd arrow_rot_y_pos" id="b8" value=1 onclick="shave_step('rotate_y_pos')"/></td>
+                  <td><button class="bpd arrow_rot_x_neg" id="b9" value=1 onclick="shave_step('rotate_x_neg')"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd arrow_rot_z_pos" id="b4" value="1" onclick="shave_step('rotate_z_pos')"/></td>
+                  <td><button class="bpd" id="b5" value=1 onclick="shave('reset_rotation')">Reset</button></td>
+                  <td><button class="bpd arrow_rot_z_neg" id="b6" value="-1" onclick="shave_step('rotate_z_neg')"/></td>
+                </tr>
+                <tr>
+                  <td>
+                  <button class="bpd" id="b1" onclick="shave_step()"/>
+                  </td>
+                  <td><button class="bpd arrow_rot_y_neg" id="b2" onclick="shave_step('rotate_y_neg')"/>
+                  <td>
+                  <button class="bpd" id="b3" onclick="shave(1)"/>
+                  </td>
+                </tr>
+              </table>
+            </div> <!--END Ellipse Rotate buttonpad -->
+          </td>
+        </tr>
+      </table>
     </div><!--END Tab ellipse -->
 
     <div id="tab_tts">

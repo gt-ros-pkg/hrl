@@ -8,7 +8,7 @@ function shaving_init(){
     node.subscribe('/pr2_ar_servo/state_feedback', function(msg){
                     servo_feedback_cb(msg);}
                     );
-    node.subscribe('/shaving_state', function(msg){
+    node.subscribe('/face_adls/controller_state', function(msg){
                     shaving_feedback_cb(msg);}
                     );
     
@@ -125,7 +125,7 @@ function reg_confirm_cb() {
     $('#reg_confirm').hide();
     node.rosjs.callService('/setup_arms_shaving', json(''), function(msg){
         $('#tp').hide();
-        $('#bpd2, #shave_select, #tool_power, #bpd2, #shave, #rezero_wrench').show();
+        $('#bpd_ell_trans, #bpd_ell_rot, #shave_select, #tool_power, #shave, #rezero_wrench').show();
         log('Untucking arms to begin shaving.');
         node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({'data':true}));
         log("Sending command to prepare for shaving.");
@@ -139,9 +139,9 @@ function get_shave_side() {
                            function(msg){window.shaving_side = msg;});
 };
 
-function shave_step(x,y,z) {points = window.gm_point;
-                        points.x = x; points.y = y; points.z = z;
-                        node.publish('/wt_shave_step', 'geometry_msgs/Point', json(points));
+function shave_step(cmd_str) {
+                        node.publish('/face_adls/local_move', 'std_msgs/String',
+                                    json(cmd_str));
                         log("Sending Adjustment to Shaving Position");
 };
 
@@ -224,7 +224,7 @@ function shaving_feedback_cb(msg){
 };
 
 function shave_end_cb() {
-$('#bpd2, #shave_select, #pc_snapshot, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave, #rezero_wrench').hide();
+$('#bpd_ell_trans, #bpd_ell_rot, #shave_select, #pc_snapshot, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave, #rezero_wrench').hide();
 $('#tp, #shave_start').show();
 $('#shave_end').hide();
 log('Closed Shaving Interface');
