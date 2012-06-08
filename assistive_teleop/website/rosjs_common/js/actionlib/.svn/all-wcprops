@@ -1,0 +1,71 @@
+K 25
+svn:wc:ra_dav:version-url
+V 86
+/svnroot/bosch-ros-pkg/!svn/ver/1181/trunk/stacks/remote_lab/rosjs_common/js/actionlib
+END
+actionlib.js
+K 25
+svn:wc:ra_dav:version-url
+V 99
+/svnroot/bosch-ros-pkg/!svn/ver/1178/trunk/stacks/remote_lab/rosjs_common/js/actionlib/actionlib.js
+END
+goalstatusarray.js
+K 25
+svn:wc:ra_dav:version-url
+V 105
+/svnroot/bosch-ros-pkg/!svn/ver/1178/trunk/stacks/remote_lab/rosjs_common/js/actionlib/goalstatusarray.js
+END
+goalstatus.js
+K 25
+svn:wc:ra_dav:version-url
+V 100
+/svnroot/bosch-ros-pkg/!svn/ver/1178/trunk/stacks/remote_lab/rosjs_common/js/actionlib/goalstatus.js
+END
+simpleactionclient.js
+K 25
+svn:wc:ra_dav:version-url
+V 108
+/svnroot/bosch-ros-pkg/!svn/ver/1181/trunk/stacks/remote_lab/rosjs_common/js/actionlib/simpleactionclient.js
+END
+actionspec.js
+K 25
+svn:wc:ra_dav:version-url
+V 100
+/svnroot/bosch-ros-pkg/!svn/ver/1178/trunk/stacks/remote_lab/rosjs_common/js/actionlib/actionspec.js
+END
+actionclient.js
+K 25
+svn:wc:ra_dav:version-url
+V 102
+/svnroot/bosch-ros-pkg/!svn/ver/1178/trunk/stacks/remote_lab/rosjs_common/js/actionlib/actionclient.js
+END
+clientgoalhandle.js
+K 25
+svn:wc:ra_dav:version-url
+V 106
+/svnroot/bosch-ros-pkg/!svn/ver/1178/trunk/stacks/remote_lab/rosjs_common/js/actionlib/clientgoalhandle.js
+END
+goalmanager.js
+K 25
+svn:wc:ra_dav:version-url
+V 101
+/svnroot/bosch-ros-pkg/!svn/ver/1178/trunk/stacks/remote_lab/rosjs_common/js/actionlib/goalmanager.js
+END
+goalid.js
+K 25
+svn:wc:ra_dav:version-url
+V 96
+/svnroot/bosch-ros-pkg/!svn/ver/1178/trunk/stacks/remote_lab/rosjs_common/js/actionlib/goalid.js
+END
+actiongoal.js
+K 25
+svn:wc:ra_dav:version-url
+V 100
+/svnroot/bosch-ros-pkg/!svn/ver/1178/trunk/stacks/remote_lab/rosjs_common/js/actionlib/actiongoal.js
+END
+commstatemachine.js
+K 25
+svn:wc:ra_dav:version-url
+V 106
+/svnroot/bosch-ros-pkg/!svn/ver/1178/trunk/stacks/remote_lab/rosjs_common/js/actionlib/commstatemachine.js
+END

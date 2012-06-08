@@ -114,7 +114,7 @@ function servo_feedback_cb(msg){
 };
 
 function pc_snapshot_cb() {
-    node.rosjs.callService('/take_pc_snapshot',json(''),nop);
+    empty_srv('/take_pc_snapshot')
     $('#reg_confirm').show();
     log('USE R-VIZ TO FULLY ALIGN ELLIPSE, THEN CLICK CONFIRM.');
 };

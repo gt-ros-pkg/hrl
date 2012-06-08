@@ -321,20 +321,20 @@ ros.findBasePath_();
 
 //include all system files at once
 ros.include('classUtil');
-ros.include('system/time');
-ros.include('system/map');
-ros.include('system/tree');
 ros.include('serviceclient');
 ros.include('publisher');
 ros.include('nodehandle');
-
+ros.include('actionlib/actionlib');
+ros.include('roslib/roslib');
+//ros.include('system/time');
+//ros.include('system/map');
+//ros.include('system/tree');
 //ros.include('math/math');
-//ros.include('roslib/roslib');
 //ros.include('pcl/pcl');
 //ros.include('urdf/urdf');
 //ros.include('webgl/webgl');
 //ros.include('tf/tf');
-ros.include('widgets/widgets');
+//ros.include('widgets/widgets');
 //ros.include('pickandplace/pickandplace');
 
 
