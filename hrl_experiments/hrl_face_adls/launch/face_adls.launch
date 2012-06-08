@@ -1,6 +1,8 @@
 <launch>
     <node pkg="hrl_face_adls" name="face_adls_manager" type="face_adls_manager.py"
-          output="screen" />
+          output="screen" >
+        <remap from="/face_adls/feedback" to="/wt_log_out" />
+    </node>
     <node pkg="hrl_head_tracking" name="head_tracking_srv" type="head_tracking_srv"
           output="screen" args="$(find hrl_head_tracking)/data/kelsey_2_face.bag">
           <param name="max_iters" value="300" />

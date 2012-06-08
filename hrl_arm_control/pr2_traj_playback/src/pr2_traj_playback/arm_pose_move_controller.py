@@ -3,12 +3,13 @@
 import numpy as np
 import cPickle as pickle
 from threading import Lock
+import copy
 
 import roslib
 roslib.load_manifest("pr2_traj_playback")
 import rospy
 from std_msgs.msg import String
-from std_srvs.srv import Empty
+from std_srvs.srv import Empty, EmptyResponse
 import tf.transformations as tf_trans
 import roslib.substitution_args
 import actionlib
@@ -41,6 +42,7 @@ class ArmPoseMoveBehavior(object):
         self.param_file = param_file
         self.cur_joint_traj = None
         self.running = False
+        self.is_paused = False
         self.ctrl_switcher = ControllerSwitcher()
 
     ##
@@ -60,32 +62,33 @@ class ArmPoseMoveBehavior(object):
     # @param blocking If True, the function will wait until done, if False, it will return
     #                 immediately
     def execute(self, joint_trajectory, rate, blocking=True):
-        # TODO Replace this with behavior_manager locking mechanism
-        # 4/3/12 - Already done?
         if self.running:
             rospy.logerr("[arm_pose_move_controller] Trajectory already in motion.")
             return False
         self.cur_arm = self.load_arm()
-        if self.cur_joint_traj is None:
-            if not self.can_exec_traj(joint_trajectory):
-                rospy.logwarn("[arm_pose_move_controller] Arm not at trajectory start.")
-                return False
-            self.cur_joint_traj = joint_trajectory
-            self.cur_idx = 0
-        r = rospy.Rate(rate)
+        if not self.can_exec_traj(joint_trajectory):
+            rospy.logwarn("[arm_pose_move_controller] Arm not at trajectory start.")
+            return False
         def exec_traj(te):
+            self.cur_idx = 0
             self.stop_traj = False
+            self.is_paused = False
             self.running = True
             rospy.loginfo("[arm_pose_move_controller] Starting trajectory.")
+            r = rospy.Rate(rate)
             while (not rospy.is_shutdown() and not self.stop_traj and 
-                   self.cur_idx < len(self.cur_joint_traj)):
-                self.cur_arm.set_ep(self.cur_joint_traj[self.cur_idx], 1./rate)
+                   self.cur_idx < len(joint_trajectory)):
+                self.cur_arm.set_ep(joint_trajectory[self.cur_idx], 1./rate)
                 self.cur_idx += 1
                 r.sleep()
             self.cur_arm.set_ep(self.cur_arm.get_ep(), 0.3)
-            self.running = False
-            if self.cur_idx == len(self.cur_joint_traj):
+            if self.cur_idx < len(joint_trajectory):
+                self.cur_joint_traj = joint_trajectory[self.cur_idx:]
+            else:
                 self.cur_joint_traj = None
+                self.is_paused = False
+            self.last_rate = rate
+            self.running = False
             rospy.loginfo("[arm_pose_move_controller] Finished trajectory.")
         if blocking:
             exec_traj(None)
@@ -104,6 +107,10 @@ class ArmPoseMoveBehavior(object):
     # @param blocking If True, the function will wait until done, if False, it will return
     #                 immediately
     def move_to_angles(self, q_goal, rate=RATE, velocity=0.1, blocking=True):
+        traj = self.get_angle_traj(q_goal, rate, velocity)
+        return self.execute(traj, rate, blocking)
+
+    def get_angle_traj(self, q_goal, rate=RATE, velocity=0.1):
         self.cur_arm = self.load_arm()
         q_cur = self.cur_arm.get_ep()
         diff = self.cur_arm.diff_angles(q_goal, q_cur)
@@ -113,8 +120,7 @@ class ArmPoseMoveBehavior(object):
         if steps == 0:
             return True
         t_vals = np.linspace(0., 1., steps)
-        traj = [q_cur + diff * t for t in t_vals]
-        return self.execute(traj, rate, blocking)
+        return [q_cur + diff * t for t in t_vals]
 
     ##
     # Determines whether or not the arm can execute the trajectory by checking the first
@@ -133,15 +139,30 @@ class ArmPoseMoveBehavior(object):
     ##
     # Pauses the movement of the trajectory but doesn't reset its position in the array.
     def pause_moving(self):
-        self.stop_traj = True
+        if self.is_moving():
+            self.stop_traj = True
+            while not rospy.is_shutdown() and self.running:
+                rospy.sleep(0.01)
+            self.is_paused = True
+            return True
+        return False
+
+    ##
+    # Restarts the currently running movement after being paused.
+    def restart_moving(self, blocking=True):
+        if not self.is_paused or self.cur_joint_traj is None:
+            return False
+        self.execute(self.cur_joint_traj, self.last_rate, blocking=blocking)
+        return True
 
     ##
     # Stops the movement of the trajectory and resets the trajectory so it cannot restart.
     def stop_moving(self):
         self.stop_traj = True
+        self.is_paused = False
+        self.cur_joint_traj = None
         while not rospy.is_shutdown() and self.running:
             rospy.sleep(0.01)
-        self.cur_joint_traj = None
 
     def preempt(self):
         self.stop_moving()
@@ -226,7 +247,13 @@ class TrajectoryServer(object):
         self.traj_ctrl = ArmPoseMoveBehavior(arm_char, ctrl_name, param_file)
 
         def pause_cb(req):
-            self.traj_ctrl.pause_moving()
+            print "Pause called", self.traj_ctrl.is_paused, self.traj_ctrl.is_moving()
+            if not self.traj_ctrl.is_paused:
+                if self.traj_ctrl.pause_moving():
+                    rospy.loginfo("[arm_pose_move_controller] Pausing %s arm." 
+                                                          % self.traj_ctrl.arm_char)
+            else:
+                self.traj_ctrl.restart_moving(blocking=False)
             return EmptyResponse()
         self.traj_pause_srv = rospy.Service(as_name + "_pause", Empty, pause_cb)
 
@@ -239,8 +266,22 @@ class TrajectoryServer(object):
                                                      self.traj_play_cb, False)
         self.traj_srv.register_preempt_callback(self.traj_cancel_cb)
         self.traj_srv.start()
+        self.last_goal = None
+
+    def same_goal_as_last(self, new_goal):
+        if self.last_goal is None:
+            self.last_goal = copy.copy(new_goal)
+            return False
+        ret_val = (new_goal.filepath == self.last_goal.filepath and
+                   new_goal.reverse == self.last_goal.reverse and
+                   new_goal.mode == self.last_goal.mode)
+        self.last_goal = copy.copy(new_goal)
+        print new_goal, self.last_goal, ret_val
+        return ret_val
 
     def traj_play_cb(self, goal):
+        rospy.loginfo("[arm_pose_move_controller] Playing trajectory on %s arm." 
+                                                       % self.traj_ctrl.arm_char)
         traj, arm_char, rate = load_arm_file(goal.filepath)
         if traj is None:
             self.traj_srv.set_aborted(text="Failed to open file.")
@@ -250,18 +291,22 @@ class TrajectoryServer(object):
             return
         if goal.reverse:
             traj.reverse()
-        if goal.mode == goal.MOVE_SETUP:
-            self.traj_ctrl.move_to_angles(traj[0], velocity=goal.setup_velocity, 
-                                          rate=RATE, blocking=True)
-        elif goal.mode == goal.TRAJ_ONLY:
-            self.traj_ctrl.execute(traj, rate * goal.traj_rate_mult, blocking=True)
-        elif goal.mode == goal.SETUP_AND_TRAJ:
-            self.traj_ctrl.move_to_angles(traj[0], velocity=goal.setup_velocity, 
-                                          rate=RATE, blocking=True)
-            self.traj_ctrl.execute(traj, rate * goal.traj_rate_mult, blocking=True)
+        if self.same_goal_as_last(goal) and self.traj_ctrl.is_paused:
+            self.traj_ctrl.restart_moving(blocking=True)
         else:
-            self.traj_srv.set_aborted(text="Unknown goal mode.")
-            return
+            if goal.mode == goal.MOVE_SETUP or goal.mode == goal.SETUP_AND_TRAJ:
+                setup_traj = self.traj_ctrl.get_angle_traj(traj[0], velocity=goal.setup_velocity, 
+                                                           rate=RATE)
+                if goal.mode == goal.MOVE_SETUP:
+                    full_traj = setup_traj
+                else:
+                    full_traj = setup_traj + traj
+            elif goal.mode == goal.TRAJ_ONLY:
+                full_traj = traj
+            else:
+                self.traj_srv.set_aborted(text="Unknown goal mode.")
+                return
+            self.traj_ctrl.execute(full_traj, rate * goal.traj_rate_mult, blocking=True)
         self.traj_srv.set_succeeded()
 
     def traj_cancel_cb(self):
