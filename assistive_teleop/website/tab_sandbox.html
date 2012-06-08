@@ -20,7 +20,8 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){ document.getElementById('console').innerHTML = message.toString();};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-var ROBOT = 'monty1';
+//var ROBOT = 'monty1';
+var ROBOT = 'localhost';
 
 $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
@@ -177,8 +178,15 @@ function init_action_clients(){
 };
 
 function load_params(){
-    node.getParam('face_adls_traj_files', function(params){window.traj_files = params; log("In got params")});
+    node.rosjs.callService('/rosbridge/get_param','["face_adls_traj_files"]',
+                           function(msg){list_options('traj_play_select', msg)});
     };
+
+function list_options(cont_sel, dict){
+    for (var key in dict){
+        $("#"+cont_sel).append('<option value="'+dict[key]+'">'+key+'</option>');
+        };
+};
 
 function empty_srv(service){
 	node.rosjs.callService(service, json(''), nop);
@@ -509,14 +517,12 @@ function start(){
       <table>
         <tr>
           <td>
-            <div id="traj_play_select">
+            <div>
               <table>
                 <tr>
                   <td>Select Trajectory:</td>
                   <td>
-                    <select onchange="traj_play_send($(this).val());">
-                      <option value="shaving_untuck">Un-Tuck</option>
-                      <option value="shaving_retuck">Re-Tuck</option>
+                    <select id="traj_play_select" onchange="traj_play_send($(this).val());">
                     </select>
                   </td>
                 </tr>
