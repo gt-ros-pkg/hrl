@@ -10,13 +10,13 @@ PCRGB::Ptr cur_pc, template_pc;
 
 ros::Subscriber pc_sub;
 ros::ServiceServer reg_srv;
+ros::Publisher aligned_pub; 
         
 void subPCCallback(const PCRGB::Ptr& cur_pc_);
 bool regCallback(HeadRegSrv::Request& req, HeadRegSrv::Response& resp);
 
 void subPCCallback(const PCRGB::Ptr& cur_pc_)
 {
-    printf("here\n");
     cur_pc = cur_pc_;
 }
 
@@ -39,15 +39,33 @@ bool regCallback(HeadRegSrv::Request& req, HeadRegSrv::Response& resp)
         return false;
     }
     Eigen::Affine3d tf_mat;
-    geometry_msgs::PoseStamped tf_pose;
     findFaceRegistration(template_pc, cur_pc, req.u, req.v, tf_mat);
-    tf::poseEigenToMsg(tf_mat, tf_pose.pose);
+    resp.tf_reg.header.frame_id = cur_pc->header.frame_id;
+    resp.tf_reg.header.stamp = ros::Time::now();
+    tf::poseEigenToMsg(tf_mat, resp.tf_reg.pose);
+
+    PCRGB::Ptr aligned_pc(new PCRGB());
+    transformPC(*template_pc, *aligned_pc, tf_mat.inverse());
+    aligned_pc->header.frame_id = "/openni_rgb_optical_frame";
+    aligned_pub.publish(aligned_pc);
 
 #if 0
+    vector<PCRGB::Ptr> pcs;
+    vector<string> pc_topics;
+
+    PCRGB::Ptr skin_pc(new PCRGB());
+    extractFace(cur_pc, skin_pc, req.u, req.v);
+    skin_pc->header.frame_id = "/openni_rgb_optical_frame";
+    pcs.push_back(skin_pc);
+    pc_topics.push_back("/target_pc");
+
     PCRGB::Ptr tf_pc(new PCRGB());
-    transformPC(*cur_pc, *tf_pc, tf_mat);
+    transformPC(*template_pc, *tf_pc, tf_mat);
     tf_pc->header.frame_id = "/openni_rgb_optical_frame";
-    pubLoop(tf_pc, "test3", 5);
+    pcs.push_back(tf_pc);
+    pc_topics.push_back("/template_pc");
+
+    pubLoop(pcs, pc_topics, 5);
 #endif
     return true;
 }
@@ -59,6 +77,7 @@ int main(int argc, char **argv)
 
     readPCBag(argv[1], template_pc);
 
+    aligned_pub = nh.advertise<PCRGB>("/aligned_pc", 1);
     pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &subPCCallback);
     reg_srv = nh.advertiseService("/head_registration", &regCallback);
     ros::spin();

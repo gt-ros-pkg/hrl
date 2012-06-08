@@ -48,26 +48,26 @@ void extractIndices(const PCRGB::Ptr& in_pc, pcl::IndicesPtr& inds, PCRGB::Ptr& 
     }
 }
 
-void pubLoop(PCRGB::Ptr& pc, const std::string& topic, double rate) 
+void pubLoop(PCRGB::Ptr& pc, const std::string& topic, double rate, int number_runs) 
 {
     ros::NodeHandle nh;
     ros::Publisher pub_pc = nh.advertise<PCRGB>(topic, 1);
     ros::Rate r(rate);
-    while(ros::ok()) {
+    while(ros::ok() && number_runs-- > 0) {
         pc->header.stamp = ros::Time::now();
         pub_pc.publish(pc);
         r.sleep();
     }
 }
 
-void pubLoop(vector<PCRGB::Ptr> &pcs, const vector<std::string>& topics, double rate) 
+void pubLoop(vector<PCRGB::Ptr> &pcs, const vector<std::string>& topics, double rate, int number_runs) 
 {
     ros::NodeHandle nh;
     vector<ros::Publisher> pub_pcs;
     for(size_t i=0;i<topics.size();i++) 
         pub_pcs.push_back(nh.advertise<PCRGB>(topics[i], 1));
     ros::Rate r(rate);
-    while(ros::ok()) {
+    while(ros::ok() && number_runs-- > 0) {
         for(size_t i=0;i<pcs.size();i++) {
             pcs[i]->header.stamp = ros::Time::now();
             pub_pcs[i].publish(*pcs[i]);

@@ -1,6 +1,6 @@
 <launch>
-    <arg name="out_name" />
+    <arg name="subject" />
     <node pkg="hrl_head_tracking" type="capture_pc" name="capture_pc"
-          args="$(find hrl_head_tracking)/data/$(arg out_name)_orig.bag $(find hrl_head_tracking)/data/$(arg out_name)_face.bag" 
+          args="$(find hrl_head_tracking)/data/$(arg subject)_orig.bag $(find hrl_head_tracking)/data/$(arg subject)_face.bag" 
           output="screen" />
 </launch>

@@ -29,8 +29,9 @@ typedef pcl::PointCloud<PRGB> PCRGB;
 
 void transformPC(const PCRGB &in_pc, PCRGB &out_pc, 
                  const Eigen::Affine3d& transform);
-void pubLoop(PCRGB::Ptr& pc, const std::string& topic, double rate = 1.0);
-void pubLoop(vector<PCRGB::Ptr> &pcs, const vector<std::string>& topics, double rate);
+void pubLoop(PCRGB::Ptr& pc, const std::string& topic, double rate = 1.0, int number_runs=10000);
+void pubLoop(vector<PCRGB::Ptr> &pcs, const vector<std::string>& topics, double rate, 
+             int number_runs=10000);
 void boxFilter(const PCRGB &in_pc, PCRGB &out_pc,
                double min_x, double max_x, double min_y, double max_y, double min_z, double max_z);
 void extractIndices(const PCRGB::Ptr& in_pc, pcl::IndicesPtr& inds, PCRGB::Ptr& out_pc, bool is_negative = false);

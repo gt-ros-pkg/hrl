@@ -74,49 +74,61 @@ class CartTrajController(object):
 
 class EllipsoidControllerBase(CartTrajController):
     def __init__(self):
-        super(EllipsoidControllerBase, self).__init__(self)
+        super(EllipsoidControllerBase, self).__init__()
 
         self.time_step = 1. / 20.
         self.arm = None
         self.cart_traj_ctrl = CartTrajController()
         self.ell_space = None
+        self.head_center = None
         self.tf_list = tf.TransformListener()
-        self.ctrl_switcher = ControllerSwitcher()
         self.cmd_lock = Lock()
         self.ell_param_srv = rospy.Service("/load_ellipsoid_params", LoadEllipsoidParams, 
                                            self.load_params)
         self.start_pub = rospy.Publisher("/start_pose", PoseStamped)
         self.end_pub = rospy.Publisher("/end_pose", PoseStamped)
+        self.head_center_pub = rospy.Publisher("/head_center", PoseStamped)
+        def pub_head_center(te):
+            if self.head_center is not None:
+                self.head_center_pub.publish(self.head_center)
+        rospy.Timer(rospy.Duration(0.2), pub_head_center)
 
     def set_arm(self, arm):
         self.arm = arm
 
     def load_params(self, req):
+        rospy.loginfo("Loaded ellispoidal parameters.")
+        self.head_center = PoseConverter.to_pose_stamped_msg(req.params.e_frame)
         self.ell_space = EllipsoidSpace(1)
         self.ell_space.load_ell_params(req.params)
         self.ell_space.center = np.mat(np.zeros((3, 1)))
         self.ell_space.rot = np.mat(np.eye(3))
         return LoadEllipsoidParamsResponse()
+
+    def params_loaded(self):
+        return self.ell_space is not None
     
     def get_ell_ep(self):
         ee_pose = PoseConverter.to_pose_stamped_msg("/torso_lift_link", self.arm.get_ep())
         cur_time = rospy.Time.now()
         ee_pose.header.stamp = cur_time
-        self.tf_list.waitForTransform("/torso_lift_link", "/openni_optical_rgb_frame", cur_time, 
+        self.tf_list.waitForTransform("/torso_lift_link", "/openni_rgb_optical_frame", cur_time, 
                                       rospy.Duration(3))
-        ell_pose = self.tf_list.transformPose("/openni_optical_rgb_frame", ee_pose)
-        pos, quat = PoseConverter.to_pos_quat(ell_pose)
+        ep_opti_frame = PoseConverter.to_homo_mat(
+                         self.tf_list.transformPose("/openni_rgb_optical_frame", ee_pose))
+        pos, quat = PoseConverter.to_pos_quat(PoseConverter.to_homo_mat(self.head_center)**-1 * 
+                                              ep_opti_frame)
         return list(self.ell_space.pos_to_ellipsoidal(*pos))
 
     ##
     # Get pose in robot's frame of ellipsoidal coordinates
-    def robot_ellipsoidal_pose(self, lat, lon, height, orient_quat, ell_frame_mat=None):
-        if ell_frame_mat is None:
-            ell_frame_mat = self.get_ell_frame()
+    def robot_ellipsoidal_pose(self, lat, lon, height, orient_quat, kinect_frame_mat=None):
+        if kinect_frame_mat is None:
+            kinect_frame_mat = self.get_ell_frame()
         pos, quat = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
         quat_rotated = tf_trans.quaternion_multiply(quat, orient_quat)
         ell_pose_mat = PoseConverter.to_homo_mat(pos, quat_rotated)
-        return PoseConverter.to_pos_rot(ell_frame_mat * ell_pose_mat)
+        return PoseConverter.to_pos_rot(kinect_frame_mat * ell_pose_mat)
                                           
     def reset_arm_orientation(self, duration=10., gripper_rot=np.pi, blocking=True):
         with self.cmd_lock:
@@ -135,12 +147,11 @@ class EllipsoidControllerBase(CartTrajController):
     def get_ell_frame(self):
         # find the current ellipsoid frame
         cur_time = rospy.Time.now()
-        self.tf_list.waitForTransform("/torso_lift_link", "/ellipse_frame", 
+        self.tf_list.waitForTransform("/torso_lift_link", "/openni_rgb_optical_frame", 
                                       cur_time, rospy.Duration(3))
-        ell_frame_mat = PoseConverter.to_homo_mat(
-                             self.tf_list.lookupTransform("/torso_lift_link", 
-                                                          "/ellipse_frame", cur_time))
-        return ell_frame_mat
+        self.head_center.header.stamp = cur_time
+        return PoseConverter.to_homo_mat(
+                    self.tf_list.transformPose("/torso_lift_link", self.head_center))
 
     def _run_traj(self, traj, blocking=True):
         self.start_pub.publish(
@@ -148,4 +159,3 @@ class EllipsoidControllerBase(CartTrajController):
         self.end_pub.publish(
                 PoseConverter.to_pose_stamped_msg("/torso_lift_link", traj[-1]))
         return self.execute_cart_traj(self.arm, traj, self.time_step, blocking=blocking)
-

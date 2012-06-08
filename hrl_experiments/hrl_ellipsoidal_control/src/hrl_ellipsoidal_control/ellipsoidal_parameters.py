@@ -1,3 +1,4 @@
+import numpy as np
 
 ELL_LOCAL_VEL = 0.0025
 LONGITUDE_STEP = 0.12

@@ -8,6 +8,7 @@ import roslib
 roslib.load_manifest("pr2_traj_playback")
 import rospy
 from std_msgs.msg import String
+from std_srvs.srv import Empty
 import tf.transformations as tf_trans
 import roslib.substitution_args
 import actionlib
@@ -15,7 +16,7 @@ import actionlib
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2Arm, PR2ArmJointTrajectory, PR2ArmCartesianPostureBase
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from msg import TrajectoryPlayAction, TrajectoryPlayGoal
-from hrl_behavior_manager.behavior_manager import Behavior, BMPriorities
+#from hrl_behavior_manager.behavior_manager import Behavior, BMPriorities
 
 RATE = 20
 JOINT_TOLERANCES = [0.03, 0.1, 0.1, 0.1, 0.17, 0.15, 0.12]
@@ -24,16 +25,17 @@ JOINT_VELOCITY_WEIGHT = [3.0, 1.7, 1.7, 1.0, 1.0, 1.0, 0.5]
 ##
 # Allows one to move the arm through a set of joint angles safely and controller
 # agnostic.  
-class ArmPoseMoveBehavior(Behavior):
+#class ArmPoseMoveBehavior(Behavior):
+class ArmPoseMoveBehavior(object):
     ##
     # @param arm_char 'r' or 'l' to choose which arm to load
     # @param ctrl_name name of the controller to load from the param_file 
     # @param param_file Location of the parameter file which specifies the controller
     #        (e.g. "$(find hrl_pr2_arms)/params/joint_traj_params_electric_low.yaml")
     def __init__(self, arm_char, ctrl_name="%s_arm_controller", param_file=None):
-        resource = arm_char + "_arm"
-        super(ArmPoseMoveBehavior, self).__init__(resource, BMPriorities.MEDIUM, 
-                                                  name=resource+"_pose_move")
+        #resource = arm_char + "_arm"
+        #super(ArmPoseMoveBehavior, self).__init__(resource, BMPriorities.MEDIUM, 
+        #                                          name=resource+"_pose_move")
         self.arm_char = arm_char
         self.ctrl_name = ctrl_name
         self.param_file = param_file
@@ -60,9 +62,9 @@ class ArmPoseMoveBehavior(Behavior):
     def execute(self, joint_trajectory, rate, blocking=True):
         # TODO Replace this with behavior_manager locking mechanism
         # 4/3/12 - Already done?
-        #if self.running:
-        #    rospy.logerr("[arm_pose_move_controller] Trajectory already in motion.")
-        #    return False
+        if self.running:
+            rospy.logerr("[arm_pose_move_controller] Trajectory already in motion.")
+            return False
         self.cur_arm = self.load_arm()
         if self.cur_joint_traj is None:
             if not self.can_exec_traj(joint_trajectory):
@@ -157,7 +159,7 @@ def load_arm_file(filename):
         return None, None, None
 
 class TrajectoryLoader(object):
-    def __init__(self, traj_ctrl_r, traj_ctrl_l, ctrl_name, param_file):
+    def __init__(self, traj_ctrl_r, traj_ctrl_l):
         self.traj_ctrl_r, self.traj_ctrl_l = traj_ctrl_r, traj_ctrl_l
 
     def exec_traj_from_file(self, filename, rate_mult=0.8, 
@@ -222,6 +224,17 @@ class TrajectorySaver(object):
 class TrajectoryServer(object):
     def __init__(self, arm_char, as_name, ctrl_name, param_file):
         self.traj_ctrl = ArmPoseMoveBehavior(arm_char, ctrl_name, param_file)
+
+        def pause_cb(req):
+            self.traj_ctrl.pause_moving()
+            return EmptyResponse()
+        self.traj_pause_srv = rospy.Service(as_name + "_pause", Empty, pause_cb)
+
+        def stop_cb(req):
+            self.traj_ctrl.stop_moving()
+            return EmptyResponse()
+        self.traj_stop_srv = rospy.Service(as_name + "_stop", Empty, stop_cb)
+
         self.traj_srv = actionlib.SimpleActionServer(as_name, TrajectoryPlayAction, 
                                                      self.traj_play_cb, False)
         self.traj_srv.register_preempt_callback(self.traj_cancel_cb)

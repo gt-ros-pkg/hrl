@@ -73,15 +73,56 @@ public:
 void computeICPRegistration(const PCRGB::Ptr& target_pc, const PCRGB::Ptr& source_pc,
                             Eigen::Affine3d& tf_mat, int max_iters, double color_weight) 
                             {
-    pcl::IterativeClosestPointNonLinear<PRGB, PRGB> icp;
-    boost::shared_ptr<pcl::PointRepresentation<PRGB> const> pt_rep(new pcl::ColorPointRepresentation(color_weight, color_weight, color_weight));
+    double icp_trans_eps, icp_max_corresp;
+    ros::param::param<double>("~icp_max_corresp", icp_max_corresp, 0.1);
+    ros::param::param<double>("~icp_trans_eps", icp_trans_eps, 1e-6);
+    pcl::IterativeClosestPoint<PRGB, PRGB> icp;
+    PCRGB::Ptr aligned_pc(new PCRGB());
+    boost::shared_ptr<pcl::PointRepresentation<PRGB> const> 
+        pt_rep(new pcl::ColorPointRepresentation(color_weight, color_weight, color_weight));
     icp.setPointRepresentation(pt_rep);
     icp.setInputTarget(target_pc);
     icp.setInputCloud(source_pc);
+    icp.setTransformationEpsilon(icp_trans_eps);
+    icp.setMaxCorrespondenceDistance(icp_max_corresp);
     icp.setMaximumIterations(max_iters);
-    PCRGB tmp_pc;
-    icp.align(tmp_pc);
+    icp.align(*aligned_pc);
     tf_mat = icp.getFinalTransformation().cast<double>();
+    /*
+    icp.setTransformationEpsilon(1e-4);
+    icp.setMaxCorrespondenceDistance(0.5);
+    Eigen::Matrix4f cur_tf = Eigen::Matrix4f::Identity(), last_tf;
+    PCRGB::Ptr last_aligned_pc;
+
+    for(int i=0;i<max_iters;i++) {
+        last_aligned_pc = aligned_pc;
+        icp.setInputCloud(last_aligned_pc);
+        
+        icp.setMaximumIterations(2);
+        icp.align(*aligned_pc);
+        cur_tf = icp.getFinalTransformation() * cur_tf;
+        if (fabs ((icp.getLastIncrementalTransformation () - last_tf).sum ()) < 
+                   icp.getTransformationEpsilon ())
+            icp.setMaxCorrespondenceDistance (icp.getMaxCorrespondenceDistance () - 0.001);
+        last_tf = icp.getLastIncrementalTransformation();
+    }
+    tf_mat = cur_tf.cast<double>();
+    */
+
+#if 0
+    vector<PCRGB::Ptr> pcs;
+    vector<string> pc_topics;
+    aligned_pc->header.frame_id = "/openni_rgb_optical_frame";
+    source_pc->header.frame_id = "/openni_rgb_optical_frame";
+    target_pc->header.frame_id = "/openni_rgb_optical_frame";
+    pcs.push_back(aligned_pc);
+    pcs.push_back(source_pc);
+    pcs.push_back(target_pc);
+    pc_topics.push_back("/aligned_pc");
+    pc_topics.push_back("/source_pc");
+    pc_topics.push_back("/target_pc");
+    pubLoop(pcs, pc_topics, 5.0, 5);
+#endif
 }
 
 void extractFace(const PCRGB::Ptr& input_pc, PCRGB::Ptr& out_pc, int u_click, int v_click)
@@ -101,11 +142,13 @@ void findFaceRegistration(const PCRGB::Ptr& template_pc, const PCRGB::Ptr& input
                           int u_click, int v_click, Eigen::Affine3d& tf_mat)
 {
     double color_weight;
+    int max_iters;
     ros::param::param<double>("~color_weight", color_weight, 0.0);
+    ros::param::param<int>("~max_iters", max_iters, 200);
     PCRGB::Ptr skin_pc(new PCRGB());
 
     extractFace(input_pc, skin_pc, u_click, v_click);
-    computeICPRegistration(template_pc, skin_pc, tf_mat, 100, color_weight);
+    computeICPRegistration(template_pc, skin_pc, tf_mat, max_iters, color_weight);
 }
 
 int main(int argc, char **argv)

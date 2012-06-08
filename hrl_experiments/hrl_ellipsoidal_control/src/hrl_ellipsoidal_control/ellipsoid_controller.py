@@ -1,11 +1,14 @@
 #! /usr/bin/python
         
 import sys
+import numpy as np
 
 import roslib
 roslib.load_manifest('hrl_ellipsoidal_control')
 
-from hrl_ellipsoidal_control.controller_base import EllipsoidControllerBase
+import tf.transformations as tf_trans
+
+from hrl_ellipsoidal_control.controller_base import EllipsoidControllerBase, min_jerk_traj
 
 MIN_HEIGHT = 0.2
 
@@ -22,7 +25,7 @@ class EllipsoidController(EllipsoidControllerBase):
             change_ell_ep, change_rot_ep = change_ep
             abs_ell_ep_sel, is_abs_rot = abs_sel
             ell_f = np.where(abs_ell_ep_sel, change_ell_ep, 
-                                         np.array(self.get_ell_ep()) + change_ell_ep)
+                                         np.array(self.get_ell_ep()) + np.array(change_ell_ep))
             if is_abs_rot:
                 rot_change_mat = change_rot_ep
                 _, ell_final_rot = self.robot_ellipsoidal_pose(ell_f[0], ell_f[1], ell_f[2],

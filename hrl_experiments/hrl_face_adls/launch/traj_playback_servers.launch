@@ -1,0 +1,16 @@
+<launch>
+    <node pkg="pr2_traj_playback" name="l_arm_pose_move_controller" type="arm_pose_move_controller.py"
+          output="screen" args="-v -l" />
+    <node pkg="pr2_traj_playback" name="r_arm_pose_move_controller" type="arm_pose_move_controller.py"
+          output="screen" args="-v -r" />
+
+    <rosparam>
+        face_adls_traj_files:
+            "[L] Servoing Setup" : "$(find hrl_face_adls)/data/l_arm_servo_setup.pkl"
+            "[R] Servoing Setup" : "$(find hrl_face_adls)/data/r_arm_servo_setup.pkl"
+            "[L] Shaving Setup Left Cheek" : "$(find hrl_face_adls)/data/l_arm_shaving_setup_l.pkl"
+            "[R] Shaving Setup Left Cheek" : "$(find hrl_face_adls)/data/r_arm_shaving_setup_l.pkl"
+            "[L] Shaving Setup Right Cheek" : "$(find hrl_face_adls)/data/l_arm_shaving_setup_r.pkl"
+            "[R] Shaving Setup Right Cheek" : "$(find hrl_face_adls)/data/r_arm_shaving_setup_r.pkl"
+    </rosparam>
+</launch>

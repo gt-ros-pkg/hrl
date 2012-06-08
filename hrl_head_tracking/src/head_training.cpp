@@ -16,6 +16,7 @@ void expandPC(const PCRGB::Ptr& pc_label, const PCRGB::Ptr& pc_base,
     }
 }
 
+/*
 void extractHeadCluster(const PCRGB::Ptr& pc_label, PCRGB::Ptr& pc_out, PRGB& seed)
 {
     double pc_clust_dist;
@@ -52,6 +53,7 @@ void extractHeadCluster(const PCRGB::Ptr& pc_label, PCRGB::Ptr& pc_out, PRGB& se
     for(uint32_t i=0;i<pc_clust_list[closest_clust].indices.size();i++) 
         COPY_PT_INTO_CLOUD(pc_label, pc_out, pc_clust_list[closest_clust].indices[i]);
 }
+*/
 
 int main(int argc, char **argv)
 {
