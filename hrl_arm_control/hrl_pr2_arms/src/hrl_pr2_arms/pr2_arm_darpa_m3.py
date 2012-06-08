@@ -66,6 +66,9 @@ class PR2Arm(HRLArm):
         self.arm_efforts = None
 
         self.kp = [rospy.get_param(arm+'_arm_controller/gains/'+nm+'/p') for nm in self.joint_names_list]
+        self.kp[-1] = 50.
+        self.kp[-2] = 50.
+        self.kp[-3] = 50.
 
         rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
         self.marker_pub = rospy.Publisher(arm+'_arm/viz/markers', Marker)
