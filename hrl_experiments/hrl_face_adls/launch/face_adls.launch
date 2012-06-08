@@ -2,13 +2,16 @@
     <node pkg="hrl_face_adls" name="face_adls_manager" type="face_adls_manager.py"
           output="screen" >
         <remap from="/face_adls/feedback" to="/wt_log_out" />
+        <param name="dangerous_force_thresh" value="10.0" />
+        <param name="contact_force_thresh" value="3.0" />
+        <param name="activity_force_thresh" value="3.0" />
     </node>
     <node pkg="hrl_head_tracking" name="head_tracking_srv" type="head_tracking_srv"
           output="screen" args="$(find hrl_head_tracking)/data/kelsey_2_face.bag">
-          <param name="max_iters" value="300" />
-          <param name="color_weight" value="0.0" />
-          <param name="icp_max_corresp" value="0.3" />
-          <param name="icp_trans_eps" value="0.0000000001" />
+        <param name="max_iters" value="300" />
+        <param name="color_weight" value="0.0" />
+        <param name="icp_max_corresp" value="0.3" />
+        <param name="icp_trans_eps" value="0.0000000001" />
     </node>
     <node pkg="hrl_face_adls" name="registration_loader" type="registration_loader.py"
           output="screen" args="$(find hrl_ellipsoidal_control)/data/$(arg subject)_ellipsoid_registration.bag" />

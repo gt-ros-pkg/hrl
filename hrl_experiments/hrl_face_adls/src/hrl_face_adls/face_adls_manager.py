@@ -21,6 +21,7 @@ from hrl_ellipsoidal_control.ellipsoidal_parameters import *
 from hrl_face_adls.face_adls_parameters import *
 from pr2_traj_playback.arm_pose_move_controller import ArmPoseMoveBehavior, TrajectoryLoader
 from pr2_traj_playback.arm_pose_move_controller import CTRL_NAME_LOW, PARAMS_FILE_LOW
+from hrl_face_adls.srv import EnableFaceController
 
 quat_gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
 
@@ -30,6 +31,9 @@ class ForceCollisionMonitor(object):
         self.last_activity_time = rospy.get_time()
         self.last_reading = rospy.get_time()
         self.lock = Lock()
+        self.dangerous_force_thresh = rospy.get_param("~dangerous_force_thresh", 10.0)
+        self.activity_force_thresh = rospy.get_param("~activity_force_thresh", 3.0)
+        self.contact_force_thresh = rospy.get_param("~contact_force_thresh", 3.0)
         def check_readings(te):
             time_diff = rospy.get_time() - self.last_reading
             if time_diff > 3.:
@@ -41,11 +45,11 @@ class ForceCollisionMonitor(object):
         self.last_reading = rospy.get_time()
         with self.lock:
             force_mag = np.linalg.norm([msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z])
-            if force_mag > DANGEROUS_FORCE_THRESH:
+            if force_mag > self.dangerous_force_thresh:
                 self.dangerous_cb()
-            if force_mag > CONTACT_FORCE_THRESH:
+            if force_mag > self.contact_force_thresh:
                 self.contact_cb()
-            if force_mag > ACTIVITY_FORCE_THRESH:
+            if force_mag > self.activity_force_thresh:
                 self.update_activity()
             if rospy.get_time() - self.last_activity_time > TIMEOUT_TIME:
                 self.timeout_cb()
@@ -109,8 +113,8 @@ class FaceADLsManager(object):
                 self.enable_controller(req.end_link, req.ctrl_params)
             else:
                 self.disable_controller()
-        self.enable_controller_srv = rospy.Service("/face_adls/enable_controller", Empty, 
-                                                   enable_controller_cb)
+        self.enable_controller_srv = rospy.Service("/face_adls/enable_controller", 
+                                                   EnableFaceController, enable_controller_cb)
 
     def publish_feedback(self, message=None, transition_id=None):
         if message is not None:
