@@ -84,7 +84,7 @@ class FaceADLsManager(object):
                 ell_ep = self.ell_ctrl.get_ell_ep()
                 if ell_ep[2] < SAFETY_RETREAT_HEIGHT * 0.9:
                     rospy.loginfo("Dangerous force detected, retreating from face.")
-                    self.retreat_move(SAFETY_RETREAT_HEIGHT, SAFETY_RETREAT_VELOCITY)
+                    self.retreat_move(SAFETY_RETREAT_HEIGHT, SAFETY_RETREAT_VELOCITY, forced=True)
         self.force_monitor.register_dangerous_cb(dangerous_cb)
         def timeout_cb():
             if not self.ell_ctrl.is_moving() and self.check_params_loaded():
@@ -100,8 +100,10 @@ class FaceADLsManager(object):
                 rospy.loginfo("Arm stopped due to making contact.")
         self.force_monitor.register_contact_cb(contact_cb)
 
-        self.global_input_sub = rospy.Subscriber("/wt_shave_location", Int8, self.global_input_cb)
-        self.local_input_sub = rospy.Subscriber("/wt_shave_step", String, self.local_input_cb)
+        self.global_input_sub = rospy.Subscriber("/face_adls/global_move", Int8, self.global_input_cb)
+        self.local_input_sub = rospy.Subscriber("/face_adls/local_move", String, self.local_input_cb)
+        self.state_pub = rospy.Publisher('/face_adls/controller_state', Int8, latch=True)
+        self.feedback_pub = rospy.Publisher('/face_adls/feedback', String, latch=True)
         def enable_controller_cb(req):
             if req.enable:
                 self.enable_controller(req.end_link, req.ctrl_params)
@@ -109,6 +111,12 @@ class FaceADLsManager(object):
                 self.disable_controller()
         self.enable_controller_srv = rospy.Service("/face_adls/enable_controller", Empty, 
                                                    enable_controller_cb)
+
+    def publish_feedback(self, message=None, transition_id=None):
+        if message is not None:
+            rospy.loginfo("[face_adls_manager] %s")
+            self.feedback_pub.publish(message)
+        self.state_pub.publish(Int8(transition_id))
 
     def enable_controller(self, end_link="%s_gripper_shaver45_frame",
                           ctrl_params="$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml"):
@@ -124,48 +132,53 @@ class FaceADLsManager(object):
         self.ell_ctrl.set_arm(None)
         # TODO disable other stuff...
 
-    def retreat_move(self, height, velocity):
+    def retreat_move(self, height, velocity, forced=False):
         self.force_monitor.update_activity()
         if not self.check_params_loaded():
             return
         
+        if forced:
+            self.is_forced_retreat = True
         self.ell_ctrl.execute_ell_move(((0, 0, height), (0, 0, 0)), ((0, 0, 1), 0), 
                                        quat_gripper_rot, velocity, blocking=False)
         rospy.loginfo("Retreating from current location.")
         self.ell_ctrl.wait_until_stopped()
+        self.is_forced_retreat = False
         rospy.loginfo("Finished retreat.")
 
     def stop_move(self):
         self.force_monitor.update_activity()
         if not self.ell_ctrl.is_moving():
-            return
+            return False
         self.ell_ctrl.stop_moving(True)
         rospy.loginfo("Stopped controller.")
+        return True
 
     def global_input_cb(self, msg):
-        if self.ell_ctrl.is_moving() or not self.check_params_loaded():
+        if self.is_forced_retreat or not self.check_params_loaded():
             return
+        if self.stop_move():
+            self.publish_feedback(Messages.GLOBAL_PREEMPT_OTHER)
         self.force_monitor.update_activity()
         goal_pose = self.global_poses[msg.data]
-        print goal_pose
         goal_pose_name = self.global_names[msg.data]
-        rospy.loginfo("Starting global ellipsoid movement.")
-        if not self.ell_ctrl.execute_ell_move(((0, 0, RETREAT_HEIGHT), (0, 0, 0)), ((0, 0, 1), 0), 
-                                              quat_gripper_rot, APPROACH_VELOCITY, blocking=True):
-            rospy.loginfo("Ellipsoid global movement to pose %s preempted." % goal_pose_name)
+        self.publish_feedback(Messages.GLOBAL_START % goal_pose_name)
+        try:
+            if not self.ell_ctrl.execute_ell_move(((0, 0, RETREAT_HEIGHT), (0, 0, 0)), ((0, 0, 1), 0), 
+                                                  quat_gripper_rot, APPROACH_VELOCITY, blocking=True):
+                raise Exception
+            if not self.ell_ctrl.execute_ell_move(((goal_pose[0][0], goal_pose[0][1], RETREAT_HEIGHT), 
+                                                  (0, 0, 0)), 
+                                                  ((1, 1, 1), 0), 
+                                                  quat_gripper_rot, GLOBAL_VELOCITY, blocking=True):
+                raise Exception
+            if not self.ell_ctrl.execute_ell_move((goal_pose[0], (0, 0, 0)), ((1, 1, 1), 0), 
+                                                  quat_gripper_rot, GLOBAL_VELOCITY, blocking=True):
+                raise Exception
+        except:
+            self.publish_feedback(Messages.GLOBAL_PREEMPT % goal_pose_name)
             return
-        if not self.ell_ctrl.execute_ell_move(((goal_pose[0][0], goal_pose[0][1], RETREAT_HEIGHT), 
-                                              (0, 0, 0)), 
-                                              ((1, 1, 1), 0), 
-                                              quat_gripper_rot, GLOBAL_VELOCITY, blocking=True):
-            rospy.loginfo("Ellipsoid global movement to pose %s preempted." % goal_pose_name)
-            return
-        if not self.ell_ctrl.execute_ell_move((goal_pose[0], (0, 0, 0)), ((1, 1, 1), 0), 
-                                              quat_gripper_rot, GLOBAL_VELOCITY, blocking=True):
-            rospy.loginfo("Ellipsoid global movement to pose %s preempted." % goal_pose_name)
-            return
-
-        rospy.loginfo("Ellipsoid global movement to pose %s successful." % goal_pose_name)
+        self.publish_feedback(Messages.GLOBAL_SUCCESS % goal_pose_name)
 
     def check_params_loaded(self):
         if not self.ell_ctrl.params_loaded():
@@ -174,10 +187,13 @@ class FaceADLsManager(object):
         return True
 
     def local_input_cb(self, msg):
-        if self.ell_ctrl.is_moving() or not self.check_params_loaded():
+        if self.is_forced_retreat or not self.check_params_loaded():
             return
+        if self.stop_move():
+            self.publish_feedback(Messages.LOCAL_PREEMPT_OTHER)
         self.force_monitor.update_activity()
         button_press = msg.data 
+        self.publish_feedback(Messages.GLOBAL_START % goal_pose_name)
         if button_press in ell_trans_params:
             rospy.loginfo("Starting local ellipsoid linear movement")
             change_trans_ep = ell_trans_params[button_press]

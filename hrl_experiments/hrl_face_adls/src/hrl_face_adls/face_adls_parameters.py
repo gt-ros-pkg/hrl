@@ -17,20 +17,26 @@ TIMEOUT_TIME = 30.0
 
 outcomes_spa = ['succeeded','preempted','aborted']
 
-class TransitionIDs:
-    ELL_GLOBAL_START      =  1
-    ELL_UP_START          =  2
-    ELL_DOWN_START        =  3
-    ELL_LEFT_START        =  4
-    ELL_RIGHT_START       =  5
-    ELL_OUT_START         =  6
-    ELL_IN_START          =  7
-    ELL_SHAVE_START       =  8
-    MOVE_COLLISION        =  9
-    ELL_RETREAT_GLOBAL    = 10
-    ELL_MOVE_GLOBAL       = 11
-    ELL_APPROACH_GLOBAL   = 12
-    ELL_RETREAT_SLOW      = 13
-    ELL_RETREAT_FAST      = 14
-    HOLDING               = 15
+#class TransitionIDs:
+#    GLOBAL_START      =  1
+#    GLOBAL_PREEMPT    =  2
+#    GLOBAL_STOP       =  2
+#    LOCAL_START       =  3 #TODO FIX
+#    LOCAL_PREEMPT     =  2
+#    LOCAL_STOP        =  4
+#    SHAVE_START       =  8
+#    MOVE_COLLISION        =  9
+#    ELL_RETREAT_GLOBAL    = 10
+#    ELL_MOVE_GLOBAL       = 11
+#    ELL_APPROACH_GLOBAL   = 12
+#    ELL_RETREAT_SLOW      = 13
+#    ELL_RETREAT_FAST      = 14
+#    HOLDING               = 15
+
+class Messages:
+    GLOBAL_START         = "Starting global movement %s."
+    GLOBAL_PREEMPT_OTHER = "Preempted arm movement for global move %s."
+    GLOBAL_PREEMPT       = "Global move %s preempted."
+    GLOBAL_SUCCESS       = "Global move to pose %s successful."
+    LOCAL_PREEMPT_OTHER  = "Preempted arm movement for local move."
 
