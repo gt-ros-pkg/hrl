@@ -24,7 +24,12 @@ class RegistrationLoader(object):
         self.load_ell_params = rospy.ServiceProxy("/load_ellipsoid_params", LoadEllipsoidParams)
 
     def init_reg_cb(self, req):
-        head_reg_tf = self.head_registration(req.u, req.v).tf_reg
+        try:
+            head_reg_tf = self.head_registration(req.u, req.v).tf_reg
+        except:
+            rospy.logerr("[registration_loader] Registration failed.")
+            return None
+
         head_reg_mat = PoseConverter.to_homo_mat(head_reg_tf)
         ell_reg = PoseConverter.to_homo_mat(Transform(self.e_params.e_frame.transform.translation,
                                                       self.e_params.e_frame.transform.rotation))

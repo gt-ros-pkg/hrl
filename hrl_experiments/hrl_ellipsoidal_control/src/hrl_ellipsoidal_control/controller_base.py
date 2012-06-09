@@ -98,7 +98,13 @@ class EllipsoidControllerBase(CartTrajController):
 
     def load_params(self, req):
         rospy.loginfo("Loaded ellispoidal parameters.")
-        self.head_center = PoseConverter.to_pose_stamped_msg(req.params.e_frame)
+        head_center_kinect = PoseConverter.to_pose_stamped_msg(req.params.e_frame)
+        cur_time = rospy.Time.now()
+        req.params.e_frame.header.stamp = cur_time
+        self.tf_list.waitForTransform("/base_link", "/openni_rgb_optical_frame", cur_time, 
+                                      rospy.Duration(3))
+        self.head_center = self.tf_list.transformPose("/base_link", head_center_kinect)
+        # TODO cleanup EllispoidSpace
         self.ell_space = EllipsoidSpace(1)
         self.ell_space.load_ell_params(req.params)
         self.ell_space.center = np.mat(np.zeros((3, 1)))
@@ -116,7 +122,7 @@ class EllipsoidControllerBase(CartTrajController):
                                       rospy.Duration(3))
         ep_opti_frame = PoseConverter.to_homo_mat(
                          self.tf_list.transformPose("/openni_rgb_optical_frame", ee_pose))
-        pos, quat = PoseConverter.to_pos_quat(PoseConverter.to_homo_mat(self.head_center)**-1 * 
+        pos, quat = PoseConverter.to_pos_quat(self.get_ell_frame("/openni_rgb_optical_frame")**-1 * 
                                               ep_opti_frame)
         return list(self.ell_space.pos_to_ellipsoidal(*pos))
 
@@ -144,14 +150,14 @@ class EllipsoidControllerBase(CartTrajController):
     def command_stop(self):
         self.ell_traj_behavior.stop_epc = True
 
-    def get_ell_frame(self):
-        # find the current ellipsoid frame
+    def get_ell_frame(self, frame="/torso_lift_link"):
+        # find the current ellipsoid frame location in this frame
         cur_time = rospy.Time.now()
-        self.tf_list.waitForTransform("/torso_lift_link", "/openni_rgb_optical_frame", 
+        self.tf_list.waitForTransform(frame, self.head_center.header.frame_id, 
                                       cur_time, rospy.Duration(3))
         self.head_center.header.stamp = cur_time
         return PoseConverter.to_homo_mat(
-                    self.tf_list.transformPose("/torso_lift_link", self.head_center))
+                    self.tf_list.transformPose(frame, self.head_center))
 
     def _run_traj(self, traj, blocking=True):
         self.start_pub.publish(

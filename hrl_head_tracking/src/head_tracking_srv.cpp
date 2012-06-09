@@ -39,7 +39,10 @@ bool regCallback(HeadRegSrv::Request& req, HeadRegSrv::Response& resp)
         return false;
     }
     Eigen::Affine3d tf_mat;
-    findFaceRegistration(template_pc, cur_pc, req.u, req.v, tf_mat);
+    if(!findFaceRegistration(template_pc, cur_pc, req.u, req.v, tf_mat)) {
+        ROS_ERROR("Bad initialization pixel.");
+        return false;
+    }
     resp.tf_reg.header.frame_id = cur_pc->header.frame_id;
     resp.tf_reg.header.stamp = ros::Time::now();
     tf::poseEigenToMsg(tf_mat, resp.tf_reg.pose);

@@ -15,7 +15,7 @@ void extractSkinPC(const PCRGB::Ptr& pc_in, PCRGB::Ptr& pc_out, double thresh)
     }
 }
 
-uint32_t findClosestPoint(const PCRGB::Ptr& pc, uint32_t u, uint32_t v)
+int32_t findClosestPoint(const PCRGB::Ptr& pc, uint32_t u, uint32_t v)
 {
     if(PT_IS_NOT_NAN(pc, v*640 + u))
         return v*640 + u;
@@ -133,12 +133,14 @@ void extractFace(const PCRGB::Ptr& input_pc, PCRGB::Ptr& out_pc, int u_click, in
 
     PCRGB::Ptr expanded_pc(new PCRGB());
     PCRGB::Ptr trimmed_pc(new PCRGB());
-    uint32_t closest_ind = findClosestPoint(input_pc, u_click, v_click);
+    int32_t closest_ind = findClosestPoint(input_pc, u_click, v_click);
+    if(closest_ind < 0)
+        return;
     sphereTrim(input_pc, trimmed_pc, closest_ind, trim_radius);
     extractSkinPC(trimmed_pc, out_pc, skin_thresh);
 }
 
-void findFaceRegistration(const PCRGB::Ptr& template_pc, const PCRGB::Ptr& input_pc,
+bool findFaceRegistration(const PCRGB::Ptr& template_pc, const PCRGB::Ptr& input_pc,
                           int u_click, int v_click, Eigen::Affine3d& tf_mat)
 {
     double color_weight;
@@ -148,7 +150,10 @@ void findFaceRegistration(const PCRGB::Ptr& template_pc, const PCRGB::Ptr& input
     PCRGB::Ptr skin_pc(new PCRGB());
 
     extractFace(input_pc, skin_pc, u_click, v_click);
+    if(skin_pc->size() == 0)
+        return false;
     computeICPRegistration(template_pc, skin_pc, tf_mat, max_iters, color_weight);
+    return true;
 }
 
 int main(int argc, char **argv)

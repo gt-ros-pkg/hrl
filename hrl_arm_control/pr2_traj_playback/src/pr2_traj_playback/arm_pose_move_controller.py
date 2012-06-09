@@ -108,6 +108,8 @@ class ArmPoseMoveBehavior(object):
     #                 immediately
     def move_to_angles(self, q_goal, rate=RATE, velocity=0.1, blocking=True):
         traj = self.get_angle_traj(q_goal, rate, velocity)
+        if len(traj) == 0:
+            return True
         return self.execute(traj, rate, blocking)
 
     def get_angle_traj(self, q_goal, rate=RATE, velocity=0.1):
@@ -118,7 +120,7 @@ class ArmPoseMoveBehavior(object):
         time_traj = max_ang / velocity
         steps = np.round(rate * time_traj)
         if steps == 0:
-            return True
+            return []
         t_vals = np.linspace(0., 1., steps)
         return [q_cur + diff * t for t in t_vals]
 
@@ -247,7 +249,6 @@ class TrajectoryServer(object):
         self.traj_ctrl = ArmPoseMoveBehavior(arm_char, ctrl_name, param_file)
 
         def pause_cb(req):
-            print "Pause called", self.traj_ctrl.is_paused, self.traj_ctrl.is_moving()
             if not self.traj_ctrl.is_paused:
                 if self.traj_ctrl.pause_moving():
                     rospy.loginfo("[arm_pose_move_controller] Pausing %s arm." 
@@ -276,7 +277,6 @@ class TrajectoryServer(object):
                    new_goal.reverse == self.last_goal.reverse and
                    new_goal.mode == self.last_goal.mode)
         self.last_goal = copy.copy(new_goal)
-        print new_goal, self.last_goal, ret_val
         return ret_val
 
     def traj_play_cb(self, goal):

@@ -35,9 +35,34 @@ outcomes_spa = ['succeeded','preempted','aborted']
 #    HOLDING               = 15
 
 class Messages:
-    GLOBAL_START         = "Starting global movement %s."
-    GLOBAL_PREEMPT_OTHER = "Preempted arm movement for global move %s."
-    GLOBAL_PREEMPT       = "Global move %s preempted."
-    GLOBAL_SUCCESS       = "Global move to pose %s successful."
-    LOCAL_PREEMPT_OTHER  = "Preempted arm movement for local move."
+    ENABLE_CONTROLLER    = "Enabling ellipsoidal controller. Arm may twitch as it switches controllers."
+    DISABLE_CONTROLLER   = "Disabling ellipsoidal controller. You must reenable to give more commands."
+    DANGEROUS_FORCE      = "Dangerous force over %.1f N detected, retreating from face."
+    TIMEOUT_RETREAT      = "Timeout from lack of contact over %.0f s, retreating from face."
+    CONTACT_FORCE        = "Arm stopped due to sensing contact force over %.1f N."
+    GLOBAL_START         = "Global ellipsoid move to pose %s running."
+    GLOBAL_PREEMPT       = "Global ellipsoid move to pose %s preempted."
+    GLOBAL_SUCCESS       = "Global ellipsoid move to pose %s successful."
+    LOCAL_START          = "Local ellipsoid move %s running."
+    ROT_RESET_START      = "Running reset rotation movement. The tool should rotate perpendicular to the head."
+    LOCAL_PREEMPT        = "Local ellipsoid move %s preempted."
+    LOCAL_SUCCESS        = "Local ellipsoid move %s successful."
 
+
+button_names_dict = {
+    'translate_up'       : "translate up",
+    'translate_down'     : "translate down",
+    'translate_left'     : "translate left",
+    'translate_right'    : "translate right",
+    'translate_in'       : "translate in",
+    'translate_out'      : "translate out",
+
+    'rotate_y_neg'       : "rotate down",
+    'rotate_y_pos'       : "rotate up",
+    'rotate_z_neg'       : "rotate left",
+    'rotate_z_pos'       : "rotate right",
+    'rotate_x_neg'       : "rotate clockwise",
+    'rotate_x_pos'       : "rotate counter clockwise",
+
+    'reset_rotation'     : "reset rotation",
+}
