@@ -29,9 +29,11 @@ class RegistrationLoader(object):
         # TODO REMOVE THIS SHAVING SIDE MESS
         self.shaving_side = rospy.get_param("/shaving_side", 'r')
         if self.shaving_side == 'r':
+            rospy.loginfo("[registration_loader] Loading head registration from right side.")
             e_params = self.e_params_r
             head_registration = self.head_registration_r
         else:
+            rospy.loginfo("[registration_loader] Loading head registration from left side.")
             e_params = self.e_params_l
             head_registration = self.head_registration_l
         # TODO

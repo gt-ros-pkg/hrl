@@ -21,8 +21,8 @@ from hrl_ellipsoidal_control.ellipsoidal_parameters import *
 from hrl_face_adls.face_adls_parameters import *
 from pr2_traj_playback.arm_pose_move_controller import ArmPoseMoveBehavior, TrajectoryLoader
 from pr2_traj_playback.arm_pose_move_controller import CTRL_NAME_LOW, PARAMS_FILE_LOW
+from hrl_face_adls.msg import StringArray
 from hrl_face_adls.srv import EnableFaceController, EnableFaceControllerResponse
-from hrl_face_adls.msg import KeyValLists
 
 quat_gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
 
@@ -72,30 +72,17 @@ class ForceCollisionMonitor(object):
 
 class FaceADLsManager(object):
     def __init__(self):
-        # load global_poses from file
-        poses_path = roslib.substitution_args.resolve_args(
-                        '$(find hrl_face_adls)/data/bilateral_poses.pkl')
-        f = file(poses_path, 'r')
-        pose_dict = pkl.load(f)
-        self.global_names = sorted(pose_dict.keys())
-        self.global_poses = [pose_dict[pose_name] for pose_name in self.global_names]
-        f.close()
 
         self.ell_ctrl = EllipsoidController()
         self.ctrl_switcher = ControllerSwitcher()
 
-        self.global_input_sub = rospy.Subscriber("/face_adls/global_move", Int8, self.global_input_cb,
+        self.global_input_sub = rospy.Subscriber("/face_adls/global_move", String, self.global_input_cb,
                                                  queue_size=2)
         self.local_input_sub = rospy.Subscriber("/face_adls/local_move", String, self.local_input_cb, 
                                                 queue_size=2)
         self.state_pub = rospy.Publisher('/face_adls/controller_state', Int8, latch=True)
         self.feedback_pub = rospy.Publisher('/face_adls/feedback', String, latch=True)
-        self.global_pose_pub = rospy.Publisher('/face_adls/global_move_poses', KeyValLists, latch=True)
-        gpmsg = KeyValLists()
-        gpmsg.keys = self.global_names
-        gpmsg.vals = self.global_poses
-        self.global_pose_pub.publish(msg)
-
+        self.global_move_poses_pub = rospy.Publisher('/face_adls/global_move_poses', StringArray, latch=True)
         def enable_controller_cb(req):
             if req.enable:
                 self.enable_controller(req.end_link, req.ctrl_params)
@@ -149,6 +136,9 @@ class FaceADLsManager(object):
         self.force_monitor.update_activity()
         self.is_forced_retreat = False
 
+        shaving_side = rospy.get_param('/shaving_side', 'r')
+        self.global_poses = rospy.get_param('/face_adls/%s_global_poses' % shaving_side)
+
         self.controller_enabled_pub.publish(Bool(True))
 
     def disable_controller(self):
@@ -189,7 +179,7 @@ class FaceADLsManager(object):
             #self.publish_feedback(Messages.GLOBAL_PREEMPT_OTHER)
         self.force_monitor.update_activity()
         goal_pose = self.global_poses[msg.data]
-        goal_pose_name = self.global_names[msg.data]
+        goal_pose_name = msg.data
         self.publish_feedback(Messages.GLOBAL_START % goal_pose_name)
         try:
             if not self.ell_ctrl.execute_ell_move(((0, 0, RETREAT_HEIGHT), (0, 0, 0)), ((0, 0, 1), 0), 

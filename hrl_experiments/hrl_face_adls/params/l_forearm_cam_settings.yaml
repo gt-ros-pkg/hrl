@@ -1,0 +1,9 @@
+{auto_black_level: false, auto_exposure: false, auto_exposure_alternate: false, auto_gain: false,
+  auto_gain_alternate: true, black_level: -100, black_level_filter_length: 2, black_level_step_size: 22,
+  brightness: 8, camera_url: 'name://forearm_l#lan1@10.69.0.42', companding: true,
+  companding_alternate: true, exposure: 0.033000000000000002, exposure_alternate: 0.040000000000000001,
+  ext_trig: false, first_packet_offset: 0.0025000000000000001, frame_id: l_forearm_cam_optical_frame,
+  gain: 127, gain_alternate: 56, height: 480, horizontal_binning: 1, imager_rate: 30.0,
+  max_exposure: 0.027, mirror_x: false, mirror_y: false, packet_debug: false, register_set: 0,
+  rising_edge_trig: true, rotate_180: true, test_pattern: false, trig_rate: 30.0,
+  trig_timestamp_topic: not_set, vertical_binning: 1, width: 640, x_offset: 0, y_offset: 0}
