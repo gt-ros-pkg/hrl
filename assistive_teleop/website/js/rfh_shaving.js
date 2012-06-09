@@ -8,17 +8,17 @@ function shaving_init(){
     node.subscribe('/pr2_ar_servo/state_feedback', function(msg){
                     servo_feedback_cb(msg);}
                     );
-    node.subscribe('/face_adls/controller_state', function(msg){
-                    shaving_feedback_cb(msg);}
-                    );
+   // node.subscribe('/face_adls/controller_state', function(msg){
+   //                 shaving_feedback_cb(msg);}
+   //                 );
     node.subscribe('/face_adls/controller_enabled', function(msg){
                     ell_controller_state_cb(msg);}
                     );
     node.subscribe('/face_adls/global_move_poses', function(msg){
-                    parallel_list_options('#shave_list', msg)}
+                    list_key_opts('#shave_list', msg)}
                     );
     node.publish('/face_adls/local_move', 'std_msgs/String', json({}));
-    node.publish('/face_adls/global_move', 'std_msgs/Int8', json({}));
+    node.publish('/face_adls/global_move', 'std_msgs/String', json({}));
     node.publish('reg_confirm', 'std_msgs/Bool', json({}));
     node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({}))
     node.publish('ros_switch', 'std_msgs/Bool', json({}));
@@ -30,17 +30,16 @@ function shaving_init(){
     //set_ft_ref_bar();
 };
 
-$(function(){
-    //$('.shave_acts, shave_select, #shave_end').hide()
-});
-
 function ell_controller_state_cb(msg){
     if (msg.data){
         log("Ellipsoid Controller Active")
         $("#ell_controller").attr("checked","checked");
+        $("#ell_cont_state_check").attr("aria-pressed",true).addClass('ui-state-active');
+
        } else {
         $("#ell_controller").attr("checked", "");
         log("Ellipsoid Controller Inactive")
+        $("#ell_cont_state_check").attr("aria-pressed",false).removeClass('ui-state-active');
        };
     };
 
@@ -151,7 +150,6 @@ function head_reg_cb(){
         alert('Click your head in the video to seed the ellipse registratoin')
     };
 
-
 function reg_confirm_cb() {
     log("Sending command to untuck arms and start shaving.");
     $('#pc_snapshot').hide();
@@ -166,26 +164,13 @@ function reg_confirm_cb() {
     });
 };
 
-function get_shave_side() {
-    node.rosjs.callService('/rosbridge/get_param',
-                           '["shaving_side"]',
-                           function(msg){window.shaving_side = msg;});
-};
-
 function shave_step(cmd_str) {
     node.publish('/face_adls/local_move', 'std_msgs/String',
                 json({'data':cmd_str}));
-    log("Sending Adjustment to Shaving Position");
 };
 
-function send_shave_location(num) {
-    //log("Sending New Shave Position: "+ document.getElementById('shave_list').options[window.sm_selected_pose].text);
-    if (window.shaving_side == 'r') {
-        if (num >= 1 && num <= 6) {
-            num += 7;
-            };
-    };
-    node.publish('wt_shave_location', 'std_msgs/Int8', json({'data':num}));
+function send_shave_location(key) {
+    node.publish('/face_adls/global_move', 'std_msgs/String', json({'data':key}));
 };
 
 function toggle_tool_power() {
@@ -205,56 +190,57 @@ function shave_start_cb(){
     log('Opened Shaving Interface');
 };
 
-function shaving_feedback_cb(msg){
-    switch(msg.data){
-        case 1:
-            text = "Global Move Command Received";
-            break
-        case 2: 
-            text = "Starting Small Move Up";
-            break
-        case 3: 
-            text = "Starting Small Move Down";
-            break
-        case 4: 
-            text = "Starting Small Move Left";
-            break
-        case 5: 
-            text = "Starting Small Move Right";
-            break
-        case 6: 
-            text = "Starting Small Move Out";
-            break
-        case 7: 
-            text = "Starting Small Move In";
-            break
-        case 8: 
-            text = "Moving in to Shave Current Position";
-            break
-        case 9: 
-            text = "Collision While Moving";
-            break
-        case 10: 
-            text = "Backing Away...";
-            break
-        case 11: 
-            text = "Moving to new location...";
-            break
-        case 12: 
-            text = "Approaching...";
-            break
-        case 13: 
-            text = "Retreating Slowly";
-            break
-        case 14: 
-            text = "Fast Retreat (Safety Threshold Exceeded)";
-            break
-        case 15: 
-            text = "Beginning Force-Sensitive Hold.";
-            break
-    }
-    log(text);
-};
+//function shaving_feedback_cb(msg){
+//    text = "Received controller state msg not fitting a known case"
+//    switch(msg.data){
+//        case 1:
+//            text = "Global Move Command Received";
+//            break
+//        case 2: 
+//            text = "Starting Small Move Up";
+//            break
+//        case 3: 
+//            text = "Starting Small Move Down";
+//            break
+//        case 4: 
+//            text = "Starting Small Move Left";
+//            break
+//        case 5: 
+//            text = "Starting Small Move Right";
+//            break
+//        case 6: 
+//            text = "Starting Small Move Out";
+//            break
+//        case 7: 
+//            text = "Starting Small Move In";
+//            break
+//        case 8: 
+//            text = "Moving in to Shave Current Position";
+//            break
+//        case 9: 
+//            text = "Collision While Moving";
+//            break
+//        case 10: 
+//            text = "Backing Away...";
+//            break
+//        case 11: 
+//            text = "Moving to new location...";
+//            break
+//        case 12: 
+//            text = "Approaching...";
+//            break
+//        case 13: 
+//            text = "Retreating Slowly";
+//            break
+//        case 14: 
+//            text = "Fast Retreat (Safety Threshold Exceeded)";
+//            break
+//        case 15: 
+//            text = "Beginning Force-Sensitive Hold.";
+//            break
+//    }
+//    log(text);
+//};
 
 function shave_end_cb() {
 $('#bpd_ell_trans, #bpd_ell_rot, #shave_select, #pc_snapshot, #tool_power, .ar_servo_controls, #ar_servoing_setup, #ar_servoing_done, #shave, #rezero_wrench').hide();
@@ -264,14 +250,14 @@ log('Closed Shaving Interface');
 };
 
 function set_ft_ref_bar(){
-    log("getting force params")
     node.rosjs.callService('/rosbridge/get_param','["face_adls_manager"]',
           function(params){
-              log('Received Force Params')
               var danger_pct = ((15-params['dangerous_force_thresh'])/15)*100;
               var act_pct = ((15-params['activity_force_thresh'])/15)*100-danger_pct;
               $("#ft_ref_danger").height(danger_pct.toString()+'%');
+              $("#ft_ref_danger_label").text("Danger\r\n >"+params.dangerous_force_thresh.toString()+" N")
               $("#ft_ref_act").height(act_pct.toString()+'%');
+              $("#ft_ref_act_label").text("Activity\r\n  >"+params.activity_force_thresh.toString()+ "N")
               $("#ft_ref_null").height('100%');
               });
     };

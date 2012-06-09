@@ -20,8 +20,8 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){ document.getElementById('console').innerHTML = message.toString();};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-//var ROBOT = 'monty1';
-var ROBOT = 'localhost';
+var ROBOT = 'monty1';
+//var ROBOT = 'localhost';
 
 $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
@@ -175,7 +175,7 @@ function init_action_clients(){
 };
 
 function init_params(){
-    node.rosjs.callService('/rosbridge/get_param','["face_adls_traj_files"]',
+    node.rosjs.callService('/rosbridge/get_param','["face_adls_traj_files"]',//nop);
                           function(msg){list_opts('#traj_play_select', msg)});
     };
 
@@ -183,14 +183,16 @@ function list_opts(cont_sel, dict){
     for (var key in dict){
         $(cont_sel).append('<option value="'+dict[key]+'">'+key+'</option>');
         log("adding option "+ dict[key]+" to selector "+ cont_sel)
-        return true
-        setTimeout(set_ft_ref_bar(),1000);
+        setTimeout(set_ft_ref_bar(),2000);
         };
 };
 
-function parallel_list_options(cont_sel, msg){
-        for (i=0; i<msg.keys.length; i++){
-            $(cont_sel).append('<option value="'+msg.vals[i]+'">'+msg.keys[i]+'</option>')};
+function list_key_opts(cont_sel, msg){
+        console.log("Receiving global move keys")
+        $(cont_sel).empty();
+        for (i=0; i<msg.data.length; i++){
+            $(cont_sel).append('<option>'+msg.data[i]+'</option>')};
+        //setTimeout(set_ft_ref_bar(),1000);
     };
 
 function empty_srv(service){
@@ -305,12 +307,10 @@ function start(){
     <td>
       <table border=1 style="height:450px; width:10px">
         <tr id="ft_ref_danger" style="height:33%;background-color:red">
-          <td>
-           <p>Danger</p>
-          </td>
+          <td id="ft_ref_danger_label">[Danger Force Level]</td>
         </tr>
         <tr id="ft_ref_act" style="height:50%;background-color:green">
-          <td style="writing-mode:tb-rl;" >Activity</td>
+          <td id="ft_ref_act_label">[Activity Force Level]</td>
         </tr>
         <tr id="ft_ref_null" style="height:100%;background-color:gray">
          <td>
@@ -559,13 +559,13 @@ function start(){
               </tr>
               <tr>
                 <td>
-                  <button id="shave" class='centered' type="button" onclick="send_shave_location('approach');">Approach</button>
+                  <!--<button id="shave" class='centered' type="button" onclick="send_shave_location('approach');">Approach</button>-->
                 </td>
               </tr>
               <tr>
                 <td>
                   <input type="checkbox" class="centered" id="ell_controller" onclick="toggle_ell_controller()" />
-                  <label for="ell_controller"> Ellipsoidal Control </label>
+                  <label id="ell_cont_state_check" for="ell_controller"> Ellipsoidal Control </label>
                 </td>
               </tr>
               <tr>
@@ -584,25 +584,10 @@ function start(){
                     <table>
                     <tr>
                       <td>
-                        <select class="centered" id='shave_list'>
-                         <!-- <option value=0>Chin</option>
-                          <option value=1>Mid-Cheek</option>
-                          <option value=2>Near Ear</option>
-                          <option value=3>Jaw</option>
-                          <option value=4>Mouth</option>
-                          <option value=5>Neck</option>
-                          <option value=6>High Cheek</option>
-                          <option value=7>Nose</option>
-                          <option value=8>Mid-Cheek</option>
-                          <option value=9>Near Ear</option>
-                          <option value=10>Jaw</option>
-                          <option value=11>Mouth</option>
-                          <option value=12>Neck</option>
-                          <option value=13>High Cheek</option>-->
-                        </select>
+                        <select class="centered" id='shave_list'></select>
                       </td>
                       </tr><tr>
-                      <td><button id="send_shave_select" onclick="log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').val())">Move to Selection</button></td>
+                      <td><button id="send_shave_select" onclick="log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').text())">Move to Selection</button></td>
                     </tr>
                   </table>
                 </div>  <!--End Shaving Drop-Down -->
@@ -617,7 +602,7 @@ function start(){
                   <th colspan="4"> Translate </th>
                 </tr>
                 <tr><td rowspan="4">
-                  <div style="height:215px" id="slider"></div>
+                  <div class="slider" id="ell_trans_slider" style="height:235px" ></div>
                 </td></tr>
                 <tr>
                   <td><button class="bpd arrow_trans_in" id="b7" value=1 onclick="shave_step('translate_in')"/></td>
@@ -644,7 +629,7 @@ function start(){
                   <th colspan="4"> Rotate </th>
                 </tr>
                 <tr><td rowspan="4">
-                  <div style="height:215px" id="slider"></div>
+                  <div class="slider" id="ell_rot_slider" style="height:235px" ></div>
                 </td></tr>
                 <tr>
                   <td><button class="bpd arrow_rot_x_pos" id="b7" value=1 onclick="shave_step('rotate_x_pos')"/></td>
@@ -731,10 +716,10 @@ function start(){
       </td>
     </tr>
     <tr>
-      <td rowspan="1" align='center'><div style="margin:5px;height:150px" id="lg_slider"></div></td>
-      <td rowspan="1" align='center'><div style="margin:5px;height:150px" id="rg_slider"></div></td>
+      <td rowspan="1" align='center'><div style="margin:5px;height:150px" class="slider" id="lg_slider"></div></td>
+      <td rowspan="1" align='center'><div style="margin:5px;height:150px" class="slider" id="rg_slider"></div></td>
       <td rowspan="1" align='center'>
-        <div style="margin: 5 auto; height:150px" id="torso_slider"></div>
+        <div style="margin: 5 auto; height:150px" class="slider" id="torso_slider"></div>
       </td>
     </tr>
     <tr>
