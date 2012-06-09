@@ -27,7 +27,7 @@ $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
     $("#tabs").tabs()
     $("#traj_play_radio").buttonset();
-    $(".bpd, .cont_sel, #traj_play_reverse, #ell_controller, #reg_head, #tool_power").button();
+    $(".bpd, .cont_sel, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #tool_power").button();
     $(':button').click(log_click);
 	$('#force_view').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
 	$('#force_set').slider({value:1,min:0,max:12,step:0.05,orientation:'vertical'}); 
@@ -60,7 +60,7 @@ $(function(){
 });
 
 function init(){
-    log("Starting Init");
+    //log("Starting Init");
     init_msgs();
     init_subscribers();
     init_publishers();
@@ -69,28 +69,28 @@ function init(){
     shaving_init();
     camera_init();
     init_params();
-	log('Fully Initialized');
+	//log('Fully Initialized');
 };
 
 function init_msgs (){
-    log("Beginning Message Init");
+    //log("Beginning Message Init");
 	if (!window.point_2d){
-        log("Looking for Pixel_2_3d service");
+        //log("Looking for Pixel_2_3d service");
 		node.rosjs.callService('/rosbridge/reqClassFromTypeString',
                                '["pixel_2_3d/Pixel23d"]',
                                function(msg){window.point_2d=msg; init_msgs()});
 	}else if (!window.gm_point){
-        log('Looking for Geometry_msgs Point'); 
+        //log('Looking for Geometry_msgs Point'); 
 		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
                                '["geometry_msgs/Point"]',
                                function(msg){window.gm_point=msg; init_msgs()});
 	}else if (!window.JTAGoal){
-        log('Looking for JointTrajectoryActionGoal');
+        //log('Looking for JointTrajectoryActionGoal');
 		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
                           '["pr2_controllers_msgs/JointTrajectoryActionGoal"]',
                           function(msg){window.JTAGoal=msg; init_msgs()});
 	}else if (!window.TrajPlayGoal){
-        log('Looking for TrajectoryPlayGoal'); 
+        //log('Looking for TrajectoryPlayGoal'); 
 		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
                                '["pr2_traj_playback/TrajectoryPlayGoal"]',
                                function(msg){window.TrajPlayGoal=msg; init_msgs()});
@@ -98,11 +98,11 @@ function init_msgs (){
         $('#force_view').slider("option", "disabled", true);
         set_camera("kinect_head/rgb/image_color");
 	};
-    log("End Message Init");
+    //log("End Message Init");
 };
 
 function init_subscribers() {
-    log("Begin Subscriber Init")
+    //log("Begin Subscriber Init")
 	node.subscribe('/r_gripper_controller_state_throttle',
                     function(msg){
                         $('#rg_slider').show().slider("option", "value", msg.process_value);
@@ -125,14 +125,14 @@ function init_subscribers() {
                                        Math.pow(ws.wrench.force.y,2) + 
                                        Math.pow(ws.wrench.force.z,2))
                         $('#force_view').slider("option", "value", mag);
-                       set_ft_bar(Math.min(mag, 12)/12, 0.5);
+                       set_ft_bar(Math.min(mag, 12)/12, 0.5)
                        $('#ft_readout').html('<p>'+mag.toFixed(1)+' N </p>')
                    });
-    log("End Subscriber Init")
+    //log("End Subscriber Init")
 };//END sub_state
 
 function init_publishers() {
-    log("Begin Publisher Init")
+    //log("Begin Publisher Init")
 	//Gripper Publishers
     node.publish('wt_r_gripper_commands','pr2_controllers_msgs/Pr2GripperCommand',json({}));
 	node.publish('wt_l_gripper_commands','pr2_controllers_msgs/Pr2GripperCommand',json({}));
@@ -147,11 +147,11 @@ function init_publishers() {
 	node.publish('torso_controller/position_joint_action/goal','pr2_controllers_msgs/SingleJointPositionActionGoal',json({}));
     node.publish('wt_ft_goal', 'std_msgs/Float32', json({}));
     node.publish('wt_click_log', 'std_msgs/String', json({}));
-    log("End Publisher Init")
+    //log("End Publisher Init")
 };
 
 function init_action_clients(){
-    log("Begin Action Client Init");
+    //log("Begin Action Client Init");
     var traj_play_act_spec = new ros.actionlib.ActionSpec('pr2_traj_playback/TrajectoryPlayAction');
     window.traj_play_r_client = new ros.actionlib.SimpleActionClient(node,'/trajectory_playback_r', traj_play_act_spec);
     window.traj_play_l_client = new ros.actionlib.SimpleActionClient(node,'/trajectory_playback_l', traj_play_act_spec);
@@ -170,7 +170,7 @@ function init_action_clients(){
             //log("Found Left Trajectory Playback Action");
           };
       });
-    log("End Action Client Init");
+    //log("End Action Client Init");
 };
 
 function init_params(){
@@ -181,6 +181,8 @@ function init_params(){
 function list_opts(cont_sel, dict){
     for (var key in dict){
         $(cont_sel).append('<option value="'+dict[key]+'">'+key+'</option>');
+        log("adding option "+ dict[key]+" to selector "+ cont_sel)
+        setTimeout(set_ft_ref_bar(),2000);
         };
 };
 
@@ -233,11 +235,6 @@ function speak(text){
 		log('\"' + text +'\"'); 
 };
 
-function head_reg_cb(){
-        window.img_act = 'seed_reg';
-        alert('Click your head in the video to seed the ellipse registratoin')
-    };
-
 function traj_play_send_goal(){
     goal = window.TrajPlayGoal;
     goal.mode = parseInt($('input[name=traj_play_radio]:checked','#traj_play_radio').val());
@@ -252,7 +249,6 @@ function traj_play_send_goal(){
     } else {log("Cannot Tell Which Arm to use based on filepath")};
     log("sending Trajectory Play Goal");
 };
-
 
 function start(){
     node = new ros.NodeHandle('ws://'+ ROBOT + ':9091');
@@ -279,8 +275,9 @@ function start(){
         <iframe id='video' title="Video Stream from the PR2" style="height:100%; width:100%; left:0; top:0; border-style:none;">You Broswer does not support iFrames</iframe>
       </div>
     </td><!-- End Cell for video -->
+      <!--
     <td>
-      <div> <!-- Start Force-Torque Set/Feedback Block -->
+      <div> Start Force-Torque Set/Feedback Block 
       <table border=1>
         <tr>
           <td colspan=2 align='center'>Force</td>
@@ -295,19 +292,20 @@ function start(){
           <td align='center'> Felt </td>
         </tr>
       </table>
-      </div> <!-- End Force-Torque Set/Feedback Block -->
+      </div> End Force-Torque Set/Feedback Block
     </td>
+    -->
     <td>
       <table border=1 style="height:450px; width:10px">
-        <tr style="height:17%;background-color:red">
+        <tr id="ft_ref_danger" style="height:25%;background-color:red">
           <td>
            <p>Danger</p>
           </td>
         </tr>
-        <tr style="height:58%;background-color:green">
+        <tr id="ft_ref_act" style="height:50%;background-color:green">
           <td style="writing-mode:tb-rl;" >Activity</td>
         </tr>
-        <tr style="height:25%;background-color:gray">
+        <tr id="ft_ref_null" style="height:25%;background-color:gray">
          <td>
            <div id="ft_readout"></div>
          </td>
@@ -322,53 +320,10 @@ function start(){
     </td>
     <td>
       <table>
-        <tr>
-          <td>
-            <button id="shave_start" class='act_menu' type="button" onclick="shave_start_cb()">Shave</button>
-            <button id="shave_end" class='act_menu' type="button" onclick="shave_end_cb">End Shaving</button>
-          </td>
-       </tr>
-       <tr><td><hr></td></tr>
-       <tr><td>
-         <button id="ar_servoing_setup" class='shave_acts' onclick="servo_setup_cb();"> Setup for Approach </button>
-         <button id="ar_servoing_done" class='shave_acts' type="button" onclick="servoing_done_cb();"> Approach Finished </button>
-         <button id="pc_snapshot" class='shave_acts' type="button" onclick="pc_snapshot_cb();"> Take Snapshot (In Rviz)</button>
-          <button id="reg_confirm" class='shave_acts' type="button" style="height:120" onclick="reg_confirm_cb();"> Confirm Registration (Raise Torso and Untuck Arms) </button>
-          <button id="shave" class='shave_acts' type="button" onclick="send_shave_location(-1);">Shave Now</button>
-          </td>
-        </tr>
       <tr>
         <td>
-<div id='shave_select'>  <!--Shaving Selection Drop-Down and Entry -->
-        <table id='shave_select'>
-        <tr>
-          <td>
-            <select id='shave_list'>
-              <option value=0>Chin</option>
-              <option value=1>Mid-Cheek</option>
-              <option value=2>Near Ear</option>
-              <option value=3>Jaw</option>
-              <option value=4>Mouth</option>
-              <option value=5>Neck</option>
-              <option value=6>High Cheek</option>
-              <option value=7>Nose</option>
-          <!--<option value=8>Mid-Cheek</option>
-              <option value=9>Near Ear</option>
-              <option value=10>Jaw</option>
-              <option value=11>Mouth</option>
-              <option value=12>Neck</option>
-              <option value=13>High Cheek</option>-->
-	        </select>
-          </td>
-          </tr><tr>
-          <td><button id="send_shave_select" type="button" onclick="window.sm_selected_pose = document.getElementById('shave_list').selectedIndex; log('Sending Command to move to ' + document.getElementById('shave_list').options[window.sm_selected_pose].text); send_shave_location(window.sm_selected_pose)">Move to Selection</button></td>
-	    </tr>
-	</table>
-  </div>  <!--End Shaving Drop-Down -->
   </td></tr>
-      <tr><td><button  class='shave_acts' id="tool_power" type="button" value="-1" onclick="toggle_tool_power()">Start/Stop Razor</button></td></tr>
       <tr>
-        <td><button id="rezero_wrench" class='shave_acts' type='button' onclick="rezero_wrench()";>Zero FT Sensor</button>
       </tr>
       </td>
       </table>
@@ -480,7 +435,7 @@ function start(){
        </td>
 
        <td>
-         <img id="tp" src=touchpad.jpg title="Click here for 2D Control of the selected robot part" style="border-style:solid; border-width:3px height:201px; width:201px;">
+         <img id="tp" src=touchpad.jpg title="Click here for 2D Control of the selected robot part" style="border-style:solid; border-width:3px height:235px; width:235px;">
        </td>
        </tr>
      </table>
@@ -491,8 +446,8 @@ function start(){
         <tr>
           <td>
             <div>
-              <select id="ar_servo_select">
-              </select>
+              <!--<select id="ar_servo_select">
+              </select>-->
             </div>
           </td>
         </tr>
@@ -591,22 +546,18 @@ function start(){
           <td>
             <table>
               <tr>
-                <th> Action </th>
-              </tr>
-              <tr>
                 <td>
                   <button class="centered" id="reg_head" onclick="head_reg_cb()"> Register Head </button>
                 </td>
               </tr>
-                <td>
-                  </hr>
-                </td>
               <tr>
-                <th> Toggles </th>
+                <td>
+                  <button id="shave" class='centered' type="button" onclick="send_shave_location(-1);">Shave Now</button>
+                </td>
               </tr>
               <tr>
                 <td>
-                  <input type="checkbox" class="centered" id="ell_controller" />
+                  <input type="checkbox" class="centered" id="ell_controller" onclick="toggle_ell_controller()" />
                   <label for="ell_controller"> Ellipsoidal Control </label>
                 </td>
               </tr>
@@ -614,7 +565,42 @@ function start(){
                 <td>
                    <button class="centered" id="tool_power" onclick="toggle_tool_power()">Start/Stop Razor</button>
                 </td>
+              <tr>
               </tr>
+                <td>
+                  <button id="rezero_wrench" class='centered' onclick="rezero_wrench()";>Zero FT Sensor</button>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div id='shave_select'>  <!--Shaving Selection Drop-Down and Entry -->
+                    <table>
+                    <tr>
+                      <td>
+                        <select class="centered" id='shave_list'>
+                          <option value=0>Chin</option>
+                          <option value=1>Mid-Cheek</option>
+                          <option value=2>Near Ear</option>
+                          <option value=3>Jaw</option>
+                          <option value=4>Mouth</option>
+                          <option value=5>Neck</option>
+                          <option value=6>High Cheek</option>
+                          <option value=7>Nose</option>
+                      <!--<option value=8>Mid-Cheek</option>
+                          <option value=9>Near Ear</option>
+                          <option value=10>Jaw</option>
+                          <option value=11>Mouth</option>
+                          <option value=12>Neck</option>
+                          <option value=13>High Cheek</option>-->
+                        </select>
+                      </td>
+                      </tr><tr>
+                      <td><button id="send_shave_select" onclick="log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').index())">Move to Selection</button></td>
+                    </tr>
+                  </table>
+                </div>  <!--End Shaving Drop-Down -->
+               </td>
+             </tr>
             </table>
           </td>
           <td>
@@ -633,17 +619,13 @@ function start(){
                 </tr>
                 <tr>
                   <td><button class="bpd arrow_trans_left" id="b4" value="1" onclick="shave_step('translate_left')"/></td>
-                  <td><button class="bpd" id="b5" value=1 onclick="shave(0)"/></td>
+                  <td><!--<button class="bpd" id="b5" value=1 onclick="shave(0)"/>--></td>
                   <td><button class="bpd arrow_trans_right" id="b6" value="-1" onclick="shave_step('translate_right')"/></td>
                 </tr>
                 <tr>
-                  <td>
-                  <button class="bpd" id="b1" onclick="shave_step()"/>
-                  </td>
-                  <td><button class="bpd arrow_trans_down" id="b2" onclick="shave_step('translate_down')"/>
-                  <td>
-                  <button class="bpd" id="b3" onclick="shave(1)"/>
-                  </td>
+                  <td><!--<button class="bpd" id="b1" onclick="shave_step()"/>--></td>
+                  <td><button class="bpd arrow_trans_down" id="b2" onclick="shave_step('translate_down')"/></td>
+                  <td><!--<button class="bpd" id="b3" onclick="shave(1)"/>--></td>
                 </tr>
               </table>
             </div> <!--END Translate Ellipse Buttonpad -->
@@ -664,17 +646,13 @@ function start(){
                 </tr>
                 <tr>
                   <td><button class="bpd arrow_rot_z_pos" id="b4" value="1" onclick="shave_step('rotate_z_pos')"/></td>
-                  <td><button class="bpd" id="b5" value=1 onclick="shave('reset_rotation')">Reset</button></td>
+                  <td><button class="bpd" id="b5" value=1 onclick="shave_step('reset_rotation')">Reset</button></td>
                   <td><button class="bpd arrow_rot_z_neg" id="b6" value="-1" onclick="shave_step('rotate_z_neg')"/></td>
                 </tr>
                 <tr>
-                  <td>
-                  <button class="bpd" id="b1" onclick="shave_step()"/>
-                  </td>
+                  <td><!--<button class="bpd" id="b1" onclick="shave_step()"/>--></td>
                   <td><button class="bpd arrow_rot_y_neg" id="b2" onclick="shave_step('rotate_y_neg')"/>
-                  <td>
-                  <button class="bpd" id="b3" onclick="shave(1)"/>
-                  </td>
+                  <td><!--<button class="bpd" id="b3" onclick="shave(1)"/>--></td>
                 </tr>
               </table>
             </div> <!--END Ellipse Rotate buttonpad -->

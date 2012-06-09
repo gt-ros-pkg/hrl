@@ -11,9 +11,12 @@ function shaving_init(){
     node.subscribe('/face_adls/controller_state', function(msg){
                     shaving_feedback_cb(msg);}
                     );
+    node.subscribe('/face_adls/controller_enabled', function(msg){
+                    ell_controller_state_cb(msg);}
+                    );
     
-    node.publish('wt_shave_step', 'geometry_msgs/Point', json({}));
-    node.publish('wt_shave_location', 'std_msgs/Int8', json({}));
+    node.publish('/face_adls/local_move', 'std_msgs/String', json({}));
+    node.publish('/face_adls/global_move', 'std_msgs/Int8', json({}));
     node.publish('reg_confirm', 'std_msgs/Bool', json({}));
     node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({}))
     node.publish('ros_switch', 'std_msgs/Bool', json({}));
@@ -22,11 +25,33 @@ function shaving_init(){
     node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({}));
     node.publish('netft_gravity_zeroing/rezero_wrench', 'std_msgs/Bool', json({}));
+    //set_ft_ref_bar();
 };
 
 $(function(){
-    $('.shave_acts, #shave_select, #shave_end').hide()
+    //$('.shave_acts, shave_select, #shave_end').hide()
 });
+
+function ell_controller_state_cb(msg){
+    if (msg.data){
+        log("Ellipsoid Controller Active")
+        $("#ell_controller").attr("checked","checked");
+       } else {
+        $("#ell_controller").removeAttr("checked");
+        log("Ellipsoid Controller Inactive")
+       };
+    };
+
+function toggle_ell_controller(){
+    if ($("#ell_controller").attr('checked')) {
+        state = true;
+    } else {
+        state = false;
+    };
+    node.rosjs.callService('/face_adls/enable_controller',
+                    '{"end_link":"%s_gripper_shaver45_frame","ctrl_params":"$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml","enable":'+state+'}',
+                    nop);
+    };
 
 function servo_setup_cb(){
     log('Sending command to prep arms for ar-servoing approach');
@@ -112,12 +137,18 @@ function servo_feedback_cb(msg){
     }
     log(text);
 };
-
+ 
 function pc_snapshot_cb() {
     empty_srv('/take_pc_snapshot')
     $('#reg_confirm').show();
     log('USE R-VIZ TO FULLY ALIGN ELLIPSE, THEN CLICK CONFIRM.');
 };
+
+function head_reg_cb(){
+        window.img_act = 'seed_reg';
+        alert('Click your head in the video to seed the ellipse registratoin')
+    };
+
 
 function reg_confirm_cb() {
     log("Sending command to untuck arms and start shaving.");
@@ -140,13 +171,13 @@ function get_shave_side() {
 };
 
 function shave_step(cmd_str) {
-                        node.publish('/face_adls/local_move', 'std_msgs/String',
-                                    json(cmd_str));
-                        log("Sending Adjustment to Shaving Position");
+    node.publish('/face_adls/local_move', 'std_msgs/String',
+                json({'data':cmd_str}));
+    log("Sending Adjustment to Shaving Position");
 };
 
 function send_shave_location(num) {
-    log("Sending New Shave Position: "+ document.getElementById('shave_list').options[window.sm_selected_pose].text);
+    //log("Sending New Shave Position: "+ document.getElementById('shave_list').options[window.sm_selected_pose].text);
     if (window.shaving_side == 'r') {
         if (num >= 1 && num <= 6) {
             num += 7;
@@ -229,6 +260,19 @@ $('#tp, #shave_start').show();
 $('#shave_end').hide();
 log('Closed Shaving Interface');
 };
+
+function set_ft_ref_bar(){
+    log("getting force params")
+    node.rosjs.callService('/rosbridge/get_param','["face_adls_manager"]',
+          function(params){
+              log('Received Force Params')
+              var danger_pct = 1-((params['dangerous_force_thresh']/30)*0.01);
+              var act_pct = 1-((params['activity_force_thresh']/30)*0.01);
+              $("#ft_ref_danger").height(danger_pct);
+              $("#ft_ref_act").height(act_pct);
+              $("#ft_ref_null").height(1 - danger_pct - act_pct);
+              });
+    };
 
 function set_ft_bar(pct,yellow_pct){
     g = r = "FF";
