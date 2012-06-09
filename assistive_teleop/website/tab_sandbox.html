@@ -126,7 +126,7 @@ function init_subscribers() {
                                        Math.pow(ws.wrench.force.y,2) + 
                                        Math.pow(ws.wrench.force.z,2))
                         $('#force_view').slider("option", "value", mag);
-                       set_ft_bar(Math.min(mag, 12)/12, 0.5)
+                       set_ft_bar(Math.min(mag, 15)/15, 0.5)
                        $('#ft_readout').html('<p>'+mag.toFixed(1)+' N </p>')
                    });
     //log("End Subscriber Init")
