@@ -8,6 +8,10 @@
         <param name="contact_force_thresh" value="3.0" />
         <param name="activity_force_thresh" value="3.0" />
         <param name="timeout_time" value="30.0" />
+        <rosparam command="load" param="/face_adls/l_global_poses" 
+                  file="$(find hrl_face_adls)/params/l_ell_poses.yaml" />
+        <rosparam command="load" param="/face_adls/r_global_poses" 
+                  file="$(find hrl_face_adls)/params/r_ell_poses.yaml" />
     </node>
     <node pkg="hrl_head_tracking" name="r_head_tracking_srv" type="head_tracking_srv"
           output="screen" args="$(find hrl_head_tracking)/data/$(arg subject)_r_face.bag">
@@ -27,6 +31,7 @@
     </node>
     <node pkg="hrl_face_adls" name="registration_loader" type="registration_loader.py"
           output="screen" args="$(find hrl_ellipsoidal_control)/data/$(arg subject)_r_ellipsoid_registration.bag $(find hrl_ellipsoidal_control)/data/$(arg subject)_l_ellipsoid_registration.bag" />
+
     <!--
     <node pkg="hrl_netft" name="netft_gravity_zeroing" type="netft_zeroing.py" 
           args="-l -r -z -p -f $(find hrl_face_adls)/params/ft_zero_params_razor_inline.yaml" 
