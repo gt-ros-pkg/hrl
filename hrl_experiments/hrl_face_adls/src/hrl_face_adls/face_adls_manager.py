@@ -22,6 +22,7 @@ from hrl_face_adls.face_adls_parameters import *
 from pr2_traj_playback.arm_pose_move_controller import ArmPoseMoveBehavior, TrajectoryLoader
 from pr2_traj_playback.arm_pose_move_controller import CTRL_NAME_LOW, PARAMS_FILE_LOW
 from hrl_face_adls.srv import EnableFaceController, EnableFaceControllerResponse
+from hrl_face_adls.msg import KeyValLists
 
 quat_gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
 
@@ -89,6 +90,12 @@ class FaceADLsManager(object):
                                                 queue_size=2)
         self.state_pub = rospy.Publisher('/face_adls/controller_state', Int8, latch=True)
         self.feedback_pub = rospy.Publisher('/face_adls/feedback', String, latch=True)
+        self.global_pose_pub = rospy.Publisher('/face_adls/global_move_poses', KeyValLists, latch=True)
+        gpmsg = KeyValLists()
+        gpmsg.keys = self.global_names
+        gpmsg.vals = self.global_poses
+        self.global_pose_pub.publish(msg)
+
         def enable_controller_cb(req):
             if req.enable:
                 self.enable_controller(req.end_link, req.ctrl_params)

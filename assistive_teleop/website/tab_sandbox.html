@@ -20,8 +20,8 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){ document.getElementById('console').innerHTML = message.toString();};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-var ROBOT = 'monty1';
-//var ROBOT = 'localhost';
+//var ROBOT = 'monty1';
+var ROBOT = 'localhost';
 
 $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
@@ -29,6 +29,7 @@ $(function(){
     $("#traj_play_radio").buttonset();
     $(".bpd, .cont_sel, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #tool_power").button();
     $(':button').click(log_click);
+	$('#slider').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
 	$('#force_view').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
 	$('#force_set').slider({value:1,min:0,max:12,step:0.05,orientation:'vertical'}); 
 	$('#force_set').unbind("slidestop").bind("slidestop", function(event,ui){
@@ -182,9 +183,15 @@ function list_opts(cont_sel, dict){
     for (var key in dict){
         $(cont_sel).append('<option value="'+dict[key]+'">'+key+'</option>');
         log("adding option "+ dict[key]+" to selector "+ cont_sel)
-        setTimeout(set_ft_ref_bar(),2000);
+        return true
+        setTimeout(set_ft_ref_bar(),1000);
         };
 };
+
+function parallel_list_options(cont_sel, msg){
+        for (i=0; i<msg.keys.length; i++){
+            $(cont_sel).append('<option value="'+msg.vals[i]+'">'+msg.keys[i]+'</option>')};
+    };
 
 function empty_srv(service){
     log("Making Empty Call to "+service)
@@ -297,7 +304,7 @@ function start(){
     -->
     <td>
       <table border=1 style="height:450px; width:10px">
-        <tr id="ft_ref_danger" style="height:25%;background-color:red">
+        <tr id="ft_ref_danger" style="height:33%;background-color:red">
           <td>
            <p>Danger</p>
           </td>
@@ -305,7 +312,7 @@ function start(){
         <tr id="ft_ref_act" style="height:50%;background-color:green">
           <td style="writing-mode:tb-rl;" >Activity</td>
         </tr>
-        <tr id="ft_ref_null" style="height:25%;background-color:gray">
+        <tr id="ft_ref_null" style="height:100%;background-color:gray">
          <td>
            <div id="ft_readout"></div>
          </td>
@@ -413,7 +420,7 @@ function start(){
         <div id='bpd1'> <!--Buttonpad Controls-->
           <table>
             <tr><td rowspan="4">
-              <div style="height:215px" id="slider"></div>
+              <div style="height:240px" id="scale_slider"></div>
             </td></tr>
             <tr>
               <td><button class="bpd" id="b7" type="button" value=1> Down </button></td>
@@ -552,7 +559,7 @@ function start(){
               </tr>
               <tr>
                 <td>
-                  <button id="shave" class='centered' type="button" onclick="send_shave_location(-1);">Shave Now</button>
+                  <button id="shave" class='centered' type="button" onclick="send_shave_location('approach');">Approach</button>
                 </td>
               </tr>
               <tr>
@@ -578,7 +585,7 @@ function start(){
                     <tr>
                       <td>
                         <select class="centered" id='shave_list'>
-                          <option value=0>Chin</option>
+                         <!-- <option value=0>Chin</option>
                           <option value=1>Mid-Cheek</option>
                           <option value=2>Near Ear</option>
                           <option value=3>Jaw</option>
@@ -586,7 +593,7 @@ function start(){
                           <option value=5>Neck</option>
                           <option value=6>High Cheek</option>
                           <option value=7>Nose</option>
-                      <!--<option value=8>Mid-Cheek</option>
+                          <option value=8>Mid-Cheek</option>
                           <option value=9>Near Ear</option>
                           <option value=10>Jaw</option>
                           <option value=11>Mouth</option>
@@ -595,7 +602,7 @@ function start(){
                         </select>
                       </td>
                       </tr><tr>
-                      <td><button id="send_shave_select" onclick="log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').index())">Move to Selection</button></td>
+                      <td><button id="send_shave_select" onclick="log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').val())">Move to Selection</button></td>
                     </tr>
                   </table>
                 </div>  <!--End Shaving Drop-Down -->

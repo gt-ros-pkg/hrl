@@ -14,7 +14,9 @@ function shaving_init(){
     node.subscribe('/face_adls/controller_enabled', function(msg){
                     ell_controller_state_cb(msg);}
                     );
-    
+    node.subscribe('/face_adls/global_move_poses', function(msg){
+                    parallel_list_options('#shave_list', msg)}
+                    );
     node.publish('/face_adls/local_move', 'std_msgs/String', json({}));
     node.publish('/face_adls/global_move', 'std_msgs/Int8', json({}));
     node.publish('reg_confirm', 'std_msgs/Bool', json({}));
@@ -37,7 +39,7 @@ function ell_controller_state_cb(msg){
         log("Ellipsoid Controller Active")
         $("#ell_controller").attr("checked","checked");
        } else {
-        $("#ell_controller").removeAttr("checked");
+        $("#ell_controller").attr("checked", "");
         log("Ellipsoid Controller Inactive")
        };
     };
@@ -266,11 +268,11 @@ function set_ft_ref_bar(){
     node.rosjs.callService('/rosbridge/get_param','["face_adls_manager"]',
           function(params){
               log('Received Force Params')
-              var danger_pct = 1-((params['dangerous_force_thresh']/30)*0.01);
-              var act_pct = 1-((params['activity_force_thresh']/30)*0.01);
-              $("#ft_ref_danger").height(danger_pct);
-              $("#ft_ref_act").height(act_pct);
-              $("#ft_ref_null").height(1 - danger_pct - act_pct);
+              var danger_pct = ((15-params['dangerous_force_thresh'])/15)*100;
+              var act_pct = ((15-params['activity_force_thresh'])/15)*100-danger_pct;
+              $("#ft_ref_danger").height(danger_pct.toString()+'%');
+              $("#ft_ref_act").height(act_pct.toString()+'%');
+              $("#ft_ref_null").height('100%');
               });
     };
 

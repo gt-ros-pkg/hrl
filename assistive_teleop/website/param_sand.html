@@ -35,6 +35,15 @@ function list_options(cont_sel, dict){
         };
 };
 
+function paralists_cb(cont_sel, msg){
+        log(msg.keys.length.toString())
+        for (i=0; i<msg.keys.length; i++){
+            $(cont_sel).append('<option value="'+msg.vals[i]+'">' + msg.keys[i] + '</option>');
+        log("Finished Adding Options")
+            }
+    };
+
+
 function start(){
     node = new ros.NodeHandle('ws://localhost:9091');
 	node.setOnClose(function(e) {
@@ -45,7 +54,8 @@ function start(){
     	});
       	node.setOnOpen(function(e) {   
 	  log("Connected to " + node.url + ".");
-      load_params();
+      //load_params();
+      node.subscribe('/paralists',function(msg){paralists_cb('#sel',msg)});
 	  });
 };
 
