@@ -10,6 +10,7 @@
     <script type="text/javascript" src="js/rfh_teleop.js"> </script>
     <script type="text/javascript" src="js/rfh_shaving.js"> </script>
     <script type="text/javascript" src="js/rfh_clickable_video.js"> </script>
+    <script type="text/javascript" src="js/force_level_widget.js"> </script>
     <link href="keyboard/css/keyboard.css" rel="stylesheet">
 	<script src="keyboard/js/jquery.keyboard.js"></script>
     <link type="text/css" href="css/rfh_interface.css" rel="stylesheet" />   
@@ -17,26 +18,26 @@
 <script type="text/javascript">
 function nop(){};
 function json(obj){return JSON.stringify(obj);};
-function log(message){ document.getElementById('console').innerHTML = message.toString();};
+function log(message){$('#console').html("<big><strong>"+message.toString()+"</strong></big>"); console.log(message.toString())};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
 var ROBOT = 'monty1';
 //var ROBOT = 'localhost';
-
 $(function(){
+    $("#ft_view_widget").ft_viewer();
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
-    $("#tabs").tabs()
+    $("#tabs").tabs().tabs({select: tab_select_cb});
     $("#traj_play_radio").buttonset();
-    $(".bpd, .cont_sel, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #tool_power").button();
+    $(".bpd, .cont_sel, .ar_servo_button, .traj_play_cont, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #tool_power").button();
     $(':button').click(log_click);
 	$('#slider').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
-	$('#force_view').slider({value:0,range:'min',min:0,max:15,step:0.05,orientation:'vertical'}); 
-	$('#force_set').slider({value:1,min:0,max:12,step:0.05,orientation:'vertical'}); 
-	$('#force_set').unbind("slidestop").bind("slidestop", function(event,ui){
-                                                            pub_ft_goal($('#force_set').slider('value'));
-                                                            log('Setting Force Threshold to '+ $('#force_set').slider("value").toString() + ' N ('+
-                                                                0.01*Math.round(100*($('#force_set').slider("value")/4.44822)).toString()+' lbf)')
-                                                            });	
+//	$('#force_view').slider({value:0,range:'min',min:0,max:15,step:0.05,orientation:'vertical'}); 
+//	$('#force_set').slider({value:1,min:0,max:12,step:0.05,orientation:'vertical'}); 
+//	//$('#force_set').unbind("slidestop").bind("slidestop", function(event,ui){
+//                                                            pub_ft_goal($('#force_set').slider('value'));
+//                                                            log('Setting Force Threshold to '+ $('#force_set').slider("value").toString() + ' N ('+
+//                                                                0.01*Math.round(100*($('#force_set').slider("value")/4.44822)).toString()+' lbf)')
+//                                                            });	
 	$('#rg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
 	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
                                                             pub_gripper('r',$('#rg_slider').slider("value"));
@@ -206,9 +207,14 @@ function log_click(event){
     //log(event.target.id);
 };
 
-function pub_ft_goal(thresh) {
-    node.publish('wt_ft_goal', 'std_msgs/Float32', json({}));
-};
+function tab_select_cb(eve, ui){if (ui.panel.id=='tab_ellipse'){
+                                toggle_ell_controller(true)} 
+                        else {toggle_ell_controller(false)};
+    };
+
+//function pub_ft_goal(thresh) {
+//node.publish('wt_ft_goal', 'std_msgs/Float32', json({}));
+//};
 
 
 function pub_gripper(arm,grpos) {
@@ -305,25 +311,7 @@ function start(){
     </td>
     -->
     <td>
-      <table border=1 style="height:450px; width:10px">
-        <tr id="ft_ref_danger" style="height:33%;background-color:red">
-          <td id="ft_ref_danger_label">[Danger Force Level]</td>
-        </tr>
-        <tr id="ft_ref_act" style="height:50%;background-color:green">
-          <td id="ft_ref_act_label">[Activity Force Level]</td>
-        </tr>
-        <tr id="ft_ref_null" style="height:100%;background-color:gray">
-         <td>
-           <div id="ft_readout"></div>
-         </td>
-        </tr>
-      </table>
-    </td>
-    <td>
-      <div id="ft_bar_wrapper">
-        <div id="ft_bar_value">
-        </div>
-      </div>
+      <div id="ft_view_widget"> </div>
     </td>
     <td>
       <table>
@@ -347,7 +335,7 @@ function start(){
       </select></td> <!-- End Cell for Camera Selection -->
      
      <td>On Image Click:</td> <!-- Start Cell for Image Action Selection -->
-     <td><select id='img_act_select' onchange="window.img_act=$(this).val()">
+     <td><select id='img_act_select'>
          <option id="looking" selected='selected' value='looking'>Look</option>
          <option id="na" value='norm_approach'>Normal Approach</option>
          <option id="touch" value='touch'>Touch</option>
@@ -417,10 +405,10 @@ function start(){
        </td>
 
        <td> 
-        <div id='bpd1'> <!--Buttonpad Controls-->
+        <div id="bpd_default"> <!--Buttonpad Controls-->
           <table>
             <tr><td rowspan="4">
-              <div style="height:240px" id="scale_slider"></div>
+              <div style="height:240px;" id="scale_slider"></div>
             </td></tr>
             <tr>
               <td><button class="bpd" id="b7" type="button" value=1> Down </button></td>
@@ -460,17 +448,17 @@ function start(){
         </tr>
         <tr>
           <td>
-            <div class='ar_servo_buttons' id='ar_servo_buttons'>
+            <div>
               <table>
                 <tr>
                   <td>
-                    <button id='servo_detect_tag' style="font-size:150%;height:75;width:150" onclick="servo_detect_tag_cb();"> Detect Tag </button>
+                    <button class='ar_servo_button' id='servo_detect_tag' style="font-size:140%" onclick="servo_detect_tag_cb();"> Detect Tag </button>
                   </td>
                   <td>
-                    <button id='servo_approach' style="font-size:150%;height:75;width:150" onclick="servo_approach_cb();"> Approach </button>
+                    <button class='ar_servo_button' id='servo_approach' style="font-size:140%" onclick="servo_approach_cb();"> Approach </button>
                   </td>
                   <td>
-                    <button id='servo_stop' style="font-size:150%;background-color:red;height:75;width:150" onclick="log('Stopping'); servo_preempt();"> Stop </button>
+                    <button class='ar_servo_button' id='servo_stop' style="font-size:140%" onclick="log('Stopping'); servo_preempt();"> Stop </button>
                   </td>
                 </tr>
               </table>
@@ -531,13 +519,13 @@ function start(){
             <table>
               <tr>
                 <td>
-                  <button id='traj_play_play' style="font-size:150%;height:75;width:150" onclick="traj_play_send_goal();"> Play </button>
+                  <button class="traj_play_cont" id='traj_play_play' style="font-size:150%" onclick="traj_play_send_goal();"> Play </button>
                 </td>
                 <td>
-                  <button id='traj_play_stop' style="font-size:150%;height:75;width:150" onclick="empty_srv('/trajectory_playback_r_pause');empty_srv('/trajectory_playback_l_pause');"> Pause </button>
+                  <button class="traj_play_cont" id='traj_play_stop' style="font-size:150%" onclick="empty_srv('/trajectory_playback_r_pause');empty_srv('/trajectory_playback_l_pause');"> Pause </button>
                 </td>
                 <td>
-                  <button id='traj_play_reset' style="font-size:150%;height:75;width:150" onclick="empty_srv('/trajectory_playback_r_stop');empty_srv('/trajectory_playback_l_stop')"> Stop </button>
+                  <button class="traj_play_cont" id='traj_play_reset' style="font-size:150%" onclick="empty_srv('/trajectory_playback_r_stop');empty_srv('/trajectory_playback_l_stop')"> Stop </button>
                 </td>
               </tr>
             </table>

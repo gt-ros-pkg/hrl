@@ -8,9 +8,6 @@ function shaving_init(){
     node.subscribe('/pr2_ar_servo/state_feedback', function(msg){
                     servo_feedback_cb(msg);}
                     );
-   // node.subscribe('/face_adls/controller_state', function(msg){
-   //                 shaving_feedback_cb(msg);}
-   //                 );
     node.subscribe('/face_adls/controller_enabled', function(msg){
                     ell_controller_state_cb(msg);}
                     );
@@ -43,26 +40,28 @@ function ell_controller_state_cb(msg){
        };
     };
 
-function toggle_ell_controller(){
-    if ($("#ell_controller").attr('checked')) {
-        state = true;
-    } else {
-        state = false;
-    };
+function toggle_ell_controller(state){
+    if (typeof state == 'undefined'){  
+        if ($("#ell_controller").attr('checked')) {
+            state = true;
+        } else {
+            state = false;
+        };
+    }
     node.rosjs.callService('/face_adls/enable_controller',
                     '{"end_link":"%s_gripper_shaver45_frame","ctrl_params":"$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml","enable":'+state+'}',
                     nop);
     };
 
-function servo_setup_cb(){
-    log('Sending command to prep arms for ar-servoing approach');
-    node.rosjs.callService('/pr2_ar_servo/arms_setup','[""]',function(msg){
-        $('.ar_servo_controls').show();
-        $('#ar_servoing_setup, #servo_approach, #servo_stop').hide();
-        set_camera('/l_forearm_cam/image_color_rotated')
-        log('USE BUTTONS TO FIND TAG AND PERFORM APPROACH');
-        })
-};
+//function servo_setup_cb(){
+//    log('Sending command to prep arms for ar-servoing approach');
+//    node.rosjs.callService('/pr2_ar_servo/arms_setup','[""]',function(msg){
+//        $('.ar_servo_controls').show();
+//        $('#ar_servoing_setup, #servo_approach, #servo_stop').hide();
+//        set_camera('/l_forearm_cam/image_color_rotated')
+//        log('USE BUTTONS TO FIND TAG AND PERFORM APPROACH');
+//        })
+//};
 
 function servoing_done_cb(){
     node.rosjs.callService('/setup_registration','[""]',function(msg){
@@ -89,6 +88,7 @@ function servo_preempt(){
 
 function servo_feedback_cb(msg){
     switch(msg.data){
+        text = "Unknown case for servoing feedback"
         case 1:
             text = "Searching for AR Tag."
             break
@@ -96,7 +96,7 @@ function servo_feedback_cb(msg){
             text = "AR Tag Found. BEGIN APPROACH.";
             $('#servo_approach, #servo_stop, #ar_servoing_done').show().fadeTo(0,1);
             $('#servo_detect_tag').fadeTo(0,0.5);
-            set_camera('/kinect_head/rgb/image_color')
+            //set_camera('/kinect_head/rgb/image_color')
             break
         case 3:
             text = "Unable to Locate AR Tag. ADJUST VIEW AND RETRY.";

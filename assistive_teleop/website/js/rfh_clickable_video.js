@@ -1,5 +1,4 @@
 var count_surf_wipe_right=count_surf_wipe_left=force_wipe_count=0;
-var img_act = 'looking'
 var norm_appr_left = norm_appr_right = driving = tool_state = false;
 var MJPEG_QUALITY= '50'
 var MJPEG_WIDTH = '640'
@@ -25,13 +24,10 @@ function camera_init(){
     node.publish('wt_surf_wipe_l_points', 'geometry_msgs/Point', json({}));
 };
 
-
-//function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+':8080/stream?topic=/'+cam+'?width=640?height=480?quality=10'};
 function set_camera(cam) {
 mjpeg_url = 'http://'+ROBOT+':8080/stream?topic=/'+cam+'?width='+MJPEG_WIDTH+'?height='+MJPEG_HEIGHT+'?quality='+MJPEG_QUALITY
-document.getElementById('video').src=mjpeg_url
+$('#video').attr('src',mjpeg_url)
 };
-
 
 function click_position(e) {
 	var posx = 0;
@@ -60,7 +56,7 @@ function get_point(event){
 function image_click(event){
 	var im_pixel = get_point(event);
     log(im_pixel[0].toString + ", "+im_pixel[1].toString())
-	if (window.img_act == 'surf_wipe') {
+	if ($('#img_act_select option:selected').val() == 'surf_wipe') {
     surf_points_out = window.gm_point
     surf_points_out.x = im_pixel[0]
     surf_points_out.y = im_pixel[1]
@@ -74,14 +70,14 @@ function image_click(event){
            log("Sending end position for surface-aware wiping");
            window.count_surf_wipe = 0;
            $('#img_act_select').val('looking');
-           window.img_act = 'looking';
         }
-    }else if (window.img_act == 'seed_reg'){
-        log("Calling Registration Service with "+im_pixel[0].toString() +", "+im_pixel[1].toString())
+    } else if ($('#img_act_select option:selected').val() =='seed_reg'){
+        console.log("Calling Registration Service with "+im_pixel[0].toString() +", "+im_pixel[1].toString())
         node.rosjs.callService('/initialize_registration',
                             '['+json(im_pixel[0])+','+json(im_pixel[1])+']',
-                            nop)
-    }else{
+                            function(msg){console.log("Reg. Service Returned")})
+       $('#img_act_select').val('looking');
+    } else {
 	get_im_3d(im_pixel[0],im_pixel[1])
 	};
 };
@@ -100,7 +96,7 @@ function get_im_3d(x,y){
 };
 
 function determine_p23d_response(point_3d){
-    switch (window.img_act){
+    switch ($('#img_act_select option:selected').val()){
         case 'looking':
             log("Sending look to point command");
             window.head_pub = window.clearInterval(head_pub);
@@ -146,6 +142,5 @@ function determine_p23d_response(point_3d){
         };
         if (window.force_wipe_count == 0){
             $('#img_act_select').val('looking');
-            window.img_act = 'looking';
         };
 };
