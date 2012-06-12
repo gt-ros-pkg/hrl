@@ -24,7 +24,7 @@ function shaving_init(){
     node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({}));
     node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({}));
     node.publish('netft_gravity_zeroing/rezero_wrench', 'std_msgs/Bool', json({}));
-    //set_ft_ref_bar();
+    $("#ft_view_widget").ft_viewer();
 };
 
 function ell_controller_state_cb(msg){

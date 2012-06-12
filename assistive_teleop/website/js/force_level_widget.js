@@ -23,11 +23,7 @@ $.widget("rfh.ft_viewer",{
         this.load_params();
     },
     load_params: function(){
-        node.rosjs.callService('/rosbridge/has_param',
-                               '["face_adls_manager"]',
-                               function(ret){if (!ret){log('Force Params Not Available!')}});
         if (window.get_param_free){
-
             console.log("Calling force param loader");
             node.rosjs.callService('/rosbridge/get_param',
                                    '["face_adls_manager"]',

@@ -30,7 +30,7 @@ $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
     $("#tabs").tabs().tabs({select: tab_select_cb});
     $("#traj_play_radio").buttonset();
-    $(".bpd, .cont_sel, .ar_servo_button, .traj_play_cont, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #tool_power").button();
+    $(".bpd, .cont_sel, .ar_servo_button, .traj_play_cont, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
     $(':button').click(log_click);
 	$('#slider').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
 	$('#rg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
@@ -59,6 +59,7 @@ $(function(){
 function init(){
     //log("Starting Init");
     init_msgs();
+    init_srvs();
     init_subscribers();
     init_publishers();
     init_action_clients();
@@ -66,18 +67,17 @@ function init(){
     shaving_init();
     camera_init();
     init_params();
-    $("#ft_view_widget").ft_viewer();
 	log('Fully Initialized');
 };
 
-function init_msgs (){
-    //log("Beginning Message Init");
-	if (!window.point_2d){
-        //log("Looking for Pixel_2_3d service");
+function init_srvs(){
 		node.rosjs.callService('/rosbridge/reqClassFromTypeString',
                                '["pixel_2_3d/Pixel23d"]',
                                function(msg){window.point_2d=msg; init_msgs()});
-	}else if (!window.gm_point){
+    };
+
+function init_msgs (){
+	if (!window.gm_point){
         //log('Looking for Geometry_msgs Point'); 
 		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
                                '["geometry_msgs/Point"]',
@@ -158,15 +158,17 @@ function init_action_clients(){
 };
 
 function init_params(){
+    window.get_param_free = false;
     node.rosjs.callService('/rosbridge/get_param','["face_adls_traj_files"]',//nop);
-                          function(msg){list_opts('#traj_play_select', msg)});
+                  function(msg){list_opts('#traj_play_select', msg);
+                                window.get_param_free = true;
+                                });
     };
 
 function list_opts(cont_sel, dict){
     for (var key in dict){
         $(cont_sel).append('<option value="'+dict[key]+'">'+key+'</option>');
         log("adding option "+ dict[key]+" to selector "+ cont_sel)
-        $("#ft_view_widget").ft_viewer();
         };
 };
 
@@ -285,6 +287,8 @@ function start(){
 	      <option value="kinect_head/rgb/image_color">Kinect Camera</option>
 	      <option value="kinect_throttled">Throttled Kinect Camera</option>
 	      <option value="arrow_overlaid">Kinect (w/Arrows)</option>
+	      <option value="ar_tag_overlay">Kinect (w/AR Tag)</option>
+	      <option value="registration_overlay">Kinect (w/Registration)</option>
 		  <option value="wide_stereo/right/image_color">Wide Stereo Camera</option>
 		  <option value="l_forearm_cam/image_color_rotated">Left Forearm Camera</option>
 		  <option value="r_forearm_cam/image_color_rotated">Right Forearm Camera</option>
@@ -532,6 +536,9 @@ function start(){
                       </td>
                       </tr><tr>
                       <td><button id="send_shave_select" onclick="log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').text())">Move to Selection</button></td>
+                    </tr>
+                    <tr>
+                      <td><button class="centered" id="shave_stop" onclick="shave_step('stop');">Stop</button></td>
                     </tr>
                   </table>
                 </div>  <!--End Shaving Drop-Down -->
