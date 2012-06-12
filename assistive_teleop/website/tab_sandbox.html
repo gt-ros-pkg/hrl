@@ -21,8 +21,9 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){$('#console').html("<big><strong>"+message.toString()+"</strong></big>"); console.log(message.toString())};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-var ROBOT = 'monty1';
-//var ROBOT = 'localhost';
+//var ROBOT = 'monty1';
+var ROBOT = 'localhost';
+
 $(function(){
     $("#ft_view_widget").ft_viewer();
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
@@ -31,13 +32,6 @@ $(function(){
     $(".bpd, .cont_sel, .ar_servo_button, .traj_play_cont, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #tool_power").button();
     $(':button').click(log_click);
 	$('#slider').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
-//	$('#force_view').slider({value:0,range:'min',min:0,max:15,step:0.05,orientation:'vertical'}); 
-//	$('#force_set').slider({value:1,min:0,max:12,step:0.05,orientation:'vertical'}); 
-//	//$('#force_set').unbind("slidestop").bind("slidestop", function(event,ui){
-//                                                            pub_ft_goal($('#force_set').slider('value'));
-//                                                            log('Setting Force Threshold to '+ $('#force_set').slider("value").toString() + ' N ('+
-//                                                                0.01*Math.round(100*($('#force_set').slider("value")/4.44822)).toString()+' lbf)')
-//                                                            });	
 	$('#rg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
 	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
                                                             pub_gripper('r',$('#rg_slider').slider("value"));
@@ -97,7 +91,6 @@ function init_msgs (){
                                '["pr2_traj_playback/TrajectoryPlayGoal"]',
                                function(msg){window.TrajPlayGoal=msg; init_msgs()});
 	}else {
-        $('#force_view').slider("option", "disabled", true);
         set_camera("kinect_head/rgb/image_color");
 	};
     //log("End Message Init");
@@ -119,18 +112,6 @@ function init_subscribers() {
                         $('#torso_slider').show().slider("option", "value", msg.actual.positions[0])
                     });
 	node.subscribe('/wt_log_out', function(msg){log(msg.data.toString())});
-	
-		//Move Arm Pose State
-	node.subscribe('/wt_force_out_throttle',
-                    function(ws){
-                       mag = Math.sqrt(Math.pow(ws.wrench.force.x,2) + 
-                                       Math.pow(ws.wrench.force.y,2) + 
-                                       Math.pow(ws.wrench.force.z,2))
-                        $('#force_view').slider("option", "value", mag);
-                       set_ft_bar(Math.min(mag, 15)/15, 0.5)
-                       $('#ft_readout').html('<p>'+mag.toFixed(1)+' N </p>')
-                   });
-    //log("End Subscriber Init")
 };//END sub_state
 
 function init_publishers() {
@@ -147,7 +128,6 @@ function init_publishers() {
     //Assorted Publishers
     node.publish('text_to_say', 'std_msgs/String', json({}));
 	node.publish('torso_controller/position_joint_action/goal','pr2_controllers_msgs/SingleJointPositionActionGoal',json({}));
-    node.publish('wt_ft_goal', 'std_msgs/Float32', json({}));
     node.publish('wt_click_log', 'std_msgs/String', json({}));
     //log("End Publisher Init")
 };
@@ -184,7 +164,7 @@ function list_opts(cont_sel, dict){
     for (var key in dict){
         $(cont_sel).append('<option value="'+dict[key]+'">'+key+'</option>');
         log("adding option "+ dict[key]+" to selector "+ cont_sel)
-        setTimeout(set_ft_ref_bar(),2000);
+        $("#ft_view_widget").ft_viewer();
         };
 };
 
@@ -193,7 +173,6 @@ function list_key_opts(cont_sel, msg){
         $(cont_sel).empty();
         for (i=0; i<msg.data.length; i++){
             $(cont_sel).append('<option>'+msg.data[i]+'</option>')};
-        //setTimeout(set_ft_ref_bar(),1000);
     };
 
 function empty_srv(service){
@@ -211,11 +190,6 @@ function tab_select_cb(eve, ui){if (ui.panel.id=='tab_ellipse'){
                                 toggle_ell_controller(true)} 
                         else {toggle_ell_controller(false)};
     };
-
-//function pub_ft_goal(thresh) {
-//node.publish('wt_ft_goal', 'std_msgs/Float32', json({}));
-//};
-
 
 function pub_gripper(arm,grpos) {
 	//node.publish('wt_'+arm+'_gripper_commands',
@@ -290,26 +264,6 @@ function start(){
         <iframe id='video' title="Video Stream from the PR2" style="height:100%; width:100%; left:0; top:0; border-style:none;">You Broswer does not support iFrames</iframe>
       </div>
     </td><!-- End Cell for video -->
-      <!--
-    <td>
-      <div> Start Force-Torque Set/Feedback Block 
-      <table border=1>
-        <tr>
-          <td colspan=2 align='center'>Force</td>
-        </tr><tr>
-        </tr><tr>
-          <td colspan=2 align='center'> 0-12 N </td>
-        </tr><tr>
-          <td align='center'><div id='force_set' style="height:360px"></div></td>
-          <td align='center'><div id='force_view' style="height:360px"></div></td>
-        </tr><tr>
-          <td align='center'> Set </td>
-          <td align='center'> Felt </td>
-        </tr>
-      </table>
-      </div> End Force-Torque Set/Feedback Block
-    </td>
-    -->
     <td>
       <div id="ft_view_widget"> </div>
     </td>
