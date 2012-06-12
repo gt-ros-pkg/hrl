@@ -1,6 +1,7 @@
 <html>
 <head>
-  <title>Teleop Trial</title>
+  <title>Robots for Humanity Web Page</title>
+    <link rel="shortcut icon" href="css/rfh_favocon.ico" />
     <link type="text/css" href="jqueryui/css/sunny/jquery-ui-1.8.10.custom.css" rel="stylesheet" />   
     <script type="text/javascript" src="jqueryui/js/jquery-1.4.4.min.js"></script> 
     <script type="text/javascript" src="jqueryui/js/jquery-ui-1.8.10.custom.min.js"></script> 
@@ -21,11 +22,11 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){$('#console').html("<big><strong>"+message.toString()+"</strong></big>"); console.log(message.toString())};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-//var ROBOT = 'monty1';
-var ROBOT = 'localhost';
+var ROBOT = 'monty1';
+//var ROBOT = 'localhost';
+var get_param_free = true;
 
 $(function(){
-    $("#ft_view_widget").ft_viewer();
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
     $("#tabs").tabs().tabs({select: tab_select_cb});
     $("#traj_play_radio").buttonset();
@@ -65,7 +66,8 @@ function init(){
     shaving_init();
     camera_init();
     init_params();
-	//log('Fully Initialized');
+    $("#ft_view_widget").ft_viewer();
+	log('Fully Initialized');
 };
 
 function init_msgs (){
@@ -240,7 +242,7 @@ function traj_play_send_goal(){
 };
 
 function start(){
-    node = new ros.NodeHandle('ws://'+ ROBOT + ':9091');
+    window.node = new ros.NodeHandle('ws://'+ ROBOT + ':9091');
 	node.setOnClose(function(e) {
           log("Disconnected or Can't Connect to " + node.url + ".");
     	});

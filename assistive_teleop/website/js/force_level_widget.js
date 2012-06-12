@@ -1,4 +1,3 @@
-
 ft_viewer_html = '<table><tr><td>\
             <table border=1 style="height:450px; width:10px">\
         <tr id="ft_ref_danger" style="height:33%;background-color:red">\
@@ -9,20 +8,27 @@ ft_viewer_html = '<table><tr><td>\
          <td><div id="ft_readout"></div></td></tr></table>\
         </td><td><div id="ft_bar_wrapper">\
           <div id="ft_bar_value"></div></div></td></tr></table>'
-
+          
 $(function(){
 $.widget("rfh.ft_viewer",{
     options:{
-        clear:null,
         yellow_pct:50,
         max_force:15
     },
     _create: function(){
+        var self = this;
         this.element.html(ft_viewer_html);
-        window.node.subscribe('/wt_force_out_throttle',
-                        function(ws){this._refresh(ws)})
+        node.subscribe('/wt_force_out_throttle',
+                        function(ws){self.element.ft_viewer('refresh',ws)});
+        this.load_params();
+    },
+    load_params: function(){
+        node.rosjs.callService('/rosbridge/has_param',
+                               '["face_adls_manager"]',
+                               function(ret){if (!ret){log('Force Params Not Available!')}});
         if (window.get_param_free){
-            window.get_param_free = false;
+
+            console.log("Calling force param loader");
             node.rosjs.callService('/rosbridge/get_param',
                                    '["face_adls_manager"]',
               function(params){
@@ -34,16 +40,18 @@ $.widget("rfh.ft_viewer",{
                   $("#ft_ref_danger_label").text("Danger\r\n >"+params.dangerous_force_thresh.toString()+" N");
                   $("#ft_ref_act").height(act_pct.toString()+'%');
                   $("#ft_ref_act_label").text("Activity\r\n  >"+params.activity_force_thresh.toString()+ "N");
+                  console.log('Received Force Params');
                   window.get_param_free=true;
           })} else {
-              set_timeout('this.create()');
+              console.log("Ft viewer widget waiting for rosparam service");
+              setTimeout('$("#'+this.element.attr("id").toString()+'").ft_viewer("load_params");',500);
           };
 
     },
     _destroy: function(){
         this.element.html('');
     },
-    _refresh: function(ws){
+    refresh: function(ws){
        mag = Math.sqrt(Math.pow(ws.wrench.force.x,2) + 
                        Math.pow(ws.wrench.force.y,2) + 
                        Math.pow(ws.wrench.force.z,2))
@@ -64,7 +72,5 @@ $.widget("rfh.ft_viewer",{
         
     },
 });
-
-
 });
 
