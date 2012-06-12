@@ -1,0 +1,24 @@
+
+# Compiled source #
+###################
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+*.pyc
+
+# files created by text editors #
+#################################
+*.swp
+
+# ROS specific files and folders #
+##################################
+build
+msg_gen
+srv_gen
+
+# add repository specific paths here #
+#####################################################################
+
