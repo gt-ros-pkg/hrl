@@ -71,7 +71,7 @@ function image_click(event){
            window.count_surf_wipe = 0;
            $('#img_act_select').val('looking');
         }
-    } else if ($('#img_act_select option:selected').val() =='seed_reg'){
+    } else if ($('#img_act_select option:selected').val() == 'seed_reg'){
         console.log("Calling Registration Service with "+im_pixel[0].toString() +", "+im_pixel[1].toString())
         node.rosjs.callService('/initialize_registration',
                             '['+json(im_pixel[0])+','+json(im_pixel[1])+']',

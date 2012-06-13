@@ -240,7 +240,7 @@ function traj_play_send_goal(){
     } else if ($("#traj_play_select option:selected").text().slice(1,2) == 'L'){
         window.traj_play_l_client.send_goal(goal)
     } else {log("Cannot Tell Which Arm to use based on filepath")};
-    log("sending Trajectory Play Goal");
+    log("Sending Trajectory Play Goal");
 };
 
 function start(){
@@ -288,7 +288,7 @@ function start(){
 	      <option value="kinect_throttled">Throttled Kinect Camera</option>
 	      <option value="arrow_overlaid">Kinect (w/Arrows)</option>
 	      <option value="ar_tag_overlay">Kinect (w/AR Tag)</option>
-	      <option value="registration_overlay">Kinect (w/Registration)</option>
+	      <option value="head_registration/confirmation">Kinect (w/Registration)</option>
 		  <option value="wide_stereo/right/image_color">Wide Stereo Camera</option>
 		  <option value="l_forearm_cam/image_color_rotated">Left Forearm Camera</option>
 		  <option value="r_forearm_cam/image_color_rotated">Right Forearm Camera</option>
@@ -299,6 +299,7 @@ function start(){
          <option id="looking" selected='selected' value='looking'>Look</option>
          <option id="na" value='norm_approach'>Normal Approach</option>
          <option id="touch" value='touch'>Touch</option>
+         <option id="seed_reg" value='seed_reg'>Register Head</option>
          <!--<option id="wipe" value='wipe'>Wipe</option>-->
          <!--<option id="swipe" value='swipe'>Swipe</option>-->
          <!--<option id="poke" value='poke'>Poke</option>-->

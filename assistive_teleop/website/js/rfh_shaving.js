@@ -63,14 +63,14 @@ function toggle_ell_controller(state){
 //        })
 //};
 
-function servoing_done_cb(){
-    node.rosjs.callService('/setup_registration','[""]',function(msg){
-        $('#pc_snapshot').show();
-        $('#ar_servoing_done, .ar_servo_controls').hide(); 
-        set_camera('/kinect_head/rgb/image_color');
-        log('Approach Completed. ENSURE ROBOT IS LOOKING AT YOUR HEAD, PLACE YOUR HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD')
-    })
-};
+//function servoing_done_cb(){
+//    node.rosjs.callService('/setup_registration','[""]',function(msg){
+//        $('#pc_snapshot').show();
+//        $('#ar_servoing_done, .ar_servo_controls').hide(); 
+//        set_camera('/kinect_head/rgb/image_color');
+//        log('Approach Completed. ENSURE ROBOT IS LOOKING AT YOUR HEAD, PLACE YOUR HEAD IN NEUTRAL POSITION, FREEZE POINTCLOUD')
+//    })
+//};
 
 function servo_detect_tag_cb(){
     node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({'data':true}));
@@ -139,14 +139,14 @@ function servo_feedback_cb(msg){
     log(text);
 };
  
-function pc_snapshot_cb() {
-    empty_srv('/take_pc_snapshot')
-    $('#reg_confirm').show();
-    log('USE R-VIZ TO FULLY ALIGN ELLIPSE, THEN CLICK CONFIRM.');
-};
+//function pc_snapshot_cb() {
+//    empty_srv('/take_pc_snapshot')
+//    $('#reg_confirm').show();
+//    log('USE R-VIZ TO FULLY ALIGN ELLIPSE, THEN CLICK CONFIRM.');
+//};
 
 function head_reg_cb(){
-        window.img_act = 'seed_reg';
+        $('#img_act_select').val('seed_reg');
         alert('Click your head in the video to seed the ellipse registratoin')
     };
 
