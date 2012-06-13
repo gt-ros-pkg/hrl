@@ -1,4 +1,6 @@
 <launch>
+    
+    <arg name="subject" />
     <node pkg="pr2_traj_playback" name="l_arm_pose_move_controller" type="arm_pose_move_controller.py"
           output="screen" args="-v -l" />
     <node pkg="pr2_traj_playback" name="r_arm_pose_move_controller" type="arm_pose_move_controller.py"
