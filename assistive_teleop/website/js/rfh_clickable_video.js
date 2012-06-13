@@ -49,13 +49,12 @@ function get_point(event){
 	var point = click_position(event);
 	click_x = point[0] - document.getElementById('video_container').offsetLeft 
 	click_y = point[1] - document.getElementById('video_container').offsetTop 
-	log("Clicked on point (x,y) = ("+ click_x.toString() +","+ click_y.toString()+")");
+	console.log("Clicked on image point (x,y) = ("+ click_x.toString() +","+ click_y.toString()+")");
 	return [click_x, click_y]
 };
 
 function image_click(event){
 	var im_pixel = get_point(event);
-    log(im_pixel[0].toString + ", "+im_pixel[1].toString())
 	if ($('#img_act_select option:selected').val() == 'surf_wipe') {
     surf_points_out = window.gm_point
     surf_points_out.x = im_pixel[0]

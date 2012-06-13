@@ -147,7 +147,8 @@ function servo_feedback_cb(msg){
 
 function head_reg_cb(){
         $('#img_act_select').val('seed_reg');
-        alert('Click your head in the video to seed the ellipse registratoin')
+        set_camera('head_registration/confirmation');
+        alert('Click your head in the video to seed the ellipse registratoin');
     };
 
 function reg_confirm_cb() {
