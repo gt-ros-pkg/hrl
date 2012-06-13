@@ -140,14 +140,14 @@ function init_action_clients(){
 
     traj_play_r_client.wait_for_server(10, function(e){
           if(!e) {
-            log("Couldn't find action server.");
+            log("Couldn't find right trajectory playback action server.");
           } else {
             console.log("Found Right Trajectory Playback Action");
           };
       });
     traj_play_l_client.wait_for_server(10, function(e){
           if(!e) {
-            log("Couldn't find action server.");
+            log("Couldn't find left trajectory playback action server.");
           } else {
             console.log("Found Left Trajectory Playback Action");
           };
@@ -185,7 +185,7 @@ function list_key_opts(cont_sel, msg){
     };
 
 function empty_srv(service){
-    log("Making Empty Call to "+service)
+    console.log("Making Empty Call to "+service)
 	node.rosjs.callService(service, json(''), nop);
     };
 
@@ -244,7 +244,7 @@ function traj_play_send_goal(){
     } else if ($("#traj_play_select option:selected").text().slice(1,2) == 'L'){
         window.traj_play_l_client.send_goal(goal)
     } else {log("Cannot Tell Which Arm to use based on filepath")};
-    log("Sending Trajectory Play Goal");
+    console.log("Sending Trajectory Play Goal");
 };
 
 function start(){
@@ -286,51 +286,18 @@ function start(){
       </table>
     <td>
   <tr>
-    <td> Camera: </td> <!-- Start Cell for Camera Selection -->
-	  <td><select onchange="set_camera($(this).val());">
-	      <option value="kinect_head/rgb/image_color">Kinect Camera</option>
-	      <option value="kinect_throttled">Throttled Kinect Camera</option>
-	      <option value="arrow_overlaid">Kinect (w/Arrows)</option>
-	      <option value="ar_servo/confirmation">AR Tag Confirm</option>
-	      <option value="head_registration/confirmation"> Head Registration Confirm</option>
-		  <option value="wide_stereo/right/image_color">Wide Stereo Camera</option>
-		  <option value="l_forearm_cam/image_color_rotated">Left Forearm Camera</option>
-		  <option value="r_forearm_cam/image_color_rotated">Right Forearm Camera</option>
-      </select></td> <!-- End Cell for Camera Selection -->
-     
-     <td>On Image Click:</td> <!-- Start Cell for Image Action Selection -->
-     <td><select id='img_act_select'>
-         <option id="looking" selected='selected' value='looking'>Look</option>
-         <option id="na" value='norm_approach'>Normal Approach</option>
-         <option id="touch" value='touch'>Touch</option>
-         <option id="seed_reg" value='seed_reg'>Register Head</option>
-         <!--<option id="wipe" value='wipe'>Wipe</option>-->
-         <!--<option id="swipe" value='swipe'>Swipe</option>-->
-         <!--<option id="poke" value='poke'>Poke</option>-->
-         <!--<option id="surf_wipe" value='surf_wipe'>Surface Wipe</option>-->
-         <!--<option id="grasp" value='grasp'>Grasp</option>-->
-         <!--<option id="reactive_grasp" value='reactive_grasp'>Reactive Grasp</option>-->
-         <!--<option id="contact_approach" value='contact_approach'>Approach until Contact</option>-->
-         <!--<option id="hfc_contact_approach" value='hfc_contact_approach'>Approach until Contact HFC</option>
-         <option id="hfc_swipe" value='hfc_swipe'>Swipe HFC</option>
-         <option id="hfc_wipe" value='hfc_wipe'>Wipe HFC</option>-->
-     </select></td> <!-- End Cell for Image Action Selection -->
+    <td> Camera: </td><td id="camera_select"></td>
+     <td>On Image Click:</td><td id="image_click_select"></td>
      <td>Hand:</td> <!-- Start Cell for Hand Selection -->
      <td>
         <div id='arm_sel'>
-          <input type='radio' id='l_arm' name='arm_sel' value='left' checked='checked'"/><label for='l_arm'>Left</label>
-          <input type='radio' id='r_arm' name='arm_sel' value='right'/><label for='r_arm'">Right</label>
+          <input type='radio' id='l_arm' name='arm_sel' value='left' checked='checked'/><label for='l_arm'>Left</label>
+          <input type='radio' id='r_arm' name='arm_sel' value='right'/><label for='r_arm'>Right</label>
         </div>
       </td>
   </tr>
-  <!--<tr>
-     <td colspan=2><button id="l_arm_controller" type="button" value="l_arm_controller" onclick="node.publish('wt_cont_switch', 'std_msgs/String', json({'data':'l_arm_controller'}));"> Joint Angle Controller (Default) </button></td>
-     <td colspan=2><button id="l_cart" type="button" value="l_cart" onclick="node.publish('wt_cont_switch', 'std_msgs/String', json({'data':'l_cart'}));"> Hybrid Force Controller </button></td>
-  </tr>-->
     
 </table>
-<!-- ABANDONED BUTTONS: DRIVING AND ARM TUCKING -->
-<!--<div id="head_pos_out"></div>-->
 <hr>
 <div id="console"></div>
 <hr>
@@ -540,7 +507,7 @@ function start(){
                         <select class="centered" id='shave_list'></select>
                       </td>
                       </tr><tr>
-                      <td><button id="send_shave_select" onclick="log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').text())">Move to Selection</button></td>
+                      <td><button id="send_shave_select" onclick="console.log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').text())">Move to Selection</button></td>
                     </tr>
                     <tr>
                       <td><button class="centered" id="shave_stop" onclick="shave_step('stop');">Stop</button></td>
