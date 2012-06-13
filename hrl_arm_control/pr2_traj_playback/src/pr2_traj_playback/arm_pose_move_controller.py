@@ -62,6 +62,8 @@ class ArmPoseMoveBehavior(object):
     # @param blocking If True, the function will wait until done, if False, it will return
     #                 immediately
     def execute(self, joint_trajectory, rate, blocking=True):
+        if len(joint_trajectory) == 0:
+            return True
         if self.running:
             rospy.logerr("[arm_pose_move_controller] Trajectory already in motion.")
             return False
@@ -130,6 +132,8 @@ class ArmPoseMoveBehavior(object):
     # @param joint_trajectory List of lists of length 7 representing joint angles to move through.
     # @return True if the arm is at the beginning, False otherwise.
     def can_exec_traj(self, joint_trajectory):
+        if len(joint_trajectory) == 0:
+            return True
         q_cur = self.cur_arm.get_ep()
         q_init = joint_trajectory[0]
         diff = self.cur_arm.diff_angles(q_cur, q_init)
@@ -211,7 +215,7 @@ class TrajectoryLoader(object):
         if traj is None:
             return None
         traj_ctrl = self.traj_ctrl_r if arm_char == 'r' else self.traj_ctrl_l
-        traj_ctrl.can_exec_traj(traj)
+        return traj_ctrl.can_exec_traj(traj)
 
 class TrajectorySaver(object):
     def __init__(self, rate):
