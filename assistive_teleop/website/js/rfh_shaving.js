@@ -139,12 +139,6 @@ function servo_feedback_cb(msg){
     log(text);
 };
  
-//function pc_snapshot_cb() {
-//    empty_srv('/take_pc_snapshot')
-//    $('#reg_confirm').show();
-//    log('USE R-VIZ TO FULLY ALIGN ELLIPSE, THEN CLICK CONFIRM.');
-//};
-
 function head_reg_cb(){
         $('#img_act_select').val('seed_reg');
         set_camera('head_registration/confirmation');

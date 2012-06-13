@@ -24,7 +24,8 @@ $.widget("rfh.ft_viewer",{
     },
     load_params: function(){
         if (window.get_param_free){
-            console.log("Calling force param loader");
+            window.get_param_free = false;
+            console.log("Force viewer has locked get_param");
             node.rosjs.callService('/rosbridge/get_param',
                                    '["face_adls_manager"]',
               function(params){
@@ -36,8 +37,8 @@ $.widget("rfh.ft_viewer",{
                   $("#ft_ref_danger_label").text("Danger\r\n >"+params.dangerous_force_thresh.toString()+" N");
                   $("#ft_ref_act").height(act_pct.toString()+'%');
                   $("#ft_ref_act_label").text("Activity\r\n  >"+params.activity_force_thresh.toString()+ "N");
-                  console.log('Received Force Params');
                   window.get_param_free=true;
+                  console.log('Force viewer has released lock on get_params');
           })} else {
               console.log("Ft viewer widget waiting for rosparam service");
               setTimeout('$("#'+this.element.attr("id").toString()+'").ft_viewer("load_params");',500);
