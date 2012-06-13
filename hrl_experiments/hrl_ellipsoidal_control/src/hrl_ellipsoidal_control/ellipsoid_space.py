@@ -72,7 +72,11 @@ class EllipsoidSpace(object):
         quat_flip = tf_trans.quaternion_from_euler(flip_axis_ang, 0.0, 0.0)
         norm_quat_ortho_flipped = tf_trans.quaternion_multiply(norm_quat_ortho, quat_flip)
 
-        return PoseConverter.to_pos_quat(pos, norm_quat_ortho_flipped)
+        pose = PoseConverter.to_pos_quat(pos, norm_quat_ortho_flipped)
+        print ("ellipsoidal_to_pose: latlonheight: %f, %f, %f" %
+               (lat, lon, height) +
+               str(PoseConverter.to_homo_mat(pose)))
+        return pose
 
     def pos_to_ellipsoidal(self, x, y, z):
         lon = np.arctan2(y, x)
@@ -86,5 +90,7 @@ class EllipsoidSpace(object):
             lat = np.pi - np.fabs(lat)
         cosh_height = z / (a * np.cos(lat))
         height = np.log(cosh_height + np.sqrt(cosh_height**2 - 1))
+        print ("pos_to_ellipsoidal: xyz: %f, %f, %f; latlonheight: %f, %f, %f" %
+               (x, y, z, lat, lon, height))
         return lat, lon, height
         
