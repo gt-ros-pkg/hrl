@@ -49,8 +49,9 @@ function toggle_ell_controller(state){
         };
     }
     node.rosjs.callService('/face_adls/enable_controller',
-                    '{"end_link":"%s_gripper_shaver45_frame","ctrl_params":"$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml","enable":'+state+'}',
-                    nop);
+                    '{"end_link":"%s_gripper_shaver45_frame","ctrl_params":"$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml","enable":'+state+'}', function(ret){
+                        console.log("Switching Ell. Controller Returned")}
+                );
     };
 
 //function servo_setup_cb(){
@@ -93,10 +94,10 @@ function servo_feedback_cb(msg){
             text = "Searching for AR Tag."
             break
         case 2: 
-            text = "AR Tag Found. BEGIN APPROACH.";
+            text = "AR Tag Found. Confirm location and begin approacH.";
             $('#servo_approach, #servo_stop, #ar_servoing_done').show().fadeTo(0,1);
             $('#servo_detect_tag').fadeTo(0,0.5);
-            //set_camera('/kinect_head/rgb/image_color')
+            set_camera('/ar_servo/confirmation')
             break
         case 3:
             text = "Unable to Locate AR Tag. ADJUST VIEW AND RETRY.";
@@ -141,7 +142,7 @@ function servo_feedback_cb(msg){
  
 function head_reg_cb(){
         $('#img_act_select').val('seed_reg');
-        set_camera('head_registration/confirmation');
+        set_camera('/head_registration/confirmation');
         alert('Click your head in the video to seed the ellipse registratoin');
     };
 

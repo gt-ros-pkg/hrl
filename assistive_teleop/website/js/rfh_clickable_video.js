@@ -1,8 +1,8 @@
 var count_surf_wipe_right=count_surf_wipe_left=force_wipe_count=0;
 var norm_appr_left = norm_appr_right = driving = tool_state = false;
-var MJPEG_QUALITY= '50'
-var MJPEG_WIDTH = '640'
-var MJPEG_HEIGHT = '480'
+var MJPEG_QUALITY= '50';
+var MJPEG_WIDTH = '640';
+var MJPEG_HEIGHT = '480';
 
 function camera_init(){
     //Image-Click Publishers
@@ -26,8 +26,14 @@ function camera_init(){
 
 function set_camera(cam) {
 mjpeg_url = 'http://'+ROBOT+':8080/stream?topic=/'+cam+'?width='+MJPEG_WIDTH+'?height='+MJPEG_HEIGHT+'?quality='+MJPEG_QUALITY
-$('#video').attr('src',mjpeg_url)
+$('#video').attr('src', mjpeg_url);
 };
+
+//function zoom_camera(cam) {
+//mjpeg_url = 'http://'+ROBOT+':8080/stream?topic=/'+cam+'?width='+MJPEG_WIDTH*2+'?height='+MJPEG_HEIGHT*2+'?quality=95'
+//$("#clickable_div").css('width','90%').css('height','90%');
+//$('#video').attr('src', mjpeg_url);
+//};
 
 function click_position(e) {
 	var posx = 0;
@@ -74,7 +80,7 @@ function image_click(event){
         console.log("Calling Registration Service with "+im_pixel[0].toString() +", "+im_pixel[1].toString())
         node.rosjs.callService('/initialize_registration',
                             '['+json(im_pixel[0])+','+json(im_pixel[1])+']',
-                            function(msg){console.log("Reg. Service Returned")})
+                            function(msg){console.log("Registration Service Returned")})
        $('#img_act_select').val('looking');
     } else {
 	get_im_3d(im_pixel[0],im_pixel[1])
