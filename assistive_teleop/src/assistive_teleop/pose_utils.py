@@ -39,6 +39,42 @@ def pose_relative_rot(pose, r=0., p=0., y=0., degrees=True):
                             *tft.quaternion_from_matrix(final_rot_mat))
     return ps
 
+def aim_frame_to(target_pt, point_dir=(1,0,0)):
+    goal_dir = np.array([target_pt.x, target_pt.y, target_pt.z])
+    goal_norm = np.divide(goal_dir, np.linalg.norm(goal_dir))
+    point_norm = np.divide(point_dir, np.linalg.norm(point_dir))
+    axis = np.cross(point_norm, goal_norm)
+    angle = np.arccos(np.vdot(goal_norm, point_norm))
+    return tft.quaternion_about_axis(angle, axis)
+
+def aim_pose_to(ps, pts, point_dir=(1,0,0)):
+    if not (ps.header.frame_id[1:] == pts.header.frame_id[1:]):
+        raise "Pose and Point must be in same tf frame"
+    target_pt = np.array((pts.point.x, pts.point.y, pts.point.z))
+    base_pt = np.array((ps.pose.position.x,
+                        ps.pose.position.y,
+                        ps.pose.position.z)) 
+    base_quat = np.array((ps.pose.orientation.x, ps.pose.orientation.y,
+                          ps.pose.orientation.z, ps.pose.orientation.w))
+
+    b_to_t_vec = np.array((target_pt[0]-base_pt[0],
+                           target_pt[1]-base_pt[1],
+                           target_pt[2]-base_pt[2]))
+    b_to_t_norm = np.divide(b_to_t_vec, np.linalg.norm(b_to_t_vec))
+
+    point_dir_hom = (point_dir[0], point_dir[1], point_dir[2], 1)
+    base_rot_mat = tft.quaternion_matrix(base_quat)
+    point_dir_hom = np.dot(point_dir_hom, base_rot_mat.T)
+    point_dir = np.array((point_dir_hom[0]/point_dir_hom[3],
+                         point_dir_hom[1]/point_dir_hom[3],
+                         point_dir_hom[2]/point_dir_hom[3]))
+    point_dir_norm = np.divide(point_dir, np.linalg.norm(point_dir))
+    axis = np.cross(point_dir_norm, b_to_t_norm)
+    angle = np.arccos(np.vdot(point_dir_norm, b_to_t_norm))
+    quat = tft.quaternion_about_axis(angle, axis)
+    new_quat = tft.quaternion_multiply(quat, base_quat)
+    ps.pose.orientation = Quaternion(*new_quat)
+
 def find_approach(pose, standoff=0., axis='x'):
     """Return a PoseStamped pointed down the z-axis of input pose."""
     ps = deepcopy(pose)

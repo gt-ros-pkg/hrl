@@ -1,8 +1,37 @@
 var count_surf_wipe_right=count_surf_wipe_left=force_wipe_count=0;
-var norm_appr_left = norm_appr_right = driving = tool_state = false;
-var MJPEG_QUALITY= '50'
-var MJPEG_WIDTH = '640'
-var MJPEG_HEIGHT = '480'
+var MJPEG_QUALITY= '50';
+var MJPEG_WIDTH = '640';
+var MJPEG_HEIGHT = '480';
+
+camera_select_html = 
+     '<select onchange="set_camera($(this).val());">\
+	      <option value="kinect_head/rgb/image_color">Kinect Camera</option>\
+	      <option value="kinect_throttled">Throttled Kinect Camera</option>\
+	      <option value="arrow_overlaid">Kinect (w/Arrows)</option>\
+	      <option value="ar_servo/confirmation">AR Tag Confirm</option>\
+	      <option value="head_registration/confirmation"> Head Registration Confirm</option>\
+		  <option value="wide_stereo/right/image_color">Wide Stereo Camera</option>\
+		  <option value="l_forearm_cam/image_color_rotated">Left Forearm Camera</option>\
+		  <option value="r_forearm_cam/image_color_rotated">Right Forearm Camera</option>\
+      </select>'
+
+image_click_select_html = 
+       '<select id="img_act_select">\
+         <option id="looking" selected="selected" value="looking">Look</option>\
+         <option id="na" value="norm_approach">Normal Approach</option>\
+         <option id="touch" value="touch">Touch</option>\
+         <option id="seed_reg" value="seed_reg">Register Head</option>\
+         <!--<option id="wipe" value="wipe">Wipe</option>-->\
+         <!--<option id="swipe" value="swipe">Swipe</option>-->\
+         <!--<option id="poke" value="poke">Poke</option>-->\
+         <!--<option id="surf_wipe" value="surf_wipe">Surface Wipe</option>-->\
+         <!--<option id="grasp" value="grasp">Grasp</option>-->\
+         <!--<option id="reactive_grasp" value="reactive_grasp">Reactive Grasp</option>-->\
+         <!--<option id="contact_approach" value="contact_approach">Approach until Contact</option>-->\
+         <!--<option id="hfc_contact_approach" value="hfc_contact_approach">Approach until Contact HFC</option>\
+         <option id="hfc_swipe" value="hfc_swipe">Swipe HFC</option>\
+         <option id="hfc_wipe" value="hfc_wipe">Wipe HFC</option>-->\
+       </select>'
 
 function camera_init(){
     //Image-Click Publishers
@@ -22,11 +51,14 @@ function camera_init(){
     node.publish('wt_grasp_left_goal', 'geometry_msgs/PoseStamped', json({}));
     node.publish('wt_surf_wipe_r_points', 'geometry_msgs/Point', json({}));
     node.publish('wt_surf_wipe_l_points', 'geometry_msgs/Point', json({}));
+    $('#camera_select').html(camera_select_html);
+    $('#image_click_select').html(image_click_select_html);
+    console.log('Finished camera init');
 };
 
 function set_camera(cam) {
 mjpeg_url = 'http://'+ROBOT+':8080/stream?topic=/'+cam+'?width='+MJPEG_WIDTH+'?height='+MJPEG_HEIGHT+'?quality='+MJPEG_QUALITY
-$('#video').attr('src',mjpeg_url)
+$('#video').attr('src', mjpeg_url);
 };
 
 function click_position(e) {
@@ -49,13 +81,12 @@ function get_point(event){
 	var point = click_position(event);
 	click_x = point[0] - document.getElementById('video_container').offsetLeft 
 	click_y = point[1] - document.getElementById('video_container').offsetTop 
-	log("Clicked on point (x,y) = ("+ click_x.toString() +","+ click_y.toString()+")");
+	console.log("Clicked on image point (x,y) = ("+ click_x.toString() +","+ click_y.toString()+")");
 	return [click_x, click_y]
 };
 
 function image_click(event){
 	var im_pixel = get_point(event);
-    log(im_pixel[0].toString + ", "+im_pixel[1].toString())
 	if ($('#img_act_select option:selected').val() == 'surf_wipe') {
     surf_points_out = window.gm_point
     surf_points_out.x = im_pixel[0]
@@ -71,11 +102,11 @@ function image_click(event){
            window.count_surf_wipe = 0;
            $('#img_act_select').val('looking');
         }
-    } else if ($('#img_act_select option:selected').val() =='seed_reg'){
+    } else if ($('#img_act_select option:selected').val() == 'seed_reg'){
         console.log("Calling Registration Service with "+im_pixel[0].toString() +", "+im_pixel[1].toString())
         node.rosjs.callService('/initialize_registration',
                             '['+json(im_pixel[0])+','+json(im_pixel[1])+']',
-                            function(msg){console.log("Reg. Service Returned")})
+                            function(msg){console.log("Registration Service Returned")})
        $('#img_act_select').val('looking');
     } else {
 	get_im_3d(im_pixel[0],im_pixel[1])
@@ -91,11 +122,11 @@ function get_im_3d(x,y){
                             function(msg){
                                 log('pixel_2_3d response received');
                                 point_3d=msg.pixel3d;
-                                determine_p23d_response(point_3d)
+                                p23d_response(point_3d)
                             })
 };
 
-function determine_p23d_response(point_3d){
+function p23d_response(point_3d){
     switch ($('#img_act_select option:selected').val()){
         case 'looking':
             log("Sending look to point command");

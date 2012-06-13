@@ -18,6 +18,9 @@ class EllipsoidController(EllipsoidControllerBase):
                          velocity=0.001, blocking=True):
         ell_f, rot_mat_f = self._parse_ell_move(change_ep, abs_sel, orient_quat)
         traj = self._create_ell_trajectory(ell_f, rot_mat_f, orient_quat, velocity)
+        if traj is None:
+            rospy.logerr("[ellipsoid_controller] Bad trajectory.")
+            return False
         return self._run_traj(traj, blocking=blocking)
 
     def _parse_ell_move(self, change_ep, abs_sel, orient_quat):
@@ -55,6 +58,12 @@ class EllipsoidController(EllipsoidControllerBase):
             ell_final[1,0] += 2 * np.pi
         elif np.fabs(-2 * np.pi + ell_final[1,0] - ell_init[1,0]) < np.pi:
             ell_final[1,0] -= 2 * np.pi
+        
+        if np.any(np.isnan(ell_init)) or np.any(np.isnan(ell_final)):
+            rospy.logerr("[ellipsoid_controller] Nan values in ellipsoid EPs. " +
+                         "ell_init: %f, %f, %f; " % (ell_init[0,0], ell_init[1,0], ell_init[2,0]) +
+                         "ell_final: %f, %f, %f; " % (ell_final[0,0], ell_final[1,0], ell_final[2,0]))
+            return None
         
         num_samps = np.max([2, int(np.linalg.norm(ell_final - ell_init) / velocity), 
                                int(np.linalg.norm(rpy) / velocity)])
