@@ -18,19 +18,22 @@ class MirrorPointer(object):
         self.goal_pub = rospy.Publisher('mirror_goal', PoseStamped, latch=True)
         rospy.Subscriber('/head_position', PoseStamped, self.head_pose_cb)
 
-    def curr_pose(self):
-        return self.tf.lookupTransform("torso_lift_link",
-                                        "r_wrist_roll_link",
-                                        rospy.Time(0))
+    def get_mirror_pose(self):
+        mp = PoseStamped()
+        mp.header.frame_id = "/r_wrist_roll_link"
+        mp.pose.position = Point(0.15, 0, 0)
+        mp.pose.orientation = Quaternion(0,0,0,1)
+        (trans, rot) = self.tf.lookupTransform("torso_lift_link",
+                                               "r_wrist_roll_link",
+                                               rospy.Time(0))
+        
 
     def head_pose_cb(self, msg):
         if not self.active:
             return
         tp = self.tf.transformPose('/torso_lift_link', msg)
         target_pt = PointStamped(tp.header, tp.pose.position)
-        #(ctrans, crot) = self.curr_pose()
         goal = PoseStamped()
-        #goal.header.stamp = rospy.Time.now()
         goal.header.frame_id = '/r_gripper_tool_frame'
         goal.pose.position = Point(0.15,0,0)
         goal.pose.orientation = Quaternion(*tft.random_quaternion())
