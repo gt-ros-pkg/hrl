@@ -39,6 +39,18 @@ def pose_relative_rot(pose, r=0., p=0., y=0., degrees=True):
                             *tft.quaternion_from_matrix(final_rot_mat))
     return ps
 
+def points_to_quat(pt1, pt2):
+    v1 = np.array([pt1.x, pt1.y, pt1.z])
+    mag1 = np.linalg.norm(v1)
+    norm1 = np.divide(v1, mag1)
+    v2 = np.array([pt2.x, pt2.y, pt2.z])
+    mag2 = np.linalg.norm(v2)
+    norm2 = np.divide(v2,mag2)
+    angle = np.dot(norm1, norm2)
+    axis = np.cross(norm1, norm2)
+    quat = tft.quaternion_about_axis(angle, (axis[0],axis[1],axis[2]))
+    return quat
+
 def find_approach(pose, standoff=0., axis='x'):
     """Return a PoseStamped pointed down the z-axis of input pose."""
     ps = deepcopy(pose)
