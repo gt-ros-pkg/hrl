@@ -100,7 +100,8 @@ class EllipsoidControllerBase(CartTrajController):
     def load_params(self, req):
         rospy.loginfo("Loaded ellispoidal parameters.")
         kinect_B_head = PoseConverter.to_homo_mat(req.params.e_frame)
-        base_B_kinect = self.kin_head.forward_filled()
+        base_B_kinect = self.kin_head.forward_filled(base_segment="base_link",
+                                                     target_segment="openni_rgb_optical_frame")
         base_B_head = base_B_kinect * kinect_B_head
         self.head_center = PoseConverter.to_pose_stamped_msg("/base_link",base_B_head)
         # TODO cleanup EllispoidSpace
@@ -114,7 +115,7 @@ class EllipsoidControllerBase(CartTrajController):
         return self.ell_space is not None
     
     def get_ell_ep(self):
-        torso_B_kinect = self.kin_head.forward_filled(base_link="/torso_lift_link")
+        torso_B_kinect = self.kin_head.forward_filled(base_segment="/torso_lift_link")
         torso_B_ee = PoseConverter.to_homo_mat(self.arm.get_ep())
         kinect_B_ee = torso_B_kinect**-1 * torso_B_ee
         pos, quat = PoseConverter.to_pos_quat(self.get_ell_frame("/openni_rgb_optical_frame")**-1 * 

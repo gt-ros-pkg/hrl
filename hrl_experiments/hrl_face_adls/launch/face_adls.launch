@@ -1,8 +1,12 @@
 <launch>
     <arg name="subject" />
-    <include file="$(find hrl_face_adls)/launch/traj_playback_servers.launch" />
+    <include file="$(find hrl_face_adls)/launch/traj_playback_servers.launch">
+        <arg name="subject" value="$(arg subject)" />
+    </include>
     <include file="$(find hrl_face_adls)/launch/pr2_ar_servo.launch" />
-    <include file="$(find hrl_face_adls)/launch/head_registration.launch" />
+    <include file="$(find hrl_face_adls)/launch/head_registration.launch">
+        <arg name="subject" value="$(arg subject)" />
+    </include>
     <node pkg="hrl_face_adls" name="face_adls_manager" type="face_adls_manager.py"
           output="screen" >
         <remap from="/face_adls/feedback" to="/wt_log_out" />
