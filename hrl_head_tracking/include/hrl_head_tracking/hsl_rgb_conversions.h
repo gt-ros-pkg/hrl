@@ -10,6 +10,9 @@ void writeHSL(double h, double s, double l, float& rgb);
 void HSLToRGB(double h, double s, double l, uint8_t& r, uint8_t& g, uint8_t& b);
 void RGBToHSL(uint8_t r, uint8_t g, uint8_t b, double& h, double& s, double& l);
 
+// H in [0, 360], S in [0, 100], L in [0, 100]
+// R,G,B in [0, 255] 
+
 void extractRGB(float rgb, uint8_t& r, uint8_t& g, uint8_t& b) {
     r = ((uint8_t*) &rgb)[2];
     g = ((uint8_t*) &rgb)[1];
