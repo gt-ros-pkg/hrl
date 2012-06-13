@@ -25,6 +25,7 @@ from srv import LoadEllipsoidParams, LoadEllipsoidParamsResponse
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmCartesianBase, PR2ArmJTransposeTask
 from hrl_generic_arms.pose_converter import PoseConverter
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
+from pykdl_utils.pr2_kin import kin_from_param
 
 def min_jerk_traj(n):
     return [(10 * t**3 - 15 * t**4 + 6 * t**5)
@@ -81,7 +82,7 @@ class EllipsoidControllerBase(CartTrajController):
         self.cart_traj_ctrl = CartTrajController()
         self.ell_space = None
         self.head_center = None
-        self.tf_list = tf.TransformListener()
+        self.kin_head = kin_from_param("base_link", "openni_rgb_optical_frame")
         self.cmd_lock = Lock()
         self.ell_param_srv = rospy.Service("/load_ellipsoid_params", LoadEllipsoidParams, 
                                            self.load_params)
@@ -98,12 +99,10 @@ class EllipsoidControllerBase(CartTrajController):
 
     def load_params(self, req):
         rospy.loginfo("Loaded ellispoidal parameters.")
-        head_center_kinect = PoseConverter.to_pose_stamped_msg(req.params.e_frame)
-        cur_time = rospy.Time.now()
-        req.params.e_frame.header.stamp = cur_time
-        self.tf_list.waitForTransform("/base_link", "/openni_rgb_optical_frame", cur_time, 
-                                      rospy.Duration(3))
-        self.head_center = self.tf_list.transformPose("/base_link", head_center_kinect)
+        kinect_B_head = PoseConverter.to_homo_mat(req.params.e_frame)
+        base_B_kinect = self.kin_head.forward_filled()
+        base_B_head = base_B_kinect * kinect_B_head
+        self.head_center = PoseConverter.to_pose_stamped_msg("/base_link",base_B_head)
         # TODO cleanup EllispoidSpace
         self.ell_space = EllipsoidSpace(1)
         self.ell_space.load_ell_params(req.params)
@@ -115,15 +114,11 @@ class EllipsoidControllerBase(CartTrajController):
         return self.ell_space is not None
     
     def get_ell_ep(self):
-        ee_pose = PoseConverter.to_pose_stamped_msg("/torso_lift_link", self.arm.get_ep())
-        cur_time = rospy.Time.now()
-        ee_pose.header.stamp = cur_time
-        self.tf_list.waitForTransform("/torso_lift_link", "/openni_rgb_optical_frame", cur_time, 
-                                      rospy.Duration(3))
-        ep_opti_frame = PoseConverter.to_homo_mat(
-                         self.tf_list.transformPose("/openni_rgb_optical_frame", ee_pose))
+        torso_B_kinect = self.kin_head.forward_filled(base_link="/torso_lift_link")
+        torso_B_ee = PoseConverter.to_homo_mat(self.arm.get_ep())
+        kinect_B_ee = torso_B_kinect**-1 * torso_B_ee
         pos, quat = PoseConverter.to_pos_quat(self.get_ell_frame("/openni_rgb_optical_frame")**-1 * 
-                                              ep_opti_frame)
+                                              kinect_B_ee)
         return list(self.ell_space.pos_to_ellipsoidal(*pos))
 
     ##
@@ -152,12 +147,9 @@ class EllipsoidControllerBase(CartTrajController):
 
     def get_ell_frame(self, frame="/torso_lift_link"):
         # find the current ellipsoid frame location in this frame
-        cur_time = rospy.Time.now()
-        self.tf_list.waitForTransform(frame, self.head_center.header.frame_id, 
-                                      cur_time, rospy.Duration(3))
-        self.head_center.header.stamp = cur_time
-        return PoseConverter.to_homo_mat(
-                    self.tf_list.transformPose(frame, self.head_center))
+        base_B_head = PoseConverter.to_homo_mat(self.head_center)
+        target_B_base = self.kin_head.forward_filled(base_segment=frame, target_segment="/base_link")
+        return target_B_base * base_B_head
 
     def _run_traj(self, traj, blocking=True):
         self.start_pub.publish(
