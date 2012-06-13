@@ -86,14 +86,16 @@ class ArmPoseMoveBehavior(object):
             self.cur_arm.set_ep(self.cur_arm.get_ep(), 0.3)
             if self.cur_idx < len(joint_trajectory):
                 self.cur_joint_traj = joint_trajectory[self.cur_idx:]
+                successful = False
             else:
                 self.cur_joint_traj = None
                 self.is_paused = False
+                successful = True
             self.last_rate = rate
             self.running = False
-            rospy.loginfo("[arm_pose_move_controller] Finished trajectory.")
+            return successful
         if blocking:
-            exec_traj(None)
+            return exec_traj(None)
         else:
             self.exec_traj_timer = rospy.Timer(rospy.Duration(0.1), exec_traj, oneshot=True)
         return True
@@ -251,21 +253,27 @@ class TrajectorySaver(object):
 class TrajectoryServer(object):
     def __init__(self, arm_char, as_name, ctrl_name, param_file):
         self.traj_ctrl = ArmPoseMoveBehavior(arm_char, ctrl_name, param_file)
+        self.arm_dict = {'r' : "right", 'l' : "left"}
 
         def pause_cb(req):
             if not self.traj_ctrl.is_paused:
                 if self.traj_ctrl.pause_moving():
-                    rospy.loginfo("[arm_pose_move_controller] Pausing %s arm." 
-                                                          % self.traj_ctrl.arm_char)
+                    self.publish_feedback("Trajectory playback on the %s arm paused." % 
+                                          self.arm_dict[self.traj_ctrl.arm_char])
             else:
                 self.traj_ctrl.restart_moving(blocking=False)
+                self.publish_feedback("Trajectory playback on the %s arm restarted." % 
+                                      self.arm_dict[self.traj_ctrl.arm_char])
             return EmptyResponse()
         self.traj_pause_srv = rospy.Service(as_name + "_pause", Empty, pause_cb)
 
         def stop_cb(req):
+            self.publish_feedback("Trajectory playback on the %s arm stopping." % 
+                                  self.arm_dict[self.traj_ctrl.arm_char])
             self.traj_ctrl.stop_moving()
             return EmptyResponse()
         self.traj_stop_srv = rospy.Service(as_name + "_stop", Empty, stop_cb)
+        self.feedback_pub = rospy.Publisher(as_name + "/feedback", String)
 
         self.traj_srv = actionlib.SimpleActionServer(as_name, TrajectoryPlayAction, 
                                                      self.traj_play_cb, False)
@@ -283,9 +291,11 @@ class TrajectoryServer(object):
         self.last_goal = copy.copy(new_goal)
         return ret_val
 
+    def publish_feedback(self, msg):
+        rospy.loginfo("[arm_pose_move_controller] %s" % msg)
+        self.feedback_pub.publish(msg)
+
     def traj_play_cb(self, goal):
-        rospy.loginfo("[arm_pose_move_controller] Playing trajectory on %s arm." 
-                                                       % self.traj_ctrl.arm_char)
         traj, arm_char, rate = load_arm_file(goal.filepath)
         if traj is None:
             self.traj_srv.set_aborted(text="Failed to open file.")
@@ -293,9 +303,13 @@ class TrajectoryServer(object):
         if arm_char != self.traj_ctrl.arm_char:
             self.traj_srv.set_aborted(text="File contains wrong arm.")
             return
+        self.publish_feedback("Trajectory playback on the %s arm starting." % 
+                              self.arm_dict[self.traj_ctrl.arm_char])
         if goal.reverse:
             traj.reverse()
         if self.same_goal_as_last(goal) and self.traj_ctrl.is_paused:
+            self.publish_feedback("Trajectory playback on the %s arm restarted." % 
+                                  self.arm_dict[self.traj_ctrl.arm_char])
             self.traj_ctrl.restart_moving(blocking=True)
         else:
             if goal.mode == goal.MOVE_SETUP or goal.mode == goal.SETUP_AND_TRAJ:
@@ -310,7 +324,9 @@ class TrajectoryServer(object):
             else:
                 self.traj_srv.set_aborted(text="Unknown goal mode.")
                 return
-            self.traj_ctrl.execute(full_traj, rate * goal.traj_rate_mult, blocking=True)
+            if self.traj_ctrl.execute(full_traj, rate * goal.traj_rate_mult, blocking=True):
+                self.publish_feedback("Trajectory playback on the %s arm successful." % 
+                                      self.arm_dict[self.traj_ctrl.arm_char])
         self.traj_srv.set_succeeded()
 
     def traj_cancel_cb(self):
