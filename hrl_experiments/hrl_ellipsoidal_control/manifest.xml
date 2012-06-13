@@ -16,6 +16,7 @@
   <depend package="eigen_conversions"/>
   <depend package="tf_conversions"/>
   <depend package="pcl_ros"/>
+  <depend package="pykdl_utils"/>
 
 </package>
 

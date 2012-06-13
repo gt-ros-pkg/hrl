@@ -70,6 +70,9 @@ class KDLKinematics(object):
     def get_segment_names(self):
         return [self._chain.getSegment(i).getName() for i in range(self._chain.getNrOfSegments())]
 
+    def get_joint_names(self):
+        return self.joint_info['names']
+
     def forward(self, q, target_segment=None, base_segment=None):
         seg_names = self.get_segment_names()
         if target_segment is None:
