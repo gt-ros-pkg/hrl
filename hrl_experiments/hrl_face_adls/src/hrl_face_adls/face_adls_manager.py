@@ -101,7 +101,7 @@ class FaceADLsManager(object):
         self.local_input_sub = rospy.Subscriber("/face_adls/local_move", String, self.local_input_cb, 
                                                 queue_size=2)
         self.state_pub = rospy.Publisher('/face_adls/controller_state', Int8, latch=True)
-        self.feedback_pub = rospy.Publisher('/face_adls/feedback', String, latch=True)
+        self.feedback_pub = rospy.Publisher('/face_adls/feedback', String)
         self.global_move_poses_pub = rospy.Publisher('/face_adls/global_move_poses', StringArray, latch=True)
         def enable_controller_cb(req):
             if req.enable:
