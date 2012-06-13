@@ -156,4 +156,19 @@ class EllipsoidControllerBase(CartTrajController):
                 PoseConverter.to_pose_stamped_msg("/torso_lift_link", traj[0]))
         self.end_pub.publish(
                 PoseConverter.to_pose_stamped_msg("/torso_lift_link", traj[-1]))
+        # make sure traj beginning is close to current end effector position
+        init_pos_tolerance = rospy.get_param("~init_pos_tolerance", 0.05)
+        init_rot_tolerance = rospy.get_param("~init_rot_tolerance", np.pi/12)
+        ee_pos, ee_rot = self.get_end_effector_pose()
+        _, rot_diff = PoseConverter.to_pos_euler((ee_pos, ee_rot * traj[0][1].T))
+        pos_diff = np.linalg.norm(ee_pos - traj[0][0].T)
+        if pos_diff > init_pos_tolerance:
+            rospy.logwarn("[controller_base] End effector too far from current position. " + 
+                          "Pos diff: %.3f, Tolerance: %.3f" % (pos_diff, init_pos_tolerance))
+            return False
+        if np.linalg.norm(rot_diff) > init_rot_tolerance:
+            rospy.logwarn("[controller_base] End effector too far from current rotation. " + 
+                          "Rot diff: %.3f, Tolerance: %.3f" % (np.linalg.norm(rot_diff), 
+                                                               init_rot_tolerance))
+            return False
         return self.execute_cart_traj(self.arm, traj, self.time_step, blocking=blocking)
