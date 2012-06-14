@@ -29,7 +29,7 @@ $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
     $("#tabs").tabs().tabs({select: tab_select_cb});
     $("#traj_play_radio").buttonset();
-    $(".bpd, .cont_sel, .ar_servo_button, .traj_play_cont, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
+    $(".bpd, .cont_sel, .ar_servo_button, .traj_play_cont, #adj_mirror, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
     $(':button').click(log_click);
 	$('#slider').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
 	$('#rg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
@@ -52,7 +52,7 @@ $(function(){
                             $('.cont_sel').css('background-color','buttonface');
                             $(this).css('background-color', 'gray')
                             }); 
-	$('#reset').hide(); 
+    $(".ell_control, #reset").hide();
 });
 
 function init(){
@@ -67,7 +67,7 @@ function init(){
     camera_init();
     init_params();
     set_camera("kinect_head/rgb/image_color");
-	log('Fully Initialized');
+	console.log('Finished Initialization');
 };
 
 function init_srvs(){
@@ -189,15 +189,19 @@ function empty_srv(service){
 	node.rosjs.callService(service, json(''), nop);
     };
 
+function advertise(topic, type){
+    node.publish(topic,type, json({}));
+    console.log("Advertising "+topic+" of type: "+ type);
+    };
 
 function log_click(event){
     node.publish('wt_click_log', 'std_msgs/String', json({'data':event.target.id.toString()}));
     //log(event.target.id);
 };
 
-function tab_select_cb(eve, ui){if (ui.panel.id=='tab_ellipse'){
-                                toggle_ell_controller(true)} 
-                        else {toggle_ell_controller(false)};
+function tab_select_cb(eve, ui){if (ui.panel.id!='tab_ellipse'){
+                                       toggle_ell_controller(false)
+                                    };
     };
 
 function pub_gripper(arm,grpos) {
@@ -246,6 +250,11 @@ function traj_play_send_goal(){
     } else {log("Cannot Tell Which Arm to use based on filepath")};
     console.log("Sending Trajectory Play Goal");
 };
+
+function adj_mirror_cb(){
+   log("calling mirror_adjust_service");
+   node.rosjs.callService('/point_mirror',json('[]'),function(rsp){}); 
+    };
 
 function start(){
     window.node = new ros.NodeHandle('ws://'+ ROBOT + ':9091');
@@ -477,25 +486,30 @@ function start(){
                   <button class="centered" id="reg_head" onclick="head_reg_cb()"> Register Head </button>
                 </td>
               </tr>
-              <tr>
                 <td>
                   <!--<button id="shave" class='centered' type="button" onclick="send_shave_location('approach');">Approach</button>-->
                 </td>
               </tr>
               <tr>
                 <td>
-                  <input type="checkbox" class="centered" id="ell_controller" onclick="toggle_ell_controller()" />
+                  <input type="checkbox" class="centered ell_control" id="ell_controller" onclick="toggle_ell_controller()" />
                   <label id="ell_cont_state_check" for="ell_controller"> Ellipsoidal Control </label>
                 </td>
               </tr>
               <tr>
                 <td>
-                   <button class="centered" id="tool_power" onclick="toggle_tool_power()">Start/Stop Razor</button>
+                  <button class="centered ell_control" id="adj_mirror" onclick="adj_mirror_cb()"> Adjust Mirror </button>
+                </td>
+              </tr>
+              <tr>
+              <tr>
+                <td>
+                   <button class="centered ell_control" id="tool_power" onclick="toggle_tool_power()">Start/Stop Razor</button>
                 </td>
               <tr>
               </tr>
                 <td>
-                  <button id="rezero_wrench" class='centered' onclick="rezero_wrench()";>Zero FT Sensor</button>
+                  <button class='centered ell_control' id="rezero_wrench" onclick="rezero_wrench()";>Zero FT Sensor</button>
                 </td>
               </tr>
               <tr>
@@ -504,13 +518,13 @@ function start(){
                     <table>
                     <tr>
                       <td>
-                        <select class="centered" id='shave_list'></select>
+                        <select class="centered ell_control" id='shave_list'></select>
                       </td>
                       </tr><tr>
-                      <td><button id="send_shave_select" onclick="console.log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').text())">Move to Selection</button></td>
+                      <td><button class="ell_control" id="send_shave_select" onclick="console.log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').text())">Move to Selection</button></td>
                     </tr>
                     <tr>
-                      <td><button class="centered" id="shave_stop" onclick="shave_step('stop');">Stop</button></td>
+                      <td><button class="centered ell_control" id="shave_stop" onclick="shave_step('stop');">Stop</button></td>
                     </tr>
                   </table>
                 </div>  <!--End Shaving Drop-Down -->
@@ -519,7 +533,7 @@ function start(){
             </table>
           </td>
           <td>
-            <div id='bpd_ell_trans'> <!-- Translate Ellipse Buttonpad-->
+            <div class="ell_control" id='bpd_ell_trans'> <!-- Translate Ellipse Buttonpad-->
               <table>
                 <tr>
                   <th colspan="4"> Translate </th>
@@ -546,7 +560,7 @@ function start(){
             </div> <!--END Translate Ellipse Buttonpad -->
           </td>
           <td> 
-            <div id='bpd_ell_rot'> <!--Rotate Ellipse Buttonpad-->
+            <div class="ell_control" id='bpd_ell_rot'> <!--Rotate Ellipse Buttonpad-->
               <table>
                 <tr>
                   <th colspan="4"> Rotate </th>
