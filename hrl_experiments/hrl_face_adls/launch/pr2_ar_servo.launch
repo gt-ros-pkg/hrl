@@ -49,6 +49,7 @@
         <remap from="/camera" to="/l_forearm_cam/image_rect_color"/>
         <remap from="/ar_tag_r" to="/r_pr2_ar_pose_marker"/>
         <remap from="/ar_tag_l" to="/l_pr2_ar_pose_marker"/>
+        <remap from="/confirmation" to="/ar_servo/confirmation" />
     </node>
     <!--
     <node name="$(anon dynparam)" pkg="dynamic_reconfigure" type="dynparam"
