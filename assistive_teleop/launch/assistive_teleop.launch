@@ -69,22 +69,23 @@
         </include>
     </group>-->
 
-    <!-- Bring up intermediary for handling arm movements, one for each arm 
+    <!-- Bring up intermediary for handling arm movements, one for each arm
+    <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch" />
+    <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch" />
     <node
         name="wt_left_arm"
         pkg="assistive_teleop"
         type="arm_intermediary.py"
         args="left"
         output="screen"
-        machine="c2"/>
+        machine="c1"/>
     <node
         name="wt_right_arm"
         pkg="assistive_teleop"
         type="arm_intermediary.py"
         args="right"
         output="screen"
-        machine="c2"/>
-    -->
+        machine="c1"/>-->
 
     <!-- Launch Image Rotation Nodes for forearm cameras-->
     <node

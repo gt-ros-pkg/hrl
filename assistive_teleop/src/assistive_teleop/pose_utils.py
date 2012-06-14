@@ -48,8 +48,9 @@ def aim_frame_to(target_pt, point_dir=(1,0,0)):
     return tft.quaternion_about_axis(angle, axis)
 
 def aim_pose_to(ps, pts, point_dir=(1,0,0)):
-    if not (ps.header.frame_id[1:] == pts.header.frame_id[1:]):
-        raise "Pose and Point must be in same tf frame"
+    if not (ps.header.frame_id.lstrip('/') == pts.header.frame_id.lstrip('/')):
+        rospy.logerr("[Pose_Utils.aim_pose_to]: Pose and point must be in same frame: %s, %s"
+                    %(ps.header.frame_id, pt2.header.frame_id))
     target_pt = np.array((pts.point.x, pts.point.y, pts.point.z))
     base_pt = np.array((ps.pose.position.x,
                         ps.pose.position.y,
