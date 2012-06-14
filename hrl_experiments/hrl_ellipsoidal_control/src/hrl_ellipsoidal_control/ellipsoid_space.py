@@ -1,3 +1,4 @@
+#! /usr/bin/python
 
 import numpy as np
 
@@ -84,13 +85,52 @@ class EllipsoidSpace(object):
             lon += 2 * np.pi
         p = np.sqrt(x**2 + y**2)
         a = self.a
-        lat = np.arcsin(np.sqrt((np.sqrt((z**2 - a**2 + p**2)**2 + (2. * a * p)**2) / a**2 -
-                                 (z / a)**2 - (p / a)**2 + 1) / 2.))
+        inner = np.sqrt((np.sqrt((z**2 - a**2 + p**2)**2 + (2. * a * p)**2) / a**2 -
+                         (z / a)**2 - (p / a)**2 + 1) / 2.)
+        assert inner < 1.0001
+        if inner > 0.9999:
+            lat = np.pi/2.
+        else:
+            lat = np.arcsin(inner)
         if z < 0.:
             lat = np.pi - np.fabs(lat)
-        cosh_height = z / (a * np.cos(lat))
-        height = np.log(cosh_height + np.sqrt(cosh_height**2 - 1))
-        print ("pos_to_ellipsoidal: xyz: %f, %f, %f; latlonheight: %f, %f, %f" %
-               (x, y, z, lat, lon, height))
+        if np.fabs(np.sin(lat)) > 0.05:
+            if np.fabs(np.cos(lon)) > 0.05:
+                use_case = 'x'
+                sinh_height = x / (a * np.sin(lat) * np.cos(lon))
+                height = np.log(sinh_height + np.sqrt(sinh_height**2 + 1))
+            else:
+                use_case = 'y'
+                sinh_height = y / (a * np.sin(lat) * np.sin(lon))
+                height = np.log(sinh_height + np.sqrt(sinh_height**2 + 1))
+        else:
+            use_case = 'z'
+            cosh_height = z / (a * np.cos(lat))
+            assert np.fabs(cosh_height) >= 1, ("cosh_height %f, a %f, x %f, y %f, z %f, lat %f, lon %f" %
+                                               (cosh_height, a, x, y, z, lat, lon))
+            height = np.log(cosh_height + np.sqrt(cosh_height**2 - 1))
+        print ("%s pos_to_ellipsoidal: xyz: %f, %f, %f; latlonheight: %f, %f, %f" %
+               (use_case, x, y, z, lat, lon, height))
+        assert not np.any(np.isnan([lat, lon, height])), ("cosh_height %f, a %f, x %f, y %f, z %f, lat %f, lon %f" %
+                                               (cosh_height, a, x, y, z, lat, lon))
         return lat, lon, height
         
+def main():
+    e_space = EllipsoidSpace(1)
+    # test pos_to_ellipsoidal
+    for xm in range(2):
+        for ym in range(2):
+            for zm in range(2):
+                for i in range(10000):
+                    x, y, z = np.random.uniform(-2.5, 2.5, 3)
+                    lat, lon, height = e_space.pos_to_ellipsoidal(xm*x, ym*y, zm*z)
+                    assert lat >= 0 and lat <= np.pi*1.0001, ("latlonheight: %f, %f, %f" %
+                                                       (lat, lon, height))
+                    assert lon >= 0 and lon < 2*np.pi*1.0001, ("latlonheight: %f, %f, %f" %
+                                                       (lat, lon, height))
+                    assert height >= 0, ("latlonheight: %f, %f, %f" %
+                                                       (lat, lon, height))
+                    #print lat, lon, height
+
+if __name__ == "__main__":
+    main()
