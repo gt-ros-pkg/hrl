@@ -14,6 +14,12 @@ MIN_HEIGHT = 0.2
 
 class EllipsoidController(EllipsoidControllerBase):
 
+    def __init__(self):
+        super(EllipsoidController, self).__init__()
+        self._lat_bounds = (-np.inf, np.inf)
+        self._lon_bounds = (-np.inf, np.inf)
+        self._height_bounds = (-np.inf, np.inf)
+
     def execute_ell_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], 
                          velocity=0.001, blocking=True):
         ell_f, rot_mat_f = self._parse_ell_move(change_ep, abs_sel, orient_quat)
@@ -23,12 +29,35 @@ class EllipsoidController(EllipsoidControllerBase):
             return False
         return self._run_traj(traj, blocking=blocking)
 
+    def set_bounds(self, lat_bounds, lon_bounds, height_bounds):
+        self._lat_bounds = lat_bounds
+        self._lon_bounds = lon_bounds
+        self._height_bounds = height_bounds
+
+    def _clip_ell_ep(self, ell_ep):
+        lat = np.clip(ell_ep[0], lat_bounds[0], lat_bounds[1])
+        lon = np.clip(ell_ep[1], lon_bounds[0], lon_bounds[1])
+        height = np.clip(ell_ep[1], lon_bounds[0], lon_bounds[1])
+        return np.array([lat, lon, height])
+
+    def arm_in_bounds(self):
+        ell_ep = self.get_ell_ep()
+        return np.all(ell_ep == self._clip_ell_ep(ell_ep))
+
     def _parse_ell_move(self, change_ep, abs_sel, orient_quat):
         with self.cmd_lock:
             change_ell_ep, change_rot_ep = change_ep
             abs_ell_ep_sel, is_abs_rot = abs_sel
             ell_f = np.where(abs_ell_ep_sel, change_ell_ep, 
                                          np.array(self.get_ell_ep()) + np.array(change_ell_ep))
+            if ell_f[0] > np.pi:
+                ell_f[0] = 2 * np.pi - ell_f[0]
+                ell_f[1] *= -1
+            if ell_f[0] < 0.:
+                ell_f[0] *= -1
+                ell_f[1] *= -1
+            ell_f[1] = np.mod(ell_f[1], 2 * np.pi)
+            ell_f = self._clip_ell_ep(ell_f)
             if is_abs_rot:
                 rot_change_mat = change_rot_ep
                 _, ell_final_rot = self.robot_ellipsoidal_pose(ell_f[0], ell_f[1], ell_f[2],

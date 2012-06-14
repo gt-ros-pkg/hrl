@@ -2,3 +2,4 @@ bool enable
 string end_link
 string ctrl_params
 ---
+bool success
