@@ -102,13 +102,14 @@ class FaceADLsManager(object):
                                                 queue_size=2)
         self.state_pub = rospy.Publisher('/face_adls/controller_state', Int8, latch=True)
         self.feedback_pub = rospy.Publisher('/face_adls/feedback', String)
-        self.global_move_poses_pub = rospy.Publisher('/face_adls/global_move_poses', StringArray, latch=True)
+        self.global_move_poses_pub = rospy.Publisher('/face_adls/global_move_poses', StringArray, 
+                                                     latch=True)
         def enable_controller_cb(req):
             if req.enable:
-                self.enable_controller(req.end_link, req.ctrl_params)
+                success = self.enable_controller(req.end_link, req.ctrl_params)
             else:
-                self.disable_controller()
-            return EnableFaceControllerResponse()
+                success = self.disable_controller()
+            return EnableFaceControllerResponse(success)
         self.controller_enabled_pub = rospy.Publisher('/face_adls/controller_enabled', Bool, latch=True)
         self.enable_controller_srv = rospy.Service("/face_adls/enable_controller", 
                                                    EnableFaceController, enable_controller_cb)
@@ -123,6 +124,18 @@ class FaceADLsManager(object):
 
     def enable_controller(self, end_link="%s_gripper_shaver45_frame",
                           ctrl_params="$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml"):
+        if not self.ell_ctrl.params_loaded():
+            self.publish_feedback(Messages.NO_PARAMS_LOADED)
+            return False
+
+        shaving_side = rospy.get_param('/shaving_side', 'r') # TODO Make more general
+        # check if arm is near head
+        self.ell_ctrl.set_bounds(LAT_BOUNDS[shaving_side], LON_BOUNDS[shaving_side],
+                                 HEIGHT_BOUNDS[shaving_side])
+        if not self.ell_ctrl.arm_in_bounds():
+            self.publish_feedback(Messages.ARM_AWAY_FROM_HEAD)
+            return False
+
         self.publish_feedback(Messages.ENABLE_CONTROLLER)
         self.ctrl_switcher.carefree_switch('l', '%s_cart_jt_task', ctrl_params, reset=False)
         rospy.sleep(0.2)
@@ -159,16 +172,17 @@ class FaceADLsManager(object):
         self.force_monitor.update_activity()
         self.is_forced_retreat = False
 
-        shaving_side = rospy.get_param('/shaving_side', 'r')
         self.global_poses = rospy.get_param('/face_adls/%s_global_poses' % shaving_side)
         self.global_move_poses_pub.publish(self.global_poses.keys())
 
         self.controller_enabled_pub.publish(Bool(True))
+        return True
 
     def disable_controller(self):
         self.ell_ctrl.set_arm(None)
         self.controller_enabled_pub.publish(Bool(False))
         self.publish_feedback(Messages.DISABLE_CONTROLLER)
+        return True
 
     def controller_enabled(self):
         return self.ell_ctrl.arm is not None

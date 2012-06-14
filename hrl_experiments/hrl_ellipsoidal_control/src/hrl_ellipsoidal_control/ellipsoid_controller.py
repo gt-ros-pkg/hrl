@@ -14,6 +14,12 @@ MIN_HEIGHT = 0.2
 
 class EllipsoidController(EllipsoidControllerBase):
 
+    def __init__(self):
+        super(EllipsoidController, self).__init__()
+        self._lat_bounds = (-np.inf, np.inf)
+        self._lon_bounds = (-np.inf, np.inf)
+        self._height_bounds = (-np.inf, np.inf)
+
     def execute_ell_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], 
                          velocity=0.001, blocking=True):
         ell_f, rot_mat_f = self._parse_ell_move(change_ep, abs_sel, orient_quat)
@@ -23,12 +29,49 @@ class EllipsoidController(EllipsoidControllerBase):
             return False
         return self._run_traj(traj, blocking=blocking)
 
+    def set_bounds(self, lat_bounds, lon_bounds, height_bounds):
+        assert lon_bounds[1] >= 0
+        self._lat_bounds = lat_bounds
+        self._lon_bounds = lon_bounds
+        self._height_bounds = height_bounds
+
+    def _clip_ell_ep(self, ell_ep):
+        lat = np.clip(ell_ep[0], self._lat_bounds[0], self._lat_bounds[1])
+        if self._lon_bounds[0] >= 0:
+            lon = np.clip(ell_ep[1], self._lon_bounds[0], self._lon_bounds[1])
+        else:
+            if ell_ep[1] >= 0:
+                lon = np.clip(ell_ep[1], 0., self._lon_bounds[1])
+            else:
+                min_lon = np.mod(self._lon_bounds[0], 2 * np.pi)
+                lon = np.clip(ell_ep[1], min_lon, 2. * np.pi)
+        height = np.clip(ell_ep[1], self._height_bounds[0], self._height_bounds[1])
+        return np.array([lat, lon, height])
+
+    def arm_in_bounds(self):
+        ell_ep = self.get_ell_ep()
+        equals = ell_ep == self._clip_ell_ep(ell_ep)
+        if self._lon_bounds[0] >= 0 and ell_ep[1] >= 0:
+            return np.all(equals)
+        else:
+            min_lon = np.mod(self._lon_bounds[0], 2 * np.pi)
+            return equals[0] and equals[2] and np.mod(ell_ep[1], 2 * np.pi) > min_lon
+
+
     def _parse_ell_move(self, change_ep, abs_sel, orient_quat):
         with self.cmd_lock:
             change_ell_ep, change_rot_ep = change_ep
             abs_ell_ep_sel, is_abs_rot = abs_sel
             ell_f = np.where(abs_ell_ep_sel, change_ell_ep, 
                                          np.array(self.get_ell_ep()) + np.array(change_ell_ep))
+            if ell_f[0] > np.pi:
+                ell_f[0] = 2 * np.pi - ell_f[0]
+                ell_f[1] *= -1
+            if ell_f[0] < 0.:
+                ell_f[0] *= -1
+                ell_f[1] *= -1
+            ell_f[1] = np.mod(ell_f[1], 2 * np.pi)
+            ell_f = self._clip_ell_ep(ell_f)
             if is_abs_rot:
                 rot_change_mat = change_rot_ep
                 _, ell_final_rot = self.robot_ellipsoidal_pose(ell_f[0], ell_f[1], ell_f[2],
