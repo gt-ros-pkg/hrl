@@ -42,6 +42,14 @@
 
     <node name="$(anon dynparam)" pkg="dynamic_reconfigure" type="dynparam"
           args="load /l_forearm_cam $(find hrl_face_adls)/params/l_forearm_cam_settings.yaml" />
+
+    <node pkg="hrl_face_adls" name="ar_confirm" type="ar_confirm" >
+        <param name="marker_width" value="0.135" />
+        <param name="timeout_time" value="0.3" />
+        <remap from="/camera" to="/l_forearm_cam/image_rect_color"/>
+        <remap from="/ar_tag_r" to="/r_pr2_ar_pose_marker"/>
+        <remap from="/ar_tag_l" to="/l_pr2_ar_pose_marker"/>
+    </node>
     <!--
     <node name="$(anon dynparam)" pkg="dynamic_reconfigure" type="dynparam"
           args="load /r_forearm_cam $(find hrl_face_adls)/params/r_forearm_cam_settings.yaml" />
