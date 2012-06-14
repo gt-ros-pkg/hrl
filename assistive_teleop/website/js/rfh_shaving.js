@@ -14,29 +14,35 @@ function shaving_init(){
     node.subscribe('/face_adls/global_move_poses', function(msg){
                     list_key_opts('#shave_list', msg)}
                     );
-    node.publish('/face_adls/local_move', 'std_msgs/String', json({}));
-    node.publish('/face_adls/global_move', 'std_msgs/String', json({}));
-    node.publish('reg_confirm', 'std_msgs/Bool', json({}));
-    node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({}))
-    node.publish('ros_switch', 'std_msgs/Bool', json({}));
-    node.publish('pr2_ar_servo/arms_setup', 'std_msgs/Bool', json({}));
-    node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({}));
-    node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({}));
-    node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({}));
-    node.publish('netft_gravity_zeroing/rezero_wrench', 'std_msgs/Bool', json({}));
+    ////node.publish('reg_confirm', 'std_msgs/Bool', json({}));
+    ////node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({}))
+    ////node.publish('pr2_ar_servo/arms_setup', 'std_msgs/Bool', json({}));
+    var pubs = new Array()
+    pubs['face_adls/local_move'] = 'std_msgs/String';
+    pubs['face_adls/global_move'] = 'std_msgs/String';
+    pubs['ros_switch'] = 'std_msgs/Bool';
+    pubs['pr2_ar_servo/find_tag'] = 'std_msgs/Bool';
+    pubs['pr2_ar_servo/tag_confirm'] = 'std_msgs/Bool';
+    pubs['pr2_ar_servo/preempt'] = 'std_msgs/Bool';
+    pubs['netft_gravity_zeroing/rezero_wrench'] = 'std_msgs/Bool';
+    for (var i in pubs){
+        advertise(i, pubs[i]);
+    };
     $("#ft_view_widget").ft_viewer();
 };
+
 
 function ell_controller_state_cb(msg){
     if (msg.data){
         log("Ellipsoid Controller Active")
         $("#ell_controller").attr("checked","checked");
         $("#ell_cont_state_check").attr("aria-pressed",true).addClass('ui-state-active');
-
+        $(".ell_control").show();
        } else {
         $("#ell_controller").attr("checked", "");
         log("Ellipsoid Controller Inactive")
         $("#ell_cont_state_check").attr("aria-pressed",false).removeClass('ui-state-active');
+        $(".ell_control").hide();
        };
     };
 
@@ -49,8 +55,10 @@ function toggle_ell_controller(state){
         };
     }
     node.rosjs.callService('/face_adls/enable_controller',
-                    '{"end_link":"%s_gripper_shaver45_frame","ctrl_params":"$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml","enable":'+state+'}', function(ret){
-                        console.log("Switching Ell. Controller Returned")}
+                    '{"end_link":"%s_gripper_shaver45_frame","ctrl_params":"$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml","enable":'+state+'}',
+                    function(ret){
+                        console.log("Switching Ell. Controller Returned");
+                        ell_controller_state_cb(ret)}
                 );
     };
 

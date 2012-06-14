@@ -35,22 +35,21 @@ image_click_select_html =
 
 function camera_init(){
     //Image-Click Publishers
-    node.publish('norm_approach_right', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('norm_approach_left', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_contact_approach_right', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_contact_approach_left', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_poke_right_point', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_poke_left_point', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_swipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_swipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_wipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_wipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_rg_right_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_rg_left_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_grasp_right_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_grasp_left_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_surf_wipe_r_points', 'geometry_msgs/Point', json({}));
-    node.publish('wt_surf_wipe_l_points', 'geometry_msgs/Point', json({}));
+    var pubs = new Array()
+    var sides = ["right","left"];
+    for (var i=0; i < sides.length; i++){
+    pubs['norm_approach_'+sides[i]] = 'geometry_msgs/PoseStamped';
+    pubs['wt_contact_approach_'+sides[i]] = 'geometry_msgs/PoseStamped';
+    pubs['wt_poke_'+sides[i]+'_point'] = 'geometry_msgs/PoseStamped';
+    pubs['wt_swipe_'+sides[i]+'_goals'] = 'geometry_msgs/PoseStamped';
+    pubs['wt_wipe_'+sides[i]+'_goals'] = 'geometry_msgs/PoseStamped';
+    pubs['wt_rg_'+sides[i]+'_goal'] = 'geometry_msgs/PoseStamped';
+    pubs['wt_grasp_'+sides[i]+'_goal'] = 'geometry_msgs/PoseStamped';
+    pubs['wt_surf_wipe_'+sides[i].slice(0,1)+'_points'] = 'geometry_msgs/Point';
+    };
+    for (var i in pubs){
+        advertise(i, pubs[i]);
+    };
     $('#camera_select').html(camera_select_html);
     $('#image_click_select').html(image_click_select_html);
     console.log('Finished camera init');
