@@ -22,8 +22,6 @@ from hrl_face_adls.face_adls_parameters import *
 from hrl_face_adls.msg import StringArray
 from hrl_face_adls.srv import EnableFaceController, EnableFaceControllerResponse
 
-quat_gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
-
 class ForceCollisionMonitor(object):
     def __init__(self):
         self.last_activity_time = rospy.get_time()
@@ -173,6 +171,11 @@ class FaceADLsManager(object):
         self.global_poses = rospy.get_param('/face_adls/%s_global_poses' % shaving_side)
         self.global_move_poses_pub.publish(self.global_poses.keys())
 
+        if shaving_side == 'r':
+            self.gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
+        else:
+            self.gripper_rot = tf_trans.quaternion_from_euler(0, 0, 0)
+
         self.controller_enabled_pub.publish(Bool(True))
         return True
 
@@ -194,7 +197,7 @@ class FaceADLsManager(object):
         if forced:
             self.is_forced_retreat = True
         self.ell_ctrl.execute_ell_move(((0, 0, height), (0, 0, 0)), ((0, 0, 1), 0), 
-                                       quat_gripper_rot, velocity, blocking=False)
+                                       self.gripper_rot, velocity, blocking=False)
         rospy.loginfo("[face_adls_manager] Retreating from current location.")
         self.ell_ctrl.wait_until_stopped()
         self.is_forced_retreat = False
@@ -221,15 +224,15 @@ class FaceADLsManager(object):
         self.publish_feedback(Messages.GLOBAL_START % goal_pose_name)
         try:
             if not self.ell_ctrl.execute_ell_move(((0, 0, RETREAT_HEIGHT), (0, 0, 0)), ((0, 0, 1), 0), 
-                                                  quat_gripper_rot, APPROACH_VELOCITY, blocking=True):
+                                                  self.gripper_rot, APPROACH_VELOCITY, blocking=True):
                 raise Exception
             if not self.ell_ctrl.execute_ell_move(((goal_pose[0][0], goal_pose[0][1], RETREAT_HEIGHT), 
                                                   (0, 0, 0)), 
                                                   ((1, 1, 1), 0), 
-                                                  quat_gripper_rot, GLOBAL_VELOCITY, blocking=True):
+                                                  self.gripper_rot, GLOBAL_VELOCITY, blocking=True):
                 raise Exception
             if not self.ell_ctrl.execute_ell_move((goal_pose[0], (0, 0, 0)), ((1, 1, 1), 0), 
-                                                  quat_gripper_rot, GLOBAL_VELOCITY, blocking=True):
+                                                  self.gripper_rot, GLOBAL_VELOCITY, blocking=True):
                 raise Exception
         except:
             self.publish_feedback(Messages.GLOBAL_PREEMPT % goal_pose_name)
@@ -256,16 +259,16 @@ class FaceADLsManager(object):
             self.publish_feedback(Messages.LOCAL_START % button_names_dict[button_press])
             change_trans_ep = ell_trans_params[button_press]
             success = self.ell_ctrl.execute_ell_move((change_trans_ep, (0, 0, 0)), ((0, 0, 0), 0), 
-                                                    quat_gripper_rot, ELL_LOCAL_VEL, blocking=True)
+                                                    self.gripper_rot, ELL_LOCAL_VEL, blocking=True)
         elif button_press in ell_rot_params:
             self.publish_feedback(Messages.LOCAL_START % button_names_dict[button_press])
             change_rot_ep = ell_rot_params[button_press]
             success = self.ell_ctrl.execute_ell_move(((0, 0, 0), change_rot_ep), ((0, 0, 0), 0), 
-                                                    quat_gripper_rot, ELL_ROT_VEL, blocking=True)
+                                                    self.gripper_rot, ELL_ROT_VEL, blocking=True)
         elif button_press == "reset_rotation":
             self.publish_feedback(Messages.ROT_RESET_START)
             success = self.ell_ctrl.execute_ell_move(((0, 0, 0), np.mat(np.eye(3))), ((0, 0, 0), 1), 
-                                                    quat_gripper_rot, ELL_ROT_VEL, blocking=True)
+                                                    self.gripper_rot, ELL_ROT_VEL, blocking=True)
         else:
             rospy.logerr("[face_adls_manager] Unknown ellipsoidal local command")
 

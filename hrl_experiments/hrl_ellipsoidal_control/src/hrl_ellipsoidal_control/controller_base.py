@@ -130,16 +130,16 @@ class EllipsoidControllerBase(CartTrajController):
         ell_pose_mat = PoseConverter.to_homo_mat(pos, quat_rotated)
         return PoseConverter.to_pos_rot(kinect_frame_mat * ell_pose_mat)
                                           
-    def reset_arm_orientation(self, duration=10., gripper_rot=np.pi, blocking=True):
-        with self.cmd_lock:
-            num_samps = duration / self.time_step
-            cur_pose = self.arm.get_end_effector_pose()
-            quat_gripper_rot = tf_trans.quaternion_from_euler(gripper_rot, 0, 0)
-            args = self.get_ell_ep() + [quat_gripper_rot]
-            ell_pose = self.robot_ellipsoidal_pose(*args)
-            adjust_traj = self.arm.interpolate_ep(cur_pose, ell_pose, 
-                                                  min_jerk_traj(num_samps))
-            return self._run_traj(adjust_traj, blocking=blocking)
+    #def reset_arm_orientation(self, duration=10., gripper_rot=np.pi, blocking=True):
+    #    with self.cmd_lock:
+    #        num_samps = duration / self.time_step
+    #        cur_pose = self.arm.get_end_effector_pose()
+    #        quat_gripper_rot = tf_trans.quaternion_from_euler(gripper_rot, 0, 0)
+    #        args = self.get_ell_ep() + [quat_gripper_rot]
+    #        ell_pose = self.robot_ellipsoidal_pose(*args)
+    #        adjust_traj = self.arm.interpolate_ep(cur_pose, ell_pose, 
+    #                                              min_jerk_traj(num_samps))
+    #        return self._run_traj(adjust_traj, blocking=blocking)
 
     def get_ell_frame(self, frame="/torso_lift_link"):
         # find the current ellipsoid frame location in this frame

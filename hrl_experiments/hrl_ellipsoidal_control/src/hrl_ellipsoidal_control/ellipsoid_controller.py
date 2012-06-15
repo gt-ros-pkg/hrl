@@ -55,11 +55,14 @@ class EllipsoidController(EllipsoidControllerBase):
     def arm_in_bounds(self):
         ell_ep = self.get_ell_ep()
         equals = ell_ep == self._clip_ell_ep(ell_ep)
+        print ell_ep, equals
         if self._lon_bounds[0] >= 0 and ell_ep[1] >= 0:
             return np.all(equals)
         else:
+            ell_ep_1 = np.mod(ell_ep[1], 2 * np.pi)
             min_lon = np.mod(self._lon_bounds[0], 2 * np.pi)
-            return equals[0] and equals[2] and np.mod(ell_ep[1], 2 * np.pi) > min_lon
+            return (equals[0] and equals[2] and 
+                    (ell_ep_1 >= min_lon or ell_ep_1 <= self._lon_bounds[1]))
 
 
     def _parse_ell_move(self, change_ep, abs_sel, orient_quat):

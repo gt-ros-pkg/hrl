@@ -21,7 +21,7 @@ TIMEOUT_TIME = 30.0
 LAT_BOUNDS = {'r' : (np.pi/8, 7*np.pi/8), 'l' : (np.pi/8, 7*np.pi/8)}
 #LON_BOUNDS = {'r' : (-np.inf, np.inf), 'l' : (-np.inf, np.inf)}
 LON_BOUNDS = {'r' : (-5*np.pi/8, np.pi/8), 'l' : (-np.pi/8, 5*np.pi/8)}
-HEIGHT_BOUNDS = {'r' : (0.2, 2.5), 'l' : (0.2, 2.5)}
+HEIGHT_BOUNDS = {'r' : (0.2, 3.5), 'l' : (0.2, 3.5)}
 
 outcomes_spa = ['succeeded','preempted','aborted']
 
