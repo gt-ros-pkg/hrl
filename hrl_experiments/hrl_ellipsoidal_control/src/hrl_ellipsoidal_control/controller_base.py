@@ -16,8 +16,6 @@ from geometry_msgs.msg import PoseStamped
 from std_srvs.srv import Empty
 import tf.transformations as tf_trans
 
-#from hrl_generic_arms.ep_trajectory_controller import EPTrajectoryControl, min_jerk_traj
-#from equilibrium_point_control.ep_control import EPC, EPStopConditions
 from ellipsoid_space import EllipsoidSpace
 from msg import EllipsoidMoveAction, EllipsoidMoveResult
 from msg import EllipsoidParams
@@ -143,14 +141,11 @@ class EllipsoidControllerBase(CartTrajController):
                                                   min_jerk_traj(num_samps))
             return self._run_traj(adjust_traj, blocking=blocking)
 
-    def command_stop(self):
-        self.ell_traj_behavior.stop_epc = True
-
     def get_ell_frame(self, frame="/torso_lift_link"):
         # find the current ellipsoid frame location in this frame
         base_B_head = PoseConverter.to_homo_mat(self.head_center)
-        target_B_base = self.kin_head.forward_filled(base_segment=frame, target_segment="/base_link")
-        return target_B_base * base_B_head
+        target_B_base = self.kin_head.forward_filled(target_segment=frame)
+        return target_B_base**-1 * base_B_head
 
     def _run_traj(self, traj, blocking=True):
         self.start_pub.publish(
@@ -160,9 +155,9 @@ class EllipsoidControllerBase(CartTrajController):
         # make sure traj beginning is close to current end effector position
         init_pos_tolerance = rospy.get_param("~init_pos_tolerance", 0.05)
         init_rot_tolerance = rospy.get_param("~init_rot_tolerance", np.pi/12)
-        ee_pos, ee_rot = self.get_end_effector_pose()
+        ee_pos, ee_rot = self.arm.get_end_effector_pose()
         _, rot_diff = PoseConverter.to_pos_euler((ee_pos, ee_rot * traj[0][1].T))
-        pos_diff = np.linalg.norm(ee_pos - traj[0][0].T)
+        pos_diff = np.linalg.norm(ee_pos - traj[0][0])
         if pos_diff > init_pos_tolerance:
             rospy.logwarn("[controller_base] End effector too far from current position. " + 
                           "Pos diff: %.3f, Tolerance: %.3f" % (pos_diff, init_pos_tolerance))

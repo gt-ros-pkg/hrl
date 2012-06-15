@@ -40,12 +40,16 @@ class EllipsoidController(EllipsoidControllerBase):
         if self._lon_bounds[0] >= 0:
             lon = np.clip(ell_ep[1], self._lon_bounds[0], self._lon_bounds[1])
         else:
-            if ell_ep[1] >= 0:
-                lon = np.clip(ell_ep[1], 0., self._lon_bounds[1])
+            ell_ep_1 = np.mod(ell_ep[1], 2 * np.pi)
+            min_lon = np.mod(self._lon_bounds[0], 2 * np.pi)
+            if ell_ep_1 >= min_lon or ell_ep_1 <= self._lon_bounds[1]:
+                lon = ell_ep[1]
             else:
-                min_lon = np.mod(self._lon_bounds[0], 2 * np.pi)
-                lon = np.clip(ell_ep[1], min_lon, 2. * np.pi)
-        height = np.clip(ell_ep[1], self._height_bounds[0], self._height_bounds[1])
+                if min_lon - ell_ep_1 < ell_ep_1 - self._lon_bounds[1]:
+                    lon = min_lon
+                else:
+                    lon = self._lon_bounds[1]
+        height = np.clip(ell_ep[2], self._height_bounds[0], self._height_bounds[1])
         return np.array([lat, lon, height])
 
     def arm_in_bounds(self):
@@ -64,6 +68,7 @@ class EllipsoidController(EllipsoidControllerBase):
             abs_ell_ep_sel, is_abs_rot = abs_sel
             ell_f = np.where(abs_ell_ep_sel, change_ell_ep, 
                                          np.array(self.get_ell_ep()) + np.array(change_ell_ep))
+            print "old", ell_f
             if ell_f[0] > np.pi:
                 ell_f[0] = 2 * np.pi - ell_f[0]
                 ell_f[1] *= -1
@@ -72,6 +77,7 @@ class EllipsoidController(EllipsoidControllerBase):
                 ell_f[1] *= -1
             ell_f[1] = np.mod(ell_f[1], 2 * np.pi)
             ell_f = self._clip_ell_ep(ell_f)
+            print "new", ell_f
             if is_abs_rot:
                 rot_change_mat = change_rot_ep
                 _, ell_final_rot = self.robot_ellipsoidal_pose(ell_f[0], ell_f[1], ell_f[2],
@@ -91,7 +97,7 @@ class EllipsoidController(EllipsoidControllerBase):
 
         ell_f[1] = np.mod(ell_f[1], 2 * np.pi) # wrap longitude value
 
-        ell_f[2] = max(ell_f[2], MIN_HEIGHT) # don't want to approach singularity
+        #ell_f[2] = max(ell_f[2], MIN_HEIGHT) # don't want to approach singularity
 
         ell_init = np.mat(self.get_ell_ep()).T # get the current ellipsoidal location of the end effector
         ell_final = np.mat(ell_f).T

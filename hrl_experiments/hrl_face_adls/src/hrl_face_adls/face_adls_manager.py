@@ -19,8 +19,6 @@ from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from hrl_ellipsoidal_control.ellipsoid_controller import EllipsoidController
 from hrl_ellipsoidal_control.ellipsoidal_parameters import *
 from hrl_face_adls.face_adls_parameters import *
-from pr2_traj_playback.arm_pose_move_controller import ArmPoseMoveBehavior, TrajectoryLoader
-from pr2_traj_playback.arm_pose_move_controller import CTRL_NAME_LOW, PARAMS_FILE_LOW
 from hrl_face_adls.msg import StringArray
 from hrl_face_adls.srv import EnableFaceController, EnableFaceControllerResponse
 
@@ -80,7 +78,6 @@ class ForceCollisionMonitor(object):
         self.timeout_cb = cb
 
     def update_activity(self):
-        rospy.loginfo("[face_adls_manager] Activity update.")
         self.last_activity_time = rospy.get_time()
 
     def start_activity(self):
@@ -128,6 +125,13 @@ class FaceADLsManager(object):
             self.publish_feedback(Messages.NO_PARAMS_LOADED)
             return False
 
+        self.ctrl_switcher.carefree_switch('l', '%s_cart_jt_task', ctrl_params, reset=False)
+        rospy.sleep(0.2)
+        cart_arm = create_pr2_arm('l', PR2ArmJTransposeTask, 
+                                  controller_name='%s_cart_jt_task', 
+                                  end_link=end_link, timeout=5)
+        self.ell_ctrl.set_arm(cart_arm)
+
         shaving_side = rospy.get_param('/shaving_side', 'r') # TODO Make more general
         # check if arm is near head
         self.ell_ctrl.set_bounds(LAT_BOUNDS[shaving_side], LON_BOUNDS[shaving_side],
@@ -137,12 +141,6 @@ class FaceADLsManager(object):
             return False
 
         self.publish_feedback(Messages.ENABLE_CONTROLLER)
-        self.ctrl_switcher.carefree_switch('l', '%s_cart_jt_task', ctrl_params, reset=False)
-        rospy.sleep(0.2)
-        cart_arm = create_pr2_arm('l', PR2ArmJTransposeTask, 
-                                  controller_name='%s_cart_jt_task', 
-                                  end_link=end_link, timeout=5)
-        self.ell_ctrl.set_arm(cart_arm)
 
         self.force_monitor = ForceCollisionMonitor()
         # registering force monitor callbacks
@@ -179,6 +177,7 @@ class FaceADLsManager(object):
         return True
 
     def disable_controller(self):
+        self.ell_ctrl.stop_moving(wait=True)
         self.ell_ctrl.set_arm(None)
         self.controller_enabled_pub.publish(Bool(False))
         self.publish_feedback(Messages.DISABLE_CONTROLLER)
@@ -279,19 +278,21 @@ class FaceADLsManager(object):
 def main():
     rospy.init_node("face_adls_manager")
 
-    r_apm = ArmPoseMoveBehavior('r', ctrl_name=CTRL_NAME_LOW,
-                                param_file=PARAMS_FILE_LOW)
-    l_apm = ArmPoseMoveBehavior('l', ctrl_name=CTRL_NAME_LOW,
-                                param_file=PARAMS_FILE_LOW)
-    traj_loader = TrajectoryLoader(r_apm, l_apm)
-    if False:
-        traj_loader.move_to_setup_from_file("$(find hrl_face_adls)/data/l_arm_shaving_setup_r.pkl",
-                                            velocity=0.1, reverse=False, blocking=True)
-        traj_loader.exec_traj_from_file("$(find hrl_face_adls)/data/l_arm_shaving_setup_r.pkl",
-                                        rate_mult=0.8, reverse=False, blocking=True)
-    if False:
-        traj_loader.move_to_setup_from_file("$(find hrl_face_adls)/data/l_arm_shaving_setup_r.pkl",
-                                            velocity=0.3, reverse=True, blocking=True)
+    #from pr2_traj_playback.arm_pose_move_controller import ArmPoseMoveBehavior, TrajectoryLoader
+    #from pr2_traj_playback.arm_pose_move_controller import CTRL_NAME_LOW, PARAMS_FILE_LOW
+    #r_apm = ArmPoseMoveBehavior('r', ctrl_name=CTRL_NAME_LOW,
+    #                            param_file=PARAMS_FILE_LOW)
+    #l_apm = ArmPoseMoveBehavior('l', ctrl_name=CTRL_NAME_LOW,
+    #                            param_file=PARAMS_FILE_LOW)
+    #traj_loader = TrajectoryLoader(r_apm, l_apm)
+    #if False:
+    #    traj_loader.move_to_setup_from_file("$(find hrl_face_adls)/data/l_arm_shaving_setup_r.pkl",
+    #                                        velocity=0.1, reverse=False, blocking=True)
+    #    traj_loader.exec_traj_from_file("$(find hrl_face_adls)/data/l_arm_shaving_setup_r.pkl",
+    #                                    rate_mult=0.8, reverse=False, blocking=True)
+    #if False:
+    #    traj_loader.move_to_setup_from_file("$(find hrl_face_adls)/data/l_arm_shaving_setup_r.pkl",
+    #                                        velocity=0.3, reverse=True, blocking=True)
 
     fam = FaceADLsManager()
     #fam.enable_controller()

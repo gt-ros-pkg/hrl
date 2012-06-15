@@ -17,7 +17,9 @@
         <remap from="/head_registration" to="/head_registration_l" />
     </node>
     <node pkg="hrl_face_adls" name="registration_loader" type="registration_loader.py"
-          output="screen" args="$(find hrl_ellipsoidal_control)/data/$(arg subject)_r_ellipsoid_registration.bag $(find hrl_ellipsoidal_control)/data/$(arg subject)_l_ellipsoid_registration.bag" />
+          output="screen" args="$(find hrl_ellipsoidal_control)/data/$(arg subject)_r_ellipsoid_registration.bag $(find hrl_ellipsoidal_control)/data/$(arg subject)_l_ellipsoid_registration.bag" >
+        <remap from="/feedback" to="/wt_log_out" />
+    </node>
     <node pkg="hrl_head_tracking" name="head_alignment_confirm" type="head_alignment_confirm"
           output="screen" />
 </launch>
