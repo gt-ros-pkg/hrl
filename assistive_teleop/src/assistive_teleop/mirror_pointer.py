@@ -22,6 +22,7 @@ class MirrorPointer(object):
 
     def head_pose_cb(self, msg):
         """Save update head pose, transforming to torso frame if necessary"""
+        msg.header.stamp = rospy.Time(0)
         if not (msg.header.frame_id.lstrip('/') == 'torso_lift_link'):
             self.head_pose = self.tf.transformPose('/torso_lift_link', msg)
         else:
@@ -78,8 +79,11 @@ class MirrorPointer(object):
             return PoseStamped()
         mp = self.get_pointed_mirror_pose()
         goal = self.trans_mirror_to_wrist(mp)
+        goal.header.stamp = rospy.Time.now()
         resp = PointMirrorResponse()
         resp.wrist_pose = goal
+        print "Head Pose: "
+        print self.head_pose
         self.goal_pub.publish(goal)
         return resp
 
@@ -92,11 +96,7 @@ class MirrorPointer(object):
 
 if __name__=='__main__':
     rospy.init_node('mirror_pointer')
-   # mp = MirrorPointer()
-   # mp.head_pose = PoseStamped()
-   # mp.head_pose.header.frame_id = 'torso_lift_link'
-   # mp.head_pose.pose.position = Point(0.5, 0.5, 0.5)
-   # mp.head_pose.pose.orientation = Quaternion(1,0,0,0)
+    mp = MirrorPointer()
     rospy.sleep(1)
     r = rospy.Rate(10)
     while not rospy.is_shutdown():
