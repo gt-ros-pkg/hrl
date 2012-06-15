@@ -17,6 +17,6 @@
             "[L] Shaving Setup Left Cheek" : "$(find hrl_face_adls)/data/l_arm_shaving_setup_l.pkl"
             "[R] Shaving Setup Left Cheek" : "$(find hrl_face_adls)/data/r_arm_shaving_setup_l.pkl"
             "[L] Shaving Setup Right Cheek" : "$(find hrl_face_adls)/data/l_arm_shaving_setup_r.pkl"
-            "[R] Shaving Setup Right Cheek" : "$(find hrl_face_adls)/data/r_arm_shaving_setup_r.pkl"
+            "[R] Mirror Setup Right Cheek" : "$(find hrl_face_adls)/data/r_arm_mirror_setup_r.pkl"
     </rosparam>
 </launch>

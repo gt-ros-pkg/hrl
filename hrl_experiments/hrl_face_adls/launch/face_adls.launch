@@ -14,6 +14,8 @@
         <param name="contact_force_thresh" value="3.0" />
         <param name="activity_force_thresh" value="3.0" />
         <param name="timeout_time" value="30.0" />
+        <param name="init_pos_tolerance" value="100.0" />
+        <param name="init_rot_tolerance" value="100.0" />
         <rosparam command="load" param="/face_adls/l_global_poses" 
                   file="$(find hrl_face_adls)/params/l_ell_poses.yaml" />
         <rosparam command="load" param="/face_adls/r_global_poses" 
