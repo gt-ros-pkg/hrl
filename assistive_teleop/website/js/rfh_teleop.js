@@ -262,15 +262,18 @@ function teleop_head() {
 };
 
 function pub_Twist(bx,by,bz) {
+        var date = new Date();
+        //log('Publishing base cmd at '+date.getMilliseconds().toString());
         node.publish('base_controller/command', 'geometry_msgs/Twist',
                     '{"linear":{"x":'+bx+',"y":'+by+',"z":0},"angular":{"x":0,"y":0,"z":'+bz+'}}');
 };
+
 
 function start_base_pub(bx,by,bz) {
     bx = 0.002*scales.base*bx
     by = 0.002*scales.base*by
     bz = 0.006*scales.base*bz
-	window.base_pub = setInterval("pub_Twist("+bx+","+by+","+bz+")", 50);
+	window.base_pub = setInterval("pub_Twist("+bx+","+by+","+bz+")", 100);
 };
 
 function teleop_base() {
