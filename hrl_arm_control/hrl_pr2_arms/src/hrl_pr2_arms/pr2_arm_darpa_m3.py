@@ -47,6 +47,7 @@ import actionlib
 
 from pr2_controllers_msgs.msg import JointTrajectoryAction, JointTrajectoryGoal, JointTrajectoryControllerState
 from trajectory_msgs.msg import JointTrajectoryPoint
+from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction, Pr2GripperCommand
 
 from sensor_msgs.msg import JointState
 
@@ -79,7 +80,10 @@ class PR2Arm(HRLArm):
         self.joint_action_client = actionlib.SimpleActionClient(arm+'_arm_controller/joint_trajectory_action',
                                                                 JointTrajectoryAction)
 
+        self.gripper_action_client = actionlib.SimpleActionClient(arm+'_gripper_controller/gripper_action',
+                                                                  Pr2GripperCommandAction)
 #        self.joint_action_client.wait_for_server()
+#        self.gripper_action_client.wait_for_server()
 
 
     ##
@@ -155,12 +159,20 @@ class PR2Arm(HRLArm):
         self.marker_pub.publish(ee_marker)
 
 
+    #-------- gripper functions ------------
+    def move_gripper(self, amount=0.08, effort = 15):
+        self.gripper_action_client.send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=amount,
+                                                                                    max_effort = effort)))
+
+    def open_gripper(self):
+        self.move_gripper(0.08, -1)
+
+    def close_gripper(self, effort = 15):
+        self.move_gripper(0.0, effort)
 
 
 if __name__ == '__main__':
-
     rospy.init_node('pr2_arms_test')
-
     robot = PR2Arm('r')
 
     if False:
@@ -170,7 +182,7 @@ if __name__ == '__main__':
         raw_input('Hit ENTER to go')
         robot.set_ep(jep, duration=2.)
 
-    if True:
+    if False:
         # simple go_jep example
         roslib.load_manifest('equilibrium_point_control')
         import equilibrium_point_control.epc as epc
@@ -185,6 +197,13 @@ if __name__ == '__main__':
 #        jep = [0.] * 7
         jep = np.radians([-30, 0, -90, -60, 0, 0, 0])
         epcon.go_jep(jep, speed=math.radians(30.))
+    
+    if True:
+        import hrl_lib.util as ut
+        ut.get_keystroke('Hit ENTER to open gripper')
+        robot.open_gripper()
+        ut.get_keystroke('Hit ENTER to close gripper')
+        robot.close_gripper()
 
 
 
