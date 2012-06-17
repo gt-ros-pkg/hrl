@@ -23,6 +23,11 @@ RATE = 20
 JOINT_TOLERANCES = [0.03, 0.1, 0.1, 0.1, 0.17, 0.15, 0.12]
 JOINT_VELOCITY_WEIGHT = [3.0, 1.7, 1.7, 1.0, 1.0, 1.0, 0.5]
 
+CTRL_NAME_LOW = '%s_joint_controller_low'
+PARAM_FILE_LOW = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_low.yaml'
+CTRL_NAME_NONE = '%s_joint_controller_none'
+PARAM_FILE_NONE = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_none.yaml'
+
 ##
 # Allows one to move the arm through a set of joint angles safely and controller
 # agnostic.  
@@ -62,6 +67,8 @@ class ArmPoseMoveBehavior(object):
     # @param blocking If True, the function will wait until done, if False, it will return
     #                 immediately
     def execute(self, joint_trajectory, rate, blocking=True):
+        if len(joint_trajectory) == 0:
+            return True
         if self.running:
             rospy.logerr("[arm_pose_move_controller] Trajectory already in motion.")
             return False
@@ -84,14 +91,16 @@ class ArmPoseMoveBehavior(object):
             self.cur_arm.set_ep(self.cur_arm.get_ep(), 0.3)
             if self.cur_idx < len(joint_trajectory):
                 self.cur_joint_traj = joint_trajectory[self.cur_idx:]
+                successful = False
             else:
                 self.cur_joint_traj = None
                 self.is_paused = False
+                successful = True
             self.last_rate = rate
             self.running = False
-            rospy.loginfo("[arm_pose_move_controller] Finished trajectory.")
+            return successful
         if blocking:
-            exec_traj(None)
+            return exec_traj(None)
         else:
             self.exec_traj_timer = rospy.Timer(rospy.Duration(0.1), exec_traj, oneshot=True)
         return True
@@ -130,6 +139,8 @@ class ArmPoseMoveBehavior(object):
     # @param joint_trajectory List of lists of length 7 representing joint angles to move through.
     # @return True if the arm is at the beginning, False otherwise.
     def can_exec_traj(self, joint_trajectory):
+        if len(joint_trajectory) == 0:
+            return True
         q_cur = self.cur_arm.get_ep()
         q_init = joint_trajectory[0]
         diff = self.cur_arm.diff_angles(q_cur, q_init)
@@ -181,37 +192,41 @@ def load_arm_file(filename):
         print "Error:", e
         return None, None, None
 
-class TrajectoryLoader(object):
-    def __init__(self, traj_ctrl_r, traj_ctrl_l):
-        self.traj_ctrl_r, self.traj_ctrl_l = traj_ctrl_r, traj_ctrl_l
+def move_to_setup_from_file(filename, ctrl_name=CTRL_NAME_LOW, param_file=PARAM_FILE_LOW, 
+                            velocity=0.1, rate=RATE, reverse=False, blocking=True):
+    traj, arm_char, rate = load_arm_file(filename)
+    if traj is None:
+        return None
+    if not reverse:
+        q = traj[0]
+    else:
+        q = traj[-1]
+    traj_ctrl = ArmPoseMoveBehavior(arm_char, ctrl_name, param_file)
+    traj_ctrl.load_arm()
+    rospy.sleep(0.1)
+    traj_ctrl.move_to_angles(q, velocity=velocity, 
+                             rate=rate, blocking=blocking)
 
-    def exec_traj_from_file(self, filename, rate_mult=0.8, 
-                            reverse=False, blocking=True):
-        traj, arm_char, rate = load_arm_file(filename)
-        if traj is None:
-            return None
-        if reverse:
-            traj.reverse()
-        traj_ctrl = self.traj_ctrl_r if arm_char == 'r' else self.traj_ctrl_l
-        traj_ctrl.execute(traj, rate * rate_mult, blocking)
+def can_exec_traj_from_file(filename, reverse=False):
+    traj, arm_char, rate = load_arm_file(filename)
+    if traj is None:
+        return None
+    traj_ctrl = ArmPoseMoveBehavior(arm_char)
+    traj_ctrl.load_arm()
+    rospy.sleep(0.1)
+    return traj_ctrl.can_exec_traj(traj)
 
-    def move_to_setup_from_file(self, filename, velocity=0.1, rate=RATE, 
-                                reverse=False, blocking=True):
-        traj, arm_char, rate = load_arm_file(filename)
-        if traj is None:
-            return None
-        if reverse:
-            traj.reverse()
-        traj_ctrl = self.traj_ctrl_r if arm_char == 'r' else self.traj_ctrl_l
-        traj_ctrl.move_to_angles(traj[0], velocity=velocity, 
-                                 rate=rate, blocking=blocking)
-
-    def can_exec_traj_from_file(self, filename):
-        traj, arm_char, rate = load_arm_file(filename)
-        if traj is None:
-            return None
-        traj_ctrl = self.traj_ctrl_r if arm_char == 'r' else self.traj_ctrl_l
-        traj_ctrl.can_exec_traj(traj)
+def exec_traj_from_file(filename, ctrl_name=CTRL_NAME_LOW, param_file=PARAM_FILE_LOW, 
+                        reverse=False, rate_mult=0.8, blocking=True):
+    traj, arm_char, rate = load_arm_file(filename)
+    if traj is None:
+        return
+    if reverse:
+        traj.reverse()
+    traj_ctrl = ArmPoseMoveBehavior(arm_char, ctrl_name, param_file)
+    traj_ctrl.load_arm()
+    rospy.sleep(0.1)
+    return traj_ctrl.execute(traj, rate * rate_mult, blocking)
 
 class TrajectorySaver(object):
     def __init__(self, rate):
@@ -221,7 +236,7 @@ class TrajectorySaver(object):
         self.traj = []
         self.stop_recording = False
         self.is_recording = True
-        self.cur_arm = create_pr2_arm(arm_char, PR2Arm, timeout=3)
+        self.cur_arm = create_pr2_arm(arm_char, timeout=5)
         def rec_traj(te):
             rospy.loginfo("[arm_pose_move_controller] Recording trajectory.")
             r = rospy.Rate(self.rate)
@@ -247,21 +262,27 @@ class TrajectorySaver(object):
 class TrajectoryServer(object):
     def __init__(self, arm_char, as_name, ctrl_name, param_file):
         self.traj_ctrl = ArmPoseMoveBehavior(arm_char, ctrl_name, param_file)
+        self.arm_dict = {'r' : "right", 'l' : "left"}
 
         def pause_cb(req):
             if not self.traj_ctrl.is_paused:
                 if self.traj_ctrl.pause_moving():
-                    rospy.loginfo("[arm_pose_move_controller] Pausing %s arm." 
-                                                          % self.traj_ctrl.arm_char)
+                    self.publish_feedback("Trajectory playback on the %s arm paused." % 
+                                          self.arm_dict[self.traj_ctrl.arm_char])
             else:
                 self.traj_ctrl.restart_moving(blocking=False)
+                self.publish_feedback("Trajectory playback on the %s arm restarted." % 
+                                      self.arm_dict[self.traj_ctrl.arm_char])
             return EmptyResponse()
         self.traj_pause_srv = rospy.Service(as_name + "_pause", Empty, pause_cb)
 
         def stop_cb(req):
+            self.publish_feedback("Trajectory playback on the %s arm stopping." % 
+                                  self.arm_dict[self.traj_ctrl.arm_char])
             self.traj_ctrl.stop_moving()
             return EmptyResponse()
         self.traj_stop_srv = rospy.Service(as_name + "_stop", Empty, stop_cb)
+        self.feedback_pub = rospy.Publisher(as_name + "/feedback", String)
 
         self.traj_srv = actionlib.SimpleActionServer(as_name, TrajectoryPlayAction, 
                                                      self.traj_play_cb, False)
@@ -279,9 +300,11 @@ class TrajectoryServer(object):
         self.last_goal = copy.copy(new_goal)
         return ret_val
 
+    def publish_feedback(self, msg):
+        rospy.loginfo("[arm_pose_move_controller] %s" % msg)
+        self.feedback_pub.publish(msg)
+
     def traj_play_cb(self, goal):
-        rospy.loginfo("[arm_pose_move_controller] Playing trajectory on %s arm." 
-                                                       % self.traj_ctrl.arm_char)
         traj, arm_char, rate = load_arm_file(goal.filepath)
         if traj is None:
             self.traj_srv.set_aborted(text="Failed to open file.")
@@ -289,9 +312,13 @@ class TrajectoryServer(object):
         if arm_char != self.traj_ctrl.arm_char:
             self.traj_srv.set_aborted(text="File contains wrong arm.")
             return
+        self.publish_feedback("Trajectory playback on the %s arm starting." % 
+                              self.arm_dict[self.traj_ctrl.arm_char])
         if goal.reverse:
             traj.reverse()
         if self.same_goal_as_last(goal) and self.traj_ctrl.is_paused:
+            self.publish_feedback("Trajectory playback on the %s arm restarted." % 
+                                  self.arm_dict[self.traj_ctrl.arm_char])
             self.traj_ctrl.restart_moving(blocking=True)
         else:
             if goal.mode == goal.MOVE_SETUP or goal.mode == goal.SETUP_AND_TRAJ:
@@ -306,16 +333,13 @@ class TrajectoryServer(object):
             else:
                 self.traj_srv.set_aborted(text="Unknown goal mode.")
                 return
-            self.traj_ctrl.execute(full_traj, rate * goal.traj_rate_mult, blocking=True)
+            if self.traj_ctrl.execute(full_traj, rate * goal.traj_rate_mult, blocking=True):
+                self.publish_feedback("Trajectory playback on the %s arm successful." % 
+                                      self.arm_dict[self.traj_ctrl.arm_char])
         self.traj_srv.set_succeeded()
 
     def traj_cancel_cb(self):
         self.traj_ctrl.stop_moving()
-
-CTRL_NAME_LOW = '%s_joint_controller_low'
-PARAMS_FILE_LOW = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_low.yaml'
-CTRL_NAME_NONE = '%s_joint_controller_none'
-PARAMS_FILE_NONE = '$(find hrl_pr2_arms)/params/joint_traj_params_electric_none.yaml'
 
 def main():
 
@@ -337,7 +361,7 @@ def main():
                  help="Trajectory mode.")
     p.add_option('-c', '--ctrl_name', dest="ctrl_name", default=CTRL_NAME_LOW,
                  help="Controller to run the playback with.")
-    p.add_option('-p', '--params', dest="params_file", default=PARAMS_FILE_LOW,
+    p.add_option('-p', '--params', dest="param_file", default=PARAM_FILE_LOW,
                  help="YAML file to save parameters in or load from.")
     p.add_option('-v', '--srv_mode', dest="srv_mode", 
                  action="store_true", default=False,
@@ -364,7 +388,7 @@ def main():
         assert(opts.right_arm + opts.left_arm == 1)
         if opts.traj_mode:
             ctrl_switcher = ControllerSwitcher()
-            ctrl_switcher.carefree_switch(arm_char, CTRL_NAME_NONE, PARAMS_FILE_NONE, reset=False)
+            ctrl_switcher.carefree_switch(arm_char, CTRL_NAME_NONE, PARAM_FILE_NONE, reset=False)
             traj_saver = TrajectorySaver(RATE)
             raw_input("Press enter to start recording")
             traj_saver.record_trajectory(arm_char, blocking=False)
@@ -380,22 +404,30 @@ def main():
             curses.wrapper(wait_for_key)
 
             traj_saver.stop_record(roslib.substitution_args.resolve_args(opts.filename))
-            ctrl_switcher.carefree_switch(arm_char, opts.ctrl_name, PARAMS_FILE_LOW, reset=False)
+            ctrl_switcher.carefree_switch(arm_char, opts.ctrl_name, PARAM_FILE_LOW, reset=False)
             return
         else:
             print "FIX"
             return
     elif opts.srv_mode:
         traj_srv = TrajectoryServer(arm_char, "/trajectory_playback_" + arm_char, 
-                                    opts.ctrl_name, opts.params_file)
+                                    opts.ctrl_name, opts.param_file)
         rospy.spin()
         return
     elif opts.playback_mode:
         raw_input("Press enter to continue")
-        # TODO FIX
-        traj_load = TrajectoryLoader(opts.ctrl_name, opts.params_file)
-        result = traj_load.exec_traj_from_file(opts.filename, reverse=opts.reverse, blocking=True)
-        print result
+        if opts.traj_mode:
+            exec_traj_from_file(opts.filename,
+                                ctrl_name=opts.ctrl_name,
+                                param_file=opts.param_file,
+                                reverse=opts.reverse,
+                                blocking=True)
+        else:
+            move_to_setup_from_file(opts.filename,
+                                    ctrl_name=opts.ctrl_name,
+                                    param_file=opts.param_file,
+                                    reverse=opts.reverse,
+                                    blocking=True)
 
 if __name__ == "__main__":
     main()

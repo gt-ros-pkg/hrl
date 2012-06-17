@@ -41,7 +41,7 @@ class PR2Arm(HRLArm):
     ##
     # Initializes subscribers
     # @param arm 'r' for right, 'l' for left
-    def __init__(self, arm, kinematics, controller_name, timeout):
+    def __init__(self, arm, kinematics, controller_name="", timeout=5.):
         super(PR2Arm, self).__init__(kinematics)
         self.arm = arm
         if '%s' in controller_name:

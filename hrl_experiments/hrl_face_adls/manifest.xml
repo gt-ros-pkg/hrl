@@ -13,6 +13,7 @@
   <depend package="hrl_ellipsoidal_control"/>
   <depend package="hrl_head_tracking"/>
   <depend package="pr2_traj_playback"/>
+  <depend package="ar_pose"/>
 
 </package>
 

@@ -19,22 +19,20 @@ function teleop_init(){
                                        window.arm_joints.left = msg.actual});
 
     //Arm Publishers
-    node.publish('wt_right_arm_pose_commands','geometry_msgs/Point', json({}));
-    node.publish('wt_left_arm_pose_commands','geometry_msgs/Point', json({}));
-    node.publish('wt_right_arm_angle_commands', 'trajectory_msgs/JointTrajectoryPoint', json({}))
-    node.publish('wt_left_arm_angle_commands', 'trajectory_msgs/JointTrajectoryPoint', json({}))
-    node.publish('wt_lin_move_right','std_msgs/Float32', json({}));
-    node.publish('wt_lin_move_left','std_msgs/Float32', json({}));
-    node.publish('wt_adjust_elbow_right','std_msgs/Float32', json({}));
-    node.publish('wt_adjust_elbow_left','std_msgs/Float32', json({}));
-
-    //Head Publishers
-    node.publish('head_nav_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('head_traj_controller/joint_trajectory_action/goal','pr2_controllers_msgs/JointTrajectoryActionGoal', json({}));
-	node.publish('head_traj_controller/point_head_action/goal', 'pr2_controllers_msgs/PointHeadActionGoal', json({}));
-    
-    node.publish('base_controller/command', 'geometry_msgs/Twist',json({}));
-   
+    var pubs = new Array()
+    var sides = ["right","left"];
+    for (var i=0; i < sides.length; i++){
+        pubs['wt_'+sides[i]+'_arm_pose_commands'] = 'geometry_msgs/Point';
+        pubs['wt_'+sides[i]+'_arm_angle_commands'] = 'trajectory_msgs/JointTrajectoryPoint';
+        pubs['wt_lin_move_'+sides[i]] = 'std_msgs/Float32';
+        pubs['wt_adjust_elbow_'+sides[i]] = 'std_msgs/Float32';
+    };
+        pubs['head_nav_goal']='geometry_msgs/PoseStamped'
+        pubs['head_traj_controller/point_head_action/goal'] = 'pr2_controllers_msgs/PointHeadActionGoal'
+        pubs['base_controller/command'] = 'geometry_msgs/Twist'
+    for (var i in pubs){
+        advertise(i, pubs[i]);
+    };
 };
 $(function(){
 	$('#scale_slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
@@ -264,15 +262,18 @@ function teleop_head() {
 };
 
 function pub_Twist(bx,by,bz) {
+        var date = new Date();
+        //log('Publishing base cmd at '+date.getMilliseconds().toString());
         node.publish('base_controller/command', 'geometry_msgs/Twist',
                     '{"linear":{"x":'+bx+',"y":'+by+',"z":0},"angular":{"x":0,"y":0,"z":'+bz+'}}');
 };
+
 
 function start_base_pub(bx,by,bz) {
     bx = 0.002*scales.base*bx
     by = 0.002*scales.base*by
     bz = 0.006*scales.base*bz
-	window.base_pub = setInterval("pub_Twist("+bx+","+by+","+bz+")", 50);
+	window.base_pub = setInterval("pub_Twist("+bx+","+by+","+bz+")", 100);
 };
 
 function teleop_base() {

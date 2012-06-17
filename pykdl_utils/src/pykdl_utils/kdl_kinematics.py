@@ -68,13 +68,19 @@ class KDLKinematics(object):
         self._dyn_kdl = kdl.ChainDynParam(self._chain, kdl.Vector.Zero())
 
     def get_segment_names(self):
-        return [self._chain.getSegment(i).getName() for i in range(self._chain.getNrOfSegments())]
+        return ([self.base_link] + 
+                [self._chain.getSegment(i).getName() for i in range(self._chain.getNrOfSegments())])
+
+    def get_joint_names(self):
+        return self.joint_info['names']
 
     def forward(self, q, target_segment=None, base_segment=None):
         seg_names = self.get_segment_names()
         if target_segment is None:
             target_link = self._chain.getNrOfSegments()
         else:
+            if target_segment[0] == "/":
+                target_segment = target_segment[1:]
             if target_segment in seg_names:
                 target_link = seg_names.index(target_segment)
             else:
@@ -83,6 +89,8 @@ class KDLKinematics(object):
         if base_segment is None:
             base_link = 0
         else:
+            if base_segment[0] == "/":
+                base_segment = base_segment[1:]
             if base_segment in seg_names:
                 base_link = seg_names.index(base_segment)
             else:

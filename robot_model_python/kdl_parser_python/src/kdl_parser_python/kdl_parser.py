@@ -29,7 +29,7 @@ def to_kdl_joint(jnt):
         return kdl.Joint(jnt.name, f_parent_jnt.p, f_parent_jnt.M * axis, kdl.Joint.RotAxis)
     elif jnt.type == urdf.Joint.PRISMATIC:
         axis = to_kdl_vector(jnt.axis)
-        return kdl.Joint(jnt.name, f_parent_jnt.p, f_parent_jnt.M * axis, kdl.Joint.RotAxis)
+        return kdl.Joint(jnt.name, f_parent_jnt.p, f_parent_jnt.M * axis, kdl.Joint.TransAxis)
     else:
         rospy.logwarn("Unknown joint type %s." % jnt.name)
         return kdl.Joint(jnt.name, kdl.Joint.None)
