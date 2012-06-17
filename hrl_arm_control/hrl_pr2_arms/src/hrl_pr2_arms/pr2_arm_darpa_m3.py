@@ -164,21 +164,21 @@ class PR2Arm(HRLArm):
 
 
     #-------- gripper functions ------------
-    def move_gripper(self, amount=0.08, effort = 15):
-        self.gripper_action_client.send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=amount,
+    def move_gripper(self, dist=0.08, effort = 15):
+        self.gripper_action_client.send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=dist,
                                                                                     max_effort = effort)))
 
     def open_gripper(self):
         self.move_gripper(0.08, -1)
 
-    def close_gripper(self, effort = 15):
-        self.move_gripper(0.0, effort)
+    def close_gripper(self, dist=0., effort = 15):
+        self.move_gripper(dist, effort)
 
     def open_gripper_cb(self, msg):
         self.open_gripper()
 
     def close_gripper_cb(self, msg):
-        self.close_gripper()
+        self.close_gripper(0.03)
 
 
 if __name__ == '__main__':
