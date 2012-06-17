@@ -50,6 +50,7 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction, Pr2GripperCommand
 
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Empty
 
 from visualization_msgs.msg import Marker
 
@@ -84,6 +85,9 @@ class PR2Arm(HRLArm):
                                                                   Pr2GripperCommandAction)
 #        self.joint_action_client.wait_for_server()
 #        self.gripper_action_client.wait_for_server()
+
+        rospy.Subscriber('open_gripper', Empty, self.open_gripper_cb)
+        rospy.Subscriber('close_gripper', Empty, self.close_gripper_cb)
 
 
     ##
@@ -169,6 +173,12 @@ class PR2Arm(HRLArm):
 
     def close_gripper(self, effort = 15):
         self.move_gripper(0.0, effort)
+
+    def open_gripper_cb(self, msg):
+        self.open_gripper()
+
+    def close_gripper_cb(self, msg):
+        self.close_gripper()
 
 
 if __name__ == '__main__':
