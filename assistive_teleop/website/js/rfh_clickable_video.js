@@ -1,37 +1,69 @@
 var count_surf_wipe_right=count_surf_wipe_left=force_wipe_count=0;
-var img_act = 'looking'
-var norm_appr_left = norm_appr_right = driving = tool_state = false;
-var MJPEG_QUALITY= '50'
-var MJPEG_WIDTH = '640'
-var MJPEG_HEIGHT = '480'
+var MJPEG_QUALITY= '50';
+var MJPEG_WIDTH = '640';
+var MJPEG_HEIGHT = '480';
+
+camera_select_html = 
+     '<select id="camera_select" onchange="set_camera($(this).val());">\
+	      <option value="kinect_head/rgb/image_color">Kinect Camera</option>\
+	      <option value="kinect_throttled">Throttled Kinect Camera</option>\
+	      <option value="arrow_overlaid">Kinect (w/Arrows)</option>\
+	      <option value="ar_servo/confirmation">AR Tag Confirm</option>\
+	      <option value="head_registration/confirmation"> Head Registration Confirm</option>\
+		  <option value="wide_stereo/right/image_color">Wide Stereo Camera</option>\
+		  <option value="l_forearm_cam/image_color_rotated">Left Forearm Camera</option>\
+		  <option value="r_forearm_cam/image_color_rotated">Right Forearm Camera</option>\
+      </select>'
+
+image_click_select_html = 
+       '<select id="img_act_select">\
+         <option id="looking" selected="selected" value="looking">Look</option>\
+         <option id="na" value="norm_approach">Normal Approach</option>\
+         <option id="touch" value="touch">Touch</option>\
+         <option id="seed_reg" value="seed_reg">Register Head</option>\
+         <!--<option id="wipe" value="wipe">Wipe</option>-->\
+         <!--<option id="swipe" value="swipe">Swipe</option>-->\
+         <!--<option id="poke" value="poke">Poke</option>-->\
+         <!--<option id="surf_wipe" value="surf_wipe">Surface Wipe</option>-->\
+         <!--<option id="grasp" value="grasp">Grasp</option>-->\
+         <!--<option id="reactive_grasp" value="reactive_grasp">Reactive Grasp</option>-->\
+         <!--<option id="contact_approach" value="contact_approach">Approach until Contact</option>-->\
+         <!--<option id="hfc_contact_approach" value="hfc_contact_approach">Approach until Contact HFC</option>\
+         <option id="hfc_swipe" value="hfc_swipe">Swipe HFC</option>\
+         <option id="hfc_wipe" value="hfc_wipe">Wipe HFC</option>-->\
+       </select>'
+
+$(function(){
+    $('#camera_select').html(camera_select_html);
+    $('#image_click_select').html(image_click_select_html);
+});
 
 function camera_init(){
     //Image-Click Publishers
-    node.publish('norm_approach_right', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('norm_approach_left', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_contact_approach_right', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_contact_approach_left', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_poke_right_point', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_poke_left_point', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_swipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_swipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_wipe_right_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_wipe_left_goals', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_rg_right_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_rg_left_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_grasp_right_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_grasp_left_goal', 'geometry_msgs/PoseStamped', json({}));
-    node.publish('wt_surf_wipe_r_points', 'geometry_msgs/Point', json({}));
-    node.publish('wt_surf_wipe_l_points', 'geometry_msgs/Point', json({}));
+    var pubs = new Array()
+    var sides = ["right","left"];
+    for (var i=0; i < sides.length; i++){
+    pubs['norm_approach_'+sides[i]] = 'geometry_msgs/PoseStamped';
+    pubs['wt_contact_approach_'+sides[i]] = 'geometry_msgs/PoseStamped';
+    pubs['wt_poke_'+sides[i]+'_point'] = 'geometry_msgs/PoseStamped';
+    pubs['wt_swipe_'+sides[i]+'_goals'] = 'geometry_msgs/PoseStamped';
+    pubs['wt_wipe_'+sides[i]+'_goals'] = 'geometry_msgs/PoseStamped';
+    pubs['wt_rg_'+sides[i]+'_goal'] = 'geometry_msgs/PoseStamped';
+    pubs['wt_grasp_'+sides[i]+'_goal'] = 'geometry_msgs/PoseStamped';
+    pubs['wt_surf_wipe_'+sides[i].slice(0,1)+'_points'] = 'geometry_msgs/Point';
+    };
+    for (var i in pubs){
+        advertise(i, pubs[i]);
+    };
+    console.log('Finished camera init');
 };
 
-
-//function set_camera(cam) {document.getElementById('video').src='http://'+ROBOT+':8080/stream?topic=/'+cam+'?width=640?height=480?quality=10'};
 function set_camera(cam) {
 mjpeg_url = 'http://'+ROBOT+':8080/stream?topic=/'+cam+'?width='+MJPEG_WIDTH+'?height='+MJPEG_HEIGHT+'?quality='+MJPEG_QUALITY
-document.getElementById('video').src=mjpeg_url
+$('#video').attr('src', mjpeg_url);
+var chosen = $('#camera_select option[value="'+cam+'"]');
+chosen.attr('selected','selected');
 };
-
 
 function click_position(e) {
 	var posx = 0;
@@ -53,14 +85,13 @@ function get_point(event){
 	var point = click_position(event);
 	click_x = point[0] - document.getElementById('video_container').offsetLeft 
 	click_y = point[1] - document.getElementById('video_container').offsetTop 
-	log("Clicked on point (x,y) = ("+ click_x.toString() +","+ click_y.toString()+")");
+	console.log("Clicked on image point (x,y) = ("+ click_x.toString() +","+ click_y.toString()+")");
 	return [click_x, click_y]
 };
 
 function image_click(event){
 	var im_pixel = get_point(event);
-    log(im_pixel[0].toString + ", "+im_pixel[1].toString())
-	if (window.img_act == 'surf_wipe') {
+	if ($('#img_act_select option:selected').val() == 'surf_wipe') {
     surf_points_out = window.gm_point
     surf_points_out.x = im_pixel[0]
     surf_points_out.y = im_pixel[1]
@@ -74,14 +105,14 @@ function image_click(event){
            log("Sending end position for surface-aware wiping");
            window.count_surf_wipe = 0;
            $('#img_act_select').val('looking');
-           window.img_act = 'looking';
         }
-    }else if (window.img_act == 'seed_reg'){
-        log("Calling Registration Service with "+im_pixel[0].toString() +", "+im_pixel[1].toString())
+    } else if ($('#img_act_select option:selected').val() == 'seed_reg'){
+        console.log("Calling Registration Service with "+im_pixel[0].toString() +", "+im_pixel[1].toString())
         node.rosjs.callService('/initialize_registration',
                             '['+json(im_pixel[0])+','+json(im_pixel[1])+']',
-                            nop)
-    }else{
+                            function(msg){console.log("Registration Service Returned")})
+       $('#img_act_select').val('looking');
+    } else {
 	get_im_3d(im_pixel[0],im_pixel[1])
 	};
 };
@@ -95,12 +126,12 @@ function get_im_3d(x,y){
                             function(msg){
                                 log('pixel_2_3d response received');
                                 point_3d=msg.pixel3d;
-                                determine_p23d_response(point_3d)
+                                p23d_response(point_3d)
                             })
 };
 
-function determine_p23d_response(point_3d){
-    switch (window.img_act){
+function p23d_response(point_3d){
+    switch ($('#img_act_select option:selected').val()){
         case 'looking':
             log("Sending look to point command");
             window.head_pub = window.clearInterval(head_pub);
@@ -146,6 +177,5 @@ function determine_p23d_response(point_3d){
         };
         if (window.force_wipe_count == 0){
             $('#img_act_select').val('looking');
-            window.img_act = 'looking';
         };
 };

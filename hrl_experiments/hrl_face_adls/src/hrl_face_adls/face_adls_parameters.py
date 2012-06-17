@@ -1,7 +1,5 @@
 
-CONTACT_FORCE_THRESH = 3.0
-ACTIVITY_FORCE_THRESH = 3.0
-DANGEROUS_FORCE_THRESH = 10.0
+import numpy as np
 
 DANGEROUS_CB_COOLDOWN = 5.0
 CONTACT_CB_COOLDOWN = 0.5
@@ -19,6 +17,11 @@ SAFETY_RETREAT_VELOCITY = 0.0150
 SLOW_RETREAT_VELOCITY = 0.0200
 SHAVE_HEIGHT = 0.8
 TIMEOUT_TIME = 30.0
+
+LAT_BOUNDS = {'r' : (np.pi/8, 7*np.pi/8), 'l' : (np.pi/8, 7*np.pi/8)}
+#LON_BOUNDS = {'r' : (-np.inf, np.inf), 'l' : (-np.inf, np.inf)}
+LON_BOUNDS = {'r' : (-5*np.pi/8, np.pi/8), 'l' : (-np.pi/8, 5*np.pi/8)}
+HEIGHT_BOUNDS = {'r' : (0.2, 3.5), 'l' : (0.2, 3.5)}
 
 outcomes_spa = ['succeeded','preempted','aborted']
 
@@ -40,6 +43,8 @@ outcomes_spa = ['succeeded','preempted','aborted']
 
 class Messages:
     ENABLE_CONTROLLER    = "Enabling ellipsoidal controller. Arm may twitch as it switches controllers."
+    NO_PARAMS_LOADED     = "Cannot enable ellipsoidal controller. Must first register head."
+    ARM_AWAY_FROM_HEAD   = "Cannot enable ellipsoidal controller. Tool must be setup near head."
     DISABLE_CONTROLLER   = "Disabling ellipsoidal controller. You must reenable to give more commands."
     DANGEROUS_FORCE      = "Dangerous force over %.1f N detected, retreating from face."
     TIMEOUT_RETREAT      = "Timeout from lack of contact over %.0f s, retreating from face."

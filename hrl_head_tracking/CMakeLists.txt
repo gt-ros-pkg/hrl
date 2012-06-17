@@ -21,13 +21,7 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #uncomment if you have defined services
 rosbuild_gensrv()
 
-#common commands for building c++ executables and libraries
-#rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
-#target_link_libraries(${PROJECT_NAME} another_library)
 rosbuild_add_boost_directories()
-#rosbuild_link_boost(${PROJECT_NAME} math)
-#rosbuild_add_executable(example examples/example.cpp)
-#target_link_libraries(example ${PROJECT_NAME})
 rosbuild_add_library(${PROJECT_NAME} src/pcl_basic.cpp)
 rosbuild_add_library(${PROJECT_NAME} src/head_tracking.cpp)
 
@@ -38,6 +32,7 @@ rosbuild_add_executable(head_training src/head_training.cpp)
 rosbuild_add_executable(pub_pc src/pub_pc.cpp)
 rosbuild_add_executable(clickable_pc src/clickable_pc.cpp)
 rosbuild_add_executable(capture_pc src/capture_pc.cpp)
+rosbuild_add_executable(head_alignment_confirm src/head_alignment_confirm.cpp)
 target_link_libraries(head_tracking ${PROJECT_NAME})
 target_link_libraries(head_tracking_srv ${PROJECT_NAME})
 target_link_libraries(head_training ${PROJECT_NAME})

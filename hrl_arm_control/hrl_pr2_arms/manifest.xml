@@ -1,6 +1,5 @@
 <package>
   <description brief="hrl_pr2_arms">
-
      Python class to control the PR2. Can also use this arm with
      Equilibrium Point Control.
   </description>

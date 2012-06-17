@@ -7,6 +7,7 @@ import roslib
 roslib.load_manifest('hrl_face_adls')
 import rospy
 import rosbag
+from std_msgs.msg import String
 from geometry_msgs.msg import Transform, Pose
 
 from hrl_ellipsoidal_control.msg import EllipsoidParams
@@ -24,16 +25,19 @@ class RegistrationLoader(object):
         self.head_registration_r = rospy.ServiceProxy("/head_registration_r", HeadRegistration) # TODO
         self.head_registration_l = rospy.ServiceProxy("/head_registration_l", HeadRegistration) # TODO
         self.load_ell_params = rospy.ServiceProxy("/load_ellipsoid_params", LoadEllipsoidParams)
+        self.feedback_pub = rospy.Publisher("/feedback", String)
+
+    def publish_feedback(self, msg):
+        rospy.loginfo("[registration_loader] %s" % msg)
+        self.feedback_pub.publish(msg)
 
     def init_reg_cb(self, req):
         # TODO REMOVE THIS SHAVING SIDE MESS
         self.shaving_side = rospy.get_param("/shaving_side", 'r')
         if self.shaving_side == 'r':
-            rospy.loginfo("[registration_loader] Loading head registration from right side.")
             e_params = self.e_params_r
             head_registration = self.head_registration_r
         else:
-            rospy.loginfo("[registration_loader] Loading head registration from left side.")
             e_params = self.e_params_l
             head_registration = self.head_registration_l
         # TODO
@@ -41,7 +45,7 @@ class RegistrationLoader(object):
         try:
             head_reg_tf = head_registration(req.u, req.v).tf_reg
         except:
-            rospy.logerr("[registration_loader] Registration failed.")
+            self.publish_feedback("Registration failed.")
             return None
 
         head_reg_mat = PoseConverter.to_homo_mat(head_reg_tf)
@@ -54,6 +58,10 @@ class RegistrationLoader(object):
         reg_e_params.E = e_params.E
         self.load_ell_params(reg_e_params)
 
+        if self.shaving_side == 'r':
+            self.publish_feedback("Loaded head registration from right side.")
+        else:
+            self.publish_feedback("Loaded head registration from left side.")
         return InitializeRegistrationResponse()
 
 def main():

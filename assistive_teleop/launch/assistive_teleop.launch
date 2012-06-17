@@ -27,7 +27,7 @@
             name="throttle_wt_force_out"
             pkg="topic_tools"
             type="throttle"
-            args="messages /netft_gravity_zeroing/wrench_zeroed 8 /wt_force_out_throttle" />
+            args="messages /netft_gravity_zeroing/wrench_zeroed 6 /wt_force_out_throttle" />
  
     <!-- JTTask Controller load
     <include file="$(find assistive_teleop)/launch/c_jtask_mod.launch" />
@@ -48,13 +48,13 @@
         type="ft_move_action_server.py"
         output="screen"
         machine="c2"/>
-    -->
     <node
         name="ft_hold_server"
         pkg="assistive_teleop"
         type="ft_hold_as.py"
         output="screen"
         machine="c2"/>
+    -->
 
     <!--Tabletop Manipulation Content, i.e. Arm Navigation etc
     <group>
@@ -67,25 +67,25 @@
             <arg name="use_left_arm" value="true"/>
             <arg name="use_task_cartesian" default="false"/>
         </include>
-    </group>
-    -->
+    </group>-->
 
-    <!-- Bring up intermediary for handling arm movements, one for each arm 
+    <!-- Bring up intermediary for handling arm movements, one for each arm
+    <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_larm_node.launch" />
+    <include file="$(find pr2_arm_kinematics)/launch/pr2_ik_rarm_node.launch" />
     <node
         name="wt_left_arm"
         pkg="assistive_teleop"
         type="arm_intermediary.py"
         args="left"
         output="screen"
-        machine="c2"/>
+        machine="c1"/>
     <node
         name="wt_right_arm"
         pkg="assistive_teleop"
         type="arm_intermediary.py"
         args="right"
         output="screen"
-        machine="c2"/>
-    -->
+        machine="c1"/>-->
 
     <!-- Launch Image Rotation Nodes for forearm cameras-->
     <node
@@ -176,7 +176,7 @@
         <param
             name="debug_mode"
             type="bool"
-            value="true" />
+            value="false" />
         <param
             name="auto_clear"
             type="bool"
@@ -244,5 +244,4 @@
         type="rosbridge.py" 
         machine="c1" 
         output="screen"/>
-
 </launch>

@@ -49,6 +49,11 @@ bool regCallback(HeadRegSrv::Request& req, HeadRegSrv::Response& resp)
 
     PCRGB::Ptr aligned_pc(new PCRGB());
     transformPC(*template_pc, *aligned_pc, tf_mat.inverse());
+    double h, s, l;
+    for(uint32_t i=0;i<aligned_pc->size();i++) {
+        extractHSL(aligned_pc->points[i].rgb, h, s, l);
+        writeHSL(0, 50, l, aligned_pc->points[i].rgb);
+    }
     aligned_pc->header.frame_id = "/openni_rgb_optical_frame";
     aligned_pub.publish(aligned_pc);
 
@@ -80,7 +85,7 @@ int main(int argc, char **argv)
 
     readPCBag(argv[1], template_pc);
 
-    aligned_pub = nh.advertise<PCRGB>("/aligned_pc", 1);
+    aligned_pub = nh.advertise<PCRGB>("/head_registration/aligned_pc", 1, true);
     pc_sub = nh.subscribe("/kinect_head/rgb/points", 1, &subPCCallback);
     reg_srv = nh.advertiseService("/head_registration", &regCallback);
     ros::spin();
