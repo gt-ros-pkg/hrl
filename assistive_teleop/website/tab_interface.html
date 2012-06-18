@@ -21,7 +21,7 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){$('#console').html("<big><strong>"+message.toString()+"</strong></big>"); console.log(message.toString())};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-var ROBOT = 'monty1';
+var ROBOT = 'monty1.hsi.gatech.edu';
 //var ROBOT = 'localhost';
 var get_param_free = true;
 
@@ -301,15 +301,16 @@ function start(){
   <tr>
     <td> Camera: </td><td id="camera_select"></td>
      <td>On Image Click:</td><td id="image_click_select"></td>
-     <td>Hand:</td> <!-- Start Cell for Hand Selection -->
+     <!--<td>Hand:</td>
      <td>
         <div id='arm_sel'>
-          <input type='radio' id='l_arm' name='arm_sel' value='left' checked='checked'/><label for='l_arm'>Left</label>
-          <input type='radio' id='r_arm' name='arm_sel' value='right'/><label for='r_arm'>Right</label>
+          <input type='radio' id='l_arm' name='arm_sel' value='left' checked='checked'/>
+          <label for='l_arm'>Left</label>
+          <input type='radio' id='r_arm' name='arm_sel' value='right'/>
+          <label for='r_arm'>Right</label>
         </div>
-      </td>
+      </td>-->
   </tr>
-    
 </table>
 <hr>
 <div id="console"></div>

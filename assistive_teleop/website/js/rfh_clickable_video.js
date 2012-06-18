@@ -18,9 +18,9 @@ camera_select_html =
 image_click_select_html = 
        '<select id="img_act_select">\
          <option id="looking" selected="selected" value="looking">Look</option>\
-         <option id="na" value="norm_approach">Normal Approach</option>\
-         <option id="touch" value="touch">Touch</option>\
          <option id="seed_reg" value="seed_reg">Register Head</option>\
+         <!--<option id="na" value="norm_approach">Normal Approach</option>-->\
+         <!--<option id="touch" value="touch">Touch</option>-->\
          <!--<option id="wipe" value="wipe">Wipe</option>-->\
          <!--<option id="swipe" value="swipe">Swipe</option>-->\
          <!--<option id="poke" value="poke">Poke</option>-->\
