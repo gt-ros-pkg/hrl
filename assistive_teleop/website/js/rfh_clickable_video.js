@@ -4,7 +4,7 @@ var MJPEG_WIDTH = '640';
 var MJPEG_HEIGHT = '480';
 
 camera_select_html = 
-     '<select onchange="set_camera($(this).val());">\
+     '<select id="camera_select" onchange="set_camera($(this).val());">\
 	      <option value="kinect_head/rgb/image_color">Kinect Camera</option>\
 	      <option value="kinect_throttled">Throttled Kinect Camera</option>\
 	      <option value="arrow_overlaid">Kinect (w/Arrows)</option>\
@@ -33,6 +33,11 @@ image_click_select_html =
          <option id="hfc_wipe" value="hfc_wipe">Wipe HFC</option>-->\
        </select>'
 
+$(function(){
+    $('#camera_select').html(camera_select_html);
+    $('#image_click_select').html(image_click_select_html);
+});
+
 function camera_init(){
     //Image-Click Publishers
     var pubs = new Array()
@@ -50,14 +55,14 @@ function camera_init(){
     for (var i in pubs){
         advertise(i, pubs[i]);
     };
-    $('#camera_select').html(camera_select_html);
-    $('#image_click_select').html(image_click_select_html);
     console.log('Finished camera init');
 };
 
 function set_camera(cam) {
 mjpeg_url = 'http://'+ROBOT+':8080/stream?topic=/'+cam+'?width='+MJPEG_WIDTH+'?height='+MJPEG_HEIGHT+'?quality='+MJPEG_QUALITY
 $('#video').attr('src', mjpeg_url);
+var chosen = $('#camera_select option[value="'+cam+'"]');
+chosen.attr('selected','selected');
 };
 
 function click_position(e) {

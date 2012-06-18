@@ -51,8 +51,8 @@ class PR2ArmKinematics(HRLArmKinematics):
 
         # create joint limit dicts
         if arm == 'r':
-            min_lim = np.radians(np.array([-109., -24, -220, -132, -1000, -120, -1000]))
-            max_lim = np.radians(np.array([26., 68, 41, 0, 1000, 0, 1000]))
+            min_lim = np.radians(np.array([-109., -24, -220, -132, -10000, -120, -10000]))
+            max_lim = np.radians(np.array([26., 68, 41, 0, 10000, 0, 10000]))
 
             #min_lim = np.radians(np.array([-109., -24, -220, -132, -np.inf, -120, -np.inf]))
             #max_lim = np.radians(np.array([26., 68, 41, 0, np.inf, 0, np.inf]))

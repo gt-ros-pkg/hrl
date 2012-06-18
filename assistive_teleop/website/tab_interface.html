@@ -199,10 +199,11 @@ function log_click(event){
     //log(event.target.id);
 };
 
-function tab_select_cb(eve, ui){if (ui.panel.id!='tab_ellipse'){
-                                       toggle_ell_controller(false)
-                                    };
-    };
+function tab_select_cb(eve, ui){if (ui.panel.id !='tab_ellipse'){
+                                       toggle_ell_controller(false)}; 
+                                if (ui.panel.id =='tab_ar_servoing'){
+                                    set_camera('ar_servo/confirmation')};
+};
 
 function pub_gripper(arm,grpos) {
 	node.publish(arm+'_gripper_controller/command',
@@ -399,7 +400,7 @@ function start(){
                     <button class='ar_servo_button' id='servo_approach' style="font-size:140%" onclick="servo_approach_cb();"> Approach </button>
                   </td>
                   <td>
-                    <button class='ar_servo_button' id='servo_stop' style="font-size:140%" onclick="log('Stopping'); servo_preempt();"> Stop </button>
+                    <button class='ar_servo_button' id='servo_stop' style="font-size:140%" onclick="servo_preempt();"> Stop </button>
                   </td>
                 </tr>
               </table>
