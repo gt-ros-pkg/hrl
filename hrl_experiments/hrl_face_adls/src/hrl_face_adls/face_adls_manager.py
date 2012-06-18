@@ -118,22 +118,29 @@ class FaceADLsManager(object):
             self.state_pub.publish(Int8(transition_id))
 
     def enable_controller(self, end_link="%s_gripper_shaver45_frame",
-                          ctrl_params="$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml"):
+                          ctrl_params="$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml",
+                          ctrl_name='%s_cart_jt_task'):
         if not self.ell_ctrl.params_loaded():
             self.publish_feedback(Messages.NO_PARAMS_LOADED)
             return False
+        is_scratching = rospy.get_param('/is_scratching', False) # TODO BETTER SOLUTION!
+        if is_scratching: # TODO
+            end_link = '%s_gripper_brush45_frame'
+            ctrl_params = "$(find hrl_face_adls)/params/l_jt_task_brush45.yaml"
+            ctrl_name = '%s_cart_jt_task_brush'
 
-        self.ctrl_switcher.carefree_switch('l', '%s_cart_jt_task', ctrl_params, reset=False)
+        self.ctrl_switcher.carefree_switch('l', ctrl_name, ctrl_params, reset=False)
         rospy.sleep(0.2)
         cart_arm = create_pr2_arm('l', PR2ArmJTransposeTask, 
-                                  controller_name='%s_cart_jt_task', 
+                                  controller_name=ctrl_name, 
                                   end_link=end_link, timeout=5)
         self.ell_ctrl.set_arm(cart_arm)
 
         shaving_side = rospy.get_param('/shaving_side', 'r') # TODO Make more general
+        if not is_scratching: # TODO
+            self.ell_ctrl.set_bounds(LAT_BOUNDS[shaving_side], LON_BOUNDS[shaving_side],
+                                     HEIGHT_BOUNDS[shaving_side])
         # check if arm is near head
-        self.ell_ctrl.set_bounds(LAT_BOUNDS[shaving_side], LON_BOUNDS[shaving_side],
-                                 HEIGHT_BOUNDS[shaving_side])
         if not self.ell_ctrl.arm_in_bounds():
             self.publish_feedback(Messages.ARM_AWAY_FROM_HEAD)
             return False
@@ -171,7 +178,7 @@ class FaceADLsManager(object):
         self.global_poses = rospy.get_param('/face_adls/%s_global_poses' % shaving_side)
         self.global_move_poses_pub.publish(self.global_poses.keys())
 
-        if shaving_side == 'r':
+        if shaving_side == 'r' and not is_scratching: # TODO
             self.gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
         else:
             self.gripper_rot = tf_trans.quaternion_from_euler(0, 0, 0)

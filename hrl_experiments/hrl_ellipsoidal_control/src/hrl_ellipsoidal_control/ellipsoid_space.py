@@ -3,13 +3,12 @@
 import numpy as np
 
 import roslib
-roslib.load_manifest("hrl_generic_arms")
-roslib.load_manifest("hrl_phri_2011")
+roslib.load_manifest('hrl_ellipsoidal_control')
 
 import tf.transformations as tf_trans
 
 from hrl_generic_arms.pose_converter import PoseConverter
-from hrl_phri_2011.msg import EllipsoidParams
+from hrl_ellipsoidal_control.msg import EllipsoidParams
 
 class EllipsoidSpace(object):
     def __init__(self, E, is_prolate=True, center=np.mat(np.zeros((3,1))), rot=np.mat(np.eye(3))):
@@ -64,10 +63,15 @@ class EllipsoidSpace(object):
     #    y = self.a * np.sinh(height) * np.sin(lat) * np.cos(lon)
     #    z = 0.
     #    return self.rot * np.mat([x, y, z]).T
-
     def ellipsoidal_to_pose(self, lat, lon, height):
+        if self.is_prolate:
+            return self._ellipsoidal_to_pose_prolate(x, y, z)
+        else:
+            return self._ellipsoidal_to_pose_oblate(x, y, z)
+
+    def _ellipsoidal_to_pose_prolate(self, lat, lon, height):
         pos = self.ellipsoidal_to_cart(lat, lon, height)
-        df_du = self.partial_height(lat, lon, height)
+        df_du = self.partial_u(lat, lon, height)
         nx, ny, nz = df_du.T.A[0] / np.linalg.norm(df_du)
         j = np.sqrt(1./(1.+ny*ny/(nz*nz)))
         k = -ny*j/nz
@@ -88,6 +92,32 @@ class EllipsoidSpace(object):
         norm_quat_ortho_flipped = tf_trans.quaternion_multiply(norm_quat_ortho, quat_flip)
 
         pose = PoseConverter.to_pos_quat(pos, norm_quat_ortho_flipped)
+        #print ("ellipsoidal_to_pose: latlonheight: %f, %f, %f" %
+        #       (lat, lon, height) +
+        #       str(PoseConverter.to_homo_mat(pose)))
+        return pose
+
+    def _ellipsoidal_to_pose_oblate(self, lat, lon, height):
+        pos = self.ellipsoidal_to_cart(lat, lon, height)
+        df_du = self.partial_height(-lat, lon, height)
+        nx, ny, nz = df_du.T.A[0] / np.linalg.norm(df_du)
+        j = np.sqrt(1./(1.+ny*ny/(nz*nz)))
+        k = -ny*j/nz
+        norm_rot = np.mat([[-nx,  ny*k - nz*j,  0],      
+                           [-ny,  -nx*k,        j],      
+                           [-nz,  nx*j,         k]])
+        _, norm_quat = PoseConverter.to_pos_quat(np.mat([0, 0, 0]).T, norm_rot)
+        rot_angle = np.arctan(-norm_rot[2,1] / norm_rot[2,2])
+        #print norm_rot
+        quat_ortho_rot = tf_trans.quaternion_from_euler(rot_angle, 0.0, 0.0)
+        norm_quat_ortho = tf_trans.quaternion_multiply(norm_quat, quat_ortho_rot)
+        quat_ortho_rot2 = tf_trans.quaternion_from_euler(0.0, np.pi/2, 0.0)
+        norm_quat_ortho = tf_trans.quaternion_multiply(norm_quat_ortho, quat_ortho_rot2)
+        if lon >= np.pi:
+            quat_flip = tf_trans.quaternion_from_euler(0.0, 0.0, np.pi)
+            norm_quat_ortho = tf_trans.quaternion_multiply(norm_quat_ortho, quat_flip)
+
+        pose = PoseConverter.to_pos_quat(pos, norm_quat_ortho)
         #print ("ellipsoidal_to_pose: latlonheight: %f, %f, %f" %
         #       (lat, lon, height) +
         #       str(PoseConverter.to_homo_mat(pose)))

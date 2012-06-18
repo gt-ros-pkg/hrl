@@ -4,18 +4,17 @@ import numpy as np
 import copy
 
 import roslib
-roslib.load_manifest('hrl_rfh_fall_2011')
-roslib.load_manifest('hrl_generic_arms')
+roslib.load_manifest('hrl_ellipsoidal_control')
 import rospy
 import tf.transformations as tf_trans
 
-from hrl_phri_2011.msg import EllipsoidParams
+from hrl_ellipsoidal_control.msg import EllipsoidParams
 from geometry_msgs.msg import PoseStamped, PoseArray, Vector3
 from hrl_generic_arms.pose_converter import PoseConverter
-from hrl_rfh_fall_2011.ellipsoid_space import EllipsoidSpace
+from hrl_ellipsoidal_control.ellipsoid_space import EllipsoidSpace
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
-from hrl_rfh_fall_2011.srv import GetHeadPose 
+#from hrl_rfh_fall_2011.srv import GetHeadPose 
 
 head_poses = {
     #             lat   lon    height    roll   pitch   yaw
@@ -49,9 +48,10 @@ def create_arrow_marker(pose, m_id, color=ColorRGBA(1., 0., 0., 1.)):
 
 class HeadToolPoseServer(object):
     def __init__(self):
-        self.ell_space = EllipsoidSpace(1)
+        is_scratching = rospy.get_param('/is_scratching', False) # TODO BETTER SOLUTION!
+        self.ell_space = EllipsoidSpace(1, is_prolate=not is_scratching)
         self.ell_sub = rospy.Subscriber("/ellipsoid_params", EllipsoidParams, self.read_params)
-        self.head_pose_srv = rospy.Service("/get_head_pose", GetHeadPose, self.get_head_pose_srv)
+        #self.head_pose_srv = rospy.Service("/get_head_pose", GetHeadPose, self.get_head_pose_srv)
         self.lock_ell = False
         self.found_params = False
 #self.tmp_pub = rospy.Publisher("/toolpose", PoseStamped)
@@ -117,10 +117,20 @@ def main():
     rospy.init_node("head_tool_pose_server")
     htps = HeadToolPoseServer()
     pub_arrows = rospy.Publisher("visualization_markers_array", MarkerArray)
-    while not rospy.is_shutdown():
-        arrows = htps.get_pose_markers()
-        pub_arrows.publish(arrows)
-        rospy.sleep(0.1)
+    if False:
+        while not rospy.is_shutdown():
+            arrows = htps.get_pose_markers()
+            for arrow in arrows.markers:
+                arrow.header.stamp = rospy.Time.now()
+            pub_arrows.publish(arrows)
+            rospy.sleep(0.1)
+    else:
+        while not rospy.is_shutdown():
+            arrows = htps.get_many_vectors()
+            for arrow in arrows.markers:
+                arrow.header.stamp = rospy.Time.now()
+            pub_arrows.publish(arrows)
+            rospy.sleep(1)
 
 if __name__ == "__main__":
     main()

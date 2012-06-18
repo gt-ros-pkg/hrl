@@ -16,9 +16,10 @@ class EllipsoidController(EllipsoidControllerBase):
 
     def __init__(self):
         super(EllipsoidController, self).__init__()
-        self._lat_bounds = (-np.inf, np.inf)
-        self._lon_bounds = (-np.inf, np.inf)
-        self._height_bounds = (-np.inf, np.inf)
+        self._lat_bounds = None
+        self._lon_bounds = None
+        self._height_bounds = None
+        self._no_bounds = True
 
     def execute_ell_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], 
                          velocity=0.001, blocking=True):
@@ -29,13 +30,18 @@ class EllipsoidController(EllipsoidControllerBase):
             return False
         return self._run_traj(traj, blocking=blocking)
 
-    def set_bounds(self, lat_bounds, lon_bounds, height_bounds):
+    def set_bounds(self, lat_bounds=None, lon_bounds=None, height_bounds=None):
+        if lat_bounds is None and lon_bounds is None and height_bounds is None:
+            self._no_bounds = True
+        self._no_bounds = False
         assert lon_bounds[1] >= 0
         self._lat_bounds = lat_bounds
         self._lon_bounds = lon_bounds
         self._height_bounds = height_bounds
 
     def _clip_ell_ep(self, ell_ep):
+        if self._no_bounds:
+            return ell_ep
         lat = np.clip(ell_ep[0], self._lat_bounds[0], self._lat_bounds[1])
         if self._lon_bounds[0] >= 0:
             lon = np.clip(ell_ep[1], self._lon_bounds[0], self._lon_bounds[1])
@@ -53,6 +59,8 @@ class EllipsoidController(EllipsoidControllerBase):
         return np.array([lat, lon, height])
 
     def arm_in_bounds(self):
+        if self._no_bounds:
+            return True
         ell_ep = self.get_ell_ep()
         equals = ell_ep == self._clip_ell_ep(ell_ep)
         print ell_ep, equals
