@@ -18,12 +18,15 @@ ros::Publisher pub_pc;
 
 void sampleEllipse(double A, double B, double height, PCRGB::Ptr& pc) 
 {
-    Ellipsoid e(A, B);
-    double lat = 0, lon = 0;
+    bool is_prolate;
+    ros::param::param<bool>("~is_prolate", is_prolate, true);
+    Ellipsoid e(A, B, is_prolate);
+    double lat, lon;
     int numlat = 8, numlon = 16;
+    lat = (is_prolate) ? 0 : -PI/2;
     for(int i=0;i<numlat;i++) {
+        lon = (is_prolate) ? 0 : -PI;
         lat += PI / numlat;
-        lon = 0;
         for(int j=0;j<600;j++) {
             lon += 2 * PI / 600;
             PRGB pt;
@@ -34,9 +37,9 @@ void sampleEllipse(double A, double B, double height, PCRGB::Ptr& pc)
             pc->points.push_back(pt);
         }
     }
-    lat = 0; lon = 0;
+    lon = (is_prolate) ? 0 : -PI;
     for(int i=0;i<numlon;i++) {
-        lat = 0;
+        lat = (is_prolate) ? 0 : -PI/2;
         lon += 2 * PI / numlon;
         for(int j=0;j<600;j++) {
             lat += PI / 600;
