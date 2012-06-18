@@ -10,13 +10,16 @@ using namespace std;
 
 struct Ellipsoid 
 {
+    bool is_prolate;
     double A, B, E, height, a;
-    Ellipsoid() : A(1), B(1), height(1)
+    Ellipsoid(bool _is_prolate=true) : 
+        is_prolate(_is_prolate), A(1), B(1), height(1)
     {
         E = sqrt(fabs(SQ(A) - SQ(B))) / A;
     }
     
-    Ellipsoid(double a, double b) : A(a), B(b), height(1) 
+    Ellipsoid(double a, double b, bool _is_prolate=true) : 
+        is_prolate(_is_prolate), A(a), B(b), height(1) 
     {
         E = sqrt(fabs(SQ(A) - SQ(B))) / A;
     }
@@ -27,6 +30,8 @@ struct Ellipsoid
 };
 
 void Ellipsoid::cartToEllipsoidal(double x, double y, double z, double& lat, double& lon, double& height) {
+    printf("ERROR -- Fix this from python code...!!!\n");
+    /*
     lon = atan2(y, x);
     if(lon < 0) 
         lon += 2 * PI;
@@ -38,13 +43,20 @@ void Ellipsoid::cartToEllipsoidal(double x, double y, double z, double& lat, dou
         lat = PI - fabs(lat);
     double cosh_height = z / (a * cos(lat));
     height = log(cosh_height + sqrt(SQ(cosh_height) - 1));
+    */
 }
 
 void Ellipsoid::ellipsoidalToCart(double lat, double lon, double height, double& x, double& y, double& z) {
     double a = A * E;
-    x = a * sinh(height) * sin(lat) * cos(lon);
-    y = a * sinh(height) * sin(lat) * sin(lon);
-    z = a * cosh(height) * cos(lat);
+    if(is_prolate) {
+        x = a * sinh(height) * sin(lat) * cos(lon);
+        y = a * sinh(height) * sin(lat) * sin(lon);
+        z = a * cosh(height) * cos(lat);
+    } else {
+        x = a * cosh(height) * cos(lat) * cos(lon);
+        y = a * cosh(height) * cos(lat) * sin(lon);
+        z = a * sinh(height) * sin(lat);
+    }
 }
 
 void Ellipsoid::mollweideProjection(double lat, double lon, double& x, double& y) {

@@ -45,7 +45,7 @@ function servo_feedback_cb(msg){
             break
         case 2: 
             text = "AR Tag Found. CONFIRM LOCATION AND BEGIN APPROACH.";
-            $('#servo_approach, #servo_stop, #ar_servoing_done').show().fadeTo(0,1);
+            $('#servo_approach, #servo_stop').show().fadeTo(0,1);
             $('#servo_detect_tag').fadeTo(0,0.5);
             set_camera('ar_servo/confirmation');
             break
@@ -63,19 +63,19 @@ function servo_feedback_cb(msg){
             set_camera('kinect_head/rgb/image_color');
             break
         case 6:
-            text = "Servoing Detected Collision with Arms.  "+ 
+            text = "Detected Collision with Arms while Servoing.  "+ 
                     "ADJUST AND RE-DETECT TAG.";
             $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
             break
         case 7:
-            text = "Servoing Detected Collision in Base Laser.  "+ 
+            text = "Detected Collision in Base Laser while Servoing.  "+ 
                     "ADJUST AND RE-DETECT TAG.";
             $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
             break
         case 8:
-            text = "Lost view of AR Tag.  ADJUST AND RE-DETECT.";
+            text = "View of AR Tag Was Lost.  ADJUST (IF NECESSARY) AND RE-DETECT.";
             $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
             set_camera('ar_servo/confirmation');
@@ -106,7 +106,7 @@ function ell_controller_state_cb(msg){
 
 function toggle_ell_controller(state){
     if (typeof state == 'undefined'){  
-        if ($("#ell_controller").attr('checked')) {
+        if ($("#ell_controller_state_checked").attr('aria-pressed')) {
             state = true;
         } else {
             state = false;

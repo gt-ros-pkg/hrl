@@ -102,8 +102,9 @@ class EllipsoidControllerBase(CartTrajController):
                                                      target_segment="openni_rgb_optical_frame")
         base_B_head = base_B_kinect * kinect_B_head
         self.head_center = PoseConverter.to_pose_stamped_msg("/base_link",base_B_head)
+        is_scratching = rospy.get_param('/is_scratching', False) # TODO BETTER SOLUTION!
         # TODO cleanup EllispoidSpace
-        self.ell_space = EllipsoidSpace(1)
+        self.ell_space = EllipsoidSpace(1, is_prolate=not is_scratching)
         self.ell_space.load_ell_params(req.params)
         self.ell_space.center = np.mat(np.zeros((3, 1)))
         self.ell_space.rot = np.mat(np.eye(3))
@@ -125,7 +126,7 @@ class EllipsoidControllerBase(CartTrajController):
     def robot_ellipsoidal_pose(self, lat, lon, height, orient_quat, kinect_frame_mat=None):
         if kinect_frame_mat is None:
             kinect_frame_mat = self.get_ell_frame()
-        pos, quat = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
+        pos, quat_rotated = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
         quat_rotated = tf_trans.quaternion_multiply(quat, orient_quat)
         ell_pose_mat = PoseConverter.to_homo_mat(pos, quat_rotated)
         return PoseConverter.to_pos_rot(kinect_frame_mat * ell_pose_mat)
