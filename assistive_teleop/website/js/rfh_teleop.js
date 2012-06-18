@@ -275,15 +275,21 @@ function start_base_pub(bx,by,bz) {
 	window.base_pub = setInterval("pub_Twist("+bx+","+by+","+bz+")", 100);
 };
 
-function base_pub_conf(bx,by,bz){
-    if ($(selector).hasClass('ui-state-active'){
-        bx = 0.002*scales.base*bx;
-        by = 0.002*scales.base*by;
-        bz = 0.006*scales.base*bz;
+function base_pub_conf(selector,bx,by,bz){
+    if ($(selector).hasClass('ui-state-active')){
+        log("Found "+selector+" Active");
+        bx_scaled = 0.002*scales.base*bx;
+        by_scaled = 0.002*scales.base*by;
+        bz_scaled = 0.006*scales.base*bz;
         node.publish('base_controller/command', 'geometry_msgs/Twist',
-                    '{"linear":{"x":'+bx+',"y":'+by+',"z":0},'+
-                    '"angular":{"x":0,"y":0,"z":'+bz+'}}');
-        setTimeout('base_pub_conf('+selector','+bx+','+by+','+bz+')', 100);
+                    '{"linear":{"x":'+bx_scaled+',"y":'+by_scaled+',"z":0},'+
+                    '"angular":{"x":0,"y":0,"z":'+bz_scaled+'}}');
+        var date = new Date();
+        log("Drive "+selector+" x: "+bx+" y: "+by+" z: "+bz+", at "+date.getMilliseconds().toString());
+        setTimeout(function(){
+                console.log("in timed cb");
+                base_pub_conf(selector,bx,by,bz);
+                console.log("finished timed cb")}, 100);
     } else {
         console.log('End driving pub for '+selector);
     };
