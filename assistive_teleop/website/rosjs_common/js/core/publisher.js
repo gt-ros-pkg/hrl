@@ -56,6 +56,7 @@ ros.Publisher = Class.extend(
    this.node = node;
    this.topic = topic;
    this.topic_type = topic_type;
+   this.node.publish(this.topic, this.topic_type, ros.json({}));
  },
 
  /**
