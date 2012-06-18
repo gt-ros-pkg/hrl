@@ -260,20 +260,33 @@ function teleop_head() {
 		window.head_pub = window.setInterval("pub_head_goal(0,0,0,'l_gripper_tool_frame');",200);
 	});
 };
-
+/*
 function pub_Twist(bx,by,bz) {
         var date = new Date();
         //log('Publishing base cmd at '+date.getMilliseconds().toString());
         node.publish('base_controller/command', 'geometry_msgs/Twist',
                     '{"linear":{"x":'+bx+',"y":'+by+',"z":0},"angular":{"x":0,"y":0,"z":'+bz+'}}');
 };
-
-
+*/
 function start_base_pub(bx,by,bz) {
-    bx = 0.002*scales.base*bx
-    by = 0.002*scales.base*by
-    bz = 0.006*scales.base*bz
+    bx = 0.002*scales.base*bx;
+    by = 0.002*scales.base*by;
+    bz = 0.006*scales.base*bz;
 	window.base_pub = setInterval("pub_Twist("+bx+","+by+","+bz+")", 100);
+};
+
+function base_pub_conf(bx,by,bz){
+    if ($(selector).hasClass('ui-state-active'){
+        bx = 0.002*scales.base*bx;
+        by = 0.002*scales.base*by;
+        bz = 0.006*scales.base*bz;
+        node.publish('base_controller/command', 'geometry_msgs/Twist',
+                    '{"linear":{"x":'+bx+',"y":'+by+',"z":0},'+
+                    '"angular":{"x":0,"y":0,"z":'+bz+'}}');
+        setTimeout('base_pub_conf('+selector','+bx+','+by+','+bz+')', 100);
+    } else {
+        console.log('End driving pub for '+selector);
+    };
 };
 
 function teleop_base() {
@@ -282,28 +295,35 @@ function teleop_base() {
 	$('#scale_slider').show().slider("option", "value", scales.base);
 	$("#tp").unbind().hide();
 	$('#bpd_default').unbind();
-	$('#b9, #b7, #b5','#bpd_default ').hide()
-    $('#b8, #b6, #b4, #b3, #b2, #b1', '#bpd_default').mouseout(function(e){
+	$('#b9, #b7, #b5','#bpd_default').hide()
+/*  $('#b8, #b6, #b4, #b3, #b2, #b1', '#bpd_default').mouseout(function(e){
                                window.base_pub = window.clearInterval(base_pub);
                                     }).mouseup(function(e){
                                window.base_pub = window.clearInterval(base_pub);
                                     });
+*/                                    
   	$('#bpd_default #b8').show().text("^").mousedown(function(e){
-                                 start_base_pub(1,0,0);
+                                 //start_base_pub(1,0,0);
+                                 base_pub_conf("#bpd_default #"+e.target.id, 1,0,0);
     });
 	$('#bpd_default #b6').show().text(">").mousedown(function(e){
-                                 start_base_pub(0,-1,0);
+                                 base_pub_conf("#bpd_default #"+e.target.id, 0,-1,0);
+                                // start_base_pub(0,-1,0);
     });
 	$('#bpd_default #b4').show().text("<").mousedown(function(e){
-                                start_base_pub(0,1,0);
+                                 base_pub_conf("#bpd_default #"+e.target.id, 0,1,0);
+                               // start_base_pub(0,1,0);
     });
   	$('#bpd_default #b3').show().text("Turn Right").mousedown(function(e){
-                               start_base_pub(0,0,-1);
+                                 base_pub_conf("#bpd_default #"+e.target.id, 0,0,-1);
+                               //start_base_pub(0,0,-1);
     });
 	$('#bpd_default #b2').show().text("v").mousedown(function(e){
-                                start_base_pub(-1,0,0)
+                                 base_pub_conf("#bpd_default #"+e.target.id, -1,0,0);
+                                //start_base_pub(-1,0,0)
     });
    	$('#bpd_default #b1').show().text("Turn Left").mousedown(function(e){
-                                start_base_pub(0,0,1)
+                                 base_pub_conf("#bpd_default #"+e.target.id, 0,0,1);
+                                //start_base_pub(0,0,1)
     });
 };
