@@ -190,7 +190,7 @@ function empty_srv(service){
     };
 
 function advertise(topic, type){
-    node.publish(topic,type, json({}));
+    node.publish(topic, type, json({}));
     console.log("Advertising "+topic+" of type: "+ type);
     };
 
@@ -199,10 +199,13 @@ function log_click(event){
     //log(event.target.id);
 };
 
-function tab_select_cb(eve, ui){if (ui.panel.id !='tab_ellipse'){
-                                       toggle_ell_controller(false)}; 
-                                if (ui.panel.id =='tab_ar_servoing'){
-                                    set_camera('ar_servo/confirmation')};
+function tab_select_cb(eve, ui){
+    if (ui.panel.id =='tab_ellipse'){
+        set_camera('head_registration/confirmation');
+    } else {
+       toggle_ell_controller(false)}; 
+    if (ui.panel.id =='tab_ar_servoing'){
+        set_camera('ar_servo/confirmation')};
 };
 
 function pub_gripper(arm,grpos) {
