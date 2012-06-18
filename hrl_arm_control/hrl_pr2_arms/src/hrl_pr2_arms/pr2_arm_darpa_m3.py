@@ -175,7 +175,7 @@ class PR2Arm(HRLArm):
         self.move_gripper(dist, effort)
 
     def open_gripper_cb(self, msg):
-        self.open_gripper(0.05)
+        self.open_gripper(0.08)
 
     def close_gripper_cb(self, msg):
         self.close_gripper(0.03)
