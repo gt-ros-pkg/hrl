@@ -106,12 +106,15 @@ function ell_controller_state_cb(msg){
 
 function toggle_ell_controller(state){
     if (typeof state == 'undefined'){  
-        if ($("#ell_controller_state_checked").attr('aria-pressed')) {
+        if ($("#ell_controller").attr('checked')) {
             state = true;
+            console.log("Ell Cont button active, sending true")
         } else {
             state = false;
+            console.log("Ell Cont button inactive, sending false")
         };
-    }
+    };
+    log("Sending controller :"+state.toString());
     node.rosjs.callService('/face_adls/enable_controller',
                     '{"end_link":"%s_gripper_shaver45_frame","ctrl_params":"$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml","enable":'+state+'}',
                     function(ret){

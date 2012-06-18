@@ -73,5 +73,5 @@ ros.Publisher = Class.extend(
    ros_debug(ros.json(message));
    this.node.publish(this.topic, this.topic_type, ros.json(message));
  },
- 
+
 });
