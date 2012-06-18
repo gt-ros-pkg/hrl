@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import roslib; roslib.load_manifest('assistive_teleop')
 import rospy
 from std_msgs.msg import Bool
@@ -33,5 +32,4 @@ class RazorRunStop(object):
 if __name__=='__main__':
     rospy.init_node('razor_runstop')
     rrs=RazorRunStop()
-    while not rospy.is_shutdown():
-        rospy.spin()
+    rospy.spin()
