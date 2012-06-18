@@ -65,13 +65,13 @@ class EllipsoidSpace(object):
     #    return self.rot * np.mat([x, y, z]).T
     def ellipsoidal_to_pose(self, lat, lon, height):
         if self.is_prolate:
-            return self._ellipsoidal_to_pose_prolate(x, y, z)
+            return self._ellipsoidal_to_pose_prolate(lat, lon, height)
         else:
-            return self._ellipsoidal_to_pose_oblate(x, y, z)
+            return self._ellipsoidal_to_pose_oblate(lat, lon, height)
 
     def _ellipsoidal_to_pose_prolate(self, lat, lon, height):
         pos = self.ellipsoidal_to_cart(lat, lon, height)
-        df_du = self.partial_u(lat, lon, height)
+        df_du = self.partial_height(lat, lon, height)
         nx, ny, nz = df_du.T.A[0] / np.linalg.norm(df_du)
         j = np.sqrt(1./(1.+ny*ny/(nz*nz)))
         k = -ny*j/nz

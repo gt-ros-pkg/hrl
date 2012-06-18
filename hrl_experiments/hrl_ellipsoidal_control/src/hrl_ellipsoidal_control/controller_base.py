@@ -126,7 +126,7 @@ class EllipsoidControllerBase(CartTrajController):
     def robot_ellipsoidal_pose(self, lat, lon, height, orient_quat, kinect_frame_mat=None):
         if kinect_frame_mat is None:
             kinect_frame_mat = self.get_ell_frame()
-        pos, quat_rotated = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
+        pos, quat = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
         quat_rotated = tf_trans.quaternion_multiply(quat, orient_quat)
         ell_pose_mat = PoseConverter.to_homo_mat(pos, quat_rotated)
         return PoseConverter.to_pos_rot(kinect_frame_mat * ell_pose_mat)
