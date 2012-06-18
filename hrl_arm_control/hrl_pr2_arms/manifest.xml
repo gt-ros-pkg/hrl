@@ -12,7 +12,6 @@
   <depend package="visualization_msgs"/>
   <!--<depend package="kdl"/>-->
   <depend package="equilibrium_point_control"/>
-  <depend package="hrl_lib"/>
   <depend package="pr2_controllers_msgs"/>
   <depend package="actionlib"/>
   <depend package="trajectory_msgs"/>
