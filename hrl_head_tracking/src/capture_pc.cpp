@@ -9,6 +9,8 @@
 
 #include <hrl_head_tracking/head_tracking.h>
 
+#define USE_COLOR_MODEL
+
 char *orig_filename, *face_filename;
 
 ros::Subscriber pc_sub;
@@ -47,7 +49,12 @@ void mouseClickCallback(int event, int x, int y, int flags, void* param)
         savePCBag(orig_filename, cur_pc);
 
         PCRGB::Ptr skin_pc(new PCRGB());
+
+#ifdef USE_COLOR_MODEL
+        extractFaceColorModel(cur_pc, skin_pc, x, y);
+#else
         extractFace(cur_pc, skin_pc, x, y);
+#endif
         skin_pc->header.frame_id = "/openni_rgb_optical_frame";
         savePCBag(face_filename, skin_pc);
 

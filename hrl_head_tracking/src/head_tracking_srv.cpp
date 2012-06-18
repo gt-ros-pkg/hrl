@@ -62,7 +62,7 @@ bool regCallback(HeadRegSrv::Request& req, HeadRegSrv::Response& resp)
     vector<string> pc_topics;
 
     PCRGB::Ptr skin_pc(new PCRGB());
-    extractFace(cur_pc, skin_pc, req.u, req.v);
+    extractFaceColorModel(cur_pc, skin_pc, req.u, req.v);
     skin_pc->header.frame_id = "/openni_rgb_optical_frame";
     pcs.push_back(skin_pc);
     pc_topics.push_back("/target_pc");

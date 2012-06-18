@@ -1,6 +1,8 @@
 
 #include <hrl_head_tracking/head_tracking.h>
 
+#define USE_COLOR_MODEL
+
 void extractSkinPC(const PCRGB::Ptr& pc_in, PCRGB::Ptr& pc_out, double thresh) 
 {
     uint8_t r, g, b; 
@@ -32,6 +34,34 @@ int32_t findClosestPoint(const PCRGB::Ptr& pc, uint32_t u, uint32_t v)
         }
     }
     return -1;
+}
+
+void generateColorModel(const PCRGB::Ptr& pc_in, Eigen::Vector3d& mean, Eigen::Matrix3d& cov)
+{
+    Eigen::MatrixXd X(3, pc_in->size());
+    for(uint32_t i=0;i<pc_in->size();i++)
+        extractHSL(pc_in->points[i].rgb, X(0,i), X(1,i), X(2,i));
+    mean = X.rowwise().sum() / pc_in->size();
+    cov = X * X.transpose() / pc_in->size() - mean * mean.transpose();
+}
+
+bool extractPCFromColorModel(const PCRGB::Ptr& pc_in, PCRGB::Ptr& pc_out,
+                             Eigen::Vector3d& mean, Eigen::Matrix3d& cov, double std_devs)
+{
+    double hue_weight;
+    ros::param::param<double>("~hue_weight", hue_weight, 1.0);
+    printf("%f\n", hue_weight);
+
+    Eigen::Vector3d x, x_m;
+    Eigen::Matrix3d cov_inv = cov.inverse();
+    for(uint32_t i=0;i<pc_in->size();i++) {
+        extractHSL(pc_in->points[i].rgb, x(0), x(1), x(2));
+        x_m = x - mean;
+        x_m(0) *= hue_weight;
+        double dist = std::sqrt(x_m.transpose() * cov_inv * x_m);
+        if(dist <= std_devs) 
+            pc_out->points.push_back(pc_in->points[i]);
+    }
 }
 
 void sphereTrim(const PCRGB::Ptr& pc_in, PCRGB::Ptr& pc_out, uint32_t ind, double radius)
@@ -131,13 +161,34 @@ void extractFace(const PCRGB::Ptr& input_pc, PCRGB::Ptr& out_pc, int u_click, in
     ros::param::param<double>("~trim_radius", trim_radius, 0.12);
     ros::param::param<double>("~skin_thresh", skin_thresh, 0.8);
 
-    PCRGB::Ptr expanded_pc(new PCRGB());
     PCRGB::Ptr trimmed_pc(new PCRGB());
     int32_t closest_ind = findClosestPoint(input_pc, u_click, v_click);
     if(closest_ind < 0)
         return;
     sphereTrim(input_pc, trimmed_pc, closest_ind, trim_radius);
     extractSkinPC(trimmed_pc, out_pc, skin_thresh);
+}
+
+void extractFaceColorModel(const PCRGB::Ptr& input_pc, PCRGB::Ptr& out_pc, int u_click, int v_click)
+{
+    double trim_radius, model_radius, color_std_thresh;
+    ros::param::param<double>("~trim_radius", trim_radius, 0.12);
+    ros::param::param<double>("~model_radius", model_radius, 0.02);
+    ros::param::param<double>("~color_std_thresh", color_std_thresh, 1.5);
+
+    int32_t closest_ind = findClosestPoint(input_pc, u_click, v_click);
+    if(closest_ind < 0)
+        return;
+
+    PCRGB::Ptr model_pc(new PCRGB());
+    sphereTrim(input_pc, model_pc, closest_ind, model_radius);
+    Eigen::Vector3d mean_color;
+    Eigen::Matrix3d cov_color;
+    generateColorModel(model_pc, mean_color, cov_color);
+
+    PCRGB::Ptr trimmed_pc(new PCRGB());
+    sphereTrim(input_pc, trimmed_pc, closest_ind, trim_radius);
+    extractPCFromColorModel(trimmed_pc, out_pc, mean_color, cov_color, color_std_thresh);
 }
 
 bool findFaceRegistration(const PCRGB::Ptr& template_pc, const PCRGB::Ptr& input_pc,
@@ -149,10 +200,15 @@ bool findFaceRegistration(const PCRGB::Ptr& template_pc, const PCRGB::Ptr& input
     ros::param::param<int>("~max_iters", max_iters, 200);
     PCRGB::Ptr skin_pc(new PCRGB());
 
+#ifdef USE_COLOR_MODEL
+    extractFaceColorModel(input_pc, skin_pc, u_click, v_click);
+#else
     extractFace(input_pc, skin_pc, u_click, v_click);
+#endif
     if(skin_pc->size() == 0)
         return false;
     computeICPRegistration(template_pc, skin_pc, tf_mat, max_iters, color_weight);
+
     return true;
 }
 
@@ -161,6 +217,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "head_tracking");
     ros::NodeHandle nh;
 
+#if 0
     PCRGB::Ptr input_pc, template_pc;
     readPCBag(argv[1], template_pc);
     readPCBag(argv[2], input_pc);
@@ -177,4 +234,19 @@ int main(int argc, char **argv)
     tf_pc->header.frame_id = "/base_link";
     pubLoop(tf_pc, "test", 5);
     return 0;
+#endif
+
+#if 1
+    PCRGB::Ptr input_pc(new PCRGB()), face_extract_pc(new PCRGB());
+    readPCBag(argv[1], input_pc);
+    int u, v;
+    FILE* file = fopen(argv[2], "r");
+    fscanf(file, "%d,%d\n", &u, &v);
+    fclose(file);
+    Eigen::Affine3d tf_mat;
+    extractFaceColorModel(input_pc, face_extract_pc, u, v);
+    face_extract_pc->header.frame_id = "/base_link";
+    pubLoop(face_extract_pc, "/test", 5);
+#endif
+
 }
