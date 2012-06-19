@@ -52,7 +52,7 @@ $(function(){
                             $('.cont_sel').css('background-color','buttonface');
                             $(this).css('background-color', 'gray')
                             }); 
-    $(".ell_control, #reset").hide();
+    $("#reset").hide();
 });
 
 function init(){
@@ -490,15 +490,10 @@ function start(){
                 <td>
                   <button class="centered" id="reg_head" onclick="head_reg_cb()"> Register Head </button>
                 </td>
-              </tr>
-                <td>
-                  <!--<button id="shave" class='centered' type="button" onclick="send_shave_location('approach');">Approach</button>-->
-                </td>
-              </tr>
               <tr>
                 <td>
                   <input type="checkbox" class="centered ell_control" id="ell_controller" onclick="toggle_ell_controller()" />
-                  <label id="ell_cont_state_check" for="ell_controller"> Ellipsoidal Control </label>
+                  <label id="ell_cont_state_check" for="ell_controller">Ellipsoid Controller</label>
                 </td>
               </tr>
               <tr>
@@ -553,7 +548,7 @@ function start(){
                 </tr>
                 <tr>
                   <td><button class="bpd arrow_trans_left" id="b4" value="1" onclick="shave_step('translate_left')"/></td>
-                  <td><!--<button class="bpd" id="b5" value=1 onclick="shave(0)"/>--></td>
+                  <td><img id="gripper_icon" src="css/arrows/gripper_icon.png" /></td>
                   <td><button class="bpd arrow_trans_right" id="b6" value="-1" onclick="shave_step('translate_right')"/></td>
                 </tr>
                 <tr>
@@ -580,11 +575,11 @@ function start(){
                 </tr>
                 <tr>
                   <td><button class="bpd arrow_rot_z_pos" id="b4" value="1" onclick="shave_step('rotate_z_pos')"/></td>
-                  <td><button class="bpd" id="b5" value=1 onclick="shave_step('reset_rotation')">Reset</button></td>
+                  <td><img id="gripper_icon" src="css/arrows/gripper_icon.png" /></td>
                   <td><button class="bpd arrow_rot_z_neg" id="b6" value="-1" onclick="shave_step('rotate_z_neg')"/></td>
                 </tr>
                 <tr>
-                  <td><!--<button class="bpd" id="b1" onclick="shave_step()"/>--></td>
+                  <td><button class="bpd" id="b1" value=1 onclick="shave_step('reset_rotation')">Reset </button></td>
                   <td><button class="bpd arrow_rot_y_neg" id="b2" onclick="shave_step('rotate_y_neg')"/>
                   <td><!--<button class="bpd" id="b3" onclick="shave(1)"/>--></td>
                 </tr>

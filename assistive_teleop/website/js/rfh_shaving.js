@@ -26,6 +26,7 @@ function shaving_init(){
 
     $('#servo_approach, #servo_stop').fadeTo(0,0.5);
     $("#ft_view_widget").ft_viewer();
+    $(".ell_control").hide();
     console.log("End Shaving Init");
 };
 
