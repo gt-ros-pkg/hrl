@@ -8,21 +8,12 @@ function shaving_init(){
                     window.sm_selected_pose = msg.data;});
     node.subscribe('/face_adls/controller_enabled', function(msg){
                     ell_controller_state_cb(msg)});
-    ////node.publish('reg_confirm', 'std_msgs/Bool', json({}));
-    ////node.publish('shaving_reg_confirm', 'std_msgs/Bool', json({}))
-    ////node.publish('pr2_ar_servo/arms_setup', 'std_msgs/Bool', json({}));
-    //node.publish('face_adls/global_move', 'std_msgs/String', json({}));
-    //node.publish('pr2_ar_servo/find_tag', 'std_msgs/Bool', json({}));
-    //node.publish('face_adls/local_move', 'std_msgs/String', json({}));
-    //node.publish('pr2_ar_servo/tag_confirm', 'std_msgs/Bool', json({}));
-    //node.publish('pr2_ar_servo/preempt', 'std_msgs/Bool', json({}));
-    //node.publish('netft_gravity_zeroing/rezero_wrench', 'std_msgs/Bool', json({}));
-    //node.publish('ros_switch', 'std_msgs/Bool', json({}));
     var pubs = new Array();
     pubs['face_adls/global_move'] = 'std_msgs/String';
     pubs['ros_switch'] = 'std_msgs/Bool';
     pubs['pr2_ar_servo/find_tag'] = 'std_msgs/Bool';
     pubs['face_adls/local_move'] = 'std_msgs/String';
+    pubs['face_adls/stop_move'] = 'std_msgs/Bool';
     pubs['pr2_ar_servo/tag_confirm'] = 'std_msgs/Bool';
     pubs['pr2_ar_servo/preempt'] = 'std_msgs/Bool';
     pubs['netft_gravity_zeroing/rezero_wrench'] = 'std_msgs/Bool';
@@ -39,7 +30,6 @@ function shaving_init(){
 };
 
 function servo_feedback_cb(msg){
-    //console.log("Received Feedback: "+msg.data.toString());
     text = "Unknown result from servoing feedback";
     switch(msg.data){
         case 1:
@@ -143,6 +133,10 @@ function head_reg_cb(){
         $('#img_act_select').val('seed_reg');
         set_camera('head_registration/confirmation');
         alert('Click on your cheek in the video to register the ellipse.');
+    };
+
+function shave_stop(){
+    node.publish('/face_adls/stop_move','std_msgs/Bool',json({'data':true}));
     };
 
 function shave_step(cmd_str) {
