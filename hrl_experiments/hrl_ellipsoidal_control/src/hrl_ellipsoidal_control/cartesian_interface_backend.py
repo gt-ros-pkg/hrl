@@ -68,6 +68,7 @@ class CartesianInterfaceBackend(ControllerInterfaceBackend):
             num_samps = len(traj)
 
             # normalization occurs here:
+            # TODO FIGURE THIS OUT? 
             ell_dist = self.controller._get_ell_equiv_dist((ell_change_trans_ep, (0, 0, 0)), 
                                                            ((0, 0, 0), 0), 
                                                            quat_gripper_rot, ELL_LOCAL_VEL)
