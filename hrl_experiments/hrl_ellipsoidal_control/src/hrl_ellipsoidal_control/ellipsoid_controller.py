@@ -6,29 +6,94 @@ import numpy as np
 import roslib
 roslib.load_manifest('hrl_ellipsoidal_control')
 
+import rospy
 import tf.transformations as tf_trans
+from geometry_msgs.msg import PoseStamped
 
-from hrl_ellipsoidal_control.controller_base import EllipsoidControllerBase, min_jerk_traj
+from ellipsoid_space import EllipsoidSpace
+from msg import EllipsoidMoveAction, EllipsoidMoveResult
+from msg import EllipsoidParams
+from srv import LoadEllipsoidParams, LoadEllipsoidParamsResponse
+from hrl_ellipsoidal_control.controller_base import CartesianStepController, min_jerk_traj
+from pykdl_utils.pr2_kin import kin_from_param
+from hrl_generic_arms.pose_converter import PoseConverter
 
 MIN_HEIGHT = 0.2
 
-class EllipsoidController(EllipsoidControllerBase):
+class EllipsoidController(CartesianStepController):
 
     def __init__(self):
         super(EllipsoidController, self).__init__()
+        self.ell_param_srv = rospy.Service("/load_ellipsoid_params", LoadEllipsoidParams, 
+                                           self.load_params)
+        self.kin_head = kin_from_param("base_link", "openni_rgb_optical_frame")
+        self.ell_space = None
+        self.head_center = None
+        self.head_center_pub = rospy.Publisher("/head_center", PoseStamped)
+        def pub_head_center(te):
+            if self.head_center is not None:
+                self.head_center_pub.publish(self.head_center)
+        rospy.Timer(rospy.Duration(0.2), pub_head_center)
+
         self._lat_bounds = None
         self._lon_bounds = None
         self._height_bounds = None
         self._no_bounds = True
 
+    def load_params(self, req):
+        rospy.loginfo("Loaded ellispoidal parameters.")
+        kinect_B_head = PoseConverter.to_homo_mat(req.params.e_frame)
+        base_B_kinect = self.kin_head.forward_filled(base_segment="base_link",
+                                                     target_segment="openni_rgb_optical_frame")
+        base_B_head = base_B_kinect * kinect_B_head
+        self.head_center = PoseConverter.to_pose_stamped_msg("/base_link",base_B_head)
+        is_scratching = rospy.get_param('/is_scratching', False) # TODO BETTER SOLUTION!
+        # TODO cleanup EllispoidSpace
+        self.ell_space = EllipsoidSpace(1, is_prolate=not is_scratching)
+        self.ell_space.load_ell_params(req.params)
+        self.ell_space.center = np.mat(np.zeros((3, 1)))
+        self.ell_space.rot = np.mat(np.eye(3))
+        return LoadEllipsoidParamsResponse()
+
+    def params_loaded(self):
+        return self.ell_space is not None
+    
+    def get_ell_ep(self):
+        torso_B_kinect = self.kin_head.forward_filled(base_segment="/torso_lift_link")
+        torso_B_ee = PoseConverter.to_homo_mat(self.arm.get_ep())
+        kinect_B_ee = torso_B_kinect**-1 * torso_B_ee
+        pos, quat = PoseConverter.to_pos_quat(self.get_ell_frame("/openni_rgb_optical_frame")**-1 * 
+                                              kinect_B_ee)
+        return list(self.ell_space.pos_to_ellipsoidal(*pos))
+
+    ##
+    # Get pose in robot's frame of ellipsoidal coordinates
+    def robot_ellipsoidal_pose(self, lat, lon, height, orient_quat, kinect_frame_mat=None):
+        if kinect_frame_mat is None:
+            kinect_frame_mat = self.get_ell_frame()
+        pos, quat = self.ell_space.ellipsoidal_to_pose(lat, lon, height)
+        quat_rotated = tf_trans.quaternion_multiply(quat, orient_quat)
+        ell_pose_mat = PoseConverter.to_homo_mat(pos, quat_rotated)
+        return PoseConverter.to_pos_rot(kinect_frame_mat * ell_pose_mat)
+
+    def get_ell_frame(self, frame="/torso_lift_link"):
+        # find the current ellipsoid frame location in this frame
+        base_B_head = PoseConverter.to_homo_mat(self.head_center)
+        target_B_base = self.kin_head.forward_filled(target_segment=frame)
+        return target_B_base**-1 * base_B_head
+
     def execute_ell_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], 
                          velocity=0.001, blocking=True):
+        self.cmd_lock.acquire(False)
         ell_f, rot_mat_f = self._parse_ell_move(change_ep, abs_sel, orient_quat)
         traj = self._create_ell_trajectory(ell_f, rot_mat_f, orient_quat, velocity)
         if traj is None:
             rospy.logerr("[ellipsoid_controller] Bad trajectory.")
+            self.cmd_lock.release()
             return False
-        return self._run_traj(traj, blocking=blocking)
+        retval = self._run_traj(traj, blocking=blocking)
+        self.cmd_lock.release()
+        return retval
 
     def set_bounds(self, lat_bounds=None, lon_bounds=None, height_bounds=None):
         if lat_bounds is None and lon_bounds is None and height_bounds is None:
