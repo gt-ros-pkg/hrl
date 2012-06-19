@@ -32,6 +32,8 @@ function shaving_init(){
     node.subscribe('/pr2_ar_servo/state_feedback', function(msg){
                         servo_feedback_cb(msg);
                     });
+
+    $('#servo_approach, #servo_stop').fadeTo(0,0.5);
     $("#ft_view_widget").ft_viewer();
     console.log("End Shaving Init");
 };
