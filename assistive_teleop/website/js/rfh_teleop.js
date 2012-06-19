@@ -36,7 +36,6 @@ function teleop_init(){
 };
 $(function(){
 	$('#scale_slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
-	$("body").find('*').mouseup(function(e){window.base_pub = window.clearInterval(window.base_pub)});
 });
 
 function pub_lin_move(){
@@ -81,38 +80,38 @@ function teleop_arm() {
         control_arm(x,y,0);	
     });
 
-    $('#bpd_default').find(':button').unbind();
-    $('#bpd_default #b9').show().text(b9txt).click(function(e){
+    $('#bpd_default').find(':button').unbind('.rfh');
+    $('#bpd_default #b9').show().text(b9txt).bind('click.rfh', function(e){
         control_arm(0,0,scales[window.arm()[0]+'arm']/500);
     });
-    $('#bpd_default #b8').show().text("^").click(function(e){
+    $('#bpd_default #b8').show().text("^").bind('click.rfh', function(e){
         control_arm(scales[window.arm()[0]+'arm']/500,0,0);
     });
-    $('#bpd_default #b7').show().text(b7txt).click(function(e){
+    $('#bpd_default #b7').show().text(b7txt).bind('click.rfh', function(e){
         control_arm(0,0,-scales[window.arm()[0]+'arm']/500);
     });
-    $('#bpd_default #b6').show().text(">").click(function(e){
+    $('#bpd_default #b6').show().text(">").bind('click.rfh', function(e){
         control_arm(0,-scales[window.arm()[0]+'arm']/500,0);
     });
     $('#bpd_default #b5').hide()
-    $('#bpd_default #b4').show().text("<").click(function(e){
+    $('#bpd_default #b4').show().text("<").bind('click.rfh', function(e){
         control_arm(0,scales[window.arm()[0]+'arm']/500,0);
     });
-    $('#bpd_default #b3').show().text("Advance").click(function(e){
+    $('#bpd_default #b3').show().text("Advance").bind('click.rfh', function(e){
         window.lin_move=0.1*(scales[window.arm()[0]+'arm']/100);
         pub_lin_move();
     });
-    $('#bpd_default #b2').show().text("v").click(function(e){
+    $('#bpd_default #b2').show().text("v").bind('click.rfh', function(e){
         control_arm(-scales[window.arm()[0]+'arm']/500,0,0);
     });
-    $('#bpd_default #b1').show().text("Retreat").click(function(e){
+    $('#bpd_default #b1').show().text("Retreat").bind('click.rfh', function(e){
         window.lin_move=-0.1*(scales[window.arm()[0]+'arm']/100);
         pub_lin_move();
     });
 };
 
 function pub_elbow(dir) {
-    dir =  (window.arm()=='right') ? -dir : dir; //Catch reflection, switch value for left side
+    dir =  (window.arm()=='right') ? -dir : dir; //Catch reflection
     var action = (dir == 1) ? 'Raise ' : 'Lower ';
     node.publish('wt_adjust_elbow_'+window.arm(),'std_msgs/Float32', json({"data":dir}));
     log('Sending command to ' + action + window.arm().toUpperCase() + ' elbow')
@@ -137,52 +136,56 @@ function teleop_wrist() {
         pub_arm_joints(joint_goals)
     });
 
-    $('#bpd_default').find(':button').unbind();
-    $('#bpd_default #b9').show().text("Hand Roll Right").click(function(e){
+    $('#bpd_default').find(':button').unbind('.rfh');
+    $('#bpd_default #b9').show().text("Hand Roll Right").bind('click.rfh', function(e){
         joint_goals = arm_joints[window.arm()];
         joint_goals.positions[6] += scales[window.arm()[0]+'wrist']*(Math.PI/200);
         pub_arm_joints(joint_goals)
     });
-    $('#bpd_default #b8').show().text("Wrist Flex Out").click(function(e){
+    $('#bpd_default #b8').show().text("Wrist Flex Out").bind('click.rfh', function(e){
         joint_goals = arm_joints[window.arm()];
         joint_goals.positions[5] += scales[window.arm()[0]+'wrist']*0.0107;
         pub_arm_joints(joint_goals)
     });
-    $('#bpd_default #b7').show().text("Hand Roll Left").click(function(e){
+    $('#bpd_default #b7').show().text("Hand Roll Left").bind('click.rfh', function(e){
         joint_goals = arm_joints[window.arm()];
         joint_goals.positions[6] -= scales[window.arm()[0]+'wrist']*(Math.PI/200);
         pub_arm_joints(joint_goals)
     });
-    $('#bpd_default #b6').show().text("Arm Roll Right").click(function(e){
+    $('#bpd_default #b6').show().text("Arm Roll Right").bind('click.rfh', function(e){
         joint_goals = arm_joints[window.arm()];
         joint_goals.positions[4] += scales[window.arm()[0]+'wrist']*(Math.PI/200);
         pub_arm_joints(joint_goals)
     });
     $('#bpd_default #b5').hide()
-    $('#bpd_default #b4').show().text("Arm Roll Left").click(function(e){
+    $('#bpd_default #b4').show().text("Arm Roll Left").bind('click.rfh', function(e){
         joint_goals = arm_joints[window.arm()];
         joint_goals.positions[4] -= scales[window.arm()[0]+'wrist']*0.0107;
         pub_arm_joints(joint_goals)
     });
-    $('#bpd_default #b3').show().text("Raise Elbow").click(function(e){
+    $('#bpd_default #b3').show().text("Raise Elbow").bind('click.rfh', function(e){
         pub_elbow(0.01*scales[window.arm()[0]+'wrist'])
     });
-    $('#bpd_default #b2').show().text("Wrist Flex In").click(function(e){ 
+    $('#bpd_default #b2').show().text("Wrist Flex In").bind('click.rfh', function(e){ 
         joint_goals = arm_joints[window.arm()];
         joint_goals.positions[5] -= scales[window.arm()[0]+'wrist']*(Math.PI/200);
         pub_arm_joints(joint_goals)
     });
-    $('#bpd_default #b1').show().text("Lower Elbow").click(function(e){
+    $('#bpd_default #b1').show().text("Lower Elbow").bind('click.rfh', function(e){
         pub_elbow(-0.01*scales[window.arm()[0]+'wrist'])
     });
 };
 
 
 function pub_head_traj(head_traj_goal, dist){ //Send pan/tilt trajectory commands to head
-		if (head_traj_goal.goal.trajectory.points[0].positions[0] < -2.70) {head_traj_goal.goal.trajectory.points[0].positions[0] = -2.70} 
-		if (head_traj_goal.goal.trajectory.points[0].positions[0] > 2.70) {head_traj_goal.goal.trajectory.points[0].positions[0] = 2.70}
-		if (head_traj_goal.goal.trajectory.points[0].positions[1] < -0.5) {head_traj_goal.goal.trajectory.points[0].positions[1] = -0.5}
-		if (head_traj_goal.goal.trajectory.points[0].positions[1] > 1.4) {head_traj_goal.goal.trajectory.points[0].positions[1] = 1.4}
+		if (head_traj_goal.goal.trajectory.points[0].positions[0] < -2.70) {
+                head_traj_goal.goal.trajectory.points[0].positions[0] = -2.70};
+		if (head_traj_goal.goal.trajectory.points[0].positions[0] > 2.70) {
+                head_traj_goal.goal.trajectory.points[0].positions[0] = 2.70};
+		if (head_traj_goal.goal.trajectory.points[0].positions[1] < -0.5) {
+                head_traj_goal.goal.trajectory.points[0].positions[1] = -0.5};
+		if (head_traj_goal.goal.trajectory.points[0].positions[1] > 1.4) {
+                head_traj_goal.goal.trajectory.points[0].positions[1] = 1.4};
 		head_traj_goal.goal.trajectory.joint_names = window.head_joints;
 		head_traj_goal.goal.trajectory.points[0].velocities = [0, 0];
 		head_traj_goal.goal.trajectory.points[0].time_from_start.secs = Math.max(4*dist, 1);
@@ -196,7 +199,6 @@ function pub_head_goal(x,y,z,frame) { //Send 3d point to look at using kinect
                    'pointing_axis':{'x':0, 'y':0, 'z':1},
                    'pointing_frame':window.pointing_frame,
                    'max_velocity':0.35}}))
-	//log("Sending command to looking at "+x.toString() +", "+y.toString()+", "+z.toString()+" in "+frame);
 };
 
 function teleop_head() {
@@ -217,45 +219,43 @@ function teleop_head() {
                 pub_head_traj(head_traj_goal, Math.sqrt(x*x+y*y));
 	});
 	
-	$('#bpd_default').find(':button').unbind();
+	$('#bpd_default').find(':button').unbind('.rfh');
 	$('#b9, #b7', '#bpd_default').hide(); 
-	$('#bpd_default #b8').show().text("^").click(function(e){//head up 
-		window.head_pub = window.clearInterval(head_pub);
+	$('#b8, #b6, #b5, #b4, #b2', '#bpd_default').bind('click.rfh', function(e){
+                            window.head_pub = window.clearInterval(head_pub);
+                            });
+	$('#bpd_default #b8').show().text("^").bind('click.rfh', function(e){//head up 
    		head_traj_goal = JTAGoal;
 		head_traj_goal.goal.trajectory.points[0] = window.head_state;
 		head_traj_goal.goal.trajectory.points[0].positions[1] -= scales.head/150;
                 pub_head_traj(head_traj_goal, scales.head/150);
 	});
-	$('#bpd_default #b6').show().text(">").click(function(e){ //head right
-		window.head_pub = window.clearInterval(head_pub);
+	$('#bpd_default #b6').show().text(">").bind('click.rfh', function(e){ //head right
    		head_traj_goal = JTAGoal;
 		head_traj_goal.goal.trajectory.points[0] = window.head_state;
 		head_traj_goal.goal.trajectory.points[0].positions[0] -= scales.head/150;
                 pub_head_traj(head_traj_goal, scales.head/150);
 	});
-	$('#bpd_default #b5').show().text("_|_").click(function(e){ //center head to (0,0)
-		window.head_pub = window.clearInterval(head_pub);
+	$('#bpd_default #b5').show().text("_|_").bind('click.rfh', function(e){ //center head to (0,0)
         pub_head_goal(0.8, 0.0, -0.25, '/base_footprint');
 	});
-	$('#bpd_default #b4').show().text("<").click(function(e){ //head left
-		window.head_pub = window.clearInterval(head_pub);
+	$('#bpd_default #b4').show().text("<").bind('click.rfh', function(e){ //head left
    		head_traj_goal = JTAGoal;
 		head_traj_goal.goal.trajectory.points[0] = window.head_state;
 		head_traj_goal.goal.trajectory.points[0].positions[0] += scales.head/150;
                 pub_head_traj(head_traj_goal, scales.head/150);
 	});
-	$('#bpd_default #b3').show().text("Track Right Hand").click(function(e){
+	$('#bpd_default #b3').show().text("Track Right Hand").bind('click.rfh', function(e){
 		window.head_pub = window.clearInterval(head_pub);
 		window.head_pub = window.setInterval("pub_head_goal(0,0,0,'r_gripper_tool_frame');",200);
 	});	
-  	$('#bpd_default #b2').show().text("v").click(function(e){ //head down
-		window.head_pub = window.clearInterval(head_pub);
+  	$('#bpd_default #b2').show().text("v").bind('click.rfh', function(e){ //head down
    		head_traj_goal = JTAGoal;
 		head_traj_goal.goal.trajectory.points[0] = window.head_state;
 		head_traj_goal.goal.trajectory.points[0].positions[1] += scales.head/150;
                 pub_head_traj(head_traj_goal, scales.head/150);
 	});
-	$('#bpd_default #b1').show().text("Track Left Hand").click(function(e){
+	$('#bpd_default #b1').show().text("Track Left Hand").bind('click.rfh', function(e){
 		window.head_pub = window.clearInterval(head_pub);
 		window.head_pub = window.setInterval("pub_head_goal(0,0,0,'l_gripper_tool_frame');",200);
 	});
@@ -282,25 +282,25 @@ function teleop_base() {
 	$('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales.base = $('#scale_slider').slider("value")});
 	$('#scale_slider').show().slider("option", "value", scales.base);
 	$("#tp").unbind().hide();
-	$('#bpd_default').find(':button').unbind();
+	$('#bpd_default').find(':button').unbind('.rfh');
 	$('#b9, #b7, #b5','#bpd_default').hide()
   	
-    $('#bpd_default #b8').show().text("^").mousedown(function(e){
+    $('#bpd_default #b8').show().text("^").bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, 1,0,0);
     });
-	$('#bpd_default #b6').show().text(">").mousedown(function(e){
+	$('#bpd_default #b6').show().text(">").bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, 0,-1,0);
     });
-	$('#bpd_default #b4').show().text("<").mousedown(function(e){
+	$('#bpd_default #b4').show().text("<").bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, 0,1,0);
     });
-  	$('#bpd_default #b3').show().text("Turn Right").mousedown(function(e){
+  	$('#bpd_default #b3').show().text("Turn Right").bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, 0,0,-1);
     });
-	$('#bpd_default #b2').show().text("v").mousedown(function(e){
+	$('#bpd_default #b2').show().text("v").bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, -1,0,0);
     });
-   	$('#bpd_default #b1').show().text("Turn Left").mousedown(function(e){
+   	$('#bpd_default #b1').show().text("Turn Left").bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, 0,0,1);
     });
 };
