@@ -84,7 +84,8 @@ class EllipsoidController(CartesianStepController):
 
     def execute_ell_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], 
                          velocity=0.001, blocking=True):
-        self.cmd_lock.acquire(False)
+        if not self.cmd_lock.acquire(False):
+            return False
         ell_f, rot_mat_f = self._parse_ell_move(change_ep, abs_sel, orient_quat)
         traj = self._create_ell_trajectory(ell_f, rot_mat_f, orient_quat, velocity)
         if traj is None:
@@ -139,32 +140,31 @@ class EllipsoidController(CartesianStepController):
 
 
     def _parse_ell_move(self, change_ep, abs_sel, orient_quat):
-        with self.cmd_lock:
-            change_ell_ep, change_rot_ep = change_ep
-            abs_ell_ep_sel, is_abs_rot = abs_sel
-            ell_f = np.where(abs_ell_ep_sel, change_ell_ep, 
-                                         np.array(self.get_ell_ep()) + np.array(change_ell_ep))
-            print "old", ell_f
-            if ell_f[0] > np.pi:
-                ell_f[0] = 2 * np.pi - ell_f[0]
-                ell_f[1] *= -1
-            if ell_f[0] < 0.:
-                ell_f[0] *= -1
-                ell_f[1] *= -1
-            ell_f[1] = np.mod(ell_f[1], 2 * np.pi)
-            ell_f = self._clip_ell_ep(ell_f)
-            print "new", ell_f
-            if is_abs_rot:
-                rot_change_mat = change_rot_ep
-                _, ell_final_rot = self.robot_ellipsoidal_pose(ell_f[0], ell_f[1], ell_f[2],
-                                                               orient_quat)
-                rot_mat_f = ell_final_rot * rot_change_mat
-            else:
-                rpy = change_rot_ep
-                _, cur_rot = self.arm.get_ep()
-                rot_mat = np.mat(tf_trans.euler_matrix(*rpy))[:3,:3]
-                rot_mat_f = cur_rot * rot_mat
-            return ell_f, rot_mat_f
+        change_ell_ep, change_rot_ep = change_ep
+        abs_ell_ep_sel, is_abs_rot = abs_sel
+        ell_f = np.where(abs_ell_ep_sel, change_ell_ep, 
+                                     np.array(self.get_ell_ep()) + np.array(change_ell_ep))
+        print "old", ell_f
+        if ell_f[0] > np.pi:
+            ell_f[0] = 2 * np.pi - ell_f[0]
+            ell_f[1] *= -1
+        if ell_f[0] < 0.:
+            ell_f[0] *= -1
+            ell_f[1] *= -1
+        ell_f[1] = np.mod(ell_f[1], 2 * np.pi)
+        ell_f = self._clip_ell_ep(ell_f)
+        print "new", ell_f
+        if is_abs_rot:
+            rot_change_mat = change_rot_ep
+            _, ell_final_rot = self.robot_ellipsoidal_pose(ell_f[0], ell_f[1], ell_f[2],
+                                                           orient_quat)
+            rot_mat_f = ell_final_rot * rot_change_mat
+        else:
+            rpy = change_rot_ep
+            _, cur_rot = self.arm.get_ep()
+            rot_mat = np.mat(tf_trans.euler_matrix(*rpy))[:3,:3]
+            rot_mat_f = cur_rot * rot_mat
+        return ell_f, rot_mat_f
 
     def _create_ell_trajectory(self, ell_f, rot_mat_f, orient_quat=[0., 0., 0., 1.], velocity=0.001):
         _, cur_rot = self.arm.get_ep()

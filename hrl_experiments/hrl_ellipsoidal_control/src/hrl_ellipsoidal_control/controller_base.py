@@ -29,26 +29,31 @@ class CartTrajController(object):
     def is_moving(self):
         return self._moving_lock.locked()
 
-    def wait_until_stopped(self):
-        r = rospy.Rate(100)
+    def wait_until_stopped(self, rate=100):
+        r = rospy.Rate(rate)
         while not rospy.is_shutdown():
             if not self.is_moving():
                 return
             r.sleep()
 
     def execute_cart_traj(self, cart_arm, traj, time_step, blocking=True):
-        self._moving_lock.acquire(False)
-        self._stop_moving = False
-        if blocking:
-            result = self._execute_cart_traj(cart_arm, traj, time_step)
-            self._moving_lock.release()
-            return result
-        else:
+        if self._moving_lock.acquire(False):
+            self._stop_moving = False
+            self._is_blocking = blocking
             def execute_cart_traj_cb(event):
-                self._execute_cart_traj(cart_arm, traj, time_step)
-                self._moving_lock.release()
+                self._cur_result = self._execute_cart_traj(cart_arm, traj, time_step)
+                if not self._is_blocking:
+                    self._moving_lock.release()
             rospy.Timer(rospy.Duration(0.01), execute_cart_traj_cb, oneshot=True)
-            return True
+            if blocking:
+                self.wait_until_stopped()
+                retval = self._cur_result
+                self._moving_lock.release()
+                return retval
+            else:
+                return True
+        else:
+            return False
 
     def _execute_cart_traj(self, cart_arm, traj, time_step):
         rate = rospy.Rate(1.0/time_step)
@@ -96,7 +101,8 @@ class CartesianStepController(CartTrajController):
 
     def execute_cart_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], velocity=0.001,
                           num_samps=None, blocking=True):
-        self.cmd_lock.acquire(False)
+        if not self.cmd_lock.acquire(False):
+            return False
         cur_pos, cur_rot = self.arm.get_ep()
         change_pos_ep, change_rot_ep = change_ep
         abs_cart_ep_sel, is_abs_rot = abs_sel
