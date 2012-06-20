@@ -118,6 +118,10 @@ class FaceADLsManager(object):
         self.controller_enabled_pub = rospy.Publisher('/face_adls/controller_enabled', Bool, latch=True)
         self.enable_controller_srv = rospy.Service("/face_adls/enable_controller", 
                                                    EnableFaceController, enable_controller_cb)
+
+        def stop_move_cb(msg):
+            self.stop_move()
+        self.stop_move_sub = rospy.Subscriber("/face_adls/stop_move", Bool, stop_move_cb, queue_size=1)
         self.disable_controller()
 
     def publish_feedback(self, message=None, transition_id=None):

@@ -8,18 +8,20 @@ import roslib
 roslib.load_manifest('hrl_pr2_arms')
 roslib.load_manifest('ar_pose')
 roslib.load_manifest('visualization_msgs')
+roslib.load_manifest('pykdl_utils')
 
 import rospy
-import tf
 import tf.transformations as tf_trans
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32MultiArray
+from visualization_msgs.msg import Marker
+from std_msgs.msg import ColorRGBA
 
 from hrl_generic_arms.pose_converter import PoseConverter
 from hrl_generic_arms.controllers import PIDController
+from pykdl_utils.pr2_kin import kin_from_param
+
 from ar_pose.msg import ARMarker
-from visualization_msgs.msg import Marker
-from std_msgs.msg import ColorRGBA
 
 class ServoKalmanFilter(object):
     # TODO tune these parameters properly
@@ -37,7 +39,7 @@ class ServoKalmanFilter(object):
         self.min_reject = 0.1
         self.resid_queue = deque()
         
-        self.unreli_q_len = 2 * int(1./delta_t)
+        self.unreli_q_len = 1 * int(1./delta_t)
         self.unreli_queue = deque()
         self.unreli_weights = np.linspace(2, 0, self.unreli_q_len)
 
@@ -61,6 +63,7 @@ class ServoKalmanFilter(object):
                 np.fabs(y_resi) > max(self.min_reject, 
                                       self.resid_sigma_reject * np.std(self.resid_queue))):
                 # we have determined this observation to be unreliable
+                print "INCONSISTENT", self.resid_queue
                 is_unreli = True
 
             else:
@@ -72,6 +75,7 @@ class ServoKalmanFilter(object):
                 self.resid_queue.popleft()
             self.resid_queue.append(y_resi)
         else:
+            print "NOT NEW"
             is_unreli = True
 
         # record is_unreli
@@ -118,19 +122,23 @@ class PR2VisualServoAR(object):
         self.mkr_pub = rospy.Publisher("visualization_marker", Marker)
 
         self.cur_ar_pose = None
-        self.tf_list = tf.TransformListener()
+        self.kin_arm = None
         self.ar_pose_updated = False
         self.base_pub = rospy.Publisher("/base_controller/command", Twist)
         self.preempt_requested = False
 
     def ar_sub(self, msg):
-        cur_ar_ps = PoseConverter.to_pose_stamped_msg(msg.header.frame_id, msg.pose.pose)
-        cur_ar_ps.header.stamp = msg.header.stamp
-        try:
-            cur_ar_in_base = self.tf_list.transformPose("/base_link", cur_ar_ps)
-        except tf.Exception as e:
+        if self.kin_arm == None:
+            self.kin_arm = kin_from_param(base_link="base_link", 
+                                          end_link=msg.header.frame_id)
+        base_B_camera = self.kin_arm.forward_filled()
+        camera_B_tag = PoseConverter.to_homo_mat(msg.pose.pose)
+        cur_ar_pose = base_B_camera * camera_B_tag
+        # check to see if the tag is in front of the robot
+        if cur_ar_pose[0,3] < 0.:
+            #rospy.logwarn("Strange AR toolkit bug!")
             return
-        self.cur_ar_pose = PoseConverter.to_homo_mat(cur_ar_in_base)
+        self.cur_ar_pose = cur_ar_pose
         self.ar_pose_updated = True
 
     def request_preempt(self):

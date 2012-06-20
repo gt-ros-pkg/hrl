@@ -11,6 +11,7 @@
     <script type="text/javascript" src="js/rfh_shaving.js"> </script>
     <script type="text/javascript" src="js/rfh_clickable_video.js"> </script>
     <script type="text/javascript" src="js/force_level_widget.js"> </script>
+    <script type="text/javascript" src="js/cart_control.js"> </script>
     <link href="keyboard/css/keyboard.css" rel="stylesheet">
 	<script src="keyboard/js/jquery.keyboard.js"></script>
     <link type="text/css" href="css/rfh_interface.css" rel="stylesheet" />   
@@ -22,6 +23,7 @@ function log(message){$('#console').html("<big><strong>"+message.toString()+"</s
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
 var ROBOT = 'monty1.hsi.gatech.edu';
+//var ROBOT = 'pr2c1.cc.gatech.edu';
 //var ROBOT = 'localhost';
 var get_param_free = true;
 
@@ -29,8 +31,9 @@ $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
     $("#tabs").tabs().tabs({select: tab_select_cb});
     $("#traj_play_radio").buttonset();
-    $(".bpd, .cont_sel, .ar_servo_button, .traj_play_cont, #adj_mirror, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
-    $(':button').click(log_click);
+    $("#cont_sel").buttonset();
+    $(".bpd, #cart_controller, .ar_servo_button, .traj_play_cont, #adj_mirror, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
+    $('*').click(log_click);
 	$('#slider').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
 	$('#rg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
 	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
@@ -48,10 +51,10 @@ $(function(){
                                                             });	
 	$('#submit_text').click(function(e){speak($('#txt2say').val())});
 	$('#slelect_plane').change(function(event,ui){window.plane = $('#select_plane').val()});
-	$('.cont_sel').click(function(e){
-                            $('.cont_sel').css('background-color','buttonface');
-                            $(this).css('background-color', 'gray')
-                            }); 
+	//$('.cont_sel').click(function(e){
+    //                        $('.cont_sel').css('background-color','buttonface');
+    //                        $(this).css('background-color', 'gray')
+    //                        }); 
     $("#reset").hide();
 });
 
@@ -66,7 +69,9 @@ function init(){
     shaving_init();
     camera_init();
     init_params();
+    cart_init();
     set_camera("kinect_head/rgb/image_color");
+    teleop_head();
 	console.log('Finished Initialization');
 };
 
@@ -87,6 +92,11 @@ function init_msgs (){
 		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
                           '["pr2_controllers_msgs/JointTrajectoryActionGoal"]',
                           function(msg){window.JTAGoal=msg; init_msgs()});
+	}else if (!window.TwistStamped){
+        console.log('Looking for TwistStamped'); 
+		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
+                               '["geometry_msgs/TwistStamped"]',
+                               function(msg){window.TwistStamped=msg; init_msgs()});
 	}else if (!window.TrajPlayGoal){
         console.log('Looking for TrajectoryPlayGoal'); 
 		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
@@ -170,18 +180,18 @@ function init_params(){
     };
     };
 
-function list_opts(cont_sel, dict){
+function list_opts(sel, dict){
     for (var key in dict){
-        $(cont_sel).append('<option value="'+dict[key]+'">'+key+'</option>');
-        console.log("adding option "+ dict[key]+" to selector "+ cont_sel)
+        $(sel).append('<option value="'+dict[key]+'">'+key+'</option>');
+        console.log("adding option "+ dict[key]+" to selector "+ sel)
         };
 };
 
-function list_key_opts(cont_sel, msg){
+function list_key_opts(select, msg){
         console.log("Receiving global move keys")
-        $(cont_sel).empty();
+        $(select).empty();
         for (i=0; i<msg.data.length; i++){
-            $(cont_sel).append('<option>'+msg.data[i]+'</option>')};
+            $(select).append('<option>'+msg.data[i]+'</option>')};
     };
 
 function empty_srv(service){
@@ -205,7 +215,7 @@ function tab_select_cb(eve, ui){
     } else {
        toggle_ell_controller(false)}; 
     if (ui.panel.id =='tab_ar_servoing'){
-        set_camera('ar_servo/confirmation')};
+        set_camera('ar_servo/confirmation_rotated')};
 };
 
 function pub_gripper(arm,grpos) {
@@ -216,14 +226,10 @@ function pub_gripper(arm,grpos) {
 
 function gripper_grab(arm){
     pub_gripper(arm,0.0);
-    //node.publish('wt_'+arm+'_gripper_grab_commands', 'std_msgs/Bool',
-    //            json({'data':true}));
 };
 
 function gripper_release(arm){
     pub_gripper(arm,0.09);
-    //node.publish('wt_'+arm+'_gripper_release_commands', 'std_msgs/Bool',
-    //            json({'data':true}));
 };
 
 function pub_torso(tz){
@@ -301,7 +307,7 @@ function start(){
   <tr>
     <td> Camera: </td><td id="camera_select"></td>
      <td>On Image Click:</td><td id="image_click_select"></td>
-     <!--<td>Hand:</td>
+     <td>Hand:</td>
      <td>
         <div id='arm_sel'>
           <input type='radio' id='l_arm' name='arm_sel' value='left' checked='checked'/>
@@ -309,7 +315,7 @@ function start(){
           <input type='radio' id='r_arm' name='arm_sel' value='right'/>
           <label for='r_arm'>Right</label>
         </div>
-      </td>-->
+      </td>
   </tr>
 </table>
 <hr>
@@ -321,11 +327,11 @@ function start(){
 <td>
 <div id="tabs">
     <ul>
-        <li><a href="#tab_cart_control"> Default Controls</a></li>
-        <li><a href="#tab_ar_servoing"> AR Servoing</a></li>
-        <li><a href="#tab_traj_play"> Traj. Playback </a></li>
-        <li><a href="#tab_ellipse"> Ellipsoidal Control </a></li>
-        <li><a href="#tab_tts"> TTS </a></li>
+        <li><a href="#tab_cart_control">Default Controls</a></li>
+        <li><a href="#tab_ar_servoing">AR Servoing</a></li>
+        <li><a href="#tab_traj_play">Traj. Playback</a></li>
+        <li><a href="#tab_ellipse">Ellipsoidal Control</a></li>
+        <li><a href="#tab_tts">TTS</a></li>
     </ul>
 
     <div id="tab_cart_control">
@@ -334,50 +340,103 @@ function start(){
        <td>
         <div>
           <table>
-            <tr><td colspan="2"><button class="cont_sel" id="cont_head" type="button" value="cont_head" onclick="teleop_head()">Control Head</button></td></tr>
             <tr>
-               <td><button class="cont_sel" id="cont_l_arm" type="button" value="cont_l_arm" onclick="$('#l_arm').click(); teleop_arm();">Control Left Arm </button></td>
-               <td><button class="cont_sel" id="cont_r_arm" type="button" value="cont_r_arm" onclick="$('#r_arm').click(); teleop_arm();">Control Right Arm </button></td>
+              <td colspan="2">
+             <form id="cont_sel">
+                <input id="cont_head" type="radio" name="cont_sel" onclick="teleop_head()"/>
+                <label for="cont_head">Control Head</label>
+              </td>
             </tr>
             <tr>
-               <td><button class="cont_sel" id="cont_l_hand" type="button" value="cont_l_hand" onclick="$('#l_arm').click(); teleop_wrist()">Control Left Hand</button></td>
-               <td><button class="cont_sel" id="cont_r_hand" type="button" value="cont_r_hand" onclick="$('#r_arm').click(); teleop_wrist()">Control Right Hand </button></td>
+              <td>
+                <input id="cont_l_arm" type="radio" name="cont_sel" onclick="$('#l_arm').click(); cart_arm()"/>
+                <label for="cont_l_arm">Control Left Hand</label>
+              </td>
+              <td>
+                <input id="cont_r_arm" type="radio" name="cont_sel" onclick="$('#r_arm').click(); cart_arm()"/>
+                <label for="cont_r_arm">Control Right Hand</label>
+              </td>
             </tr>
-            <tr><td colspan="2"><button class="cont_sel" id="cont_base" type="button" value="cont_base" onclick="teleop_base()">Control Base</button></td></tr>
             <tr>
+              <td colspan="2">
+                <input id="cont_base" type="radio" name="cont_sel" onclick="teleop_base()">
+                <label for="cont_base">Control Base</label>
+             </form>
+              </td>
             </tr>
-         </table>
+            <tr>
+              <td colspan=2>
+                <input type="checkbox" class="cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
+                <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
+              </td>
+            </tr>
+             <tr>
+             <tr>
+               <td id='cart_frame_select_label'>Movement Frame:</td>
+               <td>
+                 <select class="centered cart_control" id='cart_frame_select'>
+                   <option id="frame_opt_torso" value="/torso_lift_link"> Torso </option> 
+                   <option id="frame_opt_hand" value="/r_wrist_roll_link"> Right Hand </option> 
+                   <option id="frame_opt_hand" value="/l_wrist_roll_link"> Left Hand </option> 
+                 </select>
+               </td>
+             </tr>
+          </table>
         </div>
        </td>
 
-       <td> 
-        <div id="bpd_default"> <!--Buttonpad Controls-->
-          <table>
-            <tr><td rowspan="4">
-              <div style="height:240px;" id="scale_slider"></div>
-            </td></tr>
-            <tr>
-              <td><button class="bpd" id="b7" type="button" value=1> Down </button></td>
-              <td><button class="bpd" id="b8" type="button" value=1> ^ </button></td>
-              <td><button class="bpd" id="b9" type="button" value=1> Up </button></td>
-            </tr>
-            <tr>
-              <td><button class="bpd" id="b4" type="button" value="1"><</button></td>
-              <td><button class="bpd" id="b5" type="button" value=1> 0 </button></td>
-              <td><button class="bpd" id="b6" type="button" value="-1">></button></td>
-            </tr>
-            <tr>
-              <td><button class="bpd" id="b1" type="button" value="-1">Turn Left</button></td>
-              <td><button class="bpd" id="b2" type="button" value="-1">v</button></td>
-              <td><button class="bpd" id="b3" type="button" value="-1">Turn Right</button></td>
-            </tr>
-          </table>
-        </div> <!--END buttonpad controls -->
-       </td>
+          <td>
+            <div class="default_control" id='bpd_default'> <!-- Translate Cartesian Buttonpad-->
+              <table>
+                <tr>
+                  <td rowspan="3">
+                    <div class="slider" id="scale_slider" style="height:235px" ></div>
+                  </td>
+                  <td><button class="bpd arrow_trans_in" id="b7"/></td>
+                  <td><button class="bpd arrow_trans_up" id="b8"/></td>
+                  <td><button class="bpd arrow_trans_out" id="b9"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd arrow_trans_left" id="b4"/></td>
+                  <td><button class="bpd" id="b5"/></td>
+                  <td><button class="bpd arrow_trans_right" id="b6"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd" id="b1"/></td>
+                  <td><button class="bpd arrow_trans_down" id="b2"/></td>
+                  <td><button class="bpd" id="b3"/></td>
+                </tr>
+              </table>
+            </div> <!--END Translate Cart Buttonpad -->
+          </td>
+          <td> 
+            <div class="default_control" id='bpd_default_rot'> <!--Rotate Cart Buttonpad-->
+              <table>
+                <tr>
+                  <td rowspan="3">
+                    <div class="slider" id="default_rot_slider" style="height:235px" ></div>
+                  </td>
+                  <td><button class="bpd arrow_rot_x_neg" id="b7"/></td>
+                  <td><button class="bpd arrow_rot_y_pos" id="b8"/></td>
+                  <td><button class="bpd arrow_rot_x_pos" id="b9"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd arrow_rot_z_neg" id="b4"/></td>
+                  <td><button class="bpd" id="b5"/></td>
+                  <td><button class="bpd arrow_rot_z_pos" id="b6"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd" id="b1"/></td>
+                  <td><button class="bpd arrow_rot_y_neg" id="b2"/>
+                  <td><button class="bpd" id="b3"></td>
+                </tr>
+              </table>
+            </div> <!--END Cart Rotate buttonpad -->
+          </td>
 
-       <td>
+       <!--<td>
          <img id="tp" src=touchpad.jpg title="Click here for 2D Control of the selected robot part" style="border-style:solid; border-width:3px height:235px; width:235px;">
-       </td>
+       </td>-->
        </tr>
      </table>
     </div><!-- END TAB CART CONTROL -->
@@ -444,11 +503,11 @@ function start(){
           <td colspan=2>
             <div>
               <form id="traj_play_radio">
-                <input type="radio" id="traj_play_setup" name="traj_play_radio" value=1/>
+                <input type="radio" id="traj_play_setup" name="traj_radio"/>
                 <label for="traj_play_setup"> Move to Setup </label>
-                <input type="radio" id="traj_play_exec" name="traj_play_radio" value=2/>
+                <input type="radio" id="traj_play_exec" name="traj_radio">
                 <label for="traj_play_exec"> Execute Traj. </label>
-                <input type="radio" id="traj_play_set_and_exec" name="traj_play_radio" value=3 checked="checked" />
+                <input type="radio" id="traj_play_set_and_exec" name="traj_radio" checked="checked" />
                 <label for="traj_play_set_and_exec"> Setup AND Execute </label>
               </form>
             </div>
@@ -632,7 +691,7 @@ function start(){
     </div> <!--END Tab TTS -->
   </div> <!-- END Tabs -->
 </td>
-
+    
 <td rowspan='4'> <!-- Gross Formatting-->
 <div id='gripper_controls'>
   <table border='1'>
