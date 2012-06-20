@@ -27,8 +27,7 @@ function pub_cart_twist(trans, rot){
 
 function cart_arm(){
 //    $('#tp').unbind().hide();
-    $('#cart_frame_select_label').html('Movement Frame:');
-    $('#bpd_default_rot, #cart_frame_select, #cart_controller, #cart_cont_state_check').show();
+    $('#bpd_default_rot, #cart_frame_select, #cart_frame_select_label, #cart_controller, #cart_cont_state_check').show();
 	$('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales[window.arm()[0]+"arm"] = $('#scale_slider').slider("value")});
 	$('#scale_slider').slider("option", "value", scales[window.arm()[0]+'arm']).show();
 

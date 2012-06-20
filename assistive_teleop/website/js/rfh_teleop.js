@@ -65,8 +65,7 @@ function pub_head_goal(x,y,z,frame) { //Send 3d point to look at using kinect
 };
 
 function teleop_head() {
-    $('#bpd_default_rot, #cart_frame_select').hide();
-    $('#cart_frame_select_label').html('');
+    $('#bpd_default_rot, #cart_frame_select, #cart_frame_select_label, #cart_controller').hide();
 	window.head_pub = window.clearInterval(head_pub);
 	log('Controlling Head');
 	$('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales.head = $('#scale_slider').slider("value")});
@@ -144,8 +143,7 @@ function base_pub_conf(selector,bx,by,bz){
 
 function teleop_base() {
 	log("Controlling Base");
-    $('#bpd_default_rot, #cart_frame_select').hide();
-    $('#cart_frame_select_label').html('');
+    $('#bpd_default_rot, #cart_frame_select, #cart_frame_select_label, #cart_controller').hide();
 	$('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales.base = $('#scale_slider').slider("value")});
 	$('#scale_slider').show().slider("option", "value", scales.base);
 	//$("#tp").unbind().hide();
