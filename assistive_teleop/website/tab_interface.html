@@ -22,8 +22,8 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){$('#console').html("<big><strong>"+message.toString()+"</strong></big>"); console.log(message.toString())};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-//var ROBOT = 'monty1.hsi.gatech.edu';
-var ROBOT = 'pr2c1.cc.gatech.edu';
+var ROBOT = 'monty1.hsi.gatech.edu';
+//var ROBOT = 'pr2c1.cc.gatech.edu';
 //var ROBOT = 'localhost';
 var get_param_free = true;
 
@@ -92,16 +92,16 @@ function init_msgs (){
 		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
                           '["pr2_controllers_msgs/JointTrajectoryActionGoal"]',
                           function(msg){window.JTAGoal=msg; init_msgs()});
-	}else if (!window.TrajPlayGoal){
-        console.log('Looking for TrajectoryPlayGoal'); 
-		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
-                               '["pr2_traj_playback/TrajectoryPlayGoal"]',
-                               function(msg){window.TrajPlayGoal=msg; init_msgs()});
 	}else if (!window.TwistStamped){
         console.log('Looking for TwistStamped'); 
 		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
                                '["geometry_msgs/TwistStamped"]',
                                function(msg){window.TwistStamped=msg; init_msgs()});
+	}else if (!window.TrajPlayGoal){
+        console.log('Looking for TrajectoryPlayGoal'); 
+		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
+                               '["pr2_traj_playback/TrajectoryPlayGoal"]',
+                               function(msg){window.TrajPlayGoal=msg; init_msgs()});
 	};
     console.log("End Message Init");
 };
