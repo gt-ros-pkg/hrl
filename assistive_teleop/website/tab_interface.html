@@ -11,6 +11,7 @@
     <script type="text/javascript" src="js/rfh_shaving.js"> </script>
     <script type="text/javascript" src="js/rfh_clickable_video.js"> </script>
     <script type="text/javascript" src="js/force_level_widget.js"> </script>
+    <script type="text/javascript" src="js/cart_control.js"> </script>
     <link href="keyboard/css/keyboard.css" rel="stylesheet">
 	<script src="keyboard/js/jquery.keyboard.js"></script>
     <link type="text/css" href="css/rfh_interface.css" rel="stylesheet" />   
@@ -65,6 +66,7 @@ function init(){
     teleop_init();
     shaving_init();
     camera_init();
+    cart_init();
     init_params();
     set_camera("kinect_head/rgb/image_color");
 	console.log('Finished Initialization');
@@ -92,6 +94,11 @@ function init_msgs (){
 		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
                                '["pr2_traj_playback/TrajectoryPlayGoal"]',
                                function(msg){window.TrajPlayGoal=msg; init_msgs()});
+	}else if (!window.TwistStamped){
+        console.log('Looking for TwistStamped'); 
+		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
+                               '["geometry_msgs/TwistStamped"]',
+                               function(msg){window.TwistStamped=msg; init_msgs()});
 	};
     console.log("End Message Init");
 };
@@ -216,14 +223,10 @@ function pub_gripper(arm,grpos) {
 
 function gripper_grab(arm){
     pub_gripper(arm,0.0);
-    //node.publish('wt_'+arm+'_gripper_grab_commands', 'std_msgs/Bool',
-    //            json({'data':true}));
 };
 
 function gripper_release(arm){
     pub_gripper(arm,0.09);
-    //node.publish('wt_'+arm+'_gripper_release_commands', 'std_msgs/Bool',
-    //            json({'data':true}));
 };
 
 function pub_torso(tz){
@@ -321,11 +324,12 @@ function start(){
 <td>
 <div id="tabs">
     <ul>
-        <li><a href="#tab_cart_control"> Default Controls</a></li>
-        <li><a href="#tab_ar_servoing"> AR Servoing</a></li>
-        <li><a href="#tab_traj_play"> Traj. Playback </a></li>
-        <li><a href="#tab_ellipse"> Ellipsoidal Control </a></li>
-        <li><a href="#tab_tts"> TTS </a></li>
+        <li><a href="#tab_cart_control">Default Controls</a></li>
+        <li><a href="#tab_ar_servoing">AR Servoing</a></li>
+        <li><a href="#tab_traj_play">Traj. Playback</a></li>
+        <li><a href="#tab_ellipse">Ellipsoidal Control</a></li>
+        <li><a href="#tab_tts">TTS</a></li>
+        <li><a href="#tab_cart">Cartesian Control</a></li>
     </ul>
 
     <div id="tab_cart_control">
@@ -630,9 +634,90 @@ function start(){
         </table>
       </div>  <!--End Speak Button + Text -->
     </div> <!--END Tab TTS -->
+
+    <div id="tab_cart">
+      <table>
+        <tr>
+          <td>
+            <table>
+              <tr>
+                <td>
+                  <input type="checkbox" class="centered cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
+                  <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
+                </td>
+              </tr>
+              <tr>
+              <tr>
+                <td>
+                  <select class="centered cart_control" id='cart_frame_select'>
+                    <option id="frame_opt_torso" value="/torso_lift_link"> Torso </option> 
+                    <option id="frame_opt_hand" value="/r_wrist_roll_link"> Right Hand </option> 
+                    <option id="frame_opt_hand" value="/l_wrist_roll_link"> Left Hand </option> 
+                  </select>
+               </td>
+             </tr>
+            </table>
+          </td>
+          <td>
+            <div class="cart_control" id='bpd_cart_trans'> <!-- Translate Cartesian Buttonpad-->
+              <table>
+                <tr>
+                  <th colspan="4"> Translate </th>
+                </tr>
+                <tr><td rowspan="4">
+                  <div class="slider" id="cart_trans_slider" style="height:235px" ></div>
+                </td></tr>
+                <tr>
+                  <td><button class="bpd arrow_trans_in" id="b7"/></td>
+                  <td><button class="bpd arrow_trans_up" id="b8"/></td>
+                  <td><button class="bpd arrow_trans_out" id="b9"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd arrow_trans_left" id="b4"/></td>
+                  <td></td>
+                  <td><button class="bpd arrow_trans_right" id="b6"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd" id="b1"/></td>
+                  <td><button class="bpd arrow_trans_down" id="b2"/></td>
+                  <td><button class="bpd" id="b3"/></td>
+                </tr>
+              </table>
+            </div> <!--END Translate Cart Buttonpad -->
+          </td>
+          <td> 
+            <div class="cart_control" id='bpd_cart_rot'> <!--Rotate Cart Buttonpad-->
+              <table>
+                <tr>
+                  <th colspan="4"> Rotate </th>
+                </tr>
+                <tr><td rowspan="4">
+                  <div class="slider" id="cart_rot_slider" style="height:235px" ></div>
+                </td></tr>
+                <tr>
+                  <td><button class="bpd arrow_rot_x_pos" id="b7"/></td>
+                  <td><button class="bpd arrow_rot_y_pos" id="b8"/></td>
+                  <td><button class="bpd arrow_rot_x_neg" id="b9"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd arrow_rot_z_pos" id="b4"/></td>
+                  <td><button class="bpd" id="b5"/></td>
+                  <td><button class="bpd arrow_rot_z_neg" id="b6"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd" id="b1"/></td>
+                  <td><button class="bpd arrow_rot_y_neg" id="b2"/>
+                  <td><button class="bpd" id="b3"></td>
+                </tr>
+              </table>
+            </div> <!--END Cart Rotate buttonpad -->
+          </td>
+        </tr>
+      </table>
+    </div><!--END Tab cart -->
   </div> <!-- END Tabs -->
 </td>
-
+    
 <td rowspan='4'> <!-- Gross Formatting-->
 <div id='gripper_controls'>
   <table border='1'>
