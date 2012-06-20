@@ -3,6 +3,7 @@ function cart_init(){
 
 $(function(){
     cart_arm();    
+    $("#cart_frame_select, #cart_controller, #cart_cont_state_check").hide();
     });    
 
 function pub_cart_twist(trans, rot){
@@ -19,49 +20,52 @@ function pub_cart_twist(trans, rot){
 
 
 function cart_arm(){
-    $('#bpd_cart_trans').find(':button').unbind('.rfh');
-    $('#bpd_cart_trans #b9').show().bind('click.rfh', function(e){
+//    $('#tp').unbind().hide();
+    $('#bpd_default_rot, #cart_frame_select, #cart_controller, #cart_cont_state_check').show();
+
+    $('#bpd_default').find(':button').unbind('.rfh');
+    $('#bpd_default #b9').show().bind('click.rfh', function(e){
         pub_cart_twist([scales[window.arm()[0]+'arm'],0,0],[0,0,0]);
     });
-    $('#bpd_cart_trans #b8').show().bind('click.rfh', function(e){
+    $('#bpd_default #b8').show().bind('click.rfh', function(e){
         pub_cart_twist([0,0,scales[window.arm()[0]+'arm']],[0,0,0]);
     });
-    $('#bpd_cart_trans #b7').show().bind('click.rfh', function(e){
+    $('#bpd_default #b7').show().bind('click.rfh', function(e){
         pub_cart_twist([-scales[window.arm()[0]+'arm'],0,0],[0,0,0]);
     });
-    $('#bpd_cart_trans #b6').show().bind('click.rfh', function(e){
+    $('#bpd_default #b6').show().bind('click.rfh', function(e){
         pub_cart_twist([0,-scales[window.arm()[0]+'arm'],0],[0,0,0]);
     });
-    $('#bpd_cart_trans #b5').hide()
-    $('#bpd_cart_trans #b4').show().bind('click.rfh', function(e){
+    $('#bpd_default #b5').hide()
+    $('#bpd_default #b4').show().bind('click.rfh', function(e){
         pub_cart_twist([0,scales[window.arm()[0]+'arm'],0],[0,0,0]);
     });
-    $('#bpd_cart_trans #b3').hide();
-    $('#bpd_cart_trans #b2').show().bind('click.rfh', function(e){
+    $('#bpd_default #b3').hide();
+    $('#bpd_default #b2').show().bind('click.rfh', function(e){
         pub_cart_twist([-scales[window.arm()[0]+'arm'],0,0],[0,0,0]);
     });
-    $('#bpd_cart_trans #b1').hide();
+    $('#bpd_default #b1').hide();
     
-    $('#bpd_cart_rot').find(':button').unbind('.rfh');
-    $('#bpd_cart_rot #b9').show().bind('click.rfh', function(e){
+    $('#bpd_default_rot').find(':button').unbind('.rfh');
+    $('#bpd_default_rot #b9').show().bind('click.rfh', function(e){
         pub_cart_twist([0,0,0],[0,0,-scales[window.arm()[0]+'_cart_rot'],0,0]);
     });
-    $('#bpd_cart_rot #b8').show().bind('click.rfh', function(e){
+    $('#bpd_default_rot #b8').show().bind('click.rfh', function(e){
         pub_cart_twist([0,0,0],[-scales[window.arm()[0]+'_cart_rot'],0,0]);
     });
-    $('#bpd_cart_rot #b7').show().bind('click.rfh', function(e){
+    $('#bpd_default_rot #b7').show().bind('click.rfh', function(e){
         pub_cart_twist([0,0,0],[-scales[window.arm()[0]+'_cart_rot'],0,0]);
     });
-    $('#bpd_cart_rot #b6').show().bind('click.rfh', function(e){
+    $('#bpd_default_rot #b6').show().bind('click.rfh', function(e){
         pub_cart_twist([0,0,0],[-scales[window.arm()[0]+'_cart_rot'],0,0]);
     });
-    $('#bpd_cart_rot #b5').hide()
-    $('#bpd_cart_rot #b4').show().bind('click.rfh', function(e){
+    $('#bpd_default_rot #b5').hide()
+    $('#bpd_default_rot #b4').show().bind('click.rfh', function(e){
         pub_cart_twist([0,0,0],[-scales[window.arm()[0]+'_cart_rot'],0,0]);
     });
-    $('#bpd_cart_rot #b3').hide();
-    $('#bpd_cart_rot #b2').show().bind('click.rfh', function(e){
+    $('#bpd_default_rot #b3').hide();
+    $('#bpd_default_rot #b2').show().bind('click.rfh', function(e){
         pub_cart_twist([0,0,0],[-scales[window.arm()[0]+'_cart_rot'],0,0]);
     });
-    $('#bpd_cart_rot #b1').hide();
+    $('#bpd_default_rot #b1').hide();
 };

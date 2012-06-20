@@ -36,6 +36,7 @@ function teleop_init(){
 };
 $(function(){
 	$('#scale_slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
+	$('#default_rot_slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
 });
 
 function pub_lin_move(){
@@ -73,12 +74,12 @@ function teleop_arm() {
     $('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales[window.arm()[0]+'arm'] = $('#scale_slider').slider("value")});
     $('#scale_slider').show().slider("option", "value", scales[window.arm()[0]+'arm']);
 
-    $("#tp").unbind().show();
-    $("#tp").click(function(e){
-        y = -(e.pageX - Math.round(this.width/2) - this.x)/500;
-        x = -(e.pageY - Math.round(this.height/2) - this.y)/500;
-        control_arm(x,y,0);	
-    });
+   // $("#tp").unbind().show();
+   // $("#tp").click(function(e){
+   //     y = -(e.pageX - Math.round(this.width/2) - this.x)/500;
+   //     x = -(e.pageY - Math.round(this.height/2) - this.y)/500;
+   //     control_arm(x,y,0);	
+   // });
 
     $('#bpd_default').find(':button').unbind('.rfh');
     $('#bpd_default #b9').show().text(b9txt).bind('click.rfh', function(e){
@@ -121,61 +122,60 @@ function pub_arm_joints(angles){
     node.publish('wt_'+window.arm()+'_arm_angle_commands', 'trajectory_msgs/JointTrajectoryPoint', json(angles))
 };
 
-function teleop_wrist() {
-    log('Controlling '+window.arm().toUpperCase()+' Hand');
-    $('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales[window.arm()[0]+'wrist'] = $('#scale_slider').slider("value")});
-    $('#scale_slider').show().slider("option", "value", scales[window.arm()[0]+'wrist']);
-
-    $("#tp").unbind().show();
-    $("#tp").click(function(e){
-        x = (e.pageX - Math.round(this.width/2) - this.x);
-        y = (e.pageY - Math.round(this.height/2) - this.y);
-        var joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[4] += x*0.0107;
-        joint_goals.positions[5] -= y*(Math.PI/200);
-        pub_arm_joints(joint_goals)
-    });
-
-    $('#bpd_default').find(':button').unbind('.rfh');
-    $('#bpd_default #b9').show().text("Hand Roll Right").bind('click.rfh', function(e){
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[6] += scales[window.arm()[0]+'wrist']*(Math.PI/200);
-        pub_arm_joints(joint_goals)
-    });
-    $('#bpd_default #b8').show().text("Wrist Flex Out").bind('click.rfh', function(e){
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[5] += scales[window.arm()[0]+'wrist']*0.0107;
-        pub_arm_joints(joint_goals)
-    });
-    $('#bpd_default #b7').show().text("Hand Roll Left").bind('click.rfh', function(e){
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[6] -= scales[window.arm()[0]+'wrist']*(Math.PI/200);
-        pub_arm_joints(joint_goals)
-    });
-    $('#bpd_default #b6').show().text("Arm Roll Right").bind('click.rfh', function(e){
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[4] += scales[window.arm()[0]+'wrist']*(Math.PI/200);
-        pub_arm_joints(joint_goals)
-    });
-    $('#bpd_default #b5').hide()
-    $('#bpd_default #b4').show().text("Arm Roll Left").bind('click.rfh', function(e){
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[4] -= scales[window.arm()[0]+'wrist']*0.0107;
-        pub_arm_joints(joint_goals)
-    });
-    $('#bpd_default #b3').show().text("Raise Elbow").bind('click.rfh', function(e){
-        pub_elbow(0.01*scales[window.arm()[0]+'wrist'])
-    });
-    $('#bpd_default #b2').show().text("Wrist Flex In").bind('click.rfh', function(e){ 
-        joint_goals = arm_joints[window.arm()];
-        joint_goals.positions[5] -= scales[window.arm()[0]+'wrist']*(Math.PI/200);
-        pub_arm_joints(joint_goals)
-    });
-    $('#bpd_default #b1').show().text("Lower Elbow").bind('click.rfh', function(e){
-        pub_elbow(-0.01*scales[window.arm()[0]+'wrist'])
-    });
-};
-
+//function teleop_wrist() {
+//    log('Controlling '+window.arm().toUpperCase()+' Hand');
+//    $('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales[window.arm()[0]+'wrist'] = $('#scale_slider').slider("value")});
+//    $('#scale_slider').show().slider("option", "value", scales[window.arm()[0]+'wrist']);
+//
+//   // $("#tp").unbind().show();
+//   // $("#tp").click(function(e){
+//   //     x = (e.pageX - Math.round(this.width/2) - this.x);
+//   //     y = (e.pageY - Math.round(this.height/2) - this.y);
+//   //     var joint_goals = arm_joints[window.arm()];
+//   //     joint_goals.positions[4] += x*0.0107;
+//   //     joint_goals.positions[5] -= y*(Math.PI/200);
+//   //     pub_arm_joints(joint_goals)
+//   // });
+//
+//    $('#bpd_default').find(':button').unbind('.rfh');
+//    $('#bpd_default #b9').show().text("Hand Roll Right").bind('click.rfh', function(e){
+//        joint_goals = arm_joints[window.arm()];
+//        joint_goals.positions[6] += scales[window.arm()[0]+'wrist']*(Math.PI/200);
+//        pub_arm_joints(joint_goals)
+//    });
+//    $('#bpd_default #b8').show().text("Wrist Flex Out").bind('click.rfh', function(e){
+//        joint_goals = arm_joints[window.arm()];
+//        joint_goals.positions[5] += scales[window.arm()[0]+'wrist']*0.0107;
+//        pub_arm_joints(joint_goals)
+//    });
+//    $('#bpd_default #b7').show().text("Hand Roll Left").bind('click.rfh', function(e){
+//        joint_goals = arm_joints[window.arm()];
+//        joint_goals.positions[6] -= scales[window.arm()[0]+'wrist']*(Math.PI/200);
+//        pub_arm_joints(joint_goals)
+//    });
+//    $('#bpd_default #b6').show().text("Arm Roll Right").bind('click.rfh', function(e){
+//        joint_goals = arm_joints[window.arm()];
+//        joint_goals.positions[4] += scales[window.arm()[0]+'wrist']*(Math.PI/200);
+//        pub_arm_joints(joint_goals)
+//    });
+//    $('#bpd_default #b5').hide()
+//    $('#bpd_default #b4').show().text("Arm Roll Left").bind('click.rfh', function(e){
+//        joint_goals = arm_joints[window.arm()];
+//        joint_goals.positions[4] -= scales[window.arm()[0]+'wrist']*0.0107;
+//        pub_arm_joints(joint_goals)
+//    });
+//    $('#bpd_default #b3').show().text("Raise Elbow").bind('click.rfh', function(e){
+//        pub_elbow(0.01*scales[window.arm()[0]+'wrist'])
+//    });
+//    $('#bpd_default #b2').show().text("Wrist Flex In").bind('click.rfh', function(e){ 
+//        joint_goals = arm_joints[window.arm()];
+//        joint_goals.positions[5] -= scales[window.arm()[0]+'wrist']*(Math.PI/200);
+//        pub_arm_joints(joint_goals)
+//    });
+//    $('#bpd_default #b1').show().text("Lower Elbow").bind('click.rfh', function(e){
+//        pub_elbow(-0.01*scales[window.arm()[0]+'wrist'])
+//    });
+//};
 
 function pub_head_traj(head_traj_goal, dist){ //Send pan/tilt trajectory commands to head
 		if (head_traj_goal.goal.trajectory.points[0].positions[0] < -2.70) {
@@ -188,8 +188,10 @@ function pub_head_traj(head_traj_goal, dist){ //Send pan/tilt trajectory command
                 head_traj_goal.goal.trajectory.points[0].positions[1] = 1.4};
 		head_traj_goal.goal.trajectory.joint_names = window.head_joints;
 		head_traj_goal.goal.trajectory.points[0].velocities = [0, 0];
-		head_traj_goal.goal.trajectory.points[0].time_from_start.secs = Math.max(4*dist, 1);
-  		node.publish('head_traj_controller/joint_trajectory_action/goal', 'pr2_controllers_msgs/JointTrajectoryActionGoal', json(head_traj_goal));
+		head_traj_goal.goal.trajectory.points[0].time_from_start.secs = Math.max(2*dist, 1);
+  		node.publish('head_traj_controller/joint_trajectory_action/goal', 
+                     'pr2_controllers_msgs/JointTrajectoryActionGoal',
+                     json(head_traj_goal));
 };
 
 function pub_head_goal(x,y,z,frame) { //Send 3d point to look at using kinect
@@ -202,60 +204,61 @@ function pub_head_goal(x,y,z,frame) { //Send 3d point to look at using kinect
 };
 
 function teleop_head() {
+    $('#bpd_default_rot').hide();
 	window.head_pub = window.clearInterval(head_pub);
 	log('Controlling Head');
 	$('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales.head = $('#scale_slider').slider("value")});
 	$('#scale_slider').show().slider("option", "value", scales.head);
 	
-	$("#tp").unbind().show();
-	$("#tp").click(function(e){
-		window.head_pub = window.clearInterval(head_pub);
-		x = (e.pageX - Math.round(this.width/2) - this.x)/200;
-		y = (e.pageY - Math.round(this.height/2) - this.y)/200;
-   		head_traj_goal = JTAGoal;
-		head_traj_goal.goal.trajectory.points[0] = window.head_state;
-		head_traj_goal.goal.trajectory.points[0].positions[0] -= x;
-		head_traj_goal.goal.trajectory.points[0].positions[1] += y;
-                pub_head_traj(head_traj_goal, Math.sqrt(x*x+y*y));
-	});
+//	$("#tp").unbind().show();
+//	$("#tp").click(function(e){
+//		window.head_pub = window.clearInterval(head_pub);
+//		x = (e.pageX - Math.round(this.width/2) - this.x)/200;
+//		y = (e.pageY - Math.round(this.height/2) - this.y)/200;
+//   		head_traj_goal = JTAGoal;
+//		head_traj_goal.goal.trajectory.points[0] = window.head_state;
+//		head_traj_goal.goal.trajectory.points[0].positions[0] -= x;
+//		head_traj_goal.goal.trajectory.points[0].positions[1] += y;
+//                pub_head_traj(head_traj_goal, Math.sqrt(x*x+y*y));
+//	});
 	
-	$('#bpd_default').find(':button').unbind('.rfh');
+	$('#bpd_default').find(':button').unbind('.rfh').text('');
 	$('#b9, #b7', '#bpd_default').hide(); 
 	$('#b8, #b6, #b5, #b4, #b2', '#bpd_default').bind('click.rfh', function(e){
                             window.head_pub = window.clearInterval(head_pub);
                             });
-	$('#bpd_default #b8').show().text("^").bind('click.rfh', function(e){//head up 
+	$('#bpd_default #b8').show().bind('click.rfh', function(e){//head up 
    		head_traj_goal = JTAGoal;
 		head_traj_goal.goal.trajectory.points[0] = window.head_state;
-		head_traj_goal.goal.trajectory.points[0].positions[1] -= scales.head/150;
-                pub_head_traj(head_traj_goal, scales.head/150);
+		head_traj_goal.goal.trajectory.points[0].positions[1] -= scales.head/100;
+                pub_head_traj(head_traj_goal, scales.head/100);
 	});
-	$('#bpd_default #b6').show().text(">").bind('click.rfh', function(e){ //head right
+	$('#bpd_default #b6').show().bind('click.rfh', function(e){ //head right
    		head_traj_goal = JTAGoal;
 		head_traj_goal.goal.trajectory.points[0] = window.head_state;
-		head_traj_goal.goal.trajectory.points[0].positions[0] -= scales.head/150;
-                pub_head_traj(head_traj_goal, scales.head/150);
+		head_traj_goal.goal.trajectory.points[0].positions[0] -= scales.head/100;
+                pub_head_traj(head_traj_goal, scales.head/100);
 	});
 	$('#bpd_default #b5').show().text("_|_").bind('click.rfh', function(e){ //center head to (0,0)
         pub_head_goal(0.8, 0.0, -0.25, '/base_footprint');
 	});
-	$('#bpd_default #b4').show().text("<").bind('click.rfh', function(e){ //head left
+	$('#bpd_default #b4').show().bind('click.rfh', function(e){ //head left
    		head_traj_goal = JTAGoal;
 		head_traj_goal.goal.trajectory.points[0] = window.head_state;
-		head_traj_goal.goal.trajectory.points[0].positions[0] += scales.head/150;
-                pub_head_traj(head_traj_goal, scales.head/150);
+		head_traj_goal.goal.trajectory.points[0].positions[0] += scales.head/100;
+                pub_head_traj(head_traj_goal, scales.head/100);
 	});
-	$('#bpd_default #b3').show().text("Track Right Hand").bind('click.rfh', function(e){
+	$('#bpd_default #b3').show().removeClass('arrow_rot_x_pos').text("Track Right Hand").bind('click.rfh', function(e){
 		window.head_pub = window.clearInterval(head_pub);
 		window.head_pub = window.setInterval("pub_head_goal(0,0,0,'r_gripper_tool_frame');",200);
 	});	
-  	$('#bpd_default #b2').show().text("v").bind('click.rfh', function(e){ //head down
+  	$('#bpd_default #b2').show().bind('click.rfh', function(e){ //head down
    		head_traj_goal = JTAGoal;
 		head_traj_goal.goal.trajectory.points[0] = window.head_state;
-		head_traj_goal.goal.trajectory.points[0].positions[1] += scales.head/150;
-                pub_head_traj(head_traj_goal, scales.head/150);
+		head_traj_goal.goal.trajectory.points[0].positions[1] += scales.head/100;
+                pub_head_traj(head_traj_goal, scales.head/100);
 	});
-	$('#bpd_default #b1').show().text("Track Left Hand").bind('click.rfh', function(e){
+	$('#bpd_default #b1').show().removeClass('arrow_rot_x_neg').text("Track Left Hand").bind('click.rfh', function(e){
 		window.head_pub = window.clearInterval(head_pub);
 		window.head_pub = window.setInterval("pub_head_goal(0,0,0,'l_gripper_tool_frame');",200);
 	});
@@ -279,28 +282,29 @@ function base_pub_conf(selector,bx,by,bz){
 
 function teleop_base() {
 	log("Controlling Base");
+    $('#bpd_default_rot').hide();
 	$('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales.base = $('#scale_slider').slider("value")});
 	$('#scale_slider').show().slider("option", "value", scales.base);
-	$("#tp").unbind().hide();
-	$('#bpd_default').find(':button').unbind('.rfh');
+	//$("#tp").unbind().hide();
+	$('#bpd_default').find(':button').unbind('.rfh').text('');
 	$('#b9, #b7, #b5','#bpd_default').hide()
   	
-    $('#bpd_default #b8').show().text("^").bind('mousedown.rfh', function(e){
+    $('#bpd_default #b8').show().bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, 1,0,0);
     });
-	$('#bpd_default #b6').show().text(">").bind('mousedown.rfh', function(e){
+	$('#bpd_default #b6').show().bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, 0,-1,0);
     });
-	$('#bpd_default #b4').show().text("<").bind('mousedown.rfh', function(e){
+	$('#bpd_default #b4').show().bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, 0,1,0);
     });
-  	$('#bpd_default #b3').show().text("Turn Right").bind('mousedown.rfh', function(e){
+  	$('#bpd_default #b3').show().addClass('arrow_rot_x_pos').bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, 0,0,-1);
     });
-	$('#bpd_default #b2').show().text("v").bind('mousedown.rfh', function(e){
+	$('#bpd_default #b2').show().bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, -1,0,0);
     });
-   	$('#bpd_default #b1').show().text("Turn Left").bind('mousedown.rfh', function(e){
+   	$('#bpd_default #b1').show().addClass('arrow_rot_x_neg').bind('mousedown.rfh', function(e){
                                  base_pub_conf("#bpd_default #"+e.target.id, 0,0,1);
     });
 };

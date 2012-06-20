@@ -30,6 +30,7 @@ $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
     $("#tabs").tabs().tabs({select: tab_select_cb});
     $("#traj_play_radio").buttonset();
+    $(".cont_sel").buttonset();
     $(".bpd, .cont_sel, .ar_servo_button, .traj_play_cont, #adj_mirror, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
     $(':button').click(log_click);
 	$('#slider').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
@@ -304,7 +305,7 @@ function start(){
   <tr>
     <td> Camera: </td><td id="camera_select"></td>
      <td>On Image Click:</td><td id="image_click_select"></td>
-     <!--<td>Hand:</td>
+     <td>Hand:</td>
      <td>
         <div id='arm_sel'>
           <input type='radio' id='l_arm' name='arm_sel' value='left' checked='checked'/>
@@ -312,7 +313,7 @@ function start(){
           <input type='radio' id='r_arm' name='arm_sel' value='right'/>
           <label for='r_arm'>Right</label>
         </div>
-      </td>-->
+      </td>
   </tr>
 </table>
 <hr>
@@ -329,7 +330,6 @@ function start(){
         <li><a href="#tab_traj_play">Traj. Playback</a></li>
         <li><a href="#tab_ellipse">Ellipsoidal Control</a></li>
         <li><a href="#tab_tts">TTS</a></li>
-        <li><a href="#tab_cart">Cartesian Control</a></li>
     </ul>
 
     <div id="tab_cart_control">
@@ -338,50 +338,90 @@ function start(){
        <td>
         <div>
           <table>
-            <tr><td colspan="2"><button class="cont_sel" id="cont_head" type="button" value="cont_head" onclick="teleop_head()">Control Head</button></td></tr>
             <tr>
-               <td><button class="cont_sel" id="cont_l_arm" type="button" value="cont_l_arm" onclick="$('#l_arm').click(); teleop_arm();">Control Left Arm </button></td>
-               <td><button class="cont_sel" id="cont_r_arm" type="button" value="cont_r_arm" onclick="$('#r_arm').click(); teleop_arm();">Control Right Arm </button></td>
+              <td colspan="2">
+                <button class="cont_sel" id="cont_head" type="radio" checked="checked" value="cont_head" onclick="teleop_head()">Control Head</button>
+              </td>
             </tr>
             <tr>
-               <td><button class="cont_sel" id="cont_l_hand" type="button" value="cont_l_hand" onclick="$('#l_arm').click(); teleop_wrist()">Control Left Hand</button></td>
-               <td><button class="cont_sel" id="cont_r_hand" type="button" value="cont_r_hand" onclick="$('#r_arm').click(); teleop_wrist()">Control Right Hand </button></td>
+              <td><button class="cont_sel" id="cont_l_hand" type="radio" value="cont_l_hand" onclick="$('#l_arm').click(); cart_arm()">Control Left Hand</button></td>
+              <td><button class="cont_sel" id="cont_r_hand" type="radio" value="cont_r_hand" onclick="$('#r_arm').click(); cart_arm()">Control Right Hand </button></td>
             </tr>
-            <tr><td colspan="2"><button class="cont_sel" id="cont_base" type="button" value="cont_base" onclick="teleop_base()">Control Base</button></td></tr>
             <tr>
+              <td colspan="2"><button class="cont_sel" id="cont_base" type="radio" value="cont_base" onclick="teleop_base()">Control Base</button></td>
             </tr>
-         </table>
+             <tr>
+               <td>
+                 <input type="checkbox" class="centered cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
+                 <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
+               </td>
+             </tr>
+             <tr>
+             <tr>
+               <td>
+                 <select class="centered cart_control" id='cart_frame_select'>
+                   <option id="frame_opt_torso" value="/torso_lift_link"> Torso </option> 
+                   <option id="frame_opt_hand" value="/r_wrist_roll_link"> Right Hand </option> 
+                   <option id="frame_opt_hand" value="/l_wrist_roll_link"> Left Hand </option> 
+                 </select>
+               </td>
+             </tr>
+          </table>
         </div>
        </td>
 
-       <td> 
-        <div id="bpd_default"> <!--Buttonpad Controls-->
-          <table>
-            <tr><td rowspan="4">
-              <div style="height:240px;" id="scale_slider"></div>
-            </td></tr>
-            <tr>
-              <td><button class="bpd" id="b7" type="button" value=1> Down </button></td>
-              <td><button class="bpd" id="b8" type="button" value=1> ^ </button></td>
-              <td><button class="bpd" id="b9" type="button" value=1> Up </button></td>
-            </tr>
-            <tr>
-              <td><button class="bpd" id="b4" type="button" value="1"><</button></td>
-              <td><button class="bpd" id="b5" type="button" value=1> 0 </button></td>
-              <td><button class="bpd" id="b6" type="button" value="-1">></button></td>
-            </tr>
-            <tr>
-              <td><button class="bpd" id="b1" type="button" value="-1">Turn Left</button></td>
-              <td><button class="bpd" id="b2" type="button" value="-1">v</button></td>
-              <td><button class="bpd" id="b3" type="button" value="-1">Turn Right</button></td>
-            </tr>
-          </table>
-        </div> <!--END buttonpad controls -->
-       </td>
+          <td>
+            <div class="default_control" id='bpd_default'> <!-- Translate Cartesian Buttonpad-->
+              <table>
+                <tr>
+                  <td rowspan="3">
+                    <div class="slider" id="scale_slider" style="height:235px" ></div>
+                  </td>
+                  <td><button class="bpd arrow_trans_in" id="b7"/></td>
+                  <td><button class="bpd arrow_trans_up" id="b8"/></td>
+                  <td><button class="bpd arrow_trans_out" id="b9"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd arrow_trans_left" id="b4"/></td>
+                  <td><button class="bpd" id="b5"/></td>
+                  <td><button class="bpd arrow_trans_right" id="b6"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd" id="b1"/></td>
+                  <td><button class="bpd arrow_trans_down" id="b2"/></td>
+                  <td><button class="bpd" id="b3"/></td>
+                </tr>
+              </table>
+            </div> <!--END Translate Cart Buttonpad -->
+          </td>
+          <td> 
+            <div class="default_control" id='bpd_default_rot'> <!--Rotate Cart Buttonpad-->
+              <table>
+                <tr>
+                  <td rowspan="3">
+                    <div class="slider" id="default_rot_slider" style="height:235px" ></div>
+                  </td>
+                  <td><button class="bpd arrow_rot_x_neg" id="b7"/></td>
+                  <td><button class="bpd arrow_rot_y_pos" id="b8"/></td>
+                  <td><button class="bpd arrow_rot_x_pos" id="b9"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd arrow_rot_z_neg" id="b4"/></td>
+                  <td><button class="bpd" id="b5"/></td>
+                  <td><button class="bpd arrow_rot_z_pos" id="b6"/></td>
+                </tr>
+                <tr>
+                  <td><button class="bpd" id="b1"/></td>
+                  <td><button class="bpd arrow_rot_y_neg" id="b2"/>
+                  <td><button class="bpd" id="b3"></td>
+                </tr>
+              </table>
+            </div> <!--END Cart Rotate buttonpad -->
+          </td>
 
-       <td>
+       <!--<td>
          <img id="tp" src=touchpad.jpg title="Click here for 2D Control of the selected robot part" style="border-style:solid; border-width:3px height:235px; width:235px;">
-       </td>
+       </td>-->
        </tr>
      </table>
     </div><!-- END TAB CART CONTROL -->
@@ -634,87 +674,6 @@ function start(){
         </table>
       </div>  <!--End Speak Button + Text -->
     </div> <!--END Tab TTS -->
-
-    <div id="tab_cart">
-      <table>
-        <tr>
-          <td>
-            <table>
-              <tr>
-                <td>
-                  <input type="checkbox" class="centered cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
-                  <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
-                </td>
-              </tr>
-              <tr>
-              <tr>
-                <td>
-                  <select class="centered cart_control" id='cart_frame_select'>
-                    <option id="frame_opt_torso" value="/torso_lift_link"> Torso </option> 
-                    <option id="frame_opt_hand" value="/r_wrist_roll_link"> Right Hand </option> 
-                    <option id="frame_opt_hand" value="/l_wrist_roll_link"> Left Hand </option> 
-                  </select>
-               </td>
-             </tr>
-            </table>
-          </td>
-          <td>
-            <div class="cart_control" id='bpd_cart_trans'> <!-- Translate Cartesian Buttonpad-->
-              <table>
-                <tr>
-                  <th colspan="4"> Translate </th>
-                </tr>
-                <tr><td rowspan="4">
-                  <div class="slider" id="cart_trans_slider" style="height:235px" ></div>
-                </td></tr>
-                <tr>
-                  <td><button class="bpd arrow_trans_in" id="b7"/></td>
-                  <td><button class="bpd arrow_trans_up" id="b8"/></td>
-                  <td><button class="bpd arrow_trans_out" id="b9"/></td>
-                </tr>
-                <tr>
-                  <td><button class="bpd arrow_trans_left" id="b4"/></td>
-                  <td></td>
-                  <td><button class="bpd arrow_trans_right" id="b6"/></td>
-                </tr>
-                <tr>
-                  <td><button class="bpd" id="b1"/></td>
-                  <td><button class="bpd arrow_trans_down" id="b2"/></td>
-                  <td><button class="bpd" id="b3"/></td>
-                </tr>
-              </table>
-            </div> <!--END Translate Cart Buttonpad -->
-          </td>
-          <td> 
-            <div class="cart_control" id='bpd_cart_rot'> <!--Rotate Cart Buttonpad-->
-              <table>
-                <tr>
-                  <th colspan="4"> Rotate </th>
-                </tr>
-                <tr><td rowspan="4">
-                  <div class="slider" id="cart_rot_slider" style="height:235px" ></div>
-                </td></tr>
-                <tr>
-                  <td><button class="bpd arrow_rot_x_pos" id="b7"/></td>
-                  <td><button class="bpd arrow_rot_y_pos" id="b8"/></td>
-                  <td><button class="bpd arrow_rot_x_neg" id="b9"/></td>
-                </tr>
-                <tr>
-                  <td><button class="bpd arrow_rot_z_pos" id="b4"/></td>
-                  <td><button class="bpd" id="b5"/></td>
-                  <td><button class="bpd arrow_rot_z_neg" id="b6"/></td>
-                </tr>
-                <tr>
-                  <td><button class="bpd" id="b1"/></td>
-                  <td><button class="bpd arrow_rot_y_neg" id="b2"/>
-                  <td><button class="bpd" id="b3"></td>
-                </tr>
-              </table>
-            </div> <!--END Cart Rotate buttonpad -->
-          </td>
-        </tr>
-      </table>
-    </div><!--END Tab cart -->
   </div> <!-- END Tabs -->
 </td>
     
