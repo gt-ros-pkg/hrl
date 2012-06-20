@@ -73,7 +73,7 @@ void writeTag(const ar_pose::ARMarker::Ptr& ar_tag, const sensor_msgs::ImageCons
     tag_pts[2] = cv_pts[3]; tag_pts[3] = cv_pts[2]; 
     cv_poly_list[0] = tag_pts;
     int npts[1] = {4};
-    cv::polylines(cv_img->image, cv_poly_list, npts, 1, 1, color, 2);
+    cv::polylines(cv_img->image, cv_poly_list, npts, 1, 1, color, 4);
 }
 
 void doOverlay(const sensor_msgs::ImageConstPtr& img_msg,
