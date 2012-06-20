@@ -22,7 +22,8 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){$('#console').html("<big><strong>"+message.toString()+"</strong></big>"); console.log(message.toString())};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-var ROBOT = 'monty1.hsi.gatech.edu';
+//var ROBOT = 'monty1.hsi.gatech.edu';
+var ROBOT = 'pr2c1.cc.gatech.edu';
 //var ROBOT = 'localhost';
 var get_param_free = true;
 
@@ -30,9 +31,9 @@ $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
     $("#tabs").tabs().tabs({select: tab_select_cb});
     $("#traj_play_radio").buttonset();
-    $(".cont_sel").buttonset();
-    $(".bpd, .cont_sel, .ar_servo_button, .traj_play_cont, #adj_mirror, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
-    $(':button').click(log_click);
+    $("#cont_sel").buttonset();
+    $(".bpd, #cart_controller, .ar_servo_button, .traj_play_cont, #adj_mirror, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
+    $('*').click(log_click);
 	$('#slider').slider({value:0,range:'min',min:0,max:12,step:0.05,orientation:'vertical'}); 
 	$('#rg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
 	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
@@ -50,10 +51,10 @@ $(function(){
                                                             });	
 	$('#submit_text').click(function(e){speak($('#txt2say').val())});
 	$('#slelect_plane').change(function(event,ui){window.plane = $('#select_plane').val()});
-	$('.cont_sel').click(function(e){
-                            $('.cont_sel').css('background-color','buttonface');
-                            $(this).css('background-color', 'gray')
-                            }); 
+	//$('.cont_sel').click(function(e){
+    //                        $('.cont_sel').css('background-color','buttonface');
+    //                        $(this).css('background-color', 'gray')
+    //                        }); 
     $("#reset").hide();
 });
 
@@ -67,9 +68,10 @@ function init(){
     teleop_init();
     shaving_init();
     camera_init();
-    cart_init();
     init_params();
+    cart_init();
     set_camera("kinect_head/rgb/image_color");
+    teleop_head();
 	console.log('Finished Initialization');
 };
 
@@ -178,18 +180,18 @@ function init_params(){
     };
     };
 
-function list_opts(cont_sel, dict){
+function list_opts(sel, dict){
     for (var key in dict){
-        $(cont_sel).append('<option value="'+dict[key]+'">'+key+'</option>');
-        console.log("adding option "+ dict[key]+" to selector "+ cont_sel)
+        $(sel).append('<option value="'+dict[key]+'">'+key+'</option>');
+        console.log("adding option "+ dict[key]+" to selector "+ sel)
         };
 };
 
-function list_key_opts(cont_sel, msg){
+function list_key_opts(select, msg){
         console.log("Receiving global move keys")
-        $(cont_sel).empty();
+        $(select).empty();
         for (i=0; i<msg.data.length; i++){
-            $(cont_sel).append('<option>'+msg.data[i]+'</option>')};
+            $(select).append('<option>'+msg.data[i]+'</option>')};
     };
 
 function empty_srv(service){
@@ -340,24 +342,37 @@ function start(){
           <table>
             <tr>
               <td colspan="2">
-                <button class="cont_sel" id="cont_head" type="radio" checked="checked" value="cont_head" onclick="teleop_head()">Control Head</button>
+             <form id="cont_sel">
+                <input id="cont_head" type="radio" name="cont_sel" onclick="teleop_head()"/>
+                <label for="cont_head">Control Head</label>
               </td>
             </tr>
             <tr>
-              <td><button class="cont_sel" id="cont_l_hand" type="radio" value="cont_l_hand" onclick="$('#l_arm').click(); cart_arm()">Control Left Hand</button></td>
-              <td><button class="cont_sel" id="cont_r_hand" type="radio" value="cont_r_hand" onclick="$('#r_arm').click(); cart_arm()">Control Right Hand </button></td>
+              <td>
+                <input id="cont_l_arm" type="radio" name="cont_sel" onclick="$('#l_arm').click(); cart_arm()"/>
+                <label for="cont_l_arm">Control Left Hand</label>
+              </td>
+              <td>
+                <input id="cont_r_arm" type="radio" name="cont_sel" onclick="$('#r_arm').click(); cart_arm()"/>
+                <label for="cont_r_arm">Control Right Hand</label>
+              </td>
             </tr>
             <tr>
-              <td colspan="2"><button class="cont_sel" id="cont_base" type="radio" value="cont_base" onclick="teleop_base()">Control Base</button></td>
+              <td colspan="2">
+                <input id="cont_base" type="radio" name="cont_sel" onclick="teleop_base()">
+                <label for="cont_base">Control Base</label>
+             </form>
+              </td>
+            </tr>
+            <tr>
+              <td colspan=2>
+                <input type="checkbox" class="cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
+                <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
+              </td>
             </tr>
              <tr>
-               <td>
-                 <input type="checkbox" class="centered cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
-                 <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
-               </td>
-             </tr>
              <tr>
-             <tr>
+               <td id='cart_frame_select_label'>Movement Frame:</td>
                <td>
                  <select class="centered cart_control" id='cart_frame_select'>
                    <option id="frame_opt_torso" value="/torso_lift_link"> Torso </option> 
@@ -488,11 +503,11 @@ function start(){
           <td colspan=2>
             <div>
               <form id="traj_play_radio">
-                <input type="radio" id="traj_play_setup" name="traj_play_radio" value=1/>
+                <input type="radio" id="traj_play_setup" name="traj_radio"/>
                 <label for="traj_play_setup"> Move to Setup </label>
-                <input type="radio" id="traj_play_exec" name="traj_play_radio" value=2/>
+                <input type="radio" id="traj_play_exec" name="traj_radio">
                 <label for="traj_play_exec"> Execute Traj. </label>
-                <input type="radio" id="traj_play_set_and_exec" name="traj_play_radio" value=3 checked="checked" />
+                <input type="radio" id="traj_play_set_and_exec" name="traj_radio" checked="checked" />
                 <label for="traj_play_set_and_exec"> Setup AND Execute </label>
               </form>
             </div>
