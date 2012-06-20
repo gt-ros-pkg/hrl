@@ -1,10 +1,9 @@
 function cart_init(){
-    advertise('cart/commands','geometry_msgs/TwistStamped');
-
+    advertise('r_cart/web_commands','geometry_msgs/TwistStamped');
+    advertise('l_cart/web_commands','geometry_msgs/TwistStamped');
     };
 
 $(function(){
-   // cart_arm();    
 	$('#default_rot_slider').slider({value:0.25*Math.PI,min:0,max:0.5*Math.PI,step:0.02*Math.PI,orientation:'vertical'}); 
     $("#cart_frame_select, #cart_controller, #cart_cont_state_check").hide();
 	$('#default_rot_slider').bind("slidestop", function(event,ui){
