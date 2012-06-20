@@ -40,11 +40,11 @@ function servo_feedback_cb(msg){
             text = "AR Tag Found. CONFIRM LOCATION AND BEGIN APPROACH.";
             $('#servo_approach, #servo_stop').show().fadeTo(0,1);
             $('#servo_detect_tag').fadeTo(0,0.5);
-            set_camera('ar_servo/confirmation');
+            set_camera('ar_servo/confirmation_rotated');
             break
         case 3:
             text = "Unable to Locate AR Tag. ADJUST VIEW AND RETRY.";
-            set_camera('ar_servo/confirmation');
+            set_camera('ar_servo/confirmation_rotated');
             break
         case 4:
             text = "Servoing";
@@ -71,13 +71,13 @@ function servo_feedback_cb(msg){
             text = "View of AR Tag Was Lost.  ADJUST (IF NECESSARY) AND RE-DETECT.";
             $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
-            set_camera('ar_servo/confirmation');
+            set_camera('ar_servo/confirmation_rotated');
             break
         case 9:
             text = "Servoing Stopped by User. RE-DETECT TAG";
             $('#servo_approach, #servo_stop').fadeTo(0,0.5);
             $('#servo_detect_tag').fadeTo(0,1);
-            set_camera('ar_servo/confirmation');
+            set_camera('ar_servo/confirmation_rotated');
             break
     };
     log(text);

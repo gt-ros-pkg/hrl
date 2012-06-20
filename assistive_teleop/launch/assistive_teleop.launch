@@ -89,6 +89,19 @@
 
     <!-- Launch Image Rotation Nodes for forearm cameras-->
     <node
+        name="image_rotater_ar_confirm"
+        pkg="image_rotate"
+        type="image_rotate"
+        args="_use_camera_info:=false"
+        machine = "c2"> 
+        <remap 
+            from="image"
+            to="/ar_servo/confirmation"/>
+        <remap 
+            from="rotated/image"
+            to="/ar_servo/confirmation_rotated"/>
+    </node>
+    <node
         name="image_rotater_right"
         pkg="image_rotate"
         type="image_rotate"
