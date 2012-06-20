@@ -3,8 +3,10 @@ import copy
 
 import roslib; roslib.load_manifest('hrl_generic_arms')
 import rospy
+from std_msgs.msg import Header
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion, PointStamped
 from geometry_msgs.msg import Transform, TransformStamped, Vector3
+from geometry_msgs.msg import Twist, TwistStamped
 import tf.transformations as tf_trans
 
 class PoseConverter:
@@ -41,6 +43,16 @@ class PoseConverter:
                 frame_id = args[0].header.frame_id
                 return [seq, stamp, frame_id], homo_mat, rot_quat, rot_euler
                 
+            elif type(args[0]) is Twist:
+                homo_mat, rot_quat, rot_euler = PoseConverter._extract_twist_msg(args[0])
+                return None, homo_mat, rot_quat, rot_euler
+
+            elif type(args[0]) is TwistStamped:
+                homo_mat, rot_quat, rot_euler = PoseConverter._extract_twist_msg(args[0].twist)
+                seq = args[0].header.seq
+                stamp = args[0].header.stamp
+                frame_id = args[0].header.frame_id
+                return [seq, stamp, frame_id], homo_mat, rot_quat, rot_euler
 
             elif isinstance(args[0], (np.matrix, np.ndarray)) and np.shape(args[0]) == (4, 4):
                 return (None, np.mat(args[0]), tf_trans.quaternion_from_matrix(args[0]).tolist(),
@@ -113,6 +125,15 @@ class PoseConverter:
         rot_euler = tf_trans.euler_from_quaternion(quat)
         homo_mat = np.mat(tf_trans.quaternion_matrix(quat))
         homo_mat[:3,3] = np.mat([[px, py, pz]]).T
+        return homo_mat, quat, rot_euler
+
+    @staticmethod
+    def _extract_twist_msg(twist_msg):
+        pos = [twist_msg.linear.x, twist_msg.linear.y, twist_msg.linear.z]
+        rot_euler = [twist_msg.angular.x, twist_msg.angular.y, twist_msg.angular.z]
+        quat = tf_trans.quaternion_from_euler(*rot_euler, axes='sxyz')
+        homo_mat = np.mat(tf_trans.euler_matrix(*rot_euler))
+        homo_mat[:3,3] = np.mat([pos]).T
         return homo_mat, quat, rot_euler
 
     ##
@@ -200,6 +221,35 @@ class PoseConverter:
             tf_stamped.header.frame_id = header[2]
         tf_stamped.transform = Transform(Vector3(*homo_mat[:3,3].T.A[0]), Quaternion(*quat_rot))
         return tf_stamped
+
+    ##
+    # @return geometry_msgs.Twist
+    @staticmethod
+    def to_twist_msg(*args):
+        _, homo_mat, _, euler_rot = PoseConverter._make_generic(args)
+        if homo_mat is None:
+            rospy.logwarn("[pose_converter] Unknown pose type.")
+            return None, None, None, None
+        else:
+            return Twist(Vector3(*homo_mat[:3,3].T.A[0]), Vector3(*euler_rot))
+
+    ##
+    # @return geometry_msgs.TwistStamped
+    @staticmethod
+    def to_twist_stamped_msg(*args):
+        header, homo_mat, _, euler_rot = PoseConverter._make_generic(args)
+        if homo_mat is None:
+            rospy.logwarn("[pose_converter] Unknown pose type.")
+            return None, None, None, None
+        twist_stamped = TwistStamped()
+        header_msg = Header()
+        if header is None:
+            header_msg.stamp = rospy.Time.now()
+        else:
+            header_msg.seq = header[0]
+            header_msg.stamp = header[1]
+            header_msg.frame_id = header[2]
+        return TwistStamped(header_msg, Twist(Vector3(*homo_mat[:3,3].T.A[0]), Vector3(*euler_rot)))
 
     ##
     # @return 4x4 numpy mat
