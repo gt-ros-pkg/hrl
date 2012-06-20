@@ -43,6 +43,9 @@ void doOverlay(const sensor_msgs::ImageConstPtr& img_msg,
     cam_model.fromCameraInfo(info_msg);
     cv_bridge::CvImagePtr cv_img = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::RGB8);
 
+    double alpha_mult;
+    ros::param::param<double>("~alpha_mult", alpha_mult, 0.5);
+
     uint8_t r, g, b;
     if(aligned_pc) {
         if(!tf_list->waitForTransform(img_msg->header.frame_id, "/base_link",
@@ -60,9 +63,15 @@ void doOverlay(const sensor_msgs::ImageConstPtr& img_msg,
             extractRGB(tf_pc->points[i].rgb, r, g, b);
             if(pt2d.x >= 0 && pt2d.y >= 0 && 
                pt2d.x < cv_img->image.rows && pt2d.y < cv_img->image.cols) {
-                cv_img->image.at<cv::Vec3b>(pt2d.y, pt2d.x)[0] = r;
-                cv_img->image.at<cv::Vec3b>(pt2d.y, pt2d.x)[1] = g;
-                cv_img->image.at<cv::Vec3b>(pt2d.y, pt2d.x)[2] = b;
+                double old_r = cv_img->image.at<cv::Vec3b>(pt2d.y, pt2d.x)[0];
+                double old_g = cv_img->image.at<cv::Vec3b>(pt2d.y, pt2d.x)[1];
+                double old_b = cv_img->image.at<cv::Vec3b>(pt2d.y, pt2d.x)[2];
+                cv_img->image.at<cv::Vec3b>(pt2d.y, pt2d.x)[0] = 
+                    (uint8_t) min(alpha_mult*old_r+r, 255.0);
+                cv_img->image.at<cv::Vec3b>(pt2d.y, pt2d.x)[1] = 
+                    (uint8_t) min(alpha_mult*old_g+g, 255.0);
+                cv_img->image.at<cv::Vec3b>(pt2d.y, pt2d.x)[2] = 
+                    (uint8_t) min(alpha_mult*old_b+b, 255.0);
             }
         }
     }
