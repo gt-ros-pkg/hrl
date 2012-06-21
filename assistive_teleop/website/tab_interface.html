@@ -162,8 +162,8 @@ function skin_toggle_cb(){
                                     pub_gripper('l',$('#lg_slider').slider("value"));
                                     log("Opening/Closing Left Gripper");
                                     });	
-    $('#rg_grab').unbind().bind('click',function(e){pub_gripper('r',0.0)});                                
-    $('#lg_grab').unbind().bind('click',function(e){pub_gripper('l',0.0)});                                
+    $('#rg_grab').unbind().bind('click',function(e){pub_gripper('r',-0.005)});                                
+    $('#lg_grab').unbind().bind('click',function(e){pub_gripper('l',-0.005)});                                
     $('#rg_release').unbind().bind('click',function(e){pub_gripper('r',0.09)});                                
     $('#lg_release').unbind().bind('click',function(e){pub_gripper('l',0.09)});
     $('#b5','#bpd_default').text('').hide().unbind('click.rfh');
