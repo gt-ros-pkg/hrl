@@ -99,7 +99,7 @@ class CartesianStepController(CartTrajController):
             return False
         return self.execute_cart_traj(self.arm, traj, self.time_step, blocking=blocking)
 
-    def execute_cart_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], velocity=0.001,
+    def execute_cart_move(self, change_ep, abs_sel, velocity=0.001,
                           num_samps=None, blocking=True):
         if not self.cmd_lock.acquire(False):
             return False
@@ -115,12 +115,12 @@ class CartesianStepController(CartTrajController):
             _, cur_rot = self.arm.get_ep()
             rot_mat = np.mat(tf_trans.euler_matrix(*rpy))[:3,:3]
             rot_mat_f = cur_rot * rot_mat
-        traj = self._create_cart_trajectory(pos_f, rot_mat_f, orient_quat, velocity, num_samps)
+        traj = self._create_cart_trajectory(pos_f, rot_mat_f, velocity, num_samps)
         retval = self._run_traj(traj, blocking=blocking)
         self.cmd_lock.release()
         return retval
 
-    def _create_cart_trajectory(self, pos_f, rot_mat_f, orient_quat=[0., 0., 0., 1.], velocity=0.001,
+    def _create_cart_trajectory(self, pos_f, rot_mat_f, velocity=0.001,
                                 velocity=0.001, num_samps=None):
         cur_pos, cur_rot = self.arm.get_ep()
 
