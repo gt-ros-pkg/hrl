@@ -64,6 +64,11 @@ function basic_init(){
 	advertise('torso_controller/position_joint_action/goal',
                 'pr2_controllers_msgs/SingleJointPositionActionGoal');
     advertise('wt_click_log', 'std_msgs/String');
+    //SKIN SPECIFIC CHANGES
+    advertise('skin_ort_toggle', 'std_msgs/Bool');
+	advertise('skin/r_gripper_command','pr2_controllers_msgs/Pr2GripperCommand')
+	advertise('skin/l_gripper_command','pr2_controllers_msgs/Pr2GripperCommand')
+	advertise('epc/stop','std_msgs/Bool')
 };
 
 function advertise(topic, type){
@@ -124,9 +129,49 @@ function speak(text){
 		log('\"' + text +'\"'); 
 };
 
-function adj_mirror_cb(){
-   log("calling mirror_adjust_service");
-   node.rosjs.callService('/point_mirror',json('[]'),function(rsp){}); 
+//SKIN SPECIFIC ADDITIONS
+function pub_gripper_skin(arm,grpos) {
+	node.publish('skin/'+arm+'_gripper_command',
+                 'pr2_controllers_msgs/Pr2GripperCommand',
+                 json({'position': grpos ,'max_effort':-1}));
+};
+
+function skin_toggle_cb(){
+    if ($('#skin_toggle').is(':checked')){
+        log("Altering Controls for Skin Use");
+	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                    pub_gripper_skin('r',$('#rg_slider').slider("value"));
+                                    log('Opening/Closing Right Gripper');});	
+	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                    pub_gripper_skin('l',$('#lg_slider').slider("value"));
+                                    log('Opening/Closing Left Gripper');});	
+    $('#rg_grab').unbind().bind('click',function(e){pub_gripper_skin('r',0.0)});                                
+    $('#lg_grab').unbind().bind('click',function(e){pub_gripper_skin('l',0.0)});                                
+    $('#rg_release').unbind().bind('click',function(e){pub_gripper_skin('r',0.09)});                                
+    $('#lg_release').unbind().bind('click',function(e){pub_gripper_skin('l',0.09)});                                
+    $('#b5','#bpd_default').text('STOP').show().bind('click.rfh',function(e){
+        node.publish('epc/stop','std_msgs/Bool', json({'data':true}))
+        });
+    } else {
+        log("Altering Controls for Normal Use");
+	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                    pub_gripper('r',$('#rg_slider').slider("value"));
+                                    log('Opening/Closing Right Gripper');
+                                    });	
+	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                    pub_gripper('l',$('#lg_slider').slider("value"));
+                                    log("Opening/Closing Left Gripper");
+                                    });	
+    $('#rg_grab').unbind().bind('click',function(e){pub_gripper('r',0.0)});                                
+    $('#lg_grab').unbind().bind('click',function(e){pub_gripper('l',0.0)});                                
+    $('#rg_release').unbind().bind('click',function(e){pub_gripper('r',0.09)});                                
+    $('#lg_release').unbind().bind('click',function(e){pub_gripper('l',0.09)});
+    $('#b5','#bpd_default').text('').hide().unbind('click.rfh');
+    };
+};
+
+function skin_ort_cb(){
+    node.publish("skin_ort_toggle", "std_msgs/Bool", json({'data':$("#skin_ort_toggle").is(':checked')}));
     };
 
 function start(){
@@ -336,71 +381,57 @@ function start(){
     </div><!-- END Tab Ar Servo -->
     
     <div id="tab_traj_play">
-      <table>
+      <table id="traj_play_layout">
         <tr>
           <td>
-            <div>
-              <table>
-                <tr>
-                  <td>Select Trajectory:</td>
-                  <td>
-                    <select id="traj_play_select">
-                    </select>
-                  </td>
-                </tr>
-              </table>
-            <div>
-          </td>
-          <td>
-            <input type="checkbox" id="traj_play_reverse" />
-            <label for="traj_play_reverse"> Play Backward (Reverse) </label>
-          </td>
-        </tr>
-        <tr>
-          <td colspan=2>
-            <hr>
-          </td> 
-        </tr>
-        <tr>
-          <td colspan=2>
-            <div>
-              <form id="traj_play_radio">
-                <input type="radio" id="traj_play_setup" name="traj_radio"/>
-                <label for="traj_play_setup"> Move to Setup </label>
-                <input type="radio" id="traj_play_exec" name="traj_radio">
-                <label for="traj_play_exec"> Execute Traj. </label>
-                <input type="radio" id="traj_play_set_and_exec" name="traj_radio" checked="checked" />
-                <label for="traj_play_set_and_exec"> Setup AND Execute </label>
-              </form>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td colspan=2>
-            <hr>
-          </td> 
-        </tr>
-        <tr>
-          <td colspan=2>
-            <div id="traj_play_buttons">
-            <table>
-              <tr>
-                <td>
-                  <button class="traj_play_cont" id='traj_play_play' style="font-size:150%" onclick="traj_play_send_goal();"> Play </button>
-                </td>
-                <td>
-                  <button class="traj_play_cont" id='traj_play_stop' style="font-size:150%" onclick="empty_srv('/trajectory_playback_r_pause');empty_srv('/trajectory_playback_l_pause');"> Pause </button>
-                </td>
-                <td>
-                  <button class="traj_play_cont" id='traj_play_reset' style="font-size:150%" onclick="empty_srv('/trajectory_playback_r_stop');empty_srv('/trajectory_playback_l_stop')"> Stop </button>
-                </td>
-              </tr>
+            <table id="traj_play_selectors">
+              <tr><th style="text-align:left">1. Activity</th></tr>
+              <tr><td><select id="traj_play_act_sel"/></td></tr>
+              <tr><th style="text-align:left">2. Arm</th></tr>
+              <tr><td><select id="traj_play_arm_sel"/></td></tr>
+              <tr><th style="text-align:left">3. Trajectory</th></tr>
+              <tr><td><select id="traj_play_select"/></td></tr>
             </table>
-            </div>
+          </td>
+          <td>
+            <table id="traj_play_buttons">
+              <tr><td>
+                  <button class="centered traj_play_cont" id='traj_play_play' style="font-size:150%" onclick="traj_play_send_goal();"> Play </button>
+              </td></tr>
+              <tr><td>
+                  <button class="centered traj_play_cont" id='traj_play_stop' style="font-size:150%" onclick="empty_srv('/trajectory_playback_r_pause');empty_srv('/trajectory_playback_l_pause');"> Pause </button>
+              </td></tr>
+              <tr><td>
+                  <button class="centered traj_play_cont" id='traj_play_reset' style="font-size:150%" onclick="empty_srv('/trajectory_playback_r_stop');empty_srv('/trajectory_playback_l_stop')"> Stop </button>
+              </td></tr>
+            </table>
+          </td>
+          <td>
+            <form id="traj_play_radio">
+              <table id="traj_play_radio_layout">
+                <tr><td>
+                    <input type="radio" id="traj_play_setup" name="traj_radio"/>
+                    <label class="traj_play_radio_label" for="traj_play_setup"> Move to Setup </label>
+                </td></tr>
+                <tr><td>
+                    <input type="radio" id="traj_play_exec" name="traj_radio">
+                    <label class="traj_play_radio_label" for="traj_play_exec"> Execute Traj. </label>
+                </td></tr>
+                <tr><td>
+                    <input type="radio" id="traj_play_set_and_exec" name="traj_radio" checked="checked"/>
+                    <label class="traj_play_radio_label" for="traj_play_set_and_exec"> Setup AND Execute </label>
+                </td></tr>
+                <tr><td><hr></td></tr>
+                <tr><td>
+                    <input type="checkbox" id="traj_play_reverse" />
+                    <label for="traj_play_reverse"> Play Backward (Reverse) </label>
+                </td></tr>
+              </table>
+            </form>
           </td>
         </tr>
       </table>
-    </div>
+    </div> <!-- End Tab Traj Playbak -->
 
     <div id="tab_ellipse">
       <table>
@@ -566,9 +597,9 @@ function start(){
     </tr>
     <tr>
       <td>
-        <button id='lg_release' onclick='gripper_release("l");'>Open</button>
+        <button id='lg_release'>Open</button>
       </td><td>
-        <button id='rg_release' onclick='gripper_release("r");'>Open</button>
+        <button id='rg_release'>Open</button>
       </td><td>
         <button id='torso_max' onclick='pub_torso(0.3);'>Max</button>
       </td>
@@ -582,11 +613,23 @@ function start(){
     </tr>
     <tr>
       <td>
-        <button id='lg_grab' onclick='gripper_grab("l");'>Close</button>
+        <button id='lg_grab'>Close</button>
       </td><td>
-        <button id='rg_grab' onclick='gripper_grab("r");'>Close</button>
+        <button id='rg_grab'>Close</button>
       </td><td>
         <button id='torso_min' onclick='pub_torso(0);'>Min</button>
+      </td>
+    </tr>
+    <tr>
+      <td colspan=3>
+        <input class="skin" type="checkbox" id="skin_toggle" onclick="skin_toggle_cb()"/>
+        <label class="skin" id="skin_toggle_label" for="skin_toggle">Use Skin</label>
+      </td>
+    </tr>
+    <tr>
+      <td colspan=3>
+        <input class="skin" type="checkbox" id="skin_ort_toggle" onclick="skin_ort_cb()"/>
+        <label class="skin" id="skin_ort_toggle_label" for="skin_ort_toggle">Control Orientation</label>
       </td>
     </tr>
   </table>

@@ -5,24 +5,33 @@ function traj_play_init(){
     console.log("Begin Traj Play Init");
     var traj_play_act_spec = new ros.actionlib.ActionSpec('pr2_traj_playback/TrajectoryPlayAction');
     window.traj_play_r_client = new ros.actionlib.SimpleActionClient(node,'/trajectory_playback_r', traj_play_act_spec);
-    window.traj_play_l_client = new ros.actionlib.SimpleActionClient(node,'/trajectory_playback_l', traj_play_act_spec);
 
     traj_play_r_client.wait_for_server(10, function(e){
-          if(!e) {
-            log("Couldn't find right trajectory playback action server.");
-          } else {
-            console.log("Found Right Trajectory Playback Action");
-          };
+          if(!e) {log("Couldn't find right trajectory playback action server.");}
+          else {console.log("Found Right Trajectory Playback Action");};
       });
-    traj_play_l_client.wait_for_server(10, function(e){
-          if(!e) {
-            log("Couldn't find left trajectory playback action server.");
-          } else {
-            console.log("Found Left Trajectory Playback Action");
-          };
-      });
-    console.log("End Traj Play Init");
 
+    window.traj_play_l_client = new ros.actionlib.SimpleActionClient(node,'/trajectory_playback_l', traj_play_act_spec);
+    traj_play_l_client.wait_for_server(10, function(e){
+          if(!e) {log("Couldn't find left trajectory playback action server.");}
+          else {console.log("Found Left Trajectory Playback Action");};
+      });
+
+    load_traj_params();
+    init_TrajPlayGoal();
+    console.log("End Traj Play Init");
+};
+
+$(function(){
+    $("#traj_play_radio :radio").button()
+    $(".traj_play_radio_label").button().addClass('centered');
+    });
+
+function load_traj_activities(){
+    
+    };
+
+function load_traj_params(){
     if (window.get_param_free){
         window.get_param_free = false;
         console.log("Traj play has locked get_param");
@@ -34,14 +43,10 @@ function traj_play_init(){
                                     });
     } else {
           console.log("Traj Play tab waiting for rosparam service");
-          setTimeout('init_params()',500);
+          setTimeout(function(){load_traj_params()},500);
     };
-    init_TrajPlayGoal();
-};
-
-$(function(){
-    $("#traj_play_radio").buttonset();
-    });
+    
+    };
 
 function init_TrajPlayGoal(){
 	if (window.get_msgs_free){
