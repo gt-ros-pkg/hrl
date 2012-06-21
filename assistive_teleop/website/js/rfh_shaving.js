@@ -25,7 +25,7 @@ function shaving_init(){
                     });
 
     $('#servo_approach, #servo_stop').fadeTo(0,0.5);
-    $("#ft_view_widget").ft_viewer();
+    //$("#ft_view_widget").ft_viewer();
     $(".ell_control").hide();
     console.log("End Shaving Init");
 };
@@ -107,7 +107,7 @@ function toggle_ell_controller(state){
             console.log("Ell Cont button inactive, sending false")
         };
     };
-    log("Sending controller :"+state.toString());
+    console.log("Sending controller :"+state.toString());
     node.rosjs.callService('/face_adls/enable_controller',
                     '{"end_link":"%s_gripper_shaver45_frame","ctrl_params":"$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml","enable":'+state+'}',
                     function(ret){

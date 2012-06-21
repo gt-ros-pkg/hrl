@@ -1,0 +1,51 @@
+<launch>
+
+    <include file="$(find pr2_machine)/$(env ROBOT).machine" />
+
+    <!-- Throttling nodes for the topics used by the interface -->	
+    <node 
+        name="throttle_head_traj_controller_state"
+        pkg="topic_tools" 
+        type="throttle"
+        args="messages /head_traj_controller/state 8 /head_traj_controller_state_throttle" />
+    <node 
+        name="throttle_torso_position_controller_state"
+        pkg="topic_tools"
+        type="throttle"
+        args="messages /torso_controller/state 2 /torso_state_throttle" />
+    <node 
+        name="throttle_r_gripper_controller_state" 
+        pkg="topic_tools" 
+        type="throttle"
+        args="messages /r_gripper_controller/state 1 /r_gripper_controller_state_throttle" />
+    <node
+        name="throttle_l_gripper_controller_state" 
+        pkg="topic_tools" 
+        type="throttle" 
+        args="messages /l_gripper_controller/state 1 /l_gripper_controller_state_throttle" />
+    <node 
+        name="throttle_r_arm_joints_state" 
+        pkg="topic_tools" 
+        type="throttle" 
+        args="messages /r_arm_controller/state 8 /r_arm_controller_state_throttle" />
+    <node 
+        name="throttle_l_arm_joints_state" 
+        pkg="topic_tools" 
+        type="throttle" 
+        args="messages /l_arm_controller/state 8 /l_arm_controller_state_throttle" />
+
+
+    <!-- Set port to 9091, start rosbridge -->
+        <param 
+            name="/brown/rosbridge/port"
+            type="int"
+            value="9091" />
+    <node 
+        name="rosbridge" 
+        pkg="rosbridge" 
+        type="rosbridge.py" 
+        machine="c1" 
+        output="screen"/>
+</launch>
+
+
