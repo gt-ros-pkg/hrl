@@ -11,6 +11,8 @@
     </node>
 
     <rosparam>
+        face_adls_traj_modes:
+            ["Shaving Right Cheek", "Shaving Left Cheek", "Servoing"]
         face_adls_traj_files:
             "Shaving Right Cheek" :
                 "Right" :

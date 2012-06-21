@@ -23,9 +23,9 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){$('#console').html("<big><strong>"+message.toString()+"</strong></big>"); console.log(message.toString())};
 arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-//var ROBOT = 'monty1.hsi.gatech.edu';
+var ROBOT = 'monty1.hsi.gatech.edu';
 //var ROBOT = 'pr2c1.cc.gatech.edu';
-var ROBOT = 'localhost';
+//var ROBOT = 'localhost';
 var get_param_free = true;
 var get_msgs_free = true;
 
@@ -35,7 +35,6 @@ $(function(){
     $(".bpd, .cont_sel, #cart_controller, .ar_servo_button, .traj_play_cont, #adj_mirror, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
     $('*').click(log_click);
 	$('#submit_text').click(function(e){speak($('#txt2say').val())});
-	//$('#slelect_plane').change(function(event,ui){window.plane = $('#select_plane').val()});
     $("#reset").hide();
 });
 
@@ -52,27 +51,12 @@ function init(){
 	console.log('Finished Initialization');
 };
 
-function init_msg(msg, ret_variable){
-	if (window.get_msgs_free){
-        window.get_msgs_free = false;
-        console.log('Locking for '+msg);
-		node.rosjs.callService('/rosbridge/msgClassFromTypeString','['+msg+']',
-                          function(msg){window[ret_varible]=msg;
-                                        window.get_msgs_free = true;
-                                        console.log('Unlocking: Got '+msg);
-                          });
-	} else {
-        console.log("Waiting for msg lock: "+msg);
-        setTimeout(function(){init_msg(msg,ret_variable)},500);
-    }
-};
-
 function basic_init(){
-    init_msg("pr2_controllers_msgs/JointTrajectoryActionGoal", 'JTAGoal');
+    init_JTAGoal();
     //Services
     node.rosjs.callService('/rosbridge/reqClassFromTypeString',
                            '["pixel_2_3d/Pixel23d"]',
-                           function(msg){window.point_2d=msg; init_msgs()});
+                           function(msg){window.point_2d=msg;});
     //Subscribers
 	node.subscribe('/wt_log_out', function(msg){log(msg.data.toString())});
     //Publishers
@@ -86,6 +70,22 @@ function advertise(topic, type){
     node.publish(topic, type, json({}));
     console.log("Advertising "+topic+" of type: "+ type);
     };
+
+function init_JTAGoal(){
+	if (window.get_msgs_free){
+        window.get_msgs_free = false;
+        console.log('Locking for JTAGoal');
+		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
+                          json(["pr2_controllers_msgs/JointTrajectoryActionGoal"]),
+                          function(msg){window.JTAGoal=msg;
+                                        window.get_msgs_free = true;
+                                        console.log('Unlocking: Got JTAGoal');
+                          });
+	} else {
+        console.log("JTAGoal Waiting for msg lock");
+        setTimeout(function(){init_JTAGoal();},500);
+    }
+};
 
 function log_click(event){
     node.publish('wt_click_log', 'std_msgs/String', json({'data':event.target.id.toString()}));
@@ -234,7 +234,7 @@ function start(){
             </tr>
              <tr>
              <tr>
-               <td id='cart_frame_select_label'>Movement Frame:</td>
+               <td id='cart_frame_select_label'><b>Movement Frame:</b></td>
                <td>
                  <select class="centered cart_control" id='cart_frame_select'>
                    <option id="frame_opt_torso" value="/torso_lift_link"> Torso </option> 
