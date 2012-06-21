@@ -1,6 +1,8 @@
 function cart_init(){
     advertise('r_cart/web_commands','geometry_msgs/TwistStamped');
     advertise('l_cart/web_commands','geometry_msgs/TwistStamped');
+    window.TwistStamped = {header:{seq:0,stamp:{secs:0,nsecs:0},frame_id:""},
+                               twist:{linear:{x:0,y:0,z:0}, angular:{x:0,y:0,z:0}}};
     };
 
 $(function(){
@@ -23,7 +25,6 @@ function pub_cart_twist(arm, trans, rot){
     tws.twist.angular.z = rot[2];
     node.publish(arm[0]+'_cart/web_commands','geometry_msgs/TwistStamped', json(tws));
     };
-
 
 function cart_arm(){
     var arm = window.arm();
