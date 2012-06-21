@@ -13,6 +13,19 @@ function teleop_init(){
                         window.head_state = msg.actual;
                         window.head_joints = msg.joint_names;
 			        });
+	node.subscribe('/r_gripper_controller_state_throttle',
+                    function(msg){
+                        $('#rg_slider').show().slider("option", "value", msg.process_value);
+                    });
+	node.subscribe('/l_gripper_controller_state_throttle',
+                    function(msg){
+                        $('#lg_slider').show().slider("option", "value", msg.process_value);
+                    });
+	node.subscribe('/torso_state_throttle',
+                    function(msg){
+                        window.torso_state = msg.actual.positions[0];
+                        $('#torso_slider').show().slider("option", "value", msg.actual.positions[0])
+                    });
     //node.subscribe('/r_arm_controller_state_throttle', function(msg){
     //                                    window.arm_joints.right = msg.actual});
     //node.subscribe('/l_arm_controller_state_throttle', function(msg){
@@ -30,13 +43,58 @@ function teleop_init(){
         pubs['head_nav_goal']='geometry_msgs/PoseStamped'
         pubs['head_traj_controller/point_head_action/goal'] = 'pr2_controllers_msgs/PointHeadActionGoal'
         pubs['base_controller/command'] = 'geometry_msgs/Twist'
+    //advertise('wt_r_gripper_commands','pr2_controllers_msgs/Pr2GripperCommand');
+	//advertise('wt_l_gripper_commands','pr2_controllers_msgs/Pr2GripperCommand');
+    //advertise('wt_r_gripper_release_commands', 'std_msgs/Bool');
+    //advertise('wt_l_gripper_release_commands', 'std_msgs/Bool');
+    //advertise('wt_r_gripper_grab_commands', 'std_msgs/Bool');
+    //advertise('wt_l_gripper_grab_commands', 'std_msgs/Bool');
+    advertise('l_gripper_controller/command', 'pr2_controllers_msgs/Pr2GripperCommand');
+    advertise('r_gripper_controller/command', 'pr2_controllers_msgs/Pr2GripperCommand');
     for (var i in pubs){
         advertise(i, pubs[i]);
     };
 };
 $(function(){
 	$('#scale_slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
+	$('#rg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
+	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                                            pub_gripper('r',$('#rg_slider').slider("value"));
+                                                            log('Opening/Closing Right Gripper');
+                                                            });	
+	$('#lg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
+	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                                            pub_gripper('l',$('#lg_slider').slider("value"));
+                                                            log("Opening/Closing Left Gripper");
+                                                            });	
+	$('#torso_slider').slider({min:0.0,max:0.3,step:0.01,orientation:'vertical'});
+	$('#torso_slider').unbind("slidestop").bind("slidestop",function(event,ui){
+                                                            pub_torso($('#torso_slider').slider("value"))
+                                                            });	
 });
+
+function pub_gripper(arm,grpos) {
+	node.publish(arm+'_gripper_controller/command',
+                 'pr2_controllers_msgs/Pr2GripperCommand',
+                 json({'position': grpos ,'max_effort':-1}));
+};
+
+function gripper_grab(arm){
+    pub_gripper(arm,0.0);
+};
+
+function gripper_release(arm){
+    pub_gripper(arm,0.09);
+};
+
+function pub_torso(tz){
+    var dir = (tz < window.torso_state) ? 'Lowering' : 'Raising';
+    log(dir+" Torso");
+	node.publish('torso_controller/position_joint_action/goal',
+                 'pr2_controllers_msgs/SingleJointPositionActionGoal',
+                 json({'goal':{'position':tz}})
+                )
+};
 
 function pub_head_traj(head_traj_goal, dist){ //Send pan/tilt trajectory commands to head
 		if (head_traj_goal.goal.trajectory.points[0].positions[0] < -2.70) {
