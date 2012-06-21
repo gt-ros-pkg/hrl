@@ -35,6 +35,7 @@ from threading import RLock, Timer
 import sys, copy
 
 import roslib; roslib.load_manifest('hrl_pr2_arms')
+roslib.load_manifest('hrl_lib')
 import rospy
 
 from equilibrium_point_control.hrl_arm import HRLArm
@@ -192,7 +193,7 @@ if __name__ == '__main__':
         raw_input('Hit ENTER to go')
         robot.set_ep(jep, duration=2.)
 
-    if False:
+    if True:
         # simple go_jep example
         roslib.load_manifest('equilibrium_point_control')
         import equilibrium_point_control.epc as epc
@@ -208,7 +209,7 @@ if __name__ == '__main__':
 #        jep = np.radians([-30, 0, -90, -60, 0, 0, 0])
         epcon.go_jep(jep, speed=math.radians(30.))
     
-    if True:
+    if False:
         import hrl_lib.util as ut
         ut.get_keystroke('Hit ENTER to open gripper')
         robot.open_gripper()
