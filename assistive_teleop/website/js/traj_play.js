@@ -1,3 +1,6 @@
+var traj_actions = ['Shaving Left Cheek', 'Shaving Right Cheek', 'Servoing']
+var traj_arms = ['Left','Right']
+
 function traj_play_init(){
     console.log("Begin Traj Play Init");
     var traj_play_act_spec = new ros.actionlib.ActionSpec('pr2_traj_playback/TrajectoryPlayAction');
@@ -33,13 +36,28 @@ function traj_play_init(){
           console.log("Traj Play tab waiting for rosparam service");
           setTimeout('init_params()',500);
     };
-    init_msg("pr2_traj_playback/TrajectoryPlayGoal",'TrajPlayGoal');
+    init_TrajPlayGoal();
 };
 
 $(function(){
     $("#traj_play_radio").buttonset();
     });
 
+function init_TrajPlayGoal(){
+	if (window.get_msgs_free){
+        window.get_msgs_free = false;
+        console.log('Locking for TrajPlayGoal');
+		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
+                          json(["pr2_traj_playback/TrajectoryPlayGoal"]),
+                          function(msg){window.TrajPlayGoal=msg;
+                                        window.get_msgs_free = true;
+                                        console.log('Unlocking: Got TrajPlayGoal');
+                          });
+	} else {
+        console.log("TrajPlayGoal Waiting for msg lock");
+        setTimeout(function(){init_TrajPlayGoal();},500);
+    }
+};
 function traj_play_send_goal(){
     goal = window.TrajPlayGoal;
     goal.mode = parseInt($('input[name=traj_play_radio]:checked','#traj_play_radio').val());
