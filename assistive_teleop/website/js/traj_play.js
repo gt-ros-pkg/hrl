@@ -33,6 +33,7 @@ function traj_play_init(){
           console.log("Traj Play tab waiting for rosparam service");
           setTimeout('init_params()',500);
     };
+    init_msg("pr2_traj_playback/TrajectoryPlayGoal",'TrajPlayGoal');
 };
 
 $(function(){

@@ -27,6 +27,7 @@ arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 //var ROBOT = 'pr2c1.cc.gatech.edu';
 var ROBOT = 'localhost';
 var get_param_free = true;
+var get_msgs_free = true;
 
 $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
@@ -40,30 +41,34 @@ $(function(){
 
 function init(){
     console.log("Starting Init");
-    basic_init();
+    traj_play_init();
     teleop_init();
     shaving_init();
     camera_init();
-    traj_play_init();
+    basic_init();
     cart_init();
     set_camera("kinect_head/rgb/image_color");
     teleop_head();
 	console.log('Finished Initialization');
 };
 
+function init_msg(msg, ret_variable){
+	if (window.get_msgs_free){
+        window.get_msgs_free = false;
+        console.log('Locking for '+msg);
+		node.rosjs.callService('/rosbridge/msgClassFromTypeString','['+msg+']',
+                          function(msg){window[ret_varible]=msg;
+                                        window.get_msgs_free = true;
+                                        console.log('Unlocking: Got '+msg);
+                          });
+	} else {
+        console.log("Waiting for msg lock: "+msg);
+        setTimeout(function(){init_msg(msg,ret_variable)},500);
+    }
+};
+
 function basic_init(){
-	if (!window.JTAGoal){
-        console.log('Looking for JointTrajectoryActionGoal');
-		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
-                          '["pr2_controllers_msgs/JointTrajectoryActionGoal"]',
-                          function(msg){window.JTAGoal=msg; init_msgs()});
-	} else if (!window.TrajPlayGoal){
-        console.log('Looking for TrajectoryPlayGoal'); 
-		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
-                               '["pr2_traj_playback/TrajectoryPlayGoal"]',
-                               function(msg){window.TrajPlayGoal=msg; init_msgs()});
-	};
-    console.log("End Message Init");
+    init_msg("pr2_controllers_msgs/JointTrajectoryActionGoal", 'JTAGoal');
     //Services
     node.rosjs.callService('/rosbridge/reqClassFromTypeString',
                            '["pixel_2_3d/Pixel23d"]',
