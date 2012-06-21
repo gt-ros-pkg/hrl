@@ -81,6 +81,8 @@ def chain_from_param(base_link, end_link, param="/robot_description"):
 
 def chain_from_urdf_model(robot_model, base_link, end_link):
     tree = tree_from_urdf_model(robot_model)
+    base_link = base_link.split("/")[-1]
+    end_link = end_link.split("/")[-1]
     chain = tree.getChain(base_link, end_link)
     joint_info = joint_info_from_model(chain, robot_model)
     return chain, joint_info

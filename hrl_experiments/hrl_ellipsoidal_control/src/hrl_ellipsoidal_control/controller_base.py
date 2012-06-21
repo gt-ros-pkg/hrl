@@ -66,7 +66,7 @@ class CartTrajController(object):
 
 class CartesianStepController(CartTrajController):
     def __init__(self):
-        super(EllipsoidControllerBase, self).__init__()
+        super(CartesianStepController, self).__init__()
 
         self.time_step = 1. / 20.
         self.arm = None
@@ -120,8 +120,7 @@ class CartesianStepController(CartTrajController):
         self.cmd_lock.release()
         return retval
 
-    def _create_cart_trajectory(self, pos_f, rot_mat_f, velocity=0.001,
-                                velocity=0.001, num_samps=None):
+    def _create_cart_trajectory(self, pos_f, rot_mat_f, velocity=0.001, num_samps=None):
         cur_pos, cur_rot = self.arm.get_ep()
 
         rpy = tf_trans.euler_from_matrix(cur_rot.T * rot_mat_f) # get roll, pitch, yaw of angle diff
