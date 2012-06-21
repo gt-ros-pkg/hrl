@@ -47,12 +47,12 @@ function teleop_init(){
 };
 $(function(){
 	$('#scale_slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
-	$('#rg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
+	$('#rg_slider').slider({min:-0.005,max:0.09,step:0.001,orientation:'vertical'}); 
 	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
                                                             pub_gripper('r',$('#rg_slider').slider("value"));
                                                             log('Opening/Closing Right Gripper');
                                                             });	
-	$('#lg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
+	$('#lg_slider').slider({min:-0.005,max:0.09,step:0.001,orientation:'vertical'}); 
 	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
                                                             pub_gripper('l',$('#lg_slider').slider("value"));
                                                             log("Opening/Closing Left Gripper");
@@ -74,7 +74,7 @@ function pub_gripper(arm,grpos) {
 };
 
 function gripper_grab(arm){
-    pub_gripper(arm,0.0);
+    pub_gripper(arm,-0.005);
 };
 
 function gripper_release(arm){
