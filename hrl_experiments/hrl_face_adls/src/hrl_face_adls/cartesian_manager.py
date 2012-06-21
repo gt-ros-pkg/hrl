@@ -15,7 +15,7 @@ from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmCartesianBase, PR2ArmJTra
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
 from face_adls_manager import async_call
 
-VELOCITY = 0.001
+VELOCITY = 0.01
 
 class CartesianControllerManager(object):
     def __init__(self, arm_char):
@@ -46,20 +46,23 @@ class CartesianControllerManager(object):
                                               target_segment=msg.header.frame_id)
         _, torso_rot_ref = PoseConverter.to_pos_rot(torso_B_ref)
         ref_pos_off, ref_rot_off = PoseConverter.to_pos_rot(msg)
-        change_pos = torso_rot_ref * ref_pos_off
+        change_pos = torso_rot_ep.T * torso_rot_ref * ref_pos_off
         ep_rot_ref = torso_rot_ep.T * torso_rot_ref
         change_rot = ep_rot_ref * ref_rot_off * ep_rot_ref.T
         _, change_rot_rpy = PoseConverter.to_pos_euler(np.mat([0]*3).T, change_rot)
-        change_rot_rpy = [0, 0, 0]
+        change_rot_rpy = [0, 0, 0] # TODO REMOVE
         self.cart_ctrl.execute_cart_move((change_pos.T.A[0], change_rot_rpy), ((0, 0, 0), 0), 
                                          velocity=VELOCITY, blocking=True)
 
 def main():
     rospy.init_node("cartesian_manager")
-    cart_man = CartesianControllerManager('r')
-    cart_man.enable_controller(end_link="r_gripper_tool_frame", ctrl_name="r_cart_jt_task_tool",
-                               ctrl_params="$(find hrl_face_adls)/params/r_jt_task_tool.yaml")
-    rospy.spin()
+    cart_man = CartesianControllerManager('l')
+    cart_man.enable_controller(end_link="l_gripper_tool_frame", ctrl_name="l_cart_jt_task_tool",
+                               ctrl_params="$(find hrl_face_adls)/params/l_jt_task_tool.yaml")
+    rospy.sleep(1)
+    t = PoseConverter.to_twist_stamped_msg("l_gripper_tool_frame", (-0.15, 0, 0), (0, 0, 0))
+    cart_man.command_move_cb(t)
+#rospy.spin()
 
 if __name__ == "__main__":
     main()
