@@ -89,12 +89,12 @@ function init_TrajPlayGoal(){
     }
 };
 function traj_play_send_goal(){
-    goal = window.TrajPlayGoal;
+    var goal = window.TrajPlayGoal;
     var act = $('#traj_play_act_sel option:selected').val(); 
     var hand = $('#traj_play_arm_sel option:selected').val();
     var traj = $('#traj_play_select').val();
     var settings = window.face_adls_params[act][hand][traj]
-    goal.mode = parseInt($('input[name=traj_play_radio]:checked','#traj_play_radio').val());
+    goal.mode = parseInt($('input:checked','#traj_radio').val());
     goal.reverse = settings[0];
     goal.setup_velocity = settings[1];
     goal.traj_rate_mult = settings[2];
