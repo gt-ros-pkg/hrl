@@ -32,7 +32,11 @@ var get_msgs_free = true;
 $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
     $("#tabs").tabs().tabs({select: tab_select_cb});
-    $(".bpd, .cont_sel, #cart_controller, .ar_servo_button, .traj_play_cont, #adj_mirror, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
+    $('#cont_sel_container').buttonset();
+    $('label:first', '#cont_sel_container').removeClass('ui-corner-left').addClass('ui-corner-top centered');
+    $('label:last', '#cont_sel_container').removeClass('ui-corner-right').addClass('ui-corner-bottom centered');
+    //$('cont_sel_label').addClass('centered');
+    $(".bpd, #cart_controller, .ar_servo_button, .traj_play_cont, #adj_mirror, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
     $('*').click(log_click);
 	$('#submit_text').click(function(e){speak($('#txt2say').val())});
     $("#reset").hide();
@@ -47,7 +51,7 @@ function init(){
     basic_init();
     cart_init();
     set_camera("kinect_head/rgb/image_color");
-    teleop_head();
+    $('#cont_head').click();
 	console.log('Finished Initialization');
 };
 
@@ -64,6 +68,11 @@ function basic_init(){
 	advertise('torso_controller/position_joint_action/goal',
                 'pr2_controllers_msgs/SingleJointPositionActionGoal');
     advertise('wt_click_log', 'std_msgs/String');
+    //SKIN SPECIFIC CHANGES
+    advertise('skin_ort_toggle', 'std_msgs/Bool');
+	advertise('skin/r_gripper_command','pr2_controllers_msgs/Pr2GripperCommand')
+	advertise('skin/l_gripper_command','pr2_controllers_msgs/Pr2GripperCommand')
+	advertise('epc/stop','std_msgs/Bool')
 };
 
 function advertise(topic, type){
@@ -99,10 +108,9 @@ function list_opts(sel, dict){
 };
 
 function list_key_opts(select, msg){
-        console.log("Receiving global move keys")
         $(select).empty();
         for (i=0; i<msg.data.length; i++){
-            $(select).append('<option>'+msg.data[i]+'</option>')};
+            $(select).append('<option value="'+msg.data[i]+'">'+msg.data[i]+'</option>')};
     };
 
 function empty_srv(service){
@@ -124,9 +132,49 @@ function speak(text){
 		log('\"' + text +'\"'); 
 };
 
-function adj_mirror_cb(){
-   log("calling mirror_adjust_service");
-   node.rosjs.callService('/point_mirror',json('[]'),function(rsp){}); 
+//SKIN SPECIFIC ADDITIONS
+function pub_gripper_skin(arm,grpos) {
+	node.publish('skin/'+arm+'_gripper_command',
+                 'pr2_controllers_msgs/Pr2GripperCommand',
+                 json({'position': grpos ,'max_effort':-1}));
+};
+
+function skin_toggle_cb(){
+    if ($('#skin_toggle').is(':checked')){
+        log("Altering Controls for Skin Use");
+	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                    pub_gripper_skin('r',$('#rg_slider').slider("value"));
+                                    log('Opening/Closing Right Gripper');});	
+	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                    pub_gripper_skin('l',$('#lg_slider').slider("value"));
+                                    log('Opening/Closing Left Gripper');});	
+    $('#rg_grab').unbind().bind('click',function(e){pub_gripper_skin('r',0.0)});                                
+    $('#lg_grab').unbind().bind('click',function(e){pub_gripper_skin('l',0.0)});                                
+    $('#rg_release').unbind().bind('click',function(e){pub_gripper_skin('r',0.09)});                                
+    $('#lg_release').unbind().bind('click',function(e){pub_gripper_skin('l',0.09)});                                
+    $('#b5','#bpd_default').text('STOP').show().bind('click.rfh',function(e){
+        node.publish('epc/stop','std_msgs/Bool', json({'data':true}))
+        });
+    } else {
+        log("Altering Controls for Normal Use");
+	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                    pub_gripper('r',$('#rg_slider').slider("value"));
+                                    log('Opening/Closing Right Gripper');
+                                    });	
+	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                    pub_gripper('l',$('#lg_slider').slider("value"));
+                                    log("Opening/Closing Left Gripper");
+                                    });	
+    $('#rg_grab').unbind().bind('click',function(e){pub_gripper('r',-0.005)});                                
+    $('#lg_grab').unbind().bind('click',function(e){pub_gripper('l',-0.005)});                                
+    $('#rg_release').unbind().bind('click',function(e){pub_gripper('r',0.09)});                                
+    $('#lg_release').unbind().bind('click',function(e){pub_gripper('l',0.09)});
+    $('#b5','#bpd_default').text('').hide().unbind('click.rfh');
+    };
+};
+
+function skin_ort_cb(){
+    node.publish("skin_ort_toggle", "std_msgs/Bool", json({'data':$("#skin_ort_toggle").is(':checked')}));
     };
 
 function start(){
@@ -201,28 +249,42 @@ function start(){
       <table>
        <tr>
        <td>
-        <div>
+         <div id='cont_sel_container'>
+             <div>
+                 <input type="radio" class="cont_sel" id="cont_head" name="cont_sel" onclick="teleop_head()"/>
+                 <label class="cont_sel_label" for="cont_head">Control Head</label>
+             </div><div>
+                 <input type="radio" class="cont_sel" id="cont_l_arm" name="cont_sel" style="width:50%" onclick="$('#l_arm').click(); cart_arm()"/>
+                 <label class="cont_sel_label" for="cont_l_arm">Control Left Hand</label>
+                 <input type="radio" class="cont_sel" id="cont_r_arm" name="cont_sel" style="width:50%" onclick="$('#r_arm').click(); cart_arm()"/>
+                 <label class="cont_sel_label" for="cont_r_arm">Control Right Hand</label>
+             </div><div>
+                 <input type="radio" class="cont_sel" id="cont_base" name="cont_sel" onclick="teleop_base()">
+                 <label class="cont_sel_label" for="cont_base">Control Base</label>
+             </div>
+           </div> 
+        <!--<div>
          <form id="cont_sel_form">
           <table>
             <tr>
               <td colspan=2>
-                <input class="cont_sel" id="cont_head" name="cont_sel" type="radio" onclick="teleop_head()"/>
+                <input class="cont_sel" id="cont_head" name="cont_sel" type="checkbox" checked="checked" onclick="teleop_head()"/>
                 <label class="cont_sel" for="cont_head">Control Head</label>
               </td>
             </tr>
             <tr>
               <td>
-                <input id="cont_l_arm" type="radio" class="cont_sel" name="cont_sel" onclick="$('#l_arm').click(); cart_arm()"/>
+                <input id="cont_l_arm" type="checkbox" class="cont_sel" name="cont_sel" onclick="$('#l_arm').click(); cart_arm()"/>
                 <label class="cont_sel" for="cont_l_arm">Control Left Hand</label>
               </td>
               <td>
-                <input id="cont_r_arm" type="radio" class="cont_sel" name="cont_sel" onclick="$('#r_arm').click(); cart_arm()"/>
+                <input id="cont_r_arm" type="checkbox" class="cont_sel" name="cont_sel" onclick="$('#r_arm').click(); cart_arm()"/>
                 <label class="cont_sel" for="cont_r_arm">Control Right Hand</label>
               </td>
             </tr>
             <tr>
               <td colspan="2">
-                <input id="cont_base" type="radio" class="cont_sel" name="cont_sel" onclick="teleop_base()">
+                <input id="cont_base" type="checkbox" class="cont_sel" name="cont_sel" onclick="teleop_base()">
                 <label class="cont_sel" for="cont_base">Control Base</label>
               </td>
             </tr>
@@ -244,8 +306,7 @@ function start(){
              </tr>
           </table>
          </form>
-        </div>
-       </td>
+        </div>-->
 
           <td>
             <div class="default_control" id='bpd_default'> <!-- Translate Cartesian Buttonpad-->
@@ -336,71 +397,61 @@ function start(){
     </div><!-- END Tab Ar Servo -->
     
     <div id="tab_traj_play">
-      <table>
+      <table id="traj_play_layout">
         <tr>
           <td>
-            <div>
+            <table id="traj_play_selectors">
+              <tr><th style="text-align:left">1. Activity</th></tr>
+              <tr><td><select id="traj_play_act_sel"/></td></tr>
+              <tr><th style="text-align:left">2. Arm</th></tr>
+              <tr><td>
+                <select id="traj_play_arm_sel"/>
+                  <option value="Right">Right</option>
+                  <option value="Left">Left</option>
+              </td></tr>
+              <tr><th style="text-align:left">3. Trajectory</th></tr>
+              <tr><td><select id="traj_play_select"/></td></tr>
+            </table>
+          </td>
+          <td>
+            <table id="traj_play_buttons">
+              <tr><td>
+                  <button class="centered traj_play_cont" id='traj_play_play' style="font-size:150%" onclick="traj_play_send_goal();"> Play </button>
+              </td></tr>
+              <tr><td>
+                  <button class="centered traj_play_cont" id='traj_play_stop' style="font-size:150%" onclick="empty_srv('/trajectory_playback_r_pause');empty_srv('/trajectory_playback_l_pause');"> Pause </button>
+              </td></tr>
+              <tr><td>
+                  <button class="centered traj_play_cont" id='traj_play_reset' style="font-size:150%" onclick="empty_srv('/trajectory_playback_r_stop');empty_srv('/trajectory_playback_l_stop')"> Stop </button>
+              </td></tr>
+            </table>
+          </td>
+          <td>
+            <form id="traj_play_radio">
               <table>
                 <tr>
-                  <td>Select Trajectory:</td>
                   <td>
-                    <select id="traj_play_select">
-                    </select>
-                  </td>
-                </tr>
+                    <div id="traj_radio">
+                    <div>
+                    <input type="radio" id="traj_play_setup" value='1' name="traj_radio"/>
+                    <label class="traj_play_radio_label" for="traj_play_setup"> Move to Setup </label>
+                    </div>
+                    <div>
+                    <input type="radio" id="traj_play_exec" value="2" name="traj_radio">
+                    <label class="traj_play_radio_label" for="traj_play_exec"> Execute Traj. </label>
+                    </div>
+                    <div>
+                    <input type="radio" id="traj_play_set_and_exec" value="3" name="traj_radio" checked="checked"/>
+                    <label class="traj_play_radio_label" for="traj_play_set_and_exec"> Setup AND Execute </label>
+                    </div>
+                  </div>
+                </td></tr>
               </table>
-            <div>
-          </td>
-          <td>
-            <input type="checkbox" id="traj_play_reverse" />
-            <label for="traj_play_reverse"> Play Backward (Reverse) </label>
-          </td>
-        </tr>
-        <tr>
-          <td colspan=2>
-            <hr>
-          </td> 
-        </tr>
-        <tr>
-          <td colspan=2>
-            <div>
-              <form id="traj_play_radio">
-                <input type="radio" id="traj_play_setup" name="traj_radio"/>
-                <label for="traj_play_setup"> Move to Setup </label>
-                <input type="radio" id="traj_play_exec" name="traj_radio">
-                <label for="traj_play_exec"> Execute Traj. </label>
-                <input type="radio" id="traj_play_set_and_exec" name="traj_radio" checked="checked" />
-                <label for="traj_play_set_and_exec"> Setup AND Execute </label>
-              </form>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td colspan=2>
-            <hr>
-          </td> 
-        </tr>
-        <tr>
-          <td colspan=2>
-            <div id="traj_play_buttons">
-            <table>
-              <tr>
-                <td>
-                  <button class="traj_play_cont" id='traj_play_play' style="font-size:150%" onclick="traj_play_send_goal();"> Play </button>
-                </td>
-                <td>
-                  <button class="traj_play_cont" id='traj_play_stop' style="font-size:150%" onclick="empty_srv('/trajectory_playback_r_pause');empty_srv('/trajectory_playback_l_pause');"> Pause </button>
-                </td>
-                <td>
-                  <button class="traj_play_cont" id='traj_play_reset' style="font-size:150%" onclick="empty_srv('/trajectory_playback_r_stop');empty_srv('/trajectory_playback_l_stop')"> Stop </button>
-                </td>
-              </tr>
-            </table>
-            </div>
+            </form>
           </td>
         </tr>
       </table>
-    </div>
+    </div> <!-- End Tab Traj Playbak -->
 
     <div id="tab_ellipse">
       <table>
@@ -566,9 +617,9 @@ function start(){
     </tr>
     <tr>
       <td>
-        <button id='lg_release' onclick='gripper_release("l");'>Open</button>
+        <button id='lg_release'>Open</button>
       </td><td>
-        <button id='rg_release' onclick='gripper_release("r");'>Open</button>
+        <button id='rg_release'>Open</button>
       </td><td>
         <button id='torso_max' onclick='pub_torso(0.3);'>Max</button>
       </td>
@@ -582,11 +633,23 @@ function start(){
     </tr>
     <tr>
       <td>
-        <button id='lg_grab' onclick='gripper_grab("l");'>Close</button>
+        <button id='lg_grab'>Close</button>
       </td><td>
-        <button id='rg_grab' onclick='gripper_grab("r");'>Close</button>
+        <button id='rg_grab'>Close</button>
       </td><td>
         <button id='torso_min' onclick='pub_torso(0);'>Min</button>
+      </td>
+    </tr>
+    <tr>
+      <td colspan=3>
+        <input class="skin" type="checkbox" id="skin_toggle" onclick="skin_toggle_cb()"/>
+        <label class="skin" id="skin_toggle_label" for="skin_toggle">Use Skin</label>
+      </td>
+    </tr>
+    <tr>
+      <td colspan=3>
+        <input class="skin" type="checkbox" id="skin_ort_toggle" onclick="skin_ort_cb()"/>
+        <label class="skin" id="skin_ort_toggle_label" for="skin_ort_toggle">Control Orientation</label>
       </td>
     </tr>
   </table>

@@ -32,7 +32,6 @@ function teleop_init(){
     //                                   window.arm_joints.left = msg.actual});
 
     //Arm Publishers
-    var pubs = new Array()
    // var sides = ["right","left"];
    // for (var i=0; i < sides.length; i++){
    //    pubs['wt_'+sides[i]+'_arm_pose_commands'] = 'geometry_msgs/Point';
@@ -40,29 +39,20 @@ function teleop_init(){
    //    pubs['wt_lin_move_'+sides[i]] = 'std_msgs/Float32';
    //    pubs['wt_adjust_elbow_'+sides[i]] = 'std_msgs/Float32';
    // };
-        pubs['head_nav_goal']='geometry_msgs/PoseStamped'
-        pubs['head_traj_controller/point_head_action/goal'] = 'pr2_controllers_msgs/PointHeadActionGoal'
-        pubs['base_controller/command'] = 'geometry_msgs/Twist'
-    //advertise('wt_r_gripper_commands','pr2_controllers_msgs/Pr2GripperCommand');
-	//advertise('wt_l_gripper_commands','pr2_controllers_msgs/Pr2GripperCommand');
-    //advertise('wt_r_gripper_release_commands', 'std_msgs/Bool');
-    //advertise('wt_l_gripper_release_commands', 'std_msgs/Bool');
-    //advertise('wt_r_gripper_grab_commands', 'std_msgs/Bool');
-    //advertise('wt_l_gripper_grab_commands', 'std_msgs/Bool');
-    advertise('l_gripper_controller/command', 'pr2_controllers_msgs/Pr2GripperCommand');
-    advertise('r_gripper_controller/command', 'pr2_controllers_msgs/Pr2GripperCommand');
-    for (var i in pubs){
-        advertise(i, pubs[i]);
-    };
+   advertise('head_nav_goal','geometry_msgs/PoseStamped');
+   advertise('head_traj_controller/point_head_action/goal','pr2_controllers_msgs/PointHeadActionGoal');
+   advertise('base_controller/command','geometry_msgs/Twist');
+   advertise('l_gripper_controller/command', 'pr2_controllers_msgs/Pr2GripperCommand');
+   advertise('r_gripper_controller/command', 'pr2_controllers_msgs/Pr2GripperCommand');
 };
 $(function(){
 	$('#scale_slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
-	$('#rg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
+	$('#rg_slider').slider({min:-0.005,max:0.09,step:0.001,orientation:'vertical'}); 
 	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
                                                             pub_gripper('r',$('#rg_slider').slider("value"));
                                                             log('Opening/Closing Right Gripper');
                                                             });	
-	$('#lg_slider').slider({min:0,max:0.09,step:0.001,orientation:'vertical'}); 
+	$('#lg_slider').slider({min:-0.005,max:0.09,step:0.001,orientation:'vertical'}); 
 	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
                                                             pub_gripper('l',$('#lg_slider').slider("value"));
                                                             log("Opening/Closing Left Gripper");
@@ -71,6 +61,10 @@ $(function(){
 	$('#torso_slider').unbind("slidestop").bind("slidestop",function(event,ui){
                                                             pub_torso($('#torso_slider').slider("value"))
                                                             });	
+    $('#rg_grab').click(function(){gripper_grab('r')});
+    $('#lg_grab').click(function(){gripper_grab('l')});
+    $('#rg_release').click(function(){gripper_release('r')});
+    $('#lg_release').click(function(){gripper_release('l')});
 });
 
 function pub_gripper(arm,grpos) {
@@ -80,7 +74,7 @@ function pub_gripper(arm,grpos) {
 };
 
 function gripper_grab(arm){
-    pub_gripper(arm,0.0);
+    pub_gripper(arm,-0.005);
 };
 
 function gripper_release(arm){
