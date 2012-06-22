@@ -31,6 +31,7 @@ function shaving_init(){
 };
 
 function ell_controller_state_cb(msg){
+    console.log("Ell Controller State Updated to "+msg.data);
     if (msg.data){
         console.log("Ellipsoid Controller Active")
         $("#ell_controller").attr("checked","checked").button('refresh');
@@ -50,16 +51,19 @@ function toggle_ell_controller(state){
     };
     var mode = $('#ell_mode_sel option:selected').val();
     console.log("Sending controller :"+state.toString());
-    node.rosjs.callService('/face_adls/enable_controller',
-                    '{"enable":'+state+', mode:'+mode+'}',
+    req = {enable:state, mode:mode};
+    node.rosjs.callService('/face_adls/enable_controller',[json(req)],
                     function(ret){
-                        console.log("Switching Ell. Controller Returned");
-                        ell_controller_state_cb(ret)}
+                        console.log("Switching Ell. Controller Service Returned "+ret.success);
+                        }
                 );
     };
 function adj_mirror_cb(){
    log("calling mirror_adjust_service");
-   node.rosjs.callService('/point_mirror',json('[]'),function(rsp){}); 
+   enable_cart_control('right');
+   setTimeout(function(){
+       node.rosjs.callService('/point_mirror',json('[]'),function(rsp){});},
+       1000);
 };
 
 function servo_feedback_cb(msg){
