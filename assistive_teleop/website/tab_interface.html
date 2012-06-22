@@ -259,13 +259,6 @@ function start(){
                 </td>
               </tr>
               <tr>
-                <td colspan=2>
-                  <button type="checkbox" class="centered cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
-                  <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
-                </td>
-              </tr>
-              <tr>
-              <tr>
                  <td id='cart_frame_select_label'><b>Movement Frame:</b></td>
                  <td>
                    <select class="centered cart_control" id='cart_frame_select'>
@@ -429,6 +422,15 @@ function start(){
               <tr>
                 <td>
                   <button class="centered" id="reg_head" onclick="head_reg_cb()"> Register Head </button>
+                </td>
+              <tr>
+              <tr>
+                <td>
+                  <select class="centered" id="ell_mode_sel"> 
+                    <option id="mode_opt_shaving" value="shaving" selected="selected"> Shaving </option>
+                    <option id="mode_opt_scratching" value="scratching"> Scratching </option>
+                    <option id="mode_opt_feeding" value="feeding"> Feeding </option>
+                  </select>
                 </td>
               <tr>
                 <td>

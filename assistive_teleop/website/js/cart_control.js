@@ -25,24 +25,27 @@ $(function(){
     });    
 
 function l_cart_state_cb(msg){
-    log("Received L Cart State");
+    console.log("Received L Cart State: "+msg.data.toString());
     if (msg){
         show_arm_controls('left');
+        $('#cont_l_arm').attr('checked','checked').button('refresh');
     } else {
-        $('#cont_l_arm').attr('checked','').refresh();
+        $('#cont_l_arm').attr('checked','').button('refresh');
     };
 };
 
 function r_cart_state_cb(msg){
-    log("Received R Cart State");
+    console.log("Received R Cart State: "+msg.data.toString());
     if (msg){
         show_arm_controls('right')
+        $('#cont_r_arm').attr('checked','checked').button('refresh');
     } else {
-        $('#cont_r_arm').attr('checked','').refresh();
+        $('#cont_r_arm').attr('checked','').button('refresh');
     };
 };
 
 function enable_cart_control(arm){
+    $('#bpd_default :button, #bpd_default_rot :button').hide();
     var ecc = window.EnableCartControlReq;
     var service = '';
     if (arm =='right'){
