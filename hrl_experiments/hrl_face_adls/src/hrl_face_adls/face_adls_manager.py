@@ -244,7 +244,8 @@ class FaceADLsManager(object):
         goal_pose_name = msg.data
         self.publish_feedback(Messages.GLOBAL_START % goal_pose_name)
         try:
-            if not self.ell_ctrl.execute_ell_move(((0, 0, RETREAT_HEIGHT), (0, 0, 0)), ((0, 0, 1), 0), 
+            if not self.ell_ctrl.execute_ell_move(((0, 0, RETREAT_HEIGHT), np.mat(np.eye(3))), 
+                                                  ((0, 0, 1), 1), 
                                                   self.gripper_rot, APPROACH_VELOCITY, blocking=True):
                 raise Exception
             if not self.ell_ctrl.execute_ell_move(((goal_pose[0][0], goal_pose[0][1], RETREAT_HEIGHT), 
