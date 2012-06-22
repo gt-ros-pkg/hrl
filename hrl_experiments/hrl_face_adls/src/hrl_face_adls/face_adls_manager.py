@@ -22,6 +22,16 @@ from hrl_face_adls.face_adls_parameters import *
 from hrl_face_adls.msg import StringArray
 from hrl_face_adls.srv import EnableFaceController, EnableFaceControllerResponse
 
+##
+# Returns a function which will call the callback immediately in
+# a different thread.
+def async_call(cb):
+    def cb_outer(*args, **kwargs):
+        def cb_inner(te):
+            cb(*args, **kwargs)
+        rospy.Timer(rospy.Duration(0.00001), cb_inner, oneshot=True)
+    return cb_outer
+
 class ForceCollisionMonitor(object):
     def __init__(self):
         self.last_activity_time = rospy.get_time()
@@ -35,8 +45,8 @@ class ForceCollisionMonitor(object):
         self.activity_force_thresh = rospy.get_param("~activity_force_thresh", 3.0)
         self.contact_force_thresh = rospy.get_param("~contact_force_thresh", 3.0)
         self.timeout_time = rospy.get_param("~timeout_time", 30.0)
-        rospy.Subscriber('/netft_gravity_zeroing/wrench_zeroed', WrenchStamped, self.force_cb,
-                         queue_size=1)
+        rospy.Subscriber('/netft_gravity_zeroing/wrench_zeroed', WrenchStamped, 
+                         async_call(self.force_cb), queue_size=1)
         def check_readings(te):
             time_diff = rospy.get_time() - self.last_reading
             if time_diff > 3.:
@@ -46,34 +56,34 @@ class ForceCollisionMonitor(object):
 
     def force_cb(self, msg):
         self.last_reading = rospy.get_time()
-        self.lock.acquire(False)
-        force_mag = np.linalg.norm([msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z])
-        if (force_mag > self.dangerous_force_thresh and
-                rospy.get_time() - self.last_dangerous_cb_time > DANGEROUS_CB_COOLDOWN):
-            self.dangerous_cb(self.dangerous_force_thresh)
-            self.last_dangerous_cb_time = rospy.get_time()
-        if (force_mag > self.contact_force_thresh and 
-                rospy.get_time() - self.last_contact_cb_time > CONTACT_CB_COOLDOWN):
-            self.contact_cb(self.contact_force_thresh)
-            self.last_contact_cb_time = rospy.get_time()
-        if force_mag > self.activity_force_thresh:
-            self.update_activity()
-        if self.is_inactive() and rospy.get_time() - self.last_timeout_cb_time > TIMEOUT_CB_COOLDOWN:
-            self.timeout_cb(self.timeout_time)
-            self.last_timeout_cb_time = rospy.get_time()
-        self.lock.release()
+        if self.lock.acquire(False):
+            force_mag = np.linalg.norm([msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z])
+            if (force_mag > self.dangerous_force_thresh and
+                    rospy.get_time() - self.last_dangerous_cb_time > DANGEROUS_CB_COOLDOWN):
+                self.dangerous_cb(self.dangerous_force_thresh)
+                self.last_dangerous_cb_time = rospy.get_time()
+            if (force_mag > self.contact_force_thresh and 
+                    rospy.get_time() - self.last_contact_cb_time > CONTACT_CB_COOLDOWN):
+                self.contact_cb(self.contact_force_thresh)
+                self.last_contact_cb_time = rospy.get_time()
+            if force_mag > self.activity_force_thresh:
+                self.update_activity()
+            if self.is_inactive() and rospy.get_time() - self.last_timeout_cb_time > TIMEOUT_CB_COOLDOWN:
+                self.timeout_cb(self.timeout_time)
+                self.last_timeout_cb_time = rospy.get_time()
+            self.lock.release()
 
     def is_inactive(self):
         return not self.in_action and rospy.get_time() - self.last_activity_time > self.timeout_time
 
     def register_contact_cb(self, cb=lambda x:None):
-        self.contact_cb = cb
+        self.contact_cb = async_call(cb)
 
     def register_dangerous_cb(self, cb=lambda x:None):
-        self.dangerous_cb = cb
+        self.dangerous_cb = async_call(cb)
 
     def register_timeout_cb(self, cb=lambda x:None):
-        self.timeout_cb = cb
+        self.timeout_cb = async_call(cb)
 
     def update_activity(self):
         self.last_activity_time = rospy.get_time()
@@ -91,10 +101,10 @@ class FaceADLsManager(object):
         self.ell_ctrl = EllipsoidController()
         self.ctrl_switcher = ControllerSwitcher()
 
-        self.global_input_sub = rospy.Subscriber("/face_adls/global_move", String, self.global_input_cb,
-                                                 queue_size=2)
-        self.local_input_sub = rospy.Subscriber("/face_adls/local_move", String, self.local_input_cb, 
-                                                queue_size=2)
+        self.global_input_sub = rospy.Subscriber("/face_adls/global_move", String, 
+                                                 async_call(self.global_input_cb))
+        self.local_input_sub = rospy.Subscriber("/face_adls/local_move", String, 
+                                                async_call(self.local_input_cb))
         self.state_pub = rospy.Publisher('/face_adls/controller_state', Int8, latch=True)
         self.feedback_pub = rospy.Publisher('/face_adls/feedback', String)
         self.global_move_poses_pub = rospy.Publisher('/face_adls/global_move_poses', StringArray, 

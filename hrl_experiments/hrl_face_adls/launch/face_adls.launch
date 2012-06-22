@@ -22,6 +22,16 @@
                   file="$(find hrl_face_adls)/params/r_ell_poses.yaml" />
     </node>
 
+    <node pkg="hrl_face_adls" name="r_cartesian_manager" type="cartesian_manager.py"
+          output="screen" args="r" >
+        <remap from="/face_adls/r_cart_move" to="/r_cart/web_commands" />
+    </node>
+
+    <node pkg="hrl_face_adls" name="l_cartesian_manager" type="cartesian_manager.py"
+          output="screen" args="l" >
+        <remap from="/face_adls/l_cart_move" to="/l_cart/web_commands" />
+    </node>
+
     <!--
     <node pkg="hrl_netft" name="netft_gravity_zeroing" type="netft_zeroing.py" 
           args="-l -r -z -p -f $(find hrl_face_adls)/params/ft_zero_params_razor_inline.yaml" 
