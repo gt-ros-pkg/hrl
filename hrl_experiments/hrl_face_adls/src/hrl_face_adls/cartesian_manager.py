@@ -67,11 +67,13 @@ class CartesianControllerManager(object):
         self.arm = cart_arm
         self.frame_rot = frame_rot
         self.velocity = velocity
+        self.controller_enabled_pub.publish(True)
         return True
 
     def disable_controller(self):
         self.cart_ctrl.set_arm(None)
         self.arm = None
+        self.controller_enabled_pub.publish(False)
         return True
 
     def command_move_cb(self, msg):
