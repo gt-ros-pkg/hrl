@@ -1,6 +1,6 @@
 var head_pub;
 var base_pub;
-var scales={head:50,base:50,rarm:50,larm:50};
+var scales={head:50,base:50,rarm:50,larm:50,rrot:0.25*Math.PI,lrot:0.25*Math.PI};
 //var arm_joints={right:[],left:[]}
 var pointing_frame='openni_rgb_optical_frame'
 var head_state;
@@ -13,13 +13,25 @@ function teleop_init(){
                         window.head_state = msg.actual;
                         window.head_joints = msg.joint_names;
 			        });
+	node.subscribe('/r_gripper_controller_state_throttle',
+                    function(msg){
+                        $('#rg_slider').show().slider("option", "value", msg.process_value);
+                    });
+	node.subscribe('/l_gripper_controller_state_throttle',
+                    function(msg){
+                        $('#lg_slider').show().slider("option", "value", msg.process_value);
+                    });
+	node.subscribe('/torso_state_throttle',
+                    function(msg){
+                        window.torso_state = msg.actual.positions[0];
+                        $('#torso_slider').show().slider("option", "value", msg.actual.positions[0])
+                    });
     //node.subscribe('/r_arm_controller_state_throttle', function(msg){
     //                                    window.arm_joints.right = msg.actual});
     //node.subscribe('/l_arm_controller_state_throttle', function(msg){
     //                                   window.arm_joints.left = msg.actual});
 
     //Arm Publishers
-    var pubs = new Array()
    // var sides = ["right","left"];
    // for (var i=0; i < sides.length; i++){
    //    pubs['wt_'+sides[i]+'_arm_pose_commands'] = 'geometry_msgs/Point';
@@ -27,16 +39,56 @@ function teleop_init(){
    //    pubs['wt_lin_move_'+sides[i]] = 'std_msgs/Float32';
    //    pubs['wt_adjust_elbow_'+sides[i]] = 'std_msgs/Float32';
    // };
-        pubs['head_nav_goal']='geometry_msgs/PoseStamped'
-        pubs['head_traj_controller/point_head_action/goal'] = 'pr2_controllers_msgs/PointHeadActionGoal'
-        pubs['base_controller/command'] = 'geometry_msgs/Twist'
-    for (var i in pubs){
-        advertise(i, pubs[i]);
-    };
+   advertise('head_nav_goal','geometry_msgs/PoseStamped');
+   advertise('head_traj_controller/point_head_action/goal','pr2_controllers_msgs/PointHeadActionGoal');
+   advertise('base_controller/command','geometry_msgs/Twist');
+   advertise('l_gripper_controller/command', 'pr2_controllers_msgs/Pr2GripperCommand');
+   advertise('r_gripper_controller/command', 'pr2_controllers_msgs/Pr2GripperCommand');
 };
 $(function(){
 	$('#scale_slider').slider({value:50,min:0,max:100,step:1,orientation:'vertical'}); 
+	$('#rg_slider').slider({min:-0.005,max:0.09,step:0.001,orientation:'vertical'}); 
+	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                                            pub_gripper('r',$('#rg_slider').slider("value"));
+                                                            log('Opening/Closing Right Gripper');
+                                                            });	
+	$('#lg_slider').slider({min:-0.005,max:0.09,step:0.001,orientation:'vertical'}); 
+	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
+                                                            pub_gripper('l',$('#lg_slider').slider("value"));
+                                                            log("Opening/Closing Left Gripper");
+                                                            });	
+	$('#torso_slider').slider({min:0.0,max:0.3,step:0.01,orientation:'vertical'});
+	$('#torso_slider').unbind("slidestop").bind("slidestop",function(event,ui){
+                                                            pub_torso($('#torso_slider').slider("value"))
+                                                            });	
+    $('#rg_grab').click(function(){gripper_grab('r')});
+    $('#lg_grab').click(function(){gripper_grab('l')});
+    $('#rg_release').click(function(){gripper_release('r')});
+    $('#lg_release').click(function(){gripper_release('l')});
 });
+
+function pub_gripper(arm,grpos) {
+	node.publish(arm+'_gripper_controller/command',
+                 'pr2_controllers_msgs/Pr2GripperCommand',
+                 json({'position': grpos ,'max_effort':-1}));
+};
+
+function gripper_grab(arm){
+    pub_gripper(arm,-0.005);
+};
+
+function gripper_release(arm){
+    pub_gripper(arm,0.09);
+};
+
+function pub_torso(tz){
+    var dir = (tz < window.torso_state) ? 'Lowering' : 'Raising';
+    log(dir+" Torso");
+	node.publish('torso_controller/position_joint_action/goal',
+                 'pr2_controllers_msgs/SingleJointPositionActionGoal',
+                 json({'goal':{'position':tz}})
+                )
+};
 
 function pub_head_traj(head_traj_goal, dist){ //Send pan/tilt trajectory commands to head
 		if (head_traj_goal.goal.trajectory.points[0].positions[0] < -2.70) {
@@ -65,8 +117,7 @@ function pub_head_goal(x,y,z,frame) { //Send 3d point to look at using kinect
 };
 
 function teleop_head() {
-    $('#bpd_default_rot, #cart_frame_select').hide();
-    $('#cart_frame_select_label').html('');
+    $('#bpd_default_rot, #cart_frame_select, #cart_frame_select_label, #cart_controller').hide();
 	window.head_pub = window.clearInterval(head_pub);
 	log('Controlling Head');
 	$('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales.head = $('#scale_slider').slider("value")});
@@ -144,8 +195,7 @@ function base_pub_conf(selector,bx,by,bz){
 
 function teleop_base() {
 	log("Controlling Base");
-    $('#bpd_default_rot, #cart_frame_select').hide();
-    $('#cart_frame_select_label').html('');
+    $('#bpd_default_rot, #cart_frame_select, #cart_frame_select_label, #cart_controller').hide();
 	$('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales.base = $('#scale_slider').slider("value")});
 	$('#scale_slider').show().slider("option", "value", scales.base);
 	//$("#tp").unbind().hide();
