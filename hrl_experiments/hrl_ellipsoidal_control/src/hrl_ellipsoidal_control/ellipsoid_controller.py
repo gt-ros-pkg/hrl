@@ -40,9 +40,7 @@ class EllipsoidParamServer(object):
         self.head_center = PoseConverter.to_pose_stamped_msg("/base_link",base_B_head)
         is_scratching = rospy.get_param('/is_scratching', False) # TODO BETTER SOLUTION!
         self.ell_space = EllipsoidSpace(is_prolate=not is_scratching)
-        self.ell_space.load_ell_params(params)
-        self.ell_space.center = np.mat(np.zeros((3, 1)))
-        self.ell_space.rot = np.mat(np.eye(3))
+        self.ell_space.load_ell_params(params.E, params.height)
 
     def params_loaded(self):
         return self.ell_space is not None

@@ -8,23 +8,19 @@ roslib.load_manifest('hrl_ellipsoidal_control')
 import tf.transformations as tf_trans
 
 from hrl_generic_arms.pose_converter import PoseConverter
-from hrl_ellipsoidal_control.msg import EllipsoidParams
 
 class EllipsoidSpace(object):
-    def __init__(self, E=1, is_prolate=True, center=np.mat(np.zeros((3,1))), rot=np.mat(np.eye(3))):
+    def __init__(self, E=1, is_prolate=True):
         self.A = 1
         self.E = E
         #self.B = np.sqrt(1. - E**2)
         self.a = self.A * self.E
         self.is_prolate = is_prolate
-        self.center = center
-        self.rot = rot
 
-    def load_ell_params(self, e_params):
-        self.center, self.rot = PoseConverter.to_pos_rot(e_params.e_frame)
-        self.E = e_params.E
+    def load_ell_params(self, E, height=1):
+        self.E = E
         self.a = self.A * self.E
-        self.height = e_params.height
+        self.height = height
 
     def ellipsoidal_to_cart(self, lat, lon, height):
         #assert height > 0 and lat >= 0 and lat <= np.pi and lon >= 0 and lon < 2 * np.pi
@@ -37,7 +33,7 @@ class EllipsoidSpace(object):
             y = self.a * np.cosh(height) * np.cos(lat-np.pi/2) * np.sin(lon)
             z = self.a * np.sinh(height) * np.sin(lat-np.pi/2)
         pos_local = np.mat([x, y, z]).T
-        return self.center + self.rot * pos_local
+        return pos_local
 
     def partial_height(self, lat, lon, height):
         #assert height > 0 and lat >= 0 and lat <= np.pi and lon >= 0 and lon < 2 * np.pi
@@ -49,20 +45,20 @@ class EllipsoidSpace(object):
             x = self.a * np.sinh(height) * np.sin(lat-np.pi/2) * np.cos(lon)
             y = self.a * np.sinh(height) * np.sin(lat-np.pi/2) * np.sin(lon)
             z = self.a * np.cosh(height) * np.cos(lat-np.pi/2)
-        return self.rot * np.mat([x, y, z]).T
+        return np.mat([x, y, z]).T
 
     #def partial_v(self, lat, lon, height):
     #    #assert height > 0 and lat >= 0 and lat <= np.pi and lon >= 0 and lon < 2 * np.pi
     #    x = self.a * np.sinh(height) * np.cos(lat) * np.cos(lon)
     #    y = self.a * np.sinh(height) * np.cos(lat) * np.sin(lon)
     #    z = self.a * np.cosh(height) * -np.sin(lat)
-    #    return self.rot * np.mat([x, y, z]).T
+    #    return np.mat([x, y, z]).T
     #def partial_p(self, lat, lon, height):
     #    #assert height > 0 and lat >= 0 and lat <= np.pi and lon >= 0 and lon < 2 * np.pi
     #    x = self.a * np.sinh(height) * np.sin(lat) * -np.sin(lon)
     #    y = self.a * np.sinh(height) * np.sin(lat) * np.cos(lon)
     #    z = 0.
-    #    return self.rot * np.mat([x, y, z]).T
+    #    return np.mat([x, y, z]).T
     def ellipsoidal_to_pose(self, lat, lon, height):
         if self.is_prolate:
             return self._ellipsoidal_to_pose_prolate(lat, lon, height)

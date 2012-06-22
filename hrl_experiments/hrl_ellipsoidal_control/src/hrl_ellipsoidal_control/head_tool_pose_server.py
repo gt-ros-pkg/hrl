@@ -28,14 +28,9 @@ head_poses = {
     "mouth_corner" : [(4.5 * np.pi/8,   -0.9 * np.pi/8,     1),      (0,     0,      0)]
 }
 
-USE_ELLIPSE_FRAME = True
-
 def create_arrow_marker(pose, m_id, color=ColorRGBA(1., 0., 0., 1.)):
     m = Marker()
-    if USE_ELLIPSE_FRAME:
-        m.header.frame_id = "/ellipse_frame"
-    else:
-        m.header.frame_id = "/base_link"
+    m.header.frame_id = "/ellipse_frame"
     m.header.stamp = rospy.Time.now()
     m.ns = "ell_pose"
     m.id = m_id
@@ -61,10 +56,7 @@ class HeadToolPoseServer(object):
 
     def read_params(self, e_params):
         if not self.lock_ell:
-            self.ell_space.load_ell_params(e_params)
-            if USE_ELLIPSE_FRAME:
-                self.ell_space.center = np.mat(np.zeros((3, 1)))
-                self.ell_space.rot = np.mat(np.eye(3))
+            self.ell_space.load_ell_params(e_params.E, e_params.height)
             self.found_params = True
 
     def get_many_vectors(self):
@@ -105,10 +97,7 @@ class HeadToolPoseServer(object):
             pose = (np.mat([-9999, -9999, -9999]).T, np.mat(np.zeros((3, 3))))
         else:
             pose = self.get_head_pose(req.name, req.gripper_rot)
-        if USE_ELLIPSE_FRAME:
-            frame = "/ellipse_frame"
-        else:
-            frame = "/base_link"
+        frame = "/ellipse_frame"
         pose_stamped = PoseConverter.to_pose_stamped_msg(frame, pose)
 #self.tmp_pub.publish(pose_stamped)
         return pose_stamped
