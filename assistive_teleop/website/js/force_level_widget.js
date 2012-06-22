@@ -13,7 +13,7 @@ $(function(){
 $.widget("rfh.ft_viewer",{
     options:{
         yellow_pct:50,
-        max_force:15
+        max_force:12
     },
     _create: function(){
         var self = this;
@@ -31,8 +31,9 @@ $.widget("rfh.ft_viewer",{
               function(params){
                   var dt = params['dangerous_force_thresh'];
                   var at = params['activity_force_thresh'];
-                  var danger_pct=((this.max_force-dt)/this.max_force)*100;
-                  var act_pct = ((this.max_force-at)/this.max_force)*100-danger_pct;
+                  var f_max = $('#ft_view_widget').ft_viewer('option','max_force');
+                  var danger_pct=((f_max-dt)/f_max)*100;
+                  var act_pct = ((f_max-at)/f_max)*100-danger_pct;
                   $("#ft_ref_danger").height(danger_pct.toString()+'%');
                   $("#ft_ref_danger_label").text("Danger\r\n >"+params.dangerous_force_thresh.toString()+" N");
                   $("#ft_ref_act").height(act_pct.toString()+'%');
@@ -49,23 +50,24 @@ $.widget("rfh.ft_viewer",{
         this.element.html('');
     },
     refresh: function(ws){
-       mag = Math.sqrt(Math.pow(ws.wrench.force.x,2) + 
+       var mag = Math.sqrt(Math.pow(ws.wrench.force.x,2) + 
                        Math.pow(ws.wrench.force.y,2) + 
                        Math.pow(ws.wrench.force.z,2))
-       var pct = Math.min(mag, 15)/15;
+       var pct = 100*Math.min(mag, this.options.max_force)/this.options.max_force;
        $('#ft_readout').html('<p>'+mag.toFixed(1)+' N </p>')
-       var g = r = "FF";
-       if (pct > this.yellow_pct){
-           g = Math.round((255*(1-(pct-this.yellow_pct)/(1-this.yellow_pct)))).toString(16);
+       var g = "FF";
+       var r = "FF";
+       if (pct > this.options.yellow_pct){
+           g = Math.round((255*(1-(pct-this.options.yellow_pct)/(100-this.options.yellow_pct)))).toString(16);
            if (g.length==1){g="0"+g};
        };
-       if (pct < this.yellow_pct){
-           r = (Math.round(255*(pct/this.yellow_pct))).toString(16);
+       if (pct < this.options.yellow_pct){
+           r = (Math.round(255*(pct/this.options.yellow_pct))).toString(16);
            if (r.length==1){ r="0"+r};
        };
-       color = "#"+r+g+'00';
+       var color = "#"+r+g+'00';
        $('#ft_bar_wrapper').css('background-color', color);
-       $('#ft_bar_value').css('height', Math.round(100*(1-pct)).toString()+'%');
+       $('#ft_bar_value').css('height', Math.round(100-pct).toString()+'%');
         
     },
 });
