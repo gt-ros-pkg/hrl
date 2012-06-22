@@ -247,67 +247,45 @@ function start(){
 
     <div id="tab_cart_control">
       <table>
-       <tr>
-       <td>
-         <div id='cont_sel_container'>
-             <div>
-                 <input type="radio" class="cont_sel" id="cont_head" name="cont_sel" onclick="teleop_head()"/>
-                 <label class="cont_sel_label" for="cont_head">Control Head</label>
-             </div><div>
-                 <input type="radio" class="cont_sel" id="cont_l_arm" name="cont_sel" style="width:50%" onclick="$('#l_arm').click(); cart_arm()"/>
-                 <label class="cont_sel_label" for="cont_l_arm">Control Left Hand</label>
-                 <input type="radio" class="cont_sel" id="cont_r_arm" name="cont_sel" style="width:50%" onclick="$('#r_arm').click(); cart_arm()"/>
-                 <label class="cont_sel_label" for="cont_r_arm">Control Right Hand</label>
-             </div><div>
-                 <input type="radio" class="cont_sel" id="cont_base" name="cont_sel" onclick="teleop_base()">
-                 <label class="cont_sel_label" for="cont_base">Control Base</label>
-             </div>
-           </div> 
-        <!--<div>
-         <form id="cont_sel_form">
-          <table>
-            <tr>
-              <td colspan=2>
-                <input class="cont_sel" id="cont_head" name="cont_sel" type="checkbox" checked="checked" onclick="teleop_head()"/>
-                <label class="cont_sel" for="cont_head">Control Head</label>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <input id="cont_l_arm" type="checkbox" class="cont_sel" name="cont_sel" onclick="$('#l_arm').click(); cart_arm()"/>
-                <label class="cont_sel" for="cont_l_arm">Control Left Hand</label>
-              </td>
-              <td>
-                <input id="cont_r_arm" type="checkbox" class="cont_sel" name="cont_sel" onclick="$('#r_arm').click(); cart_arm()"/>
-                <label class="cont_sel" for="cont_r_arm">Control Right Hand</label>
-              </td>
-            </tr>
-            <tr>
-              <td colspan="2">
-                <input id="cont_base" type="checkbox" class="cont_sel" name="cont_sel" onclick="teleop_base()">
-                <label class="cont_sel" for="cont_base">Control Base</label>
-              </td>
-            </tr>
-            <tr>
-              <td colspan=2>
-                <button type="checkbox" class="centered cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
-                <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
-              </td>
-            </tr>
-             <tr>
-             <tr>
-               <td id='cart_frame_select_label'><b>Movement Frame:</b></td>
-               <td>
-                 <select class="centered cart_control" id='cart_frame_select'>
-                   <option id="frame_opt_torso" value="/torso_lift_link"> Torso </option> 
-                   <option id="frame_opt_hand"> Hand </option> 
-                 </select>
-               </td>
-             </tr>
-          </table>
-         </form>
-        </div>-->
-
+        <tr>
+          <td>
+            <table>
+              <tr>
+                <td colspan=2>
+                  <div id='cont_sel_container' style="width:300px">
+                    <div>
+                      <input type="radio" class="cont_sel" id="cont_head" name="cont_sel" onclick="teleop_head()"/>
+                      <label class="cont_sel_label" for="cont_head">Control Head</label>
+                    </div><div>
+                      <input type="radio" class="cont_sel" id="cont_l_arm" name="cont_sel" style="width:50%; height:100%" onclick="$('#l_arm').click(); cart_arm()"/>
+                      <label class="cont_sel_label" for="cont_l_arm" style="width:50%; height:100%">Control Left Hand</label>
+                      <input type="radio" class="cont_sel" id="cont_r_arm" name="cont_sel" style="width:50%; height:100%" onclick="$('#r_arm').click(); cart_arm()"/>
+                      <label class="cont_sel_label" for="cont_r_arm" style="width:49.5%; height:100%">Control Right Hand</label>
+                    </div><div>
+                      <input type="radio" class="cont_sel" id="cont_base" name="cont_sel" onclick="teleop_base()">
+                      <label class="cont_sel_label" for="cont_base">Control Base</label>
+                    </div>
+                  </div> 
+                </td>
+              </tr>
+              <tr>
+                <td colspan=2>
+                  <button type="checkbox" class="centered cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
+                  <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
+                </td>
+              </tr>
+              <tr>
+              <tr>
+                 <td id='cart_frame_select_label'><b>Movement Frame:</b></td>
+                 <td>
+                   <select class="centered cart_control" id='cart_frame_select'>
+                     <option id="frame_opt_torso" value="/torso_lift_link"> Torso </option> 
+                     <option id="frame_opt_hand"> Hand </option> 
+                   </select>
+                 </td>
+               </tr>
+            </table>
+          </td>
           <td>
             <div class="default_control" id='bpd_default'> <!-- Translate Cartesian Buttonpad-->
               <table>
