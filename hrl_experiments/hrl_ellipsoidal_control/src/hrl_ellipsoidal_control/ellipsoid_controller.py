@@ -17,12 +17,9 @@ from hrl_ellipsoidal_control.controller_base import CartesianStepController, min
 from pykdl_utils.pr2_kin import kin_from_param
 from hrl_generic_arms.pose_converter import PoseConverter
 
-MIN_HEIGHT = 0.2
-
-class EllipsoidController(CartesianStepController):
+class EllipsoidParamServer(object):
 
     def __init__(self):
-        super(EllipsoidController, self).__init__()
         self.ell_param_sub = rospy.Subscriber("/load_ellipsoid_params", EllipsoidParams, 
                                               self.load_params)
         self.kin_head = kin_from_param("base_link", "openni_rgb_optical_frame")
@@ -33,11 +30,6 @@ class EllipsoidController(CartesianStepController):
             if self.head_center is not None:
                 self.head_center_pub.publish(self.head_center)
         rospy.Timer(rospy.Duration(0.2), pub_head_center)
-
-        self._lat_bounds = None
-        self._lon_bounds = None
-        self._height_bounds = None
-        self._no_bounds = True
 
     def load_params(self, params):
         rospy.loginfo("Loaded ellispoidal parameters.")
@@ -78,6 +70,15 @@ class EllipsoidController(CartesianStepController):
         base_B_head = PoseConverter.to_homo_mat(self.head_center)
         target_B_base = self.kin_head.forward_filled(target_segment=frame)
         return target_B_base**-1 * base_B_head
+
+class EllipsoidController(CartesianStepController, EllipsoidParamServer):
+
+    def __init__(self):
+        super(EllipsoidController, self).__init__()
+        self._lat_bounds = None
+        self._lon_bounds = None
+        self._height_bounds = None
+        self._no_bounds = True
 
     def execute_ell_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], 
                          velocity=0.001, blocking=True):
@@ -135,7 +136,6 @@ class EllipsoidController(CartesianStepController):
             return (equals[0] and equals[2] and 
                     (ell_ep_1 >= min_lon or ell_ep_1 <= self._lon_bounds[1]))
 
-
     def _parse_ell_move(self, change_ep, abs_sel, orient_quat):
         change_ell_ep, change_rot_ep = change_ep
         abs_ell_ep_sel, is_abs_rot = abs_sel
@@ -169,8 +169,6 @@ class EllipsoidController(CartesianStepController):
         rpy = tf_trans.euler_from_matrix(cur_rot.T * rot_mat_f) # get roll, pitch, yaw of angle diff
 
         ell_f[1] = np.mod(ell_f[1], 2 * np.pi) # wrap longitude value
-
-        #ell_f[2] = max(ell_f[2], MIN_HEIGHT) # don't want to approach singularity
 
         ell_init = np.mat(self.get_ell_ep()).T # get the current ellipsoidal location of the end effector
         ell_final = np.mat(ell_f).T
