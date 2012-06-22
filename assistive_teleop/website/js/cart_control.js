@@ -3,16 +3,65 @@ function cart_init(){
     advertise('l_cart/web_commands','geometry_msgs/TwistStamped');
     window.TwistStamped = {header:{seq:0,stamp:{secs:0,nsecs:0},frame_id:""},
                                twist:{linear:{x:0,y:0,z:0}, angular:{x:0,y:0,z:0}}};
+    window.EnableCartControlReq = {enable:true, 
+                                    end_link:'',
+                                    ctrl_params:'',
+                                    ctrl_name:'',
+                                    frame_rot:{x:0, y:0, z:0},
+                                    velocity:0};
+    node.subscribe('/face_adls/l_cart_ctrl_enabled',
+                function(msg){l_cart_state_cb(msg)})
+    node.subscribe('/face_adls/r_cart_ctrl_enabled',
+                function(msg){r_cart_state_cb(msg)})
     };
 
 $(function(){
 	$('#default_rot_slider').slider({value:0.25*Math.PI,min:0,max:0.5*Math.PI,step:0.02*Math.PI,orientation:'vertical'}); 
     $("#cart_frame_select, #cart_controller, #cart_cont_state_check").hide();
 	$('#default_rot_slider').bind("slidestop", function(event,ui){
-                                scales[window.arm()[0]+"arm"] = $('#scale_slider').slider("value");
+                                scales["rarm"] = $('#scale_slider').slider("value");
                                 });
-	$('#scale_slider').slider("option", "value", scales[window.arm()[0]+'arm']).show();
+	$('#scale_slider').slider("option", "value", scales['rarm']).show();
     });    
+
+function l_cart_state_cb(msg){
+    log("Received L Cart State");
+    if (msg){
+        show_arm_controls('left');
+    } else {
+        $('#cont_l_arm').attr('checked','').refresh();
+    };
+};
+
+function r_cart_state_cb(msg){
+    log("Received R Cart State");
+    if (msg){
+        show_arm_controls('right')
+    } else {
+        $('#cont_r_arm').attr('checked','').refresh();
+    };
+};
+
+function enable_cart_control(arm){
+    var ecc = window.EnableCartControlReq;
+    var service = '';
+    if (arm =='right'){
+        ecc.end_link = "r_gripper_tool_frame";
+        ecc.ctrl_params = "$(find hrl_face_adls)/params/r_jt_task_tool.yaml";
+        ecc.ctrl_name = "r_cart_jt_task_tool";
+        service = '/face_adls/r_enable_cart_ctrl'
+    }else {
+        ecc.end_link = "l_gripper_shaver45_frame";
+        ecc.ctrl_params = "$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml";
+        ecc.ctrl_name = "l_cart_jt_task";
+        service = '/face_adls/l_enable_cart_ctrl'
+    };
+    ecc.frame_rot = {x:0.0, y:0.0, z:0.0};
+    ecc.velocity = 0.02;
+    node.rosjs.callService(service, [json(ecc)],function(ret){
+                    console.log("Enable cart controller returned success: "+ret.success)
+                    })
+};
 
 function pub_cart_twist(arm, trans, rot){
     tws = window.TwistStamped;
@@ -24,37 +73,36 @@ function pub_cart_twist(arm, trans, rot){
     tws.twist.angular.y = rot[1];
     tws.twist.angular.z = rot[2];
     node.publish(arm[0]+'_cart/web_commands','geometry_msgs/TwistStamped', json(tws));
-    };
+};
 
-function cart_arm(){
-    var arm = window.arm();
+function show_arm_controls(arm){
     $('#bpd_default_rot, #cart_frame_select, #cart_frame_select_label, #cart_controller, #cart_cont_state_check').show();
-	$('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales[window.arm()[0]+"arm"] = $('#scale_slider').slider("value")});
-	$('#scale_slider').slider("option", "value", scales[window.arm()[0]+'arm']).show();
-	$('#default_rot_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales[window.arm()[0]+"rot"] = $('#default_rot_slider').slider("value")});
-	$('#default_rot_slider').slider("option", "value", scales[window.arm()[0]+'rot']).show();
+	$('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales[arm[0]+"arm"] = $('#scale_slider').slider("value")});
+	$('#scale_slider').slider("option", "value", scales[arm[0]+'arm']).show();
+	$('#default_rot_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales[arm[0]+"rot"] = $('#default_rot_slider').slider("value")});
+	$('#default_rot_slider').slider("option", "value", scales[arm[0]+'rot']).show();
     $('#frame_opt_hand').val('/'+arm[0]+'_wrist_roll_link');
 
     $('#bpd_default').find(':button').unbind('.rfh');
     $('#bpd_default #b9').show().bind('click.rfh', function(e){
-        pub_cart_twist(arm,[scales[window.arm()[0]+'arm']/400,0,0],[0,0,0]);
+        pub_cart_twist(arm,[scales[arm[0]+'arm']/400,0,0],[0,0,0]);
     });
     $('#bpd_default #b8').show().bind('click.rfh', function(e){
-        pub_cart_twist(arm,[0,0,scales[window.arm()[0]+'arm']/400],[0,0,0]);
+        pub_cart_twist(arm,[0,0,scales[arm[0]+'arm']/400],[0,0,0]);
     });
     $('#bpd_default #b7').show().bind('click.rfh', function(e){
-        pub_cart_twist(arm,[-scales[window.arm()[0]+'arm']/400,0,0],[0,0,0]);
+        pub_cart_twist(arm,[-scales[arm[0]+'arm']/400,0,0],[0,0,0]);
     });
     $('#bpd_default #b6').show().bind('click.rfh', function(e){
-        pub_cart_twist(arm,[0,-scales[window.arm()[0]+'arm']/400,0],[0,0,0]);
+        pub_cart_twist(arm,[0,-scales[arm[0]+'arm']/400,0],[0,0,0]);
     });
     $('#bpd_default #b5').hide()
     $('#bpd_default #b4').show().bind('click.rfh', function(e){
-        pub_cart_twist(arm,[0,scales[window.arm()[0]+'arm']/400,0],[0,0,0]);
+        pub_cart_twist(arm,[0,scales[arm[0]+'arm']/400,0],[0,0,0]);
     });
     $('#bpd_default #b3').hide();
     $('#bpd_default #b2').show().bind('click.rfh', function(e){
-        pub_cart_twist(arm,[0,0,-scales[window.arm()[0]+'arm']/400],[0,0,0]);
+        pub_cart_twist(arm,[0,0,-scales[arm[0]+'arm']/400],[0,0,0]);
     });
     $('#bpd_default #b1').hide();
     

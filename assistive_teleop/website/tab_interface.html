@@ -21,7 +21,7 @@
 function nop(){};
 function json(obj){return JSON.stringify(obj);};
 function log(message){$('#console').html("<big><strong>"+message.toString()+"</strong></big>"); console.log(message.toString())};
-arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
+//arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
 var ROBOT = 'monty1.hsi.gatech.edu';
 //var ROBOT = 'pr2c1.cc.gatech.edu';
@@ -209,14 +209,14 @@ function start(){
     <td> Camera: </td><td id="camera_select"></td>
      <td>On Image Click:</td><td id="image_click_select"></td>
      <td>Hand:</td>
-     <td>
+     <!--<td>
         <div id='arm_sel'>
           <input type='radio' id='l_arm' name='arm_sel' value='left' checked='checked'/>
           <label for='l_arm'>Left</label>
           <input type='radio' id='r_arm' name='arm_sel' value='right'/>
           <label for='r_arm'>Right</label>
         </div>
-      </td>
+      </td>-->
   </tr>
 </table>
 <hr>
@@ -247,9 +247,9 @@ function start(){
                       <input type="radio" class="cont_sel" id="cont_head" name="cont_sel" onclick="teleop_head()"/>
                       <label class="cont_sel_label" for="cont_head">Control Head</label>
                     </div><div>
-                      <input type="radio" class="cont_sel" id="cont_l_arm" name="cont_sel" style="width:50%; height:100%" onclick="$('#l_arm').click(); cart_arm()"/>
+                      <input type="radio" class="cont_sel" id="cont_l_arm" name="cont_sel" style="width:50%; height:100%" onclick="enable_cart_control('left');"/>
                       <label class="cont_sel_label" for="cont_l_arm" style="width:50%; height:100%">Control Left Hand</label>
-                      <input type="radio" class="cont_sel" id="cont_r_arm" name="cont_sel" style="width:50%; height:100%" onclick="$('#r_arm').click(); cart_arm()"/>
+                      <input type="radio" class="cont_sel" id="cont_r_arm" name="cont_sel" style="width:50%; height:100%" onclick="enable_cart_control('right');"/>
                       <label class="cont_sel_label" for="cont_r_arm" style="width:49.5%; height:100%">Control Right Hand</label>
                     </div><div>
                       <input type="radio" class="cont_sel" id="cont_base" name="cont_sel" onclick="teleop_base()">
