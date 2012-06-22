@@ -47,11 +47,11 @@ class CartesianControllerManager(object):
         _, torso_rot_ref = PoseConverter.to_pos_rot(torso_B_ref)
         ref_pos_off, ref_rot_off = PoseConverter.to_pos_rot(msg)
         change_pos = torso_rot_ep.T * torso_rot_ref * ref_pos_off
+        change_pos_xyz = change_pos.T.A[0]
         ep_rot_ref = torso_rot_ep.T * torso_rot_ref
         change_rot = ep_rot_ref * ref_rot_off * ep_rot_ref.T
         _, change_rot_rpy = PoseConverter.to_pos_euler(np.mat([0]*3).T, change_rot)
-        change_rot_rpy = [0, 0, 0] # TODO REMOVE
-        self.cart_ctrl.execute_cart_move((change_pos.T.A[0], change_rot_rpy), ((0, 0, 0), 0), 
+        self.cart_ctrl.execute_cart_move((change_pos_xyz, change_rot_rpy), ((0, 0, 0), 0), 
                                          velocity=VELOCITY, blocking=True)
 
 def main():
@@ -60,7 +60,8 @@ def main():
     cart_man.enable_controller(end_link="l_gripper_tool_frame", ctrl_name="l_cart_jt_task_tool",
                                ctrl_params="$(find hrl_face_adls)/params/l_jt_task_tool.yaml")
     rospy.sleep(1)
-    t = PoseConverter.to_twist_stamped_msg("l_gripper_tool_frame", (-0.15, 0, 0), (0, 0, 0))
+    #t = PoseConverter.to_twist_stamped_msg("l_gripper_tool_frame", (-0.15, 0, 0), (0, 0, 0))
+    t = PoseConverter.to_twist_stamped_msg("torso_lift_link", (0, 0, 0), (-np.pi/6, 0, 0))
     cart_man.command_move_cb(t)
 #rospy.spin()
 
