@@ -1,7 +1,4 @@
 bool enable
-string end_link
-string ctrl_params
-string ctrl_name
 string mode
 ---
 bool success
