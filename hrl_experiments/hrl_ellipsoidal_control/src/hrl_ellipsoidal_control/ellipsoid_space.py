@@ -11,7 +11,7 @@ from hrl_generic_arms.pose_converter import PoseConverter
 from hrl_ellipsoidal_control.msg import EllipsoidParams
 
 class EllipsoidSpace(object):
-    def __init__(self, E, is_prolate=True, center=np.mat(np.zeros((3,1))), rot=np.mat(np.eye(3))):
+    def __init__(self, E=1, is_prolate=True, center=np.mat(np.zeros((3,1))), rot=np.mat(np.eye(3))):
         self.A = 1
         self.E = E
         #self.B = np.sqrt(1. - E**2)

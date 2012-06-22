@@ -13,7 +13,6 @@ from geometry_msgs.msg import PoseStamped
 from ellipsoid_space import EllipsoidSpace
 from msg import EllipsoidMoveAction, EllipsoidMoveResult
 from msg import EllipsoidParams
-from srv import LoadEllipsoidParams, LoadEllipsoidParamsResponse
 from hrl_ellipsoidal_control.controller_base import CartesianStepController, min_jerk_traj
 from pykdl_utils.pr2_kin import kin_from_param
 from hrl_generic_arms.pose_converter import PoseConverter
@@ -24,8 +23,8 @@ class EllipsoidController(CartesianStepController):
 
     def __init__(self):
         super(EllipsoidController, self).__init__()
-        self.ell_param_srv = rospy.Service("/load_ellipsoid_params", LoadEllipsoidParams, 
-                                           self.load_params)
+        self.ell_param_sub = rospy.Subscriber("/load_ellipsoid_params", EllipsoidParams, 
+                                              self.load_params)
         self.kin_head = kin_from_param("base_link", "openni_rgb_optical_frame")
         self.ell_space = None
         self.head_center = None
@@ -40,20 +39,18 @@ class EllipsoidController(CartesianStepController):
         self._height_bounds = None
         self._no_bounds = True
 
-    def load_params(self, req):
+    def load_params(self, params):
         rospy.loginfo("Loaded ellispoidal parameters.")
-        kinect_B_head = PoseConverter.to_homo_mat(req.params.e_frame)
+        kinect_B_head = PoseConverter.to_homo_mat(params.e_frame)
         base_B_kinect = self.kin_head.forward_filled(base_segment="base_link",
                                                      target_segment="openni_rgb_optical_frame")
         base_B_head = base_B_kinect * kinect_B_head
         self.head_center = PoseConverter.to_pose_stamped_msg("/base_link",base_B_head)
         is_scratching = rospy.get_param('/is_scratching', False) # TODO BETTER SOLUTION!
-        # TODO cleanup EllispoidSpace
-        self.ell_space = EllipsoidSpace(1, is_prolate=not is_scratching)
-        self.ell_space.load_ell_params(req.params)
+        self.ell_space = EllipsoidSpace(is_prolate=not is_scratching)
+        self.ell_space.load_ell_params(params)
         self.ell_space.center = np.mat(np.zeros((3, 1)))
         self.ell_space.rot = np.mat(np.eye(3))
-        return LoadEllipsoidParamsResponse()
 
     def params_loaded(self):
         return self.ell_space is not None

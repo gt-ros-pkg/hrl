@@ -11,7 +11,6 @@ from std_msgs.msg import String
 from geometry_msgs.msg import Transform, Pose
 
 from hrl_ellipsoidal_control.msg import EllipsoidParams
-from hrl_ellipsoidal_control.srv import LoadEllipsoidParams
 from hrl_face_adls.srv import InitializeRegistration, InitializeRegistrationResponse
 from hrl_head_tracking.srv import HeadRegistration
 from hrl_generic_arms.pose_converter import PoseConverter
@@ -24,7 +23,7 @@ class RegistrationLoader(object):
                                           self.init_reg_cb)
         self.head_registration_r = rospy.ServiceProxy("/head_registration_r", HeadRegistration) # TODO
         self.head_registration_l = rospy.ServiceProxy("/head_registration_l", HeadRegistration) # TODO
-        self.load_ell_params = rospy.ServiceProxy("/load_ellipsoid_params", LoadEllipsoidParams)
+        self.ell_params_pub = rospy.Publisher("/ellipsoid_params", EllipsoidParams)
         self.feedback_pub = rospy.Publisher("/feedback", String)
 
     def publish_feedback(self, msg):
@@ -56,7 +55,7 @@ class RegistrationLoader(object):
         reg_e_params.e_frame.header.frame_id = head_reg_tf.header.frame_id
         reg_e_params.height = e_params.height
         reg_e_params.E = e_params.E
-        self.load_ell_params(reg_e_params)
+        self.ell_params_pub.publish(reg_e_params)
 
         if self.shaving_side == 'r':
             self.publish_feedback("Loaded head registration from right side.")
