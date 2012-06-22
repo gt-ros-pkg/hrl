@@ -207,7 +207,7 @@ if __name__ == '__main__':
 
         jep = [0.] * 7
 #        jep = np.radians([-30, 0, -90, -60, 0, 0, 0])
-        epcon.go_jep(jep, speed=math.radians(30.))
+        epcon.go_jep(jep, speed=math.radians(5.))
     
     if False:
         import hrl_lib.util as ut
