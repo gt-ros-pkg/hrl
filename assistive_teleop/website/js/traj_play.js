@@ -1,5 +1,4 @@
-var traj_actions = ['Shaving Left Cheek', 'Shaving Right Cheek', 'Servoing']
-var traj_arms = ['Left','Right']
+var traj_actions = ['Shaving Left Cheek', 'Shaving Right Cheek', 'Servoing'];
 
 function traj_play_init(){
     console.log("Begin Traj Play Init");
@@ -17,19 +16,36 @@ function traj_play_init(){
           else {console.log("Found Left Trajectory Playback Action");};
       });
 
-    load_traj_params();
+    load_traj_activities();
     init_TrajPlayGoal();
     console.log("End Traj Play Init");
 };
 
 $(function(){
-    $("#traj_play_radio :radio").button()
-    $(".traj_play_radio_label").button().addClass('centered');
+    $("#traj_radio").buttonset().addClass('centered');// :radio, #traj_play_radio label").button()
+    $(".traj_play_radio_label").addClass('centered');
+    $('#traj_play_act_sel, #traj_play_arm_sel').bind('change',function(){update_trajectories()});
+    $('label:first', '#traj_radio').removeClass('ui-corner-left').addClass('ui-corner-top');
+    $('label:last', '#traj_radio').removeClass('ui-corner-right').addClass('ui-corner-bottom');
     });
 
 function load_traj_activities(){
-    
+    if (window.get_param_free){
+        window.get_param_free = false;
+        console.log("Traj play activities has locked get_param");
+        node.rosjs.callService('/rosbridge/get_param','["face_adls_traj_modes"]',
+              function(msg){window.traj_acts = msg;
+                    for (var i in msg){
+                        $('#traj_play_act_sel').append('<option value="'+msg[i]+'">'+msg[i]+'</option>');};
+                    window.get_param_free = true;
+                    console.log("Traj play has released get_param");
+                    load_traj_params();
+                    });
+    } else {
+          console.log("Traj Play Activities waiting for rosparam service");
+          setTimeout(function(){load_traj_activities()},500);
     };
+};
 
 function load_traj_params(){
     if (window.get_param_free){
@@ -37,16 +53,25 @@ function load_traj_params(){
         console.log("Traj play has locked get_param");
         node.rosjs.callService('/rosbridge/get_param','["face_adls_traj_files"]',
                       function(msg){window.face_adls_params = msg;
-                                    list_opts('#traj_play_select', msg);
                                     window.get_param_free = true;
                                     console.log("Traj play has released get_param");
+                                    update_trajectories();
                                     });
     } else {
           console.log("Traj Play tab waiting for rosparam service");
           setTimeout(function(){load_traj_params()},500);
     };
-    
+};
+
+function update_trajectories(){
+    var act = $('#traj_play_act_sel option:selected').val(); 
+    var hand = $('#traj_play_arm_sel option:selected').val();
+    var opts = window.face_adls_params[act][hand]
+    $('#traj_play_select').empty();
+    for (var key in opts){
+        $('#traj_play_select').append('<option value="'+key+'">'+key+'</option>');
     };
+};
 
 function init_TrajPlayGoal(){
 	if (window.get_msgs_free){
@@ -64,17 +89,21 @@ function init_TrajPlayGoal(){
     }
 };
 function traj_play_send_goal(){
-    goal = window.TrajPlayGoal;
-    goal.mode = parseInt($('input[name=traj_play_radio]:checked','#traj_play_radio').val());
-    goal.reverse = $("#traj_play_reverse").is(":checked");
-    goal.setup_velocity = 0.1;
-    goal.traj_rate_mult = 0.8;
-    goal.filepath = $("#traj_play_select option:selected").val()
-    if ($("#traj_play_select option:selected").text().slice(1,2) == 'R'){
+    var goal = window.TrajPlayGoal;
+    var act = $('#traj_play_act_sel option:selected').val(); 
+    var hand = $('#traj_play_arm_sel option:selected').val();
+    var traj = $('#traj_play_select').val();
+    var settings = window.face_adls_params[act][hand][traj]
+    goal.mode = parseInt($('input:checked','#traj_radio').val());
+    goal.reverse = settings[0];
+    goal.setup_velocity = settings[1];
+    goal.traj_rate_mult = settings[2];
+    goal.filepath = settings[3];
+    if (hand == 'Right'){
         window.traj_play_r_client.send_goal(goal)
-    } else if ($("#traj_play_select option:selected").text().slice(1,2) == 'L'){
+    } else {
         window.traj_play_l_client.send_goal(goal)
-    } else {log("Cannot Tell Which Arm to use based on filepath")};
+    };
     console.log("Sending Trajectory Play Goal");
 };
 

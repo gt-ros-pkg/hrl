@@ -32,7 +32,11 @@ var get_msgs_free = true;
 $(function(){
     $("#txt2say").keyboard({layout:'qwerty', stayOpen:true});
     $("#tabs").tabs().tabs({select: tab_select_cb});
-    $(".bpd, .cont_sel, #cart_controller, .ar_servo_button, .traj_play_cont, #adj_mirror, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
+    $('#cont_sel_container').buttonset();
+    $('label:first', '#cont_sel_container').removeClass('ui-corner-left').addClass('ui-corner-top centered');
+    $('label:last', '#cont_sel_container').removeClass('ui-corner-right').addClass('ui-corner-bottom centered');
+    //$('cont_sel_label').addClass('centered');
+    $(".bpd, #cart_controller, .ar_servo_button, .traj_play_cont, #adj_mirror, #traj_play_reverse, #ell_controller, #reg_head, #rezero_wrench, #send_shave_select, #shave, #shave_stop, #tool_power").button();
     $('*').click(log_click);
 	$('#submit_text').click(function(e){speak($('#txt2say').val())});
     $("#reset").hide();
@@ -47,7 +51,7 @@ function init(){
     basic_init();
     cart_init();
     set_camera("kinect_head/rgb/image_color");
-    teleop_head();
+    $('#cont_head').click();
 	console.log('Finished Initialization');
 };
 
@@ -104,10 +108,9 @@ function list_opts(sel, dict){
 };
 
 function list_key_opts(select, msg){
-        console.log("Receiving global move keys")
         $(select).empty();
         for (i=0; i<msg.data.length; i++){
-            $(select).append('<option>'+msg.data[i]+'</option>')};
+            $(select).append('<option value="'+msg.data[i]+'">'+msg.data[i]+'</option>')};
     };
 
 function empty_srv(service){
@@ -202,16 +205,6 @@ function start(){
     <td>
       <div id="ft_view_widget"> </div>
     </td>
-    <td>
-      <table>
-      <tr>
-        <td>
-  </td></tr>
-      <tr>
-      </tr>
-      </td>
-      </table>
-    <td>
   <tr>
     <td> Camera: </td><td id="camera_select"></td>
      <td>On Image Click:</td><td id="image_click_select"></td>
@@ -244,54 +237,45 @@ function start(){
 
     <div id="tab_cart_control">
       <table>
-       <tr>
-       <td>
-        <div>
-         <form id="cont_sel_form">
-          <table>
-            <tr>
-              <td colspan=2>
-                <input class="cont_sel" id="cont_head" name="cont_sel" type="radio" onclick="teleop_head()"/>
-                <label class="cont_sel" for="cont_head">Control Head</label>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <input id="cont_l_arm" type="radio" class="cont_sel" name="cont_sel" onclick="$('#l_arm').click(); cart_arm()"/>
-                <label class="cont_sel" for="cont_l_arm">Control Left Hand</label>
-              </td>
-              <td>
-                <input id="cont_r_arm" type="radio" class="cont_sel" name="cont_sel" onclick="$('#r_arm').click(); cart_arm()"/>
-                <label class="cont_sel" for="cont_r_arm">Control Right Hand</label>
-              </td>
-            </tr>
-            <tr>
-              <td colspan="2">
-                <input id="cont_base" type="radio" class="cont_sel" name="cont_sel" onclick="teleop_base()">
-                <label class="cont_sel" for="cont_base">Control Base</label>
-              </td>
-            </tr>
-            <tr>
-              <td colspan=2>
-                <button type="checkbox" class="centered cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
-                <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
-              </td>
-            </tr>
-             <tr>
-             <tr>
-               <td id='cart_frame_select_label'><b>Movement Frame:</b></td>
-               <td>
-                 <select class="centered cart_control" id='cart_frame_select'>
-                   <option id="frame_opt_torso" value="/torso_lift_link"> Torso </option> 
-                   <option id="frame_opt_hand"> Hand </option> 
-                 </select>
-               </td>
-             </tr>
-          </table>
-         </form>
-        </div>
-       </td>
-
+        <tr>
+          <td>
+            <table>
+              <tr>
+                <td colspan=2>
+                  <div id='cont_sel_container' style="width:300px">
+                    <div>
+                      <input type="radio" class="cont_sel" id="cont_head" name="cont_sel" onclick="teleop_head()"/>
+                      <label class="cont_sel_label" for="cont_head">Control Head</label>
+                    </div><div>
+                      <input type="radio" class="cont_sel" id="cont_l_arm" name="cont_sel" style="width:50%; height:100%" onclick="$('#l_arm').click(); cart_arm()"/>
+                      <label class="cont_sel_label" for="cont_l_arm" style="width:50%; height:100%">Control Left Hand</label>
+                      <input type="radio" class="cont_sel" id="cont_r_arm" name="cont_sel" style="width:50%; height:100%" onclick="$('#r_arm').click(); cart_arm()"/>
+                      <label class="cont_sel_label" for="cont_r_arm" style="width:49.5%; height:100%">Control Right Hand</label>
+                    </div><div>
+                      <input type="radio" class="cont_sel" id="cont_base" name="cont_sel" onclick="teleop_base()">
+                      <label class="cont_sel_label" for="cont_base">Control Base</label>
+                    </div>
+                  </div> 
+                </td>
+              </tr>
+              <tr>
+                <td colspan=2>
+                  <button type="checkbox" class="centered cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
+                  <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
+                </td>
+              </tr>
+              <tr>
+              <tr>
+                 <td id='cart_frame_select_label'><b>Movement Frame:</b></td>
+                 <td>
+                   <select class="centered cart_control" id='cart_frame_select'>
+                     <option id="frame_opt_torso" value="/torso_lift_link"> Torso </option> 
+                     <option id="frame_opt_hand"> Hand </option> 
+                   </select>
+                 </td>
+               </tr>
+            </table>
+          </td>
           <td>
             <div class="default_control" id='bpd_default'> <!-- Translate Cartesian Buttonpad-->
               <table>
@@ -388,7 +372,11 @@ function start(){
               <tr><th style="text-align:left">1. Activity</th></tr>
               <tr><td><select id="traj_play_act_sel"/></td></tr>
               <tr><th style="text-align:left">2. Arm</th></tr>
-              <tr><td><select id="traj_play_arm_sel"/></td></tr>
+              <tr><td>
+                <select id="traj_play_arm_sel"/>
+                  <option value="Right">Right</option>
+                  <option value="Left">Left</option>
+              </td></tr>
               <tr><th style="text-align:left">3. Trajectory</th></tr>
               <tr><td><select id="traj_play_select"/></td></tr>
             </table>
@@ -408,23 +396,23 @@ function start(){
           </td>
           <td>
             <form id="traj_play_radio">
-              <table id="traj_play_radio_layout">
-                <tr><td>
-                    <input type="radio" id="traj_play_setup" name="traj_radio"/>
+              <table>
+                <tr>
+                  <td>
+                    <div id="traj_radio">
+                    <div>
+                    <input type="radio" id="traj_play_setup" value='1' name="traj_radio"/>
                     <label class="traj_play_radio_label" for="traj_play_setup"> Move to Setup </label>
-                </td></tr>
-                <tr><td>
-                    <input type="radio" id="traj_play_exec" name="traj_radio">
+                    </div>
+                    <div>
+                    <input type="radio" id="traj_play_exec" value="2" name="traj_radio">
                     <label class="traj_play_radio_label" for="traj_play_exec"> Execute Traj. </label>
-                </td></tr>
-                <tr><td>
-                    <input type="radio" id="traj_play_set_and_exec" name="traj_radio" checked="checked"/>
+                    </div>
+                    <div>
+                    <input type="radio" id="traj_play_set_and_exec" value="3" name="traj_radio" checked="checked"/>
                     <label class="traj_play_radio_label" for="traj_play_set_and_exec"> Setup AND Execute </label>
-                </td></tr>
-                <tr><td><hr></td></tr>
-                <tr><td>
-                    <input type="checkbox" id="traj_play_reverse" />
-                    <label for="traj_play_reverse"> Play Backward (Reverse) </label>
+                    </div>
+                  </div>
                 </td></tr>
               </table>
             </form>
