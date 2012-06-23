@@ -10,21 +10,22 @@ import tf.transformations as tf_trans
 from hrl_generic_arms.pose_converter import PoseConverter
 
 class EllipsoidSpace(object):
-    def __init__(self, E=1, is_prolate=True):
+    def __init__(self, E=1, is_oblate=False):
         self.A = 1
         self.E = E
         #self.B = np.sqrt(1. - E**2)
         self.a = self.A * self.E
-        self.is_prolate = is_prolate
+        self.is_oblate = is_oblate
 
-    def load_ell_params(self, E, height=1):
+    def load_ell_params(self, E, is_oblate=False, height=1):
         self.E = E
         self.a = self.A * self.E
+        self.is_oblate = is_oblate
         self.height = height
 
     def ellipsoidal_to_cart(self, lat, lon, height):
         #assert height > 0 and lat >= 0 and lat <= np.pi and lon >= 0 and lon < 2 * np.pi
-        if self.is_prolate:
+        if not self.is_oblate:
             x = self.a * np.sinh(height) * np.sin(lat) * np.cos(lon)
             y = self.a * np.sinh(height) * np.sin(lat) * np.sin(lon)
             z = self.a * np.cosh(height) * np.cos(lat)
@@ -37,7 +38,7 @@ class EllipsoidSpace(object):
 
     def partial_height(self, lat, lon, height):
         #assert height > 0 and lat >= 0 and lat <= np.pi and lon >= 0 and lon < 2 * np.pi
-        if self.is_prolate:
+        if not self.is_oblate:
             x = self.a * np.cosh(height) * np.sin(lat) * np.cos(lon)
             y = self.a * np.cosh(height) * np.sin(lat) * np.sin(lon)
             z = self.a * np.sinh(height) * np.cos(lat)
@@ -60,7 +61,7 @@ class EllipsoidSpace(object):
     #    z = 0.
     #    return np.mat([x, y, z]).T
     def ellipsoidal_to_pose(self, lat, lon, height):
-        if self.is_prolate:
+        if not self.is_oblate:
             return self._ellipsoidal_to_pose_prolate(lat, lon, height)
         else:
             return self._ellipsoidal_to_pose_oblate(lat, lon, height)
@@ -120,7 +121,7 @@ class EllipsoidSpace(object):
         return pose
 
     def pos_to_ellipsoidal(self, x, y, z):
-        if self.is_prolate:
+        if not self.is_oblate:
             return self._pos_to_ellipsoidal_prolate(x, y, z)
         else:
             return self._pos_to_ellipsoidal_oblate(x, y, z)

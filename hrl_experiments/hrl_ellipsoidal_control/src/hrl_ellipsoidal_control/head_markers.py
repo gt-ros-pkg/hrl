@@ -34,7 +34,7 @@ class HeadMarkers(object):
         self.found_params = False
 
     def read_params(self, e_params):
-        self.ell_space.load_ell_params(e_params.E, e_params.height)
+        self.ell_space.load_ell_params(e_params.E, e_params.is_oblate, e_params.height)
         if not self.found_params:
             rospy.loginfo("[head_markers] Found params from /ellipsoid_params")
         self.found_params = True

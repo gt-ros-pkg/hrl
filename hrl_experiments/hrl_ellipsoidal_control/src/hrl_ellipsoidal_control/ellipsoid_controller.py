@@ -38,9 +38,8 @@ class EllipsoidParamServer(object):
                                                      target_segment="openni_rgb_optical_frame")
         base_B_head = base_B_kinect * kinect_B_head
         self.head_center = PoseConverter.to_pose_stamped_msg("/base_link",base_B_head)
-        is_scratching = rospy.get_param('/is_scratching', False) # TODO BETTER SOLUTION!
-        self.ell_space = EllipsoidSpace(is_prolate=not is_scratching)
-        self.ell_space.load_ell_params(params.E, params.height)
+        self.ell_space = EllipsoidSpace()
+        self.ell_space.load_ell_params(params.E, params.is_oblate, params.height)
 
     def params_loaded(self):
         return self.ell_space is not None

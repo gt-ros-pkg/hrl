@@ -43,8 +43,7 @@ def create_arrow_marker(pose, m_id, color=ColorRGBA(1., 0., 0., 1.)):
 
 class HeadToolPoseServer(object):
     def __init__(self):
-        is_scratching = rospy.get_param('/is_scratching', False) # TODO BETTER SOLUTION!
-        self.ell_space = EllipsoidSpace(1, is_prolate=not is_scratching)
+        self.ell_space = EllipsoidSpace()
         self.ell_sub = rospy.Subscriber("/ellipsoid_params", EllipsoidParams, self.read_params)
         #self.head_pose_srv = rospy.Service("/get_head_pose", GetHeadPose, self.get_head_pose_srv)
         self.lock_ell = False
@@ -56,7 +55,7 @@ class HeadToolPoseServer(object):
 
     def read_params(self, e_params):
         if not self.lock_ell:
-            self.ell_space.load_ell_params(e_params.E, e_params.height)
+            self.ell_space.load_ell_params(e_params.E, e_params.is_oblate, e_params.height)
             self.found_params = True
 
     def get_many_vectors(self):
