@@ -54,7 +54,7 @@ class CartesianControllerManager(object):
                           frame_rot=FLIP_PERSPECTIVE_ROT, velocity=0.03):
 #frame_rot=np.mat(np.eye(3))):
         rospy.loginfo("[cartesian_manager] Enabling %s controller with end link %s" %
-                      ctrl_name, end_link)
+                      (ctrl_name, end_link))
 
         try:
             if '%s' in end_link:
@@ -88,7 +88,7 @@ class CartesianControllerManager(object):
         if self.arm is None:
             rospy.logwarn("[cartesian_manager] Cartesian controller not enabled.")
             return
-        self.stop_moving(wait=True)
+        self.cart_ctrl.stop_moving(wait=True)
         if msg.header.frame_id == "":
             msg.header.frame_id = "torso_lift_link"
         if self.kin is None or msg.header.frame_id not in self.kin.get_segment_names():
@@ -111,7 +111,7 @@ class CartesianControllerManager(object):
         if self.arm is None:
             rospy.logwarn("[cartesian_manager] Cartesian controller not enabled.")
             return
-        self.stop_moving(wait=True)
+        self.cart_ctrl.stop_moving(wait=True)
         if msg.header.frame_id == "":
             msg.header.frame_id = "torso_lift_link"
         if self.kin is None or msg.header.frame_id not in self.kin.get_segment_names():
