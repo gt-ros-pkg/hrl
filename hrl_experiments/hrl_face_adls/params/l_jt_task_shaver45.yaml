@@ -1,4 +1,4 @@
-l_cart_jt_task:
+l_cart_jt_task_shaver:
   type: pr2_manipulation_controllers/JTTaskController
   root_name: torso_lift_link
   tip_name: l_gripper_shaver45_frame

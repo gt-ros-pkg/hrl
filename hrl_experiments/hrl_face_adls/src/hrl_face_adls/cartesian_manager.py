@@ -8,7 +8,7 @@ roslib.load_manifest("hrl_face_adls")
 
 import rospy
 from std_msgs.msg import Bool
-from geometry_msgs.msg import TwistStamped
+from geometry_msgs.msg import TwistStamped, PoseStamped
 
 from hrl_ellipsoidal_control.controller_base import CartesianStepController
 from pykdl_utils.pr2_kin import kin_from_param
@@ -30,6 +30,8 @@ class CartesianControllerManager(object):
         self.ctrl_switcher = ControllerSwitcher()
         self.command_move_sub = rospy.Subscriber("/face_adls/%s_cart_move" % arm_char, TwistStamped, 
                                                  async_call(self.command_move_cb))
+        self.command_absolute_sub = rospy.Subscriber("/face_adls/%s_cart_absolute" % arm_char, PoseStamped, 
+                                                 async_call(self.command_absolute_cb))
         def enable_controller_cb(req):
             if req.enable:
                 _, frame_rot = PoseConverter.to_pos_rot([0]*3, 
@@ -95,6 +97,24 @@ class CartesianControllerManager(object):
         change_rot = ep_rot_ref * ref_rot_off * ep_rot_ref.T
         _, change_rot_rpy = PoseConverter.to_pos_euler(np.mat([0]*3).T, change_rot)
         self.cart_ctrl.execute_cart_move((change_pos_xyz, change_rot_rpy), ((0, 0, 0), 0), 
+                                         velocity=self.velocity, blocking=True)
+
+    def command_absolute_cb(self, msg):
+        if self.arm is None:
+            rospy.logwarn("[cartesian_manager] Cartesian controller not enabled.")
+        if msg.header.frame_id == "":
+            msg.header.frame_id = "torso_lift_link"
+        if self.kin is None or msg.header.frame_id not in self.kin.get_segment_names():
+            self.kin = kin_from_param("torso_lift_link", msg.header.frame_id)
+        torso_pos_ep, torso_rot_ep = self.arm.get_ep()
+        torso_B_ref = self.kin.forward_filled(base_segment="torso_lift_link", 
+                                              target_segment=msg.header.frame_id)
+        ref_B_goal = PoseConverter.to_homo_mat(msg)
+        torso_B_goal = torso_B_ref * ref_B_goal
+
+        change_pos, change_rot = PoseConverter.to_pos_rot(torso_B_goal)
+        change_pos_xyz = change_pos.T.A[0]
+        self.cart_ctrl.execute_cart_move((change_pos_xyz, change_rot), ((1, 1, 1), 1), 
                                          velocity=self.velocity, blocking=True)
 
 def main():
