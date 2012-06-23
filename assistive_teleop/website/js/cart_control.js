@@ -16,6 +16,8 @@ function cart_init(){
     };
 
 $(function(){
+    $('#cont_r_arm').bind('click.rfh', function(){enable_cart_control('right')});
+    $('#cont_l_arm').bind('click.rfh', function(){enable_cart_control('left')});
 	$('#default_rot_slider').slider({value:0.25*Math.PI,min:0,max:0.5*Math.PI,step:0.02*Math.PI,orientation:'vertical'}); 
     $("#cart_frame_select, #cart_controller, #cart_cont_state_check").hide();
 	$('#default_rot_slider').bind("slidestop", function(event,ui){
@@ -45,7 +47,7 @@ function r_cart_state_cb(msg){
 };
 
 function enable_cart_control(arm){
-    $('#bpd_default :button, #bpd_default_rot :button').hide();
+    $('#bpd_default :button, #bpd_default_rot :button, #scale_slider, #default_rot_slider').hide();
     var ecc = window.EnableCartControlReq;
     var service = '';
     if (arm =='right'){
@@ -64,6 +66,7 @@ function enable_cart_control(arm){
     node.rosjs.callService(service, [json(ecc)],function(ret){
                     console.log("Enable cart controller returned success: "+ret.success)
                     })
+    log("Requesting "+arm+" arm cartesian controller.  Controls will appear when controller is active.");
 };
 
 function pub_cart_twist(arm, trans, rot){
