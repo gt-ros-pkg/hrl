@@ -60,6 +60,7 @@ class EllipsoidSpace(object):
     #    y = self.a * np.sinh(height) * np.sin(lat) * np.cos(lon)
     #    z = 0.
     #    return np.mat([x, y, z]).T
+
     def ellipsoidal_to_pose(self, lat, lon, height):
         if not self.is_oblate:
             return self._ellipsoidal_to_pose_prolate(lat, lon, height)
@@ -119,6 +120,13 @@ class EllipsoidSpace(object):
         #       (lat, lon, height) +
         #       str(PoseConverter.to_homo_mat(pose)))
         return pose
+
+    def pose_to_ellipsoidal(self, pose):
+        pose_pos, pose_rot = PoseConverter.to_pos_rot(pose)
+        lat, lon, height = self.pos_to_ellipsoidal(pose_pos[0,0], pose_pos[1,0], pose_pos[2,0])
+        _, ell_rot = PoseConverter.to_pos_rot(self.ellipsoidal_to_pose(lat, lon, height))
+        _, euler_rot = PoseConverter.to_pos_euler(np.mat([0]*3).T, ell_rot.T * pose_rot)
+        return [lat, lon, height], euler_rot
 
     def pos_to_ellipsoidal(self, x, y, z):
         if not self.is_oblate:
