@@ -139,13 +139,23 @@ function pub_gripper_skin(arm,grpos) {
                  json({'position': grpos ,'max_effort':-1}));
 };
 
+function skin_stop_button(){
+    $('#b5','#bpd_default').text('STOP').show().bind('click.rfh',function(e){
+            node.publish('epc/stop','std_msgs/Bool', json({'data':true}))});
+};
+
 function skin_toggle_cb(){
     if ($('#skin_toggle').is(':checked')){
         log("Altering Controls for Skin Use");
     $('#cont_r_arm').unbind('click.rfh').bind('click.skin', function(){
-                                            show_arm_contols('right')});
+                                        show_arm_controls('right');
+                                        skin_stop_button();
+
+    });
     $('#cont_l_arm').unbind('click.rfh').bind('click.skin', function(){
-                                            show_arm_controls('left')});
+                                        show_arm_controls('left')
+                                        skin_stop_button();
+    });
 	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
                                     pub_gripper_skin('r',$('#rg_slider').slider("value"));
                                     log('Opening/Closing Right Gripper');});	
@@ -156,9 +166,6 @@ function skin_toggle_cb(){
     $('#lg_grab').unbind().bind('click',function(e){pub_gripper_skin('l',0.0)});                                
     $('#rg_release').unbind().bind('click',function(e){pub_gripper_skin('r',0.09)});                                
     $('#lg_release').unbind().bind('click',function(e){pub_gripper_skin('l',0.09)});                                
-    $('#b5','#bpd_default').text('STOP').show().bind('click.rfh',function(e){
-        node.publish('epc/stop','std_msgs/Bool', json({'data':true}))
-        });
     } else {
         log("Altering Controls for Normal Use");
     $('#cont_r_arm').unbind('click.skin').bind('click.rfh', function(){enable_cart_control('right')});

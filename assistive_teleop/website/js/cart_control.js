@@ -47,7 +47,7 @@ function r_cart_state_cb(msg){
 };
 
 function enable_cart_control(arm){
-    $('#bpd_default :button, #bpd_default_rot :button').hide();
+    $('#bpd_default :button, #bpd_default_rot :button, #scale_slider, #default_rot_slider').hide();
     var ecc = window.EnableCartControlReq;
     var service = '';
     if (arm =='right'){
@@ -66,6 +66,7 @@ function enable_cart_control(arm){
     node.rosjs.callService(service, [json(ecc)],function(ret){
                     console.log("Enable cart controller returned success: "+ret.success)
                     })
+    log("Requesting "+arm+" arm cartesian controller.  Controls will appear when controller is active.");
 };
 
 function pub_cart_twist(arm, trans, rot){
