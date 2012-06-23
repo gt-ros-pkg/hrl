@@ -59,9 +59,9 @@ class RegistrationLoader(object):
         self.load_ell_params(reg_e_params)
 
         if self.shaving_side == 'r':
-            self.publish_feedback("Loaded head registration from right side.")
+            self.publish_feedback("Registered head using right cheek model, please visually confirm.")
         else:
-            self.publish_feedback("Loaded head registration from left side.")
+            self.publish_feedback("Registered head using left cheek model, please visually confirm.")
         return InitializeRegistrationResponse()
 
 def main():

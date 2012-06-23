@@ -87,6 +87,8 @@ class CartesianControllerManager(object):
     def command_move_cb(self, msg):
         if self.arm is None:
             rospy.logwarn("[cartesian_manager] Cartesian controller not enabled.")
+            return
+        self.stop_moving(wait=True)
         if msg.header.frame_id == "":
             msg.header.frame_id = "torso_lift_link"
         if self.kin is None or msg.header.frame_id not in self.kin.get_segment_names():
@@ -108,6 +110,8 @@ class CartesianControllerManager(object):
     def command_absolute_cb(self, msg):
         if self.arm is None:
             rospy.logwarn("[cartesian_manager] Cartesian controller not enabled.")
+            return
+        self.stop_moving(wait=True)
         if msg.header.frame_id == "":
             msg.header.frame_id = "torso_lift_link"
         if self.kin is None or msg.header.frame_id not in self.kin.get_segment_names():
