@@ -142,6 +142,10 @@ function pub_gripper_skin(arm,grpos) {
 function skin_toggle_cb(){
     if ($('#skin_toggle').is(':checked')){
         log("Altering Controls for Skin Use");
+    $('#cont_r_arm').unbind('click.rfh').bind('click.skin', function(){
+                                            show_arm_contols('right')});
+    $('#cont_l_arm').unbind('click.rfh').bind('click.skin', function(){
+                                            show_arm_controls('left')});
 	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
                                     pub_gripper_skin('r',$('#rg_slider').slider("value"));
                                     log('Opening/Closing Right Gripper');});	
@@ -157,6 +161,8 @@ function skin_toggle_cb(){
         });
     } else {
         log("Altering Controls for Normal Use");
+    $('#cont_r_arm').unbind('click.skin').bind('click.rfh', function(){enable_cart_control('right')});
+    $('#cont_l_arm').unbind('click.skin').bind('click.rfh', function(){enable_cart_control('left')});
 	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
                                     pub_gripper('r',$('#rg_slider').slider("value"));
                                     log('Opening/Closing Right Gripper');
@@ -247,9 +253,9 @@ function start(){
                       <input type="radio" class="cont_sel" id="cont_head" name="cont_sel" onclick="teleop_head()"/>
                       <label class="cont_sel_label" for="cont_head">Control Head</label>
                     </div><div>
-                      <input type="radio" class="cont_sel" id="cont_l_arm" name="cont_sel" style="width:50%; height:100%" onclick="enable_cart_control('left');"/>
+                      <input type="radio" class="cont_sel" id="cont_l_arm" name="cont_sel" style="width:50%; height:100%"/>
                       <label class="cont_sel_label" for="cont_l_arm" style="width:50%; height:100%">Control Left Hand</label>
-                      <input type="radio" class="cont_sel" id="cont_r_arm" name="cont_sel" style="width:50%; height:100%" onclick="enable_cart_control('right');"/>
+                      <input type="radio" class="cont_sel" id="cont_r_arm" name="cont_sel" style="width:50%; height:100%"/>
                       <label class="cont_sel_label" for="cont_r_arm" style="width:49.5%; height:100%">Control Right Hand</label>
                     </div><div>
                       <input type="radio" class="cont_sel" id="cont_base" name="cont_sel" onclick="teleop_base()">

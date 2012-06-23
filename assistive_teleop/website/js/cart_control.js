@@ -16,6 +16,8 @@ function cart_init(){
     };
 
 $(function(){
+    $('#cont_r_arm').bind('click.rfh', function(){enable_cart_control('right')});
+    $('#cont_l_arm').bind('click.rfh', function(){enable_cart_control('left')});
 	$('#default_rot_slider').slider({value:0.25*Math.PI,min:0,max:0.5*Math.PI,step:0.02*Math.PI,orientation:'vertical'}); 
     $("#cart_frame_select, #cart_controller, #cart_cont_state_check").hide();
 	$('#default_rot_slider').bind("slidestop", function(event,ui){
