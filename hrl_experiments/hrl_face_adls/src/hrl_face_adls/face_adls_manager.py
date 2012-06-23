@@ -129,12 +129,12 @@ class FaceADLsManager(object):
         if req.enable:
             face_adls_modes = rospy.get_param('/face_adls_modes', None) 
             params = face_adls_modes[req.mode]
-            shaving_side = rospy.get_param('/shaving_side', 'r') # TODO Make more general
-            bounds = params['%s_bounds' % shaving_side]
+            self.shaving_side = rospy.get_param('/shaving_side', 'r') # TODO Make more general
+            bounds = params['%s_bounds' % self.shaving_side]
             self.ell_ctrl.set_bounds(bounds['lat'], bounds['lon'], bounds['height'])
             success = self.enable_controller(params['end_link'], params['ctrl_params'],
                                              params['ctrl_name'])
-            self.global_poses = rospy.get_param('/face_adls/%s_global_poses' % shaving_side)
+            self.global_poses = rospy.get_param('/face_adls/%s_global_poses' % self.shaving_side)
             self.global_move_poses_pub.publish(self.global_poses.keys())
         else:
             success = self.disable_controller()
@@ -190,7 +190,7 @@ class FaceADLsManager(object):
         self.force_monitor.update_activity()
         self.is_forced_retreat = False
 
-        if True: # shaving_side == 'r' and not is_scratching: # TODO REMOVE!
+        if self.shaving_side == 'r': #and not is_scratching: # TODO REMOVE!
             self.gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
         else:
             self.gripper_rot = tf_trans.quaternion_from_euler(0, 0, 0)
@@ -202,7 +202,7 @@ class FaceADLsManager(object):
         self.ell_ctrl.stop_moving(wait=True)
         self.ell_ctrl.set_arm(None)
         self.controller_enabled_pub.publish(Bool(False))
-        self.publish_feedback(Messages.DISABLE_CONTROLLER)
+        rospy.loginfo(Messages.DISABLE_CONTROLLER)
         return True
 
     def controller_enabled(self):
