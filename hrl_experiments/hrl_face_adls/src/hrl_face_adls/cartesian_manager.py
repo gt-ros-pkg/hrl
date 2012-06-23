@@ -53,26 +53,32 @@ class CartesianControllerManager(object):
                           ctrl_name="%s_cart_jt_task_tool",
                           frame_rot=FLIP_PERSPECTIVE_ROT, velocity=0.03):
 #frame_rot=np.mat(np.eye(3))):
+        rospy.loginfo("[cartesian_manager] Enabling %s controller with end link %s" %
+                      ctrl_name, end_link)
 
-        if '%s' in end_link:
-            end_link = end_link % self.arm_char
-        if '%s' in ctrl_params:
-            ctrl_params = ctrl_params % self.arm_char
-        if '%s' in ctrl_name:
-            ctrl_name = ctrl_name % self.arm_char
-        self.ctrl_switcher.carefree_switch(self.arm_char, ctrl_name, ctrl_params, reset=False)
-        rospy.sleep(0.2)
-        cart_arm = create_pr2_arm(self.arm_char, PR2ArmJTransposeTask, 
-                                  controller_name=ctrl_name, 
-                                  end_link=end_link, timeout=5)
-        self.cart_ctrl.set_arm(cart_arm)
-        self.arm = cart_arm
-        self.frame_rot = frame_rot
-        self.velocity = velocity
-        self.controller_enabled_pub.publish(True)
+        try:
+            if '%s' in end_link:
+                end_link = end_link % self.arm_char
+            if '%s' in ctrl_params:
+                ctrl_params = ctrl_params % self.arm_char
+            if '%s' in ctrl_name:
+                ctrl_name = ctrl_name % self.arm_char
+            self.ctrl_switcher.carefree_switch(self.arm_char, ctrl_name, ctrl_params, reset=False)
+            rospy.sleep(0.2)
+            cart_arm = create_pr2_arm(self.arm_char, PR2ArmJTransposeTask, 
+                                      controller_name=ctrl_name, 
+                                      end_link=end_link, timeout=5)
+            self.cart_ctrl.set_arm(cart_arm)
+            self.arm = cart_arm
+            self.frame_rot = frame_rot
+            self.velocity = velocity
+            self.controller_enabled_pub.publish(True)
+        except:
+            return False
         return True
 
     def disable_controller(self):
+        rospy.loginfo("[cartesian_manager] Disabling cartesian controller.")
         self.cart_ctrl.set_arm(None)
         self.arm = None
         self.controller_enabled_pub.publish(False)
