@@ -27,10 +27,10 @@
                         [True, 0.1, 0.8, "$(find hrl_face_adls)/data/l_arm_shaving_setup_r.pkl"]
             "Shaving Left Cheek" :
                 "Right" :
-                    "Untuck arm to face" : 
-                        [False, 0.1, 0.8, "$(find hrl_face_adls)/data/r_arm_shaving_setup_l.pkl"]
-                    "Retuck arm for base movement" : 
-                        [True, 0.1, 0.8, "$(find hrl_face_adls)/data/r_arm_shaving_setup_l.pkl"]
+                    "Untuck mirror to view" : 
+                        [False, 0.1, 0.8, "$(find hrl_face_adls)/data/r_arm_mirror_setup_l.pkl"]
+                    "Retuck mirror for base movement" : 
+                        [True, 0.1, 0.8, "$(find hrl_face_adls)/data/r_arm_mirror_setup_l.pkl"]
                 "Left" :
                     "Untuck arm to face" : 
                         [False, 0.1, 0.8, "$(find hrl_face_adls)/data/l_arm_shaving_setup_l.pkl"]

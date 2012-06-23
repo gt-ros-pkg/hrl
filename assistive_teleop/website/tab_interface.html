@@ -21,7 +21,7 @@
 function nop(){};
 function json(obj){return JSON.stringify(obj);};
 function log(message){$('#console').html("<big><strong>"+message.toString()+"</strong></big>"); console.log(message.toString())};
-arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
+//arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
 var ROBOT = 'monty1.hsi.gatech.edu';
 //var ROBOT = 'pr2c1.cc.gatech.edu';
@@ -139,9 +139,23 @@ function pub_gripper_skin(arm,grpos) {
                  json({'position': grpos ,'max_effort':-1}));
 };
 
+function skin_stop_button(){
+    $('#b5','#bpd_default').text('STOP').show().bind('click.rfh',function(e){
+            node.publish('epc/stop','std_msgs/Bool', json({'data':true}))});
+};
+
 function skin_toggle_cb(){
     if ($('#skin_toggle').is(':checked')){
         log("Altering Controls for Skin Use");
+    $('#cont_r_arm').unbind('click.rfh').bind('click.skin', function(){
+                                        show_arm_controls('right');
+                                        skin_stop_button();
+
+    });
+    $('#cont_l_arm').unbind('click.rfh').bind('click.skin', function(){
+                                        show_arm_controls('left')
+                                        skin_stop_button();
+    });
 	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
                                     pub_gripper_skin('r',$('#rg_slider').slider("value"));
                                     log('Opening/Closing Right Gripper');});	
@@ -152,11 +166,10 @@ function skin_toggle_cb(){
     $('#lg_grab').unbind().bind('click',function(e){pub_gripper_skin('l',0.0)});                                
     $('#rg_release').unbind().bind('click',function(e){pub_gripper_skin('r',0.09)});                                
     $('#lg_release').unbind().bind('click',function(e){pub_gripper_skin('l',0.09)});                                
-    $('#b5','#bpd_default').text('STOP').show().bind('click.rfh',function(e){
-        node.publish('epc/stop','std_msgs/Bool', json({'data':true}))
-        });
     } else {
         log("Altering Controls for Normal Use");
+    $('#cont_r_arm').unbind('click.skin').bind('click.rfh', function(){enable_cart_control('right')});
+    $('#cont_l_arm').unbind('click.skin').bind('click.rfh', function(){enable_cart_control('left')});
 	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
                                     pub_gripper('r',$('#rg_slider').slider("value"));
                                     log('Opening/Closing Right Gripper');
@@ -209,14 +222,14 @@ function start(){
     <td> Camera: </td><td id="camera_select"></td>
      <td>On Image Click:</td><td id="image_click_select"></td>
      <td>Hand:</td>
-     <td>
+     <!--<td>
         <div id='arm_sel'>
           <input type='radio' id='l_arm' name='arm_sel' value='left' checked='checked'/>
           <label for='l_arm'>Left</label>
           <input type='radio' id='r_arm' name='arm_sel' value='right'/>
           <label for='r_arm'>Right</label>
         </div>
-      </td>
+      </td>-->
   </tr>
 </table>
 <hr>
@@ -247,9 +260,9 @@ function start(){
                       <input type="radio" class="cont_sel" id="cont_head" name="cont_sel" onclick="teleop_head()"/>
                       <label class="cont_sel_label" for="cont_head">Control Head</label>
                     </div><div>
-                      <input type="radio" class="cont_sel" id="cont_l_arm" name="cont_sel" style="width:50%; height:100%" onclick="$('#l_arm').click(); cart_arm()"/>
+                      <input type="radio" class="cont_sel" id="cont_l_arm" name="cont_sel" style="width:50%; height:100%"/>
                       <label class="cont_sel_label" for="cont_l_arm" style="width:50%; height:100%">Control Left Hand</label>
-                      <input type="radio" class="cont_sel" id="cont_r_arm" name="cont_sel" style="width:50%; height:100%" onclick="$('#r_arm').click(); cart_arm()"/>
+                      <input type="radio" class="cont_sel" id="cont_r_arm" name="cont_sel" style="width:50%; height:100%"/>
                       <label class="cont_sel_label" for="cont_r_arm" style="width:49.5%; height:100%">Control Right Hand</label>
                     </div><div>
                       <input type="radio" class="cont_sel" id="cont_base" name="cont_sel" onclick="teleop_base()">
@@ -258,13 +271,6 @@ function start(){
                   </div> 
                 </td>
               </tr>
-              <tr>
-                <td colspan=2>
-                  <button type="checkbox" class="centered cart_control" id="cart_controller" onclick="toggle_cart_controller()" />
-                  <label id="cart_cont_state_check" for="cart_controller">Cartesian Controller</label>
-                </td>
-              </tr>
-              <tr>
               <tr>
                  <td id='cart_frame_select_label'><b>Movement Frame:</b></td>
                  <td>
@@ -429,6 +435,15 @@ function start(){
               <tr>
                 <td>
                   <button class="centered" id="reg_head" onclick="head_reg_cb()"> Register Head </button>
+                </td>
+              <tr>
+              <tr>
+                <td>
+                  <select class="centered" id="ell_mode_sel"> 
+                    <option id="mode_opt_shaving" value="shaving" selected="selected"> Shaving </option>
+                    <option id="mode_opt_scratching" value="scratching"> Scratching </option>
+                    <option id="mode_opt_feeding" value="feeding"> Feeding </option>
+                  </select>
                 </td>
               <tr>
                 <td>
