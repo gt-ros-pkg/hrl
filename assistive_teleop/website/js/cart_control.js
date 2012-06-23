@@ -58,7 +58,7 @@ function enable_cart_control(arm){
     }else {
         ecc.end_link = "l_gripper_shaver45_frame";
         ecc.ctrl_params = "$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml";
-        ecc.ctrl_name = "l_cart_jt_task";
+        ecc.ctrl_name = "l_cart_jt_task_shaver";
         service = '/face_adls/l_enable_cart_ctrl'
     };
     ecc.frame_rot = {x:0.0, y:0.0, z:0.0};
