@@ -112,7 +112,7 @@ class CartesianStepController(CartTrajController):
         pos_f = np.where(abs_cart_ep_sel, change_pos_ep, 
                          np.array(cur_pos + cur_rot * np.mat(change_pos_ep).T).T[0])
         if is_abs_rot:
-            _, rot_mat_f = PoseConverter.to_pos_rot(np.mat([0]*3).T, change_rot_ep)
+            rot_mat_f = change_rot_ep
         else:
             rpy = change_rot_ep
             _, cur_rot = self.arm.get_ep()

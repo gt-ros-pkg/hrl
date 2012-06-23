@@ -35,12 +35,10 @@ function ell_controller_state_cb(msg){
     if (msg.data){
         console.log("Ellipsoid Controller Active")
         $("#ell_controller").attr("checked","checked").button('refresh');
-        //$("#ell_cont_state_check").attr("aria-pressed",true).addClass('ui-state-active');
         $(".ell_control").show();
        } else {
         $("#ell_controller").attr("checked", "").button('refresh');
         console.log("Ellipsoid Controller Inactive")
-        //$("#ell_cont_state_check").attr("aria-pressed",false).removeClass('ui-state-active');
         $(".ell_control").hide();
        };
 };
