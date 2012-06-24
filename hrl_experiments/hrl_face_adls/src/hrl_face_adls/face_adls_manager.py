@@ -21,6 +21,7 @@ from hrl_ellipsoidal_control.ellipsoidal_parameters import *
 from hrl_face_adls.face_adls_parameters import *
 from hrl_face_adls.msg import StringArray
 from hrl_face_adls.srv import EnableFaceController, EnableFaceControllerResponse
+from hrl_face_adls.srv import RequestRegistration
 
 ##
 # Returns a function which will call the callback immediately in
@@ -113,6 +114,7 @@ class FaceADLsManager(object):
         self.controller_enabled_pub = rospy.Publisher('/face_adls/controller_enabled', Bool, latch=True)
         self.enable_controller_srv = rospy.Service("/face_adls/enable_controller", 
                                                    EnableFaceController, self.enable_controller_cb)
+        self.request_registration = rospy.ServiceProxy("/request_registration", RequestRegistration)
 
         def stop_move_cb(msg):
             self.stop_move()
@@ -133,10 +135,17 @@ class FaceADLsManager(object):
             self.shaving_side = rospy.get_param('/shaving_side', 'r') # TODO Make more general
             bounds = params['%s_bounds' % self.shaving_side]
             self.ell_ctrl.set_bounds(bounds['lat'], bounds['lon'], bounds['height'])
+            reg_resp = self.request_registration(req.mode, self.shaving_side)
+            if not reg_resp.success:
+                self.publish_feedback(Messages.NO_PARAMS_LOADED)
+                return EnableFaceControllerResponse(False)
+            self.ell_ctrl.ell_server.load_params(reg_resp.e_params)
+
             success = self.enable_controller(params['end_link'], params['ctrl_params'],
                                              params['ctrl_name'])
+
             self.global_poses = rospy.get_param('/face_adls/%s_global_poses' % self.shaving_side)
-            self.global_move_poses_pub.publish(self.global_poses.keys())
+            self.global_move_poses_pub.publish(sorted(self.global_poses.keys()))
         else:
             success = self.disable_controller()
         return EnableFaceControllerResponse(success)
@@ -144,7 +153,7 @@ class FaceADLsManager(object):
     def enable_controller(self, end_link="%s_gripper_shaver45_frame",
                           ctrl_params="$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml",
                           ctrl_name='%s_cart_jt_task'):
-        if not self.ell_ctrl.params_loaded():
+        if not self.ell_ctrl.ell_server.params_loaded():
             self.publish_feedback(Messages.NO_PARAMS_LOADED)
             return False
 
@@ -263,7 +272,7 @@ class FaceADLsManager(object):
         self.force_monitor.stop_activity()
 
     def check_controller_ready(self):
-        if not self.ell_ctrl.params_loaded() or not self.controller_enabled():
+        if not self.ell_ctrl.ell_server.params_loaded() or not self.controller_enabled():
             #rospy.logerr("Ellipsoidal parameters not loaded")
             return False
         return True

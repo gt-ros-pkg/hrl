@@ -20,7 +20,7 @@ from hrl_generic_arms.pose_converter import PoseConverter
 class EllipsoidParamServer(object):
 
     def __init__(self):
-        self.ell_param_sub = rospy.Subscriber("/load_ellipsoid_params", EllipsoidParams, 
+        self.ell_param_sub = rospy.Subscriber("/ellipsoid_params", EllipsoidParams, 
                                               self.load_params)
         self.kin_head = kin_from_param("base_link", "openni_rgb_optical_frame")
         self.ell_space = None
@@ -32,7 +32,6 @@ class EllipsoidParamServer(object):
         rospy.Timer(rospy.Duration(0.2), pub_head_center)
 
     def load_params(self, params):
-        rospy.loginfo("Loaded ellispoidal parameters.")
         kinect_B_head = PoseConverter.to_homo_mat(params.e_frame)
         base_B_kinect = self.kin_head.forward_filled(base_segment="base_link",
                                                      target_segment="openni_rgb_optical_frame")
@@ -40,13 +39,14 @@ class EllipsoidParamServer(object):
         self.head_center = PoseConverter.to_pose_stamped_msg("/base_link",base_B_head)
         self.ell_space = EllipsoidSpace()
         self.ell_space.load_ell_params(params.E, params.is_oblate, params.height)
+        rospy.loginfo("Loaded ellispoidal parameters.")
 
     def params_loaded(self):
         return self.ell_space is not None
     
-    def get_ell_ep(self):
+    def get_ell_coords(self, pose):
         torso_B_kinect = self.kin_head.forward_filled(base_segment="/torso_lift_link")
-        torso_B_ee = PoseConverter.to_homo_mat(self.arm.get_ep())
+        torso_B_ee = PoseConverter.to_homo_mat(pose)
         kinect_B_ee = torso_B_kinect**-1 * torso_B_ee
         pos, quat = PoseConverter.to_pos_quat(self.get_ell_frame("/openni_rgb_optical_frame")**-1 * 
                                               kinect_B_ee)
@@ -68,14 +68,18 @@ class EllipsoidParamServer(object):
         target_B_base = self.kin_head.forward_filled(target_segment=frame)
         return target_B_base**-1 * base_B_head
 
-class EllipsoidController(CartesianStepController, EllipsoidParamServer):
+class EllipsoidController(CartesianStepController):
 
     def __init__(self):
         super(EllipsoidController, self).__init__()
+        self.ell_server = EllipsoidParamServer()
         self._lat_bounds = None
         self._lon_bounds = None
         self._height_bounds = None
         self._no_bounds = True
+
+    def get_ell_ep(self):
+        return self.ell_server.get_ell_coords(self.arm.get_ep())
 
     def execute_ell_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], 
                          velocity=0.001, blocking=True):
@@ -150,8 +154,8 @@ class EllipsoidController(CartesianStepController, EllipsoidParamServer):
         print "new", ell_f
         if is_abs_rot:
             rot_change_mat = change_rot_ep
-            _, ell_final_rot = self.robot_ellipsoidal_pose(ell_f[0], ell_f[1], ell_f[2],
-                                                           orient_quat)
+            _, ell_final_rot = self.ell_server.robot_ellipsoidal_pose(ell_f[0], ell_f[1], ell_f[2],
+                                                                      orient_quat)
             rot_mat_f = ell_final_rot * rot_change_mat
         else:
             rpy = change_rot_ep
@@ -167,7 +171,8 @@ class EllipsoidController(CartesianStepController, EllipsoidParamServer):
 
         ell_f[1] = np.mod(ell_f[1], 2 * np.pi) # wrap longitude value
 
-        ell_init = np.mat(self.get_ell_ep()).T # get the current ellipsoidal location of the end effector
+        # get the current ellipsoidal location of the end effector
+        ell_init = np.mat(self.get_ell_ep()).T 
         ell_final = np.mat(ell_f).T
 
         # find the closest longitude angle to interpolate to
@@ -190,15 +195,15 @@ class EllipsoidController(CartesianStepController, EllipsoidParamServer):
         ell_traj = np.array(ell_init) + np.array(np.tile(ell_final - ell_init, 
                                                          (1, num_samps))) * np.array(t_vals)
 
-        ell_frame_mat = self.get_ell_frame()
+        ell_frame_mat = self.ell_server.get_ell_frame()
 
-        ell_pose_traj = [self.robot_ellipsoidal_pose(ell_traj[0,i], ell_traj[1,i], ell_traj[2,i],
-                                                     orient_quat, ell_frame_mat) 
+        ell_pose_traj = [self.ell_server.robot_ellipsoidal_pose(
+                            ell_traj[0,i], ell_traj[1,i], ell_traj[2,i], orient_quat, ell_frame_mat) 
                          for i in range(ell_traj.shape[1])]
 
         # modify rotation of trajectory
-        _, ell_init_rot = self.robot_ellipsoidal_pose(ell_init[0,0], ell_init[1,0], ell_init[2,0],
-                                                      orient_quat, ell_frame_mat)
+        _, ell_init_rot = self.ell_server.robot_ellipsoidal_pose(
+                ell_init[0,0], ell_init[1,0], ell_init[2,0], orient_quat, ell_frame_mat)
         rot_adjust_traj = self.arm.interpolate_ep([np.mat([0]*3).T, cur_rot], 
                                                   [np.mat([0]*3).T, rot_mat_f], 
                                                   min_jerk_traj(num_samps))
