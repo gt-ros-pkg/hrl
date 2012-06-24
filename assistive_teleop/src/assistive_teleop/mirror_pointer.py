@@ -16,7 +16,7 @@ class MirrorPointer(object):
         self.tfb = TransformBroadcaster()
         self.active = True
         self.head_pose = PoseStamped()
-        self.goal_pub = rospy.Publisher('r_cart/command_pose', PoseStamped)
+        self.goal_pub = rospy.Publisher('goal_pose', PoseStamped)
         rospy.Subscriber('/head_center', PoseStamped, self.head_pose_cb)
         rospy.Service('/point_mirror', PointMirror, self.point_mirror_cb)
 
@@ -50,13 +50,11 @@ class MirrorPointer(object):
         try:
             mp_in_mf = self.tf.transformPose('mirror',mp)
         except:
-            rospy.logerr("[MirrorPointer] TF Error 1")
             return
-        mp_in_mf.pose.position.x -= 0.33
+        mp_in_mf.pose.position.x -= 0.15
         try:
             wp = self.tf.transformPose('torso_lift_link',mp_in_mf)
         except:
-            rospy.logerr("[MirrorPointer] TF Error 2")
             return
         return wp
 

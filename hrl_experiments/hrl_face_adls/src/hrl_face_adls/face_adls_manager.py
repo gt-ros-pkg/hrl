@@ -62,13 +62,14 @@ class ForceCollisionMonitor(object):
                     rospy.get_time() - self.last_dangerous_cb_time > DANGEROUS_CB_COOLDOWN):
                 self.dangerous_cb(self.dangerous_force_thresh)
                 self.last_dangerous_cb_time = rospy.get_time()
-            if (force_mag > self.contact_force_thresh and 
+            elif (force_mag > self.contact_force_thresh and 
                     rospy.get_time() - self.last_contact_cb_time > CONTACT_CB_COOLDOWN):
                 self.contact_cb(self.contact_force_thresh)
                 self.last_contact_cb_time = rospy.get_time()
-            if force_mag > self.activity_force_thresh:
+            elif force_mag > self.activity_force_thresh:
                 self.update_activity()
-            if self.is_inactive() and rospy.get_time() - self.last_timeout_cb_time > TIMEOUT_CB_COOLDOWN:
+            elif (self.is_inactive() and 
+                    rospy.get_time() - self.last_timeout_cb_time > TIMEOUT_CB_COOLDOWN):
                 self.timeout_cb(self.timeout_time)
                 self.last_timeout_cb_time = rospy.get_time()
             self.lock.release()
@@ -109,15 +110,9 @@ class FaceADLsManager(object):
         self.feedback_pub = rospy.Publisher('/face_adls/feedback', String)
         self.global_move_poses_pub = rospy.Publisher('/face_adls/global_move_poses', StringArray, 
                                                      latch=True)
-        def enable_controller_cb(req):
-            if req.enable:
-                success = self.enable_controller(req.end_link, req.ctrl_params)
-            else:
-                success = self.disable_controller()
-            return EnableFaceControllerResponse(success)
         self.controller_enabled_pub = rospy.Publisher('/face_adls/controller_enabled', Bool, latch=True)
         self.enable_controller_srv = rospy.Service("/face_adls/enable_controller", 
-                                                   EnableFaceController, enable_controller_cb)
+                                                   EnableFaceController, self.enable_controller_cb)
 
         def stop_move_cb(msg):
             self.stop_move()
@@ -131,17 +126,27 @@ class FaceADLsManager(object):
         if transition_id is not None:
             self.state_pub.publish(Int8(transition_id))
 
+    def enable_controller_cb(self, req):
+        if req.enable:
+            face_adls_modes = rospy.get_param('/face_adls_modes', None) 
+            params = face_adls_modes[req.mode]
+            self.shaving_side = rospy.get_param('/shaving_side', 'r') # TODO Make more general
+            bounds = params['%s_bounds' % self.shaving_side]
+            self.ell_ctrl.set_bounds(bounds['lat'], bounds['lon'], bounds['height'])
+            success = self.enable_controller(params['end_link'], params['ctrl_params'],
+                                             params['ctrl_name'])
+            self.global_poses = rospy.get_param('/face_adls/%s_global_poses' % self.shaving_side)
+            self.global_move_poses_pub.publish(self.global_poses.keys())
+        else:
+            success = self.disable_controller()
+        return EnableFaceControllerResponse(success)
+
     def enable_controller(self, end_link="%s_gripper_shaver45_frame",
                           ctrl_params="$(find hrl_face_adls)/params/l_jt_task_shaver45.yaml",
                           ctrl_name='%s_cart_jt_task'):
         if not self.ell_ctrl.params_loaded():
             self.publish_feedback(Messages.NO_PARAMS_LOADED)
             return False
-        is_scratching = rospy.get_param('/is_scratching', False) # TODO BETTER SOLUTION!
-        if is_scratching: # TODO
-            end_link = '%s_gripper_brush45_frame'
-            ctrl_params = "$(find hrl_face_adls)/params/l_jt_task_brush45.yaml"
-            ctrl_name = '%s_cart_jt_task_brush'
 
         self.ctrl_switcher.carefree_switch('l', ctrl_name, ctrl_params, reset=False)
         rospy.sleep(0.2)
@@ -150,10 +155,6 @@ class FaceADLsManager(object):
                                   end_link=end_link, timeout=5)
         self.ell_ctrl.set_arm(cart_arm)
 
-        shaving_side = rospy.get_param('/shaving_side', 'r') # TODO Make more general
-        if not is_scratching: # TODO
-            self.ell_ctrl.set_bounds(LAT_BOUNDS[shaving_side], LON_BOUNDS[shaving_side],
-                                     HEIGHT_BOUNDS[shaving_side])
         # check if arm is near head
         if not self.ell_ctrl.arm_in_bounds():
             self.publish_feedback(Messages.ARM_AWAY_FROM_HEAD)
@@ -164,6 +165,7 @@ class FaceADLsManager(object):
         self.force_monitor = ForceCollisionMonitor()
         # registering force monitor callbacks
         def dangerous_cb(force):
+            self.ell_ctrl.stop_moving(True)
             if not self.ell_ctrl.is_moving() and self.check_controller_ready():
                 ell_ep = self.ell_ctrl.get_ell_ep()
                 if ell_ep[2] < SAFETY_RETREAT_HEIGHT * 0.9:
@@ -174,7 +176,8 @@ class FaceADLsManager(object):
             if not self.ell_ctrl.is_moving() and self.check_controller_ready():
                 start_time = rospy.get_time()
                 ell_ep = self.ell_ctrl.get_ell_ep()
-                rospy.loginfo("ELL EP TIME: %.3f " % (rospy.get_time() - start_time) + str(ell_ep) + " times: %.3f %.3f" % (self.force_monitor.last_activity_time, rospy.get_time()))
+                rospy.loginfo("ELL EP TIME: %.3f " % (rospy.get_time() - start_time) + str(ell_ep) 
+                              + " times: %.3f %.3f" % (self.force_monitor.last_activity_time, rospy.get_time()))
                 if ell_ep[2] < RETREAT_HEIGHT * 0.9 and self.force_monitor.is_inactive():
                     self.publish_feedback(Messages.TIMEOUT_RETREAT % time)
                     self.retreat_move(RETREAT_HEIGHT, LOCAL_VELOCITY)
@@ -189,10 +192,7 @@ class FaceADLsManager(object):
         self.force_monitor.update_activity()
         self.is_forced_retreat = False
 
-        self.global_poses = rospy.get_param('/face_adls/%s_global_poses' % shaving_side)
-        self.global_move_poses_pub.publish(self.global_poses.keys())
-
-        if shaving_side == 'r' and not is_scratching: # TODO
+        if self.shaving_side == 'r': #and not is_scratching: # TODO REMOVE!
             self.gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
         else:
             self.gripper_rot = tf_trans.quaternion_from_euler(0, 0, 0)
@@ -204,23 +204,22 @@ class FaceADLsManager(object):
         self.ell_ctrl.stop_moving(wait=True)
         self.ell_ctrl.set_arm(None)
         self.controller_enabled_pub.publish(Bool(False))
-        self.publish_feedback(Messages.DISABLE_CONTROLLER)
+        rospy.loginfo(Messages.DISABLE_CONTROLLER)
         return True
 
     def controller_enabled(self):
         return self.ell_ctrl.arm is not None
 
     def retreat_move(self, height, velocity, forced=False):
-        self.force_monitor.start_activity()
         if not self.check_controller_ready():
             return
         
+        self.force_monitor.start_activity()
         if forced:
             self.is_forced_retreat = True
-        self.ell_ctrl.execute_ell_move(((0, 0, height), (0, 0, 0)), ((0, 0, 1), 0), 
-                                       self.gripper_rot, velocity, blocking=False)
         rospy.loginfo("[face_adls_manager] Retreating from current location.")
-        self.ell_ctrl.wait_until_stopped()
+        self.ell_ctrl.execute_ell_move(((0, 0, height), (0, 0, 0)), ((0, 0, 1), 0), 
+                                       self.gripper_rot, velocity, blocking=True)
         self.is_forced_retreat = False
         self.force_monitor.stop_activity()
         rospy.loginfo("[face_adls_manager] Finished retreat.")

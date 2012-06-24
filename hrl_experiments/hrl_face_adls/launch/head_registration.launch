@@ -6,6 +6,10 @@
         <param name="color_weight" value="0.0" />
         <param name="icp_max_corresp" value="0.3" />
         <param name="icp_trans_eps" value="0.0000000001" />
+        <param name="trim_radius" value="0.13" />
+        <param name="model_radius" value="0.03" />
+        <param name="color_std_thresh" value="4.0" />
+        <param name="hue_weight" value="5.0" />
         <remap from="/head_registration" to="/head_registration_r" />
     </node>
     <node pkg="hrl_head_tracking" name="l_head_tracking_srv" type="head_tracking_srv"
@@ -14,6 +18,10 @@
         <param name="color_weight" value="0.0" />
         <param name="icp_max_corresp" value="0.3" />
         <param name="icp_trans_eps" value="0.0000000001" />
+        <param name="trim_radius" value="0.13" />
+        <param name="model_radius" value="0.03" />
+        <param name="color_std_thresh" value="4.0" />
+        <param name="hue_weight" value="5.0" />
         <remap from="/head_registration" to="/head_registration_l" />
     </node>
     <node pkg="hrl_face_adls" name="registration_loader" type="registration_loader.py"
