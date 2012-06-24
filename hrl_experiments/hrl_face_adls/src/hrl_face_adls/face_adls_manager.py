@@ -62,13 +62,14 @@ class ForceCollisionMonitor(object):
                     rospy.get_time() - self.last_dangerous_cb_time > DANGEROUS_CB_COOLDOWN):
                 self.dangerous_cb(self.dangerous_force_thresh)
                 self.last_dangerous_cb_time = rospy.get_time()
-            if (force_mag > self.contact_force_thresh and 
+            elif (force_mag > self.contact_force_thresh and 
                     rospy.get_time() - self.last_contact_cb_time > CONTACT_CB_COOLDOWN):
                 self.contact_cb(self.contact_force_thresh)
                 self.last_contact_cb_time = rospy.get_time()
-            if force_mag > self.activity_force_thresh:
+            elif force_mag > self.activity_force_thresh:
                 self.update_activity()
-            if self.is_inactive() and rospy.get_time() - self.last_timeout_cb_time > TIMEOUT_CB_COOLDOWN:
+            elif (self.is_inactive() and 
+                    rospy.get_time() - self.last_timeout_cb_time > TIMEOUT_CB_COOLDOWN:)
                 self.timeout_cb(self.timeout_time)
                 self.last_timeout_cb_time = rospy.get_time()
             self.lock.release()
@@ -164,6 +165,7 @@ class FaceADLsManager(object):
         self.force_monitor = ForceCollisionMonitor()
         # registering force monitor callbacks
         def dangerous_cb(force):
+            self.ell_ctrl.stop_moving(True)
             if not self.ell_ctrl.is_moving() and self.check_controller_ready():
                 ell_ep = self.ell_ctrl.get_ell_ep()
                 if ell_ep[2] < SAFETY_RETREAT_HEIGHT * 0.9:
@@ -209,16 +211,15 @@ class FaceADLsManager(object):
         return self.ell_ctrl.arm is not None
 
     def retreat_move(self, height, velocity, forced=False):
-        self.force_monitor.start_activity()
         if not self.check_controller_ready():
             return
         
+        self.force_monitor.start_activity()
         if forced:
             self.is_forced_retreat = True
-        self.ell_ctrl.execute_ell_move(((0, 0, height), (0, 0, 0)), ((0, 0, 1), 0), 
-                                       self.gripper_rot, velocity, blocking=False)
         rospy.loginfo("[face_adls_manager] Retreating from current location.")
-        self.ell_ctrl.wait_until_stopped()
+        self.ell_ctrl.execute_ell_move(((0, 0, height), (0, 0, 0)), ((0, 0, 1), 0), 
+                                       self.gripper_rot, velocity, blocking=True)
         self.is_forced_retreat = False
         self.force_monitor.stop_activity()
         rospy.loginfo("[face_adls_manager] Finished retreat.")

@@ -30,12 +30,8 @@ class CartTrajController(object):
     def is_moving(self):
         return self._is_moving
 
-    def wait_until_stopped(self, rate=100):
-        r = rospy.Rate(rate)
-        while not rospy.is_shutdown():
-            if not self.is_moving():
-                return
-            r.sleep()
+    def wait_until_stopped(self):
+        self.timer.join()
 
     def execute_cart_traj(self, cart_arm, traj, time_step, blocking=True):
         if self._moving_lock.acquire(False):
@@ -47,7 +43,7 @@ class CartTrajController(object):
                 if not self._is_blocking:
                     self._moving_lock.release()
             self._is_moving = True
-            rospy.Timer(rospy.Duration(0.01), execute_cart_traj_cb, oneshot=True)
+            self.timer = rospy.Timer(rospy.Duration(0.00000001), execute_cart_traj_cb, oneshot=True)
             if self._is_blocking:
                 self.wait_until_stopped()
                 retval = self._cur_result
