@@ -227,7 +227,7 @@ class FaceADLsManager(object):
         if forced:
             self.is_forced_retreat = True
         rospy.loginfo("[face_adls_manager] Retreating from current location.")
-        self.ell_ctrl.execute_ell_move(((0, 0, height), (0, 0, 0)), ((0, 0, 1), 0), 
+        self.ell_ctrl.execute_ell_move(((0, 0, height), (0, 0, 0, 1)), ((0, 0, 1), 0), 
                                        self.gripper_rot, velocity, blocking=True)
         self.is_forced_retreat = False
         self.force_monitor.stop_activity()
@@ -261,7 +261,7 @@ class FaceADLsManager(object):
                                                   ((1, 1, 1), 0), 
                                                   self.gripper_rot, GLOBAL_VELOCITY, blocking=True):
                 raise Exception
-            if not self.ell_ctrl.execute_ell_move((goal_pose[0], (0, 0, 0)), ((1, 1, 1), 0), 
+            if not self.ell_ctrl.execute_ell_move((goal_pose[0], (0, 0, 0, 1)), ((1, 1, 1), 0), 
                                                   self.gripper_rot, GLOBAL_VELOCITY, blocking=True):
                 raise Exception
         except:
@@ -288,12 +288,13 @@ class FaceADLsManager(object):
         if button_press in ell_trans_params:
             self.publish_feedback(Messages.LOCAL_START % button_names_dict[button_press])
             change_trans_ep = ell_trans_params[button_press]
-            success = self.ell_ctrl.execute_ell_move((change_trans_ep, (0, 0, 0)), ((0, 0, 0), 0), 
+            success = self.ell_ctrl.execute_ell_move((change_trans_ep, (0, 0, 0, 1)), ((0, 0, 0), 0), 
                                                     self.gripper_rot, ELL_LOCAL_VEL, blocking=True)
         elif button_press in ell_rot_params:
             self.publish_feedback(Messages.LOCAL_START % button_names_dict[button_press])
             change_rot_ep = ell_rot_params[button_press]
-            success = self.ell_ctrl.execute_ell_move(((0, 0, 0), change_rot_ep), ((0, 0, 0), 0), 
+            rot_quat = tf_trans.quaternion_from_euler(*change_rot_ep)
+            success = self.ell_ctrl.execute_ell_move(((0, 0, 0), rot_quat), ((0, 0, 0), 0), 
                                                     self.gripper_rot, ELL_ROT_VEL, blocking=True)
         elif button_press == "reset_rotation":
             self.publish_feedback(Messages.ROT_RESET_START)

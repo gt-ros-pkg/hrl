@@ -125,8 +125,8 @@ class EllipsoidSpace(object):
         pose_pos, pose_rot = PoseConverter.to_pos_rot(pose)
         lat, lon, height = self.pos_to_ellipsoidal(pose_pos[0,0], pose_pos[1,0], pose_pos[2,0])
         _, ell_rot = PoseConverter.to_pos_rot(self.ellipsoidal_to_pose(lat, lon, height))
-        _, euler_rot = PoseConverter.to_pos_euler(np.mat([0]*3).T, ell_rot.T * pose_rot)
-        return [lat, lon, height], euler_rot
+        _, quat_rot = PoseConverter.to_pos_quat(np.mat([0]*3).T, ell_rot.T * pose_rot)
+        return [lat, lon, height], quat_rot
 
     def pos_to_ellipsoidal(self, x, y, z):
         if not self.is_oblate:

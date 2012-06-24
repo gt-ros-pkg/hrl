@@ -44,13 +44,12 @@ class EllipsoidParamServer(object):
     def params_loaded(self):
         return self.ell_space is not None
     
-    def get_ell_coords(self, pose):
+    def get_ell_pose(self, pose):
         torso_B_kinect = self.kin_head.forward_filled(base_segment="/torso_lift_link")
         torso_B_ee = PoseConverter.to_homo_mat(pose)
         kinect_B_ee = torso_B_kinect**-1 * torso_B_ee
-        pos, quat = PoseConverter.to_pos_quat(self.get_ell_frame("/openni_rgb_optical_frame")**-1 * 
-                                              kinect_B_ee)
-        return list(self.ell_space.pos_to_ellipsoidal(*pos))
+        ell_B_pose = self.get_ell_frame("/openni_rgb_optical_frame")**-1 * kinect_B_ee
+        return self.ell_space.pose_to_ellipsoidal(ell_B_pose)
 
     ##
     # Get pose in robot's frame of ellipsoidal coordinates
@@ -79,7 +78,8 @@ class EllipsoidController(CartesianStepController):
         self._no_bounds = True
 
     def get_ell_ep(self):
-        return self.ell_server.get_ell_coords(self.arm.get_ep())
+        ell_ep, ell_rot = self.ell_server.get_ell_pose(self.arm.get_ep())
+        return ell_ep
 
     def execute_ell_move(self, change_ep, abs_sel, orient_quat=[0., 0., 0., 1.], 
                          velocity=0.001, blocking=True):
@@ -158,9 +158,9 @@ class EllipsoidController(CartesianStepController):
                                                                       orient_quat)
             rot_mat_f = ell_final_rot * rot_change_mat
         else:
-            rpy = change_rot_ep
+            quat = change_rot_ep
             _, cur_rot = self.arm.get_ep()
-            rot_mat = np.mat(tf_trans.euler_matrix(*rpy))[:3,:3]
+            rot_mat = np.mat(tf_trans.quaternion_matrix(quat))[:3,:3]
             rot_mat_f = cur_rot * rot_mat
         return ell_f, rot_mat_f
 
