@@ -20,7 +20,7 @@ def min_jerk_traj(n):
 class CartTrajController(object):
     def __init__(self):
         self._moving_lock = Lock()
-        self._is_moving = False
+        self._timer = None
 
     def stop_moving(self, wait=False):
         self._stop_moving = True
@@ -28,10 +28,11 @@ class CartTrajController(object):
             self.wait_until_stopped()
 
     def is_moving(self):
-        return self._is_moving
+        return self._timer is not None
 
     def wait_until_stopped(self):
-        self.timer.join()
+        if self._timer is not None:
+            self._timer.join()
 
     def execute_cart_traj(self, cart_arm, traj, time_step, blocking=True):
         if self._moving_lock.acquire(False):
@@ -39,11 +40,10 @@ class CartTrajController(object):
             self._is_blocking = blocking
             def execute_cart_traj_cb(event):
                 self._cur_result = self._execute_cart_traj(cart_arm, traj, time_step)
-                self._is_moving = False
+                self._timer = None
                 if not self._is_blocking:
                     self._moving_lock.release()
-            self._is_moving = True
-            self.timer = rospy.Timer(rospy.Duration(0.00000001), execute_cart_traj_cb, oneshot=True)
+            self._timer = rospy.Timer(rospy.Duration(0.00000001), execute_cart_traj_cb, oneshot=True)
             if self._is_blocking:
                 self.wait_until_stopped()
                 retval = self._cur_result

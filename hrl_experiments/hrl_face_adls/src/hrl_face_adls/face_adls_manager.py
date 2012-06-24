@@ -69,7 +69,7 @@ class ForceCollisionMonitor(object):
             elif force_mag > self.activity_force_thresh:
                 self.update_activity()
             elif (self.is_inactive() and 
-                    rospy.get_time() - self.last_timeout_cb_time > TIMEOUT_CB_COOLDOWN:)
+                    rospy.get_time() - self.last_timeout_cb_time > TIMEOUT_CB_COOLDOWN):
                 self.timeout_cb(self.timeout_time)
                 self.last_timeout_cb_time = rospy.get_time()
             self.lock.release()
