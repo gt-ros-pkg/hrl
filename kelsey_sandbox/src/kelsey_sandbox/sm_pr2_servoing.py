@@ -18,9 +18,9 @@ from pr2_viz_servo import PR2VisualServoAR
 
 outcomes_spa = ['succeeded','preempted','aborted']
 
-viz_servo_dict = {
-    "r_pr2_ar_pose_marker" : [0.57226345,  0.32838129, -1.15480113],
-    "l_pr2_ar_pose_marker" : [0.57903398,  0.44215034, -0.76362254]}
+#viz_servo_dict = {
+#    "r_pr2_ar_pose_marker" : [0.57226345,  0.32838129, -1.15480113],
+#    "l_pr2_ar_pose_marker" : [0.57903398,  0.44215034, -0.76362254]}
 #"l_pr2_ar_pose_marker" : [0.59739709,  0.39469539, -0.7088098]}
 
 class ServoStates:
@@ -343,6 +343,8 @@ def main():
 
     # both sides spot?
     userdata['goal_ar_pose'] = [ 0.57226345,  0.32838129, -1.15480113]
+    viz_servo_dict = rospy.get_param("~ar_servo_poses", {})
+    print viz_servo_dict
 
     if True:
         sm_pr2_servoing = build_full_sm()
