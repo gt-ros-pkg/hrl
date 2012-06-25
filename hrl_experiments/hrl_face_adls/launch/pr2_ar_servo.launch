@@ -42,7 +42,7 @@
     <node pkg="kelsey_sandbox" name="sm_pr2_servoing" type="sm_pr2_servoing.py"
           output="screen" >
         <rosparam>
-            
+            ar_servo_poses:
                 r_pr2_ar_pose_marker : [0.57226345,  0.32838129, -1.15480113]
                 l_pr2_ar_pose_marker : [0.57226345,  0.32838129, -1.15480113]
         </rosparam
