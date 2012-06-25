@@ -1,6 +1,8 @@
 function cart_init(){
     advertise('r_cart/web_commands','geometry_msgs/TwistStamped');
     advertise('l_cart/web_commands','geometry_msgs/TwistStamped');
+    advertise('face_adls/r_cart_posture','std_msgs/Float32');
+    advertise('face_adls/l_cart_posture','std_msgs/Float32');
     window.TwistStamped = {header:{seq:0,stamp:{secs:0,nsecs:0},frame_id:""},
                                twist:{linear:{x:0,y:0,z:0}, angular:{x:0,y:0,z:0}}};
     window.EnableCartControlReq = {enable:true, 
@@ -81,6 +83,10 @@ function pub_cart_twist(arm, trans, rot){
     node.publish(arm[0]+'_cart/web_commands','geometry_msgs/TwistStamped', json(tws));
 };
 
+function adjust_elbow(arm, angle){
+    node.publish('face_adls/'+arm+'_cart_posture','std_msgs/Float32', json({'data':angle})); 
+    };
+
 function show_arm_controls(arm){
     $('#bpd_default_rot, #cart_frame_select, #cart_frame_select_label, #cart_controller, #cart_cont_state_check').show();
 	$('#scale_slider').unbind("slidestop").bind("slidestop", function(event,ui){scales[arm[0]+"arm"] = $('#scale_slider').slider("value")});
@@ -106,11 +112,23 @@ function show_arm_controls(arm){
     $('#bpd_default #b4').show().bind('click.rfh', function(e){
         pub_cart_twist(arm,[0,scales[arm[0]+'arm']/400,0],[0,0,0]);
     });
-    $('#bpd_default #b3').hide();
+    $('#bpd_default #b3').show().bind('click.rfh', function(e){
+            adjust_elbow(arm[0], Math.PI/8); 
+            });
     $('#bpd_default #b2').show().bind('click.rfh', function(e){
         pub_cart_twist(arm,[0,0,-scales[arm[0]+'arm']/400],[0,0,0]);
     });
-    $('#bpd_default #b1').hide();
+    $('#bpd_default #b1').show().bind('click.rfh', function(e){
+            adjust_elbow(arm[0], -Math.PI/8); 
+            });
+
+    if (arm[0]='r'){
+            $('#bpd_default #b3').text('Raise Elbow');
+            $('#bpd_default #b1').text('Lower Elbow');
+        } else {
+            $('#bpd_default #b1').text('Raise Elbow');
+            $('#bpd_default #b3').text('Lower Elbow');
+        };
     
     $('#bpd_default_rot').find(':button').unbind('.rfh');
     $('#bpd_default_rot #b9').show().bind('click.rfh', function(e){
