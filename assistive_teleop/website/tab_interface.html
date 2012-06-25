@@ -23,7 +23,8 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){$('#console').html("<big><strong>"+message.toString()+"</strong></big>"); console.log(message.toString())};
 //arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-var ROBOT = 'monty1.hsi.gatech.edu';
+var ROBOT = 'prj.willowgarage.com';
+//var ROBOT = 'monty1.hsi.gatech.edu';
 //var ROBOT = 'pr2c1.cc.gatech.edu';
 //var ROBOT = 'localhost';
 var get_param_free = true;
@@ -131,64 +132,6 @@ function speak(text){
 		node.publish('wt_speech', 'std_msgs/String', json({'data':text}));
 		log('\"' + text +'\"'); 
 };
-
-//SKIN SPECIFIC ADDITIONS
-function pub_gripper_skin(arm,grpos) {
-	node.publish('skin/'+arm+'_gripper_command',
-                 'pr2_controllers_msgs/Pr2GripperCommand',
-                 json({'position': grpos ,'max_effort':-1}));
-};
-
-function skin_stop_button(){
-    $('#b5','#bpd_default').text('STOP').show().bind('click.rfh',function(e){
-            node.publish('epc/stop','std_msgs/Bool', json({'data':true}))});
-};
-
-function skin_toggle_cb(){
-    if ($('#skin_toggle').is(':checked')){
-        log("Altering Controls for Skin Use");
-    $('#cont_r_arm').unbind('click.rfh').bind('click.skin', function(){
-                                        show_arm_controls('right');
-                                        skin_stop_button();
-
-    });
-    $('#cont_l_arm').unbind('click.rfh').bind('click.skin', function(){
-                                        show_arm_controls('left')
-                                        skin_stop_button();
-    });
-	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
-                                    pub_gripper_skin('r',$('#rg_slider').slider("value"));
-                                    log('Opening/Closing Right Gripper');});	
-	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
-                                    pub_gripper_skin('l',$('#lg_slider').slider("value"));
-                                    log('Opening/Closing Left Gripper');});	
-    $('#rg_grab').unbind().bind('click',function(e){pub_gripper_skin('r',0.0)});                                
-    $('#lg_grab').unbind().bind('click',function(e){pub_gripper_skin('l',0.0)});                                
-    $('#rg_release').unbind().bind('click',function(e){pub_gripper_skin('r',0.09)});                                
-    $('#lg_release').unbind().bind('click',function(e){pub_gripper_skin('l',0.09)});                                
-    } else {
-        log("Altering Controls for Normal Use");
-    $('#cont_r_arm').unbind('click.skin').bind('click.rfh', function(){enable_cart_control('right')});
-    $('#cont_l_arm').unbind('click.skin').bind('click.rfh', function(){enable_cart_control('left')});
-	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
-                                    pub_gripper('r',$('#rg_slider').slider("value"));
-                                    log('Opening/Closing Right Gripper');
-                                    });	
-	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
-                                    pub_gripper('l',$('#lg_slider').slider("value"));
-                                    log("Opening/Closing Left Gripper");
-                                    });	
-    $('#rg_grab').unbind().bind('click',function(e){pub_gripper('r',-0.005)});                                
-    $('#lg_grab').unbind().bind('click',function(e){pub_gripper('l',-0.005)});                                
-    $('#rg_release').unbind().bind('click',function(e){pub_gripper('r',0.09)});                                
-    $('#lg_release').unbind().bind('click',function(e){pub_gripper('l',0.09)});
-    $('#b5','#bpd_default').text('').hide().unbind('click.rfh');
-    };
-};
-
-function skin_ort_cb(){
-    node.publish("skin_ort_toggle", "std_msgs/Bool", json({'data':$("#skin_ort_toggle").is(':checked')}));
-    };
 
 function start(){
     window.node = new ros.NodeHandle('ws://'+ ROBOT + ':9091');
@@ -622,18 +565,6 @@ function start(){
         <button id='rg_grab'>Close</button>
       </td><td>
         <button id='torso_min' onclick='pub_torso(0);'>Min</button>
-      </td>
-    </tr>
-    <tr>
-      <td colspan=3>
-        <input class="skin" type="checkbox" id="skin_toggle" onclick="skin_toggle_cb()"/>
-        <label class="skin" id="skin_toggle_label" for="skin_toggle">Use Skin</label>
-      </td>
-    </tr>
-    <tr>
-      <td colspan=3>
-        <input class="skin" type="checkbox" id="skin_ort_toggle" onclick="skin_ort_cb()"/>
-        <label class="skin" id="skin_ort_toggle_label" for="skin_ort_toggle">Control Orientation</label>
       </td>
     </tr>
   </table>
