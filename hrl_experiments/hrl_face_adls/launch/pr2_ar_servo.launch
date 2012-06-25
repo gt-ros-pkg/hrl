@@ -12,7 +12,7 @@
 		<param name="marker_color_a" type="double" value="1.0"/>
 		<param name="threshold" type="int" value="100"/>
 		<param name="use_history" type="bool" value="true"/>
-        <remap from="/usb_cam/image_raw" to="/l_forearm_cam/image_rect"/>
+        <remap from="/usb_cam/image_raw" to="/l_forearm_adjusted"/>
         <remap from="/usb_cam/camera_info" to="/l_forearm_cam/camera_info"/>
         <remap from="/ar_pose_marker" to="/r_pr2_ar_pose_marker" />
 	</node>
@@ -29,7 +29,7 @@
 		<param name="marker_color_a" type="double" value="1.0"/>
 		<param name="threshold" type="int" value="100"/>
 		<param name="use_history" type="bool" value="true"/>
-        <remap from="/usb_cam/image_raw" to="/l_forearm_cam/image_rect"/>
+        <remap from="/usb_cam/image_raw" to="/l_forearm_adjusted"/>
         <remap from="/usb_cam/camera_info" to="/l_forearm_cam/camera_info"/>
         <remap from="/ar_pose_marker" to="/l_pr2_ar_pose_marker" />
 	</node>
@@ -45,11 +45,11 @@
             ar_servo_poses:
                 r_pr2_ar_pose_marker : [0.57226345,  0.32838129, -1.15480113]
                 l_pr2_ar_pose_marker : [0.57226345,  0.32838129, -1.15480113]
-        </rosparam
+        </rosparam>
     </node>
 
-    <node name="$(anon dynparam)" pkg="dynamic_reconfigure" type="dynparam"
-          args="load /l_forearm_cam $(find hrl_face_adls)/params/l_forearm_cam_settings.yaml" />
+    <rosparam command="load" file="$(find hrl_face_adls)/params/l_forearm_cam_settings.yaml"
+              param="/l_forearm_cam" />
 
     <node pkg="hrl_face_adls" name="ar_confirm" type="ar_confirm" >
         <param name="marker_width" value="0.135" />
@@ -59,8 +59,12 @@
         <remap from="/ar_tag_l" to="/l_pr2_ar_pose_marker"/>
         <remap from="/confirmation" to="/ar_servo/confirmation" />
     </node>
-    <!--
-    <node name="$(anon dynparam)" pkg="dynamic_reconfigure" type="dynparam"
-          args="load /r_forearm_cam $(find hrl_face_adls)/params/r_forearm_cam_settings.yaml" />
-    -->
+
+    <node pkg="hrl_face_adls" name="ar_servo_image_proc" type="ar_servo_image_proc"
+          output="screen" respawn="True" >
+        <remap from="/camera" to="/l_forearm_cam/image_rect" />
+        <remap from="/output" to="/l_forearm_adjusted" />
+    </node>
+
+
 </launch>

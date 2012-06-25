@@ -119,7 +119,7 @@ int main(int argc, char **argv)
         ros::spinOnce();
         r.sleep();
     }
-#elif
+#else
     ros::spin();
 #endif
 

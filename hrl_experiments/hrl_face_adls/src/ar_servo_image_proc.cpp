@@ -7,19 +7,28 @@
 
 image_transport::CameraSubscriber camera_sub;
 image_transport::Publisher output_pub;
-boost::shared_ptr<tf::TransformListener> tf_list;
-cv_bridge::CvImagePtr cv_img, new_cv_img;
+cv_bridge::CvImagePtr cv_img;
 
 void doOverlay(const sensor_msgs::ImageConstPtr& img_msg,
                const sensor_msgs::CameraInfoConstPtr& info_msg) {
 
     // convert camera image into opencv
-    cam_model.fromCameraInfo(info_msg);
     cv_img = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::RGB8);
-    new_cv_img = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::RGB8);
+    cv::Mat input(cv_img->image.rows, cv_img->image.cols, CV_8UC1);
+    cv_bridge::CvImage new_cv_img;
+    new_cv_img.image = cv::Mat(cv_img->image.rows, cv_img->image.cols, CV_8UC1);
+    for(int j=0;j<cv_img->image.cols;j++)
+        for(int i=0;i<cv_img->image.rows;i++) {
+            float inten = (cv_img->image.at<cv::Vec3b>(i, j)[0] +
+                           cv_img->image.at<cv::Vec3b>(i, j)[1] +
+                           cv_img->image.at<cv::Vec3b>(i, j)[2])/3.;
+            input.at<uint8_t>(i, j) = (uint8_t) inten;
+        }
 
-    cv::equalizeHist(cv_img->image, new_cv_img->image);
-    output_pub.publish(new_cv_img->toImageMsg());
+    cv::equalizeHist(input, new_cv_img.image);
+    new_cv_img.header = cv_img->header;
+    new_cv_img.encoding = sensor_msgs::image_encodings::MONO8;
+    output_pub.publish(new_cv_img.toImageMsg());
 }
 
 int main(int argc, char **argv)
@@ -27,11 +36,12 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "ar_servo_image_proc");
     ros::NodeHandle nh;
     image_transport::ImageTransport img_trans(nh);
-    tf_list = boost::shared_ptr<tf::TransformListener>(new tf::TransformListener());
 
     camera_sub = img_trans.subscribeCamera("/camera", 1, 
                                            &doOverlay);
     output_pub = img_trans.advertise("/output", 1);
+
+    ros::spin();
 
     return 0;
 }
