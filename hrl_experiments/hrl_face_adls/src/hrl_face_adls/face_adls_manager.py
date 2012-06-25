@@ -163,6 +163,8 @@ class FaceADLsManager(object):
                                   controller_name=ctrl_name, 
                                   end_link=end_link, timeout=5)
         self.ell_ctrl.set_arm(cart_arm)
+        rospy.sleep(0.1)
+        cart_arm.set_posture(cart_arm.get_joint_angles())
 
         # check if arm is near head
         if not self.ell_ctrl.arm_in_bounds():
