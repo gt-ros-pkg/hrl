@@ -34,7 +34,7 @@ function ell_controller_state_cb(msg){
     console.log("Ell Controller State Updated to "+msg.data);
     if (msg.data){
         console.log("Ellipsoid Controller Active")
-        $("#ell_controller").attr("checked","checked").button('refresh');
+        $("#ell_controller").attr("checked","checked").button('eefresh');
         $(".ell_control").show();
        } else {
         $("#ell_controller").attr("checked", "").button('refresh');
