@@ -38,31 +38,31 @@ $(function(){
     $('#image_click_select').html(image_click_select_html);
 });
 
-function camera_init(){
+//function camera_init(){
+    //Publishers for no-longer-supported capabilites,may be recovered in the future, do no delete.
     //Image-Click Publishers
-    var pubs = new Array()
-    var sides = ["right","left"];
-    for (var i=0; i < sides.length; i++){
-    pubs['norm_approach_'+sides[i]] = 'geometry_msgs/PoseStamped';
-    pubs['wt_contact_approach_'+sides[i]] = 'geometry_msgs/PoseStamped';
-    pubs['wt_poke_'+sides[i]+'_point'] = 'geometry_msgs/PoseStamped';
-    pubs['wt_swipe_'+sides[i]+'_goals'] = 'geometry_msgs/PoseStamped';
-    pubs['wt_wipe_'+sides[i]+'_goals'] = 'geometry_msgs/PoseStamped';
-    pubs['wt_rg_'+sides[i]+'_goal'] = 'geometry_msgs/PoseStamped';
-    pubs['wt_grasp_'+sides[i]+'_goal'] = 'geometry_msgs/PoseStamped';
-    pubs['wt_surf_wipe_'+sides[i].slice(0,1)+'_points'] = 'geometry_msgs/Point';
-    };
-    for (var i in pubs){
-        advertise(i, pubs[i]);
-    };
-    console.log('Finished camera init');
-};
+   // var pubs = new Array()
+    //var sides = ["right","left"];
+    //for (var i=0; i < sides.length; i++){
+    //pubs['norm_approach_'+sides[i]] = 'geometry_msgs/PoseStamped';
+   // pubs['wt_contact_approach_'+sides[i]] = 'geometry_msgs/PoseStamped';
+   // pubs['wt_poke_'+sides[i]+'_point'] = 'geometry_msgs/PoseStamped';
+    //pubs['wt_swipe_'+sides[i]+'_goals'] = 'geometry_msgs/PoseStamped';
+    //pubs['wt_wipe_'+sides[i]+'_goals'] = 'geometry_msgs/PoseStamped';
+    //pubs['wt_rg_'+sides[i]+'_goal'] = 'geometry_msgs/PoseStamped';
+    //pubs['wt_grasp_'+sides[i]+'_goal'] = 'geometry_msgs/PoseStamped';
+    //pubs['wt_surf_wipe_'+sides[i].slice(0,1)+'_points'] = 'geometry_msgs/Point';
+   // };
+   // for (var i in pubs){
+   //     advertise(i, pubs[i]);
+   // };
+   // console.log('Finished camera init');
+//};
 
 function set_camera(cam) {
 mjpeg_url = 'http://'+ROBOT+':8080/stream?topic=/'+cam+'?width='+MJPEG_WIDTH+'?height='+MJPEG_HEIGHT+'?quality='+MJPEG_QUALITY
 $('#video').attr('src', mjpeg_url);
-var chosen = $('#camera_select option[value="'+cam+'"]');
-chosen.attr('selected','selected');
+$('#camera_select option[value="'+cam+'"]').attr('selected','selected');
 };
 
 function click_position(e) {

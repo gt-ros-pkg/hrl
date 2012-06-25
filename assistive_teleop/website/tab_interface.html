@@ -47,7 +47,7 @@ function init(){
     traj_play_init();
     teleop_init();
     shaving_init();
-    camera_init();
+    //camera_init();
     basic_init();
     cart_init();
     set_camera("kinect_head/rgb/image_color");
@@ -470,7 +470,7 @@ function start(){
               <tr>
                 <td>
                   <div id='shave_select'>  <!--Shaving Selection Drop-Down and Entry -->
-                    <table>
+                    <table border=1>
                     <tr>
                       <td>
                         <select class="centered ell_control" id='shave_list'></select>
@@ -478,11 +478,12 @@ function start(){
                       </tr><tr>
                       <td><button class="ell_control" id="send_shave_select" onclick="console.log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').text())">Move to Selection</button></td>
                     </tr>
-                    <tr>
-                      <td><button class="centered ell_control" id="shave_stop" onclick="shave_stop();">Stop</button></td>
-                    </tr>
                   </table>
                 </div>  <!--End Shaving Drop-Down -->
+              </td>
+            </tr>
+            <tr>
+                      <td><button class="centered ell_control" id="shave_stop" onclick="shave_stop();">Stop</button></td>
                </td>
              </tr>
             </table>
