@@ -165,6 +165,7 @@ class FaceADLsManager(object):
         self.ell_ctrl.set_arm(cart_arm)
         rospy.sleep(0.1)
         cart_arm.set_posture(cart_arm.get_joint_angles())
+        self.arm.set_gains([300, 600, 600, 80, 80, 80], [4, 8, 8, 1.2, 1.2, 1.2])
 
         # check if arm is near head
         if not self.ell_ctrl.arm_in_bounds():
