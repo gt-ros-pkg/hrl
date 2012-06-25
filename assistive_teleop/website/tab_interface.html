@@ -413,13 +413,13 @@ function start(){
               <tr>
                 <td>
                   <div id='shave_select'>  <!--Shaving Selection Drop-Down and Entry -->
-                    <table border=1>
+                    <table class='centered' frame=box rules=none border=3>
                     <tr>
                       <td>
                         <select class="centered ell_control" id='shave_list'></select>
                       </td>
                       </tr><tr>
-                      <td><button class="ell_control" id="send_shave_select" onclick="console.log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').text())">Move to Selection</button></td>
+                      <td><button class="centered ell_control" id="send_shave_select" onclick="console.log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').text())">Move to Selection</button></td>
                     </tr>
                   </table>
                 </div>  <!--End Shaving Drop-Down -->
