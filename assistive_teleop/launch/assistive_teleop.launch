@@ -1,7 +1,7 @@
 <launch>
 
     <include file="$(find pr2_machine)/$(env ROBOT).machine" />
-    <arg name="shaving_board" default="/dev/ttyUSB1" />
+    <arg name="shaving_board" default="/dev/arduino" />
 
     <!-- Arduino Control Board for powering Shaver -->
     <node
