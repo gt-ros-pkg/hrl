@@ -1,7 +1,7 @@
 <launch>
 
     <include file="$(find pr2_machine)/$(env ROBOT).machine" />
-    <arg name="shaving_board" default="/dev/ttyUSB1" />
+    <arg name="shaving_board" default="/dev/arduino" />
 
     <!-- Arduino Control Board for powering Shaver -->
     <node
@@ -37,7 +37,7 @@
             name="throttle_wt_force_out"
             pkg="topic_tools"
             type="throttle"
-            args="messages /netft_gravity_zeroing/wrench_zeroed 6 /wt_force_out_throttle" />
+            args="messages /netft_gravity_zeroing/wrench_zeroed 10 /wt_force_out_throttle" />
  
     <!-- JTTask Controller load
     <include file="$(find assistive_teleop)/launch/c_jtask_mod.launch" />
@@ -227,7 +227,7 @@
         pkg="topic_tools" 
         type="throttle" 
         args="messages /l_gripper_controller/state 1 /l_gripper_controller_state_throttle" />
-    <node 
+    <!--<node 
         name="throttle_r_arm_joints_state" 
         pkg="topic_tools" 
         type="throttle" 
@@ -236,13 +236,13 @@
         name="throttle_l_arm_joints_state" 
         pkg="topic_tools" 
         type="throttle" 
-        args="messages /l_arm_controller/state 8 /l_arm_controller_state_throttle" />
+        args="messages /l_arm_controller/state 8 /l_arm_controller_state_throttle" />-->
 
     <node 
         name="throttle_kinect_camera" 
         pkg="topic_tools" 
         type="throttle" 
-        args="messages /kinect_head/rgb/image_color 10 /kinect_throttled" />
+        args="messages /kinect_head/rgb/image_color 7 /kinect_throttled" />
     <!-- Launch mjpeg server, used for sending image streams -->
     <node 
         name="mjpeg_server" 

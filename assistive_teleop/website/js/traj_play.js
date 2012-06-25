@@ -21,6 +21,22 @@ function traj_play_init(){
     console.log("End Traj Play Init");
 };
 
+function init_TrajPlayGoal(){
+	if (window.get_msgs_free){
+        window.get_msgs_free = false;
+        console.log('Locking for TrajPlayGoal');
+		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
+                          json(["pr2_traj_playback/TrajectoryPlayGoal"]),
+                          function(msg){window.TrajPlayGoal=msg;
+                                        window.get_msgs_free = true;
+                                        console.log('Unlocking: Got TrajPlayGoal');
+                          });
+	} else {
+        console.log("TrajPlayGoal Waiting for msg lock");
+        setTimeout(function(){init_TrajPlayGoal();},500);
+    }
+};
+
 $(function(){
     $("#traj_radio").buttonset().addClass('centered');// :radio, #traj_play_radio label").button()
     $(".traj_play_radio_label").addClass('centered');
@@ -73,21 +89,6 @@ function update_trajectories(){
     };
 };
 
-function init_TrajPlayGoal(){
-	if (window.get_msgs_free){
-        window.get_msgs_free = false;
-        console.log('Locking for TrajPlayGoal');
-		node.rosjs.callService('/rosbridge/msgClassFromTypeString',
-                          json(["pr2_traj_playback/TrajectoryPlayGoal"]),
-                          function(msg){window.TrajPlayGoal=msg;
-                                        window.get_msgs_free = true;
-                                        console.log('Unlocking: Got TrajPlayGoal');
-                          });
-	} else {
-        console.log("TrajPlayGoal Waiting for msg lock");
-        setTimeout(function(){init_TrajPlayGoal();},500);
-    }
-};
 function traj_play_send_goal(){
     var goal = window.TrajPlayGoal;
     var act = $('#traj_play_act_sel option:selected').val(); 

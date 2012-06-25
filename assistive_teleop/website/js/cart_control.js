@@ -66,7 +66,7 @@ function enable_cart_control(arm){
     node.rosjs.callService(service, [json(ecc)],function(ret){
                     console.log("Enable cart controller returned success: "+ret.success)
                     })
-    log("Requesting "+arm+" arm cartesian controller.  Controls will appear when controller is active.");
+    log("Requesting "+arm+" arm Cartesian controller.  Controls will appear when controller is active.");
 };
 
 function pub_cart_twist(arm, trans, rot){

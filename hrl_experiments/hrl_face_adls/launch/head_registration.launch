@@ -27,6 +27,19 @@
     <node pkg="hrl_face_adls" name="registration_loader" type="registration_loader.py"
           output="screen" args="$(find hrl_ellipsoidal_control)/data/$(arg subject)_r_ellipsoid_registration.bag $(find hrl_ellipsoidal_control)/data/$(arg subject)_l_ellipsoid_registration.bag" >
         <remap from="/feedback" to="/wt_log_out" />
+        <param name="registration_prefix" value="$(find hrl_ellipsoidal_control)/data/$(arg subject)" />
+        <rosparam>
+            registration_files:
+                shaving:
+                    r: "_r_ellipsoid_registration.bag"
+                    l: "_r_ellipsoid_registration.bag"
+                scratching:
+                    r: "_scr_r_ellipsoid_registration.bag"
+                    l: "_scr_l_ellipsoid_registration.bag"
+                feeding:
+                    r: "_feed_r_ellipsoid_registration.bag"
+                    l: "_feed_l_ellipsoid_registration.bag"
+        </rosparam>
     </node>
     <node pkg="hrl_head_tracking" name="head_alignment_confirm" type="head_alignment_confirm"
           output="screen" respawn="True" />

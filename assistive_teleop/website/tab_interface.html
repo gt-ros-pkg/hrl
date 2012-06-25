@@ -23,7 +23,8 @@ function json(obj){return JSON.stringify(obj);};
 function log(message){$('#console').html("<big><strong>"+message.toString()+"</strong></big>"); console.log(message.toString())};
 //arm = function(){return $('input[name=arm_sel]:radio:checked').val()};
 
-var ROBOT = 'monty1.hsi.gatech.edu';
+var ROBOT = 'prj.willowgarage.com';
+//var ROBOT = 'monty1.hsi.gatech.edu';
 //var ROBOT = 'pr2c1.cc.gatech.edu';
 //var ROBOT = 'localhost';
 var get_param_free = true;
@@ -47,7 +48,7 @@ function init(){
     traj_play_init();
     teleop_init();
     shaving_init();
-    camera_init();
+    //camera_init();
     basic_init();
     cart_init();
     set_camera("kinect_head/rgb/image_color");
@@ -132,64 +133,6 @@ function speak(text){
 		log('\"' + text +'\"'); 
 };
 
-//SKIN SPECIFIC ADDITIONS
-function pub_gripper_skin(arm,grpos) {
-	node.publish('skin/'+arm+'_gripper_command',
-                 'pr2_controllers_msgs/Pr2GripperCommand',
-                 json({'position': grpos ,'max_effort':-1}));
-};
-
-function skin_stop_button(){
-    $('#b5','#bpd_default').text('STOP').show().bind('click.rfh',function(e){
-            node.publish('epc/stop','std_msgs/Bool', json({'data':true}))});
-};
-
-function skin_toggle_cb(){
-    if ($('#skin_toggle').is(':checked')){
-        log("Altering Controls for Skin Use");
-    $('#cont_r_arm').unbind('click.rfh').bind('click.skin', function(){
-                                        show_arm_controls('right');
-                                        skin_stop_button();
-
-    });
-    $('#cont_l_arm').unbind('click.rfh').bind('click.skin', function(){
-                                        show_arm_controls('left')
-                                        skin_stop_button();
-    });
-	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
-                                    pub_gripper_skin('r',$('#rg_slider').slider("value"));
-                                    log('Opening/Closing Right Gripper');});	
-	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
-                                    pub_gripper_skin('l',$('#lg_slider').slider("value"));
-                                    log('Opening/Closing Left Gripper');});	
-    $('#rg_grab').unbind().bind('click',function(e){pub_gripper_skin('r',0.0)});                                
-    $('#lg_grab').unbind().bind('click',function(e){pub_gripper_skin('l',0.0)});                                
-    $('#rg_release').unbind().bind('click',function(e){pub_gripper_skin('r',0.09)});                                
-    $('#lg_release').unbind().bind('click',function(e){pub_gripper_skin('l',0.09)});                                
-    } else {
-        log("Altering Controls for Normal Use");
-    $('#cont_r_arm').unbind('click.skin').bind('click.rfh', function(){enable_cart_control('right')});
-    $('#cont_l_arm').unbind('click.skin').bind('click.rfh', function(){enable_cart_control('left')});
-	$('#rg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
-                                    pub_gripper('r',$('#rg_slider').slider("value"));
-                                    log('Opening/Closing Right Gripper');
-                                    });	
-	$('#lg_slider').unbind("slidestop").bind("slidestop", function(event,ui){
-                                    pub_gripper('l',$('#lg_slider').slider("value"));
-                                    log("Opening/Closing Left Gripper");
-                                    });	
-    $('#rg_grab').unbind().bind('click',function(e){pub_gripper('r',-0.005)});                                
-    $('#lg_grab').unbind().bind('click',function(e){pub_gripper('l',-0.005)});                                
-    $('#rg_release').unbind().bind('click',function(e){pub_gripper('r',0.09)});                                
-    $('#lg_release').unbind().bind('click',function(e){pub_gripper('l',0.09)});
-    $('#b5','#bpd_default').text('').hide().unbind('click.rfh');
-    };
-};
-
-function skin_ort_cb(){
-    node.publish("skin_ort_toggle", "std_msgs/Bool", json({'data':$("#skin_ort_toggle").is(':checked')}));
-    };
-
 function start(){
     window.node = new ros.NodeHandle('ws://'+ ROBOT + ':9091');
 	node.setOnClose(function(e) {
@@ -199,9 +142,9 @@ function start(){
           log("Unknown error connecting!");
     	});
       	node.setOnOpen(function(e) {   
-	  log("Connected to " + node.url + ".");
-	  init();
-	  });
+	      log("Connected to " + node.url + ".");
+	      init();
+	    });
 };
 
 </script>
@@ -470,7 +413,7 @@ function start(){
               <tr>
                 <td>
                   <div id='shave_select'>  <!--Shaving Selection Drop-Down and Entry -->
-                    <table>
+                    <table border=1>
                     <tr>
                       <td>
                         <select class="centered ell_control" id='shave_list'></select>
@@ -478,11 +421,12 @@ function start(){
                       </tr><tr>
                       <td><button class="ell_control" id="send_shave_select" onclick="console.log('Sending Command to move to '+$('#shave_list option:selected').text()); send_shave_location($('#shave_list option:selected').text())">Move to Selection</button></td>
                     </tr>
-                    <tr>
-                      <td><button class="centered ell_control" id="shave_stop" onclick="shave_stop();">Stop</button></td>
-                    </tr>
                   </table>
                 </div>  <!--End Shaving Drop-Down -->
+              </td>
+            </tr>
+            <tr>
+                      <td><button class="centered ell_control" id="shave_stop" onclick="shave_stop();">Stop</button></td>
                </td>
              </tr>
             </table>
@@ -621,18 +565,6 @@ function start(){
         <button id='rg_grab'>Close</button>
       </td><td>
         <button id='torso_min' onclick='pub_torso(0);'>Min</button>
-      </td>
-    </tr>
-    <tr>
-      <td colspan=3>
-        <input class="skin" type="checkbox" id="skin_toggle" onclick="skin_toggle_cb()"/>
-        <label class="skin" id="skin_toggle_label" for="skin_toggle">Use Skin</label>
-      </td>
-    </tr>
-    <tr>
-      <td colspan=3>
-        <input class="skin" type="checkbox" id="skin_ort_toggle" onclick="skin_ort_cb()"/>
-        <label class="skin" id="skin_ort_toggle_label" for="skin_ort_toggle">Control Orientation</label>
       </td>
     </tr>
   </table>
