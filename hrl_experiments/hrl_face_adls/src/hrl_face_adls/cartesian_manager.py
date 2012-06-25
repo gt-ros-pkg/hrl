@@ -7,7 +7,7 @@ import roslib
 roslib.load_manifest("hrl_face_adls")
 
 import rospy
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32
 from geometry_msgs.msg import TwistStamped, PoseStamped
 
 from hrl_ellipsoidal_control.controller_base import CartesianStepController
@@ -30,8 +30,10 @@ class CartesianControllerManager(object):
         self.ctrl_switcher = ControllerSwitcher()
         self.command_move_sub = rospy.Subscriber("/face_adls/%s_cart_move" % arm_char, TwistStamped, 
                                                  async_call(self.command_move_cb))
-        self.command_absolute_sub = rospy.Subscriber("/face_adls/%s_cart_absolute" % arm_char, PoseStamped, 
-                                                 async_call(self.command_absolute_cb))
+        self.command_absolute_sub = rospy.Subscriber("/face_adls/%s_cart_absolute" % arm_char, 
+                                                     PoseStamped, async_call(self.command_absolute_cb))
+        self.adjust_posture_sub = rospy.Subscriber("/face_adls/%s_cart_posture" % arm_char, 
+                                                   Float32, self.adjust_posture_cb)
         def enable_controller_cb(req):
             if req.enable:
                 _, frame_rot = PoseConverter.to_pos_rot([0]*3, 
@@ -69,6 +71,8 @@ class CartesianControllerManager(object):
                                       controller_name=ctrl_name, 
                                       end_link=end_link, timeout=5)
             self.cart_ctrl.set_arm(cart_arm)
+            rospy.sleep(0.1)
+            cart_arm.adjust_posture_cb(Float32(0.))
             self.arm = cart_arm
             self.frame_rot = frame_rot
             self.velocity = velocity
@@ -126,6 +130,12 @@ class CartesianControllerManager(object):
         change_pos_xyz = change_pos.T.A[0]
         self.cart_ctrl.execute_cart_move((change_pos_xyz, change_rot), ((1, 1, 1), 1), 
                                          velocity=self.velocity, blocking=True)
+
+    def adjust_posture_cb(self, msg):
+        cur_angle = self.arm.get_joint_angles()[2]
+        new_posture = [None] * 7
+        new_posture[2] = cur_angle + msg.data
+        self.arm.set_posture(new_posture)
 
 def main():
     rospy.init_node("cartesian_manager")
