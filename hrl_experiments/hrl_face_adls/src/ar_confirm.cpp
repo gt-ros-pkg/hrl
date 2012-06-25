@@ -112,12 +112,16 @@ int main(int argc, char **argv)
                                            &doOverlay);
     overlay_pub = img_trans.advertise("/confirmation", 1);
 
+#if 0
     ros::Rate r(5);
     while(ros::ok()) {
         cv::Mat image(480, 640, CV_8UC3);
         ros::spinOnce();
         r.sleep();
     }
+#else
+    ros::spin();
+#endif
 
     return 0;
 }
