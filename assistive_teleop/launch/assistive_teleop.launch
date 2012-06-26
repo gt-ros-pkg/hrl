@@ -1,7 +1,7 @@
 <launch>
 
     <include file="$(find pr2_machine)/$(env ROBOT).machine" />
-    <arg name="shaving_board" default="/dev/ttyUSB1" />
+    <arg name="shaving_board" default="/dev/arduino" />
 
     <!-- Arduino Control Board for powering Shaver -->
     <node
@@ -242,7 +242,7 @@
         name="throttle_kinect_camera" 
         pkg="topic_tools" 
         type="throttle" 
-        args="messages /kinect_head/rgb/image_color 7 /kinect_throttled" />
+        args="messages /kinect_head/rgb/image_color 8 /kinect_throttled" />
     <!-- Launch mjpeg server, used for sending image streams -->
     <node 
         name="mjpeg_server" 
