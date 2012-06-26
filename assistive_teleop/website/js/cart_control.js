@@ -122,7 +122,7 @@ function show_arm_controls(arm){
             adjust_elbow(arm[0], -Math.PI/8); 
             });
 
-    if (arm[0]='r'){
+    if (arm[0]='l'){
             $('#bpd_default #b3').text('Raise Elbow');
             $('#bpd_default #b1').text('Lower Elbow');
         } else {
