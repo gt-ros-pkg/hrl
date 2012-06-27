@@ -14,6 +14,7 @@ from hrl_face_adls.srv import RequestRegistration
 
 def main():
     rospy.init_node("record_ell_poses")
+    assert len(sys.argv) == 4
     tool = sys.argv[1]
     modes = {"shaver" : "shaving", "spoon" : "feeding", "scratcher" : "scratching" }
     mode = modes[tool]

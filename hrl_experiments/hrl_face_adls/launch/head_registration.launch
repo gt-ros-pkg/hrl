@@ -31,14 +31,14 @@
         <rosparam>
             registration_files:
                 shaving:
-                    r: "_r_ellipsoid_registration.bag"
-                    l: "_r_ellipsoid_registration.bag"
+                    r: "_shaver_r_ellipsoid_registration.bag"
+                    l: "_shaver_l_ellipsoid_registration.bag"
                 scratching:
-                    r: "_scr_r_ellipsoid_registration.bag"
-                    l: "_scr_l_ellipsoid_registration.bag"
+                    r: "_scratcher_r_ellipsoid_registration.bag"
+                    l: "_scratcher_l_ellipsoid_registration.bag"
                 feeding:
-                    r: "_feed_r_ellipsoid_registration.bag"
-                    l: "_feed_l_ellipsoid_registration.bag"
+                    r: "_spoon_r_ellipsoid_registration.bag"
+                    l: "_spoon_l_ellipsoid_registration.bag"
         </rosparam>
     </node>
     <node pkg="hrl_head_tracking" name="head_alignment_confirm" type="head_alignment_confirm"

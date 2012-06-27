@@ -71,14 +71,18 @@ class CartesianControllerManager(object):
                                       controller_name=ctrl_name, 
                                       end_link=end_link, timeout=5)
             self.cart_ctrl.set_arm(cart_arm)
-            rospy.sleep(0.1)
-            cart_arm.adjust_posture_cb(Float32(0.))
             self.arm = cart_arm
+            rospy.sleep(0.1)
+            self.cur_posture_angle = self.arm.get_joint_angles()[2]
+            self.adjust_posture_cb(Float32(0.))
             self.frame_rot = frame_rot
             self.velocity = velocity
             self.controller_enabled_pub.publish(True)
-        except:
+        except Exception as e:
+            print e
             return False
+        rospy.loginfo("[cartesian_manager] Successfully enabled %s controller with end link %s" %
+                      (ctrl_name, end_link))
         return True
 
     def disable_controller(self):
@@ -108,6 +112,8 @@ class CartesianControllerManager(object):
         ep_rot_ref = torso_rot_ep.T * torso_rot_ref
         change_rot = ep_rot_ref * ref_rot_off * ep_rot_ref.T
         _, change_rot_rpy = PoseConverter.to_pos_euler(np.mat([0]*3).T, change_rot)
+        rospy.loginfo("[cartesian_manager] Command relative movement." + 
+                      str((change_pos_xyz, change_rot_rpy)))
         self.cart_ctrl.execute_cart_move((change_pos_xyz, change_rot_rpy), ((0, 0, 0), 0), 
                                          velocity=self.velocity, blocking=True)
 
@@ -128,13 +134,16 @@ class CartesianControllerManager(object):
 
         change_pos, change_rot = PoseConverter.to_pos_rot(torso_B_goal)
         change_pos_xyz = change_pos.T.A[0]
+        rospy.loginfo("[cartesian_manager] Command absolute movement." + 
+                      str((change_pos_xyz, change_rot)))
         self.cart_ctrl.execute_cart_move((change_pos_xyz, change_rot), ((1, 1, 1), 1), 
                                          velocity=self.velocity, blocking=True)
 
     def adjust_posture_cb(self, msg):
-        cur_angle = self.arm.get_joint_angles()[2]
+        rospy.loginfo("[cartesian_manager] Adjusting posture")
         new_posture = [None] * 7
-        new_posture[2] = cur_angle + msg.data
+        self.cur_posture_angle += msg.data
+        new_posture[2] = self.cur_posture_angle
         self.arm.set_posture(new_posture)
 
 def main():

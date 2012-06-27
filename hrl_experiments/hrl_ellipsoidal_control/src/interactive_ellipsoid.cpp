@@ -34,6 +34,7 @@ private:
     geometry_msgs::TransformStamped tf_msg_;
     hrl_ellipsoidal_control::EllipsoidParams cur_e_params_;
     ros::ServiceServer load_param_srv_;
+    bool is_oblate;
 public:
     InteractiveEllipse(const std::string& parent_frame, const std::string& child_frame, double rate = 100);
     void processTFControl(const visualization_msgs::InteractiveMarkerFeedbackConstPtr& feedback);
@@ -186,6 +187,7 @@ void InteractiveEllipse::publishTF(const ros::TimerEvent& event)
     e_params.e_frame = tf_msg_;
     e_params.height = y_axis_ + old_y_axis_;
     e_params.E = z_axis_ + old_z_axis_;
+    e_params.is_oblate = is_oblate;
     params_pub.publish(e_params);
     cur_e_params_ = e_params;
 }
@@ -209,6 +211,7 @@ void InteractiveEllipse::loadEllipsoidParams(const hrl_ellipsoidal_control::Elli
 
     old_y_axis_ = e_params.height;
     old_z_axis_ = e_params.E;
+    is_oblate = e_params.is_oblate;
 }
 
 void InteractiveEllipse::bagTF(const string& bag_name) 

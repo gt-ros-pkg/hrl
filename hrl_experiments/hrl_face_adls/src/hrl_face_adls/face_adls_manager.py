@@ -133,6 +133,7 @@ class FaceADLsManager(object):
             face_adls_modes = rospy.get_param('/face_adls_modes', None) 
             params = face_adls_modes[req.mode]
             self.shaving_side = rospy.get_param('/shaving_side', 'r') # TODO Make more general
+            self.flip_gripper = self.shaving_side == 'r' and req.mode == "shaving"
             bounds = params['%s_bounds' % self.shaving_side]
             self.ell_ctrl.set_bounds(bounds['lat'], bounds['lon'], bounds['height'])
             reg_resp = self.request_registration(req.mode, self.shaving_side)
@@ -165,7 +166,7 @@ class FaceADLsManager(object):
         self.ell_ctrl.set_arm(cart_arm)
         rospy.sleep(0.1)
         cart_arm.set_posture(cart_arm.get_joint_angles())
-        self.arm.set_gains([300, 600, 600, 80, 80, 80], [4, 8, 8, 1.2, 1.2, 1.2])
+        cart_arm.set_gains([300, 600, 600, 80, 80, 80], [4, 8, 8, 1.2, 1.2, 1.2])
 
         # check if arm is near head
         if not self.ell_ctrl.arm_in_bounds():
@@ -204,7 +205,7 @@ class FaceADLsManager(object):
         self.force_monitor.update_activity()
         self.is_forced_retreat = False
 
-        if self.shaving_side == 'r': #and not is_scratching: # TODO REMOVE!
+        if self.flip_gripper:
             self.gripper_rot = tf_trans.quaternion_from_euler(np.pi, 0, 0)
         else:
             self.gripper_rot = tf_trans.quaternion_from_euler(0, 0, 0)

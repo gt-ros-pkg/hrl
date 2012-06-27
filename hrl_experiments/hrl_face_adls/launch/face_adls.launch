@@ -16,8 +16,10 @@
         <param name="timeout_time" value="30.0" />
         <param name="init_pos_tolerance" value="100.0" />
         <param name="init_rot_tolerance" value="100.0" />
+        <rosparam command="delete" param="/face_adls/l_global_poses" />
         <rosparam command="load" param="/face_adls/l_global_poses" 
                   file="$(find hrl_face_adls)/params/l_ell_poses.yaml" />
+        <rosparam command="delete" param="/face_adls/r_global_poses" />
         <rosparam command="load" param="/face_adls/r_global_poses" 
                   file="$(find hrl_face_adls)/params/r_ell_poses.yaml" />
     </node>
@@ -44,11 +46,11 @@
                 ctrl_name: "l_cart_jt_task_shaver"
                 r_bounds:
                     lat: [0.39, 2.75]
-                    lon: [-1.96, 0.39]
+                    lon: [-3.1, 3.1]
                     height: [0.2, 3.5]
                 l_bounds:
                     lat: [0.39, 2.75]
-                    lon: [-0.39, 1.96]
+                    lon: [-3.1, 3.1]
                     height: [0.2, 3.5]
             scratching:
                 end_link: "l_gripper_brush45_frame"
@@ -56,11 +58,11 @@
                 ctrl_name: "l_cart_jt_task_brush"
                 r_bounds:
                     lat: [0, 3.14]
-                    lon: [-1.2, 1.2]
+                    lon: [-3.1, 3.1]
                     height: [0.2, 3.5]
                 l_bounds:
                     lat: [0, 3.14]
-                    lon: [-1.2, 1.2]
+                    lon: [-3.1, 3.1]
                     height: [0.2, 3.5]
             feeding:
                 end_link: "l_gripper_spoon45_frame"
