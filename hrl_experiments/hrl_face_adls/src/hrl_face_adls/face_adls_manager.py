@@ -13,6 +13,8 @@ from std_msgs.msg import Int8, String, Bool
 from std_srvs.srv import Empty
 from geometry_msgs.msg import WrenchStamped
 import tf.transformations as tf_trans
+import rosparam
+import roslib.substitution_args
 
 from hrl_pr2_arms.pr2_arm import create_pr2_arm, PR2ArmCartesianBase, PR2ArmJTransposeTask
 from hrl_pr2_arms.pr2_controller_switcher import ControllerSwitcher
@@ -145,7 +147,10 @@ class FaceADLsManager(object):
             success = self.enable_controller(params['end_link'], params['ctrl_params'],
                                              params['ctrl_name'])
 
-            self.global_poses = rospy.get_param('/face_adls/%s_global_poses' % self.shaving_side)
+            global_poses_file = rospy.get_param(
+                    face_adls_modes["%s_ell_poses_file" % self.shaving_side])
+            global_poses_resolved = roslib.substitution_args.resolve_args(global_poses_file)
+            self.global_poses = rosparam.load_file(global_poses_resolved)[0][0]
             self.global_move_poses_pub.publish(sorted(self.global_poses.keys()))
         else:
             success = self.disable_controller()
