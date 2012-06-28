@@ -147,8 +147,7 @@ class FaceADLsManager(object):
             success = self.enable_controller(params['end_link'], params['ctrl_params'],
                                              params['ctrl_name'])
 
-            global_poses_file = rospy.get_param(
-                    face_adls_modes["%s_ell_poses_file" % self.shaving_side])
+            global_poses_file = params["%s_ell_poses_file" % self.shaving_side]
             global_poses_resolved = roslib.substitution_args.resolve_args(global_poses_file)
             self.global_poses = rosparam.load_file(global_poses_resolved)[0][0]
             self.global_move_poses_pub.publish(sorted(self.global_poses.keys()))
