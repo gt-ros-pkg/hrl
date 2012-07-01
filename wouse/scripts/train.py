@@ -78,7 +78,7 @@ if __name__=='__main__':
     #num = num + num%len(ACTIONS)
     #act_list = ACTIONS*num
     #length = len(act_list)*args.duration
-    act_list = ACTIONS*30
+    act_list = ACTIONS*3
     
     rospy.init_node('wouse_trainer')
     wt = WouseTrainer(args.filename)

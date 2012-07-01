@@ -10,7 +10,7 @@ from sound_play.libsoundplay import SoundClient
 from wouse.srv import WouseRunStop
 
 CIRCUITS=[0,1,2] #Base, Right arm, Left Arm circuits
-DEAD_MAN_CONFIGURATION=True
+DEAD_MAN_CONFIGURATION=False
 
 class RunStop(object):
     """Provide utility functions for starting/stopping PR2."""

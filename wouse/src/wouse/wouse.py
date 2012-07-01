@@ -21,26 +21,26 @@ class Wouse(object):
     """
     Subscribes to mouse movements, detects wincing, and signals e-stop.
     """
-    def __init__(self, svm_datafile, out_file):
+    def __init__(self, svm_datafile):
         """Initialize svm classifier and needed services."""
-##        try:
-#            rospy.wait_for_service('wouse_run_stop', 5) 
-#            self.runstop_client=rospy.ServiceProxy('wouse_run_stop',
-#                                                        WouseRunStop, True)
-#            rospy.loginfo("Found wouse run-stop service")
-#        except:
-#            rospy.logerr("Cannot find wouse run-stop service")
-#            sys.exit()
+        try:
+            rospy.wait_for_service('wouse_run_stop', 5) 
+            self.runstop_client=rospy.ServiceProxy('wouse_run_stop',
+                                                        WouseRunStop, True)
+            rospy.loginfo("Found wouse run-stop service")
+        except:
+            rospy.logerr("Cannot find wouse run-stop service")
+            sys.exit()
 
         (self.scaler, self.classifier) = self.init_classifier(svm_datafile)
         rospy.loginfo("SVM Trained on data from %s" %svm_datafile)
         rospy.Subscriber('wouse_movement', Vector3Stamped, self.movement_cb)
-#        rospy.Timer(rospy.Duration(0.1), self.ping_server)
+        rospy.Timer(rospy.Duration(0.1), self.ping_server)
         self.window = []
         self.data = []
         pygame.init()
         self.sound_new = pygame.mixer.Sound('../../sounds/new_item.wav')
-        self.csv_writer = csv.writer(open(out_file, 'ab'))
+        #self.csv_writer = csv.writer(open(out_file, 'ab'))
         rospy.loginfo("[%s]: Ready" %rospy.get_name())
       
     def init_classifier(self, filename):
@@ -62,12 +62,12 @@ class Wouse(object):
 
     def movement_cb(self, v3):
         """Filter out small movements, check classifier, call stop if needed."""
-        line = [v3.header.stamp.to_sec(), v3.vector.x, v3.vector.y]
-        self.csv_writer.writerow(line)
+        #line = [v3.header.stamp.to_sec(), v3.vector.x, v3.vector.y]
+        #self.csv_writer.writerow(line)
         if (v3.vector.x**2+v3.vector.y**2)**(0.5) < 2.5:
             return
         if self.classify_svm(v3.vector.x, v3.vector.y, v3.header.stamp):
-#            self.runstop_client(WouseRunStopRequest(True, False,rospy.Time.now()))
+            self.runstop_client(WouseRunStopRequest(True, False, rospy.Time.now()))
             self.sound_new.play()
             rospy.loginfo("Wince Detected, stopping robot!")
         else:
@@ -97,5 +97,5 @@ class Wouse(object):
 
 if __name__=='__main__':
     rospy.init_node('wouse_node')
-    wouse = Wouse(sys.argv[1], sys.argv[2])
+    wouse = Wouse(sys.argv[1])
     rospy.spin()
