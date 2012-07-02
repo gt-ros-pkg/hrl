@@ -135,6 +135,7 @@ class FaceADLsManager(object):
             face_adls_modes = rospy.get_param('/face_adls_modes', None) 
             params = face_adls_modes[req.mode]
             self.shaving_side = rospy.get_param('/shaving_side', 'r') # TODO Make more general
+            self.trim_retreat = req.mode == "shaving"
             self.flip_gripper = self.shaving_side == 'r' and req.mode == "shaving"
             bounds = params['%s_bounds' % self.shaving_side]
             self.ell_ctrl.set_bounds(bounds['lat'], bounds['lon'], bounds['height'])
@@ -234,8 +235,13 @@ class FaceADLsManager(object):
         self.force_monitor.start_activity()
         if forced:
             self.is_forced_retreat = True
+        ell_ep = self.ell_ctrl.get_ell_ep()
+        print "Retreat EP:", ell_ep
+        latitude = ell_ep[0]
+        if self.trim_retreat:
+            latitude = min(latitude, TRIM_RETREAT_LATITUDE)
         rospy.loginfo("[face_adls_manager] Retreating from current location.")
-        self.ell_ctrl.execute_ell_move(((0, 0, height), (0, 0, 0, 1)), ((0, 0, 1), 0), 
+        self.ell_ctrl.execute_ell_move(((latitude, 0, height), (0, 0, 0, 1)), ((1, 0, 1), 0), 
                                        self.gripper_rot, velocity, blocking=True)
         self.is_forced_retreat = False
         self.force_monitor.stop_activity()
@@ -269,7 +275,8 @@ class FaceADLsManager(object):
                                                   ((1, 1, 1), 0), 
                                                   self.gripper_rot, GLOBAL_VELOCITY, blocking=True):
                 raise Exception
-            if not self.ell_ctrl.execute_ell_move((goal_pose[0], (0, 0, 0, 1)), ((1, 1, 1), 0), 
+            final_goal = [goal_pose[0][0], goal_pose[0][1], goal_pose[0][2] - HEIGHT_CLOSER_ADJUST]
+            if not self.ell_ctrl.execute_ell_move((final_goal, (0, 0, 0, 1)), ((1, 1, 1), 0), 
                                                   self.gripper_rot, GLOBAL_VELOCITY, blocking=True):
                 raise Exception
         except:

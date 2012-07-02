@@ -17,6 +17,8 @@ SAFETY_RETREAT_VELOCITY = 0.0150
 SLOW_RETREAT_VELOCITY = 0.0200
 SHAVE_HEIGHT = 0.8
 TIMEOUT_TIME = 30.0
+HEIGHT_CLOSER_ADJUST = 0.5
+TRIM_RETREAT_LATITUDE = 1.9
 
 LAT_BOUNDS = {'r' : (np.pi/8, 7*np.pi/8), 'l' : (np.pi/8, 7*np.pi/8)}
 #LON_BOUNDS = {'r' : (-np.inf, np.inf), 'l' : (-np.inf, np.inf)}
