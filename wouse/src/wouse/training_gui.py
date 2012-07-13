@@ -24,12 +24,13 @@ class WouseSetupDialog(object):
     """A dialog box for setting session parameters for training the wouse."""
     def __init__(self):
         """ Load .ui file from QtDesigner, add callbacks as necessary"""
-        self.dialog = QUiLoader().load(PATH+'/wouse_train_options.ui')
+        ui_file = WOUSE_PKG+'/src/wouse/wouse_train_options.ui'
+        self.dialog = QUiLoader().load(ui_file)
         self.dialog.rounds_spin.valueChanged.connect(self.update_time)
         self.dialog.recording_spin.valueChanged.connect(self.update_time)
         self.dialog.recovery_spin.valueChanged.connect(self.update_time)
         self.dialog.file_button.clicked.connect(self.file_button_cb) 
-        self.dialog.file_field_edit.setText(WOUSE_FOLDER+'/data/')
+        self.dialog.file_field_edit.setText(WOUSE_PKG+'/data/')
         self.dialog.buttonBox.accepted.connect(self.ok_cb)
         self.dialog.buttonBox.rejected.connect(self.cancel_cb)
         self.update_time()
@@ -88,15 +89,16 @@ class WouseTrainer(object):
         self.rounds = self.setup_gui.dialog.rounds_spin.value()
         self.record_dur = self.setup_gui.dialog.recording_spin.value()
         self.recovery_dur = self.setup_gui.dialog.recovery_spin.value() 
+        
         #Open file for recoding data
         output_file = self.setup_gui.dialog.file_field_edit.text()
         self.csv_writer = csv.writer(open(output_file, 'ab'))
+
         #Init pygame, used for playing sounds
-        #self.sound_new = QSound('../../sounds/new_item.wav') 
-        #self.sound_done = QSound('../../sounds/item_done.wav') .
         pygame.init()
-        self.sound_new = pygame.mixer.Sound(WOUSE_FOLDER+'/sounds/new_item.wav')
-        self.sound_done = pygame.mixer.Sound(WOUSE_FOLDER+'/sounds/item_done.wav')
+        self.sound_new = pygame.mixer.Sound(WOUSE_PKG+'/sounds/new_item.wav')
+        self.sound_done = pygame.mixer.Sound(WOUSE_PKG+'/sounds/item_done.wav')
+
         self.degree='AVERAGE'
         self.recording = False
 
@@ -134,8 +136,7 @@ class WouseTrainer(object):
 
 if __name__=='__main__':
     rospy.init_node('wouse_trainer')
-    PATH = os.path.dirname(os.path.abspath(sys.argv[0]))
-    WOUSE_FOLDER = os.path.abspath(os.path.join(PATH,'../../'))
+    WOUSE_PKG = roslib.packages.get_pkg_dir('wouse')
     wt = WouseTrainer()
     wt.run(wt.rounds, wt.record_dur, wt.recovery_dur)
 
