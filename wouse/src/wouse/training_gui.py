@@ -24,12 +24,12 @@ class WouseSetupDialog(object):
     """A dialog box for setting session parameters for training the wouse."""
     def __init__(self):
         """ Load .ui file from QtDesigner, add callbacks as necessary"""
-        self.dialog = QUiLoader().load('wouse_train_options.ui')
+        self.dialog = QUiLoader().load(PATH+'/wouse_train_options.ui')
         self.dialog.rounds_spin.valueChanged.connect(self.update_time)
         self.dialog.recording_spin.valueChanged.connect(self.update_time)
         self.dialog.recovery_spin.valueChanged.connect(self.update_time)
         self.dialog.file_button.clicked.connect(self.file_button_cb) 
-        self.dialog.file_field_edit.setText(os.getcwd())
+        self.dialog.file_field_edit.setText(WOUSE_FOLDER+'/data/')
         self.dialog.buttonBox.accepted.connect(self.ok_cb)
         self.dialog.buttonBox.rejected.connect(self.cancel_cb)
         self.update_time()
@@ -92,9 +92,11 @@ class WouseTrainer(object):
         output_file = self.setup_gui.dialog.file_field_edit.text()
         self.csv_writer = csv.writer(open(output_file, 'ab'))
         #Init pygame, used for playing sounds
+        #self.sound_new = QSound('../../sounds/new_item.wav') 
+        #self.sound_done = QSound('../../sounds/item_done.wav') .
         pygame.init()
-        self.sound_new = pygame.mixer.Sound('../sounds/new_item.wav')
-        self.sound_done = pygame.mixer.Sound('../sounds/item_done.wav')
+        self.sound_new = pygame.mixer.Sound(WOUSE_FOLDER+'/sounds/new_item.wav')
+        self.sound_done = pygame.mixer.Sound(WOUSE_FOLDER+'/sounds/item_done.wav')
         self.degree='AVERAGE'
         self.recording = False
 
@@ -132,6 +134,8 @@ class WouseTrainer(object):
 
 if __name__=='__main__':
     rospy.init_node('wouse_trainer')
+    PATH = os.path.dirname(os.path.abspath(sys.argv[0]))
+    WOUSE_FOLDER = os.path.abspath(os.path.join(PATH,'../../'))
     wt = WouseTrainer()
     wt.run(wt.rounds, wt.record_dur, wt.recovery_dur)
 
