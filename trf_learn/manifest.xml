@@ -27,7 +27,12 @@
   <depend package="dynamic_reconfigure"/>
 
   <depend package="hai_sandbox"/>
+  <depend package="rcommander"/>
   <depend package="rcommander_pr2_gui"/>
+
+  <export>
+      <rcommander plugin="trf_learn.trf_learn_tool" robot="trf" tab="Learners"/>
+  </export>
 </package>
 
 
