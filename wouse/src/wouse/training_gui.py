@@ -114,6 +114,12 @@ class WouseTrainer(object):
         act_list = rounds*ACTIONS
         random.shuffle(act_list)
         count = 1
+        print "Starting in: "
+        countdown = range(1,10)
+        countdown.reverse()
+        for number in countdown:
+            print "%s" %number
+            rospy.sleep(1)
         while len(act_list) > 0 and not rospy.is_shutdown():
             self.behavior = act_list.pop()
             bar = random.choice(SYMBOLS)
