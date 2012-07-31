@@ -11,7 +11,8 @@
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
   <!--<depend package="pcl_visualization"/>-->
-  <depend package="eigen"/>
+  <!--EIGEN NOT FOUND IN FUERTE <depend package="eigen"/>-->
+  <rosdep name="eigen"/>
   <depend package="sensor_msgs"/>
   <depend package="message_filters"/>
   <!--<depend package="eigen3"/> 
