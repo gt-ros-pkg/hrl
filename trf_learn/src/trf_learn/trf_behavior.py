@@ -736,9 +736,10 @@ class TaskRelevantLearningBehaviors:
         #cProfile.runctx('self.profile_me(task_id, point_bl)', globals(), locals(), filename='read_features_save.prof')
         #pdb.set_trace()
     
-        #Scan
+        #Capture a scan 
         fea_dict, image_name = self.read_features_save(task_id, point_bl, params)
 
+        #Capture a 2nd scan for PCA vector stuff
         params2 = r3d.Recognize3DParam()
         params2.n_samples = 5000
         fea_dict2, image_name2 = self.read_features_save(task_id, point_bl, params2)
