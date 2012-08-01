@@ -412,9 +412,12 @@ class TRFClassificationServer:
     # @return RecognizePoseResponse with a PoseStamped
     def recognize_pose_srv_cb(self, recognize_pose_request):
         actionid  = recognize_pose_request.actionid
-        frame     = recognize_pose_request.last_known_pose.header.frame_id #should be /map
-        point     = recognize_pose_request.last_known_pose.pose.position
         mode      = recognize_pose_request.mode
+        #frame     = recognize_pose_request.last_known_pose.header.frame_id #should be /map
+        #point     = recognize_pose_request.last_known_pose.pose.position
+        posestamped = self.get_behavior_pose(actionid).posestamped
+        frame = posestamped.header.frame_id
+        point = posestamped.pose.position
 
         point_mat = np.matrix([point.x, point.y, point.z]).T
         point_bl  = tfu.transform_points(
@@ -443,7 +446,7 @@ class TRFClassificationServer:
             return RecognizePoseResponse(recognize_pose_request.last_known_pose,
                                          pickle.dumps(datapoint))
 
-        elif mode == 'train'
+        elif mode == 'train':
         #elif self.training_db.is_practicing(actionid):
             active_learn = self.training_db.get_active_learn_session(actionid)
             if active_learn == None:
@@ -482,12 +485,16 @@ class TRFClassificationServer:
                 rospy.loginfo('FOUND NO POSITIVE POINTS. JUST USING CLOSEST POINT TO PRIOR.')
                 selected_2d, selected_3d, selected_instance = select_closest_instance(kdict, point_bl)
 
+            selected_3d_f = tfu.transform_points(
+                                tfu.transform(recognize_pose_request.last_known_pose.header.frame_id,
+                                    'base_link', self.tf_listener), selected_3d)
+            
             ps = PoseStamped()
-            ps.header.frame_id = 'base_link'
+            ps.header.frame_id = recognize_pose_request.last_known_pose.header
             ps.pose = recognize_pose_request.last_known_pose.pose #sets position/orientation
-            ps.pose.position.x, ps.pose.position.y, ps.pose.position.z = selected_3d.A1.tolist()
+            ps.pose.position.x, ps.pose.position.y, ps.pose.position.z = selected_3d_f.A1.tolist()
             datapoint = ActiveLearnPointContainer(selected_instance, selected_2d,
-                                                    selected_3d, ps.header.frame_id,
+                                                    selected_3d_f, ps.header.frame_id,
                                                     kdict['sizes'])
             return RecognizePoseResponse(ps, pickle.dumps(datapoint))
 
