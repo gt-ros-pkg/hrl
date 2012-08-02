@@ -19,7 +19,7 @@ int main(int argc, char** argv)
     printf("Loading point cloud...\n");
     if (pcl::io::loadPCDFile(argv[1], *point_cloud_data) == -1)
     {
-        ROS_ERROR_STREAM("Was not able to open pcd file \"" << argv[1] << "\".\n");
+        //ROS_ERROR_STREAM("Was not able to open pcd file \"" << argv[1] << "\".\n");
         return -1;
     }
   

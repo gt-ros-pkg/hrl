@@ -30,7 +30,7 @@ find_package(wxWidgets REQUIRED)
 include(${wxWidgets_USE_FILE})
 include_directories(${wxWidgets_INCLUDE_DIRS})
 link_libraries(${wxWidgets_LIBRARIES})
-rosbuild_add_executable(feature_extractor src/feature_extractor.cpp)
+#rosbuild_add_executable(feature_extractor src/feature_extractor.cpp)
 
 #rosbuild_add_executable(bag_reader src/bag_reader.cpp)
 #rosbuild_add_executable(vis src/range_image_visualization.cpp)
