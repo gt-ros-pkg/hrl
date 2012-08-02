@@ -10,10 +10,16 @@ import cv
 import hrl_lib.interactive_marker_helper as imh
 import functools as ft
 import rcommander_ar_tour.msg as atmsg
+import rcommander_ar_tour.srv as atsrv
 import scipy.spatial as sp
 import move_base_msgs.msg as mm
 import rcommander_pr2_gui.msg as rm
-import geometry_msgs.msg as as geo
+import geometry_msgs.msg as geo
+import actionlib
+import tf
+
+import hrl_camera.ros_camera as rc
+import hrl_pr2_lib.devices as hd
 
 
 def select_closest_instance(fea_dict, point_bl):
@@ -91,7 +97,7 @@ class TrainingInformationDatabase:
     def get_active_learn_session(self, actionid):
         return self.active_learn_sessions[actionid]
 
-    def set_active_learn_session(self, actionid, session)
+    def set_active_learn_session(self, actionid, session):
         self.active_learn_sessions[actionid] = session
 
     #def set_practicing(self, actionid, value):
@@ -212,7 +218,7 @@ class TRFInteractiveMarkerServer:
 
     def __init__(self, training_db, classification_server):
         self.classification_server = classification_server
-        self.marker_server = ims.InteractiveMarkerServer(self.SERVER_NAME)
+        self.marker_server = ims.InteractiveMarkerServer('trf_interactive_markers')
         self.training_db = training_db
         self.markers = {}
 
@@ -347,31 +353,36 @@ class TRFClassificationServer:
 
     def __init__(self):
         rospy.init_node('trf_classification_server')
-        self.get_behavior_property = rospy.ServiceProxy('get_behavior_property', ActionProperty)
-        self.get_behavior_pose     = rospy.ServiceProxy('get_behavior_pose', GetBehaviorPose)
-        self.set_behavior_pose     = rospy.ServiceProxy('set_behavior_pose', SetBehaviorPose)
+        self.get_behavior_property = rospy.ServiceProxy('get_behavior_property', atsrv.ActionProperty)
+        self.get_behavior_pose     = rospy.ServiceProxy('get_behavior_pose', atsrv.GetBehaviorPose)
+        self.set_behavior_pose     = rospy.ServiceProxy('set_behavior_pose', atsrv.SetBehaviorPose)
 
         #Handles request to recognize the pose of an object.
-        rospy.Service('recognize_pose', atmsg.RecognizePose, self.recognize_pose_srv_cb)
+        rospy.Service('recognize_pose', atsrv.RecognizePose, self.recognize_pose_srv_cb)
 
         #Messages that tells this node about the outcome of actions.
-        rospy.Service('action_result', atmsg.ActionResult, self.action_result_srv_cb)
+        rospy.Service('action_result', atsrv.ActionResult, self.action_result_srv_cb)
 
         #Messages that request an action be trained
         rospy.Subscriber('train_action', atmsg.TrainAction, self.train_action_cb)
 
         #rospy.Service('initialize', InitializeTRF, self.initialize_trf_cb)
-        self.run_action_path_client = actionlib.SimpleActionClient('run_rcommander_action_web', rmsg.RunScriptAction)
-        self.run_action_id_client = actionlib.SimpleActionClient('run_actionid', rmsg.RunScriptActionID)
+        #self.run_action_path_client = actionlib.SimpleActionClient('run_rcommander_action_web', atmsg.RunScriptAction)
+
+        self.run_action_id_client = actionlib.SimpleActionClient('run_actionid', atmsg.RunScriptIDAction)
 
         #self.last_known_pose = rospy.ServiceProxy('last_known_pose', LastKnownPose)
         #self.locations_man = lcm.LocationsManager('trf_learn_db.pkl', rec_params=self.rec_params) #TODO
 
         self.rec_params = r3d.Recognize3DParam()
         self.training_db = TrainingInformationDatabase('trf_learn_db.pkl', self.rec_params)
-        self.marker_server = TRFInteractiveMarkerServer(self.training_db)
+        self.marker_server = TRFInteractiveMarkerServer(self.training_db, self)
+        self.tf_listener = tf.TransformListener()
 
-        #change this to kinecta
+
+        #TODO: change this to kinect
+        self.prosilica = rc.Prosilica('prosilica', 'polled')
+        self.prosilica_cal = rc.ROSCameraCalibration('/prosilica/camera_info')
         self.feature_ex = r3d.NarrowTextureFeatureExtractor(self.prosilica, 
                 hd.PointCloudReceiver('narrow_stereo_textured/points'),
                 self.prosilica_cal, 
@@ -385,8 +396,8 @@ class TRFClassificationServer:
                 rm.RCTuckArmsAction)
 
         self.optical_frame = 'high_def_optical_frame'
+        rospy.loginfo('Ready!')
 
-        self.tf_listener = tf.TransformListener()
 
     def action_result_srv_cb(self, action_result_msg):
         actionid      = action_result_msg.actionid
@@ -525,7 +536,7 @@ class TRFClassificationServer:
     def _train_helper(self, actionid, cactionid, stop_fun=None):
         labels = []
 
-        while not rospy.is_shutdown()
+        while not rospy.is_shutdown():
             active_learn_session = self.training_db.get_active_learn_session(actionid)
 
             if stop_fun != None and stop_fun(np.matrix(labels)):
@@ -539,7 +550,7 @@ class TRFClassificationServer:
                 break
 
             #Run action
-            self.run_action_id_client.send_goal(rmsg.RunScriptActionIDGoal(actionid, pickle.dumps({'mode':'train'})))
+            self.run_action_id_client.send_goal(atmsg.RunScriptIDActionGoal(actionid, pickle.dumps({'mode':'train'})))
             self.run_action_id_client.wait_for_result()
             runaction_result = self.run_action_id_client.get_result()
             success = (runaction_result == 'success')
@@ -621,6 +632,9 @@ class TRFClassificationServer:
             self.training_db.save_database()
 
 
+if __name__ == '__main__':
+    server = TRFClassificationServer()
+    rospy.spin()
 
         #   Loop
         #     Set variable for state of environment
