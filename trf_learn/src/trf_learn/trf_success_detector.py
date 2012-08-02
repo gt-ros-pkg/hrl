@@ -1,11 +1,12 @@
 import roslib; roslib.load_manifest('trf_learn')
-import rospy
-import trf_learn.msg as tm
+import trf_learn.srv as tm
 import dynamic_reconfigure.client as dr
 import pypr2.pr2_utils as pru
 import hrl_camera.ros_camera as rc
-import time
 import hrl_pr2_lib.pr2 as pr2
+import numpy as np
+import rospy
+import time
 
 def image_diff_val2(before_frame, after_frame):
     br = np.asarray(before_frame)
@@ -93,7 +94,7 @@ class LightSwitchSuccess:
             return dr.Client('wide_stereo_both')
 
         def pr2_head_f():
-            return pru.PR2Head(self.connection_cache.get('joint_provider')
+            return pru.PR2Head(self.connection_cache.get('joint_provider'))
 
         def wide_angle_camera_left_f():
             return rc.ROSCamera('/wide_stereo/left/image_rect_color')
@@ -147,3 +148,9 @@ class LightSwitchSuccess:
             return False
         rospy.loginfo('=======================================')
         rospy.loginfo('=======================================')
+
+if __name__ == '__main__':
+    detector = TRFSuccessDetector()
+    rospy.loginfo('Ready!')
+    rospy.spin()
+
