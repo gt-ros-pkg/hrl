@@ -1,12 +1,13 @@
+#!/usr/bin/python
 import roslib; roslib.load_manifest('trf_learn')
+import rospy
 import trf_learn.srv as tm
 import dynamic_reconfigure.client as dr
 import pypr2.pr2_utils as pru
 import hrl_camera.ros_camera as rc
+import time
 import hrl_pr2_lib.pr2 as pr2
 import numpy as np
-import rospy
-import time
 
 def image_diff_val2(before_frame, after_frame):
     br = np.asarray(before_frame)

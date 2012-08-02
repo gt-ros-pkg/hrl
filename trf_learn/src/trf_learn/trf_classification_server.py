@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import roslib; roslib.load_manifest('trf_learn')
 import rospy
 import numpy as np
