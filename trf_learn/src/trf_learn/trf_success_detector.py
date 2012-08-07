@@ -61,6 +61,7 @@ class TRFSuccessDetector:
 
     def classify_success_cb(self, req):
         result = self.detectors[req.request_id].classify_success()
+        self.detectors.pop(req.request_id)
         return tm.ClassifySuccessResponse(result)
 
 
