@@ -32,6 +32,7 @@
 
   <export>
       <rcommander plugin="trf_learn.trf_learn_tool" robot="trf" tab="Learners"/>
+      <rcommander plugin="trf_learn.actionid_lookup_tool" robot="trf" tab="Learners"/>
   </export>
 </package>
 
