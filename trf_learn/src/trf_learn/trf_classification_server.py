@@ -21,6 +21,8 @@ import tf
 
 import hrl_camera.ros_camera as rc
 import hrl_pr2_lib.devices as hd
+import hrl_lib.tf_utils as tfu
+
 
 
 def select_closest_instance(fea_dict, point_bl):
@@ -384,9 +386,16 @@ class TRFClassificationServer:
         #TODO: change this to kinect
         self.prosilica = rc.Prosilica('prosilica', 'polled')
         self.prosilica_cal = rc.ROSCameraCalibration('/prosilica/camera_info')
+
+        #import pdb
+        import hrl_pr2_lib.pr2 as pr2
+        projector = pr2.StructuredLightProjector()
+        #pdb.set_trace()
+
         self.feature_ex = r3d.NarrowTextureFeatureExtractor(self.prosilica, 
                 hd.PointCloudReceiver('narrow_stereo_textured/points'),
                 self.prosilica_cal, 
+                projector,
                 self.tf_listener, self.rec_params)
 
         #self.robot_base = something
@@ -435,6 +444,7 @@ class TRFClassificationServer:
         point_bl  = tfu.transform_points(
                         tfu.transform('base_link', frame, self.tf_listener), 
                         point_mat)
+        print 'TRANSFORMING to base_link from', frame
 
         #No learner!
         if self.training_db.get_learner(actionid) == None:
@@ -453,10 +463,10 @@ class TRFClassificationServer:
                     
             #Add this scan as a PCA dataset
             self.training_db.init_data_record(actionid)
-            self.training_db.add_pca_dataset(fea_dict)
+            self.training_db.add_pca_dataset(actionid, fea_dict)
 
-            return RecognizePoseResponse(recognize_pose_request.last_known_pose,
-                                         pickle.dumps(datapoint))
+            #return atsrv.RecognizePoseResponse(recognize_pose_request.last_known_pose,
+            return atsrv.RecognizePoseResponse(posestamped, pickle.dumps(datapoint))
 
         elif mode == 'train':
         #elif self.training_db.is_practicing(actionid):
@@ -473,7 +483,7 @@ class TRFClassificationServer:
             p = al_point_container.points3d[:,0]
             ps.pose.position.x, ps.pose.position.y, ps.pose.position.z = p.A1.tolist()
 
-            return RecognizePoseResponse(ps, pickle.dumps(al_point_container))
+            return atsrv.RecognizePoseResponse(ps, pickle.dumps(al_point_container))
 
         else:
             #should have learner so we'll just do classification
@@ -508,7 +518,7 @@ class TRFClassificationServer:
             datapoint = ActiveLearnPointContainer(selected_instance, selected_2d,
                                                     selected_3d_f, ps.header.frame_id,
                                                     kdict['sizes'])
-            return RecognizePoseResponse(ps, pickle.dumps(datapoint))
+            return atsrv.RecognizePoseResponse(ps, pickle.dumps(datapoint))
 
     def train_action_cb(self, msg):
         #do this only if the database doesn't have training locations
