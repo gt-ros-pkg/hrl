@@ -44,7 +44,7 @@ class TRFSuccessDetector:
         self.detectors = {}
         self.connection_cache = ConnectionCache()
         def joint_provider_f():
-            jp = pru.create_joint_provider()
+            return pru.create_joint_provider()
         self.connection_cache.add_connection_type('joint_provider', joint_provider_f)
         self.connection_cache.get('joint_provider')
 
@@ -73,7 +73,7 @@ class DrawerPullSuccess:
         self.connection_cache = connection_cache
         self.requestid = requestid
         def left_gripper_f():
-            return PR2Gripper('l', self.connection_cache.get('joint_provider'))
+            return pr2.PR2Gripper('l', self.connection_cache.get('joint_provider'))
         self.connection_cache.add_connection_type('left_gripper', left_gripper_f)
 
     def take_snapshot(self):
