@@ -139,6 +139,9 @@ class TrainingInformationDatabase:
     def add_pca_dataset(self, actionid, pca_dataset):
         self.data[actionid]['pca_dataset'] = pca_dataset
 
+    def get_pca_dataset(self, actionid):
+        return self.data[actionid]['pca_dataset']
+
     def set_converged(self, actionid, location_idx):
         self.data[actionid]['practice_locations_convergence'][0, location_idx] = 1
 
@@ -151,6 +154,8 @@ class TrainingInformationDatabase:
             label = np.matrix([r3d.POSITIVE])
         else:
             label = np.matrix([r3d.NEGATIVE])
+
+        current_dataset = self.get_dataset(actionid)
 
         #Add to dataset
         self.data[actionid]['dataset'] = \
@@ -199,6 +204,7 @@ class TrainingInformationDatabase:
                         old_learner=previous_learner, pca=self.data[actionid]['pca'])
 
         #TODO: figure out something for scaling inputs field!
+        dset_for_pca = self.get_pca_dataset(actionid)
         if dset_for_pca != None:
             inputs_for_pca = dset_for_pca['instances']
         else:
@@ -416,10 +422,10 @@ class TRFClassificationServer:
         instance_prop = pickle.loads(action_result_msg.info)
 
         #Not initialized yet, so we add instance
-        if training_db.get_learner(actionid) == None or mode == 'train':
+        if self.training_db.get_learner(actionid) == None or mode == 'train':
             rospy.loginfo('Adding data point with label %s to action %s' 
                     % (str(result), actionid))
-            self.training_db.add_data_instance(actionid, instance_prop['instance'], result)
+            self.training_db.add_data_instance(actionid, instance_prop, result)
             self.training_db.save_database()
             if mode != 'train':
                 self.training_db.train(actionid)
