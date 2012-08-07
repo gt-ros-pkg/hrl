@@ -82,7 +82,10 @@ class DrawerPullSuccess:
     def classify_success(self):
         gripper = self.connection_cache.get('left_gripper')
         has_handle = gripper.pose()[0,0] > DrawerPullSuccess.GRIPPER_CLOSE
-        return has_handle
+        if has_handle:
+            return 'success'
+        else:
+            return 'failed'
 
 
 class LightSwitchSuccess:
@@ -144,10 +147,10 @@ class LightSwitchSuccess:
         rospy.loginfo('camera difference %.4f (thres %.3f)' % (sdiff, threshold))
         if sdiff > threshold:
             rospy.loginfo('difference detected!')
-            return True
+            return 'success'
         else:
             rospy.loginfo('NO differences detected!')
-            return False
+            return 'failed'
         rospy.loginfo('=======================================')
         rospy.loginfo('=======================================')
 
