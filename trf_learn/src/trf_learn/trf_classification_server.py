@@ -22,10 +22,12 @@ import tf
 import hrl_camera.ros_camera as rc
 import hrl_pr2_lib.devices as hd
 import hrl_lib.tf_utils as tfu
+import shutil
+import time
 
 
 
-def select_closest_instance(fea_dict, point_bl):
+def select_instance_ordered_by_distance(fea_dict, point_bl, ordered_idx=0):
     dists = ut.norm(fea_dict['points3d'] - point_bl)
     ordering = np.argsort(dists).A1
     points3d_sampled = fea_dict['points3d'][:, ordering]
@@ -70,16 +72,17 @@ class TrainingInformationDatabase:
         self.data = {} #This gets saved to disk
         self.learners = {}
         self.active_learn_sessions = {}
+        self.pca_dataset = {}
 
     def save_database(self):
-        rospy.loginfo('Saving pickle. DONOT INTERRUPPT!!!')
+        rospy.loginfo('Saving pickle. DO NOT INTERRUPT!')
         try:
             shutil.copyfile(self.saved_locations_fname, 
                     time.strftime('%m_%d_%Y_%I_%M%p') + '_locations.pkl')
         except Exception, e:
             rospy.loginfo('%s %s' % (str(e), str(e.__class__)))
         ut.save_pickle(self.data, self.saved_locations_fname)
-        rospy.loginfo('SAVED!!!')
+        rospy.loginfo('saved to %s.' % self.saved_locations_fname)
 
     def get_learner(self, actionid):
         if self.learners.has_key(actionid):
@@ -91,7 +94,7 @@ class TrainingInformationDatabase:
         if not self.data.has_key(actionid):
             self.data[actionid] = {'dataset': None,
                                    'pca': None,
-                                   'pca_dataset': None,
+                                   #'pca_dataset': None,
                                    'practice_locations': None,
                                    'practice_locations_history': None,
                                    'practice_locations_convergence': None,
@@ -137,10 +140,12 @@ class TrainingInformationDatabase:
         return self.data[actionid]['dataset'].inputs.shape[1]
 
     def add_pca_dataset(self, actionid, pca_dataset):
-        self.data[actionid]['pca_dataset'] = pca_dataset
+        self.pca_dataset[actionid] = pca_dataset
+        #self.data[actionid]['pca_dataset'] = pca_dataset
 
     def get_pca_dataset(self, actionid):
-        return self.data[actionid]['pca_dataset']
+        return self.pca_dataset[actionid]
+        #return self.data[actionid]['pca_dataset']
 
     def set_converged(self, actionid, location_idx):
         self.data[actionid]['practice_locations_convergence'][0, location_idx] = 1
@@ -166,8 +171,8 @@ class TrainingInformationDatabase:
                         None, None, sizes=al_point_container.sizes) #datapoint_dict['sizes'])
 
         #If have no learner, try to train one
-        if self.get_learner(actionid) == None:
-            self.train(actionid)
+        #if self.get_learner(actionid) == None:
+        #    self.train(actionid)
 
 
     #def train(self, actionid, dset_for_pca=None, save_pca_images=True):
@@ -420,18 +425,50 @@ class TRFClassificationServer:
         result        = action_result_msg.result
         mode          = action_result_msg.mode
         instance_prop = pickle.loads(action_result_msg.info)
+        rospy.loginfo('action_result called')
 
         #Not initialized yet, so we add instance
         if self.training_db.get_learner(actionid) == None or mode == 'train':
-            rospy.loginfo('Adding data point with label %s to action %s' 
-                    % (str(result), actionid))
-            self.training_db.add_data_instance(actionid, instance_prop, result)
-            self.training_db.save_database()
-            if mode != 'train':
-                self.training_db.train(actionid)
-            else:
+            if mode == 'train':
+                rospy.loginfo('training mode: Adding data point with label %s to action %s' 
+                        % (str(result), actionid))
+                self.training_db.add_data_instance(actionid, instance_prop, result)
+                self.training_db.save_database()
                 als = self.training_db.get_active_learn_session()
                 self.training_db.train(actionid, als.get_features_read())
+            else:
+                rospy.loginfo('initializing action')
+                self.initialize_action(actionid, [instance_prop, result])
+        return atsrv.ActionResultResponse()
+
+    def initialize_action(self, actionid, first_run_info):
+        active_learn_point_container, success = first_run_info
+        #pdb.set_trace()
+        self.training_db.add_data_instance(actionid, active_learn_point_container, success)
+
+        fea_dict = self.training_db.get_pca_dataset(actionid)
+        posestamped = self.get_behavior_pose(actionid).posestamped
+        frame = posestamped.header.frame_id
+        point = posestamped.pose.position
+        point_mat = np.matrix([point.x, point.y, point.z]).T
+        point_bl  = tfu.transform_points(
+                        tfu.transform('base_link', frame, self.tf_listener), 
+                        point_mat)
+
+        if success:
+            #add a failing point
+            point2d, point3d, instance = select_instance_ordered_by_distance(fea_dict, point_bl, -1)
+            neg_point = ActiveLearnPointContainer(instance, point2d, point3d, frame, fea_dict['sizes'])
+            self.training_db.add_data_instance(actionid, neg_point, False)
+        else:
+            #add guess of a 'success' point
+            point2d, point3d, instance = select_instance_ordered_by_distance(fea_dict, point_bl, 1)
+            pos_point = ActiveLearnPointContainer(instance, point2d, point3d, frame, fea_dict['sizes'])
+            self.training_db.add_data_instance(actionid, pos_point, True)
+
+        self.training_db.save_database()
+        self.training_db.train(actionid)
+
 
     ##
     # Assume that the robot is looking at what it needs to recognize
@@ -450,7 +487,7 @@ class TRFClassificationServer:
         point_bl  = tfu.transform_points(
                         tfu.transform('base_link', frame, self.tf_listener), 
                         point_mat)
-        print 'TRANSFORMING to base_link from', frame
+        print 'TRANSFORMING to base_link frame', frame
 
         #No learner!
         if self.training_db.get_learner(actionid) == None:
@@ -462,10 +499,8 @@ class TRFClassificationServer:
     
             #Capture a scan 
             fea_dict = self.feature_ex.read(point_bl, params=params)
-            point2d, point3d, instance = select_closest_instance(fea_dict, point_bl)
-            datapoint = ActiveLearnPointContainer(instance, point2d,
-                                                    point3d, frame,
-                                                    fea_dict['sizes'])
+            point2d, point3d, instance = select_instance_ordered_by_distance(fea_dict, point_bl, 0)
+            datapoint = ActiveLearnPointContainer(instance, point2d, point3d, frame, fea_dict['sizes'])
                     
             #Add this scan as a PCA dataset
             self.training_db.init_data_record(actionid)
