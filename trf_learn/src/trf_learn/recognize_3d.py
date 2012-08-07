@@ -1956,6 +1956,7 @@ class NarrowTextureFeatureExtractor:
 
     def read(self, expected_loc_bl, params=None):
         #self.laser_scan.scan(math.radians(180.), math.radians(-180.), 2.315)
+        self.projector.set(True)
         rospy.loginfo('grabbing point cloud')
         pointcloud_msg = self.narrow_texture.read()
         rospy.loginfo('grabbing prosilica frame')
