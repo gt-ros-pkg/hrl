@@ -1,5 +1,4 @@
 #!/usr/bin/env python  
-# Calculating and displaying 2D Hue-Saturation histogram of a color image
 import roslib
 roslib.load_manifest('pr2_playpen')
 import rospy
@@ -16,9 +15,10 @@ from cv_bridge import CvBridge, CvBridgeError
 
 class HistAnalyzer:
 
-    def __init__(self, background_noise, mask, topic='/playpen_kinect/rgb/image_color'):
+    def __init__(self, background_noise, mask, topic=None): #'/playpen_kinect/rgb/image_color'):
         rospy.init_node('playpen_color_results')
-        rospy.Subscriber(topic, Image, self.get_img)
+        if topic != None:
+            rospy.Subscriber(topic, Image, self.get_img)
         self.check = rospy.Service("playpen_check_success_hist", Check, self.serv_success)
         self.train_empty = rospy.Service("playpen_train_hist", Train, self.serv_train)
         self.background_noise = background_noise
@@ -158,18 +158,18 @@ class HistAnalyzer:
 
             self.accumulateBackground(back_proj_img1)
 
-            cv.ShowImage("img1_back", back_proj_img1)
-            cv.WaitKey(33)
+            #cv.ShowImage("img1_back", back_proj_img1)
+            #cv.WaitKey(33)
         self.createModelsfromStats()
 
-        cv.NamedWindow("Ilow", cv.CV_WINDOW_AUTOSIZE)
-        cv.NamedWindow("Ihi", cv.CV_WINDOW_AUTOSIZE)
-        cv.NamedWindow("IavgF", cv.CV_WINDOW_AUTOSIZE)
+        #cv.NamedWindow("Ilow", cv.CV_WINDOW_AUTOSIZE)
+        #cv.NamedWindow("Ihi", cv.CV_WINDOW_AUTOSIZE)
+        #cv.NamedWindow("IavgF", cv.CV_WINDOW_AUTOSIZE)
 
-        cv.ShowImage("Ihi", self.IhiF)
-        cv.ShowImage("Ilow", self.IlowF)
-        cv.ShowImage("IavgF", self.IavgF)
-        cv.WaitKey(1000)
+        #cv.ShowImage("Ihi", self.IhiF)
+        #cv.ShowImage("Ilow", self.IlowF)
+        #cv.ShowImage("IavgF", self.IavgF)
+        #cv.WaitKey(33)
 
     def compare_imgs(self, img1, img2):
         back_proj_img, hist1 = self.back_project_hs(img1)
@@ -212,6 +212,10 @@ if __name__ == '__main__':
                  default=None, help='check for success or failure in batch mode with already stored data')
     p.add_option('--online', action='store', dest='topic', type="string", 
                  default=None, help='tries to run success or failure detection online using histograms and backprojection')
+    p.add_option('--label_manually', action='store_true', dest='manual',
+                 default=False, help='allows user to manually label data for validation purposes')
+
+
 
     opt, args = p.parse_args()
 
@@ -221,7 +225,7 @@ if __name__ == '__main__':
         background_noise = deque() #[]
 
         cv.NamedWindow("Source", cv.CV_WINDOW_AUTOSIZE)
-        cv.NamedWindow("final", cv.CV_WINDOW_AUTOSIZE)
+        #cv.NamedWindow("final", cv.CV_WINDOW_AUTOSIZE)
 
         for i in xrange(30):
             try:
@@ -234,8 +238,11 @@ if __name__ == '__main__':
         ha.calc_hist()
         ha.calc_stats()
 
+        print "should see avg noise"
+        ############comment this afterwards or clean up with options #######
         #cv.ShowImage("Source", ha.avg_noise)
-        #cv.WaitKey(500)
+        #cv.WaitKey(-1)
+        ############comment this afterwards or clean up with options #######
 
         back_sum_ls = deque() #[]
         Imask = cv.CreateImage(cv.GetSize(ha.background_noise[0]), cv.IPL_DEPTH_8U, 1)
@@ -259,6 +266,9 @@ if __name__ == '__main__':
         n = 0
         sum_val = 0
 
+        if opt.manual:
+            manual_classification_list = []
+
         for i in xrange(9):
             # file_h = open(opt.batch_folder+'/object'+str(i).zfill(3)+'.pkl', 'r')
             # res_dict = cPickle.load(file_h)
@@ -268,6 +278,8 @@ if __name__ == '__main__':
             #length = len(glob.glob(opt.batch_folder+'/object'+str(i).zfill(3)+'*after*.png'))
             res_dict = {'frames':[], 'success': [None]*length}
             # for j in xrange(len(res_dict['success'])): 
+
+
             for j in xrange(length):
                 try:
                     #check for object before starting ...##########################
@@ -284,30 +296,47 @@ if __name__ == '__main__':
                         is_object = True
                         print "there's an object let's check for success ..."
 
-
                     #check for success if object was in workspace to start with
                     if is_object == True:
                         try:
                             img = cv.LoadImageM(opt.batch_folder+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png')
-                            back_img, hist = ha.back_project_hs(img)                        
-                            result2 = ha.backgroundDiff(back_img, Imask)
-                            n = n+1
-                            sum_val = sum_val + float(cv.Sum(result2)[0])
 
-                            #print "here's the sum :", cv.Sum(result2)[0]
-                            # cv.ShowImage("Source", img)
-                            # cv.ShowImage("final", result2)
-                            # cv.WaitKey(1000)
+                            if opt.manual:
+                                cv.ShowImage("Source", img)
+                                cv.WaitKey(100)
+                                user_inp = raw_input('success:1, failure:0, not sure:-1 \n')
+                                if user_inp == 'q':
+                                    file_manual = open('/home/mkillpack/Desktop/manual_classification_.pkl', 'w')
+                                    cPickle.dump(manual_classification_list, file_manual)
+                                    file_manual.close()
+                                else:
+                                    manual_classification_list.append(int(user_inp))
+                                    print "length of manual list is: ", len(manual_classification_list)
+                                    print "number of real samples is :", 
+                                    print len(np.where(np.array(manual_classification_list) == 1)[0]) + len(np.where(np.array(manual_classification_list) == 0)[0])
+                                    print '\n'
 
-                            loc_sum2 = float(cv.Sum(result2)[0])
-                            if loc_sum2 < loc_sum/2.0:
-                                res_dict['success'][j] = True
-                                print "success ! \t:", loc_sum2, "\t compared to \t", loc_sum/2.0
-                                #ha.background_noise.popleft()
-                                #ha.background_noise.append(img)
                             else:
-                                res_dict['success'][j] = False
-                                print "epic fail ! \t:", loc_sum2, "\t compared to \t", loc_sum/2.0
+                                back_img, hist = ha.back_project_hs(img)                        
+                                result2 = ha.backgroundDiff(back_img, Imask)
+                                n = n+1
+                                sum_val = sum_val + float(cv.Sum(result2)[0])
+                                #print "here's the sum :", cv.Sum(result2)[0]
+
+                                loc_sum2 = float(cv.Sum(result2)[0])
+                                if loc_sum2 < loc_sum/2.0:
+                                    res_dict['success'][j] = True
+                                    print "success ! \t:", loc_sum2, "\t compared to \t", loc_sum/2.0
+                                    #ha.background_noise.popleft()
+                                    #ha.background_noise.append(img)
+                                else:
+                                    res_dict['success'][j] = False
+                                    print "epic fail ! \t:", loc_sum2, "\t compared to \t", loc_sum/2.0
+
+                                cv.ShowImage("Source", img)
+                                cv.ShowImage("final", result2)
+                                cv.WaitKey(33)
+                            
                         except:
                             print "no image to test named : "
                             print opt.batch_folder+'/object'+str(i).zfill(3)+'_try'+str(j).zfill(3)+'_after_pr2.png'
@@ -330,8 +359,13 @@ if __name__ == '__main__':
             #ha.calc_stats()
             print "done!"
 
-        print "average error for objects present :", sum_val/n
+        if opt.manual:
+            file_manual = open('/home/mkillpack/Desktop/manual_classification_.pkl', 'w')
+            cPickle.dump(manual_classification_list, file_manual)
+            file_manual.close()
+        else:
+            print "average error for objects present :", sum_val/n            
 
     elif opt.topic != None:
-        pass
-        
+        rospy.logerr("online evaluation is not yet implemented, but all the necessary tools should be present to do it ...")
+        assert(False)
