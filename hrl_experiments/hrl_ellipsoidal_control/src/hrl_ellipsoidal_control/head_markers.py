@@ -4,15 +4,14 @@ import numpy as np
 import copy
 
 import roslib
-roslib.load_manifest('hrl_rfh_fall_2011')
-roslib.load_manifest('hrl_generic_arms')
+roslib.load_manifest('hrl_ellipsoidal_control')
 import rospy
 import tf.transformations as tf_trans
 
-from hrl_phri_2011.msg import EllipsoidParams
+from hrl_ellipsoidal_control.msg import EllipsoidParams
 from geometry_msgs.msg import PoseStamped, PoseArray, Vector3
 from hrl_generic_arms.pose_converter import PoseConverter
-from hrl_rfh_fall_2011.ellipsoid_space import EllipsoidSpace
+from hrl_ellipsoidal_control.ellipsoid_space import EllipsoidSpace
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
 
@@ -34,9 +33,7 @@ class HeadMarkers(object):
         self.found_params = False
 
     def read_params(self, e_params):
-        self.ell_space.load_ell_params(e_params)
-        self.ell_space.center = np.mat(np.zeros((3, 1)))
-        self.ell_space.rot = np.mat(np.eye(3))
+        self.ell_space.load_ell_params(e_params.E, e_params.is_oblate, e_params.height)
         if not self.found_params:
             rospy.loginfo("[head_markers] Found params from /ellipsoid_params")
         self.found_params = True

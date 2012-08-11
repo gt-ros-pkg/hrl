@@ -4,18 +4,17 @@ import numpy as np
 import copy
 
 import roslib
-roslib.load_manifest('hrl_rfh_fall_2011')
-roslib.load_manifest('hrl_generic_arms')
+roslib.load_manifest('hrl_ellipsoidal_control')
 import rospy
 import tf.transformations as tf_trans
 
-from hrl_phri_2011.msg import EllipsoidParams
+from hrl_ellipsoidal_control.msg import EllipsoidParams
 from geometry_msgs.msg import PoseStamped, PoseArray, Vector3
 from hrl_generic_arms.pose_converter import PoseConverter
-from hrl_rfh_fall_2011.ellipsoid_space import EllipsoidSpace
+from hrl_ellipsoidal_control.ellipsoid_space import EllipsoidSpace
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
-from hrl_rfh_fall_2011.srv import GetHeadPose 
+#from hrl_rfh_fall_2011.srv import GetHeadPose 
 
 head_poses = {
     #             lat   lon    height    roll   pitch   yaw
@@ -29,14 +28,9 @@ head_poses = {
     "mouth_corner" : [(4.5 * np.pi/8,   -0.9 * np.pi/8,     1),      (0,     0,      0)]
 }
 
-USE_ELLIPSE_FRAME = True
-
 def create_arrow_marker(pose, m_id, color=ColorRGBA(1., 0., 0., 1.)):
     m = Marker()
-    if USE_ELLIPSE_FRAME:
-        m.header.frame_id = "/ellipse_frame"
-    else:
-        m.header.frame_id = "/base_link"
+    m.header.frame_id = "/ellipse_frame"
     m.header.stamp = rospy.Time.now()
     m.ns = "ell_pose"
     m.id = m_id
@@ -49,9 +43,9 @@ def create_arrow_marker(pose, m_id, color=ColorRGBA(1., 0., 0., 1.)):
 
 class HeadToolPoseServer(object):
     def __init__(self):
-        self.ell_space = EllipsoidSpace(1)
+        self.ell_space = EllipsoidSpace()
         self.ell_sub = rospy.Subscriber("/ellipsoid_params", EllipsoidParams, self.read_params)
-        self.head_pose_srv = rospy.Service("/get_head_pose", GetHeadPose, self.get_head_pose_srv)
+        #self.head_pose_srv = rospy.Service("/get_head_pose", GetHeadPose, self.get_head_pose_srv)
         self.lock_ell = False
         self.found_params = False
 #self.tmp_pub = rospy.Publisher("/toolpose", PoseStamped)
@@ -61,10 +55,7 @@ class HeadToolPoseServer(object):
 
     def read_params(self, e_params):
         if not self.lock_ell:
-            self.ell_space.load_ell_params(e_params)
-            if USE_ELLIPSE_FRAME:
-                self.ell_space.center = np.mat(np.zeros((3, 1)))
-                self.ell_space.rot = np.mat(np.eye(3))
+            self.ell_space.load_ell_params(e_params.E, e_params.is_oblate, e_params.height)
             self.found_params = True
 
     def get_many_vectors(self):
@@ -105,10 +96,7 @@ class HeadToolPoseServer(object):
             pose = (np.mat([-9999, -9999, -9999]).T, np.mat(np.zeros((3, 3))))
         else:
             pose = self.get_head_pose(req.name, req.gripper_rot)
-        if USE_ELLIPSE_FRAME:
-            frame = "/ellipse_frame"
-        else:
-            frame = "/base_link"
+        frame = "/ellipse_frame"
         pose_stamped = PoseConverter.to_pose_stamped_msg(frame, pose)
 #self.tmp_pub.publish(pose_stamped)
         return pose_stamped
@@ -117,10 +105,20 @@ def main():
     rospy.init_node("head_tool_pose_server")
     htps = HeadToolPoseServer()
     pub_arrows = rospy.Publisher("visualization_markers_array", MarkerArray)
-    while not rospy.is_shutdown():
-        arrows = htps.get_pose_markers()
-        pub_arrows.publish(arrows)
-        rospy.sleep(0.1)
+    if False:
+        while not rospy.is_shutdown():
+            arrows = htps.get_pose_markers()
+            for arrow in arrows.markers:
+                arrow.header.stamp = rospy.Time.now()
+            pub_arrows.publish(arrows)
+            rospy.sleep(0.1)
+    else:
+        while not rospy.is_shutdown():
+            arrows = htps.get_many_vectors()
+            for arrow in arrows.markers:
+                arrow.header.stamp = rospy.Time.now()
+            pub_arrows.publish(arrows)
+            rospy.sleep(1)
 
 if __name__ == "__main__":
     main()

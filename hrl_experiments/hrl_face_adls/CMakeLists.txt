@@ -30,3 +30,4 @@ rosbuild_gensrv()
 #target_link_libraries(example ${PROJECT_NAME})
 
 rosbuild_add_executable(ar_confirm src/ar_confirm.cpp)
+rosbuild_add_executable(ar_servo_image_proc src/ar_servo_image_proc.cpp)

@@ -7,64 +7,89 @@ import roslib
 roslib.load_manifest('hrl_face_adls')
 import rospy
 import rosbag
+from std_msgs.msg import String
 from geometry_msgs.msg import Transform, Pose
 
 from hrl_ellipsoidal_control.msg import EllipsoidParams
-from hrl_ellipsoidal_control.srv import LoadEllipsoidParams
 from hrl_face_adls.srv import InitializeRegistration, InitializeRegistrationResponse
+from hrl_face_adls.srv import RequestRegistration, RequestRegistrationResponse
 from hrl_head_tracking.srv import HeadRegistration
 from hrl_generic_arms.pose_converter import PoseConverter
 
 class RegistrationLoader(object):
-    def __init__(self, e_params_r, e_params_l):
-        self.e_params_r = e_params_r
-        self.e_params_l = e_params_l
+    def __init__(self):
+        self.head_reg_tf = None
         self.init_reg_srv = rospy.Service("/initialize_registration", InitializeRegistration, 
                                           self.init_reg_cb)
+        self.req_reg_srv = rospy.Service("/request_registration", RequestRegistration, 
+                                          self.req_reg_cb)
         self.head_registration_r = rospy.ServiceProxy("/head_registration_r", HeadRegistration) # TODO
         self.head_registration_l = rospy.ServiceProxy("/head_registration_l", HeadRegistration) # TODO
-        self.load_ell_params = rospy.ServiceProxy("/load_ellipsoid_params", LoadEllipsoidParams)
+#self.ell_params_pub = rospy.Publisher("/ellipsoid_params", EllipsoidParams, latched=True)
+        self.feedback_pub = rospy.Publisher("/feedback", String)
+
+    def publish_feedback(self, msg):
+        rospy.loginfo("[registration_loader] %s" % msg)
+        self.feedback_pub.publish(msg)
 
     def init_reg_cb(self, req):
         # TODO REMOVE THIS SHAVING SIDE MESS
         self.shaving_side = rospy.get_param("/shaving_side", 'r')
         if self.shaving_side == 'r':
-            rospy.loginfo("[registration_loader] Loading head registration from right side.")
-            e_params = self.e_params_r
             head_registration = self.head_registration_r
         else:
-            rospy.loginfo("[registration_loader] Loading head registration from left side.")
-            e_params = self.e_params_l
             head_registration = self.head_registration_l
         # TODO
 
         try:
-            head_reg_tf = head_registration(req.u, req.v).tf_reg
+            self.head_reg_tf = head_registration(req.u, req.v).tf_reg
         except:
-            rospy.logerr("[registration_loader] Registration failed.")
+            self.publish_feedback("Registration failed.")
             return None
 
-        head_reg_mat = PoseConverter.to_homo_mat(head_reg_tf)
+        if self.shaving_side == 'r':
+            self.publish_feedback("Registered head using right cheek model, please visually confirm.")
+        else:
+            self.publish_feedback("Registered head using left cheek model, please visually confirm.")
+        return InitializeRegistrationResponse()
+
+    def req_reg_cb(self, req):
+        reg_e_params = EllipsoidParams()
+        if self.head_reg_tf is None:
+            rospy.logwarn("[registration_loader] Head registration not loaded yet.")
+            return RequestRegistrationResponse(False, reg_e_params)
+        reg_prefix = rospy.get_param("~registration_prefix", "")
+        registration_files = rospy.get_param("~registration_files", None)
+        if req.mode not in registration_files:
+            rospy.logerr("[registration_loader] Mode not in registration_files parameters")
+            return RequestRegistrationResponse(False, reg_e_params)
+
+        try:
+            bag = rosbag.Bag(reg_prefix + registration_files[req.mode][req.side], 'r')
+            e_params = None
+            for topic, msg, ts in bag.read_messages():
+                e_params = msg
+            assert e_params is not None
+            bag.close()
+        except:
+            rospy.logerr("[registration_loader] Cannot load registration parameters from %s" %
+                         registration_files[req.mode][req.side])
+            return RequestRegistrationResponse(False, reg_e_params)
+
+        head_reg_mat = PoseConverter.to_homo_mat(self.head_reg_tf)
         ell_reg = PoseConverter.to_homo_mat(Transform(e_params.e_frame.transform.translation,
                                                       e_params.e_frame.transform.rotation))
-        reg_e_params = EllipsoidParams()
         reg_e_params.e_frame = PoseConverter.to_tf_stamped_msg(head_reg_mat**-1 * ell_reg)
-        reg_e_params.e_frame.header.frame_id = head_reg_tf.header.frame_id
+        reg_e_params.e_frame.header.frame_id = self.head_reg_tf.header.frame_id
         reg_e_params.height = e_params.height
         reg_e_params.E = e_params.E
-        self.load_ell_params(reg_e_params)
+#self.ell_params_pub.publish(reg_e_params)
+        return RequestRegistrationResponse(True, reg_e_params)
 
-        return InitializeRegistrationResponse()
 
 def main():
     rospy.init_node("registration_loader")
-    bag_r = rosbag.Bag(sys.argv[1], 'r')
-    for topic, msg, ts in bag_r.read_messages():
-        e_params_r = msg
-    bag_l = rosbag.Bag(sys.argv[2], 'r')
-    for topic, msg, ts in bag_l.read_messages():
-        e_params_l = msg
-    rl = RegistrationLoader(e_params_r, e_params_l)
+    rl = RegistrationLoader()
     rospy.spin()
         
 if __name__ == "__main__":

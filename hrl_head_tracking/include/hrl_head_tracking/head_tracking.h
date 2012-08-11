@@ -31,6 +31,7 @@ void sphereTrim(const PCRGB::Ptr& pc_in, PCRGB::Ptr& pc_out, uint32_t ind, doubl
 
 
 void extractFace(const PCRGB::Ptr& input_pc, PCRGB::Ptr& out_pc, int u_click, int v_click);
+void extractFaceColorModel(const PCRGB::Ptr& input_pc, PCRGB::Ptr& out_pc, int u_click, int v_click);
 bool findFaceRegistration(const PCRGB::Ptr& template_pc, const PCRGB::Ptr& input_pc,
                           int u_click, int v_click, Eigen::Affine3d& tf_mat);
 

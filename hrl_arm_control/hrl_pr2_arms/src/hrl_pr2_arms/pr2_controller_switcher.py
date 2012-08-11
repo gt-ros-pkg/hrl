@@ -1,7 +1,7 @@
 import roslib; roslib.load_manifest('hrl_pr2_arms')
 import rospy
 import rosparam
-import roslib.substitution_args
+from roslaunch import substitution_args
 
 from pr2_mechanism_msgs.srv import LoadController, UnloadController, SwitchController, ListControllers
 
@@ -42,7 +42,7 @@ class ControllerSwitcher:
             self.unload_controller(old_controller)
             return resp.ok
         else:
-            params = rosparam.load_file(roslib.substitution_args.resolve_args(param_file))
+            params = rosparam.load_file(substitution_args.resolve_args(param_file))
             rosparam.upload_params("", params[0][0])
             self.switch_controller_srv([], [old_controller], 1)
             self.unload_controller(old_controller)
@@ -68,7 +68,7 @@ class ControllerSwitcher:
         else:
             new_ctrl = new_controller
         if param_file is not None:
-            params = rosparam.load_file(roslib.substitution_args.resolve_args(param_file))
+            params = rosparam.load_file(substitution_args.resolve_args(param_file))
             if new_ctrl not in params[0][0]:
                 rospy.logwarn("[pr2_controller_switcher] Controller not in parameter file.")
                 return

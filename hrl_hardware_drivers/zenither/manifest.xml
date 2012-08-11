@@ -5,6 +5,8 @@
   <license>New BSD</license>
   <depend package="rospy"/>
   <depend package="hrl_lib"/>
+  <depend package="hrl_msgs"/>
+  <depend package="hrl_srvs"/>
   <depend package="std_srvs"/>
   <depend package="tf"/>
 

@@ -41,7 +41,7 @@ class PR2Arm(HRLArm):
     ##
     # Initializes subscribers
     # @param arm 'r' for right, 'l' for left
-    def __init__(self, arm, kinematics, controller_name, timeout):
+    def __init__(self, arm, kinematics, controller_name="", timeout=5.):
         super(PR2Arm, self).__init__(kinematics)
         self.arm = arm
         if '%s' in controller_name:
@@ -313,12 +313,13 @@ class PR2ArmCartesianPostureBase(PR2ArmCartesianBase):
         self.command_posture_pub = rospy.Publisher(self.controller_name + '/command_posture', 
                                                    Float64MultiArray)
 
-    def set_posture(self, posture=None):
-        if posture is None:
-            posture = self.get_joint_angles()
-        assert len(posture) == 7, "Wrong posture length"
+    def set_posture(self, posture=[]):
+        posture = copy.copy(posture)
+        for i, p in enumerate(posture):
+            if p is None:
+                posture[i] = 9999
         msg = Float64MultiArray()
-        msg.data = list(posture)
+        msg.data = posture
         self.command_posture_pub.publish(msg)
 
 class PR2ArmJTranspose(PR2ArmCartesianPostureBase):

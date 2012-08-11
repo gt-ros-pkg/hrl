@@ -18,9 +18,9 @@ from pr2_viz_servo import PR2VisualServoAR
 
 outcomes_spa = ['succeeded','preempted','aborted']
 
-viz_servo_dict = {
-    "r_pr2_ar_pose_marker" : [0.57226345,  0.32838129, -1.15480113],
-    "l_pr2_ar_pose_marker" : [0.57903398,  0.44215034, -0.76362254]}
+#viz_servo_goals = {
+#    "r_pr2_ar_pose_marker" : [0.57226345,  0.32838129, -1.15480113],
+#    "l_pr2_ar_pose_marker" : [0.57903398,  0.44215034, -0.76362254]}
 #"l_pr2_ar_pose_marker" : [0.59739709,  0.39469539, -0.7088098]}
 
 class ServoStates:
@@ -165,11 +165,12 @@ class PublishState(smach.State):
         return 'succeeded'
 
 class FindARTagState(smach.State):
-    def __init__(self, viz_servos, timeout=6.):
+    def __init__(self, viz_servos, viz_servo_goals, timeout=6.):
         smach.State.__init__(self, 
                              outcomes=['found_tag', 'timeout', 'preempted', 'aborted'],
                              output_keys=['initial_ar_pose', 'goal_ar_pose', 'servo_topic'])
         self.viz_servos = viz_servos
+        self.viz_servo_goals = viz_servo_goals
         self.timeout = timeout
 
     def execute(self, userdata):
@@ -202,7 +203,7 @@ class FindARTagState(smach.State):
         for topic in self.outcome_dict:
             if self.outcome_dict[topic][1] == "found_tag":
                 userdata['initial_ar_pose'] = self.outcome_dict[topic][0]
-                userdata['goal_ar_pose'] = viz_servo_dict[topic]
+                userdata['goal_ar_pose'] = self.viz_servo_goals[topic]
                 userdata['servo_topic'] = topic
                 outcome = "found_tag"
                 # FIXME I should be shot for these lines: FIXME
@@ -243,11 +244,11 @@ class ServoARTagState(smach.State):
         preempt_timer.shutdown()
         return outcome
 
-def build_full_sm():
+def build_full_sm(viz_servo_goals):
     find_tag_timeout = 6.
 
     viz_servos = {}
-    for viz_servo_topic in viz_servo_dict:
+    for viz_servo_topic in viz_servo_goals:
         viz_servos[viz_servo_topic] = PR2VisualServoAR(viz_servo_topic)
 
     sm_pr2_servoing = smach.StateMachine(outcomes=outcomes_spa,
@@ -265,7 +266,7 @@ def build_full_sm():
                                transitions={'succeeded' : 'FIND_AR_TAG'})
 
         smach.StateMachine.add('FIND_AR_TAG',
-                               FindARTagState(viz_servos, timeout=find_tag_timeout),
+                               FindARTagState(viz_servos, viz_servo_goals, timeout=find_tag_timeout),
                                transitions={'found_tag' : 'FOUND_TAG',
                                             'timeout' : 'TIMEOUT_FIND_TAG'})
 
@@ -343,9 +344,11 @@ def main():
 
     # both sides spot?
     userdata['goal_ar_pose'] = [ 0.57226345,  0.32838129, -1.15480113]
+    viz_servo_goals = rospy.get_param("~ar_servo_poses", {})
+    print viz_servo_goals
 
     if True:
-        sm_pr2_servoing = build_full_sm()
+        sm_pr2_servoing = build_full_sm(viz_servo_goals)
         sis = smach_ros.IntrospectionServer('pr2_servo', sm_pr2_servoing, 'UI_FIND_TAG_WAIT')
         sis.start()
         sm_pr2_servoing.execute(userdata)

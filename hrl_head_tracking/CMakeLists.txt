@@ -25,7 +25,7 @@ rosbuild_add_boost_directories()
 rosbuild_add_library(${PROJECT_NAME} src/pcl_basic.cpp)
 rosbuild_add_library(${PROJECT_NAME} src/head_tracking.cpp)
 
-rosbuild_add_executable(test_face_detect src/test_face_detect.cpp)
+#rosbuild_add_executable(test_face_detect src/test_face_detect.cpp)
 rosbuild_add_executable(head_tracking src/head_tracking.cpp)
 rosbuild_add_executable(head_tracking_srv src/head_tracking_srv.cpp)
 rosbuild_add_executable(head_training src/head_training.cpp)

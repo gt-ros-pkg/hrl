@@ -79,6 +79,8 @@ class CodyArmClient(HRLArm):
             assert(False)
 
         self.alpha = None
+        self.torque = None
+        self.motor_temps = None
         self.ft_val = None
         self.pwr_state = False
 
@@ -104,6 +106,9 @@ class CodyArmClient(HRLArm):
         rospy.Subscriber('/'+arm+'_arm/force', FloatArray, self.force_cb)
         rospy.Subscriber('/'+arm+'_arm/force_raw', FloatArray, self.raw_force_cb)
 
+        rospy.Subscriber('/'+arm+'_arm/joint_torque', FloatArray, self.torque_cb)
+
+        rospy.Subscriber('/'+arm+'_arm/joint_motor_temp', FloatArray, self.motor_temp_cb)
         rospy.Subscriber('/arms/pwr_state', Bool, self.pwr_state_cb)
 
         try:
@@ -125,6 +130,14 @@ class CodyArmClient(HRLArm):
             self.alpha = copy.copy(msg.data)
             self.kp = (np.array(self.alpha)*np.array(self.nom_kp)).tolist()
             self.kd = (np.array(self.alpha)*np.array(self.nom_kd)).tolist()
+
+    def torque_cb(self, msg):
+        with self.lock:
+            self.torque = copy.copy(msg.data)
+
+    def motor_temp_cb(self, msg):
+        with self.lock:
+            self.motor_temps = copy.copy(msg.data)
 
     def q_cb(self, msg):
         with self.lock:
@@ -236,9 +249,14 @@ class CodyArmClient(HRLArm):
     def get_joint_accelerations(self, arm):
         pass
 
-    # leaving this unimplemented for now. Advait Nov 14, 2010.
-    def get_joint_torques(self, arm):
-        pass
+    # now implemented - marc Jul 2012
+    def get_joint_torques(self):
+        return self.torque
+
+    # added this as a safety measure since fabrice skin is not
+    # measuring real forces - marc Jul 2012
+    def get_joint_motor_temps(self):
+        return self.motor_temps
 
     # leaving this unimplemented for now. Advait Nov 14, 2010.
     def get_wrist_torque(self, bias=True):  #Tiffany Nov 8 2011 removed 'arm' arg
@@ -311,7 +329,7 @@ if __name__ == '__main__':
             rospy.sleep(0.05)
 
     # publish end effector marker. useful to verify set_tooltip.
-    if True:
+    if False:
         ac.kinematics.set_tooltip(np.matrix([0.,0.,-0.04]).T) # stub with mini45
         while not rospy.is_shutdown():
             ac.publish_rviz_markers()
