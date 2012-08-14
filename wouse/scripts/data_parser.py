@@ -169,7 +169,6 @@ def process(files, SVM_DATA_FILE, WINDOW_DUR, MAG_THRESH, plot):
 
 def create_ROC(filename):
         from scipy import interp
-
         from sklearn import preprocessing as pps, svm
         from sklearn.metrics import roc_curve, auc
         from sklearn.cross_validation import StratifiedKFold, LeaveOneOut
