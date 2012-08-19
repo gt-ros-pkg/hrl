@@ -267,7 +267,7 @@ if __name__ == '__main__':
         sum_val = 0
 
         if opt.manual:
-            manual_classification_list = []
+            manual_results_dict = {'manual':[], 'auto':[]}
 
         for i in xrange(9):
             # file_h = open(opt.batch_folder+'/object'+str(i).zfill(3)+'.pkl', 'r')
@@ -306,17 +306,16 @@ if __name__ == '__main__':
                                 cv.WaitKey(100)
                                 user_inp = raw_input('success:1, failure:0, not sure:-1 \n')
                                 if user_inp == 'q':
-                                    file_manual = open('/home/mkillpack/Desktop/manual_classification_.pkl', 'w')
-                                    cPickle.dump(manual_classification_list, file_manual)
+                                    file_manual = open('/home/killpack/Desktop/manual_classification_.pkl', 'w')
+                                    cPickle.dump(manual_results_dict, file_manual)
                                     file_manual.close()
                                 else:
-                                    manual_classification_list.append(int(user_inp))
-                                    print "length of manual list is: ", len(manual_classification_list)
+                                    manual_results_dict['manual'].append(int(user_inp))
+                                    print "length of manual list is: ", len(manual_results_dict['manual'])
                                     print "number of real samples is :", 
-                                    print len(np.where(np.array(manual_classification_list) == 1)[0]) + len(np.where(np.array(manual_classification_list) == 0)[0])
+                                    print len(np.where(np.array(manual_results_dict['manual']) == 1)[0]) + len(np.where(np.array(manual_results_dict['manual']) == 0)[0])
                                     print '\n'
-
-                            else:
+                            if True:
                                 back_img, hist = ha.back_project_hs(img)                        
                                 result2 = ha.backgroundDiff(back_img, Imask)
                                 n = n+1
@@ -329,7 +328,11 @@ if __name__ == '__main__':
                                     print "success ! \t:", loc_sum2, "\t compared to \t", loc_sum/2.0
                                     #ha.background_noise.popleft()
                                     #ha.background_noise.append(img)
+                                    if opt.manual:
+                                        manual_results_dict['auto'].append(1)
                                 else:
+                                    if opt.manual:
+                                        manual_results_dict['auto'].append(0)
                                     res_dict['success'][j] = False
                                     print "epic fail ! \t:", loc_sum2, "\t compared to \t", loc_sum/2.0
 
@@ -360,8 +363,8 @@ if __name__ == '__main__':
             print "done!"
 
         if opt.manual:
-            file_manual = open('/home/mkillpack/Desktop/manual_classification_.pkl', 'w')
-            cPickle.dump(manual_classification_list, file_manual)
+            file_manual = open('/home/killpack/Desktop/manual_classification_.pkl', 'w')
+            cPickle.dump(manual_results_dict, file_manual)
             file_manual.close()
         else:
             print "average error for objects present :", sum_val/n            

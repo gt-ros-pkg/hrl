@@ -40,13 +40,14 @@
 #include "pcl/segmentation/sac_segmentation.h"
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/passthrough.h>
-#include "sensor_msgs/Image.h"
-#include "image_transport/image_transport.h"
-#include "cv_bridge/CvBridge.h"
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
+#include <image_transport/image_transport.h>
+#include <cv_bridge/cv_bridge.h>
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
 #include <vector>
-#include "geometry_msgs/Point.h"
+#include <geometry_msgs/Point.h>
 #include "UI_segment_object/GetObject.h"
 #include "UI_segment_object/GetPt.h"
 #include "UI_segment_object/None_Bool.h"
@@ -89,9 +90,11 @@ public:
 protected:
   ros::NodeHandle nh_;
   image_transport::ImageTransport it_;
-  sensor_msgs::CvBridge bridge_;
+  //cv_bridge::cv_bridge bridge_;
+  //sensor_msgs::cv_bridge bridge_;
   image_transport::Subscriber image_sub_;
-  IplImage* cv_image;
+  cv_bridge::CvImagePtr cv_image;
+  //IplImage* cv_image;
   int height;
   int width;
 };
@@ -101,13 +104,20 @@ protected:
 UI::UI(ros::NodeHandle &nh) :
   nh_(nh), it_(nh_)
 {
-  //    got_image = false;
-  //    image_sub_ = it_.subscribe("/camera/rgb/image_color", 1, &UI::callback, this);
-  cv_image = NULL;
+  //got_image = false;
+  image_sub_ = it_.subscribe("/camera/rgb/image_color", 1, &UI::callback, this);
+
+  //this broke but I should fix it at some point.
+  //cv_image = NULL;
+
   counter = 0;
   counter_ind = 0;
-  //    cvNamedWindow("Select");                                                               
-  //    cvSetMouseCallback("Select", mouse_callback);
+  // cvNamedWindow("Select");                                                               
+  // cvSetMouseCallback("Select", mouse_callback);
+  cv::namedWindow("Select");                                                               
+  cv::setMouseCallback("Select", mouse_callback);
+
+
   reset_service = nh_.advertiseService("UI_reset", &UI::reset_cb, this);
   save_img = nh_.advertiseService("save_image", &UI::save_image, this);
 }
@@ -165,28 +175,46 @@ void UI::mouse_callback(int event, int x, int y, int flags, void* param)
 
 void UI::color_segment_callback()
 {
-  cvNamedWindow("Select");
-  cvSetMouseCallback("Select", mouse_callback);
+  // cvNamedWindow("Select");
+  // cvSetMouseCallback("Select", mouse_callback);
+
+  cv::namedWindow("Select");
+  cv::setMouseCallback("Select", mouse_callback);
+
   sensor_msgs::ImageConstPtr image_in = ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_);
-  cv_image = bridge_.imgMsgToCv(image_in, "bgr8"); 
+  try
+    {
+      cv_image = cv_bridge::toCvCopy(image_in, sensor_msgs::image_encodings::BGR8);
+    }
+  catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+      return;
+    }
+
   while (done == 0)
     {
       for (int i = 0; i < counter; i++)
 	{
-	  cvCircle(cv_image, cvPoint(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
+	  // cvCircle(cv_image->image, cvPoint(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
+	  cv::circle(cv_image->image, cv::Point(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
 	}
-      cvShowImage("Select", cv_image);
-      cvWaitKey(33);
+      cv::imshow("Select", cv_image->image);
+      cv::waitKey(33);
+
+      // cvShowImage("Select", cv_image->image);
+      // cvWaitKey(33);
     }
 
 
   //decrease the search in the image by finding the bounding box
-  height = cv_image->height;
-  width = cv_image->width;
+  height = cv_image->image.rows; //height;
+  width = cv_image->image.cols; //width;
   
   for (int j = 0; j < poly_vec.size(); j++)
     {
-      pts[j] = cvPoint(poly_vec[j][0], poly_vec[j][1]);
+      //pts[j] = cvPoint(poly_vec[j][0], poly_vec[j][1]);
+      pts[j] = cv::Point(poly_vec[j][0], poly_vec[j][1]);
     }
   IplImage* mask = cvCreateImage(cvSize(width, height), 8, 1);
   cvFillConvexPoly(mask, pts, poly_vec.size(), cvScalar(255));
@@ -199,26 +227,43 @@ void UI::color_segment_callback()
 
 void UI::pt_callback()
 {
-  cvNamedWindow("Select");                                                               
-  cvSetMouseCallback("Select", mouse_callback);
+  // cvNamedWindow("Select");                                                               
+  // cvSetMouseCallback("Select", mouse_callback);
+  cv::namedWindow("Select");                                                               
+  cv::setMouseCallback("Select", mouse_callback);
+
+
 
   //    sensor_msgs::ImageConstPtr image_in;
   sensor_msgs::ImageConstPtr image_in = ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_);
-  cv_image = bridge_.imgMsgToCv(image_in, "bgr8");
+  try
+    {
+      cv_image = cv_bridge::toCvCopy(image_in, sensor_msgs::image_encodings::BGR8);
+    }
+  catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+      return;
+    }
+
+  //cv_image = bridge_.imgMsgToCv(image_in, "bgr8");
   //    cv_image = bridge_.imgMsgToCv(msg_ptr, "bgr8");
   while (done == 0)
     {
       for (int i = 0; i < counter; i++)
 	{
-	  cvCircle(cv_image, cvPoint(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
+	  //cvCircle(cv_image->image, cvPoint(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
+	  cv::circle(cv_image->image, cv::Point(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
 	}
-      cvShowImage("Select", cv_image);
-      cvWaitKey(33);
+      //cvShowImage("Select", cv_image->image);
+      //cvWaitKey(33);
+      cv::imshow("Select", cv_image->image);
+      cv::waitKey(33);
     }
 
   //decrease the search in the image by finding the bounding box
-  height = cv_image->height;
-  width = cv_image->width;
+  height = cv_image->image.rows; //height;
+  width = cv_image->image.cols; //width;
   int index;
   index = poly_vec[0][1]*width+poly_vec[0][0];
   in_indices.push_back(index);
@@ -227,30 +272,65 @@ void UI::pt_callback()
 
 void UI::callback(const sensor_msgs::ImageConstPtr& msg_ptr)
 {
-  cv_image = bridge_.imgMsgToCv(msg_ptr, "bgr8");
+  try
+    {
+      cv_image = cv_bridge::toCvCopy(msg_ptr, sensor_msgs::image_encodings::BGR8);
+    }
+  catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+      return;
+    }
 }
 
 void UI::cloud_callback(){
-  cvNamedWindow("Select");                                                               
-  cvSetMouseCallback("Select", mouse_callback);
+  // cvNamedWindow("Select");                                                               
+  // cvSetMouseCallback("Select", mouse_callback);
+  cv::namedWindow("Select");                                                               
+  cv::setMouseCallback("Select", mouse_callback);
 
+
+  std::cerr<<"tried to show window \n";
   //    sensor_msgs::ImageConstPtr image_in;
+
   sensor_msgs::ImageConstPtr image_in = ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_);
-  cv_image = bridge_.imgMsgToCv(image_in, "bgr8");
+
+  std::cerr<<"got message of image\n";
+  try
+    {
+      cv_image = cv_bridge::toCvCopy(image_in, sensor_msgs::image_encodings::BGR8);
+    }
+  catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+      return;
+    }
+
+  std::cerr<<"converted to cv_image \n";
+
   //    cv_image = bridge_.imgMsgToCv(msg_ptr, "bgr8");
   while (done == 0)
     {
+      std::cerr<<"in while loop \n";
       for (int i = 0; i < counter; i++)
 	{
-	  cvCircle(cv_image, cvPoint(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
+	  std::cerr<<"in for loop \n";
+	  //cvCircle(cv_image->image, cvPoint(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
+	  cv::circle(cv_image->image, cv::Point(poly_vec[i][0], poly_vec[i][1]), 2, CV_RGB(255, 0, 0), 2, 8);
 	}
-      cvShowImage("Select", cv_image);
-      cvWaitKey(33);
+      std::cerr<<"past for loop \n";
+
+      cv::imshow("Select", cv_image->image);
+      cv::waitKey(33);
+
+      // cvShowImage("Select", &cv_image->image);
+      // cvWaitKey(33);
+      std::cerr<<"got past displaying the image \n";
     }
 
   //decrease the search in the image by finding the bounding box
-  height = cv_image->height;
-  width = cv_image->width;
+  height = cv_image->image.rows; //height;
+  width = cv_image->image.cols; //width;
   int max_x(0);
   int min_x(width);
   int max_y(0);
@@ -304,8 +384,18 @@ bool UI::save_image(UI_segment_object::Save::Request &reg, UI_segment_object::Sa
 {
   //    sensor_msgs::ImageConstPtr image_in = 
   m.lock();
-  cv_image = bridge_.imgMsgToCv(ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_), "bgr8");
-  cvSaveImage(reg.file.c_str(), cv_image);
+  try
+    {
+      cv_image = cv_bridge::toCvCopy(ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_), sensor_msgs::image_encodings::BGR8);
+    }
+  catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+      return (false);
+    }
+  //cv_image = bridge_.imgMsgToCv(ros::topic::waitForMessage<sensor_msgs::Image>("/camera/rgb/image_color", nh_), "bgr8");
+  //cvSaveImage(reg.file.c_str(), cv_image->image);
+  cv::imwrite(reg.file.c_str(), cv_image->image);
   m.unlock();
   res.state = true;
   return(true);
@@ -328,7 +418,7 @@ public:
   bool reset_plane_coeff(UI_segment_object::None_Bool::Request &reg, UI_segment_object::None_Bool::Response &res);
   bool save_cloud(UI_segment_object::Save::Request &reg, UI_segment_object::Save::Response &res);
   geometry_msgs::Point pt_callback(const sensor_msgs::PointCloud2ConstPtr& msg);
-  UI::UI ui;
+  UI ui;
 
 
 protected:
@@ -367,6 +457,7 @@ PointCloudPub::PointCloudPub(ros::NodeHandle &nh):
       std::cerr << "waiting for boolean param to transform pts or not ... \n";
       sleep(0.05);
     }
+
   if (transform_pts == true)
     {
       while (nh_.getParam("/transform_cloud/frame_id", transform_pts_frame_id) == false)
@@ -395,14 +486,18 @@ void PointCloudPub::publish_object(const sensor_msgs::PointCloud2 &msg)
 
 bool PointCloudPub::get_cloud(UI_segment_object::GetObject::Request &reg, UI_segment_object::GetObject::Response &res)
 {
+  std::cerr<< "got to here in get_cloud \n";
   m.lock();
   //  sensor_msgs::PointCloud2::ConstPtr msg;
+  std::cerr<< "waiting for cloud  \n";
   cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/rgb/points", nh_, ros::Duration(30.0));
 
+  std::cerr<< "got cloud  \n";
   if (done == 0)
     {
       ui.cloud_callback();
     }
+  std::cerr<< "got past ui.cloud_callback()";
   //process the point cloud for object and return object
   //  sensor_msgs::PointCloud2 msg2 = cloud_callback(ros::topic::waitForMessage<sensor_msgs::PointCloud2>("/camera/depth/points2", nh_, ros::Duration(6.0)));
 
