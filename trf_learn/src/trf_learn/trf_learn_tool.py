@@ -6,8 +6,25 @@ import rcommander.tool_utils as tu
 import smach
 import os.path as pt
 import rcommander.graph_model as gm
-import rcommander_ar_tour.msg as atmsg
+import rcommander_ar_tour.srv as atmsg
+import trf_learn.srv as tm
+import hrl_lib.tf_utils as tfu
+import numpy as np
+import re
 
+def wait_for_tf_change(tf_listener, desired, destination_frame, source_frame, timeout):
+    start_time = rospy.get_time()
+    changed = False
+    while (not rospy.is_shutdown()) and not changed:
+        current_tf = tfu.transform(destination_frame, source_frame, tf_listener)
+        changed = np.all(np.abs(desired - current_tf) < .001)
+        if (rospy.get_time() - start_time) > timeout:
+            break
+    return changed
+
+def pose_to_tup(p):
+    return [p.position.x, p.position.y, p.position.z], \
+            [p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
 
 class TRFLearnTool(tu.ToolBase):
 
@@ -24,22 +41,27 @@ class TRFLearnTool(tu.ToolBase):
         self.rcommander.connect(self.open_file_button, SIGNAL('clicked()'), self.open_file_cb)
 
         self.success_detector_box = tu.ComboBox()
-        self.success_detector_box.create_box()
+        self.success_detector_box.create_box(pbox)
         self.success_detector_box.combobox.addItem('light_switch')
         self.success_detector_box.combobox.addItem('drawer_pull')
         self.success_detector_box.set_text('light_switch')
 
+        self.actionid_box = QComboBox(pbox)
+        self.actionid_box.addItem(' ')
+        node_names = self.rcommander.outputs_of_type(dict)
+        for n in node_names:
+            self.actionid_box.addItem(n)
+
         formlayout.addRow('&Filename', self.filename_edit)
+        formlayout.addRow('&Success Detector', self.success_detector_box.combobox) 
+        formlayout.addRow("&Action ID", self.actionid_box)
         formlayout.addRow(self.open_file_button)
+        self.reset()
 
     def open_file_cb(self):
         dialog = QFileDialog(self.rcommander, 'Open State Machine', '~')
         dialog.setFileMode(QFileDialog.Directory)
         dialog.setViewMode(QFileDialog.List)
-
-        #Fix messed up bug, weird interaction between file dialog and rospy!
-        #import rospy.core as rpc
-        #rpc._shutdown_flag = False
 
         if dialog.exec_():
             filenames = dialog.selectedFiles()
@@ -48,75 +70,74 @@ class TRFLearnTool(tu.ToolBase):
 
     def new_node(self, name=None):
         child_gm = self.child_gm
-        self.child_gm = None
+        filename_text = str(self.filename_edit.text())
 
-        if (child_gm == None) and (str(self.filename_edit.text()) != '...'):
-            #nname = pt.split(str(self.filename_edit.text()))[1]
-            #print 'state machine tool loading', self.filename_edit.text()
-            child_gm = gm.GraphModel.load(str(self.filename_edit.text()))
+        if (filename_text == '...') and (child_gm == None):
+            if name != None:
+                return None
+            else:
+                name = self.name + str(self.counter)
+                return TRFLearnNode(name, None, str(self.filename_edit.text()), 
+                        self.success_detector_box.text(),
+                        str(self.actionid_box.currentText()))
+            
+        if (filename_text != '...') and (self.loaded_filename != filename_text):
+            child_gm = gm.GraphModel.load(filename_text)
             curr_document = gm.FSMDocument(name, modified=True, real_filename=False)
             child_gm.set_document(curr_document)
-        else:
-            if child_gm != None:
-                curr_document = gm.FSMDocument(name, modified=True, real_filename=False)
-                child_gm.set_document(curr_document)
-                return TRFLearnNode(name, child_gm, self.success_detector_box.text())
-            if name == None:
-                nname = self.name + str(self.counter)
-                return TRFLearnNode(nname, None, self.success_detector_box.text())
-            else:
-                return None
+            return TRFLearnNode(name, child_gm, str(self.filename_edit.text()), 
+                    self.success_detector_box.text(), 
+                    str(self.actionid_box.currentText()))
 
-        return TRFLearnNode(name, child_gm, self.success_detector_box.text())
+        if child_gm != None:
+            if name == None:
+                name = self.name + str(self.counter)
+            curr_document = gm.FSMDocument(name, modified=True, real_filename=False)
+            child_gm.set_document(curr_document)
+            return TRFLearnNode(name, child_gm, str(self.filename_edit.text()), 
+                    self.success_detector_box.text(),
+                    str(self.actionid_box.currentText()))
+                        
 
     def set_node_properties(self, my_node):
         self.child_gm = my_node.child_gm
         if self.child_gm == None:
             return
-        if self.child_gm.get_document() != None:
-            fname = self.child_gm.get_document().get_filename()
-            if fname != None:
-                self.filename_edit.setText(fname)
+
+        self.loaded_filename = my_node.path
+        self.filename_edit.setText(my_node.path)
         self.success_detector_box.set_text(my_node.success_detector)
+        self.actionid_box.setCurrentIndex(self.actionid_box.findText(my_node.remapping_for('actionid')))
 
     def reset(self):
+        self.loaded_filename = None
         self.filename_edit.setText("...")
         self.child_gm = None
         self.success_detector_box.set_text('light_switch')
-
+        self.actionid_box.setCurrentIndex(self.actionid_box.findText(' '))
 
 class TRFLearnNode(tu.EmbeddableState):
 
-    def __init__(self, name, child_gm, success_detector):
+    def __init__(self, name, child_gm, path, success_detector, actionid_input):
         tu.EmbeddableState.__init__(self, name, child_gm)
-        self.set_remapping_for('mode', 'learning_mode')
+        #self.set_remapping_for('mode', 'learning_mode')
+        self.set_remapping_for('actionid', actionid_input)
         self.success_detector = success_detector
+        self.path = path
 
     def get_smach_state(self):
-        return TRFLearnNodeSmach(self.child_gm)
+        return TRFLearnNodeSmach(self.child_gm, self.success_detector)
 
     def recreate(self, graph_model):
-        #return TRFLearnNode(graph_model.document.get_name(), graph_model)
-        return TRFLearnNode(self.get_name(), graph_model, self.success_detector)
+        return TRFLearnNode(self.get_name(), graph_model, self.path, 
+                self.success_detector, self.remapping_for('actionid'))
 
-
-def wait_for_tf_change(tf_listener, desired, destination_frame, source_frame, timeout):
-    start_time = rospy.get_time()
-    changed = False
-    while (not rospy.is_shutdown()) and not changed:
-        current_tf = tfu.transform(destination_frame, source_frame, tf_listener)
-        changed = np.all(np.abs(desired - current_tf) < .001)
-        if (rospy.get_time() - start_time) > timeout:
-            break
-    return changed
-
-def pose_to_tup(p):
-    return [p.position.x, p.position.y, p.position.z], \
-            [p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
 
 class TRFLearnNodeSmach(smach.State):
 
     def __init__(self, child_gm, success_detector):
+        #smach.State.__init__(self, outcomes=['done', 'preempted'], input_keys=['actionid'], output_keys=[])
+
         self.child_gm = child_gm
         self.success_detector = success_detector
 
@@ -127,28 +148,30 @@ class TRFLearnNodeSmach(smach.State):
         self.action_result_srv = rospy.ServiceProxy('action_result', atmsg.ActionResult)
         self.classify_success_snapshot = rospy.ServiceProxy('classify_success_snapshot', tm.ClassifySuccessSnapshot)
         self.classify_success = rospy.ServiceProxy('classify_success', tm.ClassifySuccess)
-        self.set_behavior_pose = rospy.ServiceProxy('set_behavior_pose', rsrv.SetBehaviorPose)
+        self.set_behavior_pose = rospy.ServiceProxy('set_behavior_pose', atmsg.SetBehaviorPose)
 
     def set_robot(self, robot):
         self.robot = robot
-        self.tf_listener = robot.tf_listener
-        input_keys = []
-        output_keys = []
-        outcomes = []
+        if robot != None:
+            self.tf_listener = robot.tf_listener
+
+        input_keys = ['actionid'] #+ list(self.get_registered_input_keys())
+        output_keys = [] #+ list(self.get_registered_output_keys())
+        outcomes = ['preempted'] #+ list(self.get_registered_outcomes())
         if self.child_gm != None:
             sm = self.child_gm.create_state_machine(robot)
-            input_keys = list(sm.get_registered_input_keys())
-            output_keys = list(sm.get_registered_output_keys())
-            outcomes = list(sm.get_registered_outcomes()) + ['preempted']
+            input_keys += list(sm.get_registered_input_keys())
+            output_keys += list(sm.get_registered_output_keys())
+            outcomes += list(sm.get_registered_outcomes())
+
         smach.State.__init__(self, outcomes = outcomes, 
                 input_keys = input_keys, output_keys = output_keys)
 
     def execute(self, userdata):
-        #Get current mode, should we record or not?
-        recognition_mode = userdata.mode 
+        recognition_mode = 'execute'
 
         #Get the current classifier ID
-        actionid = userdata.actionid
+        actionid = userdata.actionid['actionid']
         
         #Classify
         resp = self.recognize_pose_srv(actionid, recognition_mode)
@@ -174,6 +197,7 @@ class TRFLearnNodeSmach(smach.State):
         preempted = False
         r = rospy.Rate(30)
         success = True
+
         while not rospy.is_shutdown():
             if rthread.exception != None:
                 raise rthread.exception
@@ -194,19 +218,20 @@ class TRFLearnNodeSmach(smach.State):
                 rthread.preempt()
                 self.service_preempt()
                 preempted = True
+                success = False
                 break
 
             r.sleep()
 
-        #Run success function part2
-        success = self.classify_success(success_request_id).success
-
-        #Return success/failure based on success function
-        self.action_result_srv(actionid, success, recognition_mode)
 
         #child_gm.sm_thread = {} #Reset sm thread dict
         if preempted:
             return 'preempted'
         else:
+            #Run success function part2
+            success = self.classify_success(success_request_id).success == 'success'
+
+            #Return success/failure based on success function
+            self.action_result_srv(actionid, instance_info, recognition_mode, success)
             return rthread.outcome
 
