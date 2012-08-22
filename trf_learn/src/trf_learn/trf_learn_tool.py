@@ -197,6 +197,7 @@ class TRFLearnNodeSmach(smach.State):
         preempted = False
         r = rospy.Rate(30)
         success = True
+
         while not rospy.is_shutdown():
             if rthread.exception != None:
                 raise rthread.exception
@@ -217,19 +218,20 @@ class TRFLearnNodeSmach(smach.State):
                 rthread.preempt()
                 self.service_preempt()
                 preempted = True
+                success = False
                 break
 
             r.sleep()
 
-        #Run success function part2
-        success = self.classify_success(success_request_id).success == 'success'
-
-        #Return success/failure based on success function
-        self.action_result_srv(actionid, instance_info, recognition_mode, success)
 
         #child_gm.sm_thread = {} #Reset sm thread dict
         if preempted:
             return 'preempted'
         else:
+            #Run success function part2
+            success = self.classify_success(success_request_id).success == 'success'
+
+            #Return success/failure based on success function
+            self.action_result_srv(actionid, instance_info, recognition_mode, success)
             return rthread.outcome
 
