@@ -1987,6 +1987,7 @@ class NarrowTextureFeatureExtractor:
                  'points3d': pointcloud_bl,
                  'image': cvimage_mat}
 
+        self.projector.set(False)
         return {'instances': xs, 
                 'points2d': locs2d, 
                 'points3d': locs3d, 
