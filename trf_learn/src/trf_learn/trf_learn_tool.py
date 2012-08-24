@@ -46,15 +46,15 @@ class TRFLearnTool(tu.ToolBase):
         self.success_detector_box.combobox.addItem('drawer_pull')
         self.success_detector_box.set_text('light_switch')
 
-        self.actionid_box = QComboBox(pbox)
-        self.actionid_box.addItem(' ')
-        node_names = self.rcommander.outputs_of_type(dict)
-        for n in node_names:
-            self.actionid_box.addItem(n)
+        #self.actionid_box = QComboBox(pbox)
+        #self.actionid_box.addItem(' ')
+        #node_names = self.rcommander.outputs_of_type(dict)
+        #for n in node_names:
+        #    self.actionid_box.addItem(n)
 
         formlayout.addRow('&Filename', self.filename_edit)
         formlayout.addRow('&Success Detector', self.success_detector_box.combobox) 
-        formlayout.addRow("&Action ID", self.actionid_box)
+        #formlayout.addRow("&Action ID", self.actionid_box)
         formlayout.addRow(self.open_file_button)
         self.reset()
 
@@ -78,16 +78,16 @@ class TRFLearnTool(tu.ToolBase):
             else:
                 name = self.name + str(self.counter)
                 return TRFLearnNode(name, None, str(self.filename_edit.text()), 
-                        self.success_detector_box.text(),
-                        str(self.actionid_box.currentText()))
+                        self.success_detector_box.text())
+                        #str(self.actionid_box.currentText()))
             
         if (filename_text != '...') and (self.loaded_filename != filename_text):
             child_gm = gm.GraphModel.load(filename_text)
             curr_document = gm.FSMDocument(name, modified=True, real_filename=False)
             child_gm.set_document(curr_document)
             return TRFLearnNode(name, child_gm, str(self.filename_edit.text()), 
-                    self.success_detector_box.text(), 
-                    str(self.actionid_box.currentText()))
+                    self.success_detector_box.text())
+                    #str(self.actionid_box.currentText()))
 
         if child_gm != None:
             if name == None:
@@ -95,8 +95,8 @@ class TRFLearnTool(tu.ToolBase):
             curr_document = gm.FSMDocument(name, modified=True, real_filename=False)
             child_gm.set_document(curr_document)
             return TRFLearnNode(name, child_gm, str(self.filename_edit.text()), 
-                    self.success_detector_box.text(),
-                    str(self.actionid_box.currentText()))
+                    self.success_detector_box.text())
+                    #str(self.actionid_box.currentText()))
                         
 
     def set_node_properties(self, my_node):
@@ -107,37 +107,42 @@ class TRFLearnTool(tu.ToolBase):
         self.loaded_filename = my_node.path
         self.filename_edit.setText(my_node.path)
         self.success_detector_box.set_text(my_node.success_detector)
-        self.actionid_box.setCurrentIndex(self.actionid_box.findText(my_node.remapping_for('actionid')))
+        #self.actionid_box.setCurrentIndex(self.actionid_box.findText(my_node.remapping_for('actionid')))
 
     def reset(self):
         self.loaded_filename = None
         self.filename_edit.setText("...")
         self.child_gm = None
         self.success_detector_box.set_text('light_switch')
-        self.actionid_box.setCurrentIndex(self.actionid_box.findText(' '))
+        #self.actionid_box.setCurrentIndex(self.actionid_box.findText(' '))
 
 class TRFLearnNode(tu.EmbeddableState):
 
-    def __init__(self, name, child_gm, path, success_detector, actionid_input):
+    def __init__(self, name, child_gm, path, success_detector): #, actionid_input):
         tu.EmbeddableState.__init__(self, name, child_gm)
         #self.set_remapping_for('mode', 'learning_mode')
-        self.set_remapping_for('actionid', actionid_input)
+        #self.set_remapping_for('actionid', actionid_input)
         self.success_detector = success_detector
         self.path = path
+        self.mode = 'execute'
 
     def get_smach_state(self):
-        return TRFLearnNodeSmach(self.child_gm, self.success_detector)
+        n = TRFLearnNodeSmach(self.child_gm, self.success_detector, self.mode)
+        #reset to default mode just in case it changed before get smach 
+        self.mode = 'execute' 
+        return n
 
     def recreate(self, graph_model):
-        return TRFLearnNode(self.get_name(), graph_model, self.path, 
-                self.success_detector, self.remapping_for('actionid'))
+        return TRFLearnNode(self.get_name(), graph_model, self.path, self.success_detector)
+        #self.remapping_for('actionid'))
 
 
 class TRFLearnNodeSmach(smach.State):
 
-    def __init__(self, child_gm, success_detector):
+    def __init__(self, child_gm, success_detector, mode):
         #smach.State.__init__(self, outcomes=['done', 'preempted'], input_keys=['actionid'], output_keys=[])
 
+        self.mode = mode
         self.child_gm = child_gm
         self.success_detector = success_detector
 
@@ -149,13 +154,14 @@ class TRFLearnNodeSmach(smach.State):
         self.classify_success_snapshot = rospy.ServiceProxy('classify_success_snapshot', tm.ClassifySuccessSnapshot)
         self.classify_success = rospy.ServiceProxy('classify_success', tm.ClassifySuccess)
         self.set_behavior_pose = rospy.ServiceProxy('set_behavior_pose', atmsg.SetBehaviorPose)
+        self.get_action_id = rospy.ServiceProxy('get_active_action_id', rsrv.GetActiveActionID)
 
     def set_robot(self, robot):
         self.robot = robot
         if robot != None:
             self.tf_listener = robot.tf_listener
 
-        input_keys = ['actionid'] #+ list(self.get_registered_input_keys())
+        input_keys = [] #+ list(self.get_registered_input_keys())
         output_keys = [] #+ list(self.get_registered_output_keys())
         outcomes = ['preempted'] #+ list(self.get_registered_outcomes())
         if self.child_gm != None:
@@ -168,10 +174,10 @@ class TRFLearnNodeSmach(smach.State):
                 input_keys = input_keys, output_keys = output_keys)
 
     def execute(self, userdata):
-        recognition_mode = 'execute'
+        recognition_mode = self.mode
 
         #Get the current classifier ID
-        actionid = userdata.actionid['actionid']
+        actionid = self.get_action_id().actionid 
         
         #Classify
         resp = self.recognize_pose_srv(actionid, recognition_mode)
