@@ -8,6 +8,7 @@ import hrl_camera.ros_camera as rc
 import time
 import hrl_pr2_lib.pr2 as pr2
 import numpy as np
+import pdb
 
 def image_diff_val2(before_frame, after_frame):
     br = np.asarray(before_frame)
@@ -55,13 +56,16 @@ class TRFSuccessDetector:
         self.req_number = (self.req_number + 1) % 1000000
         request_id = req.actionid + '_' + str(self.req_number)
         detector = self.success_detector_dict[detector_type](request_id, self.connection_cache)
+        pdb.set_trace()
         detector.take_snapshot()
         self.detectors[request_id] = detector
         return tm.ClassifySuccessSnapshotResponse(request_id)
 
     def classify_success_cb(self, req):
+        pdb.set_trace()
         result = self.detectors[req.request_id].classify_success()
         self.detectors.pop(req.request_id)
+        rospy.loginfo(str(req.request_id) + ' success result: ' + str(result))
         return tm.ClassifySuccessResponse(result)
 
 
@@ -72,15 +76,21 @@ class DrawerPullSuccess:
     def __init__(self, requestid, connection_cache):
         self.connection_cache = connection_cache
         self.requestid = requestid
+
         def left_gripper_f():
             return pr2.PR2Gripper('l', self.connection_cache.get('joint_provider'))
+
+        def right_gripper_f():
+            return pr2.PR2Gripper('l', self.connection_cache.get('joint_provider'))
+
         self.connection_cache.add_connection_type('left_gripper', left_gripper_f)
+        self.connection_cache.add_connection_type('right_gripper', right_gripper_f)
 
     def take_snapshot(self):
         pass
 
     def classify_success(self):
-        gripper = self.connection_cache.get('left_gripper')
+        gripper = self.connection_cache.get('right_gripper')
         has_handle = gripper.pose()[0,0] > DrawerPullSuccess.GRIPPER_CLOSE
         if has_handle:
             return 'success'
