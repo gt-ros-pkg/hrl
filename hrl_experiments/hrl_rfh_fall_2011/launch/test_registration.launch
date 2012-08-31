@@ -1,7 +1,0 @@
-<launch>
-    <node pkg="hrl_rfh_fall_2011" type="sm_register_head_ellipse.py" name="sm_register_head_ellipse"
-          output="screen">
-        <remap from="/init_head" to="/pixel3d" />
-    </node>
-
-</launch>

@@ -1,5 +1,0 @@
-<launch>
-    <node pkg="hrl_netft" name="pr2_netft_zeroer" type="netft_zeroing.py" 
-          args="-l -p -r -z -f $(find hrl_netft)/params/ft_zero_params_gripper.yaml"
-          output="screen" />
-</launch>

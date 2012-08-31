@@ -1,8 +1,0 @@
-<launch>
-    <include file="$(find hrl_rfh_summer_2011)/launch/touch_face_demo_base.launch">
-        <!-- modes (uncomment the one you want) -->
-        <arg name="mode" value="touch_only"/>
-        <!--<arg name="mode" value="nav_only"/>-->
-        <!--<arg name="mode" value="full_demo"/>-->
-    </include>
-</launch>

@@ -1,5 +1,0 @@
-<library path="lib/libhrl_netft">
-  <class name="hrl_netft/HybridForceController" 
-         type="hrl_netft::HybridForceController"           
-         base_class_type="pr2_controller_interface::Controller" />
-</library>

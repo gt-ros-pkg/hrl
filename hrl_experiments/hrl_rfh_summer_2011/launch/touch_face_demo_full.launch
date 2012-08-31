@@ -1,5 +1,0 @@
-<launch>
-    <include file="$(find hrl_arm_move_behaviors)/launch/touch_face_demo_base.launch">
-        <arg name="mode" value="full_demo"/>
-    </include>
-</launch>

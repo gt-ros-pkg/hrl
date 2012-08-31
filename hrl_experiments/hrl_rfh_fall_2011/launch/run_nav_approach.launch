@@ -1,6 +1,0 @@
-<launch>
-    <node pkg="hrl_rfh_summer_2011" name="sm_approach_only" type="sm_approach_only.py" output="screen" >
-        <param name="base_offset_frame" type="str" value="optimal_head_location"/>
-        <param name="nav_approach_dist" type="double" value="0.55"/>
-    </node>
-</launch>

@@ -1,5 +1,0 @@
-{com_pos_x: 0.0015825290637260156, com_pos_y: -0.00012033849105324987, com_pos_z: 0.01859224272880413,
-  force_zero_x: -0.34657727591187293, force_zero_y: -2.8354819202948396, force_zero_z: -13.536318540302087,
-  gravity_frame: /optitrak, mass: 0.086471855734040148, netft_frame: /tool_netft_raw_frame,
-  netft_topic: /tool_netft/wrench_raw, torque_zero_x: -0.077071424640362277, torque_zero_y: 0.059481389894587088,
-  torque_zero_z: 0.083780109221033752, wrench_base_frame: /optitrak, wrench_location_frame: /wipe_finger}

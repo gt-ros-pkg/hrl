@@ -1,7 +1,0 @@
-<launch>
-    <node pkg="hrl_clickable_display" name="clickable_display" type="clickable_display">
-        <remap from="image" to="/kinect_head/rgb/image_color" />
-        <remap from="l_mouse_click" to="l_mouse_click" />
-        <remap from="r_mouse_click" to="r_mouse_click" />
-    </node>
-</launch>
