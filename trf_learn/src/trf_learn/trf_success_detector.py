@@ -56,13 +56,13 @@ class TRFSuccessDetector:
         self.req_number = (self.req_number + 1) % 1000000
         request_id = req.actionid + '_' + str(self.req_number)
         detector = self.success_detector_dict[detector_type](request_id, self.connection_cache)
-        pdb.set_trace()
+        #pdb.set_trace()
         detector.take_snapshot()
         self.detectors[request_id] = detector
         return tm.ClassifySuccessSnapshotResponse(request_id)
 
     def classify_success_cb(self, req):
-        pdb.set_trace()
+        #pdb.set_trace()
         result = self.detectors[req.request_id].classify_success()
         self.detectors.pop(req.request_id)
         rospy.loginfo(str(req.request_id) + ' success result: ' + str(result))
@@ -71,7 +71,7 @@ class TRFSuccessDetector:
 
 class DrawerPullSuccess:
 
-    GRIPPER_CLOSE = .003
+    GRIPPER_CLOSE = .004
 
     def __init__(self, requestid, connection_cache):
         self.connection_cache = connection_cache
@@ -81,7 +81,7 @@ class DrawerPullSuccess:
             return pr2.PR2Gripper('l', self.connection_cache.get('joint_provider'))
 
         def right_gripper_f():
-            return pr2.PR2Gripper('l', self.connection_cache.get('joint_provider'))
+            return pr2.PR2Gripper('r', self.connection_cache.get('joint_provider'))
 
         self.connection_cache.add_connection_type('left_gripper', left_gripper_f)
         self.connection_cache.add_connection_type('right_gripper', right_gripper_f)
@@ -92,6 +92,7 @@ class DrawerPullSuccess:
     def classify_success(self):
         gripper = self.connection_cache.get('right_gripper')
         has_handle = gripper.pose()[0,0] > DrawerPullSuccess.GRIPPER_CLOSE
+        rospy.loginfo('DrawerPullSuccess: gripper size %f threshold %f.  result %s' % (gripper.pose()[0,0], DrawerPullSuccess.GRIPPER_CLOSE, str(has_handle)))
         if has_handle:
             return 'success'
         else:
@@ -166,6 +167,9 @@ class LightSwitchSuccess:
 
 if __name__ == '__main__':
     detector = TRFSuccessDetector()
+    #d = detector.success_detector_dict['drawer_pull']('sdf', detector.connection_cache)
+    #pdb.set_trace()
+    #d.classify_success()
     rospy.loginfo('Ready!')
     rospy.spin()
 
