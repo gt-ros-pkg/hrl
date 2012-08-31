@@ -1,0 +1,11 @@
+<launch>
+    <node name="trf_classification_server" pkg="trf_learn" type="trf_classification_server.py" output="screen" 
+        args="/u/haidai/trf_learn_db.pkl"/>
+
+    <node name="trf_success_detector" pkg="trf_learn" type="trf_success_detector.py" output="screen"/>
+
+    <node name="rcommander_pr2_ar_server_trf" pkg="trf_learn" type="rcommander_pr2_ar_server_trf.py"
+        args="/u/haidai/action_database.pkl /u/haidai/tag_database.pkl  /u/haidai/robot_behaviors" output="screen"/>
+</launch>
+
+
