@@ -11,6 +11,7 @@ import trf_learn.srv as tm
 import hrl_lib.tf_utils as tfu
 import numpy as np
 import re
+import rcommander_ar_tour.srv as rsrv
 
 def wait_for_tf_change(tf_listener, desired, destination_frame, source_frame, timeout):
     start_time = rospy.get_time()
@@ -185,7 +186,7 @@ class TRFLearnNodeSmach(smach.State):
         instance_info = resp.pickled_dict
 
         #Set it on ar tour server, wait for result
-        self.set_behavior_pose(actionid, new_loc)
+        self.set_behavior_pose(actionid, new_loc, False)
 
         #Make sure that the transform was set correctly
         if not (wait_for_tf_change(self.tf_listener, tfu.tf_as_matrix(pose_to_tup(new_loc.pose)),
