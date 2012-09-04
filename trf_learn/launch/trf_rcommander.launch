@@ -1,0 +1,10 @@
+<launch>
+    <include file="$(find rcommander_pr2_gui)/launch/rcommander_robot.launch"/>
+
+    <node ns="prosilica" pkg="image_proc" type="image_proc" respawn="true" name="prosilica_image_proc"/>
+    <node name="fpfh_fx" output="screen" pkg="feature_extractor_fpfh" type="fpfh_node" />
+    <!--
+    <node name="trf_classification_server" output="screen" pkg="trf_learn" type="trf_classification_server.py"/>
+    <node name="trf_success_detector" output="screen" pkg="trf_learn" type="trf_success_detector.py"/>
+    -->
+</launch>
