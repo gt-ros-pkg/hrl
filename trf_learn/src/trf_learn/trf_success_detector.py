@@ -7,7 +7,12 @@ import pypr2.pr2_utils as pru
 import hrl_camera.ros_camera as rc
 import time
 import hrl_pr2_lib.pr2 as pr2
+import hrl_pr2_lib.pressure_listener as pm
 import numpy as np
+import functools as ft
+import threading
+import hrl_lib.tf_utils as tfu
+import tf
 import pdb
 
 def image_diff_val2(before_frame, after_frame):
@@ -24,7 +29,10 @@ class ConnectionCache:
         self.connections_creator = {}
 
     def add_connection_type(self, name, func):
-        self.connections_creator[name] = func
+        if self.connections_creator.has_key(name):
+            raise RuntimeError('Connection %s already registered!' % name)
+        else:
+            self.connections_creator[name] = func
 
     def get(self, name):
         if not self.connections.has_key(name):
@@ -39,13 +47,17 @@ class TRFSuccessDetector:
         rospy.Service('classify_success', tm.ClassifySuccess, self.classify_success_cb)
 
         self.req_number = 0
-        self.success_detector_dict = {'light_switch': LightSwitchSuccess,
-                                      'drawer_pull': DrawerPullSuccess}
+        self.success_detector_dict = {'light_switch':      LightSwitchSuccess,
+                                      'drawer_pull_left':  ft.partial(DrawerPullSuccess, 'l'),
+                                      'drawer_pull_right': ft.partial(DrawerPullSuccess, 'r'),
+                                      'drawer_push_left':  ft.partial(DrawerPushSuccess, 'l'),
+                                      'drawer_push_right': ft.partial(DrawerPushSuccess, 'r')}
 
         self.detectors = {}
         self.connection_cache = ConnectionCache()
         def joint_provider_f():
             return pru.create_joint_provider()
+
         self.connection_cache.add_connection_type('joint_provider', joint_provider_f)
         self.connection_cache.get('joint_provider')
 
@@ -69,28 +81,123 @@ class TRFSuccessDetector:
         return tm.ClassifySuccessResponse(result)
 
 
+class PressureWatch(threading.Thread):
+
+    def __init__(self, pressure_obj, arm, tf_listener, push_tolerance):
+        threading.Thread.__init__(self)    
+        self.pressure_obj = pressure_obj
+        self.arm = arm
+        self.tf_listener = tf_listener
+        self.push_tolerance = push_tolerance
+
+        self.result = None
+        self.should_run = True
+
+    ##
+    # @param frame frame to return the pose in
+    # return the cartesian position (no orientation)
+    def pose_cartesian(self, frame='base_link'):
+        gripper_tool_frame = self.arm + '_gripper_tool_frame'
+        mat = tfu.transform(frame, gripper_tool_frame, self.tf_listener)
+        return mat[0:3, 3]
+
+    def run(self):
+        contact_loc = None
+
+        #Figure out when we made contact
+        while self.should_run:
+            #if exceeded threshold
+            if self.pressure_obj.check_threshold():
+                contact_loc = self.pose_cartesian()
+                break
+
+        if contact_loc == None:
+            rospy.loginfo('PressureWatch: NO CONTACT MADE! Returning failure.')
+            self.result = False
+            return
+
+        r = rospy.Rate(10)
+        while self.should_run:
+            r.sleep()
+
+        end_pose = self.pose_cartesian()
+        if np.linalg.norm(contact_loc - end_pose) > self.push_tolerance:
+            self.result = True 
+        else:
+            self.result = False
+
+    def get_result(self):
+        return self.result
+
+    def stop(self):
+        self.should_run = False
+
+class DrawerPushSuccess:
+
+    PUSH_TOLERANCE = .1
+
+    def __init__(self, arm, requestid, connection_cache):
+        self.connection_cache = connection_cache
+        self.requestid = requestid
+        self.arm = arm
+        self.ptopic = '/pressure/' + self.arm + '_gripper_motor'
+        if self.arm == 'l':
+            self.connection_name = 'left_pressure'
+        else:
+            self.connection_name = 'right_pressure'
+
+        def pressure_listener_f():
+            return pm.PressureListener(self.ptopic, 6000)
+
+        def tf_listener_f():
+            return tf.TransformListener()
+
+        self.connection_cache.add_connection_type(self.connection_name, pressure_listener_f)
+        self.connection_cache.add_connection_type('tf_listener', tf_listener_f)
+
+    def take_snapshot(self):
+        pressure = self.connection_cache.get(self.connection_name)
+        tf_listener = self.connection_cache.get('tf_listener')
+        pressure.rezero()
+        pressure.set_threshold(500)
+        self.watcher = PressureWatch(pressure, self.arm, tf_listener, DrawerPushSuccess.PUSH_TOLERANCE)
+
+    def classify_success(self):
+        #pressure = self.connection_cache.get(self.connection_name)
+        #exceeded_threshold = pressure.check_threshold()
+        self.watcher.stop()
+        result = self.watch.get_result()
+        if result == None:
+            raise RuntimeError('DrawerPushSuccess: Result should not be NONE!')
+
+        if result:
+            return 'success'
+        else:
+            return 'failed'
+
+
 class DrawerPullSuccess:
 
     GRIPPER_CLOSE = .004
 
-    def __init__(self, requestid, connection_cache):
+    def __init__(self, arm, requestid, connection_cache):
         self.connection_cache = connection_cache
         self.requestid = requestid
+        self.arm = arm
+        if self.arm == 'l':
+            self.connection_name = 'left_gripper'
+        else:
+            self.connection_name = 'right_gripper'
 
-        def left_gripper_f():
-            return pr2.PR2Gripper('l', self.connection_cache.get('joint_provider'))
-
-        def right_gripper_f():
-            return pr2.PR2Gripper('r', self.connection_cache.get('joint_provider'))
-
-        self.connection_cache.add_connection_type('left_gripper', left_gripper_f)
-        self.connection_cache.add_connection_type('right_gripper', right_gripper_f)
+        def gripper_f():
+            return pr2.PR2Gripper(self.arm, self.connection_cache.get('joint_provider'))
+        self.connection_cache.add_connection_type(self.connection_name, gripper_f)
 
     def take_snapshot(self):
         pass
 
     def classify_success(self):
-        gripper = self.connection_cache.get('right_gripper')
+        gripper = self.connection_cache.get(self.connection_name)
         has_handle = gripper.pose()[0,0] > DrawerPullSuccess.GRIPPER_CLOSE
         rospy.loginfo('DrawerPullSuccess: gripper size %f threshold %f.  result %s' % (gripper.pose()[0,0], DrawerPullSuccess.GRIPPER_CLOSE, str(has_handle)))
         if has_handle:
