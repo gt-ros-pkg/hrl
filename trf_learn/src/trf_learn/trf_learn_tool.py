@@ -44,8 +44,12 @@ class TRFLearnTool(tu.ToolBase):
         self.success_detector_box = tu.ComboBox()
         self.success_detector_box.create_box(pbox)
         self.success_detector_box.combobox.addItem('light_switch')
-        self.success_detector_box.combobox.addItem('drawer_pull')
+        self.success_detector_box.combobox.addItem('drawer_pull_left')
+        self.success_detector_box.combobox.addItem('drawer_pull_right')
+        self.success_detector_box.combobox.addItem('drawer_push_left') 
+        self.success_detector_box.combobox.addItem('drawer_push_right')
         self.success_detector_box.set_text('light_switch')
+
 
         #self.actionid_box = QComboBox(pbox)
         #self.actionid_box.addItem(' ')
