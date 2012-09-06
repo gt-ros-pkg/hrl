@@ -44,6 +44,7 @@ class TRFLearnTool(tu.ToolBase):
         self.success_detector_box.create_box(pbox)
         self.success_detector_box.combobox.addItem('light_switch')
         self.success_detector_box.combobox.addItem('drawer_pull')
+        self.success_detector_box.combobox.addItem('drawer_push')
         self.success_detector_box.set_text('light_switch')
 
         #self.actionid_box = QComboBox(pbox)
@@ -154,7 +155,7 @@ class TRFLearnNodeSmach(smach.State):
         self.classify_success_snapshot = rospy.ServiceProxy('classify_success_snapshot', tm.ClassifySuccessSnapshot)
         self.classify_success = rospy.ServiceProxy('classify_success', tm.ClassifySuccess)
         self.set_behavior_pose = rospy.ServiceProxy('set_behavior_pose', atmsg.SetBehaviorPose)
-        self.get_action_id = rospy.ServiceProxy('get_active_action_id', rsrv.GetActiveActionID)
+        self.get_action_id = rospy.ServiceProxy('get_active_action_id', atmsg.GetActiveActionID)
 
     def set_robot(self, robot):
         self.robot = robot
