@@ -77,7 +77,7 @@ class TrainingInformationDatabase:
     
         self.data = {} #This gets saved to disk
         self.learners = {}
-        self.active_learn_sessions = {}
+        #self.active_learn_sessions = {}
         self.pca_dataset = {}
         self.load_database()
 
@@ -123,11 +123,11 @@ class TrainingInformationDatabase:
                                    'practice_locations_convergence': None,
                                    'execution_record': []}
 
-    def get_active_learn_session(self, actionid):
-        return self.active_learn_sessions[actionid]
+    #def get_active_learn_session(self, actionid):
+    #    return self.active_learn_sessions[actionid]
 
-    def set_active_learn_session(self, actionid, session):
-        self.active_learn_sessions[actionid] = session
+    #def set_active_learn_session(self, actionid, session):
+    #    self.active_learn_sessions[actionid] = session
 
     #def set_practicing(self, actionid, value):
     #    self.data[actionid]['is_practicing'] = value
@@ -162,6 +162,8 @@ class TrainingInformationDatabase:
         return self.data[actionid]['dataset']
 
     def get_num_data_points(self, actionid):
+        if self.data[actionid]['dataset'] == None:
+            return 0
         return self.data[actionid]['dataset'].inputs.shape[1]
 
     def add_pca_dataset(self, actionid, pca_dataset):
@@ -219,15 +221,13 @@ class TrainingInformationDatabase:
         rospy.loginfo('POS examples %d' % npos)
         rospy.loginfo('TOTAL %d' % dataset.outputs.shape[1])
         #pdb.set_trace()
-        if npos == 0:
-            rospy.loginfo('Not training as we don\'t have at least one positive point')
-            return
 
         if nneg == 0 or npos == 0:
-            weight_balance = ''
-        else:
-            neg_to_pos_ratio = float(nneg)/float(npos)
-            weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
+            rospy.loginfo('Not training as we don\'t have at least one positive and one negative point')
+            return
+
+        neg_to_pos_ratio = float(nneg)/float(npos)
+        weight_balance = ' -w0 1 -w1 %.2f' % neg_to_pos_ratio
 
         previous_learner = None
         if self.learners.has_key(actionid):
@@ -269,6 +269,7 @@ class TRFInteractiveMarkerServer:
 
     def show_base_locations(self, actionid):
         self.markers[actionid] = []
+        self.training_db.init_data_record(actionid)
         initialized = self.training_db.has_training_locations(actionid)
         for i in range(TrainingInformationDatabase.NUM_BASE_LOCATIONS):
             if not initialized:
@@ -464,30 +465,34 @@ class TRFClassificationServer:
         result        = action_result_msg.result
         mode          = action_result_msg.mode
         instance_prop = pickle.loads(action_result_msg.info)
+
         rospy.loginfo('action_result_srv_cb: called actionid %s result %s mode %s' % (actionid, result, mode))
+        rospy.loginfo('***********************************************************')
+        rospy.loginfo('***********************************************************')
+        rospy.loginfo('training mode: Adding data point with label %s to action %s' 
+                % (str(result), actionid))
+        rospy.loginfo('***********************************************************')
+        rospy.loginfo('***********************************************************')
 
         #Not initialized yet, so we add instance
         if self.training_db.get_learner(actionid) == None or mode == 'train':
-            if mode == 'train':
-                rospy.loginfo('***********************************************************')
-                rospy.loginfo('***********************************************************')
-                rospy.loginfo('training mode: Adding data point with label %s to action %s' 
-                        % (str(result), actionid))
-                rospy.loginfo('***********************************************************')
-                rospy.loginfo('***********************************************************')
-                pdb.set_trace()
+            if self.training_db.get_learner(actionid) == None:
+                self.initialize_action(actionid, [instance_prop, result])
+            else:
                 self.training_db.add_data_instance(actionid, instance_prop, result)
                 self.training_db.save_database()
                 #als = self.training_db.get_active_learn_session()
                 self.training_db.train(actionid, True) #als.get_features_read())
-            else:
-                self.initialize_action(actionid, [instance_prop, result])
+            #if mode == 'train':
+            #else:
 
         self.last_action_result = result
         return atsrv.ActionResultResponse()
 
+    ##
+    #
     def initialize_action(self, actionid, first_run_info):
-        rospy.loginfo('Initializing action %s with a classifyer' % actionid)
+        rospy.loginfo('Initializing action %s with a classifier' % actionid)
         active_learn_point_container, success = first_run_info
         self.training_db.add_data_instance(actionid, active_learn_point_container, success)
 
@@ -506,7 +511,7 @@ class TRFClassificationServer:
             neg_point = ActiveLearnPointContainer(instance, point2d, point3d, frame, fea_dict['sizes'])
             self.training_db.add_data_instance(actionid, neg_point, False)
         else:
-            #add guess of a 'success' point
+            #add guess of a 'success' point as point closest to point stored in map
             point2d, point3d, instance = select_instance_ordered_by_distance(fea_dict, point_bl, 1)
             pos_point = ActiveLearnPointContainer(instance, point2d, point3d, frame, fea_dict['sizes'])
             self.training_db.add_data_instance(actionid, pos_point, True)
@@ -570,7 +575,7 @@ class TRFClassificationServer:
                         point_mat)
 
         rospy.loginfo('recognize_pose_srv_cb: actionid %s mode %s' % (str(actionid), mode))
-        rospy.loginfo('recognize_pose_srv_cb: LAST KNOWN POSE %s' % (str(point_bl)))
+        rospy.loginfo('recognize_pose_srv_cb: LAST KNOWN POSE %s' % (str(point_bl.T)))
 
         #No learner!
         if self.training_db.get_learner(actionid) == None:
@@ -595,16 +600,17 @@ class TRFClassificationServer:
 
         elif mode == 'train':
             #elif self.training_db.is_practicing(actionid):
-            active_learn = self.training_db.get_active_learn_session(actionid)
-            if active_learn == None:
-                active_learn = TRFActiveLearnSession(self, actionid, point_bl)
-                self.training_db.set_active_learn_session(actionid, active_learn)
+            #active_learn = self.training_db.get_active_learn_session(actionid)
+            #if active_learn == None:
+            active_learn = TRFActiveLearnSession(self, actionid, point_bl)
+            #self.training_db.set_active_learn_session(actionid, active_learn)
 
             al_point_container = active_learn.get_response()
 
             points3d_bl = active_learn.kdict['points3d']
             pc2 = pc.xyz_array_to_pointcloud2(np.array(points3d_bl.T), frame_id='base_link')
             self.candidate_pub.publish(pc2)
+            #pdb.set_trace()
 
             #Convert from container frame to /map frame
             p_map = tfu.transform_points(tfu.transform('map', al_point_container.point_frame, 
@@ -621,7 +627,7 @@ class TRFClassificationServer:
             #p = al_point_container.points3d[:,0]
             ps.pose.position.x, ps.pose.position.y, ps.pose.position.z = p_map.A1.tolist()
 
-            rospy.loginfo('recognize_pose_srv_cb: TRYING POINT %s' % str(al_point_container.points3d[:,0]))
+            rospy.loginfo('recognize_pose_srv_cb: TRYING POINT %s' % str(al_point_container.points3d[:,0].T))
 
             #Don't need to save training database here as we should get an action_result_srv_cb in the case of training.
             return atsrv.RecognizePoseResponse(ps, pickle.dumps(al_point_container))
@@ -704,24 +710,11 @@ class TRFClassificationServer:
         rospy.loginfo('move_to_location: moved!')
 
     def _train_helper(self, actionid, cactionid, stop_fun=None):
-        rospy.loginfo('train_helper: training...')
+        rospy.loginfo('train_helper: training action %s' % actionid)
         labels = []
 
         start_num_points = self.training_db.get_num_data_points(actionid)
         while not rospy.is_shutdown():
-            #active_learn_session = self.training_db.get_active_learn_session(actionid)
-
-            if stop_fun != None and stop_fun(np.matrix(labels)):
-                rospy.loginfo('Stop satisfied told us to stop loop!')
-                break
-
-            #This loop will run forever if we fail to get callbacks for actions
-            num_points_added = self.training_db.get_num_data_points(actionid) - start_num_points
-            if stop_fun == None and num_points_added > self.rec_params.max_points_per_site:
-                rospy.loginfo('practice: added enough points from this scan. Limit is %d points.' \
-                        % self.rec_params.max_points_per_site)
-                break
-
             #Run action
             rospy.loginfo('_train_helper: sent goal')
             self.run_action_id_client.send_goal(atmsg.RunScriptIDGoal(actionid, ''))
@@ -736,19 +729,33 @@ class TRFClassificationServer:
             if success:
                 rospy.loginfo('_train_helper: SUCCEEDED!')
                 label = r3d.POSITIVE
-                #run the reverse if we succeed 
-                def any_pos_sf(labels_mat):
-                    if np.any(r3d.POSITIVE == labels_mat):
-                        return True
-                    return False
-                #reverse our action.
-                self._train_helper(cactionid, actionid, stop_fun=any_pos_sf)
-
             else:
                 rospy.loginfo('_train_helper: Failed!')
                 label = r3d.NEGATIVE
-
             labels.append(label)
+
+            #if stop function tells us to stop
+            if stop_fun != None and stop_fun(np.matrix(labels)):
+                rospy.loginfo('Stop satisfied told us to stop loop!')
+                break
+            
+            #run the reverse if we succeed 
+            if success:
+                def any_pos_sf(labels_mat):
+                    if np.any(r3d.POSITIVE == labels_mat):
+                        return True
+                    else:
+                        return False
+                #reverse our action.
+                self._train_helper(cactionid, actionid, stop_fun=any_pos_sf)
+
+            #if we have enough data, quit.
+            num_points_added = self.training_db.get_num_data_points(actionid) - start_num_points
+            #This loop will run forever if we fail to get callbacks for actions
+            if stop_fun == None and num_points_added > self.rec_params.max_points_per_site:
+                rospy.loginfo('practice: added enough points from this scan. Limit is %d points.' \
+                        % self.rec_params.max_points_per_site)
+                break
 
         self.training_db.save_database()
 
@@ -758,6 +765,8 @@ class TRFClassificationServer:
         #pdb.set_trace()
         self.training_db.init_data_record(actionid)
         cactionid = self.get_behavior_property(actionid, 'complement').value
+        self.training_db.init_data_record(cactionid)
+
         unexplored_locs  = np.where(self.training_db.get_practice_history(actionid) == 0)[1]
         unconverged_locs = np.where(self.training_db.get_practice_convergence(actionid) == 0)[1]
         rospy.loginfo("Location history: %s" % str(self.training_db.get_practice_history(actionid)))
@@ -783,8 +792,8 @@ class TRFClassificationServer:
             #If this is not a fresh run we continue with a location we've never been to before
             #if haven't converged
             if self.training_db.get_practice_convergence(actionid)[0, pidx] == 0:
-                self.training_db.set_active_learn_session(actionid, None)
-                self.training_db.set_active_learn_session(cactionid, None)
+                #self.training_db.set_active_learn_session(actionid, None)
+                #self.training_db.set_active_learn_session(cactionid, None)
                 ptup, frame = self.training_db.get_training_location(actionid, pidx)
                 self.move_to_location(ptup[0], ptup[1], frame)
                 #def move_to_location(self, position, quat, frame):
