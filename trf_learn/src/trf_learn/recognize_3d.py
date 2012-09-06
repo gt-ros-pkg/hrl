@@ -56,6 +56,7 @@ import hrl_lib.rutils as ru
 import hrl_lib.tf_utils as tfu
 #import hrl_lib.prob as pr
 import trf_learn.intensity_feature as infea
+import pointclouds as pc
 
 
 #import message_filters
@@ -614,6 +615,7 @@ class InterestPointDataset(ds.Dataset):
             pdb.set_trace()
         if np.abs(pt2d[0,0]) > 10000:
             pdb.set_trace()
+
         self.inputs = np.column_stack((self.inputs, features))
         self.outputs = np.column_stack((self.outputs, label))
         self.pt2d = np.column_stack((self.pt2d, pt2d))
@@ -622,6 +624,9 @@ class InterestPointDataset(ds.Dataset):
             self.scan_ids = np.column_stack((self.scan_ids, scan_id))
         if idx_in_scan != None:
             self.idx_in_scan = np.column_stack((self.idx_in_scan, idx_in_scan))
+
+    def num_points(self):
+        return self.inputs.shape[1]
         
     def remove(self, instance_idx):
         self.inputs = np.column_stack((self.inputs[:,0:instance_idx], self.inputs[:,instance_idx+1:]))
@@ -1994,6 +1999,50 @@ class NarrowTextureFeatureExtractor:
                 'image': cvimage_mat, #rdict['image'], 
                 'rdict': rdict,
                 'sizes': extractor.sizes}
+
+
+class KinectTextureFeatureExtractor:
+    def __init__(self, kinect_name, prosilica, prosilica_cal, tf_listener, rec_params=None):
+        self.cal = prosilica_cal
+        self.prosilica = prosilica
+        self.tf_listener = tf_listener
+
+        if rec_params == None:
+            rec_params = Recognize3DParam()
+        self.rec_params = rec_params
+
+        kinect_name = '/head_mount_kinect' 
+        self.pc_topic = kinect_name + '/depth/points'
+
+    def read(self, expected_loc_bl, params=None):
+        pc_message = rospy.wait_for_message(self.pc_topic, sm.PointCloud2)
+        for i in range(3):
+            cvimage_mat = self.prosilica.get_frame()
+
+        pc_array = pc.pointcloud2_to_array(pc_message, padding=1)
+        pc_xyz = np.matrix(pc.get_xyz_points(pc_array)).T
+        #pdb.set_trace()
+        pointcloud_bl = tfu.transform_points(tfu.transform('base_link',\
+                                                            pc_message.header.frame_id, self.tf_listener),\
+                                                            pc_xyz)
+        image_T_bl = tfu.transform('high_def_optical_frame', 'base_link', self.tf_listener)
+
+        if params == None:
+            params = self.rec_params
+
+        extractor = infea.IntensityCloudFeatureExtractor(pointcloud_bl, cvimage_mat, expected_loc_bl, 
+                                                    None, image_T_bl, self.cal, params)
+        xs, locs2d, locs3d = extractor.extract_features()
+        rdict = {'points3d': pointcloud_bl,
+                 'image': cvimage_mat}
+
+        return {'instances': xs, 
+                'points2d': locs2d, 
+                'points3d': locs3d, 
+                'image': cvimage_mat, #rdict['image'], 
+                'rdict': rdict,
+                'sizes': extractor.sizes}
+
 
 
 if __name__ == '__main__':

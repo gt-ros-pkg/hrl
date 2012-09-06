@@ -11,6 +11,7 @@ import trf_learn.srv as tm
 import hrl_lib.tf_utils as tfu
 import numpy as np
 import re
+import rcommander_ar_tour.srv as rsrv
 
 def wait_for_tf_change(tf_listener, desired, destination_frame, source_frame, timeout):
     start_time = rospy.get_time()
@@ -43,9 +44,12 @@ class TRFLearnTool(tu.ToolBase):
         self.success_detector_box = tu.ComboBox()
         self.success_detector_box.create_box(pbox)
         self.success_detector_box.combobox.addItem('light_switch')
-        self.success_detector_box.combobox.addItem('drawer_pull')
-        self.success_detector_box.combobox.addItem('drawer_push')
+        self.success_detector_box.combobox.addItem('drawer_pull_left')
+        self.success_detector_box.combobox.addItem('drawer_pull_right')
+        self.success_detector_box.combobox.addItem('drawer_push_left') 
+        self.success_detector_box.combobox.addItem('drawer_push_right')
         self.success_detector_box.set_text('light_switch')
+
 
         #self.actionid_box = QComboBox(pbox)
         #self.actionid_box.addItem(' ')
@@ -186,7 +190,7 @@ class TRFLearnNodeSmach(smach.State):
         instance_info = resp.pickled_dict
 
         #Set it on ar tour server, wait for result
-        self.set_behavior_pose(actionid, new_loc)
+        self.set_behavior_pose(actionid, new_loc, False)
 
         #Make sure that the transform was set correctly
         if not (wait_for_tf_change(self.tf_listener, tfu.tf_as_matrix(pose_to_tup(new_loc.pose)),

@@ -5,7 +5,8 @@ import rcommander_ar_tour.rcommander_ar_server2 as rcs
 import sys
 import tf 
 import rospy
-import trf_learn_tool as tlt
+#trf_learn.trf_learn_tool.TRFLearnNode
+import trf_learn.trf_learn_tool as tlt
 import actionlib
 import rcommander_ar_tour.msg as atmsg
 
@@ -22,17 +23,21 @@ class TRFBehaviorServer(rcs.BehaviorServer):
         self.actserv_runactionid_train.start()
 
     def run_actionid_train_mode_cb(self, req):
+        rospy.loginfo('run_actionid_train_mode_cb: called')
         self.actionid = req.actionid
         actserv = self.actserv_runactionid_train
 
-        entry = self.action_marker_manager.marker_db.get(actionid)
-        self.action_marker_manager.set_task_frame(actionid)
+        entry = self.action_marker_manager.marker_db.get(self.actionid)
+        self.action_marker_manager.set_task_frame(self.actionid)
 
         #scan the loaded action, find the trf node and get its name
         def trf_param_set(graph_model, robot_object):
+            rospy.loginfo('trf_param_set: Setting trf_param')
             for node_name in graph_model.real_states():
                 node = graph_model.get_state(node_name)
+                print "trf_param_set: node class", node.__class__
                 if isinstance(node, tlt.TRFLearnNode):
+                    rospy.loginfo('trf_param_set: Found a learn node. Setting mode to "train".')
                     node.mode = 'train'
             state_machine = graph_model.create_state_machine(robot_object)
             return state_machine
