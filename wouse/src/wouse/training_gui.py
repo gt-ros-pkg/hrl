@@ -79,7 +79,6 @@ class WouseTrainer(object):
     """ A class for printing random facial expression commands,\\
         and saving data from a topic of wouse movement data."""
     def __init__(self):
-        rospy.Subscriber('/wouse_movement', Vector3Stamped, self.movement_cb)
         #QtDialog for setting parameters for session
         app = QApplication([])
         self.setup_gui = WouseSetupDialog()
@@ -90,6 +89,7 @@ class WouseTrainer(object):
         self.record_dur = self.setup_gui.dialog.recording_spin.value()
         self.recovery_dur = self.setup_gui.dialog.recovery_spin.value() 
         
+        rospy.Subscriber('/wouse_movement', Vector3Stamped, self.movement_cb)
         #Open file for recoding data
         output_file = self.setup_gui.dialog.file_field_edit.text()
         self.csv_writer = csv.writer(open(output_file, 'ab'))
