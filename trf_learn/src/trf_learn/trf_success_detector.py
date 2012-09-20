@@ -30,7 +30,7 @@ class ConnectionCache:
 
     def add_connection_type(self, name, func):
         if self.connections_creator.has_key(name):
-            raise RuntimeError('Connection %s already registered!' % name)
+            rospy.loginfo('Connection %s already registered!' % name)
         else:
             self.connections_creator[name] = func
 
@@ -65,6 +65,9 @@ class TRFSuccessDetector:
         actionid      = req.actionid
         detector_type = req.success_detector
 
+        rospy.loginfo('TRFSuccessDetector.classify_success_snapshot_cb: called for %s with type %s'\
+                % (actionid, detector_type))
+
         self.req_number = (self.req_number + 1) % 1000000
         request_id = req.actionid + '_' + str(self.req_number)
         detector = self.success_detector_dict[detector_type](request_id, self.connection_cache)
@@ -77,7 +80,7 @@ class TRFSuccessDetector:
         #pdb.set_trace()
         result = self.detectors[req.request_id].classify_success()
         self.detectors.pop(req.request_id)
-        rospy.loginfo(str(req.request_id) + ' success result: ' + str(result))
+        rospy.loginfo(str(req.request_id) + ' success result: ' + str(result).upper())
         return tm.ClassifySuccessResponse(result)
 
 
@@ -131,6 +134,9 @@ class PressureWatch(threading.Thread):
 
     def stop(self):
         self.should_run = False
+        rospy.loginfo('PressureWatch: stopped called! waiting for thread to die...')
+        self.join()
+        rospy.loginfo('PressureWatch: stopped thread.')
 
 class DrawerPushSuccess:
 
@@ -161,12 +167,14 @@ class DrawerPushSuccess:
         pressure.rezero()
         pressure.set_threshold(500)
         self.watcher = PressureWatch(pressure, self.arm, tf_listener, DrawerPushSuccess.PUSH_TOLERANCE)
+        self.watcher.start()
 
     def classify_success(self):
         #pressure = self.connection_cache.get(self.connection_name)
         #exceeded_threshold = pressure.check_threshold()
         self.watcher.stop()
-        result = self.watch.get_result()
+        #pdb.set_trace()
+        result = self.watcher.get_result()
         if result == None:
             raise RuntimeError('DrawerPushSuccess: Result should not be NONE!')
 
