@@ -1,6 +1,6 @@
 <launch>
-  <node pkg="openni_camera_deprecated" type="openni_node" name="kinect_head" output="screen" launch-prefix="nice -n 19">
-    <remap from="camera" to="kinect_head"/>
+  <node pkg="openni_camera_deprecated" type="openni_node" name="head_mount_kinect" output="screen" launch-prefix="nice -n 19">
+    <remap from="camera" to="head_mount_kinect"/>
     <param name="registration_type" value="2" />
     <param name="image_input_format" value="6" />
     <rosparam command="load" file="$(find openni_camera_deprecated)/info/openni_params.yaml" />
