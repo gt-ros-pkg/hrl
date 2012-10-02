@@ -1,6 +1,6 @@
 <stack>
   <description brief="pr2_rfid">This stack contains code for robot behaviors and radio frequency perception techniques that enable a PR2 (modified with articulated patch antennas) to efficiently discover, locate, and interact with long-range (UHF) RFID tags applied to locations, objects, and people of interest.  Sample capabilities include: estimating the bearing toward a tag, RFID servoing, and RFID search.  These techniques form the foundation of Travis Deyle's PhD thesis; we also demonstrated sample applications such as medication delivery, sensor fusion, and RFID search in home environments.</description>
-  <author>Dr. Travis Deyle (Georgia Tech), Prof. Charlie Kemp (Georgia Tech, advisor), and Prof. Matt Reynolds (Duke Univ., collaborator)</author>
+  <author>Dr. Travis Deyle (Georgia Tech), advisor), Prof. Matt Reynolds (Duke Univ., collaborator), Prof. Charlie Kemp (Georgia Tech</author>
   <license>BSD</license>  
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/pr2_rfid</url>
