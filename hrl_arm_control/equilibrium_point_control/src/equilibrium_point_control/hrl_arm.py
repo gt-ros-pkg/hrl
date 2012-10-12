@@ -25,6 +25,7 @@ class HRLArm():
         self.kd = None # joint damping
         self.q = None # angles
         self.qdot = None # angular velocity
+        self.joint_names_list = None # joint names
         self.lock = RLock()
 
     def get_joint_velocities(self):
@@ -51,6 +52,10 @@ class HRLArm():
     def get_joint_impedance(self): 
         with self.lock:
             return copy.copy(self.kp), copy.copy(self.kd)
+    
+    def get_joint_names(self):
+      with self.lock:
+        return copy.copy(self.joint_names_list)
 
     # do we really need this function?
     def freeze(self):
