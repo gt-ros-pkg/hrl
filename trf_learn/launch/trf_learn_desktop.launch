@@ -6,5 +6,9 @@
       <remap from="tf" to="tf_republished"/>
     </node>
 
-    <node pkg="trf_learn" name="$(anon trf_rcommander)" type="rcommander_trf.py"/>
+    <node pkg="trf_learn" name="$(anon trf_rcommander)" type="rcommander_trf.py">
+      <remap from="joint_states" to="joint_states_throttle"/>
+      <remap from="tf" to="tf_republished"/>
+    </node>
+
 </launch>
