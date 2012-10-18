@@ -1,20 +1,10 @@
 <launch>
-    <node pkg="rviz" launch-prefix="$(arg rviz_prefix)" name="$(anon rviz-1)" type="rviz" respawn="false" output="screen"
-      args="-d $(arg rviz_config_file) -s $(find pr2_interactive_manipulation)/images/splash.png $(arg rviz_args)
-        $(arg large_menu_arg)">
+    <include file="$(find tf_throttle)/launch/tf_republished.launch"/>
 
-      <remap if="$(arg tf_throttled)" from="tf" to="tf_republished"/>
-
-      <remap unless="$(arg throttle_cameras)" to="$(arg main_camera)"
-         from="/interactive_manipulation_camera/image"/>
-      <remap unless="$(arg throttle_cameras)" to="$(arg main_camera_namespace)/camera_info"
-         from="/interactive_manipulation_camera/camera_info"/>
-      <remap unless="$(arg throttle_cameras)" to="$(arg main_camera_namespace)/compressed"
-         from="/interactive_manipulation_camera/compressed"/>
-      <remap unless="$(arg throttle_cameras)" to="$(arg main_camera_namespace)/compressed/parameter_descriptions"
-         from="/interactive_manipulation_camera/compressed/parameter_descriptions"/>
-      <remap unless="$(arg throttle_cameras)" to="$(arg main_camera_namespace)/compressed/parameter_updates"
-         from="/interactive_manipulation_camera/compressed/parameter_updates"/>
+    <node pkg="rviz" name="$(anon rviz-1)" type="rviz" respawn="false" output="screen"
+      args="-d $(find trf_learn)/launch/rviz_config_userstudy.vcg -stylesheet $(find pr2_interactive_manipulation)/launch/big-menus.style">
+      <remap from="tf" to="tf_republished"/>
     </node>
 
+    <node pkg="trf_learn" name="$(anon trf_rcommander)" type="rcommander_trf.py"/>
 </launch>
