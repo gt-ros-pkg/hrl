@@ -1,0 +1,20 @@
+<launch>
+    <node pkg="rviz" launch-prefix="$(arg rviz_prefix)" name="$(anon rviz-1)" type="rviz" respawn="false" output="screen"
+      args="-d $(arg rviz_config_file) -s $(find pr2_interactive_manipulation)/images/splash.png $(arg rviz_args)
+        $(arg large_menu_arg)">
+
+      <remap if="$(arg tf_throttled)" from="tf" to="tf_republished"/>
+
+      <remap unless="$(arg throttle_cameras)" to="$(arg main_camera)"
+         from="/interactive_manipulation_camera/image"/>
+      <remap unless="$(arg throttle_cameras)" to="$(arg main_camera_namespace)/camera_info"
+         from="/interactive_manipulation_camera/camera_info"/>
+      <remap unless="$(arg throttle_cameras)" to="$(arg main_camera_namespace)/compressed"
+         from="/interactive_manipulation_camera/compressed"/>
+      <remap unless="$(arg throttle_cameras)" to="$(arg main_camera_namespace)/compressed/parameter_descriptions"
+         from="/interactive_manipulation_camera/compressed/parameter_descriptions"/>
+      <remap unless="$(arg throttle_cameras)" to="$(arg main_camera_namespace)/compressed/parameter_updates"
+         from="/interactive_manipulation_camera/compressed/parameter_updates"/>
+    </node>
+
+</launch>
