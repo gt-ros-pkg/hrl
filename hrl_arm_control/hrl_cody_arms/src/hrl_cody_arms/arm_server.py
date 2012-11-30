@@ -146,13 +146,14 @@ class MekaArmServer():
         rospy.init_node('arm_server', anonymous=False)
 
         if use_netft_r:
-            self.ftclient_r = ftc.FTClient('force_torque_ft4', True)
-            #self.ftclient.bias()
+            self.ftclient_r = ftc.FTClient('force_torque_ft5', True)
+            self.ftclient_r.bias()
         else:
             self.ftclient_r = None
 
         if use_netft_l:
             self.ftclient_l = ftc.FTClient('force_torque_ft6', True)
+            self.ftclient_l.bias()
         else:
             self.ftclient_l = None
 
