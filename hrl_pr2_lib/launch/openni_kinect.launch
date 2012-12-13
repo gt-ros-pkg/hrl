@@ -3,6 +3,8 @@
     <remap from="camera" to="head_mount_kinect"/>
     <param name="registration_type" value="2" />
     <param name="image_input_format" value="6" />
+    <param name="rgb_frame_id" value="/head_mount_kinect_rgb_optical_frame" />
+    <param name="depth_frame_id" value="/head_mount_kinect_depth_optical_frame" />
     <rosparam command="load" file="$(find openni_camera_deprecated)/info/openni_params.yaml" />
   </node>
   <!-- <include file="$(find hrl_pr2_lib)/launch/kinect_frames.launch"/> -->
