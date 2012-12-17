@@ -189,6 +189,15 @@ class CodyArmKinematics(HRLArmKinematics):
         rot = ku.kdl_rot_to_np(m)
         return pos, rot
 
+
+    ## compute Jacobian at point pos. 
+    # p is in the ground coord frame.
+    # this is a wrapper to try and not
+    # break things after changes to PR2
+    # classes
+    def jacobian(self, q, pos=None):
+        return self.Jacobian(q, pos)
+
     ## compute Jacobian at point pos. 
     # p is in the ground coord frame.
     def Jacobian(self, q, pos=None):
