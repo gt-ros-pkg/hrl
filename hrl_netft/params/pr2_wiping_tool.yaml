@@ -1,5 +1,0 @@
-{com_pos_x: -0.0009692677892488168, com_pos_y: 0.0014418355123793985, com_pos_z: -0.091828520507301656,
-  force_zero_x: 5.8088409737189259, force_zero_y: -13.436705619654795, force_zero_z: 6.5955066939368319,
-  gravity_frame: /torso_lift_link, mass: 1.0989329872469118, netft_frame: /l_netft_frame,
-  netft_topic: /netft_data, torque_zero_x: -0.42483580139916444, torque_zero_y: -0.45169766852651788,
-  torque_zero_z: -0.22468923407399283, wrench_base_frame: torso_lift_link, wrench_location_frame: l_gripper_tool_frame}

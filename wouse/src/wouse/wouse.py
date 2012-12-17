@@ -4,7 +4,9 @@ import sys
 import numpy as np
 from threading import Condition
 import pickle
+import csv
 
+import pygame
 from sklearn import preprocessing as pps, svm
 
 import roslib; roslib.load_manifest('wouse')
@@ -35,6 +37,10 @@ class Wouse(object):
         rospy.Subscriber('wouse_movement', Vector3Stamped, self.movement_cb)
         rospy.Timer(rospy.Duration(0.1), self.ping_server)
         self.window = []
+        self.data = []
+        pygame.init()
+        self.sound_new = pygame.mixer.Sound('../../sounds/new_item.wav')
+        #self.csv_writer = csv.writer(open(out_file, 'ab'))
         rospy.loginfo("[%s]: Ready" %rospy.get_name())
       
     def init_classifier(self, filename):
@@ -56,10 +62,13 @@ class Wouse(object):
 
     def movement_cb(self, v3):
         """Filter out small movements, check classifier, call stop if needed."""
+        #line = [v3.header.stamp.to_sec(), v3.vector.x, v3.vector.y]
+        #self.csv_writer.writerow(line)
         if (v3.vector.x**2+v3.vector.y**2)**(0.5) < 2.5:
             return
         if self.classify_svm(v3.vector.x, v3.vector.y, v3.header.stamp):
-            self.runstop_client(WouseRunStopRequest(True, False,rospy.Time.now()))
+            self.runstop_client(WouseRunStopRequest(True, False, rospy.Time.now()))
+            self.sound_new.play()
             rospy.loginfo("Wince Detected, stopping robot!")
         else:
             rospy.loginfo("Not a wince")

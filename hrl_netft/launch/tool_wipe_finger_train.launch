@@ -1,3 +1,0 @@
-<launch>
-    <node pkg="hrl_netft" name="tool_netft_zeroer" type="netft_zeroing.py" args="-l -t -f $(find hrl_netft)/params/ft_zero_params_wipe_finger_tool.yaml" output="screen" />
-</launch>

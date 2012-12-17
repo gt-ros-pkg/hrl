@@ -1,0 +1,89 @@
+From a6edfc1d1d9932e693ee653250e8e3fed39b55a8 Mon Sep 17 00:00:00 2001
+From: Kelsey Hawkins <kelsey@monty1.(none)>
+Date: Tue, 19 Jun 2012 20:03:12 -0700
+Subject: [PATCH] Added color parameter and possibly fixed bug where tag appears
+ behind camera.
+
+---
+ ar_pose/include/ar_pose/ar_single.h |    3 +++
+ ar_pose/src/ar_single.cpp           |   22 +++++++++++++++++-----
+ 2 files changed, 20 insertions(+), 5 deletions(-)
+
+diff --git a/ar_pose/include/ar_pose/ar_single.h b/ar_pose/include/ar_pose/ar_single.h
+index 8e1a13b..ca19ed5 100755
+--- a/ar_pose/include/ar_pose/ar_single.h
++++ b/ar_pose/include/ar_pose/ar_single.h
+@@ -93,6 +93,9 @@ namespace ar_pose
+     double marker_center_[2];   // Physical Center of the Marker
+     double marker_trans_[3][4]; // Marker Transform
+ 
++    int marker_id_; // added khawkins
++    double color_r_, color_g_, color_b_, color_a_; // added khawkins
++
+     // **** for visualisation in rviz
+     ros::Publisher rvizMarkerPub_;
+     visualization_msgs::Marker rvizMarker_;
+diff --git a/ar_pose/src/ar_single.cpp b/ar_pose/src/ar_single.cpp
+index 7785bfe..28d849f 100755
+--- a/ar_pose/src/ar_single.cpp
++++ b/ar_pose/src/ar_single.cpp
+@@ -41,6 +41,8 @@ namespace ar_pose
+     ros::NodeHandle n_param ("~");
+     XmlRpc::XmlRpcValue xml_marker_center;
+ 
++    contF = 0; // khawkins
++
+     ROS_INFO("Starting ArSinglePublisher");
+ 
+     // **** get parameters
+@@ -95,6 +97,14 @@ namespace ar_pose
+     n_param.param ("marker_center_y", marker_center_[1], 0.0);
+     ROS_INFO ("\tMarker Center: (%.1f,%.1f)", marker_center_[0], marker_center_[1]);
+ 
++    // added khawkins
++    n_param.param ("viz_marker_id", marker_id_, 1);
++    n_param.param ("marker_color_r", color_r_, 0.0);
++    n_param.param ("marker_color_g", color_g_, 1.0);
++    n_param.param ("marker_color_b", color_b_, 0.0);
++    n_param.param ("marker_color_a", color_a_, 1.0);
++    ///////////////////////////////////
++
+     // **** subscribe
+ 
+     ROS_INFO ("Subscribing to info topic");
+@@ -221,6 +231,8 @@ namespace ar_pose
+       // **** get the transformation between the marker and the real camera
+       double arQuat[4], arPos[3];
+ 
++      if(marker_trans_[2][3] < 0.)
++          contF = 0;
+       if (!useHistory_ || contF == 0)
+         arGetTransMat (&marker_info[k], marker_center_, markerWidth_, marker_trans_);
+       else
+@@ -297,7 +309,7 @@ namespace ar_pose
+ 
+ 			  rvizMarker_.header.frame_id = image_msg->header.frame_id;
+ 			  rvizMarker_.header.stamp = image_msg->header.stamp;
+-			  rvizMarker_.id = 1;
++			  rvizMarker_.id = marker_id_;
+ 
+ 			  rvizMarker_.scale.x = 1.0 * markerWidth_ * AR_TO_ROS;
+ 			  rvizMarker_.scale.y = 1.0 * markerWidth_ * AR_TO_ROS;
+@@ -305,10 +317,10 @@ namespace ar_pose
+ 			  rvizMarker_.ns = "basic_shapes";
+ 			  rvizMarker_.type = visualization_msgs::Marker::CUBE;
+ 			  rvizMarker_.action = visualization_msgs::Marker::ADD;
+-			  rvizMarker_.color.r = 0.0f;
+-			  rvizMarker_.color.g = 1.0f;
+-			  rvizMarker_.color.b = 0.0f;
+-			  rvizMarker_.color.a = 1.0;
++			  rvizMarker_.color.r = color_r_;
++			  rvizMarker_.color.g = color_g_;
++			  rvizMarker_.color.b = color_b_;
++			  rvizMarker_.color.a = color_a_;
+ 			  rvizMarker_.lifetime = ros::Duration(1.0);
+ 			
+ 			  rvizMarkerPub_.publish(rvizMarker_);
+-- 
+1.7.0.4
+

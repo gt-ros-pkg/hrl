@@ -4,23 +4,28 @@ source $pkg/scripts/variables.sh
 args=("$@")
 ccargs=""
 
-# subjects for wiping:
-#study_users=("1" "2" "4" "5" "6" "7" "8" "10")
-#posh=0.02
-#ptrim=0.50
-# cheek multipliers:
-#multipliers=( "0.6050" "0.4263" "0.2705" "0.3242" "0.2679" "0.8833" "0.3389" "0.5271" )
-# nose multipliers:
-#multipliers=( "0.2541" "0.5229" "0.1734" "0.4440" "0.2056" "0.6015" "0.5051" "0.5565" )
-# chin multipliers:
-#multipliers=( "0.5717" "0.5614" "0.2166" "0.5330" "0.3362" "0.8247" "0.4630" "0.9243" )
-
-# subjects for shaving:
-study_users=("1" "6" "8")
-posh=0.02
-ptrim=0.30
-# shaving multipliers:
-multipliers=( "0.3921" "0.4101" "0.6048" )
+if [ $1 == 0 ]; then
+    # subjects for wiping:
+    posh=0.02
+    ptrim=0.50
+    study_users=( "${study_users_wiping[@]}" )
+    echo $study_users
+    if [ $2 == 0 ]; then
+        multipliers=( "${cheek_multipliers[@]}" )
+    fi
+    if [ $2 == 1 ]; then
+        multipliers=( "${nose_multipliers[@]}" )
+    fi
+    if [ $2 == 2 ]; then
+        multipliers=( "${chin_multipliers[@]}" )
+    fi
+else
+    # subjects for shaving:
+    posh=0.02
+    ptrim=0.50
+    study_users=( "${study_users_shaving[@]}" )
+    multipliers=( "${shaving_multipliers[@]}" )
+fi
 
 #multipliers=( "1" "1" "1" "1" "1" "1" "1" "1" )
 

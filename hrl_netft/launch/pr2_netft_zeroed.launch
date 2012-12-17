@@ -1,9 +1,0 @@
-<launch>
-    <node pkg="netft_rdt_driver" name="pr2_netft_node" type="netft_node" args="10.68.0.60" 
-          output="screen">
-        <remap from="/netft_data" to="/pr2_netft/wrench_raw" />
-    </node>
-    <node pkg="hrl_netft" name="pr2_netft_zeroer" type="netft_zeroing.py" 
-          args="-l -p -r -z -f $(find hrl_netft)/params/ft_zero_params_gripper.yaml"
-          output="screen" />
-</launch>

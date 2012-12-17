@@ -1,7 +1,0 @@
-<launch>
-    <node pkg="hrl_rfh_fall_2011" name="sm_registration_setup" 
-          type="sm_registration_setup.py" output="screen" >
-        <param name="base_offset_frame" type="str" value="optimal_head_location"/>
-        <param name="nav_approach_dist" type="double" value="0.55"/>
-    </node>
-</launch>

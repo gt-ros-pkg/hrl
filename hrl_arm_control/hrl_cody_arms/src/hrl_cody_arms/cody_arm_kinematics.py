@@ -73,6 +73,8 @@ class CodyArmKinematics(HRLArmKinematics):
         q_guess_pkl = pth + '/src/hrl_cody_arms/'+pkl_nm
         self.q_guess_dict = ut.load_pickle(q_guess_pkl)
 
+        self.arm_type = 'real' # for epc_skin_math
+
     #--------------- KDL stuff ----------------
     # KDL joint array to meka joint list. (7->7)
     def kdl_angles_to_meka(self, q_jnt_arr):

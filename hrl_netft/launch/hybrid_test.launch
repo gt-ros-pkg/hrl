@@ -1,9 +1,0 @@
-<launch>
-  <!-- Example controller -->
-  <node name="$(anon spawner-example-controller)" pkg="pr2_controller_manager" type="spawner" output="screen" args="hybrid_test"/>
-  <rosparam>
-    hybrid_test:
-      type: hrl_netft/HybridForceController
-      analog_in_name: force_torque_1
-  </rosparam>
-</launch>

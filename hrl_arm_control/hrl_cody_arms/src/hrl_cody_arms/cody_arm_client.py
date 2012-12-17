@@ -61,7 +61,26 @@ class CodyArmClient(HRLArm):
     def __init__(self, arm):
         kinematics = CodyArmKinematics(arm)
         HRLArm.__init__(self, kinematics)
+
+        #stiffness from .yaml file [1800., 1300., 350., 600., 60., 80., 60.] mN-meter/deg
+        self.nom_kp = [103, 74.5, 20.1, 34.4, 3.44] #N-m/rad
+        # we don't use last two values becuase they are position controlled  - 4.58, 3.44] 
+
+        if arm == 'r':
+            #damping from .yaml file [100., 120., 10., 25., 1.25, 0.3, 0.25] mN-meter-sec/deg
+            self.nom_kd = [5.73, 6.88, 0.573, 1.43, 0.0716] #N-m-s/deg
+            # we don't use last two values becuase they are position controlled  - 0.0172, 0.0143]
+        elif arm == 'l':
+            #damping from .yaml file [80., 60., 10., 15., 1.25, 0.3, 0.20] mN-meter-sec/deg
+            self.nom_kd = [4.58, 3.44, 0.573, 0.859, 0.0716] #N-m-s/deg
+            # we don't use last two values becuase they are position controlled  - 0.0172, 0.0115
+        else:
+            rospy.logerr("You didn't give me a 'r' or 'l' for which arm ... Exiting")
+            assert(False)
+
         self.alpha = None
+        self.torque = None
+        self.motor_temps = None
         self.ft_val = None
         self.pwr_state = False
 
@@ -87,6 +106,9 @@ class CodyArmClient(HRLArm):
         rospy.Subscriber('/'+arm+'_arm/force', FloatArray, self.force_cb)
         rospy.Subscriber('/'+arm+'_arm/force_raw', FloatArray, self.raw_force_cb)
 
+        rospy.Subscriber('/'+arm+'_arm/joint_torque', FloatArray, self.torque_cb)
+
+        rospy.Subscriber('/'+arm+'_arm/joint_motor_temp', FloatArray, self.motor_temp_cb)
         rospy.Subscriber('/arms/pwr_state', Bool, self.pwr_state_cb)
 
         try:
@@ -106,6 +128,16 @@ class CodyArmClient(HRLArm):
     def alpha_cb(self, msg):
         with self.lock:
             self.alpha = copy.copy(msg.data)
+            self.kp = (np.array(self.alpha)*np.array(self.nom_kp)).tolist()
+            self.kd = (np.array(self.alpha)*np.array(self.nom_kd)).tolist()
+
+    def torque_cb(self, msg):
+        with self.lock:
+            self.torque = copy.copy(msg.data)
+
+    def motor_temp_cb(self, msg):
+        with self.lock:
+            self.motor_temps = copy.copy(msg.data)
 
     def q_cb(self, msg):
         with self.lock:
@@ -217,13 +249,48 @@ class CodyArmClient(HRLArm):
     def get_joint_accelerations(self, arm):
         pass
 
-    # leaving this unimplemented for now. Advait Nov 14, 2010.
-    def get_joint_torques(self, arm):
-        pass
+    # now implemented - marc Jul 2012
+    def get_joint_torques(self):
+        return self.torque
+
+    # added this as a safety measure since fabrice skin is not
+    # measuring real forces - marc Jul 2012
+    def get_joint_motor_temps(self):
+        return self.motor_temps
 
     # leaving this unimplemented for now. Advait Nov 14, 2010.
     def get_wrist_torque(self, bias=True):  #Tiffany Nov 8 2011 removed 'arm' arg
         pass
+
+
+
+
+# these two classes are specifically for the model predictive
+# controller that we developed for reaching in clutter with multiple
+# contacts.
+# We override the get_joint_impedance function to return values that
+# the model predictive controller will use.
+class CodyArmClient_7DOF(CodyArmClient):
+    def __init__(self, arm):
+        CodyArmClient.__init__(self, arm)
+
+    # dummy kp values for the wrist, kd still of length five
+    def get_joint_impedance(self):
+        with self.lock:
+            kp_t = [k for k in self.kp]
+            kp_t[-1] = 30.
+            kp_t.append(30.)
+            kp_t.append(30.)
+            return kp_t, copy.copy(self.kd)
+
+class CodyArmClient_4DOF(CodyArmClient):
+    def __init__(self, arm):
+        CodyArmClient.__init__(self, arm)
+
+    def get_joint_impedance(self):
+        with self.lock:
+            return copy.copy(self.kp[0:4]), copy.copy(self.kd[0:4])
+
 
 
 if __name__ == '__main__':
@@ -262,7 +329,7 @@ if __name__ == '__main__':
             rospy.sleep(0.05)
 
     # publish end effector marker. useful to verify set_tooltip.
-    if True:
+    if False:
         ac.kinematics.set_tooltip(np.matrix([0.,0.,-0.04]).T) # stub with mini45
         while not rospy.is_shutdown():
             ac.publish_rviz_markers()

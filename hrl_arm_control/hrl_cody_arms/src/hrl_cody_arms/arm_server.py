@@ -173,6 +173,12 @@ class MekaArmServer():
         self.alph_r_pub = rospy.Publisher('/r_arm/joint_impedance_scale', FloatArray)
         self.alph_l_pub = rospy.Publisher('/l_arm/joint_impedance_scale', FloatArray)
 
+        self.torque_r_pub = rospy.Publisher('/r_arm/joint_torque', FloatArray)
+        self.torque_l_pub = rospy.Publisher('/l_arm/joint_torque', FloatArray)
+
+        self.mot_temp_r_pub = rospy.Publisher('/r_arm/joint_motor_temp', FloatArray)
+        self.mot_temp_l_pub = rospy.Publisher('/l_arm/joint_motor_temp', FloatArray)
+
         self.pwr_state_pub = rospy.Publisher('/arms/pwr_state', Bool)
         self.joint_state_pub = rospy.Publisher('/joint_states', JointState)
         
@@ -401,14 +407,25 @@ class MekaArmServer():
 
         if self.enable_right_arm:
             q_r = self.get_joint_angles(r_arm)
+            tau_r = self.get_joint_torques(r_arm)
+            mot_temp_r = self.get_motor_temps(r_arm)
         else:
             q_r = None
+            tau_r = None
+            mot_temp_r = None
 
         if self.enable_left_arm:
             q_l = self.get_joint_angles(l_arm)
+            tau_l = self.get_joint_torques(l_arm)
+            mot_temp_l = self.get_motor_temps(l_arm)
         else:
             q_l = None
+            tau_l = None
+            mot_temp_l = None
 
+        # it seems like this estimate of joint velocity should really be filtered
+        # or at least a better estimate of the derivative (higher order difference equation)
+        # - marc Jul 13, 2012
         t_now = rospy.get_time()
         if self.q_r != None and self.q_l != None and self.time_stamp != None:
             dt = t_now - self.time_stamp
@@ -444,6 +461,8 @@ class MekaArmServer():
             self.qdot_r_pub.publish(FloatArray(h, qdot_r))
             self.jep_r_pub.publish(FloatArray(h, r_jep))
             self.alph_r_pub.publish(FloatArray(h, r_alpha))
+            self.torque_r_pub.publish(FloatArray(h, tau_r))
+            self.mot_temp_r_pub.publish(FloatArray(h, mot_temp_r))
 
             nms = nms + self.joint_names_list['right_arm']
             pos = pos + q_r
@@ -457,6 +476,8 @@ class MekaArmServer():
             self.qdot_l_pub.publish(FloatArray(h, qdot_l))
             self.jep_l_pub.publish(FloatArray(h, l_jep))
             self.alph_l_pub.publish(FloatArray(h, l_alpha))
+            self.torque_l_pub.publish(FloatArray(h, tau_l))
+            self.mot_temp_l_pub.publish(FloatArray(h, mot_temp_l))
 
             nms = nms + self.joint_names_list['left_arm']
             pos = pos + q_l
@@ -597,6 +618,15 @@ class MekaArmServer():
         #return self.arms[arm].get_thetadot_rad().tolist()
         raise RuntimeError('The meka joint velocities seem incorrect. (Advait, July 6, 2011). Computing my own joint velocities.')
 
+    def get_joint_torques(self, arm):
+        ''' returns list of 7 joint torques in mNm
+        '''
+        return self.arms[arm].get_torque_mNm().tolist()
+
+    def get_motor_temps(self, arm):
+        ''' returns list of 7 motor temperatures in Celsius
+        '''
+        return self.arms[arm].get_motor_temp_C().tolist()
 
     def get_joint_angles(self, arm):
         ''' returns list of 7 joint angles in RADIANS.

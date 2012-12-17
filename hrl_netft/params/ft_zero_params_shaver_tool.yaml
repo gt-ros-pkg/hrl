@@ -1,5 +1,0 @@
-{com_pos_x: 0.003616019940285522, com_pos_y: 0.00018267682412636003, com_pos_z: 0.026359951961427767,
-  force_zero_x: -0.30057626998268039, force_zero_y: -2.8316219694242415, force_zero_z: -14.072578489579803,
-  gravity_frame: /optitrak, mass: 0.14504312684396403, netft_frame: /tool_netft_raw_frame,
-  netft_topic: /tool_netft/wrench_raw, torque_zero_x: -0.075464346903879445, torque_zero_y: 0.058808229634612304,
-  torque_zero_z: 0.081397349643213227, wrench_base_frame: /shaver, wrench_location_frame: /shaver}
