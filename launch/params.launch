@@ -1,0 +1,4 @@
+<launch>
+  <rosparam command="load" file="$(find hrl_tactile_controller)/mpc_params.yaml" />
+  <rosparam command="load" file="$(find hrl_tactile_controller)/sim_params.yaml" />
+</launch>

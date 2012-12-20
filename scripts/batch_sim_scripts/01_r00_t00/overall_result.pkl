@@ -1,0 +1,13 @@
+(dp1
+S'state'
+p2
+(lp3
+sS'reached_goal'
+p4
+I00
+sS'error'
+p5
+(lp6
+S'max_force_exceeded'
+p7
+as.

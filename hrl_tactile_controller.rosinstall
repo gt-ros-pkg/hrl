@@ -1,0 +1,24 @@
+- git:
+    local-name: gt-ros-pkg/hrl
+    uri: https://code.google.com/p/gt-ros-pkg.hrl
+    version: master
+
+- git:
+    local-name: gt-ros-pkg/hrl_lib
+    uri: https://code.google.com/p/gt-ros-pkg.hrl-lib
+    version: master
+
+- git:
+    local-name: gt-ros-pkg/hrl_kdl
+    uri: https://code.google.com/p/gt-ros-pkg.hrl-kdl
+    version: master
+
+- git:
+    local-name: robot_model_py
+    uri: https://github.com/laas/robot_model_py.git
+    version: master
+
+- git:
+    local-name: orocos_kinematics_dynamics
+    uri: http://git.mech.kuleuven.be/robotics/orocos_kinematics_dynamics.git
+    version: master
