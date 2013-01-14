@@ -4,8 +4,8 @@
 # install python-openopt Ubuntu package 
 # to use openopt module
 import openopt as pp
-import regular_polygons as rp
-import subdivide_sphere as ss
+#import regular_polygons as rp
+#import subdivide_sphere as ss
 
 import itertools as it
 

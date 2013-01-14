@@ -89,7 +89,7 @@ class RobotHapticStateServer():
     import urdf_arm_darpa_m3 as urdf_arm
     import pr2_skin_client as pr2_sc
 
-    import pr2_arm_darpa_m3_deprecated as pr2_arm # DEPRECATED
+    #import pr2_arm_darpa_m3_deprecated as pr2_arm # DEPRECATED
 
     # Load parameters from ROS Param server
     self.robot_path = "/pr2"
@@ -113,9 +113,29 @@ class RobotHapticStateServer():
     if not self.opt.arm:
       rospy.logerr("RobotHapticState: No arm specified for PR2")
       sys.exit()
+    
+    # Create the robot object. Provides interfaces to the robot arm and various kinematic functions.
+    self.robot = urdf_arm.URDFArm(self.opt.arm, self.tf_listener)
 
-    self.robot = pr2_arm.PR2Arm(self.opt.arm, self.tf_listener) # DEPRECATED. REMOVE.
-    #self.robot = urdf_arm.URDFArm(self.opt.arm, self.tf_listener)
+    # Push joint angles to the param server.
+    if self.opt.arm in ['l', 'r']:
+      arm_path = '/left'
+      if self.opt.arm == 'r':
+        arm_path = '/right'
+
+    self.joint_limits_max = rospy.get_param(self.base_path + 
+                                            self.robot_path + 
+                                            '/joint_limits' +
+                                            arm_path + '/max')
+    self.joint_limits_min = rospy.get_param(self.base_path + 
+                                            self.robot_path + 
+                                            '/joint_limits' +
+                                            arm_path + '/min')
+    
+    # Push the arm specific param to the location the controller looks.
+    rospy.set_param(self.base_path + '/joint_limits/max', self.joint_limits_max)
+    rospy.set_param(self.base_path + '/joint_limits/min', self.joint_limits_min)
+
 
   ## Initialise parameters for the state publisher when used on Cody.
   def initCody(self):
@@ -245,8 +265,8 @@ class RobotHapticStateServer():
     loc_l, jt_l = self.skin_client.getTaxelLocationAndJointList(skin_data)
 
     if len(loc_l) != len(jt_l):
-      while True: #FIXME: This seems like a bad way to handle this...what am I missing? -Phil
-          rospy.sleep(2.0)
+      rospy.logfatal("Haptic State Publisher: Dimensions don't match. %s, %s" % (len(loc_l), len(jt_l)))
+      sys.exit()
 
     for jt_li, loc_li in it.izip(jt_l, loc_l):
       Jc = self.robot.kinematics.jacobian(self.joint_angles, loc_li)
@@ -301,7 +321,7 @@ class RobotHapticStateServer():
     self.updateEndEffectorJacobian()
 
   ## Modify taxel data for PR2 specific situations
-  # TODO SURVY
+  # TODO: Survy to implement selective taxel ignoring.
   # @param skin_data Dictionary containing taxel array messages indexed by topic name
   def modifyPR2Taxels(self, skin_data):
     #print "modifyPR2Taxels"

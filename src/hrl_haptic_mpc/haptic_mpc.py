@@ -14,7 +14,7 @@ import tf
 import hrl_lib.util as ut
 import hrl_lib.transforms as tr
 
-import hrl_haptic_controllers_darpa_m3.epc_skin_math as esm # Core maths functions used by the MPC
+import epc_skin_math as esm # Core maths functions used by the MPC
 
 import hrl_haptic_manipulation_in_clutter_msgs.msg as haptic_msgs
 import hrl_haptic_manipulation_in_clutter_srvs.srv as haptic_srvs
@@ -190,42 +190,37 @@ class HapticMPC():
 
     self.frequency = rospy.get_param(base_path + control_path + '/frequency')
   
-  ## Initialise the robot specific kinematic client.
-  # This will eventually be moved to the robot haptic state message as the kinematic clients are only used for joint limits.
-  # @param robot The robot type, specified as a string: eg 'pr2', 'cody', 'sim3', 'simcody'
-  def initRobot(self, robot):
-    if robot == "pr2":
-      from pykdl_utils.kdl_kinematics import create_kdl_kin
-      import pr2_arm_kinematics_darpa_m3_deprecated as pr2_arm
-      if self.opt.arm == 'r' or self.opt.arm == 'l':
-        #self.robot_kinematics = create_kdl_kin('torso_lift_link', self.opt.arm+'_gripper_tool_frame')
-        #self.robot_kinematics.arm_type = 'real' #hack to keep epc_math happy
-        self.robot_kinematics = pr2_arm.PR2ArmKinematics(self.opt.arm)
+  ## Initialise the robot joint limits.
+  # This relies on something (usually the haptic state node) pushing the appropriate joint limits to the param server before execution.
+  # NB: All joint limits are specified in degrees and converted to radians here (easier to understand)
+  def initRobot(self):
+    base_path = '/haptic_mpc'
+    self.joint_limits_max = np.radians(rospy.get_param(base_path + '/joint_limits/max'))
+    self.joint_limits_min = np.radians(rospy.get_param(base_path + '/joint_limits/min'))
 
-        arm_path = "/left"
-        if self.opt.arm = 'r':
-          arm_path = "/right"
-        base_path = '/haptic_mpc'
-        robot_path = '/pr2'
-        self.joint_limits_max = rospy.get_param(base_path + robot_path + arm_path + '/joint_limits/max')
-        self.joint_limits_min = rospy.get_param(base_path + robot_path + arm_path + '/joint_limits/min')
-      else:
-        rospy.logerr('Arm not specified for PR2 kinematics')
-        sys.exit()
-    elif robot == "sim3":
-      import gen_sim_arms as sim_robot
-      import hrl_common_code_darpa_m3.robot_config.three_link_planar_capsule as sim_robot_config
-      self.robot_kinematics = sim_robot.RobotSimulatorKDL(sim_robot_config) # KDL chain.
-    elif robot == "cody" or robot == "simcody":
-      import hrl_cody_arms.cody_arm_kinematics as cody_robot
-      if self.opt.arm == 'r' or self.opt.arm == 'l':
-        self.robot_kinematics = cody_robot.CodyArmKinematics(self.opt.arm)
-      else:
-        rospy.logerr('Arm not specified for Cody kinematics')
-        sys.exit()
-    else: # Unknown robot type
-      rospy.logerr('Unknown robot type given. Valid options are: [\'pr2\', \'cody\', \'sim3\', \'simcody\']')
-      sys.exit()
+    #if robot == "pr2":
+    #  if self.opt.arm == 'r' or self.opt.arm == 'l':
+    #    # Relies on something (usually the haptic state node) pushing the right joint limits to the parameter server before this starts
+    #    base_path = '/haptic_mpc'
+    #    self.joint_limits_max = rospy.get_param(base_path + '/joint_limits/max')
+    #    self.joint_limits_min = rospy.get_param(base_path + '/joint_limits/min')
+    #  else:
+    #    rospy.logerr('Arm not specified for PR2 kinematics')
+    #    sys.exit()
+    #elif robot == "sim3":
+    #  import gen_sim_arms as sim_robot
+    #  import hrl_common_code_darpa_m3.robot_config.three_link_planar_capsule as sim_robot_config
+    #  self.robot_kinematics = sim_robot.RobotSimulatorKDL(sim_robot_config) # KDL chain.
+    #elif robot == "cody" or robot == "simcody":
+    #  import hrl_cody_arms.cody_arm_kinematics as cody_robot
+    #  if self.opt.arm == 'r' or self.opt.arm == 'l':
+    #    self.robot_kinematics = cody_robot.CodyArmKinematics(self.opt.arm)
+    #  else:
+    #    rospy.logerr('Arm not specified for Cody kinematics')
+    #    sys.exit()
+    #else: # Unknown robot type
+    #  rospy.logerr('Unknown robot type given. Valid options are: [\'pr2\', \'cody\', \'sim3\', \'simcody\']')
+    #  sys.exit()
   
   ## getSkinData accessor function.
   # @return A copy of the skin_data dictionary, containing the latest taxel data. 
@@ -806,7 +801,7 @@ class HapticMPC():
 
   ## Start the control loop once the controller is initialised.
   def start(self):
-    self.initRobot(self.opt.robot)
+    self.initRobot()
     self.initComms("haptic_mpc")
     rospy.sleep(1.0) # Delay to allow the ROS node to initialise properly.
     self.initControlParametersFromServer()
