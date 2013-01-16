@@ -1,7 +1,7 @@
 
 #
 # Code copied from basic_controls.py and then modified.
-#
+# Author: M Killpack
 
 
 """

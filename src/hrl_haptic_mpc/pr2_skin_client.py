@@ -17,6 +17,8 @@ import skin_client as sc
 ## PR2 specific implementation of the TaxelArrayClient class
 #
 # Adds one function which needs to know about PR2 specific parameters.
+# This structure isn't fantastic and will eventually be pulled into the
+# robot haptic state node as it's only used to form the contact jacobians.
 class PR2_SkinClient(sc.TaxelArrayClient):
   def __init__(self, skin_topic_list, torso_frame, tf_listener=None):
     sc.TaxelArrayClient.__init__(self, skin_topic_list, torso_frame, tf_listener)

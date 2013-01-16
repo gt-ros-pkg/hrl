@@ -95,7 +95,6 @@ class MultiArrayConverter():
     for i in range(0, num_matrices):
       for j in range(0, rows):
         for k in range(0, columns):
-          #print "k: %s" % str(k)
           matrix = matrix_list[i]
           data_index = msg.layout.data_offset + (rows*columns) * i + (columns) * j + k
           msg_data[data_index] = matrix[j,k]

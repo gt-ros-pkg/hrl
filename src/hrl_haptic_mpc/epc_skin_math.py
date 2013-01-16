@@ -1,14 +1,15 @@
+## @package hrl_haptic_mpc
+#
+# @author C Kemp
+# @author A Jain
+# @author M Killpack
+# @version 0.1
+# @copyright Simplified BSD Licence
+#
+# This module contains the core mathematics used for the Haptic MPC.
 
-#######################################
-# used with QP controller
-# install python-openopt Ubuntu package 
-# to use openopt module
-import openopt as pp
-#import regular_polygons as rp
-#import subdivide_sphere as ss
-
+import openopt as pp # python-openopt package is required for the QP solver
 import itertools as it
-
 import numpy as np, math
 
 
