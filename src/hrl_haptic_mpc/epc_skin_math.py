@@ -232,8 +232,7 @@ def convert_to_qp(J_h, Jc_l, K_j, Kc_l, Rc_l, delta_f_min,
 
     # this section seems to have been added for PR2
     # should verify still makes sense for Cody
-    #delta_phi_min, delta_phi_max = self.delta_phi_bounds(phi_curr)
-    delta_phi_min, delta_phi_max = joint_limit_bounds(kinematics, phi_curr)
+    delta_phi_min, delta_phi_max = joint_limit_bounds(min_q, max_q, phi_curr)
     delta_phi_min2, delta_phi_max2 = theta_phi_absolute_difference_bounds(np.matrix(q).T, phi_curr)
 
     lb = np.maximum(delta_phi_min, delta_phi_min2)
@@ -247,9 +246,10 @@ def convert_to_qp(J_h, Jc_l, K_j, Kc_l, Rc_l, delta_f_min,
 
     # Allows JEP to go outside joint limits for
     # software simulated robot linkage
-    if kinematics.arm_type == 'simulated':
-        lb = lb * 1000.
-        ub = ub * 1000.
+    # DEPRECATED 2013-01-13 J Hawke. NEVER allow the controller outside joint limits or why have them?!
+#    if kinematics.arm_type == 'simulated':
+#        lb = lb * 1000.
+#        ub = ub * 1000.
 
     return cost_quadratic_matrices, cost_linear_matrices, \
            constraint_matrices, constraint_vectors, lb, ub

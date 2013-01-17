@@ -108,20 +108,14 @@ class WaypointGenerator():
 
   ## Initialise PR2 kinematics. NB: Only used for joint limits, will eventually be removed once these are passed with the robot state.
   def initPR2(self):
-    # new kinematics
     from pykdl_utils.kdl_kinematics import create_kdl_kin
-    # old kinematicsi
-    import pr2_arm_kinematics_darpa_m3_deprecated as pr2_arm
     
-
     rospy.loginfo("Trajectory generator for: PR2")
     if not self.opt.arm:
       rospy.logerr('Arm not specified for PR2')
       sys.exit()
-    # new kinematics
-    #self.robot_kinematics = create_kdl_kin('torso_lift_link', self.opt.arm+'_gripper_tool_frame')
-    # old kinematics - DEPRECATED.
-    self.robot_kinematics = pr2_arm.PR2ArmKinematics(self.opt.arm)
+    
+    self.robot_kinematics = create_kdl_kin('torso_lift_link', self.opt.arm+'_gripper_tool_frame')
     self.tf_listener = tf.TransformListener()
 
     if self.opt.arm == None:
