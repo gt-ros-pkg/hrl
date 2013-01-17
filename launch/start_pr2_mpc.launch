@@ -3,8 +3,8 @@
   <arg name="arm"/>
 
 
-  <rosparam command="load" file="$(find hrl_haptic_mpc)/mpc_params.yaml" />
-  <rosparam command="load" file="$(find hrl_haptic_mpc)/pr2_params.yaml" />
+  <rosparam command="load" file="$(find hrl_haptic_mpc)/mpc_params_pr2.yaml" />
+  <rosparam command="load" file="$(find hrl_haptic_mpc)/pr2_config_params.yaml" />
 
   <node name="mpc_teleop" pkg="hrl_haptic_mpc" type="mpc_teleop_rviz.py" args="-r pr2 --orientation" output="screen"/>
   <node name="waypoint_generator" pkg="hrl_haptic_mpc" type="waypoint_generator.py" args="-r pr2 -s fabric -a $(arg arm)" output="screen"/>
