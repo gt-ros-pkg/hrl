@@ -10,3 +10,8 @@ haptic_mpc:
     jep_start: [deg(-100.0), deg(110.0), deg(110.0)]
     planar: true
 
+    # Joint limits, degrees
+    joint_limits: 
+      max: [150.0, 162.0, 159.0]
+      min: [-150.0, -63.0, 0.0]
+

@@ -186,6 +186,7 @@ class RobotHapticStateServer():
     rospy.loginfo("RobotHapticState: Initialising Sim haptic state publisher" +
                   "with the following skin topics: \n%s"
                   %str(self.skin_topic_list))
+
     self.skin_client = sim_sc.SimSkinClient(self.skin_topic_list,
                                             self.torso_frame,
                                             self.tf_listener)
@@ -194,7 +195,23 @@ class RobotHapticStateServer():
     # TODO: Add config switching here.
     rospy.loginfo("RobotHapticState: Initialising Sim robot interface")
     sim_config = sim_robot_config
-    self.robot = sim_robot.ODESimArm(sim_config)
+    self.robot = sim_robot.ODESimArm(sim_config) 
+
+
+    self.robot_path = '/sim3'
+    self.joint_limits_max = rospy.get_param(self.base_path +
+                                            self.robot_path +
+                                            '/joint_limits/max')
+    self.joint_limits_min = rospy.get_param(self.base_path +
+                                            self.robot_path +
+                                            '/joint_limits/min')
+
+    # Push the arm specific param to the location the controller looks.
+    rospy.set_param(self.base_path + '/joint_limits/max', self.joint_limits_max)
+    rospy.set_param(self.base_path + '/joint_limits/min', self.joint_limits_min)
+
+
+
     #jep_start = np.radians([-100.0, 110, 110])
     #self.robot.set_ep(jep_start)
 

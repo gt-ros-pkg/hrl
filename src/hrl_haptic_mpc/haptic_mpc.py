@@ -195,6 +195,11 @@ class HapticMPC():
   # NB: All joint limits are specified in degrees and converted to radians here (easier to understand)
   def initRobot(self):
     base_path = '/haptic_mpc'
+    
+    rospy.loginfo("Haptic MPC: Waiting for joint limit parameters to be set")
+    while rospy.has_param(base_path + '/joint_limits/max') == False or rospy.has_param(base_path + '/joint_limits/min') == False:
+      rospy.sleep(2.0)
+    rospy.loginfo("Haptic MPC: Got joint limits, continuing")
     self.joint_limits_max = np.radians(rospy.get_param(base_path + '/joint_limits/max'))
     self.joint_limits_min = np.radians(rospy.get_param(base_path + '/joint_limits/min'))
 
