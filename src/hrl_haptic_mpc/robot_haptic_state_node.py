@@ -288,10 +288,6 @@ class RobotHapticStateServer():
     torso_pose.orientation = geom_msgs.Quaternion(*q1)
     return torso_pose
 
-  def updateSkinState(self, skin_data):
-    self.updateEndEffectorJacobian()
-    self.updateContactJacobians(skin_data)
-
   ## Store latest joint states from the specified robot class
   # @var joint_names: Joint names
   # @var joint_angles: Joint angles
@@ -316,10 +312,6 @@ class RobotHapticStateServer():
     self.end_effector_orient_cart = rot
     self.end_effector_orient_quat = tr.matrix_to_quaternion(rot)
 
-  # Build and publish the haptic state message.
-  def publishRobotState(self):
-    self.updateEndEffectorJacobian()
-
   ## Modify taxel data for PR2 specific situations
   # TODO: Survy to implement selective taxel ignoring.
   # @param skin_data Dictionary containing taxel array messages indexed by topic name
@@ -335,7 +327,7 @@ class RobotHapticStateServer():
   def modifyRobotSpecificTaxels(self, skin_data):
     if self.opt.robot == 'pr2':
       return self.modifyPR2Taxels(skin_data)
-    return skin_data # If this is running on a differen robot, don't modify the data.
+    return skin_data # If this is running on a different robot, don't modify the data.
 
   ## Build and publish the haptic state message.
   def publishRobotState(self):
@@ -344,7 +336,7 @@ class RobotHapticStateServer():
     msg.header = self.getMessageHeader()
     msg.header.frame_id = self.torso_frame
 
-    # TODO LOCKING
+    # TODO Locking on data? - check these are copies.
     # Joint states
     self.updateJointStates()
     msg.joint_names = self.joint_names
@@ -361,18 +353,7 @@ class RobotHapticStateServer():
     msg.hand_pose.position = geom_msgs.Point(*self.end_effector_position)
     msg.hand_pose.orientation = geom_msgs.Quaternion(*self.end_effector_orient_quat)
 
-    skin_data = self.skin_client.getTrimmedSkinData()
-    msg.skins = skin_data.values() # List of TaxelArray messages
-    self.updateSkinState(skin_data)
-    #if skin_data:
-      #print "self.Jc:"
-      #print self.Jc
-      #print "skin_data"
-      #print skin_data
-      #print "len(Jc): %s, len(skin_data): %s" % (len(self.Jc), len(msg.skins[0].centers_x))
-      #if len(self.Jc) != len(msg.skins[0].centers_x):
-      #  rospy.spin()
-
+    self.updateEndEffectorJacobian()
     msg.end_effector_jacobian = self.ma_to_m.matrixListToMultiarray(self.Je)
 
     # Skin sensor calculations.

@@ -1,0 +1,13 @@
+<launch>
+  <rosparam command="load" file="$(find hrl_haptic_mpc)/mpc_params_sim3.yaml" />
+  <rosparam command="load" file="$(find hrl_haptic_mpc)/sim3_config_params.yaml" />
+
+  <node name="mpc_teleop" pkg="hrl_haptic_mpc" type="mpc_teleop_rviz.py" args="-r sim3 -a r"/>
+  <node name="waypoint_generator" pkg="hrl_haptic_mpc" type="waypoint_generator.py" args="-r sim3 -s hil -a r"/>
+  <node name="robot_haptic_state" pkg="hrl_haptic_mpc" type="robot_haptic_state_node.py" args="-r sim3 -s hil -a r"/>
+  <node name="haptic_mpc" pkg="hrl_haptic_mpc" type="haptic_mpc.py" args="-r sim3"/>
+  <!-- <node name="haptic_mpc_monitor" pkg="hrl_haptic_mpc" type="haptic_mpc_monitor.py"/> -->
+  <!-- <node name="haptic_mpc_logger" pkg="hrl_haptic_mpc" type="haptic_mpc_logger.py"/> -->
+
+
+</launch>
