@@ -389,7 +389,7 @@ class RobotHapticStateServer():
 
     # End effector calculations
 #    self.updateEndEffectorPose()
-    msg.hand_pose.position = geom_msgs.Point(*self.end_effector_position)
+    msg.hand_pose.position = geom_msgs.Point(*(self.end_effector_position.A1))
     msg.hand_pose.orientation = geom_msgs.Quaternion(*self.end_effector_orient_quat)
 
 #    self.updateEndEffectorJacobian()
@@ -420,7 +420,7 @@ class RobotHapticStateServer():
     ps_msg.header = self.getMessageHeader()
     ps_msg.header.frame_id = self.torso_frame
 
-    ps_msg.pose.position = geom_msgs.Point(*self.end_effector_position)
+    ps_msg.pose.position = geom_msgs.Point(*(self.end_effector_position.A1))
     ps_msg.pose.orientation = geom_msgs.Quaternion(*self.end_effector_orient_quat)
     self.gripper_pose_pub.publish(ps_msg)
 
