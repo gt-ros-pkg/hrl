@@ -360,9 +360,9 @@ class RobotHapticStateServer():
     skin_data = self.skin_client.getTrimmedSkinData()
     # Trim skin_data based on specific robot state (eg wrist configuration).
     skin_data = self.modifyRobotSpecificTaxels(skin_data)
-    # Add the list of  TaxelArray messages to the message
-    msg.skins = skin_data.values()
     self.updateContactJacobians(skin_data)
+    # Add the list of  TaxelArray messages to the message
+    self.skins = skin_data.values()
     
   ## Build the haptic state message data structure
   # @return haptic_state_msg Haptic State message object containing relevant data 
@@ -403,6 +403,8 @@ class RobotHapticStateServer():
 #    # Add the list of  TaxelArray messages to the message
 #    msg.skins = skin_data.values()
 #    self.updateContactJacobians(skin_data)
+# Add the list of  TaxelArray messages to the message
+    msg.skins = self.skins
     msg.contact_jacobians = self.ma_to_m.matrixListToMultiarray(self.Jc)
     
     return msg

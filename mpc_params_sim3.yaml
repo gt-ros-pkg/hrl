@@ -1,6 +1,6 @@
 haptic_mpc:
   control_params:
-    static_contact_stiffness_estimate: 200.0
+    static_contact_stiffness_estimate: 1000.0
     estimate_contact_stiffness: false
 
     # greedy to goal params. These are basically the same for all controllers
@@ -18,5 +18,5 @@ haptic_mpc:
     deadzone_distance: 0.02 # distance to goal in metres
     deadzone_angle: 10.0 # degrees to goal
 
-    goal_velocity_for_hand: 0.5
+    goal_velocity_for_hand: 0.05
     frequency: 25.0
