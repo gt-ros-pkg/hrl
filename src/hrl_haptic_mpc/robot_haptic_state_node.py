@@ -60,6 +60,8 @@ class RobotHapticStateServer():
     self.end_effector_position = None
     self.end_effector_orient_cart = None
     self.end_effector_orient_quat = None
+    
+    self.torso_pose = geom_msgs.Pose()
 
     # Jacobian storage
     self.Jc = None # Contact jacobians
@@ -346,33 +348,13 @@ class RobotHapticStateServer():
       return self.modifyPR2Taxels(skin_data)
     return skin_data # If this is running on a different robot, don't modify the data.
 
-  ## Build and publish the haptic state message.
-  def publishRobotState(self):
-    msg = haptic_msgs.RobotHapticState()
-
-    msg.header = self.getMessageHeader()
-    msg.header.frame_id = self.torso_frame
-
-    # TODO Locking on data? - check these are copies.
-    # Joint states
+  ## Calls all the sub-component updates
+  def updateHapticState(self):
     self.updateJointStates()
-    msg.joint_names = self.joint_names
-    msg.joint_angles = self.joint_angles
-    msg.desired_joint_angles = self.desired_joint_angles
-    msg.joint_velocities = self.joint_velocities
-    msg.joint_stiffness = self.joint_stiffness
-    msg.joint_damping = self.joint_damping
-
-    msg.torso_pose = self.updateTorsoPose()
-
-    # End effector calculations
+    self.torso_pose = self.updateTorsoPose()
     self.updateEndEffectorPose()
-    msg.hand_pose.position = geom_msgs.Point(*self.end_effector_position)
-    msg.hand_pose.orientation = geom_msgs.Quaternion(*self.end_effector_orient_quat)
-
     self.updateEndEffectorJacobian()
-    msg.end_effector_jacobian = self.ma_to_m.matrixListToMultiarray(self.Je)
-
+    
     # Skin sensor calculations.
     # Get the latest skin data from the skin client
     skin_data = self.skin_client.getTrimmedSkinData()
@@ -381,10 +363,56 @@ class RobotHapticStateServer():
     # Add the list of  TaxelArray messages to the message
     msg.skins = skin_data.values()
     self.updateContactJacobians(skin_data)
-    msg.contact_jacobians = self.ma_to_m.matrixListToMultiarray(self.Jc)
+    
+  ## Build the haptic state message data structure
+  # @return haptic_state_msg Haptic State message object containing relevant data 
+  def getHapticStateMessage(self):
+    # Update all haptic state data (jacobians etc)
+    self.updateHapticState()
 
+    msg = haptic_msgs.RobotHapticState()
+
+    msg.header = self.getMessageHeader()
+    msg.header.frame_id = self.torso_frame
+
+    # TODO Locking on data? - check these are copies.
+    # Joint states
+#    self.updateJointStates()
+    msg.joint_names = self.joint_names
+    msg.joint_angles = self.joint_angles
+    msg.desired_joint_angles = self.desired_joint_angles
+    msg.joint_velocities = self.joint_velocities
+    msg.joint_stiffness = self.joint_stiffness
+    msg.joint_damping = self.joint_damping
+
+    msg.torso_pose = self.torso_pose #self.updateTorsoPose()
+
+    # End effector calculations
+#    self.updateEndEffectorPose()
+    msg.hand_pose.position = geom_msgs.Point(*self.end_effector_position)
+    msg.hand_pose.orientation = geom_msgs.Quaternion(*self.end_effector_orient_quat)
+
+#    self.updateEndEffectorJacobian()
+    msg.end_effector_jacobian = self.ma_to_m.matrixListToMultiarray(self.Je)
+
+#    # Skin sensor calculations.
+#    # Get the latest skin data from the skin client
+#    skin_data = self.skin_client.getTrimmedSkinData()
+#    # Trim skin_data based on specific robot state (eg wrist configuration).
+#    skin_data = self.modifyRobotSpecificTaxels(skin_data)
+#    # Add the list of  TaxelArray messages to the message
+#    msg.skins = skin_data.values()
+#    self.updateContactJacobians(skin_data)
+    msg.contact_jacobians = self.ma_to_m.matrixListToMultiarray(self.Jc)
+    
+    return msg
+  
+  ## Build and publish the haptic state message.
+  def publishRobotState(self):
+    msg = self.getHapticStateMessage()
     # Publish the newly formed state message
     self.state_pub.publish(msg)
+    
     # Publish gripper pose for debug purposes
     ps_msg = geom_msgs.PoseStamped()
     ps_msg.header = self.getMessageHeader()
