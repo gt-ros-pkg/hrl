@@ -26,11 +26,10 @@ import haptic_mpc_util
 ## @class RobotHapticStateServer Haptic state publisher: publishes all relevant haptic state information on a common interface independent of robot type.
 class RobotHapticStateServer():
   ## Constructor for robot haptic state server
-  def __init__(self, opt, node_name="robot_haptic_state"):
+  def __init__(self, opt, node_name=None):
     self.opt = opt
     # Set up all ros comms to start with
     self.node_name = node_name
-    rospy.init_node(self.node_name)
     self.tf_listener = None
     self.state_pub = None
     self.rate = 100.0 # 100 Hz.
@@ -256,6 +255,8 @@ class RobotHapticStateServer():
   # NB: The skin client and robot clients will have their own
   # publishers/subscribers specific to them.
   def initComms(self):
+    if self.node_name != None:
+      rospy.init_node(self.node_name)
     self.tf_listener = TransformListener()
     self.state_pub = rospy.Publisher('/haptic_mpc/robot_state',
                                      haptic_msgs.RobotHapticState)
