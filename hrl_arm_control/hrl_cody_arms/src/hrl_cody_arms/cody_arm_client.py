@@ -97,6 +97,16 @@ class CodyArmClient(HRLArm):
 
         self.marker_pub = rospy.Publisher('/'+arm+'_arm/viz/markers', Marker)
 
+        ################## The following are for computing joint accelerations (added by Tapo, Jan 23-2013) ##################
+        self.q_r = None 
+        self.q_l = None 
+        self.q_rHOT = None 
+        self.q_lHOT = None 
+        self.q_rHHOT = None 
+        self.q_lHHOT = None
+        self.time_stamp = None 
+        ######################################################################################################################        
+
         rospy.Subscriber('/'+arm+'_arm/jep', FloatArray, self.ep_cb)
         rospy.Subscriber('/'+arm+'_arm/joint_impedance_scale', FloatArray, self.alpha_cb)
 
@@ -246,9 +256,34 @@ class CodyArmClient(HRLArm):
     #-------- unimplemented functions -----------------
 
     # leaving this unimplemented for now. Advait Nov 14, 2010.
+    # Implemented Now - Tapo, Jan 23 2013
     def get_joint_accelerations(self, arm):
-        pass
-
+        t_now = rospy.get_time()
+        q = self.get_joint_angles()
+        if arm == 'r':
+            if self.q_r != None and self.q_rHOT != None and self.q_rHHOT != None and self.time_stamp != None:
+                dt = t_now - self.time_stamp
+                qddot_r = (-np.array(q) + 4*np.array(self.q_r) - 5*np.array(self.q_rHOT) + 2*np.array(self.q_rHHOT)) / (dt*dt)
+            else:
+                qddot_r = np.zeros(7)
+            self.q_rHHOT = self.q_rHOT
+            self.q_rHOT = self.q_r
+            self.q_r = q
+            self.time_stamp = t_now
+            return qddot_r
+        
+        elif arm == 'l':
+            if self.q_l != None and self.q_lHOT != None and self.q_lHHOT != None and self.time_stamp != None:
+                dt = t_now - self.time_stamp
+                qddot_l = (-np.array(q) + 4*np.array(self.q_l) - 5*np.array(self.q_lHOT) + 2*np.array(self.q_lHHOT)) / (dt*dt)
+            else:
+                qddot_l = np.zeros(7)
+            self.q_lHHOT = self.q_lHOT
+            self.q_lHOT = self.q_l
+            self.q_l = q
+            self.time_stamp = t_now
+            return qddot_l        
+            
     # now implemented - marc Jul 2012
     def get_joint_torques(self):
         return self.torque
