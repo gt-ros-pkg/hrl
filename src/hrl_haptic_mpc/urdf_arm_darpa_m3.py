@@ -1,5 +1,5 @@
 #
-# subscribe to thw joint angles and raw forces topics,  and provide FK
+# PR2 Arm client: Subscribe to the joint angles and raw forces topics, and provide FK
 # etc.
 #
 # Copyright (c) 2009, Georgia Tech Research Corporation
@@ -47,7 +47,7 @@ from visualization_msgs.msg import Marker
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction, Pr2GripperCommand
 
-from hrl_arm import HRLArm
+from equilibrium_point_control.hrl_arm import HRLArm
 from pykdl_utils.kdl_kinematics import create_kdl_kin
 from hrl_msgs.msg import FloatArrayBare
 import hrl_lib.viz as hv
@@ -81,9 +81,9 @@ class URDFArm(HRLArm):
         rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
 
         # Set desired joint angle - either through a delta from the current position, or as an absolute value.
-        rospy.Subscriber ("/haptic_mpc/q_des", FloatArrayBare, self.set_ep_ros)
-        rospy.Subscriber ("/haptic_mpc/delta_q_des", FloatArrayBare, self.set_delta_ep_ros)
-        #rospy.Subscriber("/delta_jep_mpc_cvxgen", FloatArrayBare, self.set_ep_ros)
+        rospy.Subscriber ("/haptic_mpc/q_des", FloatArrayBare, self.set_ep_callback)
+        rospy.Subscriber ("/haptic_mpc/delta_q_des", FloatArrayBare, self.set_delta_ep_callback)
+        #rospy.Subscriber("/delta_jep_mpc_cvxgen", FloatArrayBare, self.set_ep_callback)
 
         self.marker_pub = rospy.Publisher(arm+'_arm/viz/markers', Marker)
         self.cep_marker_id = 1
@@ -148,39 +148,51 @@ class URDFArm(HRLArm):
             self.joint_angles_pub.publish(trajectory)
             self.ep = jep
 
-    def set_delta_ep_ros(self, msg):
-        delta_jep = copy.copy(msg.data)
-        if delta_jep is None or len(delta_jep) != len(self.joint_names_list):
-            raise RuntimeError("set_jep value is " + str(delta_jep))
+    def set_delta_ep_callback(self, msg):
+        delta_des_jep = msg.data
+        
+        if self.ep == None:
+            self.ep = self.get_joint_angles()
+        des_jep = (np.array(self.ep) + np.array(delta_jep)).tolist()
+        
+        self.set_ep(des_jep, duration)
+        
+#        delta_jep = copy.copy(msg.data)
+#        if delta_jep is None or len(delta_jep) != len(self.joint_names_list):
+#            raise RuntimeError("set_jep value is " + str(delta_jep))
+#
+#        with self.lock:
+#            if self.ep == None:
+#              self.ep = self.get_joint_angles()
+#            jep = (np.array(self.ep) + np.array(delta_jep)).tolist()
+#            trajectory = JointTrajectory()
+#            trajectory.joint_names = self.joint_names_list
+#            jtp = JointTrajectoryPoint()
+#            jtp.positions = jep
+#            jtp.time_from_start = rospy.Duration(0.15)
+#            trajectory.points.append(jtp)
+#            self.joint_angles_pub.publish(trajectory)
+#            self.ep = jep
 
-        with self.lock:
-            if self.ep == None:
-              self.ep = self.get_joint_angles()
-            jep = (np.array(self.ep) + np.array(delta_jep)).tolist()
-            trajectory = JointTrajectory()
-            trajectory.joint_names = self.joint_names_list
-            jtp = JointTrajectoryPoint()
-            jtp.positions = jep
-            jtp.time_from_start = rospy.Duration(0.15)
-            trajectory.points.append(jtp)
-            self.joint_angles_pub.publish(trajectory)
-            self.ep = jep
-
-    def set_ep_ros(self, msg):
-        with self.lock:
-            des_jep = copy.copy(msg.data)
-            if des_jep is None or len(des_jep) != len(self.joint_names_list):
-                raise RuntimeError("set_jep value is " + str(des_jep))
-#            self.delta_jep = des_jep
-            jep = (np.array(des_jep)).tolist()
-            trajectory = JointTrajectory()
-            trajectory.joint_names = self.joint_names_list
-            jtp = JointTrajectoryPoint()
-            jtp.positions = jep
-            jtp.time_from_start = rospy.Duration(0.15)
-            trajectory.points.append(jtp)
-            self.joint_angles_pub.publish(trajectory)
-            self.ep = jep
+    def set_ep_callback(self, msg):
+        des_jep = msg.data        
+        self.set_ep(des_jep)
+        
+        
+#        with self.lock:
+#            des_jep = copy.copy(msg.data)
+#            if des_jep is None or len(des_jep) != len(self.joint_names_list):
+#                raise RuntimeError("set_jep value is " + str(des_jep))
+##            self.delta_jep = des_jep
+#            jep = (np.array(des_jep)).tolist()
+#            trajectory = JointTrajectory()
+#            trajectory.joint_names = self.joint_names_list
+#            jtp = JointTrajectoryPoint()
+#            jtp.positions = jep
+#            jtp.time_from_start = rospy.Duration(0.15)
+#            trajectory.points.append(jtp)
+#            self.joint_angles_pub.publish(trajectory)
+#            self.ep = jep
 
     def wrap_angles(self, q):
         for ind in [4, 6]:

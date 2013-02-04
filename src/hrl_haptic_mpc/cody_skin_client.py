@@ -8,18 +8,16 @@ import numpy as np, math
 import copy
 from threading import RLock
 
-import roslib; roslib.load_manifest('hrl_haptic_mpc')
+import roslib; roslib.load_manifest('hrl_tactile_controller')
 import rospy
 
 import skin_client as sc
 
 
-## PR2 specific implementation of the TaxelArrayClient class
+## Cody specific implementation of the TaxelArrayClient class
 #
-# Adds one function which needs to know about PR2 specific parameters.
-# This structure isn't fantastic and will eventually be pulled into the
-# robot haptic state node as it's only used to form the contact jacobians.
-class PR2SkinClient(sc.TaxelArrayClient):
+# Adds one function which needs to know about Cody specific parameters.
+class CodySkinClient(sc.TaxelArrayClient):
   def __init__(self, skin_topic_list, torso_frame, tf_listener=None):
     sc.TaxelArrayClient.__init__(self, skin_topic_list, torso_frame, tf_listener)
 
@@ -36,6 +34,9 @@ class PR2SkinClient(sc.TaxelArrayClient):
     for ta_msg in skin_data.values():
       # Get points list
       ta_locs = self.getContactLocationsFromTaxelArray(ta_msg)
+      
+      
+      
       # Create list of joints beyond which the joint torque has no effect on contact force
       ta_jts = []
       for contact_index in range(len(ta_msg.centers_x)):
@@ -47,18 +48,21 @@ class PR2SkinClient(sc.TaxelArrayClient):
         
         link_name = ta_msg.link_names[contact_index] 
 
-        if 'shoulder_pan' in link_name:
+        # link names are from the Cody URDF.
+        if 'shoulderupper' in link_name:
           jt_num = 0
-        elif 'shoulder_lift' in link_name:
+        elif 'shoulderpitch' in link_name:
           jt_num = 1
-        elif 'upper_arm' in link_name:
+        elif 'bicep' in link_name:
           jt_num = 2
-        elif 'elbow' in link_name:
+        elif 'elbowclevis' in link_name:
           jt_num = 3
-        elif 'forearm' in link_name:
-          jt_num = 4
-        elif 'wrist_flex' in link_name:
-          jt_num = 5    
+        elif 'wrist' in link_name:
+          jt_num = 3
+#        elif 'handmount' in link_name:
+#          jt_num = 5
+        else:
+          jt_num = 6  
         ta_jts.append(jt_num)
           
       # Attach these lists to the end of the global list (incorporating multiple taxel arrays)

@@ -1,0 +1,21 @@
+haptic_mpc:
+  cody:
+    skin_list:
+      meka: ['/skin/contacts_forearm', '/skin/contacts_ft']
+      fabric: ['/skin/contacts_forearm', '/skin/contacts_wrist']
+      hil: ['/skin/contacts']
+      none: []
+    
+    # Frames used for TF. torso_frame is the one the arm is attached to, inertial frame is to get the torso position in the world
+    torso_frame: '/torso_lift_link'
+    inertial_frame: '/base_link'
+
+
+    joint_limits:
+      right:
+        max: [ 120.0, 122.15, 0.0, 144.0, 122.0,  45.0,  45.0 ]
+        min: [ -47.61,  -20.0, -77.5,   0.0, -80.0, -45.0, -45.0 ]
+      left:
+        max: [ 120.00,   20.0,  77.5, 144.0,   80.0, 30.0,  30.0]
+        min: [ -47.61, -122.15, 0.0,   0.0, -122.0, -30.0, -30.0]
+    

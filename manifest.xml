@@ -23,8 +23,8 @@
     <depend package="pykdl_utils"/> <!--gt-ros-pkg.hrl-kdl repo on google code-->
 
     <!-- Robot specific packages. Used for the robot interface msg definitions -->
-    <depend package="pr2_controllers_msgs"/> 
-
+    <depend package="pr2_controllers_msgs"/>  <!-- used by the PR2 arm client -->
+    <depend package="hrl_cody_arms" /> <!-- Cody arm client -->
 </package>
 
 

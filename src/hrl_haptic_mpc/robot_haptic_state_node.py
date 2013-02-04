@@ -10,6 +10,7 @@ import math
 import numpy as np
 import threading
 import itertools as it
+import sys, signal
 
 import roslib
 roslib.load_manifest("hrl_haptic_mpc")
@@ -78,6 +79,8 @@ class RobotHapticStateServer():
   def initRobot(self, robot_type="pr2"):
     if robot_type == "pr2":
       self.initPR2()
+    elif robot_type == "cody":
+      self.initCody()
     elif robot_type == "sim3":
       self.initSim()
     else:
@@ -93,10 +96,10 @@ class RobotHapticStateServer():
     #import pr2_arm_darpa_m3_deprecated as pr2_arm # DEPRECATED
 
     # Load parameters from ROS Param server
-    self.robot_path = "/pr2"
+    self.robot_path = "/pr2"    
     self.skin_topic_list = rospy.get_param(self.base_path +
                                            self.robot_path +
-                                           '/skin_list/fabric')
+                                           '/skin_list/' + self.opt.sensor)
     self.torso_frame = rospy.get_param(self.base_path +
                                        self.robot_path +
                                        '/torso_frame' )
@@ -106,7 +109,7 @@ class RobotHapticStateServer():
     rospy.loginfo("RobotHapticState: Initialising PR2 haptic state publisher" +
                   "with the following skin topics: \n%s"
                   %str(self.skin_topic_list))
-    self.skin_client = pr2_sc.PR2_SkinClient(self.skin_topic_list,
+    self.skin_client = pr2_sc.PR2SkinClient(self.skin_topic_list,
                                              self.torso_frame,
                                              self.tf_listener)
     self.skin_client.setTrimThreshold(self.trim_threshold)
@@ -134,20 +137,19 @@ class RobotHapticStateServer():
                                             arm_path + '/min')
     
     # Push the arm specific param to the location the controller looks.
-    rospy.set_param(self.base_path + '/joint_limits/max', self.joint_limits_max)
-    rospy.set_param(self.base_path + '/joint_limits/min', self.joint_limits_min)
+    self.setControllerJointLimits(self.joint_limits_max, self.joint_limits_min)
 
 
   ## Initialise parameters for the state publisher when used on Cody.
   def initCody(self):
-    import hrl_cody_arms.cody_arm_client as cac
-    import cody_guarded_move as cgm
+    import hrl_cody_arms.cody_arm_client
+    import cody_skin_client
 
     # Load the skin list from the param server
     self.robot_path = '/cody'
     self.skin_topic_list = rospy.get_param(self.base_path +
                                            self.robot_path +
-                                           '/skin_list')
+                                           '/skin_list/' + self.opt.sensor)
     self.torso_frame = rospy.get_param(self.base_path +
                                        self.robot_path +
                                        '/torso_frame' )
@@ -157,6 +159,7 @@ class RobotHapticStateServer():
     rospy.loginfo("RobotHapticState: Initialising Cody haptic state publisher" +
                   "with the following skin topics: \n%s"
                   %str(self.skin_topic_list))
+    
     self.skin_client = cody_skin_client.CodySkinClient(self.skin_topic_list,
                                                        self.torso_frame,
                                                        self.tf_listener)
@@ -165,7 +168,25 @@ class RobotHapticStateServer():
     if not self.opt.arm:
       rospy.logerr("RobotHapticState: No arm specified for Cody")
       sys.exit()
-    self.robot = sim_robot.ODESimArm(sim_config)
+    self.robot = hrl_cody_arms.cody_arm_client.CodyArmClient(self.opt.arm)
+    
+    # Push joint angles to the param server.
+    if self.opt.arm in ['l', 'r']:
+      arm_path = '/left'
+      if self.opt.arm == 'r':
+        arm_path = '/right'
+
+    self.joint_limits_max = rospy.get_param(self.base_path + 
+                                            self.robot_path + 
+                                            '/joint_limits' +
+                                            arm_path + '/max')
+    self.joint_limits_min = rospy.get_param(self.base_path + 
+                                            self.robot_path + 
+                                            '/joint_limits' +
+                                            arm_path + '/min')
+    
+    # Push the arm specific param to the location the controller looks.
+    self.setControllerJointLimits(self.joint_limits_max, self.joint_limits_min)
 
   ## Initialise parameters for the state publisher when used in simulation
   #with the 3DOF arm.
@@ -208,13 +229,8 @@ class RobotHapticStateServer():
                                             '/joint_limits/min')
 
     # Push the arm specific param to the location the controller looks.
-    rospy.set_param(self.base_path + '/joint_limits/max', self.joint_limits_max)
-    rospy.set_param(self.base_path + '/joint_limits/min', self.joint_limits_min)
+    self.setControllerJointLimits(self.joint_limits_max, self.joint_limits_min)
 
-
-
-    #jep_start = np.radians([-100.0, 110, 110])
-    #self.robot.set_ep(jep_start)
 
   #Initialise parameters for the state publisher when used in simulation
   #with the 7DOF cody arm.
@@ -262,6 +278,14 @@ class RobotHapticStateServer():
                                      haptic_msgs.RobotHapticState)
     self.gripper_pose_pub = rospy.Publisher('/haptic_mpc/gripper_pose',
                                             geom_msgs.PoseStamped)
+
+  ## Pushes the given joint limits to a known location on the param server. 
+  # The control loads these on startup.
+  def setControllerJointLimits(self, joint_limits_max, joint_limits_min):
+    # Push the arm specific param to the location the controller looks.
+    rospy.set_param(self.base_path + '/joint_limits/max', joint_limits_max)
+    rospy.set_param(self.base_path + '/joint_limits/min', joint_limits_min)
+
 
   # Returns a header type with the current timestamp.
   # Does not set the frame_id
@@ -425,8 +449,17 @@ class RobotHapticStateServer():
     ps_msg.pose.orientation = geom_msgs.Quaternion(*self.end_effector_orient_quat)
     self.gripper_pose_pub.publish(ps_msg)
 
+  ## Handler for Ctrl-C signals. Some of the ROS spin loops don't respond well to
+  # Ctrl-C without this. 
+  def signal_handler(self, signal, frame):
+    print 'Ctrl+C pressed - exiting'
+    sys.exit(0)
+
+
   ## Start the state publisher
   def start(self):
+    signal.signal(signal.SIGINT, self.signal_handler) # Catch Ctrl-Cs
+    
     rospy.loginfo("RobotHapticState: Starting Robot Haptic State publisher")
     rate = rospy.Rate(self.rate) # 100Hz, nominally.
 
@@ -439,6 +472,7 @@ class RobotHapticStateServer():
            joint_stiffness == None):
       joint_stiffness, joint_damping = self.robot.get_joint_impedance()
       rate.sleep()
+
     rospy.loginfo("RobotHapticState: Got robot state")
 
     if self.robot.get_ep() == None:
