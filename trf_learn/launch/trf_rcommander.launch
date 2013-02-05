@@ -1,5 +1,7 @@
 <launch>
-    <include file="$(find rcommander_pr2_gui)/launch/rcommander_robot.launch"/>
+    <include file="$(find rcommander_pr2_gui)/launch/rcommander_robot.launch">
+        <arg name="arserver" value="false"/>
+    </include>
 
     <node ns="prosilica" pkg="image_proc" type="image_proc" respawn="true" name="prosilica_image_proc"/>
     <node name="fpfh_fx" output="screen" pkg="feature_extractor_fpfh" type="fpfh_node" />
