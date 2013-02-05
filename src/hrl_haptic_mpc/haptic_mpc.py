@@ -154,6 +154,7 @@ class HapticMPC():
     # Control parameters - read from parameter server
     self.orient_weight = 1.0
     self.pos_weight = 1.0
+    self.posture_weight = 0.0
     self.deadzone_distance = 0.005 # 5mm 
     self.deadzone_angle = 10.0 # 10 degrees
     self.currently_in_deadzone = False
@@ -186,7 +187,7 @@ class HapticMPC():
     self.orient_weight = rospy.get_param(base_path + control_path + '/orientation_weight')
     self.pos_weight = rospy.get_param(base_path + control_path + '/position_weight')
     self.jerk_opt_weight = rospy.get_param(base_path + control_path + '/jerk_opt_weight')
-    self.mpc_weights_pub.publish(std_msgs.msg.Header(), self.pos_weight, self.orient_weight)
+    self.mpc_weights_pub.publish(std_msgs.msg.Header(), self.pos_weight, self.orient_weight, self.posture_weight)
 
     self.frequency = rospy.get_param(base_path + control_path + '/frequency')
   
@@ -338,7 +339,6 @@ class HapticMPC():
     angle_error = ut.quat_angle(q_h_orient, q_g_orient)
     
     jerk_opt_weight = self.jerk_opt_weight   
- 
     if orient_weight != 0:
       proportional_ball_radius = 0.1
       proportional_ball_dist_slope = 1.0
@@ -351,6 +351,7 @@ class HapticMPC():
       proportional_ball_angle_slope = 1.
       if angle_error < proportional_ball_angle:
         orient_weight = orient_weight * angle_error/ (proportional_ball_angle * proportional_ball_angle_slope)
+
 
     # Initialise and return the mpc data structure.
     mpc_data = MPCData( q=q, 
@@ -386,8 +387,9 @@ class HapticMPC():
   def updateWeightsCallback(self, msg):   
     with self.gain_lock:
       rospy.loginfo("Updating MPC weights. Pos: %s, Orient: %s" % (str(msg.pos_weight), str(msg.orient_weight)))
-      self.pos_weight = msg.pos_weight
+      self.pos_weight = msg.position_weight
       self.orient_weight = msg.orient_weight
+      self.posture_weight = msg.posture_weight
       self.mpc_weights_pub.publish(msg)
 
   ## Store the current trajectory goal. The controller will always attempt a linear path to this.
@@ -515,6 +517,7 @@ class HapticMPC():
                                                    ang_dist_g)
 
     if mpc_dat.position_weight == 0.:
+      print "POS WEIGHT ZERO"
       delta_x_g = delta_orient_g
       J_h = J_all[3:]
       T_quat = 0.5 * (mpc_dat.q_h_orient[3] 
@@ -540,8 +543,9 @@ class HapticMPC():
       J_h[3:] = J_h[3:] * np.sqrt(mpc_dat.orient_weight)
 
 
+    n_joints = mpc_dat.K_j.shape[0]
     J_h[:, mpc_dat.control_point_joint_num:] = 0.
-    J_h = J_h[:,0:mpc_dat.K_j.shape[0]] # comes into play with Cody and the wrist cover
+    J_h = np.matrix(J_h[:,0:n_joints]) # comes into play with Cody and the wrist cover
 
 
     # If torque constraints are violated - ie Q_des is far from Q - then reset Q_des to Q
@@ -551,6 +555,7 @@ class HapticMPC():
       # Reset JEP to Q.
       rospy.loginfo("JEPs too far from current position - resetting them to current position")
       self.publishDesiredJointAngles(self.getJointAngles())    
+
 
     cost_quadratic_matrices, cost_linear_matrices, \
     constraint_matrices, \
@@ -568,6 +573,23 @@ class HapticMPC():
                                                    mpc_dat.jerk_opt_weight,     #between 0.000000001 and .0000000001, cool things happened
                                                    mpc_dat.max_force_mag)
 
+    lb = lb[0:n_joints]
+    ub = ub[0:n_joints]
+
+#    print "Before solver"
+#    print "QUAD*****************"
+#    print cost_quadratic_matrices
+#    print "LINEAR******************"
+#    print cost_linear_matrices
+#    print "CONSTRAINT MATRIX**********"
+#    print constraint_matrices
+#    print "CONSTRAINT_VECTOR***********"
+#    print constraint_vectors
+#    print "LB"
+#    print lb
+#    print "UB"
+#    print ub
+
     delta_phi_opt, opt_error, feasible = esm.solve_qp(cost_quadratic_matrices, 
                                                       cost_linear_matrices, 
                                                       constraint_matrices, 
@@ -575,8 +597,16 @@ class HapticMPC():
                                                       lb, ub, 
                                                       debug_qp=False)
 
+    print "delta_phi_opt"
+    print delta_phi_opt
+    
+#    print "len(self.joint_names)"
+#    print len(self.joint_names)
+
     # Updated joint positions.
-    mpc_dat.jep[0:len(self.joint_names)] = (mpc_dat.phi_curr + delta_phi_opt).A1
+    mpc_dat.jep[0:n_joints] = (mpc_dat.phi_curr[0:n_joints] + delta_phi_opt).A1
+    delta_phi = np.zeros(len(self.joint_names))
+    delta_phi[0:n_joints] = delta_phi_opt.T
 
     # warn if JEP goes beyond joint limits
     #if self.robot_kinematics.within_joint_limits(mpc_dat.jep) == False:
@@ -584,7 +614,7 @@ class HapticMPC():
     #  rospy.logwarn("Limits: %s" % str(self.robot_kinematics.joint_lim_dict))
     #  rospy.logwarn("Current JEP: %s" % str(mpc_dat.jep))
 
-    return delta_phi_opt # Return a joint position delta
+    return delta_phi # Return a joint position delta
     #return mpc_dat.jep # Return the an absolute joint position - old implementation
 
   

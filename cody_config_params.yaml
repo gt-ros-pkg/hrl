@@ -1,8 +1,8 @@
 haptic_mpc:
   cody:
     skin_list:
-      meka: ['/skin/contacts_forearm', '/skin/contacts_ft']
-      fabric: ['/skin/contacts_forearm', '/skin/contacts_wrist']
+      meka: ['/skin_patch_forearm_right/taxels/forces']
+      fabric: ['/fabric_forearm_sensor/taxels/forces', '/fabric_wrist_sensor/taxels/forces']
       hil: ['/skin/contacts']
       none: []
     

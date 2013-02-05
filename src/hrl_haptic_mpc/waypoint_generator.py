@@ -104,7 +104,7 @@ class WaypointGenerator():
   def initCody(self):
     rospy.loginfo("Trajectory generator for: Cody")
     #TODO:
-    sys.exit()
+    #sys.exit()
 
   ## Initialise PR2 kinematics. NB: Only used for joint limits, will eventually be removed once these are passed with the robot state.
   def initPR2(self):

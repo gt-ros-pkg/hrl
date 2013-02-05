@@ -157,7 +157,7 @@ class RobotHapticStateServer():
                                           self.robot_path +
                                           '/inertial_frame')
     rospy.loginfo("RobotHapticState: Initialising Cody haptic state publisher" +
-                  "with the following skin topics: \n%s"
+                  " with the following skin topics: \n%s"
                   %str(self.skin_topic_list))
     
     self.skin_client = cody_skin_client.CodySkinClient(self.skin_topic_list,
@@ -376,7 +376,7 @@ class RobotHapticStateServer():
   ## Calls all the sub-component updates
   def updateHapticState(self):
     self.updateJointStates()
-    self.torso_pose = self.updateTorsoPose()
+    #self.torso_pose = self.updateTorsoPose()
     self.updateEndEffectorPose()
     self.updateEndEffectorJacobian()
     

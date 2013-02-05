@@ -69,7 +69,7 @@ class MPCTeleopInteractiveMarkers():
     rospy.loginfo("MPC Teleop: Publishing new goal. Position only.")
     weights_msg = haptic_msgs.HapticMpcWeights()
     weights_msg.header.stamp = rospy.Time.now()
-    weights_msg.pos_weight = 5.0
+    weights_msg.position_weight = 5.0
     weights_msg.orient_weight = 0.0
     self.mpc_weights_pub.publish(weights_msg) # Enable position tracking only - disable orientation by setting the weight to 0 
     self.goal_pos_pub.publish(self.current_goal_pose)
@@ -81,7 +81,7 @@ class MPCTeleopInteractiveMarkers():
     rospy.loginfo("MPC Teleop: Publishing new goal. Position and Orientation.")
     weights_msg = haptic_msgs.HapticMpcWeights()
     weights_msg.header.stamp = rospy.Time.now()
-    weights_msg.pos_weight = 5.0
+    weights_msg.position_weight = 5.0
     weights_msg.orient_weight = 4.0
     self.mpc_weights_pub.publish(weights_msg) # Enable position and orientation tracking 
     self.goal_pos_pub.publish(self.current_goal_pose)  
@@ -126,6 +126,10 @@ class MPCTeleopInteractiveMarkers():
     self.zero_upperarm_pub.publish(Empty())
     self.zero_pps_left_pub.publish(Empty())
     self.zero_pps_right_pub.publish(Empty())
+
+    self.zero_cody_meka_skin_pub.publish(Empty())
+    self.zero_cody_fabric_forearm_pub.publish(Empty())
+    self.zero_cody_fabric_wrist_pub.publish(Empty())
   
   def goal_feedback_rviz_cb(self, feedback):
 #    print "goal_feedback_rviz"
@@ -173,6 +177,7 @@ class MPCTeleopInteractiveMarkers():
     self.disable_pub = rospy.Publisher('/pr2_fabric_gripper_sensor/disable_sensor', Empty)
     self.enable_pub = rospy.Publisher('/pr2_fabric_gripper_sensor/enable_sensor', Empty)
     
+    # Zero PR2 fabric skin sensors
     self.zero_gripper_pub = rospy.Publisher('/pr2_fabric_gripper_sensor/zero_sensor', Empty)
     self.zero_gripper_left_link_pub = rospy.Publisher('/pr2_fabric_gripper_left_link_sensor/zero_sensor', Empty)
     self.zero_gripper_right_link_pub = rospy.Publisher('/pr2_fabric_gripper_right_link_sensor/zero_sensor', Empty)
@@ -181,7 +186,11 @@ class MPCTeleopInteractiveMarkers():
     self.zero_upperarm_pub = rospy.Publisher('/pr2_fabric_upperarm_sensor/zero_sensor', Empty)
     self.zero_pps_left_pub = rospy.Publisher('/pr2_pps_left_sensor/zero_sensor', Empty)
     self.zero_pps_right_pub = rospy.Publisher('/pr2_pps_right_sensor/zero_sensor', Empty)
-    
+    # Zero Cody skin sensors (fabric + meka)
+    self.zero_cody_meka_skin_pub = rospy.Publisher('/skin_patch_forearm_right/zero_sensor', Empty)
+    self.zero_cody_fabric_forearm_pub = rospy.Publisher('/fabric_forearm_sensor/zero_sensor', Empty)
+    self.zero_cody_fabric_wrist_pub = rospy.Publisher('/fabric_wrist_sensor/zero_sensor', Empty)
+ 
     self.server = ims.InteractiveMarkerServer('teleop_rviz_server')
 
   ## Initialise the interactive marker based on what robot we're running on, and whether we use orientation or just position.
