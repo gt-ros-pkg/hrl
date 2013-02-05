@@ -63,7 +63,8 @@ class CodyArmClient(HRLArm):
         HRLArm.__init__(self, kinematics)
 
         #stiffness from .yaml file [1800., 1300., 350., 600., 60., 80., 60.] mN-meter/deg
-        self.nom_kp = [103, 74.5, 20.1, 34.4, 3.44] #N-m/rad
+        self.nom_kp = [103, 74.5, 20.1, 4.4, 3.44] #N-m/rad
+	# NB: Original value for joint 4 was 34.4, changed to 4.4
         # we don't use last two values becuase they are position controlled  - 4.58, 3.44] 
 
         if arm == 'r':
@@ -247,12 +248,12 @@ class CodyArmClient(HRLArm):
         self.set_ep(des_jep)
       
     def set_delta_ep_callback(self, msg):
-        delta_des_jep = msg.data
+        delta_jep = msg.data
         if self.ep == None:
             self.ep = self.get_joint_angles()
         des_jep = (np.array(self.ep) + np.array(delta_jep)).tolist()
       
-        self.set_ep(des_jep, duration)
+        self.set_ep(des_jep)
 
     # @param duration - for compatibility with the PR2 class.
     def set_ep(self, jep, duration=None):
