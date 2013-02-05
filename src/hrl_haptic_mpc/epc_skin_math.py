@@ -254,6 +254,150 @@ def convert_to_qp(J_h, Jc_l, K_j, Kc_l, Rc_l, delta_f_min,
     return cost_quadratic_matrices, cost_linear_matrices, \
            constraint_matrices, constraint_vectors, lb, ub
 
+## Formulate the input parameters as a QP problem for the solver. Now includes posture.
+# NB: The P/D matrices don't make a lot of sense without seeing the maths.
+# TODO: Fix this.
+def convert_to_qp_posture(J_h, Jc_l, K_j, Kc_l, Rc_l, delta_f_min,
+                  delta_f_max, phi_curr, delta_x_g, f_n, q,
+                  min_q, max_q, jerk_opt_weight, max_force_mag, delta_theta_des, 
+                  posture_weight, position_weight, orient_weight, force_weight,
+                  force_reduction_goal):
+    # TODO: Push the weights down here so the weight calc is done here rather than the upper controller (preapplied to the delta_x_g vector).
+    P0_l, P1, P2, P3, P4_l = P_matrices(J_h, K_j, Kc_l, Jc_l)
+    D2, D3, D4, D5, D6 = D_matrices(delta_x_g, delta_f_min, K_j, Rc_l,
+                                    P3, P4_l)
+    
+    # D2 is the quadratic matrix for the cost function, D3 is the linear.
+    # Cost = phi^t D2 phi + D3 phi
+    
+    # POSE TERM:
+    # Cost_pose = pose_weight * | delta_x_g - H * delta_phi |^2
+    # Q_pose = H^T H
+    # L_pose = - 2 * delta_x_g^T * H)
+    # where H = J_h * (J_c^T * K_c * J_c + K_j)^-1 * K_j
+    
+#    pose_weight = [position_weight] * 3 # 3 DOF position vector
+#    pose_weight.extend([orient_weight] * 4)  # 4 DOF orientation vector - quaternion
+#    pose_weight_vector = np.matrix(pose_weight)
+#    
+
+#    print "D2******************"
+#    print D2
+#    print "D3 ***********"
+#    print D3
+#    J_h[0:3] = J_h[0:3] * np.sqrt(mpc_dat.position_weight)
+#    J_h[3:] = J_h[3:] * np.sqrt(mpc_dat.orient_weight)
+#    D2[0:3] = D2[0:3] * position_weight  # Multiply weights into D2
+#    D2[3:] = D2[3:] * orient_weight
+#    Q_pose = D2
+#    D3[0,0:3] = D3[0,0:3] * position_weight # D3 is a horizontal vector
+#    D3[0,3:] = D3[0,3:] * orient_weight
+#    L_pose = D3 # Apply the weight vector across each element of D3
+#    print "NEWD2******************"
+#    print Q_pose
+#    print "NEWD3 ***********"
+#    print L_pose
+#    
+    # POSTURE TERM:
+    # Cost_posture = posture_weight * | delta_theta_d - B * delta_phi |^2
+    # Q_posture = B^T B
+    # L_posture = -2 * delta_theta_d^T * B
+    # B = (J_c^T K_c J_c + K_j)^-1 K_j ;  P2 =  (J_c^T K_c J_c + K_j)^-1
+    # B = P2 K_j
+
+#    print "delta_theta_des************"
+#    print delta_theta_des
+#    print "q**********"
+#    print q
+#    B = P2 * K_j
+#    Q_posture = posture_weight * B.T * B # Quadratic matrix
+#    L_posture = posture_weight * (-2.0 * delta_theta_des.T * B) # Linear matrix
+#    
+#    D2 = Q_pose + Q_posture
+#    D3 = L_pose + L_posture
+    
+    
+    
+    
+    m = K_j.shape[0]
+    theta_curr = (np.matrix(q).T)[0:m]
+    delta_theta_min, delta_theta_max = joint_limit_bounds(min_q, max_q, theta_curr)
+    D7 = P2 * K_j
+
+
+
+
+    cost_quadratic_matrices = []
+    cost_linear_matrices = []
+
+
+    # FORCE REDUCTION TERM
+    # if some contact forces are above the allowed pushing
+    # force, add quadratic terms to the cost function to
+    # decrease this force.
+    over_max = f_n.A1 > max_force_mag
+    if over_max.any():
+        # at least one of the contact forces is over the maximum allowed
+        idx_l = np.where(over_max)[0].tolist()
+
+        # len(idx_l) is used to normalize the weight
+        # with the number of contacts - otherwise it
+        # overpowered the other terms and moved quickly
+        # May want to normalize so that don't use two 
+        # different for position or position+orientation
+        
+        weight = force_weight / len(idx_l)
+        
+#        if delta_x_g.shape[0] == 3:
+#            weight = 0.0005 / len(idx_l)
+#            print "using position weight"
+#        elif delta_x_g.shape[0] == 6:
+#            weight = 0.005 / len(idx_l)
+
+        qmat, lmat = force_magnitude_cost_matrices(P4_l, K_j, idx_l,
+                                                   Rc_l, force_reduction_goal)
+        cost_quadratic_matrices.append(qmat*weight)
+        cost_linear_matrices.append(lmat*weight)
+
+    constraint_matrices = [D4, D5]
+    constraint_vectors = [delta_f_max, D6]
+
+    K_j_t = K_j
+    min_jerk_mat = min_jerk_quadratic_matrix(jerk_opt_weight, K_j_t)
+
+    cost_quadratic_matrices += [1. * D2, 1. * min_jerk_mat]
+    cost_linear_matrices += [1. * D3]
+
+    # adding explicit contraint for joint limits.
+    constraint_matrices.append(D7)
+    constraint_vectors.append(delta_theta_max)
+    constraint_matrices.append(-D7)
+    constraint_vectors.append(-delta_theta_min)
+
+    # this section seems to have been added for PR2
+    # should verify still makes sense for Cody
+    delta_phi_min, delta_phi_max = joint_limit_bounds(min_q, max_q, phi_curr)
+    delta_phi_min2, delta_phi_max2 = theta_phi_absolute_difference_bounds(np.matrix(q).T, phi_curr)
+
+    lb = np.maximum(delta_phi_min, delta_phi_min2)
+    ub = np.minimum(delta_phi_max, delta_phi_max2)
+
+    max_per_joint_change = math.radians(0.5)
+    lb = np.maximum(lb, -max_per_joint_change)
+    ub = np.minimum(ub, max_per_joint_change)
+    # end of section that seems to have been added for PR2
+
+
+    # Allows JEP to go outside joint limits for
+    # software simulated robot linkage
+    # DEPRECATED 2013-01-13 J Hawke. NEVER allow the controller outside joint limits or why have them?!
+    # Change the joint limits, not fudge the controller.
+#    if kinematics.arm_type == 'simulated':
+#        lb = lb * 1000.
+#        ub = ub * 1000.
+
+    return cost_quadratic_matrices, cost_linear_matrices, \
+           constraint_matrices, constraint_vectors, lb, ub
 
 
 ## Set up and solve QP 

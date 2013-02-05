@@ -1,10 +1,41 @@
 #!/usr/bin/env python
 
-## @package hrl_haptic_mpc
-# 
-# @author Jeff Hawke jhawke@gatech.edu
+##
+# Copyright (c) 2012, Georgia Tech Healthcare Robotics Lab
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#    * Redistributions of source code must retain the above copyright
+#      notice, this list of conditions and the following disclaimer.
+#    * Redistributions in binary form must reproduce the above copyright
+#      notice, this list of conditions and the following disclaimer in the
+#      documentation and/or other materials provided with the distribution.
+#    * Neither the name of the Georgia Tech Healthcare Robotics Lab nor the
+#      names of its contributors may be used to endorse or promote products
+#      derived from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# www.healthcare-robotics.com
+#
+# @package hrl_haptic_mpc
+# @author Jeff Hawke 
+# @author Advait Jain 
+# @author Marc Killpack 
+# @author Phillip Grice 
+# @author Charlie Kemp 
 # @version 0.1
-# @copyright Simplified BSD Licence
+# @copyright Modified BSD Licence
 
 import roslib
 roslib.load_manifest("hrl_haptic_mpc")
@@ -37,9 +68,10 @@ import math
 #
 # Some of these are parameters rather than control data, but they're small cf. the data which changes at each timestep.
 class MPCData():
-  def __init__(self, q, x_h, x_g, dist_g, 
+  def __init__(self, q, x_h, x_g, dist_g, goal_posture, 
            q_h_orient, q_g_orient, 
-           position_weight, orient_weight, 
+           position_weight, orient_weight, posture_weight, force_weight,
+           force_reduction_goal,
            control_point_joint_num, 
            Kc_l, Rc_l, Jc_l, Je, 
            delta_f_min, delta_f_max, 
@@ -52,10 +84,14 @@ class MPCData():
     self.x_h = x_h        # end effector position
     self.x_g = x_g        # end effector goal
     self.dist_g = dist_g  # dist to goal
+    self.goal_posture = goal_posture
     self.q_h_orient = q_h_orient # end effector orientation
     self.q_g_orient = q_g_orient
     self.position_weight = position_weight
     self.orient_weight = orient_weight
+    self.posture_weight = posture_weight
+    self.force_weight = force_weight
+    self.force_reduction_goal = force_reduction_goal
     self.control_point_joint_num = control_point_joint_num
     self.Kc_l = Kc_l
     self.Rc_l = Rc_l
@@ -120,6 +156,7 @@ class HapticMPC():
     self.goal_lock = threading.RLock() ## Goal state lock
     self.monitor_lock = threading.RLock() ## Monitor state lock
     self.gain_lock = threading.RLock() ## Controller gain state lock
+    self.posture_lock = threading.RLock() ## Goal posture lock.
     self.mpc_data = None ## MPCData data structure. 
     self.msg = None ## Haptic state message
 
@@ -150,11 +187,14 @@ class HapticMPC():
     # Trajectory goal position - from a PoseStamped listener
     self.goal_pos = None
     self.goal_orient_quat = None
+    self.goal_posture = None
     
     # Control parameters - read from parameter server
     self.orient_weight = 1.0
     self.pos_weight = 1.0
-    self.posture_weight = 0.0
+    
+    self.theta_step_multiplier = 0.05 # The error (theta_desired - theta_current) is multiplied by this to asymptotically decay to the goal.
+    
     self.deadzone_distance = 0.005 # 5mm 
     self.deadzone_angle = 10.0 # 10 degrees
     self.currently_in_deadzone = False
@@ -186,8 +226,16 @@ class HapticMPC():
     
     self.orient_weight = rospy.get_param(base_path + control_path + '/orientation_weight')
     self.pos_weight = rospy.get_param(base_path + control_path + '/position_weight')
+    self.posture_weight = rospy.get_param(base_path + control_path + '/posture_weight')
+    self.force_weight = rospy.get_param(base_path + control_path + '/force_reduction_weight')
     self.jerk_opt_weight = rospy.get_param(base_path + control_path + '/jerk_opt_weight')
     self.mpc_weights_pub.publish(std_msgs.msg.Header(), self.pos_weight, self.orient_weight, self.posture_weight)
+    
+    
+    self.max_theta_step = rospy.get_param(base_path + control_path + '/posture_step_size')
+    self.theta_step_scale = rospy.get_param(base_path + control_path + '/posture_step_scale')
+    
+    self.force_reduction_goal = rospy.get_param(base_path + control_path + '/force_reduction_goal')
 
     self.frequency = rospy.get_param(base_path + control_path + '/frequency')
   
@@ -264,6 +312,7 @@ class HapticMPC():
 
   ## Builds the MPC data structure from the individual parameters
   # This is just a convenience data structure to amalgamate the data.
+  # Also does data validation.
   def initMPCData(self):
     # Copy the latest data received from the robot haptic state.
     # To ensure the data is synchronised, all necessary data is copied with the lock rather than using the accessor functions.
@@ -281,6 +330,9 @@ class HapticMPC():
     with self.goal_lock:
       goal_pos = copy.copy(self.goal_pos)
       goal_orient_quat = copy.copy(self.goal_orient_quat)
+      
+    with self.posture_lock:
+      goal_posture = copy.copy(self.goal_posture)
 
     n_l = haptic_mpc_util.getNormals(skin_data)
     f_l = haptic_mpc_util.getValues(skin_data)
@@ -318,16 +370,26 @@ class HapticMPC():
     with self.gain_lock:
         orient_weight = self.orient_weight
         position_weight = self.pos_weight
+        posture_weight = self.posture_weight
     planar = False   
  
+    # Evalute current goals to give the controller some meaningful input
+    # If the goal is non-existant, use the current position/orientation/posture as the goal.
+    # Position
     x_h = ee_pos # numpy array
     x_g = goal_pos
     if x_g == None:
       x_g = x_h
+    
+    # Orientation
     q_h_orient = ee_orient_quat
     q_g_orient = goal_orient_quat
     if q_g_orient == None:
-      q_g_orient = q_h_orient    
+      q_g_orient = q_h_orient
+    
+    # Posture
+    if goal_posture == None:
+      goal_posture = q  
     
     dist_goal_2D = np.linalg.norm((x_g - x_h)[0:2])
     dist_goal_3D = np.linalg.norm(x_g - x_h)
@@ -339,6 +401,7 @@ class HapticMPC():
     angle_error = ut.quat_angle(q_h_orient, q_g_orient)
     
     jerk_opt_weight = self.jerk_opt_weight   
+ 
     if orient_weight != 0:
       proportional_ball_radius = 0.1
       proportional_ball_dist_slope = 1.0
@@ -358,10 +421,14 @@ class HapticMPC():
                         x_h = x_h, # numpy array
                         x_g = x_g, # numpy array
                         dist_g = dist_g, 
+                        goal_posture = goal_posture,
                         q_h_orient = q_h_orient, 
                         q_g_orient = q_g_orient, 
                         position_weight = position_weight, 
                         orient_weight = orient_weight, 
+                        posture_weight = posture_weight,
+                        force_weight = 0.0005, # default_force_weight. Is 0.005 for the position only version.
+                        force_reduction_goal = self.force_reduction_goal, # default desired delta for force reduction. 
                         control_point_joint_num = len(q), # number of joints 
                         Kc_l = Kc_l, 
                         Rc_l = Rc_l, 
@@ -386,18 +453,25 @@ class HapticMPC():
   # @param msg HapticMpcWeights message object
   def updateWeightsCallback(self, msg):   
     with self.gain_lock:
-      rospy.loginfo("Updating MPC weights. Pos: %s, Orient: %s" % (str(msg.pos_weight), str(msg.orient_weight)))
+      rospy.loginfo("Updating MPC weights. Pos: %s, Orient: %s" % (str(msg.position_weight), str(msg.orient_weight)))
       self.pos_weight = msg.position_weight
       self.orient_weight = msg.orient_weight
       self.posture_weight = msg.posture_weight
-      self.mpc_weights_pub.publish(msg)
+      self.mpc_weights_pub.publish(msg) # Echo the currently used weights. Used as an ACK, basically.
 
   ## Store the current trajectory goal. The controller will always attempt a linear path to this.
   # @param msg A PoseStamped message
-  def goalCallback(self, msg):
+  def goalPoseCallback(self, msg):
     with self.goal_lock:
       self.goal_pos = np.matrix([[msg.pose.position.x], [msg.pose.position.y], [msg.pose.position.z]])
       self.goal_orient_quat = [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w]
+  
+  ## Store the current posture goal. The controller attempts to achieve this posture.
+  # TODO: Define message type. Ideally just joint angles. Float64 list?
+  # @param msg An array of Float64s. Type hrl_msgs.FloatArray.
+  def goalPostureCallback(self, msg):
+    with self.posture_lock:
+      self.goal_posture = msg.data # Store it as a python list of floats
   
   ## Store the state information from the monitor node. Allows the control to be somewhat stateful.
   # The state and error fields are lists of strings indicating some state.
@@ -475,6 +549,33 @@ class HapticMPC():
 
     return delta_x_g
 
+  ## Process the goal posture input before sending it to the controller.
+  # @param goal_posture List of desired joint angles. Should be
+  # @param current_posture List of current joint angles
+  # 
+  def goalDeltaPosture(self, goal_posture, current_posture, max_theta_step, num_steps_scale):
+    assert max_theta_step >= 0
+    assert num_steps_scale >= 0
+    # NB: max_theta_step, num_steps_scale must both be POSITIVE.
+    delta_theta_des = np.matrix(goal_posture).T - np.matrix(current_posture).T # error term.
+   # delta_theta_des = 0.1 * delta_theta_des # scale the absolute error
+#    print "goalDeltaPosture"
+#    print delta_theta_des
+
+# ONE SCALING METHOD
+    for i in range(len(delta_theta_des)):
+      theta = delta_theta_des[i] # theta is the error relative to the desired posture on each joint.
+      # num_steps_scale is a parameter which represents how many steps out the delta will be scaled down.
+      if abs(theta) > num_steps_scale * max_theta_step:
+        theta = max_theta_step * theta/abs(theta) # If we're more than the num steps away, just cap the theta step.
+      else:
+        theta = theta/num_steps_scale 
+        # Eg, if we have a step size of 1.0 deg, num_steps is 10.0
+        # If we're 8 steps from the goal, we only command 0.8 deg rather than 1.0 (8/10)
+      delta_theta_des[i] = theta
+      
+    return delta_theta_des
+    
 
   
   ## Main control calculation.
@@ -505,8 +606,7 @@ class HapticMPC():
     else:
       self.currently_in_deadzone = False
   
-    # Execute control algorithm
-    J_all = mpc_dat.Je
+    # Generate the position/orientation deltas. These are slewed to set step size.
     delta_pos_g  = self.goalMotionForHand(mpc_dat.x_h, 
                                                     mpc_dat.x_g, 
                                                     dist_g)
@@ -515,11 +615,11 @@ class HapticMPC():
     delta_orient_g = self.goalOrientationInQuat(mpc_dat.q_h_orient, 
                                                    mpc_dat.q_g_orient, 
                                                    ang_dist_g)
-
+    
+    # Build the delta_x_g vector for the controller.
     if mpc_dat.position_weight == 0.:
-      print "POS WEIGHT ZERO"
       delta_x_g = delta_orient_g
-      J_h = J_all[3:]
+      J_h = mpc_dat.Je[3:]
       T_quat = 0.5 * (mpc_dat.q_h_orient[3] 
                       * np.matrix(np.eye(3)) 
                       - haptic_mpc_util.getSkewMatrix(mpc_dat.q_h_orient[0:3]))
@@ -527,13 +627,13 @@ class HapticMPC():
 
     elif mpc_dat.orient_weight == 0.:
       delta_x_g = delta_pos_g
-      J_h = J_all[0:3]
+      J_h = mpc_dat.Je[0:3]
     else:
       
       delta_x_g = np.vstack((delta_pos_g*np.sqrt(mpc_dat.position_weight), 
                              delta_orient_g*np.sqrt(mpc_dat.orient_weight)))
       
-      J_h = J_all
+      J_h = mpc_dat.Je
       T_quat = 0.5 * (mpc_dat.q_h_orient[3] 
                       * np.matrix(np.eye(3)) 
                       - haptic_mpc_util.getSkewMatrix(mpc_dat.q_h_orient[0:3]))
@@ -542,6 +642,29 @@ class HapticMPC():
       J_h[0:3] = J_h[0:3] * np.sqrt(mpc_dat.position_weight)
       J_h[3:] = J_h[3:] * np.sqrt(mpc_dat.orient_weight)
 
+
+# TODO - NEW MATHS. Explicitly apply weights - it's much easier to understand.
+#    # combine position/orientation goals
+#    delta_x_g = np.vstack( (delta_pos_g, delta_orient_g) )
+#      
+#    J_h = mpc_dat.Je
+#    T_quat = 0.5 * (mpc_dat.q_h_orient[3] 
+#                      * np.matrix(np.eye(3)) 
+#                      - haptic_mpc_util.getSkewMatrix(mpc_dat.q_h_orient[0:3]))
+#      
+#    J_h[3:] = T_quat*J_h[3:]
+    
+#    J_h[0:3] = J_h[0:3] * np.sqrt(mpc_dat.position_weight)
+#    J_h[3:] = J_h[3:] * np.sqrt(mpc_dat.orient_weight)
+    
+
+    # For some reason the force reduction term in the cost function changes weights... 
+    # Jeff has no idea why Advait did this. This used to be buried in epc_skin_math and will be removed.
+    # TODO: Push these to the param server, and work out why these exist to begin with.
+    if delta_x_g.shape[0] == 3: # position only or orientation only
+      mpc_dat.force_weight = 0.0005
+    elif delta_x_g.shape[0] == 6: # both position and orientation at once.
+       mpc_dat.force_weight = 0.005 
 
     n_joints = mpc_dat.K_j.shape[0]
     J_h[:, mpc_dat.control_point_joint_num:] = 0.
@@ -554,12 +677,16 @@ class HapticMPC():
     if max_q_diff > 15.0: # TODO: Hardcoded parameter used in the control function - move this elsewhere!
       # Reset JEP to Q.
       rospy.loginfo("JEPs too far from current position - resetting them to current position")
-      self.publishDesiredJointAngles(self.getJointAngles())    
-
-
+      self.publishDesiredJointAngles(self.getJointAngles()) 
+      return None   
+    
+    # Postural term input
+    delta_theta_des = self.goalDeltaPosture(mpc_dat.goal_posture, mpc_dat.q, 0.01, 20.0)
+    
+    
     cost_quadratic_matrices, cost_linear_matrices, \
     constraint_matrices, \
-    constraint_vectors, lb, ub = esm.convert_to_qp(J_h, # 6xDOF
+    constraint_vectors, lb, ub = esm.convert_to_qp_posture(J_h, # 6xDOF end effector jacobian
                                                    mpc_dat.Jc_l, # list of contacts
                                                    mpc_dat.K_j, # joint_stiffnesses (DOFxDOF)
                                                    mpc_dat.Kc_l, # list of 3x3s
@@ -571,24 +698,18 @@ class HapticMPC():
                                                    self.joint_limits_min, # joint limits (used to be kinematics object)
                                                    self.joint_limits_max,
                                                    mpc_dat.jerk_opt_weight,     #between 0.000000001 and .0000000001, cool things happened
-                                                   mpc_dat.max_force_mag)
+                                                   mpc_dat.max_force_mag,
+                                                   delta_theta_des,
+                                                   mpc_dat.posture_weight,
+                                                   mpc_dat.position_weight,
+                                                   mpc_dat.orient_weight,
+                                                   mpc_dat.force_weight,
+                                                   mpc_dat.force_reduction_goal)
+
+    
 
     lb = lb[0:n_joints]
-    ub = ub[0:n_joints]
-
-#    print "Before solver"
-#    print "QUAD*****************"
-#    print cost_quadratic_matrices
-#    print "LINEAR******************"
-#    print cost_linear_matrices
-#    print "CONSTRAINT MATRIX**********"
-#    print constraint_matrices
-#    print "CONSTRAINT_VECTOR***********"
-#    print constraint_vectors
-#    print "LB"
-#    print lb
-#    print "UB"
-#    print ub
+    ub = ub[0:n_joints] # Trim the lower/upper bounds to the number of joints being used (may be less than DOF - eg Cody).
 
     delta_phi_opt, opt_error, feasible = esm.solve_qp(cost_quadratic_matrices, 
                                                       cost_linear_matrices, 
@@ -596,12 +717,6 @@ class HapticMPC():
                                                       constraint_vectors, 
                                                       lb, ub, 
                                                       debug_qp=False)
-
-    print "delta_phi_opt"
-    print delta_phi_opt
-    
-#    print "len(self.joint_names)"
-#    print len(self.joint_names)
 
     # Updated joint positions.
     mpc_dat.jep[0:n_joints] = (mpc_dat.phi_curr[0:n_joints] + delta_phi_opt).A1
@@ -815,10 +930,14 @@ class HapticMPC():
   def initComms(self, node_name):
     rospy.init_node(node_name)
     self.robot_state_sub = rospy.Subscriber("/haptic_mpc/robot_state", haptic_msgs.RobotHapticState, self.robotStateCallback)
-    self.goal_sub = rospy.Subscriber("/haptic_mpc/traj_pose", geometry_msgs.msg.PoseStamped, self.goalCallback)
+    self.goal_pose_sub = rospy.Subscriber("/haptic_mpc/traj_pose", geometry_msgs.msg.PoseStamped, self.goalPoseCallback)
+    self.goal_posture_sub = rospy.Subscriber("/haptic_mpc/goal_posture", hrl_msgs.msg.FloatArray, self.goalPostureCallback)
+    
     self.delta_q_des_pub= rospy.Publisher("/haptic_mpc/delta_q_des", hrl_msgs.msg.FloatArrayBare)
     self.q_des_pub = rospy.Publisher("/haptic_mpc/q_des", hrl_msgs.msg.FloatArrayBare)
+    
     self.mpc_monitor_sub = rospy.Subscriber("/haptic_mpc/mpc_state", haptic_msgs.HapticMpcState, self.mpcMonitorCallback)
+    
     self.mpc_weights_sub = rospy.Subscriber("haptic_mpc/weights", haptic_msgs.HapticMpcWeights, self.updateWeightsCallback)
     self.mpc_weights_pub = rospy.Publisher("haptic_mpc/current_weights", haptic_msgs.HapticMpcWeights, latch=True)
   
