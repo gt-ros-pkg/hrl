@@ -1,0 +1,14 @@
+<launch>
+    <include file="$(find tf_throttle)/launch/tf_republished.launch"/>
+
+    <node pkg="rviz" name="$(anon rviz-1)" type="rviz" respawn="false" output="screen"
+      args="-d $(find trf_learn)/launch/rviz_config_userstudy.vcg -stylesheet $(find pr2_interactive_manipulation)/launch/big-menus.style">
+      <remap from="tf" to="tf_republished"/>
+    </node>
+
+    <node pkg="trf_learn" name="$(anon trf_rcommander)" type="rcommander_trf.py">
+      <remap from="joint_states" to="joint_states_throttle"/>
+      <remap from="tf" to="tf_republished"/>
+    </node>
+
+</launch>
