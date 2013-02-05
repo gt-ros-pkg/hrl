@@ -68,10 +68,11 @@ class CodyArmKinematics(HRLArmKinematics):
             pkl_nm = 'q_guess_right_dict.pkl'
         else:
             pkl_nm = 'q_guess_left_dict.pkl'
-
-        pth = roslib.rospack.rospackexec(['find', 'hrl_cody_arms'])
+          
+        # Seems to pre-load the seed start values for IK. Set to none for the moment.
+        pth = roslib.packages.get_pkg_dir('hrl_cody_arms') #roslib.rospack.rospackexec(['find', 'hrl_cody_arms'])
         q_guess_pkl = pth + '/src/hrl_cody_arms/'+pkl_nm
-        self.q_guess_dict = ut.load_pickle(q_guess_pkl)
+        self.q_guess_dict = None #ut.load_pickle(q_guess_pkl)
 
         self.arm_type = 'real' # for epc_skin_math
 
@@ -190,6 +191,15 @@ class CodyArmKinematics(HRLArmKinematics):
         m = frame.M
         rot = ku.kdl_rot_to_np(m)
         return pos, rot
+
+
+    ## compute Jacobian at point pos. 
+    # p is in the ground coord frame.
+    # this is a wrapper to try and not
+    # break things after changes to PR2
+    # classes
+    def jacobian(self, q, pos=None):
+        return self.Jacobian(q, pos)
 
     ## compute Jacobian at point pos. 
     # p is in the ground coord frame.

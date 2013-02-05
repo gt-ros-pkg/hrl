@@ -51,6 +51,10 @@ class HRLArmKinematics():
     def Jacobian(self, q, pos=None):
         raise RuntimeError('Unimplemented Function')
 
+    ## compute Jacobian at point pos.
+    def jacobian(self, q, pos=None):
+        raise RuntimeError('Unimplemented Function')
+
     ## define tooltip as a 3x1 np matrix in the wrist coord frame.
     def set_tooltip(self, arm, p, rot=np.matrix(np.eye(3))):
         self.tooltip_pos = p
