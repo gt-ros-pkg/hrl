@@ -42,7 +42,7 @@ from cody_arm_kinematics import CodyArmKinematics
 from equilibrium_point_control.hrl_arm import HRLArm
 import hrl_lib.viz as hv
 
-from hrl_msgs.msg import FloatArray
+from hrl_msgs.msg import FloatArray, FloatArrayBare
 from std_msgs.msg import Header, Bool, Empty
 
 from visualization_msgs.msg import Marker
@@ -110,6 +110,10 @@ class CodyArmClient(HRLArm):
 
         rospy.Subscriber('/'+arm+'_arm/joint_motor_temp', FloatArray, self.motor_temp_cb)
         rospy.Subscriber('/arms/pwr_state', Bool, self.pwr_state_cb)
+        
+        # Set desired joint angle - either through a delta from the current position, or as an absolute value.
+        rospy.Subscriber ("/haptic_mpc/q_des", FloatArrayBare, self.set_ep_callback)
+        rospy.Subscriber ("/haptic_mpc/delta_q_des", FloatArrayBare, self.set_delta_ep_callback)
 
         try:
             rospy.init_node(arm+'_arm_client', anonymous=False)
@@ -227,6 +231,18 @@ class CodyArmClient(HRLArm):
         h = Header()
         h.stamp = time_stamp
         self.alph_cmd_pub.publish(FloatArray(h, s))
+
+    def set_ep_callback(self, msg):
+        des_jep = msg.data        
+        self.set_ep(des_jep)
+      
+    def set_delta_ep_callback(self, msg):
+        delta_des_jep = msg.data
+        if self.ep == None:
+            self.ep = self.get_joint_angles()
+        des_jep = (np.array(self.ep) + np.array(delta_jep)).tolist()
+      
+        self.set_ep(des_jep, duration)
 
     # @param duration - for compatibility with the PR2 class.
     def set_ep(self, jep, duration=None):
