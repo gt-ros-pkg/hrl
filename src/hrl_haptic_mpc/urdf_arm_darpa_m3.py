@@ -149,13 +149,13 @@ class URDFArm(HRLArm):
             self.ep = jep
 
     def set_delta_ep_callback(self, msg):
-        delta_des_jep = msg.data
+        delta_jep = msg.data
         
         if self.ep == None:
             self.ep = self.get_joint_angles()
         des_jep = (np.array(self.ep) + np.array(delta_jep)).tolist()
         
-        self.set_ep(des_jep, duration)
+        self.set_ep(des_jep)
         
 #        delta_jep = copy.copy(msg.data)
 #        if delta_jep is None or len(delta_jep) != len(self.joint_names_list):
