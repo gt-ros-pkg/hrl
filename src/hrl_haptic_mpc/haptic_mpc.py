@@ -63,6 +63,7 @@ import copy
 import itertools as it
 import sys
 import math
+import signal
 
 ## Container class for the controller parameters. 
 #
@@ -192,8 +193,11 @@ class HapticMPC():
     # Control parameters - read from parameter server
     self.orient_weight = 1.0
     self.pos_weight = 1.0
-    
-    self.theta_step_multiplier = 0.05 # The error (theta_desired - theta_current) is multiplied by this to asymptotically decay to the goal.
+    self.posture_weight = 0.0
+  
+    self.position_step = 0.01 # metres
+    self.orient_step = np.radians(0.4) # radians
+    self.posture_step = np.radians(0.5) # radians
     
     self.deadzone_distance = 0.005 # 5mm 
     self.deadzone_angle = 10.0 # 10 degrees
@@ -589,9 +593,10 @@ class HapticMPC():
     # If we're within the deadzone band, do nothing
     dist_to_goal = np.linalg.norm(mpc_dat.x_h - mpc_dat.x_g)
     ang_to_goal = np.degrees(ut.quat_angle(mpc_dat.q_h_orient, mpc_dat.q_g_orient))
-    dist_g = mpc_dat.dist_g
-    ang_dist_g = np.radians(0.05)
+    dist_g = mpc_dat.dist_g # The computed step based on the controller frequency and desired cartesian velocity.
+    ang_dist_g = self.orient_step
 
+    if orient_weight > 0.0 # If orientation control is enabled, then 
     if dist_to_goal < self.deadzone_distance and (ang_to_goal < self.deadzone_angle and mpc_dat.orient_weight > 0.0):
       dist_g = 0.0 
       ang_dist_g = 0.0   
@@ -617,45 +622,45 @@ class HapticMPC():
                                                    ang_dist_g)
     
     # Build the delta_x_g vector for the controller.
-    if mpc_dat.position_weight == 0.:
-      delta_x_g = delta_orient_g
-      J_h = mpc_dat.Je[3:]
-      T_quat = 0.5 * (mpc_dat.q_h_orient[3] 
-                      * np.matrix(np.eye(3)) 
-                      - haptic_mpc_util.getSkewMatrix(mpc_dat.q_h_orient[0:3]))
-      J_h = T_quat*J_h
-
-    elif mpc_dat.orient_weight == 0.:
-      delta_x_g = delta_pos_g
-      J_h = mpc_dat.Je[0:3]
-    else:
+#    if mpc_dat.position_weight == 0.:
+#      delta_x_g = delta_orient_g
+#      J_h = mpc_dat.Je[3:] 
+#      T_quat = 0.5 * (mpc_dat.q_h_orient[3] 
+#                      * np.matrix(np.eye(3)) 
+#                      - haptic_mpc_util.getSkewMatrix(mpc_dat.q_h_orient[0:3]))
+#      J_h = T_quat*J_h * np.sqrt(mpc_dat.orient_weight)
+#
+#    elif mpc_dat.orient_weight == 0.:
+#      delta_x_g = delta_pos_g
+#      J_h = mpc_dat.Je[0:3] * np.sqrt(mpc_dat.position_weight)
+#    else:
       
-      delta_x_g = np.vstack((delta_pos_g*np.sqrt(mpc_dat.position_weight), 
-                             delta_orient_g*np.sqrt(mpc_dat.orient_weight)))
-      
-      J_h = mpc_dat.Je
-      T_quat = 0.5 * (mpc_dat.q_h_orient[3] 
-                      * np.matrix(np.eye(3)) 
-                      - haptic_mpc_util.getSkewMatrix(mpc_dat.q_h_orient[0:3]))
-      
-      J_h[3:] = T_quat*J_h[3:]
-      J_h[0:3] = J_h[0:3] * np.sqrt(mpc_dat.position_weight)
-      J_h[3:] = J_h[3:] * np.sqrt(mpc_dat.orient_weight)
+#    delta_x_g = np.vstack((delta_pos_g*np.sqrt(mpc_dat.position_weight), 
+#                           delta_orient_g*np.sqrt(mpc_dat.orient_weight)))
+#    
+#    J_h = mpc_dat.Je
+#    T_quat = 0.5 * (mpc_dat.q_h_orient[3] 
+#                    * np.matrix(np.eye(3)) 
+#                    - haptic_mpc_util.getSkewMatrix(mpc_dat.q_h_orient[0:3]))
+#    
+#    J_h[3:] = T_quat*J_h[3:]
+#    J_h[0:3] = J_h[0:3] * np.sqrt(mpc_dat.position_weight)
+#    J_h[3:] = J_h[3:] * np.sqrt(mpc_dat.orient_weight)
 
 
 # TODO - NEW MATHS. Explicitly apply weights - it's much easier to understand.
-#    # combine position/orientation goals
-#    delta_x_g = np.vstack( (delta_pos_g, delta_orient_g) )
-#      
-#    J_h = mpc_dat.Je
-#    T_quat = 0.5 * (mpc_dat.q_h_orient[3] 
-#                      * np.matrix(np.eye(3)) 
-#                      - haptic_mpc_util.getSkewMatrix(mpc_dat.q_h_orient[0:3]))
-#      
-#    J_h[3:] = T_quat*J_h[3:]
+    # combine position/orientation goals
+    delta_x_g = np.vstack( (delta_pos_g, delta_orient_g) )
+      
+    J_h = mpc_dat.Je
+    T_quat = 0.5 * (mpc_dat.q_h_orient[3] 
+                      * np.matrix(np.eye(3)) 
+                      - haptic_mpc_util.getSkewMatrix(mpc_dat.q_h_orient[0:3]))
+      
+    J_h[3:] = T_quat*J_h[3:]
     
-#    J_h[0:3] = J_h[0:3] * np.sqrt(mpc_dat.position_weight)
-#    J_h[3:] = J_h[3:] * np.sqrt(mpc_dat.orient_weight)
+    J_h[0:3] = J_h[0:3] #* np.sqrt(mpc_dat.position_weight)
+    J_h[3:] = J_h[3:] #* np.sqrt(mpc_dat.orient_weight)
     
 
     # For some reason the force reduction term in the cost function changes weights... 
@@ -952,9 +957,17 @@ class HapticMPC():
 
     return haptic_srvs.EnableHapticMPCResponse(self.mpc_state)  
 
+  ## Handler for Ctrl-C signals. Some of the ROS spin loops don't respond well to
+  # Ctrl-C without this. 
+  def signal_handler(self, signal, frame):
+    print 'Ctrl+C pressed - exiting'
+    sys.exit(0)
+
 
   ## Start the control loop once the controller is initialised.
   def start(self):
+    signal.signal(signal.SIGINT, self.signal_handler) # Catch Ctrl-Cs
+    
     self.initRobot()
     self.initComms("haptic_mpc")
     rospy.sleep(1.0) # Delay to allow the ROS node to initialise properly.

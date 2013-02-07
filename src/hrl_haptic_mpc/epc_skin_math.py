@@ -262,7 +262,17 @@ def convert_to_qp_posture(J_h, Jc_l, K_j, Kc_l, Rc_l, delta_f_min,
                   min_q, max_q, jerk_opt_weight, max_force_mag, delta_theta_des, 
                   posture_weight, position_weight, orient_weight, force_weight,
                   force_reduction_goal):
-    # TODO: Push the weights down here so the weight calc is done here rather than the upper controller (preapplied to the delta_x_g vector).
+  
+    ## Apply the pose weights: position & orientation.
+    # These are sqrt'd as the quadratic term takes the form Jh^T * Jh, and the linear is delta_x_g * Jh
+    delta_x_g[0:3] = delta_x_g[0:3]*np.sqrt(position_weight)
+    delta_x_g[3:] = delta_x_g[3:]*np.sqrt(orient_weight)
+    J_h[0:3] = J_h[0:3] * np.sqrt(position_weight)
+    J_h[3:] = J_h[3:] * np.sqrt(orient_weight)   
+    
+    # Calculate various matrices. These are combinations of Jacobians/stiffness matrices and 
+    # match the maths in the derivation document. They're separated out so they're only
+    # computed once. 
     P0_l, P1, P2, P3, P4_l = P_matrices(J_h, K_j, Kc_l, Jc_l)
     D2, D3, D4, D5, D6 = D_matrices(delta_x_g, delta_f_min, K_j, Rc_l,
                                     P3, P4_l)
@@ -271,28 +281,16 @@ def convert_to_qp_posture(J_h, Jc_l, K_j, Kc_l, Rc_l, delta_f_min,
     # Cost = phi^t D2 phi + D3 phi
     
     # POSE TERM:
-    # Cost_pose = pose_weight * | delta_x_g - H * delta_phi |^2
+    # Cost_pose = | delta_x_g - H * delta_phi |^2
+    #           = (phi^T * Q_pose * phi + L_pose * phi) 
     # Q_pose = H^T H
     # L_pose = - 2 * delta_x_g^T * H)
     # where H = J_h * (J_c^T * K_c * J_c + K_j)^-1 * K_j
-    
-#    pose_weight = [position_weight] * 3 # 3 DOF position vector
-#    pose_weight.extend([orient_weight] * 4)  # 4 DOF orientation vector - quaternion
-#    pose_weight_vector = np.matrix(pose_weight)
-#    
+    # NB: The weight here is applied earlier to the Jacobian and desired goal as it's a weight on position/orientation, not joint angles.
 
-#    print "D2******************"
-#    print D2
-#    print "D3 ***********"
-#    print D3
-#    J_h[0:3] = J_h[0:3] * np.sqrt(mpc_dat.position_weight)
-#    J_h[3:] = J_h[3:] * np.sqrt(mpc_dat.orient_weight)
-#    D2[0:3] = D2[0:3] * position_weight  # Multiply weights into D2
-#    D2[3:] = D2[3:] * orient_weight
-#    Q_pose = D2
-#    D3[0,0:3] = D3[0,0:3] * position_weight # D3 is a horizontal vector
-#    D3[0,3:] = D3[0,3:] * orient_weight
-#    L_pose = D3 # Apply the weight vector across each element of D3
+    Q_pose = D2
+    L_pose = D3     
+    
 #    print "NEWD2******************"
 #    print Q_pose
 #    print "NEWD3 ***********"
@@ -305,14 +303,10 @@ def convert_to_qp_posture(J_h, Jc_l, K_j, Kc_l, Rc_l, delta_f_min,
     # B = (J_c^T K_c J_c + K_j)^-1 K_j ;  P2 =  (J_c^T K_c J_c + K_j)^-1
     # B = P2 K_j
 
-#    print "delta_theta_des************"
-#    print delta_theta_des
-#    print "q**********"
-#    print q
-#    B = P2 * K_j
-#    Q_posture = posture_weight * B.T * B # Quadratic matrix
-#    L_posture = posture_weight * (-2.0 * delta_theta_des.T * B) # Linear matrix
-#    
+    B = P2 * K_j
+    Q_posture = posture_weight * B.T * B # Quadratic matrix
+    L_posture = posture_weight * (-2.0 * delta_theta_des.T * B) # Linear matrix
+    
 #    D2 = Q_pose + Q_posture
 #    D3 = L_pose + L_posture
     
@@ -365,8 +359,13 @@ def convert_to_qp_posture(J_h, Jc_l, K_j, Kc_l, Rc_l, delta_f_min,
     K_j_t = K_j
     min_jerk_mat = min_jerk_quadratic_matrix(jerk_opt_weight, K_j_t)
 
-    cost_quadratic_matrices += [1. * D2, 1. * min_jerk_mat]
-    cost_linear_matrices += [1. * D3]
+    # New matrices - merge Q_pose, Q_posture, etc
+    cost_quadratic_matrices += [1. * Q_pose, 1. * Q_posture, 1. * min_jerk_mat]
+    cost_linear_matrices += [1. * L_pose, 1. * L_posture]
+      
+    # Original cost matrices
+#    cost_quadratic_matrices += [1. * D2, 1. * min_jerk_mat]
+#    cost_linear_matrices += [1. * D3]
 
     # adding explicit contraint for joint limits.
     constraint_matrices.append(D7)
