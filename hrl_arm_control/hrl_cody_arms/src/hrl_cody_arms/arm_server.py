@@ -146,13 +146,14 @@ class MekaArmServer():
         rospy.init_node('arm_server', anonymous=False)
 
         if use_netft_r:
-            self.ftclient_r = ftc.FTClient('force_torque_ft4', True)
-            #self.ftclient.bias()
+            self.ftclient_r = ftc.FTClient('force_torque_ft5', True)
+            self.ftclient_r.bias()
         else:
             self.ftclient_r = None
 
         if use_netft_l:
             self.ftclient_l = ftc.FTClient('force_torque_ft6', True)
+            self.ftclient_l.bias()
         else:
             self.ftclient_l = None
 
@@ -198,6 +199,8 @@ class MekaArmServer():
         self.l_jep = None # see set_jep
         self.q_r = None # using this to compute qdot
         self.q_l = None # using this to compute qdot
+        self.q_rHOT = None # using this to compute qdot # added_by_tapo, Jan 23-2013
+        self.q_lHOT = None # using this to compute qdot # added_by_tapo, Jan 23-2013
         self.time_stamp = None # using this to compute qdot
 
         d = {}
@@ -426,15 +429,20 @@ class MekaArmServer():
         # it seems like this estimate of joint velocity should really be filtered
         # or at least a better estimate of the derivative (higher order difference equation)
         # - marc Jul 13, 2012
+        # added one more term to achieve a better estimate of the derivative - tapo Jan 23, 2013
         t_now = rospy.get_time()
-        if self.q_r != None and self.q_l != None and self.time_stamp != None:
+        if self.q_r != None and self.q_l != None and self.q_rHOT != None and self.q_lHOT != None and self.time_stamp != None:
             dt = t_now - self.time_stamp
-            qdot_r = (np.array(q_r) - np.array(self.q_r)) / dt
-            qdot_l = (np.array(q_l) - np.array(self.q_l)) / dt
+            #qdot_r = (np.array(q_r) - np.array(self.q_r)) / dt
+            qdot_r = (-np.array(q_r) + 4*np.array(self.q_r) - 3*np.array(self.q_rHOT)) / (2*dt)
+            #qdot_l = (np.array(q_l) - np.array(self.q_l)) / dt
+            qdot_l = (-np.array(q_l) + 4*np.array(self.q_l) - 3*np.array(self.q_lHOT)) / (2*dt)
         else:
             qdot_r = np.zeros(7)
             qdot_l = np.zeros(7)
 
+        self.q_rHOT = self.q_r
+        self.q_lHOT = self.q_l
         self.q_r = q_r
         self.q_l = q_l
         self.time_stamp = t_now
@@ -608,7 +616,8 @@ class MekaArmServer():
     # @return list of 7 joint accelerations in RADIANS/s^2.
     #         according to meka's coordinate frames.
     def get_joint_accelerations(self, arm):
-        return self.arms[arm].get_thetadotdot_rad().tolist()
+        #return self.arms[arm].get_thetadotdot_rad().tolist()
+        raise RuntimeError('The meka joint accelerations are incorrect (Because the joint velocities are incorrect - Tapo, Jan 23, 2013). Computing my own joint accelerations.')
 
     ##
     # @param arm - 'left_arm' or 'right_arm'

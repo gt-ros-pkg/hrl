@@ -613,6 +613,12 @@ class PR2Arms_kdl():
 
     ## compute Jacobian at point pos.
     # p is in the torso_lift_link coord frame.
+    # this is wrapper function
+    def jacobian(self, arm, q, pos):
+        return self.Jacobian(arm, q, pos)
+
+    ## compute Jacobian at point pos.
+    # p is in the torso_lift_link coord frame.
     def Jacobian(self, arm, q, pos):
         if arm != 0:
             rospy.logerr('Arm %d is not supported.'%(arm))
