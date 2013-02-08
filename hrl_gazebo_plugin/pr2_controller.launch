@@ -1,0 +1,12 @@
+<launch>
+  
+  <!-- default bringup script -->
+  <include file="$(find pr2_gazebo)/launch/pr2_bringup.launch" />
+
+  <!-- Load and Start Default Controllers -->
+  <include file="$(find pr2sim_controller_configuration_gazebo)/pr2sim_default_controllers.launch" />
+
+  <!-- Remap topic name -->
+  <!--remap from="ros_model_plugin_node/joint_states" to="joint_states"-->
+
+</launch>
