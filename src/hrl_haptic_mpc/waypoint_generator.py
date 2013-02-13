@@ -41,6 +41,7 @@ class WaypointGenerator():
   pr2_param_path = "/pr2"
   sim_param_path = "/sim3"
   simcody_param_path = "/simcody"
+  crona_param_path = "/crona"
 
   # ROS Topics. TODO: Move these to param server to allow easy changes across all modules.
   current_pose_topic = "/haptic_mpc/robot_state"
@@ -92,6 +93,8 @@ class WaypointGenerator():
       self.initSim3()
     elif(self.opt.robot == "simcody"):
       self.initSimCody()
+    elif(self.opt.robot == "crona"):
+      self.initCrona()
     else:
       rospy.logerr("Invalid Robot type: %s" % robot)
 
@@ -126,7 +129,22 @@ class WaypointGenerator():
   def initSim3(self):
     rospy.loginfo("Trajectory generator for: Simulation 3DOF")
     # Nothing to initialise for this.
-    
+   
+  def initCrona(self):
+    from pykdl_utils.kdl_kinematics import create_kdl_kin
+
+    rospy.loginfo("Trajectory generator for: cRoNA")
+    if not self.opt.arm:
+      rospy.logerr('Arm not specified for cRoNA')
+      sys.exit()
+
+    self.robot_kinematics = create_kdl_kin('torso_chest_link', self.opt.arm+'_hand_link')
+    self.tf_listener = tf.TransformListener()
+
+    if self.opt.arm == None:
+        rospy.logerr('Need to specify --arm_to_use.\nExiting...')
+        sys.exit()
+
   ## Initialise all publishers/subscribers used by the waypoint generator.
   def initComms(self):        
     # Publish to a waypoint pose topic
@@ -147,7 +165,7 @@ class WaypointGenerator():
   # @param msg A geometry_msgs.msg.PoseStamped object.
   def goalPoseCallback(self, msg):
     rospy.loginfo("Got new goal pose")
-    if not 'torso_lift_link' in msg.header.frame_id:
+    if (not 'torso_lift_link' in msg.header.frame_id) and (not '/torso_chest_link' in msg.header.frame_id):
       print "msg.header.frame_id"
       print msg.header.frame_id
       try:
