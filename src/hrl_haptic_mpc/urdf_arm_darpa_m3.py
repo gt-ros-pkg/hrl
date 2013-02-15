@@ -40,12 +40,12 @@ import actionlib
 import tf
 
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Empty
 
 from visualization_msgs.msg import Marker
 
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction, Pr2GripperCommand
+from std_msgs.msg import Empty
 
 from equilibrium_point_control.hrl_arm import HRLArm
 from pykdl_utils.kdl_kinematics import create_kdl_kin
@@ -53,9 +53,15 @@ from hrl_msgs.msg import FloatArrayBare
 import hrl_lib.viz as hv
 
 class URDFArm(HRLArm):
-    def __init__(self, arm, tf_listener=None):
-        kinematics = create_kdl_kin('/torso_lift_link',
-                                    arm + '_gripper_tool_frame')
+
+    def __init__(self, arm, tf_listener=None, base_link=None, end_link=None):
+	if not arm in ['l', 'r']:
+            raise Exception, 'Arm should be "l" or "r"'
+        if base_link is None:
+            self.base_link = '/torso_lift_link'
+        if end_link is None:
+            self.end_link = arm + '_gripper_tool_frame'
+        kinematics = create_kdl_kin(self.base_link, self.end_link)
         HRLArm.__init__(self, kinematics)
         self.joint_names_list = kinematics.get_joint_names()
         self.torso_position = None
@@ -102,7 +108,6 @@ class URDFArm(HRLArm):
 
         self.gripper_action_client = actionlib.SimpleActionClient(arm+'_gripper_controller/gripper_action',
                                                                   Pr2GripperCommandAction)
-
         rospy.Subscriber('open_gripper', Empty, self.open_gripper_cb)
         rospy.Subscriber('close_gripper', Empty, self.close_gripper_cb)
 
@@ -130,7 +135,7 @@ class URDFArm(HRLArm):
             self.arm_efforts = arm_efforts
             self.qdot = arm_vel
 
-            torso_idx = data.name.index('torso_lift_joint')
+            torso_idx = data.name.index(self.base_link)
             self.torso_position = data.position[torso_idx]
 
     def set_ep(self, jep, duration=0.15):
@@ -208,7 +213,7 @@ class URDFArm(HRLArm):
         jep = self.get_ep()
         cep, r = self.kinematics.FK(jep)
         cep_marker = hv.single_marker(cep, o, 'sphere',
-                        '/torso_lift_link', color=(0., 0., 1., 1.),
+                        self.base_link, color=(0., 0., 1., 1.),
                         scale = (0.02, 0.02, 0.02), duration=0.,
                         m_id=1)
         cep_marker.header.stamp = rospy.Time.now()
@@ -217,7 +222,7 @@ class URDFArm(HRLArm):
         q = self.get_joint_angles()
         ee, r = self.kinematics.FK(q)
         ee_marker = hv.single_marker(ee, o, 'sphere',
-                        '/torso_lift_link', color=(0., 1., 0., 1.),
+                        self.base_link, color=(0., 1., 0., 1.),
                         scale = (0.02, 0.02, 0.02), duration=0.,
                         m_id=2)
         ee_marker.header.stamp = rospy.Time.now()

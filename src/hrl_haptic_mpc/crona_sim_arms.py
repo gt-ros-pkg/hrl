@@ -148,7 +148,7 @@ class CronaArm(HRLArm):
             while q[ind] > np.pi:
                 q[ind] -= 2*np.pi
         return q
-	
+
     def publish_rviz_markers(self):
         # publish the CEP marker.
         o = np.matrix([0.,0.,0.,1.]).T

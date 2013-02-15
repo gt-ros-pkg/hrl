@@ -280,14 +280,14 @@ class RobotHapticStateServer():
     self.inertial_frame = rospy.get_param(self.base_path +
                                           self.robot_path +
                                           '/inertial_frame')
-    rospy.loginfo("RobotHapticState: Initialising PR2 haptic state publisher with the following skin topics: \n%s"
+    rospy.loginfo("RobotHapticState: Initialising CRONA haptic state publisher with the following skin topics: \n%s"
                   %str(self.skin_topic_list))
 
     self.inertial_frame = '/base_link'
     self.torso_frame = '/torso_chest_link'
     rospy.loginfo("RobotHapticState: Initialising robot interface")
     if not self.opt.arm:
-      rospy.logerr("RobotHapticState: No arm specified for PR2")
+      rospy.logerr("RobotHapticState: No arm specified for CRONA")
       sys.exit()
     self.robot = crona_arm.CronaArm(self.opt.arm,self.tf_listener)
     self.skins = []
