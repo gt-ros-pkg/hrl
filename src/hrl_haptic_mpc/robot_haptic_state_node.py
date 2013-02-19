@@ -84,6 +84,8 @@ class RobotHapticStateServer():
       self.initCody()
     elif robot_type == "sim3":
       self.initSim()
+    elif robot_type == "crona":
+      self.initCrona()
     else:
       rospy.logerr("RobotHapticState: Invalid robot type specified")
       sys.exit()
@@ -263,6 +265,49 @@ class RobotHapticStateServer():
 
     self.robot = cody_arm.CodyArmClient(self.opt.arm)
 
+  def initCrona(self):
+    import crona_sim_arms as crona_arm
+
+    self.robot_path = "/crona"
+    self.skin_topic_list = rospy.get_param(self.base_path +
+                                           self.robot_path +
+                                           '/skin_list/' + self.opt.sensor)
+    self.torso_frame = rospy.get_param(self.base_path +
+                                       self.robot_path +
+                                       '/torso_frame' )
+    self.inertial_frame = rospy.get_param(self.base_path +
+                                          self.robot_path +
+                                          '/inertial_frame')
+    rospy.loginfo("RobotHapticState: Initialising CRONA haptic state publisher with the following skin topics: \n%s"
+                  %str(self.skin_topic_list))
+
+    self.inertial_frame = '/base_link'
+    self.torso_frame = '/torso_chest_link'
+    rospy.loginfo("RobotHapticState: Initialising robot interface")
+    if not self.opt.arm:
+      rospy.logerr("RobotHapticState: No arm specified for CRONA")
+      sys.exit()
+    self.robot = crona_arm.CronaArm(self.opt.arm,self.tf_listener)
+    self.skins = []
+    self.Jc = []
+
+    # Push joint angles to the param server.
+    if self.opt.arm in ['l', 'r']:
+      arm_path = '/left'
+      if self.opt.arm == 'r':
+        arm_path = '/right'
+
+    self.joint_limits_max = rospy.get_param(self.base_path +
+                                            self.robot_path +
+                                            '/joint_limits' +
+                                            arm_path + '/max')
+    self.joint_limits_min = rospy.get_param(self.base_path +
+                                            self.robot_path +
+                                            '/joint_limits' +
+                                            arm_path + '/min')
+
+    # Push the arm specific param to the location the controller looks.
+    self.setControllerJointLimits(self.joint_limits_max, self.joint_limits_min)
 
   # Initialise publishers for the robot haptic state,
   # the current gripper pose, and a TF listener.
@@ -415,15 +460,15 @@ class RobotHapticStateServer():
     #self.torso_pose = self.updateTorsoPose()
     self.updateEndEffectorPose()
     self.updateEndEffectorJacobian()
-    
+    if self.opt.robot != 'crona':
     # Skin sensor calculations.
     # Get the latest skin data from the skin client
-    skin_data = self.skin_client.getTrimmedSkinData()
+      skin_data = self.skin_client.getTrimmedSkinData()
     # Trim skin_data based on specific robot state (eg wrist configuration).
-    skin_data = self.modifyRobotSpecificTaxels(skin_data)
-    self.updateContactJacobians(skin_data)
+      skin_data = self.modifyRobotSpecificTaxels(skin_data)
+      self.updateContactJacobians(skin_data)
     # Add the list of  TaxelArray messages to the message
-    self.skins = skin_data.values()
+      self.skins = skin_data.values()
     
   ## Build the haptic state message data structure
   # @return haptic_state_msg Haptic State message object containing relevant data 

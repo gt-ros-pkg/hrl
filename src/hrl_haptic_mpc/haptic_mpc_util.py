@@ -176,7 +176,7 @@ def initialiseOptParser(p):
 def getValidInput(p):
   opt, args = p.parse_args()
   # Validate input options
-  valid_robots = ['cody', 'pr2', 'sim3', 'sim3_with_hand', 'simcody']
+  valid_robots = ['cody', 'pr2', 'sim3', 'sim3_with_hand', 'simcody', 'crona']
   valid_sensors = ['meka', 'fabric', 'hil', 'none', 'pps', 'sim']
 
   if opt.robot and opt.robot not in valid_robots:

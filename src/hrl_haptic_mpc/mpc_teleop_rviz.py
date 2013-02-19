@@ -232,6 +232,12 @@ class MPCTeleopInteractiveMarkers():
         #wp_im = imu.make_6dof_marker(False, ps, 0.15, (1., 1., 0.,0.4), 'sphere')
       else:
         self.wp_im = imu.make_3dof_marker_position(ps, 0.15, (1., 1., 0.,0.4), 'sphere')
+    elif self.opt.robot == "crona": 
+      ps.header.frame_id = "/torso_chest_link"
+      ps.point.x = 0.6
+      ps.point.y = -0.1
+      ps.point.z = 0.15
+      self.wp_im = imu.make_6dof_marker(False, ps, 0.5, (1., 1., 0.,0.4), 'sphere')
     else:
       rospy.logerr('Please specify a robot type using the input arguments: -r <pr2, sim3, etc>')
       sys.exit()
