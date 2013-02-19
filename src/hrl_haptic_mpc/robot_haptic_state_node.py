@@ -23,6 +23,7 @@ from hrl_lib import transforms as tr
 import hrl_haptic_manipulation_in_clutter_msgs.msg as haptic_msgs
 import multiarray_to_matrix
 import haptic_mpc_util
+import skin_client as sc
 
 ## @class RobotHapticStateServer Haptic state publisher: publishes all relevant haptic state information on a common interface independent of robot type.
 class RobotHapticStateServer():
@@ -91,7 +92,6 @@ class RobotHapticStateServer():
   def initPR2(self):
     # Robot kinematic classes and skin clients. These are specific to each robot
     import urdf_arm_darpa_m3 as urdf_arm
-    import pr2_skin_client as pr2_sc
 
     #import pr2_arm_darpa_m3_deprecated as pr2_arm # DEPRECATED
 
@@ -109,7 +109,7 @@ class RobotHapticStateServer():
     rospy.loginfo("RobotHapticState: Initialising PR2 haptic state publisher" +
                   "with the following skin topics: \n%s"
                   %str(self.skin_topic_list))
-    self.skin_client = pr2_sc.PR2SkinClient(self.skin_topic_list,
+    self.skin_client = sc.TaxelArrayClient(self.skin_topic_list,
                                              self.torso_frame,
                                              self.tf_listener)
     self.skin_client.setTrimThreshold(self.trim_threshold)
@@ -143,7 +143,6 @@ class RobotHapticStateServer():
   ## Initialise parameters for the state publisher when used on Cody.
   def initCody(self):
     import hrl_cody_arms.cody_arm_client
-    import cody_skin_client
 
     # Load the skin list from the param server
     self.robot_path = '/cody'
@@ -160,7 +159,7 @@ class RobotHapticStateServer():
                   " with the following skin topics: \n%s"
                   %str(self.skin_topic_list))
     
-    self.skin_client = cody_skin_client.CodySkinClient(self.skin_topic_list,
+    self.skin_client = sc.TaxelArrayClient(self.skin_topic_list,
                                                        self.torso_frame,
                                                        self.tf_listener)
     self.skin_client.setTrimThreshold(self.trim_threshold)
@@ -193,12 +192,12 @@ class RobotHapticStateServer():
   def initSim(self):
     import gen_sim_arms as sim_robot
     import hrl_common_code_darpa_m3.robot_config.three_link_planar_capsule as sim_robot_config
-    import sim_skin_client as sim_sc
+
     # Load the skin list from the param server
     self.robot_path = '/sim3'
     self.skin_topic_list = rospy.get_param(self.base_path +
                                            self.robot_path +
-                                           '/skin_list')
+                                           '/skin_list/' + self.opt.sensor)
     self.torso_frame = rospy.get_param(self.base_path +
                                        self.robot_path +
                                        '/torso_frame')
@@ -209,7 +208,7 @@ class RobotHapticStateServer():
                   "with the following skin topics: \n%s"
                   %str(self.skin_topic_list))
 
-    self.skin_client = sim_sc.SimSkinClient(self.skin_topic_list,
+    self.skin_client = sc.TaxelArrayClient(self.skin_topic_list,
                                             self.torso_frame,
                                             self.tf_listener)
     self.skin_client.setTrimThreshold(self.trim_threshold)
@@ -236,7 +235,6 @@ class RobotHapticStateServer():
   #with the 7DOF cody arm.
   def initSimCody(self):
     import cody_arm_darpa_m3 as cody_arm
-    import sim_skin_client as sim_sc
 
     # Load the skin list from the param server
     self.robot_path = '/simcody'
@@ -252,7 +250,7 @@ class RobotHapticStateServer():
     rospy.loginfo("RobotHapticState: Initialising Sim haptic state publisher" +
                   "with the following skin topics: \n%s"
                   %str(self.skin_topic_list))
-    self.skin_client = sim_sc.SimSkinClient(self.skin_topic_list,
+    self.skin_client = sc.TaxelArrayClient(self.skin_topic_list,
                                             self.torso_frame,
                                             self.tf_listener)
     self.skin_client.setTrimThreshold(self.trim_threshold)
@@ -306,7 +304,7 @@ class RobotHapticStateServer():
     # jt_l = list of joints beyond which the jacobian columns are zero.
     # loc_l. jt_l from skin client.
     Jc_l = []
-    loc_l, jt_l = self.skin_client.getTaxelLocationAndJointList(skin_data)
+    loc_l, jt_l = self.getTaxelLocationAndJointList(skin_data)
 
     if len(loc_l) != len(jt_l):
       rospy.logfatal("Haptic State Publisher: Dimensions don't match. %s, %s" % (len(loc_l), len(jt_l)))
@@ -355,6 +353,44 @@ class RobotHapticStateServer():
     self.end_effector_position = pos
     self.end_effector_orient_cart = rot
     self.end_effector_orient_quat = tr.matrix_to_quaternion(rot)
+
+  ## Returns a list of taxel locations and a list of joint numbers after which the
+  # joint torque will have no effect on the contact force
+  # @param skin_data Dictionary of TaxelArrays indexed by topic
+  # @retval locations List of taxel locations where a force is present
+  # @retval joint_nums List of joints after which the joint torque will have no effect on the contact force 
+  # @return These arrays will both be the same length (as the joint number corresponds 
+  def getTaxelLocationAndJointList(self, skin_data):
+    locations = []
+    joint_nums = []
+    
+    for ta_msg in skin_data.values():
+      # Get points list
+      ta_locs = self.skin_client.getContactLocationsFromTaxelArray(ta_msg)
+      # Create list of joints beyond which the joint torque has no effect on contact force
+      ta_jts = []
+      for contact_index in range(len(ta_msg.centers_x)):
+        jt_num = len(self.joint_angles)-1 # Index of last joint, 0 indexed.
+        
+        # Verify we have the same number of link names as taxel contacts If not, make no assumptions about joints.
+        if len(ta_msg.link_names) >= len(ta_msg.centers_x):
+          link_name = ta_msg.link_names[contact_index]
+        
+          # Iterate over the known joint names looking for the link this is associated with.
+          # NB: links should be named based on their joint. 
+          # NB: 
+          for idx, joint_name in enumerate(self.joint_names):
+            if joint_name in link_name: 
+              jt_num = idx
+              break # 
+          
+        ta_jts.append(jt_num)
+          
+      # Attach these lists to the end of the global list (incorporating multiple taxel arrays)
+      locations.extend(ta_locs)
+      joint_nums.extend(ta_jts)
+      
+    return locations, joint_nums
 
   ## Modify taxel data for PR2 specific situations
   # TODO: Survy to implement selective taxel ignoring.
@@ -437,9 +473,10 @@ class RobotHapticStateServer():
   ## Build and publish the haptic state message.
   def publishRobotState(self):
     msg = self.getHapticStateMessage()
+
     # Publish the newly formed state message
     self.state_pub.publish(msg)
-    
+
     # Publish gripper pose for debug purposes
     ps_msg = geom_msgs.PoseStamped()
     ps_msg.header = self.getMessageHeader()
@@ -447,14 +484,15 @@ class RobotHapticStateServer():
 
     ps_msg.pose.position = geom_msgs.Point(*(self.end_effector_position.A1))
     ps_msg.pose.orientation = geom_msgs.Quaternion(*self.end_effector_orient_quat)
+  
     self.gripper_pose_pub.publish(ps_msg)
+    
 
   ## Handler for Ctrl-C signals. Some of the ROS spin loops don't respond well to
   # Ctrl-C without this. 
   def signal_handler(self, signal, frame):
     print 'Ctrl+C pressed - exiting'
     sys.exit(0)
-
 
   ## Start the state publisher
   def start(self):
