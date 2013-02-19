@@ -1,7 +1,7 @@
 
 #
 # Code copied from basic_controls.py and then modified.
-# Author: M Killpack
+# Author: Marc Killpack
 
 
 """
@@ -341,7 +341,7 @@ def make_6dof_gripper(fixed, ps, scale, color, robot_type = "pr2",
     control =  InteractiveMarkerControl()
     control.always_visible = True
     if robot_type == "pr2":
-        control = make_pr2_gripper_marker(ps, [1, 1, 1, 0.4], control=control) 
+        control = make_pr2_gripper_marker(ps, [0.3, 0.3, 0.3, 0.7], control=control) 
         int_marker.description = 'pr2_gripper_control'
     elif robot_type == "cody":
         control = make_cody_ee_marker(ps, [1, 1, 1, 0.4], control=control) 

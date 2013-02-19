@@ -1,10 +1,26 @@
 #!/usr/bin/env python
 
+#   Copyright 2013 Georgia Tech Research Corporation
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+#  http://healthcare-robotics.com/
+
 ## @package hrl_haptic_mpc
 # 
-# @author Jeff Hawke jhawke@gatech.edu
+# @author Jeff Hawke 
 # @version 0.1
-# @copyright Simplified BSD Licence
+# @copyright Apache 2.0
 
 import math, numpy as np
 import sys, optparse
@@ -248,7 +264,7 @@ class MPCTeleopInteractiveMarkers():
     self.current_goal_pose = ps
      
     self.wp_im.name = 'way_point'
-    self.wp_im.description = 'Way Point'
+    self.wp_im.description = 'Waypoint'
     self.server.insert(self.wp_im, self.interactiveMarkerLocationCallback)
     self.server.applyChanges()
    
