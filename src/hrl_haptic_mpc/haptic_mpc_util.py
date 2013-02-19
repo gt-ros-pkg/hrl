@@ -177,14 +177,14 @@ def getValidInput(p):
   opt, args = p.parse_args()
   # Validate input options
   valid_robots = ['cody', 'pr2', 'sim3', 'sim3_with_hand', 'simcody']
-  valid_sensors = ['meka', 'fabric', 'hil', 'none']
+  valid_sensors = ['meka', 'fabric', 'hil', 'none', 'pps', 'sim']
 
   if opt.robot and opt.robot not in valid_robots:
     p.error("Must specify a valid robot type: -r %s" % str(valid_robots))
   if opt.sensor and opt.sensor not in valid_sensors:
     p.error("Must specify a valid sensor type: -s %s" % str(valid_sensors))
   if opt.robot and opt.sensor and opt.robot == 'pr2' and (opt.sensor == 'meka' or opt.sensor == 'hil'):
-    p.error("Invalid sensor for the PR2 [meka, hil]. Valid options: -s [fabric, none]")  
+    p.error("Invalid sensor for the PR2 [meka, hil]. Valid options: -s [fabric, pps, none]")  
   return opt
 
 ## Get number of decimal points in a float.

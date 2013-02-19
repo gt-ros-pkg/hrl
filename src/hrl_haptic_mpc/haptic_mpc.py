@@ -596,8 +596,21 @@ class HapticMPC():
     dist_g = mpc_dat.dist_g # The computed step based on the controller frequency and desired cartesian velocity.
     ang_dist_g = self.orient_step
 
-    if orient_weight > 0.0 # If orientation control is enabled, then 
-    if dist_to_goal < self.deadzone_distance and (ang_to_goal < self.deadzone_angle and mpc_dat.orient_weight > 0.0):
+    # Deadzone on pose motion
+    in_deadzone = False
+    # If position and orientation, most common scenario
+    if (mpc_dat.orient_weight > 0.0 and mpc_dat.position_weight > 0.0):
+      if abs(dist_to_goal) < self.deadzone_distance and abs(ang_to_goal) < self.deadzone_angle:
+        in_deadzone = True
+    elif mpc_dat.position_weight > 0.0: # Position only 
+      if abs(dist_to_goal) < self.deadzone_distance:
+        in_deadzone = True
+    elif mpc_dat.orient_weight > 0.0: # Orientation only
+      if abs(ang_to_goal) < self.deadzone_angle:
+        in_deadzone = True
+      
+    # Don't command any pose motion 
+    if in_deadzone:
       dist_g = 0.0 
       ang_dist_g = 0.0   
       if self.currently_in_deadzone == False:

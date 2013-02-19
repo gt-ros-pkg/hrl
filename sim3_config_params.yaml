@@ -1,7 +1,8 @@
 haptic_mpc:
   sim3:
-    # Skin topic list. Each must publish
-    skin_list: ['/skin/taxel_array', '/haptic_mpc/simulation/proximity/taxel_array']
+    # Skin topic list. Each must publish a TaxelArray message
+    skin_list:
+      sim: ['/skin/taxel_array', '/haptic_mpc/simulation/proximity/taxel_array']
 
   #  wp_goal_tf_frame: '/world'
     torso_frame: '/torso_lift_link'
