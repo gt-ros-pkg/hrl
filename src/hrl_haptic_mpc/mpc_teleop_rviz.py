@@ -48,7 +48,10 @@ from std_msgs.msg import String, Bool, Empty
 class MPCTeleopInteractiveMarkers():
   def __init__(self, opt):
     self.opt = opt
-  
+    base_path = '/haptic_mpc'
+    control_path = '/control_params'
+    self.orient_weight = rospy.get_param(base_path + control_path + '/orientation_weight')
+    self.pos_weight = rospy.get_param(base_path + control_path + '/position_weight')  
   ## Callback for the interactive marker location. 
   #
   # Receives and stores the updated pose of the marker in space as the user moves it around.
@@ -85,7 +88,7 @@ class MPCTeleopInteractiveMarkers():
     rospy.loginfo("MPC Teleop: Publishing new goal. Position only.")
     weights_msg = haptic_msgs.HapticMpcWeights()
     weights_msg.header.stamp = rospy.Time.now()
-    weights_msg.position_weight = 5.0
+    weights_msg.position_weight = self.pos_weight
     weights_msg.orient_weight = 0.0
     self.mpc_weights_pub.publish(weights_msg) # Enable position tracking only - disable orientation by setting the weight to 0 
     self.goal_pos_pub.publish(self.current_goal_pose)
@@ -97,8 +100,8 @@ class MPCTeleopInteractiveMarkers():
     rospy.loginfo("MPC Teleop: Publishing new goal. Position and Orientation.")
     weights_msg = haptic_msgs.HapticMpcWeights()
     weights_msg.header.stamp = rospy.Time.now()
-    weights_msg.position_weight = 5.0
-    weights_msg.orient_weight = 4.0
+    weights_msg.position_weight = self.pos_weight
+    weights_msg.orient_weight = self.orient_weight
     self.mpc_weights_pub.publish(weights_msg) # Enable position and orientation tracking 
     self.goal_pos_pub.publish(self.current_goal_pose)  
  #   self.ros_pub.publish('orient_to_way_point')

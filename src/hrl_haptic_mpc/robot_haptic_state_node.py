@@ -284,7 +284,7 @@ class RobotHapticStateServer():
     self.robot = cody_arm.CodyArmClient(self.opt.arm)
 
   def initCrona(self):
-    import crona_sim_arms as crona_arm
+    import urdf_arm_darpa_m3 as urdf_arm
 
     self.robot_path = "/crona"
     self.skin_topic_list = rospy.get_param(self.base_path +
@@ -296,16 +296,17 @@ class RobotHapticStateServer():
     self.inertial_frame = rospy.get_param(self.base_path +
                                           self.robot_path +
                                           '/inertial_frame')
+    self.skin_client = sc.TaxelArrayClient([],
+                                             self.torso_frame,
+                                             self.tf_listener)
     rospy.loginfo("RobotHapticState: Initialising CRONA haptic state publisher with the following skin topics: \n%s"
                   %str(self.skin_topic_list))
 
-    self.inertial_frame = '/base_link'
-    self.torso_frame = '/torso_chest_link'
     rospy.loginfo("RobotHapticState: Initialising robot interface")
     if not self.opt.arm:
       rospy.logerr("RobotHapticState: No arm specified for CRONA")
       sys.exit()
-    self.robot = crona_arm.CronaArm(self.opt.arm,self.tf_listener)
+    self.robot = urdf_arm.URDFArm(self.opt.arm, self.tf_listener, base_link=self.torso_frame, end_link=self.opt.arm+'_hand_link')
     self.skins = []
     self.Jc = []
 
@@ -478,15 +479,14 @@ class RobotHapticStateServer():
     #self.torso_pose = self.updateTorsoPose()
     self.updateEndEffectorPose()
     self.updateEndEffectorJacobian()
-    if self.opt.robot != 'crona':
     # Skin sensor calculations.
     # Get the latest skin data from the skin client
-      skin_data = self.skin_client.getTrimmedSkinData()
+    skin_data = self.skin_client.getTrimmedSkinData()
     # Trim skin_data based on specific robot state (eg wrist configuration).
-      skin_data = self.modifyRobotSpecificTaxels(skin_data)
-      self.updateContactJacobians(skin_data)
+    skin_data = self.modifyRobotSpecificTaxels(skin_data)
+    self.updateContactJacobians(skin_data)
     # Add the list of  TaxelArray messages to the message
-      self.skins = skin_data.values()
+    self.skins = skin_data.values()
     
   ## Build the haptic state message data structure
   # @return haptic_state_msg Haptic State message object containing relevant data 
