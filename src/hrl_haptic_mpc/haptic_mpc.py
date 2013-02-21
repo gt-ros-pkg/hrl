@@ -684,6 +684,10 @@ class HapticMPC():
     
     # Postural term input
     delta_theta_des = self.goalDeltaPosture(mpc_dat.goal_posture, mpc_dat.q, 0.01, 20.0)
+    if len(delta_theta_des) > n_joints: # Trim to the number of DOFs being used for this - not necessarily the number of joints present, eg Cody 5DOF
+      delta_theta_des = delta_theta_des[0:n_joints]
+
+	
     
     
     cost_quadratic_matrices, cost_linear_matrices, \
