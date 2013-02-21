@@ -22,7 +22,6 @@ import sys, copy
 
 import roslib; roslib.load_manifest('hrl_haptic_mpc')
 import rospy
-import actionlib
 import tf
 
 from sensor_msgs.msg import JointState
@@ -30,7 +29,6 @@ from sensor_msgs.msg import JointState
 from visualization_msgs.msg import Marker
 
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction, Pr2GripperCommand
 from std_msgs.msg import Empty
 
 from equilibrium_point_control.hrl_arm import HRLArm
@@ -91,11 +89,6 @@ class URDFArm(HRLArm):
 
         self.joint_angles_pub = rospy.Publisher(arm+'_arm_controller/command',
                                                 JointTrajectory)
-
-        self.gripper_action_client = actionlib.SimpleActionClient(arm+'_gripper_controller/gripper_action',
-                                                                  Pr2GripperCommandAction)
-        rospy.Subscriber('open_gripper', Empty, self.open_gripper_cb)
-        rospy.Subscriber('close_gripper', Empty, self.close_gripper_cb)
 
     ##
     # Callback for /joint_states topic. Updates current joint
@@ -214,26 +207,10 @@ class URDFArm(HRLArm):
         ee_marker.header.stamp = rospy.Time.now()
         self.marker_pub.publish(ee_marker)
 
-    #-------- gripper functions ------------
-    def move_gripper(self, dist=0.08, effort = 15):
-        self.gripper_action_client.send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=dist,
-                                                                                    max_effort = effort)))
-
-    def open_gripper(self, dist=0.08):
-        self.move_gripper(dist, -1)
-
-    def close_gripper(self, dist=0., effort = 15):
-        self.move_gripper(dist, effort)
-
-    def open_gripper_cb(self, msg):
-        self.open_gripper(0.1)
-
-    def close_gripper_cb(self, msg):
-        self.close_gripper(-0.01)
 
 if __name__ == '__main__':
     rospy.init_node('pr2_arms_test')
-    robot = PR2Arm('l')
+    robot = URDFArm('l')
 
     if False:
         jep = [0.] * len(robot.joint_names_list) 
@@ -258,13 +235,6 @@ if __name__ == '__main__':
         #jep = np.radians([30, 0, 90, -60, -180, -30, 0])  # for left arm
         #jep = np.radians([-30, 0, -90, -60, 0, 0, 0]) # for right arm
         epcon.go_jep(jep, speed=math.radians(10.))
-
-    if False:
-        import hrl_lib.util as ut
-        ut.get_keystroke('Hit ENTER to open gripper')
-        robot.open_gripper()
-        ut.get_keystroke('Hit ENTER to close gripper')
-        robot.close_gripper()
 
     if True:
         while robot.get_joint_angles() == None:

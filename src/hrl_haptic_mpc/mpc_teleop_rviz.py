@@ -38,9 +38,12 @@ import std_msgs.msg
 import interactive_markers.interactive_marker_server as ims
 import interactive_markers.menu_handler as mh
 
+import actionlib
 from visualization_msgs.msg import Marker, InteractiveMarker, InteractiveMarkerFeedback, InteractiveMarkerControl
 from geometry_msgs.msg import PoseStamped, PointStamped, PoseArray
 from std_msgs.msg import String, Bool, Empty
+from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction, Pr2GripperCommand
+
 
 ## RViz teleop interface to the controller. 
 #
@@ -124,13 +127,13 @@ class MPCTeleopInteractiveMarkers():
 
   ## Open the PR2 gripper for this arm and enable the PPS sensors (assumes this is running on the PR2).
   def openGripperHandler(self, feedback):
-    self.open_pub.publish(Empty())
+    self.openGripperPR2()
     self.enablePps()
 
   ## Close the PR2 gripper for this arm and enable the PPS sensors (assumes this is running on the PR2).
   def closeGripperHandler(self, feedback):
     self.disablePps()
-    self.close_pub.publish(Empty())
+    self.closeGripperPR2()
 
   ## Zeroes the PR2 skin (eg, to correct for calibration errors).
   def zeroSkinHandler(self, feedback):
@@ -206,6 +209,8 @@ class MPCTeleopInteractiveMarkers():
     self.zero_cody_meka_skin_pub = rospy.Publisher('/skin_patch_forearm_right/zero_sensor', Empty)
     self.zero_cody_fabric_forearm_pub = rospy.Publisher('/fabric_forearm_sensor/zero_sensor', Empty)
     self.zero_cody_fabric_wrist_pub = rospy.Publisher('/fabric_wrist_sensor/zero_sensor', Empty)
+    
+    self.gripper_action_client = actionlib.SimpleActionClient(arm+'_gripper_controller/gripper_action', Pr2GripperCommandAction)
  
     self.server = ims.InteractiveMarkerServer('teleop_rviz_server')
 
@@ -267,6 +272,17 @@ class MPCTeleopInteractiveMarkers():
     self.wp_im.description = 'Waypoint'
     self.server.insert(self.wp_im, self.interactiveMarkerLocationCallback)
     self.server.applyChanges()
+    
+   #-------- gripper functions ------------
+  def moveGripperPR2(self, dist=0.08, effort = 15):
+    self.gripper_action_client.send_goal(Pr2GripperCommandGoal(Pr2GripperCommand(position=dist, max_effort = effort)))
+
+  def openGripperPR2(self, dist=0.08):
+    self.move_gripper(dist, -1)
+  
+  def closeGripperPR2(self, dist=0., effort = 15):
+    self.move_gripper(dist, effort) 
+    
    
   ## Initialise the menu used to control the arm behaviour.  
   def initMenu(self):
@@ -274,8 +290,9 @@ class MPCTeleopInteractiveMarkers():
     self.wp_menu_handler.insert('Go', callback = self.goalPositionHandler)
     self.wp_menu_handler.insert('Orient', callback = self.goalPositionOrientationHandler)
     self.wp_menu_handler.insert('Stop', callback = self.stopArmHandler)
-    self.wp_menu_handler.insert('Open Gripper', callback = self.openGripperHandler)
-    self.wp_menu_handler.insert('Close Gripper', callback = self.closeGripperHandler)
+    if self.opt.robot == "pr2":
+      self.wp_menu_handler.insert('Open Gripper', callback = self.openGripperHandler)
+      self.wp_menu_handler.insert('Close Gripper', callback = self.closeGripperHandler)
     self.wp_menu_handler.insert('Zero Skin', callback = self.zeroSkinHandler)
     
     imu.add_menu_handler(self.wp_im, self.wp_menu_handler, self.server) 
