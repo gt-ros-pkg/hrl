@@ -43,9 +43,13 @@ class URDFArm(HRLArm):
             raise Exception, 'Arm should be "l" or "r"'
         if base_link is None:
             self.base_link = '/torso_lift_link'
+	else: 
+	    self.base_link = base_link
         if end_link is None:
             self.end_link = arm + '_gripper_tool_frame'
-        kinematics = create_kdl_kin(self.base_link, self.end_link)
+	else:
+	    self.end_link = end_link
+	kinematics = create_kdl_kin(self.base_link, self.end_link)
         HRLArm.__init__(self, kinematics)
         self.joint_names_list = kinematics.get_joint_names()
         self.torso_position = None
@@ -113,8 +117,10 @@ class URDFArm(HRLArm):
             self.q = arm_angles
             self.arm_efforts = arm_efforts
             self.qdot = arm_vel
-
-            torso_idx = data.name.index(self.base_link)
+	    if self.base_link == 'torso_chest_link': # if/else statement is here because self.base_link is 'torso_chest_link and not 'torso_chest_joint'
+	        torso_idx = data.name.index('torso_chest_joint')
+	    else:
+                torso_idx = data.name.index(self.base_link)
             self.torso_position = data.position[torso_idx]
 
     def set_ep(self, jep, duration=0.15):
