@@ -1,0 +1,308 @@
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client}{\section{hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client \-Class \-Reference}
+\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client}\index{hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client}}
+}
+
+
+\-Provides an interface to process \-Taxel\-Arrays published on multiple topics, including trimming the data and transforming the reference frame.  
+
+
+\subsection*{\-Public \-Member \-Functions}
+\begin{DoxyCompactItemize}
+\item 
+def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ae4cc6f82e28c07be67fdb4471bb15c0c}{\-\_\-\-\_\-init\-\_\-\-\_\-}
+\begin{DoxyCompactList}\small\item\em \-Constructor. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a6b54a427ea5723dcd5f54abc217df41a}{set\-Trim\-Threshold}
+\begin{DoxyCompactList}\small\item\em \-Set the trim threshold used by the client. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a75a9a8d039214284470c8c0abbb806b9}{add\-Skin\-Topic\-Callback}
+\begin{DoxyCompactList}\small\item\em \-Callback function which sets the topic. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a57f311e5bacdd205548745d0d9e9194a}{remove\-Skin\-Topic\-Callback}
+\begin{DoxyCompactList}\small\item\em \-Callback function to removed skin topic. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_aac854b6c368700470be18c4223de9450}{add\-Skin\-Topic}
+\begin{DoxyCompactList}\small\item\em \-Add skin topic to internal data structures. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ab1af6f78c4379e9531e585f536f4c737}{remove\-Skin\-Topic}
+\begin{DoxyCompactList}\small\item\em \-Remove skin topic from internal data structures. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ad953882bbd4259d2e6db360d0e0ec668}{skin\-Callback}
+\begin{DoxyCompactList}\small\item\em \-Skin \-Callback. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_afa86c6322351c5ce4aaf7fa5f60f3f32}{transform\-Taxel\-Array}
+\begin{DoxyCompactList}\small\item\em \-Transform a single taxel array message from one frame to another. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_aaf72aa3c08a5c4755317423313014874}{trim\-Skin\-Contacts}
+\begin{DoxyCompactList}\small\item\em \-Return a trimmed copy of the the skin\-\_\-data dictionary. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a92bcb6cee728e231dd4aae2975bcdfe2}{trim\-Taxel\-Array}
+\begin{DoxyCompactList}\small\item\em \-Trim a passed \-Taxel\-Array to only incorporate forces of significance. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a4caa1c9035956164b70e85a34d069ae4}{def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a4caa1c9035956164b70e85a34d069ae4}{get\-Skin\-Data}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a4caa1c9035956164b70e85a34d069ae4}
+
+\begin{DoxyCompactList}\small\item\em get\-Skin\-Data accessor function \-Returns a copy of the skin\-\_\-data dictionary \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a4135b7523bd1e3b318853a3bf0e54e6b}{def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a4135b7523bd1e3b318853a3bf0e54e6b}{get\-Trimmed\-Skin\-Data}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a4135b7523bd1e3b318853a3bf0e54e6b}
+
+\begin{DoxyCompactList}\small\item\em get\-Trimmed\-Skin\-Data accessor function \-Returns a copy of the trimmed\-\_\-skin\-\_\-data dictionary \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_aa3da215578900e0cc80a69216ff48898}{def {\bfseries get\-Contact\-Locations\-From\-Taxel\-Array}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_aa3da215578900e0cc80a69216ff48898}
+
+\item 
+def \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a63ddde9c6562d001a4c21a072b853003}{get\-Taxel\-Location\-And\-Joint\-List}
+\begin{DoxyCompactList}\small\item\em \-Returns a list of taxel locations and list of joint numbers after which the joint torque will have no effect on the contact force, and optionally a time stamp \-Must be implemented by every robot specific skin client. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\subsection*{\-Public \-Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_af9438255764df1147ee97975ddd0df17}{data\-\_\-lock}
+\begin{DoxyCompactList}\small\item\em \-Lock for skin data structure. \end{DoxyCompactList}\item 
+\hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a2ddc2c6a62f6055b84877ee3e1b6b492}{topic\-\_\-lock}
+\begin{DoxyCompactList}\small\item\em \-Lock for skin data topics. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_aa57dc9d6b63efc1559831c9bf9ed4b62}{\hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_aa57dc9d6b63efc1559831c9bf9ed4b62}{torso\-\_\-frame}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_aa57dc9d6b63efc1559831c9bf9ed4b62}
+
+\begin{DoxyCompactList}\small\item\em torso\-\_\-frame \-Torso frame \-I\-D used as the base frame for the associated arm, eg, \char`\"{}/torso\-\_\-lift\-\_\-link\char`\"{} \end{DoxyCompactList}\item 
+\hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ab45770c3baa7409a07abadd03d05a41b}{trim\-\_\-threshold}
+\begin{DoxyCompactList}\small\item\em \-Threshold used to control how the data is trimmed -\/ should be set by whatever instatiates a \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client}{\-Taxel\-Array\-Client}. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a62835436406c9d62e967efed9a434698}{\hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a62835436406c9d62e967efed9a434698}{skin\-\_\-subs}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a62835436406c9d62e967efed9a434698}
+
+\begin{DoxyCompactList}\small\item\em \-Dictionary containing the skin subscribers, indexed by topic name. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a0978230e7e71172f151e6a94ed0d8e32}{\hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a0978230e7e71172f151e6a94ed0d8e32}{skin\-\_\-data}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a0978230e7e71172f151e6a94ed0d8e32}
+
+\begin{DoxyCompactList}\small\item\em \-Dictionary containing the raw \-Taxel\-Array messages heard by the client, indexed by topic name. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a7eb603c612cfd170db4886a31666ac75}{\hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a7eb603c612cfd170db4886a31666ac75}{trimmed\-\_\-skin\-\_\-data}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a7eb603c612cfd170db4886a31666ac75}
+
+\begin{DoxyCompactList}\small\item\em \-Dictionary containing the processed \-Taxel\-Array messages heard by the client, indexed by topic name. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a6d9e3066be02665439a0b966722ae69b}{\hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a6d9e3066be02665439a0b966722ae69b}{tf\-\_\-lstnr}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a6d9e3066be02665439a0b966722ae69b}
+
+\begin{DoxyCompactList}\small\item\em \-T\-F \-Listener. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a8389477cf4f2e630fe73c99c7b79386e}{\hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a8389477cf4f2e630fe73c99c7b79386e}{skin\-\_\-topic\-\_\-list}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a8389477cf4f2e630fe73c99c7b79386e}
+
+\begin{DoxyCompactList}\small\item\em \-List of skin topics used by the client. \end{DoxyCompactList}\item 
+\hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_af6d192fd50fb06c2f98a53da924621e4}{current\-\_\-topics\-\_\-pub}
+\begin{DoxyCompactList}\small\item\em \-Add skin topic subscriber. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\subsection{\-Detailed \-Description}
+\-Provides an interface to process \-Taxel\-Arrays published on multiple topics, including trimming the data and transforming the reference frame. 
+
+\subsection{\-Constructor \& \-Destructor \-Documentation}
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ae4cc6f82e28c07be67fdb4471bb15c0c}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!\-\_\-\-\_\-init\-\_\-\-\_\-@{\-\_\-\-\_\-init\-\_\-\-\_\-}}
+\index{\-\_\-\-\_\-init\-\_\-\-\_\-@{\-\_\-\-\_\-init\-\_\-\-\_\-}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{\-\_\-\-\_\-init\-\_\-\-\_\-}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client.\-\_\-\-\_\-init\-\_\-\-\_\-} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{skin\-\_\-topic\-\_\-list, }
+\item[{}]{torso\-\_\-frame = {\ttfamily \char`\"{}/torso\-\_\-lift\-\_\-link\char`\"{}}, }
+\item[{}]{tf\-\_\-listener = {\ttfamily \-None}}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ae4cc6f82e28c07be67fdb4471bb15c0c}
+
+
+\-Constructor. 
+
+
+\begin{DoxyParams}{\-Parameters}
+{\em skin\-\_\-topic\-\_\-list} & \-List of strings specifying the topics to subscribe to for \-Taxel\-Array messages \\
+\hline
+{\em torso\-\_\-frame} & \-String indicating which frame \-I\-D is the base frame for the arm \\
+\hline
+{\em tf\-\_\-listener} & \-T\-F \-Listener object, if one exists. \-If this is \-None, the class will create one. \\
+\hline
+\end{DoxyParams}
+
+
+\subsection{\-Member \-Function \-Documentation}
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_aac854b6c368700470be18c4223de9450}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!add\-Skin\-Topic@{add\-Skin\-Topic}}
+\index{add\-Skin\-Topic@{add\-Skin\-Topic}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{add\-Skin\-Topic}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client.\-add\-Skin\-Topic} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{skin\-\_\-topic}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_aac854b6c368700470be18c4223de9450}
+
+
+\-Add skin topic to internal data structures. 
+
+
+\begin{DoxyParams}{\-Parameters}
+{\em skin\-\_\-topic} & \-String specifying the topic to be added. \\
+\hline
+\end{DoxyParams}
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a75a9a8d039214284470c8c0abbb806b9}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!add\-Skin\-Topic\-Callback@{add\-Skin\-Topic\-Callback}}
+\index{add\-Skin\-Topic\-Callback@{add\-Skin\-Topic\-Callback}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{add\-Skin\-Topic\-Callback}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client.\-add\-Skin\-Topic\-Callback} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{msg}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a75a9a8d039214284470c8c0abbb806b9}
+
+
+\-Callback function which sets the topic. 
+
+
+\begin{DoxyParams}{\-Parameters}
+{\em msg} & std\-\_\-msgs/\-String message. \\
+\hline
+\end{DoxyParams}
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a63ddde9c6562d001a4c21a072b853003}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!get\-Taxel\-Location\-And\-Joint\-List@{get\-Taxel\-Location\-And\-Joint\-List}}
+\index{get\-Taxel\-Location\-And\-Joint\-List@{get\-Taxel\-Location\-And\-Joint\-List}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{get\-Taxel\-Location\-And\-Joint\-List}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client.\-get\-Taxel\-Location\-And\-Joint\-List} (
+\begin{DoxyParamCaption}
+\item[{}]{self}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a63ddde9c6562d001a4c21a072b853003}
+
+
+\-Returns a list of taxel locations and list of joint numbers after which the joint torque will have no effect on the contact force, and optionally a time stamp \-Must be implemented by every robot specific skin client. 
+
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ab1af6f78c4379e9531e585f536f4c737}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!remove\-Skin\-Topic@{remove\-Skin\-Topic}}
+\index{remove\-Skin\-Topic@{remove\-Skin\-Topic}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{remove\-Skin\-Topic}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client.\-remove\-Skin\-Topic} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{skin\-\_\-topic}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ab1af6f78c4379e9531e585f536f4c737}
+
+
+\-Remove skin topic from internal data structures. 
+
+
+\begin{DoxyParams}{\-Parameters}
+{\em skin\-\_\-topic} & \-String specifying the topic to be removed. \\
+\hline
+\end{DoxyParams}
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a57f311e5bacdd205548745d0d9e9194a}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!remove\-Skin\-Topic\-Callback@{remove\-Skin\-Topic\-Callback}}
+\index{remove\-Skin\-Topic\-Callback@{remove\-Skin\-Topic\-Callback}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{remove\-Skin\-Topic\-Callback}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client.\-remove\-Skin\-Topic\-Callback} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{msg}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a57f311e5bacdd205548745d0d9e9194a}
+
+
+\-Callback function to removed skin topic. 
+
+
+\begin{DoxyParams}{\-Parameters}
+{\em msg} & \-String\-Array message. \\
+\hline
+\end{DoxyParams}
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a6b54a427ea5723dcd5f54abc217df41a}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!set\-Trim\-Threshold@{set\-Trim\-Threshold}}
+\index{set\-Trim\-Threshold@{set\-Trim\-Threshold}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{set\-Trim\-Threshold}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client.\-set\-Trim\-Threshold} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{threshold}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a6b54a427ea5723dcd5f54abc217df41a}
+
+
+\-Set the trim threshold used by the client. 
+
+\-Should be greater or equal to 0.\-0. 
+\begin{DoxyParams}{\-Parameters}
+{\em threshold} & \-Desired threshold. \-Should be greater than or equal to 0.\-0. \\
+\hline
+\end{DoxyParams}
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ad953882bbd4259d2e6db360d0e0ec668}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!skin\-Callback@{skin\-Callback}}
+\index{skin\-Callback@{skin\-Callback}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{skin\-Callback}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client.\-skin\-Callback} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{msg, }
+\item[{}]{skin\-\_\-topic}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ad953882bbd4259d2e6db360d0e0ec668}
+
+
+\-Skin \-Callback. 
+
+\-Store the message in the data dictionary, indexed by topic. \-Keeps the raw data in dictionary 'skin\-\_\-data' and the transformed, trimmed data in 'trimmed\-\_\-skin\-\_\-data' 
+\begin{DoxyParams}{\-Parameters}
+{\em msg} & \-Taxel\-Array message object \\
+\hline
+{\em skin\-\_\-topic} & \-The topic name triggering the callback. \-Used to identify what sensor the \-Taxel\-Array came from (as there may be multiple publishers running) \\
+\hline
+\end{DoxyParams}
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_afa86c6322351c5ce4aaf7fa5f60f3f32}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!transform\-Taxel\-Array@{transform\-Taxel\-Array}}
+\index{transform\-Taxel\-Array@{transform\-Taxel\-Array}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{transform\-Taxel\-Array}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client.\-transform\-Taxel\-Array} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{ta\-\_\-msg, }
+\item[{}]{new\-\_\-frame}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_afa86c6322351c5ce4aaf7fa5f60f3f32}
+
+
+\-Transform a single taxel array message from one frame to another. 
+
+
+\begin{DoxyParams}{\-Parameters}
+{\em ta\-\_\-msg} & \-Taxel\-Array message object to be transformed \\
+\hline
+{\em new\-\_\-frame} & \-The desired frame name \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{\-Returns}
+\-The transformed message with all values in the new coordinate frame. 
+\end{DoxyReturn}
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_aaf72aa3c08a5c4755317423313014874}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!trim\-Skin\-Contacts@{trim\-Skin\-Contacts}}
+\index{trim\-Skin\-Contacts@{trim\-Skin\-Contacts}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{trim\-Skin\-Contacts}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client.\-trim\-Skin\-Contacts} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{threshold}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_aaf72aa3c08a5c4755317423313014874}
+
+
+\-Return a trimmed copy of the the skin\-\_\-data dictionary. 
+
+\-Each \-Taxel\-Array within the structure will be trimmed. 
+\begin{DoxyParams}{\-Parameters}
+{\em threshold} & \-Threshold parameter (float greater than 0.\-0) \\
+\hline
+\end{DoxyParams}
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a92bcb6cee728e231dd4aae2975bcdfe2}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!trim\-Taxel\-Array@{trim\-Taxel\-Array}}
+\index{trim\-Taxel\-Array@{trim\-Taxel\-Array}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{trim\-Taxel\-Array}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-skin\-\_\-client.\-Taxel\-Array\-Client.\-trim\-Taxel\-Array} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{ta\-\_\-msg, }
+\item[{}]{threshold}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a92bcb6cee728e231dd4aae2975bcdfe2}
+
+
+\-Trim a passed \-Taxel\-Array to only incorporate forces of significance. 
+
+\-Returns a trimmed \-Taxel\-Array message object with forces of magnitude $>$ threshold. \-The data is otherwise unchanged. 
+
+\subsection{\-Member \-Data \-Documentation}
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_af6d192fd50fb06c2f98a53da924621e4}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!current\-\_\-topics\-\_\-pub@{current\-\_\-topics\-\_\-pub}}
+\index{current\-\_\-topics\-\_\-pub@{current\-\_\-topics\-\_\-pub}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{current\-\_\-topics\-\_\-pub}]{\setlength{\rightskip}{0pt plus 5cm}{\bf hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client.\-Taxel\-Array\-Client\-::current\-\_\-topics\-\_\-pub}}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_af6d192fd50fb06c2f98a53da924621e4}
+
+
+\-Add skin topic subscriber. 
+
+\-Remove skin topic subscriber \-Current topics \-R\-O\-S publisher. \-Publishes the list of topics on change. \hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_af9438255764df1147ee97975ddd0df17}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!data\-\_\-lock@{data\-\_\-lock}}
+\index{data\-\_\-lock@{data\-\_\-lock}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{data\-\_\-lock}]{\setlength{\rightskip}{0pt plus 5cm}{\bf hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client.\-Taxel\-Array\-Client\-::data\-\_\-lock}}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_af9438255764df1147ee97975ddd0df17}
+
+
+\-Lock for skin data structure. 
+
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a2ddc2c6a62f6055b84877ee3e1b6b492}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!topic\-\_\-lock@{topic\-\_\-lock}}
+\index{topic\-\_\-lock@{topic\-\_\-lock}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{topic\-\_\-lock}]{\setlength{\rightskip}{0pt plus 5cm}{\bf hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client.\-Taxel\-Array\-Client\-::topic\-\_\-lock}}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_a2ddc2c6a62f6055b84877ee3e1b6b492}
+
+
+\-Lock for skin data topics. 
+
+\hypertarget{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ab45770c3baa7409a07abadd03d05a41b}{\index{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}!trim\-\_\-threshold@{trim\-\_\-threshold}}
+\index{trim\-\_\-threshold@{trim\-\_\-threshold}!hrl_haptic_mpc::skin_client::TaxelArrayClient@{hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client\-::\-Taxel\-Array\-Client}}
+\subsubsection[{trim\-\_\-threshold}]{\setlength{\rightskip}{0pt plus 5cm}{\bf hrl\-\_\-haptic\-\_\-mpc\-::skin\-\_\-client.\-Taxel\-Array\-Client\-::trim\-\_\-threshold}}}\label{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client_ab45770c3baa7409a07abadd03d05a41b}
+
+
+\-Threshold used to control how the data is trimmed -\/ should be set by whatever instatiates a \hyperlink{classhrl__haptic__mpc_1_1skin__client_1_1_taxel_array_client}{\-Taxel\-Array\-Client}. 
+
+\-Default\-: 0.\-0 (ie, trim nothing) 
+
+\-The documentation for this class was generated from the following file\-:\begin{DoxyCompactItemize}
+\item 
+/home/jdh/ros\-\_\-sandbox/hrl\-\_\-haptic\-\_\-manipulation\-\_\-in\-\_\-clutter/hrl\-\_\-haptic\-\_\-mpc/src/hrl\-\_\-haptic\-\_\-mpc/skin\-\_\-client.\-py\end{DoxyCompactItemize}

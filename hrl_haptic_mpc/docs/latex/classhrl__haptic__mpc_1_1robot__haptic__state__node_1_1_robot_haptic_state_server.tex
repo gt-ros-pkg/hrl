@@ -1,0 +1,270 @@
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server}{\section{hrl\-\_\-haptic\-\_\-mpc.\-robot\-\_\-haptic\-\_\-state\-\_\-node.\-Robot\-Haptic\-State\-Server \-Class \-Reference}
+\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server}\index{hrl\-\_\-haptic\-\_\-mpc.\-robot\-\_\-haptic\-\_\-state\-\_\-node.\-Robot\-Haptic\-State\-Server@{hrl\-\_\-haptic\-\_\-mpc.\-robot\-\_\-haptic\-\_\-state\-\_\-node.\-Robot\-Haptic\-State\-Server}}
+}
+
+
+publisher\-: publishes all relevant haptic state information on a common interface independent of robot type.  
+
+
+\subsection*{\-Public \-Member \-Functions}
+\begin{DoxyCompactItemize}
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a218e673403d0f6afb92a8a8e9509f9f4}{def \hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a218e673403d0f6afb92a8a8e9509f9f4}{\-\_\-\-\_\-init\-\_\-\-\_\-}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a218e673403d0f6afb92a8a8e9509f9f4}
+
+\begin{DoxyCompactList}\small\item\em \-Constructor for robot haptic state server. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a768fa35b239e55cb11fb6f82abd422d5}{init\-Robot}
+\begin{DoxyCompactList}\small\item\em \-Initialise all robot specific parameters (skin topics, robot interfaces, etc). \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ad10ab565925017b4cea38ae1709a81f8}{init\-P\-R2}
+\begin{DoxyCompactList}\small\item\em \-Initialise parameters for the state publisher when used on the \-P\-R2. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a29793b4800096ecae5352edce4a01a35}{init\-Cody}
+\begin{DoxyCompactList}\small\item\em \-Initialise parameters for the state publisher when used on \-Cody. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a0ca23cdde156127c080e36bdcd164879}{init\-Sim}
+\begin{DoxyCompactList}\small\item\em \-Initialise parameters for the state publisher when used in simulation with the 3\-D\-O\-F arm. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_af9a247d32698326307aef9dd3b0b00e7}{def {\bfseries init\-Sim\-Cody}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_af9a247d32698326307aef9dd3b0b00e7}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_aab3a403c961d623b2ce7c3be65de657f}{def {\bfseries init\-Comms}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_aab3a403c961d623b2ce7c3be65de657f}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_aadc3895c76b778d3567d406a1a066f96}{def {\bfseries get\-Message\-Header}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_aadc3895c76b778d3567d406a1a066f96}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a434275f7b46fcead52c73f2d20ccc3f2}{def {\bfseries update\-End\-Effector\-Jacobian}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a434275f7b46fcead52c73f2d20ccc3f2}
+
+\item 
+def \hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a9edecc691aec48fcf8c18b3bd5882b4e}{update\-Contact\-Jacobians}
+\begin{DoxyCompactList}\small\item\em \-Compute contact \-Jacobians based on the provided taxel array dictionary. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a8c47db0cf0ea09a2e703bd28009bf3c5}{def \hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a8c47db0cf0ea09a2e703bd28009bf3c5}{update\-Torso\-Pose}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a8c47db0cf0ea09a2e703bd28009bf3c5}
+
+\begin{DoxyCompactList}\small\item\em \-Returns a \-Pose object for the torso pose in the stated inertial frame. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ad7d5636151e1a954ff145cbc434d9651}{def {\bfseries update\-Joint\-States}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ad7d5636151e1a954ff145cbc434d9651}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a8d32837048e3a5b0cbe233b85c6fb91a}{def {\bfseries update\-End\-Effector\-Pose}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a8d32837048e3a5b0cbe233b85c6fb91a}
+
+\item 
+def \hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_aa08a7ebf85c907d79518e8081074663d}{modify\-P\-R2\-Taxels}
+\begin{DoxyCompactList}\small\item\em \-Modify taxel data for \-P\-R2 specific situations \-T\-O\-D\-O\-: \-Survy to implement selective taxel ignoring. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_af698b8ed4a875a3c3278826d98cdd4bb}{modify\-Robot\-Specific\-Taxels}
+\begin{DoxyCompactList}\small\item\em \-Modifies data from the taxel array based on robot specific configurations. \end{DoxyCompactList}\item 
+def \hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a93064080ef34fa088ba92f047c7e7f65}{publish\-Robot\-State}
+\begin{DoxyCompactList}\small\item\em \-Build and publish the haptic state message. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a21ca337b1dc5810d7a76b26aa6a47d47}{def \hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a21ca337b1dc5810d7a76b26aa6a47d47}{start}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a21ca337b1dc5810d7a76b26aa6a47d47}
+
+\begin{DoxyCompactList}\small\item\em \-Start the state publisher. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\subsection*{\-Public \-Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ac3fb70e152a344b74abeb144be6bf224}{{\bfseries opt}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ac3fb70e152a344b74abeb144be6bf224}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a85f82b1e92898cee734abaa8cb2ac182}{{\bfseries node\-\_\-name}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a85f82b1e92898cee734abaa8cb2ac182}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a285ef8dfb2c61408206ad0584a2f8625}{{\bfseries tf\-\_\-listener}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a285ef8dfb2c61408206ad0584a2f8625}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ae21ad2dc8ad450d21bf920bf69f7d388}{{\bfseries state\-\_\-pub}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ae21ad2dc8ad450d21bf920bf69f7d388}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a6967b0655288b9a78283af0969c07835}{{\bfseries rate}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a6967b0655288b9a78283af0969c07835}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a98d6b80cc4b59fd8b597e266cb27e608}{{\bfseries msg\-\_\-seq}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a98d6b80cc4b59fd8b597e266cb27e608}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a96412dbd8caac45876066c6cf4282624}{{\bfseries base\-\_\-path}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a96412dbd8caac45876066c6cf4282624}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ac78ab041ea95db74f0271bcb69164942}{{\bfseries skin\-\_\-topic\-\_\-list}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ac78ab041ea95db74f0271bcb69164942}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_afc0befbf4e50bdd7ceab5b9a9e9a79e3}{{\bfseries skin\-\_\-client}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_afc0befbf4e50bdd7ceab5b9a9e9a79e3}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a7801bc417b2ea7e62f901addf7915f96}{{\bfseries robot}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a7801bc417b2ea7e62f901addf7915f96}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a7e102cc8a425bc72f8dcec2b10ae1129}{\hyperlink{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a7e102cc8a425bc72f8dcec2b10ae1129}{joint\-\_\-names}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a7e102cc8a425bc72f8dcec2b10ae1129}
+
+\begin{DoxyCompactList}\small\item\em \-Store latest joint states from the specified robot class. \end{DoxyCompactList}\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ab6d750b73ef63e294d774bf28b6cdf17}{{\bfseries joint\-\_\-angles}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ab6d750b73ef63e294d774bf28b6cdf17}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a0864d8ef19c8ea35df05fb8e60f48df1}{{\bfseries desired\-\_\-joint\-\_\-angles}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a0864d8ef19c8ea35df05fb8e60f48df1}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_aa38ab79b77ef7e0b77552b4a3b179255}{{\bfseries joint\-\_\-velocities}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_aa38ab79b77ef7e0b77552b4a3b179255}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a5f852241376ba67a752a5b161806e181}{{\bfseries joint\-\_\-stiffness}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a5f852241376ba67a752a5b161806e181}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a508ccbd579d501850417e6ce285567b8}{{\bfseries joint\-\_\-damping}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a508ccbd579d501850417e6ce285567b8}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_acc21285d2fd362a28c452de02a68eefb}{{\bfseries joint\-\_\-data\-\_\-lock}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_acc21285d2fd362a28c452de02a68eefb}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a540908550e622d427550d5aa65a85ca5}{{\bfseries end\-\_\-effector\-\_\-position}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a540908550e622d427550d5aa65a85ca5}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ad2d4668f3eb5cca8f98de63337f8380f}{{\bfseries end\-\_\-effector\-\_\-orient\-\_\-cart}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ad2d4668f3eb5cca8f98de63337f8380f}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a9662a248f9f0854e208de32d30ef0667}{{\bfseries end\-\_\-effector\-\_\-orient\-\_\-quat}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a9662a248f9f0854e208de32d30ef0667}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_aedea944cecb1d60c3dbf98164c69b39c}{{\bfseries \-Jc}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_aedea944cecb1d60c3dbf98164c69b39c}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ac4f40fb3e67f06c29d77be85795a41ba}{{\bfseries \-Je}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ac4f40fb3e67f06c29d77be85795a41ba}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a4e801c695c7edc6fbc1e6910f4157784}{{\bfseries trim\-\_\-threshold}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a4e801c695c7edc6fbc1e6910f4157784}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a4121eb0bcca3807d8c340e2e9b94f275}{{\bfseries ma\-\_\-to\-\_\-m}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a4121eb0bcca3807d8c340e2e9b94f275}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ae72065363badf51866e78d5895a1a6ba}{{\bfseries robot\-\_\-path}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ae72065363badf51866e78d5895a1a6ba}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a4efcb44b6fe958ba6aa038a27ba4f079}{{\bfseries torso\-\_\-frame}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a4efcb44b6fe958ba6aa038a27ba4f079}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ae47d73535556dce5057049fb588a8c24}{{\bfseries inertial\-\_\-frame}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ae47d73535556dce5057049fb588a8c24}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ac8a95621cb4af274e316740307d844f2}{{\bfseries joint\-\_\-limits\-\_\-max}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ac8a95621cb4af274e316740307d844f2}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ab1ace63b3d6ee4972cfe810361aa66cc}{{\bfseries joint\-\_\-limits\-\_\-min}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ab1ace63b3d6ee4972cfe810361aa66cc}
+
+\item 
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ab94e6b4ea4108cc66c4080c1cce3d5ab}{{\bfseries gripper\-\_\-pose\-\_\-pub}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ab94e6b4ea4108cc66c4080c1cce3d5ab}
+
+\end{DoxyCompactItemize}
+
+
+\subsection{\-Detailed \-Description}
+publisher\-: publishes all relevant haptic state information on a common interface independent of robot type. 
+
+
+
+\subsection{\-Member \-Function \-Documentation}
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a29793b4800096ecae5352edce4a01a35}{\index{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}!init\-Cody@{init\-Cody}}
+\index{init\-Cody@{init\-Cody}!hrl_haptic_mpc::robot_haptic_state_node::RobotHapticStateServer@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}}
+\subsubsection[{init\-Cody}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-robot\-\_\-haptic\-\_\-state\-\_\-node.\-Robot\-Haptic\-State\-Server.\-init\-Cody} (
+\begin{DoxyParamCaption}
+\item[{}]{self}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a29793b4800096ecae5352edce4a01a35}
+
+
+\-Initialise parameters for the state publisher when used on \-Cody. 
+
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ad10ab565925017b4cea38ae1709a81f8}{\index{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}!init\-P\-R2@{init\-P\-R2}}
+\index{init\-P\-R2@{init\-P\-R2}!hrl_haptic_mpc::robot_haptic_state_node::RobotHapticStateServer@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}}
+\subsubsection[{init\-P\-R2}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-robot\-\_\-haptic\-\_\-state\-\_\-node.\-Robot\-Haptic\-State\-Server.\-init\-P\-R2} (
+\begin{DoxyParamCaption}
+\item[{}]{self}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_ad10ab565925017b4cea38ae1709a81f8}
+
+
+\-Initialise parameters for the state publisher when used on the \-P\-R2. 
+
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a768fa35b239e55cb11fb6f82abd422d5}{\index{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}!init\-Robot@{init\-Robot}}
+\index{init\-Robot@{init\-Robot}!hrl_haptic_mpc::robot_haptic_state_node::RobotHapticStateServer@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}}
+\subsubsection[{init\-Robot}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-robot\-\_\-haptic\-\_\-state\-\_\-node.\-Robot\-Haptic\-State\-Server.\-init\-Robot} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{robot\-\_\-type = {\ttfamily \char`\"{}pr2\char`\"{}}}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a768fa35b239e55cb11fb6f82abd422d5}
+
+
+\-Initialise all robot specific parameters (skin topics, robot interfaces, etc). 
+
+\-Calls the appropriate init function. \hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a0ca23cdde156127c080e36bdcd164879}{\index{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}!init\-Sim@{init\-Sim}}
+\index{init\-Sim@{init\-Sim}!hrl_haptic_mpc::robot_haptic_state_node::RobotHapticStateServer@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}}
+\subsubsection[{init\-Sim}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-robot\-\_\-haptic\-\_\-state\-\_\-node.\-Robot\-Haptic\-State\-Server.\-init\-Sim} (
+\begin{DoxyParamCaption}
+\item[{}]{self}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a0ca23cdde156127c080e36bdcd164879}
+
+
+\-Initialise parameters for the state publisher when used in simulation with the 3\-D\-O\-F arm. 
+
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_aa08a7ebf85c907d79518e8081074663d}{\index{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}!modify\-P\-R2\-Taxels@{modify\-P\-R2\-Taxels}}
+\index{modify\-P\-R2\-Taxels@{modify\-P\-R2\-Taxels}!hrl_haptic_mpc::robot_haptic_state_node::RobotHapticStateServer@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}}
+\subsubsection[{modify\-P\-R2\-Taxels}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-robot\-\_\-haptic\-\_\-state\-\_\-node.\-Robot\-Haptic\-State\-Server.\-modify\-P\-R2\-Taxels} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{skin\-\_\-data}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_aa08a7ebf85c907d79518e8081074663d}
+
+
+\-Modify taxel data for \-P\-R2 specific situations \-T\-O\-D\-O\-: \-Survy to implement selective taxel ignoring. 
+
+
+\begin{DoxyParams}{\-Parameters}
+{\em skin\-\_\-data} & \-Dictionary containing taxel array messages indexed by topic name \\
+\hline
+\end{DoxyParams}
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_af698b8ed4a875a3c3278826d98cdd4bb}{\index{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}!modify\-Robot\-Specific\-Taxels@{modify\-Robot\-Specific\-Taxels}}
+\index{modify\-Robot\-Specific\-Taxels@{modify\-Robot\-Specific\-Taxels}!hrl_haptic_mpc::robot_haptic_state_node::RobotHapticStateServer@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}}
+\subsubsection[{modify\-Robot\-Specific\-Taxels}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-robot\-\_\-haptic\-\_\-state\-\_\-node.\-Robot\-Haptic\-State\-Server.\-modify\-Robot\-Specific\-Taxels} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{skin\-\_\-data}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_af698b8ed4a875a3c3278826d98cdd4bb}
+
+
+\-Modifies data from the taxel array based on robot specific configurations. 
+
+\-An example of this is ignoring the \-P\-R2 wrist taxels when the wrist is near its joint limit as the wrist itself will trigger the taxel. 
+\begin{DoxyParams}{\-Parameters}
+{\em skin\-\_\-data} & \-Dict containing taxel array messages indexed by topic name \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{\-Returns}
+skin\-\_\-data \-Modified dictionary containing taxel array messages 
+\end{DoxyReturn}
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a93064080ef34fa088ba92f047c7e7f65}{\index{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}!publish\-Robot\-State@{publish\-Robot\-State}}
+\index{publish\-Robot\-State@{publish\-Robot\-State}!hrl_haptic_mpc::robot_haptic_state_node::RobotHapticStateServer@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}}
+\subsubsection[{publish\-Robot\-State}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-robot\-\_\-haptic\-\_\-state\-\_\-node.\-Robot\-Haptic\-State\-Server.\-publish\-Robot\-State} (
+\begin{DoxyParamCaption}
+\item[{}]{self}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a93064080ef34fa088ba92f047c7e7f65}
+
+
+\-Build and publish the haptic state message. 
+
+\hypertarget{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a9edecc691aec48fcf8c18b3bd5882b4e}{\index{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}!update\-Contact\-Jacobians@{update\-Contact\-Jacobians}}
+\index{update\-Contact\-Jacobians@{update\-Contact\-Jacobians}!hrl_haptic_mpc::robot_haptic_state_node::RobotHapticStateServer@{hrl\-\_\-haptic\-\_\-mpc\-::robot\-\_\-haptic\-\_\-state\-\_\-node\-::\-Robot\-Haptic\-State\-Server}}
+\subsubsection[{update\-Contact\-Jacobians}]{\setlength{\rightskip}{0pt plus 5cm}def {\bf hrl\-\_\-haptic\-\_\-mpc.\-robot\-\_\-haptic\-\_\-state\-\_\-node.\-Robot\-Haptic\-State\-Server.\-update\-Contact\-Jacobians} (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{skin\-\_\-data}
+\end{DoxyParamCaption}
+)}}\label{classhrl__haptic__mpc_1_1robot__haptic__state__node_1_1_robot_haptic_state_server_a9edecc691aec48fcf8c18b3bd5882b4e}
+
+
+\-Compute contact \-Jacobians based on the provided taxel array dictionary. 
+
+
+\begin{DoxyParams}{\-Parameters}
+{\em skin\-\_\-data} & \-Dictionary containing taxel array messages indexed by topic name \\
+\hline
+\end{DoxyParams}
+
+
+\-The documentation for this class was generated from the following file\-:\begin{DoxyCompactItemize}
+\item 
+/home/jdh/ros\-\_\-sandbox/hrl\-\_\-haptic\-\_\-manipulation\-\_\-in\-\_\-clutter/hrl\-\_\-haptic\-\_\-mpc/src/hrl\-\_\-haptic\-\_\-mpc/robot\-\_\-haptic\-\_\-state\-\_\-node.\-py\end{DoxyCompactItemize}
