@@ -212,7 +212,7 @@ class MPCTeleopInteractiveMarkers():
     self.zero_cody_meka_skin_pub = rospy.Publisher('/skin_patch_forearm_right/zero_sensor', Empty)
     self.zero_cody_fabric_forearm_pub = rospy.Publisher('/fabric_forearm_sensor/zero_sensor', Empty)
     self.zero_cody_fabric_wrist_pub = rospy.Publisher('/fabric_wrist_sensor/zero_sensor', Empty)
-    if self.opt.robot != 'crona':
+    if self.opt.robot == 'pr2':
         self.gripper_action_client = actionlib.SimpleActionClient(arm+'_gripper_controller/gripper_action', Pr2GripperCommandAction)
  
     self.server = ims.InteractiveMarkerServer('teleop_rviz_server')
