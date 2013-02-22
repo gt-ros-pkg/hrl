@@ -1,0 +1,19 @@
+<package>
+    <description brief="hrl_haptic_manipulation_in_clutter_msgs">
+
+        hrl_haptic_manipulation_in_clutter_msgs
+
+    </description>
+    <author>Advait Jain, Marc Killpack. Advisor: Prof. Charlie Kemp.
+        Healthcare Robotics Lab, Georgia Tech.</author>
+    <license>BSD</license>
+    <review status="unreviewed" notes=""/>
+    <url>http://ros.org/wiki/hrl_haptic_manipulation_in_clutter_msgs</url>
+
+    <depend package="geometry_msgs"/>
+    <depend package="hrl_msgs"/>
+    <depend package="std_msgs"/>
+
+</package>
+
+
