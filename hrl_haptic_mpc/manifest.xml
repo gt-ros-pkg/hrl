@@ -1,5 +1,5 @@
 <package>
-    <description brief="hrl_haptic_mpc" />
+    <description brief="hrl_haptic_mpc">
 
         Georgia Tech Healthcare Robotics Lab (HRL). Haptic Model Predictive Controller.
     </description>
