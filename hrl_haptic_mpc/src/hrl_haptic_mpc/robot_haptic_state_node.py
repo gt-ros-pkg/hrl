@@ -538,6 +538,8 @@ class RobotHapticStateServer():
     msg = self.getHapticStateMessage()
 
     # Publish the newly formed state message
+    for i in range(len(msg.joint_names)):
+	msg.joint_names[i] = str(msg.joint_names[i]) #testing
     self.state_pub.publish(msg)
 
     # Publish gripper pose for debug purposes
