@@ -55,11 +55,10 @@ class URDFArm(HRLArm):
         self.torso_position = None
         self.arm_efforts = None
         self.delta_jep = None
-	print "LENGTH: ",len(self.joint_names_list)
 	try:
 	    if len(self.joint_names_list) == 9:
 	        self.kp = [rospy.get_param('crona_torso_traj_controller/gains/'+nm+'/p') for nm in self.joint_names_list[:3]]
-	        self.kp += [rospy.get_param(arm+'_arm_controller/gains/'+nm+'/p') for nm in self.joint_names_list[3:]] # testing
+	        self.kp += [rospy.get_param(arm+'_arm_controller/gains/'+nm+'/p') for nm in self.joint_names_list[3:]] # crona testing
 	    else:
   	 	self.kp = [rospy.get_param(arm+'_arm_controller/gains/'+nm+'/p') for nm in self.joint_names_list]
 	        
@@ -67,15 +66,17 @@ class URDFArm(HRLArm):
             print "kp is not on param server ... exiting"
             assert(False)
 #        max_kp =  np.max(self.kp)
-        self.kp[-1] = 5. #This smells like a Hack. # testing
+        self.kp[-1] = 5. #This smells like a Hack. # crona testing
         self.kp[-2] = 50.
         self.kp[-3] = 50.
-	self.kp = [50. for i in range(len(self.kp))]
-
-        try:
+	if len(self.joint_names_list) == 9: # crona testing
+	    self.kp = [100. for i in range(3)]
+	    self.kp += [50. for i in [3,4,5,6,7,8]] # crona testing
+        
+	try:
 	    if len(self.joint_names_list) == 9:
 	        self.kd = [rospy.get_param('crona_torso_traj_controller/gains/'+nm+'/d') for nm in self.joint_names_list[:3]]
-                self.kd += [rospy.get_param(arm+'_arm_controller/gains/'+nm+'/d') for nm in self.joint_names_list[3:]] # testing
+                self.kd += [rospy.get_param(arm+'_arm_controller/gains/'+nm+'/d') for nm in self.joint_names_list[3:]] # crona testing
 	    else:
  		self.kd = [rospy.get_param(arm+'_arm_controller/gains/'+nm+'/d') for nm in self.joint_names_list]
         except:
@@ -103,7 +104,7 @@ class URDFArm(HRLArm):
         self.joint_angles_pub = rospy.Publisher(arm+'_arm_controller/command',
                                                 JointTrajectory)
 	if len(self.joint_names_list) == 9:
-	    self.torso_ja_pub = rospy.Publisher('/crona_torso_traj_controller/command',JointTrajectory) # testing
+	    self.torso_ja_pub = rospy.Publisher('/crona_torso_traj_controller/command',JointTrajectory) # crona testing
     ##
     # Callback for /joint_states topic. Updates current joint
     # angles and efforts for the arms constantly
@@ -130,7 +131,7 @@ class URDFArm(HRLArm):
 	    if self.base_link == 'torso_chest_link': # if/else statement is here because self.base_link is 'torso_chest_link and not 'torso_chest_joint'
 	        torso_idx = data.name.index('torso_chest_joint')
 	    elif self.base_link == 'base_link':
-	        torso_idx = data.name.index('base_rev_joint') # testing
+	        torso_idx = data.name.index('base_rev_joint') # crona testing
 	    else:
                 torso_idx = data.name.index(self.base_link)
             self.torso_position = data.position[torso_idx]
