@@ -217,6 +217,7 @@ class DrawerPullSuccess:
 class LightSwitchSuccess:
 
     def __init__(self, requestid, connection_cache, angles=np.matrix([-30., -30.]).T):
+        self.threshold = .03
         self.requestid = requestid
         self.connection_cache = connection_cache
         self.angles = angles
@@ -242,10 +243,11 @@ class LightSwitchSuccess:
         self.config = wide_angle_configure.get_configuration()
         self.config['auto_gain'] = False
         self.config['auto_exposure'] = False
-        wide_angle_configure.update_configuration(config)
+        wide_angle_configure.update_configuration(self.config)
 
         #take before sensor snapshot
         self.start_pose = pr2_head.pose()
+        rospy.loginfo('LightSwitchSuccess: Making head point up at %s !' % (str(self.angles)))
         pr2_head.set_pose(np.radians(self.angles), 1)
         rospy.sleep(4)
         for i in range(7):
@@ -262,16 +264,17 @@ class LightSwitchSuccess:
             after_frame = wide_angle_camera_left.get_frame()
 
         sdiff = image_diff_val2(self.before_frame, after_frame)
+        rospy.loginfo('LightSwitchSuccess: Making head back to where it was at %s !' % (str(self.start_pose)))
         pr2_head.set_pose(self.start_pose, 1)
         rospy.sleep(3)        
         self.config['auto_gain'] = True
         self.config['auto_exposure'] = True
-        wide_angle_configure.update_configuration(config)
+        wide_angle_configure.update_configuration(self.config)
 
         rospy.loginfo('=======================================')
         rospy.loginfo('=======================================')
-        rospy.loginfo('camera difference %.4f (thres %.3f)' % (sdiff, threshold))
-        if sdiff > threshold:
+        rospy.loginfo('camera difference %.4f (thres %.3f)' % (sdiff, self.threshold))
+        if sdiff > self.threshold:
             rospy.loginfo('difference detected!')
             return 'success'
         else:
