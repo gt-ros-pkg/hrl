@@ -20,10 +20,13 @@ import sensor_msgs.msg as sm
 import actionlib
 import tf
 import pointclouds as pc
+import pypr2.msg as smb
 
 import hrl_camera.ros_camera as rc
 import hrl_pr2_lib.devices as hd
 import hrl_lib.tf_utils as tfu
+import pypr2.tf_utils as ptfu
+
 import shutil
 import time
 import copy
@@ -256,7 +259,9 @@ class TrainingInformationDatabase:
         if save_pca_images:
             #pdb.set_trace()
             basis = learner.pca.projection_basis
-            cv.SaveImage('%s_pca.png' % actionid, r3d.instances_to_image(self.rec_params.win_size, basis, np.min(basis), np.max(basis)))
+            cv.SaveImage('%s_pca.png' % actionid, 
+                    r3d.instances_to_image(self.rec_params.win_size, 
+                        basis, np.min(basis), np.max(basis)))
 
 class TRFInteractiveMarkerServer:
 
@@ -264,6 +269,7 @@ class TRFInteractiveMarkerServer:
     def __init__(self, training_db, classification_server):
         self.classification_server = classification_server
         self.marker_server = ims.InteractiveMarkerServer('trf_interactive_markers')
+        self.broadcaster = tf.TransformBroadcaster()
         self.training_db = training_db
         self.markers = {}
 
@@ -280,7 +286,7 @@ class TRFInteractiveMarkerServer:
 
             cb = ft.partial(self.accept_cb, actionid)
             m = RobotPositionMarker(actionid, i, pose, frame, 
-                    self.marker_server, self.training_db, cb)
+                    self.marker_server, self.broadcaster, self.training_db, cb)
             self.markers[actionid].append(m)
         self.marker_server.applyChanges()
 
@@ -300,7 +306,8 @@ class TRFInteractiveMarkerServer:
 class RobotPositionMarker:
 
     def __init__(self, actionid, marker_number, pose, frame, 
-            marker_server, training_db, accept_cb, scale=.2):
+            marker_server, broadcaster, training_db, accept_cb, scale=.2):
+        self.broadcaster = broadcaster
         self.marker_name = actionid + '_' + str(marker_number)
 
         int_marker = imh.interactive_marker(self.marker_name, pose, scale)
@@ -345,6 +352,13 @@ class RobotPositionMarker:
             #print 'updating training locations'
             self.training_db.update_training_location(self.actionid, self.marker_number, 
                     [p_ar, self.frame])
+
+        if feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
+            p = feedback.pose
+            pos = [p.position.x, p.position.y, p.position.z]
+            ori = [p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
+            self.broadcaster.sendTransform(pos, ori, rospy.Time.now(), 
+                    'training_location', feedback.header.frame_id)
 
     def remove(self):
         self.marker_server.erase(self.marker_name)
@@ -449,6 +463,9 @@ class TRFClassificationServer:
         self.move_base_client = actionlib.SimpleActionClient('move_base', 
                 mm.MoveBaseAction)
 
+        self.go_xy_client = actionlib.SimpleActionClient('go_xy',
+                smb.GoXYAction)
+
         self.tuck_arm_client = actionlib.SimpleActionClient('rcommander_tuckarms', 
                 rm.RCTuckArmsAction)
 
@@ -533,12 +550,15 @@ class TRFClassificationServer:
         _, pos_pred, neg_pred = r3d.separate_by_labels(feature_dict['points2d'], np.matrix(predictions))
         r3d.draw_points(img, pos_pred, [255, 204, 51], 3, -1)
         r3d.draw_points(img, neg_pred, [51, 204, 255], 3, -1)
+        save_dict = {'pos_pred': pos_pred,
+                     'neg_pred': neg_pred}
         
         #Draw point selected 
         if draw_dict.has_key('selected'):
             color = [0,0,255]
             #pdb.set_trace()
             r3d.draw_points(img, draw_dict['selected'] , color, 8, -1)
+            save_dict['tried'] = draw_dict['selected']
 
         #Draw the center
         if draw_dict.has_key('center'):
@@ -546,13 +566,27 @@ class TRFClassificationServer:
                         draw_dict['center'])
             point2d_img = self.feature_ex.cal.project(point3d_img)
             r3d.draw_points(img, point2d_img, [255, 0, 0], 6, 2)
+            save_dict['center'] = point2d_img
 
         try:
             os.mkdir(actionid)
         except OSError, e:
             pass
-        ffull = pt.join(actionid, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + postfix + '.jpg')
+
+        #Save visualization
+        ffull = pt.join(actionid, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + postfix + '_vis.jpg')
         cv.SaveImage(ffull, img)
+
+        #Save raw image
+        raw_image_name = pt.join(actionid, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + postfix + '_raw.jpg')
+        cv.SaveImage(raw_image_name, feature_dict['image'])
+        save_dict['image'] = raw_image_name
+
+        #Save pickle
+        pkname = pt.join(actionid, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + postfix + '.pkl')
+        ut.save_pickle(save_dict, pkname)
+
+
 
 
     ##
@@ -697,26 +731,55 @@ class TRFClassificationServer:
         self.tuck_arm_client.wait_for_result()
 
     def move_to_location(self, position, quat, frame):
+        rospy.loginfo('move_to_location: **************************')
+        rospy.loginfo('move_to_location: %s' % (str(position) + ' ' + str(quat)))
+        rospy.loginfo('move_to_location: **************************')
+        raw_input('Moving base. Press enter when ready!')
         rospy.loginfo('move_to_location: tucking')
         self._tuck(True, True)
-        g = mm.MoveBaseGoal()
-        p = g.target_pose
-        p.header.frame_id = frame
-        p.header.stamp = rospy.get_rostime()
-        p.pose = tup_to_pose((position, quat))
-        self.move_base_client.send_goal(g)
-        rospy.loginfo('move_to_location: waiting for move base results')
-        self.move_base_client.wait_for_result()
-        rospy.loginfo('move_to_location: moved!')
+
+        global_nav = False
+
+        if global_nav:
+            g = mm.MoveBaseGoal()
+            p = g.target_pose
+            p.header.frame_id = frame
+            p.header.stamp = rospy.get_rostime()
+            p.pose = tup_to_pose((position, quat))
+            self.move_base_client.send_goal(g)
+            rospy.loginfo('move_to_location: waiting for move base results')
+            self.move_base_client.wait_for_result()
+            rospy.loginfo('move_to_location: moved!')
+        else:
+            self.tf_listener.waitForTransform('/base_footprint',\
+                    frame,  rospy.Time(0), rospy.Duration(10.))
+            bl_T_frame = ptfu.tf_as_matrix(\
+                    self.tf_listener.lookupTransform(\
+                    '/base_footprint',\
+                    frame, rospy.Time(0)))
+            h_frame = ptfu.tf_as_matrix((position, quat))
+            t, r = ptfu.matrix_as_tf(bl_T_frame*h_frame)
+            xy_goal = smb.GoXYGoal(t[0],t[1])
+            self.go_xy_client.send_goal(xy_goal)
+            rospy.loginfo('move_to_location: waiting for go_xy results')
+            self.go_xy_client.wait_for_result()
+            rospy.loginfo('move_to_location: moved!')
+
 
     def _train_helper(self, actionid, cactionid, stop_fun=None):
+        rospy.loginfo('*************************************')
         rospy.loginfo('train_helper: training action %s' % actionid)
+        rospy.loginfo('*************************************')
         labels = []
 
         start_num_points = self.training_db.get_num_data_points(actionid)
         while not rospy.is_shutdown():
             #Run action
-            rospy.loginfo('_train_helper: sent goal')
+            rospy.loginfo('*************************************')
+            rospy.loginfo('*************************************')
+            rospy.loginfo('_train_helper: sent goal for action %s' % actionid)
+            rospy.loginfo('*************************************')
+            rospy.loginfo('*************************************')
             self.run_action_id_client.send_goal(atmsg.RunScriptIDGoal(actionid, ''))
             rospy.loginfo('_train_helper: waiting for result')
             self.run_action_id_client.wait_for_result()
@@ -761,7 +824,12 @@ class TRFClassificationServer:
 
 
     def train_action(self, actionid):
+        rospy.loginfo('train_action: ===================================================')
+        rospy.loginfo('train_action: ===================================================')
         rospy.loginfo('train_action: training %s' % actionid)
+        rospy.loginfo('train_action: ===================================================')
+        rospy.loginfo('train_action: ===================================================')
+
         #pdb.set_trace()
         self.training_db.init_data_record(actionid)
         cactionid = self.get_behavior_property(actionid, 'complement').value
