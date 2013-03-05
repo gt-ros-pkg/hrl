@@ -154,7 +154,8 @@ class WaypointGenerator():
       rospy.logerr('Arm not specified for cRoNA')
       sys.exit()
 
-    self.robot_kinematics = create_kdl_kin('torso_chest_link', self.opt.arm+'_hand_link')
+    #self.robot_kinematics = create_kdl_kin('torso_chest_link', self.opt.arm+'_hand_link')
+    self.robot_kinematics = create_kdl_kin('base_link', self.opt.arm+'_hand_link') # testing
     self.tf_listener = tf.TransformListener()
 
     if self.opt.arm == None:
@@ -181,7 +182,7 @@ class WaypointGenerator():
   # @param msg A geometry_msgs.msg.PoseStamped object.
   def goalPoseCallback(self, msg):
     rospy.loginfo("Got new goal pose")
-    if (not 'torso_lift_link' in msg.header.frame_id) and (not '/torso_chest_link' in msg.header.frame_id):
+    if (not 'torso_lift_link' in msg.header.frame_id) and (not '/torso_chest_link' in msg.header.frame_id) and (not '/base_link' in msg.header.frame_id):
       print "msg.header.frame_id"
       print msg.header.frame_id
       try:
@@ -345,8 +346,8 @@ class WaypointGenerator():
     header.seq = self.msg_seq
     self.msg_seq += 1
     header.stamp = rospy.get_rostime()
-    header.frame_id = "/torso_lift_link"
-    
+    #header.frame_id = "/torso_lift_link"
+    header.frame_id = "/base_link"
     return header
     
   ## Euclidian distance between two poses. Ignores differences in orientation.
