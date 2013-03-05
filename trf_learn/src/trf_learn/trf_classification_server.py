@@ -18,6 +18,7 @@ import rcommander_pr2_gui.msg as rm
 import geometry_msgs.msg as geo
 import sensor_msgs.msg as sm
 import actionlib
+import actionlib_msgs.msg as am
 import tf
 import pointclouds as pc
 import pypr2.msg as smb
@@ -445,7 +446,11 @@ class TRFClassificationServer:
         #Messages that request an action be trained
         rospy.Subscriber('train_action', atmsg.TrainAction, self.train_action_cb)
 
-        self.run_action_id_client = actionlib.SimpleActionClient('run_actionid_train_mode', atmsg.RunScriptIDAction)
+        self.run_action_id_client = actionlib.SimpleActionClient('run_actionid_train_mode', 
+                atmsg.RunScriptIDAction)
+
+        self.run_action_stub_client = actionlib.SimpleActionClient('run_actionid_stub',
+                atmsg.RunScriptIDAction)
 
         self.rec_params = r3d.Recognize3DParam()
         self.training_db = TrainingInformationDatabase(database_file, self.rec_params)
@@ -474,7 +479,6 @@ class TRFClassificationServer:
         self.candidate_pub = rospy.Publisher('candidate_points', sm.PointCloud2)
 
         rospy.loginfo('Ready!')
-
 
 
     def action_result_srv_cb(self, action_result_msg):
@@ -766,11 +770,23 @@ class TRFClassificationServer:
             rospy.loginfo('move_to_location: moved!')
 
 
-    def _train_helper(self, actionid, cactionid, stop_fun=None):
+    ##
+    # @param actionid
+    # @param cactionid
+    # @param stub_path path on server to stub action (which gets robot close to mechanism)
+    def _train_helper(self, actionid, cactionid, stub_path, stop_fun=None):
         rospy.loginfo('*************************************')
         rospy.loginfo('train_helper: training action %s' % actionid)
         rospy.loginfo('*************************************')
         labels = []
+
+        #Go to mechanism location with stub behavior
+        self.run_action_stub_client.send_goal(atmsg.RunScriptIDGoal(actionid, stub_path))
+        self.run_action_stub_client.wait_for_result()
+        state_machine_end_state = self.run_action_stub_client.get_result().result
+        if state_machine_end_state != am.GoalStatus.SUCCEEDED:
+            rospy.loginfo('_train_helper: ERROR. Could not complete stub behavior.')
+            return False
 
         start_num_points = self.training_db.get_num_data_points(actionid)
         while not rospy.is_shutdown():
@@ -784,6 +800,10 @@ class TRFClassificationServer:
             rospy.loginfo('_train_helper: waiting for result')
             self.run_action_id_client.wait_for_result()
             state_machine_end_state = self.run_action_id_client.get_result().result
+            #If behavior somehow failed completely to execute, something really wrong happened.
+            if state_machine_end_state != am.GoalStatus.SUCCEEDED:
+                rospy.loginfo('_train_helper: ERROR. behavior state machine call did not complete. Returning.')
+                break
 
             #Get success/failure from our service callback
             success = self.last_action_result
@@ -809,8 +829,15 @@ class TRFClassificationServer:
                         return True
                     else:
                         return False
-                #reverse our action.
-                self._train_helper(cactionid, actionid, stop_fun=any_pos_sf)
+                #reverses our action, tries as many times as needed.
+                for i in range(3):
+                    reversed_state = self._train_helper(cactionid, actionid, stop_fun=any_pos_sf)
+                    if reversed_state:
+                        break
+
+                if not reversed_state:
+                    rospy.loginfo('_train_helper: ERROR UNABLE TO REVERSE STATE.  This should happen.')
+                    raw_input('help! (press enter to continue)')
 
             #if we have enough data, quit.
             num_points_added = self.training_db.get_num_data_points(actionid) - start_num_points
@@ -821,6 +848,7 @@ class TRFClassificationServer:
                 break
 
         self.training_db.save_database()
+        return True
 
 
     def train_action(self, actionid):
@@ -833,6 +861,8 @@ class TRFClassificationServer:
         #pdb.set_trace()
         self.training_db.init_data_record(actionid)
         cactionid = self.get_behavior_property(actionid, 'complement').value
+        stub_path = self.get_behavior_property(actionid, 'stub').value
+
         self.training_db.init_data_record(cactionid)
 
         unexplored_locs  = np.where(self.training_db.get_practice_history(actionid) == 0)[1]
@@ -869,26 +899,31 @@ class TRFClassificationServer:
                 ####################################################################
                 ####################################################################
                 action_b = self.training_db.get_num_data_points(actionid)
-                self._train_helper(actionid, cactionid)
-                points_added = self.training_db.get_num_data_points(actionid) - action_b
-                ####################################################################
-                ####################################################################
+                if self._train_helper(actionid, cactionid, stub_path):
 
-                self.training_db.add_to_practice_history(actionid, pidx, 1)
-                if points_added == 0:# and np.where(self.training_db.data[actionid]['practice_locations_history'] == 0)[1].shape[0] == 0:
-                    self.training_db.set_converged(actionid, pidx)
-                    rospy.loginfo('===================================================')
-                    rospy.loginfo('= LOCATION CONVERGED ')
-                    rospy.loginfo('Converged locs: %s' % str(self.training_db.get_practice_convergence(actionid)))
-                    rospy.loginfo('number of datapoints %s' % str(self.training_db.get_num_data_points(actionid)))
-                    rospy.loginfo('===================================================')
-                    if np.where(self.training_db.get_practice_convergence(actionid) == 0)[1].shape[0] <= 0:
-                        break
+                    points_added = self.training_db.get_num_data_points(actionid) - action_b
+                    ####################################################################
+                    ####################################################################
+
+                    self.training_db.add_to_practice_history(actionid, pidx, 1)
+                    if points_added == 0:# and np.where(self.training_db.data[actionid]['practice_locations_history'] == 0)[1].shape[0] == 0:
+                        self.training_db.set_converged(actionid, pidx)
+                        rospy.loginfo('===================================================')
+                        rospy.loginfo('= LOCATION CONVERGED ')
+                        rospy.loginfo('Converged locs: %s' % str(self.training_db.get_practice_convergence(actionid)))
+                        rospy.loginfo('number of datapoints %s' % str(self.training_db.get_num_data_points(actionid)))
+                        rospy.loginfo('===================================================')
+                        if np.where(self.training_db.get_practice_convergence(actionid) == 0)[1].shape[0] <= 0:
+                            break
+                    else:
+                        rospy.loginfo('===================================================')
+                        rospy.loginfo('= Scan converged!')
+                        rospy.loginfo('Converged locs: %s' % str(self.training_db.data[actionid]['practice_locations_convergence']))
+                        rospy.loginfo('number of datapoints %s' % str(self.training_db.get_num_data_points(actionid)))
+                        rospy.loginfo('===================================================')
                 else:
                     rospy.loginfo('===================================================')
-                    rospy.loginfo('= Scan converged!')
-                    rospy.loginfo('Converged locs: %s' % str(self.training_db.data[actionid]['practice_locations_convergence']))
-                    rospy.loginfo('number of datapoints %s' % str(self.training_db.get_num_data_points(actionid)))
+                    rospy.loginfo('= Execution failure. Trying next training location.  Maybe we wil lhave better luck there.')
                     rospy.loginfo('===================================================')
 
             pidx = (pidx + 1) % TrainingInformationDatabase.NUM_BASE_LOCATIONS 

@@ -207,7 +207,7 @@ class TRFLearnNodeSmach(smach.State):
 
         preempted = False
         r = rospy.Rate(30)
-        success = True
+        execution_success = True
 
         while not rospy.is_shutdown():
             if rthread.exception != None:
@@ -217,7 +217,7 @@ class TRFLearnNodeSmach(smach.State):
                 rospy.loginfo('State Machine Node: child node finished with outcome ' \
                         + rthread.outcome)
                 if None == re.compile('^succeeded\d+').match(rthread.outcome):
-                    success = False
+                    execution_success = False
                 break
 
             if not rthread.isAlive():
@@ -229,7 +229,7 @@ class TRFLearnNodeSmach(smach.State):
                 rthread.preempt()
                 self.service_preempt()
                 preempted = True
-                success = False
+                execution_success = False
                 break
 
             r.sleep()
@@ -239,10 +239,11 @@ class TRFLearnNodeSmach(smach.State):
         if preempted:
             return 'preempted'
         else:
-            #Run success function part2
-            success = self.classify_success(success_request_id).success == 'success'
-
-            #Return success/failure based on success function
-            self.action_result_srv(actionid, instance_info, recognition_mode, success)
+            #If execution was *not* a success then we should not send any results.
+            perceptual_success = self.classify_success(success_request_id).success == 'success'
+            if execution_success:
+                #Run success function part2
+                #Return success/failure based on success function
+                self.action_result_srv(actionid, instance_info, recognition_mode, perceptual_success)
             return rthread.outcome
 

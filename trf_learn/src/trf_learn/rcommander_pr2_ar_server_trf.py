@@ -20,7 +20,21 @@ class TRFBehaviorServer(rcs.BehaviorServer):
 
         self.actserv_runactionid_train = actionlib.SimpleActionServer('run_actionid_train_mode', atmsg.RunScriptIDAction, 
                                     execute_cb=self.run_actionid_train_mode_cb, auto_start=False)
+
+        self.actserv_run_script_id_stub = actionlib.SimpleActionServer('run_actionid_stub', atmsg.RunScriptIDAction, 
+                                    execute_cb=self.run_script_id_stub_cb, auto_start=False)
+
         self.actserv_runactionid_train.start()
+
+    ##
+    # Runs the "stub" associated with an action
+    def run_script_id_stub_cb(self, req):
+        associated_actionid = req.actionid
+        stub_path = req.param
+
+        self.action_marker_manager.set_task_frame(associated_actionid)
+        self.loaded_actions[stub_path]['function'](self.actserv_run_script_id_stub)
+        self.action_marker_manager.set_task_frame(None) 
 
     def run_actionid_train_mode_cb(self, req):
         rospy.loginfo('run_actionid_train_mode_cb: called')
