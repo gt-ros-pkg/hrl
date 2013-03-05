@@ -66,12 +66,12 @@ class URDFArm(HRLArm):
             print "kp is not on param server ... exiting"
             assert(False)
 #        max_kp =  np.max(self.kp)
-        self.kp[-1] = 5. #This smells like a Hack. # crona testing
-        self.kp[-2] = 50.
-        self.kp[-3] = 50.
-	if len(self.joint_names_list) == 9: # crona testing
+	
+	if len(self.joint_names_list) == 9: # quick hack to change "weighting" on joints by changing the interpreted stiffness values
 	    self.kp = [100. for i in range(3)]
-	    self.kp += [50. for i in [3,4,5,6,7,8]] # crona testing
+	    self.kp += [50. for i in [3,4,5,6,7,8]] 
+	else:
+	    self.kp = [50. for i in range(len(self.joint_names_list))]
         
 	try:
 	    if len(self.joint_names_list) == 9:
