@@ -185,6 +185,10 @@ class TrainingInformationDatabase:
     def set_converged(self, actionid, location_idx):
         self.data[actionid]['practice_locations_convergence'][0, location_idx] = 1
 
+    def reset_data_instances(self, actionid):
+        dataset = self.data[actionid]['dataset']
+        self.data[actionid]['dataset'] = dataset.subset([0,1])
+
     def add_data_instance(self, actionid, al_point_container, success):
         #Make sure we have a data record
         self.init_data_record(actionid)
@@ -580,16 +584,16 @@ class TRFClassificationServer:
             pass
 
         #Save visualization
-        ffull = pt.join(actionid, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + postfix + '_vis.jpg')
+        ffull = pt.join(actionid, time.strftime('%A_%Y_%m_%d_%H_%M_%S%p') + postfix + '_vis.jpg')
         cv.SaveImage(ffull, img)
 
         #Save raw image
-        raw_image_name = pt.join(actionid, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + postfix + '_raw.jpg')
+        raw_image_name = pt.join(actionid, time.strftime('%A_%Y_%m_%d_%H_%M_%S%p') + postfix + '_raw.jpg')
         cv.SaveImage(raw_image_name, feature_dict['image'])
         save_dict['image'] = raw_image_name
 
         #Save pickle
-        pkname = pt.join(actionid, time.strftime('%A_%m_%d_%Y_%I_%M_%S%p') + postfix + '.pkl')
+        pkname = pt.join(actionid, time.strftime('%A_%Y_%m_%d_%H_%M_%S%p') + postfix + '.pkl')
         ut.save_pickle(save_dict, pkname)
 
 

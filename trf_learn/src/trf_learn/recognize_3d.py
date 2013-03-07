@@ -690,7 +690,7 @@ class Recognize3DParam:
         #sampling parameters
         #self.n_samples = 5000
         #self.n_samples = 5000
-        self.n_samples = 1500
+        self.n_samples = 3000
         self.uni_mix = .3
         self.max_points_per_site = 5
 
