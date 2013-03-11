@@ -55,6 +55,7 @@ class MPCTeleopInteractiveMarkers():
     control_path = '/control_params'
     self.orient_weight = rospy.get_param(base_path + control_path + '/orientation_weight')
     self.pos_weight = rospy.get_param(base_path + control_path + '/position_weight')  
+    self.arm = opt.arm
   ## Callback for the interactive marker location. 
   #
   # Receives and stores the updated pose of the marker in space as the user moves it around.
@@ -213,7 +214,7 @@ class MPCTeleopInteractiveMarkers():
     self.zero_cody_fabric_forearm_pub = rospy.Publisher('/fabric_forearm_sensor/zero_sensor', Empty)
     self.zero_cody_fabric_wrist_pub = rospy.Publisher('/fabric_wrist_sensor/zero_sensor', Empty)
     if self.opt.robot == 'pr2':
-        self.gripper_action_client = actionlib.SimpleActionClient(arm+'_gripper_controller/gripper_action', Pr2GripperCommandAction)
+        self.gripper_action_client = actionlib.SimpleActionClient(self.arm+'_gripper_controller/gripper_action', Pr2GripperCommandAction)
  
     self.server = ims.InteractiveMarkerServer('teleop_rviz_server')
 
