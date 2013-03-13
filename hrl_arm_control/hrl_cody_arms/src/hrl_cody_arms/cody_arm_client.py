@@ -283,13 +283,13 @@ class CodyArmClient_7DOF(CodyArmClient):
             kp_t.append(30.)
             return kp_t, copy.copy(self.kd)
 
-class CodyArmClient_4DOF(CodyArmClient):
+class CodyArmClient_5DOF(CodyArmClient):
     def __init__(self, arm):
         CodyArmClient.__init__(self, arm)
 
     def get_joint_impedance(self):
         with self.lock:
-            return copy.copy(self.kp[0:4]), copy.copy(self.kd[0:4])
+            return copy.copy(self.kp[0:5]), copy.copy(self.kd[0:5])
 
 
 
