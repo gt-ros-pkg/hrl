@@ -176,7 +176,7 @@ def initialiseOptParser(p):
   p.add_option('--orientation', '-o', action='store_true', dest='orientation',
                help='try to go to commanded orientation in addition to position')
   p.add_option('--robot', '-r', action='store', dest='robot',
-               help='robot name: cody, pr2, sim3, sim3_with_hand, simcody')
+               help='robot name: cody, cody5dof, pr2, sim3, sim3_with_hand, simcody')
   p.add_option('--sensor', '-s', action='store', dest='sensor',
                help='sensor type: meka_sensor, fabric_sensor, hil, ignore')
   p.add_option('--use_wrist_joints', action='store_true', dest='use_wrist_joints',
@@ -192,7 +192,7 @@ def initialiseOptParser(p):
 def getValidInput(p):
   opt, args = p.parse_args()
   # Validate input options
-  valid_robots = ['cody', 'pr2', 'sim3', 'sim3_with_hand', 'simcody', 'crona']
+  valid_robots = ['cody', 'cody5dof', 'pr2', 'sim3', 'sim3_with_hand', 'simcody', 'crona']
   valid_sensors = ['meka', 'fabric', 'hil', 'none', 'pps', 'sim']
 
   if opt.robot and opt.robot not in valid_robots:
