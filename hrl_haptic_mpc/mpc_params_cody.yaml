@@ -25,7 +25,7 @@ haptic_mpc:
     force_reduction_goal: 0.1
     allowable_contact_force: 3.0    
     max_delta_force_mag: 0.1
-    stopping_force: 15.0
+    stopping_force: 5.0
 
     timeout: 100.0 #seconds
   

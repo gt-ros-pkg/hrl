@@ -100,6 +100,8 @@ class RobotHapticStateServer():
       self.initPR2()
     elif robot_type == "cody":
       self.initCody()
+    elif robot_type == "cody5dof":
+      self.initCody(5)
     elif robot_type == "sim3":
       self.initSim()
     elif robot_type == "crona":
@@ -161,7 +163,7 @@ class RobotHapticStateServer():
 
 
   ## Initialise parameters for the state publisher when used on Cody.
-  def initCody(self):
+  def initCody(self, num_of_joints=7):
     import hrl_cody_arms.cody_arm_client
 
     # Load the skin list from the param server
@@ -187,8 +189,12 @@ class RobotHapticStateServer():
     if not self.opt.arm:
       rospy.logerr("RobotHapticState: No arm specified for Cody")
       sys.exit()
-    self.robot = hrl_cody_arms.cody_arm_client.CodyArmClient(self.opt.arm)
-    
+
+    if num_of_joints == 7:
+      self.robot = hrl_cody_arms.cody_arm_client.CodyArmClient_7DOF(self.opt.arm)
+    elif num_of_joints == 5:
+      self.robot = hrl_cody_arms.cody_arm_client.CodyArmClient_5DOF(self.opt.arm)
+
     # Push joint angles to the param server.
     if self.opt.arm in ['l', 'r']:
       arm_path = '/left'
