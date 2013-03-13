@@ -1,0 +1,29 @@
+
+Header header
+
+float64 alpha
+float64[] delta_x_d
+float64[] A_tl
+float64[] A_tr
+float64[] A_bl
+float64[] A_br
+float64[] B_tl
+float64[] B_tr
+float64[] B_bl
+float64[] B_br
+float64[] qd_max
+float64[] u_max
+float64[] q_min
+float64[] q_max
+float64[] delta_f_max
+float64[] n_K_J_all
+float64[] all_J_T_K_J
+float64[] J
+float64[] f_max_delta_t
+float64[] mass_n_J_com
+float64[] Kp
+float64[] Kd
+float64[] q_des_cur_0
+float64[] qd_0
+float64[] q_0
+float64[] tau_cont_sum_0

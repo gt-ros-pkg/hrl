@@ -116,6 +116,10 @@ class HRLArmKinematics():
     def Jacobian(self, q, pos=None):
         raise RuntimeError('Unimplemented Function')
 
+    ## compute Jacobian at point pos.
+    def jacobian(self, q, pos=None):
+        raise RuntimeError('Unimplemented Function')
+
     ## return min_array, max_array
     def get_joint_limits(self):
         raise RuntimeError('Unimplemented Function')
