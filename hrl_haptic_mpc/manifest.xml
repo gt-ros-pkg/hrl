@@ -19,8 +19,8 @@
     <depend package="hrl_lib"/>
     <depend package="hrl_haptic_manipulation_in_clutter_msgs"/>
     <depend package="hrl_haptic_manipulation_in_clutter_srvs"/>
-    <depend package="urdf_parser_py"/> <!--http://www.ros.org/wiki/urdf_parser_py-->
     <depend package="pykdl_utils"/> <!--gt-ros-pkg.hrl-kdl repo on google code-->
+    <!-- <(pykdl_utils needs): package="urdf_parser_py"/> http://www.ros.org/wiki/urdf_parser_py-->
 
     <!-- Robot specific packages. Used for the robot interface msg definitions -->
     <depend package="pr2_controllers_msgs"/>  <!-- used by the PR2 arm client -->
