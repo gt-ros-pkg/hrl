@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+
+
 import sys
 import numpy as np
 from threading import Condition
@@ -10,6 +12,7 @@ import pygame
 from sklearn import preprocessing as pps, svm
 
 import roslib; roslib.load_manifest('wouse')
+from Object import ROSObject
 import rospy
 from std_msgs.msg import Header
 from geometry_msgs.msg import Vector3Stamped
