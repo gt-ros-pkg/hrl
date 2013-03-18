@@ -1,5 +1,0 @@
-string log_state # "start" or "stop"
-string log_dir # File path, eg ~/tests/testA
-string log_file # File name, eg "trial_1". Will be saved as a pkl file
----
-
