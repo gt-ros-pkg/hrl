@@ -4,11 +4,11 @@
      hrl_object_fetching
 
   </description>
-  <author>kelsey</author>
+  <author>Kelsey Hawkins. Advisor: Prof. Charlie Kemp. Healthcare Robotics Lab, Georgia Tech</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/hrl_object_fetching</url>
-  <depend package="pr2_overhead_grasping"/>
+  <!-- <depend package="pr2_overhead_grasping"/> Don't know where this went...-->
   <depend package="hrl_rfid"/>
   <depend package="rospy"/>
   <depend package="roslaunch"/>
