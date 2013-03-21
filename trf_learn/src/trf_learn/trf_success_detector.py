@@ -124,10 +124,11 @@ class PressureWatch(threading.Thread):
             r.sleep()
 
         end_pose = self.pose_cartesian()
-        if np.linalg.norm(contact_loc - end_pose) > self.push_tolerance:
-            self.result = True 
+        dist = np.linalg.norm(contact_loc - end_pose)
+        if dist > self.push_tolerance:
+            self.result = True, dist
         else:
-            self.result = False
+            self.result = False, dist
 
     def get_result(self):
         return self.result
@@ -140,7 +141,7 @@ class PressureWatch(threading.Thread):
 
 class DrawerPushSuccess:
 
-    PUSH_TOLERANCE = .1
+    PUSH_TOLERANCE = .07
 
     def __init__(self, arm, requestid, connection_cache):
         self.connection_cache = connection_cache
@@ -165,7 +166,7 @@ class DrawerPushSuccess:
         pressure = self.connection_cache.get(self.connection_name)
         tf_listener = self.connection_cache.get('tf_listener')
         pressure.rezero()
-        pressure.set_threshold(500)
+        pressure.set_threshold(300)
         self.watcher = PressureWatch(pressure, self.arm, tf_listener, DrawerPushSuccess.PUSH_TOLERANCE)
         self.watcher.start()
 
@@ -173,11 +174,11 @@ class DrawerPushSuccess:
         #pressure = self.connection_cache.get(self.connection_name)
         #exceeded_threshold = pressure.check_threshold()
         self.watcher.stop()
-        #pdb.set_trace()
-        result = self.watcher.get_result()
+        result, dist = self.watcher.get_result()
         if result == None:
             raise RuntimeError('DrawerPushSuccess: Result should not be NONE!')
 
+        rospy.loginfo('DrawerPushSuccess: pushed for dist %f (threshold %f)' % (dist, DrawerPushSuccess.PUSH_TOLERANCE))
         if result:
             return 'success'
         else:
@@ -186,7 +187,7 @@ class DrawerPushSuccess:
 
 class DrawerPullSuccess:
 
-    GRIPPER_CLOSE = .004
+    GRIPPER_CLOSE = .006
 
     def __init__(self, arm, requestid, connection_cache):
         self.connection_cache = connection_cache
@@ -205,9 +206,11 @@ class DrawerPullSuccess:
         pass
 
     def classify_success(self):
+        rospy.sleep(5)
         gripper = self.connection_cache.get(self.connection_name)
         has_handle = gripper.pose()[0,0] > DrawerPullSuccess.GRIPPER_CLOSE
-        rospy.loginfo('DrawerPullSuccess: gripper size %f threshold %f.  result %s' % (gripper.pose()[0,0], DrawerPullSuccess.GRIPPER_CLOSE, str(has_handle)))
+        rospy.loginfo('DrawerPullSuccess: gripper size %f threshold %f.  result %s' % \
+                (gripper.pose()[0,0], DrawerPullSuccess.GRIPPER_CLOSE, str(has_handle)))
         if has_handle:
             return 'success'
         else:

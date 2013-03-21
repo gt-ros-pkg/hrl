@@ -9,6 +9,7 @@ import rospy
 import trf_learn.trf_learn_tool as tlt
 import actionlib
 import rcommander_ar_tour.msg as atmsg
+import pdb
 
 
 class TRFBehaviorServer(rcs.BehaviorServer):
@@ -27,22 +28,41 @@ class TRFBehaviorServer(rcs.BehaviorServer):
         self.actserv_run_script_id_stub.start()
         self.actserv_runactionid_train.start()
 
+
+    def _execute_database_action_cb(self, actionid, actserv):
+        #pdb.set_trace()
+        entry = self.action_marker_manager.marker_db.get(actionid)                                    
+        if entry.has_key('stub'):
+            result = self._run_stub(actionid, entry['stub'], actserv, set_result=False)
+            if result:
+                rcs.BehaviorServer._execute_database_action_cb(self, actionid, actserv)
+        else:
+            rcs.BehaviorServer._execute_database_action_cb(self, actionid, actserv)
+
     ##
     # Runs the "stub" associated with an action
     def run_script_id_stub_cb(self, req):
         rospy.loginfo('run_script_id_stub_cb: called with actionid %s and stub %s' % (req.actionid, req.param))
         associated_actionid = req.actionid
         stub_path = req.param
+        #pdb.set_trace()
+        self._run_stub(associated_actionid, stub_path, self.actserv_run_script_id_stub)
 
+    def _run_stub(self, associated_actionid, stub_path, action_server, set_result=True):
+        self.action_marker_manager.reset_to_db_loc(associated_actionid)
         self.action_marker_manager.set_task_frame(associated_actionid)
-        self.loaded_actions[stub_path]['function'](self.actserv_run_script_id_stub)
+        result = self.loaded_actions[stub_path]['function'](action_server, 
+                set_result=set_result)
+        self.action_marker_manager.reset_to_db_loc(associated_actionid)
         self.action_marker_manager.set_task_frame(None) 
+        return result
 
     def run_actionid_train_mode_cb(self, req):
         rospy.loginfo('run_actionid_train_mode_cb: called')
         self.actionid = req.actionid
         actserv = self.actserv_runactionid_train
 
+        self.action_marker_manager.reset_to_db_loc(self.actionid)
         entry = self.action_marker_manager.marker_db.get(self.actionid)
         self.action_marker_manager.set_task_frame(self.actionid)
 
@@ -59,9 +79,11 @@ class TRFBehaviorServer(rcs.BehaviorServer):
             return state_machine
 
         #Execute loaded action
+        #pdb.set_trace()
         self.loaded_actions[entry['behavior_path']]['function'](actserv, state_machine_modifier=trf_param_set)
 
         #This will stop the publishing process
+        self.action_marker_manager.reset_to_db_loc(self.actionid)
         self.action_marker_manager.set_task_frame(None) 
 
 def run():

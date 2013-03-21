@@ -119,8 +119,8 @@ class TrainingInformationDatabase:
 
         return None
 
-    def init_data_record(self, actionid):
-        if not self.data.has_key(actionid):
+    def init_data_record(self, actionid, force=False):
+        if not self.data.has_key(actionid) or force:
             self.data[actionid] = {'dataset': None,
                                    'pca': None,
                                    #'pca_dataset': None,
@@ -870,7 +870,7 @@ class TRFClassificationServer:
         rospy.loginfo('move_to_location: **************************')
         rospy.loginfo('move_to_location: %s' % (str(position) + ' ' + str(quat)))
         rospy.loginfo('move_to_location: **************************')
-        raw_input('Moving base. Press enter when ready!')
+        #raw_input('Moving base. Press enter when ready!')
         rospy.loginfo('move_to_location: tucking')
         self._tuck(True, True)
 
