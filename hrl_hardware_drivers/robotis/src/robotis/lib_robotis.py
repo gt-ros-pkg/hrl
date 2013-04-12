@@ -109,11 +109,11 @@ class Robotis_Servo():
             defaults = {
                 'home_encoder': 0x7FF,
                 'max_encoder': 0xFFF,
-                'rad_per_enc': math.radians(360.0) / 0xFFF, 
-                'max_ang': math.radians(180),
-                'min_ang': math.radians(-180),
+                'rad_per_enc': 2*math.pi / 0xFFF, 
+                'max_ang': math.pi,
+                'min_ang': -math.pi,
                 'flipped': False,
-                'max_speed': math.radians(100)
+                'max_speed': math.radians(180)
                 }
         else: # Common settings for RX-series.  Can overload in servo_config.py
             defaults = {
@@ -123,9 +123,8 @@ class Robotis_Servo():
                 'max_ang': math.radians(148),
                 'min_ang': math.radians(-148),
                 'flipped': False,
-                'max_speed': math.radians(100)
+                'max_speed': math.radians(180)
                 }
-                
 
         # Error Checking
         if USB2Dynamixel == None:
