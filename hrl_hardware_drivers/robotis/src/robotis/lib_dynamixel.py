@@ -97,6 +97,7 @@ class USB2Dynamixel_Device():
 
     def receive_reply(self):
         start = self.read_serial( 2 )
+        print "Reply starts with: %s" %start
         if start != '\xff\xff':
             raise RuntimeError('lib_dynamixel: Failed to receive start bytes\n')
         servo_id = self.read_serial( 1 )
@@ -115,14 +116,22 @@ class USB2Dynamixel_Device():
         chksum = ( ~chksum ) % 256
         return chksum
 
-    def send_instruction(self, instruction, id):
+    def send_instruction(self, instruction, id, status_return=True):
+        print "Incoming instruction: %s" %instruction
         msg = [ id, len(instruction) + 1 ] + instruction # instruction includes the command (1 byte + parameters. length = parameters+2)
         chksum = self.__calc_checksum( msg )
         msg = [ 0xff, 0xff ] + msg + [chksum]
+        print "Final Message: %s" %msg
+        raw_input('Review final msg')
         self.acq_mutex()
         try:
             self.send_serial( msg )
-            id, data, err = self.receive_reply()
+            if status_return:
+                id, data, err = self.receive_reply()
+            else:
+                id = 0xFE
+                data = []
+                err = 0 #No Error Received
         except:
             self.rel_mutex()
             raise
@@ -168,12 +177,14 @@ class USB2Dynamixel_Device():
         msg = [ 0x03, address ] + data
         return self.send_instruction( msg, id )
 
-    def sync_write(self, address, data):
+    def sync_write(self, data):
         '''writes data to address 0xFE (254), the broadcast address.
            sends data to all servos on a bus
         '''
-        msg = [ 0x83, address, data_list]
-        return self.send_instruction(msg, id=0xFE)
+        print "sync_write received data: %s" %data
+        msg = [ 0x83 ] + data
+        print "sync_write outgoing msg: %s" %msg
+        return self.send_instruction(msg, id=0xFE, status_return=False)
 
 
 class Dynamixel_Chain(USB2Dynamixel_Device):
@@ -291,7 +302,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             while(self.is_moving(id)):
                 continue
 
-    def move_to_angles_sync(self, angs, angvels=None, ids=None, blocking=False):
+    def move_angles_sync(self, angs, angvels=None, ids=None, blocking=False):
         if ids is None:
             ids = self.servos.keys()
         if angvels is None:
@@ -299,13 +310,24 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         assert(len(ids) == len(angvels)) #Check that there is an angle, angvel for each id
         assert(len(ids) == len(angs))
 
+        msg = [0x1E, 0x04]
+        for id, ang, vel in zip(ids, angs, angvels):
+            ang = self.servos[id].clip_angle(ang)
+            enc_tics = self.servos[id].angle_to_encoder(ang)
+            ang_hi, ang_lo = self.encoder_to_bytes(id, enc_tics)
+            vel_hi, vel_lo = self.angvel_to_bytes(vel)
+            msg.extend([id, ang_lo, ang_hi, vel_lo, vel_hi])
+
+        print "move_angles_sync sending: %s" %msg
+        self.sync_write(msg)
+
     def move_to_encoder(self, id, n):
         ''' move to encoder position n
         '''
         # In some border cases, we can end up above/below the encoder limits.
         #   eg. int(round(math.radians( 180 ) / ( math.radians(360) / 0xFFF ))) + 0x7FF => -1
-        n = min( max( n, 0 ), self.servos[id].settings['max_encoder'] )
-        hi,lo = n / 256, n % 256
+
+        hi, lo = self.encoder_to_bytes(id, n)
         return self.write_address(id, 0x1e, [lo,hi] )
 
     def enable_torque(self, id):
@@ -314,8 +336,13 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
     def disable_torque(self, id):
         return self.write_address(id, 0x18, [0])
 
-    def set_angvel(self, id, angvel):
-        ''' angvel - in rad/sec
+    def encoder_to_bytes(self, id, n):
+        n = min( max( n, 0 ), self.servos[id].settings['max_encoder'] )
+        hi,lo = n / 256, n % 256
+        return hi, lo
+
+    def angvel_to_bytes(self, angvel):
+        ''' Convert Angular velocity, in rad/sec, to hi and lo bytes.
         '''
         rpm = angvel / (2 * math.pi) * 60.0
         angvel_enc = int(round( rpm / 0.111 ))
@@ -323,8 +350,13 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             hi,lo = abs(angvel_enc) / 256 + 4, abs(angvel_enc) % 256
         else:
             hi,lo = angvel_enc / 256, angvel_enc % 256
+        return hi, lo
 
-        return self.write_address(id, 0x20, [lo,hi] )
+    def set_angvel(self, id, angvel):
+        ''' angvel - in rad/sec
+        '''
+        hi, lo =  self.angvel_to_bytes(angvel)
+        return self.write_address(id, 0x20, [lo, hi] )
 
     def write_id(self, current_id, new_id):
         ''' changes the servo id
@@ -405,6 +437,27 @@ class Robotis_Servo():
         enc_tics = int(round( ang / self.settings['rad_per_enc'] ))
         enc_tics += self.settings['home_encoder']
         return enc_tics
+
+    def clip_angle(self, ang):
+        ''' Clip commanded joint angles to within the allowed range.
+        '''
+        if self.settings['flipped']:
+            ang = -1.0 * ang
+        if ang < self.settings['min_ang']:
+            return self.settings['min_ang']
+        elif ang > self.settings['max_ang']:
+            return self.settings['max_ang']
+        else:
+            return ang
+
+    def clip_ang_vels(self, angvel):
+        '''Clip commanded velocity to below the allowed maximum.
+        '''
+        if angvel > self.settings['max_vel']:
+            return self.settings['max_vel']
+        else:
+            return angvel
+
 
 def recover_servo(dyn):
     ''' Recovers a bricked servo by booting into diagnostic bootloader and resetting '''
