@@ -305,15 +305,17 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         if ids is None:
             ids = self.servos.keys()
         if angvels is None:
-            angvels = [servo.settings['max_speed'] for servo in self.servos.values()]
-        assert(len(ids) == len(angvels)) #Check that there is an angle, angvel for each id
-        assert(len(ids) == len(angs))
+            angvels = [servo.settings['max_speed'] for servo in [self.servos[id] for id in ids]]
+        #Check that there is an angle, angvel for each id
+        assert len(ids) == len(angvels) ,  "Number of ids and angvels do not match"
+        assert len(ids) == len(angs) , "Number of ids and angles do not match"
 
         msg = [0x1E, 0x04]
         for id, ang, vel in zip(ids, angs, angvels):
             ang = self.servos[id].clip_angle(ang)
             enc_tics = self.servos[id].angle_to_encoder(ang)
             ang_hi, ang_lo = self.encoder_to_bytes(id, enc_tics)
+            vel = self.servos[id].clip_ang_vels(vel)
             vel_hi, vel_lo = self.angvel_to_bytes(vel)
             msg.extend([id, ang_lo, ang_hi, vel_lo, vel_hi])
         self.sync_write(msg)
@@ -441,8 +443,12 @@ class Robotis_Servo():
         if self.settings['flipped']:
             ang = -1.0 * ang
         if ang < self.settings['min_ang']:
+            print "Servo %d: Commanded angle (%f) below minimum (%f), commanding to minimum."\
+                    %(self.servo_id, ang, self.settings['min_ang'])
             return self.settings['min_ang']
         elif ang > self.settings['max_ang']:
+            print "Servo %d: Commanded angle (%f) above maximum (%f), commanding to maximum."\
+                    %(self.servo_id, ang, self.settings['max_ang'])
             return self.settings['max_ang']
         else:
             return ang
@@ -450,8 +456,10 @@ class Robotis_Servo():
     def clip_ang_vels(self, angvel):
         '''Clip commanded velocity to below the allowed maximum.
         '''
-        if angvel > self.settings['max_vel']:
-            return self.settings['max_vel']
+        if angvel > self.settings['max_speed']:
+            print "Servo %d: Tried to set ang vel to %f, above maximum (%f), setting to maximum."\
+                    %(self.servo_id, angvel, self.settings['max_speed'])
+            return self.settings['max_speed']
         else:
             return angvel
 
