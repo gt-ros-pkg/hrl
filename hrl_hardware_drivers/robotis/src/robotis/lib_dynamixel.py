@@ -97,7 +97,6 @@ class USB2Dynamixel_Device():
 
     def receive_reply(self):
         start = self.read_serial( 2 )
-        print "Reply starts with: %s" %start
         if start != '\xff\xff':
             raise RuntimeError('lib_dynamixel: Failed to receive start bytes\n')
         servo_id = self.read_serial( 1 )
@@ -117,11 +116,9 @@ class USB2Dynamixel_Device():
         return chksum
 
     def send_instruction(self, instruction, id, status_return=True):
-        print "Incoming instruction: %s" %instruction
         msg = [ id, len(instruction) + 1 ] + instruction # instruction includes the command (1 byte + parameters. length = parameters+2)
         chksum = self.__calc_checksum( msg )
         msg = [ 0xff, 0xff ] + msg + [chksum]
-        print "Final Message: %s" %msg
         raw_input('Review final msg')
         self.acq_mutex()
         try:
@@ -181,9 +178,7 @@ class USB2Dynamixel_Device():
         '''writes data to address 0xFE (254), the broadcast address.
            sends data to all servos on a bus
         '''
-        print "sync_write received data: %s" %data
         msg = [ 0x83 ] + data
-        print "sync_write outgoing msg: %s" %msg
         return self.send_instruction(msg, id=0xFE, status_return=False)
 
 
@@ -317,8 +312,6 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             ang_hi, ang_lo = self.encoder_to_bytes(id, enc_tics)
             vel_hi, vel_lo = self.angvel_to_bytes(vel)
             msg.extend([id, ang_lo, ang_hi, vel_lo, vel_hi])
-
-        print "move_angles_sync sending: %s" %msg
         self.sync_write(msg)
 
     def move_to_encoder(self, id, n):
