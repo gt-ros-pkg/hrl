@@ -95,13 +95,13 @@ class USB2Dynamixel_Device():
         rep = self.servo_dev.read( nBytes )
         return rep
 
-    def receive_reply(self):
+    def receive_reply(self, id):
         start = self.read_serial( 2 )
         if start != '\xff\xff':
             raise RuntimeError('lib_dynamixel: Failed to receive start bytes\n')
         servo_id = self.read_serial( 1 )
-#        if ord(servo_id) != self.servo_id:
-#            raise RuntimeError('lib_dynamixel: Incorrect servo ID received: %d\n' % ord(servo_id))
+        if ord(servo_id) != id:
+            raise RuntimeError('lib_dynamixel: Incorrect servo ID received: %d\n' % ord(servo_id))
         data_len = self.read_serial( 1 )
         err = self.read_serial( 1 )
         data = self.read_serial( ord(data_len) - 2 )
@@ -119,12 +119,11 @@ class USB2Dynamixel_Device():
         msg = [ id, len(instruction) + 1 ] + instruction # instruction includes the command (1 byte + parameters. length = parameters+2)
         chksum = self.__calc_checksum( msg )
         msg = [ 0xff, 0xff ] + msg + [chksum]
-        raw_input('Review final msg')
         self.acq_mutex()
         try:
             self.send_serial( msg )
             if status_return:
-                id, data, err = self.receive_reply()
+                id, data, err = self.receive_reply(id)
             else:
                 id = 0xFE
                 data = []
@@ -174,6 +173,10 @@ class USB2Dynamixel_Device():
         msg = [ 0x03, address ] + data
         return self.send_instruction( msg, id )
 
+    def ping(self, id):
+        msg = [ 0x01 ]
+        return self.send_instruction( msg, id )
+
     def sync_write(self, data):
         '''writes data to address 0xFE (254), the broadcast address.
            sends data to all servos on a bus
@@ -207,7 +210,8 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             print 'Scanning for Servos with ID\'s: %s' %ids
         for i in ids:
             try:
-                self.read_address(i,3)
+                self.ping(i)
+#                self.read_address(i,3)
                 print '\n FOUND A SERVO @ ID %d\n' % i
                 servos.append( i )
             except:
@@ -217,30 +221,30 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
 
     def init_cont_turn(self, id):
         '''sets CCW angle limit to zero and allows continuous turning (good for wheels).
-        After calling this method, simply use 'set_angvel' to command rotation.  This 
+        After calling this method, simply use 'set_angvel' to command rotation.  This
         rotation is proportional to torque according to Robotis documentation.
         '''
         self.write_address(id, 0x08, [0,0])
 
     def kill_cont_turn(self, id):
-        '''resets CCW angle limits to allow commands through 'move_angle' again
+        '''resets CCW angle limits to allow commands through 'move_angle' again.
         '''
         self.write_address(id, 0x08, [255, 3])
 
     def is_moving(self, id):
-        ''' returns True if servo is moving.
+        ''' returns True if servo (id) is moving.
         '''
         data = self.read_address(id, 0x2e, 1 )
         return data[0] != 0
 
     def read_voltage(self, id):
-        ''' returns voltage (Volts)
+        ''' returns voltage (Volts) seen by servo (id).
         '''
         data = self.read_address(id, 0x2a, 1 )
         return data[0] / 10.
 
     def read_temperature(self, id):
-        ''' returns the temperature (Celcius)
+        ''' returns the temperature (Celcius) of servo (id).
         '''
         data = self.read_address(id, 0x2b, 1 )
         return data[0]
@@ -257,14 +261,14 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             return 1.0 * load
 
     def read_encoder(self, id):
-        ''' returns position in encoder ticks
+        ''' returns position in encoder ticks of servo at id.
         '''
         data = self.read_address(id, 0x24, 2 )
         enc_val = data[0] + data[1] * 256
         return enc_val
 
     def read_angle(self, id):
-        ''' returns the current servo angle (radians)
+        ''' returns the angle (radians) of servo at id.
         '''
         ang = (self.read_encoder(id) -
                 self.servos[id].settings['home_encoder']) * self.servos[id].settings['rad_per_enc']
@@ -273,7 +277,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         return ang
 
     def move_angle(self, id, ang, angvel=None, blocking=False):
-        ''' move to angle (radians)
+        ''' move servo with id to angle (radians) with velocity (rad/s)
         '''
         if angvel == None:
             angvel = self.servos[id].settings['max_speed']
@@ -451,6 +455,17 @@ class Robotis_Servo():
         else:
             return angvel
 
+def discover_servos(dev='/dev/ttyUSB0', servo_ids=None, baudrates=None):
+    '''Discover all servos on a USB2Dynamixel_Device using PING command.
+       Checks all servo IDs at all Baudrates.  Can specify smaller ranges to check instead.
+    '''
+    if baudrates is None:
+        baudrates = [1000000, 500000, 400000, 250000, 200000, 115200, 57600, 19200, 9600]
+    for baudrate in baudrates:
+        print "Baudrate %d:" %baudrate
+        dyn = Dynamixel_Chain(dev, baudrate=baudrate, servo_ids = servo_ids)
+        dyn.servo_dev.close()
+        del(dyn)
 
 def recover_servo(dyn):
     ''' Recovers a bricked servo by booting into diagnostic bootloader and resetting '''
