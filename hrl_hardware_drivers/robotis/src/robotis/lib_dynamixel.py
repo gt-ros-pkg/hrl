@@ -128,10 +128,10 @@ class USB2Dynamixel_Device():
             raise
         self.rel_mutex()
         if err != 0:
-            self.process_err( err )
+            self.process_err( err, id )
         return data
 
-    def process_err( self, err ):
+    def process_err( self, err, id ):
         ''' Process and raise errors received from the robotis servo.
             TODO: WILL NOT HANDLE MULTIPLE ERRORS IN A SINGLE BYTE
         '''
@@ -151,7 +151,7 @@ class USB2Dynamixel_Device():
             msg = "Overload Error"
         elif err == 64:
             msg = "Instruction Error"
-        raise RuntimeError('lib_dynamixel: An error occurred: %d, %s\n' %err, msg)
+        raise RuntimeError('lib_dynamixel: An error occurred on servo %d: %d, %s\n' %(id, err, msg))
 
     def read_address(self, id, address, nBytes=1):
         ''' reads nBytes from address on the servo.
@@ -175,23 +175,31 @@ class USB2Dynamixel_Device():
         msg = [ 0x83, address, data_list]
         return self.send_instruction(msg, id=0xFE)
 
+
 class Dynamixel_Chain(USB2Dynamixel_Device):
     ''' Class that manages multiple servos on a single Dynamixel Device
     '''
-    def __init__(self, dev='/dev/ttyUSB0', baudrate='57600'):
+    def __init__(self, dev='/dev/ttyUSB0', baudrate='57600', servo_ids=None):
+        ''' Accepts device file, baudrate, and a list of id numbers for servos (if known)
+        '''
         USB2Dynamixel_Device.__init__(self, dev, baudrate)
 
-        servo_ids = self.find_servos()
+        valid_servo_ids = self.find_servos(servo_ids)
         self.servos = {}
-        for id in servo_ids:
+        for id in valid_servo_ids:
             self.servos[id] = Robotis_Servo(id, series='RX')
 
-    def find_servos(self):
-        ''' Finds all servo IDs on the USB2Dynamixel '''
-        print 'Scanning for Servos.'
+    def find_servos(self, ids=None):
+        ''' Finds all servo IDs on the USB2Dynamixel, or check given ids
+        '''
         servos = []
         self.servo_dev.setTimeout( 0.03 ) # To make the scan faster
-        for i in xrange(254):
+        if ids is None:
+            print 'Scanning all possible ID\'s for Servos'
+            ids = range(254)
+        else:
+            print 'Scanning for Servos with ID\'s: %s' %ids
+        for i in ids:
             try:
                 self.read_address(i,3)
                 print '\n FOUND A SERVO @ ID %d\n' % i
@@ -288,12 +296,8 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             ids = self.servos.keys()
         if angvels is None:
             angvels = [servo.settings['max_speed'] for servo in self.servos.values()]
-        assert(len(ids) == len(angvels))
+        assert(len(ids) == len(angvels)) #Check that there is an angle, angvel for each id
         assert(len(ids) == len(angs))
-
-        #Compose nasty message here
-        pass
-
 
     def move_to_encoder(self, id, n):
         ''' move to encoder position n
@@ -303,7 +307,6 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         n = min( max( n, 0 ), self.servos[id].settings['max_encoder'] )
         hi,lo = n / 256, n % 256
         return self.write_address(id, 0x1e, [lo,hi] )
-
 
     def enable_torque(self, id):
         return self.write_address(id, 0x18, [1])
@@ -327,6 +330,19 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' changes the servo id
         '''
         return self.write_address(current_id, 0x03, [new_id] )
+
+    def set_baudrate(self, id, baudrate=0x22):
+        ''' Set the baudrate of the servo at id.  Must be a single hex byte
+        (0x00--0xFF).  Smaller number == Faster baudrate.
+        Default: 0x22 (34) -> 57600.
+        '''
+        return self.write_address(id, 0x04, baudrate)
+
+    def set_return_delay(self, id, delay=0xFA):
+        ''' Set Return Delay Time (0x00--0xFF). Smaller = shorter. Default=250 (0xFA).
+        '''
+        return self.write_address(id, 0x05, delay)
+
 
 class Robotis_Servo():
     ''' Class to use a robotis RX-28 or RX-64 servo.
