@@ -541,7 +541,12 @@ def recover_servo(dyn):
 
 
 if __name__ == '__main__':
-    p = optparse.OptionParser()
+    usage =  ("Interface for controlling one or more robotis servos on a single bus\n"+
+             "\tUse as below from the commandline, or:\n"+
+             "\t\timport lib_dynamixel as ld\n"+
+             "\t\tdyn = ld.Dynamixel_Chain()\n"+
+             "\t\tdyn.move_angle(ang, id)")
+    p = optparse.OptionParser(usage=usage)
     p.add_option('-d', action='store', type='string', dest='dev_name',
                  help='Required: Device string for USB2Dynamixel. [i.e. /dev/ttyUSB0 for Linux, \'0\' (for COM1) on Windows]')
     p.add_option('--scan', action='store_true', dest='scan', default=False,
@@ -563,15 +568,13 @@ if __name__ == '__main__':
         p.print_help()
         sys.exit(0)
 
-    dyn = USB2Dynamixel_Device(opt.dev_name, opt.baud)
+    dyn = Dynamixel_Chain(opt.dev_name, opt.baud)
 
     if opt.scan:
-        find_servos( dyn )
+        discover_servos( dyn )
 
     if opt.recover:
         recover_servo( dyn )
 
     if opt.ang != None:
-        servo = Robotis_Servo( dyn, opt.id )
-        servo.move_angle( math.radians(opt.ang), math.radians(opt.ang_vel) )
-    
+        dyn.move_angle(opt.id, math.radians(opt.ang), math.radians(opt.ang_vel) )
