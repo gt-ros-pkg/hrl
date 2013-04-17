@@ -193,8 +193,6 @@ class USB2Dynamixel_Device():
         return self.send_instruction(msg, id=0xFE, status_return=False)
 
 
-
-
 class Dynamixel_Chain(USB2Dynamixel_Device):
     ''' Class that manages multiple servos on a single Dynamixel Device
     '''
@@ -285,6 +283,16 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         if self.servos[id].settings['flipped']:
             ang = ang * -1.0
         return ang
+
+    def read_angles(self, ids=None):
+        ''' return a list of current joint angles for servos with given ids
+        '''
+        if ids is None:
+            ids = self.servos.keys()
+        angles = []
+        for id in ids:
+            angles.append(self.read_angle(id))
+        return angles, ids
 
     def move_angle(self, id, ang, angvel=None, blocking=False):
         ''' move servo with id to angle (radians) with velocity (rad/s)
@@ -483,6 +491,7 @@ class Robotis_Servo():
         else:
             return angvel
 
+
 def discover_servos(dev='/dev/ttyUSB0', servo_ids=None, baudrates=None):
     '''Discover all servos on a USB2Dynamixel_Device using PING command.
        Checks all servo IDs at all Baudrates.  Can specify smaller ranges to check instead.
@@ -494,6 +503,7 @@ def discover_servos(dev='/dev/ttyUSB0', servo_ids=None, baudrates=None):
         dyn = Dynamixel_Chain(dev, baudrate=baudrate, servo_ids = servo_ids)
         dyn.servo_dev.close()
         del(dyn)
+
 
 def recover_servo(dyn):
     ''' Recovers a bricked servo by booting into diagnostic bootloader and resetting '''
@@ -528,6 +538,7 @@ def recover_servo(dyn):
     while True:
         s.write('#')
         time.sleep(0.0001)
+
 
 if __name__ == '__main__':
     p = optparse.OptionParser()
