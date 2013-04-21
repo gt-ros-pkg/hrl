@@ -215,14 +215,15 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             print 'Scanning all possible ID\'s for Servos'
             ids = range(254)
         else:
-            print 'Scanning for Servos with ID\'s: %s' %ids
+            print 'Scanning for Servos with ID(\'s): %s' %ids
         for i in ids:
             try:
                 self.ping(i)
-#                self.read_address(i,3)
+                self.read_address(i,3)
                 print '\n FOUND A SERVO @ ID %d\n' % i
                 servos.append( i )
             except:
+                print "Problem in find_servos for id %d" %i
                 pass
         self.servo_dev.setTimeout( 1.0 ) # Restore to original
         return servos
@@ -289,9 +290,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         '''
         if ids is None:
             ids = self.servos.keys()
-        angles = []
-        for id in ids:
-            angles.append(self.read_angle(id))
+        angles = [self.read_angle(id) for id in ids]
         return angles, ids
 
     def move_angle(self, id, ang, angvel=None, blocking=False):
@@ -380,22 +379,24 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         hi, lo =  self.angvel_to_bytes(angvel)
         return self.write_address(id, 0x20, [lo, hi] )
 
-    def write_id(self, current_id, new_id):
+    def set_id(self, current_id, new_id):
         ''' changes the servo id from current_id to new_id
         '''
-        return self.write_address(current_id, 0x03, [new_id] )
+        resp = self.write_address(current_id, 0x03, [new_id])
+        valid_servo_ids = self.find_servos([new_id])
+        self.servos[new_id] = Robotis_Servo(new_id, series=self.servos[current_id].series)
+        self.servos.pop(current_id)
+        return resp
 
     def set_baudrate(self, id, baudrate=0x22):
-        ''' Set the baudrate of the servo at id.  Must be a single hex byte
-        (0x00--0xFF).  Smaller number == Faster baudrate.
-        Default: 0x22 (34) -> 57600.
+        ''' Set the baudrate of the servo at id. Smaller == Faster. Default: 34 -> 57600.
         '''
-        return self.write_address(id, 0x04, baudrate)
+        return self.write_address(id, 0x04, [baudrate])
 
-    def set_return_delay(self, id, delay=0xFA):
-        ''' Set Return Delay Time (0x00--0xFF). Smaller = shorter. Default=250 (0xFA).
+    def set_return_delay(self, id, delay=250):
+        ''' Set Return Delay Time (0-255). Smaller = shorter. Default=250.
         '''
-        return self.write_address(id, 0x05, delay)
+        return self.write_address(id, 0x05, [delay])
 
 
 class Robotis_Servo():
@@ -412,6 +413,7 @@ class Robotis_Servo():
         self.servo_id = servo_id
         # To change the defaults, load some or all changes into servo_config.py
         if series == 'MX':
+            self.series = 'MX'
             defaults = {
                 'home_encoder': 0x7FF,
                 'max_encoder': 0xFFF,
@@ -422,6 +424,7 @@ class Robotis_Servo():
                 'max_speed': math.radians(180)
                 }
         else: # Common settings for RX-series.  Can overload in servo_config.py
+            self.series = 'MX'
             defaults = {
                 'home_encoder': 0x200,
                 'max_encoder': 0x3FF,  # Assumes 0 is min.
