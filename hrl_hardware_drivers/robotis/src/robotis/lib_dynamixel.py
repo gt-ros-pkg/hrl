@@ -108,6 +108,7 @@ class USB2Dynamixel_Device():
             raise RuntimeError('lib_dynamixel: Incorrect servo ID received: %d\n' % ord(servo_id))
         data_len = self.read_serial( 1 )
         err = self.read_serial( 1 )
+        err = 114
         data = self.read_serial( ord(data_len) - 2 )
         checksum = self.read_serial( 1 ) # I'm not going to check...
         return id, [ord(v) for v in data], ord(err)
@@ -146,23 +147,23 @@ class USB2Dynamixel_Device():
         ''' Process and raise errors received from the robotis servo.
             TODO: WILL NOT HANDLE MULTIPLE ERRORS IN A SINGLE BYTE
         '''
-        if err == 1:
-            msg = "Input Voltage Error"
-        elif err == 2:
-            msg = "Angle Limit Error"
-        elif err == 4:
-            msg = "OverHeating Error"
-        elif err == 8:
-            msg = "Range Error"
-        elif err == 16:
-            msg = "CheckSum Error"
-        elif err == 32:
-            msg = "Instruction Error"
-        elif err == 32:
-            msg = "Overload Error"
-        elif err == 64:
-            msg = "Instruction Error"
-        raise RuntimeError('lib_dynamixel: An error occurred on servo %d: %d, %s\n' %(id, err, msg))
+        msg = "Errors reported by Dynamixel ID: %d\n" %id
+        if err & 1:
+            msg = "\n\tInput Voltage Error: Applied Voltage outside of set operating range."
+        elif err & 2:
+            msg = "\n\tAngle Limit Error: Received Goal position outside of set limits."
+        elif err & 4:
+            msg = "\n\tOverHeating Error: Temperature exceeds set temperature limit."
+        elif err & 8:
+            msg = "\n\tRange Error: Received command beyond usage range."
+        elif err & 16:
+            msg = "\n\tCheckSum Error: Invalid Checksum in Instruction Packet."
+        elif err & 32:
+            msg = "\n\tOverload Error: Current load exceeds set torque limit"
+        elif err & 64:
+            msg += "\n\tInstruction Error: Received undefined instruction,"+\
+            "or action command received before command was registered\n"
+        raise RuntimeError(msg)
 
     def read_address(self, id, address, nBytes=1):
         ''' reads nBytes from address on the servo at id.
@@ -196,37 +197,60 @@ class USB2Dynamixel_Device():
 class Dynamixel_Chain(USB2Dynamixel_Device):
     ''' Class that manages multiple servos on a single Dynamixel Device
     '''
-    def __init__(self, dev='/dev/ttyUSB0', baudrate='57600', servo_ids=None):
+    def __init__(self, dev='/dev/ttyUSB0', baudrate='57600', ids=None, series=['RX']):
         ''' Accepts device file, baudrate, and a list of id numbers for servos (if known)
         '''
         USB2Dynamixel_Device.__init__(self, dev, baudrate)
 
-        valid_servo_ids = self.find_servos(servo_ids)
+        valid_servo_ids = self.find_servos(ids)
+        if len(valid_servo_ids) == 0:
+            raise RuntimeError("No valid servo IDs Found")
+
+        print "Good Servos: %s" %ids
+        if series is None:
+            series = ['RX']*len(ids)
+        elif type(series) == str:
+            series = [series]*len(ids)
+        elif len(series) == 1:
+            series = series*len(ids)
+
         self.servos = {}
-        for id in valid_servo_ids:
+        for id, series in valid_servo_ids, series:
             self.servos[id] = Robotis_Servo(id, series='RX')
 
     def find_servos(self, ids=None):
         ''' Finds all servo IDs on the USB2Dynamixel, or check given ids
         '''
-        servos = []
-        self.servo_dev.setTimeout( 0.03 ) # To make the scan faster
         if ids is None:
             print 'Scanning all possible ID\'s for Servos'
             ids = range(254)
+            suggested_ids = False
         else:
             print 'Scanning for Servos with ID(\'s): %s' %ids
+            suggested_ids = True
+
+        self.servo_dev.setTimeout( 0.03 ) # To make the scan faster
+        servos = []
         for i in ids:
-            try:
-                self.ping(i)
-                self.read_address(i,3)
+            if self.id_on_device(i):
                 print '\n FOUND A SERVO @ ID %d\n' % i
-                servos.append( i )
-            except:
-                print "Problem in find_servos for id %d" %i
-                pass
+                servos.append(i)
+            else:
+                if suggested_ids:
+                    print "Cannot find ID %s on %s" %(i, self.servo_dev)
+
         self.servo_dev.setTimeout( 1.0 ) # Restore to original
         return servos
+
+    def id_on_device(self, id):
+        try:
+            self.ping(id)
+            servo_id = self.read_address(id,3)
+            assert servo_id == id, "ID value received from servo did not match id of call"
+            servos.append( i )
+        except:
+            return False
+        return True
 
     def init_cont_turn(self, id):
         '''sets CCW angle limit to zero and allows continuous turning (good for wheels).
@@ -262,7 +286,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' number proportional to the torque applied by the servo.
             sign etc. might vary with how the servo is mounted.
         '''
-        data = self.read_address(id, 0x28, 2 )
+        data = self.read_address(id, 0x28, 2)
         load = data[0] + (data[1] >> 6) * 256
         if data[1] >> 2 & 1 == 0:
             return -1.0 * load
@@ -272,7 +296,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
     def read_encoder(self, id):
         ''' returns position in encoder ticks of servo at id.
         '''
-        data = self.read_address(id, 0x24, 2 )
+        data = self.read_address(id, 0x24, 2)
         enc_val = data[0] + data[1] * 256
         return enc_val
 
@@ -292,6 +316,26 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             ids = self.servos.keys()
         angles = [self.read_angle(id) for id in ids]
         return angles, ids
+
+    def read_angvel(self, id):
+        ''' returns the angular velocity (rad/s) of servo at id.
+        '''
+        data = self.read_address(id, 38, 2)
+        val = data[0] + data[1] * 256
+        raw_mag = (val % 1024) * 0.11 #binary value ~= 0.11rpm/unit
+        mag = (raw_mag / 60.) * 2 * math.pi
+        if val / 1024 == 1:
+            return -mag
+        else:
+            return mag
+
+    def read_angvels(self, ids=None):
+        '''return a list of current angular velocities for servos with given ids
+        '''
+        if ids is None:
+            ids = self.servos.keys()
+        angvels = [self.read_angvel(id) for id in ids]
+        return angvels, ids
 
     def move_angle(self, id, ang, angvel=None, blocking=False):
         ''' move servo with id to angle (radians) with velocity (rad/s)
@@ -382,6 +426,8 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
     def set_id(self, current_id, new_id):
         ''' changes the servo id from current_id to new_id
         '''
+        if (new_id < 0) or (new_id > 253):
+            raise RuntimeWarning("Robotis ID must be between 0 and 253")
         resp = self.write_address(current_id, 0x03, [new_id])
         valid_servo_ids = self.find_servos([new_id])
         self.servos[new_id] = Robotis_Servo(new_id, series=self.servos[current_id].series)
@@ -495,18 +541,21 @@ class Robotis_Servo():
             return angvel
 
 
-def discover_servos(dev='/dev/ttyUSB0', servo_ids=None, baudrates=None):
+def discover_servos(dev='/dev/ttyUSB0', ids=None, baudrates=None):
     '''Discover all servos on a USB2Dynamixel_Device using PING command.
        Checks all servo IDs at all Baudrates.  Can specify smaller ranges to check instead.
     '''
     if baudrates is None:
         baudrates = [1000000, 500000, 400000, 250000, 200000, 115200, 57600, 19200, 9600]
+    print "Searching for ID's on %s" %dev
     for baudrate in baudrates:
         print "Baudrate %d:" %baudrate
-        dyn = Dynamixel_Chain(dev, baudrate=baudrate, servo_ids = servo_ids)
-        dyn.servo_dev.close()
-        del(dyn)
-
+        try:
+            dyn = Dynamixel_Chain(dev, baudrate=baudrate, ids = ids)
+            dyn.servo_dev.close()
+            del(dyn)
+        except RuntimeError as rte:
+            print rte
 
 def recover_servo(dyn):
     ''' Recovers a bricked servo by booting into diagnostic bootloader and resetting '''
