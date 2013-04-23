@@ -108,7 +108,6 @@ class USB2Dynamixel_Device():
             raise RuntimeError('lib_dynamixel: Incorrect servo ID received: %d\n' % ord(servo_id))
         data_len = self.read_serial( 1 )
         err = self.read_serial( 1 )
-        err = 114
         data = self.read_serial( ord(data_len) - 2 )
         checksum = self.read_serial( 1 ) # I'm not going to check...
         return id, [ord(v) for v in data], ord(err)
@@ -147,20 +146,20 @@ class USB2Dynamixel_Device():
         ''' Process and raise errors received from the robotis servo.
             TODO: WILL NOT HANDLE MULTIPLE ERRORS IN A SINGLE BYTE
         '''
-        msg = "Errors reported by Dynamixel ID: %d\n" %id
+        msg = "Errors reported by Dynamixel ID %d:" %id
         if err & 1:
-            msg = "\n\tInput Voltage Error: Applied Voltage outside of set operating range."
-        elif err & 2:
-            msg = "\n\tAngle Limit Error: Received Goal position outside of set limits."
-        elif err & 4:
-            msg = "\n\tOverHeating Error: Temperature exceeds set temperature limit."
-        elif err & 8:
-            msg = "\n\tRange Error: Received command beyond usage range."
-        elif err & 16:
-            msg = "\n\tCheckSum Error: Invalid Checksum in Instruction Packet."
-        elif err & 32:
-            msg = "\n\tOverload Error: Current load exceeds set torque limit"
-        elif err & 64:
+            msg += "\n\tInput Voltage Error: Applied Voltage outside of set operating range."
+        if err & 2:
+          msg += "\n\tAngle Limit Error: Received Goal position outside of set limits."
+        if err & 4:
+          msg += "\n\tOverHeating Error: Temperature exceeds set temperature limit."
+        if err & 8:
+          msg += "\n\tRange Error: Received command beyond usage range."
+        if err & 16:
+          msg += "\n\tCheckSum Error: Invalid Checksum in Instruction Packet."
+        if err & 32:
+          msg += "\n\tOverload Error: Current load exceeds set torque limit"
+        if err & 64:
             msg += "\n\tInstruction Error: Received undefined instruction,"+\
             "or action command received before command was registered\n"
         raise RuntimeError(msg)
@@ -186,6 +185,18 @@ class USB2Dynamixel_Device():
         msg = [ 0x01 ]
         return self.send_instruction( msg, id )
 
+    def reset_to_factory(self, id):
+        msg = [0x06]
+        resp = raw_input("This will reset all parameters on the Dynamixel "+\
+                         "to factory defaults.\n"+\
+                         "Are you sure you wish to continue? (y/n)")
+        if resp == 'y' or resp == 'Y' or resp == 'yes':
+            print "Resetting to factory defaults: ID = 1, baudrate=57600"
+            return self.send_instruction(msg, id)
+        else:
+            print "Aborting..."
+            return None
+
     def sync_write(self, data):
         '''writes data to address 0xFE (254), the broadcast address.
            sends data to all servos on a bus
@@ -206,17 +217,14 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         if len(valid_servo_ids) == 0:
             raise RuntimeError("No valid servo IDs Found")
 
-        print "Good Servos: %s" %ids
-        if series is None:
-            series = ['RX']*len(ids)
-        elif type(series) == str:
-            series = [series]*len(ids)
+        if type(series) == str:
+            series = [series]*len(valid_servo_ids)
         elif len(series) == 1:
-            series = series*len(ids)
+            series = series*len(valid_servo_ids)
 
         self.servos = {}
-        for id, series in valid_servo_ids, series:
-            self.servos[id] = Robotis_Servo(id, series='RX')
+        for id, series in zip(valid_servo_ids, series):
+            self.servos[id] = Robotis_Servo(id, series)
 
     def find_servos(self, ids=None):
         ''' Finds all servo IDs on the USB2Dynamixel, or check given ids
@@ -228,7 +236,6 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         else:
             print 'Scanning for Servos with ID(\'s): %s' %ids
             suggested_ids = True
-
         self.servo_dev.setTimeout( 0.03 ) # To make the scan faster
         servos = []
         for i in ids:
@@ -237,7 +244,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
                 servos.append(i)
             else:
                 if suggested_ids:
-                    print "Cannot find ID %s on %s" %(i, self.servo_dev)
+                    print "Cannot find ID %s on %s" %(i, self.dev_name)
 
         self.servo_dev.setTimeout( 1.0 ) # Restore to original
         return servos
@@ -245,12 +252,11 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
     def id_on_device(self, id):
         try:
             self.ping(id)
-            servo_id = self.read_address(id,3)
+            servo_id = self.read_address(id,3)[0]
             assert servo_id == id, "ID value received from servo did not match id of call"
-            servos.append( i )
+            return True
         except:
             return False
-        return True
 
     def init_cont_turn(self, id):
         '''sets CCW angle limit to zero and allows continuous turning (good for wheels).
@@ -501,6 +507,7 @@ class Robotis_Servo():
         for key in defaults.keys():
             if not self.settings.has_key( key ):
                 self.settings[ key ] = defaults[ key ]
+        print "Created new Robotis Servo: ID = %d, series = %s" %(servo_id, series)
 
     def angle_to_encoder(self, ang):
         ''' return encoder position for given angle (radians)
