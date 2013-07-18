@@ -146,7 +146,7 @@ class USB2Dynamixel_Device():
         ''' Process and raise errors received from the robotis servo.
         '''
         msg = "Errors reported by Dynamixel ID %d:" %id
-        if err & 1:
+        if err & 1: #bitwise & -- check each bit 'flag'
             msg += "\n\tInput Voltage Error: Applied Voltage outside of set operating range."
         if err & 2:
           msg += "\n\tAngle Limit Error: Received Goal position outside of set limits."
@@ -207,6 +207,8 @@ class USB2Dynamixel_Device():
         msg = [ 0x83 ] + data
         return self._send_instruction(msg, id=0xFE, status_return=False)
 
+
+
 class Dynamixel_Chain(USB2Dynamixel_Device):
     ''' Class that manages multiple servos on a single Dynamixel Device
     '''
@@ -232,11 +234,11 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' Finds all servo IDs on the USB2Dynamixel, or check given ids
         '''
         if ids is None:
-            print 'Scanning all possible ID\'s for Servos'
+            print 'Scanning all possible ID\'s for Servos\n'
             ids = range(254)
             suggested_ids = False
         else:
-            print 'Scanning for Servos with ID(\'s): %s' %ids
+            print 'Scanning for Servos with ID(\'s): %s\n' %ids
             suggested_ids = True
         self.servo_dev.setTimeout( 0.03 ) # To make the scan faster
         servos = []
@@ -388,24 +390,23 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             while(self.is_moving(id)):
                 continue
 
-    def move_angles_sync(self, angs, angvels=None, ids=None):
+    def move_angles_sync(self, ids, angs, angvels=None) :
         ''' move servos with id's to angles with angvels using a single sync_write.
             clips angles to allowed range, and limits angvel to max allowed.
         '''
-        if ids is None:
-            ids = self.servos.keys()
         if angvels is None:
-            angvels = [servo.settings['max_speed'] for servo in [self.servos[id] for id in ids]]
+            angvels = [self.servos[id].settings['max_speed'] for id in ids]
         #Check that there is an angle, angvel for each id
         assert len(ids) == len(angvels) ,  "Number of ids and angvels do not match"
         assert len(ids) == len(angs) , "Number of ids and angles do not match"
 
         msg = [0x1E, 0x04] #Start address, length of data per servo (4 bytes)
         for id, ang, vel in zip(ids, angs, angvels):
-            ang = self.servos[id].clip_angle(ang)
-            enc_tics = self.servos[id].angle_to_encoder(ang)
+	    servo = self.servos[id]
+            ang = servo.clip_angle(ang)
+            enc_tics = servo.angle_to_encoder(ang)
             ang_hi, ang_lo = self.__encoder_to_bytes(id, enc_tics)
-            vel = self.servos[id].clip_angvel(vel)
+            vel = servo.clip_angvel(vel)
             vel_hi, vel_lo = self.__angvel_to_bytes(vel)
             msg.extend([id, ang_lo, ang_hi, vel_lo, vel_hi])
         self.sync_write(msg)
@@ -413,9 +414,6 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
     def move_to_encoder(self, id, n):
         ''' move to encoder position n
         '''
-        # In some border cases, we can end up above/below the encoder limits.
-        #   eg. int(round(math.radians( 180 ) / ( math.radians(360) / 0xFFF ))) + 0x7FF => -1
-
         hi, lo = self.__encoder_to_bytes(id, n)
         return self.write_address(id, 0x1e, [lo,hi] )
 
@@ -428,6 +426,8 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
     def __encoder_to_bytes(self, id, n):
         ''' convert encoder value to hi, lo bytes
         '''
+        # In some border cases, we can end up above/below the encoder limits.
+        #   eg. int(round(math.radians( 180 ) / ( math.radians(360) / 0xFFF ))) + 0x7FF => -1
         n = min( max( n, 0 ), self.servos[id].settings['max_encoder'] )
         hi, lo = n / 256, n % 256
         return hi, lo
