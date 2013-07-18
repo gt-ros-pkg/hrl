@@ -46,17 +46,17 @@ class USB2Dynamixel_Device():
         except:
             self.dev_name = dev_name # stores it as a /dev-mapped string for Linux / Mac
 
-        self._mutex = thread.allocate_lock()
+#        self._mutex = thread.allocate_lock()
 
-        self._acq_mutex()
+#        self._acq_mutex()
         self.servo_dev = self._open_serial( baudrate )
-        self._rel_mutex()
+#        self._rel_mutex()
 
-    def _acq_mutex(self):
-        self._mutex.acquire()
+#    def _acq_mutex(self):
+#        self._mutex.acquire()
 
-    def _rel_mutex(self):
-        self._mutex.release()
+#    def _rel_mutex(self):
+#        self._mutex.release()
 
     def _open_serial(self, baudrate):
         servo_dev = None
@@ -71,6 +71,7 @@ class USB2Dynamixel_Device():
 
             servo_dev.flushOutput()
             servo_dev.flushInput()
+	    servo_dev.flush()
 
         except (serial.serialutil.SerialException), e:
             raise RuntimeError('lib_dynamixel: Serial port not found!\n')
@@ -125,7 +126,7 @@ class USB2Dynamixel_Device():
         msg = [ id, len(instruction) + 1 ] + instruction # instruction includes the command (1 byte + parameters. length = parameters+2)
         chksum = self.__calc_checksum( msg )
         msg = [ 0xff, 0xff ] + msg + [chksum]
-        self._acq_mutex()
+#        self._acq_mutex()
         try:
             self._send_serial( msg )
             if status_return:
@@ -135,9 +136,9 @@ class USB2Dynamixel_Device():
                 data = []
                 err = 0 #No Error Received
         except:
-            self._rel_mutex()
+#            self._rel_mutex()
             raise
-        self._rel_mutex()
+#        self._rel_mutex()
         if err != 0:
             self._process_err( err, id )
         return data
@@ -234,11 +235,11 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' Finds all servo IDs on the USB2Dynamixel, or check given ids
         '''
         if ids is None:
-            print 'Scanning all possible ID\'s for Servos\n'
+            print 'Scanning for servos on all possible ID\'s'
             ids = range(254)
             suggested_ids = False
         else:
-            print 'Scanning for Servos with ID(\'s): %s\n' %ids
+            print 'Scanning for servos with ID(\'s): %s' %ids
             suggested_ids = True
         self.servo_dev.setTimeout( 0.03 ) # To make the scan faster
         servos = []
@@ -264,23 +265,85 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         except:
             return False
 
-    def init_cont_turn(self, id):
-        '''sets CCW angle limit to zero and allows continuous turning (good for wheels).
+    def set_id(self, current_id, new_id):
+        ''' changes the servo id from current_id to new_id
+        '''
+        if (new_id < 0) or (new_id > 253):
+            raise RuntimeWarning("Robotis ID must be between 0 and 253")
+        resp = self.write_address(current_id, 0x03, [new_id])
+        valid_servo_ids = self._find_servos([new_id])
+        self.servos[new_id] = Robotis_Servo(new_id, series=self.servos[current_id].series)
+        self.servos.pop(current_id)
+        return resp
+
+    def set_baudrate(self, id, baudrate=0x22):
+        ''' Set the baudrate of the servo at id. Smaller == Faster. Default: 34 -> 57600.
+        '''
+        return self.write_address(id, 0x04, [baudrate])
+
+    def set_return_delay(self, id, delay=250):
+        ''' Set Return Delay Time (0-500 microseconds). Default=250.
+        '''
+        if delay < 0:
+            delay = 0
+            print("Return Delay Time must be non-negative. Setting to 0 microseconds.")
+        elif delay > 500:
+            delay = 500
+            print("Return Delay Time must be less than 500 (microseconds). Setting to 500us.")
+        elif (delay % 2 != 0):
+            delay = 2*int(delay/2)
+            print("Return Delay Time must be specified by 2 microsecond increments. Rounding to %dus" %delay)
+        return self.write_address(id, 0x05, [int(delay/2)])
+
+    def read_return_delay(self, id):
+        '''Read the currently set Return Delay Time (in microseconds)'''
+        ret_dly =  self.read_address(id, 0x05)
+        return 2*ret_dly[0]
+
+    def set_angle_limits(self, id, cw_limit=0., ccw_limit=2*math.pi):
+        ''' Set the angular limits (in radians) on the motor. Should specify both cw and ccw limits
+        '''
+        cw_enc = self.servos[id].angle_to_encoder(cw_limit)
+        ccw_enc = self.servos[id].angle_to_encoder(ccw_limit)
+        cw_hi, cw_lo = self.__encoder_to_bytes(id, cw_enc)
+        ccw_hi, ccw_lo = self.__encoder_to_bytes(id, ccw_enc)
+        return self.write_address(id, 0x06, [cw_lo, cw_hi, ccw_lo, ccw_hi])
+
+    def read_angle_limits(self, id):
+        ''' Read the angle limits (in radians) set on the servo.  Returns [cw_limit, ccw_limit]
+        '''
+        data = self.read_address(id, 0x06, 4)
+        cw = data[0]+data[1]*256
+        ccw = data[2]+data[3]*256
+        cw_lim = self.servos[id].encoder_to_angle(cw)
+        ccw_lim = self.servos[id].encoder_to_angle(ccw)
+        return [cw_lim, ccw_lim]
+
+    def enable_cont_turn(self, id):
+        ''' Sets angle limits to zero, allowing continuous turning (good for wheels).
         After calling this method, simply use 'set_angvel' to command rotation.  This
         rotation is proportional to torque according to Robotis documentation.
         '''
-        self.write_address(id, 0x08, [0,0])
+        return self.set_angle_limits(id, cw_limit=0., ccw_limit=0)
 
-    def kill_cont_turn(self, id):
-        '''resets CCW angle limits to allow commands through 'move_angle' again.
+    def disable_cont_turn(self, id):
+        ''' Resets CCW angle limits to defaults to allow commands through 'move_angle' again.
         '''
-        self.write_address(id, 0x08, [255, 3])
+        return self.set_angle_limits(id)
 
-    def is_moving(self, id):
-        ''' returns True if servo (id) is moving.
+    def set_max_torque(self, id, percent=100):
+        ''' Set the max torque as a percent of possible torque.  Will trigger alarm and shutdown if exceeded.
         '''
-        data = self.read_address(id, 0x2e, 1 )
-        return data[0] != 0
+        data = 10.23 * percent
+        hi = int( data / 256 )
+        lo = int( data % 256 )
+        return self.write_address(id, 0x0E, [lo, hi])
+
+    def read_max_torque(self, id):
+        ''' Read the current maximum torque setting (as a percentage of possible torque).
+        '''
+        data = self.read_address(id, 0x0E, 2)
+        return (data[0] + data[1]*256) / 10.23
 
     def read_voltage(self, id):
         ''' returns voltage (Volts) seen by servo (id).
@@ -449,26 +512,12 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         hi, lo =  self.__angvel_to_bytes(angvel)
         return self.write_address(id, 0x20, [lo, hi] )
 
-    def set_id(self, current_id, new_id):
-        ''' changes the servo id from current_id to new_id
+    def is_moving(self, id):
+        ''' Returns True if servo (id) is moving, False otherwise.
         '''
-        if (new_id < 0) or (new_id > 253):
-            raise RuntimeWarning("Robotis ID must be between 0 and 253")
-        resp = self.write_address(current_id, 0x03, [new_id])
-        valid_servo_ids = self._find_servos([new_id])
-        self.servos[new_id] = Robotis_Servo(new_id, series=self.servos[current_id].series)
-        self.servos.pop(current_id)
-        return resp
+        data = self.read_address(id, 0x2e, 1 )
+        return data[0] != 0
 
-    def set_baudrate(self, id, baudrate=0x22):
-        ''' Set the baudrate of the servo at id. Smaller == Faster. Default: 34 -> 57600.
-        '''
-        return self.write_address(id, 0x04, [baudrate])
-
-    def set_return_delay(self, id, delay=250):
-        ''' Set Return Delay Time (0-255). Smaller = shorter. Default=250.
-        '''
-        return self.write_address(id, 0x05, [delay])
 
 class Robotis_Servo():
     ''' Class to use a robotis RX-28 or RX-64 servo.
@@ -515,10 +564,10 @@ class Robotis_Servo():
                 for key, val in sc.servo_param [ self.servo_id ].iteritems():
                     self.settings[key] = val
             else:
-                print 'Warning: servo_id ', self.servo_id, ' not found in servo_config.py.  Using defaults.'
+                print 'Servo ID %d not found in servo_config.py.  Using defaults.' %self.servo_id
         except:
-            print 'Warning: servo_config.py not found.  Using defaults.'
-        print "Created new Robotis Servo: ID = %d, series = %s" %(servo_id, series)
+            print 'Servo_config.py configuration file not found.  Using defaults.'
+        print "Created new %s-series Robotis Servo at ID %d" %(series, servo_id)
 
     def angle_to_encoder(self, ang):
         ''' return encoder position for given angle (radians)
@@ -572,10 +621,10 @@ def discover_servos(dev='/dev/ttyUSB0', ids=None, baudrates=None):
        Checks all servo IDs at all Baudrates.  Can specify smaller ranges to check instead.
     '''
     if baudrates is None:
-        baudrates = [3000000, 2500000, 2250000, 1000000, 500000, 400000, 250000, 200000, 115200, 57600, 19200, 9600]
+        baudrates = [9600, 19200, 57600, 115200, 200000, 250000, 400000, 500000, 1000000, 2250000, 2500000, 3000000]
     print "Searching for ID's on %s" %dev
     for baudrate in baudrates:
-        print "Baudrate %d:" %baudrate
+        print "\nBaudrate %d:" %baudrate
         try:
             dyn = Dynamixel_Chain(dev, baudrate=baudrate, ids = ids)
             dyn.servo_dev.close()
