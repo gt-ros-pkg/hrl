@@ -331,42 +331,182 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         '''
         return self.set_angle_limits(id)
 
+    def read_temperature_limit(self, id):
+        ''' Read the temperature alarm threshold in degrees C.  Default: 80C.
+            Should not change.
+        '''
+        return self.read_address(id, 0x0B, 1)[0]
+
+    def read_temperature(self, id):
+        ''' returns the temperature (Celcius) of servo (id).
+        '''
+        data = self.read_address(id, 0x2B, 1 )
+        return data[0]
+
+    def read_voltage_limits(self, id):
+        ''' Read the lower and upper voltage alarm limits. Defaults: 6.0V - 16.0V.
+        '''
+        data = self.read_address(id, 0x0C, 2)
+        return  [ data[0]*0.1, data[1]*0.1 ] #0.1V/unit
+
+    def set_voltage_limits(self, id, lower=6.0, upper=16.0):
+        ''' Set the lower and upper voltage alarm limits. Defaults: 6.0V - 16.0V.
+        '''
+        low_limit = int( 10. * lower ) #0.1V/unit
+        high_limit = int( 10. * upper )
+        return self.write_address(id, 0x0C, [low_limit, high_limit])
+
+    def read_voltage(self, id):
+        ''' returns voltage (Volts) seen by servo (id).
+        '''
+        data = self.read_address(id, 0x2A, 1 )
+        return data[0] / 10.
+
+    def read_max_torque(self, id):
+        ''' Read the current max torque setting (as a percentage of possible torque).
+        '''
+        data = self.read_address(id, 0x0E, 2)
+        return (data[0] + data[1]*256) / 10.23
+
     def set_max_torque(self, id, percent=100):
-        ''' Set the max torque as a percent of possible torque.  Will trigger alarm and shutdown if exceeded.
+        ''' Set the max torque as a percent of possible torque.
+            Will trigger alarm and shutdown if exceeded.
         '''
         data = 10.23 * percent
         hi = int( data / 256 )
         lo = int( data % 256 )
         return self.write_address(id, 0x0E, [lo, hi])
 
-    def read_max_torque(self, id):
-        ''' Read the current maximum torque setting (as a percentage of possible torque).
+    def read_status_return_level(self, id):
+        ''' Read the current status return label of servo at id.
+            0 - returns status packet only for PING command
+            1 - returns status packet only for read commands
+            2 - returns sttaus packet for all commands
         '''
-        data = self.read_address(id, 0x0E, 2)
-        return (data[0] + data[1]*256) / 10.23
+        return self.read_address(id, 0x10)
 
-    def read_voltage(self, id):
-        ''' returns voltage (Volts) seen by servo (id).
+    def set_status_return_level(self, id, level=2):
+        ''' Set the current status return label of servo at id.
+            0 - returns status packet only for PING command
+            1 - returns status packet only for read commands
+            2 - returns sttaus packet for all commands
         '''
-        data = self.read_address(id, 0x2a, 1 )
-        return data[0] / 10.
+        if not level in [0, 1, 2]:
+            raise RuntimeError('Status Return Level must be one of: \n' \
+                               '\t0 - No return except ping \n'\
+                               '\t1 - return only for read commands \n'\
+                               '\t2 - return for all commands')
+        return self.write_address(id, 0x10, [level])
 
-    def read_temperature(self, id):
-        ''' returns the temperature (Celcius) of servo (id).
+    def is_torque_enabled(self, id):
+        ''' Return True if sending power to motor, False otherwise.
         '''
-        data = self.read_address(id, 0x2b, 1 )
-        return data[0]
+        data = self.read_address(id, 0x18)
+        return bool( data[0] )
+
+    def enable_torque(self, id):
+        ''' Enable torque production by impressing power to the motor.
+        '''
+        return self.write_address(id, 0x18, [1])
+
+    def disable_torque(self, id):
+        ''' Disable torque production by interrupting power to the motor.
+        '''
+        return self.write_address(id, 0x18, [0])
 
     def read_load(self, id):
+        ''' Alias for read_torque.
+        '''
+        return self.read_torque(id)
+
+    def read_torque(self, id):
         ''' number proportional to the torque applied by the servo.
             sign etc. might vary with how the servo is mounted.
         '''
         data = self.read_address(id, 0x28, 2)
-        load = data[0] + (data[1] >> 6) * 256
-        if data[1] >> 2 & 1 == 0:
-            return -1.0 * load
+        hi = data[1] & 3 #grab left two bits
+        val = data[0] + hi*256
+        load =  val/10.24 #percent of 0-1024 range
+        if data[1] >> 2 == 1:
+            return -load
         else:
-            return 1.0 * load
+            return load
+
+    def is_led_on(self, id):
+        ''' Return True if LED is ON, False if LED is off.
+        '''
+        data = self.read_address(id, 0x19, 1)
+        return bool( data[0] )
+
+    def set_led(self, id, on=True):
+        ''' Set the status of the LED on or off.
+        '''
+        return self.write_address(id, 0x19, [on])
+
+    def read_pid_gains(self, id):
+        ''' Read the PID gains currently set on the servo.
+            Returns: [kp, ki, kd] (gain coefficients)
+        '''
+        data = self.read_address(id, 0x1A, 3)
+        kd = data[0] * 4. / 1000.
+        ki = data[1] * 1000. / 2048.
+        kp = data[2] / 8.
+        return [kp, ki, kd]
+
+    def set_pid_gains(self, id, kp=4., ki=0., kd=0.):
+        ''' Set the PID gain coefficients on the servo.
+        '''
+        if (kp < 0) or (kd < 0 ) or (ki < 0 ):
+            raise RuntimeError('All PID gains must be positive.')
+        if kp >= 32.:
+            print "Warning: Kp gain must be within: 0 <= kp < 31.875. Setting to max."
+            p_data = 254
+        else:
+            p_data = int( kp * 8. )
+        if ki >= 125.:
+            print "Warning: Ki gain must be within: 0 <= ki < 124.5177. Setting to max."
+            i_data = 254
+        else:
+            i_data = int( ki * 2048. / 1000. )
+        if kd >= 1.02:
+            print "Warning: Kd gain must be within: 0 <= kd < 1.02. Setting to max."
+            d_data = 254
+        else:
+            d_data = int( kd * 1000. / 4. )
+        return self.write_address(id, 0x1A, [d_data, i_data, p_data])
+
+    def read_goal_position(self, id):
+        ''' Read the currently set goal angle in radians of servo with id.
+        '''
+        data = self.read_address(id, 0x1E, 2)
+        enc_goal = data[0] + data[1]*256
+        return self.servos[id].encoder_to_angle(enc_goal)
+
+    def read_goal_angvel(self, id):
+        ''' Read the currently set desired moving speed of servo with id.
+        '''
+        data = self.read_address(id, 0x20, 2)
+        return self._bytes_to_angvel(data[1], data[0])
+
+    def read_torque_limit(self, id):
+        ''' Read the currently set torque limit as a percentage of acheivable torque.
+            Torque produced by the motor will be capped to this value.
+        '''
+        data = self.read_address(id, 0x22, 2)
+        return (data[0] + data[1]*256) / 10.23
+
+    def set_torque_limit(self, id, percent=None):
+        ''' Set the torque limit as a percent of possible torque.
+            Torque produced by the motor will be capped to this value.
+        '''
+        if percent is None:
+            percent = self.read_max_torque(id)
+            print "No percent specified.  Setting to %s, "\
+                   "the current torque alarm threshold." %percent
+        data = 10.23 * percent
+        hi = int( data / 256 )
+        lo = int( data % 256 )
+        return self.write_address(id, 0x22, [lo, hi])
 
     def read_encoder(self, id):
         ''' returns position in encoder ticks of servo at id.
@@ -392,7 +532,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         '''returns the current angular velocity from hi, lo bytes
         '''
         val = lo + hi * 256
-        raw_mag = (val % 1024) * 0.11 #binary value ~= 0.11rpm/unit
+        raw_mag = (val % 1024) * 0.11443 #binary value ~= 0.11rpm/unit
         mag = (raw_mag / 60.) * 2 * math.pi
         if val / 1024 == 1:
             mag *= -1
@@ -478,19 +618,13 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' move to encoder position n
         '''
         hi, lo = self.__encoder_to_bytes(id, n)
-        return self.write_address(id, 0x1e, [lo,hi] )
-
-    def enable_torque(self, id):
-        return self.write_address(id, 0x18, [1])
-
-    def disable_torque(self, id):
-        return self.write_address(id, 0x18, [0])
+        return self.write_address(id, 0x1E, [lo,hi] )
 
     def __encoder_to_bytes(self, id, n):
         ''' convert encoder value to hi, lo bytes
         '''
         # In some border cases, we can end up above/below the encoder limits.
-        #   eg. int(round(math.radians( 180 ) / ( math.radians(360) / 0xFFF ))) + 0x7FF => -1
+        # eg. int(round(math.radians(180) / (math.radians(360)/0xFFF ))) + 0x7FF => -1
         n = min( max( n, 0 ), self.servos[id].settings['max_encoder'] )
         hi, lo = n / 256, n % 256
         return hi, lo
@@ -499,7 +633,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' Convert Angular velocity, in rad/sec, to hi, lo bytes.
         '''
         rpm = angvel / (2 * math.pi) * 60.0
-        angvel_enc = int(round( rpm / 0.111 ))
+        angvel_enc = int(round( rpm / 0.11443 ))
         if angvel_enc < 0:
             hi, lo = abs(angvel_enc) / 256 + 4, abs(angvel_enc) % 256
         else:
@@ -517,6 +651,68 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         '''
         data = self.read_address(id, 0x2e, 1 )
         return data[0] != 0
+
+    def is_eeprom_locked(self, id):
+        ''' Return True if the EEPROM of servo at id is locked, False if not.
+        '''
+        return bool( self.read_address(id, 0x2F)[0] )
+
+    def lock_eeprom(self, id):
+        ''' Lock the EEPROM of servo at ID (will prevent changes to EEPROM bits).
+            Lock can only be reset by power-cycling the servo.
+        '''
+        return self.write_address(id, 0x2F, [0x01])
+
+    def read_punch(self, id):
+        ''' Read the currently set minimum motor current.
+            UNITS UNKNOWN.  Values in range 0 - 1023. Default: 0.
+        '''
+        data = self.read_address(id, 0x30, 2)
+        return data[0] + data[1]*256
+
+    def set_punch(self, id, value=0):
+        ''' Set the minimum motor current.
+            UNITS UNKNOWN.  Values in range 0 - 1023. Default: 0.
+        '''
+        hi, lo = value / 256, value % 256
+        return self.write_address(id, 0x30, [lo, hi])
+
+    def read_current(self, id):
+        ''' Read the current (in Amps) currently in the motor.
+        '''
+        data = self.read_address(id, 0x44, 2)
+        val = data[0] + data[1]*256
+        return 0.0045 * (val - 2048.) #4.5mA/digit
+
+    def is_torque_control_enabled(self, id):
+        ''' Return True if servo at id is currently set for torque control, False otherwise.
+        '''
+        return bool( self.read_address(id, 0x46, 1)[0] )
+
+    def enable_torque_control(self, id):
+        ''' Enable torque control mode.  Goal position and moving speed will be ignored.
+        '''
+        return self.write_address(id, 0x46, [1])
+
+    def disable_torque_control(self, id):
+        ''' Disable torque control mode.  Goal position and moving speed will be used instead.
+        '''
+        return self.write_address(id, 0x46, [0])
+
+    def read_goal_torque(self, id):
+        ''' Read the currently set goal torque (used in torque control mode).  Units in Amps.  Torque produces is a function of motor current.
+        '''
+        data = self.read_address(id, 0x47, 2)
+        data = data[0] + data[1]*256
+        load = data[0] + (data[1] >> 6) * 256
+        if data[1] >> 2 & 1 == 0:
+            return -1.0 * load
+        else:
+            return 1.0 * load
+
+
+
+
 
 
 class Robotis_Servo():
