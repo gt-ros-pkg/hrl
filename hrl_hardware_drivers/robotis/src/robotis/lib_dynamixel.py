@@ -36,6 +36,7 @@ import time
 import thread
 import sys, optparse
 import math
+import numpy as np
 
 class USB2Dynamixel_Device():
     ''' Class that manages serial port contention between servos on same bus
@@ -46,17 +47,7 @@ class USB2Dynamixel_Device():
         except:
             self.dev_name = dev_name # stores it as a /dev-mapped string for Linux / Mac
 
-#        self._mutex = thread.allocate_lock()
-
-#        self._acq_mutex()
         self.servo_dev = self._open_serial( baudrate )
-#        self._rel_mutex()
-
-#    def _acq_mutex(self):
-#        self._mutex.acquire()
-
-#    def _rel_mutex(self):
-#        self._mutex.release()
 
     def _open_serial(self, baudrate):
         servo_dev = None
@@ -80,7 +71,6 @@ class USB2Dynamixel_Device():
         return servo_dev
 
     def _write_serial(self, msg):
-        # It is up to the caller to acquire / release mutex
         self.servo_dev.write( msg )
 
     def _send_serial(self, msg):
@@ -94,7 +84,6 @@ class USB2Dynamixel_Device():
     def _read_serial(self, nBytes=1):
         ''' Reads data from the servo
         '''
-        # It is up to the caller to acquire / release mutex
         rep = self.servo_dev.read( nBytes )
         return rep
 
@@ -126,7 +115,6 @@ class USB2Dynamixel_Device():
         msg = [ id, len(instruction) + 1 ] + instruction # instruction includes the command (1 byte + parameters. length = parameters+2)
         chksum = self.__calc_checksum( msg )
         msg = [ 0xff, 0xff ] + msg + [chksum]
-#        self._acq_mutex()
         try:
             self._send_serial( msg )
             if status_return:
@@ -136,9 +124,7 @@ class USB2Dynamixel_Device():
                 data = []
                 err = 0 #No Error Received
         except:
-#            self._rel_mutex()
             raise
-#        self._rel_mutex()
         if err != 0:
             self._process_err( err, id )
         return data
@@ -207,7 +193,6 @@ class USB2Dynamixel_Device():
         '''
         msg = [ 0x83 ] + data
         return self._send_instruction(msg, id=0xFE, status_return=False)
-
 
 
 class Dynamixel_Chain(USB2Dynamixel_Device):
@@ -578,12 +563,12 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
     def move_angle(self, id, ang, angvel=None, blocking=False):
         ''' move servo with id to angle (radians) with velocity (rad/s)
         '''
-        if angvel == None:
-            angvel = self.servos[id].settings['max_speed']
+        if angvel is None:
+            av_hi = 0
+            av_lo = 0
         else:
             angvel = self.servos[id].clip_angvel(angvel)
-        av_hi, av_lo = self.__angvel_to_bytes(angvel)
-
+            av_hi, av_lo = self.__angvel_to_bytes(angvel)
         ang = self.servos[id].clip_angle(ang)
         enc_val = self.servos[id].angle_to_encoder(ang)
         ang_hi, ang_lo = self.__encoder_to_bytes(id, enc_val)
@@ -599,7 +584,12 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             clips angles to allowed range, and limits angvel to max allowed.
         '''
         if angvels is None:
-            angvels = [self.servos[id].settings['max_speed'] for id in ids]
+            angvels = [self.servos[id_].settings['max_speed'] for id_ in ids]
+        else:
+            if len(angvels) != len(ids):
+                raise RuntimeError("Number of ids and anvels do not match.")
+            else:
+                angvels  = [ self.servos[id_].clip_angvel(angvel) for id_, angvel in zip(ids, angvels) ]
         #Check that there is an angle, angvel for each id
         assert len(ids) == len(angvels) ,  "Number of ids and angvels do not match"
         assert len(ids) == len(angs) , "Number of ids and angles do not match"
@@ -610,7 +600,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             ang = servo.clip_angle(ang)
             enc_tics = servo.angle_to_encoder(ang)
             ang_hi, ang_lo = self.__encoder_to_bytes(id, enc_tics)
-            vel = servo.clip_angvel(vel)
+            new_vel = servo.clip_angvel(vel)
             vel_hi, vel_lo = self.__angvel_to_bytes(vel)
             msg.extend([id, ang_lo, ang_hi, vel_lo, vel_hi])
         self.sync_write(msg)
@@ -761,7 +751,7 @@ class Robotis_Servo():
                 'max_ang': math.pi,
                 'min_ang': -math.pi,
                 'flipped': False,
-                'max_speed': 0
+                'max_speed': 0.
                 }
         elif series == 'RX': # Common settings for RX-series.  Can overload in servo_config.py
             defaults = {
@@ -771,7 +761,7 @@ class Robotis_Servo():
                 'max_ang': math.radians(150),
                 'min_ang': math.radians(-150),
                 'flipped': False,
-                'max_speed': 0
+                'max_speed': 0.
                 }
         else:
             raise RuntimeError('Unrecognized Series name: %s' %self.series)
@@ -788,6 +778,12 @@ class Robotis_Servo():
         except:
             print 'Servo_config.py configuration file not found.  Using defaults.'
         print "Created new %s-series Robotis Servo at ID %d" %(series, servo_id)
+
+        #If max speed is negative or above possible limit, set to 0 (always use max speed)
+        if (self.settings['max_speed'] < 0) or (self.settings['max_speed'] > 12.2595):
+            print "Servo %d: Setting default servo angular velocity to maximum possible." %self.servo_id
+            self.settings['max_speed'] = 0
+
 
     def angle_to_encoder(self, ang):
         ''' return encoder position for given angle (radians)
@@ -827,12 +823,23 @@ class Robotis_Servo():
         '''Clip commanded velocity to below the allowed maximum.
            negative angvels will be set to maximum.
         '''
-        if angvel > self.settings['max_speed']:
-            print "Servo %d: Tried to set ang vel to %f, above maximum (%f), setting to maximum."\
-                    %(self.servo_id, angvel, self.settings['max_speed'])
-            return self.settings['max_speed']
-        if angvel < 0:
-            return self.settings['max_speed']
+        if self.settings['max_speed'] == 0.:
+            if abs(angvel) > 12.2595:
+                print("Servo %d: Tried to set ang vel to %f, "
+                        "above robotis allowed range (%f), "
+                        "setting to maximum (%f)."
+                        %(self.servo_id, angvel, 12.2595 , 12.2595))
+                return np.clip(angvel, -12.2595, 12.2595)
+                return angvel
+            else:
+                return angvel
+        elif abs(angvel) > self.settings['max_speed']:
+            print("Servo %d: Tried to set ang vel to %f, "
+                  "above configured maximum (%f), "
+                  "setting to maximum (%f)."
+                  %(self.servo_id, angvel,
+                    self.settings['max_speed'], self.settings['max_speed']))
+            return np.clip(angvel, -self.settings['max_speed'], self.settings['max_speed'])
         else:
             return angvel
 
