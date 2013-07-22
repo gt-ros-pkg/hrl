@@ -420,14 +420,15 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         return self.read_torque(id)
 
     def read_torque(self, id):
-        ''' number proportional to the torque applied by the servo.
-            sign etc. might vary with how the servo is mounted.
+        ''' Read the current load as a percentage of (possibly) maximum torque.
+            CW -> load < 0.  CCW -> load > 0.
+            Should be used for direction of torque only.
         '''
         data = self.read_address(id, 0x28, 2)
         hi = data[1] & 3 #grab left two bits
         val = data[0] + hi*256
         load =  val/10.24 #percent of 0-1024 range
-        if data[1] >> 2 == 1:
+        if data[1] & 4: #Check 3rd bit in second byte -- gives direction
             return -load
         else:
             return load
@@ -703,16 +704,39 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' Read the currently set goal torque (used in torque control mode).  Units in Amps.  Torque produces is a function of motor current.
         '''
         data = self.read_address(id, 0x47, 2)
-        data = data[0] + data[1]*256
-        load = data[0] + (data[1] >> 6) * 256
-        if data[1] >> 2 & 1 == 0:
-            return -1.0 * load
+        hi = data[1] & 3 #grab left two bits
+        val = data[0] + hi*256
+        pct =  val/10.24 #percent of 0-1024 range
+        if data[1] & 4: #Check 3rd bit in second byte -- gives direction
+            return -pct
         else:
-            return 1.0 * load
+            return pct
 
+    def set_goal_torque(self, id, percent=100):
+        ''' Set the goal torque as a percentage of the maximum torque.
+            100 % -> Max torque CCW.  -100 % -> Max torque CW.
+        '''
+        if percent <= 0:
+            hi = 4
+            percent *= -1
+        else:
+            hi = 0
+        val = int(round(percent * 10.23))
+        hi = hi | (val >> 8) #place left two bits on upper byte
+        lo = val & 255 #grab only lower byte
+        return self.write_address( id, 0x47, [lo, hi] )
 
+    def read_goal_acceleration(self, id):
+        data = self.read_address(id, 0x49)
+        return data[0] * 8.583 #8.583 rad/sec^2 per unit
 
-
+    def set_goal_acceleration(self, id, ang_acc=0):
+        ''' Set the goal acceleration (0 <--> 2018 rads/sec^2)
+            If goal angular velocity is set to 0, will move with max acceleration.
+            If goal acceleration is set to 0 (default), will move with max acceleration.
+        '''
+        val = int(round(ang_acc/8.583))
+        return self.write_address(id, 0x49, [val])
 
 
 class Robotis_Servo():
@@ -737,17 +761,17 @@ class Robotis_Servo():
                 'max_ang': math.pi,
                 'min_ang': -math.pi,
                 'flipped': False,
-                'max_speed': math.radians(180)
+                'max_speed': 0
                 }
         elif series == 'RX': # Common settings for RX-series.  Can overload in servo_config.py
             defaults = {
                 'home_encoder': 0x200,
                 'max_encoder': 0x3FF,  # Assumes 0 is min.
                 'rad_per_enc': math.radians(300.0) / 1024.0,
-                'max_ang': math.radians(148),
-                'min_ang': math.radians(-148),
+                'max_ang': math.radians(150),
+                'min_ang': math.radians(-150),
                 'flipped': False,
-                'max_speed': math.radians(180)
+                'max_speed': 0
                 }
         else:
             raise RuntimeError('Unrecognized Series name: %s' %self.series)
