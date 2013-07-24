@@ -730,7 +730,6 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         val = int(round(ang_acc/8.583))
         return self.write_address(id, 0x49, [val])
 
-
 class Robotis_Servo():
     ''' Class to use a robotis RX-28 or RX-64 servo.
     '''
@@ -752,7 +751,7 @@ class Robotis_Servo():
                 'rad_per_enc': 2*math.pi / 0xFFF,
                 'max_ang': math.pi,
                 'min_ang': -math.pi,
-                'flipped': False,
+                'flipped': True,
                 'max_speed': 0.
                 }
         elif series == 'RX': # Common settings for RX-series.  Can overload in servo_config.py
@@ -808,8 +807,6 @@ class Robotis_Servo():
     def clip_angle(self, ang):
         ''' Clip commanded joint angles to within the allowed range.
         '''
-        if self.settings['flipped']:
-            ang *= -1.0
         if ang < self.settings['min_ang']:
             print "Servo %d: Commanded angle (%f) below minimum (%f), commanding to minimum."\
                     %(self.servo_id, ang, self.settings['min_ang'])
