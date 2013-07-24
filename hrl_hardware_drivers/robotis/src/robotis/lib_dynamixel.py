@@ -598,6 +598,8 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         for id, ang, vel in zip(ids, angs, angvels):
 	    servo = self.servos[id]
             ang = servo.clip_angle(ang)
+            if servo.settings['flipped']:
+                ang *= -1.0
             enc_tics = servo.angle_to_encoder(ang)
             ang_hi, ang_lo = self.__encoder_to_bytes(id, enc_tics)
             new_vel = servo.clip_angvel(vel)
