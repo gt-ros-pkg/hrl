@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2009, Georgia Tech Research Corporation
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #     * Redistributions of source code must retain the above copyright
@@ -13,7 +13,7 @@
 #     * Neither the name of the Georgia Tech Research Corporation nor the
 #       names of its contributors may be used to endorse or promote products
 #       derived from this software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY GEORGIA TECH RESEARCH CORPORATION ''AS IS'' AND
 # ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -32,8 +32,7 @@
 ## Authors: Travis Deyle, Advait Jain, Marc Killpack, and Phillip Grice (Healthcare Robotics Lab, Georgia Tech.)
 
 import serial
-import time
-import thread
+import struct
 import sys, optparse
 import math
 import numpy as np
@@ -62,7 +61,7 @@ class USB2Dynamixel_Device():
 
             servo_dev.flushOutput()
             servo_dev.flushInput()
-	    servo_dev.flush()
+            servo_dev.flush()
 
         except (serial.serialutil.SerialException), e:
             raise RuntimeError('lib_dynamixel: Serial port not found!\n')
@@ -71,21 +70,20 @@ class USB2Dynamixel_Device():
         return servo_dev
 
     def _write_serial(self, msg):
+        self.servo_dev.flushInput()
         self.servo_dev.write( msg )
 
     def _send_serial(self, msg):
         """ sends the command to the servo
         """
-        out = ''
-        for m in msg:
-            out += chr(m)
+        out = struct.pack('%dB' %len(msg), *msg)
         self._write_serial( out )
 
     def _read_serial(self, nBytes=1):
         ''' Reads data from the servo
         '''
-        rep = self.servo_dev.read( nBytes )
-        return rep
+        self.servo_dev.flushOutput()
+        return self.servo_dev.read( nBytes )
 
     def _receive_reply(self, id):
         ''' Reads the status packet returned by the servo
@@ -93,21 +91,23 @@ class USB2Dynamixel_Device():
         start = self._read_serial( 2 )
         if start != '\xff\xff':
             raise RuntimeError('lib_dynamixel: Failed to receive start bytes\n')
-        servo_id = self._read_serial( 1 )
-        if ord(servo_id) != id:
-            raise RuntimeError('lib_dynamixel: Incorrect servo ID received: %d\n' % ord(servo_id))
-        data_len = self._read_serial( 1 )
-        err = self._read_serial( 1 )
-        data = self._read_serial( ord(data_len) - 2 )
-        checksum = self._read_serial( 1 ) # I'm not going to check...
-        return id, [ord(v) for v in data], ord(err)
+        servo_id = ord(self._read_serial( 1 ))
+        if servo_id != id:
+            raise RuntimeError('lib_dynamixel: Incorrect servo ID received: %d\n' %servo_id)
+        data_len = ord(self._read_serial( 1 ))
+        err = ord(self._read_serial( 1 ))
+        raw_data = self._read_serial( data_len - 2 )
+        data = [ord(d) for d in raw_data]
+        chksum = servo_id + data_len + err + sum(data)
+        chksum = ( ~chksum ) % 256
+        checksum = ord(self._read_serial( 1 ))
+        if checksum != chksum:
+            raise RuntimeError('lib_dynamixel: Error in Received Checksum')
+        return id, data, err
 
     def __calc_checksum(self, msg):
-        chksum = 0
-        for m in msg:
-            chksum += m
-        chksum = ( ~chksum ) % 256
-        return chksum
+        chksum = sum(msg)
+        return ( ~chksum ) % 256
 
     def _send_instruction(self, instruction, id, status_return=True):
         ''' Fills out packet metadata, manages mutex, sends packet, and handles response.
@@ -132,7 +132,7 @@ class USB2Dynamixel_Device():
     def _process_err( self, err, id ):
         ''' Process and raise errors received from the robotis servo.
         '''
-        msg = "Errors reported by Dynamixel ID %d:" %id
+        msg = "Error(s) reported by Dynamixel ID %d:" %id
         if err & 1: #bitwise & -- check each bit 'flag'
             msg += "\n\tInput Voltage Error: Applied Voltage outside of set operating range."
         if err & 2:
@@ -146,7 +146,7 @@ class USB2Dynamixel_Device():
         if err & 32:
           msg += "\n\tOverload Error: Current load exceeds set torque limit"
         if err & 64:
-            msg += "\n\tInstruction Error: Received undefined instruction,"+\
+            msg += "\n\tInstruction Error: Received undefined instruction, "+\
             "or action command received before command was registered\n"
         raise RuntimeError(msg)
 
@@ -198,8 +198,8 @@ class USB2Dynamixel_Device():
 class Dynamixel_Chain(USB2Dynamixel_Device):
     ''' Class that manages multiple servos on a single Dynamixel Device
     '''
-    def __init__(self, dev='/dev/ttyUSB0', baudrate='57600', ids=None, series=['RX']):
-        ''' Accepts device file, baudrate, and a list of id numbers for servos (if known)
+    def __init__(self, dev='/dev/ttyUSB0', baudrate='57600', ids=None):
+        ''' Accepts device file, baudrate, and a list of id numbers for servos (if known).
         '''
         USB2Dynamixel_Device.__init__(self, dev, baudrate)
 
@@ -207,10 +207,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         if len(valid_servo_ids) == 0:
             raise RuntimeError("No valid servo IDs Found")
 
-        if type(series) == str:
-            series = [series]*len(valid_servo_ids)
-        elif len(series) == 1:
-            series = series*len(valid_servo_ids)
+        series = [self._determine_series(id) for id in valid_servo_ids]
 
         self.servos = {}
         for id, series in zip(valid_servo_ids, series):
@@ -226,7 +223,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         else:
             print 'Scanning for servos with ID(\'s): %s' %ids
             suggested_ids = True
-        self.servo_dev.setTimeout( 0.03 ) # To make the scan faster
+        self.servo_dev.setTimeout( 0.05 ) # To make the scan faster
         servos = []
         for i in ids:
             if self._id_on_device(i):
@@ -250,6 +247,34 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         except:
             return False
 
+    def _determine_series(self, id):
+        code = self.read_model_number(id)
+        if code in [29, 310, 320]: #MX-28, MX-64, and MX-106
+            if code == 320: #MX-106
+                print ("Warning: MX-106 Not fully supported. (Drive Mode/Dual Motor Joints)")
+            return 'MX'
+        elif code in [24, 28, 64]: #RX-24, RX-28, RX-64
+            return 'RX'
+        elif code == 107: #EX-106+
+            print ("WARNING: EX-106 Devices not directly supported. Treating as 'MX'.")
+            return 'MX'
+        elif code in [300, 12, 18]: #AX-12W, AX-12, AX-18
+            print ("WARNING: AX-series devices not directly supported. Treating as 'MX'.")
+            return 'MX'
+        else:
+            raise RuntimeError("Servo ID: %d has unknown servo model code: %d" %(id, code))
+
+    def read_model_number(self, id):
+        ''' Read the model number (byte-code) of the servo at id.
+        '''
+        data = self.read_address(id, 0x00, 2)
+        return data[0] + data[1]*256
+
+    def read_firmware_version(self, id):
+        '''  Read the firmware version on the servo at id.
+        '''
+        return self.read_address(id, 0x02)[0]
+
     def set_id(self, current_id, new_id):
         ''' changes the servo id from current_id to new_id
         '''
@@ -265,6 +290,21 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' Set the baudrate of the servo at id. Smaller == Faster. Default: 34 -> 57600.
         '''
         return self.write_address(id, 0x04, [baudrate])
+
+    def read_baudrate(self, id):
+        ''' Read the currently set baudrate digit of servo with ID.
+        '''
+        code = self.read_address(id, 0x04)[0]
+        if code < 249:
+            return int(2000000./(code+1))
+        elif code == 250:
+            return 2250000
+        elif code == 251:
+            return 2500000
+        elif code == 252:
+            return 3000000
+        else:
+            raise RuntimeError("Received unknown code for baudrate: %d" %code)
 
     def set_return_delay(self, id, delay=250):
         ''' Set Return Delay Time (0-500 microseconds). Default=250.
@@ -414,9 +454,10 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         val = data[0] + hi*256
         load =  val/10.24 #percent of 0-1024 range
         if data[1] & 4: #Check 3rd bit in second byte -- gives direction
-            return -load
-        else:
-            return load
+            load *= -1.
+        if self.servos[id].settings['flipped']:
+            load *= -1.
+        return load
 
     def is_led_on(self, id):
         ''' Return True if LED is ON, False if LED is off.
@@ -428,6 +469,86 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' Set the status of the LED on or off.
         '''
         return self.write_address(id, 0x19, [on])
+
+    def read_compliance_margins(self, id):
+        ''' Read the compliance margin (deadband around goal position) of servo with id.
+            Returns [CW, CCW] angular deadband in radians (always positive).
+        '''
+        cw, ccw = self.read_address(id, 0x1A, 2)
+        cw_rad = cw * self.servos[id].settings['rad_per_enc']
+        ccw_rad = ccw * self.servos[id].settings['rad_per_enc']
+        return [cw_rad, ccw_rad]
+
+    def set_compliance_margins(self, id, cw=None, ccw=None):
+        if (cw is None) and (ccw is None):
+            print("Setting CW and CCW compliance margins to %f (one encoder step)."
+                    %self.servos[id].settings['rad_per_enc'])
+            cw_enc = ccw_enc = 1
+        elif (cw is None) or (ccw is None):
+            print("Setting both CW and CCW compliance margins to %f."
+                    %max(cw, ccw)) #select whichever is not None.
+            cw_enc = ccw_enc = int(round(max(cw, ccw) / self.servos[id].settings['rad_per_enc']))
+        else:
+            cw_enc = int(round( cw / self.servos[id].settings['rad_per_enc']))
+            ccw_enc = int(round( ccw / self.servos[id].settings['rad_per_enc']))
+
+        encs = [cw_enc, ccw_enc]
+        for i, enc in enumerate(encs):
+            if (enc > 254):
+                print("WARNING: Compliance margin must be less than {0}, clipping to {0}".format(
+                        254*self.servos[id].settings['rad_per_enc']))
+                encs[i] = 254
+        return self.write_address(id,  0x1A, encs)
+
+    def _compliance_slope_to_step(self, val):
+        if val in range(3):
+            return 1
+        elif val in range(4,7):
+            return 2
+        elif val in range(8, 15):
+            return 3
+        elif val in range(16, 31):
+            return 4
+        elif val in range(32, 63):
+            return 5
+        elif val in range(64, 127):
+            return 6
+        elif val in range(128, 254):
+            return 7
+        else:
+            raise RuntimeError("Received out-of-range compliance slope: %s. Must be in range(254)" %val)
+
+    def _compliance_step_to_slope(self, step):
+        try:
+            return {1: 2,
+                    2: 4,
+                    3: 8,
+                    4: 16,
+                    5: 32,
+                    6: 64,
+                    7: 128}[step]
+        except:
+            print "Compliance slope must be in range(7)"
+            raise
+
+    def read_compliance_slopes(self, id):
+        ''' Read the CW and CCW compliance slopes as steps from 1-7 (1=stiffer, 7=more flexible').
+        '''
+        data = self.read_address(id, 0x1C, 2)
+        return [self._compliance_slope_to_step(v) for v in data]
+
+    def set_compliance_slopes(self, id, cw=None, ccw=None):
+        if (cw is None) and (ccw is None):
+            print("Setting CW and CCW compliance slopes to level 5 (default).")
+            data = [32, 32]
+        elif (cw is None) or (ccw is None):
+            data = [self._compliance_step_to_slope(max(cw, ccw))] * 2
+            print("Setting both CW and CCW compliance slopes to level %d." %data[0])
+        else:
+            cw_step = self._compliance_step_to_slope(cw)
+            ccw_step = self._compliance_step_to_slope(ccw)
+            data = [cw_step, ccw_step]
+        return self.write_address(id, 0x1C, data)
 
     def read_pid_gains(self, id):
         ''' Read the PID gains currently set on the servo.
@@ -441,6 +562,9 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
 
     def set_pid_gains(self, id, kp=4., ki=0., kd=0.):
         ''' Set the PID gain coefficients on the servo.
+            0 <= kp < 31.875
+            0 <= ki < 124.5177
+            0 <= kd < 1.02
         '''
         if (kp < 0) or (kd < 0 ) or (ki < 0 ):
             raise RuntimeError('All PID gains must be positive.')
@@ -528,7 +652,10 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' returns the angular velocity (rad/s) of servo at id.
         '''
         data = self.read_address(id, 38, 2)
-        return self._bytes_to_angvel(data[1], data[0])
+        angvel = self._bytes_to_angvel(data[1], data[0])
+        if self.servos[id].settings['flipped']:
+            angvel *= -1.
+        return angvel
 
     def read_angvels(self, ids=None):
         '''return a list of current angular velocities for servos with given ids
@@ -545,6 +672,8 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         enc_val = data[0] + data[1] * 256
         ang = self.servos[id].encoder_to_angle(enc_val)
         angvel = self._bytes_to_angvel(data[3], data[2])
+        if self.self.servos[id].settings['flipped']:
+            angvel *= -1.
         return ang, angvel
 
     def read_angs_angvels(self, ids=None):
@@ -564,15 +693,13 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' move servo with id to angle (radians) with velocity (rad/s)
         '''
         if angvel is None:
-            av_hi = 0
-            av_lo = 0
+            angvel = self.servos[id].settings['max_speed']
         else:
             angvel = self.servos[id].clip_angvel(angvel)
-            av_hi, av_lo = self.__angvel_to_bytes(angvel)
+        av_hi, av_lo = self.__angvel_to_bytes(angvel)
         ang = self.servos[id].clip_angle(ang)
         enc_val = self.servos[id].angle_to_encoder(ang)
         ang_hi, ang_lo = self.__encoder_to_bytes(id, enc_val)
-
         self.write_address(id, 30, [ang_lo, ang_hi, av_lo, av_hi])
 
         if blocking == True:
@@ -596,7 +723,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
 
         msg = [0x1E, 0x04] #Start address, length of data per servo (4 bytes)
         for id, ang, vel in zip(ids, angs, angvels):
-	    servo = self.servos[id]
+            servo = self.servos[id]
             ang = servo.clip_angle(ang)
             enc_tics = servo.angle_to_encoder(ang)
             ang_hi, ang_lo = self.__encoder_to_bytes(id, enc_tics)
@@ -749,7 +876,7 @@ class Robotis_Servo():
                 'rad_per_enc': 2*math.pi / 0xFFF,
                 'max_ang': math.pi,
                 'min_ang': -math.pi,
-                'flipped': True,
+                'flipped': False,
                 'max_speed': 0.
                 }
         elif series == 'RX': # Common settings for RX-series.  Can overload in servo_config.py
@@ -763,7 +890,7 @@ class Robotis_Servo():
                 'max_speed': 0.
                 }
         else:
-            raise RuntimeError('Unrecognized Series name: %s' %self.series)
+            raise RuntimeError('Servo ID %d has unrecognized Series name: %s' %(self.servo_id, self.series))
 
         # Set various parameters.  Load from servo_config.
         self.settings = defaults
@@ -782,7 +909,6 @@ class Robotis_Servo():
         if (self.settings['max_speed'] < 0) or (self.settings['max_speed'] > 12.2595):
             print "Servo %d: Setting default servo angular velocity to maximum possible." %self.servo_id
             self.settings['max_speed'] = 0
-
 
     def angle_to_encoder(self, ang):
         ''' return encoder position for given angle (radians)
@@ -827,7 +953,6 @@ class Robotis_Servo():
                         "setting to maximum (%f)."
                         %(self.servo_id, angvel, 12.2595 , 12.2595))
                 return np.clip(angvel, -12.2595, 12.2595)
-                return angvel
             else:
                 return angvel
         elif abs(angvel) > self.settings['max_speed']:
@@ -840,29 +965,36 @@ class Robotis_Servo():
         else:
             return angvel
 
-def discover_servos(dev='/dev/ttyUSB0', ids=None, baudrates=None):
+def discover_servos(dev='/dev/ttyUSB0', ids=None, baudrates=None, number=255):
     '''Discover all servos on a USB2Dynamixel_Device using PING command.
-       Checks all servo IDs at all Baudrates.  Can specify smaller ranges to check instead.
+       Checks all servo IDs at all Baudrates, stopping after 'number' of servos are found.
+       Can specify smaller ranges to check instead.
     '''
     if baudrates is None:
         baudrates = [9600, 19200, 57600, 115200, 200000, 250000, 400000, 500000, 1000000, 2250000, 2500000, 3000000]
     print "Searching for ID's on %s" %dev
+    num = 0
     for baudrate in baudrates:
         print "\nBaudrate %d:" %baudrate
         try:
             dyn = Dynamixel_Chain(dev, baudrate=baudrate, ids = ids)
+            num += len(dyn.servos.keys())
             dyn.servo_dev.close()
             del(dyn)
+            if num >= number:
+                print "Found %d servos. Stopping." %num
+                break
         except RuntimeError as rte:
             print rte
 
 def recover_servo(dyn):
+    import time
     ''' Recovers a bricked servo by booting into diagnostic bootloader and resetting '''
     raw_input('Make sure only one servo connected to USB2Dynamixel Device [ENTER]')
     raw_input('Disconnect power from the servo, but leave USB2Dynamixel connected to USB. [ENTER]')
 
     dyn.servo_dev.setBaudrate( 57600 )
-    
+
     print 'Get Ready.  Be ready to reconnect servo power when I say \'GO!\''
     print 'After a second, the red LED should become permanently lit.'
     print 'After that happens, Ctrl + C to kill this program.'
