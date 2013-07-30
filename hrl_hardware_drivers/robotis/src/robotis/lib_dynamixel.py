@@ -207,7 +207,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         if len(valid_servo_ids) == 0:
             raise RuntimeError("No valid servo IDs Found")
 
-        series = [self._determine_series(id) for id in valid_servo_ids]
+        series = [self._determine_series(self.read_model_number(id)) for id in valid_servo_ids]
 
         self.servos = {}
         for id, series in zip(valid_servo_ids, series):
@@ -247,8 +247,9 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         except:
             return False
 
-    def _determine_series(self, id):
-        code = self.read_model_number(id)
+    def _determine_series(self, code):
+        ''' Determine the series from the model number of servo with id.
+        '''
         if code in [29, 310, 320]: #MX-28, MX-64, and MX-106
             if code == 320: #MX-106
                 print ("Warning: MX-106 Not fully supported. (Drive Mode/Dual Motor Joints)")
@@ -344,12 +345,17 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ccw_lim = self.servos[id].encoder_to_angle(ccw)
         return [cw_lim, ccw_lim]
 
+    def is_cont_turn_enabled(self, id):
+        ''' Return whether continuous turn is enabled based on the joint angle limits.
+        '''
+        return (self.read_address(id, 6, 4) == [0]*4)
+
     def enable_cont_turn(self, id):
         ''' Sets angle limits to zero, allowing continuous turning (good for wheels).
         After calling this method, simply use 'set_angvel' to command rotation.  This
         rotation is proportional to torque according to Robotis documentation.
         '''
-        return self.set_angle_limits(id, cw_limit=0., ccw_limit=0)
+        return self.write_address(id, 6, [0]*4)
 
     def disable_cont_turn(self, id):
         ''' Resets CCW angle limits to defaults to allow commands through 'move_angle' again.
@@ -453,9 +459,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         hi = data[1] & 3 #grab left two bits
         val = data[0] + hi*256
         load =  val/10.24 #percent of 0-1024 range
-        if data[1] & 4: #Check 3rd bit in second byte -- gives direction
-            load *= -1.
-        if self.servos[id].settings['flipped']:
+        if (data[1] & 4) != self.servos[id].settings['flipped']: #Check direction bit and servo flipped. If only one =True, then flip.
             load *= -1.
         return load
 
@@ -596,7 +600,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         ''' Read the currently set desired moving speed of servo with id.
         '''
         data = self.read_address(id, 0x20, 2)
-        return self._bytes_to_angvel(data[1], data[0])
+        return self.servos[id].bytes_to_angvel(data[1], data[0])
 
     def read_torque_limit(self, id):
         ''' Read the currently set torque limit as a percentage of acheivable torque.
@@ -638,23 +642,11 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         angles = [self.read_angle(id) for id in ids]
         return angles, ids
 
-    def _bytes_to_angvel(self, hi, lo):
-        '''returns the current angular velocity from hi, lo bytes
-        '''
-        val = lo + hi * 256
-        raw_mag = (val % 1024) * 0.11443 #binary value ~= 0.11rpm/unit
-        mag = (raw_mag / 60.) * 2 * math.pi
-        if val / 1024 == 1:
-            mag *= -1
-        return mag
-
     def read_angvel(self, id):
         ''' returns the angular velocity (rad/s) of servo at id.
         '''
         data = self.read_address(id, 38, 2)
-        angvel = self._bytes_to_angvel(data[1], data[0])
-        if self.servos[id].settings['flipped']:
-            angvel *= -1.
+        angvel = self.servos[id].bytes_to_angvel(data[1], data[0])
         return angvel
 
     def read_angvels(self, ids=None):
@@ -671,9 +663,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         data = self.read_address(id, 36, 4)
         enc_val = data[0] + data[1] * 256
         ang = self.servos[id].encoder_to_angle(enc_val)
-        angvel = self._bytes_to_angvel(data[3], data[2])
-        if self.self.servos[id].settings['flipped']:
-            angvel *= -1.
+        angvel = self.servos[id].bytes_to_angvel(data[3], data[2])
         return ang, angvel
 
     def read_angs_angvels(self, ids=None):
@@ -696,7 +686,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             angvel = self.servos[id].settings['max_speed']
         else:
             angvel = self.servos[id].clip_angvel(angvel)
-        av_hi, av_lo = self.__angvel_to_bytes(angvel)
+        av_hi, av_lo = self.servos[id].angvel_to_bytes(angvel)
         ang = self.servos[id].clip_angle(ang)
         enc_val = self.servos[id].angle_to_encoder(ang)
         ang_hi, ang_lo = self.__encoder_to_bytes(id, enc_val)
@@ -728,7 +718,7 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
             enc_tics = servo.angle_to_encoder(ang)
             ang_hi, ang_lo = self.__encoder_to_bytes(id, enc_tics)
             new_vel = servo.clip_angvel(vel)
-            vel_hi, vel_lo = self.__angvel_to_bytes(vel)
+            vel_hi, vel_lo = self.servos[id].angvel_to_bytes(vel)
             msg.extend([id, ang_lo, ang_hi, vel_lo, vel_hi])
         self.sync_write(msg)
 
@@ -747,21 +737,11 @@ class Dynamixel_Chain(USB2Dynamixel_Device):
         hi, lo = n / 256, n % 256
         return hi, lo
 
-    def __angvel_to_bytes(self, angvel):
-        ''' Convert Angular velocity, in rad/sec, to hi, lo bytes.
-        '''
-        rpm = angvel / (2 * math.pi) * 60.0
-        angvel_enc = int(round( rpm / 0.11443 ))
-        if angvel_enc < 0:
-            hi, lo = abs(angvel_enc) / 256 + 4, abs(angvel_enc) % 256
-        else:
-            hi, lo = angvel_enc / 256, angvel_enc % 256
-        return hi, lo
 
     def set_angvel(self, id, angvel):
         ''' set angvel (rad/s) of servo id
         '''
-        hi, lo =  self.__angvel_to_bytes(angvel)
+        hi, lo =  self.servos[id].angvel_to_bytes(angvel)
         return self.write_address(id, 0x20, [lo, hi] )
 
     def is_moving(self, id):
@@ -897,6 +877,7 @@ class Robotis_Servo():
         try:
             import servo_config as sc
             if sc.servo_param.has_key( self.servo_id ):
+                print "Using servo_config.py settings for Servo %d" %self.servo_id
                 for key, val in sc.servo_param [ self.servo_id ].iteritems():
                     self.settings[key] = val
             else:
@@ -942,6 +923,31 @@ class Robotis_Servo():
         else:
             return ang
 
+    def angvel_to_bytes(self, angvel):
+        ''' Convert Angular velocity, in rad/sec, to hi, lo bytes.
+        '''
+        if self.settings['flipped']:
+            angvel *= -1.
+        rpm = angvel / (2 * math.pi) * 60.0
+        angvel_enc = int(round( rpm / 0.11443 ))
+        hi = abs(angvel_enc) / 256
+        lo = abs(angvel_enc) % 256
+        if angvel_enc < 0:
+            hi += 4 #correct direction bit
+        return hi, lo
+
+    def bytes_to_angvel(self, hi, lo):
+        '''returns the current angular velocity from hi, lo bytes
+        '''
+        val = lo + hi * 256
+        raw_mag = (val % 1024) * 0.11443 #binary value ~= 0.11rpm/unit
+        mag = (raw_mag / 60.) * 2 * math.pi
+        if hi >> 2 == 1: #check direction bit
+            mag *= -1
+        if self.settings['flipped']:
+            mag *= -1
+        return mag
+
     def clip_angvel(self, angvel):
         '''Clip commanded velocity to below the allowed maximum.
            negative angvels will be set to maximum.
@@ -964,6 +970,7 @@ class Robotis_Servo():
             return np.clip(angvel, -self.settings['max_speed'], self.settings['max_speed'])
         else:
             return angvel
+
 
 def discover_servos(dev='/dev/ttyUSB0', ids=None, baudrates=None, number=255):
     '''Discover all servos on a USB2Dynamixel_Device using PING command.
@@ -1022,6 +1029,243 @@ def recover_servo(dyn):
         s.write('#')
         time.sleep(0.0001)
 
+def test_servos(dyn, ids=None):
+    ''' An incomplete test script.  Will call most, but not all,
+        functions on a servo and check for obvious problems.
+    '''
+    def confirm():
+        rsp = raw_input("Do you wish to proceed? (y/n)")
+        if rsp == 'y':
+            return True
+        elif rsp == 'n':
+            return False
+        else:
+            print "Please enter 'y' or 'n'"
+            return confirm()
+
+    print("This test function will test almost all functions available on the "
+            "specified servos, including continuous motion, and should not be "
+            "performed if the servo is attached to external hardware "
+            "that cannot rotate freely.")
+    if not confirm():
+        print "Aborting..."
+        return
+
+    import time
+    if ids is None:
+        ids = dyn.servos.keys()
+    for id in ids:
+        servo = dyn.servos[id]
+        assert dyn.ping(id) == []
+        assert dyn.dev_name == dyn.servo_dev.port
+        print "Device Name: %s" %dyn.dev_name
+        model_code = dyn.read_model_number(id)
+        print "Model Code: %s" %model_code
+        assert dyn._determine_series(model_code) ==  servo.series
+        print "Series: %s" %servo.series
+        print "Firmware version: %s" %dyn.read_firmware_version(id)
+        assert dyn.read_address(id, 3, 1) == [id]
+        print "ID: %d" %id
+        assert np.allclose(dyn.read_baudrate(id), dyn.servo_dev.baudrate, rtol=0.01) #within 1% diff
+        print "Baudrate: %s" %dyn.servo_dev.baudrate
+        assert dyn.read_return_delay(id) in range(0,502,2)
+        print "Return Delay Time: %s (microseconds)" %dyn.read_return_delay(id)
+        print "Is EEPROM Locked? %s" %dyn.is_eeprom_locked(id)
+        cw, ccw = dyn.read_angle_limits(id)
+        print "Servo EEPROM angle limits: %s" %[cw, ccw]
+        print "Software angle limits: %s" %[servo.settings['min_ang'], servo.settings['max_ang']]
+        assert np.allclose([cw, ccw], [servo.settings['min_ang'], servo.settings['max_ang']], rtol=0.005)
+        print "Temperature Alarm Limit: %d C" %dyn.read_temperature_limit(id)
+        print "Present Temperature: %d C" %dyn.read_temperature(id)
+        assert dyn.read_temperature(id) < dyn.read_temperature_limit(id)
+
+        ## Voltage
+        voltage_limits = dyn.read_voltage_limits(id)
+        print "Voltage Limits: %sV -- %sV" %(voltage_limits[0], voltage_limits[1])
+        voltage = dyn.read_voltage(id)
+        print "Current Voltage: %sV" %voltage
+        assert (voltage >= voltage_limits[0]) and (voltage <= voltage_limits[1])
+        print
+
+        ## Torque controls/settings
+        torque_limit = dyn.read_max_torque(id)
+        print "Torque Limit: %s%%" %torque_limit
+        torque_cap = dyn.read_torque_limit(id)
+        print "Torque output cap: %s%%" %torque_cap
+        load = dyn.read_load(id)
+        torque = dyn.read_torque(id)
+        print "Current Torque: %s%%" %torque
+        assert torque == load
+        assert torque < torque_limit
+        assert torque < torque_cap
+        assert torque_cap <= torque_limit
+        print "Enabling Torque"
+        dyn.enable_torque(id)
+        print "Torque Enabled: %s" %dyn.is_torque_enabled(id)
+        assert dyn.is_torque_enabled(id)
+        print "Disabling Torque"
+        dyn.disable_torque(id)
+        print "Torque Enabled: %s" %dyn.is_torque_enabled(id)
+        assert not dyn.is_torque_enabled(id)
+        print "Re-enabling torque"
+        dyn.enable_torque(id)
+        print
+
+        #Status Return Level
+        dyn.set_status_return_level(id, 2)
+        srl = dyn.read_status_return_level(id)[0]
+        print "Status Return Level: %s" %srl
+        assert srl == 2
+        print
+
+        ## LED
+        print "Turning LED On"
+        dyn.set_led(id, True)
+        assert dyn.is_led_on(id)
+        time.sleep(2)
+        dyn.set_led(id, False)
+        assert not dyn.is_led_on(id)
+        print
+
+        #Gains
+        if servo.series == 'MX':
+            p, i, d = dyn.read_pid_gains(id)
+            print "PID Gains:\n\tP:%s\n\tI:%s\n\tD:%s" %(p, i, d)
+            print "Setting PID Gains to near max. (31, 124, 1)"
+            dyn.set_pid_gains(id, kp=31, ki=124, kd=1)
+            p1, i1, d1 = dyn.read_pid_gains(id)
+            print "PID Gains:\n\tP:%s\n\tI:%s\n\tD:%s" %(p1, i1, d1)
+            assert np.allclose(p1, 31, rtol=0.01)
+            assert np.allclose(i1, 124, rtol=0.01)
+            assert np.allclose(d1, 1., rtol=0.01)
+            dyn.set_pid_gains(id, kp=p, ki=i, kd=d)
+        elif servo.series == 'RX':
+            cms = dyn.read_compliance_margins(id)
+            print "Compliance Margins:\n\tCW: %s\n\tCCW: %s" %tuple(cms)
+            print "Setting compliance margins to [PI/8, PI/7]"
+            dyn.set_compliance_margins(id, cw=np.pi/8, ccw=np.pi/7)
+            print "Compliance Margins:\n\tCW: %s\n\tCCW: %s" %tuple(dyn.read_compliance_margins(id))
+            assert np.allclose([np.pi/8, np.pi/7], dyn.read_compliance_margins(id), rtol=0.01)
+            dyn.set_compliance_margins(id, cw=cms[0], ccw=cms[1])
+            css = dyn.read_compliance_slopes(id)
+            print "Compliance Slopes:\n\tCW: %s\n\tCCW: %s" %tuple(css)
+            print "Setting compliance slopes to steps: [2, 4]"
+            dyn.set_compliance_slopes(id, cw=2, ccw=4)
+            assert dyn.read_compliance_slopes(id) == [2,4]
+            print "Compliance Slopes:\n\tCW: %s\n\tCCW: %s" %tuple(dyn.read_compliance_slopes(id))
+            dyn.set_compliance_slopes(id, css[0], css[1])
+        print "Punch: %s" %dyn.read_punch(id)
+        print
+
+        ##Goal position/velocity
+        gp = dyn.read_goal_position(id)
+        print "Goal Angle: %s" %gp
+        gav = dyn.read_goal_angvel(id)
+        print "Goal Angular Velocity: %s" %gav
+        ang = dyn.read_angle(id)
+        print "Present Position: %s" %ang
+        av =  dyn.read_angvel(id)
+        print "Present Angular Velocity: %s" %av
+        assert np.allclose(gp, ang, rtol=0.01)
+        assert av <= gav
+        print "Currently Moving? %s" %dyn.is_moving(id)
+        while dyn.is_moving(id):
+            time.sleep(0.1)
+        assert dyn.read_angvel(id) == 0
+        print
+
+        ## Move to min, max
+        for goal in [servo.settings['min_ang'], servo.settings['max_ang']]:
+            print "Moving to angle: %s at %s rad/sec." %(goal, np.pi/4)
+            dyn.move_angle(id, goal, np.pi/4)
+            time.sleep(0.5)
+            while dyn.is_moving(id):
+                poss, vels, ids = dyn.read_angs_angvels()
+                idx = ids.index(id)
+                print "Position: %s\nVelocity: %s\n" %(poss[idx], vels[idx])
+                time.sleep(1.5)
+
+        ## Move angles sync
+        print "Returning to 0 at %s rad/sec via syncronous call." %(np.pi/4)
+        dyn.move_angles_sync(ids=[id], angs=[0], angvels=[np.pi/4])
+        time.sleep(0.25)
+        while dyn.is_moving(id):
+            poss, vels, ids = dyn.read_angs_angvels()
+            idx = ids.index(id)
+            print "Position: %s\nVelocity: %s\n" %(poss[idx], vels[idx])
+            time.sleep(1)
+        print
+
+        ## Continuous turn
+        print "Enabling Continuous turn"
+        als = dyn.read_angle_limits(id)
+        dyn.enable_cont_turn(id)
+        assert dyn.is_cont_turn_enabled(id)
+        print "Moving clockwise at 180 deg/sec (1.57 rad/s)"
+        dyn.set_angvel(id, -np.pi)
+        time.sleep(0.5)
+        av = dyn.read_angvel(id)
+        print "Moving Velocity: %s" %av
+        time.sleep(4)
+        print "Moving counter-clockwise at 180 deg/sec (1.57 rad/s)"
+        dyn.set_angvel(id, np.pi)
+        time.sleep(0.5)
+        av = dyn.read_angvel(id)
+        print "Moving Velocity: %s" %av
+        time.sleep(4)
+        print "Disabling Continuous turn"
+        dyn.disable_cont_turn(id)
+        assert not dyn.is_cont_turn_enabled(id)
+        dyn.set_angle_limits(id, als[0], als[1])
+        print "Resetting angle limits to: ", dyn.read_angle_limits(id)
+        assert dyn.read_angle_limits(id) == als
+        print
+
+        ## Only do the remainder for 'MX' series
+        if servo.series == 'RX':
+            print "Tests completed successfully"
+            return
+
+        ##Torque Control
+        print "Is torque contro enabled? %s" %dyn.is_torque_enabled(id)
+        print "Enabling torque control"
+        dyn.enable_torque_control(id)
+        print "Is torque contro enabled? %s" %dyn.is_torque_enabled(id)
+        assert dyn.is_torque_control_enabled(id)
+
+        gt = dyn.read_goal_torque(id)
+        print "Goal Torque: %s" %gt
+        print "Setting goal torque to ~ +50%"
+        dyn.set_goal_torque(id, 50)
+        assert np.allclose(dyn.read_goal_torque(id), 50, rtol=0.01)
+        time.sleep(1)
+        print "Present torque: %s" %dyn.read_torque(id)
+        print "Present current: %sA" %dyn.read_current(id)
+        time.sleep(1)
+
+        print "Setting goal torque to ~ -50% (reverse)"
+        dyn.set_goal_torque(id, -50)
+        assert np.allclose(dyn.read_goal_torque(id), -50, rtol=0.01)
+        time.sleep(1)
+        print "Present torque: %s" %dyn.read_torque(id)
+        time.sleep(1)
+
+        print "Disabling torque control"
+        dyn.disable_torque_control(id)
+        assert not dyn.is_torque_control_enabled(id)
+        print "Present current: %sA" %dyn.read_current(id)
+        print
+
+        ga = dyn.read_goal_acceleration(id)
+        print "Goal Acceleration: %s rad/s^2" %ga
+        print "Setting goal acceleration to ~450 deg/s^2"
+        dyn.set_goal_acceleration(id, 450)
+        nga = dyn.read_goal_acceleration(id)
+        assert np.allclose(nga, 450, rtol=0.01)
+        print "Setting goal acceleration back to %s" %ga
+        dyn.set_goal_acceleration(id, ga)
+        assert np.allclose(dyn.read_goal_acceleration(id), ga, rtol=0.01)
+        print "Tests completed successfully"
 
 if __name__ == '__main__':
     usage =  ("Interface for controlling one or more robotis servos on a single bus\n"+
