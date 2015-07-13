@@ -1,9 +1,0 @@
-<stack>
-  <description brief="hrl_arm_control">hrl_arm_control</description>
-  <author>Maintained by Advait Jain and Kelsey Hawkins (Advisor: Prof Charlie Kemp)</author>
-  <license>New BSD</license>  
-  <review status="unreviewed" notes=""/>
-  <url>http://ros.org/wiki/hrl_arm_control</url>
-  <depend stack="ros" />
-
-</stack>
