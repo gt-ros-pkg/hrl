@@ -17,7 +17,7 @@
   <depend package="zenither"/>
   <depend package="segway_vo"/>
   <depend package="vis_odometry_feat"/>
-  <depend package="segway_omni"/>
+  <depend package="hrl_segway_omni"/>
 
 </package>
 

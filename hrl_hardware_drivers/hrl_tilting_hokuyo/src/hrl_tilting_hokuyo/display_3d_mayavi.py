@@ -29,7 +29,7 @@
 
 import roslib; roslib.load_manifest('hrl_tilting_hokuyo')
 
-from enthought.mayavi import mlab
+from mayavi import mlab
 
 import sys,os,time
 import optparse

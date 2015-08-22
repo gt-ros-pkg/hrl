@@ -36,7 +36,8 @@ import pylab as pl
 import sys, optparse, time
 import copy
 
-from enthought.mayavi import mlab
+#from enthought.mayavi import mlab
+from mayavi import mlab
 
 import mekabot.hrl_robot as hr
 import mekabot.coord_frames as mcf

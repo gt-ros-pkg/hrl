@@ -13,9 +13,10 @@ from mayavi import mlab
 #import util as ut
 import roslib; roslib.load_manifest('doors_forces_kinematics')
 roslib.load_manifest('epc_core')
-import cody_arms.arms as ca
+
+import hrl_cody_arms.arms as ca
 #import mekabot.coord_frames as mcf
-import cody_arms.coord_frames as mcf
+import hrl_cody_arms.coord_frames as mcf
 
 import hrl_lib.util as ut, hrl_lib.transforms as tr
 
