@@ -1,4 +1,0 @@
-float64 a
-float64 b
----
-int8 r
