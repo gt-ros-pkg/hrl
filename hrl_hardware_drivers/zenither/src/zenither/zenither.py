@@ -71,7 +71,7 @@ class PoseBroadcast(threading.Thread):
 
         name = 'zenither_pose'
         print 'PoseBroadcast: publishing', name, 'with type FloatArray'
-        self.channel    = rospy.Publisher(name, FloatArray)
+        self.channel    = rospy.Publisher(name, FloatArray,queue_size=1)
         self.start()
 
     def run(self): 
@@ -211,28 +211,28 @@ class Zenither(object):
     def get_status_byte(self):
         self.serial_lock.acquire()
         self.servo.write("RS\n")
-        s = self.servo.readline(eol='\r')
+        s = self.servo.readline()
         self.serial_lock.release()
         return s
 
     def get_status_word(self):
         self.serial_lock.acquire()
         self.servo.write("RW\n")
-        s = self.servo.readline(eol='\r')
+        s = self.servo.readline()
         self.serial_lock.release()
         return s
 
     def report_and_clear(self):
         self.serial_lock.acquire()
         self.servo.write("RCS1\n")
-        s = self.servo.readline(eol='\r')
+        s = self.servo.readline()
         self.serial_lock.release()
         return s
 
     def get_mode(self):
         self.serial_lock.acquire()
         self.servo.write("RMODE\n")
-        s = self.servo.readline(eol='\r')
+        s = self.servo.readline()
         self.serial_lock.release()
         return s
 
@@ -305,7 +305,7 @@ class Zenither(object):
     def get_variable(self,var):
         self.serial_lock.acquire()
         self.servo.write('R'+var+'\n')
-        s = self.servo.readline(eol='\r')
+        s = self.servo.readline()
         self.serial_lock.release()
         return s.replace('\r','')
 
@@ -313,7 +313,7 @@ class Zenither(object):
         self.serial_lock.acquire()
         #print 'zenither.get_position: lock acquired'
         self.servo.write("RP\n")
-        s = self.servo.readline(eol='\r')
+        s = self.servo.readline()
         self.serial_lock.release()
         #print 'zenither.get_position: lock released'
         return s
@@ -706,10 +706,10 @@ class Zenither(object):
         self.serial_lock.acquire()
         self.servo.write("c=UCI\n")
         self.servo.write("Rc\n")
-        c = self.servo.readline(eol='\r')
+        c = self.servo.readline()
         self.servo.write("d=UDI\n")
         self.servo.write("Rd\n")
-        d = self.servo.readline(eol='\r')
+        d = self.servo.readline()
         self.serial_lock.release()
         return [c,d]
 
@@ -717,7 +717,7 @@ class Zenither(object):
         self.serial_lock.acquire()
         self.servo.write("t=T\n")
         self.servo.write("Rt\n")
-        t = self.servo.readline(eol='\r')
+        t = self.servo.readline()
         self.serial_lock.release()
         return t
 
@@ -728,7 +728,7 @@ class Zenither(object):
         self.serial_lock.acquire()
         self.servo.write("t=TEMP\n")
         self.servo.write("Rt\n")
-        t = float(self.servo.readline(eol='\r'))
+        t = float(self.servo.readline())
         self.serial_lock.release()
         return t
 
