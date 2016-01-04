@@ -1,0 +1,22 @@
+cmake_minimum_required(VERSION 2.8.3)
+project(zenither)
+
+find_package(catkin REQUIRED COMPONENTS
+  hrl_lib
+  hrl_msgs
+  hrl_srvs
+  rospy
+  std_srvs
+  tf
+)
+
+catkin_python_setup()
+
+catkin_package(
+  INCLUDE_DIRS #include
+  LIBRARIES #zenither
+  CATKIN_DEPENDS 
+  DEPENDS hrl_lib hrl_msgs hrl_srvs rospy std_srvs tf
+)
+
+
