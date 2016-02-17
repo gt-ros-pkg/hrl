@@ -40,7 +40,6 @@ from hrl_srvs.srv import Float_Int
 from hrl_msgs.msg import FloatArray
 
 
-
 class ZenitherClient():
     def __init__(self, robot):
         try:

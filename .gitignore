@@ -12,12 +12,15 @@
 # files created by text editors #
 #################################
 *.swp
+*.py~
+*~
 
 # ROS specific files and folders #
 ##################################
 build
 msg_gen
 srv_gen
+.idea
 
 # add repository specific paths here #
 #####################################################################

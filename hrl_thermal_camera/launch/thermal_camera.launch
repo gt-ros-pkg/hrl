@@ -1,0 +1,27 @@
+<launch>
+
+  <arg name="ip_address_s21" default="10.66.171.21" />
+  <arg name="ip_address_thermal" default="10.66.172.21" />
+  <arg name="namespace"  default="thermal_camera" />
+  <arg name="mtu"        default="7200" />
+
+  <param name="robot_description" textfile="$(find hrl_thermal_camera)/model/thermal_camera.urdf"/>
+
+  <param name="$(arg namespace)/fps" value="20"/>
+  <param name="$(arg namespace)/border_clip_value" value="50"/>
+  <param name="$(arg namespace)/stereo_post_filtering" value="0.85"/>
+
+  <!-- Robot state publisher -->
+  <node pkg="robot_state_publisher" type="state_publisher" name="$(arg namespace)_state_publisher" respawn="true">
+    <param name="publish_frequency" type="double" value="50.0" />
+    <param name="tf_prefix" value="" />
+  </node>
+
+  <!-- HRL Thermal Camera ROS Driver -->
+   <node pkg="hrl_thermal_camera" ns="$(arg namespace)" type="hrl_thermal_camera_node" name="hrl_thermal_camera_driver" output="screen">
+     <param name="sensor_ip"   value="$(arg ip_address_thermal)" />
+     <param name="sensor_mtu"  value="$(arg mtu)" />
+     <param name="tf_prefix"   value="/$(arg namespace)" />
+  </node>
+
+</launch>
