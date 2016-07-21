@@ -1,27 +1,50 @@
+<?xml version="1.0"?>
 <launch>
 
-  <arg name="ip_address_s21" default="10.66.171.21" />
-  <arg name="ip_address_thermal" default="10.66.172.21" />
-  <arg name="namespace"  default="thermal_camera" />
-  <arg name="mtu"        default="7200" />
+    <!--<node pkg="usb_cam" type="usb_cam_node" name="thermal_cam">-->
+        <!--&lt;!&ndash;<env name="ROS_NAMESPACE" value="/thermal"/>&ndash;&gt;-->
+        <!--<rosparam ns="/thermal_cam">-->
+            <!--video_device: /dev/video0-->
+            <!--invert: False-->
+            <!--pixel_format: yuyv-->
+            <!--&lt;!&ndash;image_width: 324&ndash;&gt;-->
+            <!--&lt;!&ndash;image_height: 256&ndash;&gt;-->
+            <!--image_width: 720-->
+            <!--image_height: 480-->
+            <!--&lt;!&ndash;image_width: 800&ndash;&gt;-->
+            <!--&lt;!&ndash;image_height: 600&ndash;&gt;-->
+            <!--&lt;!&ndash;io_method: userptr&ndash;&gt;-->
+            <!--camera_frame_id: thermal_cam-->
+            <!--camera_info_url: package://hrl_thermal_camera/cfg/thermal_cfg.yaml-->
+        <!--</rosparam>-->
+    <!--</node>-->
 
-  <param name="robot_description" textfile="$(find hrl_thermal_camera)/model/thermal_camera.urdf"/>
+    <!--<node pkg="usb_cam" type="usb_cam_node" name="thermal_cam">-->
+        <!--&lt;!&ndash;<env name="ROS_NAMESPACE" value="/thermal"/>&ndash;&gt;-->
+        <!--<rosparam ns="/thermal_cam">-->
+            <!--video_device: /dev/video0-->
+            <!--invert: False-->
+            <!--pixel_format: yuyv-->
+            <!--&lt;!&ndash;image_width: 324&ndash;&gt;-->
+            <!--&lt;!&ndash;image_height: 256&ndash;&gt;-->
+            <!--image_width: 720-->
+            <!--image_height: 480-->
+            <!--&lt;!&ndash;image_width: 800&ndash;&gt;-->
+            <!--&lt;!&ndash;image_height: 600&ndash;&gt;-->
+            <!--&lt;!&ndash;io_method: userptr&ndash;&gt;-->
+            <!--camera_frame_id: thermal_cam-->
+            <!--camera_info_url: package://hrl_thermal_camera/cfg/thermal_cfg.yaml-->
+        <!--</rosparam>-->
+    <!--</node>-->
 
-  <param name="$(arg namespace)/fps" value="20"/>
-  <param name="$(arg namespace)/border_clip_value" value="50"/>
-  <param name="$(arg namespace)/stereo_post_filtering" value="0.85"/>
+    <!--<node pkg="image_proc" type="image_proc" ns="thermal_cam" name="image_proc">-->
 
-  <!-- Robot state publisher -->
-  <node pkg="robot_state_publisher" type="state_publisher" name="$(arg namespace)_state_publisher" respawn="true">
-    <param name="publish_frequency" type="double" value="50.0" />
-    <param name="tf_prefix" value="" />
-  </node>
+    <!--</node>-->
 
-  <!-- HRL Thermal Camera ROS Driver -->
-   <node pkg="hrl_thermal_camera" ns="$(arg namespace)" type="hrl_thermal_camera_node" name="hrl_thermal_camera_driver" output="screen">
-     <param name="sensor_ip"   value="$(arg ip_address_thermal)" />
-     <param name="sensor_mtu"  value="$(arg mtu)" />
-     <param name="tf_prefix"   value="/$(arg namespace)" />
-  </node>
+    <node name="hrl_thermal_camera" pkg="hrl_thermal_camera" type="hrl_thermal_camera" output="screen"/>
+
+    <node pkg="hrl_thermal_camera" type="thermal_tf_publisher.py" name="thermal_tf_publisher" output="screen"/>
+
+    <node pkg="hrl_thermal_camera" type="thermal_pcloud_painter" name="thermal_pcloud_painter" output="screen"/>
 
 </launch>

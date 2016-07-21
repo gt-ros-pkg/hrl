@@ -1,49 +1,38 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(hrl_thermal_camera)
 
+## Find catkin macros and libraries
+## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
+## is used, also find other catkin packages
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+
+find_package(Ebus REQUIRED)
+find_package(OpenCV REQUIRED)
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  rospy
   std_msgs
-  genmsg
-  tf
-  multisense_lib
-  rosbag
+  pcl_ros
   sensor_msgs
   geometry_msgs
-  image_transport
-  cv_bridge
-  dynamic_reconfigure
   image_geometry
+  genmsg
   message_generation
+  message_runtime
+  tf
+  image_transport
+  dynamic_reconfigure
+  cv_bridge
+  rospy
+  usb_cam
+  image_proc
 )
 
 catkin_python_setup()
 
-set(CMAKE_C_FLAGS "-O2")
-set(CMAKE_CXX_FLAGS "-O2")
-
-
-
-## Generate messages in the 'msg' folder
-add_message_files(
-  FILES
-  DeviceInfo.msg
-  RawCamConfig.msg
-  RawImuData.msg
-  RawLidarData.msg
-  RawCamCal.msg
-  RawCamData.msg
-  RawLidarCal.msg
-  Histogram.msg
-  StampedPps.msg
-)
-
-## Generate added messages and services with any dependencies listed here
-generate_messages(DEPENDENCIES sensor_msgs std_msgs)
-
-## Generate dynamic reconfigure parameters in the 'cfg' folder
-generate_dynamic_reconfigure_options(cfg/multisense.cfg)
+#set(CMAKE_C_FLAGS "-O2")
+#set(CMAKE_CXX_FLAGS "-O2")
 
 ###################################
 ## catkin specific configuration ##
@@ -51,22 +40,23 @@ generate_dynamic_reconfigure_options(cfg/multisense.cfg)
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES ${PROJECT_NAME}
- CATKIN_DEPENDS roscpp
-                rospy
-                std_msgs
-                genmsg
-                tf
-                multisense_lib
-                rosbag
-                sensor_msgs
-                angles
-                cv_bridge
-                dynamic_reconfigure
-                image_geometry
-                image_transport
-                message_runtime
-                message_generation
- DEPENDS system_lib
+ CATKIN_DEPENDS   roscpp
+                  std_msgs
+                  pcl_ros
+                  sensor_msgs
+                  geometry_msgs
+                  image_geometry
+                  genmsg
+                  message_generation
+                  message_runtime
+                  tf
+                  image_transport
+                  dynamic_reconfigure
+                  cv_bridge
+                  rospy
+                  usb_cam
+                  image_proc
+ DEPENDS
 )
 
 ###########
@@ -77,16 +67,18 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
+  include
+  include/hrl_thermal_camera
   ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${Ebus_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
-add_library(${PROJECT_NAME}
-  src/camera.cpp
-  src/reconfigure.cpp
-)
-
-add_executable(hrl_thermal_camera_node src/hrl_thermal_camera_node.cpp)
+#add_library(${PROJECT_NAME}
+#  src/hrl_thermal_camera/pcloud_painter.cpp
+#  src/hrl_thermal_camera/painter.cpp
+#)
 
 #   src/${PROJECT_NAME}/hrl_thermal_camera.cpp
 # )
@@ -94,19 +86,26 @@ add_executable(hrl_thermal_camera_node src/hrl_thermal_camera_node.cpp)
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
-# add_dependencies(hrl_thermal_camera ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+#add_dependencies(hrl_thermal_camera ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
-# add_executable(hrl_thermal_camera_node src/hrl_thermal_camera_node.cpp)
+add_executable(thermal_pcloud_painter src/hrl_thermal_camera/painter.cpp src/hrl_thermal_camera/pcloud_painter.cpp )
+add_executable(hrl_thermal_camera  src/hrl_thermal_camera/hrl_thermal_camera.cpp  src/hrl_thermal_camera/hrl_thermal_camera_node.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-# add_dependencies(hrl_thermal_camera_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+#add_dependencies(hrl_thermal_camera_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(hrl_thermal_camera_node
-#   ${catkin_LIBRARIES}
-# )
+target_link_libraries(thermal_pcloud_painter
+  ${catkin_LIBRARIES}
+)
+
+target_link_libraries(hrl_thermal_camera
+    ${catkin_LIBRARIES}
+    ${OpenCV_LIBRARIES}
+    ${Ebus_LIBRARIES}
+    )
 
 #############
 ## Install ##
