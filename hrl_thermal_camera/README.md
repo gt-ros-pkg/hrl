@@ -1,12 +1,10 @@
+# HRL Thermal Camera Driver
+
+This package contains a ROS Driver for FLIR Tau2 Thermal Camera connected to the computer using a
+Pleora iPort Cameralink to USB 3.0 using Pleora SDK
+
 Some info on a package this code is based on:
 https://github.com/sam17/ace_USB3
-
-
-First you need to go to
-
-# ace_USB3
-A ROS Driver for FLIR Tau2 Thermal Camera connected to the computer using a
-Pleora iPort Cameralink to USB 3.0 using Pleora SDK
 
 ## Supported hardware
 This driver should work at least with a FLIR Tau2 Thermal Camera connected to the computer using a
@@ -18,7 +16,9 @@ Pleora iPort Cameralink to USB3 converter.
 
 `hrl_thermal_camera` is a driver for a FLIR Tau2 Thermal Camera.
 
-#### Published topics
+### Published topics
+
+This section is not complete or accurate
 
 `~image_raw` ([sensor_msgs/Image](http://docs.ros.org/api/sensor_msgs/html/msg/Image.html))
     The unprocessed image data.
@@ -31,10 +31,10 @@ To install, run the following command:
 ```bash
 cd install
 sudo sh setup-usb.sh
-sudo ./eBUS_SDK_X.X.X.X_armhf-X.run
+sudo ./eBUS_SDK_X.X.X.X_<etc>.run
 # accept all default options
-sudo /opt/pleora/ebus_sdk/linux-gnueabihf-arm/bin/install_daemon.sh
-source /opt/pleora/ebus_sdk/linux-gnueabihf-arm/bin/set_puregev_env
+sudo /opt/pleora/ebus_sdk/<your_linux_distribution>/bin/install_daemon.sh
+source /opt/pleora/ebus_sdk/<your_linux_distribution>/bin/set_puregev_env
 ```
 If you are using ubuntu 14.04, you need to install `libudev-dev` and link it into `/usr/lib`, since eBUS SDK links to that version by default.
 
