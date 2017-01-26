@@ -27,7 +27,7 @@
 #define BUFFER_COUNT ( 16 )
 
 
-class HRL_Thermal_Camera
+class HRLThermalCamera
 {
 	const PvDeviceInfo *lDeviceInfo = NULL;
 	PvDevice *lDevice = NULL;
@@ -46,8 +46,12 @@ class HRL_Thermal_Camera
 
 public:
 
-	HRL_Thermal_Camera();
-	~HRL_Thermal_Camera();
+	HRLThermalCamera();
+	~HRLThermalCamera();
+
+	void stop_capturing(void);
+  void start_capturing(void);
+  bool is_capturing();
 
 	void ConnectToDevice();
 	void OpenStream();

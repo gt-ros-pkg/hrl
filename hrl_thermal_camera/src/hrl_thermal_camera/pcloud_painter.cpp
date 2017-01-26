@@ -13,16 +13,21 @@ PCloud_Painter::PCloud_Painter(const ros::NodeHandle& nh_, const tf::TransformLi
 //	pcl::console::setVerbosityLevel(pcl::console::L_ALWAYS);
 
 	// In initialization I pull the transform from the left rgb camera (the frame for the rgb cloud) to the left thermal camera.
-	while (!tf_listener.canTransform("/thermal_cam","/head_mount_kinect_depth_optical_frame",ros::Time(0)))
+//	while (!tf_listener.canTransform("/thermal_camera","/head_mount_kinect_rgb_optical_frame",ros::Time(0)))
+//	    ROS_INFO_THROTTLE(1.0, "Waiting for transforms");
+//	tf_listener.lookupTransform("thermal_camera","head_mount_kinect_rgb_optical_frame",ros::Time(0),rgb_to_thermal_tf);
+	while (!tf_listener.canTransform("/thermal_camera_frame","/camera_rgb_optical_frame",ros::Time(0)))
 	    ROS_INFO_THROTTLE(1.0, "Waiting for transforms");
-	tf_listener.lookupTransform("thermal_cam","head_mount_kinect_depth_optical_frame",ros::Time(0),rgb_to_thermal_tf);
+	tf_listener.lookupTransform("thermal_camera_frame","camera_rgb_optical_frame",ros::Time(0),rgb_to_thermal_tf);
+
 
 	// In initialization I set the frame_id of the output message to be the multisense/thermal/left_camera_optical_frame
-	pointcloud_msg_header.frame_id = "head_mount_kinect_depth_optical_frame";
+//	pointcloud_msg_header.frame_id = "head_mount_kinect_rgb_optical_frame";
+	pointcloud_msg_header.frame_id = "camera_rgb_optical_frame";
 
 	// setup publishers/subscribers and the synchronizer.
 	painted_pcloud_pub = nh.advertise<sensor_msgs::PointCloud2>("painted_pcloud", 1);
-	thermal_camera_info_sub = nh.subscribe("/thermal_cam/camera_info", 1, &PCloud_Painter::thermal_camera_info_cb, this);
+	thermal_camera_info_sub = nh.subscribe("/thermal_camera/thermal_camera_driver/camera_info", 1, &PCloud_Painter::thermal_camera_info_cb, this);
 
 
 	currently_painting = false;
@@ -50,8 +55,21 @@ void
 PCloud_Painter::painting_callback (const sensor_msgs::ImageConstPtr& thermal_image_msg,
 						   	   	   const sensor_msgs::PointCloud2ConstPtr& rgb_pcloud_msg)
 {
-    std::cout << "hi";
-    ROS_INFO_STREAM("test_hi");
+  try
+  {
+    cv_ptr = cv_bridge::toCvCopy(thermal_image_msg, sensor_msgs::image_encodings::MONO16);
+  }
+  catch (cv_bridge::Exception& e)
+  {
+    std::cout<<"ERROR FROM CV BRIDGE FAILING TO CONVERT!!!!!\n";
+    std::cout<<"ERROR FROM CV BRIDGE FAILING TO CONVERT!!!!!\n";
+    std::cout<<"ERROR FROM CV BRIDGE FAILING TO CONVERT!!!!!\n";
+    std::cout<<"ERROR FROM CV BRIDGE FAILING TO CONVERT!!!!!\n";
+    ROS_ERROR("cv_bridge exception: %s", e.what());
+    return;
+  }
+//    std::cout << "hi";
+//    ROS_INFO_STREAM("test_hi");
 //    std::cout << rgb_to_thermal_tf;
     converted_cloud=*rgb_pcloud_msg;
 
@@ -73,22 +91,23 @@ PCloud_Painter::painting_callback (const sensor_msgs::ImageConstPtr& thermal_ima
 		cv::Point3d pt_cv(rgb_transformed_cloud.points[i].x, rgb_transformed_cloud.points[i].y, rgb_transformed_cloud.points[i].z);
 		uv = cam_model_.project3dToPixel(pt_cv);
 
-        color.value=0;
+    this_temp=0;
 
 		// Check that the point is within the image.
-        int clip_value=50;
+    int clip_value=2;
 		if (int(uv.x)<int(thermal_image_msg->width)-clip_value && int(uv.x)>=clip_value && int(uv.y)<int(thermal_image_msg->height)-clip_value && int(uv.y)>=clip_value) {
           // Find the thermal value of that pixel in the thermal image.
-          ind = 2*(int(uv.y)*thermal_image_msg->width + int(uv.x));
-          color.bytes[0]=thermal_image_msg->data[ind];
-          color.bytes[1]=thermal_image_msg->data[ind+1];
-        }
-
+          this_temp = cv_ptr->image.at<uint16_t>(uv.y, uv.x);
+//          ind = 2*(int(uv.y)*thermal_image_msg->width + int(uv.x));
+//          color.bytes[0]=thermal_image_msg->data[ind];
+//          color.bytes[1]=thermal_image_msg->data[ind+1];
+    }
+//    std::cout<<"temp: "<<this_temp<<"  ";
 		// Save the converted point with intensity.
-        float *fltPtr= reinterpret_cast<float*>(&(converted_cloud.data[i*converted_cloud.point_step+12]));
-        fltPtr[0] = static_cast<float>(color.value);
+        float *fltPtr= reinterpret_cast<float*>(&(converted_cloud.data[i*converted_cloud.point_step+16]));
+        fltPtr[0] = static_cast<float>(this_temp);
 	}
-
+  converted_cloud.fields[3].name = "intensity";
 	// Publish the converted cloud!
     painted_pcloud_pub.publish(converted_cloud);
 }
@@ -108,8 +127,9 @@ PCloud_Painter::spin()
 			{
 				currently_painting = true;
 				ROS_INFO_STREAM("Connecting to rgb pointcloud and thermal image. Starting to publish painted cloud.");
-                thermal_image_sub.subscribe(nh,"/thermal_cam/image_rect", 1);
-                rgb_pcloud_sub.subscribe(nh,"/head_mount_kinect/depth_registered/points", 1);
+                thermal_image_sub.subscribe(nh,"/thermal_camera/thermal_camera_driver/image_rect", 1);
+//                rgb_pcloud_sub.subscribe(nh,"/head_mount_kinect/qhd/points", 1);
+                rgb_pcloud_sub.subscribe(nh,"/camera/depth_registered/points", 1);
 
 				callback_control = sync.registerCallback(&PCloud_Painter::painting_callback, this);
 			}

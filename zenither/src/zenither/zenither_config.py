@@ -79,6 +79,31 @@ calib = {
         'max_height': 0.9,
         'min_height': 0.005
         },
+
+    'henrybot': {
+        #-------- Advait's explanation
+        # 1 rev of zenither = 10mm (from festo manual, page 10)
+        # 1 rev of animatics servo = 2000 encoder counts (pg 6, section 1.0 of the animatics manual)
+        # => 2000 counts = 10mm or 1 count = 1/200,000 meters
+        #
+        # for vel_factor and acc_factor, see Page 8 of Animatics manual
+        #
+        'robot': 'henrybot',
+        'pos_factor': 63.0 /2000000,
+        'vel_factor': 1.0/(32212.578*100),
+        'acc_factor': 1.0/(7.9166433*100),
+        'POS_MAX': 0.13,
+        'VEL_DEFAULT': 0.2,
+        'VEL_MAX': 0.4,
+        'ACC_DEFAULT':0.5,
+        'ACC_MAX':10.0,
+        'ZERO_BIAS':0.0,
+        'HAS_BRAKE':True,
+        'nadir_torque': -400,
+        'zenith_torque': 150,
+        'max_height': 0.13,
+        'min_height': 0.005
+        },
 }
 
 

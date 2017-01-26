@@ -14,25 +14,27 @@ class ThermalCameraTFBroadcaster(object):
         self.tf_listener = tf.TransformListener()
         rospy.sleep(2)
 
-        self.out_trans = [0., -0.07, 0.]
-        self.out_rot = [0., 0., 0., 1.]
+        self.out_trans = [0., -0.0425, 0.]
+        # self.out_rot = [0., 0., 1., -1.0]
+        self.out_rot = [0., 0., 0., 1.0]
 
         print 'Thermal TF broadcaster is up.'
         self.start_broadcast()
 
     def start_broadcast(self):
-        while (not self.tf_listener.canTransform('base_link', 'head_mount_kinect_ir_optical_frame', rospy.Time(0))) \
-                and not rospy.is_shutdown():
-                print 'Waiting for pr2 to exist in world.'
-                rospy.sleep(2)
+        # while (not self.tf_listener.canTransform('base_link', 'head_mount_kinect_rgb_optical_frame', rospy.Time(0))) \
+        #         and not rospy.is_shutdown():
+        #         print 'Waiting for pr2 to exist in world.'
+        #         rospy.sleep(2)
         rospy.sleep(1)
         rate = rospy.Rate(20.0)
         while not rospy.is_shutdown():
             # try:
             self.tf_broadcaster.sendTransform(self.out_trans, self.out_rot,
                                               rospy.Time.now(),
-                                              'thermal_cam',
-                                              'head_mount_kinect_depth_optical_frame')
+                                              'thermal_camera_frame',
+                                              'camera_depth_optical_frame')
+                                              # 'head_mount_kinect_rgb_optical_frame')
             rate.sleep()
             # except:
             #         print 'Thermal Camera TF broadcaster crashed while trying to broadcast!'

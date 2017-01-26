@@ -7,6 +7,7 @@
 #include <sensor_msgs/Image.h>
 #include <image_geometry/pinhole_camera_model.h>
 #include <opencv/cv.h>
+#include <cv_bridge/cv_bridge.h>
 
 // PCL specific includes
 #include <pcl_conversions/pcl_conversions.h>
@@ -34,13 +35,14 @@ private:
   sensor_msgs::Image 												thermal_image,
   	  	  	  	  	  	  	  	  	  	  	  	  	  	  	  	  	rgb_image;
   int 																ind;
+  uint16_t this_temp;
   float																thermal_val;
 
   tf::StampedTransform 												rgb_to_thermal_tf;
   std_msgs::Header 												    pointcloud_msg_header;
   bool																paint_cloud_active,
   	  	  	  	  	  	  	  	  	  	  	  	  	  	  	  	    currently_painting;
-
+  cv_bridge::CvImagePtr cv_ptr;
   bool has_camera;
   pcl::PointCloud<pcl::PointXYZI>                                   tcloud;
 

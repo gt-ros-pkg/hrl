@@ -90,7 +90,10 @@ include_directories(
 
 ## Declare a C++ executable
 add_executable(thermal_pcloud_painter src/hrl_thermal_camera/painter.cpp src/hrl_thermal_camera/pcloud_painter.cpp )
-add_executable(hrl_thermal_camera  src/hrl_thermal_camera/hrl_thermal_camera.cpp  src/hrl_thermal_camera/hrl_thermal_camera_node.cpp)
+#add_executable(hrl_thermal_camera  src/hrl_thermal_camera/hrl_thermal_camera.cpp  src/hrl_thermal_camera/hrl_thermal_camera_node.cpp)
+add_executable(hrl_thermal_camera src/hrl_thermal_camera/hrl_thermal_camera_node.cpp src/hrl_thermal_camera/hrl_thermal_camera.cpp)
+#add_executable(temp_to_bw_converter src/hrl_thermal_camera/black_and_white_conversion_main.cpp src/hrl_thermal_camera/black_and_white_conversion.cpp)
+add_executable(test_converter src/hrl_thermal_camera/image_converter.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
@@ -102,6 +105,18 @@ target_link_libraries(thermal_pcloud_painter
 )
 
 target_link_libraries(hrl_thermal_camera
+    ${catkin_LIBRARIES}
+    ${OpenCV_LIBRARIES}
+    ${Ebus_LIBRARIES}
+    )
+
+#target_link_libraries(temp_to_bw_converter
+#    ${catkin_LIBRARIES}
+#    ${OpenCV_LIBRARIES}
+#    ${Ebus_LIBRARIES}
+#    )
+
+target_link_libraries(test_converter
     ${catkin_LIBRARIES}
     ${OpenCV_LIBRARIES}
     ${Ebus_LIBRARIES}

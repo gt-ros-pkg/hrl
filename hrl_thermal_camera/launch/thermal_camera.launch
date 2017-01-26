@@ -1,50 +1,72 @@
 <?xml version="1.0"?>
 <launch>
 
-    <!--<node pkg="usb_cam" type="usb_cam_node" name="thermal_cam">-->
-        <!--&lt;!&ndash;<env name="ROS_NAMESPACE" value="/thermal"/>&ndash;&gt;-->
-        <!--<rosparam ns="/thermal_cam">-->
-            <!--video_device: /dev/video0-->
-            <!--invert: False-->
-            <!--pixel_format: yuyv-->
-            <!--&lt;!&ndash;image_width: 324&ndash;&gt;-->
-            <!--&lt;!&ndash;image_height: 256&ndash;&gt;-->
-            <!--image_width: 720-->
-            <!--image_height: 480-->
-            <!--&lt;!&ndash;image_width: 800&ndash;&gt;-->
-            <!--&lt;!&ndash;image_height: 600&ndash;&gt;-->
-            <!--&lt;!&ndash;io_method: userptr&ndash;&gt;-->
-            <!--camera_frame_id: thermal_cam-->
-            <!--camera_info_url: package://hrl_thermal_camera/cfg/thermal_cfg.yaml-->
-        <!--</rosparam>-->
-    <!--</node>-->
+  <!--<node pkg="usb_cam" type="usb_cam_node" name="thermal_cam">-->
+  <!--&lt;!&ndash;<env name="ROS_NAMESPACE" value="/thermal"/>&ndash;&gt;-->
+  <!--<rosparam ns="/thermal_cam">-->
+  <!--video_device: /dev/video0-->
+  <!--invert: False-->
+  <!--pixel_format: yuyv-->
+  <!--&lt;!&ndash;image_width: 324&ndash;&gt;-->
+  <!--&lt;!&ndash;image_height: 256&ndash;&gt;-->
+  <!--image_width: 720-->
+  <!--image_height: 480-->
+  <!--&lt;!&ndash;image_width: 800&ndash;&gt;-->
+  <!--&lt;!&ndash;image_height: 600&ndash;&gt;-->
+  <!--&lt;!&ndash;io_method: userptr&ndash;&gt;-->
+  <!--camera_frame_id: thermal_cam-->
+  <!--camera_info_url: package://hrl_thermal_camera/cfg/thermal_cfg.yaml-->
+  <!--</rosparam>-->
+  <!--</node>-->
 
-    <!--<node pkg="usb_cam" type="usb_cam_node" name="thermal_cam">-->
-        <!--&lt;!&ndash;<env name="ROS_NAMESPACE" value="/thermal"/>&ndash;&gt;-->
-        <!--<rosparam ns="/thermal_cam">-->
-            <!--video_device: /dev/video0-->
-            <!--invert: False-->
-            <!--pixel_format: yuyv-->
-            <!--&lt;!&ndash;image_width: 324&ndash;&gt;-->
-            <!--&lt;!&ndash;image_height: 256&ndash;&gt;-->
-            <!--image_width: 720-->
-            <!--image_height: 480-->
-            <!--&lt;!&ndash;image_width: 800&ndash;&gt;-->
-            <!--&lt;!&ndash;image_height: 600&ndash;&gt;-->
-            <!--&lt;!&ndash;io_method: userptr&ndash;&gt;-->
-            <!--camera_frame_id: thermal_cam-->
-            <!--camera_info_url: package://hrl_thermal_camera/cfg/thermal_cfg.yaml-->
-        <!--</rosparam>-->
-    <!--</node>-->
+  <!--<node pkg="usb_cam" type="usb_cam_node" name="thermal_cam">-->
+  <!--&lt;!&ndash;<env name="ROS_NAMESPACE" value="/thermal"/>&ndash;&gt;-->
+  <!--<rosparam ns="/thermal_cam">-->
+  <!--video_device: /dev/video0-->
+  <!--invert: False-->
+  <!--pixel_format: yuyv-->
+  <!--&lt;!&ndash;image_width: 324&ndash;&gt;-->
+  <!--&lt;!&ndash;image_height: 256&ndash;&gt;-->
+  <!--image_width: 720-->
+  <!--image_height: 480-->
+  <!--&lt;!&ndash;image_width: 800&ndash;&gt;-->
+  <!--&lt;!&ndash;image_height: 600&ndash;&gt;-->
+  <!--&lt;!&ndash;io_method: userptr&ndash;&gt;-->
+  <!--camera_frame_id: thermal_cam-->
+  <!--camera_info_url: package://hrl_thermal_camera/cfg/thermal_cfg.yaml-->
+  <!--</rosparam>-->
+  <!--</node>-->
 
-    <!--<node pkg="image_proc" type="image_proc" ns="thermal_cam" name="image_proc">-->
+  <!--<node pkg="image_proc" type="image_proc" ns="thermal_cam" name="image_proc">-->
 
-    <!--</node>-->
 
-    <node name="hrl_thermal_camera" pkg="hrl_thermal_camera" type="hrl_thermal_camera" output="screen"/>
 
-    <node pkg="hrl_thermal_camera" type="thermal_tf_publisher.py" name="thermal_tf_publisher" output="screen"/>
+  <!--</node>-->
+  <group ns="thermal_camera">
+    <!--<node pkg="hrl_thermal_camera" type="test_converter" name="image_converter" output="screen"/>-->
 
-    <node pkg="hrl_thermal_camera" type="thermal_pcloud_painter" name="thermal_pcloud_painter" output="screen"/>
+    <node ns="thermal_camera_driver" pkg="image_proc" type="image_proc" name="thermal_camera_image_proc" output="screen">
+      <!--<remap from="image_raw" to="thermal_camera_driver/image_raw"/>-->
+      <!--<remap from="camera_info" to="thermal_camera_driver/camera_info"/>-->
+    </node>
+
+    <!--<rosparam ns="thermal_camera" command="load" file="$(find hrl_thermal_camera)/params/thermal_camera_params.yaml"/>-->
+
+    <node name="thermal_camera_driver" pkg="hrl_thermal_camera" type="hrl_thermal_camera" output="screen">
+      <!--<rosparam ns="/thermal_camera">-->
+      <rosparam command="load" file="$(find hrl_thermal_camera)/params/thermal_camera_params.yml"/>
+
+      <!--camera_frame_id: test_thermal_cam-->
+      <!--</rosparam>-->
+    </node>
+    <!--<node pkg="hrl_thermal_camera" type="thermal_tf_publisher.py" name="thermal_tf_publisher" output="screen"/>-->
+    <!--<node pkg="hrl_thermal_camera" type="thermal_pcloud_painter" name="thermal_pcloud_painter" output="screen"/>-->
+  </group>
+
+
+
+  <!--<node pkg="hrl_thermal_camera" type="thermal_tf_publisher.py" name="thermal_tf_publisher" output="screen"/>-->
+
+  <!--<node pkg="hrl_thermal_camera" type="thermal_pcloud_painter" name="thermal_pcloud_painter" output="screen"/>-->
 
 </launch>

@@ -1,0 +1,25 @@
+camera_frame_id: 'thermal_camera_frame'
+
+framerate: 30
+
+image_width: 324
+image_height: 256
+camera_name: thermal_camera
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [499.174491, 0.000000, 139.838709, 0.000000, 250.329635, 140.300273, 0.000000, 0.000000, 1.000000]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.335985, 0.073981, -0.010357, 0.091403, 0.000000]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [483.832031, 0.000000, 154.258544, 0.000000, 0.000000, 233.761673, 139.208948, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]
+

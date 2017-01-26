@@ -97,17 +97,18 @@ class Zenither(object):
     servo = None
 
     def __init__(self, robot, max_command_retries=15, dev="/dev/robot/zenither",pose_read_thread=False):
+    # def __init__(self, robot, max_command_retries=15, dev="/dev/ttyUSB0",pose_read_thread=False):
         ''' robot- 'El-E' or 'HRL2'
             pose_read_thread - if you want a separate thread that constantly reads zenither height
                                and publishes using ROS.
         '''
-
         if robot not in zc.calib:
             raise RuntimeError('unknown robot')
         self.robot = robot
 
         self.dev = dev
         self.serial_lock = RLock()
+
         self.servo_start(max_command_retries)
 
         self.calib = zc.calib[robot]
@@ -143,9 +144,11 @@ class Zenither(object):
             #self.servo = serial.Serial("/dev/robot/zenither", timeout=0)
             self.servo = serial.Serial(self.dev, timeout=0)
         except (serial.serialutil.SerialException), e:
+            print 'first error'
             raise RuntimeError("Zenither: Serial port not found!\n")
         self.max_command_retries = max_command_retries
         if(self.servo == None):
+            print 'second error'
             raise RuntimeError("Zenither: Serial port not found!\n")
 
         #Without this platform will fall while zenith'ing
@@ -634,7 +637,7 @@ class Zenither(object):
     def move_position(self,position, velocity=None , acceleration=None, 
                       blocking = True, relative=False, approximate_pose = True):
 
-        if self.robot != 'El-E' and self.robot != 'test_rig':
+        if self.robot != 'El-E' and self.robot != 'test_rig' and self.robot != 'henrybot':
             raise RuntimeError(
                 'This function is unemplemented on robot\'s other than El-E, test_rig')
         if self.calib['HAS_BRAKE']:
