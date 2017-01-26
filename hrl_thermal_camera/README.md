@@ -41,7 +41,7 @@ If you are using ubuntu 14.04, you need to install `libudev-dev` and link it int
 ```bash
 sudo apt-get install libudev-dev
 cd /usr/lib
-sudo ln -s arm-linux-gnueabihf/libudev.so libudev.so.1
+sudo ln -s <your_linux_distribution>/libudev.so libudev.so.1
 ```
 
 Go to /opt/pleora/ebus_sdk/<your_linux_distribution>/share/samples and test using PvDeviceFinder. If it, works, The driver will work.
