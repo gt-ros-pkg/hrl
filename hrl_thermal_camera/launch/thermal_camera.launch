@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <launch>
+    <arg name="fps_limit" default="30"/>
 
     <node pkg="hrl_thermal_camera" type="test_converter" name="image_converter" output="screen"/>
 
@@ -8,7 +9,7 @@
 
     <node name="thermal_camera" pkg="hrl_thermal_camera" type="hrl_thermal_camera" output="screen">
       <rosparam command="load" file="$(find hrl_thermal_camera)/params/thermal_camera_params.yml"/>
-      <param name="framerate" value="10"/>
+      <param name="framerate" value="$(arg fps_limit)"/>
     </node>
 
 

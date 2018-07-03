@@ -78,7 +78,7 @@ public:
     // grab the parameters
     node_.param("image_width", image_width_, 640);
     node_.param("image_height", image_height_, 480);
-    node_.param("framerate", framerate_, 15);
+    node_.param("framerate", framerate_, 30);
     node_.param("distortion_model", distortion_model_, std::string("plumb_bob"));
     node_.getParam("distortion_coefficients/data", distortion_coefficients_);
     node_.getParam("camera_matrix/data", camera_matrix_);
