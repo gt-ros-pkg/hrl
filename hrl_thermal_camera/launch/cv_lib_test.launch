@@ -1,7 +1,0 @@
-<?xml version="1.0"?>
-<launch>
-
-    <node name="thermal_camera_driver" pkg="hrl_thermal_camera" type="cv_lib_test" output="screen">
-    </node>
-
-</launch>
