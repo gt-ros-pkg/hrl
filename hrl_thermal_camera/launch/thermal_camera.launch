@@ -2,7 +2,7 @@
 <launch>
     <arg name="fps_limit" default="30"/>
 
-    <node pkg="hrl_thermal_camera" type="test_converter" name="image_converter" output="screen"/>
+    <!--node pkg="hrl_thermal_camera" type="test_converter" name="image_converter" output="screen"/-->
 
     <!--node ns="thermal_camera_driver" pkg="image_proc" type="image_proc" name="thermal_camera_image_proc" output="screen">
     </node-->

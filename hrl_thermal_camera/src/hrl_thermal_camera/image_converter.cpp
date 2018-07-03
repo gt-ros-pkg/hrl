@@ -5,6 +5,7 @@
 //#include <opencv2/imgproc/imgproc.hpp>
 //#include <opencv2/highgui/highgui.hpp>
 #include <iostream>
+#include <string>
 
 static const std::string OPENCV_WINDOW = "Image window";
 
@@ -20,13 +21,20 @@ class ImageConverter
   uint16_t cur_max;
   uint16_t cur_min;
   uint16_t cutoff;
+  //int root_package_;
 
 public:
-  ImageConverter()
-    : it_(nh_)
+  ImageConverter() :
+      it_(nh_)
   {
+    ros::NodeHandle nodeIC_("~");
+    std::string root_package_;
+    nodeIC_.param<std::string>("root_package",root_package_,"");
+    std::cout<<"the root package is "+root_package_<<std::endl; 
+
+
     // Subscrive to input video feed and publish output video feed
-    image_sub_ = it_.subscribe("/thermal_camera/image_raw", 1, &ImageConverter::imageCb, this);
+    image_sub_ = it_.subscribe(root_package_+"/thermal_camera/image_raw", 1, &ImageConverter::imageCb, this);
     image_pub_ = it_.advertise("thermal_camera/bw_converted_image", 1);
 
 //    cv::namedWindow(OPENCV_WINDOW);
