@@ -7,8 +7,7 @@
     <!--node ns="thermal_camera_driver" pkg="image_proc" type="image_proc" name="thermal_camera_image_proc" output="screen">
     </node-->
 
-    <node name="thermal_camera" pkg="hrl_thermal_camera" type="hrl_thermal_camera" output="screen" launch-prefix="taskset -c 0"
-	required="true" >
+    <node name="thermal_camera" pkg="hrl_thermal_camera" type="hrl_thermal_camera" output="screen" required="true" >
       <rosparam command="load" file="$(find hrl_thermal_camera)/params/thermal_camera_params.yml"/>
       <param name="framerate" value="$(arg fps_limit)"/>
     </node>
