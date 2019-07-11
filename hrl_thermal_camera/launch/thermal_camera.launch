@@ -12,7 +12,4 @@
       <param name="framerate" value="$(arg fps_limit)"/>
     </node>
 
-
-
-
 </launch>
